@@ -225,10 +225,16 @@ Expected: PASS, 3 tests.
 - [ ] **Step 6: Confirm the layering constraint holds**
 
 ```bash
-grep -rE "^import (Metal|AppKit|UIKit)" Sources/MetalUILayout/ && echo "LAYERING VIOLATION" || echo "clean"
+grep -rnE "^import (Metal|AppKit|UIKit|MetalUIRender|MetalUIPlatform)$" \
+  Sources/MetalUILayout/ && echo "LAYERING VIOLATION" || echo "clean"
 ```
 
 Expected: `clean`.
+
+The `$` anchor and the explicit module list are both load-bearing. Without them
+the pattern matches the *mandatory* `import MetalUICore` by prefix and reports a
+violation on correct code — a check that can never pass is as useless as one that
+can never fail.
 
 - [ ] **Step 7: Commit**
 
@@ -348,9 +354,21 @@ public func roundLayout(_ rects: [LayoutRect]) -> [LayoutRect] {
 Run: `swift test --filter RoundingTests`
 Expected: PASS, 4 tests.
 
-- [ ] **Step 5: Prove the test can fail**
+- [ ] **Step 5: Commit**
 
-Temporarily replace the body with naive per-dimension rounding and confirm the drift test reddens:
+```bash
+git add -A
+git commit -m "feat(layout): add cumulative rounding shared by engine and oracle"
+```
+
+Commit **before** mutating, not after. `git checkout <file>` silently restores
+nothing when the file is still untracked, so a mutation performed first can
+survive into the commit — the revert appears to succeed and does nothing.
+
+- [ ] **Step 6: Prove the test can fail**
+
+Now that the file is tracked, temporarily replace the body with naive
+per-dimension rounding and confirm the drift test reddens:
 
 ```bash
 python3 - <<'PY'
@@ -365,17 +383,15 @@ open(p, "w").write(s.replace(old, new))
 PY
 swift test --filter RoundingTests 2>&1 | grep -c "Expectation failed"
 git checkout Sources/MetalUILayout/Rounding.swift
+grep -c MUTANT Sources/MetalUILayout/Rounding.swift   # must print 0
 swift test --filter RoundingTests 2>&1 | tail -2
+git status --short                                     # must be empty
 ```
 
-Expected: a non-zero failure count while mutated, then PASS after revert. If the mutant passes, the test is not constraining the property and must be fixed before continuing.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add -A
-git commit -m "feat(layout): add cumulative rounding shared by engine and oracle"
-```
+Expected: a non-zero failure count while mutated, then `0` from the grep and PASS
+after revert, with a clean tree. If the mutant passes, the test is not
+constraining the property and must be fixed before continuing. If the grep prints
+anything but `0`, the revert did not take — fix it before going further.
 
 ---
 
@@ -476,7 +492,7 @@ import Foundation
     <!doctype html><html><head><style>
       * { box-sizing: border-box; margin: 0 } body { margin: 0 }
       #r { display: flex; width: 100px } #r > div { flex: 1 1 0 }
-    </style></head><body><div id="r">\(String(repeating: "<div data-id=\\"x\\"></div>", count: 7))</div></body></html>
+    </style></head><body><div id="r">\(String(repeating: "<div data-id=\"x\"></div>", count: 7))</div></body></html>
     """
     let oracle = LayoutOracle(viewport: CGSize(width: 400, height: 200))
     let boxes = try await oracle.measure(html: html)
@@ -791,7 +807,7 @@ git commit -m "test(layout): add golden generator and the first two fixtures"
 - Consumes: `Style`, `LayoutRect`.
 - Produces:
   - `enum AvailableSpace: Sendable, Equatable { case definite(Double), minContent, maxContent }`
-  - `typealias MeasureFunction = @Sendable (_ known: SizeD, _ available: AvailableSpaceSize) -> SizeD`
+  - `typealias MeasureFunction = @Sendable (_ known: OptionalSizeD, _ available: AvailableSpaceSize) -> SizeD`
   - `struct SizeD: Sendable, Equatable { var width, height: Double }`, `struct OptionalSizeD: Sendable, Equatable { var width, height: Double? }`, `struct AvailableSpaceSize: Sendable, Equatable { var width, height: AvailableSpace }`
   - `struct LayoutNodeID: Hashable, Sendable { let index: Int }`
   - `final class LayoutTree` with `newNode(style:children:) -> LayoutNodeID`, `newLeaf(style:measure:) -> LayoutNodeID`, `style(_:) -> Style`, `setStyle(_:_:)`, `children(_:) -> [LayoutNodeID]`, `measure(_:) -> MeasureFunction?`, `layout(_:) -> LayoutRect`, `setLayout(_:_:)`, `reset()`, `nodeCount: Int`
@@ -1210,7 +1226,10 @@ import MetalUICore
 
 /// Build a tree from a fixture's shape by hand, run layout, and compare every
 /// node against the browser's answer for the same fixture.
-private func px(_ v: Double) -> Dimension { .length(.pixels(Pixels(Float(v)))) }
+// Qualified: `Foundation.Dimension` (a Measurement unit) collides with
+// `MetalUICore.Dimension` once Foundation is imported, and the test file
+// imports it for CGSize.
+private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(Float(v)))) }
 
 private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeID {
     var s = Style()
@@ -1390,7 +1409,12 @@ private func layoutChildren(
 Run: `swift test --filter FlexEngineTests`
 Expected: PASS, 3 tests. The WebKit comparison is the one that matters — if the hand-written expectations pass but the browser comparison fails, trust the browser and fix the engine.
 
-- [ ] **Step 6: Add both fixtures to the corpus list**
+- [ ] **Step 6: Add both fixtures to the corpus list and compare the column case**
+
+The column fixture is generated but never compared — add a WebKit comparison for
+it mirroring `rowOfFixedChildrenMatchesWebKit`, or the fixture is dead weight that
+proves nothing.
+
 
 In `Tests/MetalUILayoutTests/GeneratorTests.swift`, extend `allFixtures`:
 

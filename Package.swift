@@ -12,6 +12,13 @@ let package = Package(
         .target(name: "MetalUICore"),
         .testTarget(name: "MetalUICoreTests", dependencies: ["MetalUICore"]),
 
+        .target(name: "MetalUILayout", dependencies: ["MetalUICore"]),
+        .testTarget(
+            name: "MetalUILayoutTests",
+            dependencies: ["MetalUILayout"],
+            resources: [.copy("Fixtures"), .copy("Golden")]
+        ),
+
         .target(name: "MetalUIShaderTypes"),
 
         .target(
