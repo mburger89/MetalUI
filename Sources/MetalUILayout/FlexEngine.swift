@@ -66,16 +66,31 @@ private func roundStoredRects(_ tree: LayoutTree, _ node: LayoutNodeID) {
 /// Split out because §9.7 resolves free space across the *whole* line before any
 /// item is positioned — a single loop that sizes and places as it goes cannot
 /// express that.
+///
+/// **Written but unread, today:** `collectItems` sets `baseSize`,
+/// `hypotheticalMainSize` and `frozen` on every item, and nothing downstream
+/// reads any of the three yet — `positionItems` only ever reads
+/// `targetMainSize` and `crossSize`. That is deliberate schema-ahead-of-
+/// behaviour, not an abandoned surface: this task only lays the phase
+/// boundary, and each field goes live on a specific later task —
+/// `baseSize`/`hypotheticalMainSize` when Task 2 implements §9.2 flex base
+/// size and min/max clamping, `frozen` when Task 3 implements the §9.7
+/// freeze loop that both grows/shrinks `targetMainSize` and reads `frozen` to
+/// stop revisiting an item. Until then, `targetMainSize` is seeded from
+/// `hypotheticalMainSize` and never changed, so the two are numerically
+/// identical — do not read that as `hypotheticalMainSize` being redundant;
+/// it is the value Task 3 diffs against to find free space to distribute.
 struct FlexItem {
     let node: LayoutNodeID
-    /// §9.2 flex base size, before min/max clamping.
+    /// §9.2 flex base size, before min/max clamping. Unread until Task 2.
     var baseSize: Double
-    /// §9.2 base size clamped by min/max.
+    /// §9.2 base size clamped by min/max. Unread until Task 2.
     var hypotheticalMainSize: Double
     /// The size after §9.7 distributes free space. Starts at hypothetical.
     var targetMainSize: Double
     var crossSize: Double
-    /// §9.7 freezes an item once its size is final.
+    /// §9.7 freezes an item once its size is final. Always `false`, and
+    /// unread, until Task 3 implements the freeze loop.
     var frozen: Bool
 }
 
@@ -129,13 +144,17 @@ private func resolveRootSize(
 /// Resolve a node's own border-box size from its style.
 ///
 /// This is for nodes whose size comes from their own style alone — a flex
-/// item's cross axis, and any node reached from `collectItems`. **It is
-/// deliberately not the root path, and not a flex item's main axis:** a flex
-/// item's main size comes from `flexBaseSize(_:)` and §9.7, never from here,
-/// and unlike `resolveRootSize` this function never falls back to an offered
-/// available extent (ruling F-1) — an auto-sized item is 0 until Task 2 lands
-/// flex base size. Adding an `available` fallback here would recreate the
-/// scope-boundary placeholder that ruling PF-3 exists to prevent.
+/// item's cross axis, and any node reached from `collectItems`. **Today it is
+/// also where `collectItems` gets an item's main axis**, because flex base
+/// size (§9.2) has not been implemented yet: Task 2 replaces that one call
+/// with `flexBaseSize(_:)`, at which point this function stops touching the
+/// main axis at all. It must never grow a `flexBasis` branch of its own to
+/// get there early — ruling PF-3
+/// (`docs/superpowers/2026-08-25-m1a-decisions.md`) named exactly that
+/// shortcut as the failure mode: an auto-sized item quietly inheriting a
+/// fallback that was only ever meant to be temporary. That is also why,
+/// unlike `resolveRootSize`, this function never falls back to an offered
+/// available extent — an auto-sized item is 0 until Task 2 lands.
 private func resolveNodeSize(
     _ tree: LayoutTree,
     _ node: LayoutNodeID,
@@ -173,7 +192,7 @@ private func layoutContainer(
     // §9.7 lands here in Task 3. Until then every item keeps its hypothetical
     // main size, which is what the pre-split code did.
     positionItems(tree, container, items: items, containerOrigin: containerOrigin,
-                 containerSize: containerSize, rootFontSize: rootFontSize)
+                  containerSize: containerSize, rootFontSize: rootFontSize)
 }
 
 /// Phase 1 — size every item without positioning any of them.

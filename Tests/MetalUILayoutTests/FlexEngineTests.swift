@@ -111,7 +111,7 @@ func assertMatchesGolden(
 }
 
 /// `gap` adds a fixed run between adjacent items, and never before the first or
-/// after the last. Deleting the `+ gap` term in `layoutChildren` left the whole
+/// after the last. Deleting the `+ gap` term in `positionItems` left the whole
 /// suite green before this test and `flex_row_gap` existed.
 @Test func gapSeparatesAdjacentItemsButNotTheEnds() {
     let (tree, root, x, y, z) = threeFixedChildren(direction: .row, width: 300, height: 50, gap: 12)
@@ -211,17 +211,29 @@ func assertMatchesGolden(
 /// leaves: three children of 100/3 in a 100-wide row must close exactly on the
 /// parent (33 + 34 + 33 = 100), which only holds if rounding walks the whole
 /// cumulative main axis rather than rounding each width independently.
+/// 3 children of 100/3 in a 100 row, and a fractional-width **grandchild**
+/// nested inside the middle one.
+///
+/// The grandchild is not decoration: `roundStoredRects` claims to round
+/// "every node's stored rect, depth-first" (`FlexEngine.swift`), but the only
+/// other nested fixture in this suite —
+/// `nestedContainersStoreAbsoluteNotRelativeCoordinates` — is entirely
+/// integral, so it cannot tell a depth-first rounding pass from one that
+/// rounds only the root's direct children. Deleting `roundStoredRects`'s
+/// `for kid in tree.children(node)` recursion left this whole file green
+/// before `grandchild` was added to the loop below; it reddens now because
+/// `grandchild`'s absolute position inherits `b`'s fractional raw origin.
 @Test func computeLayoutRoundsEveryStoredRect() {
-    // 3 children of 100/3 in a 100 row. Cumulative rounding must make the
-    // widths 33/34/33 and close the row exactly on the parent.
     let tree = LayoutTree()
-    func third() -> LayoutNodeID {
+    // A fractional-width leaf, nested one level inside `b` below.
+    let grandchild = fixedChild(tree, w: 100.0 / 7.0, h: 5)
+    func third(children: [LayoutNodeID] = []) -> LayoutNodeID {
         var s = Style()
         s.size = Size(width: MetalUICore.Dimension.length(.pixels(Pixels(Float(100.0 / 3.0)))),
                       height: px(10))
-        return tree.newNode(style: s, children: [])
+        return tree.newNode(style: s, children: children)
     }
-    let a = third(), b = third(), c = third()
+    let a = third(), b = third(children: [grandchild]), c = third()
     var rootStyle = Style()
     rootStyle.flexDirection = .row
     rootStyle.size = Size(width: px(100), height: px(10))
@@ -230,8 +242,9 @@ func assertMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(400), height: .definite(400)))
 
-    // Every stored value is a whole number — nothing fractional survives.
-    for n in [root, a, b, c] {
+    // Every stored value is a whole number — nothing fractional survives,
+    // at the root's direct children (a, b, c) or two levels down (grandchild).
+    for n in [root, a, b, c, grandchild] {
         let r = tree.layout(n)
         #expect(r.x == r.x.rounded(), "x \(r.x) not rounded")
         #expect(r.width == r.width.rounded(), "width \(r.width) not rounded")

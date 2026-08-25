@@ -30,13 +30,16 @@ public struct LayoutRect: Sendable, Equatable {
 ///   of layout — after positioning, so every rect it rounds is already
 ///   root-absolute, which is this function's precondition.
 ///
-/// Before the engine called it, the comparison above could not detect a missing
-/// rounding pass at all: every fixture in the corpus laid out on integral pixel
-/// boundaries, so a fixture's raw and rounded boxes were the same numbers, and
-/// pointing the test helper at `golden.raw` instead would have left the whole
-/// suite green. `flex-grow` splitting 100 across seven items (100/7 each) is the
-/// kind of layout where raw and rounded genuinely diverge — see
-/// `computeLayoutRoundsEveryStoredRect` in `FlexEngineTests.swift`.
+/// The corpus comparison above still cannot detect a missing rounding pass:
+/// every fixture in it lays out on integral pixel boundaries, so a fixture's
+/// raw and rounded boxes are the same numbers, and pointing the test helper at
+/// `golden.raw` instead would leave the whole suite green. The only test that
+/// currently catches a missing or broken rounding pass is the hand-written
+/// `computeLayoutRoundsEveryStoredRect` in `FlexEngineTests.swift`, which uses
+/// non-integral children (100/3 each) precisely because the corpus cannot.
+/// `flex-grow` splitting 100 across seven items (100/7 each) is the kind of
+/// real layout where this starts to matter for the corpus too, once a
+/// non-integral fixture exists.
 public func roundLayout(_ rects: [LayoutRect]) -> [LayoutRect] {
     rects.map { r in
         let x0 = r.x.rounded()
