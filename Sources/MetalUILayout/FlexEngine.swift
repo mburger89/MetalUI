@@ -83,6 +83,10 @@ private func roundStoredRects(_ tree: LayoutTree, _ node: LayoutNodeID) {
 /// ever goes back to being written and never read, say so here: silence at a
 /// declaration reads as "consumed".
 ///
+/// That is a claim about the **fields**, and one of the *writes* at
+/// construction is nonetheless dead: the value `collectItems` gives
+/// `targetMainSize` is never read. See that field's own comment.
+///
 /// `hypotheticalMainSize` and `targetMainSize` are no longer numerically
 /// identical. They coincide only for an item §9.7.1 froze outright.
 struct FlexItem {
@@ -107,9 +111,30 @@ struct FlexItem {
     /// resolution, one place: `collectItems`.
     var minMain: Double?
     var maxMain: Double?
-    /// The size after §9.7 distributes free space. Seeded from the
-    /// hypothetical size, then resolved by the freeze loop; the only size
+    /// The size after §9.7 distributes free space — the only size
     /// `positionItems` reads.
+    ///
+    /// **The value passed here at construction is dead. It is not a seed the
+    /// freeze loop refines.** §9.7.2 assigns `targetMainSize` unconditionally
+    /// across `items.indices` — every item takes either its hypothetical size
+    /// (if frozen) or its base size (if not) — before anything reads the field,
+    /// and both guards on the way in (`layoutContainer`'s `!items.isEmpty` and
+    /// `resolveFlexibleLengths`' own) return early on an empty line. So no
+    /// constructed item can reach `positionItems` without passing through that
+    /// loop. Measured rather than reasoned: setting the argument at
+    /// `collectItems`' `FlexItem(...)` to `-999` leaves the whole suite green.
+    ///
+    /// It is kept because Swift requires every stored property initialised and
+    /// both alternatives are worse. A default on this declaration would
+    /// relocate the same dead write rather than remove it — `-999` would still
+    /// be expressible and still green. Splitting `FlexItem` into a pre- and
+    /// post-§9.7 pair would delete the write, at the price of moving §9.7.2's
+    /// "unfrozen items start at their base size" rule out of the block that
+    /// cites the spec for it, into `collectItems`.
+    ///
+    /// Consequences for anyone editing this file: do not build anything on the
+    /// value written at construction, and do not read this field before
+    /// `resolveFlexibleLengths` has run.
     var targetMainSize: Double
     /// The item's own style's cross-axis size. **Alignment is not
     /// implemented**, so an item with no explicit cross size is 0 here where a
@@ -309,6 +334,11 @@ private func collectItems(
             let own = resolveNodeSize(tree, kid, parent: parent, rootFontSize: rootFontSize)
             let cross = isRow ? own.height : own.width
 
+            // `targetMainSize:` here is dead — §9.7.2 overwrites it on every
+            // item before it is read, and no empty-line path reaches
+            // `positionItems`. It repeats `hypothetical` only because a
+            // constructor must pass something; nothing depends on which value.
+            // See the field's declaration.
             return FlexItem(node: kid, baseSize: base, hypotheticalMainSize: hypothetical,
                             minMain: minMain, maxMain: maxMain,
                             targetMainSize: hypothetical, crossSize: cross, frozen: false)

@@ -30,16 +30,32 @@ public struct LayoutRect: Sendable, Equatable {
 ///   of layout — after positioning, so every rect it rounds is already
 ///   root-absolute, which is this function's precondition.
 ///
-/// The corpus comparison above still cannot detect a missing rounding pass:
-/// every fixture in it lays out on integral pixel boundaries, so a fixture's
-/// raw and rounded boxes are the same numbers, and pointing the test helper at
-/// `golden.raw` instead would leave the whole suite green. The only test that
-/// currently catches a missing or broken rounding pass is the hand-written
-/// `computeLayoutRoundsEveryStoredRect` in `FlexEngineTests.swift`, which uses
-/// non-integral children (100/3 each) precisely because the corpus cannot.
-/// `flex-grow` splitting 100 across seven items (100/7 each) is the kind of
-/// real layout where this starts to matter for the corpus too, once a
-/// non-integral fixture exists.
+/// **The corpus now detects a missing rounding pass, and it did not always.**
+/// An earlier version of this comment said every fixture was integral, that
+/// pointing the comparison helpers at `golden.raw` would leave the suite green,
+/// and that `computeLayoutRoundsEveryStoredRect` was the only test that could
+/// catch a missing pass. All three were measured false during the whole-branch
+/// review. What is true, measured at 115 tests and 16 fixtures:
+///
+/// - **Two fixtures are non-integral**: `flex_row_shrink` (WebKit's 1/64
+///   quantum puts `a` at 133.328125 and `b` at 66.671875) and
+///   `flex_row_seven_equal` (100 split seven ways, 14.28125 each). The other
+///   fourteen still have `raw == rounded`.
+/// - **Deleting `roundStoredRects`' call from `computeLayout` reddens three
+///   tests**: `computeLayoutRoundsEveryStoredRect`, `shrinkIsWeightedByBaseSize`
+///   and `shrinkMatchesWebKit`.
+/// - **Pointing both golden-comparison helpers at `golden.raw` reddens exactly
+///   one**: `shrinkMatchesWebKit`. `flex_row_shrink` is the only non-integral
+///   fixture an *engine* comparison consumes; `flex_row_seven_equal`'s sole
+///   consumer, `generatorRoundsWhenTheBrowserQuantizes`, measures the browser
+///   and never runs the engine, so it cannot notice which space it is compared
+///   in.
+///
+/// That last asymmetry is the live hazard: the raw/rounded distinction rests on
+/// one fixture reaching one comparison. Deleting `flex_row_shrink`, or giving it
+/// bases that divide evenly, restores the exact blind spot this paragraph used
+/// to describe — and nothing would say so. Re-measure these three claims rather
+/// than trusting them; they have been wrong once already.
 public func roundLayout(_ rects: [LayoutRect]) -> [LayoutRect] {
     rects.map { r in
         let x0 = r.x.rounded()
