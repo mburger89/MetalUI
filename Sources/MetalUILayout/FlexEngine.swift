@@ -356,16 +356,20 @@ private func positionItems(
 ) {
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
+    let containerMain = isRow ? containerSize.width : containerSize.height
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
-                            against: isRow ? containerSize.width : containerSize.height,
+                            against: containerMain,
                             rootFontSize: rootFontSize) ?? 0
 
-    var cursor: Double = 0
+    let content = lineContentSize(items, gap: gap)
+    let offsets = distributeMainAxis(s.justifyContent ?? .flexStart,
+                                     freeSpace: containerMain - content,
+                                     itemCount: items.count)
+
+    var cursor: Double = offsets.leading
     for (index, item) in items.enumerated() {
-        // Between items only. A trailing gap is invisible today because `cursor`
-        // dies with the loop, but `justify-content` will read the final cursor as
-        // the line's content size, where it is a real off-by-`gap` bug.
-        if index > 0 { cursor += gap }
+        // Between items only.
+        if index > 0 { cursor += gap + offsets.between }
 
         let x = containerOrigin.0 + (isRow ? cursor : 0)
         let y = containerOrigin.1 + (isRow ? 0 : cursor)

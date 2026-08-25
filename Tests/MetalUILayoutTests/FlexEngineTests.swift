@@ -366,3 +366,76 @@ func assertMatchesGolden(
                         ids: [root: "root", x: "x", y: "y", z: "z"],
                         golden: golden, tolerance: 0.1)
 }
+
+/// Three items of differing main sizes, an explicit cross size on every one,
+/// and strictly positive free space — the shape shared by all four
+/// `justify-content` fixtures. `justify` is applied to the root; the row
+/// fixtures share sizes (40/70/50 wide, 40 tall in a 400-wide container), the
+/// column fixture inverts the axes (40/70/50 tall, 60 wide in a 400-tall
+/// container).
+private func threeJustifiedChildren(
+    direction: FlexDirection,
+    justify: JustifyContent,
+    width: Double,
+    height: Double
+) -> (LayoutTree, root: LayoutNodeID, a: LayoutNodeID, b: LayoutNodeID, c: LayoutNodeID) {
+    let tree = LayoutTree()
+    let isRow = direction.isRow
+    let a = isRow ? fixedChild(tree, w: 40, h: 40) : fixedChild(tree, w: 60, h: 40)
+    let b = isRow ? fixedChild(tree, w: 70, h: 40) : fixedChild(tree, w: 60, h: 70)
+    let c = isRow ? fixedChild(tree, w: 50, h: 40) : fixedChild(tree, w: 60, h: 50)
+    var rootStyle = Style()
+    rootStyle.flexDirection = direction
+    rootStyle.justifyContent = justify
+    rootStyle.size = Size(width: px(width), height: px(height))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+    return (tree, root, a, b, c)
+}
+
+@Test func rowJustifySpaceBetweenMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_justify_between")
+    let (tree, root, a, b, c) = threeJustifiedChildren(direction: .row, justify: .spaceBetween,
+                                                        width: 400, height: 40)
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
+@Test func rowJustifySpaceAroundMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_justify_around")
+    let (tree, root, a, b, c) = threeJustifiedChildren(direction: .row, justify: .spaceAround,
+                                                        width: 400, height: 40)
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
+@Test func rowJustifySpaceEvenlyMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_justify_evenly")
+    let (tree, root, a, b, c) = threeJustifiedChildren(direction: .row, justify: .spaceEvenly,
+                                                        width: 400, height: 40)
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
+@Test func columnJustifyCenterMatchesWebKit() throws {
+    let golden = try loadGolden("flex_column_justify_center")
+    let (tree, root, a, b, c) = threeJustifiedChildren(direction: .column, justify: .center,
+                                                        width: 60, height: 400)
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}

@@ -63,6 +63,10 @@ let allFixtures: [(String, CGSize)] = [
     ("flex_row_explicit_min",    CGSize(width: 800, height: 600)),
     ("flex_row_percent_basis",   CGSize(width: 800, height: 600)),
     ("flex_row_shrink_to_zero",  CGSize(width: 800, height: 600)),
+    ("flex_row_justify_between", CGSize(width: 800, height: 600)),
+    ("flex_row_justify_around",  CGSize(width: 800, height: 600)),
+    ("flex_row_justify_evenly",  CGSize(width: 800, height: 600)),
+    ("flex_column_justify_center", CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.
