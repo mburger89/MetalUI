@@ -111,7 +111,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 113 tests, warning-free. Six non-test targets with
+`swift build` · `swift test` — 115 tests, warning-free. Six non-test targets with
 strictly one-way dependencies (`docs/superpowers/specs/…` §3.1).
 
 Two constraints that are easy to violate silently:
