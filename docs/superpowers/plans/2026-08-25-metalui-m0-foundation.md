@@ -21,6 +21,24 @@
 - **UI types are `@MainActor`.** GPU primitive structs are plain data and `Sendable`.
 - **One physical definition of every shared struct.** `Sources/MetalUIRender/Shaders/MetalUIShaderTypes.h` is the real file; the C target's `include/` holds a **symlink** to it. Never create a second copy.
 
+### Editing the shared header requires a clean build
+
+**Verified on this machine.** Editing `Sources/MetalUIRender/Shaders/MetalUIShaderTypes.h`
+and running an ordinary `swift build` **does** re-copy the resource bundle
+(`[1/2] Copying Shaders`), so the Metal side — compiled at runtime from that
+bundle — sees the edit. **Swift's view of the C struct does not rebuild**: nothing
+records a dependency on the header, because `shim.c` does not include it, so no
+`.d` entry exists.
+
+Consequence: any assertion about Swift-side values from that header — struct
+layout, enum raw values — is untrustworthy after an incremental build. **Always
+`rm -rf .build` before trusting a result that depends on a header edit**, and
+never conclude a header-drift test is vacuous from an incremental run.
+
+Adding `#include "MetalUIShaderTypes.h"` to `shim.c` was tried and does trigger a
+rebuild, but the Swift-visible value was still stale, so it is not a fix and must
+not be applied.
+
 ### Verified environment facts
 
 These were confirmed on this machine (Swift 6.3.3, Xcode 27.0, macOS 26.6.2). Do not re-litigate them:
@@ -719,8 +737,16 @@ extension MUIRect {
     }
 }
 
-extension MUIRect: @unchecked Sendable {}
 ```
+
+**No `Sendable` extension is needed.** Swift 6 already imports an all-trivial C
+struct as `Sendable`, verified cross-module. Declaring
+`extension MUIRect: @unchecked Sendable {}` compiles but emits a
+retroactive-conformance warning, and `@unchecked` would opt the type out of real
+future checking. If a field is ever added that defeats the inference, annotate the
+C struct at its single definition site with
+`__attribute__((swift_attr("@Sendable")))` behind an `__has_attribute` guard —
+never a Swift-side unchecked extension.
 
 - [ ] **Step 7: Run the test to verify it passes**
 
@@ -1139,12 +1165,19 @@ new = "typedef struct {\n#ifdef __METAL_VERSION__\n    uint mslOnlyField;\n#endi
 assert old in s, "pattern not found"
 open(p, "w").write(s.replace(old, new))
 PY
+rm -rf .build   # REQUIRED: Swift's view of the header does not rebuild incrementally
 swift test --filter ShaderABITests 2>&1 | grep -c "Expectation failed"
 git checkout Sources/MetalUIRender/Shaders/MetalUIShaderTypes.h
+rm -rf .build
 swift test --filter ShaderABITests 2>&1 | tail -3
 ```
 
-Expected: a non-zero count of failed expectations while drifted, then PASS after revert. If the drifted run passes, the test is vacuous — stop and fix it before continuing.
+Expected: a non-zero count of failed expectations while drifted, then PASS after revert.
+
+**The `rm -rf .build` calls are load-bearing, not hygiene.** Without them the
+drifted run can come back green purely because Swift never recompiled, and you
+would wrongly conclude the test is vacuous. If the drifted run passes *after* a
+clean build, the test really is vacuous — stop and fix it before continuing.
 
 - [ ] **Step 4: Commit**
 
