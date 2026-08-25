@@ -295,3 +295,64 @@ private func assertMainAxisMatchesGolden(
         ids: [(root, "root"), (kids[0], "a"), (kids[1], "b"), (kids[2], "c")],
         golden: golden)
 }
+
+/// §9.7.4.a scales the **initial** free space — the one fixed before the loop
+/// starts — not the loop's current `remaining`.
+///
+/// The two readings only diverge when the loop runs more than once *and* the
+/// factors sum below one, which needs a min/max violation to force a second
+/// pass. `.a` is `flex: 0.25 1 0` capped at 50, `.b` is `flex: 0.25 1 0`, in a
+/// 400 row:
+///
+/// - Pass 1: initial free space 400, raw sum 0.5, so 200 is distributed —
+///   100 each. `a` clamps to 50, a max violation, and freezes.
+/// - Pass 2: one unfrozen item, raw sum 0.25. Against the **initial** 400 that
+///   is 100, so `b` is 100. Against a free space recomputed as 400 - 50 = 350
+///   it would be 87.5.
+///
+/// WebKit says 50 and 100, so `initialFreeSpace` must be computed once, outside
+/// the loop. Nothing else in the corpus can tell the two apart.
+@Test func subOneClauseScalesTheInitialFreeSpaceNotTheRemaining() {
+    let tree = LayoutTree()
+    var capped = Style()
+    capped.flexGrow = 0.25
+    capped.flexShrink = 1
+    capped.flexBasis = px(0)
+    capped.maxSize = Size(width: px(50), height: .auto)
+    let a = tree.newNode(style: capped, children: [])
+    let b = fixtureFlexChild(tree, grow: 0.25, shrink: 1, basis: px(0))
+    let root = row(tree, width: 400, [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).width == 50)
+    #expect(tree.layout(b).width == 100)
+    #expect(tree.layout(b).x == 50)
+}
+
+/// The browser's word on the case above.
+///
+/// Main axis only — see `assertMainAxisMatchesGolden`. Both children lack a
+/// height, so WebKit stretches them to 40 and ours are 0 until alignment
+/// lands; widen this comparison then.
+@MainActor
+@Test func clampedFractionalGrowMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_fractional_grow_clamped")
+
+    let tree = LayoutTree()
+    var capped = Style()
+    capped.flexGrow = 0.25
+    capped.flexShrink = 1
+    capped.flexBasis = px(0)
+    capped.maxSize = Size(width: px(50), height: .auto)
+    let a = tree.newNode(style: capped, children: [])
+    let b = fixtureFlexChild(tree, grow: 0.25, shrink: 1, basis: px(0))
+    let root = row(tree, width: 400, [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    try assertMainAxisMatchesGolden(
+        tree, ids: [(root, "root"), (a, "a"), (b, "b")], golden: golden)
+}
