@@ -10,6 +10,15 @@ let package = Package(
     targets: [
         .target(name: "MetalUICore"),
         .testTarget(name: "MetalUICoreTests", dependencies: ["MetalUICore"]),
+
+        .target(name: "MetalUIShaderTypes"),
+
+        .target(
+            name: "MetalUIRender",
+            dependencies: ["MetalUICore", "MetalUIShaderTypes"],
+            resources: [.copy("Shaders")]
+        ),
+        .testTarget(name: "MetalUIRenderTests", dependencies: ["MetalUIRender"]),
     ],
     swiftLanguageModes: [.v6]
 )
