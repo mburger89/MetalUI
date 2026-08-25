@@ -20,10 +20,12 @@ struct MainAxisOffsets {
 /// cursor died with it, so nothing could observe the total. `justify-content`
 /// subtracts this from the container to get free space, which is what finally
 /// makes a trailing gap redden a test.
-func lineContentSize(_ items: [FlexItem], gap: Double) -> Double {
-    guard !items.isEmpty else { return 0 }
-    let sizes = items.reduce(0) { $0 + $1.targetMainSize }
-    return sizes + gap * Double(items.count - 1)
+/// Takes plain main-axis extents rather than `[FlexItem]`: this file is shared
+/// with Grid (spec §3.1), and a parameter naming a flex type would make that
+/// claim false the moment Grid tried to call it.
+func lineContentSize(_ mainSizes: [Double], gap: Double) -> Double {
+    guard !mainSizes.isEmpty else { return 0 }
+    return mainSizes.reduce(0, +) + gap * Double(mainSizes.count - 1)
 }
 
 /// CSS Flexbox §9.5 — distribute a line's free space along the main axis.
@@ -63,6 +65,10 @@ func distributeMainAxis(
     freeSpace: Double,
     itemCount: Int
 ) -> MainAxisOffsets {
+    // Unreachable from the engine — `positionItems` returns early on an empty
+    // line, so `leading` would be discarded anyway — and therefore deliberately
+    // untested: a test for it could not fail. Kept because this file is shared
+    // with Grid, whose empty-track cases are not written yet.
     guard itemCount > 0 else { return MainAxisOffsets(leading: 0, between: 0) }
 
     switch justify {

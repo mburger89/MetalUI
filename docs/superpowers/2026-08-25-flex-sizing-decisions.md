@@ -68,6 +68,12 @@ again.
 **The standing rule now has a stated limit:** the browser is right *because* it is
 the reference implementation. Where two engines disagree, the spec breaks the tie.
 
+**See also ruling AL-4** in `2026-08-25-alignment-decisions.md`, which is this
+case's mirror: there both engines agreed with each other and *disagreed* with the
+spec's letter, and we followed the engines. Read together the two give one rule —
+**two independent engines agreeing outrank the spec's letter; one engine alone
+does not.** Do not change either without reading both.
+
 ## The plan's arithmetic (FS-12)
 
 Three of Task 4's expected values were wrong, and were only discoverable once the

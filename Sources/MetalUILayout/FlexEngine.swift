@@ -400,11 +400,19 @@ private func positionItems(
     // Reversing `items` instead is not a correctness requirement: done
     // correctly it is numerically equivalent to this cursor conversion.
     // `distributeMainAxis` has no per-item notion of "first" to corrupt — it
-    // takes only `justify`, `freeSpace` and `itemCount` — so array-reversal
-    // would need its own compensating flip of which side `offsets.leading` is
-    // applied from, which is a real difference from `flex-end`/`center`/
-    // `space-around`/`space-evenly` (not `space-between`, whose `leading` is
-    // always 0). This file keeps `items` in document order instead because
+    // takes only `justify`, `freeSpace` and `itemCount`. What array-reversal
+    // would need is a compensating flip of which side `offsets.leading` is
+    // measured from, and that matters for exactly the **asymmetric**
+    // distributions — the ones where the space before the line differs from
+    // the space after it. That is `flex-start` (leading 0, trailing all of it)
+    // and `flex-end` (the reverse), and no others: `center`, `space-around`,
+    // `space-evenly` and `space-between` all put equal space at both ends, so
+    // reversing without a flip lands on identical numbers. Verified by
+    // measurement — a `row-reverse` + `space-around` + `gap` probe matches
+    // WebKit under array-reversal with no flip at all, while `flex-start` and
+    // `flex-end` do not. (Two earlier attempts at this paragraph named the
+    // wrong discriminator: it is `leading == trailing`, not `leading == 0`.)
+    // This file keeps `items` in document order instead because
     // document order is the one thing about this loop with a use outside it:
     // wrapping's line collection and baseline grouping (neither implemented
     // yet) will need to index items by DOM position, and converting the
@@ -418,7 +426,7 @@ private func positionItems(
                             against: containerMain,
                             rootFontSize: rootFontSize) ?? 0
 
-    let content = lineContentSize(items, gap: gap)
+    let content = lineContentSize(items.map(\.targetMainSize), gap: gap)
     let offsets = distributeMainAxis(s.justifyContent ?? .flexStart,
                                      freeSpace: containerMain - content,
                                      itemCount: items.count)

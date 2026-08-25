@@ -9,12 +9,13 @@ idiomatic Swift. macOS and iOS.
 - **Design spec (binding authority):** `docs/superpowers/specs/2026-08-24-metalui-design.md`
 - **Decisions taken during execution:** `docs/superpowers/2026-08-25-m0-decisions.md`,
   `docs/superpowers/2026-08-25-m1a-decisions.md`,
-  `docs/superpowers/2026-08-25-flex-sizing-decisions.md` — each ruling with its
+  `docs/superpowers/2026-08-25-flex-sizing-decisions.md`,
+  `docs/superpowers/2026-08-25-alignment-decisions.md` — each ruling with its
   reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
   **Ruling IDs are namespaced by milestone.** `PF-3` and `C-3` belong to m1a;
-  `FS-n` to flex sizing. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
+  `FS-n` to flex sizing, `AL-n` to alignment. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
   had one, and three code comments on the flex-sizing branch cited the wrong
   document before this was fixed. Prefix new milestones' rulings the same way.
 

@@ -24,10 +24,10 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
                  hypotheticalMainSize: 50, minMain: nil, maxMain: nil,
                  targetMainSize: 50, crossSize: 10, frozen: true)
     }
-    #expect(lineContentSize(items, gap: 12) == 174)
-    #expect(lineContentSize(items, gap: 0) == 150)
+    #expect(lineContentSize(items.map(\.targetMainSize), gap: 12) == 174)
+    #expect(lineContentSize(items.map(\.targetMainSize), gap: 0) == 150)
     // One item has no gaps at all.
-    #expect(lineContentSize([items[0]], gap: 12) == 50)
+    #expect(lineContentSize([items[0].targetMainSize], gap: 12) == 50)
     // Zero items is a degenerate case the caller guards, but must not underflow
     // to a negative content size.
     #expect(lineContentSize([], gap: 12) == 0)
