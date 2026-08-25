@@ -52,6 +52,9 @@ let allFixtures: [(String, CGSize)] = [
     ("flex_row_three_fixed",    CGSize(width: 800, height: 600)),
     ("flex_column_three_fixed", CGSize(width: 800, height: 600)),
     ("flex_row_gap",            CGSize(width: 800, height: 600)),
+    ("flex_row_grow_uneven",    CGSize(width: 800, height: 600)),
+    ("flex_row_shrink",         CGSize(width: 800, height: 600)),
+    ("flex_row_fractional_grow", CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

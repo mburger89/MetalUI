@@ -41,25 +41,26 @@ more saturated than the hex implies.
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
-exists, compiles, and does nothing. `Style` has 21 properties; **ten of them are
-read by no production code.** They were declared so the model matches CSS, and the
+exists, compiles, and does nothing. `Style` has 21 properties; **twelve of them
+are read by no production code** — re-count with the grep below rather than
+trusting the number. They were declared so the model matches CSS, and the
 algorithm that consumes them has not been written yet.
 
 | Declared | Reality |
 |---|---|
-| `flexGrow`, `flexShrink` | **0 uses.** No freeze loop yet — every item takes its hypothetical main size |
 | `justifyContent`, `alignItems`, `alignContent`, `alignSelf` | **0 uses.** Items pack from the main-axis start, always |
 | `flexWrap` | **0 uses.** Single line, always |
 | `aspectRatio` | **0 uses** |
 | `.rowReverse` / `.columnReverse` (`isReverse`) | **0 uses.** A reverse container silently lays out forward |
 | `padding`, `border`, `margin` (`resolveEdges`) | **0 uses in `FlexEngine`.** `resolveEdges` is fully unit-tested and has no engine caller, so the box model is ignored — a root with `padding: 20, border: 5` places its child at `(0,0)`, not `(25,25)` |
 | `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping |
+| `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
 | `MeasureFunction` / `tree.measure()` | **One caller** (`flexBaseSize`'s content-size branch), **never populated.** `newLeaf` — the only way to attach a measure function — has no production caller, so every production node's `tree.measure()` returns `nil` and `flexBaseSize` always takes its 0 fallback |
 
 Re-check any row rather than trusting this table:
 
 ```bash
-grep -rn "flexGrow" Sources/ | grep -v "var flexGrow"
+grep -rn "flexWrap" Sources/ | grep -v "var flexWrap"
 ```
 
 **When you implement one, delete its row.** When you add a property you cannot

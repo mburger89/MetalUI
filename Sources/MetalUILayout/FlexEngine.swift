@@ -4,8 +4,16 @@ import MetalUICore
 /// the tree.
 ///
 /// This milestone implements CSS Flexbox §9 incrementally. Right now: a single
-/// line, fixed sizes, flex-start packing. Grow/shrink, alignment, wrapping and
-/// absolute positioning arrive in later tasks, each with its own fixtures.
+/// line, §9.2 flex base sizes, §9.7 grow/shrink, flex-start packing. Alignment,
+/// wrapping and absolute positioning arrive in later tasks, each with its own
+/// fixtures.
+///
+/// **Alignment is NOT implemented**, and that is visible in every browser
+/// comparison: `collectItems` takes an item's cross size from the item's own
+/// style, so an item with no explicit cross size is 0 where CSS's default
+/// `align-items: stretch` gives it the container's extent. The freeze-loop
+/// golden comparisons in `FreezeLoopTests` therefore compare the main axis
+/// only, and say so at the assertion helper.
 ///
 /// **Reverse directions are NOT implemented.** `FlexDirection` offers
 /// `.rowReverse` and `.columnReverse`, and `FlexDirection.isReverse` exists, but
@@ -67,34 +75,36 @@ private func roundStoredRects(_ tree: LayoutTree, _ node: LayoutNodeID) {
 /// item is positioned — a single loop that sizes and places as it goes cannot
 /// express that.
 ///
-/// **Written but unread, today:** `collectItems` now computes `baseSize` via
-/// §9.2's `flexBaseSize(_:)` and clamps it into a local `hypothetical`, which
-/// seeds both `hypotheticalMainSize` and `targetMainSize` on the returned
-/// `FlexItem` — but that seeding assigns from the local variable, not from
-/// reading either *field* back. `positionItems` only ever reads
-/// `targetMainSize` and `crossSize`, so the `baseSize` and
-/// `hypotheticalMainSize` fields themselves are still written and never read
-/// by anything downstream of `collectItems`. Both go genuinely live when
-/// Task 3 implements the §9.7 freeze loop: it diffs `hypotheticalMainSize`
-/// against the container's free space to decide how much to grow or shrink
-/// `targetMainSize`, and it starts reading `frozen` (still always `false`,
-/// still unread) to stop revisiting an item once its size is final. Until
-/// then, `hypotheticalMainSize` and `targetMainSize` are numerically
-/// identical on every `FlexItem` — do not read that as either field being
-/// redundant; it is the value Task 3's freeze loop needs.
+/// **Every field is now read.** Earlier milestones carried `baseSize`,
+/// `hypotheticalMainSize` and `frozen` as write-only placeholders; the §9.7
+/// freeze loop in `ResolveFlexibleLengths.swift` reads all three, and
+/// `positionItems` reads `targetMainSize` and `crossSize`. Verify rather than
+/// trust this — `grep -rn "hypotheticalMainSize" Sources/` — and if a field
+/// ever goes back to being written and never read, say so here: silence at a
+/// declaration reads as "consumed".
+///
+/// `hypotheticalMainSize` and `targetMainSize` are no longer numerically
+/// identical. They coincide only for an item §9.7.1 froze outright.
 struct FlexItem {
     let node: LayoutNodeID
-    /// §9.2 flex base size, before min/max clamping. Computed by
-    /// `collectItems`; unread until Task 3's freeze loop.
+    /// §9.2 flex base size, before min/max clamping. §9.7 distributes free
+    /// space *from* this, not from the clamped size, and weights shrink by it.
     var baseSize: Double
-    /// §9.2 base size clamped by min/max. Computed by `collectItems`; unread
-    /// until Task 3's freeze loop diffs it against free space.
+    /// §9.2 base size clamped by min/max. §9.7 sums these to decide whether
+    /// the line is growing or shrinking, and compares against `baseSize` to
+    /// find the items that cannot flex in that direction.
     var hypotheticalMainSize: Double
-    /// The size after §9.7 distributes free space. Starts at hypothetical.
+    /// The size after §9.7 distributes free space. Seeded from the
+    /// hypothetical size, then resolved by the freeze loop; the only size
+    /// `positionItems` reads.
     var targetMainSize: Double
+    /// The item's own style's cross-axis size. **Alignment is not
+    /// implemented**, so an item with no explicit cross size is 0 here where a
+    /// browser's `align-items: stretch` default would give it the container's
+    /// extent.
     var crossSize: Double
-    /// §9.7 freezes an item once its size is final. Always `false`, and
-    /// unread, until Task 3 implements the freeze loop.
+    /// §9.7 freezes an item once its size is final, and the loop stops when
+    /// every item is frozen.
     var frozen: Bool
 }
 
@@ -192,11 +202,19 @@ private func layoutContainer(
     containerSize: SizeD,
     rootFontSize: Double
 ) {
-    let items = collectItems(tree, container, containerSize: containerSize,
+    var items = collectItems(tree, container, containerSize: containerSize,
                              rootFontSize: rootFontSize)
     guard !items.isEmpty else { return }
-    // §9.7 lands here in Task 3. Until then every item keeps its hypothetical
-    // main size, which is what the pre-split code did.
+
+    let s = tree.style(container)
+    let isRow = s.flexDirection.isRow
+    let containerMain = isRow ? containerSize.width : containerSize.height
+    let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
+                            against: containerMain, rootFontSize: rootFontSize) ?? 0
+
+    resolveFlexibleLengths(tree, items: &items, containerMain: containerMain,
+                           gap: gap, isRow: isRow, rootFontSize: rootFontSize)
+
     positionItems(tree, container, items: items, containerOrigin: containerOrigin,
                   containerSize: containerSize, rootFontSize: rootFontSize)
 }
