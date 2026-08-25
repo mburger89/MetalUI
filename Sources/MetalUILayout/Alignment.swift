@@ -28,12 +28,32 @@ func lineContentSize(_ items: [FlexItem], gap: Double) -> Double {
 
 /// CSS Flexbox §9.5 — distribute a line's free space along the main axis.
 ///
-/// **The space-* values never distribute negative free space.** An overflowing
-/// line under `space-between` still starts at the main-start edge and packs
-/// tight; distributing a negative amount would place later items at *smaller*
-/// coordinates than earlier ones. `center` and `flex-end` are different: they
-/// legitimately honour negative free space, and an overflowing centred line
-/// overhangs both edges equally. That asymmetry is CSS, not an oversight.
+/// **The space-* values never distribute negative free space — because both
+/// WebKit and Blink clamp it, not because the spec's letter says so.** CSS
+/// Box Alignment actually defines `space-around` (and by extension
+/// `space-evenly`/`space-between`) with negative free space as *identical to
+/// `center`* — the spec's letter disagrees with this code. Measured directly
+/// on a 2×80px line in a 100px container (freeSpace = -60) rather than taken
+/// on faith:
+///
+/// ```
+/// space-around   WebKit [0, 80]     Blink [0, 80]     spec letter [-30, 50]
+/// space-evenly   WebKit [0, 80]     Blink [0, 80]
+/// space-between  WebKit [0, 80]     Blink [0, 80]
+/// center         WebKit [-30, 50]   Blink [-30, 50]   (spec, WebKit, Blink all agree)
+/// ```
+///
+/// `center` and `flex-end` are different: all three of spec/WebKit/Blink
+/// agree they legitimately honour negative free space, so an overflowing
+/// centred line overhangs both edges equally — that part is uncontested.
+///
+/// Ruling AL-4. This follows the same rule as ruling FS-9
+/// (`docs/superpowers/2026-08-25-flex-sizing-decisions.md`), applied in
+/// mirror image: there, Blink and the spec agreed and WebKit alone dissented,
+/// so FS-9 kept the spec. Here, WebKit and Blink agree and the spec's letter
+/// is the lone dissenter, so this code follows the engines. The rule the two
+/// rulings share: **two independent engines agreeing outrank the spec's
+/// letter; one engine alone does not.**
 ///
 /// One item collapses `space-between` onto `flex-start` and both `space-around`
 /// and `space-evenly` onto `center`, per spec. Those degenerate cases are why a

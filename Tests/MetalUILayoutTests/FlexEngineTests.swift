@@ -439,3 +439,44 @@ private func threeJustifiedChildren(
                         ids: [root: "root", a: "a", b: "b", c: "c"],
                         golden: golden, tolerance: 0.1)
 }
+
+/// The only end-to-end guard on the trailing gap. Ruling AL-5.
+///
+/// Identical to `rowJustifySpaceBetweenMatchesWebKit`, but with `gap: 12`
+/// added on both the Swift tree and the fixture — and its golden's numbers
+/// are **byte-identical** to the no-gap fixture's (0 / 160 / 350 either way).
+/// That is not a mistake and this test is not a duplicate: `gap` cancels
+/// *precisely* under a correct `space-between`, because the stride is
+/// `(containerMain - content) / (n - 1)` and `content` has already subtracted
+/// the gaps out of `containerMain` before that division runs. Two fixtures,
+/// same numbers, on purpose — see the comment inside
+/// `flex_row_justify_between_gap.html` for the full explanation.
+///
+/// `lineContentSizeCountsGapsBetweenItemsOnly` (in AlignmentTests.swift) tests
+/// `lineContentSize` in isolation and never calls `positionItems` or
+/// `computeLayout`, so it cannot catch a trailing-gap regression that lives in
+/// the wiring between them. This test can: reintroducing the trailing gap
+/// (`gap * count` instead of `count - 1` in `lineContentSize`) shifts every
+/// non-root node here by `gap / (n - 1)` = 6px, far above the 0.1pt
+/// comparison tolerance, while `rowJustifySpaceBetweenMatchesWebKit` (no gap)
+/// stays green throughout. Do not delete this as a copy of that test.
+@Test func rowJustifySpaceBetweenWithGapMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_justify_between_gap")
+    let tree = LayoutTree()
+    let a = fixedChild(tree, w: 40, h: 40)
+    let b = fixedChild(tree, w: 70, h: 40)
+    let c = fixedChild(tree, w: 50, h: 40)
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.justifyContent = .spaceBetween
+    rootStyle.gap = Axes(both: .pixels(Pixels(12)))
+    rootStyle.size = Size(width: px(400), height: px(40))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}

@@ -67,6 +67,7 @@ let allFixtures: [(String, CGSize)] = [
     ("flex_row_justify_around",  CGSize(width: 800, height: 600)),
     ("flex_row_justify_evenly",  CGSize(width: 800, height: 600)),
     ("flex_column_justify_center", CGSize(width: 800, height: 600)),
+    ("flex_row_justify_between_gap", CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.
