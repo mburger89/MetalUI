@@ -8,16 +8,26 @@ idiomatic Swift. macOS and iOS.
 
 - **Design spec (binding authority):** `docs/superpowers/specs/2026-08-24-metalui-design.md`
 - **Decisions taken during execution:** `docs/superpowers/2026-08-25-m0-decisions.md`,
-  `docs/superpowers/2026-08-25-m1a-decisions.md` — each ruling with its reasoning
-  and what it costs if wrong. Read the "Carried to..." sections before starting new work.
+  `docs/superpowers/2026-08-25-m1a-decisions.md`,
+  `docs/superpowers/2026-08-25-flex-sizing-decisions.md` — each ruling with its
+  reasoning and what it costs if wrong. Read the "Carried..." sections before
+  starting new work.
+
+  **Ruling IDs are namespaced by milestone.** `PF-3` and `C-3` belong to m1a;
+  `FS-n` to flex sizing. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
+  had one, and three code comments on the flex-sizing branch cited the wrong
+  document before this was fixed. Prefix new milestones' rulings the same way.
 
 ## Practices
 
 **`docs/practices/verifying-tests-can-fail.md` — read this before writing tests.**
 
-Across two milestones, every defect found during execution was in the plan or the
-spec, none in an implementation — and all of them were found by **mutation, not
-inspection**. That document catalogues eight shapes of test that cannot fail, all
+Across three milestones, every defect found during execution was in a plan, a
+spec, a test or a comment — **none in an implementation** — and essentially all of
+them were found by **mutation, not inspection**. The flex-sizing milestone alone
+produced nineteen findings, four of them the same shape: a fixture too uniform to
+distinguish the thing it claimed to pin. Before committing a fixture, delete the
+declaration it is named for, regenerate, and confirm the numbers move. That document catalogues eight shapes of test that cannot fail, all
 observed in this repo, plus the method for finding them and the cases where adding
 a test is the wrong answer.
 
@@ -34,33 +44,65 @@ view or orphaned, so reversing the `layer` / `wantsLayer` assignment order in
 tests still pass. If you touch that ordering, re-run the demo and look at it;
 the suite will not tell you.
 
-One expected divergence, not a defect: the layer's colorspace is Display P3
-(spec §7.8) while `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat
-more saturated than the hex implies.
+## Two known divergences — expected, measured, not defects
+
+**1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
+`Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
+than the hex implies.
+
+**2. WebKit's flex sub-one clause.** The layout corpus treats WebKit as the
+oracle, and there is exactly one place the engine knowingly does not follow it:
+CSS Flexbox §9.7.4.b's magnitude test, in `ResolveFlexibleLengths.swift`.
+
+Reproduce with:
+
+```html
+#root { display: flex; flex-direction: row; width: 400px; }
+.a { flex: 0.25 1 0; min-width: 350px; }
+.b { flex: 0.25 1 0; }
+```
+
+The spec says `b` is **50** — the sub-one scaling may only reduce the remaining
+free space, never enlarge it, and on the second pass the scaled 100 exceeds the
+remaining 50. **Blink says 50. WebKit says 100** and overflows the container to
+450. Two engines and the specification against one: this is a WebKit bug, and
+the engine follows the spec.
+
+The divergence is narrower than it looks — it needs positive free space *and* a
+min/max violation to force a second pass. `flex_row_fractional_shrink` exercises
+the identical `abs` guard with negative free space and WebKit agrees with us
+there.
+
+**No fixture or golden encodes WebKit's answer.** The probe above was generated
+against the oracle and then deliberately not committed, precisely so that a
+future WebKit fix moves nothing in the corpus and changes no test. Do not add
+one, and do not "correct" `subOneScalingNeverExceedsTheRemainingFreeSpace`
+towards WebKit — it is pinning the settled answer, not a provisional guess.
 
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
-exists, compiles, and does nothing. `Style` has 21 properties; **ten of them are
-read by no production code.** They were declared so the model matches CSS, and the
+exists, compiles, and does nothing. `Style` has 21 properties; **twelve of them
+are read by no production code** — re-count with the grep below rather than
+trusting the number. They were declared so the model matches CSS, and the
 algorithm that consumes them has not been written yet.
 
 | Declared | Reality |
 |---|---|
-| `flexGrow`, `flexShrink`, `flexBasis` | **0 uses.** No freeze loop yet — every item takes its specified size |
 | `justifyContent`, `alignItems`, `alignContent`, `alignSelf` | **0 uses.** Items pack from the main-axis start, always |
 | `flexWrap` | **0 uses.** Single line, always |
 | `aspectRatio` | **0 uses** |
 | `.rowReverse` / `.columnReverse` (`isReverse`) | **0 uses.** A reverse container silently lays out forward |
 | `padding`, `border`, `margin` (`resolveEdges`) | **0 uses in `FlexEngine`.** `resolveEdges` is fully unit-tested and has no engine caller, so the box model is ignored — a root with `padding: 20, border: 5` places its child at `(0,0)`, not `(25,25)` |
 | `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping |
-| `roundLayout` | **0 production callers** — the generator calls it, `computeLayout` does not. Raw-vs-rounded is currently undetectable because every fixture is integral |
-| `MeasureFunction` / `tree.measure()` | **0 production callers.** Nothing measures content yet |
+| `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
+| `MeasureFunction` / `tree.measure()` | **Two callers, never populated.** `flexBaseSize`'s content-size branch and `collectItems`' CSS Sizing §4.5 automatic-minimum probe both read it, but `newLeaf` — the only way to attach a measure function — has no production caller, so every production node's `tree.measure()` returns `nil`: `flexBaseSize` always takes its 0 fallback and `min-width: auto` always resolves to no floor. Both rules are therefore exercised **only by tests that build their own closures**, which is why `min-width: auto` has no browser fixture — see `automaticMinimumSizeUsesContentSizeNotFlexBasis` |
+| CSS Sizing §4.5's **specified size suggestion** | **Not implemented** (ruling FS-3). The automatic minimum is `min(specified suggestion, content suggestion)`; only the content half exists. Indistinguishable until something measures content in production — M2 |
 
 Re-check any row rather than trusting this table:
 
 ```bash
-grep -rn "flexGrow" Sources/ | grep -v "var flexGrow"
+grep -rn "flexWrap" Sources/ | grep -v "var flexWrap"
 ```
 
 **When you implement one, delete its row.** When you add a property you cannot
@@ -69,7 +111,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 79 tests, warning-free. Six non-test targets with
+`swift build` · `swift test` — 115 tests, warning-free. Six non-test targets with
 strictly one-way dependencies (`docs/superpowers/specs/…` §3.1).
 
 Two constraints that are easy to violate silently:

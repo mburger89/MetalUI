@@ -111,7 +111,7 @@ func assertMatchesGolden(
 }
 
 /// `gap` adds a fixed run between adjacent items, and never before the first or
-/// after the last. Deleting the `+ gap` term in `layoutChildren` left the whole
+/// after the last. Deleting the `+ gap` term in `positionItems` left the whole
 /// suite green before this test and `flex_row_gap` existed.
 @Test func gapSeparatesAdjacentItemsButNotTheEnds() {
     let (tree, root, x, y, z) = threeFixedChildren(direction: .row, width: 300, height: 50, gap: 12)
@@ -207,33 +207,93 @@ func assertMatchesGolden(
     #expect(tree.layout(g2) == LayoutRect(x: 30, y: 25, width: 20, height: 35))
 }
 
-/// Pins the **current, deliberately non-CSS** behaviour of the scope-boundary
-/// fallback in `resolveNodeSize`: an item with `size: auto` takes its
-/// container's extent, because the fallback reads the definite available space.
+/// `computeLayout` must apply a rounding pass to every stored rect, not just the
+/// leaves: three children of 100/3 in a 100-wide row must close exactly on the
+/// parent (33 + 34 + 33 = 100), which only holds if rounding walks the whole
+/// cumulative main axis rather than rounding each width independently.
+/// 3 children of 100/3 in a 100 row, and a fractional-width **grandchild**
+/// nested inside the middle one.
 ///
-/// CSS does not do this — an auto-sized flex item derives its main size from
-/// content via flex-basis (§9.2). The fallback is documented in `FlexEngine`
-/// as a placeholder the grow/shrink task replaces wholesale. This test exists
-/// so that replacement is a *visible, deliberate* act: changing `base = d` to
-/// `base = 0` left the entire suite green before it, and now reddens here.
-@Test func autoSizedChildTakesItsContainersExtentForNow() {
+/// The grandchild is not decoration: `roundStoredRects` claims to round
+/// "every node's stored rect, depth-first" (`FlexEngine.swift`), but the only
+/// other nested fixture in this suite —
+/// `nestedContainersStoreAbsoluteNotRelativeCoordinates` — is entirely
+/// integral, so it cannot tell a depth-first rounding pass from one that
+/// rounds only the root's direct children. Deleting `roundStoredRects`'s
+/// `for kid in tree.children(node)` recursion left this whole file green
+/// before `grandchild` was added to the loop below; it reddens now because
+/// `grandchild`'s absolute position inherits `b`'s fractional raw origin.
+@Test func computeLayoutRoundsEveryStoredRect() {
     let tree = LayoutTree()
-    let flexible = tree.newNode(style: Style(), children: [])   // size stays .auto
-    let trailing = fixedChild(tree, w: 40, h: 10)
-
+    // A fractional-width leaf, nested one level inside `b` below.
+    let grandchild = fixedChild(tree, w: 100.0 / 7.0, h: 5)
+    func third(children: [LayoutNodeID] = []) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: MetalUICore.Dimension.length(.pixels(Pixels(Float(100.0 / 3.0)))),
+                      height: px(10))
+        return tree.newNode(style: s, children: children)
+    }
+    let a = third(), b = third(children: [grandchild]), c = third()
     var rootStyle = Style()
     rootStyle.flexDirection = .row
-    rootStyle.size = Size(width: px(300), height: px(50))
-    let root = tree.newNode(style: rootStyle, children: [flexible, trailing])
+    rootStyle.size = Size(width: px(100), height: px(10))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(400), height: .definite(400)))
+
+    // Every stored value is a whole number — nothing fractional survives,
+    // at the root's direct children (a, b, c) or two levels down (grandchild).
+    for n in [root, a, b, c, grandchild] {
+        let r = tree.layout(n)
+        #expect(r.x == r.x.rounded(), "x \(r.x) not rounded")
+        #expect(r.width == r.width.rounded(), "width \(r.width) not rounded")
+    }
+    #expect(tree.layout(a).width + tree.layout(b).width + tree.layout(c).width == 100)
+    #expect(tree.layout(c).x + tree.layout(c).width == 100)
+}
+
+/// Replaces `autoSizedChildTakesItsContainersExtentForNow`. The Task 7
+/// fallback (auto -> container extent) is deleted here and never comes back:
+/// this pins `collectItems`' wiring through `computeLayout`, not §9.2 itself
+/// (that's `FlexBaseSizeTests.autoBasisWithNoMeasureFunctionIsZero`, which
+/// pins the free function directly). A child with no measure function and no
+/// definite size is zero because nothing measures content yet — not because
+/// flex base size is unimplemented, which it now is. This is the one test
+/// that would redden if `collectItems` ever reverted to a container-extent
+/// main size.
+@Test func autoSizedChildWithNoMeasureFunctionIsZero() {
+    let tree = LayoutTree()
+    let kid = tree.newNode(style: Style(), children: [])   // size defaults to .auto
+    var rootStyle = Style()
+    rootStyle.size = Size(width: px(300), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [kid])
 
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    // The container's 300x50, not 0x0 and not a content-derived size.
-    #expect(tree.layout(flexible) == LayoutRect(x: 0, y: 0, width: 300, height: 50))
-    // And it consumes that much main-axis space, pushing its sibling past the
-    // container's own right edge (no shrinking yet, by design).
-    #expect(tree.layout(trailing) == LayoutRect(x: 300, y: 0, width: 40, height: 10))
+    #expect(tree.layout(kid).width == 0)
+    #expect(tree.layout(kid).height == 0)
+}
+
+/// The root fills the space it is offered; a flex item does not.
+///
+/// `computeLayout`'s `available:` parameter would otherwise be read by nothing
+/// once the Task 7 item fallback is deleted — an inert public parameter that no
+/// existing test can see, since every other root in this suite has an explicit
+/// size. The two expectations here are the two halves of one mutation: making
+/// the root ignore `available` reddens the first, and restoring the item
+/// fallback reddens the second.
+@Test func autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot() {
+    let tree = LayoutTree()
+    let kid = tree.newNode(style: Style(), children: [])      // size defaults to .auto
+    let root = tree.newNode(style: Style(), children: [kid])  // ditto
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(root) == LayoutRect(x: 0, y: 0, width: 800, height: 600))
+    #expect(tree.layout(kid) == LayoutRect(x: 0, y: 0, width: 0, height: 0))
 }
 
 /// `minSize` and `maxSize` are live `Style` properties, and the engine must
