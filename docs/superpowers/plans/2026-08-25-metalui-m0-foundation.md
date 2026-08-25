@@ -4,7 +4,7 @@
 
 **Goal:** A macOS window that displays one GPU-rendered rounded rectangle with a border, drawn by an analytic SDF shader compiled at runtime, on a frame loop that idles at zero cost.
 
-**Architecture:** Seven SwiftPM targets with one-way dependencies. Shared CPU/GPU struct layouts live in a single C header that is simultaneously a C include (via a symlink into the C target) and a runtime resource (copied with the Metal source). Shaders compile at app start with `MTLDevice.makeLibrary(source:)` because SwiftPM cannot compile `.metal` files. A GPU-side probe kernel asserts that Metal's view of every shared struct matches Swift's.
+**Architecture:** Six non-test SwiftPM targets with one-way dependencies (the spec's seventh and eighth, Layout and Text, arrive in M1 and M2). Shared CPU/GPU struct layouts live in a single C header that is simultaneously a C include (via a symlink into the C target) and a runtime resource (copied with the Metal source). Shaders compile at app start with `MTLDevice.makeLibrary(source:)` because SwiftPM cannot compile `.metal` files. A GPU-side probe kernel asserts that Metal's view of every shared struct matches Swift's.
 
 **Tech Stack:** Swift 6.3 (language mode v6, strict concurrency), Metal, AppKit, Swift Testing. No third-party dependencies.
 
@@ -38,6 +38,19 @@ never conclude a header-drift test is vacuous from an incremental run.
 Adding `#include "MetalUIShaderTypes.h"` to `shim.c` was tried and does trigger a
 rebuild, but the Swift-visible value was still stale, so it is not a fix and must
 not be applied.
+
+**Worse than stale: the two sides can diverge, and the ABI probe cannot catch it.**
+The header reaches the C target through a symlink that SwiftPM does not track as a
+build input. Change an enum value and revert it, and you can end up with Swift
+binding one index while the freshly-recopied bundle makes Metal read another. The
+observed symptom is not a helpful error — the rect simply vanishes and the renderer
+tests fail with all-zero pixels, looking exactly like a shader bug. `touch` and
+clearing `ModuleCache` do **not** help; **`swift package clean` does.**
+
+Note what this means for the safety net: `abi_probe` compares Metal's view against
+Swift's, so it catches divergence in the *header's content* — but not the case where
+the CPU side was simply never rebuilt, because then Swift's view is stale rather than
+wrong. **Run `swift package clean` after any header edit**, not just `rm -rf .build`.
 
 ### Verified environment facts
 
