@@ -88,3 +88,43 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
     // centred line overhangs both edges equally. That is CSS, not a bug.
     #expect(distributeMainAxis(.center, freeSpace: -120, itemCount: 3).leading == -60)
 }
+
+/// Cross-axis placement, with a line 100 tall and items that are not.
+///
+/// Every item here has a *different* cross size, and none equals the line's —
+/// with uniform cross sizes all four values produce identical output and the
+/// test pins nothing.
+@Test func crossAxisOffsetPlacesAnItemWithinTheLine() {
+    #expect(crossAxisOffset(.flexStart, itemCross: 30, lineCross: 100) == 0)
+    #expect(crossAxisOffset(.flexEnd,   itemCross: 30, lineCross: 100) == 70)
+    #expect(crossAxisOffset(.center,    itemCross: 30, lineCross: 100) == 35)
+    // A different item size must move the answer — a constant would pass above.
+    #expect(crossAxisOffset(.center,    itemCross: 60, lineCross: 100) == 20)
+    #expect(crossAxisOffset(.flexEnd,   itemCross: 60, lineCross: 100) == 40)
+}
+
+/// An item taller than its line overhangs; it is never pushed to a negative
+/// offset by `flex-start`, nor clamped by `flex-end`.
+@Test func anItemLargerThanItsLineOverhangsRatherThanClamping() {
+    #expect(crossAxisOffset(.flexStart, itemCross: 140, lineCross: 100) == 0)
+    #expect(crossAxisOffset(.flexEnd,   itemCross: 140, lineCross: 100) == -40)
+    #expect(crossAxisOffset(.center,    itemCross: 140, lineCross: 100) == -20)
+}
+
+/// `align-self` overrides the container's `align-items`; nil defers to it; and
+/// the container's own nil default is `stretch`, not `flex-start`.
+@Test func alignSelfOverridesAlignItemsAndTheDefaultIsStretch() {
+    var container = Style()
+    container.alignItems = .center
+
+    var item = Style()
+    #expect(resolvedAlignment(item, container: container) == .center)
+
+    item.alignSelf = .flexEnd
+    #expect(resolvedAlignment(item, container: container) == .flexEnd)
+
+    // CSS's initial `align-items` is `normal`, which behaves as `stretch` on a
+    // flex item. Defaulting to `flex-start` here would make Task 3's stretch
+    // work unreachable for every unstyled container in the corpus.
+    #expect(resolvedAlignment(Style(), container: Style()) == .stretch)
+}

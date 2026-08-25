@@ -357,6 +357,7 @@ private func positionItems(
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
     let containerMain = isRow ? containerSize.width : containerSize.height
+    let containerCross = isRow ? containerSize.height : containerSize.width
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
                             against: containerMain,
                             rootFontSize: rootFontSize) ?? 0
@@ -371,8 +372,15 @@ private func positionItems(
         // Between items only.
         if index > 0 { cursor += gap + offsets.between }
 
-        let x = containerOrigin.0 + (isRow ? cursor : 0)
-        let y = containerOrigin.1 + (isRow ? 0 : cursor)
+        // CSS Flexbox §9.6 — the line's cross size is the container's cross
+        // extent (single-line only; wrapping would make this the line's own
+        // measured cross size instead).
+        let align = resolvedAlignment(tree.style(item.node), container: s)
+        let crossOffset = crossAxisOffset(align, itemCross: item.crossSize,
+                                          lineCross: containerCross)
+
+        let x = containerOrigin.0 + (isRow ? cursor : crossOffset)
+        let y = containerOrigin.1 + (isRow ? crossOffset : cursor)
         let size = isRow
             ? SizeD(width: item.targetMainSize, height: item.crossSize)
             : SizeD(width: item.crossSize, height: item.targetMainSize)

@@ -86,3 +86,45 @@ func distributeMainAxis(
         return MainAxisOffsets(leading: per, between: per)
     }
 }
+
+/// Resolve which alignment applies to one item.
+///
+/// `align-self: auto` is modelled as `nil` here, and defers to the container's
+/// `align-items`. The container's own `nil` is CSS's initial `normal`, which on
+/// a flex item behaves as **`stretch`** — not `flex-start`. Getting that default
+/// wrong makes stretch unreachable for every unstyled container, which is most
+/// of them.
+func resolvedAlignment(_ item: Style, container: Style) -> AlignItems {
+    if let s = item.alignSelf {
+        switch s {
+        case .flexStart: return .flexStart
+        case .flexEnd:   return .flexEnd
+        case .center:    return .center
+        case .baseline:  return .baseline
+        case .stretch:   return .stretch
+        }
+    }
+    return container.alignItems ?? .stretch
+}
+
+/// CSS Flexbox §9.6 — an item's offset from its line's cross-start edge.
+///
+/// **`stretch` returns 0 here, and that is not this function's job to fix.**
+/// Stretch changes an item's cross *size*, in `collectItems`; by the time
+/// placement runs, a stretched item already fills the line and a zero offset is
+/// correct. An item that is stretch-aligned but has a definite cross size is not
+/// stretched at all, and CSS places it at cross-start — also zero. Task 3 owns
+/// making stretch actually resize the item; nothing here needs to change when it
+/// does.
+///
+/// **`baseline` is NOT implemented** and falls back to `flexStart`. It requires
+/// font metrics that arrive with the text system in M2; until then a baseline
+/// row lays out silently as a flex-start row. Recorded in CLAUDE.md's inert-API
+/// table — do not remove that row without implementing this.
+func crossAxisOffset(_ align: AlignItems, itemCross: Double, lineCross: Double) -> Double {
+    switch align {
+    case .flexStart, .stretch, .baseline: 0
+    case .flexEnd:                        lineCross - itemCross
+    case .center:                         (lineCross - itemCross) / 2
+    }
+}

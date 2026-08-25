@@ -440,6 +440,58 @@ private func threeJustifiedChildren(
                         golden: golden, tolerance: 0.1)
 }
 
+/// Three children of distinct heights (20/60/40), none equal to the 100px
+/// line — a uniform-height fixture would give `align-items: center` the same
+/// answer as every other alignment and pin nothing. Full-rect comparison so
+/// `x`/`width` (main axis, from Task 1) and `y`/`height` (cross axis, this
+/// task) are both checked in the one assertion.
+@Test func rowAlignCenterMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_align_center")
+    let tree = LayoutTree()
+    let a = fixedChild(tree, w: 40, h: 20)
+    let b = fixedChild(tree, w: 70, h: 60)
+    let c = fixedChild(tree, w: 50, h: 40)
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.alignItems = .center
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// `align-items: flex-end` on the container, with `align-self: center`
+/// overriding it on the middle child — pins both the container default and
+/// the per-item override against WebKit in one fixture. Same distinct
+/// heights (20/60/40) as `flex_row_align_center`.
+@Test func rowAlignEndWithSelfOverrideMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_align_end_with_self")
+    let tree = LayoutTree()
+    let a = fixedChild(tree, w: 40, h: 20)
+    var bStyle = Style()
+    bStyle.size = Size(width: px(70), height: px(60))
+    bStyle.alignSelf = .center
+    let bNode = tree.newNode(style: bStyle, children: [])
+    let c = fixedChild(tree, w: 50, h: 40)
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.alignItems = .flexEnd
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [a, bNode, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", bNode: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
 /// The only end-to-end guard on the trailing gap. Ruling AL-5.
 ///
 /// Identical to `rowJustifySpaceBetweenMatchesWebKit`, but with `gap: 12`

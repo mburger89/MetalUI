@@ -90,6 +90,7 @@ algorithm that consumes them has not been written yet.
 | Declared | Reality |
 |---|---|
 | `justifyContent`, `alignItems`, `alignContent`, `alignSelf` | **0 uses.** Items pack from the main-axis start, always |
+| `AlignItems.baseline` / `AlignSelf.baseline` | **Falls back to `flexStart`, not silently.** `crossAxisOffset` needs font metrics that arrive with the text system in M2; until then a `baseline`-aligned row lays out as a `flex-start` row. Ruling AL-6: the task that makes an API inert records it here; the task that makes one live deletes the row |
 | `flexWrap` | **0 uses.** Single line, always |
 | `aspectRatio` | **0 uses** |
 | `.rowReverse` / `.columnReverse` (`isReverse`) | **0 uses.** A reverse container silently lays out forward |
