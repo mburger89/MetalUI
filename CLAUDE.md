@@ -21,6 +21,23 @@ inspection**. That document catalogues eight shapes of test that cannot fail, al
 observed in this repo, plus the method for finding them and the cases where adding
 a test is the wrong answer.
 
+## Verified on real hardware
+
+`swift run MetalUIDemo` was run and inspected on a Retina display: the window
+shows the centred rounded rect with its antialiased border, and the close button
+quits the process.
+
+That matters because it is the one property **no test can establish.**
+`MetalLayerSurface` vends drawables whether its `CAMetalLayer` is attached to the
+view or orphaned, so reversing the `layer` / `wantsLayer` assignment order in
+`AppKitPlatform` renders perfect pixels into a texture nobody sees — and all 79
+tests still pass. If you touch that ordering, re-run the demo and look at it;
+the suite will not tell you.
+
+One expected divergence, not a defect: the layer's colorspace is Display P3
+(spec §7.8) while `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat
+more saturated than the hex implies.
+
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
