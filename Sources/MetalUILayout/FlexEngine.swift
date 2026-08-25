@@ -7,6 +7,13 @@ import MetalUICore
 /// line, fixed sizes, flex-start packing. Grow/shrink, alignment, wrapping and
 /// absolute positioning arrive in later tasks, each with its own fixtures.
 ///
+/// **Reverse directions are NOT implemented.** `FlexDirection` offers
+/// `.rowReverse` and `.columnReverse`, and `FlexDirection.isReverse` exists, but
+/// `layoutChildren` keys only on `isRow`. A `.rowReverse` container therefore
+/// lays out silently as `.row` — wrong geometry, no error, no diagnostic. It is
+/// listed here because that is the whole mitigation until the alignment task
+/// implements it: nothing else in the code says so.
+///
 /// Every rect written here is **absolute to the root**, not relative to its
 /// parent. `roundLayout` keeps no cross-rect state, so its no-drift guarantee
 /// depends entirely on receiving absolute coordinates; storing parent-relative

@@ -51,7 +51,34 @@ let allFixtures: [(String, CGSize)] = [
     ("flex_row_seven_equal",    CGSize(width: 400, height: 200)),
     ("flex_row_three_fixed",    CGSize(width: 800, height: 600)),
     ("flex_column_three_fixed", CGSize(width: 800, height: 600)),
+    ("flex_row_gap",            CGSize(width: 800, height: 600)),
 ]
+
+/// The committed goldens must still be what the browser says.
+///
+/// This is the ONLY test that drives WebKit to check the corpus, and it is the
+/// counterweight to the engine comparisons reading `Golden/*.json` instead of
+/// regenerating. It fails when a fixture's HTML or CSS is edited without
+/// `METALUI_REGENERATE_GOLDENS=1` being re-run, which would otherwise leave the
+/// engine cheerfully agreeing with a golden that no longer describes its fixture.
+///
+/// Exact equality, not a tolerance: WebKit is deterministic for a given fixture
+/// and viewport, and the JSON round-trip is lossless. A mismatch here means the
+/// fixture changed, the browser changed, or the golden was hand-edited — all of
+/// which want a human to look, not a tolerance to paper over.
+@MainActor
+@Test func committedGoldensMatchTheBrowser() async throws {
+    for (fixture, viewport) in allFixtures {
+        let fresh = try await generateGolden(fixture: fixture, viewport: viewport)
+        let committed = try loadGolden(fixture)
+        #expect(fresh == committed, """
+            Golden '\(fixture)' is stale. Regenerate with:
+              METALUI_REGENERATE_GOLDENS=1 swift test --filter regenerateAllGoldens
+            browser rounded:  \(fresh.rounded)
+            committed rounded: \(committed.rounded)
+            """)
+    }
+}
 
 /// A fixture missing from `allFixtures` never generates a golden and is never
 /// compared against anything — it just sits in the directory looking checked.
