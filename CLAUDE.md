@@ -34,9 +34,40 @@ view or orphaned, so reversing the `layer` / `wantsLayer` assignment order in
 tests still pass. If you touch that ordering, re-run the demo and look at it;
 the suite will not tell you.
 
-One expected divergence, not a defect: the layer's colorspace is Display P3
-(spec §7.8) while `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat
-more saturated than the hex implies.
+## Two known divergences — expected, measured, not defects
+
+**1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
+`Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
+than the hex implies.
+
+**2. WebKit's flex sub-one clause.** The layout corpus treats WebKit as the
+oracle, and there is exactly one place the engine knowingly does not follow it:
+CSS Flexbox §9.7.4.b's magnitude test, in `ResolveFlexibleLengths.swift`.
+
+Reproduce with:
+
+```html
+#root { display: flex; flex-direction: row; width: 400px; }
+.a { flex: 0.25 1 0; min-width: 350px; }
+.b { flex: 0.25 1 0; }
+```
+
+The spec says `b` is **50** — the sub-one scaling may only reduce the remaining
+free space, never enlarge it, and on the second pass the scaled 100 exceeds the
+remaining 50. **Blink says 50. WebKit says 100** and overflows the container to
+450. Two engines and the specification against one: this is a WebKit bug, and
+the engine follows the spec.
+
+The divergence is narrower than it looks — it needs positive free space *and* a
+min/max violation to force a second pass. `flex_row_fractional_shrink` exercises
+the identical `abs` guard with negative free space and WebKit agrees with us
+there.
+
+**No fixture or golden encodes WebKit's answer.** The probe above was generated
+against the oracle and then deliberately not committed, precisely so that a
+future WebKit fix moves nothing in the corpus and changes no test. Do not add
+one, and do not "correct" `subOneScalingNeverExceedsTheRemainingFreeSpace`
+towards WebKit — it is pinning the settled answer, not a provisional guess.
 
 ## Declared but inert — verified, not remembered
 
