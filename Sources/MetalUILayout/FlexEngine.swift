@@ -67,24 +67,25 @@ private func roundStoredRects(_ tree: LayoutTree, _ node: LayoutNodeID) {
 /// item is positioned — a single loop that sizes and places as it goes cannot
 /// express that.
 ///
-/// **Written but unread, today:** `collectItems` sets `baseSize`,
-/// `hypotheticalMainSize` and `frozen` on every item, and nothing downstream
-/// reads any of the three yet — `positionItems` only ever reads
-/// `targetMainSize` and `crossSize`. That is deliberate schema-ahead-of-
-/// behaviour, not an abandoned surface: this task only lays the phase
-/// boundary, and each field goes live on a specific later task —
-/// `baseSize`/`hypotheticalMainSize` when Task 2 implements §9.2 flex base
-/// size and min/max clamping, `frozen` when Task 3 implements the §9.7
-/// freeze loop that both grows/shrinks `targetMainSize` and reads `frozen` to
-/// stop revisiting an item. Until then, `targetMainSize` is seeded from
-/// `hypotheticalMainSize` and never changed, so the two are numerically
-/// identical — do not read that as `hypotheticalMainSize` being redundant;
-/// it is the value Task 3 diffs against to find free space to distribute.
+/// **Partially written but unread, today:** `collectItems` now computes
+/// `baseSize` via §9.2's `flexBaseSize(_:)` and clamps it into
+/// `hypotheticalMainSize`, but `positionItems` still only ever reads
+/// `targetMainSize` and `crossSize`. `hypotheticalMainSize` is read exactly
+/// once — to seed `targetMainSize` — and `baseSize` itself is not read by
+/// anything downstream of `collectItems` yet. Both light up fully when Task 3
+/// implements the §9.7 freeze loop, which also starts reading `frozen` (still
+/// always `false`, still unread) to stop revisiting an item once its size is
+/// final. Until then, `targetMainSize` is seeded from `hypotheticalMainSize`
+/// and never changed, so the two are numerically identical — do not read that
+/// as `hypotheticalMainSize` being redundant; it is the value Task 3 diffs
+/// against to find free space to distribute.
 struct FlexItem {
     let node: LayoutNodeID
-    /// §9.2 flex base size, before min/max clamping. Unread until Task 2.
+    /// §9.2 flex base size, before min/max clamping. Computed by
+    /// `collectItems`; not read again until Task 3's freeze loop.
     var baseSize: Double
-    /// §9.2 base size clamped by min/max. Unread until Task 2.
+    /// §9.2 base size clamped by min/max. Read once, to seed
+    /// `targetMainSize`; the freeze loop's growth/shrinkage is Task 3.
     var hypotheticalMainSize: Double
     /// The size after §9.7 distributes free space. Starts at hypothetical.
     var targetMainSize: Double
@@ -144,17 +145,18 @@ private func resolveRootSize(
 /// Resolve a node's own border-box size from its style.
 ///
 /// This is for nodes whose size comes from their own style alone — a flex
-/// item's cross axis, and any node reached from `collectItems`. **Today it is
-/// also where `collectItems` gets an item's main axis**, because flex base
-/// size (§9.2) has not been implemented yet: Task 2 replaces that one call
-/// with `flexBaseSize(_:)`, at which point this function stops touching the
-/// main axis at all. It must never grow a `flexBasis` branch of its own to
-/// get there early — ruling PF-3
+/// item's **cross** axis, and any node reached from `collectItems`. Since
+/// Task 2, `collectItems` gets an item's main axis from `flexBaseSize(_:)`
+/// instead, so this function never touches a flex item's main axis at all;
+/// `collectItems` still calls it for the item's full `SizeD` and reads only
+/// the cross component out of it. It must never grow a `flexBasis` branch of
+/// its own to reach into the main axis anyway — ruling PF-3
 /// (`docs/superpowers/2026-08-25-m1a-decisions.md`) named exactly that
 /// shortcut as the failure mode: an auto-sized item quietly inheriting a
 /// fallback that was only ever meant to be temporary. That is also why,
 /// unlike `resolveRootSize`, this function never falls back to an offered
-/// available extent — an auto-sized item is 0 until Task 2 lands.
+/// available extent — an axis it cannot resolve from the node's own style is
+/// 0, on both the cross axis here and the (unused) main axis.
 private func resolveNodeSize(
     _ tree: LayoutTree,
     _ node: LayoutNodeID,
@@ -168,8 +170,9 @@ private func resolveNodeSize(
         let resolved = resolveDimension(dim, against: parentExtent, rootFontSize: rootFontSize)
         let lower = resolveDimension(minDim, against: parentExtent, rootFontSize: rootFontSize)
         let upper = resolveDimension(maxDim, against: parentExtent, rootFontSize: rootFontSize)
-        // An unresolvable size is 0 here. For a flex item's MAIN axis that is
-        // never reached — §9.2 supplies the base size instead.
+        // An unresolvable size is 0 here. On a flex item's main axis this
+        // result is computed but discarded — §9.2's flex base size supplies
+        // that axis instead.
         return clamp(resolved ?? 0, min: lower, max: upper)
     }
 
@@ -204,16 +207,32 @@ private func collectItems(
 ) -> [FlexItem] {
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
+    let containerMain = isRow ? containerSize.width : containerSize.height
+    let containerCross = isRow ? containerSize.height : containerSize.width
     let parent = OptionalSizeD(width: containerSize.width, height: containerSize.height)
 
     return tree.children(container)
         .filter { tree.style($0).display != .none }
         .map { kid in
-            let size = resolveNodeSize(tree, kid, parent: parent, rootFontSize: rootFontSize)
-            let main = isRow ? size.width : size.height
-            let cross = isRow ? size.height : size.width
-            return FlexItem(node: kid, baseSize: main, hypotheticalMainSize: main,
-                            targetMainSize: main, crossSize: cross, frozen: false)
+            let base = flexBaseSize(tree, item: kid, isRow: isRow,
+                                    containerMain: containerMain,
+                                    containerCross: containerCross,
+                                    rootFontSize: rootFontSize)
+
+            let ks = tree.style(kid)
+            let minMain = resolveDimension(isRow ? ks.minSize.width : ks.minSize.height,
+                                           against: containerMain, rootFontSize: rootFontSize)
+            let maxMain = resolveDimension(isRow ? ks.maxSize.width : ks.maxSize.height,
+                                           against: containerMain, rootFontSize: rootFontSize)
+            let hypothetical = clamp(base, min: minMain, max: maxMain)
+
+            // Cross size still comes from the item's own style. Stretch and
+            // content-based cross sizing arrive with the alignment work.
+            let own = resolveNodeSize(tree, kid, parent: parent, rootFontSize: rootFontSize)
+            let cross = isRow ? own.height : own.width
+
+            return FlexItem(node: kid, baseSize: base, hypotheticalMainSize: hypothetical,
+                            targetMainSize: hypothetical, crossSize: cross, frozen: false)
         }
 }
 
