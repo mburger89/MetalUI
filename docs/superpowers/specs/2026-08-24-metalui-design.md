@@ -1,11 +1,17 @@
 # MetalUI — Design
 
-**Date:** 2026-08-24
+**Date:** 2026-08-24 (revised 2026-08-25 after adversarial review)
 **Status:** Approved design; implementation plan not yet written.
 
 A GPU-accelerated UI framework for Swift, architecturally modeled on
 [gpui](https://github.com/zed-industries/zed/tree/main/crates/gpui) (Zed's Rust UI framework),
 but written as idiomatic Swift rather than a port.
+
+> **Revision note.** This document was reviewed by eleven agents that compiled Swift against the
+> Swift 6.3.3 toolchain, built SwiftPM packages, measured CoreText and WebKit behavior on the target
+> machine, and read gpui's shipping source. Claims marked **(measured)** were verified empirically;
+> the measurement is quoted so it can be re-checked. Several first-draft decisions were overturned;
+> §14 records them.
 
 ---
 
@@ -16,16 +22,17 @@ Build a production-usable Swift UI framework capable of shipping real apps.
 gpui is the **architectural reference, not the specification**. Where gpui's design solves a hard
 problem well (the three-phase element pipeline, SDF-based primitives, per-primitive clipping), we
 adopt it. Where Swift offers a better tool than a direct translation would (Observation, result
-builders, structured concurrency, typed units), we use Swift's.
+builders, structured concurrency, typed units), we use Swift's. Where gpui does not solve a problem
+at all (path stroking, accessibility), we say so rather than implying inheritance.
 
 ### Validating consumer
 
 The framework's first consumer is a **node-based Metal shader authoring tool**: a visual shader
-graph, a synchronized text view of the generated shader source, and a live 3D preview with
-imported models.
+graph, a synchronized text view of the generated shader source, and a live 3D preview with imported
+models.
 
-That app is a separate project, built later. Its role here is to keep feature prioritization
-honest. It exercises three subsystems simultaneously:
+That app is a separate project, built later. Its role here is to keep feature prioritization honest.
+It exercises three subsystems simultaneously:
 
 | App capability | Subsystem it makes load-bearing |
 |---|---|
@@ -33,34 +40,38 @@ honest. It exercises three subsystems simultaneously:
 | Node graph | Paths/bezier wires, pan-zoom transforms, hit-testing, z-ordering, custom elements |
 | Model import + live preview | **App-owned Metal rendering composited into the UI** |
 
-The third is the reason a Metal-native UI framework is worth building at all, and it is a
-**core primitive** in this design rather than an escape hatch. See §7.6.
+The third is the reason a Metal-native UI framework is worth building at all, and it is a **core
+primitive** (§7.7), not an escape hatch.
 
 ### Non-goals
 
 - Not a SwiftUI replacement or a SwiftUI-compatible API.
 - Not a faithful gpui port; API fidelity to gpui is explicitly not a goal.
-- Not cross-platform beyond Apple platforms in v1 (see §2).
+- Not cross-platform beyond Apple platforms (§2).
 
 ---
 
 ## 2. Platform scope
 
-**v1 targets macOS, iOS/iPadOS, and tvOS** on a single flat-surface backend
-(`CAMetalLayer` + Metal + CoreText).
+**v1 targets macOS and iOS/iPadOS** on a single flat-surface backend (`CAMetalLayer` + Metal +
+CoreText).
+
+**tvOS is deferred but designed for.** *(Revised — v1 in the first draft.)* It shares the UIKit
+backend built for iOS, so it stays cheap to add, but its interaction model is pointerless: remote
+swipe translated to focus movement, focus parallax, and no cursor at all — which §8.1's hitbox-based
+hit testing assumes exists. Shipping it would mean designing a second input model that serves no
+stated goal.
 
 **visionOS is deferred but designed for.** It is not merely another backend: Metal content on
-visionOS goes through CompositorServices `LayerRenderer`, which forks two of the deepest layers —
-the render loop (stereo, per-eye projection, foveated rasterization rate maps) and the input model
-(`SpatialEventCollection` rather than pointer events). Paying for stereo up front would slow every
-other milestone. Instead, §3.2's seams are drawn so a CompositorServices backend is additive.
+visionOS goes through CompositorServices `LayerRenderer`, which forks the render loop (stereo,
+per-eye projection, foveated rasterization rate maps) and the input model (`SpatialEventCollection`
+rather than pointer events). §3.2's seams make a CompositorServices backend additive.
 
 **Non-Apple platforms** (Linux/Windows) are possible later. The seams that would matter — the text
-system and the render backend — are protocols, but no non-Apple implementation is planned or
-budgeted.
+system and the render backend — are protocols, but no non-Apple implementation is planned.
 
-**Dependencies: none.** Apple frameworks (Metal, CoreText, AppKit/UIKit) plus our own code. No
-`unsafeFlags`, so the package remains consumable as an ordinary SwiftPM dependency.
+**Dependencies: none.** Apple frameworks (Metal, CoreText, AppKit/UIKit) plus our own code, and no
+`unsafeFlags` — see §7.2, which is what makes that claim survivable.
 
 ---
 
@@ -68,45 +79,51 @@ budgeted.
 
 ### 3.1 Targets
 
-Six library targets, strictly one-way dependencies. Layering buys enforced boundaries, fast
-incremental builds, and headless testability — layout and text are testable with no window and no
-GPU.
+Seven targets, strictly one-way dependencies. Layering buys enforced boundaries, incremental builds
+that actually partition, and headless testability — layout is testable with no window and no GPU.
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │  MetalUI            umbrella: App, Window, Element,  │
 │                     Component, Column/Row/Grid/      │
-│                     Button, styling, focus, actions  │
+│                     Button, styling, focus, actions, │
+│                     accessibility                    │
 └───┬──────────┬──────────┬───────────┬────────────────┘
     │          │          │           │
 ┌───▼────┐ ┌───▼────┐ ┌───▼─────┐ ┌───▼──────────┐
 │ Layout │ │  Text  │ │ Render  │ │   Platform   │
-│ flex + │ │CoreText│ │ Metal,  │ │ Window, input│
-│ grid   │ │ shaping│ │ atlas   │ │ AppKit/UIKit │
+│ flex + │ │CoreText│ │ Metal,  │ │ PlatformWindow│
+│ grid   │ │ shaping│ │ atlas   │ │ input, AppKit/│
+│        │ │        │ │         │ │ UIKit         │
 └───┬────┘ └───┬────┘ └───┬─────┘ └───┬──────────┘
     └──────────┴────┬─────┴───────────┘
-             ┌──────▼───────┐
-             │ MetalUICore  │  geometry, color, units,
-             │              │  IDs — no platform deps
-             └──────────────┘
+             ┌──────▼───────┐      ┌──────────────────┐
+             │ MetalUICore  │      │ MetalUIShaderTypes│
+             │ geometry,    │      │ (C target) the    │
+             │ color, units,│      │ only definition of│
+             │ IDs          │      │ CPU/GPU layouts   │
+             └──────────────┘      └──────────────────┘
 ```
 
-Plus `MetalUIShaderTypes`, a C target whose header is the single definition of every CPU/GPU
-struct layout (§7.2).
+`Window` in the umbrella is the public type; `PlatformWindow` in Platform is the backend protocol.
+They are distinct and never aliased.
+
+**Every module's sources live under its own target directory** (`Sources/MetalUILayout/…`, not
+`Sources/MetalUI/Layout/…`). SwiftPM's `Sources/<TargetName>/` convention means the latter would
+place the flex engine *inside* the umbrella target, defeating all three stated benefits.
 
 Two deliberate absences hold the layering:
 
-- **Layout does not know Text exists.** Layout leaves take a measure closure
-  `(ProposedSize) -> Size`; the umbrella supplies one that calls Text. Layout stays a pure
-  function of style plus closures, which is what makes the golden-file test strategy possible.
+- **Layout does not know Text exists.** Layout leaves take a measure closure whose contract is §5.5.
+  Layout stays a pure function of style plus closures, which is what makes §5.7's oracle possible.
 - **Render does not know fonts exist.** Text produces `GlyphRaster` (bitmap + metrics); Render
-  owns the atlas and accepts bitmaps via a `GlyphRasterizing` protocol. The atlas is equally happy
-  caching icons or SVG output.
+  defines both `GlyphRaster` and the `GlyphRasterizing` protocol without font knowledge, and owns
+  the atlas.
 
 ### 3.2 The platform seam
 
-The naive seam — `window.metalLayer` — silently encodes "one flat surface, orthographic
-projection," which is exactly what visionOS breaks. The seam is drawn one level higher:
+The naive seam — `window.metalLayer` — silently encodes "one flat surface, orthographic projection,"
+which is exactly what visionOS breaks. The seam is drawn one level higher:
 
 ```swift
 protocol RenderSurface: AnyObject {
@@ -131,12 +148,14 @@ The renderer loops over `frame.views` and multiplies by a matrix it does not int
 CompositorServices backend later returns two views with per-eye transform/tangents and a rate map,
 **without the renderer changing**.
 
-Input follows the same discipline: one `InputEvent` enum with spatial cases reserved rather than
-retrofitted.
+**Failure handling.** `nextFrame()` throwing and `nextDrawable()` returning nil are everyday
+conditions, not errors. The frame loop skips the frame, **leaves `needsRedraw` set**, and retries on
+the next tick. A skipped frame never clears dirty state. Device loss (`MTLCommandBufferError`
+`.notPermitted`/`.deviceRemoved`) tears down and rebuilds all GPU resources — pipelines, atlases,
+`MetalView` targets — and forces a full redraw; atlas contents are regenerable by construction, so
+no user-visible state is lost.
 
-Windowing splits `AppKitPlatform` / `UIKitPlatform` behind a `Platform` protocol (windows,
-displays, clipboard, cursor, menus, file panels). tvOS rides the UIKit backend with focus-move
-events.
+Input follows the same discipline: one `InputEvent` enum with spatial cases reserved.
 
 ### 3.3 Concurrency
 
@@ -146,8 +165,7 @@ The package is Swift 6 language mode; strict concurrency shapes the design rathe
   single-threaded by construction; no locks in the hot path.
 - Scene primitives are **POD structs** — trivially copyable, laid out for direct GPU upload.
 - Background work (asset loading, file I/O, shader compilation, later text rasterization) uses
-  structured concurrency. gpui's foreground/background executor split comes free from Swift's own;
-  no custom executor machinery.
+  structured concurrency. gpui's foreground/background executor split comes free from Swift's own.
 
 ---
 
@@ -160,10 +178,11 @@ The package is Swift 6 language mode; strict concurrency shapes the design rathe
 Each frame, `content` runs and produces a tree of lightweight `Element` values, walked three times:
 
 1. **`requestLayout`** — each element contributes style plus a layout node; text leaves register a
-   measure closure. The flex/grid engine then runs on the root.
+   measure closure (§5.5). Virtualized containers produce visible children here (§4.7). The
+   flex/grid engine then runs on the root.
 2. **`prepaint`** — layout has resolved, so absolute bounds are known. Elements register hitboxes,
-   focus handles, and scroll regions; decide they are offscreen and skip (virtualization); and
-   hoist deferred/overlay content.
+   focus handles, scroll regions, and accessibility nodes (§9); cull offscreen content; and hoist
+   deferred/overlay content.
 3. **`paint`** — emit GPU primitives into the `Scene`; push/pop clips and transforms.
 
 ```swift
@@ -186,26 +205,19 @@ protocol Element {
 }
 ```
 
-`LayoutPass` / `PrepaintPass` / `PaintPass` are thin structs over one `@MainActor final class
-Frame`, exposing only what is legal in that phase — emitting a rect during layout is a compile
-error, not a runtime rule.
+`LayoutPass` / `PrepaintPass` / `PaintPass` are thin structs over one `@MainActor final class Frame`,
+exposing only what is legal in that phase — emitting a rect during layout is a compile error.
 
-**Why three phases and not two.** Hit-test registration in paint order, offscreen culling, and
-overlay hoisting all require resolved positions but must happen before painting. `prepaint` is
-that window.
+**Why three phases and not two.** Hit-test registration in paint order, offscreen culling, AX node
+emission, and overlay hoisting all require resolved positions but must precede painting.
 
-**Rejected: diffed retained tree (React/SwiftUI model).** It buys skipping untouched subtrees and
-incremental layout, at the cost of a reconciler — identity, keys, state migration on structural
-change — which is where the nastiest framework bugs live. The scaling problem it purports to solve
-(a 5,000-node graph, a 500k-line file) is actually solved by **virtualization**, which this design
-needs regardless. With virtualization, trees stay small and full rebuilds stay cheap.
+**Rejected: diffed retained tree (React/SwiftUI model).** It buys skipping untouched subtrees, at the
+cost of a reconciler — identity, keys, state migration — which is where the nastiest framework bugs
+live. The scaling problem it purports to solve is solved instead by **virtualization** (§4.7).
 
 **Accepted cost:** `content` must be synchronous and cheap. Async reads are not tracked by
-Observation, and expensive work re-runs on every affected frame. Documented as a hard rule: no
-I/O, no heavy allocation in `content`.
-
-**Deferred optimization:** subtree memoization (reuse last frame's layout/paint when observed
-dependencies are unchanged). Not built speculatively.
+Observation, and expensive work re-runs on every affected frame. Documented as a hard rule: no I/O,
+no heavy allocation in `content`.
 
 ### 4.2 `Component` — the user-facing surface
 
@@ -218,13 +230,12 @@ protocol Component: Element {
 ```
 
 `Element` conformance comes from a protocol extension that materializes `content` once during
-`requestLayout`, stashes it in `LayoutState`, and forwards all three phases. `Component` is pure
-sugar; implementing `Element` directly remains available and is expected for the node graph.
+`requestLayout`, stashes it in `LayoutState`, and forwards all three phases. `Component` is sugar;
+implementing `Element` directly remains available and is expected for the node graph.
 
-**Vocabulary decision.** Names are deliberately distinct from SwiftUI's — `Component`/`content`,
-not `View`/`body` — primarily to avoid symbol ambiguity when a file imports both frameworks, and
-secondarily to keep visible daylight between the two. Universal UI terms (`Button`, `Column`,
-`Row`, `Grid`) are kept because they belong to no single framework.
+**Vocabulary decision.** Names are deliberately distinct from SwiftUI's — `Component`/`content`, not
+`View`/`body` — primarily to avoid symbol ambiguity when a file imports both frameworks. Universal
+UI terms (`Button`, `Column`, `Row`, `Grid`) are kept because they belong to no single framework.
 
 ```swift
 @Observable
@@ -239,7 +250,7 @@ struct Inspector: Component {
             Button("Compile") { compile(doc) }
         }
         .padding(12)
-        .background(.gray800)
+        .background(.surfaceSecondary)
     }
 }
 ```
@@ -247,11 +258,22 @@ struct Inspector: Component {
 ### 4.3 Identity and cross-frame state
 
 State that must survive a rebuild — scroll offset, hover, animation progress, text selection,
-in-progress node drag — lives in a side table on the window keyed by `GlobalElementID`: the path
-of `ElementID` components from the root.
+in-progress node drag, `MetalView` render targets (§7.7) — lives in a side table on the window keyed
+by `GlobalElementID`: the path of `ElementID` components from the root.
 
-Entries are marked on access and swept after each frame, so state for vanished elements is
-collected automatically. This dictionary plus mark-sweep **is** the entire reconciliation story.
+Entries are marked on access and swept after each frame. This dictionary plus mark-sweep **is** the
+entire reconciliation story.
+
+**Two consequences the sweep forces, recorded here because both are load-bearing elsewhere:**
+
+- **Accessibility identity rides this table.** AX clients retain element references across frames, so
+  `GlobalElementID` is the only structure that can back stable AX identity (§9). A node an AX client
+  still holds must survive the sweep as a tombstone that reports itself invalid, rather than
+  vanishing.
+- **Exit transitions are impossible without a tombstone mechanism.** An element that stops being
+  produced has its animation state swept on that very frame. **v1 does not support exit transitions**
+  (§14); the sweep is why. Adding them later means deferred-sweep tombstones, which is a change to
+  this section, not a feature bolted onto the animation system.
 
 ### 4.4 Redraw and scheduling
 
@@ -274,30 +296,110 @@ Three properties of `withObservationTracking` make it fit a full-rebuild model:
 - It tracks exactly the properties **read during the closure** — precise dependencies, no
   annotations, no manual `notify()`.
 - It is **one-shot**; normally an annoyance, here ideal, since we re-register every frame.
-- `onChange` fires on the mutating thread just before the write lands, so we hop to `@MainActor`
-  and set a flag rather than working inline.
+- `onChange` fires on the mutating thread just before the write lands, so we hop to `@MainActor` and
+  set a flag rather than working inline.
 
-A display link (`CVDisplayLink` / `CADisplayLink`) drives the loop, but **a frame is built only
-when dirty** — set by an observation change, input event, animation tick, or resize. An idle
-window costs zero CPU. Multiple mutations between vsyncs coalesce into one frame.
+**Display link. (measured)** `CVDisplayLink` is deprecated **in its entirety** as of macOS 15 —
+`CVDisplayLink.h` opens `API_DEPRECATED_BEGIN(…, macos(10.4, 15.0))` at line 51 and closes at 251 —
+and this package targets macOS 26. The frame loop uses **`NSView.displayLink(target:selector:)`** on
+macOS (14+, returns `CADisplayLink`) and `CADisplayLink` on iOS. This is strictly better than the
+first draft's plan: one type across AppKit and UIKit, and callbacks arrive on a **main-thread run
+loop**, matching §3.3's `@MainActor` frame with no thread hop (a `CVDisplayLink` callback fires on a
+dedicated thread and would need one).
+
+**A frame is built only when dirty** — set by an observation change, input event, animation tick,
+resize, `MetalView` invalidation (§7.7), or system appearance change (§7.8). The link is **paused**
+(`link.isPaused = true`) when `needsRedraw == false && !hasActiveAnimations` and resumed at every
+dirty-marking site, so an idle window permits display downclocking. Cost: one frame of latency on
+the first event after idle.
+
+**Timebase.** All animation and `MetalDrawContext.time` derive from the display link's **target
+presentation timestamp**, never wall clock — required for correct 120 Hz ProMotion and
+variable-refresh behavior. `hasActiveAnimations` is set when an animation is registered during
+`prepaint` and cleared on the first frame where none is.
+
+**Post-commit.** After presenting, the loop calls `NSTextInputContext.invalidateCharacterCoordinates`
+when the caret rect moved (§8.4); without it the input system will not call `handleEvent:` correctly.
 
 ### 4.5 Overlays
 
-`paint` emits into a `Scene` sorted by `(layer, order)`. A `Deferred` element hoists its subtree to
-a higher layer during `prepaint`, so dropdowns, tooltips, and dragged nodes paint above siblings
+`paint` emits into a `Scene` sorted by `(layer, order)`. A `Deferred` element hoists its subtree to a
+higher layer during `prepaint`, so dropdowns, tooltips, and dragged nodes paint above siblings
 without moving in the tree.
 
-### 4.6 Allocation strategy
+### 4.6 `AnyElement` and allocation
 
-Rebuilding every frame allocates every frame, and `any Element` boxing brings ARC traffic.
-Mitigations, in order:
+**`any Element` cannot drive this pipeline. (measured, swiftc 6.3.3, `-swift-version 6`,
+arm64-apple-macosx26.0.)** `requestLayout` on an `inout any Element` type-checks, but `prepaint`
+fails:
+
+```
+error: member 'prepaint' cannot be used on value of type 'any Element' [#ExistentialMemberAccess]
+```
+
+`LayoutState` and `PrepaintState` appear in `inout` (invariant) position and cannot be opened.
+`AnyElement` is therefore a **hand-written erasure**:
+
+```swift
+protocol ElementObject { /* type-erased phase methods; NOT AnyObject */ }
+
+struct AnyElementBox<E: Element>: ElementObject {   // ← struct, not class
+    var element: E
+    var layoutState: E.LayoutState?
+    var prepaintState: E.PrepaintState?
+}
+
+struct AnyElement { var box: any ElementObject }
+```
+
+**The box must be a struct. (measured.)** With a class box, two copies share one `LayoutState`:
+`Row { sep; sep }` prints `prepaint sees layoutState=2` twice — wrong bounds, no diagnostic. The
+struct box prints 1 then 2. This is a silent-corruption trap, which is why it is specified here
+rather than left to implementation.
+
+gpui's move-only `Box<dyn ElementObject>` has no Swift equivalent: `struct AnyElement: ~Copyable`
+plus `[AnyElement]` gives `error: type 'AnyElement' does not conform to protocol 'Copyable'`.
+
+**Allocation mitigations, in order:**
 
 1. **Result builders preserve concrete types.** `Column { Label(...); Button(...) }` builds
-   `Column<Pair<Label, Button>>` — statically typed, no boxing. Only genuinely dynamic children
-   need `AnyElement`.
-2. **Virtualization keeps N small.**
-3. If profiling still shows churn: a per-frame bump allocator for `AnyElement` (gpui's approach).
-   Not built speculatively.
+   `Column<Pair<Label, Button>>` — statically typed, no boxing. Only genuinely dynamic children need
+   `AnyElement`.
+2. **Virtualization keeps N small** (§4.7).
+3. If profiling still shows churn: a per-frame bump allocator. Not built speculatively.
+
+### 4.7 Virtualization
+
+**Culling is not virtualization**, and the first draft conflated them. Skipping offscreen elements
+during `prepaint` runs *after* `content` built all N elements and after all N layout nodes were
+created and sized — it removes the cheapest of three costs. Three separate arguments depend on trees
+actually staying small: §4.1's rejection of a diffed retained tree, §4.6's allocation strategy, and
+§13's ARC-churn row.
+
+Real virtualization fits inside the existing phase contract without changing §4.1 — a virtualized
+container produces its children during its **own** `requestLayout`, from a range closure:
+
+```swift
+VirtualList(count: doc.lineCount, extent: .uniform(lineHeight)) { range in
+    range.map { LineView(doc, line: $0) }
+}
+```
+
+Specified behavior:
+
+- **Extent model**: `.uniform(Pixels)` (exact scrollbar, O(1) offset math) or
+  `.estimated(Pixels, measure:)` (measured on realization, cached per index, scrollbar refines as
+  content is visited). A code editor with soft wrap needs the latter.
+- **Keyed state** (§4.3) for an item outside the realized range is swept normally; items must not
+  hold state that outlives visibility. State that must persist (e.g. a collapsed fold) belongs in the
+  app's `@Observable` model, not the element state table.
+- **Hitboxes and AX nodes** exist only for realized items. AX exposes the full logical count with
+  realized children, so VoiceOver reports "3 of 500" correctly.
+- **Nested virtualized scrollers are supported**; the inner container's realized range is computed
+  against its own clipped bounds.
+
+Virtualization ships in **M3**, alongside scroll containers — not M6 — because the arguments above
+depend on it existing.
 
 ---
 
@@ -305,15 +407,14 @@ Mitigations, in order:
 
 ### 5.1 Decision
 
-**Hand-written flexbox and CSS Grid in Swift.** Rejected: Yoga via C interop (opaque performance,
-C++ dependency, FFI per node, limited control over incremental relayout) and porting Taffy from
-Rust (~10k lines of mechanical translation plus ongoing drift).
+**Hand-written flexbox and CSS Grid in Swift.** Rejected: Yoga via C interop (opaque performance, C++
+dependency, FFI per node, limited control over incremental relayout) and porting Taffy from Rust
+(~10k lines of mechanical translation plus ongoing drift).
 
-Layout bugs must be fixable by us, and we need control over caching and incremental relayout. The
-risk this incurs is mitigated by the test oracle in §5.5, which is what makes hand-writing
-tractable — especially for grid.
+Layout bugs must be fixable by us, and we need control over caching. The risk is mitigated by the
+test oracle in **§5.7**, which is what makes hand-writing tractable — especially for grid.
 
-### 5.2 Style model
+### 5.2 Style model and box model
 
 ```swift
 struct Style {
@@ -337,46 +438,59 @@ struct Style {
     var flexBasis: Dimension
     var alignSelf: Alignment?
 
-    // Grid container / item — see §5.4
+    // Grid — §5.4
 }
 ```
 
-**Out of scope for v1:** block/inline layout, floats, writing modes. **RTL is deferred but not
-designed out** — `Edges` stays semantic so a start/end mapping can be added without touching
-either algorithm.
+**Box model: `border-box`.** `size`, `minSize`, and `maxSize` include padding and border. CSS defaults
+to `content-box`, but Yoga, Taffy, and gpui all default to `border-box`, and it is what UI authors
+expect. **Only `border-box` ships in v1** — no `boxSizing` property. Every §5.7 fixture must declare
+`box-sizing: border-box` in its CSS, exactly as Taffy's own generator forces it.
 
-### 5.3 Typed units
+**Automatic minimum size** (CSS flexbox's `min-width: auto`, which prevents flex items shrinking below
+their min-content size) **is implemented in v1** — without it, text in a constrained row collapses to
+zero and the framework looks broken on its first demo. Fixtures depending on it are in the corpus.
+
+**Out of scope for v1:** block/inline layout, floats, writing modes. **RTL is deferred but not
+designed out** — `Edges` stays semantic so a start/end mapping can be added without touching either
+algorithm.
+
+### 5.3 Units
 
 ```swift
 struct Pixels        { var value: Float }   // logical
 struct DevicePixels  { var value: Int32 }   // physical
 struct ScaledPixels  { var value: Float }   // logical × scaleFactor
-struct Rems          { var value: Float }
-enum Length { case pixels(Pixels), rems(Rems), percent(Float), auto }
+struct Rems          { var value: Float }   // relative to root font size
+
+enum Length    { case pixels(Pixels), rems(Rems), percent(Float) }         // no auto
+enum Dimension { case length(Length), auto }                               // sizing
 ```
+
+`Length` is used where a value is always required (margin, padding, border, gap, inset).
+`Dimension` adds `auto` and is used for `size`/`minSize`/`maxSize`/`flexBasis`. The first draft gave
+`Length` an `auto` case *and* used an undefined `Dimension`; this split is the fix.
+
+These live in **MetalUICore**, not the Layout target — §3.1's Core box owns "geometry, color, units,
+IDs," and Text and Render both need them.
 
 Distinct types with arithmetic conformances, so mixing logical and device pixels is a **compile
 error** rather than a Retina-only rendering bug.
 
 ### 5.4 Grid
 
-Included in v1 (not deferred). It roughly doubles the layout module — the track-sizing algorithm
-is harder than flexbox's, and auto-placement has no flexbox analogue — but it shares the `Style`
-model, the SoA tree, the measure caches, and the alignment code with flex; `Display` selects the
-algorithm. Retrofitting later would mean reopening sizing decisions baked around flex-only
-assumptions. And the §5.5 oracle covers grid with zero changes.
+Included in v1. It roughly doubles the layout module — the track-sizing algorithm is harder than
+flexbox's, and auto-placement has no flexbox analogue — but it shares the `Style` model, the SoA
+tree, the measure caches, and the alignment code with flex; `Display` selects the algorithm. And the
+§5.7 oracle covers grid with zero changes.
 
-**In v1:**
-- `gridTemplateColumns` / `gridTemplateRows` with `px`, `%`, `fr`, `auto`, `minmax()`, `repeat()`
-  including `autoFill` / `autoFit`
-- `gridAutoColumns` / `gridAutoRows`, `gridAutoFlow` (row/column, sparse/dense)
-- Placement: explicit line indices, spans, auto-placement
-- `gap` (shared with flex); `justify`/`align` for items, content, self
+**In v1:** `gridTemplateColumns`/`gridTemplateRows` with `px`, `%`, `fr`, `auto`, `minmax()`,
+`repeat()` including `autoFill`/`autoFit`; `gridAutoColumns`/`gridAutoRows`, `gridAutoFlow`
+(row/column, sparse/dense); placement by explicit line indices, spans, and auto-placement; `gap`;
+`justify`/`align` for items, content, self.
 
-**Out of v1:** subgrid (genuinely hard, rarely needed); baseline alignment across grid items
-(flexbox baseline still ships); named areas (`grid-template-areas`) — deferred as an *ergonomic*
-layer, since it is sugar over line indices and in Swift would be expressed with types rather than
-parsed ASCII art.
+**Out of v1:** subgrid; baseline alignment across grid items; named areas (deferred as an *ergonomic*
+layer over line indices).
 
 ```swift
 Grid(columns: [.px(120), .fr(1), .auto], gap: 8) {
@@ -389,43 +503,90 @@ Grid(columns: [.px(120), .fr(1), .auto], gap: 8) {
 }
 ```
 
-### 5.5 Caching
+### 5.5 The measure contract
 
-Flexbox calls `measure` on a leaf several times within one layout run (flex base size, then again
-after flexing), and the tree is rebuilt each frame. Two caches at two lifetimes:
+This is the public Layout↔Text seam, and the first draft declared two incompatible signatures. The
+contract is:
 
-- **Per-frame**, in the layout tree, keyed by `(knownDimensions, availableSpace)`. Kills repeated
-  calls within one run. Discarded with the tree.
-- **Cross-frame**, in the text layer, keyed by
-  `(textHash, fontStack, size, features, availableWidth)`, LRU. **This is the one that matters** —
-  without it, scrolling a code file re-shapes every visible line every frame.
+```swift
+enum AvailableSpace { case definite(Float), minContent, maxContent }
 
-### 5.6 Test oracle
+typealias MeasureFunction =
+    (_ knownDimensions: Size<Float?>, _ availableSpace: Size<AvailableSpace>) -> Size<Float>
+```
 
-Ground truth is generated from **WebKit, already present on the machine**. A test utility loads
-fixture HTML into a `WKWebView`, lets the browser lay it out, reads back every node's
-`getBoundingClientRect()`, and writes a JSON golden file.
+**The two parameters cannot collapse into one.** A known width of 100 obliges the leaf to *return*
+100; an available width of 100 obliges it to *wrap at* 100 and return its natural width. Grid track
+sizing additionally needs "known in this axis, max-content constrained in the other."
+
+**Text's answers:** `minContent` is the longest unbreakable run; `maxContent` is the single-line
+width. Both are computed from cached advances (§6), not by re-shaping.
+
+**Fixture roots** (§5.7) are measured with max-content in both axes, matching Taffy's harness.
+
+### 5.6 Caching
+
+**Per-frame layout cache**, in the layout tree. The key must include state that guards
+*correctness*, not merely hit rate:
+
+```
+(runMode, requestedAxis, knownDimensions, knownDimensionsAreDefinite, availableSpace, parentSize)
+```
+
+with full-layout results held in a slot distinct from measure-only results. Two failures the first
+draft's shorter key allowed: a size-only result returned to a request that expected children
+positioned, and percentage padding/margin (our `Length` has `.percent`) resolving against a parent
+size the key ignored.
+
+**Cross-frame text caches — two of them, not one.** The first draft used a single key including
+`availableWidth`, which meant a resize drag missed every frame and re-shaped every visible line —
+precisely the cost §6 exists to avoid. Shaping output does not depend on width; only wrap boundaries
+do:
+
+| Cache | Key | Invalidated by |
+|---|---|---|
+| Shaping | `(textHash, fontStack, resolvedFontKey, features)` | font/text change |
+| Wrap & measure | `(shapedLineID, availableWidth, wrapMode)` | width change |
+
+Only the second invalidates on resize. Lines on §6.4's re-typeset path land in the second cache with
+real per-width cost.
+
+### 5.7 Test oracle
+
+Ground truth is generated from **WebKit**. A test utility loads fixture HTML into a `WKWebView`,
+reads back every node's `getBoundingClientRect()`, and writes a JSON golden file.
+
+**Tolerance. (measured.)** The first draft's 0.01pt is unachievable: WebKit quantizes to 1/64px
+(`LayoutUnit`) and error compounds with nesting. Measured on this machine — 3× `flex:1` in 700px →
+Δ0.0104; 7× `flex:1` in 100px → Δ0.0268; `repeat(7, 1fr)` in 1000px → tracks of *unequal* used size;
+a 4-deep 3-way split (243 leaves) → last right edge at 1000.5625, overflowing its own parent by
+0.0625pt. A 9-leaf depth-2 fixture already busts 0.01.
+
+The generator therefore records **both** raw rects and a **cumulative-rounded** layout
+(`round(cumX + w) - round(cumX)` over viewport-absolute coordinates — Taffy's `round_layout`).
+MetalUI applies the identical rounding pass, and assertions compare rounded values with a **0.1pt
+tolerance** (Taffy's own figure). Raw values are retained for debugging only.
 
 ```
 Tests/LayoutTests/
-  Fixtures/flex_grow_basis_percent.html   ← the case, in plain CSS
-  Golden/flex_grow_basis_percent.json     ← WebKit's answer, generated
-  FlexEngineTests.swift                   ← asserts we match within 0.01pt
+  Fixtures/flex_grow_basis_percent.html   ← plain CSS, box-sizing: border-box
+  Golden/flex_grow_basis_percent.json     ← WebKit's answer + rounded layout
+  FlexEngineTests.swift                   ← @Test(arguments:) over the corpus
 ```
 
-Fixtures are readable CSS a person can reason about; the oracle is a production browser rather
-than our own opinion; and a disagreement can be opened in Safari and *seen*. Taffy's and Yoga's
-fixture corpora are plain data and can be adapted as extra cases.
+Fixtures are readable CSS; the oracle is a production browser; a disagreement can be opened in Safari
+and *seen*. Taffy's and Yoga's corpora are plain data and can be adapted.
 
-### 5.7 Module
+### 5.8 Module
 
 ```
-Sources/MetalUI/Layout/
-  Style.swift        Units.swift        LayoutTree.swift
-  MeasureCache.swift Alignment.swift    ← shared
-  FlexEngine.swift                      ← CSS Flexbox §9
+Sources/MetalUILayout/
+  LayoutTree.swift   MeasureCache.swift   Alignment.swift   ← shared
+  FlexEngine.swift                                          ← CSS Flexbox §9
   GridEngine.swift   GridPlacement.swift  GridTracks.swift
 ```
+
+`Style` lives here; `Units` lives in MetalUICore (§5.3).
 
 ---
 
@@ -437,57 +598,118 @@ shaping and rasterization and own everything above it.
 | Stage | How | Owner |
 |---|---|---|
 | Font loading, features | `CTFontManager`; ligature/tabular-numeral controls | Us, thin over CoreText |
-| Shaping | `CTLine`/`CTRun` from `CFAttributedString` → glyph IDs, advances, per-run font | CoreText |
-| Line breaking / soft wrap | Our own, over shaped advances + break opportunities | **Us** |
-| Rasterization | `CTFontDrawGlyphs` into our bitmap → atlas upload | Us, over CoreText |
+| Shaping | `CTLine`/`CTRun` from `CFAttributedString` | CoreText |
+| Line breaking / soft wrap | Ours, gated (§6.4, §6.5) | **Us** |
+| Rasterization | `CTFontDrawGlyphs` into our bitmap → atlas | Us, over CoreText |
 | Atlas packing | Shelf packer; R8 monochrome, BGRA8 color | Us |
-
-**Why own wrapping.** A code editor must re-wrap on pane resize without re-shaping, with wrap
-points that are stable and identical every frame. We shape the logical line once, cache it, and
-wrap by walking cached advances against break opportunities — resize becomes arithmetic over
-cached data rather than a full re-shape.
 
 ### 6.1 Rasterization
 
-- **Subpixel positioning**: rasterize each glyph at a few fractional x-offsets, pick nearest.
-  Without it, text spacing visibly wobbles during horizontal scroll.
-- **Atlas key**: `(fontID, glyphID, size, subpixelVariant, scaleFactor)`.
+- **Subpixel positioning**: rasterize each glyph at a few fractional x-offsets, pick nearest. Without
+  it, spacing visibly wobbles during horizontal scroll.
+- **Atlas key**: `(resolvedFontKey, glyphID, size, subpixelVariant, scaleFactor)`.
+  **(measured)** `resolvedFontKey` identifies the *resolved* `CTFont` including variation coordinates
+  and matrix — **never a family or PostScript name**. Requesting `"SFMono-Regular"` by name on this
+  machine returned a font whose PostScript name is `Helvetica`; name-based keys collide across
+  entirely different outlines.
 - **Grayscale AA only.** macOS retired LCD subpixel AA.
 - **Color glyphs** (emoji, `COLR`/`sbix`) route to the polychrome atlas and skip tinting.
 
-### 6.2 Text under canvas zoom
+### 6.2 Fonts under canvas zoom
 
-**Decision: re-rasterize per zoom bucket.** Zoom folds into the `size` component of the atlas key,
-so the node canvas gets crisp text with no new machinery. This keeps text *sharper* than an SDF
-approach would.
+**Zoom re-keys rasterization only — but this requires pinning the optical size axis. (measured.)**
 
-**Rejected for v1: MSDF glyphs.** At 12–14pt — the shader source editor — SDF loses thin stems,
-cannot carry hinting fidelity, and cannot represent color emoji. Documented as a fallback if
-bucket thrash appears in profiling; would apply to the zoomable canvas only, never globally.
+`CTFontCreateUIFontForLanguage(.system, …)` returns a variable font whose `opsz` axis tracks point
+size (13pt→17, 26pt→26, 52pt→52). Advances for a 28-character label: **13pt = 164.804, 26pt = 301.703
+— −8.5% versus 13pt × 2 = 329.608.** Positioning from base-size advances scaled by §7.1's matrix while
+rasterizing at the zoomed size drifts progressively (~28px accumulated at 2× on one label).
+Non-variable faces are exactly linear (Menlo, Helvetica verified identical at 13 and 26pt).
 
-Consequence: atlas eviction is mandatory (§7.5).
+**Decision: pin `opsz` via a `CTFontDescriptor` variation attribute** for canvas text. Advances then
+scale linearly, zoom folds into the atlas key's `size` component as originally intended, and no
+re-shaping is needed. Cost is a one-time descriptor construction. *(Revised — the first draft claimed
+this was free with no new machinery.)*
 
-### 6.3 Editor API and the offset seam
+**Rejected for v1: MSDF glyphs.** At 12–14pt — the shader source editor — SDF loses thin stems, cannot
+carry hinting fidelity, and cannot represent color emoji. Documented as a fallback if bucket thrash
+appears in profiling; would apply to the zoomable canvas only.
+
+Consequence: atlas eviction is mandatory (§7.6).
+
+### 6.3 Bidirectional text and the wrap fast path
+
+**"Shape the logical line once, then wrap by walking cached advances" is incorrect for base-RTL
+paragraphs. (measured.)** For `"عربي one عربي two عربي three عربي"` (Helvetica 13pt), the whole-line
+`CTLine` gives run origins 0.0 / 24.3 / 27.9 / 57.6 / 61.2 / 85.5 …, while re-typesetting per display
+line at width 110 gives **−3.6** / 0.0 / 20.2 / 23.8 / 48.2 … . The negative origin is UAX #9 L1's
+per-display-line trailing-whitespace level reset. Neither the positions nor the run set are
+reproducible from full-line advances. LTR-base wrapping at ordinary break opportunities *does* match.
+
+**Design: shape-once/wrap-by-advances is a fast path behind a gate.** At shape time the shaper
+computes and caches a per-line boolean: no run reports `CTRunStatus.rightToLeft` and no explicit bidi
+control characters are present. Lines passing the gate wrap arithmetically. Lines failing it
+**re-typeset per display line** via `CTTypesetterSuggestLineBreak` + `CTTypesetterCreateLine`, and
+land in §5.6's wrap cache with real per-width cost.
+
+Character-wrap snaps to grapheme-cluster boundaries and never splits a `CTRun` mid-cluster.
+
+### 6.4 Line breaking
+
+**CoreText exposes no width-independent line-break-opportunity API.**
+`CTTypesetterSuggestLineBreak` takes a width by construction — the opposite of what an
+arithmetic re-wrap needs. `NSString.enumerateSubstrings(.byWords)` is UAX #29 word segmentation, not
+UAX #14, and is wrong for hyphens, CJK, and non-breaking sequences.
+
+v1 implements a **hand-rolled UAX #14 subset** covering the classes a code editor and Latin/CJK UI
+text actually hit: `BK CR LF NL SP ZW WJ GL BA HY NS OP CL QU AL NU ID CJ IN EX SY IS PR PO`, with
+everything else falling back to `AL`. Full UAX #14 (~50 classes, pair table, tailoring) is out of v1.
+
+**Overflow policy:** word wrap by default; a run with no break opportunity wider than the line falls
+back to character wrap at grapheme boundaries. **Tabs** advance to the next multiple of the
+configured tab width measured from the line start, and are a break opportunity (`BA`).
+
+### 6.5 The UTF-8 / UTF-16 seam
+
+**Every CoreText index is a UTF-16 `CFIndex`. (measured.)** For `"aa👨‍👩‍👧‍👦bb"` (UTF-8 length 29,
+UTF-16 length 15): `CTRunGetStringIndices` → `[0,1] / [2] / [13,14]`, run range `(2, 11)`,
+`CTLineGetStringIndexForPosition` at x=100 → 15. The first draft declared UTF-8 byte offsets and never
+mentioned UTF-16. Both sides are `Int`, so the mismatch fails **silently on the first non-ASCII line**.
+
+Contract:
+
+- **Public offsets are UTF-8 byte offsets.** `String.Index` is grapheme-correct but O(n) — fatal for
+  a 500k-line file.
+- **CoreText-interior indices are UTF-16.** Translation lives **only** at the `CTLine` boundary.
+- `ShapedLine` caches a per-line UTF-16↔UTF-8 map built at shape time; `ShapedRun` carries both its
+  UTF-16 range (`CTRunGetStringRange`) and its UTF-8 byte range.
+- The document seam requires any backing (rope or flat buffer) to expose a **per-chunk UTF-16
+  summary**, so document-level conversion is O(log n). §8.4's `NSTextInputClient` calls arrive several
+  times per keystroke.
+- UTF-8 → `CFAttributedString` transcode cost is paid on a §5.6 shaping-cache miss only.
+
+### 6.6 Caret and hit-testing API
+
+**`x(forOffset:)` is not single-valued. (measured.)** For `"abc العربية def"` (Helvetica 13pt),
+`CTLineGetOffsetForStringIndex` returns primary 24.57 / secondary 54.12 at **both** UTF-16 index 4 and
+index 11, and `CTLineGetStringIndexForPosition` is non-monotonic (x=25→11, 30→10, 50→5, 55→11).
+Independently, soft wrap makes one offset both the end of visual row N and the start of row N+1, at
+different x *and* y — and soft wrap is ours and ships in M6 regardless of §5.2's RTL deferral.
 
 ```swift
+enum CaretAffinity { case upstream, downstream }
+
 struct ShapedLine {
     var runs: [ShapedRun]
-    var width: Pixels
-    var ascent, descent, lineHeight: Pixels
+    var rows: [VisualRow]            // wrap boundaries; ascent/descent/lineHeight per row
+    var maxContentWidth: Pixels
 
-    func offset(forX x: Pixels) -> Int   // click → caret, snapped to grapheme cluster
-    func x(forOffset offset: Int) -> Pixels
+    func x(forOffset offset: Int, affinity: CaretAffinity, row: Int) -> Pixels
+    func offset(forX x: Pixels, row: Int) -> (offset: Int, affinity: CaretAffinity)
 }
 ```
 
-These two must be exact inverses at cluster boundaries; every selection, caret, and drag depends
-on it.
-
-**Offsets are UTF-8 byte offsets, not `String.Index`.** `String.Index` is grapheme-correct but its
-arithmetic is O(n) — fine for a label, fatal for a 500k-line file. The framework offers a
-convenience layer taking `String` for UI text and a lower-level API taking a UTF-8 buffer plus byte
-ranges for editor use. The shader editor will eventually want a rope for its document; that is the
-app's concern, and this seam is what lets it plug in.
+**Invariant:** these round-trip for a fixed `(row, affinity)` — not unconditionally. A selection
+spanning a direction change is a **set of disjoint rects**, not one rect.
 
 ---
 
@@ -495,134 +717,246 @@ app's concern, and this seam is what lets it plug in.
 
 ### 7.1 Primitive set
 
-Verified against gpui's shipping Metal shaders (`crates/gpui_apple/src/shaders.metal`). Almost
-nothing is rasterized:
+Verified against gpui's shipping Metal shaders (`crates/gpui_apple/src/shaders.metal`, 1,279 lines,
+16 entry points). Almost nothing is rasterized:
 
 ```swift
 enum Primitive {
     case shadow(Shadow)                     // analytic blurred rounded box
     case rect(Rect)                         // SDF rounded rect: fill, gradient, per-side borders
-    case path(Path)                         // Loop-Blinn implicit quadratics
+    case path(Path)                         // Loop-Blinn implicit quadratics — FILLS ONLY
     case underline(Underline)               // analytic, incl. wavy
     case monochromeSprite(MonochromeSprite) // glyphs — tinted, R8 atlas
-    case polychromeSprite(PolychromeSprite) // images, emoji, SVG — BGRA8 atlas
+    case polychromeSprite(PolychromeSprite) // images, emoji — BGRA8 atlas
     case surface(Surface)                   // app-owned MTLTexture
 }
 ```
 
-| Primitive | Technique | Resolution-independent |
+| Primitive | Technique | Scale-independent |
 |---|---|---|
 | Rect (rounded, bordered, gradient) | Analytic SDF in fragment shader | yes |
 | Shadow incl. blur | Closed-form blurred-box approximation, 4 samples | yes |
-| Bezier path / stroke | Loop-Blinn implicit quadratic + gradient distance | yes |
+| Bezier path **fill** | Loop-Blinn implicit quadratic + gradient distance | tessellation-dependent (§7.5) |
 | Underline | Analytic | yes |
-| **Glyph** | **CoreText → atlas sprite** | no |
-| **Image / icon** | **Decode → atlas sprite** | no |
+| **Glyph** | CoreText → atlas sprite | no (§6.2) |
+| **Image** | Decode → atlas sprite | no |
 | App Metal content | Sampled texture | n/a |
 
-Cubic béziers are subdivided into quadratics, as Loop-Blinn requires.
+**Scope of the gpui verification.** "Verified against gpui's shipping shaders" applies to rect,
+shadow, underline, sprites, and path **fills**. It does **not** cover stroking: the shader file
+contains zero occurrences of `stroke`, `winding`, or `fill_rule`, and gpui's `Path` is a raw triangle
+emitter with no fill rule, no self-intersection handling, and no cubic entry point. §7.5 specifies
+what we must build that gpui does not have.
 
-**Consequence for the node editor:** pan and zoom is a matrix change. Node bodies, borders,
-shadows, and wires re-evaluate their SDFs at the new scale and are pixel-perfect at any zoom, with
-no re-rasterization and no cache invalidation. Text is the sole exception, handled by §6.2.
+**Loop-Blinn correction.** Loop & Blinn (2005) render cubics *directly* — classify as
+serpentine/loop/cusp/degenerate, derive (k,l,m,n), test k³−lmn. The quadratic u²−v case is the
+*degenerate special case*. gpui implements only that special case (`f = st.x*st.x - st.y`;
+`curve_to(to, ctrl)` takes a single control point). **We follow gpui**: subdivide cubics into
+quadratics. The full cubic path buys fewer primitives at the cost of cusp/loop handling and
+self-intersection artifacts we do not need.
 
-**Naming.** `Rect`, not gpui's `Quad` — "quad" is GPU jargon in a UI vocabulary. It remains a
-**single GPU primitive** with `cornerRadii` (all-zero = sharp), because sharp and rounded rects
-interleave constantly in real UIs and separate primitive types would force a batch break at every
-transition. Two API spellings, one primitive. A name-mapping table
-(`Rect`↔`Quad`, `rect_fragment`↔`quad_fragment`, `rect_sdf`↔`quad_sdf`) lives in the renderer's
-doc comments so gpui stays a one-hop reference for hard cases.
+**Consequence for the node editor:** pan and zoom is a matrix change. Rect bodies, borders, shadows,
+and already-tessellated quadratic fills are exact at any zoom (gpui's `Path::scale` just scales
+vertices). Cubic-flattening tolerance and stroke *offset* approximation are scale-dependent and need
+re-tessellation at large zoom (§7.5). Text is handled by §6.2.
 
-### 7.2 One struct definition, not two
+**Naming.** `Rect`, not gpui's `Quad`. It remains a **single GPU primitive** with `cornerRadii`
+(all-zero = sharp), because sharp and rounded rects interleave constantly and separate types would
+force a batch break at every transition. A name-mapping table (`Rect`↔`Quad`,
+`rect_fragment`↔`quad_fragment`, `rect_sdf`↔`quad_sdf`) lives in the renderer's doc comments so gpui
+stays a one-hop reference.
 
-CPU/GPU struct layouts live in a **single C header included by both**:
+### 7.2 Shader build strategy
 
-```
-Sources/MetalUIShaderTypes/include/MetalUIShaderTypes.h   ← only definition
-        ↓ imported by Swift               ↓ #included by shaders.metal
-```
+**SwiftPM's default build system does not compile `.metal` files. (measured, Swift 6.3.3 /
+Xcode 27.0 / macOS 26.6.2.)** This is the single most load-bearing correction in the document, and it
+gates Milestone 0.
 
-gpui solves this with Rust codegen; a shared header is simpler and gives compiler-enforced
-agreement. Layout drift between CPU and GPU structs manifests as garbled geometry and is expensive
-to debug.
+| Attempt | Result |
+|---|---|
+| `.metal` beside Swift sources, `swift build` | `warning: found 1 file(s) which are unhandled`, then **`Build complete!`** — and **no `.metallib` anywhere**. A silent success producing a non-functional product. |
+| `.metal` declared in `sources:` | hard `error: unexpected input file` |
+| `swift build --build-system swiftbuild` | emits a `CompileMetalFile` task, which **fails** |
+| `xcrun metal --version` | `error: cannot execute tool 'metal' due to missing Metal Toolchain; use: xcodebuild -downloadComponent MetalToolchain` |
+| `device.makeLibrary(source:options:)` at runtime | **works with no toolchain installed** — returned `["f_main", "v_main"]` |
+
+**Decision: compile shaders at runtime from bundled source.** `shaders.metal` and
+`MetalUIShaderTypes.h` ship as SwiftPM resources, are read from `Bundle.module`, and the header is
+**textually prepended to the shader source** before `makeLibrary(source:options:)`.
+
+The prepend is not stylistic: `MTLCompileOptions` exposes only `preprocessorMacros` and **no include
+search path**. `#include "…"` was observed to resolve at runtime, but the rule is undocumented and
+resolved identically from two different working directories, so it cannot be relied on.
+
+This is the only route that works under plain `swift build`, and it is what keeps §2's "consumable as
+an ordinary SwiftPM dependency, no `unsafeFlags`" true.
+
+**Consequences recorded honestly:**
+
+- §7.2's first-draft claim of "compiler-enforced agreement" between the C header and Swift is
+  **false** under runtime compilation — nothing reads the `#include`. Agreement is instead enforced by
+  a **test that asserts `MemoryLayout<T>.size` / `.stride` / `.offset(of:)` against values probed from
+  a GPU-side kernel**, one case per shared struct. That test is mandatory, not optional.
+- An offline `.metallib` remains an **optional** build-tool-plugin path for startup cost. Its
+  prerequisites are recorded so nobody rediscovers them: `--build-system swiftbuild` or Xcode,
+  `xcodebuild -downloadComponent MetalToolchain`, a plugin trust prompt, and per-platform SDK variants
+  (macos/ios/simulator). A single committed prebuilt `.metallib` is **not** viable.
+- Startup cost: one `makeLibrary` compile per process. Measured cost and any need for an on-disk
+  binary-archive cache is an M0 open item.
 
 ### 7.3 Ordering, clipping, batching
 
-Primitives are appended during `paint` with a monotonically increasing `order`. At submit, the
-scene sorts by order and **groups consecutive runs of the same type into one instanced draw call**.
-Draw-call count is the number of *type transitions* in z-order, not the number of things on screen.
-A complex frame — panels, shadows, thousands of glyphs, node graph, 3D viewport — should land under
-~10 draw calls.
+Primitives are appended during `paint` with a monotonically increasing `order`. At submit, the scene
+sorts by order and **groups consecutive runs of the same type into one instanced draw call**.
+Draw-call count is the number of *type transitions* in z-order.
 
-**Clipping is per-primitive via `[[clip_distance]]`, not scissor rects.** Scissor clipping would
-force a state change and therefore a batch break at every clip boundary; clip distances make
-clipping free and composable with instancing, so deeply nested scroll hierarchies still batch.
+**Clipping is per-primitive via `[[clip_distance]]`, not scissor rects.** Scissor clipping would force
+a state change and therefore a batch break at every clip boundary; clip distances make clipping free
+and composable with instancing.
+
+**Draw-call expectation, stated with its constraint.** The "under ~10 draw calls" figure holds when
+same-type primitives are contiguous in z-order. Paths in particular batch only in contiguous runs
+(§7.4). The M5 node-graph demo is designed accordingly: all wires on one layer beneath all node
+bodies, rather than interleaved per node.
 
 ### 7.4 Frame graph
 
 ```
-1. App Metal passes    each MetalView encodes into its own target texture
-2. Path rasterization  Loop-Blinn coverage → intermediate texture
-3. Main pass           sorted batches sampling atlases + path texture + surfaces
-4. Present             via RenderSurface (1 view flat, 2 later for stereo)
+1. App Metal passes    each MetalView encodes into its retained target texture (§7.7)
+2. for each contiguous run of paths in z-order:
+       path rasterization pass → intermediate texture (cleared per run)
+       that run's path-sprite draw
+   interleaved with the main pass's other batches, in order
+3. Present             via RenderSurface
 ```
 
+**Stage 2 is a loop, not a single stage.** `path_sprite_vertex` computes
+`texture_coords = screen_position / viewport_size` — a **screen-space** lookup into one shared
+intermediate. With a single rasterization stage, any two paths overlapping in screen space merge
+their coverage and each sprite samples the union: a node body at order 20 could not sit between a
+wire at order 5 and a wire at order 50, and two same-layer overlapping wires would double-composite.
+The intermediate is viewport-sized, `bgra8Unorm` (§7.8), and cleared at the start of each run.
+
 All stages share **one `MTLCommandBuffer`**. Buffers are a triple-buffered ring guarded by a
-semaphore, `.storageModeShared` on Apple Silicon (no staging copy).
+semaphore, `.storageModeShared` on Apple Silicon.
 
-### 7.5 Atlas
+### 7.5 Path pipeline (CPU side)
 
-Shelf packer; `R8Unorm` for glyph coverage, `BGRA8Unorm` for color. Growth adds textures rather
-than reallocating, so live handles stay valid.
+gpui provides no equivalent, so this is ours to build and budget.
 
-**Eviction is mandatory**, a direct consequence of §6.2: zooming mints glyph rasters at new sizes
-continuously. Entries carry a last-used frame generation and evict LRU under pressure.
+- **Cubic → quadratic subdivision** with a stated error bound; tolerance is a function of the current
+  canvas scale, so large zoom re-tessellates.
+- **Flattening tolerance** likewise scale-dependent.
+- **Interior triangulation with an explicit fill rule** (nonzero for v1). gpui's fan emitter has no
+  fill rule and double-blends overlapping fan triangles under `over`; we cannot inherit that for node
+  graphs where wires cross.
+- **Stroke-to-fill** uses `CGPath.copy(strokingWithWidth:lineCap:lineJoin:miterLimit:transform:)` and
+  `copy(dashingWithPhase:lengths:)`, which cover joins, caps, miter limits, and dashes on all target
+  platforms with **no new dependency**. Interior triangulation of the resulting outline is the real
+  remaining work.
 
-### 7.6 `MetalView` — app-owned rendering
+### 7.6 Atlas
+
+Shelf packer; `R8Unorm` for glyph coverage, `bgra8Unorm_srgb` for color content (§7.8). Growth adds
+textures rather than reallocating, so live handles stay valid.
+
+**Eviction is mandatory** (§6.2 mints rasters continuously under zoom), with these rules:
+
+- Entries touched by the **current frame are pinned** and never evicted. Evicting a glyph already
+  referenced by an emitted primitive corrupts the frame — exactly the pressure zoom creates.
+- If one frame's live working set exceeds capacity, **allocate an additional page**; degraded
+  rendering is never acceptable mid-frame.
+- A sprite larger than the atlas texture dimension gets a **dedicated single-sprite texture** rather
+  than failing.
+- Otherwise LRU by last-used frame generation.
+
+### 7.7 `MetalView` — app-owned rendering
 
 ```swift
 struct MetalView: Element {
     var id: ElementID
-    var redraw: RedrawPolicy = .onDemand   // .continuous for animated shaders
+    var invalidation: MetalViewInvalidation   // handle: .version(n) or .continuous
     var draw: (MetalDrawContext) -> Void
 }
 
 struct MetalDrawContext {
     let device: MTLDevice
     let commandBuffer: MTLCommandBuffer   // the SAME buffer as the UI
-    let target: MTLTexture                // sized to element bounds × scale
+    let target: MTLTexture
     let depth: MTLTexture?
     let size: Size<DevicePixels>
     let frameIndex: UInt64
-    let time: Double
+    let time: Double                      // target presentation timestamp (§4.4)
 }
 ```
 
-`prepaint` learns the bounds and pulls a correctly-sized target from a texture pool; before the UI
-pass, `draw` encodes app passes into that target; `paint` emits a `Surface` primitive referencing
-it.
+**Targets are retained per element in §4.3's state table, not pooled per frame.** The first draft's
+pooled target is incompatible with `.onDemand`: when the window redraws for an unrelated reason —
+hover elsewhere, caret blink, another pane resizing, the common case — an on-demand view's `Surface`
+must reference a texture still holding **last frame's** contents. Targets are reallocated only on
+size or scale change, and double-buffered against the §7.4 ring so the GPU is never reading a texture
+being rewritten.
 
-- **No synchronization tax.** Same device, queue, command buffer, and frame — none of the friction
-  of hosting an `MTKView` inside AppKit or SwiftUI.
-- **The viewport is a texture, so the SDF machinery applies to it.** Rounded corners, borders,
-  drop shadows, translucent panels blended over live 3D, gizmos on top — ordinary rects in the same
+**Invalidation is explicit, because observation cannot cover it.** §4.4 wraps only `buildFrame()` in
+`withObservationTracking`, while app Metal passes run in stage 1 of submit — so **reads inside `draw`
+are not tracked**. The app bumps a version on its `MetalViewInvalidation` handle (or declares
+`.continuous`), and that feeds §4.4's dirty flag.
+
+**Contract with app code**, stated so violations are diagnosable: the app must **not** `commit()`,
+must **not** `waitUntilCompleted()`, and must **not** present. Command-buffer errors from
+app-encoded work surface through an error channel on the element rather than silently losing frames.
+
+Three properties this buys:
+
+- **No synchronization tax.** Same device, queue, command buffer, and frame.
+- **The viewport is a texture, so §7.1's SDF machinery applies to it** — rounded corners, borders,
+  shadows, translucent panels blended over live 3D, gizmos on top, all ordinary rects in the same
   pass.
-- **`redraw` feeds the §4.4 dirty flag.** A static preview costs zero frames when idle; an animated
-  shader requests `.continuous`.
+- **Idle costs nothing.** A static preview requests no frames.
 
 The same `Surface` path carries `IOSurface`/`CVPixelBuffer` content (video, camera) later.
 
-### 7.7 Color
+### 7.8 Color
 
-HSLA at the API boundary (theming and hover-state derivation are pleasant in HSL), converted
-in-shader. Blending in **linear space** with sRGB texture formats, so gradients and translucency
-are physically correct.
+**Decision: composite in sRGB (gamma) space, following gpui.** *(Revised — the first draft specified
+linear compositing as "physically correct".)*
 
-Because the validating consumer is a shader authoring tool on XDR displays, surface configuration
-is designed for **Display P3 and EDR** from the start — `CAMetalLayer` colorspace,
-`wantsExtendedDynamicRangeContent`, `rgba16Float` as an option. Retrofitting wide gamut into a
-renderer that assumed 8-bit sRGB is painful, and accurate HDR shader preview is close to a
-requirement for the target app.
+**Why the reversal.** gpui sets `layer.set_pixel_format(MTLPixelFormat::BGRA8Unorm)` — **not**
+`_sRGB` — and all atlas and intermediate textures are `BGRA8Unorm`; `srgb_to_linear`/`linear_to_srgb`
+appear only in gradient helpers. It composites in gamma space and interpolates gradients in Oklab.
+`monochrome_sprite_fragment` does `color.a *= sample.a`, using R8 coverage directly as a blend weight.
+Coverage produced by a rasterizer tuned for perceptual blending, then composited linearly, makes
+light-on-dark text thin and washed and dark-on-light text heavy — and §6.1 commits to grayscale AA, so
+coverage is the only lever. This configuration is what ships in Zed today at exactly our workload.
+
+Specification:
+
+- **Working space:** sRGB. Drawable format `bgra8Unorm_srgb`; layer colorspace Display P3.
+- **Gradients** are converted to Oklab, interpolated, and converted back before encoding.
+- **Glyph coverage** (`r8Unorm`) is used as a blend weight directly, unmodified.
+- **Polychrome atlas** is `bgra8Unorm_srgb` so sRGB-encoded image and emoji pixels are decoded on
+  sample. (gpui's `bgra8Unorm` does no decode; following it verbatim would composite images too dark.)
+- **EDR / HDR preview** applies to the `MetalView` surface only: the app's target may be
+  `rgba16Float` in `extendedLinearDisplayP3`, tone-mapped or passed through at the surface boundary.
+  This gives correct HDR shader preview without hand-tuning text rendering. **(measured)** EDR is
+  `API_UNAVAILABLE(tvos, watchos)`, which is moot for v1 (§2) but is why the capability is
+  feature-gated rather than assumed.
+- Switching SDR/EDR modes is a **pipeline-state change**, not a runtime flag.
+
+§11 carries renderer golden cases for white-on-black and black-on-white body text at 12–14pt.
+
+### 7.9 Theming
+
+Colors in element code are **semantic tokens** (`.surfaceSecondary`, `.textPrimary`), never literals.
+A `Theme` maps tokens to HSLA values and is supplied at the window level and propagated through the
+frame context, so no element reads global state.
+
+HSLA at the API boundary makes hover/active derivation (lighten, desaturate) trivial; conversion to
+the working space happens in-shader.
+
+System appearance and accent changes (`NSApp.effectiveAppearance` /
+`traitCollectionDidChange`) swap the active theme and mark §4.4's dirty flag. Ships with **M1**,
+alongside styling.
 
 ---
 
@@ -648,14 +982,15 @@ enum InputEvent {
     case mouseMove(MouseMoveEvent),  scrollWheel(ScrollWheelEvent)
     case keyDown(KeyDownEvent),      keyUp(KeyUpEvent)
     case modifiersChanged(ModifiersChangedEvent)
-    case focusMove(FocusMoveEvent)          // tvOS
-    // reserved: case spatial(SpatialEvent) // visionOS
+    case touch(TouchEvent)                  // iOS
+    // reserved: case focusMove(FocusMoveEvent)  // tvOS
+    // reserved: case spatial(SpatialEvent)      // visionOS
 }
 ```
 
-Handlers are registered during `paint` with a **capture or bubble** phase; dispatch runs against
-the most recent frame's handler set. Capture lets a modal or in-progress drag swallow events
-without restructuring the tree.
+Handlers are registered during `paint` with a **capture or bubble** phase; dispatch runs against the
+most recent frame's handler set. Capture lets a modal or in-progress drag swallow events without
+restructuring the tree.
 
 Scroll must honor `NSEvent`'s `phase`/`momentumPhase` rather than treating wheel events as raw
 deltas — this is the difference between native trackpad feel and a web app.
@@ -675,68 +1010,194 @@ Keymap {
 }
 ```
 
-Dispatch builds a context stack from the focus chain, matches innermost-first, and bubbles until
-handled. v1 covers single and two-stroke bindings with `&&` / `||` / `!` context predicates, and a
-pending-keystroke buffer with timeout.
+**Context contribution.** Elements contribute to the context stack during `prepaint`, alongside focus
+handles:
+
+```swift
+.keyContext("Editor", ["mode": "code"])
+```
+
+Values are `String`; the predicate language is `identifier`, `key == value`, `&&`, `||`, `!`.
+Dispatch builds the stack from the focus chain and matches **innermost-first**, bubbling the action
+up until handled.
+
+**Keystroke matching uses `charactersIgnoringModifiers`, not physical key codes** — physical matching
+is the long-standing source of Dvorak and AZERTY breakage.
+
+**Multi-stroke:** v1 supports one- and two-stroke sequences. The pending-prefix timeout is **1 second**;
+on expiry the prefix is **dropped**, not dispatched.
 
 ### 8.4 IME
 
 Not optional and not v2: without it, `é` is untypeable and CJK input is impossible.
 
-The focused element vends a `TextInputHandler`, bridged to `NSTextInputClient` (macOS) and
-`UITextInput` (iOS), covering marked/preedit text, the candidate window, and dead keys. It must
-report caret rectangles back to the system so the candidate palette positions correctly — so it
-reaches into the text layer, not just the event layer. Designed in from the start; implemented in
-Milestone 6.
+**`NSTextInputClient` conformance alone does nothing.** `NSTextInputContext.handleEvent:` is what
+routes an event into the input system, and its position relative to §8.3's keymap is a design
+decision, not an implementation detail — keymap-first makes dead keys and CJK conversion untypeable,
+the exact failure this section exists to prevent.
+
+**Order:**
+
+```
+keyDown → NSTextInputContext.handleEvent:
+        → if unhandled AND no marked text → §8.3 keymap → action dispatch
+```
+
+- `doCommandBySelector:` maps to framework actions.
+- While marked text exists, keymap dispatch is **suppressed**, except for a stated escape hatch
+  (Escape, which cancels composition).
+- All `NSTextInputClient` ranges are **document-relative UTF-16 `NSRange`s** — see §6.5. This is why
+  the document seam must provide O(log n) UTF-16↔UTF-8 conversion: these calls arrive several times
+  per keystroke.
+- `firstRectForCharacterRange:` and `characterIndexForPoint:` are in **screen** coordinates. The
+  platform layer supplies the content→window→screen mapping.
+- §4.4's post-commit step calls `invalidateCharacterCoordinates` when the caret rect moved, and the
+  macOS 14+ `textInputClientWillStartScrollingOrZooming` / `…DidEndScrollingOrZooming` pair around
+  scrolls.
+
+iOS uses `UITextInput` with the same ordering.
 
 ---
 
-## 9. Testing
+## 9. Accessibility
+
+**In v1.** A framework that renders every pixel itself gets **nothing** from the system for free:
+with one `CAMetalLayer` there are no per-element views, so AX elements must be synthesized.
+
+**Why this is in the design doc rather than deferred to implementation:** AX clients retain element
+references across frames, which makes §4.3's `GlobalElementID` side table the only structure that can
+back stable AX identity. That constrains §4.3 **now**, whether or not the bridge ships first.
+
+Specification:
+
+- **Emission.** Elements emit an AX node during `prepaint`: role, label, value, traits, actions,
+  frame, and ordered children. Emission during `prepaint` (not `paint`) means bounds are resolved and
+  culled content is naturally excluded.
+- **Identity** derives from `GlobalElementID`. A node an AX client still holds survives §4.3's sweep
+  as a **tombstone that reports itself invalid**, rather than vanishing and leaving a dangling
+  reference.
+- **Bridge.** A per-frame diff drives `NSAccessibilityElement` (macOS) / `UIAccessibilityElement`
+  (iOS) children on the host view, posting change notifications only for what actually changed.
+- **Focus.** AX focus and §8.3 focus handles are the same focus; the bridge reflects one into the
+  other rather than maintaining two.
+- **Virtualized content** (§4.7) exposes the full logical count with realized children, so VoiceOver
+  reports "3 of 500" correctly.
+- **System settings** propagate into the frame context and mark §4.4 dirty on change: Reduce Motion
+  (suppresses animation), Increase Contrast (theme variant), Dynamic Type (root font size → `Rems`).
+
+Ships incrementally: nodes and identity with **M3** (when interaction exists), the platform bridge in
+**M4**.
+
+---
+
+## 10. Assets and images
+
+The first draft had a `polychromeSprite` primitive and an atlas but no load API — an app could not
+display an image.
+
+```swift
+Image(.bundled("icon-compile"))      // scale variants resolved from the bundle
+Image(.data(bytes))
+```
+
+- **Formats:** whatever ImageIO decodes (PNG, JPEG, HEIC, TIFF, GIF first frame). No custom decoders.
+- **Scale variants:** `@1x`/`@2x`/`@3x` resolved against the window's scale factor.
+- **Async:** decoding happens off the main actor (§3.3); the element renders a placeholder and marks
+  §4.4 dirty on completion. Decode failure renders a diagnostic placeholder and logs — never crashes,
+  never silently renders nothing.
+- **Cache:** decoded images live in an LRU keyed by `(source, targetScale)`, **separate from §7.6's
+  glyph atlas policy** — a large image should not evict the entire glyph working set. Images above a
+  threshold get dedicated textures rather than atlas pages.
+
+**SVG is out of v1** (§14). It needs XML parsing, path-data grammar, transforms, gradients, clip
+paths, `use`/`defs`, and `viewBox`, plus a rasterize-at-zoom policy that reintroduces the exact
+problem §6.2 solves for text. M5 already carries Grid, paths, and `MetalView`. Icons in v1 come from
+pre-rasterized assets or the path primitive directly.
+
+---
+
+## 11. Testing
 
 Swift Testing (`import Testing`); parameterized tests carry the fixture corpora.
 
 | Layer | Method | Catches |
 |---|---|---|
-| Layout | WebKit golden files, `@Test(arguments:)` over the corpus | Flex/grid algorithm errors — highest-risk hand-written code |
-| Text | Golden metrics for known strings × fonts; property test that `x(forOffset:)` and `offset(forX:)` round-trip at cluster boundaries | Caret/selection drift |
-| Renderer | Offscreen render → compare to reference PNGs with perceptual tolerance | Shader regressions; headless in CI |
-| Interaction | Headless `TestWindow`: runs frames with no real window, synthesizes events, asserts on scene and state | "Click fires the action", "scroll updates offset", "typing updates the doc" |
+| Layout | WebKit golden files (§5.7), `@Test(arguments:)` over the corpus, cumulative rounding, 0.1pt tolerance | Flex/grid algorithm errors |
+| Shader ABI | `MemoryLayout` size/stride/offset asserted against GPU-probed values, one case per shared struct | CPU/GPU struct drift, which §7.2 can no longer catch at compile time |
+| Text | Golden metrics per string × font; round-trip property test for fixed `(row, affinity)` on **wrapped** fixtures, asserted against an **independently computed** UTF-8 offset | Caret drift; a shared broken UTF-16 mapping passing trivially |
+| Renderer | Offscreen render → reference PNGs, perceptual tolerance; explicit white-on-black and black-on-white 12–14pt text cases | Shader regressions; §7.8 coverage/gamma errors |
+| Interaction | Headless `TestWindow`: runs frames with no real window, injectable clock, synthesized events | "Click fires the action", "scroll updates offset", "typing updates the doc" |
+| Accessibility | Assert the emitted AX tree for representative screens; identity stability across frames | Missing labels, unstable identity, tombstone regressions |
 | Concurrency | Swift 6 strict mode | Data races, at compile time |
 
-`TestWindow` is a design constraint, not just a utility: it exists only because `RenderSurface` and
-`Platform` are protocols and the frame loop is driven by an injectable clock rather than a display
-link. Testability is a consequence of the §3.2 seams.
+**What runs under plain `swift test`:** layout, text metrics, interaction, and accessibility are fully
+headless. Shader-ABI and renderer-golden tests require a Metal device; they run on macOS CI and are
+skipped with an explicit `withKnownIssue`-style marker elsewhere, never silently.
+
+`TestWindow` exists only because `RenderSurface` and `Platform` are protocols and the frame loop is
+driven by an injectable clock. Testability is a consequence of §3.2's seams.
 
 ---
 
-## 10. Build order
+## 12. Build order
 
 Each milestone ends in something runnable.
 
 | # | Scope | Exit criterion |
 |---|---|---|
-| **0** | Core geometry/units/color, shared C header, Metal setup, `RenderSurface`, AppKit window | A window showing one rounded rect with a border |
-| **1** | Flexbox + WebKit golden harness; `Element`, three phases, `Frame`, state table; `Box`/`Column`/`Row`; styling | Nested flex layout of colored rects that resizes correctly |
-| **2** | CoreText shaping, glyph raster, atlas, monochrome sprites, `Text` + measure integration | Styled text in flex layout, correct on Retina and at any scale |
-| **3** | Hitboxes, mouse dispatch, hover/active, focus, keymaps, actions, scroll containers | Counter demo: real buttons, hover states, scrollable list |
-| **4** | `@Observable` integration, dirty tracking, display-link scheduling, `Component` + result builders, animation & easing | A real small app that **idles at 0% CPU** |
-| **5** | Grid engine + fixtures, paths (Loop-Blinn), images/SVG, **`MetalView`** | **Node-graph prototype: bezier wires, grid inspector, live 3D preview with UI composited over it** |
-| **6** | Soft wrap, selection, IME, virtualized list; UIKit backend | Shader source editor usable; runs on iPad |
+| **0** | Core geometry/units/color, shared C header + **runtime shader compilation (§7.2)**, shader-ABI test, Metal setup, `RenderSurface`, AppKit window | A window showing one rounded rect with a border |
+| **1** | Flexbox + WebKit golden harness; `Element`, three phases, `Frame`, state table, `AnyElement`; `Box`/`Column`/`Row`; styling; **theming (§7.9)** | Nested flex layout that resizes correctly; light/dark switch |
+| **2** | CoreText shaping, UTF-8/UTF-16 seam, glyph raster, atlas, monochrome sprites, `Text` + measure integration | Styled text in flex layout, correct on Retina; non-ASCII correct |
+| **3** | Hitboxes, mouse dispatch, hover/active, focus, keymaps, actions, scroll containers, **virtualization (§4.7)**, **AX nodes + identity (§9)** | Counter demo; a 100k-row virtualized list scrolling smoothly |
+| **4** | `@Observable` integration, dirty tracking, display-link scheduling, `Component` + result builders, animation & easing, **AX platform bridge** | A real small app; **no frames built and display link paused while idle**; VoiceOver navigates it |
+| **5** | Grid engine + fixtures, **path pipeline (§7.5)**, images (§10), **`MetalView`** | **Node-graph prototype: bezier wires, grid inspector, live 3D preview with UI composited over it** |
+| **6** | Soft wrap + UAX #14 subset, bidi gate, selection, IME + `NSTextInputContext` ordering, caret affinity | Shader source editor usable; CJK and accented input work; runs on iPad |
 
 **Milestone 5 is the target** — where the shader app's three organs exist in one window.
-Milestones 0–4 are the framework earning the right to get there.
+
+Two honest notes. **M1 is the longest single stretch**, because flexbox plus its harness is weeks of
+work with little to show mid-way; the golden corpus is what keeps it from being a leap of faith.
+**M6's text work is a direction, not a finish line** — "editor-grade text" will be revisited
+continuously once you are actually editing shaders in it.
 
 ---
 
-## 11. Known risks
+## 13. Known risks
 
 | Risk | Mitigation |
 |---|---|
-| Hand-written flex/grid is subtly wrong | WebKit golden-file oracle (§5.6); disagreements are inspectable in Safari |
-| Milestone 1 is a long stretch with little visible output | Golden corpus provides continuous objective progress signal |
-| Per-frame allocation / ARC churn from `any Element` | Concrete-typed result builders, then virtualization, then bump allocator (§4.6) |
-| Atlas growth during canvas zoom | LRU eviction with frame-generation marking (§7.5), mandatory not optional |
+| Hand-written flex/grid subtly wrong | WebKit oracle (§5.7) with cumulative rounding; disagreements inspectable in Safari |
+| M1 is a long stretch with little visible output | Golden corpus provides continuous objective progress |
+| Runtime shader compilation adds startup cost | Measured in M0; binary-archive cache if needed (§7.2) |
+| CPU/GPU struct drift, no longer compiler-caught | Mandatory `MemoryLayout`-vs-GPU-probe test (§11) |
+| Path pipeline is ours alone — gpui has no stroke or triangulator | Scoped in §7.5; `CGPath` covers stroke-to-fill; triangulation is the real work |
+| Per-frame allocation / ARC churn | Concrete-typed builders, then virtualization, then bump allocator (§4.6) |
+| Atlas growth during canvas zoom | LRU with current-frame pinning and page growth (§7.6) |
+| Complex-script wrap correctness | Bidi gate with per-line detection (§6.3); re-typeset path for failures |
+| UAX #14 subset misses cases | Stated class list (§6.4); expandable without design change |
+| IME/keymap ordering wrong | Order specified in §8.4; M6 exit criterion tests CJK and dead keys |
+| AX identity unstable across frames | Tombstones in §4.3; identity-stability test in §11 |
 | `content` doing expensive work each frame | Documented hard rule; surfaced by frame-time instrumentation |
-| IME under-scoped | Designed into the text layer from the start; Milestone 6 |
 | visionOS retrofit forces redesign | `RenderSurface` returns N views with projection matrices; `InputEvent` reserves spatial cases (§3.2) |
-| "Editor-grade text" is unbounded | Treated as a direction, not a finish line; Milestone 6 exit is "usable", revisited continuously |
+
+---
+
+## 14. Explicitly out of v1
+
+Recorded so deferral is a decision rather than an oversight.
+
+| Deferred | Note |
+|---|---|
+| tvOS | Shares the UIKit backend; needs a pointerless input model (§2) |
+| visionOS | Forks render loop and input; seams designed (§2, §3.2) |
+| Linux / Windows | Seams are protocols; nothing planned |
+| CSS Grid subgrid, named areas, grid baseline alignment | §5.4 |
+| Block/inline layout, floats, writing modes | §5.2 |
+| RTL layout direction | `Edges` stays semantic (§5.2); bidi *text* is handled (§6.3) |
+| `content-box` sizing | `border-box` only (§5.2) |
+| Full UAX #14 | Stated subset (§6.4) |
+| MSDF glyphs | Fallback if zoom-bucket thrash appears (§6.2) |
+| Exit/removal transitions | Forbidden by §4.3's sweep; needs tombstones |
+| SVG | §10 |
+| Localization | The app's concern at this layer |
+| Direct-mode `MetalView` (app drawing into the UI's own pass) | Texture mode only (§7.7) |
