@@ -931,11 +931,19 @@ coverage is the only lever. This configuration is what ships in Zed today at exa
 
 Specification:
 
-- **Working space:** sRGB. Drawable format `bgra8Unorm_srgb`; layer colorspace Display P3.
-- **Gradients** are converted to Oklab, interpolated, and converted back before encoding.
+- **Working space: gamma-encoded sRGB.** Drawable format **`bgra8Unorm`** — *not* `_sRGB`. This is
+  load-bearing: an `_sRGB` target makes the hardware decode to linear before blending and re-encode
+  after, which is linear compositing, the opposite of this decision. `bgra8Unorm` blends on the
+  stored gamma-encoded values. Layer colorspace is Display P3.
+- **Colors** reach the shader as HSLA and are converted to gamma-encoded sRGB in-shader. No
+  linearization anywhere in the composite path.
+- **Gradients** are converted to Oklab, interpolated there, and converted back to gamma-encoded sRGB
+  before output — perceptually even ramps without linear compositing.
 - **Glyph coverage** (`r8Unorm`) is used as a blend weight directly, unmodified.
-- **Polychrome atlas** is `bgra8Unorm_srgb` so sRGB-encoded image and emoji pixels are decoded on
-  sample. (gpui's `bgra8Unorm` does no decode; following it verbatim would composite images too dark.)
+- **Polychrome atlas** is **`bgra8Unorm`**, no decode. sRGB-encoded image and emoji bytes are already
+  in the working space; sampling through an `_sRGB` view would decode them to linear and composite
+  them wrongly. (An earlier revision specified `_sRGB` here — that was correct only under linear
+  compositing, which §7.8 rejects. gpui is self-consistent on this and we follow it.)
 - **EDR / HDR preview** applies to the `MetalView` surface only: the app's target may be
   `rgba16Float` in `extendedLinearDisplayP3`, tone-mapped or passed through at the surface boundary.
   This gives correct HDR shader preview without hand-tuning text rendering. **(measured)** EDR is
