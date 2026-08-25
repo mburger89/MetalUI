@@ -52,5 +52,3 @@ extension MUIRect {
                   _reserved: 0)
     }
 }
-
-extension MUIRect: @unchecked Sendable {}
