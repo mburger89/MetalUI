@@ -492,6 +492,37 @@ private func threeJustifiedChildren(
                         golden: golden, tolerance: 0.1)
 }
 
+/// A column container's cross axis is horizontal, not vertical — and the two
+/// tests above cannot exercise that: both are rows, so `isRow` is `true` in
+/// every assertion this file made before this test existed. That leaves two
+/// mutations completely unguarded: forcing `containerCross` (in both
+/// `collectItems` and `positionItems`) to always read `.height` instead of
+/// picking by axis, and dropping the column branch of the cross-offset
+/// computation to a bare `0` (`x = containerOrigin.0 + (isRow ? cursor : 0)`).
+/// Both pass the whole 130-test suite without this. Three children of
+/// distinct widths (40/90/60), none equal to the 200px cross extent, so
+/// `align-items: flex-end` gives each of them a different `x` — a uniform
+/// width would make every alignment produce the same answer here too.
+@Test func columnAlignFlexEndOffsetsEachChildByItsOwnWidth() {
+    let tree = LayoutTree()
+    let a = fixedChild(tree, w: 40, h: 30)
+    let b = fixedChild(tree, w: 90, h: 40)
+    let c = fixedChild(tree, w: 60, h: 50)
+    var rootStyle = Style()
+    rootStyle.flexDirection = .column
+    rootStyle.alignItems = .flexEnd
+    rootStyle.size = Size(width: px(200), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    // x = containerCross (200) - itemCross, a different number per child.
+    #expect(tree.layout(a) == LayoutRect(x: 160, y: 0,  width: 40, height: 30))
+    #expect(tree.layout(b) == LayoutRect(x: 110, y: 30, width: 90, height: 40))
+    #expect(tree.layout(c) == LayoutRect(x: 140, y: 70, width: 60, height: 50))
+}
+
 /// The only end-to-end guard on the trailing gap. Ruling AL-5.
 ///
 /// Identical to `rowJustifySpaceBetweenMatchesWebKit`, but with `gap: 12`

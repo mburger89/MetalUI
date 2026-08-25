@@ -127,4 +127,26 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
     // flex item. Defaulting to `flex-start` here would make Task 3's stretch
     // work unreachable for every unstyled container in the corpus.
     #expect(resolvedAlignment(Style(), container: Style()) == .stretch)
+
+    // Every `AlignSelf` case must map to its identically-named `AlignItems`
+    // case. The assertions above only ever set `alignSelf` to `.flexEnd`, so
+    // three of the five switch arms in `resolvedAlignment` were completely
+    // unexercised: a combined mutation remapping `.stretch -> .flexStart`,
+    // `.flexStart -> .center` and `.baseline -> .center` all at once passed
+    // the whole suite. A `.stretch` typo there would silently disable Task
+    // 3's stretch for every explicit `align-self: stretch`, surfacing three
+    // tasks later as "stretch doesn't work sometimes".
+    let pairs: [(AlignSelf, AlignItems)] = [
+        (.flexStart, .flexStart),
+        (.flexEnd,   .flexEnd),
+        (.center,    .center),
+        (.baseline,  .baseline),
+        (.stretch,   .stretch),
+    ]
+    for (selfValue, expected) in pairs {
+        var probe = Style()
+        probe.alignSelf = selfValue
+        #expect(resolvedAlignment(probe, container: container) == expected,
+                "align-self: \(selfValue) should resolve to \(expected)")
+    }
 }

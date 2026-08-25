@@ -4,14 +4,14 @@ import MetalUICore
 /// the tree.
 ///
 /// This milestone implements CSS Flexbox §9 incrementally. Right now: a single
-/// line, §9.2 flex base sizes, §9.7 grow/shrink, flex-start packing. Alignment,
-/// wrapping and absolute positioning arrive in later tasks, each with its own
-/// fixtures.
+/// line, §9.2 flex base sizes, §9.7 grow/shrink, §9.5 justify-content packing,
+/// §9.6 cross-axis placement. Cross-axis sizing (`stretch`), wrapping and
+/// absolute positioning arrive in later tasks, each with its own fixtures.
 ///
-/// **Alignment is NOT implemented**, and that is visible in every browser
-/// comparison: `collectItems` takes an item's cross size from the item's own
-/// style, so an item with no explicit cross size is 0 where CSS's default
-/// `align-items: stretch` gives it the container's extent. The freeze-loop
+/// **Cross-axis sizing (`stretch`) is NOT implemented**, and that is visible in
+/// every browser comparison: `collectItems` takes an item's cross size from the
+/// item's own style, so an item with no explicit cross size is 0 where CSS's
+/// default `align-items: stretch` gives it the container's extent. The freeze-loop
 /// golden comparisons in `FreezeLoopTests` therefore compare the main axis
 /// only, and say so at the assertion helper.
 ///
