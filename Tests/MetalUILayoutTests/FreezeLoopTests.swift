@@ -5,13 +5,23 @@ import MetalUICore
 
 private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(Float(v)))) }
 
+/// A flex child with an **explicit** cross size, for the hand-written tests
+/// that pin §9.7 arithmetic and want the cross axis held still.
+///
+/// The 40 is a constant, not a parameter. It used to be `cross: Double = 40`,
+/// and after `growMatchesWebKitOnTheUnusedGolden` stopped passing `cross: 100`
+/// to fake the stretch the engine could not do, every call site took the
+/// default — a customization point nothing customized, which is the same hazard
+/// class in test code as a dead production parameter. Use `fixtureFlexChild`
+/// when you want stretch instead; add the parameter back only when a second
+/// value genuinely exists.
 private func flexChild(_ tree: LayoutTree, grow: Float, shrink: Float,
-                       basis: MetalUICore.Dimension, cross: Double = 40) -> LayoutNodeID {
+                       basis: MetalUICore.Dimension) -> LayoutNodeID {
     var s = Style()
     s.flexGrow = grow
     s.flexShrink = shrink
     s.flexBasis = basis
-    s.size = Size(width: .auto, height: px(cross))
+    s.size = Size(width: .auto, height: px(40))
     return tree.newNode(style: s, children: [])
 }
 

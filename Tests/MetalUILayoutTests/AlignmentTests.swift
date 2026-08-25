@@ -276,3 +276,52 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
     #expect(tree.layout(item).height == 0)
     #expect(tree.layout(item).y == 50)
 }
+
+/// A **percentage** cross min/max resolves against the container's **cross**
+/// extent, not its main one.
+///
+/// This closes a green hole: mutating the stretch clamp's two `against:`
+/// arguments from `containerCross` to `containerMain` reddened **nothing**.
+/// It is the identical slip `percentageFlexBasisResolvesAgainstTheMainAxis`
+/// exists to catch one axis over — the flex basis had a guard, the cross
+/// min/max had none, because every cross bound in the corpus is in pixels and a
+/// pixel bound resolves the same against either extent.
+///
+/// The row is 700 x 100 so the two readings are arithmetically loud and cannot
+/// be confused:
+///
+/// - `capped`: `max-height: 50%`. Against the cross 100 that is 50, and the
+///   item stretches into its cap. Against the main 700 it is 350, no cap binds
+///   at all, and the item takes the line's full 100.
+/// - `floored`: `min-height: 150%`. Against the cross 100 that is 150, so the
+///   item overhangs the line by 50. Against the main 700 it is 1050.
+///
+/// Both bounds are exercised because the mutation could land on either
+/// `resolveDimension` call, and one item cannot violate a floor and a ceiling
+/// at once.
+@Test func aPercentageCrossBoundResolvesAgainstTheCrossExtentNotTheMain() {
+    let tree = LayoutTree()
+
+    var cappedStyle = Style()
+    cappedStyle.size = Size(width: px(50), height: .auto)
+    cappedStyle.maxSize = Size(width: .auto, height: .length(.percent(0.5)))
+    let capped = tree.newNode(style: cappedStyle, children: [])
+
+    var flooredStyle = Style()
+    flooredStyle.size = Size(width: px(50), height: .auto)
+    flooredStyle.minSize = Size(width: .auto, height: .length(.percent(1.5)))
+    let floored = tree.newNode(style: flooredStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(700), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [capped, floored])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    // 50% of the cross 100, not 50% of the main 700 (which would leave it at 100).
+    #expect(tree.layout(capped).height == 50)
+    // 150% of the cross 100, not 150% of the main 700 (which would give 1050).
+    #expect(tree.layout(floored).height == 150)
+}
