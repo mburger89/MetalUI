@@ -14,6 +14,10 @@ m1a decisions docs are different rulings entirely; three code comments on this
 branch originally cited bare `F-1`/`F-2`/`F-3` and resolved to the wrong
 document. Prefix every future milestone's rulings the same way.
 
+**Two of those three were renamed at the time; the third (`F-3`) survived until
+the alignment branch**, because the verification grep was case-sensitive and the
+citation read `Ruling F-3`. Sweep case-insensitively.
+
 ## Pre-flight (from scanning the plan before any code)
 
 | # | Ruling | Cost if wrong |

@@ -303,7 +303,7 @@ private func collectItems(
             // When the text system lands, add a fixture with real content and
             // delete this paragraph.
             //
-            // **Ruling F-3 — half the rule is deliberately missing.** §4.5's
+            // **Ruling FS-3 — half the rule is deliberately missing.** §4.5's
             // automatic minimum is `min(specified size suggestion, content size
             // suggestion)`; only the content suggestion is implemented. The
             // specified suggestion (the item's own definite `width`/`height`,
