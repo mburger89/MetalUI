@@ -11,7 +11,7 @@ import MetalUIRender
     let app = try App(device: device)
     let window = try app.openWindow(title: "Loop",
                                     size: Size(width: Pixels(200), height: Pixels(200)),
-                                    startsDisplayLink: false) { scene, _ in
+                                    startsDisplayLink: false) { scene, _, _ in
         scene.insert(MUIRect(
             bounds: Bounds(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
                            size: Size(width: ScaledPixels(10), height: ScaledPixels(10))),
@@ -23,9 +23,10 @@ import MetalUIRender
             order: 0))
     }
 
-    // A new window starts dirty so the first frame paints.
-    #expect(window.needsRedraw)
-    window.drawFrameIfNeeded()
+    // `openWindow` paints once eagerly, so the window is already clean and one
+    // frame is already on screen — a window that opens occluded (where the
+    // display link never fires) must not sit blank.
+    #expect(!window.needsRedraw)
     let afterFirst = window.framesDrawn
     #expect(afterFirst == 1)
 
@@ -46,14 +47,19 @@ import MetalUIRender
     let app = try App(device: device)
     let window = try app.openWindow(title: "Coalesce",
                                     size: Size(width: Pixels(100), height: Pixels(100)),
-                                    startsDisplayLink: false) { _, _ in }
+                                    startsDisplayLink: false) { _, _, _ in }
 
-    window.drawFrameIfNeeded()
     let base = window.framesDrawn
 
-    window.setNeedsRedraw()
-    window.setNeedsRedraw()
-    window.setNeedsRedraw()
-    window.drawFrameIfNeeded()
+    // Many invalidations before the next tick must collapse into one frame, and
+    // the ticks that follow must find nothing to do: N dirty marks plus M ticks
+    // cost exactly one frame, not N and not M.
+    for _ in 0..<5 { window.setNeedsRedraw() }
+    for _ in 0..<8 { window.drawFrameIfNeeded() }
+    #expect(window.framesDrawn == base + 1)
+
+    // And the window is left clean, so a further burst of ticks is free.
+    #expect(!window.needsRedraw)
+    for _ in 0..<8 { window.drawFrameIfNeeded() }
     #expect(window.framesDrawn == base + 1)
 }

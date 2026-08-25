@@ -3,8 +3,11 @@ import MetalUICore
 import MetalUIRender
 import MetalUIPlatform
 
-/// Fills the scene for one frame. Replaced by the element pipeline in M1.
-public typealias FrameContent = @MainActor (inout Scene, Size<ScaledPixels>) -> Void
+/// Fills the scene for one frame, given the surface size and the display
+/// scale factor. Content converts its own `Pixels` constants with
+/// `scaled(by:)`, so a 3pt border stays 3pt physically on any display.
+/// Replaced by the element pipeline in M1.
+public typealias FrameContent = @MainActor (inout Scene, Size<ScaledPixels>, Float) -> Void
 
 @MainActor
 public final class Window {
@@ -59,13 +62,13 @@ public final class Window {
             frame = try platformWindow.surface.nextFrame()
         } catch {
             // No drawable is an ordinary condition. Stay dirty and retry.
-            needsRedraw = true
+            setNeedsRedraw()
             return
         }
 
         guard let view = frame.views.first,
               let commandBuffer = renderer.commandQueue.makeCommandBuffer() else {
-            needsRedraw = true
+            setNeedsRedraw()
             return
         }
 
@@ -73,13 +76,13 @@ public final class Window {
                         height: ScaledPixels(Float(view.viewport.height)))
 
         scene.clear()
-        content(&scene, size)
+        content(&scene, size, frame.scaleFactor)
         scene.finalize()
 
         do {
             try renderer.encode(scene, view: view, in: commandBuffer)
         } catch {
-            needsRedraw = true
+            setNeedsRedraw()
             return
         }
 

@@ -1,7 +1,14 @@
 import Metal
-import MetalUICore
-import MetalUIRender
 import MetalUIPlatform
+
+// MetalUI is the umbrella module: a client writes `import MetalUI` and gets the
+// geometry, unit, and colour types its content closures must name.
+@_exported import MetalUICore
+@_exported import MetalUIRender
+
+#if canImport(AppKit)
+import AppKit
+#endif
 
 public enum AppError: Error, CustomStringConvertible {
     case noMetalDevice
@@ -36,7 +43,21 @@ public final class App {
                             renderer: renderer,
                             content: content,
                             startsDisplayLink: startsDisplayLink)
+        // Closing the last window must end the process: M0 ships no app delegate
+        // and no menu bar, so this close button is the only way out.
+        platformWindow.onClose = {
+            #if canImport(AppKit)
+            NSApplication.shared.terminate(nil)
+            #endif
+        }
         windows.append(window)
+
+        // Paint once now rather than waiting for a display-link tick. The link
+        // does not fire while the view is hidden or off-display, which would
+        // otherwise leave a window that opens occluded blank indefinitely. The
+        // surface geometry is already valid from the platform window's init, and
+        // a missing drawable simply leaves the window dirty for the link to retry.
+        window.drawFrameIfNeeded()
         return window
     }
 
