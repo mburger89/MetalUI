@@ -22,11 +22,20 @@ For each behaviour you are about to trust:
    unguarded. Nothing in the repo would notice if it broke tomorrow.
 4. **Restore, and verify with `git status --short`.**
 
-Two traps worth knowing before you start:
+Three traps worth knowing before you start:
 
-- **`git checkout <file>` silently restores nothing if the file is untracked.**
-  Commit first, then mutate. Verify the revert with a grep for your mutation
-  marker, not by assuming.
+- **`git checkout <file>` cuts both ways, and both halves have bitten here.**
+  On an **untracked** file it silently restores nothing, so the mutant survives
+  into your next run — and nearly into a commit, once. On a **tracked** file it
+  restores rather too well: it discards *every* uncommitted change in that file,
+  including edits that have nothing to do with your mutation. That second half
+  bit twice on one branch, both times destroying a doc-comment fix that was
+  written mid-mutation-round.
+
+  Commit before mutating. If you must mutate a file that carries uncommitted
+  work, **revert from a backup copy of the file rather than from git** — `cp`
+  the file aside first and `cp` it back. Verify either way with a grep for your
+  mutation marker *and* a grep for your own edit, not by assuming.
 - **A stale build makes a mutation "pass" for the wrong reason.** In this repo,
   editing `Sources/MetalUIRender/Shaders/MetalUIShaderTypes.h` re-copies the
   resource bundle but does **not** rebuild Swift's view of the C struct. Use
