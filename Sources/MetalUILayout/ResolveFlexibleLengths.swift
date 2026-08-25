@@ -80,6 +80,30 @@ func resolveFlexibleLengths(
         // they are entitled to only that fraction of the initial free space.
         // The magnitude test is what keeps this from *increasing* the space
         // distributed once clamping has already eaten into it.
+        //
+        // **KNOWN DIVERGENCE FROM THE ORACLE — the magnitude test is the one
+        // line in this file WebKit contradicts.** It only bites when the loop
+        // runs twice *and* the factors sum below one, which needs a min/max
+        // violation to force the second pass. Probe fixture:
+        //
+        //     #root { display: flex; width: 400px; }
+        //     .a { flex: 0.25 1 0; min-width: 350px; }
+        //     .b { flex: 0.25 1 0; }
+        //
+        // Pass 2 has remaining free space 50 (400 - a's clamped 350) and a
+        // scaled value of 100 (initial 400 x 0.25). The spec says |100| is not
+        // less than |50|, so `b` gets 50 and the row closes exactly on 400.
+        // **WebKit gives `b` 100 and lets the row overflow to 450** — i.e. it
+        // behaves as if this `abs` guard were absent.
+        //
+        // The spec reading is kept because ruling F-2 mandates this clause in
+        // writing and because overflowing a definite container on a *grow* pass
+        // is the less defensible of the two answers. It is a deliberate,
+        // recorded choice, not an oversight, and it is pinned by
+        // `subOneScalingNeverExceedsTheRemainingFreeSpace` in FreezeLoopTests —
+        // read that test's comment before changing this line. No fixture is
+        // committed for the probe above precisely because the corpus is the
+        // browser's word and we are knowingly not taking it here.
         let rawTotal = items.filter { !$0.frozen }.reduce(0) { $0 + rawFactor($1) }
         if rawTotal < 1 {
             let scaled = initialFreeSpace * rawTotal

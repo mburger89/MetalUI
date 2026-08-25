@@ -356,3 +356,43 @@ private func assertMainAxisMatchesGolden(
     try assertMainAxisMatchesGolden(
         tree, ids: [(root, "root"), (a, "a"), (b, "b")], golden: golden)
 }
+
+/// §9.7.4.a's magnitude test: the sub-one scaling may only ever *reduce* the
+/// remaining free space, never enlarge it.
+///
+/// **This test records a deliberate divergence from WebKit.** `a` is
+/// `flex: 0.25 1 0` with `min-width: 350`, `b` is `flex: 0.25 1 0`, in a 400
+/// row. Pass 1 hands both 100; `a` floors up to 350, a min violation, and
+/// freezes. Pass 2 then has 50 of remaining free space but a scaled value of
+/// 100 (the initial 400 x 0.25) — and the spec says to use the scaled value
+/// only when its magnitude is the *smaller*, so `b` gets 50 and the row closes
+/// exactly on 400.
+///
+/// WebKit gives `b` 100 and overflows the container to 450, as if the `abs`
+/// guard were absent. That was measured, not assumed: a throwaway fixture of
+/// exactly this shape was generated against the oracle and then removed rather
+/// than committed, because committing a golden the engine deliberately
+/// disagrees with would be worse than having none. See the KNOWN DIVERGENCE
+/// comment in `ResolveFlexibleLengths.swift` for the reasoning and the HTML.
+///
+/// **If a reviewer rules that the oracle wins here, delete the `abs` guard and
+/// invert this test to expect 100 — do not quietly widen its tolerance.**
+@Test func subOneScalingNeverExceedsTheRemainingFreeSpace() {
+    let tree = LayoutTree()
+    var floored = Style()
+    floored.flexGrow = 0.25
+    floored.flexShrink = 1
+    floored.flexBasis = px(0)
+    floored.minSize = Size(width: px(350), height: .auto)
+    let a = tree.newNode(style: floored, children: [])
+    let b = fixtureFlexChild(tree, grow: 0.25, shrink: 1, basis: px(0))
+    let root = row(tree, width: 400, [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).width == 350)
+    #expect(tree.layout(b).width == 50)         // WebKit: 100
+    // The row closes on the container rather than overflowing it.
+    #expect(tree.layout(b).x + tree.layout(b).width == 400)
+}
