@@ -812,3 +812,85 @@ private func assertMainAxisMatchesGolden(
     try assertMainAxisMatchesGolden(
         tree, ids: [(root, "root"), (a, "a"), (b, "b")], golden: golden)
 }
+
+/// A **percentage** flex-basis, in a row whose main and cross extents are far
+/// apart — the one shape that pins which of the two `flexBaseSize` is handed.
+///
+/// `collectItems` computes `containerMain` and `containerCross` and passes both
+/// to `flexBaseSize`. Task 2 pinned the axis choice *inside* that function, but
+/// nothing pinned the wiring into it: transposing the two arguments at the call
+/// site left the whole suite green, because every basis in the corpus was in
+/// pixels and a pixel basis resolves the same against either extent.
+///
+/// `flex_row_percent_basis` is 700 wide and 100 tall, so the transposition is
+/// arithmetically loud: `50%` is 350 against the main axis and 50 against the
+/// cross. `c` is a pixel basis and must not move under either wiring — it is
+/// the control that separates "wrong axis" from "percentages broken outright".
+///
+/// Main axis only — see `assertMainAxisMatchesGolden`. All three children lack
+/// a height, so WebKit stretches them to 100 and ours are 0 until alignment
+/// lands; widen this comparison then.
+@MainActor
+@Test func percentageFlexBasisResolvesAgainstTheMainAxis() throws {
+    let golden = try loadGolden("flex_row_percent_basis")
+
+    let tree = LayoutTree()
+    let a = fixtureFlexChild(tree, grow: 0, shrink: 0, basis: .length(.percent(0.5)))
+    let b = fixtureFlexChild(tree, grow: 0, shrink: 0, basis: .length(.percent(0.25)))
+    let c = fixtureFlexChild(tree, grow: 0, shrink: 0, basis: px(120))
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(700), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    // Spelled out as well as compared, so the numbers the transposition would
+    // change are visible without opening the golden: 350 / 175 against 700, not
+    // 50 / 25 against 100.
+    #expect(tree.layout(a).width == 350)
+    #expect(tree.layout(b).width == 175)
+    #expect(tree.layout(c).width == 120)
+
+    try assertMainAxisMatchesGolden(
+        tree, ids: [(root, "root"), (a, "a"), (b, "b"), (c, "c")], golden: golden)
+}
+
+/// §9.7.4.d's `max(0, ...)` — an item whose distributed target goes **negative**.
+///
+/// This is not an exotic shape. `flex-shrink: 10` beside `flex-shrink: 1`, both
+/// 100px, in a 50px row: shrink is weighted by base size, so the factors are
+/// 1000 and 100 and `a`'s share of the -150 free space is -136.36, putting its
+/// raw target at -36.36. Nothing else in the corpus overflows hard enough or
+/// unevenly enough to reach that, which is why deleting the `max(0,` left
+/// 113/113 green.
+///
+/// With the clamp: `a` violates by +36.36, freezes at 0, and `b` absorbs the
+/// rest to land on 50 — WebKit agrees exactly. Without it neither item violates,
+/// the total violation is 0, the loop freezes the whole line on pass 1, and `a`
+/// stores a **negative width** while `b`'s origin is dragged to -36. Both the
+/// width and the origin assertions below catch it.
+///
+/// Main axis only — see `assertMainAxisMatchesGolden`. Both children lack a
+/// height, so WebKit stretches them to 40 and ours are 0 until alignment lands;
+/// widen this comparison then.
+@MainActor
+@Test func aShrinkTargetBelowZeroClampsToZeroInsteadOfStoringANegativeWidth() throws {
+    let golden = try loadGolden("flex_row_shrink_to_zero")
+
+    let tree = LayoutTree()
+    let a = fixtureFlexChild(tree, grow: 0, shrink: 10, basis: px(100))
+    let b = fixtureFlexChild(tree, grow: 0, shrink: 1, basis: px(100))
+    let root = row(tree, width: 50, [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).width == 0)
+    #expect(tree.layout(b).width == 50)
+    #expect(tree.layout(b).x == 0)
+
+    try assertMainAxisMatchesGolden(
+        tree, ids: [(root, "root"), (a, "a"), (b, "b")], golden: golden)
+}
