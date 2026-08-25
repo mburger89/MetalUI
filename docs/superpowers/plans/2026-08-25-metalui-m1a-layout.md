@@ -492,7 +492,7 @@ import Foundation
     <!doctype html><html><head><style>
       * { box-sizing: border-box; margin: 0 } body { margin: 0 }
       #r { display: flex; width: 100px } #r > div { flex: 1 1 0 }
-    </style></head><body><div id="r">\(String(repeating: "<div data-id=\\"x\\"></div>", count: 7))</div></body></html>
+    </style></head><body><div id="r">\(String(repeating: "<div data-id=\"x\"></div>", count: 7))</div></body></html>
     """
     let oracle = LayoutOracle(viewport: CGSize(width: 400, height: 200))
     let boxes = try await oracle.measure(html: html)
