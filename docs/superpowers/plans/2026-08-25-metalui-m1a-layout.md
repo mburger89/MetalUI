@@ -1226,7 +1226,10 @@ import MetalUICore
 
 /// Build a tree from a fixture's shape by hand, run layout, and compare every
 /// node against the browser's answer for the same fixture.
-private func px(_ v: Double) -> Dimension { .length(.pixels(Pixels(Float(v)))) }
+// Qualified: `Foundation.Dimension` (a Measurement unit) collides with
+// `MetalUICore.Dimension` once Foundation is imported, and the test file
+// imports it for CGSize.
+private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(Float(v)))) }
 
 private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeID {
     var s = Style()
@@ -1406,7 +1409,12 @@ private func layoutChildren(
 Run: `swift test --filter FlexEngineTests`
 Expected: PASS, 3 tests. The WebKit comparison is the one that matters — if the hand-written expectations pass but the browser comparison fails, trust the browser and fix the engine.
 
-- [ ] **Step 6: Add both fixtures to the corpus list**
+- [ ] **Step 6: Add both fixtures to the corpus list and compare the column case**
+
+The column fixture is generated but never compared — add a WebKit comparison for
+it mirroring `rowOfFixedChildrenMatchesWebKit`, or the fixture is dead weight that
+proves nothing.
+
 
 In `Tests/MetalUILayoutTests/GeneratorTests.swift`, extend `allFixtures`:
 
