@@ -71,11 +71,22 @@ let allFixtures: [(String, CGSize)] = [
     for (fixture, viewport) in allFixtures {
         let fresh = try await generateGolden(fixture: fixture, viewport: viewport)
         let committed = try loadGolden(fixture)
-        #expect(fresh == committed, """
-            Golden '\(fixture)' is stale. Regenerate with:
+        guard fresh != committed else { continue }
+
+        // Report only the boxes that actually differ. Expanding two whole
+        // GoldenFiles buries the one changed number in a wall of struct dump.
+        let committedByID = Dictionary(uniqueKeysWithValues: committed.rounded.map { ($0.id, $0) })
+        let diffs = fresh.rounded.compactMap { box -> String? in
+            guard let old = committedByID[box.id] else { return "\(box.id): absent from golden" }
+            guard old != box else { return nil }
+            return "\(box.id): browser \(box.x),\(box.y) \(box.width)x\(box.height) "
+                 + "vs golden \(old.x),\(old.y) \(old.width)x\(old.height)"
+        }
+        Issue.record("""
+            Golden '\(fixture)' no longer matches the browser.
+            \(diffs.isEmpty ? "differs outside `rounded` (raw or viewport)" : diffs.joined(separator: "\n"))
+            Regenerate with:
               METALUI_REGENERATE_GOLDENS=1 swift test --filter regenerateAllGoldens
-            browser rounded:  \(fresh.rounded)
-            committed rounded: \(committed.rounded)
             """)
     }
 }
