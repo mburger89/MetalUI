@@ -538,7 +538,7 @@ private func assertMainAxisMatchesGolden(
 ///   `-50 < -100` is false, so the clause would be skipped and `remaining`
 ///   stays -100, giving 150 and 150. Every earlier sub-one fixture grew, where
 ///   free space is positive and the two spellings coincide.
-/// - **The base-size weighting leaking into `rawTotal`**, which ruling F-2
+/// - **The base-size weighting leaking into `rawTotal`**, which ruling FS-2
 ///   forbids: the sum becomes 0.25x200 + 0.25x200 = 100, which is not below 1,
 ///   so the clause never fires at all — again 150 and 150.
 @Test func fractionalShrinkScalesByRawFactorsNotWeightedOnes() {

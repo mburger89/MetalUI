@@ -8,16 +8,26 @@ idiomatic Swift. macOS and iOS.
 
 - **Design spec (binding authority):** `docs/superpowers/specs/2026-08-24-metalui-design.md`
 - **Decisions taken during execution:** `docs/superpowers/2026-08-25-m0-decisions.md`,
-  `docs/superpowers/2026-08-25-m1a-decisions.md` — each ruling with its reasoning
-  and what it costs if wrong. Read the "Carried to..." sections before starting new work.
+  `docs/superpowers/2026-08-25-m1a-decisions.md`,
+  `docs/superpowers/2026-08-25-flex-sizing-decisions.md` — each ruling with its
+  reasoning and what it costs if wrong. Read the "Carried..." sections before
+  starting new work.
+
+  **Ruling IDs are namespaced by milestone.** `PF-3` and `C-3` belong to m1a;
+  `FS-n` to flex sizing. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
+  had one, and three code comments on the flex-sizing branch cited the wrong
+  document before this was fixed. Prefix new milestones' rulings the same way.
 
 ## Practices
 
 **`docs/practices/verifying-tests-can-fail.md` — read this before writing tests.**
 
-Across two milestones, every defect found during execution was in the plan or the
-spec, none in an implementation — and all of them were found by **mutation, not
-inspection**. That document catalogues eight shapes of test that cannot fail, all
+Across three milestones, every defect found during execution was in a plan, a
+spec, a test or a comment — **none in an implementation** — and essentially all of
+them were found by **mutation, not inspection**. The flex-sizing milestone alone
+produced nineteen findings, four of them the same shape: a fixture too uniform to
+distinguish the thing it claimed to pin. Before committing a fixture, delete the
+declaration it is named for, regenerate, and confirm the numbers move. That document catalogues eight shapes of test that cannot fail, all
 observed in this repo, plus the method for finding them and the cases where adding
 a test is the wrong answer.
 
@@ -87,7 +97,7 @@ algorithm that consumes them has not been written yet.
 | `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping |
 | `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
 | `MeasureFunction` / `tree.measure()` | **Two callers, never populated.** `flexBaseSize`'s content-size branch and `collectItems`' CSS Sizing §4.5 automatic-minimum probe both read it, but `newLeaf` — the only way to attach a measure function — has no production caller, so every production node's `tree.measure()` returns `nil`: `flexBaseSize` always takes its 0 fallback and `min-width: auto` always resolves to no floor. Both rules are therefore exercised **only by tests that build their own closures**, which is why `min-width: auto` has no browser fixture — see `automaticMinimumSizeUsesContentSizeNotFlexBasis` |
-| CSS Sizing §4.5's **specified size suggestion** | **Not implemented** (ruling F-3). The automatic minimum is `min(specified suggestion, content suggestion)`; only the content half exists. Indistinguishable until something measures content in production — M2 |
+| CSS Sizing §4.5's **specified size suggestion** | **Not implemented** (ruling FS-3). The automatic minimum is `min(specified suggestion, content suggestion)`; only the content half exists. Indistinguishable until something measures content in production — M2 |
 
 Re-check any row rather than trusting this table:
 

@@ -5,7 +5,7 @@ import MetalUICore
 /// **This is deliberately not part of `resolveNodeSize`.** An item's main size
 /// comes from this cascade; only its cross size comes from its own style. Merging
 /// the two would recreate the "auto means the container's extent" fallback that
-/// ruling PF-3 removed, and that failure is silent.
+/// m1a ruling PF-3 removed, and that failure is silent.
 ///
 /// The cascade, in spec order:
 /// 1. a definite `flex-basis` wins outright, even over an explicit `width`;

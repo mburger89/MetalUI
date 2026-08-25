@@ -149,7 +149,7 @@ struct FlexItem {
 /// Resolve the **root's** own border-box size from its style, falling back to
 /// the offered `available` space on any axis its style leaves unresolved.
 ///
-/// This fallback belongs to the root alone (ruling F-1). The root is a block
+/// This fallback belongs to the root alone (ruling FS-1). The root is a block
 /// box in the initial containing block, and CSS §10.3.4/§9.2's block-layout
 /// rule is that `width: auto` (and, per this framework's single-pass sizing,
 /// `height: auto`) on such a box fills the space the box is offered — that is
@@ -201,7 +201,7 @@ private func resolveRootSize(
 /// instead, so this function never touches a flex item's main axis at all;
 /// `collectItems` still calls it for the item's full `SizeD` and reads only
 /// the cross component out of it. It must never grow a `flexBasis` branch of
-/// its own to reach into the main axis anyway — ruling PF-3
+/// its own to reach into the main axis anyway — m1a ruling PF-3
 /// (`docs/superpowers/2026-08-25-m1a-decisions.md`) named exactly that
 /// shortcut as the failure mode: an auto-sized item quietly inheriting a
 /// fallback that was only ever meant to be temporary. That is also why,
