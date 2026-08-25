@@ -5,15 +5,22 @@ import MetalUICore
 ///
 /// This milestone implements CSS Flexbox §9 incrementally. Right now: a single
 /// line, §9.2 flex base sizes, §9.7 grow/shrink, §9.5 justify-content packing,
-/// §9.6 cross-axis placement. Cross-axis sizing (`stretch`), wrapping and
-/// absolute positioning arrive in later tasks, each with its own fixtures.
+/// §9.4 cross-axis stretch, §9.6 cross-axis placement. Wrapping, `align-content`
+/// and absolute positioning arrive in later tasks, each with its own fixtures.
 ///
-/// **Cross-axis sizing (`stretch`) is NOT implemented**, and that is visible in
-/// every browser comparison: `collectItems` takes an item's cross size from the
-/// item's own style, so an item with no explicit cross size is 0 where CSS's
-/// default `align-items: stretch` gives it the container's extent. The freeze-loop
-/// golden comparisons in `FreezeLoopTests` therefore compare the main axis
-/// only, and say so at the assertion helper.
+/// **Cross-axis `stretch` landed in the alignment task, and with it every golden
+/// comparison in the suite is now full-rect.** Twelve of them compared the main
+/// axis alone until then, because `collectItems` took an item's cross size from
+/// its own style and produced 0 where CSS's default `align-items: stretch` gives
+/// the container's extent. Nothing was regenerated when they widened: the
+/// committed goldens already held WebKit's stretched answers, which is the
+/// evidence the rule is right.
+///
+/// **Content-based cross sizing is still NOT implemented** — the other half of
+/// §9.4. An item that is not stretched (its alignment is `center`, `flex-start`
+/// or `flex-end`) and has an `auto` cross size measures 0 here, where CSS gives
+/// it its content's cross size. Every fixture in the corpus is an empty div, so
+/// no browser comparison can see it; it needs the M2 text system.
 ///
 /// **Reverse directions are NOT implemented.** `FlexDirection` offers
 /// `.rowReverse` and `.columnReverse`, and `FlexDirection.isReverse` exists, but
@@ -136,10 +143,13 @@ struct FlexItem {
     /// value written at construction, and do not read this field before
     /// `resolveFlexibleLengths` has run.
     var targetMainSize: Double
-    /// The item's own style's cross-axis size. **Alignment is not
-    /// implemented**, so an item with no explicit cross size is 0 here where a
-    /// browser's `align-items: stretch` default would give it the container's
-    /// extent.
+    /// The item's final cross-axis size: its own style's cross size, or — when
+    /// its resolved alignment is `stretch` and that size is `auto` — the line's
+    /// cross extent clamped by the item's cross min/max (§9.4).
+    ///
+    /// Still 0 for an item that is auto-sized on the cross axis and *not*
+    /// stretched: content-based cross sizing needs a measure function and
+    /// arrives with the M2 text system.
     var crossSize: Double
     /// §9.7 freezes an item once its size is final, and the loop stops when
     /// every item is frozen.
@@ -329,10 +339,40 @@ private func collectItems(
                                            against: containerMain, rootFontSize: rootFontSize)
             let hypothetical = clamp(base, min: minMain, max: maxMain)
 
-            // Cross size still comes from the item's own style. Stretch and
-            // content-based cross sizing arrive with the alignment work.
+            // CSS Flexbox §9.4 — cross-axis stretch.
+            //
+            // An item stretches when its resolved alignment is `stretch` AND its
+            // cross size property is `auto`. A definite cross size wins outright;
+            // a stretched size is still clamped by the item's cross min/max.
+            //
+            // This is why every fixture whose children have no explicit cross
+            // size agreed with WebKit only on the main axis until now: CSS's
+            // initial `align-items` behaves as `stretch`, so the browser filled
+            // the container while we produced 0.
+            //
+            // `crossDim` is selected per axis, not hardwired to `height`: a
+            // column's cross axis is width, and `flex_column_grow_with_max`'s
+            // golden holds `width: 100` for children that declare none.
+            //
+            // **Content-based cross sizing is still missing**, and it is the
+            // other half of §9.4. An item that is *not* stretched — because its
+            // alignment is `center`, `flex-start`, `flex-end`, or because the
+            // container wraps — and has an `auto` cross size gets 0 here, where
+            // CSS gives it its content's cross size. Every fixture in the corpus
+            // is an empty div, for which 0 is right, so nothing catches it; when
+            // the M2 text system lands, this is where `tree.measure` belongs.
+            let crossDim = isRow ? ks.size.height : ks.size.width
             let own = resolveNodeSize(tree, kid, parent: parent, rootFontSize: rootFontSize)
-            let cross = isRow ? own.height : own.width
+            let ownCross = isRow ? own.height : own.width
+            let align = resolvedAlignment(ks, container: s)
+            var cross = ownCross
+            if align == .stretch, case .auto = crossDim {
+                let lowerCross = resolveDimension(isRow ? ks.minSize.height : ks.minSize.width,
+                                                  against: containerCross, rootFontSize: rootFontSize)
+                let upperCross = resolveDimension(isRow ? ks.maxSize.height : ks.maxSize.width,
+                                                  against: containerCross, rootFontSize: rootFontSize)
+                cross = clamp(containerCross, min: lowerCross, max: upperCross)
+            }
 
             // `targetMainSize:` here is dead — §9.7.2 overwrites it on every
             // item before it is read, and no empty-line path reaches

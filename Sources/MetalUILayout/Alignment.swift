@@ -109,13 +109,12 @@ func resolvedAlignment(_ item: Style, container: Style) -> AlignItems {
 
 /// CSS Flexbox §9.6 — an item's offset from its line's cross-start edge.
 ///
-/// **`stretch` returns 0 here, and that is not this function's job to fix.**
-/// Stretch changes an item's cross *size*, in `collectItems`; by the time
-/// placement runs, a stretched item already fills the line and a zero offset is
-/// correct. An item that is stretch-aligned but has a definite cross size is not
-/// stretched at all, and CSS places it at cross-start — also zero. Task 3 owns
-/// making stretch actually resize the item; nothing here needs to change when it
-/// does.
+/// **`stretch` returns 0 here, and that is correct, not a stub.** Stretch
+/// changes an item's cross *size*, and `collectItems` now does that (§9.4); by
+/// the time placement runs, a stretched item already fills the line and a zero
+/// offset is right. An item that is stretch-aligned but has a definite cross
+/// size is not stretched at all, and CSS places it at cross-start — also zero.
+/// Nothing here changed when stretch landed, and nothing here should.
 ///
 /// **`baseline` is NOT implemented** and falls back to `flexStart`. It requires
 /// font metrics that arrive with the text system in M2; until then a baseline

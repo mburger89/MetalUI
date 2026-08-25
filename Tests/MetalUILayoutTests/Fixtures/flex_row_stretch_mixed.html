@@ -1,0 +1,30 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* The one fixture that distinguishes "stretch everything" from "stretch the
+     right things". Every other fixture in the corpus is uniform on the cross
+     axis — either all children declare a height or none does — so a rule that
+     ignored `align-self` and a rule that ignored the `auto` check would both
+     reproduce every committed golden.
+
+     Four children, four different cross outcomes in one 100px line:
+       .a  auto height, no override        -> stretches to 100
+       .b  height: 30px                    -> definite size wins, stays 30
+       .c  align-self: flex-start          -> opts out, keeps its content 0
+       .d  auto height, max-height: 60px   -> stretches, then clamps to 60
+     Widths are all different so no two children can be confused, and the row
+     leaves 140px of free space rather than filling exactly. */
+  #root { display: flex; flex-direction: row; width: 400px; height: 100px; }
+  .a { width: 60px; }
+  .b { width: 70px; height: 30px; }
+  .c { width: 50px; align-self: flex-start; }
+  .d { width: 80px; max-height: 60px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+    <div class="d" data-id="d"></div>
+  </div>
+</body></html>

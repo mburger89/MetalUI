@@ -253,6 +253,9 @@ func assertMatchesGolden(
     #expect(tree.layout(c).x + tree.layout(c).width == 100)
 }
 
+/// An auto-sized item's **main** size is zero — it does not inherit the
+/// container's extent.
+///
 /// Replaces `autoSizedChildTakesItsContainersExtentForNow`. The Task 7
 /// fallback (auto -> container extent) is deleted here and never comes back:
 /// this pins `collectItems`' wiring through `computeLayout`, not §9.2 itself
@@ -262,7 +265,16 @@ func assertMatchesGolden(
 /// flex base size is unimplemented, which it now is. This is the one test
 /// that would redden if `collectItems` ever reverted to a container-extent
 /// main size.
-@Test func autoSizedChildWithNoMeasureFunctionIsZero() {
+///
+/// **Retargeted when §9.4 stretch landed (ruling AL-2).** This test used to
+/// assert *both* axes were 0, and the cross half of that is now wrong CSS:
+/// `align-items` defaults to `stretch`, so an auto cross size fills the line
+/// and WebKit gives this child the container's full 100. The main-axis
+/// assertion is the one that guards ruling FS-1, and stretch does not touch the
+/// main axis — so it stays exactly as it was, and the old cross assertion is
+/// replaced by the stretched value rather than deleted. Deleting it would drop
+/// the FS-1 guarantee at the moment it stopped being visible.
+@Test func autoSizedChildTakesNoMainSizeButStretchesOnTheCross() {
     let tree = LayoutTree()
     let kid = tree.newNode(style: Style(), children: [])   // size defaults to .auto
     var rootStyle = Style()
@@ -272,8 +284,11 @@ func assertMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
+    // Main axis (this root is a row): no content, no basis, no fallback.
     #expect(tree.layout(kid).width == 0)
-    #expect(tree.layout(kid).height == 0)
+    // Cross axis: §9.4 stretch fills the line, and 100 is the container's, not
+    // the 600 of the offered available space — an item never reads `available`.
+    #expect(tree.layout(kid).height == 100)
 }
 
 /// The root fills the space it is offered; a flex item does not.
@@ -284,6 +299,14 @@ func assertMatchesGolden(
 /// size. The two expectations here are the two halves of one mutation: making
 /// the root ignore `available` reddens the first, and restoring the item
 /// fallback reddens the second.
+///
+/// **Retargeted when §9.4 stretch landed (ruling AL-2).** The item half used to
+/// assert a 0x0 rect. The cross axis is now 600 — the root's height, which the
+/// root itself took from `available` — so the item assertion is split: `width`
+/// still pins ruling FS-1 (an auto **main** size is 0, never the container's
+/// extent), and the height pins stretch. The FS-1 half survives because stretch
+/// leaves the main axis alone; asserting the whole rect again would conflate the
+/// two rules, and asserting only the width would drop stretch's coverage here.
 @Test func autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot() {
     let tree = LayoutTree()
     let kid = tree.newNode(style: Style(), children: [])      // size defaults to .auto
@@ -293,7 +316,12 @@ func assertMatchesGolden(
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
     #expect(tree.layout(root) == LayoutRect(x: 0, y: 0, width: 800, height: 600))
-    #expect(tree.layout(kid) == LayoutRect(x: 0, y: 0, width: 0, height: 0))
+    #expect(tree.layout(kid).x == 0)
+    #expect(tree.layout(kid).y == 0)
+    // FS-1: the item does NOT take the offered 800 on its main axis.
+    #expect(tree.layout(kid).width == 0)
+    // §9.4: it does stretch to the line's cross extent, which is the root's 600.
+    #expect(tree.layout(kid).height == 600)
 }
 
 /// `minSize` and `maxSize` are live `Style` properties, and the engine must
@@ -561,5 +589,54 @@ private func threeJustifiedChildren(
 
     assertMatchesGolden(tree,
                         ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// WebKit's word on §9.4 stretch — and the only comparison in the corpus that
+/// can tell "stretch everything" apart from "stretch the right things".
+///
+/// Every other fixture is uniform on the cross axis: either all its children
+/// declare a height or none does, so a rule ignoring `align-self` and a rule
+/// ignoring the `auto` check both reproduce every committed golden. This one
+/// gives four children four different cross outcomes in one 100px line, and
+/// WebKit confirms all four: `a` (auto) stretches to 100, `b` keeps its
+/// definite 30, `c` opts out via `align-self: flex-start` and stays at its
+/// content's 0, and `d` stretches into its `max-height: 60`.
+///
+/// `d` is the only browser-verified evidence that a stretched size is clamped
+/// by the item's cross max; without it that clause rests on hand-written
+/// arithmetic alone. Deleting `.c`'s `align-self` line and regenerating moves
+/// `c.height` from 0 to 100 — verified, so the opt-out is genuinely load-bearing
+/// here rather than merely present.
+@Test func rowStretchMixedMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_stretch_mixed")
+    let tree = LayoutTree()
+
+    var aStyle = Style()                                  // auto height: stretches
+    aStyle.size = Size(width: px(60), height: .auto)
+    let a = tree.newNode(style: aStyle, children: [])
+
+    let b = fixedChild(tree, w: 70, h: 30)                // definite height wins
+
+    var cStyle = Style()                                  // opts out of stretch
+    cStyle.size = Size(width: px(50), height: .auto)
+    cStyle.alignSelf = .flexStart
+    let c = tree.newNode(style: cStyle, children: [])
+
+    var dStyle = Style()                                  // stretches, then clamps
+    dStyle.size = Size(width: px(80), height: .auto)
+    dStyle.maxSize = Size(width: .auto, height: px(60))
+    let d = tree.newNode(style: dStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c, d])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c", d: "d"],
                         golden: golden, tolerance: 0.1)
 }

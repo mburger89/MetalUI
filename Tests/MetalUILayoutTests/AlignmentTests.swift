@@ -150,3 +150,129 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
                 "align-self: \(selfValue) should resolve to \(expected)")
     }
 }
+
+// MARK: - CSS Flexbox §9.4, cross-axis stretch.
+
+/// `stretch` fills the line's cross extent — but only for an item whose cross
+/// size is `auto`, and never past its cross-axis max.
+///
+/// Three children with three different outcomes, because a rule that stretched
+/// everything and a rule that stretched the right things are indistinguishable
+/// from any set where every item is auto-sized: `stretched` is auto and fills
+/// the 100 line, `definite` keeps its own 30, and `capped` is auto but stops at
+/// its `max-height: 60`.
+@Test func stretchFillsTheCrossAxisOnlyForAutoSizedItems() {
+    let tree = LayoutTree()
+
+    var autoStyle = Style()                       // height stays .auto
+    autoStyle.size = Size(width: px(50), height: .auto)
+    let stretched = tree.newNode(style: autoStyle, children: [])
+
+    var definiteStyle = Style()                   // definite height wins
+    definiteStyle.size = Size(width: px(50), height: px(30))
+    let definite = tree.newNode(style: definiteStyle, children: [])
+
+    var cappedStyle = Style()                     // auto, but capped at 60
+    cappedStyle.size = Size(width: px(50), height: .auto)
+    cappedStyle.maxSize = Size(width: .auto, height: px(60))
+    let capped = tree.newNode(style: cappedStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(300), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [stretched, definite, capped])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(stretched).height == 100)
+    #expect(tree.layout(definite).height == 30)
+    #expect(tree.layout(capped).height == 60)
+}
+
+/// The same rule on the other axis: in a **column**, stretch fills the width.
+///
+/// The row form above cannot distinguish `crossDim` being selected correctly
+/// from it being hardwired to `size.height`. This one can: a column's cross
+/// axis is width, so a hardwired height lookup finds `.auto` on a child whose
+/// height is definite and stretches it anyway — 200 wide instead of 40, and a
+/// height of 200 instead of its own 25.
+@Test func stretchFillsTheWidthInAColumn() {
+    let tree = LayoutTree()
+
+    var autoStyle = Style()                       // width stays .auto
+    autoStyle.size = Size(width: .auto, height: px(25))
+    let stretched = tree.newNode(style: autoStyle, children: [])
+
+    var definiteStyle = Style()                   // definite width wins
+    definiteStyle.size = Size(width: px(40), height: px(25))
+    let definite = tree.newNode(style: definiteStyle, children: [])
+
+    var cappedStyle = Style()                     // auto width, capped at 70
+    cappedStyle.size = Size(width: .auto, height: px(25))
+    cappedStyle.maxSize = Size(width: px(70), height: .auto)
+    let capped = tree.newNode(style: cappedStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .column
+    rootStyle.size = Size(width: px(200), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [stretched, definite, capped])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(stretched).width == 200)
+    #expect(tree.layout(definite).width == 40)
+    #expect(tree.layout(capped).width == 70)
+    // The main axis is untouched by stretch — every child keeps its own 25.
+    #expect(tree.layout(stretched).height == 25)
+    #expect(tree.layout(definite).height == 25)
+    #expect(tree.layout(capped).height == 25)
+}
+
+/// A stretched size is floored by the item's cross-axis **min**, not only
+/// capped by its max — and a min above the line makes the item overhang.
+///
+/// Without the floor the item takes the line's 100 and the assertion below
+/// reads 100 instead of 140. The clamp's two halves need separate items
+/// because one item cannot violate both bounds at once.
+@Test func aStretchedSizeIsFlooredByTheCrossMinAsWellAsCappedByTheMax() {
+    let tree = LayoutTree()
+
+    var flooredStyle = Style()
+    flooredStyle.size = Size(width: px(50), height: .auto)
+    flooredStyle.minSize = Size(width: .auto, height: px(140))
+    let floored = tree.newNode(style: flooredStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(300), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [floored])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(floored).height == 140)
+}
+
+/// An explicit non-stretch alignment leaves an auto-sized item at its own size.
+@Test func aNonStretchAlignmentLeavesAnAutoSizedItemUnstretched() {
+    let tree = LayoutTree()
+    var s = Style()
+    s.size = Size(width: px(50), height: .auto)
+    s.alignSelf = .center
+    let item = tree.newNode(style: s, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(300), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [item])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    // Auto cross size with no content and no stretch is still 0 — and being 0,
+    // `center` puts it at the line's midpoint.
+    #expect(tree.layout(item).height == 0)
+    #expect(tree.layout(item).y == 50)
+}
