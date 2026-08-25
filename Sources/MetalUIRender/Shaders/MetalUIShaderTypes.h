@@ -24,6 +24,10 @@ typedef struct { float top, right, bottom, left; } MUIEdges;
 // the fragment shader's [[position]], which is in render-target pixels.
 typedef struct {
     MUIBounds bounds;
+    // CARRIED BUT NOT YET APPLIED. Every call site fills this in and it
+    // round-trips the ABI, but `rect_fragment` never reads it, so nothing is
+    // clipped today. Clipping arrives in M1 (spec 7.3); until then a rect
+    // paints outside its content mask.
     MUIBounds contentMask;
     MUIHsla background;
     MUIHsla borderColor;

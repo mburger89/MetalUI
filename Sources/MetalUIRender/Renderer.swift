@@ -80,6 +80,12 @@ public final class Renderer {
                        in commandBuffer: any MTLCommandBuffer) throws {
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = view.colorTexture
+        // RESTRICTION: clearing per view means `encode` cannot be called twice
+        // into one texture — the second call erases the first. Spec 3.2's claim
+        // that a stereo backend is additive "without the renderer changing"
+        // therefore holds only for a two-separate-textures layout. A
+        // side-by-side single-texture, two-viewports layout would lose eye 0 to
+        // eye 1's clear, and needs a load action the caller can choose.
         pass.colorAttachments[0].loadAction = .clear
         pass.colorAttachments[0].storeAction = .store
         pass.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)

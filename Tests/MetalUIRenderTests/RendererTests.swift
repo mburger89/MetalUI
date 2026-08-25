@@ -10,6 +10,28 @@ private func bgra(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> (UInt8, 
     return (pixels[i + 2], pixels[i + 1], pixels[i], pixels[i + 3])  // r, g, b, a
 }
 
+/// The single most load-bearing constant on this branch, and the one nothing
+/// else in the suite can catch.
+///
+/// Spec 7.8 composites in gamma-encoded sRGB. `bgra8Unorm` blends on the stored
+/// gamma-encoded values; an `_sRGB` target makes the hardware decode to linear
+/// before blending and re-encode after — which is linear compositing, the exact
+/// opposite of the decision. Flipping this constant does not fail any other
+/// test: `renderOffscreen` reads the same constant, so the offscreen target
+/// flips with it, and nothing in M0 blends translucent over opaque, which is
+/// the only thing that distinguishes the two. The damage would surface a
+/// milestone later as wrong text rendering (thin, washed light-on-dark;
+/// heavy dark-on-light) rather than as a red test here.
+///
+/// The real guard, once M1 has an alpha-blending path: draw 50%-alpha white
+/// over opaque black and read back the centre. Gamma compositing (this format)
+/// gives roughly 128; linear compositing (`_sRGB`) gives roughly 188. That is
+/// not implementable in M0 — the scene has no translucent-over-opaque path to
+/// drive — so it is recorded here rather than written.
+@Test @MainActor func drawableFormatIsGammaEncodedNotSRGB() {
+    #expect(Renderer.pixelFormat == .bgra8Unorm)
+}
+
 @Test @MainActor func rendererDrawsAFilledRectWhereExpected() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")

@@ -75,8 +75,13 @@ vertex RectVertexOut rect_vertex(
                + float2(-1.0, 1.0);
 
     RectVertexOut out;
-    // The renderer supplies this matrix and does not interpret it; a stereo
-    // backend passes a per-eye matrix here and needs no other change (spec 3.2).
+    // CONTRACT: `projection` is a POST-NDC transform, not a camera matrix. It is
+    // applied AFTER the hardcoded pixel->NDC divide above, and the vertex always
+    // emits z = 0, w = 1. So a CompositorServices backend cannot hand over a
+    // plain per-eye P*V: it must pre-compose the inverse of the viewport mapping
+    // this shader owns, and encode any depth it needs into the matrix itself.
+    // That is expressible for a planar UI, so the spec 3.2 seam holds — but "a
+    // matrix the renderer does not interpret" understates what the caller owes.
     out.position = projection * float4(ndc, 0.0, 1.0);
     out.pixelPosition = pos;
     out.rectID = instanceID;

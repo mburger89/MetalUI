@@ -59,6 +59,7 @@ import MetalUIShaderTypes
     #expect(MUIRectBufferVertices.rawValue == 0)
     #expect(MUIRectBufferRects.rawValue == 1)
     #expect(MUIRectBufferViewport.rawValue == 2)
+    #expect(MUIRectBufferProjection.rawValue == 3)
 
     #expect(MUIProbeBufferOut.rawValue == 0)
     #expect(MUIProbeBufferRect.rawValue == 1)
