@@ -1,5 +1,3 @@
-import Foundation
-
 /// Gamma-encoded sRGB, expressed as HSLA. Hue is normalised to 0..<1.
 /// The compositor works in this space directly (spec §7.8) — do not linearize.
 public struct Hsla: Hashable, Sendable {

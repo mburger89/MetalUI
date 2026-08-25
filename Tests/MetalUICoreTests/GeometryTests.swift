@@ -21,3 +21,41 @@ import Testing
     #expect(Edges(all: 4.0) == Edges(top: 4.0, right: 4.0, bottom: 4.0, left: 4.0))
     #expect(Corners(all: 6.0) == Corners(topLeft: 6.0, topRight: 6.0, bottomRight: 6.0, bottomLeft: 6.0))
 }
+
+@Test func edgesMemberwiseInitAssignsEachFieldToItsOwnSlot() {
+    let e = Edges(top: 1.0, right: 2.0, bottom: 3.0, left: 4.0)
+    #expect(e.top == 1.0)
+    #expect(e.right == 2.0)
+    #expect(e.bottom == 3.0)
+    #expect(e.left == 4.0)
+    // A transposition would still be field-wise equal to *some* permutation, so
+    // pin the ordering down explicitly.
+    #expect(e != Edges(top: 4.0, right: 3.0, bottom: 2.0, left: 1.0))
+    #expect(e != Edges(top: 2.0, right: 1.0, bottom: 4.0, left: 3.0))
+}
+
+@Test func edgesUniformInitFillsEveryField() {
+    let e = Edges(all: 7.0)
+    #expect(e.top == 7.0)
+    #expect(e.right == 7.0)
+    #expect(e.bottom == 7.0)
+    #expect(e.left == 7.0)
+}
+
+@Test func cornersMemberwiseInitAssignsEachFieldToItsOwnSlot() {
+    let c = Corners(topLeft: 1.0, topRight: 2.0, bottomRight: 3.0, bottomLeft: 4.0)
+    #expect(c.topLeft == 1.0)
+    #expect(c.topRight == 2.0)
+    #expect(c.bottomRight == 3.0)
+    #expect(c.bottomLeft == 4.0)
+    #expect(c != Corners(topLeft: 4.0, topRight: 3.0, bottomRight: 2.0, bottomLeft: 1.0))
+    #expect(c != Corners(topLeft: 2.0, topRight: 1.0, bottomRight: 4.0, bottomLeft: 3.0))
+}
+
+@Test func cornersUniformInitFillsEveryField() {
+    let c = Corners(all: 9.0)
+    #expect(c.topLeft == 9.0)
+    #expect(c.topRight == 9.0)
+    #expect(c.bottomRight == 9.0)
+    #expect(c.bottomLeft == 9.0)
+}
