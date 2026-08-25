@@ -274,6 +274,13 @@ func assertMatchesGolden(
 /// main axis — so it stays exactly as it was, and the old cross assertion is
 /// replaced by the stretched value rather than deleted. Deleting it would drop
 /// the FS-1 guarantee at the moment it stopped being visible.
+///
+/// **FS-1 lives in `flexBaseSize`, not `resolveNodeSize`.** To check this test
+/// still binds, mutate `flexBaseSize`'s `guard let measure … else { return 0 }`
+/// to `return containerMain ?? 0`; that reddens here. Mutating
+/// `resolveNodeSize`'s `resolved ?? 0` does **not** — an item's main size has
+/// not come from that function since the flex-sizing milestone, and pointing at
+/// it is the natural mistake. (It was mine, during this task's review.)
 @Test func autoSizedChildTakesNoMainSizeButStretchesOnTheCross() {
     let tree = LayoutTree()
     let kid = tree.newNode(style: Style(), children: [])   // size defaults to .auto
