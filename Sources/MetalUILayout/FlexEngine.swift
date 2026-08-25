@@ -94,6 +94,19 @@ struct FlexItem {
     /// the line is growing or shrinking, and compares against `baseSize` to
     /// find the items that cannot flex in that direction.
     var hypotheticalMainSize: Double
+    /// The item's resolved main-axis floor and ceiling, nil for "unbounded".
+    ///
+    /// These are carried rather than re-resolved inside §9.7.4.d because
+    /// `minMain` is **not** a pure function of the style any more: since the
+    /// §4.5 automatic minimum landed, `min-width: auto` resolves through the
+    /// item's measure function, and `resolveDimension` alone returns nil for it.
+    /// A second, style-only resolution inside the freeze loop would silently
+    /// drop every automatic floor — the loop would clamp against nothing and the
+    /// rule would apply to `hypotheticalMainSize` only, which is where the base
+    /// size already exceeds the floor and the clamp does nothing. One
+    /// resolution, one place: `collectItems`.
+    var minMain: Double?
+    var maxMain: Double?
     /// The size after §9.7 distributes free space. Seeded from the
     /// hypothetical size, then resolved by the freeze loop; the only size
     /// `positionItems` reads.
@@ -212,8 +225,7 @@ private func layoutContainer(
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
                             against: containerMain, rootFontSize: rootFontSize) ?? 0
 
-    resolveFlexibleLengths(tree, items: &items, containerMain: containerMain,
-                           gap: gap, isRow: isRow, rootFontSize: rootFontSize)
+    resolveFlexibleLengths(tree, items: &items, containerMain: containerMain, gap: gap)
 
     positionItems(tree, container, items: items, containerOrigin: containerOrigin,
                   containerSize: containerSize, rootFontSize: rootFontSize)
@@ -241,8 +253,53 @@ private func collectItems(
                                     rootFontSize: rootFontSize)
 
             let ks = tree.style(kid)
-            let minMain = resolveDimension(isRow ? ks.minSize.width : ks.minSize.height,
-                                           against: containerMain, rootFontSize: rootFontSize)
+            // CSS Sizing §4.5's automatic minimum size. `min-width: auto` on a
+            // flex item resolves to the item's **content-based** minimum — its
+            // min-content size — not to 0, and emphatically **not** to its flex
+            // base size. Taking the base size here is the tempting wrong answer
+            // and it disables shrinking entirely: every `flex-basis: 200px` item
+            // would acquire a 200px floor and refuse to give up a single pixel.
+            // `anItemWithNoContentHasNoAutomaticMinimum` and Task 3's
+            // `shrinkIsWeightedByBaseSize` both redden if anyone tries it.
+            //
+            // An item with no measure function has no content, so its automatic
+            // minimum is 0 and it shrinks freely.
+            //
+            // **This rule is not, and cannot yet be, browser-verified.** WebKit's
+            // content size comes from real text; nothing in this framework
+            // measures any until the text system lands in M2, and every fixture
+            // in the corpus is an empty div — for which the rule is a no-op. So
+            // it is pinned only by hand-written tests carrying explicit measure
+            // closures (`automaticMinimumSizeUsesContentSizeNotFlexBasis`), and
+            // `flex_row_explicit_min` covers **explicit** `min-width` alone.
+            // When the text system lands, add a fixture with real content and
+            // delete this paragraph.
+            //
+            // **Ruling F-3 — half the rule is deliberately missing.** §4.5's
+            // automatic minimum is `min(specified size suggestion, content size
+            // suggestion)`; only the content suggestion is implemented. The
+            // specified suggestion (the item's own definite `width`/`height`,
+            // when it has one) can never be distinguished from this until
+            // something measures content in production, because the two differ
+            // only when a measured content size exceeds a specified size. That
+            // is M2 work, not an oversight.
+            let minDim = isRow ? ks.minSize.width : ks.minSize.height
+            let minMain: Double? = {
+                if case .auto = minDim {
+                    guard let measure = tree.measure(kid) else { return nil }
+                    let probe = measure(.unspecified,
+                                        AvailableSpaceSize(width: isRow ? .minContent : .maxContent,
+                                                           height: isRow ? .maxContent : .minContent))
+                    return isRow ? probe.width : probe.height
+                }
+                // An explicit `min-width` wins outright: it *replaces* the
+                // automatic minimum rather than being combined with it, so an
+                // item may be told to shrink below what its content needs.
+                // Verified against WebKit with a probe fixture: 40 monospace
+                // W's (min-content ~384px) inside `min-width: 150px` lays out
+                // at exactly 150.
+                return resolveDimension(minDim, against: containerMain, rootFontSize: rootFontSize)
+            }()
             let maxMain = resolveDimension(isRow ? ks.maxSize.width : ks.maxSize.height,
                                            against: containerMain, rootFontSize: rootFontSize)
             let hypothetical = clamp(base, min: minMain, max: maxMain)
@@ -253,6 +310,7 @@ private func collectItems(
             let cross = isRow ? own.height : own.width
 
             return FlexItem(node: kid, baseSize: base, hypotheticalMainSize: hypothetical,
+                            minMain: minMain, maxMain: maxMain,
                             targetMainSize: hypothetical, crossSize: cross, frozen: false)
         }
 }

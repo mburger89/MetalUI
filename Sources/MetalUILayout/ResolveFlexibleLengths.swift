@@ -21,16 +21,18 @@ import MetalUICore
 ///   `flex_row_fractional_grow` is WebKit's word on that.
 ///
 /// The container node itself is deliberately not a parameter: everything this
-/// needs from it (`containerMain`, `gap`, `isRow`) is already resolved by the
-/// caller, and taking the id as well would invite reading the container's style
-/// a second time, in a different way, here.
+/// needs from it (`containerMain`, `gap`) is already resolved by the caller, and
+/// taking the id as well would invite reading the container's style a second
+/// time, in a different way, here. `isRow` and `rootFontSize` went the same way
+/// when the §4.5 automatic minimum arrived: their only use was re-resolving each
+/// item's main-axis min/max out of its style, which `collectItems` now does once
+/// and hands over on `FlexItem`. Do not restore them to resolve a bound here —
+/// see §9.7.4.d below for why that reintroduces a silent bug.
 func resolveFlexibleLengths(
     _ tree: LayoutTree,
     items: inout [FlexItem],
     containerMain: Double,
-    gap: Double,
-    isRow: Bool,
-    rootFontSize: Double
+    gap: Double
 ) {
     guard !items.isEmpty else { return }
 
@@ -151,19 +153,23 @@ func resolveFlexibleLengths(
         }
 
         // §9.7.4.d — clamp each item to its own min/max, recording by how much.
-        // The axis of that min/max follows the container's main axis:
-        // `flex_column_grow_with_max` caps an item's *height*, which a row-only
-        // reading here would look up as `maxSize.width` and silently not apply.
+        //
+        // The bounds come from `FlexItem`, resolved once by `collectItems`
+        // against the container's **main** axis — `flex_column_grow_with_max`
+        // caps an item's *height*, which a row-only reading would look up as
+        // `maxSize.width` and silently not apply. They are deliberately not
+        // re-resolved from the style here: `minMain` is no longer derivable from
+        // the style alone, since `min-width: auto` resolves through the item's
+        // measure function (CSS Sizing §4.5). A style-only `resolveDimension`
+        // returns nil for `.auto` and would drop every automatic floor on the
+        // floor without a single test noticing, because the same floor is also
+        // applied to `hypotheticalMainSize` — where it is usually a no-op.
         var totalViolation: Double = 0
         var violation: [Int: Double] = [:]
         for i in items.indices where !items[i].frozen {
-            let s = tree.style(items[i].node)
-            let lower = resolveDimension(isRow ? s.minSize.width : s.minSize.height,
-                                         against: containerMain, rootFontSize: rootFontSize)
-            let upper = resolveDimension(isRow ? s.maxSize.width : s.maxSize.height,
-                                         against: containerMain, rootFontSize: rootFontSize)
             // An item may never go negative, whatever its min says.
-            let bounded = max(0, clamp(items[i].targetMainSize, min: lower, max: upper))
+            let bounded = max(0, clamp(items[i].targetMainSize,
+                                       min: items[i].minMain, max: items[i].maxMain))
             let v = bounded - items[i].targetMainSize
             violation[i] = v
             totalViolation += v

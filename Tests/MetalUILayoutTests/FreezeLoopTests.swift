@@ -649,3 +649,158 @@ private func assertMainAxisMatchesGolden(
         tree, ids: [(root, "root"), (a, "a"), (b, "b"), (c, "c")],
         golden: golden, isRow: false)
 }
+
+// MARK: - CSS Sizing §4.5, the automatic minimum size (`min-width: auto`).
+//
+// **These three are the only pins this rule has, and they cannot be replaced by
+// fixtures.** The rule is content-based, WebKit's content size comes from real
+// text, and nothing in this framework measures any until the text system lands
+// in M2 — so every fixture in the corpus is an empty div, for which the rule is
+// a no-op. `flex_row_explicit_min` covers *explicit* `min-width` only. If these
+// tests are ever weakened, the rule has nothing left checking it.
+
+/// `min-width: auto` resolves to the item's **min-content** size — not to 0, and
+/// not to its flex base size.
+///
+/// A 100px row holding bases 300 and 100, both `flex-shrink: 1`. Overflow is
+/// 300; weighted by base size `a` would give up 300 x 300/400 = 225 and land on
+/// 75. Its content needs 80, so it floors there, freezes, and `b` absorbs the
+/// whole remainder: 100 - 80 = 20.
+///
+/// Every number here is load-bearing against a distinct wrong answer:
+/// - automatic minimum resolved to **0**: 75 / 25.
+/// - automatic minimum resolved to the **flex base size** — the tempting wrong
+///   answer, which would stop every `flex-basis` item shrinking: 300 / 100.
+/// - the probe taken at **max-content** rather than min-content, where this
+///   measure function reports 300: 300 / 0.
+///
+/// The floor also has to survive into the §9.7 freeze loop, not merely clamp
+/// `hypotheticalMainSize`. Here the base (300) is already above the floor (80),
+/// so the hypothetical clamp is a no-op and the *only* place 80 can bind is
+/// §9.7.4.d — which is why `FlexItem` carries `minMain` instead of the loop
+/// re-resolving it from the style, where `.auto` reads back as nil.
+///
+/// **Browser cross-check.** The rule itself is unreachable from a fixture, but
+/// its arithmetic is not: the same row with an *explicit* `min-width: 80px`
+/// was measured in WebKit through a throwaway fixture and gives exactly
+/// 80 / 20, at x = 0 and x = 80. Only the source of the 80 differs.
+@Test func automaticMinimumSizeUsesContentSizeNotFlexBasis() {
+    let tree = LayoutTree()
+    var s = Style()
+    s.flexGrow = 0
+    s.flexShrink = 1
+    s.flexBasis = px(300)
+    s.size = Size(width: .auto, height: px(40))
+    let a = tree.newLeaf(style: s) { _, available in
+        if case .minContent = available.width { return SizeD(width: 80, height: 40) }
+        return SizeD(width: 300, height: 40)
+    }
+    let b = flexChild(tree, grow: 0, shrink: 1, basis: px(100))
+    let root = row(tree, width: 100, [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).width == 80)
+    #expect(tree.layout(b).width == 20)
+    #expect(tree.layout(b).x == 80)
+}
+
+/// An item with no content has no automatic minimum, so it shrinks freely.
+///
+/// This is the other half of the rule and the reason the flex base size may not
+/// stand in for the content size: two `flex: 0 1 300px` boxes in a 200px row
+/// shrink evenly to 100 each. Resolve the automatic minimum to the base size
+/// instead and both floor at 300 — this test and Task 3's
+/// `shrinkIsWeightedByBaseSize` redden together, which is the cross-task guard
+/// on that mutation.
+///
+/// It passed before the rule was implemented, which is expected: 0 and "no
+/// floor" are the same layout. It is here for the mutation above, not to have
+/// gone red first.
+@Test func anItemWithNoContentHasNoAutomaticMinimum() {
+    let tree = LayoutTree()
+    let a = flexChild(tree, grow: 0, shrink: 1, basis: px(300))
+    let b = flexChild(tree, grow: 0, shrink: 1, basis: px(300))
+    let root = row(tree, width: 200, [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).width == 100)
+    #expect(tree.layout(b).width == 100)
+}
+
+/// An explicit `min-width` **replaces** the automatic minimum rather than being
+/// combined with it, so an item may be told to shrink below what its content
+/// needs.
+///
+/// `a` is `flex: 0 1 200px; min-width: 150px` and reports a min-content size of
+/// 250; `b` is `flex: 0 1 400px`. In a 300px row the overflow is 300, so `a`'s
+/// proportional share puts it at 200 - 300 x 200/600 = 100. The explicit 150
+/// binds, `a` freezes, and `b` absorbs 400 - 250 = 150.
+///
+/// The 250 content size is what makes this test say what its name says. Without
+/// it `a` has no automatic minimum at all and "explicit overrides automatic" is
+/// vacuous. With it, an implementation that let the content suggestion win —
+/// or that combined the two with `max` — gives 250 / 50 instead.
+///
+/// **WebKit agrees on both halves**, measured through throwaway fixtures: 40
+/// monospace `W`s (min-content ~384px) inside `min-width: 150px` lay out at
+/// exactly 150, and the contentless form of this row is the committed
+/// `flex_row_explicit_min` golden below.
+@Test func anExplicitMinSizeOverridesTheAutomaticOne() {
+    let tree = LayoutTree()
+    var s = Style()
+    s.flexGrow = 0
+    s.flexShrink = 1
+    s.flexBasis = px(200)
+    s.minSize = Size(width: px(150), height: .auto)
+    s.size = Size(width: .auto, height: px(40))
+    let a = tree.newLeaf(style: s) { _, available in
+        if case .minContent = available.width { return SizeD(width: 250, height: 40) }
+        return SizeD(width: 400, height: 40)
+    }
+    let b = flexChild(tree, grow: 0, shrink: 1, basis: px(400))
+    let root = row(tree, width: 300, [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).width == 150)
+    #expect(tree.layout(b).width == 150)
+    #expect(tree.layout(b).x == 150)
+}
+
+/// The browser's word on the explicit floor.
+///
+/// `flex_row_explicit_min` uses **unequal** bases on purpose. Equal ones would
+/// make the fixture inert: 250 / 250 in a 300px row shrink to 150 / 150 and a
+/// `min-width: 120px` never binds, so the whole declaration could be deleted
+/// with the golden unchanged. Verified in WebKit — the equal-base form gives
+/// 150 / 150 with or without the `min-width`, while this one gives 100 / 200
+/// without it and 150 / 150 with it.
+///
+/// Main axis only — see `assertMainAxisMatchesGolden`. Both children lack a
+/// height, so WebKit stretches them to 40 and ours are 0 until alignment
+/// lands; widen this comparison then.
+@MainActor
+@Test func explicitMinWidthMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_explicit_min")
+
+    let tree = LayoutTree()
+    var s = Style()
+    s.flexGrow = 0
+    s.flexShrink = 1
+    s.flexBasis = px(200)
+    s.minSize = Size(width: px(150), height: .auto)
+    let a = tree.newNode(style: s, children: [])
+    let b = fixtureFlexChild(tree, grow: 0, shrink: 1, basis: px(400))
+    let root = row(tree, width: 300, [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    try assertMainAxisMatchesGolden(
+        tree, ids: [(root, "root"), (a, "a"), (b, "b")], golden: golden)
+}
