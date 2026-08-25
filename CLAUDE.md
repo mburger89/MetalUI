@@ -94,7 +94,6 @@ algorithm that consumes them has not been written yet.
 | An `auto` cross size on a **non-stretched** item | **Resolves to 0, not to content.** §9.4's stretch half is implemented; its content-sizing half is not. An item whose alignment is `center`/`flex-start`/`flex-end` and whose cross size is `auto` measures 0, where CSS gives it its content's cross extent. **No fixture can catch this** — every fixture in the corpus is an empty div, for which 0 is the right answer, so `flex_row_stretch_mixed`'s `.c` agrees with WebKit at height 0 for the wrong reason. Needs the M2 text system |
 | `flexWrap` | **0 uses.** Single line, always — `collectItems` never breaks a line, so `wrap` lays out identically to `nowrap` and overflows instead |
 | `aspectRatio` | **0 uses** |
-| `.rowReverse` / `.columnReverse` (`isReverse`) | **0 uses.** A reverse container silently lays out forward |
 | `padding`, `border`, `margin` (`resolveEdges`) | **0 uses in `FlexEngine`.** `resolveEdges` is fully unit-tested and has no engine caller, so the box model is ignored — a root with `padding: 20, border: 5` places its child at `(0,0)`, not `(25,25)` |
 | `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping |
 | `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
@@ -113,7 +112,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 137 tests, warning-free. Six non-test targets with
+`swift build` · `swift test` — 141 tests, warning-free. Six non-test targets with
 strictly one-way dependencies (`docs/superpowers/specs/…` §3.1).
 
 Two constraints that are easy to violate silently:

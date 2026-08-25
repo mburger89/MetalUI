@@ -325,3 +325,49 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
     // 150% of the cross 100, not 150% of the main 700 (which would give 1050).
     #expect(tree.layout(floored).height == 150)
 }
+
+// MARK: - Reverse flex directions.
+
+/// `.rowReverse` packs from the main-end edge, and `justify-content: flex-start`
+/// follows the reversed axis rather than the visual left.
+///
+/// Items of 40/70/50 in a 400 row: forward gives 0/40/110; reversed gives
+/// 360/290/240. Equal-sized items in a full container would make the two
+/// indistinguishable, which is why these differ.
+@Test func rowReversePacksFromTheEndAndFlipsJustifyContent() {
+    let tree = LayoutTree()
+    let a = fixedChild(tree, w: 40, h: 40)
+    let b = fixedChild(tree, w: 70, h: 40)
+    let c = fixedChild(tree, w: 50, h: 40)
+    var rootStyle = Style()
+    rootStyle.flexDirection = .rowReverse
+    rootStyle.size = Size(width: px(400), height: px(40))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a) == LayoutRect(x: 360, y: 0, width: 40, height: 40))
+    #expect(tree.layout(b) == LayoutRect(x: 290, y: 0, width: 70, height: 40))
+    #expect(tree.layout(c) == LayoutRect(x: 240, y: 0, width: 50, height: 40))
+}
+
+/// Reverse flips the main axis only. The cross axis is untouched, so
+/// `align-items: flex-end` still means the bottom of a reversed row.
+@Test func reverseDoesNotFlipTheCrossAxis() {
+    let tree = LayoutTree()
+    var s = Style()
+    s.size = Size(width: px(50), height: px(20))
+    let item = tree.newNode(style: s, children: [])
+    var rootStyle = Style()
+    rootStyle.flexDirection = .rowReverse
+    rootStyle.alignItems = .flexEnd
+    rootStyle.size = Size(width: px(200), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [item])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(item).y == 80)      // cross-end, not flipped to 0
+    #expect(tree.layout(item).x == 150)     // main-end, flipped
+}

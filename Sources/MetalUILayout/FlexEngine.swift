@@ -22,13 +22,6 @@ import MetalUICore
 /// it its content's cross size. Every fixture in the corpus is an empty div, so
 /// no browser comparison can see it; it needs the M2 text system.
 ///
-/// **Reverse directions are NOT implemented.** `FlexDirection` offers
-/// `.rowReverse` and `.columnReverse`, and `FlexDirection.isReverse` exists, but
-/// `layoutContainer` keys only on `isRow`. A `.rowReverse` container therefore
-/// lays out silently as `.row` — wrong geometry, no error, no diagnostic. It is
-/// listed here because that is the whole mitigation until the alignment task
-/// implements it: nothing else in the code says so.
-///
 /// **The box model is NOT implemented either.** `margin`, `padding`, `border`
 /// and `inset` are live `Style` properties, and `resolveEdges` resolves all four
 /// edges and is unit-tested, but nothing in this file ever calls it. A root with
@@ -38,9 +31,9 @@ import MetalUICore
 /// reduced by them. This is a conspicuous gap rather than a minor one, because
 /// `border-box` sizing is the spec's headline sizing constraint (§5.2) — every
 /// size here already *claims* to include padding and border, while no code yet
-/// subtracts them to find the content box. Like reverse, it fails silently:
-/// wrong geometry, no error, no diagnostic, until the box-model work wires
-/// `resolveEdges` into `layoutContainer`.
+/// subtracts them to find the content box. It fails silently: wrong geometry,
+/// no error, no diagnostic, until the box-model work wires `resolveEdges` into
+/// `layoutContainer`.
 ///
 /// Every rect written here is **absolute to the root**, not relative to its
 /// parent. `roundLayout` keeps no cross-rect state, so its no-drift guarantee
@@ -396,6 +389,17 @@ private func positionItems(
 ) {
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
+    // §9.4.2's "flex-start" and "flex-end" are keyed to the *flex-relative*
+    // direction, so a `.rowReverse`/`.columnReverse` container's main-start is
+    // its physical right/bottom edge, not its left/top. `cursor` below still
+    // accumulates along the flex-relative axis exactly as the forward case
+    // does — `distributeMainAxis`, `gap`, and item order are all unaware of
+    // reversal — and only the point where a position is *read out* converts
+    // that flex-relative cursor into a physical coordinate. Reversing the
+    // `items` array instead would look equivalent for a single item, but it
+    // would also reverse which item `distributeMainAxis` treats as first,
+    // corrupting `space-between`'s leading offset (ruling: brief's Step 2).
+    let isReverse = s.flexDirection.isReverse
     let containerMain = isRow ? containerSize.width : containerSize.height
     let containerCross = isRow ? containerSize.height : containerSize.width
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
@@ -419,8 +423,14 @@ private func positionItems(
         let crossOffset = crossAxisOffset(align, itemCross: item.crossSize,
                                           lineCross: containerCross)
 
-        let x = containerOrigin.0 + (isRow ? cursor : crossOffset)
-        let y = containerOrigin.1 + (isRow ? crossOffset : cursor)
+        // Convert the flex-relative cursor to a physical main-axis position.
+        // Forward: the cursor already IS the physical position. Reversed: the
+        // item's main-start sits `cursor` in from the container's flex-start,
+        // which is the container's physical main-end — so the item's physical
+        // leading edge is `containerMain - cursor - item.targetMainSize`.
+        let main = isReverse ? (containerMain - cursor - item.targetMainSize) : cursor
+        let x = containerOrigin.0 + (isRow ? main : crossOffset)
+        let y = containerOrigin.1 + (isRow ? crossOffset : main)
         let size = isRow
             ? SizeD(width: item.targetMainSize, height: item.crossSize)
             : SizeD(width: item.crossSize, height: item.targetMainSize)

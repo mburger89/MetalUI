@@ -647,3 +647,63 @@ private func threeJustifiedChildren(
                         ids: [root: "root", a: "a", b: "b", c: "c", d: "d"],
                         golden: golden, tolerance: 0.1)
 }
+
+/// `row-reverse` against WebKit: three unequal children, no `justify-content`
+/// override, so this pins the *default* `flex-start` reading against the
+/// reversed axis rather than something an explicit justify value might mask.
+///
+/// Same 40/70/50-in-400 shape as `rowReversePacksFromTheEndAndFlipsJustifyContent`
+/// in AlignmentTests.swift, but this one is browser-verified rather than
+/// hand-computed.
+@Test func rowReverseMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_reverse")
+    let tree = LayoutTree()
+    let a = fixedChild(tree, w: 40, h: 40)
+    let b = fixedChild(tree, w: 70, h: 40)
+    let c = fixedChild(tree, w: 50, h: 40)
+    var rootStyle = Style()
+    rootStyle.flexDirection = .rowReverse
+    rootStyle.size = Size(width: px(400), height: px(40))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// `column-reverse` composed with `justify-content: flex-end` against WebKit —
+/// the fixture where a sign error in either flip shows, because a bug in only
+/// one of the two would still place the packed run at a plausible-looking
+/// edge.
+///
+/// Also the AL-7 fixture: `.a` has an explicit `height` (a definite **main**
+/// size in a column, which no other fixture in the corpus provides) and an
+/// `auto` width, so it stretches to the container's cross extent. `.b` and
+/// `.c` have explicit widths and do not.
+@Test func columnReverseJustifyEndMatchesWebKit() throws {
+    let golden = try loadGolden("flex_column_reverse_justify_end")
+    let tree = LayoutTree()
+
+    var aStyle = Style()                      // definite main size, auto cross: stretches
+    aStyle.size = Size(width: .auto, height: px(40))
+    let a = tree.newNode(style: aStyle, children: [])
+
+    let b = fixedChild(tree, w: 60, h: 70)
+    let c = fixedChild(tree, w: 80, h: 50)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .columnReverse
+    rootStyle.justifyContent = .flexEnd
+    rootStyle.size = Size(width: px(100), height: px(400))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
