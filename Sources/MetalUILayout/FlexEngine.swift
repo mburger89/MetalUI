@@ -395,10 +395,22 @@ private func positionItems(
     // accumulates along the flex-relative axis exactly as the forward case
     // does — `distributeMainAxis`, `gap`, and item order are all unaware of
     // reversal — and only the point where a position is *read out* converts
-    // that flex-relative cursor into a physical coordinate. Reversing the
-    // `items` array instead would look equivalent for a single item, but it
-    // would also reverse which item `distributeMainAxis` treats as first,
-    // corrupting `space-between`'s leading offset (ruling: brief's Step 2).
+    // that flex-relative cursor into a physical coordinate.
+    //
+    // Reversing `items` instead is not a correctness requirement: done
+    // correctly it is numerically equivalent to this cursor conversion.
+    // `distributeMainAxis` has no per-item notion of "first" to corrupt — it
+    // takes only `justify`, `freeSpace` and `itemCount` — so array-reversal
+    // would need its own compensating flip of which side `offsets.leading` is
+    // applied from, which is a real difference from `flex-end`/`center`/
+    // `space-around`/`space-evenly` (not `space-between`, whose `leading` is
+    // always 0). This file keeps `items` in document order instead because
+    // document order is the one thing about this loop with a use outside it:
+    // wrapping's line collection and baseline grouping (neither implemented
+    // yet) will need to index items by DOM position, and converting the
+    // cursor confines the reversal to the single place a physical position is
+    // actually derived, rather than threading a flipped item order through
+    // everything downstream of `collectItems`.
     let isReverse = s.flexDirection.isReverse
     let containerMain = isRow ? containerSize.width : containerSize.height
     let containerCross = isRow ? containerSize.height : containerSize.width
