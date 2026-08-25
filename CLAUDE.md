@@ -86,7 +86,8 @@ algorithm that consumes them has not been written yet.
 | `padding`, `border`, `margin` (`resolveEdges`) | **0 uses in `FlexEngine`.** `resolveEdges` is fully unit-tested and has no engine caller, so the box model is ignored — a root with `padding: 20, border: 5` places its child at `(0,0)`, not `(25,25)` |
 | `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping |
 | `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
-| `MeasureFunction` / `tree.measure()` | **One caller** (`flexBaseSize`'s content-size branch), **never populated.** `newLeaf` — the only way to attach a measure function — has no production caller, so every production node's `tree.measure()` returns `nil` and `flexBaseSize` always takes its 0 fallback |
+| `MeasureFunction` / `tree.measure()` | **Two callers, never populated.** `flexBaseSize`'s content-size branch and `collectItems`' CSS Sizing §4.5 automatic-minimum probe both read it, but `newLeaf` — the only way to attach a measure function — has no production caller, so every production node's `tree.measure()` returns `nil`: `flexBaseSize` always takes its 0 fallback and `min-width: auto` always resolves to no floor. Both rules are therefore exercised **only by tests that build their own closures**, which is why `min-width: auto` has no browser fixture — see `automaticMinimumSizeUsesContentSizeNotFlexBasis` |
+| CSS Sizing §4.5's **specified size suggestion** | **Not implemented** (ruling F-3). The automatic minimum is `min(specified suggestion, content suggestion)`; only the content half exists. Indistinguishable until something measures content in production — M2 |
 
 Re-check any row rather than trusting this table:
 
@@ -100,7 +101,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 79 tests, warning-free. Six non-test targets with
+`swift build` · `swift test` — 113 tests, warning-free. Six non-test targets with
 strictly one-way dependencies (`docs/superpowers/specs/…` §3.1).
 
 Two constraints that are easy to violate silently:
