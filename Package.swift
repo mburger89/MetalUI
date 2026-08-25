@@ -19,6 +19,12 @@ let package = Package(
             resources: [.copy("Shaders")]
         ),
         .testTarget(name: "MetalUIRenderTests", dependencies: ["MetalUIRender"]),
+
+        .target(
+            name: "MetalUIPlatform",
+            dependencies: ["MetalUICore", "MetalUIRender"]
+        ),
+        .testTarget(name: "MetalUIPlatformTests", dependencies: ["MetalUIPlatform"]),
     ],
     swiftLanguageModes: [.v6]
 )

@@ -33,8 +33,10 @@ private func rect(order: UInt32, x: Float) -> MUIRect {
 }
 
 @Test func finalizeIsStableForEqualOrders() {
-    // Enough elements to get past the insertion-sort fast path a short array
-    // takes, where even a comparator with no tiebreaker happens to look stable.
+    // A regression tripwire, not a test of the current comparator: Swift's sort
+    // is stable at every size measured (checked up to 5000 elements, with and
+    // without a tiebreaker), so no element count can make this fail today. It
+    // exists to fail loudly if the sort is ever swapped for a non-stable one.
     let count = 40
     var s = Scene()
     for i in 0..<count {
