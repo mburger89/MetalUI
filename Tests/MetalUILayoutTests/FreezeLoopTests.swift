@@ -652,12 +652,20 @@ private func assertMainAxisMatchesGolden(
 
 // MARK: - CSS Sizing §4.5, the automatic minimum size (`min-width: auto`).
 //
-// **These three are the only pins this rule has, and they cannot be replaced by
-// fixtures.** The rule is content-based, WebKit's content size comes from real
-// text, and nothing in this framework measures any until the text system lands
-// in M2 — so every fixture in the corpus is an empty div, for which the rule is
-// a no-op. `flex_row_explicit_min` covers *explicit* `min-width` only. If these
-// tests are ever weakened, the rule has nothing left checking it.
+// **Of the four tests below, the first three pin the *automatic* rule and cannot
+// be replaced by fixtures; the fourth pins *explicit* `min-width`, which the
+// corpus does cover.** The automatic rule is content-based, WebKit's content
+// size comes from real text, and nothing in this framework measures any until
+// the text system lands in M2 — so every fixture in the corpus is an empty div,
+// for which the rule is a no-op. `flex_row_explicit_min` covers *explicit*
+// `min-width` only. If these tests are ever weakened, the automatic rule has
+// nothing left checking it.
+//
+// Narrower still than that reads: mutating the automatic minimum to 0, to the
+// flex base size, or probing at max-content instead of min-content each reddens
+// `automaticMinimumSizeUsesContentSizeNotFlexBasis` and, apart from the base-size
+// case, *nothing else*. That one test is the rule's single point of failure until
+// M2 supplies a measure function a fixture can reach.
 
 /// `min-width: auto` resolves to the item's **min-content** size — not to 0, and
 /// not to its flex base size.
