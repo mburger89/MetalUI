@@ -19,24 +19,24 @@ public struct LayoutRect: Sendable, Equatable {
 ///
 /// This is Taffy's `round_layout` strategy.
 ///
-/// **Today only the golden generator calls it** — `roundBoxes` in
-/// `GoldenFile.swift`, which puts browser output into the same space ours is
-/// compared in. `computeLayout` does **not** call it: the engine writes raw,
-/// unrounded rects, and the test helper compares those raw rects against
-/// `golden.rounded`.
+/// Two callers apply it today, and both must keep applying *this* function
+/// rather than a second implementation, or the corpus comparison below would
+/// validate the wrong thing:
 ///
-/// That comparison currently cannot detect the difference. Every fixture in the
-/// corpus lays out on integral pixel boundaries, so a fixture's raw and rounded
-/// boxes are the same numbers — pointing the helper at `golden.raw` instead
-/// leaves the whole suite green. It stops being green the moment a non-integral
-/// layout exists: `flex-grow` splitting 100 across seven items gives 100/7, and
-/// then raw and rounded genuinely diverge.
+/// - `roundBoxes` in `GoldenFile.swift` puts browser output into the same
+///   rounded space ours is compared in.
+/// - `computeLayout` in `FlexEngine.swift` calls `roundStoredRects`, which
+///   applies this to every node's absolute rect, depth-first, as the last step
+///   of layout — after positioning, so every rect it rounds is already
+///   root-absolute, which is this function's precondition.
 ///
-/// So once such layouts exist, both sides must apply an identical rounding pass,
-/// and it must be *this* function on both sides — a second implementation would
-/// drift and the corpus would then validate the wrong thing. Where in the
-/// pipeline the engine applies it is a design decision left to the grow/shrink
-/// task, which is why it is not wired in here yet.
+/// Before the engine called it, the comparison above could not detect a missing
+/// rounding pass at all: every fixture in the corpus laid out on integral pixel
+/// boundaries, so a fixture's raw and rounded boxes were the same numbers, and
+/// pointing the test helper at `golden.raw` instead would have left the whole
+/// suite green. `flex-grow` splitting 100 across seven items (100/7 each) is the
+/// kind of layout where raw and rounded genuinely diverge — see
+/// `computeLayoutRoundsEveryStoredRect` in `FlexEngineTests.swift`.
 public func roundLayout(_ rects: [LayoutRect]) -> [LayoutRect] {
     rects.map { r in
         let x0 = r.x.rounded()

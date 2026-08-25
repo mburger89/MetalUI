@@ -54,7 +54,6 @@ algorithm that consumes them has not been written yet.
 | `.rowReverse` / `.columnReverse` (`isReverse`) | **0 uses.** A reverse container silently lays out forward |
 | `padding`, `border`, `margin` (`resolveEdges`) | **0 uses in `FlexEngine`.** `resolveEdges` is fully unit-tested and has no engine caller, so the box model is ignored — a root with `padding: 20, border: 5` places its child at `(0,0)`, not `(25,25)` |
 | `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping |
-| `roundLayout` | **0 production callers** — the generator calls it, `computeLayout` does not. Raw-vs-rounded is currently undetectable because every fixture is integral |
 | `MeasureFunction` / `tree.measure()` | **0 production callers.** Nothing measures content yet |
 
 Re-check any row rather than trusting this table:

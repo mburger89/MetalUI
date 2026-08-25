@@ -9,7 +9,7 @@ import MetalUICore
 ///
 /// **Reverse directions are NOT implemented.** `FlexDirection` offers
 /// `.rowReverse` and `.columnReverse`, and `FlexDirection.isReverse` exists, but
-/// `layoutChildren` keys only on `isRow`. A `.rowReverse` container therefore
+/// `layoutContainer` keys only on `isRow`. A `.rowReverse` container therefore
 /// lays out silently as `.row` — wrong geometry, no error, no diagnostic. It is
 /// listed here because that is the whole mitigation until the alignment task
 /// implements it: nothing else in the code says so.
@@ -25,7 +25,7 @@ import MetalUICore
 /// size here already *claims* to include padding and border, while no code yet
 /// subtracts them to find the content box. Like reverse, it fails silently:
 /// wrong geometry, no error, no diagnostic, until the box-model work wires
-/// `resolveEdges` into `layoutChildren`.
+/// `resolveEdges` into `layoutContainer`.
 ///
 /// Every rect written here is **absolute to the root**, not relative to its
 /// parent. `roundLayout` keeps no cross-rect state, so its no-drift guarantee
@@ -37,45 +37,81 @@ public func computeLayout(
     available: AvailableSpaceSize,
     rootFontSize: Double = 16
 ) {
-    let rootSize = resolveNodeSize(tree, root, parent: .unspecified,
-                                   available: available, rootFontSize: rootFontSize)
+    let rootSize = resolveRootSize(tree, root, available: available, rootFontSize: rootFontSize)
     tree.setLayout(root, LayoutRect(x: 0, y: 0, width: rootSize.width, height: rootSize.height))
-    layoutChildren(tree, root, containerOrigin: (0, 0), containerSize: rootSize,
-                   rootFontSize: rootFontSize)
+    layoutContainer(tree, root, containerOrigin: (0, 0), containerSize: rootSize,
+                    rootFontSize: rootFontSize)
+
+    // Round last, over the finished absolute rects. Spec §5.7 designates the
+    // rounded layout as the comparison space, so the engine must apply the same
+    // pass the golden generator does — otherwise a fractional layout is compared
+    // against a rounded one and the difference is invisible.
+    roundStoredRects(tree, root)
 }
 
-/// Resolve a node's own border-box size from its style.
-private func resolveNodeSize(
+/// Apply `roundLayout` to every node's stored rect, depth-first.
+///
+/// `roundLayout` is stateless per rect — it rounds each rect's own cumulative
+/// edges — so applying it node-by-node is equivalent to applying it to the whole
+/// tree at once, and requires no traversal order.
+private func roundStoredRects(_ tree: LayoutTree, _ node: LayoutNodeID) {
+    tree.setLayout(node, roundLayout([tree.layout(node)])[0])
+    for kid in tree.children(node) {
+        roundStoredRects(tree, kid)
+    }
+}
+
+/// One flex item, carried through the three phases of a line's layout.
+///
+/// Split out because §9.7 resolves free space across the *whole* line before any
+/// item is positioned — a single loop that sizes and places as it goes cannot
+/// express that.
+struct FlexItem {
+    let node: LayoutNodeID
+    /// §9.2 flex base size, before min/max clamping.
+    var baseSize: Double
+    /// §9.2 base size clamped by min/max.
+    var hypotheticalMainSize: Double
+    /// The size after §9.7 distributes free space. Starts at hypothetical.
+    var targetMainSize: Double
+    var crossSize: Double
+    /// §9.7 freezes an item once its size is final.
+    var frozen: Bool
+}
+
+/// Resolve the **root's** own border-box size from its style, falling back to
+/// the offered `available` space on any axis its style leaves unresolved.
+///
+/// This fallback belongs to the root alone (ruling F-1). The root is a block
+/// box in the initial containing block, and CSS §10.3.4/§9.2's block-layout
+/// rule is that `width: auto` (and, per this framework's single-pass sizing,
+/// `height: auto`) on such a box fills the space the box is offered — that is
+/// what `computeLayout`'s public `available:` parameter is *for*. A flex
+/// item's `auto` main size means something else entirely: it is resolved via
+/// §9.2's flex base size (Task 2) and never by inheriting a container's
+/// extent, which is why `resolveNodeSize` below must not fall back to
+/// `available` — doing so would silently reintroduce the Task 7 scope-boundary
+/// fallback this task deletes from item sizing.
+private func resolveRootSize(
     _ tree: LayoutTree,
-    _ node: LayoutNodeID,
-    parent: OptionalSizeD,
+    _ root: LayoutNodeID,
     available: AvailableSpaceSize,
     rootFontSize: Double
 ) -> SizeD {
-    let s = tree.style(node)
+    let s = tree.style(root)
 
     func axis(_ dim: Dimension, _ minDim: Dimension, _ maxDim: Dimension,
-              parentExtent: Double?, availableExtent: AvailableSpace) -> Double {
-        let resolved = resolveDimension(dim, against: parentExtent, rootFontSize: rootFontSize)
-        let lower = resolveDimension(minDim, against: parentExtent, rootFontSize: rootFontSize)
-        let upper = resolveDimension(maxDim, against: parentExtent, rootFontSize: rootFontSize)
+              availableExtent: AvailableSpace) -> Double {
+        // The root has no parent, so percentages resolve against nil (CSS
+        // treats that as auto) — same as the `.unspecified` parent this
+        // function used before the split.
+        let resolved = resolveDimension(dim, against: nil, rootFontSize: rootFontSize)
+        let lower = resolveDimension(minDim, against: nil, rootFontSize: rootFontSize)
+        let upper = resolveDimension(maxDim, against: nil, rootFontSize: rootFontSize)
         let base: Double
         if let resolved {
             base = resolved
         } else if case .definite(let d) = availableExtent {
-            // TASK 7 SCOPE BOUNDARY — NOT CSS-CORRECT. DO NOT BUILD ON THIS.
-            //
-            // An auto-sized flex item does NOT take its container's extent. Its
-            // main size comes from its *content*, via flex-basis and the §9.2
-            // hypothetical main size; its cross size comes from content or from
-            // stretch alignment. Falling back to the container's extent is a
-            // placeholder that happens to be unobservable here only because
-            // every Task 7 fixture gives each box an explicit width and height.
-            //
-            // The flex base size algorithm (§9.2) plus resolve-flexible-lengths
-            // (§9.7) replace this branch wholesale in the grow/shrink task. If
-            // it survives, auto-sized items silently inherit their container's
-            // size forever and the bug is very hard to see.
             base = d
         } else {
             base = 0
@@ -85,52 +121,115 @@ private func resolveNodeSize(
 
     return SizeD(
         width: axis(s.size.width, s.minSize.width, s.maxSize.width,
-                    parentExtent: parent.width, availableExtent: available.width),
+                    availableExtent: available.width),
         height: axis(s.size.height, s.minSize.height, s.maxSize.height,
-                     parentExtent: parent.height, availableExtent: available.height))
+                     availableExtent: available.height))
 }
 
-/// Place a container's children along its main axis, packed from the start.
-private func layoutChildren(
+/// Resolve a node's own border-box size from its style.
+///
+/// This is for nodes whose size comes from their own style alone — a flex
+/// item's cross axis, and any node reached from `collectItems`. **It is
+/// deliberately not the root path, and not a flex item's main axis:** a flex
+/// item's main size comes from `flexBaseSize(_:)` and §9.7, never from here,
+/// and unlike `resolveRootSize` this function never falls back to an offered
+/// available extent (ruling F-1) — an auto-sized item is 0 until Task 2 lands
+/// flex base size. Adding an `available` fallback here would recreate the
+/// scope-boundary placeholder that ruling PF-3 exists to prevent.
+private func resolveNodeSize(
+    _ tree: LayoutTree,
+    _ node: LayoutNodeID,
+    parent: OptionalSizeD,
+    rootFontSize: Double
+) -> SizeD {
+    let s = tree.style(node)
+
+    func axis(_ dim: Dimension, _ minDim: Dimension, _ maxDim: Dimension,
+              parentExtent: Double?) -> Double {
+        let resolved = resolveDimension(dim, against: parentExtent, rootFontSize: rootFontSize)
+        let lower = resolveDimension(minDim, against: parentExtent, rootFontSize: rootFontSize)
+        let upper = resolveDimension(maxDim, against: parentExtent, rootFontSize: rootFontSize)
+        // An unresolvable size is 0 here. For a flex item's MAIN axis that is
+        // never reached — §9.2 supplies the base size instead.
+        return clamp(resolved ?? 0, min: lower, max: upper)
+    }
+
+    return SizeD(
+        width: axis(s.size.width, s.minSize.width, s.maxSize.width, parentExtent: parent.width),
+        height: axis(s.size.height, s.minSize.height, s.maxSize.height, parentExtent: parent.height))
+}
+
+/// Lay out one container: collect its items, resolve flexible lengths, position.
+private func layoutContainer(
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
     containerOrigin: (Double, Double),
     containerSize: SizeD,
     rootFontSize: Double
 ) {
-    let s = tree.style(container)
-    let kids = tree.children(container)
-    guard !kids.isEmpty else { return }
+    let items = collectItems(tree, container, containerSize: containerSize,
+                             rootFontSize: rootFontSize)
+    guard !items.isEmpty else { return }
+    // §9.7 lands here in Task 3. Until then every item keeps its hypothetical
+    // main size, which is what the pre-split code did.
+    positionItems(tree, container, items: items, containerOrigin: containerOrigin,
+                 containerSize: containerSize, rootFontSize: rootFontSize)
+}
 
+/// Phase 1 — size every item without positioning any of them.
+private func collectItems(
+    _ tree: LayoutTree,
+    _ container: LayoutNodeID,
+    containerSize: SizeD,
+    rootFontSize: Double
+) -> [FlexItem] {
+    let s = tree.style(container)
+    let isRow = s.flexDirection.isRow
+    let parent = OptionalSizeD(width: containerSize.width, height: containerSize.height)
+
+    return tree.children(container)
+        .filter { tree.style($0).display != .none }
+        .map { kid in
+            let size = resolveNodeSize(tree, kid, parent: parent, rootFontSize: rootFontSize)
+            let main = isRow ? size.width : size.height
+            let cross = isRow ? size.height : size.width
+            return FlexItem(node: kid, baseSize: main, hypotheticalMainSize: main,
+                            targetMainSize: main, crossSize: cross, frozen: false)
+        }
+}
+
+/// Phase 3 — assign absolute rects and recurse.
+private func positionItems(
+    _ tree: LayoutTree,
+    _ container: LayoutNodeID,
+    items: [FlexItem],
+    containerOrigin: (Double, Double),
+    containerSize: SizeD,
+    rootFontSize: Double
+) {
+    let s = tree.style(container)
     let isRow = s.flexDirection.isRow
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
                             against: isRow ? containerSize.width : containerSize.height,
                             rootFontSize: rootFontSize) ?? 0
 
     var cursor: Double = 0
-    var placedAny = false
-    for kid in kids where tree.style(kid).display != .none {
-        // Between items only. A gap after the last item is invisible today —
-        // `cursor` dies with the loop — but `justify-content` will read the
-        // final cursor as the line's content size, and a trailing gap there is
-        // a real off-by-`gap` bug.
-        if placedAny { cursor += gap }
-        placedAny = true
-
-        let kidSize = resolveNodeSize(
-            tree, kid,
-            parent: OptionalSizeD(width: containerSize.width, height: containerSize.height),
-            available: AvailableSpaceSize(width: .definite(containerSize.width),
-                                          height: .definite(containerSize.height)),
-            rootFontSize: rootFontSize)
+    for (index, item) in items.enumerated() {
+        // Between items only. A trailing gap is invisible today because `cursor`
+        // dies with the loop, but `justify-content` will read the final cursor as
+        // the line's content size, where it is a real off-by-`gap` bug.
+        if index > 0 { cursor += gap }
 
         let x = containerOrigin.0 + (isRow ? cursor : 0)
         let y = containerOrigin.1 + (isRow ? 0 : cursor)
-        tree.setLayout(kid, LayoutRect(x: x, y: y, width: kidSize.width, height: kidSize.height))
+        let size = isRow
+            ? SizeD(width: item.targetMainSize, height: item.crossSize)
+            : SizeD(width: item.crossSize, height: item.targetMainSize)
 
-        layoutChildren(tree, kid, containerOrigin: (x, y), containerSize: kidSize,
-                       rootFontSize: rootFontSize)
+        tree.setLayout(item.node, LayoutRect(x: x, y: y, width: size.width, height: size.height))
+        layoutContainer(tree, item.node, containerOrigin: (x, y), containerSize: size,
+                        rootFontSize: rootFontSize)
 
-        cursor += isRow ? kidSize.width : kidSize.height
+        cursor += item.targetMainSize
     }
 }

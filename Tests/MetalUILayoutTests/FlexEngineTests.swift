@@ -207,33 +207,75 @@ func assertMatchesGolden(
     #expect(tree.layout(g2) == LayoutRect(x: 30, y: 25, width: 20, height: 35))
 }
 
-/// Pins the **current, deliberately non-CSS** behaviour of the scope-boundary
-/// fallback in `resolveNodeSize`: an item with `size: auto` takes its
-/// container's extent, because the fallback reads the definite available space.
-///
-/// CSS does not do this — an auto-sized flex item derives its main size from
-/// content via flex-basis (§9.2). The fallback is documented in `FlexEngine`
-/// as a placeholder the grow/shrink task replaces wholesale. This test exists
-/// so that replacement is a *visible, deliberate* act: changing `base = d` to
-/// `base = 0` left the entire suite green before it, and now reddens here.
-@Test func autoSizedChildTakesItsContainersExtentForNow() {
+/// `computeLayout` must apply a rounding pass to every stored rect, not just the
+/// leaves: three children of 100/3 in a 100-wide row must close exactly on the
+/// parent (33 + 34 + 33 = 100), which only holds if rounding walks the whole
+/// cumulative main axis rather than rounding each width independently.
+@Test func computeLayoutRoundsEveryStoredRect() {
+    // 3 children of 100/3 in a 100 row. Cumulative rounding must make the
+    // widths 33/34/33 and close the row exactly on the parent.
     let tree = LayoutTree()
-    let flexible = tree.newNode(style: Style(), children: [])   // size stays .auto
-    let trailing = fixedChild(tree, w: 40, h: 10)
-
+    func third() -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: MetalUICore.Dimension.length(.pixels(Pixels(Float(100.0 / 3.0)))),
+                      height: px(10))
+        return tree.newNode(style: s, children: [])
+    }
+    let a = third(), b = third(), c = third()
     var rootStyle = Style()
     rootStyle.flexDirection = .row
-    rootStyle.size = Size(width: px(300), height: px(50))
-    let root = tree.newNode(style: rootStyle, children: [flexible, trailing])
+    rootStyle.size = Size(width: px(100), height: px(10))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(400), height: .definite(400)))
+
+    // Every stored value is a whole number — nothing fractional survives.
+    for n in [root, a, b, c] {
+        let r = tree.layout(n)
+        #expect(r.x == r.x.rounded(), "x \(r.x) not rounded")
+        #expect(r.width == r.width.rounded(), "width \(r.width) not rounded")
+    }
+    #expect(tree.layout(a).width + tree.layout(b).width + tree.layout(c).width == 100)
+    #expect(tree.layout(c).x + tree.layout(c).width == 100)
+}
+
+/// Replaces `autoSizedChildTakesItsContainersExtentForNow`. The Task 7
+/// fallback (auto -> container extent) is deleted here; the real content
+/// size arrives with flex base size in Task 2. Zero is the honest
+/// placeholder: visibly wrong rather than plausibly wrong.
+@Test func autoSizedChildIsZeroUntilFlexBaseSizeLands() {
+    let tree = LayoutTree()
+    let kid = tree.newNode(style: Style(), children: [])   // size defaults to .auto
+    var rootStyle = Style()
+    rootStyle.size = Size(width: px(300), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [kid])
 
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    // The container's 300x50, not 0x0 and not a content-derived size.
-    #expect(tree.layout(flexible) == LayoutRect(x: 0, y: 0, width: 300, height: 50))
-    // And it consumes that much main-axis space, pushing its sibling past the
-    // container's own right edge (no shrinking yet, by design).
-    #expect(tree.layout(trailing) == LayoutRect(x: 300, y: 0, width: 40, height: 10))
+    #expect(tree.layout(kid).width == 0)
+    #expect(tree.layout(kid).height == 0)
+}
+
+/// The root fills the space it is offered; a flex item does not.
+///
+/// `computeLayout`'s `available:` parameter would otherwise be read by nothing
+/// once the Task 7 item fallback is deleted — an inert public parameter that no
+/// existing test can see, since every other root in this suite has an explicit
+/// size. The two expectations here are the two halves of one mutation: making
+/// the root ignore `available` reddens the first, and restoring the item
+/// fallback reddens the second.
+@Test func autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot() {
+    let tree = LayoutTree()
+    let kid = tree.newNode(style: Style(), children: [])      // size defaults to .auto
+    let root = tree.newNode(style: Style(), children: [kid])  // ditto
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(root) == LayoutRect(x: 0, y: 0, width: 800, height: 600))
+    #expect(tree.layout(kid) == LayoutRect(x: 0, y: 0, width: 0, height: 0))
 }
 
 /// `minSize` and `maxSize` are live `Style` properties, and the engine must
