@@ -1,0 +1,215 @@
+#if os(macOS)
+import AppKit
+import Metal
+import QuartzCore
+import MetalUICore
+import MetalUIRender
+
+/// Hosts the CAMetalLayer and funnels AppKit events into InputEvent.
+@MainActor
+final class MetalHostView: NSView {
+    var onInput: ((InputEvent) -> Bool)?
+    var onGeometryChange: (() -> Void)?
+
+    private let surface: MetalLayerSurface
+
+    init(surface: MetalLayerSurface) {
+        self.surface = surface
+        super.init(frame: .zero)
+        // Order matters: assign the layer first. Setting `wantsLayer` first makes
+        // AppKit create its own backing layer, and the CAMetalLayer is discarded.
+        layer = surface.backingLayer
+        wantsLayer = true
+        layerContentsRedrawPolicy = .duringViewResize
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("not supported") }
+
+    override var acceptsFirstResponder: Bool { true }
+    override var isFlipped: Bool { true }   // top-left origin, matching our geometry
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        onGeometryChange?()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        onGeometryChange?()
+    }
+
+    private func point(_ event: NSEvent) -> Point<Pixels> {
+        let p = convert(event.locationInWindow, from: nil)
+        return Point(x: Pixels(Float(p.x)), y: Pixels(Float(p.y)))
+    }
+
+    private func modifiers(_ event: NSEvent) -> Modifiers {
+        var m: Modifiers = []
+        if event.modifierFlags.contains(.shift) { m.insert(.shift) }
+        if event.modifierFlags.contains(.control) { m.insert(.control) }
+        if event.modifierFlags.contains(.option) { m.insert(.option) }
+        if event.modifierFlags.contains(.command) { m.insert(.command) }
+        return m
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        _ = onInput?(.mouseDown(MouseEvent(position: point(event),
+                                           modifiers: modifiers(event),
+                                           clickCount: event.clickCount)))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        _ = onInput?(.mouseUp(MouseEvent(position: point(event),
+                                         modifiers: modifiers(event),
+                                         clickCount: event.clickCount)))
+    }
+
+    // NOTE: mouseMoved only fires once a tracking area exists. M0 does not add
+    // one, because nothing depends on hover yet; M3 adds it with hit testing.
+    // Do not debug "mouseMoved never fires" here — it is expected until then.
+    override func mouseMoved(with event: NSEvent) {
+        _ = onInput?(.mouseMoved(MouseEvent(position: point(event),
+                                            modifiers: modifiers(event))))
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        let momentum = event.momentumPhase != []
+        _ = onInput?(.scrollWheel(ScrollEvent(
+            position: point(event),
+            delta: Point(x: Pixels(Float(event.scrollingDeltaX)),
+                         y: Pixels(Float(event.scrollingDeltaY))),
+            modifiers: modifiers(event),
+            isMomentum: momentum)))
+    }
+
+    override func keyDown(with event: NSEvent) {
+        _ = onInput?(.keyDown(KeyEvent(
+            charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
+            characters: event.characters ?? "",
+            modifiers: modifiers(event),
+            isRepeat: event.isARepeat)))
+    }
+
+    override func keyUp(with event: NSEvent) {
+        _ = onInput?(.keyUp(KeyEvent(
+            charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
+            characters: event.characters ?? "",
+            modifiers: modifiers(event))))
+    }
+
+    override func flagsChanged(with event: NSEvent) {
+        _ = onInput?(.modifiersChanged(modifiers(event)))
+    }
+}
+
+@MainActor
+final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
+    private let window: NSWindow
+    private let hostView: MetalHostView
+    private let metalSurface: MetalLayerSurface
+    private var displayLink: CADisplayLink?
+    private var tick: (() -> Void)?
+
+    var onInput: ((InputEvent) -> Bool)?
+    var onResize: ((Size<Pixels>, Float) -> Void)?
+    var onClose: (() -> Void)?
+
+    init(device: any MTLDevice, title: String, size: Size<Pixels>) throws {
+        metalSurface = MetalLayerSurface(device: device)
+        hostView = MetalHostView(surface: metalSurface)
+
+        window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0,
+                                width: CGFloat(size.width.value),
+                                height: CGFloat(size.height.value)),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false)
+        window.title = title
+        window.contentView = hostView
+        window.center()
+
+        super.init()
+        window.delegate = self
+        hostView.onInput = { [weak self] event in self?.onInput?(event) ?? false }
+        hostView.onGeometryChange = { [weak self] in self?.syncSurfaceGeometry() }
+        syncSurfaceGeometry()
+    }
+
+    var contentSize: Size<Pixels> {
+        let f = hostView.bounds.size
+        return Size(width: Pixels(Float(f.width)), height: Pixels(Float(f.height)))
+    }
+
+    var scaleFactor: Float { Float(window.backingScaleFactor) }
+
+    var surface: any RenderSurface { metalSurface }
+
+    var title: String {
+        get { window.title }
+        set { window.title = newValue }
+    }
+
+    func makeKeyAndVisible() {
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    private func syncSurfaceGeometry() {
+        let scale = window.backingScaleFactor
+        let bounds = hostView.bounds.size
+        let pixelSize = CGSize(width: max(bounds.width * scale, 1),
+                               height: max(bounds.height * scale, 1))
+        metalSurface.resize(pixelSize: pixelSize, scaleFactor: scale)
+        onResize?(contentSize, Float(scale))
+    }
+
+    func startDisplayLink(_ tick: @escaping () -> Void) {
+        self.tick = tick
+        // NSView.displayLink supersedes CVDisplayLink, deprecated in full as of
+        // macOS 15. It returns a CADisplayLink and fires on the main run loop,
+        // so there is no thread hop into the MainActor frame (spec 4.4).
+        let link = hostView.displayLink(target: self, selector: #selector(displayLinkFired))
+        link.add(to: .main, forMode: .common)
+        displayLink = link
+    }
+
+    func setDisplayLinkPaused(_ paused: Bool) {
+        displayLink?.isPaused = paused
+    }
+
+    @objc private func displayLinkFired() {
+        tick?()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        displayLink?.invalidate()
+        displayLink = nil
+        onClose?()
+    }
+}
+
+@MainActor
+public final class AppKitPlatform: Platform {
+    private let device: any MTLDevice
+    private var windows: [AppKitWindow] = []
+
+    public init(device: any MTLDevice) {
+        self.device = device
+    }
+
+    public func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
+        let window = try AppKitWindow(device: device, title: title, size: size)
+        windows.append(window)
+        window.makeKeyAndVisible()
+        return window
+    }
+
+    public func run() {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.regular)
+        app.activate(ignoringOtherApps: true)
+        app.run()
+    }
+}
+#endif
