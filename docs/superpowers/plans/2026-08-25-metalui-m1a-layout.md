@@ -225,10 +225,16 @@ Expected: PASS, 3 tests.
 - [ ] **Step 6: Confirm the layering constraint holds**
 
 ```bash
-grep -rE "^import (Metal|AppKit|UIKit)" Sources/MetalUILayout/ && echo "LAYERING VIOLATION" || echo "clean"
+grep -rnE "^import (Metal|AppKit|UIKit|MetalUIRender|MetalUIPlatform)$" \
+  Sources/MetalUILayout/ && echo "LAYERING VIOLATION" || echo "clean"
 ```
 
 Expected: `clean`.
+
+The `$` anchor and the explicit module list are both load-bearing. Without them
+the pattern matches the *mandatory* `import MetalUICore` by prefix and reports a
+violation on correct code — a check that can never pass is as useless as one that
+can never fail.
 
 - [ ] **Step 7: Commit**
 
@@ -348,9 +354,21 @@ public func roundLayout(_ rects: [LayoutRect]) -> [LayoutRect] {
 Run: `swift test --filter RoundingTests`
 Expected: PASS, 4 tests.
 
-- [ ] **Step 5: Prove the test can fail**
+- [ ] **Step 5: Commit**
 
-Temporarily replace the body with naive per-dimension rounding and confirm the drift test reddens:
+```bash
+git add -A
+git commit -m "feat(layout): add cumulative rounding shared by engine and oracle"
+```
+
+Commit **before** mutating, not after. `git checkout <file>` silently restores
+nothing when the file is still untracked, so a mutation performed first can
+survive into the commit — the revert appears to succeed and does nothing.
+
+- [ ] **Step 6: Prove the test can fail**
+
+Now that the file is tracked, temporarily replace the body with naive
+per-dimension rounding and confirm the drift test reddens:
 
 ```bash
 python3 - <<'PY'
@@ -365,17 +383,15 @@ open(p, "w").write(s.replace(old, new))
 PY
 swift test --filter RoundingTests 2>&1 | grep -c "Expectation failed"
 git checkout Sources/MetalUILayout/Rounding.swift
+grep -c MUTANT Sources/MetalUILayout/Rounding.swift   # must print 0
 swift test --filter RoundingTests 2>&1 | tail -2
+git status --short                                     # must be empty
 ```
 
-Expected: a non-zero failure count while mutated, then PASS after revert. If the mutant passes, the test is not constraining the property and must be fixed before continuing.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add -A
-git commit -m "feat(layout): add cumulative rounding shared by engine and oracle"
-```
+Expected: a non-zero failure count while mutated, then `0` from the grep and PASS
+after revert, with a clean tree. If the mutant passes, the test is not
+constraining the property and must be fixed before continuing. If the grep prints
+anything but `0`, the revert did not take — fix it before going further.
 
 ---
 
