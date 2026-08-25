@@ -219,7 +219,7 @@ git commit -m "feat(core): add geometry primitives and package skeleton"
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `Pixels`, `DevicePixels`, `ScaledPixels`, `Rems` — each `Hashable`, `Comparable`, `Sendable`, `AdditiveArithmetic`, `ExpressibleByFloatLiteral`, `ExpressibleByIntegerLiteral`, with `*`/`/` by `Float`. `Pixels.scaled(by:) -> ScaledPixels`. Enums `Length` (`.pixels`/`.rems`/`.percent`) and `Dimension` (`.length`/`.auto`).
+- Produces: `Pixels`, `ScaledPixels`, `Rems` — each `Hashable`, `Comparable`, `Sendable`, `AdditiveArithmetic`, `ExpressibleByFloatLiteral`, `ExpressibleByIntegerLiteral`, with `*`/`/` by `Float`. **`DevicePixels` is deliberately narrower** — `Hashable`, `Comparable`, `Sendable` only. It wraps `Int32` because physical pixels are integral, so float literals and `* Float` are meaningless on it and must not compile. `Pixels.scaled(by:) -> ScaledPixels`. Enums `Length` (`.pixels`/`.rems`/`.percent`) and `Dimension` (`.length`/`.auto`).
 
 - [ ] **Step 1: Write the failing test**
 
