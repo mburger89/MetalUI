@@ -67,25 +67,28 @@ private func roundStoredRects(_ tree: LayoutTree, _ node: LayoutNodeID) {
 /// item is positioned — a single loop that sizes and places as it goes cannot
 /// express that.
 ///
-/// **Partially written but unread, today:** `collectItems` now computes
-/// `baseSize` via §9.2's `flexBaseSize(_:)` and clamps it into
-/// `hypotheticalMainSize`, but `positionItems` still only ever reads
-/// `targetMainSize` and `crossSize`. `hypotheticalMainSize` is read exactly
-/// once — to seed `targetMainSize` — and `baseSize` itself is not read by
-/// anything downstream of `collectItems` yet. Both light up fully when Task 3
-/// implements the §9.7 freeze loop, which also starts reading `frozen` (still
-/// always `false`, still unread) to stop revisiting an item once its size is
-/// final. Until then, `targetMainSize` is seeded from `hypotheticalMainSize`
-/// and never changed, so the two are numerically identical — do not read that
-/// as `hypotheticalMainSize` being redundant; it is the value Task 3 diffs
-/// against to find free space to distribute.
+/// **Written but unread, today:** `collectItems` now computes `baseSize` via
+/// §9.2's `flexBaseSize(_:)` and clamps it into a local `hypothetical`, which
+/// seeds both `hypotheticalMainSize` and `targetMainSize` on the returned
+/// `FlexItem` — but that seeding assigns from the local variable, not from
+/// reading either *field* back. `positionItems` only ever reads
+/// `targetMainSize` and `crossSize`, so the `baseSize` and
+/// `hypotheticalMainSize` fields themselves are still written and never read
+/// by anything downstream of `collectItems`. Both go genuinely live when
+/// Task 3 implements the §9.7 freeze loop: it diffs `hypotheticalMainSize`
+/// against the container's free space to decide how much to grow or shrink
+/// `targetMainSize`, and it starts reading `frozen` (still always `false`,
+/// still unread) to stop revisiting an item once its size is final. Until
+/// then, `hypotheticalMainSize` and `targetMainSize` are numerically
+/// identical on every `FlexItem` — do not read that as either field being
+/// redundant; it is the value Task 3's freeze loop needs.
 struct FlexItem {
     let node: LayoutNodeID
     /// §9.2 flex base size, before min/max clamping. Computed by
-    /// `collectItems`; not read again until Task 3's freeze loop.
+    /// `collectItems`; unread until Task 3's freeze loop.
     var baseSize: Double
-    /// §9.2 base size clamped by min/max. Read once, to seed
-    /// `targetMainSize`; the freeze loop's growth/shrinkage is Task 3.
+    /// §9.2 base size clamped by min/max. Computed by `collectItems`; unread
+    /// until Task 3's freeze loop diffs it against free space.
     var hypotheticalMainSize: Double
     /// The size after §9.7 distributes free space. Starts at hypothetical.
     var targetMainSize: Double

@@ -254,10 +254,15 @@ func assertMatchesGolden(
 }
 
 /// Replaces `autoSizedChildTakesItsContainersExtentForNow`. The Task 7
-/// fallback (auto -> container extent) is deleted here; the real content
-/// size arrives with flex base size in Task 2. Zero is the honest
-/// placeholder: visibly wrong rather than plausibly wrong.
-@Test func autoSizedChildIsZeroUntilFlexBaseSizeLands() {
+/// fallback (auto -> container extent) is deleted here and never comes back:
+/// this pins `collectItems`' wiring through `computeLayout`, not §9.2 itself
+/// (that's `FlexBaseSizeTests.autoBasisWithNoMeasureFunctionIsZero`, which
+/// pins the free function directly). A child with no measure function and no
+/// definite size is zero because nothing measures content yet — not because
+/// flex base size is unimplemented, which it now is. This is the one test
+/// that would redden if `collectItems` ever reverted to a container-extent
+/// main size.
+@Test func autoSizedChildWithNoMeasureFunctionIsZero() {
     let tree = LayoutTree()
     let kid = tree.newNode(style: Style(), children: [])   // size defaults to .auto
     var rootStyle = Style()
