@@ -807,7 +807,7 @@ git commit -m "test(layout): add golden generator and the first two fixtures"
 - Consumes: `Style`, `LayoutRect`.
 - Produces:
   - `enum AvailableSpace: Sendable, Equatable { case definite(Double), minContent, maxContent }`
-  - `typealias MeasureFunction = @Sendable (_ known: SizeD, _ available: AvailableSpaceSize) -> SizeD`
+  - `typealias MeasureFunction = @Sendable (_ known: OptionalSizeD, _ available: AvailableSpaceSize) -> SizeD`
   - `struct SizeD: Sendable, Equatable { var width, height: Double }`, `struct OptionalSizeD: Sendable, Equatable { var width, height: Double? }`, `struct AvailableSpaceSize: Sendable, Equatable { var width, height: AvailableSpace }`
   - `struct LayoutNodeID: Hashable, Sendable { let index: Int }`
   - `final class LayoutTree` with `newNode(style:children:) -> LayoutNodeID`, `newLeaf(style:measure:) -> LayoutNodeID`, `style(_:) -> Style`, `setStyle(_:_:)`, `children(_:) -> [LayoutNodeID]`, `measure(_:) -> MeasureFunction?`, `layout(_:) -> LayoutRect`, `setLayout(_:_:)`, `reset()`, `nodeCount: Int`
