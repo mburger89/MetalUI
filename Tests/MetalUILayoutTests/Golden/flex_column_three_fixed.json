@@ -1,0 +1,67 @@
+{
+  "fixture" : "flex_column_three_fixed",
+  "raw" : [
+    {
+      "height" : 400,
+      "id" : "root",
+      "width" : 120,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "x",
+      "width" : 60,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "y",
+      "width" : 90,
+      "x" : 0,
+      "y" : 20
+    },
+    {
+      "height" : 50,
+      "id" : "z",
+      "width" : 40,
+      "x" : 0,
+      "y" : 50
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 400,
+      "id" : "root",
+      "width" : 120,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "x",
+      "width" : 60,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "y",
+      "width" : 90,
+      "x" : 0,
+      "y" : 20
+    },
+    {
+      "height" : 50,
+      "id" : "z",
+      "width" : 40,
+      "x" : 0,
+      "y" : 50
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

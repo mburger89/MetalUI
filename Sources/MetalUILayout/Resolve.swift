@@ -18,9 +18,15 @@ public struct ResolvedEdges: Sendable, Equatable {
 /// indefinite parent. CSS treats that as `auto`, and callers must too.
 ///
 /// The percentage product is formed in `Float`, the precision the fraction is
-/// stored at, and only then widened. Widening first would surface the storage
-/// noise of the `Float` literal: `Double(Float(0.1)) * 200` is
-/// 20.000000298023224, not 20.
+/// stored at, and only then widened — the honest conversion boundary, since the
+/// fraction never had more than `Float` precision to begin with. This *reduces*
+/// the storage noise rather than eliminating it. Neither ordering is exact and
+/// neither dominates: widening first makes `10%` of `200` visibly worse
+/// (20.000000298023224 rather than 20), while this order makes `9%` of `300`
+/// slightly worse (27.000001907348633 rather than 27.000001072883606). Treat
+/// the result as carrying ~1e-4pt of error and compare it with a tolerance
+/// rather than for equality; that is roughly 130x below WebKit's 1/64 quantum,
+/// so it never reaches a fixture.
 public func resolveLength(_ l: Length, against parent: Double?, rootFontSize: Double) -> Double? {
     switch l {
     case .pixels(let p): Double(p.value)

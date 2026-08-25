@@ -35,7 +35,13 @@ import MetalUICore
     // block's WIDTH, including the vertical ones. This surprises people.
     let e = Edges<Length>(all: .percent(0.1))
     let r = resolveEdges(e, against: 200, rootFontSize: 16)
-    #expect(r.top == 20 && r.bottom == 20)
+    // Tolerance, not equality: `.percent` stores a Float, so no ordering of the
+    // widen and the multiply is exact. 10% of 200 lands on 20 exactly, but 9%
+    // of 300 gives 27.000001907348633 under this same implementation — an
+    // equality assertion here passes by accident of the chosen decimal and
+    // would trap the next person who edits the numbers. The residual is ~1e-4pt,
+    // some 130x below WebKit's 1/64 quantum.
+    #expect(abs(r.top - 20) <= 1e-4 && abs(r.bottom - 20) <= 1e-4)
 }
 
 @Test func clampRespectsBothBounds() {

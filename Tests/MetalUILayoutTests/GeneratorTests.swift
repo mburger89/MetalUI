@@ -49,4 +49,25 @@ func regenerateAllGoldens() async throws {
 let allFixtures: [(String, CGSize)] = [
     ("flex_row_fixed_and_grow", CGSize(width: 800, height: 600)),
     ("flex_row_seven_equal",    CGSize(width: 400, height: 200)),
+    ("flex_row_three_fixed",    CGSize(width: 800, height: 600)),
+    ("flex_column_three_fixed", CGSize(width: 800, height: 600)),
 ]
+
+/// A fixture missing from `allFixtures` never generates a golden and is never
+/// compared against anything — it just sits in the directory looking checked.
+/// Nothing else in the suite notices, so this counts the files and makes the
+/// omission a failure.
+@MainActor
+@Test func everyFixtureFileIsListedInTheCorpus() throws {
+    let onDisk = Bundle.module.urls(forResourcesWithExtension: "html",
+                                    subdirectory: "Fixtures") ?? []
+    let names = Set(onDisk.map { $0.deletingPathExtension().lastPathComponent })
+    let listed = Set(allFixtures.map(\.0))
+
+    #expect(allFixtures.count == onDisk.count,
+            "allFixtures lists \(allFixtures.count) fixtures but Fixtures/ holds \(onDisk.count) .html files")
+    #expect(names.subtracting(listed).isEmpty,
+            "fixtures on disk but absent from allFixtures: \(names.subtracting(listed).sorted())")
+    #expect(listed.subtracting(names).isEmpty,
+            "fixtures listed in allFixtures but absent from disk: \(listed.subtracting(names).sorted())")
+}
