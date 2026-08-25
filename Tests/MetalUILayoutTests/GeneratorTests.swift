@@ -56,6 +56,7 @@ let allFixtures: [(String, CGSize)] = [
     ("flex_row_shrink",         CGSize(width: 800, height: 600)),
     ("flex_row_fractional_grow", CGSize(width: 800, height: 600)),
     ("flex_row_fractional_grow_clamped", CGSize(width: 800, height: 600)),
+    ("flex_row_grow_with_max",  CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

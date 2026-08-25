@@ -396,3 +396,64 @@ private func assertMainAxisMatchesGolden(
     // The row closes on the container rather than overflowing it.
     #expect(tree.layout(b).x + tree.layout(b).width == 400)
 }
+
+/// §9.7.4.e — space freed by clamping an item is **redistributed** among the
+/// items that are still unfrozen. This is the reason §9.7 is a loop at all.
+///
+/// Three `flex: 1 1 0` items in a 400 row, the first capped at 50. Pass 1 hands
+/// each 133.33; `a` clamps down to 50, a max violation, and freezes alone. Pass
+/// 2 shares the recovered space between `b` and `c`: 350 / 2 = 175 each, and the
+/// row closes exactly on 400.
+///
+/// Freezing *every* item on a nonzero violation — the plausible simplification
+/// of the three-way branch — stops after pass 1 and leaves 50 + 133 + 133, well
+/// short of the container. Nothing but a max/min violation can produce a second
+/// pass, so without a fixture of this shape the entire loop body is exercised
+/// exactly once and the redistribution it exists for is never observed.
+@Test func clampingOneItemRedistributesTheFreedSpaceToTheRest() {
+    let tree = LayoutTree()
+    var capped = Style()
+    capped.flexGrow = 1
+    capped.flexShrink = 1
+    capped.flexBasis = px(0)
+    capped.maxSize = Size(width: px(50), height: .auto)
+    let a = tree.newNode(style: capped, children: [])
+    let b = fixtureFlexChild(tree, grow: 1, shrink: 1, basis: px(0))
+    let c = fixtureFlexChild(tree, grow: 1, shrink: 1, basis: px(0))
+    let root = row(tree, width: 400, [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).width == 50)
+    #expect(tree.layout(b).width == 175)
+    #expect(tree.layout(c).width == 175)
+    #expect(tree.layout(c).x + tree.layout(c).width == 400)
+}
+
+/// The browser's word on the redistribution above.
+///
+/// Main axis only — see `assertMainAxisMatchesGolden`. All three children lack
+/// a height, so WebKit stretches them to 40 and ours are 0 until alignment
+/// lands; widen this comparison then.
+@MainActor
+@Test func growWithAMaxWidthMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_grow_with_max")
+
+    let tree = LayoutTree()
+    var capped = Style()
+    capped.flexGrow = 1
+    capped.flexShrink = 1
+    capped.flexBasis = px(0)
+    capped.maxSize = Size(width: px(50), height: .auto)
+    let a = tree.newNode(style: capped, children: [])
+    let b = fixtureFlexChild(tree, grow: 1, shrink: 1, basis: px(0))
+    let c = fixtureFlexChild(tree, grow: 1, shrink: 1, basis: px(0))
+    let root = row(tree, width: 400, [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    try assertMainAxisMatchesGolden(
+        tree, ids: [(root, "root"), (a, "a"), (b, "b"), (c, "c")], golden: golden)
+}
