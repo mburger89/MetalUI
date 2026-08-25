@@ -15,6 +15,7 @@ import MetalUICore
 /// Qualified: this file imports Foundation, whose Measurement API also exports a
 /// `Dimension` type, so the bare name is ambiguous here.
 private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(Float(v)))) }
+private let autoDim: MetalUICore.Dimension = .auto
 
 private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeID {
     var s = Style()
@@ -48,7 +49,6 @@ private func threeFixedChildren(
 /// the test that failed, not inside this helper.
 func assertMatchesGolden(
     _ tree: LayoutTree,
-    root: LayoutNodeID,
     ids: [LayoutNodeID: String],
     golden: GoldenFile,
     tolerance: Double,
@@ -207,13 +207,80 @@ func assertMatchesGolden(
     #expect(tree.layout(g2) == LayoutRect(x: 30, y: 25, width: 20, height: 35))
 }
 
+/// Pins the **current, deliberately non-CSS** behaviour of the scope-boundary
+/// fallback in `resolveNodeSize`: an item with `size: auto` takes its
+/// container's extent, because the fallback reads the definite available space.
+///
+/// CSS does not do this — an auto-sized flex item derives its main size from
+/// content via flex-basis (§9.2). The fallback is documented in `FlexEngine`
+/// as a placeholder the grow/shrink task replaces wholesale. This test exists
+/// so that replacement is a *visible, deliberate* act: changing `base = d` to
+/// `base = 0` left the entire suite green before it, and now reddens here.
+@Test func autoSizedChildTakesItsContainersExtentForNow() {
+    let tree = LayoutTree()
+    let flexible = tree.newNode(style: Style(), children: [])   // size stays .auto
+    let trailing = fixedChild(tree, w: 40, h: 10)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(300), height: px(50))
+    let root = tree.newNode(style: rootStyle, children: [flexible, trailing])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    // The container's 300x50, not 0x0 and not a content-derived size.
+    #expect(tree.layout(flexible) == LayoutRect(x: 0, y: 0, width: 300, height: 50))
+    // And it consumes that much main-axis space, pushing its sibling past the
+    // container's own right edge (no shrinking yet, by design).
+    #expect(tree.layout(trailing) == LayoutRect(x: 300, y: 0, width: 40, height: 10))
+}
+
+/// `minSize` and `maxSize` are live `Style` properties, and the engine must
+/// honour them when resolving a node's size.
+///
+/// `clamp` is unit-tested as a pure function in ResolveTests, but nothing
+/// checked that `resolveNodeSize` actually *calls* it: deleting the `clamp` call
+/// left the entire suite green before this test. The third child also pins
+/// CSS §10.4's tie-break — when min and max conflict, **min wins**.
+@Test func minAndMaxSizeClampAChildAndMinWinsOnConflict() {
+    let tree = LayoutTree()
+
+    // Asked for 200 wide, capped at 80. Asked for 10 tall, floored at 30.
+    var cappedStyle = Style()
+    cappedStyle.size = Size(width: px(200), height: px(10))
+    cappedStyle.maxSize = Size(width: px(80), height: autoDim)
+    cappedStyle.minSize = Size(width: autoDim, height: px(30))
+    let capped = tree.newNode(style: cappedStyle, children: [])
+
+    // min 120 > max 50: CSS §10.4 says the minimum wins, so 120 — not 50, and
+    // not the requested 10.
+    var conflictedStyle = Style()
+    conflictedStyle.size = Size(width: px(10), height: px(20))
+    conflictedStyle.minSize = Size(width: px(120), height: autoDim)
+    conflictedStyle.maxSize = Size(width: px(50), height: autoDim)
+    let conflicted = tree.newNode(style: conflictedStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(200))
+    let root = tree.newNode(style: rootStyle, children: [capped, conflicted])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(capped) == LayoutRect(x: 0, y: 0, width: 80, height: 30))
+    // Positioned after the *clamped* 80, not after the requested 200.
+    #expect(tree.layout(conflicted) == LayoutRect(x: 80, y: 0, width: 120, height: 20))
+}
+
 @Test func rowOfFixedChildrenMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_three_fixed")
     let (tree, root, x, y, z) = threeFixedChildren(direction: .row, width: 300, height: 50)
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    assertMatchesGolden(tree, root: root,
+    assertMatchesGolden(tree,
                         ids: [root: "root", x: "x", y: "y", z: "z"],
                         golden: golden, tolerance: 0.1)
 }
@@ -224,7 +291,7 @@ func assertMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    assertMatchesGolden(tree, root: root,
+    assertMatchesGolden(tree,
                         ids: [root: "root", x: "x", y: "y", z: "z"],
                         golden: golden, tolerance: 0.1)
 }
@@ -235,7 +302,7 @@ func assertMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    assertMatchesGolden(tree, root: root,
+    assertMatchesGolden(tree,
                         ids: [root: "root", x: "x", y: "y", z: "z"],
                         golden: golden, tolerance: 0.1)
 }

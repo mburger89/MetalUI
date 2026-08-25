@@ -14,6 +14,19 @@ import MetalUICore
 /// listed here because that is the whole mitigation until the alignment task
 /// implements it: nothing else in the code says so.
 ///
+/// **The box model is NOT implemented either.** `margin`, `padding`, `border`
+/// and `inset` are live `Style` properties, and `resolveEdges` resolves all four
+/// edges and is unit-tested, but nothing in this file ever calls it. A root with
+/// `width: 300, padding: 20, border: 5` therefore places its 50x50 child at
+/// `(0, 0)`, where CSS puts it at `(25, 25)`: child origins are never inset by
+/// the parent's padding and border, and the space offered to children is never
+/// reduced by them. This is a conspicuous gap rather than a minor one, because
+/// `border-box` sizing is the spec's headline sizing constraint (§5.2) — every
+/// size here already *claims* to include padding and border, while no code yet
+/// subtracts them to find the content box. Like reverse, it fails silently:
+/// wrong geometry, no error, no diagnostic, until the box-model work wires
+/// `resolveEdges` into `layoutChildren`.
+///
 /// Every rect written here is **absolute to the root**, not relative to its
 /// parent. `roundLayout` keeps no cross-rect state, so its no-drift guarantee
 /// depends entirely on receiving absolute coordinates; storing parent-relative
@@ -95,7 +108,15 @@ private func layoutChildren(
                             rootFontSize: rootFontSize) ?? 0
 
     var cursor: Double = 0
+    var placedAny = false
     for kid in kids where tree.style(kid).display != .none {
+        // Between items only. A gap after the last item is invisible today —
+        // `cursor` dies with the loop — but `justify-content` will read the
+        // final cursor as the line's content size, and a trailing gap there is
+        // a real off-by-`gap` bug.
+        if placedAny { cursor += gap }
+        placedAny = true
+
         let kidSize = resolveNodeSize(
             tree, kid,
             parent: OptionalSizeD(width: containerSize.width, height: containerSize.height),
@@ -110,6 +131,6 @@ private func layoutChildren(
         layoutChildren(tree, kid, containerOrigin: (x, y), containerSize: kidSize,
                        rootFontSize: rootFontSize)
 
-        cursor += (isRow ? kidSize.width : kidSize.height) + gap
+        cursor += isRow ? kidSize.width : kidSize.height
     }
 }
