@@ -48,6 +48,11 @@ static float4 hsla_to_srgba(MUIHsla hsla) {
 
 struct RectVertexOut {
     float4 position [[position]];
+    /// Unprojected position, in the same ScaledPixels space as `MUIRect.bounds`.
+    /// The fragment shader must evaluate its SDF here, not in `position.xy`:
+    /// under a non-identity projection those spaces differ, and using
+    /// `position.xy` would clip each rect to its unprojected footprint.
+    float2 pixelPosition;
     uint   rectID   [[flat]];
 };
 
@@ -56,7 +61,8 @@ vertex RectVertexOut rect_vertex(
     uint instanceID [[instance_id]],
     constant float2  *unitVertices [[buffer(MUIRectBufferVertices)]],
     constant MUIRect *rects        [[buffer(MUIRectBufferRects)]],
-    constant MUISize &viewport     [[buffer(MUIRectBufferViewport)]]
+    constant MUISize &viewport     [[buffer(MUIRectBufferViewport)]],
+    constant float4x4 &projection  [[buffer(MUIRectBufferProjection)]]
 ) {
     float2 unit = unitVertices[vertexID];
     MUIRect r = rects[instanceID];
@@ -69,7 +75,10 @@ vertex RectVertexOut rect_vertex(
                + float2(-1.0, 1.0);
 
     RectVertexOut out;
-    out.position = float4(ndc, 0.0, 1.0);
+    // The renderer supplies this matrix and does not interpret it; a stereo
+    // backend passes a per-eye matrix here and needs no other change (spec 3.2).
+    out.position = projection * float4(ndc, 0.0, 1.0);
+    out.pixelPosition = pos;
     out.rectID = instanceID;
     return out;
 }
@@ -82,7 +91,7 @@ fragment float4 rect_fragment(
 
     float2 halfSize = float2(r.bounds.size.width, r.bounds.size.height) * 0.5;
     float2 center   = float2(r.bounds.origin.x, r.bounds.origin.y) + halfSize;
-    float2 p        = in.position.xy - center;
+    float2 p        = in.pixelPosition - center;
 
     float radius = pick_corner_radius(p, r.cornerRadii);
 

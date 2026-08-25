@@ -34,9 +34,10 @@ typedef struct {
 } MUIRect;
 
 typedef enum {
-    MUIRectBufferVertices = 0,
-    MUIRectBufferRects    = 1,
-    MUIRectBufferViewport = 2
+    MUIRectBufferVertices   = 0,
+    MUIRectBufferRects      = 1,
+    MUIRectBufferViewport   = 2,
+    MUIRectBufferProjection = 3
 } MUIRectBufferIndex;
 
 typedef enum {

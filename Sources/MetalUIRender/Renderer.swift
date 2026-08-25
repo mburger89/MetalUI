@@ -1,6 +1,7 @@
 import Metal
 import MetalUICore
 import MetalUIShaderTypes
+import simd
 
 public enum RendererError: Error, CustomStringConvertible {
     case commandQueueUnavailable
@@ -82,6 +83,8 @@ public final class Renderer {
         pass.colorAttachments[0].loadAction = .clear
         pass.colorAttachments[0].storeAction = .store
         pass.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
+        // A nil map is a no-op; a stereo backend supplies a real one (spec 3.2).
+        pass.rasterizationRateMap = view.rasterizationRateMap
 
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else {
             throw RendererError.encoderUnavailable
@@ -95,6 +98,9 @@ public final class Renderer {
 
         var viewport = MUISize(width: Float(view.viewport.width),
                                height: Float(view.viewport.height))
+        // Passed through uninterpreted: the renderer never reads or composes it,
+        // so a stereo backend's per-eye matrices work without a renderer change.
+        var projection = view.projection
 
         // NOTE (M0 limitation): `setVertexBytes`/`setFragmentBytes` copy into a
         // 4 KB inline argument buffer. `MUIRect` is 104 bytes, so anything past
@@ -108,6 +114,8 @@ public final class Renderer {
                                index: Int(MUIRectBufferRects.rawValue))
         encoder.setVertexBytes(&viewport, length: MemoryLayout<MUISize>.stride,
                                index: Int(MUIRectBufferViewport.rawValue))
+        encoder.setVertexBytes(&projection, length: MemoryLayout<simd_float4x4>.stride,
+                               index: Int(MUIRectBufferProjection.rawValue))
         encoder.setFragmentBytes(scene.rects,
                                  length: MemoryLayout<MUIRect>.stride * scene.rects.count,
                                  index: Int(MUIRectBufferRects.rawValue))
@@ -120,13 +128,15 @@ public final class Renderer {
 
     /// Render to an offscreen texture and read the pixels back. Test support.
     public func renderOffscreen(_ scene: Scene,
-                                size: Size<DevicePixels>) throws -> [UInt8] {
+                                size: Size<DevicePixels>,
+                                projection: simd_float4x4 = matrix_identity_float4x4
+    ) throws -> [UInt8] {
         let width = Int(size.width.value)
         let height = Int(size.height.value)
 
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: Self.pixelFormat, width: width, height: height, mipmapped: false)
-        descriptor.usage = [.renderTarget, .shaderRead]
+        descriptor.usage = .renderTarget
         descriptor.storageMode = .shared
 
         guard let texture = device.makeTexture(descriptor: descriptor) else {
@@ -140,7 +150,8 @@ public final class Renderer {
             colorTexture: texture,
             viewport: MTLViewport(originX: 0, originY: 0,
                                   width: Double(width), height: Double(height),
-                                  znear: 0, zfar: 1))
+                                  znear: 0, zfar: 1),
+            projection: projection)
         try encode(scene, view: view, in: commandBuffer)
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()

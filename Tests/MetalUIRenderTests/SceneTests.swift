@@ -33,11 +33,14 @@ private func rect(order: UInt32, x: Float) -> MUIRect {
 }
 
 @Test func finalizeIsStableForEqualOrders() {
+    // Enough elements to get past the insertion-sort fast path a short array
+    // takes, where even a comparator with no tiebreaker happens to look stable.
+    let count = 40
     var s = Scene()
-    s.insert(rect(order: 1, x: 100))
-    s.insert(rect(order: 1, x: 200))
-    s.insert(rect(order: 1, x: 300))
+    for i in 0..<count {
+        s.insert(rect(order: 1, x: Float(i)))
+    }
     s.finalize()
     // Insertion order must survive: painters at the same order layer in sequence.
-    #expect(s.rects.map(\.bounds.origin.x) == [100, 200, 300])
+    #expect(s.rects.map(\.bounds.origin.x) == (0..<count).map { Float($0) })
 }
