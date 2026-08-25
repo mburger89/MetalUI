@@ -5,7 +5,8 @@ let package = Package(
     name: "MetalUI",
     platforms: [.macOS(.v14)],
     products: [
-        .library(name: "MetalUICore", targets: ["MetalUICore"]),
+        .library(name: "MetalUI", targets: ["MetalUI"]),
+        .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
     ],
     targets: [
         .target(name: "MetalUICore"),
@@ -25,6 +26,13 @@ let package = Package(
             dependencies: ["MetalUICore", "MetalUIRender"]
         ),
         .testTarget(name: "MetalUIPlatformTests", dependencies: ["MetalUIPlatform"]),
+
+        .target(
+            name: "MetalUI",
+            dependencies: ["MetalUICore", "MetalUIRender", "MetalUIPlatform"]
+        ),
+        .testTarget(name: "MetalUITests", dependencies: ["MetalUI"]),
+        .executableTarget(name: "MetalUIDemo", dependencies: ["MetalUI"]),
     ],
     swiftLanguageModes: [.v6]
 )
