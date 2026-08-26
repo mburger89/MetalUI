@@ -36,14 +36,18 @@ import MetalUICore
 /// there is nothing left to animate out of. Adding exit transitions later is a
 /// change to §4.3's sweep, not a feature bolted onto the animation system.
 @MainActor
-public final class StateTable {
+final class StateTable {
     private var storage: [GlobalElementID: Any] = [:]
     private var marked: Set<GlobalElementID> = []
 
-    public init() {}
+    init() {}
 
     /// How many entries survive. Test observability; not part of the contract.
-    public var count: Int { storage.count }
+    ///
+    /// `internal`, like `peek`: `StateTable` is unreachable from outside the
+    /// module anyway (`Frame.stateTable` and the passes' `frame` are internal),
+    /// so `public` here bought nothing and implied a supported API.
+    var count: Int { storage.count }
 
     /// Read-modify-write the state at `id`, creating it from `initial` on first
     /// access, and **mark it as still live**.
@@ -59,9 +63,9 @@ public final class StateTable {
     /// state was just created" by observing the value, which is why
     /// `GlobalElementID.child(of:_:)` propagates `nil` down a subtree rather than
     /// letting an anonymous element borrow its parent's path.
-    public func withState<S>(_ id: GlobalElementID?,
-                             initial: @autoclosure () -> S,
-                             _ body: (inout S) -> Void) {
+    func withState<S>(_ id: GlobalElementID?,
+                      initial: @autoclosure () -> S,
+                      _ body: (inout S) -> Void) {
         guard let id else {
             var scratch = initial()
             body(&scratch)
@@ -76,17 +80,24 @@ public final class StateTable {
     /// Read the state at `id` without marking it. Test observability: a reader
     /// that marked would make `stateIsSweptWhenTheElementStopsBeingProduced`
     /// pass by the act of checking it.
-    public func peek<S>(_ id: GlobalElementID, as type: S.Type = S.self) -> S? {
+    func peek<S>(_ id: GlobalElementID, as type: S.Type = S.self) -> S? {
         storage[id] as? S
     }
 
     /// Drop every entry not marked since the last sweep.
     ///
-    /// Called once per frame, **after** the frame is built. Sweeping before
-    /// would discard every entry the previous frame established, which is the
-    /// whole point of the table; `stateSurvivesARebuildWhenTheElementIsProducedAgain`
-    /// is what notices.
-    public func sweep() {
+    /// Called once per frame, **after** the frame is built.
+    ///
+    /// **Clearing `marked` here is what makes the ordering matter, and it is
+    /// subtler than it looks.** Because marks are cleared only inside this
+    /// function, sweeping at the *start* of a frame still sees the previous
+    /// frame's marks — so the wrong ordering does not lose everything, it
+    /// introduces a **one-frame eviction lag**. An earlier version of this
+    /// comment claimed the stronger, false thing and named
+    /// `stateSurvivesARebuildWhenTheElementIsProducedAgain` as the witness; that
+    /// test stays green under the ordering mutation. The test that actually
+    /// reddens is `anElementThatStopsBeingProducedIsSweptByTheNextFrame`.
+    func sweep() {
         storage = storage.filter { marked.contains($0.key) }
         marked.removeAll(keepingCapacity: true)
     }

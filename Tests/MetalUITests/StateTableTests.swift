@@ -105,22 +105,6 @@ private func id(_ names: String...) -> GlobalElementID {
     #expect(table.count == 0)
 }
 
-/// The sweep runs **after** the frame, not before.
-///
-/// Sweeping first would discard every entry the previous frame established,
-/// which is the whole point of the table.
-@MainActor
-@Test func sweepingBeforeTheFrameWouldDiscardEverythingItExistsToKeep() {
-    let table = StateTable()
-    table.withState(id("a"), initial: 0) { $0 = 7 }
-
-    // A second sweep with no intervening access removes it — which is exactly
-    // what a sweep-first ordering would do to every entry, every frame.
-    table.sweep()
-    table.sweep()
-    #expect(table.peek(id("a"), as: Int.self) == nil)
-}
-
 // MARK: - The table reached through a Frame
 
 /// An element that stamps a per-frame counter into its cross-frame state.
@@ -169,6 +153,16 @@ private struct CountingElement: Element {
 
 /// An element that stops being produced loses its state on the next sweep, and
 /// this is the mechanism behind §14's "no exit transitions".
+///
+/// **This is also the only test that pins the sweep's ORDERING.** Moving
+/// `stateTable.sweep()` in `Frame.render` from after the phases to before them
+/// reddens exactly this test and nothing else. A previous
+/// `sweepingBeforeTheFrameWouldDiscardEverythingItExistsToKeep` claimed that
+/// job and did not do it: it reddened only under "never sweep", which
+/// `stateIsSweptWhenTheElementStopsBeingProduced` already covers, and stayed
+/// green under the real ordering mutation. It was deleted rather than renamed —
+/// a test that duplicates another while claiming unique coverage is worse than
+/// no test, because the name is what people trust.
 @MainActor
 @Test func anElementThatStopsBeingProducedIsSweptByTheNextFrame() {
     let table = StateTable()

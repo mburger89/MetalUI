@@ -84,10 +84,20 @@ public struct PaintPass {
 // A `StatefulPass` protocol would need `var frame: Frame { get }` as a public
 // requirement, which forces `frame` public on all three passes — and that hands
 // element authors the whole `Frame` surface, defeating the phase separation this
-// file exists to enforce. Emitting a primitive during layout would become
-// `pass.frame.fill(...)`, a compile *success*. Three one-line bodies is the
-// cheaper price. Measured: `error: property 'frame' must be declared public
-// because it matches a requirement in public protocol 'StatefulPass'`.
+// file exists to enforce. Measured: `error: property 'frame' must be declared
+// public because it matches a requirement in public protocol 'StatefulPass'`.
+//
+// **The leak is `pass.frame.scaleFactor`, not `pass.frame.fill(...)`.** An
+// earlier version of this comment named `fill`, which is wrong — `Frame.fill` is
+// internal, so it stays uncallable from outside the module even with `frame`
+// public. `scaleFactor` is public on `Frame`, so it would become reachable
+// through any pass — including `PaintPass`, whose own doc says it must not be,
+// because `fill` has already applied it and a caller who applies it again
+// double-scales. Verified from an external module both ways.
+//
+// An *internal* `StatefulPass` protocol compiles, but then `withState` is
+// inaccessible to element authors outside the module — which the compile guards
+// in `PhaseSeparationTests` now catch.
 //
 // Available in **all three** phases, unlike everything else here. Phase
 // separation stops an element doing a phase's work in the wrong phase;

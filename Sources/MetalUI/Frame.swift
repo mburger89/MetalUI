@@ -144,8 +144,15 @@ public final class Frame {
         element.paint(rootID, bounds: rootBounds,
                       layout: &state, prepaint: &prepaintState, pass: &paintPass)
 
-        // After the frame, never before: sweeping first would discard every
-        // entry the previous frame established, which is the table's purpose.
+        // After the frame, not before — but **not for the reason it is tempting
+        // to write down.** Sweeping first does *not* discard everything the
+        // previous frame established: `marked` is cleared only inside `sweep()`,
+        // so a sweep at frame start still sees the previous frame's marks. The
+        // real cost of that ordering is a **one-frame eviction lag** — an
+        // element that stops being produced keeps its state for one extra frame.
+        // Witnessed by `anElementThatStopsBeingProducedIsSweptByTheNextFrame`,
+        // which is the only test that reddens if this call moves above the
+        // phases.
         stateTable.sweep()
     }
 }

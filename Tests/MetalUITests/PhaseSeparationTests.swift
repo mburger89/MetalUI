@@ -155,3 +155,45 @@ func codeOutsideTheFrameworkCannotFabricateAPaintPass() throws {
     #expect(!result.messages.contains("cannot find type"),
             "PaintPass does not exist at all, so this proves nothing about its initialiser:\n\(result.output)")
 }
+
+// MARK: - Cross-frame state is reachable; the Frame behind it is not
+
+/// `withState` must be callable by element authors **outside** the module.
+///
+/// Two mutations left the whole suite green before this guard existed: making
+/// `frame` public on all three passes, and replacing the three duplicated
+/// `withState` methods with an *internal* `StatefulPass` protocol — which
+/// compiles fine and silently makes `withState` inaccessible to anyone outside
+/// `MetalUI`. Every other pass member is guarded by an external typecheck; these
+/// two were not, which is why nothing noticed.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func withStateIsReachableFromOutsideTheModule() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout PrepaintPass, id: GlobalElementID?) {
+            pass.withState(id, initial: 0) { $0 += 1 }
+        }
+        """, importing: "MetalUI")
+    #expect(result.succeeded,
+            "withState is not reachable from outside MetalUI:\n\(result.output)")
+}
+
+/// The `Frame` behind a pass must **not** be reachable from outside.
+///
+/// This is the constraint that forced three duplicated `withState` methods
+/// instead of a public `StatefulPass` protocol: a public protocol requirement
+/// forces `frame` public on all three passes, and `Frame.scaleFactor` is public,
+/// so `pass.frame.scaleFactor` would compile. `PaintPass` deliberately does not
+/// expose `scaleFactor` — `fill` has already applied it, and a caller who
+/// applies it again double-scales.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func theFrameBehindAPassIsNotReachableFromOutsideTheModule() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout PaintPass) -> Float {
+            pass.frame.scaleFactor
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded,
+            "pass.frame is reachable externally; the whole Frame surface is exposed")
+    #expect(result.messages.contains("frame"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
