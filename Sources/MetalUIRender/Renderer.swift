@@ -110,13 +110,21 @@ public final class Renderer {
 
         // The rect array goes through an `MTLBuffer`, not `setVertexBytes`.
         //
-        // `setVertexBytes`/`setFragmentBytes` copy into a 4 KB inline argument
-        // buffer, and `MUIRect` is 104 bytes — so past roughly 39 rects the tail
-        // of the scene was **silently dropped**, with the draw still issuing
-        // `instanceCount` instances that read past the end. M0 drew one rect and
-        // never noticed; the element pipeline emits one rect per decorated box,
-        // which reaches 39 in a plain list. `manyRectsAllReachTheGPU` pins it at
-        // 50.
+        // **The M0 note this replaces was wrong in both of its numbers, and the
+        // correction is the useful part.** It said `setVertexBytes` copies into
+        // a 4 KB inline buffer, so "anything past roughly 39 rects is silently
+        // truncated — the draw would read garbage rather than fail". Measured on
+        // this hardware, with the mutation applied and the count swept: **314
+        // rects (32,656 bytes) render correctly and 315 (32,760) abort the
+        // process** with a Metal API-validation failure. So the ceiling is an
+        // order of magnitude higher than 4 KB, and crossing it is a SIGABRT, not
+        // a silent short read. Nothing in the repo had ever run the sweep.
+        //
+        // Both halves still argue for the buffer: the ceiling is real, it is
+        // device-dependent rather than a documented constant, and 315 rects is
+        // an ordinary list. The consequence of the correction is that a guard
+        // *below* the ceiling proves nothing — `manyRectsAllReachTheGPU` draws
+        // 400 for exactly that reason.
         //
         // A fresh buffer per encode rather than one retained and reused: the GPU
         // reads a buffer for as long as its command buffer is in flight, so a

@@ -208,25 +208,31 @@ private func coverRect(_ color: Hsla, side: Float) -> MUIRect {
                    order: 0)
 }
 
-/// The 4 KB inline-argument limit, which used to truncate a scene in silence.
+/// The inline-argument ceiling that `Renderer.encode` used to sit under.
 ///
-/// `setVertexBytes`/`setFragmentBytes` copy into a 4 KB buffer and `MUIRect` is
-/// 104 bytes, so everything past roughly 39 rects was dropped while
-/// `instanceCount` still claimed all of them. The M0 note in `Renderer.encode`
-/// said Milestone 1 must move the array to an `MTLBuffer` "before scenes grow" —
-/// this is the assertion that the move happened, and the number is deliberately
-/// above the limit rather than comfortably below it.
+/// **400 is not a round number, it is a measured one.** This test was written
+/// at 50 first — past the 4 KB / "roughly 39 rects" figure the M0 note in
+/// `Renderer.encode` gave — and reverting the `MTLBuffer` to `setVertexBytes`
+/// left it green, because that figure was wrong. Sweeping the count under the
+/// reverted encoder: 314 rects (32,656 bytes) render correctly, 315 abort the
+/// process with a Metal API-validation failure. A guard below the real ceiling
+/// is a test that cannot fail for the thing it is named after, so this one
+/// draws 400.
+///
+/// It therefore fails **loudly** rather than red if the buffer ever goes back:
+/// the whole test process aborts. That is the honest shape of the failure, and
+/// preferable to picking a number that keeps the suite tidy and checks nothing.
 @Test @MainActor func manyRectsAllReachTheGPU() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
     let renderer = try Renderer(device: device)
 
     var scene = Scene()
-    // 50 * 104 bytes = 5200, comfortably past 4096.
-    for _ in 0..<49 { scene.insert(coverRect(.rgb(0x0000FF), side: 64)) }
+    // 400 * 104 bytes = 41,600 — past the 32,7xx boundary measured above.
+    for _ in 0..<399 { scene.insert(coverRect(.rgb(0x0000FF), side: 64)) }
     scene.insert(coverRect(.rgb(0xFF0000), side: 64))
     scene.finalize()
-    #expect(scene.rects.count == 50)
+    #expect(scene.rects.count == 400)
 
     let pixels = try renderer.renderOffscreen(
         scene, size: Size(width: DevicePixels(64), height: DevicePixels(64)))
@@ -234,7 +240,7 @@ private func coverRect(_ color: Hsla, side: Float) -> MUIRect {
     // Painter's order: the last rect wins. Red, not blue, and not the cleared
     // transparent black a dropped tail would leave under the 49 blues.
     let centre = bgra(pixels, 32, 32, width: 64)
-    #expect(centre.0 > 200, "the 50th rect never reached the GPU")
+    #expect(centre.0 > 200, "the 400th rect never reached the GPU")
     #expect(centre.1 < 40)
     #expect(centre.2 < 40, "the last rect drawn is blue, so the tail of the scene was dropped")
     #expect(centre.3 > 200)
