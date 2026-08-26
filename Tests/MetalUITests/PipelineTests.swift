@@ -164,5 +164,13 @@ struct ProbeRow: Element {
 
     #expect(first.scene.rects.count == 2)
     #expect(second.scene.rects.count == 2)
-    #expect(first.tree.nodeCount == second.tree.nodeCount)
+
+    // **Absolute counts, and separate objects.** `first.tree.nodeCount ==
+    // second.tree.nodeCount` is a tautology in exactly the case this test exists
+    // to catch: if the two frames shared a tree they would be the *same object*
+    // and the two counts would be trivially equal. Measured — with a shared
+    // tree that comparison stays green while the real count doubles to 6.
+    #expect(first.tree !== second.tree)
+    #expect(first.tree.nodeCount == 3)   // two children plus the root
+    #expect(second.tree.nodeCount == 3)
 }

@@ -64,10 +64,17 @@ public protocol Element {
     mutating func requestLayout(_ id: GlobalElementID?, pass: inout LayoutPass)
         -> (LayoutNodeID, LayoutState)
 
-    /// Layout has resolved, so absolute bounds are known. Register hitboxes,
-    /// focus handles, scroll regions and accessibility nodes; cull offscreen
-    /// content; hoist deferred content. Emitting a primitive here does not
-    /// compile.
+    /// Layout has resolved, so absolute bounds are known — this is the first
+    /// phase that may ask for them. Emitting a primitive here does not compile.
+    ///
+    /// **Nothing can be registered here yet.** The phase exists so that
+    /// hitboxes, focus handles, scroll regions and accessibility nodes are
+    /// recorded after positions resolve and before the first primitive is
+    /// emitted — but `Frame` holds no registry for any of them and
+    /// `PrepaintPass` therefore exposes no way to add one. Reading resolved
+    /// bounds is the whole of what this phase can currently do. Each registry is
+    /// a store on `Frame` plus one method on `PrepaintPass`; input and focus
+    /// bring theirs (M3), accessibility brings its own (§9).
     mutating func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
                            layout: inout LayoutState, pass: inout PrepaintPass) -> PrepaintState
 

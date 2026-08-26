@@ -36,6 +36,13 @@ public struct LayoutPass {
 /// Phase 2. Layout has resolved, so absolute bounds are known — but nothing has
 /// been painted yet, which is what makes this the only correct place to register
 /// hit-test, focus, scroll and accessibility structure.
+///
+/// **It registers none of them today, and the omission is in `Frame`, not
+/// here.** `Frame` owns no hitbox, focus, scroll or accessibility store, so
+/// there is nothing for a `register…` method to write into and none is
+/// declared. `bounds(of:)` and `contentSize` are the entire surface. Adding a
+/// registry means a store on `Frame` and a method here; input and focus bring
+/// theirs (M3), accessibility brings its own (§9).
 @MainActor
 public struct PrepaintPass {
     let frame: Frame
@@ -57,12 +64,14 @@ public struct PaintPass {
 
     public var contentSize: Size<Pixels> { frame.contentSize }
 
-    /// Logical points to device pixels for this frame's target. Element code
-    /// paints in logical points; `fill` applies this.
-    public var scaleFactor: Float { frame.scaleFactor }
-
     public func bounds(of node: LayoutNodeID) -> Bounds<Pixels> { frame.bounds(of: node) }
 
-    /// Emits a filled rect, in logical points.
+    /// Emits a filled rect, **in logical points**.
+    ///
+    /// The display scale factor is applied here, once, on the way to the scene.
+    /// Element code neither needs it nor can reach it: this pass deliberately
+    /// exposes no `scaleFactor`, because an element that found one would have no
+    /// way to know it had already been applied, and pre-scaling its bounds
+    /// double-scales them on any Retina display.
     public func fill(_ bounds: Bounds<Pixels>, color: Hsla) { frame.fill(bounds, color: color) }
 }
