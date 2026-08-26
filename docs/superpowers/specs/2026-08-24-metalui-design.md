@@ -337,7 +337,18 @@ fails:
 error: member 'prepaint' cannot be used on value of type 'any Element' [#ExistentialMemberAccess]
 ```
 
-`LayoutState` and `PrepaintState` appear in `inout` (invariant) position and cannot be opened.
+`LayoutState` and `PrepaintState` appear in **parameter** position, and a member is usable on an
+existential only when its associated types appear in **covariant** (result) position, where the
+compiler can erase them to their upper bound (SE-0309). **Making them by-value rather than `inout`
+changes nothing** — measured on swiftc 6.3.3, byte-identical diagnostic. `requestLayout` opens
+because its associated type is in its *return* type.
+
+> **Corrected during M1b (ruling EP-3).** This paragraph previously said the associated types
+> "appear in `inout` (invariant) position and cannot be opened", which named the wrong mechanism and
+> implied that a future Swift allowing `inout` existential opening would make `AnyElement`
+> redundant. It would not. Verified standalone both ways, and by construction: `-> S`, `-> [S]`,
+> `-> S?`, `var prop: S { get }` and `func take(_ f: (S) -> Void)` all compile on an existential;
+> `func byValue(_ s: S)` and `func byInout(_ s: inout S)` both fail identically.
 `AnyElement` is therefore a **hand-written erasure**:
 
 ```swift
