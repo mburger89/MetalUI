@@ -235,6 +235,35 @@ private func resolveNodeSize(
         height: axis(s.size.height, s.minSize.height, s.maxSize.height, parentExtent: parent.height))
 }
 
+/// A container's content box: where its children start, and how much room they get.
+///
+/// **Border-box sizing means `borderBox` is the node's stored size**, so this
+/// subtracts rather than adds. The returned origin is *relative to the
+/// container's own origin* — callers add it to the absolute origin, keeping the
+/// "all stored rects are absolute" invariant in one place.
+///
+/// Percentages in `padding` and `border` resolve against the containing block's
+/// **width, even for top and bottom**. That is CSS, not a simplification, and
+/// `resolveEdges` already implements it — see `percentagePaddingResolvesAgainstWidthOnEveryEdge`.
+private func contentBox(
+    _ tree: LayoutTree,
+    _ container: LayoutNodeID,
+    borderBox: SizeD,
+    rootFontSize: Double
+) -> (origin: (Double, Double), size: SizeD) {
+    let s = tree.style(container)
+    let padding = resolveEdges(s.padding, against: borderBox.width, rootFontSize: rootFontSize)
+    let border = resolveEdges(s.border, against: borderBox.width, rootFontSize: rootFontSize)
+
+    let leading = (padding.left + border.left, padding.top + border.top)
+    // Never negative: padding larger than the box collapses the content box to
+    // zero rather than inverting it.
+    let size = SizeD(
+        width: max(0, borderBox.width - padding.horizontal - border.horizontal),
+        height: max(0, borderBox.height - padding.vertical - border.vertical))
+    return (leading, size)
+}
+
 /// Lay out one container: collect its items, resolve flexible lengths, position.
 private func layoutContainer(
     _ tree: LayoutTree,
@@ -243,20 +272,27 @@ private func layoutContainer(
     containerSize: SizeD,
     rootFontSize: Double
 ) {
-    var items = collectItems(tree, container, containerSize: containerSize,
+    // `containerSize` is the border box (§5.2). Everything below this line that
+    // concerns the children — their available space, the freeze loop's main
+    // extent, and their positioned origin and cross extent — works in the
+    // CONTENT box instead: `containerSize` must not be used for children again.
+    let box = contentBox(tree, container, borderBox: containerSize, rootFontSize: rootFontSize)
+    let childOrigin = (containerOrigin.0 + box.origin.0, containerOrigin.1 + box.origin.1)
+
+    var items = collectItems(tree, container, containerSize: box.size,
                              rootFontSize: rootFontSize)
     guard !items.isEmpty else { return }
 
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
-    let containerMain = isRow ? containerSize.width : containerSize.height
+    let containerMain = isRow ? box.size.width : box.size.height
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
                             against: containerMain, rootFontSize: rootFontSize) ?? 0
 
     resolveFlexibleLengths(tree, items: &items, containerMain: containerMain, gap: gap)
 
-    positionItems(tree, container, items: items, containerOrigin: containerOrigin,
-                  containerSize: containerSize, rootFontSize: rootFontSize)
+    positionItems(tree, container, items: items, containerOrigin: childOrigin,
+                  containerSize: box.size, rootFontSize: rootFontSize)
 }
 
 /// Phase 1 — size every item without positioning any of them.

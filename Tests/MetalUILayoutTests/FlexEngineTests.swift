@@ -683,6 +683,76 @@ private func threeJustifiedChildren(
 /// size in a column, which no other fixture in the corpus provides) and an
 /// `auto` width, so it stretches to the container's cross extent. `.b` and
 /// `.c` have explicit widths and do not.
+/// Padding and border inset the content box against WebKit: a row with four
+/// distinct padding edges and four distinct (and different-from-padding)
+/// border edges, two fixed children and a third that grows into whatever the
+/// content box leaves over. `flex_row_padding_border` is the fixture; see its
+/// HTML for why every edge and both boxes differ.
+@Test func rowPaddingAndBorderMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_padding_border")
+    let tree = LayoutTree()
+    let a = fixedChild(tree, w: 50, h: 30)
+    let b = fixedChild(tree, w: 60, h: 30)
+
+    var cStyle = Style()
+    cStyle.flexGrow = 1
+    cStyle.flexShrink = 1
+    cStyle.flexBasis = px(0)
+    cStyle.size = Size(width: .auto, height: px(30))
+    let c = tree.newNode(style: cStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(100))
+    rootStyle.padding = Edges(top: .pixels(Pixels(20)), right: .pixels(Pixels(8)),
+                              bottom: .pixels(Pixels(4)), left: .pixels(Pixels(16)))
+    rootStyle.border = Edges(top: .pixels(Pixels(5)), right: .pixels(Pixels(3)),
+                             bottom: .pixels(Pixels(2)), left: .pixels(Pixels(7)))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// The column counterpart: `flex_column_padding_asymmetric` is strongly
+/// non-square (120x400) so a percentage-vertical-padding bug (which CSS
+/// always resolves against width) cannot hide, and every child has an
+/// `auto` width — the strongest single check that stretch fills the reduced
+/// *content* width, not the border-box width.
+@Test func columnPaddingAsymmetricMatchesWebKit() throws {
+    let golden = try loadGolden("flex_column_padding_asymmetric")
+    let tree = LayoutTree()
+
+    func autoWidthChild(h: Double) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: .auto, height: px(h))
+        return tree.newNode(style: s, children: [])
+    }
+    let a = autoWidthChild(h: 40)
+    let b = autoWidthChild(h: 90)
+    let c = autoWidthChild(h: 60)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .column
+    rootStyle.size = Size(width: px(120), height: px(400))
+    rootStyle.padding = Edges(top: .pixels(Pixels(12)), right: .pixels(Pixels(30)),
+                              bottom: .pixels(Pixels(6)), left: .pixels(Pixels(18)))
+    rootStyle.border = Edges(top: .pixels(Pixels(4)), right: .pixels(Pixels(2)),
+                             bottom: .pixels(Pixels(8)), left: .pixels(Pixels(6)))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
 @Test func columnReverseJustifyEndMatchesWebKit() throws {
     let golden = try loadGolden("flex_column_reverse_justify_end")
     let tree = LayoutTree()
