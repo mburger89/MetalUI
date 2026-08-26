@@ -413,6 +413,34 @@ private func collectItems(
                                            against: containerMain, rootFontSize: rootFontSize)
             let hypothetical = clamp(base, min: minMain, max: maxMain)
 
+            // Margins sit outside the border box `own`/`base` describe.
+            // Percentages resolve against the containing block's **width**,
+            // on every edge including top and bottom — CSS's rule, which
+            // `resolveMargin` (like `resolveEdges`) already implements.
+            // `containerSize` here is the CONTENT box (Task 1 threads it
+            // into `collectItems`), not the border box.
+            //
+            // Resolved BEFORE the stretch block below, not after: a stretched
+            // item's cross size must subtract `marginCross` (CSS stretches the
+            // *margin box* to fill the line, not the border box), so
+            // `marginCross` has to exist before that clamp runs. Getting this
+            // ordering backwards was fix-round-1 bug 2 — `cross =
+            // clamp(containerCross, …)` filled the whole line and then
+            // silently overflowed it by the item's own margins, undetected by
+            // any of the 153 tests at the time, because no fixture combined
+            // `auto` cross sizing with a nonzero cross margin. Pinned now by
+            // `stretchSubtractsCrossMarginsBeforeClamping` and the
+            // `flex_row_stretch_with_margins` fixture.
+            let margin = resolveMargin(ks.margin, against: containerSize.width,
+                                       rootFontSize: rootFontSize)
+            // Typed explicitly (not inferred) so `.leading`/`.trailing` are
+            // usable locally, below, before either value reaches `FlexItem`'s
+            // own labelled-tuple fields.
+            let marginMain: (leading: Double, trailing: Double) =
+                isRow ? (margin.left, margin.right) : (margin.top, margin.bottom)
+            let marginCross: (leading: Double, trailing: Double) =
+                isRow ? (margin.top, margin.bottom) : (margin.left, margin.right)
+
             // CSS Flexbox §9.4 — cross-axis stretch.
             //
             // An item stretches when its resolved alignment is `stretch` AND its
@@ -427,6 +455,16 @@ private func collectItems(
             // `crossDim` is selected per axis, not hardwired to `height`: a
             // column's cross axis is width, and `flex_column_grow_with_max`'s
             // golden holds `width: 100` for children that declare none.
+            //
+            // **Stretch fills the line's cross extent MINUS the item's own
+            // cross margins**, then clamps what is LEFT to the item's min/max —
+            // not the other way around. `min`/`max-height` describe the border
+            // box, so subtracting margins first and clamping second is the only
+            // ordering that answers "how big can the border box be" correctly;
+            // clamping the full `containerCross` first and subtracting margins
+            // after would let a `max-height` cap the MARGIN box instead, and
+            // `stretchWithMaxHeightClampsTheBorderBoxNotTheMarginBox` pins the
+            // ordering against WebKit including a `max-height` probe.
             //
             // **Content-based cross sizing is still missing**, and it is the
             // other half of §9.4. An item that is *not* stretched — because its
@@ -445,19 +483,9 @@ private func collectItems(
                                                   against: containerCross, rootFontSize: rootFontSize)
                 let upperCross = resolveDimension(isRow ? ks.maxSize.height : ks.maxSize.width,
                                                   against: containerCross, rootFontSize: rootFontSize)
-                cross = clamp(containerCross, min: lowerCross, max: upperCross)
+                let availableCross = containerCross - marginCross.leading - marginCross.trailing
+                cross = clamp(availableCross, min: lowerCross, max: upperCross)
             }
-
-            // Margins sit outside the border box `own`/`base` describe.
-            // Percentages resolve against the containing block's **width**,
-            // on every edge including top and bottom — CSS's rule, which
-            // `resolveMargin` (like `resolveEdges`) already implements.
-            // `containerSize` here is the CONTENT box (Task 1 threads it
-            // into `collectItems`), not the border box.
-            let margin = resolveMargin(ks.margin, against: containerSize.width,
-                                       rootFontSize: rootFontSize)
-            let marginMain = isRow ? (margin.left, margin.right) : (margin.top, margin.bottom)
-            let marginCross = isRow ? (margin.top, margin.bottom) : (margin.left, margin.right)
 
             // `targetMainSize:` here is dead — §9.7.2 overwrites it on every
             // item before it is read, and no empty-line path reaches
@@ -534,9 +562,11 @@ private func positionItems(
 
     // `cursor` tracks the flex-relative start of each item's OUTER (margin)
     // box, exactly as it tracked the border box before margins existed. The
-    // border box then starts `marginMain.leading` further along — see the
-    // conversion below, which must add that offset on both the forward and
-    // the reversed path.
+    // border box's own position is derived from `cursor` further down, but
+    // NOT by adding `marginMain.leading` to `cursor` itself — `marginMain` is
+    // physical, `cursor` is flex-relative, and the two must not mix before
+    // `cursor` is converted to a physical coordinate. See the conversion
+    // below for why, and for the bug that mixing them caused.
     var cursor: Double = offsets.leading
     for (index, item) in items.enumerated() {
         // Between items only.
@@ -556,21 +586,43 @@ private func positionItems(
                                           lineCross: containerCross)
                          + item.marginCross.leading
 
-        // Convert the flex-relative cursor to the border box's physical
-        // main-axis position. Forward: the border box starts `cursor +
-        // marginMain.leading` from the container's physical main-start,
-        // which already IS the container's flex-relative start, so that sum
-        // is the physical position outright. Reversed: the OUTER box's
-        // main-start sits `cursor` in from the container's flex-start, which
-        // is the container's physical main-end; the border box sits
-        // `marginMain.leading` further from that same flex-relative origin,
-        // i.e. at flex-relative position `cursor + marginMain.leading`, so
-        // its physical leading edge is `containerMain - (cursor +
-        // marginMain.leading) - item.targetMainSize`.
-        let borderBoxFlexRelative = cursor + item.marginMain.leading
-        let main = isReverse
-            ? (containerMain - borderBoxFlexRelative - item.targetMainSize)
-            : borderBoxFlexRelative
+        // Convert the flex-relative cursor to the OUTER box's physical
+        // main-axis position, THEN add the margin — not the other way
+        // around. `marginMain` is **physical**: `(margin.left, margin.right)`
+        // for a row, `(margin.top, margin.bottom)` for a column, unaffected
+        // by `isReverse` (CSS's `margin-left`/`margin-right` do not flip with
+        // `row-reverse`, unlike a logical property such as
+        // `margin-inline-start` — this framework has no logical properties).
+        // `marginMain.leading` is therefore always the physical-start
+        // margin. Adding it to the still-flex-relative `cursor` before
+        // reversing — the bug fix-round-1 found — silently put `margin-left`
+        // on a `row-reverse` item's physical RIGHT instead of its left,
+        // undetected by any of the 153 tests because none combined `isReverse`
+        // with a nonzero margin. Measured against WebKit
+        // (`row-reverse`, `a{w:50, ml:10, mr:30}` in a 400-wide line):
+        // WebKit puts `a.x` at 320; `cursor + marginMain.leading` first, then
+        // reversed, gave 340. Pinned now by
+        // `reverseContainersApplyMarginsToThePhysicalEdge` and the
+        // `flex_row_reverse_margins` / `flex_column_reverse_margins`
+        // fixtures — two, because a row-only fix could still transpose
+        // top/bottom on the column axis and nothing here would catch it.
+        //
+        // Forward: the OUTER box's physical main-start IS `cursor` (the
+        // container's flex-relative start already is its physical
+        // main-start), so the border box's physical start is `cursor +
+        // marginMain.leading`.
+        // Reversed: the OUTER box's flex-relative start sits `cursor` in
+        // from the container's flex-start, which is the container's
+        // physical main-END, so the OUTER box's physical start is
+        // `containerMain - cursor - outerMain(item)` — using the OUTER
+        // extent, since that whole margin box is what is being flipped to
+        // the other physical edge. The border box's physical start is then
+        // that OUTER physical start plus the physical-start margin, exactly
+        // as in the forward case: `+ marginMain.leading`.
+        let outerPhysicalStart = isReverse
+            ? (containerMain - cursor - outerMain(item))
+            : cursor
+        let main = outerPhysicalStart + item.marginMain.leading
         let x = containerOrigin.0 + (isRow ? main : crossOffset)
         let y = containerOrigin.1 + (isRow ? crossOffset : main)
         let size = isRow

@@ -231,11 +231,19 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// space first. This engine does not, and a silently-zero auto margin looks like
 /// a working layout that is merely mis-centred. Recorded in CLAUDE.md's
 /// inert-API table; delete that row when this changes.
+///
+/// **Three edges `.auto`, one a real `15px` — not all four `.auto`.** All-`.auto`
+/// was fix-round-1's taxonomy-shape-8 hole: `(x: 0, y: 0)` is exactly what a
+/// mutation that stops reading `Style.margin` *at all* would also produce, so
+/// the test could not tell ".auto resolves to 0" apart from "margin is never
+/// read." Mixing in `top: 15px` forces the distinction: `y` must be 15, proving
+/// the real Dimension is read and threaded through, while `x` stays 0 only
+/// because `.auto` — not because nothing is being read.
 @Test func autoMarginsResolveToZeroForNow() {
     let tree = LayoutTree()
     var s = Style()
     s.size = Size(width: px(50), height: px(30))
-    s.margin = Edges(top: .auto, right: .auto, bottom: .auto, left: .auto)
+    s.margin = Edges(top: px(15), right: .auto, bottom: .auto, left: .auto)
     let kid = tree.newNode(style: s, children: [])
 
     var rootStyle = Style()
@@ -246,9 +254,13 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    // CSS would centre it at x = 175. We put it at 0 and say so.
+    // CSS would centre it at x = 175 (margin-left: auto and margin-right: auto
+    // split the free space evenly). We put it at 0 and say so — `left: .auto`
+    // resolves to 0, not to CSS's answer.
     #expect(tree.layout(kid).x == 0)
-    #expect(tree.layout(kid).y == 0)
+    // top: 15px is a REAL margin, not auto, and must be read: proof the zero
+    // above is `.auto`-specific, not "margin is dead."
+    #expect(tree.layout(kid).y == 15)
 }
 
 /// Margins against WebKit: three children, different asymmetric margins on
@@ -315,5 +327,269 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 
     assertMatchesGolden(tree,
                         ids: [root: "root", a: "a", b: "b"],
+                        golden: golden, tolerance: 0.1)
+}
+
+// MARK: - Fix round 1
+
+/// **Fix-round-1 bug 1.** `row-reverse` applied a margin to the item's
+/// physical RIGHT when it should have gone on the physical LEFT (and the
+/// mirror error for `flex-end`-side margins), because the engine added the
+/// physical `marginMain.leading` to the still flex-relative `cursor` before
+/// converting to a physical coordinate — mixing a physical and a
+/// flex-relative quantity.
+///
+/// These are the exact numbers measured against live WebKit for `row-reverse`,
+/// `a{w:50, margin-left:10, margin-right:30}`, `b{w:60, margin-left:20,
+/// margin-right:4}` in a 400px line: **WebKit gives `a.x = 320`,
+/// `b.x = 246`.** The buggy code (`cursor + marginMain.leading` computed
+/// BEFORE the reversal subtraction) gave `340` and `230` — each 20 off,
+/// which is `a`'s `margin-left` landing on the wrong side.
+@Test func reverseContainersApplyMarginsToThePhysicalEdge() {
+    let tree = LayoutTree()
+    var aStyle = Style()
+    aStyle.size = Size(width: px(50), height: px(20))
+    aStyle.margin = Edges(top: px(0), right: px(30), bottom: px(0), left: px(10))
+    let a = tree.newNode(style: aStyle, children: [])
+
+    var bStyle = Style()
+    bStyle.size = Size(width: px(60), height: px(20))
+    bStyle.margin = Edges(top: px(0), right: px(4), bottom: px(0), left: px(20))
+    let b = tree.newNode(style: bStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .rowReverse
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).x == 320)
+    #expect(tree.layout(b).x == 246)
+}
+
+/// Row-reverse's counterpart pinned earlier: a fix verified only on the row
+/// axis could still transpose top/bottom on the column axis (physical-start
+/// there is `top`, not `left`) and nothing above would catch it. Same
+/// numbers, transposed to height/margin-top/margin-bottom in a
+/// `column-reverse` container.
+@Test func columnReverseContainersApplyMarginsToThePhysicalEdge() {
+    let tree = LayoutTree()
+    var aStyle = Style()
+    aStyle.size = Size(width: px(20), height: px(50))
+    aStyle.margin = Edges(top: px(10), right: px(0), bottom: px(30), left: px(0))
+    let a = tree.newNode(style: aStyle, children: [])
+
+    var bStyle = Style()
+    bStyle.size = Size(width: px(20), height: px(60))
+    bStyle.margin = Edges(top: px(20), right: px(0), bottom: px(4), left: px(0))
+    let b = tree.newNode(style: bStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .columnReverse
+    rootStyle.size = Size(width: px(100), height: px(400))
+    let root = tree.newNode(style: rootStyle, children: [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).y == 320)
+    #expect(tree.layout(b).y == 246)
+}
+
+/// **Fix-round-1 bug 2.** A stretched item's cross size ignored its own
+/// cross margins and filled the whole line, overflowing the container.
+/// CSS stretches the margin box: the available border-box cross size is
+/// `containerCross - marginCross.leading - marginCross.trailing`.
+///
+/// Matches the reviewer's WebKit probe exactly: row, `height: 100`, child
+/// `height: auto; margin: 10px 0 25px` (no explicit cross size, so it
+/// stretches). **WebKit gives `50x65`** (100 - 10 - 25); the buggy code
+/// (`cross = clamp(containerCross, …)`, margins never subtracted) gave
+/// `50x100` and overflowed the container by 35px.
+@Test func stretchSubtractsCrossMarginsBeforeClamping() {
+    let tree = LayoutTree()
+    var s = Style()
+    s.size = Size(width: px(50), height: .auto)
+    s.margin = Edges(top: px(10), right: px(0), bottom: px(25), left: px(0))
+    let kid = tree.newNode(style: s, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [kid])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(kid).height == 65)
+    #expect(tree.layout(kid).y == 10)
+}
+
+/// The clamp-ordering half of bug 2: `min`/`max-height` describe the BORDER
+/// box, so margins must be subtracted first and the min/max clamp applied to
+/// what is left — never the other way around. Available border-box height is
+/// `100 - 15 - 5 = 80`; `max-height: 50` then caps it to `50`. Clamping the
+/// full `containerCross` (100) against `max-height` FIRST and subtracting
+/// margins after would instead produce `50 - 15 - 5 = 30`, an entirely
+/// different (and wrong) number — this test distinguishes the two orderings,
+/// not just the presence of a clamp.
+@Test func stretchWithMaxHeightClampsTheBorderBoxNotTheMarginBox() {
+    let tree = LayoutTree()
+    var s = Style()
+    s.size = Size(width: px(70), height: .auto)
+    s.maxSize = Size(width: .auto, height: px(50))
+    s.margin = Edges(top: px(15), right: px(0), bottom: px(5), left: px(0))
+    let kid = tree.newNode(style: s, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [kid])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(kid).height == 50)
+    #expect(tree.layout(kid).y == 15)
+}
+
+/// `row-reverse`, against WebKit, three children with different widths and
+/// asymmetric margins on both axes. `flex_row_reverse_margins` is the
+/// fixture; see its HTML for the mutation this guards (bug 1).
+@Test func rowReverseMarginsMatchWebKit() throws {
+    let golden = try loadGolden("flex_row_reverse_margins")
+    let tree = LayoutTree()
+
+    func marginChild(w: Double, h: Double, top: Double, right: Double,
+                     bottom: Double, left: Double) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(w), height: px(h))
+        s.margin = Edges(top: px(top), right: px(right), bottom: px(bottom), left: px(left))
+        return tree.newNode(style: s, children: [])
+    }
+    let a = marginChild(w: 50, h: 30, top: 5, right: 30, bottom: 15, left: 10)
+    let b = marginChild(w: 60, h: 40, top: 2, right: 4, bottom: 8, left: 20)
+    let c = marginChild(w: 40, h: 20, top: 12, right: 18, bottom: 1, left: 6)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .rowReverse
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// `column-reverse` counterpart, against WebKit. `flex_column_reverse_margins`
+/// is the fixture — it is what would catch a fix that only generalised
+/// correctly for rows and silently transposed top/bottom for columns.
+@Test func columnReverseMarginsMatchWebKit() throws {
+    let golden = try loadGolden("flex_column_reverse_margins")
+    let tree = LayoutTree()
+
+    func marginChild(w: Double, h: Double, top: Double, right: Double,
+                     bottom: Double, left: Double) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(w), height: px(h))
+        s.margin = Edges(top: px(top), right: px(right), bottom: px(bottom), left: px(left))
+        return tree.newNode(style: s, children: [])
+    }
+    let a = marginChild(w: 30, h: 50, top: 10, right: 15, bottom: 30, left: 5)
+    let b = marginChild(w: 40, h: 60, top: 20, right: 8, bottom: 4, left: 2)
+    let c = marginChild(w: 20, h: 40, top: 6, right: 1, bottom: 18, left: 12)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .columnReverse
+    rootStyle.size = Size(width: px(100), height: px(400))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// Stretch + cross margins + `max-height`, against WebKit.
+/// `flex_row_stretch_with_margins` is the fixture; see its HTML for why `.b`
+/// needs `max-height` (bug 2's clamp-ordering half).
+@Test func rowStretchWithMarginsMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_stretch_with_margins")
+    let tree = LayoutTree()
+
+    var aStyle = Style()
+    aStyle.size = Size(width: px(50), height: .auto)
+    aStyle.margin = Edges(top: px(10), right: px(0), bottom: px(25), left: px(0))
+    let a = tree.newNode(style: aStyle, children: [])
+
+    var bStyle = Style()
+    bStyle.size = Size(width: px(70), height: .auto)
+    bStyle.maxSize = Size(width: .auto, height: px(50))
+    bStyle.margin = Edges(top: px(15), right: px(0), bottom: px(5), left: px(0))
+    let b = tree.newNode(style: bStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// The composition the Task 2 brief did not enumerate: `flex-grow`,
+/// `justify-content: space-between`, and margins on every child, together —
+/// against WebKit. `flex_row_grow_space_between_margins` is the fixture; see
+/// its HTML for why `.a` needs `max-width` (otherwise growth alone consumes
+/// all free space and `space-between` becomes a no-op, testing nothing new).
+/// This is the browser-checked version of the double-count argument in the
+/// Task 2 report: the grow budget `layoutContainer` shrinks by total margin,
+/// and the outer-size content total `positionItems` feeds to
+/// `justify-content`, must agree with each other.
+@Test func rowGrowSpaceBetweenWithMarginsMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_grow_space_between_margins")
+    let tree = LayoutTree()
+
+    var aStyle = Style()
+    aStyle.flexGrow = 1
+    aStyle.flexShrink = 1
+    aStyle.flexBasis = px(0)
+    aStyle.maxSize = Size(width: px(150), height: .auto)
+    aStyle.size = Size(width: .auto, height: px(40))
+    aStyle.margin = Edges(top: px(4), right: px(15), bottom: px(6), left: px(9))
+    let a = tree.newNode(style: aStyle, children: [])
+
+    var bStyle = Style()
+    bStyle.size = Size(width: px(60), height: px(40))
+    bStyle.margin = Edges(top: px(2), right: px(25), bottom: px(8), left: px(3))
+    let b = tree.newNode(style: bStyle, children: [])
+
+    var cStyle = Style()
+    cStyle.size = Size(width: px(50), height: px(40))
+    cStyle.margin = Edges(top: px(12), right: px(4), bottom: px(1), left: px(18))
+    let c = tree.newNode(style: cStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.justifyContent = .spaceBetween
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
                         golden: golden, tolerance: 0.1)
 }

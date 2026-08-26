@@ -64,18 +64,32 @@ public func resolveEdges(_ e: Edges<Length>, against parent: Double?, rootFontSi
 
 /// Resolve margin edges, which — unlike padding and border — may be `auto`.
 ///
-/// **`.auto` resolves to 0, and that is not CSS.** An auto margin absorbs free
-/// space *before* `justify-content` distributes any, so a CSS `margin-left: auto`
-/// pushes its item to the end of the line; here it does nothing. This one line is
-/// where that gets implemented. Until it does, the row in CLAUDE.md's inert-API
-/// table stands.
-///
 /// Percentages resolve against `parent`, which callers must supply as the
 /// containing block's **width** even for top and bottom — the same CSS rule
 /// `resolveEdges` follows.
 public func resolveMargin(_ e: Edges<Dimension>, against parent: Double?,
                           rootFontSize: Double) -> ResolvedEdges {
     func r(_ d: Dimension) -> Double {
+        // `resolveDimension` returns nil for TWO unrelated reasons, and this
+        // `?? 0` answers both the same way for opposite reasons:
+        //
+        // 1. `d` is `.auto`. **This resolves to 0, and that is not CSS.** An
+        //    auto margin absorbs free space *before* `justify-content`
+        //    distributes any, so a CSS `margin-left: auto` pushes its item to
+        //    the end of the line; here it does nothing. THIS is the line
+        //    where that gets implemented — not the doc comment above, this
+        //    `?? 0`. Until it does, the `margin: auto` row in CLAUDE.md's
+        //    inert-API table stands.
+        // 2. `d` is a percentage and `parent` is nil (an indefinite
+        //    containing block). This is correct, unremarkable CSS — the same
+        //    "unresolvable percentage treated as auto, which resolves to
+        //    0-for-margin" rule `resolveEdges` already follows for padding
+        //    and border — and has nothing to do with gap 1. It is not a
+        //    deliberate omission and needs no fixing.
+        //
+        // Do not conflate the two if this line ever grows a real `.auto`
+        // implementation: only case 1 changes then, and case 2 must keep
+        // resolving to 0 exactly as it does today.
         resolveDimension(d, against: parent, rootFontSize: rootFontSize) ?? 0
     }
     return ResolvedEdges(top: r(e.top), right: r(e.right), bottom: r(e.bottom), left: r(e.left))
