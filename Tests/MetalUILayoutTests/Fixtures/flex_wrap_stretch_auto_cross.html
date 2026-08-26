@@ -1,0 +1,60 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Wrapping x stretch — THE fixture that distinguishes "stretch fills the
+     line" from "stretch fills the container".
+
+     Until wrapping there was one line and its cross size WAS the container's
+     content-box cross extent, so no fixture in the corpus could tell the two
+     rules apart. Here the container is 300 tall and the three lines are 40,
+     90 and 25 tall, so every auto-cross child lands on a different number
+     under each model:
+
+              line-cross (correct)   container-cross (the bug)
+       .b            40                       300
+       .d            60 (max-height)         300 -> 60, also clamped
+       .f            11                       286
+
+     `.d` carries `max-height: 60px` against a 90-tall line, so the clamp is
+     applied AFTER the line's extent is known — and it is the one child whose
+     two models coincide in SIZE, which is why it is not the only auto child.
+
+     `.f` carries asymmetric cross margins (6 top, 8 bottom) on a 25-tall line:
+     CSS stretches the MARGIN box, so its border box is 25 - 6 - 8 = 11 and its
+     origin is 6 below the line's cross-start. That composes wrapping x stretch
+     x margins in one child — the pair that was a real bug last milestone, now
+     measured against a LINE rather than the container.
+
+     Each line has at least one child with an explicit height, which is what
+     sets that line's cross size; a line of only auto-cross children would
+     measure 0 (content-based cross sizing is not implemented, and every
+     fixture here is an empty div).
+
+     `align-content: flex-start` for the same reason as `flex_wrap_uneven`:
+     the engine does not implement `align-content` until Task 2 and a fixture
+     must not encode a divergence. Lines pack at cross-start, 155 of the 300
+     used.
+
+     Widths: line 0 is 120 + 120 = 240 <= 260; adding `.c` (130) makes 370.
+             line 1 is 130 + 100 = 230; adding `.e` (200) makes 430.
+             line 2 is 200 + 40 = 240. */
+  #root { display: flex; flex-direction: row; flex-wrap: wrap;
+          align-content: flex-start;
+          width: 260px; height: 300px; }
+  .a { width: 120px; height: 40px; }
+  .b { width: 120px; }                       /* auto -> line 0's 40 */
+  .c { width: 130px; height: 90px; }
+  .d { width: 100px; max-height: 60px; }     /* auto -> 90, clamped to 60 */
+  .e { width: 200px; height: 25px; }
+  .f { width: 40px; margin: 6px 0 8px 0; }   /* auto -> 25 - 6 - 8 = 11 */
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+    <div class="d" data-id="d"></div>
+    <div class="e" data-id="e"></div>
+    <div class="f" data-id="f"></div>
+  </div>
+</body></html>

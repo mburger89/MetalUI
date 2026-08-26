@@ -131,11 +131,11 @@ the divergence into the corpus.
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
-exists, compiles, and does nothing. `Style` has 21 properties; **six of them
+exists, compiles, and does nothing. `Style` has 21 properties; **five of them
 are read by no production code** — `position`, `inset`, `overflow`,
-`aspectRatio`, `flexWrap`, `alignContent`. Re-count with the grep below rather
+`aspectRatio`, `alignContent`. Re-count with the grep below rather
 than trusting the number: it was nine before the box model wired `padding`,
-`border` and `margin` in. They were declared so the model matches CSS, and the
+`border` and `margin` in, and six before wrapping wired `flexWrap`. They were declared so the model matches CSS, and the
 algorithm that consumes them has not been written yet.
 
 The table is wider than that count, because a property can be read and still
@@ -144,10 +144,10 @@ are the dangerous ones.
 
 | Declared | Reality |
 |---|---|
-| `alignContent` | **0 uses.** It distributes free space between the *lines* of a multi-line container, and there is only ever one line until wrapping lands, so there is nothing for it to distribute. `justifyContent`, `alignItems` and `alignSelf` left this table when the alignment work implemented them; `alignContent` did not, and must not be assumed to have come with them |
+| `alignContent` | **0 uses, and since wrapping landed that is a real divergence rather than a vacuous one.** It distributes free space between the *lines* of a multi-line container; there are now multiple lines, and the engine stacks them from cross-start with the leftover cross space unused. That is `align-content: flex-start`, while CSS's initial value is **`stretch`** — measured in WebKit on a 260×300 `wrap` row holding 120×40 / 120×auto / 120×90: WebKit gives the auto child **125** tall and puts line 1 at **y = 125**, where this engine gives 40 and 40. Pinned by `wrappedLinesPackFromCrossStartRatherThanStretching` in `WrappingTests.swift`; **no golden encodes it** — every wrapped fixture declares `align-content: flex-start` explicitly. Task 2 implements the property and deletes that test and this row. `justifyContent`, `alignItems` and `alignSelf` left this table when the alignment work implemented them; `alignContent` did not, and must not be assumed to have come with them |
 | `AlignItems.baseline` / `AlignSelf.baseline` | **Falls back to `flexStart`, not silently.** `crossAxisOffset` needs font metrics that arrive with the text system in M2; until then a `baseline`-aligned row lays out as a `flex-start` row. Ruling AL-6: the task that makes an API inert records it here; the task that makes one live deletes the row |
-| An `auto` cross size on a **non-stretched** item | **Resolves to 0, not to content.** §9.4's stretch half is implemented; its content-sizing half is not. An item whose alignment is `center`/`flex-start`/`flex-end` and whose cross size is `auto` measures 0, where CSS gives it its content's cross extent. **No fixture can catch this** — every fixture in the corpus is an empty div, for which 0 is the right answer, so `flex_row_stretch_mixed`'s `.c` agrees with WebKit at height 0 for the wrong reason. Needs the M2 text system |
-| `flexWrap` | **0 uses.** Single line, always — `collectItems` never breaks a line, so `wrap` lays out identically to `nowrap` and overflows instead |
+| An `auto` cross size on a **non-stretched** item | **Resolves to 0, not to content.** §9.4's stretch half is implemented; its content-sizing half is not. An item whose alignment is `center`/`flex-start`/`flex-end` and whose cross size is `auto` measures 0, where CSS gives it its content's cross extent. **No fixture can catch this** — every fixture in the corpus is an empty div, for which 0 is the right answer, so `flex_row_stretch_mixed`'s `.c` agrees with WebKit at height 0 for the wrong reason. Needs the M2 text system. **Wrapping raised the stakes**: a line whose items are *all* auto-cross now measures 0 tall, so the whole line collapses and every line after it shifts up, rather than one item within a line being wrong |
+| `FlexWrap.wrapReverse` | **Wraps, but is not reversed — half a rule.** `flexWrap` itself is live: `collectLines` breaks lines and `layoutContainer` stacks them. But `collectLines`' only test is `wrap != .noWrap`, so `.wrapReverse` collects lines identically to `.wrap` and nothing stacks them from the cross-END. CSS puts line 0 at the container's cross-end and works backwards; this engine lays `wrap-reverse` out as `wrap`. Task 3 owns it. Pinned by `wrapReverseCollectsLinesButDoesNotReverseThemYet`, whose comment names CSS's answer |
 | `aspectRatio` | **0 uses** |
 | `margin: auto` (`Style.margin`'s `.auto` case) | **Resolves to 0, not to CSS's answer.** Item margins landed in the box-model task's second step — `resolveMargin` in `Resolve.swift` shrinks the main-axis budget and offsets each item by its own margin — but `.auto` maps to 0 on the single line marked for it in that function, not to CSS's "absorb free space before `justify-content` distributes any." A `margin-left: auto` item that CSS would push to the far end of the line lays out at the line's start instead, silently. Pinned by `autoMarginsResolveToZeroForNow` in `BoxModelTests.swift`, with CSS's real answer named in its comment |
 | `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping. `grep contentMask Sources/` is not a clean 0 — `abi_probe` in `shaders.metal` reads `contentMask.size.width` to prove the field's offset survives the MSL boundary. That is the test harness, not rendering |
@@ -159,7 +159,7 @@ are the dangerous ones.
 Re-check any row rather than trusting this table:
 
 ```bash
-grep -rn "flexWrap" Sources/ | grep -v "var flexWrap"
+grep -rn "alignContent" Sources/ | grep -v "var alignContent"
 ```
 
 **When you implement one, delete its row.** When you add a property you cannot
@@ -168,7 +168,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 171 tests and 40 browser fixtures, warning-free.
+`swift build` · `swift test` — 184 tests and 43 browser fixtures, warning-free.
 Six non-test targets with strictly one-way dependencies
 (`docs/superpowers/specs/…` §3.1).
 

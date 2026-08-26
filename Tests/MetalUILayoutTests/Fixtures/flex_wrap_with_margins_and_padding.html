@@ -1,0 +1,55 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Wrapping x the box model. Two rules meet here and each has its own
+     mutation:
+
+     1. THE BREAK DECISION COUNTS MARGINS. Outer main extents are
+        88 / 110 / 74 / 102 against a 271-wide CONTENT box (not the 300 border
+        box), with a 6px column gap:
+          a 88, +6+110 = 204 fits, +6+74 = 284 does NOT -> line 0 = [a, b]
+          c 74, +6+102 = 182 fits                        -> line 1 = [c, d]
+        Margin-blind, the border boxes are 80/100/60/90 and the lines become
+        [a, b, c] / [d]. A different SHAPE, not a different offset, so the
+        mutation cannot hide in a tolerance.
+
+     2. LINE CROSS SIZES ARE OUTER, AND THE LINES STACK INSIDE THE CONTENT
+        BOX. Outer cross extents are 42 / 35 / 53 / 40, so line 0 is 42 and
+        line 1 is 53. Border-box cross sizes would give 30 and 45 — every
+        item on line 1 then sits 12px too high.
+
+     Asymmetric everywhere on purpose: padding 7/11/13/9, border 3/5/2/4, and
+     four different margin quadruples. A transposed edge anywhere has nothing
+     symmetric to hide behind. `border-style: solid` is not optional —
+     `border-width` is inert without it and the content box would silently be
+     280 wide instead of 271.
+
+     Content box: 300 - 11 - 9 - 5 - 4 = 271 wide, origin x = 9 + 4 = 13;
+                  220 - 7 - 13 - 3 - 2 = 195 tall, origin y = 7 + 3 = 10.
+     Gap is asymmetric again (row 9, column 6) so the cross gap between lines
+     cannot be confused with the main gap between items.
+
+     Expected: a (15, 14, 80x30)   b (114, 20, 100x20)
+               c (18, 63, 60x45)   d (101, 73, 90x25)
+     line 1 starts at 10 + 42 + 9 = 61.
+
+     `align-content: flex-start` for the same reason as the other two wrapped
+     fixtures. */
+  #root { display: flex; flex-direction: row; flex-wrap: wrap;
+          align-content: flex-start; gap: 9px 6px;
+          width: 300px; height: 220px;
+          padding: 7px 11px 13px 9px;
+          border-style: solid; border-width: 3px 5px 2px 4px; }
+  .a { width: 80px;  height: 30px; margin: 4px 6px 8px 2px; }
+  .b { width: 100px; height: 20px; margin: 10px 3px 5px 7px; }
+  .c { width: 60px;  height: 45px; margin: 2px 9px 6px 5px; }
+  .d { width: 90px;  height: 25px; margin: 12px 4px 3px 8px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+    <div class="d" data-id="d"></div>
+  </div>
+</body></html>

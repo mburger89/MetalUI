@@ -22,7 +22,8 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
     let items = (0..<3).map { _ in
         FlexItem(node: fixedChild(tree, w: 50, h: 10), baseSize: 50,
                  hypotheticalMainSize: 50, minMain: nil, maxMain: nil,
-                 targetMainSize: 50, crossSize: 10, frozen: true,
+                 targetMainSize: 50, crossSize: 10,
+                 stretchEligible: false, minCross: nil, maxCross: nil, frozen: true,
                  marginMain: (0, 0), marginCross: (0, 0))
     }
     #expect(lineContentSize(items.map(\.targetMainSize), gap: 12) == 174)
