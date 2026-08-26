@@ -58,8 +58,74 @@ func prepaintCannotBeCalledOnAnExistentialElement() throws {
             "`any Element` can drive prepaint after all — §4.6's whole reason for a hand-written erasure")
     #expect(result.messages.contains("prepaint"),
             "rejected, but not for the reason this test is about:\n\(result.output)")
-    #expect(result.messages.contains("any Element"),
+    // **The discriminator, and it is not optional.** Measured: renaming
+    // `Element.prepaint` away yields `value of type 'any Element' has no member
+    // 'prepaint'`, which contains both "prepaint" and "any Element" — so the two
+    // obvious substring checks are both satisfied by a `prepaint` that does not
+    // exist, and the test would claim the existential could not be opened when
+    // there was nothing to open it for. The diagnostic *group* is the stable
+    // name for the property, where the surrounding prose is not.
+    #expect(result.messages.contains("#ExistentialMemberAccess"),
             "rejected, but not because the existential could not be opened:\n\(result.output)")
+}
+
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func anAssociatedTypeInParameterPositionBlocksExistentialUseEvenWithoutInout() throws {
+    // **§4.6's stated mechanism is narrower than the real one, and this pins the
+    // real one.** The spec says `LayoutState` and `PrepaintState` "appear in
+    // `inout` (invariant) position and cannot be opened", which reads as though
+    // dropping `inout` would restore the existential. It would not: measured
+    // here on a protocol reduced to nothing but the shape, a **by-value**
+    // associated-type parameter is rejected with the identical diagnostic.
+    //
+    // The rule is SE-0309's: a member is usable on an existential only when its
+    // associated types appear in **covariant** (result) position, because only
+    // there can the compiler erase them to their upper bound. Every parameter
+    // position — `inout` or not — needs the caller to name the type, and there
+    // is no name for it.
+    //
+    // Which matters for what a future signature change costs. Removing `inout`
+    // from `Element.prepaint` — a plausible "simplification", since §4.1 threads
+    // it that way only so an element can mutate in place — would not make
+    // `AnyElement` redundant, and this guard says so without anyone having to
+    // try it.
+    let result = try typecheck("""
+        protocol Phased {
+            associatedtype S
+            func make() -> S
+            func byValue(_ s: S)
+        }
+        @MainActor func probe(p: any Phased) {
+            let s = p.make()
+            p.byValue(s)
+        }
+        _ = probe
+        """, importing: "MetalUI")
+    #expect(!result.succeeded,
+            "a by-value associated-type parameter opens after all; §4.6's mechanism needs restating")
+    #expect(result.messages.contains("#ExistentialMemberAccess"),
+            "rejected, but not because the existential could not be opened:\n\(result.output)")
+}
+
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func aCovariantAssociatedTypeCanBeUsedOnAnExistential() throws {
+    // The pair, and the half that makes the rule a *rule* rather than "nothing
+    // with an associated type ever works on an existential". `make() -> S` is
+    // fine: the result is erased to `Any`. This is also why `requestLayout` —
+    // whose only associated type is in its return — type-checks on an
+    // `any Element` while the two later phases do not.
+    let result = try typecheck("""
+        protocol Phased {
+            associatedtype S
+            func make() -> S
+        }
+        @MainActor func probe(p: any Phased) {
+            _ = p.make()
+        }
+        _ = probe
+        """, importing: "MetalUI")
+    #expect(result.succeeded,
+            "a covariant associated type must be usable, or the negative above proves nothing:\n\(result.output)")
 }
 
 // MARK: - Fact 2's foundation: `ElementObject` is not `AnyObject`
@@ -112,9 +178,12 @@ func aNoncopyableElementCannotBeStoredInAnArray() throws {
 
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func aCopyableElementCanBeStoredInAnArray() throws {
-    // The pair. Identical fixture minus `~Copyable`: without it the negative
-    // above would also pass against a fixture that failed to import, or in
-    // which `ElementObject` did not exist.
+    // The pair, and it carries more weight here than a pair usually does.
+    // Measured: `Array`'s Copyable diagnostic is emitted even when the
+    // fixture's *other* types are broken, so the negative above stays green
+    // against a `MetalUI` in which `ElementObject` does not exist at all. This
+    // test — identical fixture minus `~Copyable` — is the only thing that
+    // catches that, because it is the half that has to succeed.
     let result = try typecheck("""
         @MainActor struct CopyableElement { var box: any ElementObject }
         @MainActor func container(children: [CopyableElement]) { _ = children }

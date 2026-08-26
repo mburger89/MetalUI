@@ -271,9 +271,10 @@ final class Recorder {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)), scaleFactor: 1)
 
     var layoutPass = LayoutPass(frame: frame)
-    // In place, by index. Iterating `for child in children` would walk copies
-    // and drop every stored state on the floor — which would make this test
-    // green against a class box too, for the wrong reason.
+    // In place, by index. `for child in children` does not compile — the loop
+    // variable is a `let` and the phases are `mutating` — so the copy-walking
+    // version of this loop is rejected by the compiler rather than left to
+    // this comment. Measured; see `AnyElement`'s doc comment.
     var nodes: [LayoutNodeID] = []
     for index in children.indices {
         nodes.append(children[index].requestLayout(nil, pass: &layoutPass))
@@ -373,4 +374,98 @@ struct MutatingProbe: Element {
     erased.paint(nil, bounds: frame.bounds(of: node), pass: &paintPass)
 
     #expect(seen.values == [7, 11, 100])
+}
+
+/// An element with a local identity, and one that mutates state in `paint`.
+///
+/// Both properties are here rather than on `MutatingProbe` because both are
+/// about calls the *box* makes on the far side of the erasure, and both were
+/// added after a mutation that reddened nothing: replacing either
+/// `elementID` forwarding hop with `nil`, and dropping `paint`'s write-backs,
+/// left all 227 tests green.
+@MainActor
+struct IdentifiedProbe: Element {
+    struct Layout {
+        var node: LayoutNodeID
+        var paints: Int
+    }
+    struct Prepaint {
+        var paints: Int
+    }
+
+    let seenInPaint: Recorder
+    let elementID: ElementID?
+
+    func requestLayout(_ id: GlobalElementID?, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var style = Style()
+        style.size = Size(width: .length(.pixels(Pixels(30))),
+                          height: .length(.pixels(Pixels(10))))
+        let node = pass.requestNode(style: style, children: [])
+        return (node, Layout(node: node, paints: 0))
+    }
+
+    func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+                  layout: inout Layout, pass: inout PrepaintPass) -> Prepaint {
+        Prepaint(paints: 0)
+    }
+
+    func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+               layout: inout Layout, prepaint: inout Prepaint, pass: inout PaintPass) {
+        layout.paints += 1
+        prepaint.paints += 10
+        seenInPaint.values.append(layout.paints)
+        seenInPaint.values.append(prepaint.paints)
+    }
+}
+
+/// The erasure must forward the element's identity, through both hops.
+///
+/// `AnyElement.elementID` reads `box.elementID`, which reads
+/// `element.elementID`. Either hop can be replaced by a hardcoded `nil`
+/// without breaking anything else — `nil` is also the `Element` extension's
+/// default, so the wrong answer is the common answer and nothing looks amiss.
+/// The identity path (§4.3, Task 3) is what will consume this.
+@MainActor
+@Test func theErasureForwardsTheElementsIdentity() {
+    let named = AnyElement(IdentifiedProbe(seenInPaint: Recorder(),
+                                           elementID: ElementID("separator")))
+    let anonymous = AnyElement(IdentifiedProbe(seenInPaint: Recorder(), elementID: nil))
+
+    // Both cases, because a forwarding hop replaced by `nil` agrees with the
+    // second one and only the first can tell them apart.
+    #expect(named.elementID == ElementID("separator"))
+    #expect(anonymous.elementID == nil)
+}
+
+/// `paint` must write its states back too, because `Element.paint` takes both
+/// of them `inout`.
+///
+/// Painting one element twice in a frame is legal and reachable — §4.5 hoists a
+/// `Deferred` subtree to a higher layer, and a container may paint a child in
+/// more than one place. Without the write-backs the second call sees the state
+/// as of `prepaint` and the mutation vanishes, which is the same silent shape
+/// as the class box: no error, wrong pixels.
+@MainActor
+@Test func paintWritesItsStatesBackSoASecondPaintSeesTheFirst() {
+    let seen = Recorder()
+    var erased = AnyElement(IdentifiedProbe(seenInPaint: seen, elementID: nil))
+
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)), scaleFactor: 1)
+
+    var layoutPass = LayoutPass(frame: frame)
+    let node = erased.requestLayout(nil, pass: &layoutPass)
+    frame.computeRootLayout(root: node)
+
+    var prepaintPass = PrepaintPass(frame: frame)
+    erased.prepaint(nil, bounds: frame.bounds(of: node), pass: &prepaintPass)
+
+    var paintPass = PaintPass(frame: frame)
+    let bounds = frame.bounds(of: node)
+    erased.paint(nil, bounds: bounds, pass: &paintPass)
+    erased.paint(nil, bounds: bounds, pass: &paintPass)
+
+    // Two counters at different strides: 1,10 then 2,20. A single counter
+    // could not tell "the layout state was carried" from "the prepaint state
+    // was", and both write-backs sit on adjacent lines.
+    #expect(seen.values == [1, 10, 2, 20])
 }

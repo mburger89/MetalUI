@@ -12,15 +12,24 @@ import MetalUILayout
 //     error: member 'prepaint' cannot be used on value of type 'any Element'
 //     [#ExistentialMemberAccess]
 //
-// The mechanism is that `LayoutState` and `PrepaintState` appear in `inout`
-// position. An existential can be *opened* for a member whose associated types
-// occur only in parameter or return position, because the opened type is
-// confined to the call; `inout` is invariant, so the caller would have to name
-// the associated type to supply the argument, and there is no name for it.
-// Adding a phase parameter or return in `inout` position to `Element` therefore
-// removes that phase from every existential — which is why this is worth
-// pinning rather than remembering. `prepaintCannotBeCalledOnAnExistentialElement`
-// in `ErasureCompileGuards.swift` compiles both halves.
+// The mechanism is SE-0309's: a member is usable on an existential only when
+// its associated types appear in **covariant** (result) position, where the
+// compiler can erase them to their upper bound. `requestLayout` returns its
+// `LayoutState` and nothing more, so it opens; `prepaint` and `paint` take
+// theirs as parameters, and a parameter needs the *caller* to name the type,
+// which is exactly what an existential has hidden.
+//
+// **§4.6 attributes this to `inout` specifically, and that is narrower than
+// what is true.** Measured, on a protocol reduced to the shape and nothing
+// else: a plain by-value associated-type parameter is rejected with the
+// identical diagnostic. So dropping `inout` from `Element.prepaint` would not
+// bring the existential back and would not make this file redundant — only
+// removing the associated type from the parameter list would. Both halves are
+// compiled on every run:
+// `anAssociatedTypeInParameterPositionBlocksExistentialUseEvenWithoutInout` and
+// `aCovariantAssociatedTypeCanBeUsedOnAnExistential`, alongside
+// `prepaintCannotBeCalledOnAnExistentialElement` itself, in
+// `ErasureCompileGuards.swift`.
 //
 // **2. The box must be a `struct`.** With a class box, two copies of one
 // `AnyElement` — `Row { sep; sep }` — refer to a single box and therefore to a
@@ -44,7 +53,7 @@ import MetalUILayout
 // `Vec<Box<dyn ElementObject>>` needs no such conformance because move is the
 // default there. The mechanism is the stdlib's generic requirement, not a
 // missing feature of any particular compiler release; pinned by
-// `aNoncopyableTypeCannotBeStoredInAnArray`, which measures it on a bare struct
+// `aNoncopyableElementCannotBeStoredInAnArray`, which measures it on a bare struct
 // so the guard survives any change to `AnyElement` itself.
 //
 // **Allocation.** §4.6's first mitigation is that result builders preserve
@@ -150,9 +159,12 @@ public struct AnyElementBox<E: Element>: ElementObject {
 /// of this file for what a class box does instead.
 ///
 /// The phases are `mutating`, so a container holding `[AnyElement]` must mutate
-/// its children **in place** — `for i in children.indices { children[i].prepaint(…) }`,
-/// not `for child in children`. Iterating by value walks copies and throws each
-/// child's stored state away.
+/// its children **in place** — `for i in children.indices { children[i].prepaint(…) }`.
+/// `for child in children` does not compile, and that is the type system doing
+/// the work rather than a convention this comment asks you to keep: the loop
+/// variable is a `let`, so `error: cannot use mutating member on immutable
+/// value` rejects the version that would have walked copies and dropped each
+/// child's stored state. Measured, not assumed.
 @MainActor
 public struct AnyElement {
     var box: any ElementObject
