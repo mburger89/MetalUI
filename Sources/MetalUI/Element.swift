@@ -39,6 +39,15 @@ public struct GlobalElementID: Hashable, Sendable {
 /// and overlay hoisting all have to happen before the first primitive is
 /// emitted.
 ///
+/// **None of those four exist yet, and this is the phase's whole justification,
+/// so read the list as a design rationale rather than a description.** `Frame`
+/// holds no hitbox registry, no cull state, no AX node store and no overlay
+/// list, and `PrepaintPass` declares no `register…` method — check by grepping
+/// `PrepaintPass` for members, not by re-reading this paragraph. Hit-testing and
+/// focus arrive in M3, accessibility nodes in M4, overlay hoisting with §4.5.
+/// The phase is built now because retrofitting a middle pass later would change
+/// every `Element` signature.
+///
 /// The `pass` parameter of each phase is a different type, and each exposes only
 /// what that phase may do. Emitting a primitive during `requestLayout` is a
 /// **compile error**, not a runtime check — see `PhaseSeparationTests`.
