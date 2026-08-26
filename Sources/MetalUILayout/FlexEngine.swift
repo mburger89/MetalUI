@@ -718,12 +718,18 @@ private func positionItems(
     // `flex-end` do not. (Two earlier attempts at this paragraph named the
     // wrong discriminator: it is `leading == trailing`, not `leading == 0`.)
     // This file keeps `items` in document order instead because
-    // document order is the one thing about this loop with a use outside it:
-    // wrapping's line collection and baseline grouping (neither implemented
-    // yet) will need to index items by DOM position, and converting the
-    // cursor confines the reversal to the single place a physical position is
-    // actually derived, rather than threading a flipped item order through
-    // everything downstream of `collectItems`.
+    // document order is the one thing about this loop with a use outside it,
+    // and wrapping has since cashed that in: `collectLines` breaks lines in
+    // DOM order and must, because CSS assigns items to lines in document
+    // order regardless of `row-reverse` — only the placement *within* a line
+    // reverses. A flipped array reaching `collectLines` would put the wrong
+    // items on the wrong lines, which no amount of care inside this loop
+    // could undo. (Baseline grouping, still unimplemented, will want the same
+    // thing.) Converting the cursor confines the reversal to the single place
+    // a physical position is actually derived, rather than threading a
+    // flipped item order through everything downstream of `collectItems`.
+    // Verified against WebKit: a `row-reverse` + `wrap` + `gap` + margin probe
+    // agrees exactly, item-for-item and line-for-line.
     let isReverse = s.flexDirection.isReverse
     let containerMain = isRow ? containerSize.width : containerSize.height
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
