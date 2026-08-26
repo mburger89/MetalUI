@@ -37,9 +37,10 @@
      `align-content: flex-start` is LOAD-BEARING, as in the other two wrapped
      fixtures: it pins `flex-start`, and it keeps the numbers above a statement
      about the BREAK decision and the line cross sizes rather than about line
-     distribution. Under the initial `stretch` the two lines would absorb the
-     144 left over (195 - 42 - 9 - 53) and every item on line 1 would move.
-     It began as a workaround for an unimplemented property; it is now a pin. */
+     distribution. Measured: under the initial `stretch` the two lines absorb
+     the 91 left over (195 - 42 - 9 - 53), 45.5 each, and `c` moves from
+     y = 63 to y = 108.5 with `d` from 73 to 118.5. It began as a workaround
+     for an unimplemented property; it is now a pin. */
   #root { display: flex; flex-direction: row; flex-wrap: wrap;
           align-content: flex-start; gap: 9px 6px;
           width: 300px; height: 220px;
