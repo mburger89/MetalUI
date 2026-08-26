@@ -106,13 +106,20 @@ import MetalUICore
 /// would abort for a reason that has nothing to do with generations, and ruling
 /// C-3's whole point is that the in-range case is the silent one.
 @Test func usingAnIdAgainstAnotherTreeTraps() async {
-    await #expect(processExitsWith: .failure) {
+    let result = await #expect(processExitsWith: .failure,
+                               observing: [\.standardErrorContent]) {
         let issuer = LayoutTree(generation: 1)
         let other = LayoutTree(generation: 2)
         let id = issuer.newNode(style: Style(), children: [])
         for _ in 0..<3 { _ = other.newNode(style: Style(), children: []) }
         _ = other.layout(id)
     }
+    // The exit status alone would be satisfied by any abort in that body — an
+    // out-of-range index, a fatal error somewhere else. The message is what
+    // attributes it to the generation check.
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("outlived the tree that issued it"),
+            "aborted, but not at the guard this test is about:\n\(stderr)")
 }
 
 /// The positive control for `usingAnIdAgainstAnotherTreeTraps`.
@@ -127,5 +134,70 @@ import MetalUICore
         let id = issuer.newNode(style: Style(), children: [])
         for _ in 0..<3 { _ = other.newNode(style: Style(), children: []) }
         _ = issuer.layout(id)
+    }
+}
+
+/// A `reset` that does not advance the generation **traps**.
+///
+/// This is ruling C-3's literal trigger and it had no test: `reset(generation:)`
+/// requiring a strictly greater value is the entire reason ids minted before a
+/// reset are detectably stale, and reusing 5 leaves every one of them
+/// `isCurrent` against a tree whose storage has been refilled with unrelated
+/// nodes. `anIdFromBeforeAResetIsNotCurrentAfterIt` cannot see this — it passes
+/// a greater generation, as any well-behaved caller does.
+@Test func resettingToAGenerationThatDoesNotAdvanceTraps() async {
+    let result = await #expect(processExitsWith: .failure,
+                               observing: [\.standardErrorContent]) {
+        let tree = LayoutTree(generation: 5)
+        _ = tree.newNode(style: Style(), children: [])
+        tree.reset(generation: 5)
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("does not advance past"),
+            "aborted, but not at the guard this test is about:\n\(stderr)")
+}
+
+/// The positive control for `resettingToAGenerationThatDoesNotAdvanceTraps`.
+///
+/// The same body with 6 instead of 5, so "the subprocess died" cannot be
+/// satisfied by a `reset` that traps unconditionally, or by anything else in
+/// the body.
+@Test func resettingToAGreaterGenerationDoesNotTrap() async {
+    await #expect(processExitsWith: .success) {
+        let tree = LayoutTree(generation: 5)
+        _ = tree.newNode(style: Style(), children: [])
+        tree.reset(generation: 6)
+    }
+}
+
+/// A node cannot adopt a child issued by another tree.
+///
+/// The check in `newNode` is the one place a foreign id would otherwise be
+/// *stored* rather than merely read: it would sit in `childLists` and be handed
+/// to the engine on the next `computeLayout`, where the trap would fire far from
+/// the call that caused it. Catching it at the point of adoption is what makes
+/// the abort attributable.
+@Test func adoptingAChildFromAnotherTreeTraps() async {
+    let result = await #expect(processExitsWith: .failure,
+                               observing: [\.standardErrorContent]) {
+        let issuer = LayoutTree(generation: 1)
+        let other = LayoutTree(generation: 2)
+        let foreign = issuer.newNode(style: Style(), children: [])
+        _ = other.newNode(style: Style(), children: [foreign])
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("outlived the tree that issued it"),
+            "aborted, but not at the guard this test is about:\n\(stderr)")
+}
+
+/// The positive control for `adoptingAChildFromAnotherTreeTraps`: the same two
+/// trees, the child adopted by the tree that issued it.
+@Test func adoptingAChildFromTheSameTreeDoesNotTrap() async {
+    await #expect(processExitsWith: .success) {
+        let issuer = LayoutTree(generation: 1)
+        let other = LayoutTree(generation: 2)
+        let own = issuer.newNode(style: Style(), children: [])
+        _ = other.newNode(style: Style(), children: [])
+        _ = issuer.newNode(style: Style(), children: [own])
     }
 }

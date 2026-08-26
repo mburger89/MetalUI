@@ -187,7 +187,11 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
     public mutating func prepaintGroup(under parent: GlobalElementID?,
                                        layout: inout Wrapped.GroupLayout?,
                                        pass: inout PrepaintPass) -> Wrapped.GroupPrepaint? {
-        guard var inner = wrapped, var innerLayout = layout else { return nil }
+        guard var inner = wrapped else {
+            precondition(layout == nil, Self.mismatch("prepaint"))
+            return nil
+        }
+        guard var innerLayout = layout else { preconditionFailure(Self.mismatch("prepaint")) }
         let prepaint = inner.prepaintGroup(under: parent, layout: &innerLayout, pass: &pass)
         wrapped = inner
         layout = innerLayout
@@ -198,13 +202,36 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
                                     layout: inout Wrapped.GroupLayout?,
                                     prepaint: inout Wrapped.GroupPrepaint?,
                                     pass: inout PaintPass) {
-        guard var inner = wrapped, var innerLayout = layout,
-              var innerPrepaint = prepaint else { return }
+        guard var inner = wrapped else {
+            precondition(layout == nil && prepaint == nil, Self.mismatch("paint"))
+            return
+        }
+        guard var innerLayout = layout,
+              var innerPrepaint = prepaint else { preconditionFailure(Self.mismatch("paint")) }
         inner.paintGroup(under: parent, layout: &innerLayout,
                          prepaint: &innerPrepaint, pass: &pass)
         wrapped = inner
         layout = innerLayout
         prepaint = innerPrepaint
+    }
+
+    /// The same rule, and the same trap, as `EitherGroup.mismatch`.
+    ///
+    /// **This branch returned `nil` silently for one commit**, which is exactly
+    /// what `EitherGroup`'s trap exists to prevent: an `if` whose condition
+    /// flipped between `requestLayout` and `prepaint` would have had its child
+    /// painted at nothing, with no diagnostic, while the identical flip inside
+    /// an `if`/`else` aborted. Trapping was chosen over silence for both — a
+    /// container whose children changed shape mid-frame has already produced a
+    /// wrong frame, and the loud version is the one that says where.
+    ///
+    /// `wrapped == nil` with `layout == nil` is the ordinary absent case and is
+    /// not a mismatch.
+    private static func mismatch(_ phase: StaticString) -> String {
+        """
+        OptionalGroup \(phase): the phase state disagrees with the group running this phase \
+        about whether a child exists — its content was rebuilt mid-frame
+        """
     }
 }
 
@@ -251,7 +278,7 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
             layout = .second(inner)
             return .second(prepaint)
         default:
-            preconditionFailure(Self.mismatch)
+            preconditionFailure(Self.mismatch("prepaint"))
         }
     }
 
@@ -271,7 +298,7 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
             layout = .second(innerLayout)
             prepaint = .second(innerPrepaint)
         default:
-            preconditionFailure(Self.mismatch)
+            preconditionFailure(Self.mismatch("paint"))
         }
     }
 
@@ -283,8 +310,17 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
     /// threads the state it received back into the same stored child, so within
     /// one frame the two cases are the same by construction. The trap exists
     /// because the alternative is silently painting nothing.
-    private static var mismatch: String {
-        "EitherGroup phase state came from a different EitherGroup value than the one painting it"
+    /// **The phase is named in the message, and that is load-bearing.** Every
+    /// trap in this file is backstopped by the next phase's, so an exit test
+    /// that asserted only "the process died" cannot tell a `prepaint` guard
+    /// firing from the `paint` guard catching the same mismatch one phase
+    /// later — measured: deleting `OptionalGroup`'s prepaint precondition left
+    /// the whole suite green until its test began reading stderr.
+    private static func mismatch(_ phase: StaticString) -> String {
+        """
+        EitherGroup \(phase): the phase state came from a different EitherGroup value \
+        than the one running this phase — its content was rebuilt mid-frame
+        """
     }
 }
 
@@ -316,7 +352,7 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
     public mutating func prepaintGroup(under parent: GlobalElementID?,
                                        layout: inout [Group.GroupLayout],
                                        pass: inout PrepaintPass) -> [Group.GroupPrepaint] {
-        precondition(layout.count == groups.count, Self.countMismatch)
+        precondition(layout.count == groups.count, Self.countMismatch("prepaint"))
         var prepaints: [Group.GroupPrepaint] = []
         prepaints.reserveCapacity(groups.count)
         for index in groups.indices {
@@ -331,7 +367,7 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
                                     prepaint: inout [Group.GroupPrepaint],
                                     pass: inout PaintPass) {
         precondition(layout.count == groups.count && prepaint.count == groups.count,
-                     Self.countMismatch)
+                     Self.countMismatch("paint"))
         for index in groups.indices {
             groups[index].paintGroup(under: parent, layout: &layout[index],
                                      prepaint: &prepaint[index], pass: &pass)
@@ -341,8 +377,11 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
     /// Same mechanism as `EitherGroup.mismatch`: the arrays are produced by this
     /// value's own `requestGroupLayout` and threaded back unmodified, so a
     /// differing count means the states came from a different `ArrayGroup`.
-    private static var countMismatch: String {
-        "ArrayGroup phase state has a different member count than the group painting it"
+    private static func countMismatch(_ phase: StaticString) -> String {
+        """
+        ArrayGroup \(phase): the phase state has a different member count than the group \
+        running this phase — its content was rebuilt mid-frame
+        """
     }
 }
 

@@ -9,10 +9,16 @@ import MetalUILayout
 // `type(of:)` reads `Column<Pair<…>>` — the spelling §4.6 uses, and the one the
 // builder's type-level guard reads back.
 //
-// Direction is set at construction rather than exposed as a modifier on these
-// two: `Column(...).flexDirection(.row)` would be a `Column` that is a row, and
-// the type would then be lying. `Box` carries `flexDirection(_:)` for callers
-// who want to choose, and `.rowReverse` / `.columnReverse` are reached that way.
+// Direction is set at construction and there is no modifier for it on these
+// two, because `Column(...).flexDirection(.row)` would be a `Column` that is a
+// row and the type would then be lying. **That is enforced by where the
+// modifier lives, not by this paragraph**: `flexDirection(_:)` is declared in
+// `extension Box`, not on `StyledElement`, which `Column` and `Row` also
+// conform to. It sat on `StyledElement` for one commit, and the comment saying
+// it did not was the fourth shape-10 claim corrected on this branch —
+// `columnCannotBeTurnedIntoARowByAModifier` is the guard now. `Box` carries it
+// for callers who want to choose, and `.rowReverse` / `.columnReverse` are
+// reached that way.
 
 /// A vertical flex container: `flex-direction: column`.
 public struct Column<Content: ElementGroup>: Element, StyledElement {

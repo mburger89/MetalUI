@@ -31,6 +31,8 @@ final class ElementLog {
     /// The node each probe was issued, so a test can hold a real id rather than
     /// fabricating one through an initialiser the module keeps internal.
     var nodes: [String: LayoutNodeID] = [:]
+    /// Cross-frame counter readings, in the order the probes took them.
+    var counters: [(name: String, value: Int)] = []
     /// Identities as delivered to `prepaint`; `nil` is a real answer (§4.3), so
     /// this is an array rather than a dictionary that would swallow it.
     var identities: [(name: String, id: GlobalElementID?)] = []
@@ -94,7 +96,7 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 /// gone. Measured: adding `buildExpression<E: Element>(_:) -> AnyElement` to
 /// `ElementBuilder` reddens this test, `aThreeChildBlockNestsPairsRatherThanFlattening`
 /// and `controlFlowInABlockStaysUnboxed` — the three type-level tests — and
-/// **no behavioural test at all**, out of 261. That "nothing else" is the
+/// **no behavioural test at all**, out of 274. That "nothing else" is the
 /// finding, and it is what justifies asserting on a type name.
 ///
 /// Both halves are needed. `contains("Pair")` alone passes against a

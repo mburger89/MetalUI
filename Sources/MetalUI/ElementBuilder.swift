@@ -12,7 +12,7 @@
 /// *type-level*: three tests in `ElementLayoutTests.swift` assert on
 /// `type(of:)`, and they are the only kind of test that can see the difference.
 /// Measured: adding `buildExpression<E: Element>(_:) -> AnyElement` here reddens
-/// exactly those three and no behavioural test at all, out of 261.
+/// exactly those three and no behavioural test at all, out of 274.
 ///
 /// Every method here returns a distinct concrete type — `Pair`, `OptionalGroup`,
 /// `EitherGroup`, `ArrayGroup`, `EmptyGroup` — so `if`, `if`/`else` and `for`

@@ -73,6 +73,22 @@ extension Box where Content == EmptyGroup {
     }
 }
 
+extension Box {
+    /// The main axis, and **`Box`'s alone**.
+    ///
+    /// It is not on `StyledElement` because `Column` and `Row` conform to that
+    /// protocol: `Column { … }.flexDirection(.row)` would compile, keep its
+    /// `Column<…>` type, and lay its children out horizontally — a type saying
+    /// one thing while the style says another. Measured before this was moved:
+    /// it did compile, and the second child landed at `x = 40`.
+    ///
+    /// `.rowReverse` and `.columnReverse` are reached here too; `Column` and
+    /// `Row` choose their axis at construction and offer no way to change it.
+    public func flexDirection(_ value: FlexDirection) -> Box<Content> {
+        modifying { $0.flexDirection = value }
+    }
+}
+
 // MARK: - Styling
 
 /// An element whose layout inputs are a `Style` the caller may modify.
@@ -223,10 +239,6 @@ extension StyledElement {
 
     public func flexWrap(_ value: FlexWrap) -> Self {
         modifying { $0.flexWrap = value }
-    }
-
-    public func flexDirection(_ value: FlexDirection) -> Self {
-        modifying { $0.flexDirection = value }
     }
 
     // MARK: As a flex item
