@@ -86,6 +86,30 @@ Divergence 2 (`wrap-reverse`) is still open and still Task 3's.
    in all three fixtures. Task 2 implements the property and deletes both the test
    and the CLAUDE.md row.
 
+**What Task 3 must actually reverse — measured, not assumed.** The Task 2
+reviewer drove live WebKit on `align-content` × `wrap-reverse` and found the
+engine differs on every value, entirely because reversal is unimplemented. The
+important finding is *how* WebKit reverses: it flips the **whole cross axis**, not
+just the order lines are stacked in. So `flex-start` packs lines to the container's
+**bottom**, `flex-end` packs them to the top, and `stretch` grows lines and fills
+from the bottom. Each item then sits at its line's *flipped* cross-start — its
+line's bottom edge.
+
+Two consequences for Task 3:
+
+- Reversing the **line order** alone is not enough. The `align-content` leading
+  offset and the per-item `crossAxisOffset` both need flipping.
+- On the pinned 260×300 tree (`120×40 / 120×30 / 120×90`), `a` and `b` land at
+  **260 and 270** — they differ from each other despite sharing a line, because
+  each is pinned to its own bottom edge inside a 40-tall line. **No
+  forward-wrapping fixture can exhibit that**, which is why this pair needs its
+  own fixture rather than inheriting confidence from the `wrap` ones.
+
+The exact numbers are inlined in CLAUDE.md's `FlexWrap.wrapReverse` row and in
+`wrapReverseCollectsLinesButDoesNotReverseThemYet`'s comment — both re-derived
+rather than copied, after an earlier hand-computed version of that comment shipped
+wrong under both `align-content` values.
+
 2. **`wrap-reverse` is a half-rule — live code with a wrong answer.**
    `collectLines` tests only `wrap != .noWrap`, so `.wrapReverse` collects lines
    identically to `.wrap` and nothing stacks them from the cross-end. An API that
