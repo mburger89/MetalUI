@@ -24,29 +24,42 @@ private let skipReason: Comment =
 func requestLayoutCanBeCalledOnAnExistentialElement() throws {
     // The load-bearing half of the pair. Without it, the negative below passes
     // just as well when `Element` has no phases at all, or when the existential
-    // is unusable for some reason that has nothing to do with `inout`.
+    // is unusable for some reason that has nothing to do with where an
+    // associated type sits in a signature.
+    //
+    // `requestLayout` is the phase that opens, and the reason is exactly the
+    // rule the third guard below pins: its only associated type is in its
+    // **return**, where the compiler can erase it. Nothing about it is
+    // `inout`-free — `pass` is `inout` too — so this pair is not a statement
+    // about `inout` at all.
     let result = try typecheck("""
         @MainActor func probe(element: inout any Element, pass: inout LayoutPass) {
             _ = element.requestLayout(nil, pass: &pass)
         }
         """, importing: "MetalUI")
     #expect(result.succeeded,
-            "requestLayout is fine on an existential — only the inout-state phases are not:\n\(result.output)")
+            "requestLayout returns its associated type and takes none, so it must open:\n\(result.output)")
 }
 
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func prepaintCannotBeCalledOnAnExistentialElement() throws {
-    // **The reason `AnyElement` exists.** An existential can be opened for a
-    // member whose associated types occur only in parameter or return position;
-    // `LayoutState` is `inout`, which is invariant, so the caller would have to
-    // *name* the associated type to supply the argument and there is no name
-    // for it.
+    // **The reason `AnyElement` exists.** A member is usable on an existential
+    // only when its associated types appear in **covariant** (result) position,
+    // where the compiler can erase them to their upper bound — SE-0309.
+    // `prepaint` takes `LayoutState` as a *parameter*, and a parameter needs the
+    // caller to name the type, which is precisely what the existential hid.
     //
-    // The guard is worth keeping past the day it was measured, because the
-    // trigger is a signature shape, not a compiler release: adding any further
-    // `inout` associated-type parameter to `Element` removes that phase from
-    // every existential too, and adding one that is *not* `inout` would make
-    // this test go green and the erasure look redundant when it is not.
+    // **Not because it is `inout`.** That is §4.6's wording, it is narrower than
+    // the truth, and the sibling guard below measures the difference: a plain
+    // by-value associated-type parameter is rejected identically. So dropping
+    // `inout` from `Element.prepaint` would leave this test red and `AnyElement`
+    // just as necessary — the only change that would turn this green is removing
+    // the associated type from the parameter list entirely, at which point the
+    // erasure really would be redundant and this file should go.
+    //
+    // The guard is worth keeping past the day it was measured because the
+    // trigger is a signature shape, not a compiler release: any new phase that
+    // passes an associated type in loses that phase from every existential too.
     let result = try typecheck("""
         @MainActor func probe(element: inout any Element, bounds: Bounds<Pixels>,
                               layoutPass: inout LayoutPass, pass: inout PrepaintPass) {

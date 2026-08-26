@@ -96,12 +96,25 @@ public protocol ElementObject {
 /// single `LayoutState`, silently.
 ///
 /// The states are `Optional` because the box cannot express "layout has run" in
-/// the type system the way the pass structs express "this phase may paint". The
-/// erasure trades that guarantee away: calling `prepaint` before `requestLayout`
-/// is a trap here, where on a concrete `Element` it would not compile — the
-/// caller could not have produced the `inout LayoutState` argument. Callers
-/// inside `MetalUI` drive the phases in order; nothing outside can drive them
-/// at all, because it cannot obtain a pass.
+/// the type system the way the pass structs express "this phase may paint" —
+/// so calling `prepaint` before `requestLayout` compiles here and traps at
+/// runtime.
+///
+/// **Phase *ordering* is enforced by `Frame.render`, not by the type system,
+/// and that was already true before the erasure.** It is tempting to write that
+/// the out-of-order call "would not compile on a concrete `Element`, because
+/// the caller could not have produced the `inout LayoutState`" — measured
+/// false. An element whose `LayoutState` is a type the caller can construct
+/// (`Int`, say) lets any caller write `var l = 0` and call `prepaint` directly,
+/// and it builds clean. The associated type is opaque only to code that cannot
+/// see the conformance; `Frame.render` and every container can.
+///
+/// What the erasure actually changes is narrower: on a concrete element the
+/// out-of-order call needs a fabricated state value, which is at least a
+/// visible act at the call site, while through the box it is an ordinary-looking
+/// call. Both are runtime, neither is a compile error. The real containment is
+/// that nothing outside `MetalUI` can drive any phase at all, because it cannot
+/// obtain a pass — see `codeOutsideTheFrameworkCannotFabricateAPaintPass`.
 @MainActor
 public struct AnyElementBox<E: Element>: ElementObject {
     var element: E

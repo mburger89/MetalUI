@@ -318,7 +318,9 @@ struct MutatingProbe: Element {
     }
 
     let seenInPaint: Recorder
-    /// Mutated by `requestLayout`, read in `paint`.
+    /// Mutated by **all three** phases, at three different strides, and read in
+    /// `paint`. The strides are what make a lost write-back nameable rather
+    /// than merely wrong: see the test below.
     var generation = 0
 
     mutating func requestLayout(_ id: GlobalElementID?,
@@ -335,20 +337,24 @@ struct MutatingProbe: Element {
                            layout: inout Layout, pass: inout PrepaintPass) -> Prepaint {
         // §4.1 threads `LayoutState` `inout` precisely so this is possible.
         layout.value += 10
+        // And the element's *own* state. `Element`'s phases are `mutating` on
+        // all three, not just the first.
+        generation += 20
         return Prepaint(value: 100)
     }
 
     mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
                         layout: inout Layout, prepaint: inout Prepaint,
                         pass: inout PaintPass) {
-        seenInPaint.values.append(generation)      // 7 — the element's own mutation
+        generation += 300
+        seenInPaint.values.append(generation)      // 327, then 627
         seenInPaint.values.append(layout.value)    // 11 — prepaint's in-place edit
         seenInPaint.values.append(prepaint.value)  // 100 — the prepaint state
     }
 }
 
 /// The erasure must carry every mutation an element makes forward to the phase
-/// that reads it.
+/// that reads it — **the element's own `self` included, in all three phases.**
 ///
 /// The box stores `LayoutState` and `PrepaintState` in `Optional`s and hands
 /// them to the element as `inout` locals, so each phase needs an explicit write
@@ -356,6 +362,20 @@ struct MutatingProbe: Element {
 /// still runs, and reads a stale value. `11` distinguishes "prepaint's edit
 /// survived" from `1` ("the layout state was carried, unedited") and from `10`
 /// ("prepaint's edit landed on a fresh zero").
+///
+/// **`generation` is here because of a half-detected refactor.** Replacing
+/// `element.prepaint(…)` with `var e = element; e.prepaint(…)` — which is what
+/// someone lands by "simplifying" the box's `var element` to a `let` — builds
+/// clean, warning-free, and discards the element's own state for that phase.
+/// Measured on this suite: the `requestLayout` version of that mutation reddens,
+/// and the `prepaint` and `paint` versions did not. That is the worst state a
+/// guard can be in, because the one that fires makes you trust the two that do
+/// not.
+///
+/// The three strides (7, 20, 300) and the **second `paint` call** are what make
+/// each phase's write-back separately nameable. Paint's own mutation cannot be
+/// observed within the call that makes it — only a later call can see it — so
+/// one paint would leave that third case exactly as green as it was before.
 @MainActor
 @Test func theBoxCarriesEveryPhasesMutationForwardToTheNextPhase() {
     let seen = Recorder()
@@ -371,9 +391,14 @@ struct MutatingProbe: Element {
     erased.prepaint(nil, bounds: frame.bounds(of: node), pass: &prepaintPass)
 
     var paintPass = PaintPass(frame: frame)
-    erased.paint(nil, bounds: frame.bounds(of: node), pass: &paintPass)
+    let bounds = frame.bounds(of: node)
+    erased.paint(nil, bounds: bounds, pass: &paintPass)
+    erased.paint(nil, bounds: bounds, pass: &paintPass)
 
-    #expect(seen.values == [7, 11, 100])
+    // 7 + 20 + 300 = 327, then + 300 = 627. Each stride names one lost
+    // write-back on its own: 320/620 is requestLayout's, 307/607 is prepaint's,
+    // and 327/327 is paint's.
+    #expect(seen.values == [327, 11, 100, 627, 11, 100])
 }
 
 /// An element with a local identity, and one that mutates state in `paint`.
