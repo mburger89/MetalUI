@@ -3,30 +3,44 @@ import MetalUILayout
 
 /// A flex container: one `Style`, one layout node, and its children.
 ///
-/// **This is the whole of Task 4's contribution to layout, and it is where the
-/// engine gets its first production caller.** `requestLayout` registers the
-/// children's nodes bottom-up and then its own; `prepaint` reads each child's
-/// resolved rect back out. Between the two, `Frame.computeRootLayout` runs the
-/// flex engine — `Box` never calls it and cannot: `LayoutPass` exposes no way to.
+/// **This is where the engine gets its first production caller.**
+/// `requestLayout` registers the children's nodes bottom-up and then its own;
+/// `prepaint` reads each child's resolved rect back out. Between the two,
+/// `Frame.computeRootLayout` runs the flex engine — `Box` never calls it and
+/// cannot: `LayoutPass` exposes no way to.
 ///
-/// `Box` paints nothing. Backgrounds, borders and corner radii are Task 5's;
-/// what it carries today is layout only, which is why every modifier in
-/// `StyledElement` maps to a `Style` property the engine actually reads.
+/// `Box` carries two independent groups of properties, and the split is the
+/// point: `style` is what the flex engine reads, `decoration` is what `paint`
+/// reads. They are separate because `Style` lives in `MetalUILayout`, which
+/// imports only `MetalUICore` and has no colour field of any kind — a
+/// background token could not be put there without giving the layout engine a
+/// dependency on the theme.
+///
+/// **Backgrounds and corner radii landed in Task 5; borders did not.** That
+/// sentence used to read "Backgrounds, borders and corner radii are Task 5's",
+/// and the border half of it is now false: `Frame.fill` emits
+/// `borderColor: .transparent` and offers no way to change it. The mechanism is
+/// recorded there — paint has no *resolved* border width to pair a colour with,
+/// because the engine computes one inside `contentBox` and does not store it.
 ///
 /// `Column` and `Row` are this type with a `flexDirection` — see `Stack.swift`.
 public struct Box<Content: ElementGroup>: Element, StyledElement {
     public var style: Style
+    public var decoration: Decoration
     public var elementID: ElementID?
     public var content: Content
 
     /// The children as a value, for callers that already have a group.
-    public init(style: Style = Style(), content: Content) {
+    public init(style: Style = Style(), decoration: Decoration = Decoration(),
+                content: Content) {
         self.style = style
+        self.decoration = decoration
         self.content = content
     }
 
-    public init(style: Style = Style(), @ElementBuilder content: () -> Content) {
-        self.init(style: style, content: content())
+    public init(style: Style = Style(), decoration: Decoration = Decoration(),
+                @ElementBuilder content: () -> Content) {
+        self.init(style: style, decoration: decoration, content: content())
     }
 
     /// Carried from `requestLayout` to the later phases.
@@ -61,6 +75,15 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
     public mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
+        // Own background first, then children. Every rect is emitted at
+        // `order: 0` and `Scene.finalize()` sorts stably, so emission sequence
+        // *is* paint order — a container that emitted after its children would
+        // paint over them. Reversing these two lines is caught by
+        // `aContainerPaintsItsBackgroundBeneathItsChildren`.
+        if let token = decoration.background {
+            pass.fill(bounds, color: pass.theme[token],
+                      cornerRadii: Corners(all: decoration.cornerRadius))
+        }
         content.paintGroup(under: id, layout: &layout.content,
                            prepaint: &prepaint, pass: &pass)
     }
@@ -68,8 +91,8 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
 
 extension Box where Content == EmptyGroup {
     /// A childless box — a sized leaf until M2 brings something to put in one.
-    public init(style: Style = Style()) {
-        self.init(style: style, content: EmptyGroup())
+    public init(style: Style = Style(), decoration: Decoration = Decoration()) {
+        self.init(style: style, decoration: decoration, content: EmptyGroup())
     }
 }
 
@@ -90,6 +113,31 @@ extension Box {
 }
 
 // MARK: - Styling
+
+/// What a styled element paints for itself, as opposed to what it lays out
+/// (spec §7.9).
+///
+/// **`background` is a `ColorToken`, never an `Hsla`.** §7.9: "Colors in
+/// element code are semantic tokens … never literals." Resolution happens once
+/// per frame, in `paint`, against `PaintPass.theme` — which is what makes a
+/// theme swap a repaint rather than a rebuild of every element value.
+///
+/// `nil` means "paint nothing here", which is not the same as any colour: a
+/// fully transparent background would still emit a rect, and rects are what the
+/// renderer's per-frame budget is spent on.
+///
+/// **There is no `borderColor`, deliberately.** See `Frame.fill` for the
+/// mechanism — the resolved border width does not survive the engine, so a
+/// colour would have nothing to be drawn at.
+public struct Decoration: Sendable, Hashable {
+    public var background: ColorToken?
+    public var cornerRadius: Pixels
+
+    public init(background: ColorToken? = nil, cornerRadius: Pixels = Pixels(0)) {
+        self.background = background
+        self.cornerRadius = cornerRadius
+    }
+}
 
 /// An element whose layout inputs are a `Style` the caller may modify.
 ///
@@ -115,6 +163,7 @@ extension Box {
 @MainActor
 public protocol StyledElement: Element {
     var style: Style { get set }
+    var decoration: Decoration { get set }
     var elementID: ElementID? { get set }
 }
 
@@ -122,6 +171,12 @@ extension StyledElement {
     func modifying(_ change: (inout Style) -> Void) -> Self {
         var copy = self
         change(&copy.style)
+        return copy
+    }
+
+    func decorating(_ change: (inout Decoration) -> Void) -> Self {
+        var copy = self
+        change(&copy.decoration)
         return copy
     }
 
@@ -137,6 +192,29 @@ extension StyledElement {
         var copy = self
         copy.elementID = ElementID(name)
         return copy
+    }
+
+    // MARK: Paint (spec §7.9)
+
+    /// Fills this element's border box with a **semantic token**, resolved
+    /// against the frame's theme when `paint` runs.
+    ///
+    /// There is no `Hsla` overload. A literal colour would paint identically in
+    /// both appearances while looking exactly like a themed one at the call
+    /// site, which is §7.9's whole objection to literals.
+    public func background(_ token: ColorToken) -> Self {
+        decorating { $0.background = token }
+    }
+
+    /// Rounds all four corners of the background by the same radius.
+    ///
+    /// **Paint only — it does not affect layout or clip the children.** The
+    /// engine has no corner-radius input (`Style` carries none), and clipping
+    /// needs `contentMask`, which the fragment shader does not read; a child
+    /// painted into a rounded parent's corner therefore still shows square.
+    /// Per-corner radii wait for a caller that wants them.
+    public func cornerRadius(_ points: Pixels) -> Self {
+        decorating { $0.cornerRadius = points }
     }
 
     // MARK: Size

@@ -30,6 +30,21 @@ public final class Frame {
     /// settable in M2.
     let rootFontSize: Double
 
+    /// The active theme (spec §7.9), fixed for the whole frame.
+    ///
+    /// A `let`, so the two halves of one frame cannot resolve the same token
+    /// differently: a theme swapped mid-paint would give the first half of the
+    /// tree light colours and the second half dark ones, and every rect would
+    /// still be individually correct. `Window` swaps the theme *between* frames
+    /// and marks §4.4's dirty flag.
+    ///
+    /// Reachable from `PaintPass` only. Nothing in layout or prepaint consumes a
+    /// colour — `LayoutPass` contributes `Style`, which has no colour field at
+    /// all, and `PrepaintPass` reads resolved rects — so exposing it there would
+    /// be an API with no reader. Adding it to another pass is one forwarding
+    /// property when a phase acquires a use for it.
+    let theme: Theme
+
     /// Layout nodes for this frame.
     ///
     /// **A `LayoutNodeID` *can* outlive the frame that minted it, which is why
@@ -69,13 +84,14 @@ public final class Frame {
     let stateTable: StateTable
 
     init(contentSize: Size<Pixels>, scaleFactor: Float, rootFontSize: Double = 16,
-         stateTable: StateTable = StateTable()) {
+         stateTable: StateTable = StateTable(), theme: Theme = .light) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
         self.scaleFactor = scaleFactor
         self.rootFontSize = rootFontSize
         self.stateTable = stateTable
+        self.theme = theme
     }
 
     // MARK: - Layout phase
@@ -110,14 +126,27 @@ public final class Frame {
 
     // MARK: - Paint phase
 
-    /// Emits one filled rect.
+    /// Emits one filled rect, optionally with rounded corners.
     ///
-    /// Corner radii, borders, clip stacks and explicit z-order are the paint
-    /// task's business (§7.3); every rect here is emitted at `order: 0`, and
-    /// `Scene.finalize()` sorts stably, so equal orders keep emission sequence.
+    /// Borders, clip stacks and explicit z-order are still ahead (§7.3): every
+    /// rect here is emitted at `order: 0`, and `Scene.finalize()` sorts stably,
+    /// so equal orders keep emission sequence — which is why a container's own
+    /// background paints under its children provided it emits first.
     /// `contentMask` is the whole surface: nothing clips yet, and the fragment
     /// shader does not read the field in any case.
-    func fill(_ bounds: Bounds<Pixels>, color: Hsla) {
+    ///
+    /// **`borderColor` is `.transparent` and there is no way to set it**, even
+    /// though `MUIRect` carries it and the fragment shader draws it — the M0
+    /// demo proved that end to end. The blocker is the *width*, not the colour:
+    /// a border width is `Style.border`, an `Edges<Length>` whose percentage
+    /// case resolves against the **containing block's width**, and the engine
+    /// computes that inside `contentBox` and discards it rather than storing it
+    /// on the node. So paint has no resolved width to pair a colour with, and
+    /// re-resolving one here against the box's own width is the exact mistake
+    /// CLAUDE.md's percentage-inset constraint records. Storing the resolved
+    /// edges on `LayoutTree` is what unblocks it.
+    func fill(_ bounds: Bounds<Pixels>, color: Hsla,
+              cornerRadii: Corners<Pixels> = Corners(all: Pixels(0))) {
         let surface = Bounds(
             origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
             size: contentSize.scaled(by: scaleFactor))
@@ -126,9 +155,20 @@ public final class Frame {
             contentMask: surface,
             background: color,
             borderColor: .transparent,
-            cornerRadii: Corners(all: ScaledPixels(0)),
+            cornerRadii: cornerRadii.scaled(by: scaleFactor),
             borderWidths: Edges(all: ScaledPixels(0)),
             order: 0))
+    }
+
+    /// This frame's primitives, in paint order. Call after `render`.
+    ///
+    /// A copy, so `scene` stays the *emission* record: a test that asserts
+    /// which element painted first reads `scene`, and one that asserts what the
+    /// GPU receives reads this.
+    func finalizedScene() -> Scene {
+        var finalized = scene
+        finalized.finalize()
+        return finalized
     }
 
     // MARK: - Driving the three phases
@@ -178,6 +218,14 @@ public final class Frame {
 extension Size where Unit == Pixels {
     func scaled(by factor: Float) -> Size<ScaledPixels> {
         Size<ScaledPixels>(width: width.scaled(by: factor), height: height.scaled(by: factor))
+    }
+}
+
+extension Corners where Unit == Pixels {
+    func scaled(by factor: Float) -> Corners<ScaledPixels> {
+        Corners<ScaledPixels>(
+            topLeft: topLeft.scaled(by: factor), topRight: topRight.scaled(by: factor),
+            bottomRight: bottomRight.scaled(by: factor), bottomLeft: bottomLeft.scaled(by: factor))
     }
 }
 

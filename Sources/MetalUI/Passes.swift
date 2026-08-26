@@ -66,14 +66,30 @@ public struct PaintPass {
 
     public func bounds(of node: LayoutNodeID) -> Bounds<Pixels> { frame.bounds(of: node) }
 
+    /// The active theme (spec §7.9).
+    ///
+    /// This is the whole of "propagated through the frame context": an element
+    /// that wants a colour resolves a `ColorToken` against this, and there is no
+    /// other way to obtain one. Nothing here reads global state, and nothing
+    /// cascades — `Style` has no colour field for a cascade to inherit through.
+    ///
+    /// **Deliberately not on `LayoutPass` or `PrepaintPass`.** Neither phase can
+    /// consume a colour: layout contributes `Style`, which has no colour field,
+    /// and prepaint reads resolved rects. See `Frame.theme`.
+    public var theme: Theme { frame.theme }
+
     /// Emits a filled rect, **in logical points**.
     ///
     /// The display scale factor is applied here, once, on the way to the scene.
     /// Element code neither needs it nor can reach it: this pass deliberately
     /// exposes no `scaleFactor`, because an element that found one would have no
     /// way to know it had already been applied, and pre-scaling its bounds
-    /// double-scales them on any Retina display.
-    public func fill(_ bounds: Bounds<Pixels>, color: Hsla) { frame.fill(bounds, color: color) }
+    /// double-scales them on any Retina display. `cornerRadii` is scaled with
+    /// them, for the same reason.
+    public func fill(_ bounds: Bounds<Pixels>, color: Hsla,
+                     cornerRadii: Corners<Pixels> = Corners(all: Pixels(0))) {
+        frame.fill(bounds, color: color, cornerRadii: cornerRadii)
+    }
 }
 
 // MARK: - Cross-frame state (§4.3)

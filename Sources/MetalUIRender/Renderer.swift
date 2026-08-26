@@ -108,23 +108,40 @@ public final class Renderer {
         // so a stereo backend's per-eye matrices work without a renderer change.
         var projection = view.projection
 
-        // NOTE (M0 limitation): `setVertexBytes`/`setFragmentBytes` copy into a
-        // 4 KB inline argument buffer. `MUIRect` is 104 bytes, so anything past
-        // roughly 39 rects is silently truncated — the draw would read garbage
-        // rather than fail. M0 draws one rect, so this holds; Milestone 1 must
-        // move the rect array to an `MTLBuffer` before scenes grow.
+        // The rect array goes through an `MTLBuffer`, not `setVertexBytes`.
+        //
+        // `setVertexBytes`/`setFragmentBytes` copy into a 4 KB inline argument
+        // buffer, and `MUIRect` is 104 bytes — so past roughly 39 rects the tail
+        // of the scene was **silently dropped**, with the draw still issuing
+        // `instanceCount` instances that read past the end. M0 drew one rect and
+        // never noticed; the element pipeline emits one rect per decorated box,
+        // which reaches 39 in a plain list. `manyRectsAllReachTheGPU` pins it at
+        // 50.
+        //
+        // A fresh buffer per encode rather than one retained and reused: the GPU
+        // reads a buffer for as long as its command buffer is in flight, so a
+        // reused one would need a ring and a fence to avoid overwriting the
+        // frame still being drawn. `MTLCommandBuffer` retains what is bound to
+        // it, so this one lives exactly as long as it is read. Pooling is an
+        // optimisation for whoever measures the allocation, not a correctness
+        // fix.
+        let rectsLength = MemoryLayout<MUIRect>.stride * scene.rects.count
+        guard let rectBuffer = device.makeBuffer(bytes: scene.rects,
+                                                 length: rectsLength,
+                                                 options: .storageModeShared) else {
+            throw RendererError.bufferAllocationFailed
+        }
+
         encoder.setVertexBuffer(unitVertexBuffer, offset: 0,
                                 index: Int(MUIRectBufferVertices.rawValue))
-        encoder.setVertexBytes(scene.rects,
-                               length: MemoryLayout<MUIRect>.stride * scene.rects.count,
-                               index: Int(MUIRectBufferRects.rawValue))
+        encoder.setVertexBuffer(rectBuffer, offset: 0,
+                                index: Int(MUIRectBufferRects.rawValue))
         encoder.setVertexBytes(&viewport, length: MemoryLayout<MUISize>.stride,
                                index: Int(MUIRectBufferViewport.rawValue))
         encoder.setVertexBytes(&projection, length: MemoryLayout<simd_float4x4>.stride,
                                index: Int(MUIRectBufferProjection.rawValue))
-        encoder.setFragmentBytes(scene.rects,
-                                 length: MemoryLayout<MUIRect>.stride * scene.rects.count,
-                                 index: Int(MUIRectBufferRects.rawValue))
+        encoder.setFragmentBuffer(rectBuffer, offset: 0,
+                                  index: Int(MUIRectBufferRects.rawValue))
 
         encoder.drawPrimitives(type: .triangleStrip,
                                vertexStart: 0,

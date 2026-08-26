@@ -63,9 +63,29 @@ final class FakePlatformWindow: PlatformWindow {
     var surface: any RenderSurface { fakeSurface }
     var title: String = "Fake"
 
+    /// Settable, unlike AppKit's — the real one is a live read of a system-wide
+    /// setting no test may change, which is why the appearance tests drive the
+    /// callback here rather than through `AppKitWindow`.
+    var appearance: Appearance = .light
+
     var onInput: ((InputEvent) -> Bool)?
     var onResize: ((Size<Pixels>, Float) -> Void)?
+    var onAppearanceChange: ((Appearance) -> Void)?
     var onClose: (() -> Void)?
+
+    /// Change the appearance and notify, the way AppKit does: the getter already
+    /// reports the new value by the time the callback runs.
+    func simulateAppearanceChange(to newAppearance: Appearance) {
+        appearance = newAppearance
+        onAppearanceChange?(newAppearance)
+    }
+
+    /// Resize the way `AppKitWindow.syncSurfaceGeometry` does: the reported
+    /// content size is already the new one when `onResize` fires.
+    func simulateResize(to newSize: Size<Pixels>) {
+        contentSize = newSize
+        onResize?(newSize, scaleFactor)
+    }
 
     init(device: any MTLDevice, size: Int = 64) throws {
         self.fakeSurface = try FakeRenderSurface(device: device, size: size)

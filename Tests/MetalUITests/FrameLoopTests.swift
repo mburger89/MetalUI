@@ -11,16 +11,8 @@ import MetalUIRender
     let app = try App(device: device)
     let window = try app.openWindow(title: "Loop",
                                     size: Size(width: Pixels(200), height: Pixels(200)),
-                                    startsDisplayLink: false) { scene, _, _ in
-        scene.insert(MUIRect(
-            bounds: Bounds(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
-                           size: Size(width: ScaledPixels(10), height: ScaledPixels(10))),
-            contentMask: Bounds(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
-                                size: Size(width: ScaledPixels(200), height: ScaledPixels(200))),
-            background: .white, borderColor: .white,
-            cornerRadii: Corners(all: ScaledPixels(0)),
-            borderWidths: Edges(all: ScaledPixels(0)),
-            order: 0))
+                                    startsDisplayLink: false) {
+        Box().width(Pixels(10)).height(Pixels(10)).background(.accent)
     }
 
     // `openWindow` paints once eagerly, so the window is already clean and one
@@ -47,7 +39,7 @@ import MetalUIRender
     let app = try App(device: device)
     let window = try app.openWindow(title: "Coalesce",
                                     size: Size(width: Pixels(100), height: Pixels(100)),
-                                    startsDisplayLink: false) { _, _, _ in }
+                                    startsDisplayLink: false) { Box() }
 
     let base = window.framesDrawn
 
@@ -80,20 +72,8 @@ private func makeWindow(device: any MTLDevice)
     let renderer = try Renderer(device: device)
     let window = Window(platformWindow: platformWindow,
                         renderer: renderer,
-                        content: { scene, size, _ in
-                            scene.insert(MUIRect(
-                                bounds: Bounds(origin: Point(x: ScaledPixels(0),
-                                                             y: ScaledPixels(0)),
-                                               size: size),
-                                contentMask: Bounds(origin: Point(x: ScaledPixels(0),
-                                                                  y: ScaledPixels(0)),
-                                                    size: size),
-                                background: .white, borderColor: .white,
-                                cornerRadii: Corners(all: ScaledPixels(0)),
-                                borderWidths: Edges(all: ScaledPixels(0)),
-                                order: 0))
-                        },
-                        startsDisplayLink: false)
+                        startsDisplayLink: false,
+                        content: { Box().background(.surface) })
     return (window, platformWindow)
 }
 

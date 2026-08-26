@@ -49,6 +49,7 @@ final class ElementLog {
 @MainActor
 struct Probe: Element, StyledElement {
     var style = Style()
+    var decoration = Decoration()
     var elementID: ElementID?
     let name: String
     let log: ElementLog

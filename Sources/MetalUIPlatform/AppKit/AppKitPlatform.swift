@@ -10,6 +10,7 @@ import MetalUIRender
 final class MetalHostView: NSView {
     var onInput: ((InputEvent) -> Bool)?
     var onGeometryChange: (() -> Void)?
+    var onAppearanceChange: (() -> Void)?
 
     private let surface: MetalLayerSurface
 
@@ -37,6 +38,21 @@ final class MetalHostView: NSView {
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         onGeometryChange?()
+    }
+
+    // Spec §7.9. AppKit calls this after `effectiveAppearance` has already
+    // changed, so the callback's reader sees the new value — this is not an
+    // "about to change" hook.
+    //
+    // **No test in this repo can see this method fire**, for the same reason
+    // none can see the layer/`wantsLayer` ordering in `init`: it is AppKit that
+    // calls it, in response to a system-wide setting no test may change. The
+    // half that *is* tested is everything downstream of the callback — see
+    // `Window`'s appearance tests, which drive `onAppearanceChange` through a
+    // fake. If you change this, toggle the appearance with the demo running.
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        onAppearanceChange?()
     }
 
     private func point(_ event: NSEvent) -> Point<Pixels> {
@@ -113,6 +129,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
 
     var onInput: ((InputEvent) -> Bool)?
     var onResize: ((Size<Pixels>, Float) -> Void)?
+    var onAppearanceChange: ((Appearance) -> Void)?
     var onClose: (() -> Void)?
 
     init(device: any MTLDevice, title: String, size: Size<Pixels>) throws {
@@ -134,6 +151,10 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         window.delegate = self
         hostView.onInput = { [weak self] event in self?.onInput?(event) ?? false }
         hostView.onGeometryChange = { [weak self] in self?.syncSurfaceGeometry() }
+        hostView.onAppearanceChange = { [weak self] in
+            guard let self else { return }
+            self.onAppearanceChange?(self.appearance)
+        }
         syncSurfaceGeometry()
     }
 
@@ -143,6 +164,16 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     }
 
     var scaleFactor: Float { Float(window.backingScaleFactor) }
+
+    /// Resolved through `bestMatch(from:)` rather than by comparing
+    /// `effectiveAppearance.name` to `.darkAqua` directly: the accessibility
+    /// high-contrast appearances (`.accessibilityHighContrastDarkAqua` and its
+    /// vibrant variants) are *dark* and would each fail an equality test,
+    /// silently painting a light theme over a dark desktop.
+    var appearance: Appearance {
+        let dark = hostView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        return dark ? .dark : .light
+    }
 
     var surface: any RenderSurface { metalSurface }
 

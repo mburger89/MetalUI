@@ -8,8 +8,23 @@ public protocol PlatformWindow: AnyObject {
     var surface: any RenderSurface { get }
     var title: String { get set }
 
+    /// The host's current colour environment (spec §7.9). Read at window
+    /// construction and re-read on every `onAppearanceChange`.
+    var appearance: Appearance { get }
+
     var onInput: ((InputEvent) -> Bool)? { get set }
     var onResize: ((Size<Pixels>, Float) -> Void)? { get set }
+    /// Fired when the host switches between light and dark (spec §7.9:
+    /// "`NSApp.effectiveAppearance` / `traitCollectionDidChange` swap the active
+    /// theme and mark §4.4's dirty flag").
+    ///
+    /// A callback carrying the new value rather than a bare "something changed":
+    /// the `appearance` getter is a live read of AppKit state, and AppKit
+    /// delivers the change notification *while* the effective appearance is
+    /// already the new one, so the two agree — but only a passed value makes
+    /// that agreement the platform's obligation rather than the caller's
+    /// assumption.
+    var onAppearanceChange: ((Appearance) -> Void)? { get set }
     var onClose: (() -> Void)? { get set }
 
     /// Begin delivering frame ticks. The callback runs on the main actor.

@@ -36,6 +36,11 @@ public struct Column<Content: ElementGroup>: Element, StyledElement {
         set { box.style = newValue }
     }
 
+    public var decoration: Decoration {
+        get { box.decoration }
+        set { box.decoration = newValue }
+    }
+
     public var elementID: ElementID? {
         get { box.elementID }
         set { box.elementID = newValue }
@@ -74,6 +79,11 @@ public struct Row<Content: ElementGroup>: Element, StyledElement {
     public var style: Style {
         get { box.style }
         set { box.style = newValue }
+    }
+
+    public var decoration: Decoration {
+        get { box.decoration }
+        set { box.decoration = newValue }
     }
 
     public var elementID: ElementID? {
