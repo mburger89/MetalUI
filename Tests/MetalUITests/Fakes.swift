@@ -3,6 +3,7 @@ import MetalUICore
 import MetalUIPlatform
 import MetalUIRender
 import simd
+@testable import MetalUI
 
 /// A `RenderSurface` that renders into a plain offscreen texture and can be
 /// told to fail. The real `MetalLayerSurface` needs a window on screen, so the
@@ -99,4 +100,28 @@ final class FakePlatformWindow: PlatformWindow {
     func setDisplayLinkPaused(_ paused: Bool) {
         pauseCalls.append(paused)
     }
+}
+
+/// A `Window` over the fakes above.
+///
+/// `Window.init` is internal, so `@testable import MetalUI` reaches it with no
+/// production change. The failure and idle paths, the resize path and the
+/// appearance path are all unreachable through `App.openWindow`: the AppKit
+/// surface only produces a drawable for a window that is actually on screen,
+/// and the appearance is a system-wide setting a test may not change.
+@MainActor
+func makeFakeWindow<Root: Element>(
+    device: any MTLDevice,
+    size: Int = 64,
+    appearance: Appearance = .light,
+    content: @escaping @MainActor () -> Root
+) throws -> (Window, FakePlatformWindow) {
+    let platformWindow = try FakePlatformWindow(device: device, size: size)
+    platformWindow.appearance = appearance
+    let renderer = try Renderer(device: device)
+    let window = Window(platformWindow: platformWindow,
+                        renderer: renderer,
+                        startsDisplayLink: false,
+                        content: content)
+    return (window, platformWindow)
 }

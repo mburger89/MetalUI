@@ -197,3 +197,82 @@ func theFrameBehindAPassIsNotReachableFromOutsideTheModule() throws {
     #expect(result.messages.contains("frame"),
             "rejected, but not for the reason this test is about:\n\(result.output)")
 }
+
+// MARK: - The theme is reachable only where a colour can be used
+
+/// §7.9's theme is "propagated through the frame context, so no element reads
+/// global state" — and the propagation stops at `PaintPass`.
+///
+/// The positive half is the load-bearing one: without it, the two negatives
+/// below pass just as well against a `Theme` that reaches no pass at all, which
+/// is a thing a refactor could plausibly do while every colour assertion in
+/// `ThemeTests` keeps passing through `Frame.theme` directly.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func readingTheThemeDuringPaintCompiles() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout PaintPass) -> Hsla {
+            pass.theme[.accent]
+        }
+        """, importing: "MetalUI")
+    #expect(result.succeeded,
+            "paint is the only phase that can consume a colour, so it must be able to read one:\n\(result.output)")
+}
+
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func readingTheThemeDuringLayoutDoesNotCompile() throws {
+    // Not a phase-ordering rule like `fill` — nothing would be *wrong* about a
+    // colour during layout, there is simply nothing in `Style` for one to go
+    // into. The guard is against the API existing with no reader, which is
+    // CLAUDE.md's inert-declaration shape. When a layout rule acquires a use for
+    // the theme, delete this test in the same change that adds the property.
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout LayoutPass) -> Hsla {
+            pass.theme[.accent]
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded)
+    #expect(result.messages.contains("theme"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
+
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func readingTheThemeDuringPrepaintDoesNotCompile() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout PrepaintPass) -> Hsla {
+            pass.theme[.accent]
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded)
+    #expect(result.messages.contains("theme"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
+
+// MARK: - A background is a token, never a literal (§7.9)
+
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func aBackgroundCannotBeWrittenAsAColourLiteral() throws {
+    // §7.9: "Colors in element code are semantic tokens … never literals." A
+    // literal would paint identically in both appearances while looking exactly
+    // like a themed call at the site, so the type is what keeps it out of reach —
+    // the same device that keeps `margin: .auto` unspellable.
+    let result = try typecheck("""
+        @MainActor func probe() -> Box<EmptyGroup> {
+            Box().background(Hsla.white)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded,
+            "background(_:) accepts a literal colour, so a call site can opt out of the theme invisibly")
+    #expect(result.messages.contains("background") || result.messages.contains("Hsla"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
+
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func aBackgroundCanBeWrittenAsAToken() throws {
+    let result = try typecheck("""
+        @MainActor func probe() -> Box<EmptyGroup> {
+            Box().background(.surfaceSecondary)
+        }
+        """, importing: "MetalUI")
+    #expect(result.succeeded,
+            "the token form must work, or the negative above proves nothing:\n\(result.output)")
+}

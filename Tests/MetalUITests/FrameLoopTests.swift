@@ -57,24 +57,18 @@ import MetalUIRender
 }
 
 // ---------------------------------------------------------------------------
-// Failure and idle paths, driven through test doubles.
+// Failure, idle and resize paths, driven through test doubles.
 //
 // The AppKit surface only produces a drawable for a window that is actually on
-// screen, so neither of these paths is reachable through `App.openWindow`.
+// screen, so none of these paths is reachable through `App.openWindow`.
 // `Window.init` is internal, so `@testable import MetalUI` can inject fakes
-// without any production change.
+// without any production change — see `makeFakeWindow` in `Fakes.swift`.
 // ---------------------------------------------------------------------------
 
 @MainActor
 private func makeWindow(device: any MTLDevice)
     throws -> (Window, FakePlatformWindow) {
-    let platformWindow = try FakePlatformWindow(device: device)
-    let renderer = try Renderer(device: device)
-    let window = Window(platformWindow: platformWindow,
-                        renderer: renderer,
-                        startsDisplayLink: false,
-                        content: { Box().background(.surface) })
-    return (window, platformWindow)
+    try makeFakeWindow(device: device) { Box().background(.surface) }
 }
 
 /// Spec 3.2: "A skipped frame never clears dirty state." A missing drawable is
@@ -127,4 +121,92 @@ private func makeWindow(device: any MTLDevice)
     let beforeDirty = platformWindow.pauseCalls.count
     window.setNeedsRedraw()
     #expect(Array(platformWindow.pauseCalls[beforeDirty...]) == [false])
+}
+
+// ---------------------------------------------------------------------------
+// Resize, and the state table's owner.
+// ---------------------------------------------------------------------------
+
+/// The brief predicted that ignoring the resize event would redden nothing.
+/// It reddens this.
+///
+/// **What it does not cover** is the half that is genuinely untestable, and it
+/// is the visible half: `AppKitWindow.syncSurfaceGeometry` resizes the
+/// `CAMetalLayer` whether or not anyone redraws, so a window whose `onResize`
+/// went nowhere would present a *correctly sized* drawable holding the previous
+/// frame's pixels — stale content, stretched or letterboxed, until some other
+/// event happened to dirty it. No test in this repo can see that; drag the demo
+/// window's corner.
+@MainActor
+@Test func resizingTheWindowDirtiesItAndTheNextFrameLaysOutAtTheNewSize() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let (window, platformWindow) = try makeWindow(device: device)
+
+    window.drawFrameIfNeeded()
+    #expect(!window.needsRedraw)
+    #expect(window.lastScene.rects[0].bounds.size.width == 64)
+    #expect(window.lastScene.rects[0].bounds.size.height == 64)
+
+    // Deliberately non-square, and neither extent equal to the old one: a
+    // square target would pass against a window that transposed the two.
+    platformWindow.simulateResize(to: Size(width: Pixels(120), height: Pixels(48)))
+    #expect(window.needsRedraw, "a resize must mark §4.4's dirty flag")
+
+    window.drawFrameIfNeeded()
+    #expect(window.framesDrawn == 2)
+    #expect(window.lastScene.rects[0].bounds.size.width == 120)
+    #expect(window.lastScene.rects[0].bounds.size.height == 48)
+}
+
+/// An element that counts how many frames it has been through, via §4.3's
+/// cross-frame state.
+@MainActor
+private struct FrameCounter: Element, StyledElement {
+    var style = Style()
+    var decoration = Decoration()
+    var elementID: ElementID? = ElementID("counter")
+    let seen: Counts
+
+    @MainActor final class Counts { var values: [Int] = [] }
+
+    func requestLayout(_ id: GlobalElementID?,
+                       pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
+        let node = pass.requestNode(style: style, children: [])
+        pass.withState(id, initial: 0) { (value: inout Int) in
+            value += 1
+            seen.values.append(value)
+        }
+        return (node, node)
+    }
+
+    func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+                  layout: inout LayoutNodeID, pass: inout PrepaintPass) {}
+
+    func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+               layout: inout LayoutNodeID, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// §4.3, at the level where it can now go wrong for the first time.
+///
+/// The `StateTable` is owned by the **window** and handed to every `Frame`. A
+/// window that let each frame construct its own would give every element fresh
+/// state on every frame — an app that silently forgets — and `Frame.init`
+/// defaults the parameter, so the mistake is one deleted argument away. Every
+/// existing state test builds a single `Frame` by hand and cannot see it.
+@MainActor
+@Test func crossFrameStateSurvivesFromOneWindowFrameToTheNext() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let counts = FrameCounter.Counts()
+    let (window, _) = try makeFakeWindow(device: device) { FrameCounter(seen: counts) }
+
+    window.drawFrameIfNeeded()
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+
+    #expect(window.framesDrawn == 3)
+    // 1, 2, 3 — not 1, 1, 1, which is what a per-frame table gives.
+    #expect(counts.values == [1, 2, 3])
 }
