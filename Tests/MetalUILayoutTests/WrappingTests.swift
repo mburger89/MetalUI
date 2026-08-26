@@ -60,7 +60,11 @@ private func line(_ mains: [Double]) -> [FlexItem] {
     let items = line([300, 50])
     let lines = collectLines(items, wrap: .wrap, containerMain: 200, gap: 0)
     #expect(lines.map(\.count) == [1, 1])
-    #expect(lines[0][0].targetMainSize == 300)
+    // Optional-chained on purpose: removing the never-empty-line guard makes
+    // this `[0, 1, 1]`, and a subscript would then TRAP — aborting the runner
+    // and hiding the other 183 results behind a crash. A mutation should fail
+    // loudly in one place, not take the suite with it.
+    #expect(lines.first?.first?.targetMainSize == 300)
 }
 
 /// A line's cross size is the largest outer cross size among its items —

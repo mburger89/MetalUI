@@ -432,7 +432,7 @@ private func layoutContainer(
     // **A `nowrap` container's single line takes the container's content-box
     // cross extent, not `lineCrossSize`.** That is §9.4.8's single-line clause
     // — a definite container cross size *is* the line's — and it is what keeps
-    // every one of the 40 committed goldens byte-identical through this
+    // every one of the goldens committed before this branch byte-identical through this
     // change. It is keyed on the wrap MODE, not on `lines.count == 1`: a
     // `wrap` container that happens to produce one line measures that line
     // from its items, which is a different (and, per CSS, correct) answer.
