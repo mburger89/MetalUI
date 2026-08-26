@@ -93,6 +93,15 @@ final class FakePlatformWindow: PlatformWindow {
         onResize?(newSize, scaleFactor)
     }
 
+    /// Deliver an input event the way `MetalHostView` does, and return what the
+    /// window said about it. AppKit reads that answer to decide whether to keep
+    /// propagating the event, so a test that ignored the return value would not
+    /// notice a window that always claimed "unhandled".
+    @discardableResult
+    func simulateInput(_ event: InputEvent) -> Bool {
+        onInput?(event) ?? false
+    }
+
     init(device: any MTLDevice, size: Int = 64) throws {
         self.fakeSurface = try FakeRenderSurface(device: device, size: size)
         self.contentSize = Size(width: Pixels(Float(size)), height: Pixels(Float(size)))
@@ -110,12 +119,22 @@ final class FakePlatformWindow: PlatformWindow {
 /// A `Window` over the fakes above.
 ///
 /// `Window.init` is internal, so `@testable import MetalUI` reaches it with no
-/// production change. The failure, idle and resize paths are unreachable through
-/// `App.openWindow` for one shared reason: the AppKit surface only produces a
-/// drawable for a window that is actually on screen. The **appearance** path is
-/// not in that list — `MetalUIPlatformTests` drives the real AppKit one — and
-/// the fake is used here only to keep a `Window` test from reaching for
-/// application-wide state.
+/// production change.
+///
+/// **Only the failure and idle paths are genuinely unreachable through
+/// `App.openWindow`**, and for one shared reason: they need a surface that
+/// refuses to vend a drawable, which the AppKit one does only for a window that
+/// is off screen. The fake supplies `failsNextFrame`.
+///
+/// **Resize and appearance are NOT in that category**, and this doc said resize
+/// was until it was measured. Both drive end to end through a real
+/// `AppKitPlatform` window, synchronously and with no run-loop spin —
+/// `aRealAppKitResizeDirtiesTheWindowAndTheNextFrameReflows` below, and
+/// `theWindowReportsAContentSizeChangeThroughOnResize` /
+/// `theWindowFollowsTheApplicationsEffectiveAppearance` in
+/// `MetalUIPlatformTests`. The fake is used for them only because it is cheaper
+/// to point at a size or an appearance than to reach through
+/// `NSApplication.shared.windows` for the `NSWindow`.
 @MainActor
 func makeFakeWindow<Root: Element>(
     device: any MTLDevice,

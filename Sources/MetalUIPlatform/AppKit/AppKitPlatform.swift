@@ -168,10 +168,21 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     var scaleFactor: Float { Float(window.backingScaleFactor) }
 
     /// Resolved through `bestMatch(from:)` rather than by comparing
-    /// `effectiveAppearance.name` to `.darkAqua` directly: the accessibility
-    /// high-contrast appearances (`.accessibilityHighContrastDarkAqua` and its
-    /// vibrant variants) are *dark* and would each fail an equality test,
-    /// silently painting a light theme over a dark desktop.
+    /// `effectiveAppearance.name` to `.darkAqua` directly.
+    ///
+    /// **An earlier version of this comment named the wrong appearance**, and
+    /// the correction is the useful part. It said the accessibility
+    /// high-contrast appearances "are *dark* and would each fail an equality
+    /// test". Probed: `.accessibilityHighContrastDarkAqua` resolves to plain
+    /// `NSAppearanceNameDarkAqua`, so equality would have handled it fine.
+    ///
+    /// The name that actually diverges is the **vibrant** one:
+    /// `.vibrantDark` and `.accessibilityHighContrastVibrantDark` both resolve
+    /// to `NSAppearanceNameVibrantDark`, which is not `.darkAqua` — so an
+    /// equality test reports **light** for a dark window, and paints a light
+    /// theme over it. `bestMatch` answers `darkAqua` for all three. Pinned by
+    /// `aVibrantDarkAppearanceIsReportedAsDark` in `PlatformTests.swift`, which
+    /// needs no system setting: the appearance is set on the `NSWindow`.
     var appearance: Appearance {
         let dark = hostView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         return dark ? .dark : .light

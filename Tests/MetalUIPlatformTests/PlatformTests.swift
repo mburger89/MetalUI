@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 import Metal
 import AppKit
 import MetalUICore
@@ -74,4 +75,82 @@ import MetalUICore
     NSApplication.shared.appearance = NSAppearance(named: .aqua)
     #expect(window.appearance == .light)
     #expect(fired == [.dark, .light])
+}
+
+/// The resize path, through a **real** `AppKitPlatform` window.
+///
+/// **This was written off as untestable and is not.** `Fakes.swift` grouped
+/// resize with the failure and idle paths as "unreachable through
+/// `App.openWindow`, because the AppKit surface only produces a drawable for a
+/// window that is actually on screen". Resize needs no drawable and no surface
+/// at all: `NSWindow.setContentSize` resizes the content view, `setFrameSize`
+/// runs `syncSurfaceGeometry`, and `onResize` fires **synchronously**. Deleting
+/// the `onResize?(…)` call left the whole suite green before this existed.
+///
+/// The size is non-square and neither extent matches the original, so a
+/// callback that transposed the axes or passed a stale `contentSize` reddens
+/// rather than passing on a coincidence.
+@MainActor
+@Test func theWindowReportsAContentSizeChangeThroughOnResize() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let platform = AppKitPlatform(device: device)
+    let title = "Resize \(UUID().uuidString)"
+    let window = try platform.openWindow(title: title,
+                                         size: Size(width: Pixels(400), height: Pixels(300)))
+    let nsWindow = try #require(NSApplication.shared.windows.first { $0.title == title })
+    defer { nsWindow.close() }
+
+    // Attached after `openWindow`, whose own init already synced geometry once.
+    var fired: [Size<Pixels>] = []
+    window.onResize = { size, _ in fired.append(size) }
+    #expect(fired.isEmpty)
+
+    nsWindow.setContentSize(NSSize(width: 320, height: 140))
+
+    #expect(fired.count == 1, "onResize did not fire, or fired more than once")
+    #expect(fired.first?.width == Pixels(320))
+    #expect(fired.first?.height == Pixels(140))
+    // The getter agrees with the payload — a callback carrying the *previous*
+    // size would satisfy neither, and one carrying a constant only this.
+    #expect(window.contentSize.width == Pixels(320))
+    #expect(window.contentSize.height == Pixels(140))
+}
+
+/// Why `appearance` uses `bestMatch(from:)` and not `effectiveAppearance.name
+/// == .darkAqua`.
+///
+/// **The comment at that property named the wrong appearance for four commits.**
+/// It blamed the accessibility high-contrast ones; probed,
+/// `.accessibilityHighContrastDarkAqua` resolves to plain
+/// `NSAppearanceNameDarkAqua`, which equality handles fine. The name that
+/// actually diverges is the **vibrant** one — it resolves to
+/// `NSAppearanceNameVibrantDark`, so an equality test would report a dark window
+/// as **light** and paint a light theme over it.
+///
+/// Needs no system setting: the appearance is set on the `NSWindow`, which is
+/// what makes this a guard rather than a second untestable assertion.
+@MainActor
+@Test func aVibrantDarkAppearanceIsReportedAsDark() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let platform = AppKitPlatform(device: device)
+    let title = "Vibrant \(UUID().uuidString)"
+    let window = try platform.openWindow(title: title,
+                                         size: Size(width: Pixels(200), height: Pixels(200)))
+    let nsWindow = try #require(NSApplication.shared.windows.first { $0.title == title })
+    defer { nsWindow.close() }
+
+    nsWindow.appearance = NSAppearance(named: .vibrantDark)
+    let effective = try #require(nsWindow.contentView?.effectiveAppearance)
+
+    // The premise, asserted rather than assumed: this appearance really is one
+    // an equality test would get wrong. Without this line the expectation below
+    // would pass just as well against a `.darkAqua` window.
+    #expect(effective.name != .darkAqua,
+            "vibrantDark no longer resolves to a distinct name, so this test has stopped testing bestMatch")
+    #expect(window.appearance == .dark)
+
+    // Both directions, so the getter is not simply hard-coded to `.dark`.
+    nsWindow.appearance = NSAppearance(named: .aqua)
+    #expect(window.appearance == .light)
 }

@@ -18,12 +18,17 @@ private func bgra(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> (UInt8, 
 /// opposite of the decision. The damage would surface a milestone later as wrong
 /// text rendering (thin, washed light-on-dark; heavy dark-on-light).
 ///
-/// **This test alone still cannot catch a flip**, and that has not changed:
-/// `renderOffscreen` reads the same constant, so the offscreen target flips with
-/// it. What has changed is that it is no longer alone —
-/// `compositingIsGammaEncodedNotLinear` at the foot of this file reads back a
-/// translucent-over-opaque composite and separates 128 from 188. This assertion
-/// stays as the statement of the decision; that one is the guard.
+/// **No *other* test in this repo catches a flip**, and the word "other" is
+/// load-bearing — a rewrite of this comment dropped it and inverted the sentence
+/// into "this test alone cannot catch a flip", which is plainly false, since the
+/// line below names the constant. M0's original was precise; this restores it.
+///
+/// The distinction it draws is the one that matters: `renderOffscreen` reads the
+/// same constant, so the offscreen target flips with it and every geometry and
+/// colour assertion in this file passes either way. An assertion that names a
+/// constant pins its *spelling*. `compositingIsGammaEncodedNotLinear` at the
+/// foot of this file is the guard on the **behaviour** — it reads back a
+/// translucent-over-opaque composite and separates 128 from 188.
 @Test @MainActor func drawableFormatIsGammaEncodedNotSRGB() {
     #expect(Renderer.pixelFormat == .bgra8Unorm)
 }
@@ -238,7 +243,7 @@ private func coverRect(_ color: Hsla, side: Float) -> MUIRect {
         scene, size: Size(width: DevicePixels(64), height: DevicePixels(64)))
 
     // Painter's order: the last rect wins. Red, not blue, and not the cleared
-    // transparent black a dropped tail would leave under the 49 blues.
+    // transparent black a dropped tail would leave under the 399 blues.
     let centre = bgra(pixels, 32, 32, width: 64)
     #expect(centre.0 > 200, "the 400th rect never reached the GPU")
     #expect(centre.1 < 40)

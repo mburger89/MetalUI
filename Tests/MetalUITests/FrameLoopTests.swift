@@ -1,4 +1,6 @@
 import Testing
+import Foundation
+import AppKit
 import Metal
 import MetalUICore
 import MetalUIRender
@@ -130,13 +132,18 @@ private func makeWindow(device: any MTLDevice)
 /// The brief predicted that ignoring the resize event would redden nothing.
 /// It reddens this.
 ///
-/// **What it does not cover** is the half that is genuinely untestable, and it
-/// is the visible half: `AppKitWindow.syncSurfaceGeometry` resizes the
-/// `CAMetalLayer` whether or not anyone redraws, so a window whose `onResize`
-/// went nowhere would present a *correctly sized* drawable holding the previous
-/// frame's pixels — stale content, stretched or letterboxed, until some other
-/// event happened to dirty it. No test in this repo can see that; drag the demo
-/// window's corner.
+/// **This one drives the fake; the real AppKit path is covered separately** by
+/// `aRealAppKitResizeDirtiesTheWindowAndTheNextFrameReflows` below. This test
+/// stays because the fake is the only way to choose an arbitrary content size
+/// without reaching through `NSApplication.shared.windows`.
+///
+/// The residual that no test reaches is **one step narrower than an earlier
+/// version of this comment claimed**. It said a window whose `onResize` went
+/// nowhere "would present a correctly sized drawable holding the previous
+/// frame's pixels — no test in this repo can see that". The first half is
+/// reachable: the test below asserts precisely that the window is dirtied and
+/// reflows. Only the last step is a display property — that the stale pixels are
+/// *visible to someone*. Drag the demo window's corner for that one.
 @MainActor
 @Test func resizingTheWindowDirtiesItAndTheNextFrameLaysOutAtTheNewSize() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
@@ -209,4 +216,113 @@ private struct FrameCounter: Element, StyledElement {
     #expect(window.framesDrawn == 3)
     // 1, 2, 3 — not 1, 1, 1, which is what a per-frame table gives.
     #expect(counts.values == [1, 2, 3])
+}
+
+/// The resize path end to end, through a **real** `AppKitPlatform` window.
+///
+/// The fake-driven test above proves `Window` reacts to an `onResize` callback.
+/// This proves the callback actually arrives, and that the frame built after it
+/// lays out at the new size — the two halves fail separately, and the AppKit
+/// half had no coverage at all: deleting `onResize?(contentSize, …)` from
+/// `syncSurfaceGeometry` left 297 tests green.
+///
+/// The scene is in `ScaledPixels`, so the expectation multiplies by the window's
+/// own backing scale rather than assuming 1 — on a Retina display a hard-coded
+/// 320 would fail for a reason that has nothing to do with resizing.
+@MainActor
+@Test func aRealAppKitResizeDirtiesTheWindowAndTheNextFrameReflows() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let app = try App(device: device)
+    let title = "Reflow \(UUID().uuidString)"
+    let window = try app.openWindow(title: title,
+                                    size: Size(width: Pixels(400), height: Pixels(300)),
+                                    startsDisplayLink: false) {
+        Box().background(.surface)
+    }
+    let nsWindow = try #require(NSApplication.shared.windows.first { $0.title == title })
+    let scale = Float(nsWindow.backingScaleFactor)
+
+    // **Do not close this window.** `App.openWindow` wires `onClose` to
+    // `NSApplication.shared.terminate` — M0's "closing the last window must end
+    // the process", since there is no app delegate and no menu bar. A tidy
+    // `defer { nsWindow.close() }` here ends the *test process* instead: the run
+    // exits 0 having silently skipped every test after this one, which is how
+    // this comment came to be written. The platform-level tests may close
+    // theirs, because `AppKitPlatform.openWindow` sets no `onClose`.
+
+    // `openWindow` paints once eagerly, so the window is already clean.
+    #expect(!window.needsRedraw)
+    #expect(window.lastScene.rects[0].bounds.size.width == 400 * scale)
+    #expect(window.lastScene.rects[0].bounds.size.height == 300 * scale)
+
+    nsWindow.setContentSize(NSSize(width: 320, height: 140))
+    #expect(window.needsRedraw, "the real AppKit resize did not reach the window")
+
+    window.drawFrameIfNeeded()
+    #expect(window.framesDrawn == 2)
+    // Non-square, and neither extent shared with the original, so a transposed
+    // or stale size reddens rather than coinciding.
+    #expect(window.lastScene.rects[0].bounds.size.width == 320 * scale)
+    #expect(window.lastScene.rects[0].bounds.size.height == 140 * scale)
+}
+
+// ---------------------------------------------------------------------------
+// `Window.onInput` — the hook the demo's theme toggle hangs off.
+// ---------------------------------------------------------------------------
+
+/// Three claims that fail separately, which is why they are asserted separately:
+/// the handler is called with the event, its answer reaches AppKit, and the
+/// window repaints regardless of that answer.
+///
+/// Dropping the forwarding and returning `false` left 297 tests green before
+/// this existed — and the demo's space-bar theme toggle, the only interactive
+/// feature in the milestone-1 exit criterion, would have died silently.
+@MainActor
+@Test func inputReachesTheHandlerAndTheAnswerReachesTheHost() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let (window, platformWindow) = try makeWindow(device: device)
+    window.drawFrameIfNeeded()
+    #expect(!window.needsRedraw)
+
+    var seen: [String] = []
+    window.onInput = { event in
+        guard case .keyDown(let key) = event else { return false }
+        seen.append(key.charactersIgnoringModifiers)
+        return key.charactersIgnoringModifiers == " "
+    }
+
+    let handled = platformWindow.simulateInput(
+        .keyDown(KeyEvent(charactersIgnoringModifiers: " ", characters: " ")))
+    #expect(seen == [" "], "the event never reached the handler")
+    #expect(handled, "the handler's answer did not reach the host, so AppKit would keep propagating a consumed event")
+    #expect(window.needsRedraw)
+
+    // Unhandled events are forwarded too, and still repaint: the window cannot
+    // know whether the handler changed anything, so it must assume it did.
+    window.drawFrameIfNeeded()
+    #expect(!window.needsRedraw)
+
+    let unhandled = platformWindow.simulateInput(
+        .keyDown(KeyEvent(charactersIgnoringModifiers: "x", characters: "x")))
+    #expect(seen == [" ", "x"])
+    #expect(!unhandled, "an unhandled event was reported as handled")
+    #expect(window.needsRedraw)
+}
+
+/// The default, with no handler attached. Without this, a `Window` that dropped
+/// input entirely would pass the test above by never being asked.
+@MainActor
+@Test func aWindowWithNoInputHandlerReportsUnhandledAndStillRepaints() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platformWindow) = try makeWindow(device: device)
+    window.drawFrameIfNeeded()
+    #expect(!window.needsRedraw)
+    #expect(window.onInput == nil)
+
+    let handled = platformWindow.simulateInput(
+        .keyDown(KeyEvent(charactersIgnoringModifiers: "q", characters: "q")))
+    #expect(!handled)
+    #expect(window.needsRedraw, "input must dirty the window even with no handler — that is how M0's redraw-on-input behaviour survives")
 }
