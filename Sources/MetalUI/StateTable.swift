@@ -1,0 +1,93 @@
+import MetalUICore
+
+/// Cross-frame state, keyed by `GlobalElementID`, marked on access and swept
+/// after each frame (spec §4.3).
+///
+/// **This dictionary plus mark-sweep IS the entire reconciliation story.** There
+/// is no diffing anywhere in this framework and there is not meant to be: §4.1
+/// rejects the retained-tree model outright, on the grounds that a reconciler —
+/// identity, keys, state migration — is where the nastiest framework bugs live.
+/// If a future change starts comparing trees, it is departing from §4.1, not
+/// optimising it.
+///
+/// What lives here is state that must survive a rebuild and cannot be recomputed
+/// from the element values: scroll offset, hover, animation progress, text
+/// selection, an in-progress drag, `MetalView` render targets (§7.7). What does
+/// *not* live here is anything `Frame` owns — that is per-frame and dies with it.
+/// The two are deliberately different objects so the distinction stays visible.
+///
+/// ## Two consequences the sweep forces
+///
+/// Both are load-bearing elsewhere in the spec, so they are recorded here, at
+/// the sweep, rather than in the section that will eventually depend on them.
+///
+/// **Accessibility identity rides this table (§9).** AX clients retain element
+/// references *across* frames, so `GlobalElementID` is the only structure that
+/// can back stable AX identity. A node an AX client still holds must therefore
+/// survive the sweep as a **tombstone that reports itself invalid**, rather than
+/// vanishing. The mechanism that would provide it does not exist here: `sweep()`
+/// removes unmarked entries outright, and there is no tombstone state, no
+/// validity flag, and no deferred-removal queue — check by grepping this file
+/// for `tombstone`, which finds only this paragraph.
+///
+/// **Exit transitions are impossible until that mechanism exists**, and this is
+/// *why* v1 does not have them (§14) rather than an oversight. An element that
+/// stops being produced has its animation state removed on that very frame, so
+/// there is nothing left to animate out of. Adding exit transitions later is a
+/// change to §4.3's sweep, not a feature bolted onto the animation system.
+@MainActor
+public final class StateTable {
+    private var storage: [GlobalElementID: Any] = [:]
+    private var marked: Set<GlobalElementID> = []
+
+    public init() {}
+
+    /// How many entries survive. Test observability; not part of the contract.
+    public var count: Int { storage.count }
+
+    /// Read-modify-write the state at `id`, creating it from `initial` on first
+    /// access, and **mark it as still live**.
+    ///
+    /// Marking happens on access rather than on production because an element
+    /// that is produced but never touches its state has nothing worth keeping —
+    /// and because `Element`'s phases have no "I exist" callback separate from
+    /// the work they do.
+    ///
+    /// An anonymous element (`id == nil`) gets a scratch value that is discarded
+    /// when this returns. It is not an error: most elements have no identity and
+    /// need none. It does mean a caller cannot tell "I have no identity" from "my
+    /// state was just created" by observing the value, which is why
+    /// `GlobalElementID.child(of:_:)` propagates `nil` down a subtree rather than
+    /// letting an anonymous element borrow its parent's path.
+    public func withState<S>(_ id: GlobalElementID?,
+                             initial: @autoclosure () -> S,
+                             _ body: (inout S) -> Void) {
+        guard let id else {
+            var scratch = initial()
+            body(&scratch)
+            return
+        }
+        marked.insert(id)
+        var value = (storage[id] as? S) ?? initial()
+        body(&value)
+        storage[id] = value
+    }
+
+    /// Read the state at `id` without marking it. Test observability: a reader
+    /// that marked would make `stateIsSweptWhenTheElementStopsBeingProduced`
+    /// pass by the act of checking it.
+    public func peek<S>(_ id: GlobalElementID, as type: S.Type = S.self) -> S? {
+        storage[id] as? S
+    }
+
+    /// Drop every entry not marked since the last sweep.
+    ///
+    /// Called once per frame, **after** the frame is built. Sweeping before
+    /// would discard every entry the previous frame established, which is the
+    /// whole point of the table; `stateSurvivesARebuildWhenTheElementIsProducedAgain`
+    /// is what notices.
+    public func sweep() {
+        storage = storage.filter { marked.contains($0.key) }
+        marked.removeAll(keepingCapacity: true)
+    }
+}
