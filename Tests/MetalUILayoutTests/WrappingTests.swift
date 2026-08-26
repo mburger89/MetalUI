@@ -198,8 +198,25 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 
     // Wrapped — `nowrap` would put all three on one line at y = 0.
     #expect(tree.layout(c).y == 40)
-    // Not reversed — CSS puts line 1 ABOVE line 0 here, i.e. `c` at y = 0
-    // and `a`/`b` at y = 210.
+    // Not reversed. CSS flips the CROSS AXIS, so cross-start becomes the
+    // container's physical BOTTOM: the lines pack upward from there and each
+    // item sits at its line's flipped cross-start, i.e. its line's bottom edge.
+    // Measured in WebKit on this exact tree, at both align-content values:
+    //
+    //     align-content: flex-start (declared above)   c 170, a 260, b 270
+    //     align-content: stretch (CSS's initial)       c  85, a 260, b 270
+    //
+    // This engine gives c 40, a 0, b 0 under either. `flex-start`'s 170 is
+    // 300 - 40 - 90; `stretch`'s 85 is 175 - 90 after both lines grow by 85.
+    // `a` and `b` differ from each other (260 vs 270) because each is pinned to
+    // its OWN bottom edge inside a 40-tall line — a detail no forward-wrapping
+    // fixture can exhibit.
+    //
+    // An earlier version of this comment claimed `c` at 0 and `a`/`b` at 210.
+    // Both were hand-derived, both are wrong under both values, and CLAUDE.md's
+    // `FlexWrap.wrapReverse` row cited this comment as naming "CSS's answer".
+    // Task 3 implements the reversal from the measured numbers above, not from
+    // that row.
     #expect(tree.layout(a).y == 0)
 }
 
@@ -428,10 +445,13 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// This is the guarantee that keeps all 40 pre-wrapping goldens byte-identical,
 /// and it is a property of §9.4.8's single-line clause (the line's cross size
 /// IS the container's content-box cross extent), not of a `flexWrap` check in
-/// the align-content code. `space-between` is the value asserted because it is
-/// the one that would visibly explode a single line if any leftover leaked in;
-/// `flexEnd` would too, and both are checked against a container far taller
-/// than its items.
+/// the align-content code. **Four values are asserted, not one** — the loop
+/// covers `spaceBetween`, `flexEnd`, `center` and `stretch` against a container
+/// far taller than its items, which are the four that move a line in four
+/// different ways if any leftover leaks in. The remaining three
+/// (`flexStart`, `spaceAround`, `spaceEvenly`) are covered transitively: a
+/// leftover of exactly 0 makes `flexStart` a no-op by definition, and the two
+/// `space-*` values collapse onto `center`'s answer at `lineCount == 1`.
 @Test func alignContentIsANoOpForNowrap() {
     for value in [AlignContent.spaceBetween, .flexEnd, .center, .stretch] {
         let tree = LayoutTree()

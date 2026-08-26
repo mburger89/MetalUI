@@ -156,9 +156,23 @@ func crossAxisOffset(_ align: AlignItems, itemCross: Double, lineCross: Double) 
 /// second copy is how the two drift apart, and every clause that switch already
 /// carries (ruling AL-4's negative-free-space clamp on the three `space-*`
 /// values, the `itemCount == 1` degeneracies) would have to be re-derived
-/// correctly here to no benefit. Mutation-checked: re-implementing the six as a
-/// parallel switch with `space-around`'s edges halved wrongly reddens the
-/// browser fixtures, so the delegation is load-bearing rather than stylistic.
+/// correctly here to no benefit.
+///
+/// **No mutation can prove that choice load-bearing, and none is claimed to.**
+/// A *correct* parallel switch is observationally identical to this delegation,
+/// so what the delegation buys is drift-resistance over time, not behaviour
+/// today — no input distinguishes them. What mutation testing does pin is
+/// narrower, and worth stating exactly rather than rounding up: corrupting a
+/// value some fixture actually declares (`space-between` divided by `lineCount`)
+/// reddens `wrapAlignContentBetweenMatchesWebKit`, so this path's distribution
+/// is **browser-pinned for `space-between`**, and via
+/// `flex_wrap_align_content_center` for `center`. `space-around` and
+/// `space-evenly` are pinned by
+/// `alignContentDistributesLeftoverCrossSpaceAmongLines` **alone**: halving
+/// their edges wrongly reddens that unit test and no fixture, because no fixture
+/// declares either value. An earlier draft of this paragraph said the browser
+/// fixtures caught it. They do not — that was the task brief's prediction,
+/// repeated here without being re-run.
 ///
 /// `stretch` is the seventh, has no `justify-content` counterpart, and is CSS's
 /// **initial value**: it grows every line rather than moving lines apart, so it
