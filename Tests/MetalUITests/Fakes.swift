@@ -3,6 +3,7 @@ import MetalUICore
 import MetalUIPlatform
 import MetalUIRender
 import simd
+@testable import MetalUI
 
 /// A `RenderSurface` that renders into a plain offscreen texture and can be
 /// told to fail. The real `MetalLayerSurface` needs a window on screen, so the
@@ -63,9 +64,43 @@ final class FakePlatformWindow: PlatformWindow {
     var surface: any RenderSurface { fakeSurface }
     var title: String = "Fake"
 
+    /// Settable, unlike AppKit's, which is a live read of `effectiveAppearance`.
+    ///
+    /// The fake is here so a `Window` test can pick an appearance without
+    /// touching application-wide state — **not** because the AppKit path is
+    /// untestable. It is:
+    /// `theWindowFollowsTheApplicationsEffectiveAppearance` in
+    /// `MetalUIPlatformTests` drives the real one through
+    /// `NSApplication.shared.appearance`.
+    var appearance: Appearance = .light
+
     var onInput: ((InputEvent) -> Bool)?
     var onResize: ((Size<Pixels>, Float) -> Void)?
+    var onAppearanceChange: ((Appearance) -> Void)?
     var onClose: (() -> Void)?
+
+    /// Change the appearance and notify, the way AppKit does: the getter already
+    /// reports the new value by the time the callback runs.
+    func simulateAppearanceChange(to newAppearance: Appearance) {
+        appearance = newAppearance
+        onAppearanceChange?(newAppearance)
+    }
+
+    /// Resize the way `AppKitWindow.syncSurfaceGeometry` does: the reported
+    /// content size is already the new one when `onResize` fires.
+    func simulateResize(to newSize: Size<Pixels>) {
+        contentSize = newSize
+        onResize?(newSize, scaleFactor)
+    }
+
+    /// Deliver an input event the way `MetalHostView` does, and return what the
+    /// window said about it. AppKit reads that answer to decide whether to keep
+    /// propagating the event, so a test that ignored the return value would not
+    /// notice a window that always claimed "unhandled".
+    @discardableResult
+    func simulateInput(_ event: InputEvent) -> Bool {
+        onInput?(event) ?? false
+    }
 
     init(device: any MTLDevice, size: Int = 64) throws {
         self.fakeSurface = try FakeRenderSurface(device: device, size: size)
@@ -79,4 +114,40 @@ final class FakePlatformWindow: PlatformWindow {
     func setDisplayLinkPaused(_ paused: Bool) {
         pauseCalls.append(paused)
     }
+}
+
+/// A `Window` over the fakes above.
+///
+/// `Window.init` is internal, so `@testable import MetalUI` reaches it with no
+/// production change.
+///
+/// **Only the failure and idle paths are genuinely unreachable through
+/// `App.openWindow`**, and for one shared reason: they need a surface that
+/// refuses to vend a drawable, which the AppKit one does only for a window that
+/// is off screen. The fake supplies `failsNextFrame`.
+///
+/// **Resize and appearance are NOT in that category**, and this doc said resize
+/// was until it was measured. Both drive end to end through a real
+/// `AppKitPlatform` window, synchronously and with no run-loop spin —
+/// `aRealAppKitResizeDirtiesTheWindowAndTheNextFrameReflows` below, and
+/// `theWindowReportsAContentSizeChangeThroughOnResize` /
+/// `theWindowFollowsTheApplicationsEffectiveAppearance` in
+/// `MetalUIPlatformTests`. The fake is used for them only because it is cheaper
+/// to point at a size or an appearance than to reach through
+/// `NSApplication.shared.windows` for the `NSWindow`.
+@MainActor
+func makeFakeWindow<Root: Element>(
+    device: any MTLDevice,
+    size: Int = 64,
+    appearance: Appearance = .light,
+    content: @escaping @MainActor () -> Root
+) throws -> (Window, FakePlatformWindow) {
+    let platformWindow = try FakePlatformWindow(device: device, size: size)
+    platformWindow.appearance = appearance
+    let renderer = try Renderer(device: device)
+    let window = Window(platformWindow: platformWindow,
+                        renderer: renderer,
+                        startsDisplayLink: false,
+                        content: content)
+    return (window, platformWindow)
 }

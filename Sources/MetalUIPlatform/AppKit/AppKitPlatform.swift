@@ -10,6 +10,7 @@ import MetalUIRender
 final class MetalHostView: NSView {
     var onInput: ((InputEvent) -> Bool)?
     var onGeometryChange: (() -> Void)?
+    var onAppearanceChange: (() -> Void)?
 
     private let surface: MetalLayerSurface
 
@@ -37,6 +38,23 @@ final class MetalHostView: NSView {
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         onGeometryChange?()
+    }
+
+    // Spec §7.9. AppKit calls this after `effectiveAppearance` has already
+    // changed, so the callback's reader sees the new value — this is not an
+    // "about to change" hook.
+    //
+    // **This method's firing IS tested**, unlike the layer/`wantsLayer` ordering
+    // in `init` above, and the distinction is worth keeping straight because an
+    // earlier version of this comment lumped the two together. Setting
+    // `NSApplication.shared.appearance` changes `effectiveAppearance` for every
+    // view under it and this override runs synchronously —
+    // `theWindowFollowsTheApplicationsEffectiveAppearance` in
+    // `PlatformTests.swift` asserts both directions. What no test can still see
+    // is whether the resulting frame lands in a drawable anyone is looking at.
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        onAppearanceChange?()
     }
 
     private func point(_ event: NSEvent) -> Point<Pixels> {
@@ -113,6 +131,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
 
     var onInput: ((InputEvent) -> Bool)?
     var onResize: ((Size<Pixels>, Float) -> Void)?
+    var onAppearanceChange: ((Appearance) -> Void)?
     var onClose: (() -> Void)?
 
     init(device: any MTLDevice, title: String, size: Size<Pixels>) throws {
@@ -127,6 +146,23 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
             backing: .buffered,
             defer: false)
         window.title = title
+        // `NSWindow(contentRect:…)` defaults `isReleasedWhenClosed` to **true**,
+        // a manual-retain-release convention that predates ARC. `window` above is
+        // a strong stored property, so ARC already owns this object: leaving the
+        // default on means `close()` sends it an extra `release` and every later
+        // reference — this property, `contentSize`, `title`, AppKit's own
+        // teardown — is to freed memory.
+        //
+        // The crash it produced is **not** at `close()`. AppKit defers the
+        // window's close animation (`_NSWindowTransformAnimation`) into an
+        // autorelease pool that CoreAnimation pops from a run-loop observer, so
+        // the over-release lands in `-[_NSWindowTransformAnimation dealloc]` ->
+        // `objc_release` -> `EXC_BAD_ACCESS` the next time the main run loop
+        // spins a CA commit. In `swift test` that is whenever a later `async`
+        // test awaits — which is why closing a window here killed the process
+        // inside the WebKit layout-oracle tests and nowhere else. See the
+        // practices doc, shape 11.
+        window.isReleasedWhenClosed = false
         window.contentView = hostView
         window.center()
 
@@ -134,6 +170,10 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         window.delegate = self
         hostView.onInput = { [weak self] event in self?.onInput?(event) ?? false }
         hostView.onGeometryChange = { [weak self] in self?.syncSurfaceGeometry() }
+        hostView.onAppearanceChange = { [weak self] in
+            guard let self else { return }
+            self.onAppearanceChange?(self.appearance)
+        }
         syncSurfaceGeometry()
     }
 
@@ -143,6 +183,27 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     }
 
     var scaleFactor: Float { Float(window.backingScaleFactor) }
+
+    /// Resolved through `bestMatch(from:)` rather than by comparing
+    /// `effectiveAppearance.name` to `.darkAqua` directly.
+    ///
+    /// **An earlier version of this comment named the wrong appearance**, and
+    /// the correction is the useful part. It said the accessibility
+    /// high-contrast appearances "are *dark* and would each fail an equality
+    /// test". Probed: `.accessibilityHighContrastDarkAqua` resolves to plain
+    /// `NSAppearanceNameDarkAqua`, so equality would have handled it fine.
+    ///
+    /// The name that actually diverges is the **vibrant** one:
+    /// `.vibrantDark` and `.accessibilityHighContrastVibrantDark` both resolve
+    /// to `NSAppearanceNameVibrantDark`, which is not `.darkAqua` — so an
+    /// equality test reports **light** for a dark window, and paints a light
+    /// theme over it. `bestMatch` answers `darkAqua` for all three. Pinned by
+    /// `aVibrantDarkAppearanceIsReportedAsDark` in `PlatformTests.swift`, which
+    /// needs no system setting: the appearance is set on the `NSWindow`.
+    var appearance: Appearance {
+        let dark = hostView.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        return dark ? .dark : .light
+    }
 
     var surface: any RenderSurface { metalSurface }
 

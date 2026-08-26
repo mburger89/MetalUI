@@ -108,23 +108,48 @@ public final class Renderer {
         // so a stereo backend's per-eye matrices work without a renderer change.
         var projection = view.projection
 
-        // NOTE (M0 limitation): `setVertexBytes`/`setFragmentBytes` copy into a
-        // 4 KB inline argument buffer. `MUIRect` is 104 bytes, so anything past
-        // roughly 39 rects is silently truncated — the draw would read garbage
-        // rather than fail. M0 draws one rect, so this holds; Milestone 1 must
-        // move the rect array to an `MTLBuffer` before scenes grow.
+        // The rect array goes through an `MTLBuffer`, not `setVertexBytes`.
+        //
+        // **The M0 note this replaces was wrong in both of its numbers, and the
+        // correction is the useful part.** It said `setVertexBytes` copies into
+        // a 4 KB inline buffer, so "anything past roughly 39 rects is silently
+        // truncated — the draw would read garbage rather than fail". Measured on
+        // this hardware, with the mutation applied and the count swept: **314
+        // rects (32,656 bytes) render correctly and 315 (32,760) abort the
+        // process** with a Metal API-validation failure. So the ceiling is an
+        // order of magnitude higher than 4 KB, and crossing it is a SIGABRT, not
+        // a silent short read. Nothing in the repo had ever run the sweep.
+        //
+        // Both halves still argue for the buffer: the ceiling is real, it is
+        // device-dependent rather than a documented constant, and 315 rects is
+        // an ordinary list. The consequence of the correction is that a guard
+        // *below* the ceiling proves nothing — `manyRectsAllReachTheGPU` draws
+        // 400 for exactly that reason.
+        //
+        // A fresh buffer per encode rather than one retained and reused: the GPU
+        // reads a buffer for as long as its command buffer is in flight, so a
+        // reused one would need a ring and a fence to avoid overwriting the
+        // frame still being drawn. `MTLCommandBuffer` retains what is bound to
+        // it, so this one lives exactly as long as it is read. Pooling is an
+        // optimisation for whoever measures the allocation, not a correctness
+        // fix.
+        let rectsLength = MemoryLayout<MUIRect>.stride * scene.rects.count
+        guard let rectBuffer = device.makeBuffer(bytes: scene.rects,
+                                                 length: rectsLength,
+                                                 options: .storageModeShared) else {
+            throw RendererError.bufferAllocationFailed
+        }
+
         encoder.setVertexBuffer(unitVertexBuffer, offset: 0,
                                 index: Int(MUIRectBufferVertices.rawValue))
-        encoder.setVertexBytes(scene.rects,
-                               length: MemoryLayout<MUIRect>.stride * scene.rects.count,
-                               index: Int(MUIRectBufferRects.rawValue))
+        encoder.setVertexBuffer(rectBuffer, offset: 0,
+                                index: Int(MUIRectBufferRects.rawValue))
         encoder.setVertexBytes(&viewport, length: MemoryLayout<MUISize>.stride,
                                index: Int(MUIRectBufferViewport.rawValue))
         encoder.setVertexBytes(&projection, length: MemoryLayout<simd_float4x4>.stride,
                                index: Int(MUIRectBufferProjection.rawValue))
-        encoder.setFragmentBytes(scene.rects,
-                                 length: MemoryLayout<MUIRect>.stride * scene.rects.count,
-                                 index: Int(MUIRectBufferRects.rawValue))
+        encoder.setFragmentBuffer(rectBuffer, offset: 0,
+                                  index: Int(MUIRectBufferRects.rawValue))
 
         encoder.drawPrimitives(type: .triangleStrip,
                                vertexStart: 0,

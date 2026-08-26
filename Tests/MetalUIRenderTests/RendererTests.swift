@@ -10,24 +10,25 @@ private func bgra(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> (UInt8, 
     return (pixels[i + 2], pixels[i + 1], pixels[i], pixels[i + 3])  // r, g, b, a
 }
 
-/// The single most load-bearing constant on this branch, and the one nothing
-/// else in the suite can catch.
+/// The single most load-bearing constant in this repo.
 ///
 /// Spec 7.8 composites in gamma-encoded sRGB. `bgra8Unorm` blends on the stored
 /// gamma-encoded values; an `_sRGB` target makes the hardware decode to linear
 /// before blending and re-encode after — which is linear compositing, the exact
-/// opposite of the decision. Flipping this constant does not fail any other
-/// test: `renderOffscreen` reads the same constant, so the offscreen target
-/// flips with it, and nothing in M0 blends translucent over opaque, which is
-/// the only thing that distinguishes the two. The damage would surface a
-/// milestone later as wrong text rendering (thin, washed light-on-dark;
-/// heavy dark-on-light) rather than as a red test here.
+/// opposite of the decision. The damage would surface a milestone later as wrong
+/// text rendering (thin, washed light-on-dark; heavy dark-on-light).
 ///
-/// The real guard, once M1 has an alpha-blending path: draw 50%-alpha white
-/// over opaque black and read back the centre. Gamma compositing (this format)
-/// gives roughly 128; linear compositing (`_sRGB`) gives roughly 188. That is
-/// not implementable in M0 — the scene has no translucent-over-opaque path to
-/// drive — so it is recorded here rather than written.
+/// **No *other* test in this repo catches a flip**, and the word "other" is
+/// load-bearing — a rewrite of this comment dropped it and inverted the sentence
+/// into "this test alone cannot catch a flip", which is plainly false, since the
+/// line below names the constant. M0's original was precise; this restores it.
+///
+/// The distinction it draws is the one that matters: `renderOffscreen` reads the
+/// same constant, so the offscreen target flips with it and every geometry and
+/// colour assertion in this file passes either way. An assertion that names a
+/// constant pins its *spelling*. `compositingIsGammaEncodedNotLinear` at the
+/// foot of this file is the guard on the **behaviour** — it reads back a
+/// translucent-over-opaque composite and separates 128 from 188.
 @Test @MainActor func drawableFormatIsGammaEncodedNotSRGB() {
     #expect(Renderer.pixelFormat == .bgra8Unorm)
 }
@@ -198,4 +199,92 @@ private func bgra(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> (UInt8, 
 
     let inField = bgra(pixels, 50, 50, width: 100)
     #expect(inField.0 < 40 && inField.3 > 200)      // black fill, still opaque
+}
+
+/// A full covering rect, for scenes that only care about what colour arrives.
+@MainActor
+private func coverRect(_ color: Hsla, side: Float) -> MUIRect {
+    let full = Bounds(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
+                      size: Size(width: ScaledPixels(side), height: ScaledPixels(side)))
+    return MUIRect(bounds: full, contentMask: full,
+                   background: color, borderColor: color,
+                   cornerRadii: Corners(all: ScaledPixels(0)),
+                   borderWidths: Edges(all: ScaledPixels(0)),
+                   order: 0)
+}
+
+/// The inline-argument ceiling that `Renderer.encode` used to sit under.
+///
+/// **400 is not a round number, it is a measured one.** This test was written
+/// at 50 first — past the 4 KB / "roughly 39 rects" figure the M0 note in
+/// `Renderer.encode` gave — and reverting the `MTLBuffer` to `setVertexBytes`
+/// left it green, because that figure was wrong. Sweeping the count under the
+/// reverted encoder: 314 rects (32,656 bytes) render correctly, 315 abort the
+/// process with a Metal API-validation failure. A guard below the real ceiling
+/// is a test that cannot fail for the thing it is named after, so this one
+/// draws 400.
+///
+/// It therefore fails **loudly** rather than red if the buffer ever goes back:
+/// the whole test process aborts. That is the honest shape of the failure, and
+/// preferable to picking a number that keeps the suite tidy and checks nothing.
+@Test @MainActor func manyRectsAllReachTheGPU() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let renderer = try Renderer(device: device)
+
+    var scene = Scene()
+    // 400 * 104 bytes = 41,600 — past the 32,7xx boundary measured above.
+    for _ in 0..<399 { scene.insert(coverRect(.rgb(0x0000FF), side: 64)) }
+    scene.insert(coverRect(.rgb(0xFF0000), side: 64))
+    scene.finalize()
+    #expect(scene.rects.count == 400)
+
+    let pixels = try renderer.renderOffscreen(
+        scene, size: Size(width: DevicePixels(64), height: DevicePixels(64)))
+
+    // Painter's order: the last rect wins. Red, not blue, and not the cleared
+    // transparent black a dropped tail would leave under the 399 blues.
+    let centre = bgra(pixels, 32, 32, width: 64)
+    #expect(centre.0 > 200, "the 400th rect never reached the GPU")
+    #expect(centre.1 < 40)
+    #expect(centre.2 < 40, "the last rect drawn is blue, so the tail of the scene was dropped")
+    #expect(centre.3 > 200)
+}
+
+/// The real guard for `Renderer.pixelFormat`, and the reason
+/// `drawableFormatIsGammaEncodedNotSRGB` above is no longer alone.
+///
+/// Spec §7.8 composites in **gamma-encoded** sRGB. Blend 50%-alpha white over
+/// opaque black: on `bgra8Unorm` the hardware blends the stored gamma-encoded
+/// values, giving 0.5 → **128**. On `bgra8Unorm_srgb` it decodes both to linear
+/// first and re-encodes after, giving 0.5 linear → **188**. Nothing else in the
+/// suite can tell the two apart, because `renderOffscreen` reads the same
+/// constant and both sides flip together.
+///
+/// **The claim that this was not implementable in M0 was wrong**, and the
+/// correction matters more than the test: it said "the scene has no
+/// translucent-over-opaque path to drive", but `Scene.insert` has always taken
+/// as many rects as you hand it and `Hsla` has always had an alpha. What was
+/// missing was not a mechanism — it was two lines of test. That is the practices
+/// doc's shape 10: a prediction about measurement, dressed as a fact about the
+/// code, which told everyone not to look.
+@Test @MainActor func compositingIsGammaEncodedNotLinear() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let renderer = try Renderer(device: device)
+
+    var scene = Scene()
+    scene.insert(coverRect(.black, side: 64))
+    scene.insert(coverRect(Hsla(h: 0, s: 0, l: 1, a: 0.5), side: 64))
+    scene.finalize()
+
+    let pixels = try renderer.renderOffscreen(
+        scene, size: Size(width: DevicePixels(64), height: DevicePixels(64)))
+    let centre = bgra(pixels, 32, 32, width: 64)
+
+    // Wide enough to absorb rounding, narrow enough to exclude 188.
+    #expect(centre.0 >= 120 && centre.0 <= 136,
+            "50% white over black composited to \(centre.0); gamma sRGB gives ~128 and linear (an _sRGB target) gives ~188")
+    #expect(centre.1 == centre.0)
+    #expect(centre.2 == centre.0)
+    #expect(centre.3 > 200, "the black underneath is opaque, so the result must be")
 }

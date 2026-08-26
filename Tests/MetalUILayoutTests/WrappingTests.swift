@@ -14,7 +14,7 @@ private func item(_ tree: LayoutTree, main: Double, cross: Double) -> LayoutNode
 
 private func line(_ mains: [Double]) -> [FlexItem] {
     mains.map {
-        FlexItem(node: LayoutNodeID(0), baseSize: $0, hypotheticalMainSize: $0,
+        FlexItem(node: LayoutNodeID(generation: 0, index: 0), baseSize: $0, hypotheticalMainSize: $0,
                  minMain: nil, maxMain: nil, targetMainSize: $0, crossSize: 10,
                  stretchEligible: false, minCross: nil, maxCross: nil,
                  frozen: false, marginMain: (0, 0), marginCross: (0, 0))
@@ -91,7 +91,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// with the default restored. The pair is the differential: one property, two
 /// answers, nothing else changed.
 @Test func stretchFillsTheItemsOwnLineNotTheContainer() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let tall = item(tree, main: 120, cross: 40)
     var autoStyle = Style()
     autoStyle.size = Size(width: px(120), height: .auto)
@@ -131,7 +131,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// the lines, and a container that used the cross component for both would
 /// break at different indices.
 @Test func rowGapSeparatesLinesAndColumnGapSeparatesItems() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = item(tree, main: 60, cross: 20)
     let b = item(tree, main: 90, cross: 35)
     let c = item(tree, main: 70, cross: 15)
@@ -188,7 +188,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// `wrapReverseUnderAlignContentStretch` is this same tree with CSS's initial
 /// value restored, and is the differential.
 @Test func wrapReverseStacksLinesFromTheCrossEnd() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = item(tree, main: 120, cross: 40)
     let b = item(tree, main: 120, cross: 30)
     let c = item(tree, main: 120, cross: 90)
@@ -230,7 +230,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// the signature of growth being distributed to LINES while the flipped
 /// cross-start of the last line remains the container's edge.
 @Test func wrapReverseUnderAlignContentStretch() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = item(tree, main: 120, cross: 40)
     let b = item(tree, main: 120, cross: 30)
     let c = item(tree, main: 120, cross: 90)
@@ -259,7 +259,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// `align-content` cannot move anything and this measures §9.6 alone):
 /// a 20 tall at `flex-start`, b 20 tall at `flex-end`, c 20 tall centred.
 @Test func wrapReverseFlipsWhatAlignItemsFlexStartMeans() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func child(_ align: AlignSelf) -> LayoutNodeID {
         var s = Style()
@@ -300,7 +300,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// `wrapReverseStacksLinesFromTheCrossEnd`, so the cross numbers are
 /// identical and only `x` moves.
 @Test func rowReverseComposesWithWrapReverseToFillFromTheBottomRight() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = item(tree, main: 120, cross: 40)
     let b = item(tree, main: 120, cross: 30)
     let c = item(tree, main: 120, cross: 90)
@@ -350,7 +350,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// including why the container is 218px and not 220.
 @Test func wrapUnevenMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_uneven")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = item(tree, main: 60,  cross: 20)
     let b = item(tree, main: 90,  cross: 35)
     let c = item(tree, main: 40,  cross: 25)
@@ -391,7 +391,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// clamp orderings are measured against a LINE rather than the container.
 @Test func wrapStretchAutoCrossMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_stretch_auto_cross")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     let a = item(tree, main: 120, cross: 40)
 
@@ -435,7 +435,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// twelve pixels too high.
 @Test func wrapWithMarginsAndPaddingMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_with_margins_and_padding")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func child(w: Double, h: Double, m: (Double, Double, Double, Double)) -> LayoutNodeID {
         var s = Style()
@@ -536,7 +536,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// line growth, or `align-content: flex-start`), 300 (stretch fills the
 /// container) and 175 (line 1's stretched size).
 @Test func aStretchedLineChangesWhatItsStretchedItemsFill() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let tall = item(tree, main: 120, cross: 40)
     var autoStyle = Style()
     autoStyle.size = Size(width: px(120), height: .auto)
@@ -577,7 +577,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// `space-*` values collapse onto `center`'s answer at `lineCount == 1`.
 @Test func alignContentIsANoOpForNowrap() {
     for value in [AlignContent.spaceBetween, .flexEnd, .center, .stretch] {
-        let tree = LayoutTree()
+        let tree = LayoutTree(generation: 0)
         let a = item(tree, main: 60, cross: 20)
         let b = item(tree, main: 90, cross: 35)
 
@@ -607,7 +607,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// already spent that `align-content` must not spend again.
 @Test func wrapAlignContentBetweenMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_align_content_between")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = item(tree, main: 80,  cross: 28)
     let b = item(tree, main: 100, cross: 40)
     let c = item(tree, main: 70,  cross: 18)
@@ -643,7 +643,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// between LINES is `column-gap` (11).
 @Test func wrapAlignContentCenterOnAColumnMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_align_content_center")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     // A column's main axis is vertical, so `main:` is the height here.
     func child(w: Double, h: Double) -> LayoutNodeID {
         var s = Style()
@@ -687,7 +687,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// than a natural one.
 @Test func wrapAlignContentStretchMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_align_content_stretch")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     let a = item(tree, main: 90, cross: 30)
 
@@ -744,7 +744,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// each — and why `.d` is the only reachable shrink case under wrapping.
 @Test func wrapGrowAndShrinkMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_grow_and_shrink")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func flexChild(grow: Float, shrink: Float, basis: Double, height: Double) -> LayoutNodeID {
         var s = Style()
@@ -782,7 +782,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// used extent gives 0 on both and packs everything at main-start.
 @Test func wrapJustifyContentIsPerLineMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_justify_between")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = item(tree, main: 80,  cross: 20)
     let b = item(tree, main: 100, cross: 30)
     let c = item(tree, main: 120, cross: 25)
@@ -814,7 +814,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// `center` with `flex-start` and `flex-end`, which fail by different amounts.
 @Test func wrapAlignItemsMeasuresTheLineMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_align_items_self")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func child(cross: Double, align: AlignSelf? = nil) -> LayoutNodeID {
         var s = Style()
@@ -854,7 +854,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// ones differ (5 and 3), so a flipped or transposed pair is visible.
 @Test func wrapRowReverseWithGapAndMarginsMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_row_reverse_gap_margin")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func child(w: Double, h: Double, m: (Double, Double, Double, Double)) -> LayoutNodeID {
         var s = Style()
@@ -893,7 +893,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// load-bearing.
 @Test func wrapMainSizingUsesResolvedAndClampedSizesMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_main_sizing")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func child(width: MetalUICore.Dimension, height: Double,
                minW: MetalUICore.Dimension = .auto,
@@ -935,7 +935,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// give four different answers and `.mid` is non-square, so none coincide.
 @Test func wrapNestedPercentPaddingMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_nested_percent_padding")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func child(w: Double, h: Double) -> LayoutNodeID {
         var s = Style()
@@ -985,7 +985,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// LINES is `column-gap` (11).
 @Test func wrapColumnReverseMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_column_reverse")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func child(w: Double, h: Double) -> LayoutNodeID {
         var s = Style()
@@ -1028,7 +1028,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// containers cannot accidentally agree.
 @Test func wrapAlignContentAroundAndEvenlyMatchWebKit() throws {
     let golden = try loadGolden("flex_wrap_align_content_around_evenly")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func child(h: Double) -> LayoutNodeID {
         var s = Style()
@@ -1078,7 +1078,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// model and are here to make that visible rather than to pin it.
 @Test func wrapReverseAlignItemsMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_reverse")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func child(h: Double, align: AlignSelf? = nil) -> LayoutNodeID {
         var s = Style()
@@ -1121,7 +1121,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// `.c` closes on y = 0 and the 12px row-gap appears as 102 - 90.
 @Test func wrapReverseAlignContentEndMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_reverse_align_content_end")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = item(tree, main: 120, cross: 40)
     let b = item(tree, main: 120, cross: 30)
     let c = item(tree, main: 120, cross: 90)
@@ -1157,7 +1157,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// its top (102 - 98) rather than following `wrap-reverse`.
 @Test func rowReverseWithWrapReverseMatchesWebKit() throws {
     let golden = try loadGolden("flex_wrap_reverse_row_reverse")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func child(w: Double, h: Double, m: (Double, Double, Double, Double)) -> LayoutNodeID {
         var s = Style()
@@ -1219,7 +1219,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// line's cross size is the container's. Wrapping is what made this observable:
 /// taxonomy shape 9.
 @Test func autoCrossNestedContainerCollapsesItsLineUnlikeWebKit() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let inner = item(tree, main: 40, cross: 50)
     var xStyle = Style()
     xStyle.flexDirection = .row

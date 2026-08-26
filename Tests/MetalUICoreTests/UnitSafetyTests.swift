@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import MetalUITestSupport
 
 // The "typed units never implicitly convert" invariant is a *negative* property:
 // it is about what must NOT compile. No ordinary test can observe it, because a
@@ -8,115 +9,58 @@ import Testing
 // shells out to `swiftc -typecheck` against the built module and asserts that each
 // illegal expression is rejected — and, to keep the guard honest, that the legal
 // ones are still accepted.
-
-/// Locates `.build/<triple>/debug/Modules` without hardcoding the triple, which
-/// differs across host architectures and SDKs.
-private func modulesDirectory() -> URL? {
-    // Tests/MetalUICoreTests/UnitSafetyTests.swift -> package root is three levels up.
-    let packageRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-    let buildDirectory = packageRoot.appendingPathComponent(".build", isDirectory: true)
-
-    let fileManager = FileManager.default
-    guard let entries = try? fileManager.contentsOfDirectory(
-        at: buildDirectory,
-        includingPropertiesForKeys: [.isDirectoryKey]
-    ) else { return nil }
-
-    // **Skip `index-build`.** SourceKit populates `.build/index-build/` for IDE
-    // indexing, using whatever toolchain the editor runs — which need not be the
-    // one running the tests. A module there compiled by Swift 6.4 makes this
-    // guard's `swiftc` invocation fail with "module compiled with Swift 6.4
-    // cannot be imported by the Swift 6.3.3 compiler", and the failure reads as
-    // a unit-safety regression rather than the environment artefact it is.
-    // Observed for real: `swift test` was green on a branch and red on the
-    // identical merged tree, purely because an editor had indexed in between.
-    let buildProducts = entries.filter { $0.lastPathComponent != "index-build" }
-
-    // Prefer a triple-qualified layout, then fall back to the unqualified one.
-    let candidates = buildProducts.map {
-        $0.appendingPathComponent("debug/Modules", isDirectory: true)
-    } + [buildDirectory.appendingPathComponent("debug/Modules", isDirectory: true)]
-
-    return candidates.first { candidate in
-        var isDirectory: ObjCBool = false
-        let exists = fileManager.fileExists(atPath: candidate.path, isDirectory: &isDirectory)
-        guard exists, isDirectory.boolValue else { return false }
-        // Only accept a directory that actually holds the module we import.
-        let contents = (try? fileManager.contentsOfDirectory(atPath: candidate.path)) ?? []
-        return contents.contains { $0.hasPrefix("MetalUICore.") }
-    }
-}
-
-/// True when the guard can run at all. Used as a runtime skip condition so a
-/// differing build layout never produces a false red.
-private func canTypecheck() -> Bool { modulesDirectory() != nil }
-
-private struct TypecheckResult {
-    var succeeded: Bool
-    var output: String
-}
-
-/// Typechecks `body` as the contents of a function in a file that imports MetalUICore.
-private func typecheck(_ body: String) throws -> TypecheckResult {
-    let modules = try #require(modulesDirectory(), "modules directory disappeared mid-test")
-
-    let fileManager = FileManager.default
-    let scratch = fileManager.temporaryDirectory
-        .appendingPathComponent("metalui-unit-safety-\(UUID().uuidString)", isDirectory: true)
-    try fileManager.createDirectory(at: scratch, withIntermediateDirectories: true)
-    defer { try? fileManager.removeItem(at: scratch) }
-
-    let source = scratch.appendingPathComponent("fixture.swift")
-    try """
-    import MetalUICore
-
-    func fixture() {
-    \(body)
-    }
-    """.write(to: source, atomically: true, encoding: .utf8)
-
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["swiftc", "-typecheck", "-I", modules.path, source.path]
-    let pipe = Pipe()
-    process.standardOutput = pipe
-    process.standardError = pipe
-    try process.run()
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    process.waitUntilExit()
-
-    return TypecheckResult(
-        succeeded: process.terminationStatus == 0,
-        output: String(data: data, encoding: .utf8) ?? ""
-    )
-}
+//
+// The machinery — `typecheck`, `modulesDirectory`, `canTypecheck` — used to be
+// `private` here. It now lives in `MetalUITestSupport` so this target and
+// `MetalUITests` share **one** copy; ruling EP-1 explains why a second copy is a
+// hazard rather than a duplication.
 
 @Test(
-    .enabled(if: canTypecheck(),
+    .enabled(if: canTypecheck(module: "MetalUICore"),
              "built module directory .build/<triple>/debug/Modules not found — unit-mixing guard skipped")
 )
 func illegalUnitExpressionsDoNotCompile() throws {
-    let illegal: [(description: String, code: String)] = [
-        ("adding Pixels to ScaledPixels", "let v = Pixels(1) + ScaledPixels(1); _ = v"),
-        ("multiplying Pixels by Pixels", "let v = Pixels(1) * Pixels(2); _ = v"),
-        ("assigning ScaledPixels to Pixels", "let v: Pixels = ScaledPixels(1); _ = v"),
-        ("comparing Pixels with ScaledPixels", "let v = Pixels(1) < ScaledPixels(2); _ = v"),
+    // Each case names the types its diagnostic must mention. **`!succeeded`
+    // alone is not enough**, and this test proved it twice: a `Pixels` ->
+    // `Pixles` typo in one fixture left it green (`cannot find 'Pixles' in
+    // scope` is a perfectly good failure to compile), and so did a poisoned
+    // `.build/index-build` module, under which *nothing* compiled and every
+    // illegal case "passed". A guard that green-lights an empty compiler is
+    // asserting nothing about units.
+    //
+    // The types are asserted rather than the message wording: `binary operator
+    // '+' cannot be applied to operands of type 'Pixels' and 'ScaledPixels'`
+    // may be reworded by a future compiler, but a rejection *about these two
+    // types* is the invariant. Note that `Pixles` contains neither `Pixels` nor
+    // `ScaledPixels`, which is what makes a fixture typo visible here.
+    let illegal: [(description: String, code: String, mentions: [String])] = [
+        ("adding Pixels to ScaledPixels",
+         "let v = Pixels(1) + ScaledPixels(1); _ = v", ["Pixels", "ScaledPixels"]),
+        ("multiplying Pixels by Pixels",
+         "let v = Pixels(1) * Pixels(2); _ = v", ["Pixels", "Float"]),
+        ("assigning ScaledPixels to Pixels",
+         "let v: Pixels = ScaledPixels(1); _ = v", ["Pixels", "ScaledPixels"]),
+        ("comparing Pixels with ScaledPixels",
+         "let v = Pixels(1) < ScaledPixels(2); _ = v", ["Pixels", "ScaledPixels"]),
     ]
 
-    for (description, code) in illegal {
-        let result = try typecheck(code)
+    for (description, code, mentions) in illegal {
+        let result = try typecheck(code, importing: "MetalUICore")
         #expect(
             !result.succeeded,
             "\(description) compiled, but must not — units are mixing implicitly.\n\(result.output)"
         )
+        for type in mentions {
+            #expect(
+                result.messages.contains(type),
+                "\(description) was rejected, but no diagnostic mentions '\(type)', so this case is not testing units — a fixture typo and a broken toolchain both land here.\n\(result.output)"
+            )
+        }
     }
 }
 
 @Test(
-    .enabled(if: canTypecheck(),
+    .enabled(if: canTypecheck(module: "MetalUICore"),
              "built module directory .build/<triple>/debug/Modules not found — unit-mixing guard skipped")
 )
 func legalUnitExpressionsStillCompile() throws {
@@ -127,7 +71,7 @@ func legalUnitExpressionsStillCompile() throws {
     ]
 
     for (description, code) in legal {
-        let result = try typecheck(code)
+        let result = try typecheck(code, importing: "MetalUICore")
         #expect(
             result.succeeded,
             "\(description) failed to compile, but must succeed — the guard itself is broken.\n\(result.output)"

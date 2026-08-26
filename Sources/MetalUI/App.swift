@@ -2,9 +2,13 @@ import Metal
 import MetalUIPlatform
 
 // MetalUI is the umbrella module: a client writes `import MetalUI` and gets the
-// geometry, unit, and colour types its content closures must name.
+// geometry, unit and colour types its elements must name, the `Style` values
+// its modifiers write, the `Scene` its paint fills, and — since the window grew
+// an `onInput` hook — the `InputEvent` that hook is handed.
 @_exported import MetalUICore
+@_exported import MetalUILayout
 @_exported import MetalUIRender
+@_exported import MetalUIPlatform
 
 #if canImport(AppKit)
 import AppKit
@@ -33,18 +37,29 @@ public final class App {
         self.platform = AppKitPlatform(device: device)
     }
 
+    /// Opens a window whose content is one root element, rebuilt every frame.
+    ///
+    /// `content` is a plain closure and **not** `@ElementBuilder`-annotated. The
+    /// builder's job is to fold several children into one group — `Pair`,
+    /// `ArrayGroup` — and a group is not an `Element`, so a two-statement block
+    /// here would fail to satisfy `Root: Element` with a diagnostic about
+    /// `Pair` rather than about the window. A window has exactly one root;
+    /// wrapping several children in a `Column` says so at the call site.
     @discardableResult
-    public func openWindow(title: String,
-                           size: Size<Pixels>,
-                           startsDisplayLink: Bool = true,
-                           content: @escaping FrameContent) throws -> Window {
+    public func openWindow<Root: Element>(
+        title: String,
+        size: Size<Pixels>,
+        startsDisplayLink: Bool = true,
+        content: @escaping @MainActor () -> Root
+    ) throws -> Window {
         let platformWindow = try platform.openWindow(title: title, size: size)
         let window = Window(platformWindow: platformWindow,
                             renderer: renderer,
-                            content: content,
-                            startsDisplayLink: startsDisplayLink)
-        // Closing the last window must end the process: M0 ships no app delegate
-        // and no menu bar, so this close button is the only way out.
+                            startsDisplayLink: startsDisplayLink,
+                            content: content)
+        // Closing the last window must end the process: there is no app delegate
+        // and no menu bar anywhere in the framework, so this close button is the
+        // only way out.
         platformWindow.onClose = {
             #if canImport(AppKit)
             NSApplication.shared.terminate(nil)
