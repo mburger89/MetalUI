@@ -96,12 +96,15 @@ func runDemo() throws {
     // Two independent ways to see the theme switch, because they fail
     // separately. The system path (§7.9) is the real one — toggle Appearance in
     // System Settings or Control Center and the window follows
-    // `NSApp.effectiveAppearance` — but **no test in this repo can see
-    // `viewDidChangeEffectiveAppearance` fire**, since AppKit calls it in
-    // response to a system-wide setting a test may not change. The space bar
-    // below sets `window.theme` directly, so a human can compare the two
-    // variants without leaving the app; a later system change overwrites it,
-    // which is the correct precedence and not a bug to chase.
+    // `NSApp.effectiveAppearance`. The space bar below sets `window.theme`
+    // directly, so a human can compare the two variants without leaving the app;
+    // a later system change overwrites it, which is the correct precedence and
+    // not a bug to chase.
+    //
+    // Both paths are covered by tests up to the point where the scene is handed
+    // to the renderer. What the demo adds, and no test can, is that the frame
+    // reaches a drawable someone is looking at — `MetalLayerSurface` vends
+    // drawables just as happily into an orphaned layer.
     window.onInput = { [weak window] event in
         guard let window,
               case .keyDown(let key) = event,

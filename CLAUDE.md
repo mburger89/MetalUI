@@ -190,7 +190,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 296 tests and 57 browser fixtures, warning-free.
+`swift build` · `swift test` — 297 tests and 57 browser fixtures, warning-free.
 Six non-test targets with strictly one-way dependencies
 (`docs/superpowers/specs/…` §3.1). **`MetalUITestSupport` is a seventh `.target`
 in `Package.swift` and is not one of them** — it lives under `Tests/`, ships in no

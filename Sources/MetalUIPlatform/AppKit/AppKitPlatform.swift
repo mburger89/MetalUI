@@ -44,12 +44,14 @@ final class MetalHostView: NSView {
     // changed, so the callback's reader sees the new value — this is not an
     // "about to change" hook.
     //
-    // **No test in this repo can see this method fire**, for the same reason
-    // none can see the layer/`wantsLayer` ordering in `init`: it is AppKit that
-    // calls it, in response to a system-wide setting no test may change. The
-    // half that *is* tested is everything downstream of the callback — see
-    // `Window`'s appearance tests, which drive `onAppearanceChange` through a
-    // fake. If you change this, toggle the appearance with the demo running.
+    // **This method's firing IS tested**, unlike the layer/`wantsLayer` ordering
+    // in `init` above, and the distinction is worth keeping straight because an
+    // earlier version of this comment lumped the two together. Setting
+    // `NSApplication.shared.appearance` changes `effectiveAppearance` for every
+    // view under it and this override runs synchronously —
+    // `theWindowFollowsTheApplicationsEffectiveAppearance` in
+    // `PlatformTests.swift` asserts both directions. What no test can still see
+    // is whether the resulting frame lands in a drawable anyone is looking at.
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         onAppearanceChange?()

@@ -64,9 +64,14 @@ final class FakePlatformWindow: PlatformWindow {
     var surface: any RenderSurface { fakeSurface }
     var title: String = "Fake"
 
-    /// Settable, unlike AppKit's — the real one is a live read of a system-wide
-    /// setting no test may change, which is why the appearance tests drive the
-    /// callback here rather than through `AppKitWindow`.
+    /// Settable, unlike AppKit's, which is a live read of `effectiveAppearance`.
+    ///
+    /// The fake is here so a `Window` test can pick an appearance without
+    /// touching application-wide state — **not** because the AppKit path is
+    /// untestable. It is:
+    /// `theWindowFollowsTheApplicationsEffectiveAppearance` in
+    /// `MetalUIPlatformTests` drives the real one through
+    /// `NSApplication.shared.appearance`.
     var appearance: Appearance = .light
 
     var onInput: ((InputEvent) -> Bool)?
@@ -105,10 +110,12 @@ final class FakePlatformWindow: PlatformWindow {
 /// A `Window` over the fakes above.
 ///
 /// `Window.init` is internal, so `@testable import MetalUI` reaches it with no
-/// production change. The failure and idle paths, the resize path and the
-/// appearance path are all unreachable through `App.openWindow`: the AppKit
-/// surface only produces a drawable for a window that is actually on screen,
-/// and the appearance is a system-wide setting a test may not change.
+/// production change. The failure, idle and resize paths are unreachable through
+/// `App.openWindow` for one shared reason: the AppKit surface only produces a
+/// drawable for a window that is actually on screen. The **appearance** path is
+/// not in that list — `MetalUIPlatformTests` drives the real AppKit one — and
+/// the fake is used here only to keep a `Window` test from reaching for
+/// application-wide state.
 @MainActor
 func makeFakeWindow<Root: Element>(
     device: any MTLDevice,

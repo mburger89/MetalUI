@@ -220,10 +220,14 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
 /// §7.9: "System appearance and accent changes swap the active theme and mark
 /// §4.4's dirty flag."
 ///
-/// **What this cannot see** is AppKit calling
-/// `viewDidChangeEffectiveAppearance` — that is a system-wide setting no test
-/// may change, so the fake drives the callback instead. If you touch
-/// `MetalHostView`, toggle the appearance with the demo running.
+/// This covers the `Window` half: callback in, theme swapped, dirty flag set,
+/// next frame repainted. The AppKit half — that
+/// `viewDidChangeEffectiveAppearance` fires at all and reports the right value —
+/// is covered separately by
+/// `theWindowFollowsTheApplicationsEffectiveAppearance` in
+/// `MetalUIPlatformTests`, which drives `NSApplication.shared.appearance`
+/// directly. The fake is used here to keep a `Window` test out of
+/// application-wide state, not because the real path resists testing.
 @MainActor
 @Test func aHostAppearanceChangeSwapsTheThemeAndRepaints() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
