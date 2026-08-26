@@ -5,8 +5,16 @@ import MetalUICore
 ///
 /// This milestone implements CSS Flexbox §9 incrementally. Right now: a single
 /// line, §9.2 flex base sizes, §9.7 grow/shrink, §9.5 justify-content packing,
-/// §9.4 cross-axis stretch, §9.6 cross-axis placement. Wrapping, `align-content`
-/// and absolute positioning arrive in later tasks, each with its own fixtures.
+/// §9.4 cross-axis stretch, §9.6 cross-axis placement, and the box model —
+/// `padding` and `border` shrink the content box (`contentBox` below),
+/// `margin` sits outside each item's border box (`collectItems`,
+/// `positionItems`). Wrapping, `align-content` and absolute positioning arrive
+/// in later tasks, each with its own fixtures.
+///
+/// Two box-model gaps remain and are recorded rather than implied: `inset` is
+/// still read by nothing (absolute positioning is its own plan), and
+/// `margin: auto` resolves to 0 instead of absorbing free space. Both have
+/// rows in CLAUDE.md's inert-API table.
 ///
 /// **Cross-axis `stretch` landed in the alignment task, and with it every golden
 /// comparison in the suite is now full-rect.** Twelve of them compared the main
@@ -22,19 +30,6 @@ import MetalUICore
 /// it its content's cross size. Every fixture in the corpus is an empty div, so
 /// no browser comparison can see it; it needs the M2 text system.
 ///
-/// **The box model is NOT implemented either.** `margin`, `padding`, `border`
-/// and `inset` are live `Style` properties, and `resolveEdges` resolves all four
-/// edges and is unit-tested, but nothing in this file ever calls it. A root with
-/// `width: 300, padding: 20, border: 5` therefore places its 50x50 child at
-/// `(0, 0)`, where CSS puts it at `(25, 25)`: child origins are never inset by
-/// the parent's padding and border, and the space offered to children is never
-/// reduced by them. This is a conspicuous gap rather than a minor one, because
-/// `border-box` sizing is the spec's headline sizing constraint (§5.2) — every
-/// size here already *claims* to include padding and border, while no code yet
-/// subtracts them to find the content box. It fails silently: wrong geometry,
-/// no error, no diagnostic, until the box-model work wires `resolveEdges` into
-/// `layoutContainer`.
-///
 /// Every rect written here is **absolute to the root**, not relative to its
 /// parent. `roundLayout` keeps no cross-rect state, so its no-drift guarantee
 /// depends entirely on receiving absolute coordinates; storing parent-relative
@@ -47,7 +42,23 @@ public func computeLayout(
 ) {
     let rootSize = resolveRootSize(tree, root, available: available, rootFontSize: rootFontSize)
     tree.setLayout(root, LayoutRect(x: 0, y: 0, width: rootSize.width, height: rootSize.height))
+    // The root's containing block is the space it was offered — ruling FS-1's
+    // "the root is a block box in the initial containing block". So the root's
+    // own percentage padding and border resolve against `available.width`, NOT
+    // against the root's resolved width: a 400-wide root inside an 800-wide
+    // viewport has `padding: 10%` of 800. Indefinite offered width means an
+    // indefinite containing block, and percentage edges then resolve to 0.
+    //
+    // `resolveRootSize` above still resolves the root's own `width: 50%`
+    // against nil rather than against this same extent — a separate, narrower
+    // divergence, recorded in CLAUDE.md; do not "fix" one by reaching into the
+    // other, they are different rules with different reach.
+    let rootContainingBlockWidth: Double? = {
+        if case .definite(let w) = available.width { return w }
+        return nil
+    }()
     layoutContainer(tree, root, containerOrigin: (0, 0), containerSize: rootSize,
+                    containingBlockWidth: rootContainingBlockWidth,
                     rootFontSize: rootFontSize)
 
     // Round last, over the finished absolute rects. Spec §5.7 designates the
@@ -147,6 +158,26 @@ struct FlexItem {
     /// §9.7 freezes an item once its size is final, and the loop stops when
     /// every item is frozen.
     var frozen: Bool
+    /// The item's resolved leading/trailing margin on the **main** axis —
+    /// `(left, right)` in a row, `(top, bottom)` in a column.
+    ///
+    /// Margins sit *outside* the border box `targetMainSize` describes; an
+    /// item's outer main extent is `marginMain.leading + targetMainSize +
+    /// marginMain.trailing`. **Two readers**, and both matter: `layoutContainer`
+    /// sums every item's pair into `totalMargin` and pre-reduces the grow
+    /// budget with it, and `positionItems` uses each item's own pair — the cursor
+    /// advances by the outer extent, and the item's own rect starts
+    /// `marginMain.leading` after the cursor.
+    var marginMain: (leading: Double, trailing: Double)
+    /// The item's resolved leading/trailing margin on the **cross** axis —
+    /// `(top, bottom)` in a row, `(left, right)` in a column.
+    ///
+    /// Read only by `positionItems`, which offsets `crossAxisOffset`'s result
+    /// by `marginCross.leading` and — per the brief — passes the *outer*
+    /// cross size (`marginCross.leading + crossSize + marginCross.trailing`)
+    /// as `crossAxisOffset`'s `itemCross`, so alignment measures the margin
+    /// box, not the border box.
+    var marginCross: (leading: Double, trailing: Double)
 }
 
 /// Resolve the **root's** own border-box size from its style, falling back to
@@ -175,6 +206,16 @@ private func resolveRootSize(
         // The root has no parent, so percentages resolve against nil (CSS
         // treats that as auto) — same as the `.unspecified` parent this
         // function used before the split.
+        //
+        // **This is knowingly asymmetric with `computeLayout`, which resolves
+        // the root's percentage PADDING against `available.width`.** Both
+        // cannot be right, and this one is the divergence: measured in WebKit,
+        // a root with `width: 50%` in an 800-wide body is **400**, while this
+        // returns nil and falls back to the offered 800. Changing it means
+        // deciding whether `available` is the initial containing block (ruling
+        // FS-1 says it is) for *sizing* as well as for insets, and moves the
+        // root's stored size, which every descendant consumes — a sizing
+        // change, not a box-model one. Recorded in CLAUDE.md's inert table.
         let resolved = resolveDimension(dim, against: nil, rootFontSize: rootFontSize)
         let lower = resolveDimension(minDim, against: nil, rootFontSize: rootFontSize)
         let upper = resolveDimension(maxDim, against: nil, rootFontSize: rootFontSize)
@@ -235,28 +276,114 @@ private func resolveNodeSize(
         height: axis(s.size.height, s.minSize.height, s.maxSize.height, parentExtent: parent.height))
 }
 
+/// A container's content box: where its children start, and how much room they get.
+///
+/// **Border-box sizing means `borderBox` is the node's stored size**, so this
+/// subtracts rather than adds. The returned origin is *relative to the
+/// container's own origin* — callers add it to the absolute origin, keeping the
+/// "all stored rects are absolute" invariant in one place.
+///
+/// Percentages in `padding` and `border` resolve against
+/// `containingBlockWidth` — the width of the box's **containing block**, on
+/// every edge including top and bottom. Two separate rules are packed into
+/// that sentence and each has its own mutation:
+///
+/// 1. **Width, not height**, even for `padding-top`/`padding-bottom`. CSS, not
+///    a simplification; `resolveEdges` documents it too, and
+///    `flex_percent_padding_nonsquare` is what distinguishes the bases (a
+///    square container cannot).
+/// 2. **The containing block's width, not this box's own.** The containing
+///    block of a flex item is its flex container's *content* box, and for the
+///    root it is the space `computeLayout` was offered. This function passed
+///    `borderBox.width` until Task 3 — the box's own size — which is wrong for
+///    every box whose width differs from its parent's content width, i.e.
+///    almost all of them. Measured against WebKit: a 200-wide `.mid` with
+///    `padding: 10%` inside a root whose content box is 270 wide gets **27**,
+///    not 20 (10% of its own width) and not 40 (10% of the root's border
+///    box). Pinned by `flex_nested_percent_padding`.
+///
+/// `nil` means the containing block is indefinite on that axis; `resolveEdges`
+/// then treats every percentage edge as 0, which is CSS's rule for an
+/// unresolvable percentage.
+private func contentBox(
+    _ tree: LayoutTree,
+    _ container: LayoutNodeID,
+    borderBox: SizeD,
+    containingBlockWidth: Double?,
+    rootFontSize: Double
+) -> (origin: (Double, Double), size: SizeD) {
+    let s = tree.style(container)
+    let padding = resolveEdges(s.padding, against: containingBlockWidth, rootFontSize: rootFontSize)
+    let border = resolveEdges(s.border, against: containingBlockWidth, rootFontSize: rootFontSize)
+
+    let leading = (padding.left + border.left, padding.top + border.top)
+    // Ruling BM-4 (CLAUDE.md's known divergences) — this is a deliberate stand-in,
+    // not a faithful CSS clamp. CSS's actual answer when padding + border
+    // exceeds the specified size on an axis is to GROW the border box itself
+    // (`box-sizing: border-box` defines the used size as
+    // `max(specified, padding + border)`), never to let the content box go
+    // negative. This function does not grow the border box — `borderBox` here
+    // is exactly the node's already-stored size, and changing it is a sizing
+    // change (`resolveNodeSize`/`flexBaseSize`) with reach well beyond this
+    // function: the freeze loop and every ancestor consume a node's stored
+    // size. `max(0, …)` is the narrower, local stand-in: it leaves the border
+    // box exactly as specified and only prevents the content box from
+    // inverting. See `containerDoesNotGrowToFitOverconstrainedPaddingUnlikeWebKit`
+    // in BoxModelTests.swift for the pinned divergence and WebKit's real numbers.
+    let size = SizeD(
+        width: max(0, borderBox.width - padding.horizontal - border.horizontal),
+        height: max(0, borderBox.height - padding.vertical - border.vertical))
+    return (leading, size)
+}
+
 /// Lay out one container: collect its items, resolve flexible lengths, position.
 private func layoutContainer(
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
     containerOrigin: (Double, Double),
     containerSize: SizeD,
+    containingBlockWidth: Double?,
     rootFontSize: Double
 ) {
-    var items = collectItems(tree, container, containerSize: containerSize,
+    // `containerSize` is the border box (§5.2). Everything below this line that
+    // concerns the children — their available space, the freeze loop's main
+    // extent, and their positioned origin and cross extent — works in the
+    // CONTENT box instead: `containerSize` must not be used for children again.
+    //
+    // `containingBlockWidth` is a THIRD width and must not be confused with
+    // either: it belongs to this container's *parent*, and its only use is as
+    // the basis for this container's own percentage padding and border.
+    let box = contentBox(tree, container, borderBox: containerSize,
+                         containingBlockWidth: containingBlockWidth,
+                         rootFontSize: rootFontSize)
+    let childOrigin = (containerOrigin.0 + box.origin.0, containerOrigin.1 + box.origin.1)
+
+    var items = collectItems(tree, container, containerSize: box.size,
                              rootFontSize: rootFontSize)
     guard !items.isEmpty else { return }
 
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
-    let containerMain = isRow ? containerSize.width : containerSize.height
+    let containerMain = isRow ? box.size.width : box.size.height
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
                             against: containerMain, rootFontSize: rootFontSize) ?? 0
 
-    resolveFlexibleLengths(tree, items: &items, containerMain: containerMain, gap: gap)
+    // §9.7 itself is untouched (`ResolveFlexibleLengths.swift` gains no margin
+    // awareness) — instead the budget it grows/shrinks into is shrunk by the
+    // items' total margin before the call, exactly the way `gap` already
+    // shrinks it inside that function. That is sound because every margin here
+    // is a fixed (non-flexible) amount: `containerMain' = containerMain -
+    // totalMargin` makes `containerMain' - totalGap - sum(targets)` equal
+    // `containerMain - totalGap - sum(outerSizes)`, the real leftover space,
+    // for any split of `targets` the freeze loop produces. `positionItems`
+    // below still uses the real, un-shrunk `containerMain` for its own
+    // free-space math (`justify-content`), because it distributes space
+    // around the outer (margin-inclusive) boxes, not the reduced budget.
+    let totalMargin = items.reduce(0.0) { $0 + $1.marginMain.leading + $1.marginMain.trailing }
+    resolveFlexibleLengths(tree, items: &items, containerMain: containerMain - totalMargin, gap: gap)
 
-    positionItems(tree, container, items: items, containerOrigin: containerOrigin,
-                  containerSize: containerSize, rootFontSize: rootFontSize)
+    positionItems(tree, container, items: items, containerOrigin: childOrigin,
+                  containerSize: box.size, rootFontSize: rootFontSize)
 }
 
 /// Phase 1 — size every item without positioning any of them.
@@ -332,6 +459,34 @@ private func collectItems(
                                            against: containerMain, rootFontSize: rootFontSize)
             let hypothetical = clamp(base, min: minMain, max: maxMain)
 
+            // Margins sit outside the border box `own`/`base` describe.
+            // Percentages resolve against the containing block's **width**,
+            // on every edge including top and bottom — CSS's rule, which
+            // `resolveMargin` (like `resolveEdges`) already implements.
+            // `containerSize` here is the CONTENT box (Task 1 threads it
+            // into `collectItems`), not the border box.
+            //
+            // Resolved BEFORE the stretch block below, not after: a stretched
+            // item's cross size must subtract `marginCross` (CSS stretches the
+            // *margin box* to fill the line, not the border box), so
+            // `marginCross` has to exist before that clamp runs. Getting this
+            // ordering backwards was fix-round-1 bug 2 — `cross =
+            // clamp(containerCross, …)` filled the whole line and then
+            // silently overflowed it by the item's own margins, undetected by
+            // any of the 153 tests at the time, because no fixture combined
+            // `auto` cross sizing with a nonzero cross margin. Pinned now by
+            // `stretchSubtractsCrossMarginsBeforeClamping` and the
+            // `flex_row_stretch_with_margins` fixture.
+            let margin = resolveMargin(ks.margin, against: containerSize.width,
+                                       rootFontSize: rootFontSize)
+            // Typed explicitly (not inferred) so `.leading`/`.trailing` are
+            // usable locally, below, before either value reaches `FlexItem`'s
+            // own labelled-tuple fields.
+            let marginMain: (leading: Double, trailing: Double) =
+                isRow ? (margin.left, margin.right) : (margin.top, margin.bottom)
+            let marginCross: (leading: Double, trailing: Double) =
+                isRow ? (margin.top, margin.bottom) : (margin.left, margin.right)
+
             // CSS Flexbox §9.4 — cross-axis stretch.
             //
             // An item stretches when its resolved alignment is `stretch` AND its
@@ -346,6 +501,16 @@ private func collectItems(
             // `crossDim` is selected per axis, not hardwired to `height`: a
             // column's cross axis is width, and `flex_column_grow_with_max`'s
             // golden holds `width: 100` for children that declare none.
+            //
+            // **Stretch fills the line's cross extent MINUS the item's own
+            // cross margins**, then clamps what is LEFT to the item's min/max —
+            // not the other way around. `min`/`max-height` describe the border
+            // box, so subtracting margins first and clamping second is the only
+            // ordering that answers "how big can the border box be" correctly;
+            // clamping the full `containerCross` first and subtracting margins
+            // after would let a `max-height` cap the MARGIN box instead, and
+            // `stretchWithMaxHeightClampsTheBorderBoxNotTheMarginBox` pins the
+            // ordering against WebKit including a `max-height` probe.
             //
             // **Content-based cross sizing is still missing**, and it is the
             // other half of §9.4. An item that is *not* stretched — because its
@@ -364,7 +529,8 @@ private func collectItems(
                                                   against: containerCross, rootFontSize: rootFontSize)
                 let upperCross = resolveDimension(isRow ? ks.maxSize.height : ks.maxSize.width,
                                                   against: containerCross, rootFontSize: rootFontSize)
-                cross = clamp(containerCross, min: lowerCross, max: upperCross)
+                let availableCross = containerCross - marginCross.leading - marginCross.trailing
+                cross = clamp(availableCross, min: lowerCross, max: upperCross)
             }
 
             // `targetMainSize:` here is dead — §9.7.2 overwrites it on every
@@ -374,7 +540,8 @@ private func collectItems(
             // See the field's declaration.
             return FlexItem(node: kid, baseSize: base, hypotheticalMainSize: hypothetical,
                             minMain: minMain, maxMain: maxMain,
-                            targetMainSize: hypothetical, crossSize: cross, frozen: false)
+                            targetMainSize: hypothetical, crossSize: cross, frozen: false,
+                            marginMain: marginMain, marginCross: marginCross)
         }
 }
 
@@ -426,11 +593,26 @@ private func positionItems(
                             against: containerMain,
                             rootFontSize: rootFontSize) ?? 0
 
-    let content = lineContentSize(items.map(\.targetMainSize), gap: gap)
+    // The line's content size counts margins — an item's OUTER main extent,
+    // not its border box — or free space is overstated and every
+    // `justify-content` value lands wrong (the space-between fixture is the
+    // browser's word on this). `lineContentSize` itself stays margin-blind
+    // ([Double] in, shared with Grid); outer sizes are computed here instead.
+    func outerMain(_ item: FlexItem) -> Double {
+        item.marginMain.leading + item.targetMainSize + item.marginMain.trailing
+    }
+    let content = lineContentSize(items.map(outerMain), gap: gap)
     let offsets = distributeMainAxis(s.justifyContent ?? .flexStart,
                                      freeSpace: containerMain - content,
                                      itemCount: items.count)
 
+    // `cursor` tracks the flex-relative start of each item's OUTER (margin)
+    // box, exactly as it tracked the border box before margins existed. The
+    // border box's own position is derived from `cursor` further down, but
+    // NOT by adding `marginMain.leading` to `cursor` itself — `marginMain` is
+    // physical, `cursor` is flex-relative, and the two must not mix before
+    // `cursor` is converted to a physical coordinate. See the conversion
+    // below for why, and for the bug that mixing them caused.
     var cursor: Double = offsets.leading
     for (index, item) in items.enumerated() {
         // Between items only.
@@ -439,16 +621,54 @@ private func positionItems(
         // CSS Flexbox §9.6 — the line's cross size is the container's cross
         // extent (single-line only; wrapping would make this the line's own
         // measured cross size instead).
+        //
+        // `crossAxisOffset` is handed the OUTER cross size — margin included
+        // — because alignment (e.g. `flex-end`) measures the margin box
+        // against the line, not the border box; the result is then nudged by
+        // the leading cross margin to land on the border box's own origin.
         let align = resolvedAlignment(tree.style(item.node), container: s)
-        let crossOffset = crossAxisOffset(align, itemCross: item.crossSize,
+        let outerCross = item.marginCross.leading + item.crossSize + item.marginCross.trailing
+        let crossOffset = crossAxisOffset(align, itemCross: outerCross,
                                           lineCross: containerCross)
+                         + item.marginCross.leading
 
-        // Convert the flex-relative cursor to a physical main-axis position.
-        // Forward: the cursor already IS the physical position. Reversed: the
-        // item's main-start sits `cursor` in from the container's flex-start,
-        // which is the container's physical main-end — so the item's physical
-        // leading edge is `containerMain - cursor - item.targetMainSize`.
-        let main = isReverse ? (containerMain - cursor - item.targetMainSize) : cursor
+        // Convert the flex-relative cursor to the OUTER box's physical
+        // main-axis position, THEN add the margin — not the other way
+        // around. `marginMain` is **physical**: `(margin.left, margin.right)`
+        // for a row, `(margin.top, margin.bottom)` for a column, unaffected
+        // by `isReverse` (CSS's `margin-left`/`margin-right` do not flip with
+        // `row-reverse`, unlike a logical property such as
+        // `margin-inline-start` — this framework has no logical properties).
+        // `marginMain.leading` is therefore always the physical-start
+        // margin. Adding it to the still-flex-relative `cursor` before
+        // reversing — the bug fix-round-1 found — silently put `margin-left`
+        // on a `row-reverse` item's physical RIGHT instead of its left,
+        // undetected by any of the 153 tests because none combined `isReverse`
+        // with a nonzero margin. Measured against WebKit
+        // (`row-reverse`, `a{w:50, ml:10, mr:30}` in a 400-wide line):
+        // WebKit puts `a.x` at 320; `cursor + marginMain.leading` first, then
+        // reversed, gave 340. Pinned now by
+        // `reverseContainersApplyMarginsToThePhysicalEdge` and the
+        // `flex_row_reverse_margins` / `flex_column_reverse_margins`
+        // fixtures — two, because a row-only fix could still transpose
+        // top/bottom on the column axis and nothing here would catch it.
+        //
+        // Forward: the OUTER box's physical main-start IS `cursor` (the
+        // container's flex-relative start already is its physical
+        // main-start), so the border box's physical start is `cursor +
+        // marginMain.leading`.
+        // Reversed: the OUTER box's flex-relative start sits `cursor` in
+        // from the container's flex-start, which is the container's
+        // physical main-END, so the OUTER box's physical start is
+        // `containerMain - cursor - outerMain(item)` — using the OUTER
+        // extent, since that whole margin box is what is being flipped to
+        // the other physical edge. The border box's physical start is then
+        // that OUTER physical start plus the physical-start margin, exactly
+        // as in the forward case: `+ marginMain.leading`.
+        let outerPhysicalStart = isReverse
+            ? (containerMain - cursor - outerMain(item))
+            : cursor
+        let main = outerPhysicalStart + item.marginMain.leading
         let x = containerOrigin.0 + (isRow ? main : crossOffset)
         let y = containerOrigin.1 + (isRow ? crossOffset : main)
         let size = isRow
@@ -456,9 +676,16 @@ private func positionItems(
             : SizeD(width: item.crossSize, height: item.targetMainSize)
 
         tree.setLayout(item.node, LayoutRect(x: x, y: y, width: size.width, height: size.height))
+        // `containerSize` here is THIS container's content box (`layoutContainer`
+        // passes `box.size`), which is exactly the item's containing block — so
+        // its width is the basis for the item's own percentage padding and
+        // border. Passing `size.width` (the item's own width) instead is the
+        // bug Task 3 found: correct only when an item happens to be as wide as
+        // its parent's content box.
         layoutContainer(tree, item.node, containerOrigin: (x, y), containerSize: size,
+                        containingBlockWidth: containerSize.width,
                         rootFontSize: rootFontSize)
 
-        cursor += item.targetMainSize
+        cursor += outerMain(item)
     }
 }

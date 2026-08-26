@@ -1,0 +1,67 @@
+{
+  "fixture" : "flex_column_padding_asymmetric",
+  "raw" : [
+    {
+      "height" : 400,
+      "id" : "root",
+      "width" : 120,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 40,
+      "id" : "a",
+      "width" : 64,
+      "x" : 24,
+      "y" : 16
+    },
+    {
+      "height" : 90,
+      "id" : "b",
+      "width" : 64,
+      "x" : 24,
+      "y" : 56
+    },
+    {
+      "height" : 60,
+      "id" : "c",
+      "width" : 64,
+      "x" : 24,
+      "y" : 146
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 400,
+      "id" : "root",
+      "width" : 120,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 40,
+      "id" : "a",
+      "width" : 64,
+      "x" : 24,
+      "y" : 16
+    },
+    {
+      "height" : 90,
+      "id" : "b",
+      "width" : 64,
+      "x" : 24,
+      "y" : 56
+    },
+    {
+      "height" : 60,
+      "id" : "c",
+      "width" : 64,
+      "x" : 24,
+      "y" : 146
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

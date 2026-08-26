@@ -41,7 +41,7 @@ Three traps worth knowing before you start:
   resource bundle but does **not** rebuild Swift's view of the C struct. Use
   `swift package clean` after header edits — `rm -rf .build` is not always enough.
 
-## The taxonomy — eight shapes, all found in this repo
+## The taxonomy — nine shapes, all found in this repo
 
 Use this as a checklist when writing tests, and as a hit list when mutating.
 
@@ -137,6 +137,42 @@ fixture hits a mystifying red and "fixes" settled arithmetic.
 
 **Rule: if an exact assertion holds, ask whether it holds for the general case or
 just for your example.**
+
+### 9. Compositions that exist in the code and not in the corpus
+
+The first four milestones of this project ended with the same result: every defect
+found was in a plan, a test, a fixture or a comment, and **none in an
+implementation**. The fifth broke that — three real correctness bugs, none visible
+to a 153-test suite:
+
+- a reverse container put `margin-left` on the item's physical *right* (WebKit
+  `a.x=320`, engine `340`);
+- a stretched item's cross size ignored cross margins, overflowing its container
+  (WebKit `50x65`, engine `50x100`);
+- percentage padding resolved against the box's **own** width rather than its
+  containing block's (WebKit `27`, engine `20`).
+
+None of the three is exotic. Each lives where **two shipped features meet**:
+reverse x margins, stretch x margins, padding x nesting. And the corpus contained
+neither pair, because it had been grown one feature at a time — every fixture added
+by the task that added the feature.
+
+That is why the earlier streak was not luck, and why it ended exactly when it did.
+A one-feature-deep task gives an implementation little room to be subtly wrong; the
+likeliest error really is in the plan. A task whose feature multiplies against
+three already-shipped ones has a combinatorial surface, and the fixture list
+inherited from single-feature work covers none of it.
+
+**The check:** when a task adds a feature, list the features already shipped that
+it interacts with, and name a fixture for each pair. Then ask of every pair you did
+not fixture: *is this untested, or untested-and-correct-by-construction?* Both of
+the first two bugs above were sitting in the second category the day before someone
+probed them — as were two further compositions a reviewer checked by hand and found
+correct, which then got fixtures rather than a footnote.
+
+**The tell in a review:** a mutation that reddens nothing, in code you are sure is
+right, usually means the composition it lives in has no fixture — not that the
+mutation is harmless.
 
 ## When *not* to add a test
 

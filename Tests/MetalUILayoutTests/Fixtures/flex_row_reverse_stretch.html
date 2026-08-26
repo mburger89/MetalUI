@@ -1,0 +1,35 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Ruling BM-5, composition 2 of 2: reverse + stretch, composed. The corpus
+     has `flex_row_reverse` (reverse with explicit cross sizes) and
+     `flex_row_stretch_mixed` (stretch in a forward row) and nothing that puts
+     the two together — the same "each feature alone" gap that hid Task 2's two
+     bugs.
+
+     Reversal is a MAIN-axis conversion and stretch is a CROSS-axis size, so
+     the composition is expected to be trivially correct; the point is that
+     nothing had checked. If reversal ever leaks into the cross axis — an
+     items-array reversal without a compensating flip, say — `.b`'s
+     `align-self: flex-end` is what notices, because flex-end is the one
+     alignment whose leading and trailing space differ.
+
+     row-reverse packs from the physical right:
+       .a  x = 400 - 50 = 350, auto height -> stretches to 100
+       .b  x = 350 - 60 = 290, height 30, align-self: flex-end -> y = 70
+       .c  x = 290 - 70 = 220, auto height clamped by max-height -> 40 at y = 0
+
+     `.c`'s `max-height` matters: without it, every stretched item is exactly
+     the container's height and a stretch that ignored the clamp would pass. */
+  #root { display: flex; flex-direction: row-reverse; width: 400px; height: 100px; }
+  .a { width: 50px; }
+  .b { width: 60px; height: 30px; align-self: flex-end; }
+  .c { width: 70px; max-height: 40px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+  </div>
+</body></html>

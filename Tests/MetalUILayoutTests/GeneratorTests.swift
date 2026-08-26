@@ -73,6 +73,20 @@ let allFixtures: [(String, CGSize)] = [
     ("flex_row_stretch_mixed",       CGSize(width: 800, height: 600)),
     ("flex_row_reverse",             CGSize(width: 800, height: 600)),
     ("flex_column_reverse_justify_end", CGSize(width: 800, height: 600)),
+    ("flex_row_padding_border",         CGSize(width: 800, height: 600)),
+    ("flex_column_padding_asymmetric",  CGSize(width: 800, height: 600)),
+    ("flex_row_margins",                CGSize(width: 800, height: 600)),
+    ("flex_row_margin_with_grow",       CGSize(width: 800, height: 600)),
+    ("flex_row_reverse_margins",        CGSize(width: 800, height: 600)),
+    ("flex_column_reverse_margins",     CGSize(width: 800, height: 600)),
+    ("flex_row_stretch_with_margins",   CGSize(width: 800, height: 600)),
+    ("flex_row_grow_space_between_margins", CGSize(width: 800, height: 600)),
+    ("flex_percent_padding_nonsquare",   CGSize(width: 800, height: 600)),
+    ("flex_nested_padding",              CGSize(width: 800, height: 600)),
+    ("flex_nested_percent_padding",      CGSize(width: 800, height: 600)),
+    ("flex_percent_child_in_padded",     CGSize(width: 800, height: 600)),
+    ("flex_row_stretch_min_height_margins", CGSize(width: 800, height: 600)),
+    ("flex_row_reverse_stretch",         CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

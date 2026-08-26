@@ -1,0 +1,53 @@
+{
+  "fixture" : "flex_percent_child_in_padded",
+  "raw" : [
+    {
+      "height" : 200,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 70,
+      "id" : "a",
+      "width" : 150,
+      "x" : 40,
+      "y" : 25
+    },
+    {
+      "height" : 35,
+      "id" : "b",
+      "width" : 60,
+      "x" : 190,
+      "y" : 25
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 200,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 70,
+      "id" : "a",
+      "width" : 150,
+      "x" : 40,
+      "y" : 25
+    },
+    {
+      "height" : 35,
+      "id" : "b",
+      "width" : 60,
+      "x" : 190,
+      "y" : 25
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

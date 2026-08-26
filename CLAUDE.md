@@ -10,12 +10,13 @@ idiomatic Swift. macOS and iOS.
 - **Decisions taken during execution:** `docs/superpowers/2026-08-25-m0-decisions.md`,
   `docs/superpowers/2026-08-25-m1a-decisions.md`,
   `docs/superpowers/2026-08-25-flex-sizing-decisions.md`,
-  `docs/superpowers/2026-08-25-alignment-decisions.md` — each ruling with its
+  `docs/superpowers/2026-08-25-alignment-decisions.md`,
+  `docs/superpowers/2026-08-25-box-model-decisions.md` — each ruling with its
   reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
   **Ruling IDs are namespaced by milestone.** `PF-3` and `C-3` belong to m1a;
-  `FS-n` to flex sizing, `AL-n` to alignment. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
+  `FS-n` to flex sizing, `AL-n` to alignment, `BM-n` to the box model. Sweep for stray citations **case-insensitively** — a `Ruling F-3` survived two branches' greps for lowercase `ruling`. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
   had one, and three code comments on the flex-sizing branch cited the wrong
   document before this was fixed. Prefix new milestones' rulings the same way.
 
@@ -23,14 +24,27 @@ idiomatic Swift. macOS and iOS.
 
 **`docs/practices/verifying-tests-can-fail.md` — read this before writing tests.**
 
-Across three milestones, every defect found during execution was in a plan, a
-spec, a test or a comment — **none in an implementation** — and essentially all of
-them were found by **mutation, not inspection**. The flex-sizing milestone alone
-produced nineteen findings, four of them the same shape: a fixture too uniform to
-distinguish the thing it claimed to pin. Before committing a fixture, delete the
-declaration it is named for, regenerate, and confirm the numbers move. That document catalogues eight shapes of test that cannot fail, all
-observed in this repo, plus the method for finding them and the cases where adding
-a test is the wrong answer.
+For three milestones, every defect found during execution was in a plan, a spec,
+a test or a comment — **none in an implementation**. **The box-model milestone
+ended that**: three real engine bugs, all of them found by mutation or by a new
+fixture's first generation, none by reading the code. Two were margin
+compositions (reverse × margins, stretch × margins); the third was percentage
+insets resolved against the wrong box, which had been green through two whole
+tasks. What did not change is *how* they were found — essentially every finding
+across all four milestones came from **mutation, not inspection**.
+
+The flex-sizing milestone alone produced nineteen findings, four of them the same
+shape: a fixture too uniform to distinguish the thing it claimed to pin. Before
+committing a fixture, change the declaration it is named for — a percentage to a
+pixel, an inset to 0 — regenerate, and confirm the numbers move. That document
+catalogues eight shapes of test that cannot fail, all observed in this repo, plus
+the method for finding them and the cases where adding a test is the wrong answer.
+
+The recurring lesson of the last two tasks has a sharper form: **a feature that
+works alone and a feature that works alone can be wrong together.** All three
+engine bugs above lived in a composition that existed in the engine and in no
+fixture. When you implement something, ask what it now composes with, and check
+that pair against the browser.
 
 ## Verified on real hardware
 
@@ -45,7 +59,7 @@ view or orphaned, so reversing the `layer` / `wantsLayer` assignment order in
 tests still pass. If you touch that ordering, re-run the demo and look at it;
 the suite will not tell you.
 
-## Two known divergences — expected, measured, not defects
+## Three known divergences — expected, measured, not defects
 
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
@@ -80,13 +94,53 @@ future WebKit fix moves nothing in the corpus and changes no test. Do not add
 one, and do not "correct" `subOneScalingNeverExceedsTheRemainingFreeSpace`
 towards WebKit — it is pinning the settled answer, not a provisional guess.
 
+**3. Ruling BM-4 — an over-constrained box does not grow to fit its padding
+and border.** CSS's `box-sizing: border-box` defines a box's used size as
+`max(specified, padding + border)`: when padding and border together exceed
+the specified width or height on an axis, the browser **grows the border box**
+to fit them rather than letting the content box go negative. This engine does
+not do that. `contentBox` (`FlexEngine.swift`) only clamps the *content* box
+to zero with `max(0, …)`; the border box stays exactly what the style
+specified.
+
+Reproduce with `width: 100px; height: 80px; padding: 60px 50px;
+border-style: solid; border-width: 10px` and one auto-sized child: **WebKit
+renders the root at 120×140**. `border-style` is not optional here — without it
+`border-width` is inert and the same snippet measures 100×120 instead, which is
+how this paragraph was wrong when first written
+(120 = 50+50+10+10 horizontal, 140 = 60+60+10+10 vertical, both exceeding the
+100×80 specified). This engine keeps the root at the specified **100×80**.
+
+Implementing WebKit's answer belongs in sizing (`resolveNodeSize`/
+`flexBaseSize`), not in `contentBox`: it would change a node's *stored* size,
+which the freeze loop and every ancestor then consume — too much reach for a
+style (padding/border larger than the box) that is already a mistake. Pinned
+by `containerDoesNotGrowToFitOverconstrainedPaddingUnlikeWebKit` in
+`BoxModelTests.swift`, with WebKit's numbers named in its comment so a future
+change here is a decision, not a surprise.
+
+**It is easier to hit by accident than "padding larger than the box" sounds**,
+because percentage padding resolves against the *containing block*, which is
+usually wider than the box. `flex_percent_padding_nonsquare`'s first draft used
+`padding: 10% 5% 4% 15%` on a 400×100 root inside an 800-wide body: that is 80
++ 32 = 112 of vertical padding against a 100px height, and WebKit duly grew the
+root to 112 tall. If a new fixture's golden shows a root taller or wider than
+its declared size, this is why — shrink the percentages rather than encoding
+the divergence into the corpus.
+
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
-exists, compiles, and does nothing. `Style` has 21 properties; **nine of them
-are read by no production code** — re-count with the grep below rather than
-trusting the number. They were declared so the model matches CSS, and the
+exists, compiles, and does nothing. `Style` has 21 properties; **six of them
+are read by no production code** — `position`, `inset`, `overflow`,
+`aspectRatio`, `flexWrap`, `alignContent`. Re-count with the grep below rather
+than trusting the number: it was nine before the box model wired `padding`,
+`border` and `margin` in. They were declared so the model matches CSS, and the
 algorithm that consumes them has not been written yet.
+
+The table is wider than that count, because a property can be read and still
+not do what its name promises — a stand-in value, or half a rule. Those rows
+are the dangerous ones.
 
 | Declared | Reality |
 |---|---|
@@ -95,8 +149,9 @@ algorithm that consumes them has not been written yet.
 | An `auto` cross size on a **non-stretched** item | **Resolves to 0, not to content.** §9.4's stretch half is implemented; its content-sizing half is not. An item whose alignment is `center`/`flex-start`/`flex-end` and whose cross size is `auto` measures 0, where CSS gives it its content's cross extent. **No fixture can catch this** — every fixture in the corpus is an empty div, for which 0 is the right answer, so `flex_row_stretch_mixed`'s `.c` agrees with WebKit at height 0 for the wrong reason. Needs the M2 text system |
 | `flexWrap` | **0 uses.** Single line, always — `collectItems` never breaks a line, so `wrap` lays out identically to `nowrap` and overflows instead |
 | `aspectRatio` | **0 uses** |
-| `padding`, `border`, `margin` (`resolveEdges`) | **0 uses in `FlexEngine`.** `resolveEdges` is fully unit-tested and has no engine caller, so the box model is ignored — a root with `padding: 20, border: 5` places its child at `(0,0)`, not `(25,25)` |
-| `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping |
+| `margin: auto` (`Style.margin`'s `.auto` case) | **Resolves to 0, not to CSS's answer.** Item margins landed in the box-model task's second step — `resolveMargin` in `Resolve.swift` shrinks the main-axis budget and offsets each item by its own margin — but `.auto` maps to 0 on the single line marked for it in that function, not to CSS's "absorb free space before `justify-content` distributes any." A `margin-left: auto` item that CSS would push to the far end of the line lays out at the line's start instead, silently. Pinned by `autoMarginsResolveToZeroForNow` in `BoxModelTests.swift`, with CSS's real answer named in its comment |
+| `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping. `grep contentMask Sources/` is not a clean 0 — `abi_probe` in `shaders.metal` reads `contentMask.size.width` to prove the field's offset survives the MSL boundary. That is the test harness, not rendering |
+| A percentage `width`/`height` on the **root** | **Falls back to the offered space, not to the percentage.** `resolveRootSize` resolves the root's percentages against `nil` and then takes `available` — so `width: 50%` in an 800-wide space gives **800**. Measured in WebKit: **400**. The root's percentage *padding* does resolve against `available.width` (see `computeLayout`), so the two halves of "the root's containing block" disagree with each other today. Fixing it moves the root's stored size, which every descendant consumes; it belongs to a sizing plan, not the box model |
 | `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
 | `MeasureFunction` / `tree.measure()` | **Two callers, never populated.** `flexBaseSize`'s content-size branch and `collectItems`' CSS Sizing §4.5 automatic-minimum probe both read it, but `newLeaf` — the only way to attach a measure function — has no production caller, so every production node's `tree.measure()` returns `nil`: `flexBaseSize` always takes its 0 fallback and `min-width: auto` always resolves to no floor. Both rules are therefore exercised **only by tests that build their own closures**, which is why `min-width: auto` has no browser fixture — see `automaticMinimumSizeUsesContentSizeNotFlexBasis` |
 | CSS Sizing §4.5's **specified size suggestion** | **Not implemented** (ruling FS-3). The automatic minimum is `min(specified suggestion, content suggestion)`; only the content half exists. Indistinguishable until something measures content in production — M2 |
@@ -113,16 +168,28 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 141 tests, warning-free. Six non-test targets with
-strictly one-way dependencies (`docs/superpowers/specs/…` §3.1).
+`swift build` · `swift test` — 171 tests and 40 browser fixtures, warning-free.
+Six non-test targets with strictly one-way dependencies
+(`docs/superpowers/specs/…` §3.1).
 
-Two constraints that are easy to violate silently:
+Three constraints that are easy to violate silently:
 
 - **`MetalUILayout` must import only `MetalUICore`.** Verify with an anchored
   pattern — an unanchored `Metal` also matches the legitimate `import MetalUICore`.
 - **Pixel format is `bgra8Unorm`, never `_sRGB`.** An `_sRGB` target makes the
   hardware blend in linear space; this framework composites in gamma-encoded sRGB
   by design (§7.8). It would look fine now and make text rendering wrong later.
+- **A percentage inset resolves against the CONTAINING BLOCK's width — not the
+  box's own width, and not a height.** Both halves of that sentence have been
+  wrong in this repo, and neither failed a test at the time. `contentBox`
+  resolved percentage `padding`/`border` against the box's own border-box width
+  until the box model's third task; WebKit puts a 200-wide `.mid { padding: 10% }`
+  inside a 270-wide content box at **27**, not 20. The vertical edges take the
+  same *width* basis, which a square container cannot distinguish — that is why
+  `flex_percent_padding_nonsquare` is 400×100 inside an 800×600 viewport, so
+  that all three candidate bases give three different answers on every edge.
+  `flex_nested_percent_padding` does the same one level down, where the
+  containing block is not the viewport.
 
 **After editing `Sources/MetalUIRender/Shaders/MetalUIShaderTypes.h`, run
 `swift package clean`.** The header reaches its C target through a symlink SwiftPM
