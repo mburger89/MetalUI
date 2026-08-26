@@ -67,19 +67,21 @@ quits the process.
 
 **That was M0's demo, and it is not what `MetalUIDemo` draws today.** The demo
 was replaced by the element pipeline's — a four-level nested flex layout of
-themed, rounded, background-filled boxes with a light/dark switch — and **that
-one has not been looked at by a human.** Two specifics of the sentence above are
-therefore stale rather than wrong: the rect it describes was inserted as an
-`MUIRect` directly, through an `App.openWindow` overload that no longer exists,
+themed, rounded, background-filled boxes with a light/dark switch — and **it was
+run and inspected by a human on 2026-08-26, who reported it works as expected**:
+the nested layout renders, it reflows live while the window is dragged, and the
+light/dark switch works. That closes milestone 1's exit criterion. Two specifics
+of the M0 sentence above are stale rather than wrong: the rect it describes was
+inserted as an `MUIRect`
+directly, through an `App.openWindow` overload that no longer exists,
 and **no element can draw a border at all.** `Frame.fill` is the only production
 path into a `Scene` and it hard-codes `borderColor: .transparent,
 borderWidths: 0`; the blocker is the resolved *width*, not the colour, and it is
 recorded at `Frame.fill`. The renderer primitive still supports borders — M0's
 demo is the proof — but nothing above the renderer can ask for one.
 
-The human-verification sentence stays because the property it establishes is
-about `AppKitPlatform`, not about what the demo draws, and **no test can
-establish it.** `MetalLayerSurface` vends drawables whether its `CAMetalLayer` is
+**What the human check establishes is a property of `AppKitPlatform`, not of
+what the demo draws — and no test can establish it.** `MetalLayerSurface` vends drawables whether its `CAMetalLayer` is
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and all 303 tests still pass. If you touch that ordering, re-run the demo
