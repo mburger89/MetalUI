@@ -11,8 +11,18 @@
 /// mitigation 1 would be silently gone with nothing red. So the guards are
 /// *type-level*: three tests in `ElementLayoutTests.swift` assert on
 /// `type(of:)`, and they are the only kind of test that can see the difference.
-/// Measured: adding `buildExpression<E: Element>(_:) -> AnyElement` here reddens
-/// exactly those three and no behavioural test at all, out of 274.
+/// Measured: adding **both** `buildExpression<E: Element>(_:) -> AnyElement` and
+/// `buildExpression(_ e: AnyElement) -> AnyElement` here reddens exactly those
+/// three and no behavioural test at all, out of 303.
+///
+/// **The second overload is not optional, and the generic one alone is no longer
+/// a measurable mutation.** `anExplicitAnyElementIsStillAcceptedAsAChild` puts an
+/// `AnyElement` inside a builder block, so `buildExpression<E: Element>` on its
+/// own demands `AnyElement: Element` — which it is not — and the suite fails to
+/// *compile* rather than turning red: `error: static method 'buildExpression'
+/// requires that 'AnyElement' conform to 'Element'`. That is a stronger guard
+/// than the measurement assumed, but it measures nothing, so a boxing mutation
+/// has to give the type checker the non-generic path as well.
 ///
 /// Every method here returns a distinct concrete type — `Pair`, `OptionalGroup`,
 /// `EitherGroup`, `ArrayGroup`, `EmptyGroup` — so `if`, `if`/`else` and `for`

@@ -43,7 +43,7 @@ func demoContent() -> some Element {
         // Body: the row that absorbs every vertical resize.
         Row(gap: Pixels(12)) {
             // Fixed-width sidebar. Its children have no width of their own and
-            // reach full width through `align-items: stretch` (ruling EP-3),
+            // reach full width through `align-items: stretch` (ruling EP-6),
             // which is also what keeps them visible: an `auto` cross size
             // resolves to 0 in this engine, so an unstretched child would paint
             // nothing at all. See CLAUDE.md's inert table.

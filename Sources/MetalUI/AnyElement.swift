@@ -66,7 +66,13 @@ import MetalUILayout
 // and its two siblings in `ElementLayoutTests.swift` are the guards, and they
 // assert on `type(of:)` because that is the only kind of assertion that can see
 // the difference — measured: a builder that boxes everything reddens those three
-// and no behavioural test at all.
+// and no behavioural test at all, out of 303.
+//
+// **The mutation that measures that has to be spelled carefully.** Adding
+// `buildExpression<E: Element>(_:) -> AnyElement` alone does not compile, because
+// `anExplicitAnyElementIsStillAcceptedAsAChild` puts an `AnyElement` in a builder
+// block and the generic overload then demands `AnyElement: Element`. Pair it with
+// a non-generic `buildExpression(_ e: AnyElement) -> AnyElement`.
 
 /// The type-erased face of `Element`: the three phases with every associated
 /// type removed.

@@ -20,7 +20,7 @@ import MetalUILayout
 /// holds no hitbox registry, no cull state, no AX node store and no overlay
 /// list, and `PrepaintPass` declares no `register…` method — check by grepping
 /// `PrepaintPass` for members, not by re-reading this paragraph. Hit-testing and
-/// focus arrive in M3, accessibility nodes in M4, overlay hoisting with §4.5.
+/// focus arrive in M3, accessibility nodes with §9, overlay hoisting with §4.5.
 /// The phase is built now because retrofitting a middle pass later would change
 /// every `Element` signature.
 ///

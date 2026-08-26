@@ -88,6 +88,16 @@ public final class LayoutTree {
     /// Drop every node but keep the allocated capacity, under a **new**
     /// generation.
     ///
+    /// **No production code calls this** — `grep -rn "\.reset(" Sources/` finds
+    /// only the precondition's own message string. The element pipeline was
+    /// expected to reset the tree each frame; `Frame` allocates a fresh
+    /// `LayoutTree` per frame instead, which is spec §4.1's model and needs no
+    /// reuse. The capacity-reuse path is therefore exercised by
+    /// `LayoutTreeTests` alone. Those four guards are kept deliberately: they
+    /// pin the contract for whoever does call it, and the contract is ruling
+    /// C-3's, which is the one this repo has already been bitten by. Carried in
+    /// CLAUDE.md's inert-API table.
+    ///
     /// The parameter is not a convenience: reuse without it is exactly ruling
     /// C-3's hazard. Ids minted before the reset stay in whatever the caller
     /// kept them in, and after a reset the array they index has been refilled

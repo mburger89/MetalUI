@@ -90,7 +90,10 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
 }
 
 extension Box where Content == EmptyGroup {
-    /// A childless box — a sized leaf until M2 brings something to put in one.
+    /// A childless box — a sized leaf. It stays childless until an element that
+    /// measures its own content exists; the framework has no leaf that reports a
+    /// content size, because `newLeaf` (the only way to attach a
+    /// `MeasureFunction`) has no production caller.
     public init(style: Style = Style(), decoration: Decoration = Decoration()) {
         self.init(style: style, decoration: decoration, content: EmptyGroup())
     }
@@ -281,8 +284,12 @@ extension StyledElement {
         }
     }
 
-    /// Border **width**, which is layout. Border colour is paint and arrives
-    /// with Task 5.
+    /// Border **width**, which is layout. **There is no border colour anywhere
+    /// in the framework**, so a border width changes where the children sit and
+    /// draws nothing: `Frame.fill` emits `borderColor: .transparent` and
+    /// `borderWidths: 0` unconditionally, and the blocker recorded there is the
+    /// *resolved width*, not the colour — the engine computes it inside
+    /// `contentBox` and discards it rather than storing it on the node.
     public func borderWidth(_ points: Pixels) -> Self {
         modifying { $0.border = Edges(all: .pixels(points)) }
     }

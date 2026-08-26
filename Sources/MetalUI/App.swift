@@ -57,8 +57,9 @@ public final class App {
                             renderer: renderer,
                             startsDisplayLink: startsDisplayLink,
                             content: content)
-        // Closing the last window must end the process: M0 ships no app delegate
-        // and no menu bar, so this close button is the only way out.
+        // Closing the last window must end the process: there is no app delegate
+        // and no menu bar anywhere in the framework, so this close button is the
+        // only way out.
         platformWindow.onClose = {
             #if canImport(AppKit)
             NSApplication.shared.terminate(nil)

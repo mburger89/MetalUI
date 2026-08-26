@@ -94,11 +94,18 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 /// **No behavioural test in this file can see this.** A builder that erased
 /// every child to `AnyElement` lays out identically, paints identically, and
 /// leaves the whole suite green while §4.6's first allocation mitigation is
-/// gone. Measured: adding `buildExpression<E: Element>(_:) -> AnyElement` to
-/// `ElementBuilder` reddens this test, `aThreeChildBlockNestsPairsRatherThanFlattening`
+/// gone. Measured: adding **both** `buildExpression<E: Element>(_:) -> AnyElement`
+/// and `buildExpression(_ e: AnyElement) -> AnyElement` to `ElementBuilder`
+/// reddens this test, `aThreeChildBlockNestsPairsRatherThanFlattening`
 /// and `controlFlowInABlockStaysUnboxed` — the three type-level tests — and
-/// **no behavioural test at all**, out of 274. That "nothing else" is the
+/// **no behavioural test at all**, out of 303. That "nothing else" is the
 /// finding, and it is what justifies asserting on a type name.
+///
+/// The generic overload alone is not a usable mutation any more: it makes the
+/// suite fail to *compile*, because `anExplicitAnyElementIsStillAcceptedAsAChild`
+/// below puts an `AnyElement` in a builder block and `buildExpression<E: Element>`
+/// then requires `AnyElement: Element`. The non-generic overload is what gives
+/// the type checker a path and turns the mutation back into a measurement.
 ///
 /// Both halves are needed. `contains("Pair")` alone passes against a
 /// `Pair<AnyElement, AnyElement>`; `!contains("AnyElement")` alone passes

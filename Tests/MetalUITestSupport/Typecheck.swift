@@ -15,7 +15,10 @@ import Foundation
 // subsystem. Ruling EP-1.
 //
 // `MetalUITestSupport` is a test-support target: it is in no product and is not
-// one of spec §3.1's seven. See the note in `Package.swift`.
+// one of spec §3.1's seven layering targets. It is the package's eighth
+// `.target`. See the note in `Package.swift` — §3.1's seven and the package's
+// seven non-test targets are two different lists that happen to have the same
+// length today.
 
 /// Locates `.build/<triple>/debug/Modules` without hardcoding the triple, which
 /// differs across host architectures and SDKs.

@@ -12,12 +12,16 @@ idiomatic Swift. macOS and iOS.
   `docs/superpowers/2026-08-25-flex-sizing-decisions.md`,
   `docs/superpowers/2026-08-25-alignment-decisions.md`,
   `docs/superpowers/2026-08-25-box-model-decisions.md`,
-  `docs/superpowers/2026-08-25-wrapping-decisions.md` — each ruling with its
-  reasoning and what it costs if wrong. Read the "Carried..." sections before
+  `docs/superpowers/2026-08-25-wrapping-decisions.md`,
+  `docs/superpowers/2026-08-26-element-pipeline-decisions.md` — each ruling with
+  its reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
   **Ruling IDs are namespaced by milestone.** `PF-3` and `C-3` belong to m1a;
-  `FS-n` to flex sizing, `AL-n` to alignment, `BM-n` to the box model, `WR-n` to wrapping. Sweep for stray citations **case-insensitively** — a `Ruling F-3` survived two branches' greps for lowercase `ruling`. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
+  `FS-n` to flex sizing, `AL-n` to alignment, `BM-n` to the box model, `WR-n` to
+  wrapping, `EP-n` to the element pipeline (**`EP-2` and `EP-4` were never
+  assigned** and must not be reused — a new ruling taking one would silently
+  rebind any citation written against the gap). Sweep for stray citations **case-insensitively** — a `Ruling F-3` survived two branches' greps for lowercase `ruling`. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
   had one, and three code comments on the flex-sizing branch cited the wrong
   document before this was fixed. Prefix new milestones' rulings the same way.
 
@@ -61,12 +65,25 @@ the numbers move" is not satisfied by predicting which numbers move. Run it.
 shows the centred rounded rect with its antialiased border, and the close button
 quits the process.
 
-That matters because it is the one property **no test can establish.**
-`MetalLayerSurface` vends drawables whether its `CAMetalLayer` is attached to the
-view or orphaned, so reversing the `layer` / `wantsLayer` assignment order in
-`AppKitPlatform` renders perfect pixels into a texture nobody sees — and all 79
-tests still pass. If you touch that ordering, re-run the demo and look at it;
-the suite will not tell you.
+**That was M0's demo, and it is not what `MetalUIDemo` draws today.** The demo
+was replaced by the element pipeline's — a four-level nested flex layout of
+themed, rounded, background-filled boxes with a light/dark switch — and **that
+one has not been looked at by a human.** Two specifics of the sentence above are
+therefore stale rather than wrong: the rect it describes was inserted as an
+`MUIRect` directly, through an `App.openWindow` overload that no longer exists,
+and **no element can draw a border at all.** `Frame.fill` is the only production
+path into a `Scene` and it hard-codes `borderColor: .transparent,
+borderWidths: 0`; the blocker is the resolved *width*, not the colour, and it is
+recorded at `Frame.fill`. The renderer primitive still supports borders — M0's
+demo is the proof — but nothing above the renderer can ask for one.
+
+The human-verification sentence stays because the property it establishes is
+about `AppKitPlatform`, not about what the demo draws, and **no test can
+establish it.** `MetalLayerSurface` vends drawables whether its `CAMetalLayer` is
+attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
+assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
+sees — and all 303 tests still pass. If you touch that ordering, re-run the demo
+and look at it; the suite will not tell you.
 
 ## Three known divergences — expected, measured, not defects
 
@@ -174,8 +191,9 @@ are the dangerous ones.
 | `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping. `grep contentMask Sources/` is not a clean 0 — `abi_probe` in `shaders.metal` reads `contentMask.size.width` to prove the field's offset survives the MSL boundary. That is the test harness, not rendering |
 | A percentage `width`/`height` on the **root** | **Falls back to the offered space, not to the percentage.** `resolveRootSize` resolves the root's percentages against `nil` and then takes `available` — so `width: 50%` in an 800-wide space gives **800**. Measured in WebKit: **400**. The root's percentage *padding* does resolve against `available.width` (see `computeLayout`), so the two halves of "the root's containing block" disagree with each other today. Fixing it moves the root's stored size, which every descendant consumes; it belongs to a sizing plan, not the box model |
 | `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
-| `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **The measurement this row used to quote is stale, and re-running it is how that was found.** It said adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder` reddens exactly the three type-level tests in that file and no behavioural test at all, out of 274. Re-run during Task 5: that mutation **no longer compiles**, because `anExplicitAnyElementIsStillAcceptedAsAChild` — added by the same Task 4 commit — puts an `AnyElement` inside a builder block, and `buildExpression<E: Element>` then demands `AnyElement: Element`, which it is not. So the guard is *stronger* than the row claimed, and the mutation has stopped measuring what it was chosen to measure. Whoever next needs the number must choose a boxing mutation that compiles. Delete this row when the static path demonstrably does not serve a real container |
+| `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **Re-measured, with a mutation that compiles.** The number this row used to quote came from adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder`, and that mutation **no longer compiles**: `anExplicitAnyElementIsStillAcceptedAsAChild` — added by the same Task 4 commit — puts an `AnyElement` inside a builder block, so the generic overload demands `AnyElement: Element`, which it is not, and the suite fails to build with `error: static method 'buildExpression' requires that 'AnyElement' conform to 'Element'`. Pairing it with a non-generic `buildExpression(_ e: AnyElement) -> AnyElement` restores the measurement: **exactly the three type-level tests in that file redden, and no behavioural test at all, out of 303.** Delete this row when the static path demonstrably does not serve a real container |
 | `MeasureFunction` / `tree.measure()` | **Two callers, never populated.** `flexBaseSize`'s content-size branch and `collectItems`' CSS Sizing §4.5 automatic-minimum probe both read it, but `newLeaf` — the only way to attach a measure function — has no production caller, so every production node's `tree.measure()` returns `nil`: `flexBaseSize` always takes its 0 fallback and `min-width: auto` always resolves to no floor. Both rules are therefore exercised **only by tests that build their own closures**, which is why `min-width: auto` has no browser fixture — see `automaticMinimumSizeUsesContentSizeNotFlexBasis` |
+| `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` matches only the string inside its own precondition message. The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
 | CSS Sizing §4.5's **specified size suggestion** | **Not implemented** (ruling FS-3). The automatic minimum is `min(specified suggestion, content suggestion)`; only the content half exists. Indistinguishable until something measures content in production — M2 |
 
 Re-check any row rather than trusting this table:
@@ -190,12 +208,23 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 302 tests and 57 browser fixtures, warning-free.
-Six non-test targets with strictly one-way dependencies
-(`docs/superpowers/specs/…` §3.1). **`MetalUITestSupport` is a seventh `.target`
-in `Package.swift` and is not one of them** — it lives under `Tests/`, ships in no
+`swift build` · `swift test` — 303 tests and 57 browser fixtures, warning-free.
+**Seven** non-test targets with strictly one-way dependencies: `MetalUICore`,
+`MetalUILayout`, `MetalUIShaderTypes`, `MetalUIRender`, `MetalUIPlatform`,
+`MetalUI`, `MetalUIDemo`. **`MetalUITestSupport` is an eighth `.target` in
+`Package.swift` and is not one of them** — it lives under `Tests/`, ships in no
 product, and holds the single copy of the `swiftc -typecheck` machinery the
-negative type-system guards shell out to (ruling EP-1).
+negative type-system guards shell out to (ruling EP-1). Count with
+`grep -cE "^ +\.(target|executableTarget)\(" Package.swift`, which returns 8
+(`.testTarget(` does not match), and subtract `MetalUITestSupport`.
+
+**Spec §3.1 also says "seven targets", and it is a different seven.** Its list is
+the module *layering* — `MetalUI`, `MetalUILayout`, **`MetalUIText`**,
+`MetalUIRender`, `MetalUIPlatform`, `MetalUICore`, `MetalUIShaderTypes` — which
+includes the text target that does not exist yet and excludes `MetalUIDemo`,
+which is an executable rather than a layer. The two counts agreeing today is a
+coincidence and it expires: when Text lands the package has eight non-test
+targets against the spec's seven. Do not "reconcile" one list to the other.
 
 Three constraints that are easy to violate silently:
 
@@ -233,8 +262,37 @@ a vanished rect that looks exactly like a shader bug.
 
 ## When CI lands
 
-Two guarantees silently lapse under plausible configurations and must be required,
-non-gateable jobs. Both are detailed in the decisions docs:
+Three guarantees silently lapse under plausible configurations and must be
+required, non-gateable jobs. All three are detailed in the decisions docs:
 
 1. The ABI probe **skips** without a Metal device.
 2. `committedGoldensMatchTheBrowser` is the only live-WebKit consumer.
+3. **The 25 `swiftc -typecheck` guards skip whenever `.build` is not where
+   `#filePath`-relative resolution expects it.** `canTypecheck`
+   (`Tests/MetalUITestSupport/Typecheck.swift`) walks three directories up from
+   its own `#filePath` and looks for `.build/<triple>/debug/Modules` holding the
+   module; a `--scratch-path`, a CI that builds elsewhere, a moved checkout, or
+   `swift test -c release` all make that miss and every guard becomes a skip.
+   **That set is this milestone's headline deliverable and both of its
+   compile-time exit criteria** — `PhaseSeparationTests` (15),
+   `ErasureCompileGuards` (7), `ElementGroupTrapTests` (1), `UnitSafetyTests` (2)
+   — and none of them has a runtime equivalent, by construction: each asserts
+   that something must *not* compile, so a regression makes the offending code
+   compile and leaves every ordinary test green.
+
+   **Taxonomy shape 11's count heuristic does not catch this one.** Measured, by
+   forcing `canTypecheck` to `false`: exactly 25 tests report as skipped, the
+   total stays `Test run with 303 tests`, and the run passes. A falling count is
+   the signal shape 11 tells you to watch, and the count does not fall.
+
+   **Not converted to a hard failure, and the reason is a configuration rather
+   than a preference.** The obvious rule — fail rather than skip when `.build`
+   exists at all — reddens `swift test -c release` on a clean checkout, where
+   `.build` exists and only `release/Modules` is populated. It also does not fire
+   in the `--scratch-path` case it is aimed at: a checkout that has ever been
+   built normally still has a populated `.build/…/debug/Modules`, so
+   `canTypecheck` returns *true* and the guards run against **stale** modules,
+   which is a worse failure than the skip and a different bug. The fix that
+   actually closes it is to resolve the modules directory from the **running
+   test binary's** own location rather than from `#filePath`, which is correct
+   under every configuration above; it was out of scope here.

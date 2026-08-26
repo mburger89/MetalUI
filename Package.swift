@@ -11,9 +11,13 @@ let package = Package(
     targets: [
         // Test-support only: the single copy of the `swiftc -typecheck` machinery
         // that the negative type-system guards shell out to (ruling EP-1). It is
-        // in **no product** and is **not** one of spec §3.1's seven targets — the
-        // count there still reconciles: MetalUICore, MetalUILayout,
-        // MetalUIShaderTypes, MetalUIRender, MetalUIPlatform, MetalUI, MetalUIDemo.
+        // in **no product** and is **not** one of spec §3.1's seven layering
+        // targets. The seven non-test targets *here* are MetalUICore,
+        // MetalUILayout, MetalUIShaderTypes, MetalUIRender, MetalUIPlatform,
+        // MetalUI and MetalUIDemo — which is not §3.1's list: that one has
+        // MetalUIText, which does not exist yet, and no MetalUIDemo, which is an
+        // executable rather than a layer. The counts matching today is a
+        // coincidence that expires when Text lands. See CLAUDE.md's Build section.
         .target(name: "MetalUITestSupport", path: "Tests/MetalUITestSupport"),
 
         .target(name: "MetalUICore"),
