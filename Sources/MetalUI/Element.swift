@@ -1,30 +1,6 @@
 import MetalUICore
 import MetalUILayout
 
-/// One component of an element's identity path.
-///
-/// **Identity semantics are not implemented here.** This type exists because
-/// spec §4.1's protocol names it; the side table keyed on a `GlobalElementID`,
-/// marked on access and swept after each frame (§4.3), is its own task. Nothing
-/// in `MetalUI` reads an `elementID` yet — `Frame.render` passes `nil` down all
-/// three phases. Recorded in CLAUDE.md's inert table so the silence at this
-/// declaration does not read as "implemented" (ruling AL-6).
-public struct ElementID: Hashable, Sendable {
-    public let name: String
-    public init(_ name: String) { self.name = name }
-}
-
-/// An element's identity: the **path** of `ElementID` components from the root,
-/// not the local id (§4.3).
-///
-/// The path is what distinguishes two elements that carry the same local id
-/// under different parents. A table keyed on the local id alone would let them
-/// share state, and no layout or paint assertion can see that.
-public struct GlobalElementID: Hashable, Sendable {
-    public var path: [ElementID]
-    public init(_ path: [ElementID]) { self.path = path }
-}
-
 /// The unit of composition: a lightweight value rebuilt every frame and walked
 /// three times (spec §4.1).
 ///
