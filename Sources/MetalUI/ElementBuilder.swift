@@ -8,10 +8,11 @@
 /// **The static path boxes nothing, and that is the whole point of this type.**
 /// A builder whose methods returned `[AnyElement]` would be a two-line change,
 /// would compile, and would pass every layout and paint assertion in the repo —
-/// mitigation 1 would be silently gone with nothing red. So the guard is a
-/// *type-level* one: `theBuilderPreservesConcreteTypesRatherThanBoxing` in
-/// `ElementLayoutTests.swift` asserts on `type(of:)`, and it is the only test
-/// that can see the difference.
+/// mitigation 1 would be silently gone with nothing red. So the guards are
+/// *type-level*: three tests in `ElementLayoutTests.swift` assert on
+/// `type(of:)`, and they are the only kind of test that can see the difference.
+/// Measured: adding `buildExpression<E: Element>(_:) -> AnyElement` here reddens
+/// exactly those three and no behavioural test at all, out of 261.
 ///
 /// Every method here returns a distinct concrete type — `Pair`, `OptionalGroup`,
 /// `EitherGroup`, `ArrayGroup`, `EmptyGroup` — so `if`, `if`/`else` and `for`

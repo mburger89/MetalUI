@@ -92,7 +92,10 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 /// every child to `AnyElement` lays out identically, paints identically, and
 /// leaves the whole suite green while §4.6's first allocation mitigation is
 /// gone. Measured: adding `buildExpression<E: Element>(_:) -> AnyElement` to
-/// `ElementBuilder` reddens this test and nothing else in 250.
+/// `ElementBuilder` reddens this test, `aThreeChildBlockNestsPairsRatherThanFlattening`
+/// and `controlFlowInABlockStaysUnboxed` — the three type-level tests — and
+/// **no behavioural test at all**, out of 261. That "nothing else" is the
+/// finding, and it is what justifies asserting on a type name.
 ///
 /// Both halves are needed. `contains("Pair")` alone passes against a
 /// `Pair<AnyElement, AnyElement>`; `!contains("AnyElement")` alone passes
@@ -346,6 +349,15 @@ private enum Fixture {
 /// A container builds its children's paths from its own, so identity is a path
 /// and not a local name.
 ///
+/// **Not a duplicate of `sameLocalIDUnderDifferentParentsDoesNotShareState`.**
+/// That one calls `GlobalElementID.child(of:_:)` and `StateTable` directly and
+/// says nothing about who calls them; this is the first test in the repo that a
+/// **production container** must satisfy — that `Box`, `Column` and `Row` derive
+/// their children's identities from their own rather than passing `nil`, their
+/// own path, or `.root` down. Measured: building the child id from `.root`
+/// instead of `parent` in `ElementGroup.swift` reddens this and nothing in
+/// `StateTableTests`.
+///
 /// The two `"leaf"` children carry the **same** local id under different
 /// parents; only a path distinguishes them, and a table keyed on the local name
 /// would give them one shared state entry with no layout or paint assertion able
@@ -377,9 +389,13 @@ private enum Fixture {
 /// Identity does not resume below an anonymous container (§4.3).
 ///
 /// `GlobalElementID.child(of:_:)` returns `nil` when either end is anonymous,
-/// and a container is an "end". Named leaf, unnamed parent, no identity — which
-/// is the rule `ElementID.swift` documents and which no container existed to
-/// exercise until now.
+/// and a container is an "end". Named leaf, unnamed parent, no identity.
+///
+/// `anIdentifiedChildOfAnAnonymousParentHasNoIdentity` pins the *rule* on the
+/// function; this pins that a real container obeys it, including the part that
+/// is easy to get wrong by being helpful — a container that substituted its own
+/// parent's path when it had no id of its own would pass every rect assertion
+/// here and quietly give two anonymous siblings' children one shared entry.
 @MainActor
 @Test func anIdentifiedChildOfAnUnnamedContainerStillHasNoIdentity() {
     let log = ElementLog()

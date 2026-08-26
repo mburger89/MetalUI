@@ -63,7 +63,10 @@ import MetalUILayout
 // ElementGroup` in `ElementGroup.swift`, the one conformance in the module that
 // boxes. It is reached only by writing `AnyElement(…)` out by hand; nothing in
 // `ElementBuilder` produces one. `theBuilderPreservesConcreteTypesRatherThanBoxing`
-// is the guard, and it is the only test that can see the difference.
+// and its two siblings in `ElementLayoutTests.swift` are the guards, and they
+// assert on `type(of:)` because that is the only kind of assertion that can see
+// the difference — measured: a builder that boxes everything reddens those three
+// and no behavioural test at all.
 
 /// The type-erased face of `Element`: the three phases with every associated
 /// type removed.
