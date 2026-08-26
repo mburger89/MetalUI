@@ -6,7 +6,7 @@
 
      Four uniformity traps are deliberately avoided, one per design choice:
 
-     1. MAIN SIZES ARE UNEVEN (60/90/40/70/50/120). All-equal widths make
+     1. MAIN SIZES ARE UNEVEN (60/90/40/25/50/120). All-equal widths make
         "break when the line is full" indistinguishable from "break every N
         items", and every line would then hold the same count.
 
@@ -18,11 +18,22 @@
         `>=`, `.c` starts a new line and everything after it shifts. Do not
         "tidy" this width to 220.
 
-     3. THE GAP IS ASYMMETRIC (row 8, column 14). Both `gap` call sites in the
-        engine read the MAIN-axis component, so a row silently dropped its
-        `row-gap` until wrapping gave it a meaning (the space between lines).
-        Equal axes would make reading the wrong one invisible — the same trap
-        `flex_row_gap`'s asymmetric `Axes` was written for.
+     3. THE GAP IS ASYMMETRIC (row 8, column 14) AND LOAD-BEARING ON BOTH
+        AXES. Both `gap` call sites in the engine read the MAIN-axis
+        component, so a row silently dropped its `row-gap` until wrapping gave
+        it a meaning (the space between lines). Equal axes would make reading
+        the wrong one invisible — the same trap `flex_row_gap`'s asymmetric
+        `Axes` was written for.
+
+        `.d` is 25px wide for the column half specifically. A gap-blind break
+        decision packs 60 + 90 + 40 + 25 = 215 <= 218 and puts FOUR items on
+        line 0, giving [4, 2] where the correct answer is [3, 2, 1]. The
+        fixture's first draft had `.d` at 70px, and dropping gaps from the
+        break decision then produced the identical line shape — the unit test
+        `gapsCountTowardTheBreakDecision` reddened and no fixture did, so
+        nothing browser-checked that WebKit counts gaps the same way we do.
+        `.d` must stay <= 28 (= 2 x 14, the gaps line 0 gives back) or that
+        blindness returns.
 
      4. NO TWO LINES HAVE THE SAME CROSS SIZE (35, 45, 30), and on line 0 the
         tallest item is the MIDDLE one while on line 1 it is the LAST. A line
@@ -45,7 +56,7 @@
   .a { width: 60px;  height: 20px; }
   .b { width: 90px;  height: 35px; }
   .c { width: 40px;  height: 25px; }
-  .d { width: 70px;  height: 15px; }
+  .d { width: 25px;  height: 15px; }
   .e { width: 50px;  height: 45px; }
   .f { width: 120px; height: 30px; }
 </style></head><body>

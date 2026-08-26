@@ -230,7 +230,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
     let a = item(tree, main: 60,  cross: 20)
     let b = item(tree, main: 90,  cross: 35)
     let c = item(tree, main: 40,  cross: 25)
-    let d = item(tree, main: 70,  cross: 15)
+    let d = item(tree, main: 25,  cross: 15)
     let e = item(tree, main: 50,  cross: 45)
     let f = item(tree, main: 120, cross: 30)
 
