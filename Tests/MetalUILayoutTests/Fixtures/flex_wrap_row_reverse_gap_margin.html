@@ -1,0 +1,63 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Wrapping x `row-reverse` x gap x margins — lines are ASSIGNED in document
+     order and PLACED right-to-left.
+
+     Probed against WebKit during the wrapping milestone's first task and left
+     uncommitted; this is the fixture that closes it.
+
+     WHAT IT PINS. CSS assigns items to lines in document order whatever the
+     direction — only placement WITHIN a line reverses. A pre-reversed item
+     array reaching `collectLines` would put [d, c] on line 0 and [b, a] on
+     line 1, and no amount of care inside the placement loop could undo it.
+     Here that mistake is visible in the SHAPE, not just the offsets: the
+     reversed array's lines would be [d, c] (used 173) and [b, a] (used 239),
+     i.e. `.a` and `.b` on the SECOND line, 39 pixels lower.
+
+     Breaks use OUTER main sizes — margins included — with column-gap 7:
+       a outer 112 (8 + 100 + 4), +7+120 = 239 <= 300, +7+96 = 342 > 300
+                                                     -> line 0 = [a, b]
+       c outer 96 (90 + 6), +7+70 = 173              -> line 1 = [c, d]
+
+     Placement, right-to-left from the container's main-END:
+       a  outer start 300 - 0   - 112 = 188 -> border box 188 + 8 = 196,
+          and its 4px right margin closes on the container's right edge at 300
+       b  outer start 300 - 119 - 120 =  61 -> 61; 181 to 188 is the 7px gap
+       c  outer start 300 - 0   -  96 = 204 -> 204, 6px right margin -> 300
+       d  outer start 300 - 103 -  70 = 127 -> 127
+
+     MARGINS ARE PHYSICAL AND DO NOT FLIP. `margin-left` stays on the item's
+     physical LEFT under `row-reverse` (CSS has no logical margins here), which
+     is why `.a`'s 8px shows up as `196 - 188` on the item's left and not as a
+     gap on its right. `.a`'s two horizontal margins are DIFFERENT (8 and 4) so
+     a flipped pair is visible; `.b`'s vertical margins are different too (5 and
+     3), which catches a cross-axis transposition that a symmetric margin hides.
+
+     `.b`'s outer cross size is 5 + 20 + 3 = 28, LESS than `.a`'s 30, so line 0
+     is 30 tall and `.b` sits at y = 5 rather than 0 — the leading cross margin
+     is added after alignment, not before.
+
+     Cross: line 0 is 30, line 1 is 40, row-gap 9 -> lines at y = 0 and 39.
+     `align-content: flex-start` leaves the remaining 82 of the 160-tall
+     container unused.
+
+     Sibling swap: `flex-direction: row-reverse` -> `row` moves a 196->8,
+     b 61->119, c 204->0 and d 127->103 — every box, and by four different
+     deltas. */
+  #root { display: flex; flex-direction: row-reverse; flex-wrap: wrap;
+          align-content: flex-start; gap: 9px 7px;
+          width: 300px; height: 160px; }
+  .a { width: 100px; height: 30px; margin: 0 4px 0 8px; }
+  .b { width: 120px; height: 20px; margin: 5px 0 3px 0; }
+  .c { width: 90px;  height: 40px; margin: 0 6px 0 0; }
+  .d { width: 70px;  height: 25px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+    <div class="d" data-id="d"></div>
+  </div>
+</body></html>

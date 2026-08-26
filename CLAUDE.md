@@ -11,12 +11,13 @@ idiomatic Swift. macOS and iOS.
   `docs/superpowers/2026-08-25-m1a-decisions.md`,
   `docs/superpowers/2026-08-25-flex-sizing-decisions.md`,
   `docs/superpowers/2026-08-25-alignment-decisions.md`,
-  `docs/superpowers/2026-08-25-box-model-decisions.md` — each ruling with its
+  `docs/superpowers/2026-08-25-box-model-decisions.md`,
+  `docs/superpowers/2026-08-25-wrapping-decisions.md` — each ruling with its
   reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
   **Ruling IDs are namespaced by milestone.** `PF-3` and `C-3` belong to m1a;
-  `FS-n` to flex sizing, `AL-n` to alignment, `BM-n` to the box model. Sweep for stray citations **case-insensitively** — a `Ruling F-3` survived two branches' greps for lowercase `ruling`. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
+  `FS-n` to flex sizing, `AL-n` to alignment, `BM-n` to the box model, `WR-n` to wrapping. Sweep for stray citations **case-insensitively** — a `Ruling F-3` survived two branches' greps for lowercase `ruling`. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
   had one, and three code comments on the flex-sizing branch cited the wrong
   document before this was fixed. Prefix new milestones' rulings the same way.
 
@@ -45,6 +46,14 @@ works alone and a feature that works alone can be wrong together.** All three
 engine bugs above lived in a composition that existed in the engine and in no
 fixture. When you implement something, ask what it now composes with, and check
 that pair against the browser.
+
+**The wrapping milestone's third task is the counter-example that proves the
+method rather than the streak.** It committed eleven composition fixtures at
+once and every one of their goldens matched the engine on first generation — no
+engine bug. But of the sixteen sibling-swap differentials their comments
+claimed, **four were wrong**, every one of them hand-derived; running the swaps
+through the live oracle is what caught them. "Change the declaration and confirm
+the numbers move" is not satisfied by predicting which numbers move. Run it.
 
 ## Verified on real hardware
 
@@ -131,12 +140,22 @@ the divergence into the corpus.
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
-exists, compiles, and does nothing. `Style` has 21 properties; **six of them
-are read by no production code** — `position`, `inset`, `overflow`,
-`aspectRatio`, `flexWrap`, `alignContent`. Re-count with the grep below rather
+exists, compiles, and does nothing. `Style` has 21 stored properties; **four of
+them are read by no production code** — `position`, `inset`, `overflow`,
+`aspectRatio`. Re-count with the grep below rather
 than trusting the number: it was nine before the box model wired `padding`,
-`border` and `margin` in. They were declared so the model matches CSS, and the
-algorithm that consumes them has not been written yet.
+`border` and `margin` in, six before wrapping wired `flexWrap`, and five before
+`align-content` landed. Count the properties with an *anchored* pattern and
+subtract nothing by eye: `grep -cE "^    public var " Sources/MetalUILayout/Style.swift`
+returns **23**, because `FlexDirection.isRow` and `.isReverse` are computed
+`var`s at the same indentation in the same file. They were declared so the model
+matches CSS, and the algorithm that consumes them has not been written yet.
+
+**`wrap-reverse` left this table in wrapping's third task**, and it left as a
+whole rule rather than a property: `flexWrap` was already live, and what was
+missing was §8.3's cross-axis flip. Both halves are implemented now — the
+`align-content` leading offset and each item's `crossAxisOffset` — in
+`positionItems`, with three browser fixtures (`flex_wrap_reverse*`).
 
 The table is wider than that count, because a property can be read and still
 not do what its name promises — a stand-in value, or half a rule. Those rows
@@ -144,12 +163,10 @@ are the dangerous ones.
 
 | Declared | Reality |
 |---|---|
-| `alignContent` | **0 uses.** It distributes free space between the *lines* of a multi-line container, and there is only ever one line until wrapping lands, so there is nothing for it to distribute. `justifyContent`, `alignItems` and `alignSelf` left this table when the alignment work implemented them; `alignContent` did not, and must not be assumed to have come with them |
-| `AlignItems.baseline` / `AlignSelf.baseline` | **Falls back to `flexStart`, not silently.** `crossAxisOffset` needs font metrics that arrive with the text system in M2; until then a `baseline`-aligned row lays out as a `flex-start` row. Ruling AL-6: the task that makes an API inert records it here; the task that makes one live deletes the row |
-| An `auto` cross size on a **non-stretched** item | **Resolves to 0, not to content.** §9.4's stretch half is implemented; its content-sizing half is not. An item whose alignment is `center`/`flex-start`/`flex-end` and whose cross size is `auto` measures 0, where CSS gives it its content's cross extent. **No fixture can catch this** — every fixture in the corpus is an empty div, for which 0 is the right answer, so `flex_row_stretch_mixed`'s `.c` agrees with WebKit at height 0 for the wrong reason. Needs the M2 text system |
-| `flexWrap` | **0 uses.** Single line, always — `collectItems` never breaks a line, so `wrap` lays out identically to `nowrap` and overflows instead |
+| `AlignItems.baseline` / `AlignSelf.baseline` | **Falls back to `flexStart`, not silently.** `crossAxisOffset` needs font metrics that arrive with the text system in M2; until then a `baseline`-aligned row lays out as a `flex-start` row. **Whoever implements it inherits a `wrap-reverse` clause**: CSS Flexbox §8.3 swaps first- and last-baseline alignment in a `wrap-reverse` container, and nothing in the flip `positionItems` does today expresses that — it flips an offset, and baseline alignment is not an offset. Ruling AL-6: the task that makes an API inert records it here; the task that makes one live deletes the row. `justifyContent`, `alignItems` and `alignSelf` left this table when the alignment work implemented them and `alignContent` when wrapping's second task did; **a whole enum leaving is not the same as its every case leaving**, and this row is the standing counter-example |
+| An `auto` cross size on **any** item, stretched or not | **Resolves to 0, not to content.** §9.4's stretch half is implemented; its content-sizing half is not, so an `auto` cross size measures 0 where CSS gives it the content's cross extent. **This row said two things that were false until ruling **WR-4**'s probe round disproved them, and the corrections matter more than the row.** (1) It scoped the gap to a **non-stretched** item. It is not so scoped: the size is lost in §9.4.8 **line measurement**, which runs *before* stretch, so a `stretch`-aligned item loses it too. (2) It said "no fixture can catch this — every fixture in the corpus is an empty div" and blamed the **M2 text system**. A **nested flex container** has a content cross size with no text in it, and two probe agents caught it independently today: a 200×200 `wrap` root holding a `width: 120px` nested flex container gives WebKit `120×50` and this engine `120×0`, collapsing the line and stacking the next one on top of it. M2 is not the gate; recursive subtree measurement is, and that is its own plan. `flex_row_stretch_mixed`'s `.c` still agrees with WebKit at 0 for the wrong reason — that part was true. **Wrapping raised the stakes**: a line whose items are *all* auto-cross now measures 0 tall, so the whole line collapses and every line after it shifts up, rather than one item within a line being wrong. **`align-content` raised them again, and out of the "silent" category**: a nested `wrap` container with `height: auto` has a cross extent of 0, so its lines' total cross is *negative* free space and `align-content` distributes it — `flex-end` places children at **y = −102** and `center` at **−51** where WebKit gives 0 and 50. That is internally consistent given `containerCross == 0`, and it was positionally invisible while lines packed from cross-start; it is not any more. Negative stored coordinates are the loudest symptom this divergence has ever had, and they are a symptom of the auto-cross gap, not of `align-content`. `wrap-reverse` neither helps nor worsens it: its flip is `containerCross - lineCrossStart - lineCross`, so a zero-height container simply gets the same wrong numbers with the sign structure inverted |
 | `aspectRatio` | **0 uses** |
-| `margin: auto` (`Style.margin`'s `.auto` case) | **Resolves to 0, not to CSS's answer.** Item margins landed in the box-model task's second step — `resolveMargin` in `Resolve.swift` shrinks the main-axis budget and offsets each item by its own margin — but `.auto` maps to 0 on the single line marked for it in that function, not to CSS's "absorb free space before `justify-content` distributes any." A `margin-left: auto` item that CSS would push to the far end of the line lays out at the line's start instead, silently. Pinned by `autoMarginsResolveToZeroForNow` in `BoxModelTests.swift`, with CSS's real answer named in its comment |
+| `margin: auto` (`Style.margin`'s `.auto` case) | **Resolves to 0, not to CSS's answer.** Item margins landed in the box-model task's second step — `resolveMargin` in `Resolve.swift` shrinks the main-axis budget and offsets each item by its own margin — but `.auto` maps to 0 on the single line marked for it in that function, not to CSS's "absorb free space before `justify-content` distributes any." A `margin-left: auto` item that CSS would push to the far end of the line lays out at the line's start instead, silently. Pinned by `autoMarginsResolveToZeroForNow` in `BoxModelTests.swift`, with CSS's real answer named in its comment. **This row's scope was too narrow until the wrapping branch's final review measured it** — the third claim of that shape on this project, after ruling WR-4's and WR-5's. Auto margins are not only a main-axis/`justify-content` gap: WebKit **centres a `margin-block: auto` item within its line on the CROSS axis** and we give 0 (`b` at 90 vs our 0). That was already true under `nowrap`; `align-content: stretch` — the default this branch made reachable — grows lines and widened it (`d` at 255 vs our 225). Whoever implements auto margins owns both axes, not just the one `justify-content` sees |
 | `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping. `grep contentMask Sources/` is not a clean 0 — `abi_probe` in `shaders.metal` reads `contentMask.size.width` to prove the field's offset survives the MSL boundary. That is the test harness, not rendering |
 | A percentage `width`/`height` on the **root** | **Falls back to the offered space, not to the percentage.** `resolveRootSize` resolves the root's percentages against `nil` and then takes `available` — so `width: 50%` in an 800-wide space gives **800**. Measured in WebKit: **400**. The root's percentage *padding* does resolve against `available.width` (see `computeLayout`), so the two halves of "the root's containing block" disagree with each other today. Fixing it moves the root's stored size, which every descendant consumes; it belongs to a sizing plan, not the box model |
 | `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
@@ -159,7 +176,7 @@ are the dangerous ones.
 Re-check any row rather than trusting this table:
 
 ```bash
-grep -rn "flexWrap" Sources/ | grep -v "var flexWrap"
+grep -rn "aspectRatio" Sources/ | grep -v "var aspectRatio"
 ```
 
 **When you implement one, delete its row.** When you add a property you cannot
@@ -168,7 +185,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 171 tests and 40 browser fixtures, warning-free.
+`swift build` · `swift test` — 206 tests and 57 browser fixtures, warning-free.
 Six non-test targets with strictly one-way dependencies
 (`docs/superpowers/specs/…` §3.1).
 

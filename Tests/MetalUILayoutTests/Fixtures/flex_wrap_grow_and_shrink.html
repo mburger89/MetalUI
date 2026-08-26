@@ -1,0 +1,66 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Wrapping x §9.7 grow/shrink — the FIRST of the two compositions a reviewer
+     proved unpinned: it built a mutation that grew items into the LINE's used
+     extent instead of the container's main extent, and all 184 tests stayed
+     green. Correct code, guarded by nothing. This fixture is the guard.
+
+     WHAT IT PINS. §9.7 runs per LINE, and the extent each line flexes into is
+     the CONTAINER's main size, not the line's own used size. That is what lets
+     a wrapped row's second line grow into space the first line had no room
+     for, and the two models are separated here by 150 pixels:
+
+       line 0 = [a, b]  used 280 of 300  -> 20 free, 10 each  -> a 150, b 150
+       line 1 = [c]     used 140 of 300  -> 160 free          -> c 300
+
+     Under the "line's used extent" model every line's free space is 0 by
+     definition and NOTHING grows: a and b stay 140, c stays 140. Under a
+     container-wide (non-per-line) model the free space would be computed once
+     and split three ways, which matches neither.
+
+     Deliberately NOT uniform: `.c` alone on its line grows six times as much
+     as `.a` does sharing one. Equal-width lines would make "per line" and
+     "per container" agree.
+
+     SHRINK IS THE SAME COMPOSITION FROM THE OTHER SIDE, and it is genuinely
+     near-vacuous — worth stating rather than implying. The break decision uses
+     OUTER HYPOTHETICAL sizes, so `collectLines` guarantees every MULTI-item
+     line already fits; the only way a wrapped line can overflow is a single
+     item that exceeds the container alone. `.d` is that item: 380 hypothetical
+     in a 300 container, so it takes a line of its own and then shrinks to 300.
+     It is cheap, it is the only reachable shrink-under-wrapping case, and it
+     is here so that "near-vacuous by construction" is a measured claim rather
+     than an argument.
+
+     Breaks (no gap, main extent 300, on HYPOTHETICAL sizes = the bases):
+       140, +140 = 280 <= 300, +140 = 420 > 300   -> line 0 = [a, b]
+       140, +380 = 520 > 300                      -> line 1 = [c]
+       380 alone                                  -> line 2 = [d]
+
+     `align-content: flex-start` is declared so the cross axis contributes
+     nothing but line stacking: cross sizes 30 / 40 / 25 stack at 0 / 30 / 70
+     and the remaining 130px of the 200-tall container is left unused.
+
+     Sibling swaps, both measured:
+       `flex-grow: 1` -> `0` on a/b/c: a 150->140, b.x 150->140 and b 150->140,
+         c 300->140. The three widths and one position move.
+       `flex-shrink: 1` -> `0` on d: d 300->380, overflowing the container by
+         80. Nothing else moves — which is the point: shrink under wrapping
+         reaches exactly one item. */
+  #root { display: flex; flex-direction: row; flex-wrap: wrap;
+          align-content: flex-start;
+          width: 300px; height: 200px; }
+  .a { flex: 1 1 140px; height: 20px; }
+  .b { flex: 1 1 140px; height: 30px; }
+  .c { flex: 1 1 140px; height: 40px; }   /* alone on its line -> grows to 300 */
+  .d { flex: 0 1 380px; height: 25px; }   /* alone and oversized -> shrinks to 300 */
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+    <div class="d" data-id="d"></div>
+  </div>
+</body></html>

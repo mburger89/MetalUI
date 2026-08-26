@@ -1,0 +1,73 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* `align-content: space-around` and `space-evenly` — the two values that
+     were measured correct TWICE and still had no browser fixture.
+
+     They are pinned today by `alignContentDistributesLeftoverCrossSpaceAmong
+     Lines` ALONE, a unit test over `distributeLines`. Nothing browser-checked
+     that WebKit puts the same numbers in the same places, and `distributeLines`
+     delegates to `distributeMainAxis`, whose `space-around` and `space-evenly`
+     clauses carry ruling AL-4's negative-free-space clamp — a rule the spec's
+     letter disagrees with. Two engines' agreement is what justifies that
+     clause, so it wants a browser comparison, not a second hand-derivation.
+
+     TWO CONTAINERS IN ONE FILE, side by side in a `nowrap` root, because a
+     container has exactly one `align-content` and these two values differ only
+     in their EDGE space:
+
+       space-around  leading = per/2, between = per   (per = free / lines)
+       space-evenly  leading = between = free / (lines + 1)
+
+     Both sub-containers hold the same three children and break into the same
+     two lines (cross 30 and 50, used 80), so every difference below is the
+     property and nothing else:
+
+       #around  240 tall -> 160 free, 2 lines -> per 80 -> leading 40,
+                between 80  -> lines at y = 40 and 150
+       #evenly  260 tall -> 180 free, 3 slots -> 60      -> lines at y = 60
+                and 150
+
+     THE HEIGHTS DIFFER ON PURPOSE (240 vs 260). Equal heights would make
+     `space-evenly`'s leading 160/3 = 53.33, a fraction WebKit quantises to
+     1/64 and the comparison then rounds — a real number turned into a
+     rounding question. 260 makes the arithmetic exact. It also breaks the
+     symmetry that would let a `space-around`-shaped bug pass as
+     `space-evenly`: line 1 lands at 150 in BOTH containers, so the fixture's
+     signal is entirely in line 0 (40 vs 60) — stated here so nobody "tidies"
+     the heights to match and quietly deletes the only differing number.
+
+     Breaks in each sub-container: 120 + 120 = 240 <= 260, +120 = 360 > 260.
+
+     Sibling swaps, measured in the browser: `#around`'s `space-around` ->
+     `space-evenly` moves its line 0 from 40 to 160/3 = 53.33 (WebKit quantises
+     to 53.328125) and its line 1 from 150 to 136.67 — 53.33 + 30 + 53.33, not
+     143.33, which is what the arithmetic gives if the edge share is counted
+     once instead of twice. `#evenly`'s `space-evenly` -> `space-around` moves
+     its line 0 from 60 to 45 and line 1 from 150 to 165. Each container moves
+     under the other's value, which is the differential a single-value fixture
+     cannot express. */
+  #root { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 20px;
+          width: 700px; height: 300px; }
+  #around, #evenly { display: flex; flex-direction: row; flex-wrap: wrap;
+                     width: 260px; }
+  #around { height: 240px; align-content: space-around; }
+  #evenly { height: 260px; align-content: space-evenly; }
+  .p { width: 120px; height: 30px; }
+  .q { width: 120px; height: 20px; }
+  .r { width: 120px; height: 50px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div id="around" data-id="around">
+      <div class="p" data-id="aa"></div>
+      <div class="q" data-id="ab"></div>
+      <div class="r" data-id="ac"></div>
+    </div>
+    <div id="evenly" data-id="evenly">
+      <div class="p" data-id="ea"></div>
+      <div class="q" data-id="eb"></div>
+      <div class="r" data-id="ec"></div>
+    </div>
+  </div>
+</body></html>

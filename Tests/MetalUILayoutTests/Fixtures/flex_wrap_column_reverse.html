@@ -1,0 +1,61 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Wrapping x `column-reverse` — the main axis is vertical AND reversed, so
+     items stack bottom-to-top within a line while the lines themselves stack
+     left-to-right.
+
+     Probed against WebKit by the wrapping milestone's first-task reviewer and
+     left uncommitted. It gets its own fixture rather than inheriting
+     `flex_wrap_row_reverse_gap_margin`'s confidence for the reason
+     `flex_row_reverse_margins` and `flex_column_reverse_margins` are two
+     files: a row-only implementation can transpose the axes on a column and
+     nothing in the row fixture would notice.
+
+     IT ALSO MIRRORS RULING WR-1 IN THE HARDER DIRECTION. On a column the MAIN
+     gap is `row-gap` (8) and the gap BETWEEN LINES is `column-gap` (11). Both
+     `gap` call sites in the engine read the main-axis component, so a column
+     that used `row-gap` for both would put 8 between the lines instead of 11 —
+     visible here as line 1 at x = 68 rather than 71.
+
+     Breaks (main gap 8, main extent 150 — heights, not widths):
+       50, +8+70 = 128 <= 150, +8+40 = 176 > 150  -> line 0 = [a, b]
+       40, +8+90 = 138 <= 150, +8+60 = 206 > 150  -> line 1 = [c, d]
+       60                                          -> line 2 = [e]
+
+     Placement, bottom-to-top from the container's main-END (150):
+       a  150 - 0  - 50 = 100      b  150 - 58 - 70 = 22
+       c  150 - 0  - 40 = 110      d  150 - 48 - 90 = 12
+       e  150 - 0  - 60 = 90
+     `.a` and `.c` close on the container's bottom edge at 150; the 8px main
+     gap shows up as 100 - 92 and 110 - 102.
+
+     Lines stack across the cross axis (widths 60 / 80 / 40, column-gap 11):
+       x = 0, 71, 162 — and 162 + 40 = 202 of the 320-wide container, with
+     `align-content: flex-start` leaving the remaining 118 unused.
+
+     NO TWO LINES ARE THE SAME WIDTH and the widest item is the SECOND on line
+     0 but the FIRST on line 1, so a line measured from either end gives a
+     wrong stack.
+
+     Sibling swap: `column-reverse` -> `column` moves a 100->0, b 22->58,
+     c 110->0, d 12->48, e 90->0 — every box on the main axis, and nothing on
+     the cross axis, which is the isolation this fixture wants. */
+  #root { display: flex; flex-direction: column-reverse; flex-wrap: wrap;
+          align-content: flex-start; gap: 8px 11px;
+          width: 320px; height: 150px; }
+  .a { width: 45px; height: 50px; }
+  .b { width: 60px; height: 70px; }   /* line 0 is 60 wide */
+  .c { width: 80px; height: 40px; }   /* line 1 is 80 wide */
+  .d { width: 55px; height: 90px; }
+  .e { width: 40px; height: 60px; }   /* line 2 is 40 wide */
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+    <div class="d" data-id="d"></div>
+    <div class="e" data-id="e"></div>
+  </div>
+</body></html>

@@ -87,6 +87,28 @@ let allFixtures: [(String, CGSize)] = [
     ("flex_percent_child_in_padded",     CGSize(width: 800, height: 600)),
     ("flex_row_stretch_min_height_margins", CGSize(width: 800, height: 600)),
     ("flex_row_reverse_stretch",         CGSize(width: 800, height: 600)),
+    ("flex_wrap_uneven",                 CGSize(width: 800, height: 600)),
+    ("flex_wrap_stretch_auto_cross",     CGSize(width: 800, height: 600)),
+    ("flex_wrap_with_margins_and_padding", CGSize(width: 800, height: 600)),
+    ("flex_wrap_align_content_between",   CGSize(width: 800, height: 600)),
+    ("flex_wrap_align_content_center",    CGSize(width: 800, height: 600)),
+    ("flex_wrap_align_content_stretch",   CGSize(width: 800, height: 600)),
+    // The wrapping milestone's third task: `wrap-reverse`, plus the
+    // (wrapping x already-shipped feature) pairs the first two tasks measured
+    // against WebKit and did not commit. See
+    // `docs/superpowers/2026-08-25-wrapping-decisions.md` for the list each
+    // one closes.
+    ("flex_wrap_grow_and_shrink",          CGSize(width: 800, height: 600)),
+    ("flex_wrap_justify_between",          CGSize(width: 800, height: 600)),
+    ("flex_wrap_align_items_self",         CGSize(width: 800, height: 600)),
+    ("flex_wrap_row_reverse_gap_margin",   CGSize(width: 800, height: 600)),
+    ("flex_wrap_main_sizing",              CGSize(width: 800, height: 600)),
+    ("flex_wrap_nested_percent_padding",   CGSize(width: 800, height: 600)),
+    ("flex_wrap_column_reverse",           CGSize(width: 800, height: 600)),
+    ("flex_wrap_align_content_around_evenly", CGSize(width: 800, height: 600)),
+    ("flex_wrap_reverse",                  CGSize(width: 800, height: 600)),
+    ("flex_wrap_reverse_align_content_end", CGSize(width: 800, height: 600)),
+    ("flex_wrap_reverse_row_reverse",      CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

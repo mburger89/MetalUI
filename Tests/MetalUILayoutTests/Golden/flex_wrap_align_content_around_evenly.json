@@ -1,0 +1,137 @@
+{
+  "fixture" : "flex_wrap_align_content_around_evenly",
+  "raw" : [
+    {
+      "height" : 300,
+      "id" : "root",
+      "width" : 700,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 240,
+      "id" : "around",
+      "width" : 260,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "aa",
+      "width" : 120,
+      "x" : 0,
+      "y" : 40
+    },
+    {
+      "height" : 20,
+      "id" : "ab",
+      "width" : 120,
+      "x" : 120,
+      "y" : 40
+    },
+    {
+      "height" : 50,
+      "id" : "ac",
+      "width" : 120,
+      "x" : 0,
+      "y" : 150
+    },
+    {
+      "height" : 260,
+      "id" : "evenly",
+      "width" : 260,
+      "x" : 280,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "ea",
+      "width" : 120,
+      "x" : 280,
+      "y" : 60
+    },
+    {
+      "height" : 20,
+      "id" : "eb",
+      "width" : 120,
+      "x" : 400,
+      "y" : 60
+    },
+    {
+      "height" : 50,
+      "id" : "ec",
+      "width" : 120,
+      "x" : 280,
+      "y" : 150
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 300,
+      "id" : "root",
+      "width" : 700,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 240,
+      "id" : "around",
+      "width" : 260,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "aa",
+      "width" : 120,
+      "x" : 0,
+      "y" : 40
+    },
+    {
+      "height" : 20,
+      "id" : "ab",
+      "width" : 120,
+      "x" : 120,
+      "y" : 40
+    },
+    {
+      "height" : 50,
+      "id" : "ac",
+      "width" : 120,
+      "x" : 0,
+      "y" : 150
+    },
+    {
+      "height" : 260,
+      "id" : "evenly",
+      "width" : 260,
+      "x" : 280,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "ea",
+      "width" : 120,
+      "x" : 280,
+      "y" : 60
+    },
+    {
+      "height" : 20,
+      "id" : "eb",
+      "width" : 120,
+      "x" : 400,
+      "y" : 60
+    },
+    {
+      "height" : 50,
+      "id" : "ec",
+      "width" : 120,
+      "x" : 280,
+      "y" : 150
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}
