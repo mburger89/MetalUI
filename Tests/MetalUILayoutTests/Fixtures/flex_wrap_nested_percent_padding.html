@@ -43,9 +43,15 @@
 
      Sibling swap — the good one changes NO child declaration:
      `#root { padding: 10px }` -> `30px` shrinks the root's content box to 340,
-     so `.mid`'s 5% becomes 17: g1 moves 149->167, g2 219->237, g3 (149,54)
-     -> (167,52). The root's line shape is unchanged (320 <= 340, 410 > 340),
-     so the grandchildren move for exactly one reason. Swapping `.mid`'s
+     so `.mid`'s 5% becomes 17. Measured in the browser: every box moves, and
+     the grandchildren move by MORE than their parent does. `.mid` shifts by
+     the root's extra 20 alone, (130,10) -> (150,30); `g1` shifts by 20 + the
+     padding's own 18 - 20 = 18 and 18, (149,29) -> (167,47); `g3` lands at
+     (167,72). The root's line shape is unchanged (320 <= 340, 410 > 340), so
+     the grandchildren move for exactly one reason — the percentage's basis.
+     (An earlier draft of this paragraph put g3 at (167,52); it had subtracted
+     the padding change and forgotten the root's own 20px shift, which is the
+     reason this swap is measured and not derived.) Swapping `.mid`'s
      `padding: 5%` -> `19px` is a deliberate no-op and proves nothing. */
   #root { display: flex; flex-direction: row; flex-wrap: wrap;
           align-content: flex-start; padding: 10px;

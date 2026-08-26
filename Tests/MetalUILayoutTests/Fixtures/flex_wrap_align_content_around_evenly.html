@@ -40,11 +40,14 @@
 
      Breaks in each sub-container: 120 + 120 = 240 <= 260, +120 = 360 > 260.
 
-     Sibling swap: `#around { align-content: space-around }` -> `space-evenly`
-     moves its line 0 from 40 to 160/3 = 53.33 and its line 1 from 150 to
-     143.33; `#evenly` -> `space-around` moves its line 0 from 60 to 45 and
-     line 1 from 150 to 165. Each container moves under the other's value,
-     which is the differential a single-value fixture cannot express. */
+     Sibling swaps, measured in the browser: `#around`'s `space-around` ->
+     `space-evenly` moves its line 0 from 40 to 160/3 = 53.33 (WebKit quantises
+     to 53.328125) and its line 1 from 150 to 136.67 — 53.33 + 30 + 53.33, not
+     143.33, which is what the arithmetic gives if the edge share is counted
+     once instead of twice. `#evenly`'s `space-evenly` -> `space-around` moves
+     its line 0 from 60 to 45 and line 1 from 150 to 165. Each container moves
+     under the other's value, which is the differential a single-value fixture
+     cannot express. */
   #root { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 20px;
           width: 700px; height: 300px; }
   #around, #evenly { display: flex; flex-direction: row; flex-wrap: wrap;

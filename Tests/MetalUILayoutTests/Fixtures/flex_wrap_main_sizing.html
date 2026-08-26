@@ -40,17 +40,21 @@
        a 20 w100, b 120 w180, c 300 w110, d 20 w120, e 140 w40
        cross: line 0 is 30, line 1 is 35 -> y = 0 and 30
 
-     Sibling swaps:
-       `.a { width: 25% }` -> `40%` (160) makes line 0 [a, b] and reshapes
-         every line after it. (Swapping it to the equivalent `100px` is a
+     Sibling swaps, all three measured in the browser rather than derived:
+       `.a { width: 25% }` -> `40%` gives a 160, which makes line 0 [a, b]
+         (340) and line 1 [c, d, e]: c (20,30), d (130,30), e (250,30). Five
+         of the six boxes move. (Swapping it to the equivalent `100px` is a
          deliberate NO-OP and proves nothing — the differential for a
          percentage is a different percentage, or a different basis.)
-       `#root { padding: 0 20px }` -> `0 40px` shrinks the content box to 360:
-         `.a` becomes 90, `.d` 108, `.e` 36, and line 0 is [a, b, c] at 350.
-         That swap moves the boxes WITHOUT touching any child declaration,
-         which is the basis test.
-       `.b { min-width: 180px }` -> `0` gives b 100 and pulls c and the line
-         shape with it. */
+       `#root { padding: 0 20px }` -> `0 40px` shrinks the content box to 360
+         and moves five boxes WITHOUT touching a single child declaration,
+         which is the basis test: a 90 at x 40, b 180 at 130, and `.c` now
+         does NOT fit (90 + 180 + 110 = 380 > 360) so it starts line 1 at
+         (40,30), with d 108 wide at 150 and e 36 wide at 258.
+       `.b { min-width: 180px }` -> `0` gives b its declared 100 and slides c
+         from 300 to 220. The line shape survives (100 + 100 + 110 = 310), so
+         this swap moves two boxes and not five — the clamp's effect on the
+         BREAK is the `.c` cap's job, not this one's. */
   #root { display: flex; flex-direction: row; flex-wrap: wrap;
           align-content: flex-start; padding: 0 20px;
           width: 440px; height: 200px; }
