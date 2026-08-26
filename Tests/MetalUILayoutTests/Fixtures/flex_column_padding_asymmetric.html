@@ -2,12 +2,16 @@
 <html><head><meta charset="utf-8"><style>
   * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
   body { margin: 0; }
-  /* Column container, strongly non-square (120x400) so a percentage-padding
-     bug (which in CSS always resolves against width) cannot hide behind a
-     square box. Padding and border differ, and every edge on both axes is a
-     distinct value, so a transposed axis or a dropped edge cannot pass.
-     Children have auto width: stretch filling the reduced *content* width is
-     the strongest single check that the content box reached the cross axis. */
+  /* Column container, strongly non-square (120x400). Every value below is a
+     pixel length — this fixture does NOT exercise percentage padding, and
+     nothing in the corpus does yet. The non-square shape buys nothing on its
+     own today; it is chosen so that Task 3's percentage-padding fixture can
+     reuse it to tell a percentage resolved against width from one resolved
+     against height, which a square box could not distinguish. Padding and
+     border differ, and every edge on both axes is a distinct value, so a
+     transposed axis or a dropped edge cannot pass. Children have auto width:
+     stretch filling the reduced *content* width is the strongest single
+     check that the content box reached the cross axis. */
   #root { display: flex; flex-direction: column; width: 120px; height: 400px;
           padding: 12px 30px 6px 18px;
           border-style: solid; border-color: black;

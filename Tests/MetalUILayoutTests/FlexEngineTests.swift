@@ -683,6 +683,31 @@ private func threeJustifiedChildren(
 /// size in a column, which no other fixture in the corpus provides) and an
 /// `auto` width, so it stretches to the container's cross extent. `.b` and
 /// `.c` have explicit widths and do not.
+@Test func columnReverseJustifyEndMatchesWebKit() throws {
+    let golden = try loadGolden("flex_column_reverse_justify_end")
+    let tree = LayoutTree()
+
+    var aStyle = Style()                      // definite main size, auto cross: stretches
+    aStyle.size = Size(width: .auto, height: px(40))
+    let a = tree.newNode(style: aStyle, children: [])
+
+    let b = fixedChild(tree, w: 60, h: 70)
+    let c = fixedChild(tree, w: 80, h: 50)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .columnReverse
+    rootStyle.justifyContent = .flexEnd
+    rootStyle.size = Size(width: px(100), height: px(400))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
 /// Padding and border inset the content box against WebKit: a row with four
 /// distinct padding edges and four distinct (and different-from-padding)
 /// border edges, two fixed children and a third that grows into whatever the
@@ -718,11 +743,15 @@ private func threeJustifiedChildren(
                         golden: golden, tolerance: 0.1)
 }
 
-/// The column counterpart: `flex_column_padding_asymmetric` is strongly
-/// non-square (120x400) so a percentage-vertical-padding bug (which CSS
-/// always resolves against width) cannot hide, and every child has an
-/// `auto` width — the strongest single check that stretch fills the reduced
-/// *content* width, not the border-box width.
+/// The column counterpart: `flex_column_padding_asymmetric` uses fixed-pixel
+/// padding and border only — **it does not exercise percentage padding**, and
+/// nothing in the corpus does yet (Task 3 adds that fixture). Its shape
+/// (120x400, strongly non-square) is chosen so that fixture, when it lands,
+/// can tell a percentage resolved against width from one resolved against
+/// height; on its own, today, the non-square shape buys nothing. What this
+/// fixture *does* pin now: every child has an `auto` width, so stretch
+/// filling the reduced *content* width — not the border-box width — is the
+/// strongest single check that the content box reached the cross axis.
 @Test func columnPaddingAsymmetricMatchesWebKit() throws {
     let golden = try loadGolden("flex_column_padding_asymmetric")
     let tree = LayoutTree()
@@ -743,31 +772,6 @@ private func threeJustifiedChildren(
                               bottom: .pixels(Pixels(6)), left: .pixels(Pixels(18)))
     rootStyle.border = Edges(top: .pixels(Pixels(4)), right: .pixels(Pixels(2)),
                              bottom: .pixels(Pixels(8)), left: .pixels(Pixels(6)))
-    let root = tree.newNode(style: rootStyle, children: [a, b, c])
-
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    assertMatchesGolden(tree,
-                        ids: [root: "root", a: "a", b: "b", c: "c"],
-                        golden: golden, tolerance: 0.1)
-}
-
-@Test func columnReverseJustifyEndMatchesWebKit() throws {
-    let golden = try loadGolden("flex_column_reverse_justify_end")
-    let tree = LayoutTree()
-
-    var aStyle = Style()                      // definite main size, auto cross: stretches
-    aStyle.size = Size(width: .auto, height: px(40))
-    let a = tree.newNode(style: aStyle, children: [])
-
-    let b = fixedChild(tree, w: 60, h: 70)
-    let c = fixedChild(tree, w: 80, h: 50)
-
-    var rootStyle = Style()
-    rootStyle.flexDirection = .columnReverse
-    rootStyle.justifyContent = .flexEnd
-    rootStyle.size = Size(width: px(100), height: px(400))
     let root = tree.newNode(style: rootStyle, children: [a, b, c])
 
     computeLayout(tree, root: root,

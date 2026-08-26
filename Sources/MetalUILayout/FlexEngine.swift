@@ -244,7 +244,11 @@ private func resolveNodeSize(
 ///
 /// Percentages in `padding` and `border` resolve against the containing block's
 /// **width, even for top and bottom**. That is CSS, not a simplification, and
-/// `resolveEdges` already implements it — see `percentagePaddingResolvesAgainstWidthOnEveryEdge`.
+/// `resolveEdges` already implements it — see
+/// `edgePercentagesResolveAgainstTheInlineAxisOnly` in `ResolveTests.swift`.
+/// That test pins `resolveEdges` itself, not this call site: no fixture in the
+/// corpus gives a container percentage padding or border, so this function's
+/// use of the rule is unverified against WebKit until Task 3 adds one.
 private func contentBox(
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
@@ -256,8 +260,19 @@ private func contentBox(
     let border = resolveEdges(s.border, against: borderBox.width, rootFontSize: rootFontSize)
 
     let leading = (padding.left + border.left, padding.top + border.top)
-    // Never negative: padding larger than the box collapses the content box to
-    // zero rather than inverting it.
+    // Ruling BM-4 (CLAUDE.md's known divergences) — this is a deliberate stand-in,
+    // not a faithful CSS clamp. CSS's actual answer when padding + border
+    // exceeds the specified size on an axis is to GROW the border box itself
+    // (`box-sizing: border-box` defines the used size as
+    // `max(specified, padding + border)`), never to let the content box go
+    // negative. This function does not grow the border box — `borderBox` here
+    // is exactly the node's already-stored size, and changing it is a sizing
+    // change (`resolveNodeSize`/`flexBaseSize`) with reach well beyond this
+    // function: the freeze loop and every ancestor consume a node's stored
+    // size. `max(0, …)` is the narrower, local stand-in: it leaves the border
+    // box exactly as specified and only prevents the content box from
+    // inverting. See `containerDoesNotGrowToFitOverconstrainedPaddingUnlikeWebKit`
+    // in BoxModelTests.swift for the pinned divergence and WebKit's real numbers.
     let size = SizeD(
         width: max(0, borderBox.width - padding.horizontal - border.horizontal),
         height: max(0, borderBox.height - padding.vertical - border.vertical))
