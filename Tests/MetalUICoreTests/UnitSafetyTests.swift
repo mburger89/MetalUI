@@ -25,8 +25,18 @@ private func modulesDirectory() -> URL? {
         includingPropertiesForKeys: [.isDirectoryKey]
     ) else { return nil }
 
+    // **Skip `index-build`.** SourceKit populates `.build/index-build/` for IDE
+    // indexing, using whatever toolchain the editor runs — which need not be the
+    // one running the tests. A module there compiled by Swift 6.4 makes this
+    // guard's `swiftc` invocation fail with "module compiled with Swift 6.4
+    // cannot be imported by the Swift 6.3.3 compiler", and the failure reads as
+    // a unit-safety regression rather than the environment artefact it is.
+    // Observed for real: `swift test` was green on a branch and red on the
+    // identical merged tree, purely because an editor had indexed in between.
+    let buildProducts = entries.filter { $0.lastPathComponent != "index-build" }
+
     // Prefer a triple-qualified layout, then fall back to the unqualified one.
-    let candidates = entries.map {
+    let candidates = buildProducts.map {
         $0.appendingPathComponent("debug/Modules", isDirectory: true)
     } + [buildDirectory.appendingPathComponent("debug/Modules", isDirectory: true)]
 
