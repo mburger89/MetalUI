@@ -5,8 +5,16 @@ import MetalUICore
 ///
 /// This milestone implements CSS Flexbox §9 incrementally. Right now: a single
 /// line, §9.2 flex base sizes, §9.7 grow/shrink, §9.5 justify-content packing,
-/// §9.4 cross-axis stretch, §9.6 cross-axis placement. Wrapping, `align-content`
-/// and absolute positioning arrive in later tasks, each with its own fixtures.
+/// §9.4 cross-axis stretch, §9.6 cross-axis placement, and the box model —
+/// `padding` and `border` shrink the content box (`contentBox` below),
+/// `margin` sits outside each item's border box (`collectItems`,
+/// `positionItems`). Wrapping, `align-content` and absolute positioning arrive
+/// in later tasks, each with its own fixtures.
+///
+/// Two box-model gaps remain and are recorded rather than implied: `inset` is
+/// still read by nothing (absolute positioning is its own plan), and
+/// `margin: auto` resolves to 0 instead of absorbing free space. Both have
+/// rows in CLAUDE.md's inert-API table.
 ///
 /// **Cross-axis `stretch` landed in the alignment task, and with it every golden
 /// comparison in the suite is now full-rect.** Twelve of them compared the main
@@ -21,19 +29,6 @@ import MetalUICore
 /// or `flex-end`) and has an `auto` cross size measures 0 here, where CSS gives
 /// it its content's cross size. Every fixture in the corpus is an empty div, so
 /// no browser comparison can see it; it needs the M2 text system.
-///
-/// **The box model is NOT implemented either.** `margin`, `padding`, `border`
-/// and `inset` are live `Style` properties, and `resolveEdges` resolves all four
-/// edges and is unit-tested, but nothing in this file ever calls it. A root with
-/// `width: 300, padding: 20, border: 5` therefore places its 50x50 child at
-/// `(0, 0)`, where CSS puts it at `(25, 25)`: child origins are never inset by
-/// the parent's padding and border, and the space offered to children is never
-/// reduced by them. This is a conspicuous gap rather than a minor one, because
-/// `border-box` sizing is the spec's headline sizing constraint (§5.2) — every
-/// size here already *claims* to include padding and border, while no code yet
-/// subtracts them to find the content box. It fails silently: wrong geometry,
-/// no error, no diagnostic, until the box-model work wires `resolveEdges` into
-/// `layoutContainer`.
 ///
 /// Every rect written here is **absolute to the root**, not relative to its
 /// parent. `roundLayout` keeps no cross-rect state, so its no-drift guarantee
@@ -209,6 +204,16 @@ private func resolveRootSize(
         // The root has no parent, so percentages resolve against nil (CSS
         // treats that as auto) — same as the `.unspecified` parent this
         // function used before the split.
+        //
+        // **This is knowingly asymmetric with `computeLayout`, which resolves
+        // the root's percentage PADDING against `available.width`.** Both
+        // cannot be right, and this one is the divergence: measured in WebKit,
+        // a root with `width: 50%` in an 800-wide body is **400**, while this
+        // returns nil and falls back to the offered 800. Changing it means
+        // deciding whether `available` is the initial containing block (ruling
+        // FS-1 says it is) for *sizing* as well as for insets, and moves the
+        // root's stored size, which every descendant consumes — a sizing
+        // change, not a box-model one. Recorded in CLAUDE.md's inert table.
         let resolved = resolveDimension(dim, against: nil, rootFontSize: rootFontSize)
         let lower = resolveDimension(minDim, against: nil, rootFontSize: rootFontSize)
         let upper = resolveDimension(maxDim, against: nil, rootFontSize: rootFontSize)

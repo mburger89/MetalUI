@@ -55,6 +55,23 @@ public func resolveDimension(_ d: Dimension, against parent: Double?, rootFontSi
 /// Resolve all four edges. Percentages resolve against `parent`, which callers
 /// must supply as the containing block's **width** even for top and bottom —
 /// that is CSS's rule, not a simplification.
+///
+/// **`contentBox` in `FlexEngine.swift` is the caller**, and since Task 3 it is
+/// a real one: from M1a until the box-model work this function was fully
+/// unit-tested with no production caller at all, and "callers must supply"
+/// described nobody.
+///
+/// It supplies the containing block's width, which is **not** the width of the
+/// box whose padding is being resolved. For a flex item that is its flex
+/// container's *content* box; for the root it is the extent `computeLayout` was
+/// offered. `contentBox` passed the box's own border-box width until Task 3 —
+/// wrong for every box narrower than its parent's content box, and invisible
+/// because no fixture had percentage padding. See `contentBox`'s own comment
+/// for WebKit's numbers.
+///
+/// `parent` is optional because a containing block can be indefinite; every
+/// percentage edge then resolves to 0, which is CSS's rule for an unresolvable
+/// percentage and not a stand-in for anything.
 public func resolveEdges(_ e: Edges<Length>, against parent: Double?, rootFontSize: Double) -> ResolvedEdges {
     func r(_ l: Length) -> Double {
         resolveLength(l, against: parent, rootFontSize: rootFontSize) ?? 0
@@ -67,6 +84,14 @@ public func resolveEdges(_ e: Edges<Length>, against parent: Double?, rootFontSi
 /// Percentages resolve against `parent`, which callers must supply as the
 /// containing block's **width** even for top and bottom — the same CSS rule
 /// `resolveEdges` follows.
+///
+/// **`collectItems` in `FlexEngine.swift` is the caller**, and it supplies the
+/// container's *content*-box width. That is already the containing block: an
+/// item's containing block IS its flex container's content box, so unlike
+/// `resolveEdges` — which is called for a box's own padding and therefore needs
+/// its *parent's* width — the value in hand here is the right one. The two
+/// functions read alike and are reached from opposite directions; do not
+/// "harmonise" them.
 public func resolveMargin(_ e: Edges<Dimension>, against parent: Double?,
                           rootFontSize: Double) -> ResolvedEdges {
     func r(_ d: Dimension) -> Double {
