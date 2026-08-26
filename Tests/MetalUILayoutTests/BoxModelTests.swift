@@ -983,3 +983,36 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
                         ids: [root: "root", a: "a", b: "b", c: "c"],
                         golden: golden, tolerance: 0.1)
 }
+
+/// Percentage margins resolve against the containing block's **width** on every
+/// edge, including top and bottom — the same CSS rule padding and border follow.
+///
+/// This closed the last green mutation on the box-model branch. Mutating
+/// `resolveMargin`'s basis to the container's *height* left all 171 tests green:
+/// the rule was asserted in two doc comments, verified against WebKit five ways
+/// by a reviewer, and pinned by nothing. That is taxonomy shape 9 in
+/// `docs/practices/verifying-tests-can-fail.md` — correct-by-construction is the
+/// state every bug on this branch was in the day before it was found.
+///
+/// The container is 400x100 on purpose. On a square, the two bases agree and this
+/// test cannot fail.
+@Test func percentageMarginsResolveAgainstTheContainingBlockWidth() {
+    let tree = LayoutTree()
+    var s = Style()
+    s.size = Size(width: px(50), height: px(20))
+    // 10% of the 400 content width = 40 on the leading edges. Against the 100
+    // height it would be 10 — a difference no rounding can explain.
+    s.margin = Edges(top: pct(0.10), right: pct(0.05), bottom: pct(0.10), left: pct(0.10))
+    let kid = tree.newNode(style: s, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [kid])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(kid).x == 40)
+    #expect(tree.layout(kid).y == 40)
+}

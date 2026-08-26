@@ -103,8 +103,11 @@ not do that. `contentBox` (`FlexEngine.swift`) only clamps the *content* box
 to zero with `max(0, …)`; the border box stays exactly what the style
 specified.
 
-Reproduce with `width: 100px; height: 80px; padding: 60px 50px; border-width:
-10px` and one auto-sized child: **WebKit renders the root at 120×140**
+Reproduce with `width: 100px; height: 80px; padding: 60px 50px;
+border-style: solid; border-width: 10px` and one auto-sized child: **WebKit
+renders the root at 120×140**. `border-style` is not optional here — without it
+`border-width` is inert and the same snippet measures 100×120 instead, which is
+how this paragraph was wrong when first written
 (120 = 50+50+10+10 horizontal, 140 = 60+60+10+10 vertical, both exceeding the
 100×80 specified). This engine keeps the root at the specified **100×80**.
 

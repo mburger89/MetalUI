@@ -72,9 +72,15 @@ Continuing the tables in the flex-sizing and alignment decisions docs:
 | Both margin fixtures gave children explicit heights | That stretch ignored cross margins — stretch never engaged |
 | No fixture had a percentage-sized child inside a padded container | Whether children resolve percentages against the content box (BM-3) |
 | No fixture combined grow + `space-between` + margins | Whether the two margin paths double-count. They do not — but nothing proved it until a reviewer built the case by hand |
+| No test resolved a **percentage margin** | Whether margins use the containing block's width, like padding and border. Asserted in two doc comments, verified against WebKit five ways by a reviewer, and pinned by nothing — mutating the basis to the container's *height* left all 171 tests green. Closed at branch end by `percentageMarginsResolveAgainstTheContainingBlockWidth`, which reddens with 10-vs-40 on both axes |
 
 ## Carried risk
 
+- **The last green mutation on this branch was closed, not documented.** A
+  reviewer found percentage margins unpinned and proposed recording the gap. It
+  was cheaper to write the test — and leaving a known-green mutation while the
+  same branch adds "compositions that exist in the code and not in the corpus" to
+  the taxonomy would have been the exact failure the shape describes.
 - **The root's percentage *width* still falls back to the available space** (800 where WebKit gives 400) while its percentage *padding* correctly uses `available.width`. Pre-existing, untouched by this branch, now documented with a measured number and cross-referenced at both sites. **Do not fix one without the other.**
 - **BM-4's over-constrained box** is a deliberate, documented divergence.
 - **`margin: auto` is inert** — CSS gives it priority over `justify-content`.

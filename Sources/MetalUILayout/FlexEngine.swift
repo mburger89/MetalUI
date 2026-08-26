@@ -163,7 +163,9 @@ struct FlexItem {
     ///
     /// Margins sit *outside* the border box `targetMainSize` describes; an
     /// item's outer main extent is `marginMain.leading + targetMainSize +
-    /// marginMain.trailing`. `positionItems` is the only reader: the cursor
+    /// marginMain.trailing`. **Two readers**, and both matter: `layoutContainer`
+    /// sums every item's pair into `totalMargin` and pre-reduces the grow
+    /// budget with it, and `positionItems` uses each item's own pair — the cursor
     /// advances by the outer extent, and the item's own rect starts
     /// `marginMain.leading` after the cursor.
     var marginMain: (leading: Double, trailing: Double)
