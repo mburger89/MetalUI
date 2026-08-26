@@ -25,8 +25,21 @@ public struct ResolvedEdges: Sendable, Equatable {
 /// (20.000000298023224 rather than 20), while this order makes `9%` of `300`
 /// slightly worse (27.000001907348633 rather than 27.000001072883606). Treat
 /// the result as carrying ~1e-4pt of error and compare it with a tolerance
-/// rather than for equality; that is roughly 130x below WebKit's 1/64 quantum,
-/// so it never reaches a fixture.
+/// rather than for equality; that is roughly 130x below WebKit's 1/64 quantum.
+///
+/// **That error DOES reach a fixture, and the "130x below the quantum" argument
+/// is what hides it** (ruling WR-5). Cumulative rounding amplifies it at a .5
+/// boundary: `flex: 1 0 60%` beside `flex: 0 0 15%` in a 400px container with
+/// `padding: 0 20px 0 30px` and `column-gap: 12px` gives an exact 285.5, but 60%
+/// of the 350 content box is `210.00001525878906` in `Float`, which drags the
+/// sum to `285.49999618` — the wrong side of `roundLayout`'s boundary. WebKit
+/// says 286/328; this engine says 285/327.
+///
+/// Not a wrapping bug: it reproduces under `nowrap`, and reproduces via `Float`
+/// `flexGrow`/`flexShrink` with no percentage anywhere. Fixing it is a units
+/// decision — widen the product, or round on a different rule — not a layout one,
+/// so it is recorded rather than patched here. Do not restore the old claim that
+/// this never reaches a fixture; it was measured.
 public func resolveLength(_ l: Length, against parent: Double?, rootFontSize: Double) -> Double? {
     switch l {
     case .pixels(let p): Double(p.value)

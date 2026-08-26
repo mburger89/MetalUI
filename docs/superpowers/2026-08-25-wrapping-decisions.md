@@ -16,6 +16,25 @@ across three documents — sweep for stray citations **case-insensitively**, sin
 | WR-1 | **`row-gap` was inert on a row, and wrapping is what makes it live.** Both `gap` call sites read `isRow ? gap.horizontal : gap.vertical` — always the **main** axis — so a row silently dropped its `row-gap` and a column its `column-gap`. It never earned a "declared but inert" row because neither component is dead: each is read in one direction. `gapUsesTheMainAxisOfTheContainer` reads as full coverage while saying nothing about the dropped half. Wrapping gives the cross gap its meaning — the space between lines — so Task 1 implements it rather than documenting it. | Multi-line layouts stack lines with the wrong gap, or none. |
 | WR-2 | **`collectLines` returns `[[FlexItem]]`; the engine assembles `FlexLine`.** The plan declared both without saying how they relate. The break decision stays a **pure function over items** — no cross sizes, no styles — so it is testable alone and reusable by Grid, the same reason `lineContentSize` takes `[Double]` rather than `[FlexItem]`. | A pure function acquires engine state and stops being either. |
 
+## During execution
+
+| # | Ruling | Cost if wrong |
+|---|---|---|
+| WR-3 | **`wrap-reverse` converts at the point of use in *both* places, not by reversing the lines array.** The main axis already sets this precedent, and the reason carries: the array's order is document order and the break decision depends on it. The second half is the part that is easy to miss — WebKit flips the **whole cross axis**, so the `align-content` leading offset *and* each item's `crossAxisOffset` need flipping. Task 3 measured both halves separately: dropping the per-item flip reddens 7 tests, dropping the line-start flip reddens 6. | Lines stack from the right end while items sit at the wrong edge inside them — a layout that looks half-reversed. |
+| WR-4 | **CLAUDE.md's auto-cross-size row is false in both halves; correct it, do not implement it here.** The row scopes the gap to a **non-stretched** item and asserts "no fixture can catch this … needs the M2 text system". Two probe agents independently disproved both: the item can be `stretch`-aligned (the size is lost in §9.4.8 line measurement, which runs *before* stretch), and a **nested flex container** has a content cross size with no text in it, so a fixture catches it today. Content-based cross sizing is out of scope for this branch and the fix is recursive subtree measurement, not a clamp — so the row gets corrected and the behaviour gets pinned with WebKit's numbers named, the BM-4 treatment. | A reader trusts a mitigation whose stated scope is wrong, and skips a fixture that would work. |
+| WR-5 | **`Resolve.swift`'s precision claim is falsified; correct the comment, leave the behaviour.** It says the `Float` percentage product carries "~1e-4pt of error … roughly 130x below WebKit's 1/64 quantum, **so it never reaches a fixture**." It reaches one: 60% of a 350 content box is `210.00001525878906`, dragging an exact 285.5 to `285.49999618` — the wrong side of `roundLayout`'s .5 boundary. WebKit gives 286/328, the engine 285/327. The arithmetic is right and the conclusion is wrong: **cumulative rounding amplifies the error at a .5 boundary**, which "130x below the quantum" does not account for. Predates this branch, reproduces under `nowrap`, and reproduces via `Float` `flexGrow`/`flexShrink` with no percentages at all — so it belongs to whoever owns units precision. | The next person to see a 1px disagreement trusts the comment and looks in the layout algorithm, where the bug is not. |
+
+**WR-4 and WR-5 are the same shape, and it is a shape this project has not named
+before.** Neither is a defect in what the engine *does*. Both are defects in what
+the repo *believes about itself* — a mitigation or a limitation whose documented
+**scope** is wrong, so a reader correctly follows it to a wrong conclusion. Every
+previous milestone's findings were either code that misbehaved or tests that could
+not fail; these are comments that were true when written, stayed true in their
+arithmetic, and became false in their *reach* as the engine grew around them.
+
+Both were found the same way: by measuring the thing the comment said not to
+bother measuring.
+
 ## The compositions probed against WebKit but not committed
 
 Task 1's brief required it to answer taxonomy shape 9's question: of every
