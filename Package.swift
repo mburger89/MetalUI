@@ -9,8 +9,18 @@ let package = Package(
         .executable(name: "MetalUIDemo", targets: ["MetalUIDemo"]),
     ],
     targets: [
+        // Test-support only: the single copy of the `swiftc -typecheck` machinery
+        // that the negative type-system guards shell out to (ruling EP-1). It is
+        // in **no product** and is **not** one of spec §3.1's seven targets — the
+        // count there still reconciles: MetalUICore, MetalUILayout,
+        // MetalUIShaderTypes, MetalUIRender, MetalUIPlatform, MetalUI, MetalUIDemo.
+        .target(name: "MetalUITestSupport", path: "Tests/MetalUITestSupport"),
+
         .target(name: "MetalUICore"),
-        .testTarget(name: "MetalUICoreTests", dependencies: ["MetalUICore"]),
+        .testTarget(
+            name: "MetalUICoreTests",
+            dependencies: ["MetalUICore", "MetalUITestSupport"]
+        ),
 
         .target(name: "MetalUILayout", dependencies: ["MetalUICore"]),
         .testTarget(
@@ -36,9 +46,12 @@ let package = Package(
 
         .target(
             name: "MetalUI",
-            dependencies: ["MetalUICore", "MetalUIRender", "MetalUIPlatform"]
+            dependencies: ["MetalUICore", "MetalUILayout", "MetalUIRender", "MetalUIPlatform"]
         ),
-        .testTarget(name: "MetalUITests", dependencies: ["MetalUI"]),
+        .testTarget(
+            name: "MetalUITests",
+            dependencies: ["MetalUI", "MetalUITestSupport"]
+        ),
         .executableTarget(name: "MetalUIDemo", dependencies: ["MetalUI"]),
     ],
     swiftLanguageModes: [.v6]

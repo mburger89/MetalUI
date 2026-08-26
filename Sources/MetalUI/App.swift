@@ -4,6 +4,7 @@ import MetalUIPlatform
 // MetalUI is the umbrella module: a client writes `import MetalUI` and gets the
 // geometry, unit, and colour types its content closures must name.
 @_exported import MetalUICore
+@_exported import MetalUILayout
 @_exported import MetalUIRender
 
 #if canImport(AppKit)
