@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Nesting is where insets get double-counted or applied to the wrong
+     generation, and no other fixture in the corpus has a padded container
+     inside a padded container.
+
+     The outer and inner insets are DIFFERENT on purpose (10+5 outside, 20+3
+     inside): with equal insets at both levels, "applied to the wrong
+     generation" and "applied correctly" produce the same numbers.
+
+     .g1 sits at 10 + 5 + 20 + 3 = 38 on both axes. Applying the OUTER inset to
+     the grandchildren as well gives 53; skipping the INNER one gives 15.
+
+     Two children at BOTH levels, and `.g2` grows: with a single grandchild,
+     "inset the inner origin" and "shrink the inner content box" are
+     indistinguishable, because nothing consumes the inner container's
+     remaining width. `.g2`'s width is that remainder — 200 - 20 - 20 - 3 - 3
+     - 20 = 134 — so the inner content box's SIZE is load-bearing too, not
+     only its origin. `.sib` does the same job one level up: it packs after
+     `.mid`'s full 200, inside the outer content box. */
+  #root { display: flex; flex-direction: row; width: 400px; height: 200px;
+          padding: 10px;
+          border-style: solid; border-color: black; border-width: 5px; }
+  .mid { display: flex; flex-direction: row; width: 200px; height: 80px;
+         padding: 20px;
+         border-style: solid; border-color: black; border-width: 3px; }
+  .g1 { width: 20px; height: 10px; }
+  .g2 { flex: 1 1 0; height: 10px; }
+  .sib { width: 40px; height: 60px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="mid" data-id="mid">
+      <div class="g1" data-id="g1"></div>
+      <div class="g2" data-id="g2"></div>
+    </div>
+    <div class="sib" data-id="sib"></div>
+  </div>
+</body></html>

@@ -1,0 +1,53 @@
+{
+  "fixture" : "flex_percent_padding_nonsquare",
+  "raw" : [
+    {
+      "height" : 100,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "a",
+      "width" : 50,
+      "x" : 32,
+      "y" : 40
+    },
+    {
+      "height" : 36,
+      "id" : "b",
+      "width" : 60,
+      "x" : 82,
+      "y" : 40
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 100,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "a",
+      "width" : 50,
+      "x" : 32,
+      "y" : 40
+    },
+    {
+      "height" : 36,
+      "id" : "b",
+      "width" : 60,
+      "x" : 82,
+      "y" : 40
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

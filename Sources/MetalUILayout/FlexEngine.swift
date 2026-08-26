@@ -47,7 +47,23 @@ public func computeLayout(
 ) {
     let rootSize = resolveRootSize(tree, root, available: available, rootFontSize: rootFontSize)
     tree.setLayout(root, LayoutRect(x: 0, y: 0, width: rootSize.width, height: rootSize.height))
+    // The root's containing block is the space it was offered — ruling FS-1's
+    // "the root is a block box in the initial containing block". So the root's
+    // own percentage padding and border resolve against `available.width`, NOT
+    // against the root's resolved width: a 400-wide root inside an 800-wide
+    // viewport has `padding: 10%` of 800. Indefinite offered width means an
+    // indefinite containing block, and percentage edges then resolve to 0.
+    //
+    // `resolveRootSize` above still resolves the root's own `width: 50%`
+    // against nil rather than against this same extent — a separate, narrower
+    // divergence, recorded in CLAUDE.md; do not "fix" one by reaching into the
+    // other, they are different rules with different reach.
+    let rootContainingBlockWidth: Double? = {
+        if case .definite(let w) = available.width { return w }
+        return nil
+    }()
     layoutContainer(tree, root, containerOrigin: (0, 0), containerSize: rootSize,
+                    containingBlockWidth: rootContainingBlockWidth,
                     rootFontSize: rootFontSize)
 
     // Round last, over the finished absolute rects. Spec §5.7 designates the
@@ -260,22 +276,38 @@ private func resolveNodeSize(
 /// container's own origin* — callers add it to the absolute origin, keeping the
 /// "all stored rects are absolute" invariant in one place.
 ///
-/// Percentages in `padding` and `border` resolve against the containing block's
-/// **width, even for top and bottom**. That is CSS, not a simplification, and
-/// `resolveEdges` already implements it — see
-/// `edgePercentagesResolveAgainstTheInlineAxisOnly` in `ResolveTests.swift`.
-/// That test pins `resolveEdges` itself, not this call site: no fixture in the
-/// corpus gives a container percentage padding or border, so this function's
-/// use of the rule is unverified against WebKit until Task 3 adds one.
+/// Percentages in `padding` and `border` resolve against
+/// `containingBlockWidth` — the width of the box's **containing block**, on
+/// every edge including top and bottom. Two separate rules are packed into
+/// that sentence and each has its own mutation:
+///
+/// 1. **Width, not height**, even for `padding-top`/`padding-bottom`. CSS, not
+///    a simplification; `resolveEdges` documents it too, and
+///    `flex_percent_padding_nonsquare` is what distinguishes the bases (a
+///    square container cannot).
+/// 2. **The containing block's width, not this box's own.** The containing
+///    block of a flex item is its flex container's *content* box, and for the
+///    root it is the space `computeLayout` was offered. This function passed
+///    `borderBox.width` until Task 3 — the box's own size — which is wrong for
+///    every box whose width differs from its parent's content width, i.e.
+///    almost all of them. Measured against WebKit: a 200-wide `.mid` with
+///    `padding: 10%` inside a root whose content box is 270 wide gets **27**,
+///    not 20 (10% of its own width) and not 40 (10% of the root's border
+///    box). Pinned by `flex_nested_percent_padding`.
+///
+/// `nil` means the containing block is indefinite on that axis; `resolveEdges`
+/// then treats every percentage edge as 0, which is CSS's rule for an
+/// unresolvable percentage.
 private func contentBox(
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
     borderBox: SizeD,
+    containingBlockWidth: Double?,
     rootFontSize: Double
 ) -> (origin: (Double, Double), size: SizeD) {
     let s = tree.style(container)
-    let padding = resolveEdges(s.padding, against: borderBox.width, rootFontSize: rootFontSize)
-    let border = resolveEdges(s.border, against: borderBox.width, rootFontSize: rootFontSize)
+    let padding = resolveEdges(s.padding, against: containingBlockWidth, rootFontSize: rootFontSize)
+    let border = resolveEdges(s.border, against: containingBlockWidth, rootFontSize: rootFontSize)
 
     let leading = (padding.left + border.left, padding.top + border.top)
     // Ruling BM-4 (CLAUDE.md's known divergences) — this is a deliberate stand-in,
@@ -303,13 +335,20 @@ private func layoutContainer(
     _ container: LayoutNodeID,
     containerOrigin: (Double, Double),
     containerSize: SizeD,
+    containingBlockWidth: Double?,
     rootFontSize: Double
 ) {
     // `containerSize` is the border box (§5.2). Everything below this line that
     // concerns the children — their available space, the freeze loop's main
     // extent, and their positioned origin and cross extent — works in the
     // CONTENT box instead: `containerSize` must not be used for children again.
-    let box = contentBox(tree, container, borderBox: containerSize, rootFontSize: rootFontSize)
+    //
+    // `containingBlockWidth` is a THIRD width and must not be confused with
+    // either: it belongs to this container's *parent*, and its only use is as
+    // the basis for this container's own percentage padding and border.
+    let box = contentBox(tree, container, borderBox: containerSize,
+                         containingBlockWidth: containingBlockWidth,
+                         rootFontSize: rootFontSize)
     let childOrigin = (containerOrigin.0 + box.origin.0, containerOrigin.1 + box.origin.1)
 
     var items = collectItems(tree, container, containerSize: box.size,
@@ -630,7 +669,14 @@ private func positionItems(
             : SizeD(width: item.crossSize, height: item.targetMainSize)
 
         tree.setLayout(item.node, LayoutRect(x: x, y: y, width: size.width, height: size.height))
+        // `containerSize` here is THIS container's content box (`layoutContainer`
+        // passes `box.size`), which is exactly the item's containing block — so
+        // its width is the basis for the item's own percentage padding and
+        // border. Passing `size.width` (the item's own width) instead is the
+        // bug Task 3 found: correct only when an item happens to be as wide as
+        // its parent's content box.
         layoutContainer(tree, item.node, containerOrigin: (x, y), containerSize: size,
+                        containingBlockWidth: containerSize.width,
                         rootFontSize: rootFontSize)
 
         cursor += outerMain(item)
