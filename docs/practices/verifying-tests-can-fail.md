@@ -41,7 +41,7 @@ Three traps worth knowing before you start:
   resource bundle but does **not** rebuild Swift's view of the C struct. Use
   `swift package clean` after header edits — `rm -rf .build` is not always enough.
 
-## The taxonomy — ten shapes, all found in this repo
+## The taxonomy — eleven shapes, all found in this repo
 
 Use this as a checklist when writing tests, and as a hit list when mutating.
 
@@ -216,6 +216,40 @@ first sweep.
 milestone you expect to fix it — a mechanism can be checked, a milestone cannot.
 "Needs M2" was wrong because the gate was never text metrics; it was recursive
 subtree measurement, which nobody had written down.
+
+### 11. A run that did not happen and reported success
+
+Shapes 1-9 are tests that cannot fail; shape 10 is a belief that outlived its
+truth. This one is a *suite that never ran* — and it is the only shape here that
+a green exit status actively conceals.
+
+A test in `PlatformTests.swift` ended with `defer { nsWindow.close() }`. That is
+the ordinary, correct habit — clean up the window you opened. But `App.openWindow`
+wires the window's `onClose` to `NSApplication.terminate`, so the close killed the
+test process from inside a passing test. **`swift test` exited 0 having silently
+skipped 94 of 302 tests, and printed no summary line at all.**
+
+Nothing in the taxonomy would have caught it: every remaining test was
+well-formed and capable of failing. They simply were not run. The exit status
+said green, the CI convention that reads exit status would have said green, and
+the 94 unrun tests included the ones guarding this milestone's own work.
+
+**What caught it was comparing the test count to the previous run.** Nothing else
+would have. So:
+
+- **Read the summary line, not the exit code.** `Test run with N tests … passed`
+  is the only evidence the suite ran; its *absence* is the signal, and an absent
+  line is easy to miss in a scrollback.
+- **Treat a falling test count as a failure** until you can name the tests you
+  deleted. A count that drops without a deletion is this shape.
+- **In this repo specifically**, any test that opens a real window owes you a
+  note on whether closing it terminates the process. `AppKitPlatform.openWindow`
+  sets no `onClose` and is safe to close; `App.openWindow` is not. The
+  distinction is invisible at the call site — both hand back an `NSWindow`.
+
+The general form: **a cleanup path that can end the process turns a passing test
+into a truncated run.** Timeouts, `exit()` in a fatal-error handler, and anything
+that tears down a shared host have the same signature.
 
 ### A fixture hazard worth knowing before you write goldens
 

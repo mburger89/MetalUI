@@ -38,7 +38,7 @@ The flex-sizing milestone alone produced nineteen findings, four of them the sam
 shape: a fixture too uniform to distinguish the thing it claimed to pin. Before
 committing a fixture, change the declaration it is named for — a percentage to a
 pixel, an inset to 0 — regenerate, and confirm the numbers move. That document
-catalogues eight shapes of test that cannot fail, all observed in this repo, plus
+catalogues eleven shapes of test that cannot fail, all observed in this repo, plus
 the method for finding them and the cases where adding a test is the wrong answer.
 
 The recurring lesson of the last two tasks has a sharper form: **a feature that
