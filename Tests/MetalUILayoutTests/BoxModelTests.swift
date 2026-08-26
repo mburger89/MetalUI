@@ -148,3 +148,172 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
     // clamped-to-zero content box happens to agree with WebKit's own here.
     #expect(tree.layout(a) == LayoutRect(x: 60, y: 70, width: 0, height: 0))
 }
+
+/// Margins consume main-axis space and offset the item's own rect.
+///
+/// Different margins per child, and margins on both ends, so neither "read the
+/// wrong child's margin" nor "drop the trailing margin" can pass.
+@Test func marginsConsumeMainAxisSpaceAndOffsetTheItem() {
+    let tree = LayoutTree()
+    var aStyle = Style()
+    aStyle.size = Size(width: px(50), height: px(30))
+    aStyle.margin = Edges(top: px(0), right: px(12), bottom: px(0), left: px(7))
+    let a = tree.newNode(style: aStyle, children: [])
+
+    var bStyle = Style()
+    bStyle.size = Size(width: px(60), height: px(30))
+    bStyle.margin = Edges(top: px(0), right: px(4), bottom: px(0), left: px(3))
+    let b = tree.newNode(style: bStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    // a starts after its 7 leading margin.
+    #expect(tree.layout(a) == LayoutRect(x: 7, y: 0, width: 50, height: 30))
+    // b starts after a's outer box (7 + 50 + 12 = 69) plus its own 3 leading.
+    #expect(tree.layout(b) == LayoutRect(x: 72, y: 0, width: 60, height: 30))
+}
+
+/// A margin reduces what a grow item can grow into — proof the line's content
+/// size counts margins rather than only border boxes.
+@Test func marginsReduceTheSpaceAvailableToGrow() {
+    let tree = LayoutTree()
+    var s = Style()
+    s.flexGrow = 1
+    s.flexBasis = px(0)
+    s.size = Size(width: .auto, height: px(20))
+    s.margin = Edges(top: px(0), right: px(30), bottom: px(0), left: px(10))
+    let kid = tree.newNode(style: s, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [kid])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(kid).width == 360)   // 400 - 10 - 30
+    #expect(tree.layout(kid).x == 10)
+}
+
+/// Cross margins offset placement, and `align-items: flex-end` measures from the
+/// content box's far edge minus the trailing margin.
+@Test func crossMarginsOffsetAlignment() {
+    let tree = LayoutTree()
+    var s = Style()
+    s.size = Size(width: px(50), height: px(30))
+    s.margin = Edges(top: px(6), right: px(0), bottom: px(9), left: px(0))
+    let kid = tree.newNode(style: s, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.alignItems = .flexEnd
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [kid])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    // Outer cross box is 6 + 30 + 9 = 45; flex-end puts its far edge at 100, so
+    // the outer box starts at 55 and the border box at 55 + 6 = 61.
+    #expect(tree.layout(kid).y == 61)
+}
+
+/// `margin: auto` resolves to 0 — deliberately, and only until it is implemented.
+///
+/// CSS gives auto margins priority over `justify-content`: they absorb free
+/// space first. This engine does not, and a silently-zero auto margin looks like
+/// a working layout that is merely mis-centred. Recorded in CLAUDE.md's
+/// inert-API table; delete that row when this changes.
+@Test func autoMarginsResolveToZeroForNow() {
+    let tree = LayoutTree()
+    var s = Style()
+    s.size = Size(width: px(50), height: px(30))
+    s.margin = Edges(top: .auto, right: .auto, bottom: .auto, left: .auto)
+    let kid = tree.newNode(style: s, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [kid])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    // CSS would centre it at x = 175. We put it at 0 and say so.
+    #expect(tree.layout(kid).x == 0)
+    #expect(tree.layout(kid).y == 0)
+}
+
+/// Margins against WebKit: three children, different asymmetric margins on
+/// both axes, `justify-content: space-between`. `flex_row_margins` is the
+/// fixture — see its HTML for why `space-between` matters: a content size
+/// that drops margins moves every gap, not just the outer edges.
+@Test func rowMarginsMatchWebKit() throws {
+    let golden = try loadGolden("flex_row_margins")
+    let tree = LayoutTree()
+
+    func marginChild(w: Double, h: Double, top: Double, right: Double,
+                     bottom: Double, left: Double) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(w), height: px(h))
+        s.margin = Edges(top: px(top), right: px(right), bottom: px(bottom), left: px(left))
+        return tree.newNode(style: s, children: [])
+    }
+    let a = marginChild(w: 40, h: 30, top: 5, right: 10, bottom: 15, left: 20)
+    let b = marginChild(w: 50, h: 40, top: 2, right: 25, bottom: 8, left: 3)
+    let c = marginChild(w: 60, h: 20, top: 12, right: 4, bottom: 1, left: 18)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.justifyContent = .spaceBetween
+    rootStyle.size = Size(width: px(400), height: px(100))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// A `flex: 1 1 0` child with margins beside a fixed child with its own
+/// (different) margins, against WebKit. `flex_row_margin_with_grow` is the
+/// fixture; this is the browser-checked proof that the freeze loop's budget
+/// is shrunk by BOTH children's total margin, not only the growing one's.
+@Test func rowMarginWithGrowMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_margin_with_grow")
+    let tree = LayoutTree()
+
+    var aStyle = Style()
+    aStyle.flexGrow = 1
+    aStyle.flexShrink = 1
+    aStyle.flexBasis = px(0)
+    aStyle.size = Size(width: .auto, height: px(40))
+    aStyle.margin = Edges(top: px(4), right: px(15), bottom: px(6), left: px(9))
+    let a = tree.newNode(style: aStyle, children: [])
+
+    var bStyle = Style()
+    bStyle.size = Size(width: px(80), height: px(40))
+    bStyle.margin = Edges(top: px(10), right: px(2), bottom: px(3), left: px(20))
+    let b = tree.newNode(style: bStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(60))
+    let root = tree.newNode(style: rootStyle, children: [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b"],
+                        golden: golden, tolerance: 0.1)
+}

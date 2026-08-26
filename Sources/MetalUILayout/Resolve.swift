@@ -62,6 +62,25 @@ public func resolveEdges(_ e: Edges<Length>, against parent: Double?, rootFontSi
     return ResolvedEdges(top: r(e.top), right: r(e.right), bottom: r(e.bottom), left: r(e.left))
 }
 
+/// Resolve margin edges, which — unlike padding and border — may be `auto`.
+///
+/// **`.auto` resolves to 0, and that is not CSS.** An auto margin absorbs free
+/// space *before* `justify-content` distributes any, so a CSS `margin-left: auto`
+/// pushes its item to the end of the line; here it does nothing. This one line is
+/// where that gets implemented. Until it does, the row in CLAUDE.md's inert-API
+/// table stands.
+///
+/// Percentages resolve against `parent`, which callers must supply as the
+/// containing block's **width** even for top and bottom — the same CSS rule
+/// `resolveEdges` follows.
+public func resolveMargin(_ e: Edges<Dimension>, against parent: Double?,
+                          rootFontSize: Double) -> ResolvedEdges {
+    func r(_ d: Dimension) -> Double {
+        resolveDimension(d, against: parent, rootFontSize: rootFontSize) ?? 0
+    }
+    return ResolvedEdges(top: r(e.top), right: r(e.right), bottom: r(e.bottom), left: r(e.left))
+}
+
 /// Clamp to min/max, with min taking precedence when they conflict (CSS §10.4).
 public func clamp(_ value: Double, min lower: Double?, max upper: Double?) -> Double {
     var v = value

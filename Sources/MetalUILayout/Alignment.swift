@@ -23,6 +23,12 @@ struct MainAxisOffsets {
 /// Takes plain main-axis extents rather than `[FlexItem]`: this file is shared
 /// with Grid (spec §3.1), and a parameter naming a flex type would make that
 /// claim false the moment Grid tried to call it.
+///
+/// **Margins are the caller's job, not this function's.** An item's margin
+/// sits outside its border box, so `positionItems` passes this function each
+/// item's *outer* main size (`marginMain.leading + targetMainSize +
+/// marginMain.trailing`) rather than teaching this shared file about
+/// `FlexItem.marginMain` — the same reason it stays `[Double]`.
 func lineContentSize(_ mainSizes: [Double], gap: Double) -> Double {
     guard !mainSizes.isEmpty else { return 0 }
     return mainSizes.reduce(0, +) + gap * Double(mainSizes.count - 1)
@@ -126,6 +132,14 @@ func resolvedAlignment(_ item: Style, container: Style) -> AlignItems {
 /// font metrics that arrive with the text system in M2; until then a baseline
 /// row lays out silently as a flex-start row. Recorded in CLAUDE.md's inert-API
 /// table — do not remove that row without implementing this.
+///
+/// **`itemCross` is the item's OUTER cross size since item margins landed** —
+/// `marginCross.leading + crossSize + marginCross.trailing` — because
+/// alignment measures the margin box against the line, exactly as
+/// `justify-content` measures outer main sizes against it. `positionItems` is
+/// the caller that resolves this and then adds `marginCross.leading` to the
+/// return value to land on the border box's own origin; this function itself
+/// knows nothing about margins.
 func crossAxisOffset(_ align: AlignItems, itemCross: Double, lineCross: Double) -> Double {
     switch align {
     case .flexStart, .stretch, .baseline: 0

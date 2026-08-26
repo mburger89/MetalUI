@@ -75,6 +75,8 @@ let allFixtures: [(String, CGSize)] = [
     ("flex_column_reverse_justify_end", CGSize(width: 800, height: 600)),
     ("flex_row_padding_border",         CGSize(width: 800, height: 600)),
     ("flex_column_padding_asymmetric",  CGSize(width: 800, height: 600)),
+    ("flex_row_margins",                CGSize(width: 800, height: 600)),
+    ("flex_row_margin_with_grow",       CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

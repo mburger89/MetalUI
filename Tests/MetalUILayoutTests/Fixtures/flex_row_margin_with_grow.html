@@ -1,0 +1,17 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* A `flex: 1 1 0` child with margins on both ends beside a fixed child with
+     its own (different) margins on both ends, so the grow arithmetic must
+     shrink the budget it distributes into by BOTH children's margins, not
+     just the growing one's. */
+  #root { display: flex; flex-direction: row; width: 400px; height: 60px; }
+  .a { flex: 1 1 0; height: 40px; margin: 4px 15px 6px 9px; }
+  .b { width: 80px; height: 40px; margin: 10px 2px 3px 20px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+  </div>
+</body></html>

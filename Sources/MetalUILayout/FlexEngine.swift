@@ -147,6 +147,24 @@ struct FlexItem {
     /// §9.7 freezes an item once its size is final, and the loop stops when
     /// every item is frozen.
     var frozen: Bool
+    /// The item's resolved leading/trailing margin on the **main** axis —
+    /// `(left, right)` in a row, `(top, bottom)` in a column.
+    ///
+    /// Margins sit *outside* the border box `targetMainSize` describes; an
+    /// item's outer main extent is `marginMain.leading + targetMainSize +
+    /// marginMain.trailing`. `positionItems` is the only reader: the cursor
+    /// advances by the outer extent, and the item's own rect starts
+    /// `marginMain.leading` after the cursor.
+    var marginMain: (leading: Double, trailing: Double)
+    /// The item's resolved leading/trailing margin on the **cross** axis —
+    /// `(top, bottom)` in a row, `(left, right)` in a column.
+    ///
+    /// Read only by `positionItems`, which offsets `crossAxisOffset`'s result
+    /// by `marginCross.leading` and — per the brief — passes the *outer*
+    /// cross size (`marginCross.leading + crossSize + marginCross.trailing`)
+    /// as `crossAxisOffset`'s `itemCross`, so alignment measures the margin
+    /// box, not the border box.
+    var marginCross: (leading: Double, trailing: Double)
 }
 
 /// Resolve the **root's** own border-box size from its style, falling back to
@@ -304,7 +322,19 @@ private func layoutContainer(
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
                             against: containerMain, rootFontSize: rootFontSize) ?? 0
 
-    resolveFlexibleLengths(tree, items: &items, containerMain: containerMain, gap: gap)
+    // §9.7 itself is untouched (`ResolveFlexibleLengths.swift` gains no margin
+    // awareness) — instead the budget it grows/shrinks into is shrunk by the
+    // items' total margin before the call, exactly the way `gap` already
+    // shrinks it inside that function. That is sound because every margin here
+    // is a fixed (non-flexible) amount: `containerMain' = containerMain -
+    // totalMargin` makes `containerMain' - totalGap - sum(targets)` equal
+    // `containerMain - totalGap - sum(outerSizes)`, the real leftover space,
+    // for any split of `targets` the freeze loop produces. `positionItems`
+    // below still uses the real, un-shrunk `containerMain` for its own
+    // free-space math (`justify-content`), because it distributes space
+    // around the outer (margin-inclusive) boxes, not the reduced budget.
+    let totalMargin = items.reduce(0.0) { $0 + $1.marginMain.leading + $1.marginMain.trailing }
+    resolveFlexibleLengths(tree, items: &items, containerMain: containerMain - totalMargin, gap: gap)
 
     positionItems(tree, container, items: items, containerOrigin: childOrigin,
                   containerSize: box.size, rootFontSize: rootFontSize)
@@ -418,6 +448,17 @@ private func collectItems(
                 cross = clamp(containerCross, min: lowerCross, max: upperCross)
             }
 
+            // Margins sit outside the border box `own`/`base` describe.
+            // Percentages resolve against the containing block's **width**,
+            // on every edge including top and bottom — CSS's rule, which
+            // `resolveMargin` (like `resolveEdges`) already implements.
+            // `containerSize` here is the CONTENT box (Task 1 threads it
+            // into `collectItems`), not the border box.
+            let margin = resolveMargin(ks.margin, against: containerSize.width,
+                                       rootFontSize: rootFontSize)
+            let marginMain = isRow ? (margin.left, margin.right) : (margin.top, margin.bottom)
+            let marginCross = isRow ? (margin.top, margin.bottom) : (margin.left, margin.right)
+
             // `targetMainSize:` here is dead — §9.7.2 overwrites it on every
             // item before it is read, and no empty-line path reaches
             // `positionItems`. It repeats `hypothetical` only because a
@@ -425,7 +466,8 @@ private func collectItems(
             // See the field's declaration.
             return FlexItem(node: kid, baseSize: base, hypotheticalMainSize: hypothetical,
                             minMain: minMain, maxMain: maxMain,
-                            targetMainSize: hypothetical, crossSize: cross, frozen: false)
+                            targetMainSize: hypothetical, crossSize: cross, frozen: false,
+                            marginMain: marginMain, marginCross: marginCross)
         }
 }
 
@@ -477,11 +519,24 @@ private func positionItems(
                             against: containerMain,
                             rootFontSize: rootFontSize) ?? 0
 
-    let content = lineContentSize(items.map(\.targetMainSize), gap: gap)
+    // The line's content size counts margins — an item's OUTER main extent,
+    // not its border box — or free space is overstated and every
+    // `justify-content` value lands wrong (the space-between fixture is the
+    // browser's word on this). `lineContentSize` itself stays margin-blind
+    // ([Double] in, shared with Grid); outer sizes are computed here instead.
+    func outerMain(_ item: FlexItem) -> Double {
+        item.marginMain.leading + item.targetMainSize + item.marginMain.trailing
+    }
+    let content = lineContentSize(items.map(outerMain), gap: gap)
     let offsets = distributeMainAxis(s.justifyContent ?? .flexStart,
                                      freeSpace: containerMain - content,
                                      itemCount: items.count)
 
+    // `cursor` tracks the flex-relative start of each item's OUTER (margin)
+    // box, exactly as it tracked the border box before margins existed. The
+    // border box then starts `marginMain.leading` further along — see the
+    // conversion below, which must add that offset on both the forward and
+    // the reversed path.
     var cursor: Double = offsets.leading
     for (index, item) in items.enumerated() {
         // Between items only.
@@ -490,16 +545,32 @@ private func positionItems(
         // CSS Flexbox §9.6 — the line's cross size is the container's cross
         // extent (single-line only; wrapping would make this the line's own
         // measured cross size instead).
+        //
+        // `crossAxisOffset` is handed the OUTER cross size — margin included
+        // — because alignment (e.g. `flex-end`) measures the margin box
+        // against the line, not the border box; the result is then nudged by
+        // the leading cross margin to land on the border box's own origin.
         let align = resolvedAlignment(tree.style(item.node), container: s)
-        let crossOffset = crossAxisOffset(align, itemCross: item.crossSize,
+        let outerCross = item.marginCross.leading + item.crossSize + item.marginCross.trailing
+        let crossOffset = crossAxisOffset(align, itemCross: outerCross,
                                           lineCross: containerCross)
+                         + item.marginCross.leading
 
-        // Convert the flex-relative cursor to a physical main-axis position.
-        // Forward: the cursor already IS the physical position. Reversed: the
-        // item's main-start sits `cursor` in from the container's flex-start,
-        // which is the container's physical main-end — so the item's physical
-        // leading edge is `containerMain - cursor - item.targetMainSize`.
-        let main = isReverse ? (containerMain - cursor - item.targetMainSize) : cursor
+        // Convert the flex-relative cursor to the border box's physical
+        // main-axis position. Forward: the border box starts `cursor +
+        // marginMain.leading` from the container's physical main-start,
+        // which already IS the container's flex-relative start, so that sum
+        // is the physical position outright. Reversed: the OUTER box's
+        // main-start sits `cursor` in from the container's flex-start, which
+        // is the container's physical main-end; the border box sits
+        // `marginMain.leading` further from that same flex-relative origin,
+        // i.e. at flex-relative position `cursor + marginMain.leading`, so
+        // its physical leading edge is `containerMain - (cursor +
+        // marginMain.leading) - item.targetMainSize`.
+        let borderBoxFlexRelative = cursor + item.marginMain.leading
+        let main = isReverse
+            ? (containerMain - borderBoxFlexRelative - item.targetMainSize)
+            : borderBoxFlexRelative
         let x = containerOrigin.0 + (isRow ? main : crossOffset)
         let y = containerOrigin.1 + (isRow ? crossOffset : main)
         let size = isRow
@@ -510,6 +581,6 @@ private func positionItems(
         layoutContainer(tree, item.node, containerOrigin: (x, y), containerSize: size,
                         rootFontSize: rootFontSize)
 
-        cursor += item.targetMainSize
+        cursor += outerMain(item)
     }
 }
