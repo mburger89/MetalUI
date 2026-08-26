@@ -56,16 +56,16 @@ public func resolveDimension(_ d: Dimension, against parent: Double?, rootFontSi
 /// must supply as the containing block's **width** even for top and bottom —
 /// that is CSS's rule, not a simplification.
 ///
-/// **`contentBox` in `FlexEngine.swift` is the caller**, and since Task 3 it is
-/// a real one: from M1a until the box-model work this function was fully
+/// **`contentBox` in `FlexEngine.swift` is the caller**, and since the BOX
+/// MODEL milestone's third task it is a real one: from M1a until the box-model work this function was fully
 /// unit-tested with no production caller at all, and "callers must supply"
 /// described nobody.
 ///
 /// It supplies the containing block's width, which is **not** the width of the
 /// box whose padding is being resolved. For a flex item that is its flex
 /// container's *content* box; for the root it is the extent `computeLayout` was
-/// offered. `contentBox` passed the box's own border-box width until Task 3 —
-/// wrong for every box narrower than its parent's content box, and invisible
+/// offered. `contentBox` passed the box's own border-box width until that same
+/// task — wrong for every box narrower than its parent's content box, and invisible
 /// because no fixture had percentage padding. See `contentBox`'s own comment
 /// for WebKit's numbers.
 ///

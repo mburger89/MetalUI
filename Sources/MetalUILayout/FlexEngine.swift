@@ -6,10 +6,11 @@ import MetalUICore
 /// This milestone implements CSS Flexbox §9 incrementally. Right now: §9.2 flex
 /// base sizes, §9.3 line collection, §9.4 cross-axis stretch and §9.4.8 line
 /// cross sizing, §9.5 justify-content packing, §9.6 cross-axis placement,
-/// §9.6.15 align-content, §9.7 grow/shrink, and the box model — `padding` and
-/// `border` shrink the content box (`contentBox` below), `margin` sits outside
-/// each item's border box (`collectItems`, `positionItems`). `wrap-reverse` and
-/// absolute positioning arrive in later tasks, each with its own fixtures.
+/// §9.6.15 align-content, §9.7 grow/shrink, §8.3's `wrap-reverse`, and the box
+/// model — `padding` and `border` shrink the content box (`contentBox` below),
+/// `margin` sits outside each item's border box (`collectItems`,
+/// `positionItems`). Absolute positioning arrives in a later plan, with its own
+/// fixtures.
 ///
 /// **The phase order is: size every item, break into lines, distribute cross
 /// space among the lines, then per line stretch → flex → position.** Breaking
@@ -20,10 +21,20 @@ import MetalUICore
 /// after that does §9.4's item stretch fill them. Every one of those orderings
 /// is circular or wrong if reversed.
 ///
+/// **Both reversals are conversions at the point of use, not reorderings.**
+/// `row-reverse`/`column-reverse` flip the main axis and `wrap-reverse` flips
+/// the cross axis; `collectLines` and this file's cursors stay in document
+/// order and flex-relative coordinates throughout, and `positionItems` is the
+/// single place either becomes physical. `collectLines` *must* see document
+/// order — CSS assigns items to lines in document order whatever the direction
+/// — so a pre-flipped array reaching it would put the wrong items on the wrong
+/// lines. See `positionItems` for the four conversions (two axes × two nesting
+/// levels) and the WebKit numbers each was measured against.
+///
 /// Two gaps remain and are recorded rather than implied: `inset` is still read
 /// by nothing (absolute positioning is its own plan), and `margin: auto`
 /// resolves to 0 instead of absorbing free space. Both have rows in CLAUDE.md's
-/// inert-API table, as does `wrap-reverse`'s half-implemented reversal.
+/// inert-API table.
 ///
 /// **Cross-axis `stretch` landed in the alignment task, and with it every golden
 /// comparison in the suite is now full-rect.** Twelve of them compared the main
@@ -229,7 +240,8 @@ struct FlexItem {
 /// `height: auto`) on such a box fills the space the box is offered — that is
 /// what `computeLayout`'s public `available:` parameter is *for*. A flex
 /// item's `auto` main size means something else entirely: it is resolved via
-/// §9.2's flex base size (Task 2) and never by inheriting a container's
+/// §9.2's flex base size (the FLEX-SIZING milestone's second task) and never by
+/// inheriting a container's
 /// extent, which is why `resolveNodeSize` below must not fall back to
 /// `available` — doing so would silently reintroduce the Task 7 scope-boundary
 /// fallback this task deletes from item sizing.
@@ -281,8 +293,9 @@ private func resolveRootSize(
 ///
 /// This is for nodes whose size comes from their own style alone — a flex
 /// item's **cross** axis, and any node reached from `collectItems`. Since
-/// Task 2, `collectItems` gets an item's main axis from `flexBaseSize(_:)`
-/// instead, so this function never touches a flex item's main axis at all;
+/// the FLEX-SIZING milestone's second task, `collectItems` gets an item's main
+/// axis from `flexBaseSize(_:)` instead, so this function never touches a flex
+/// item's main axis at all;
 /// `collectItems` still calls it for the item's full `SizeD` and reads only
 /// the cross component out of it. It must never grow a `flexBasis` branch of
 /// its own to reach into the main axis anyway — m1a ruling PF-3
@@ -335,7 +348,8 @@ private func resolveNodeSize(
 /// 2. **The containing block's width, not this box's own.** The containing
 ///    block of a flex item is its flex container's *content* box, and for the
 ///    root it is the space `computeLayout` was offered. This function passed
-///    `borderBox.width` until Task 3 — the box's own size — which is wrong for
+///    `borderBox.width` until the BOX MODEL milestone's third task — the box's
+///    own size — which is wrong for
 ///    every box whose width differs from its parent's content width, i.e.
 ///    almost all of them. Measured against WebKit: a 200-wide `.mid` with
 ///    `padding: 10%` inside a root whose content box is 270 wide gets **27**,
@@ -463,7 +477,8 @@ private func layoutContainer(
     // here, and keying on it would be a second, silently divergent definition
     // of what a single line is.
     //
-    // **The initial value is `stretch`, not `flex-start`.** Task 1 shipped
+    // **The initial value is `stretch`, not `flex-start`.** This milestone's
+    // FIRST task shipped
     // cross-start packing as a scoped divergence with a test naming WebKit's
     // numbers; this closes it, and that test is deleted rather than inverted.
     let align = s.alignContent ?? .stretch
@@ -488,6 +503,14 @@ private func layoutContainer(
     // plus whatever `align-content` inserts between them, starting
     // `lineOffsets.leading` in. Under `stretch` both offsets are 0 and the
     // growth above has already consumed the leftover.
+    //
+    // **`crossCursor` is FLEX-relative, not physical** — the same discipline
+    // `positionItems`' main-axis `cursor` follows. Under `wrap-reverse` the
+    // whole cross axis is flipped, and this loop is deliberately unaware of
+    // that: `positionItems` converts, at the one point a physical coordinate
+    // is derived. Flipping here instead would leave the per-item
+    // `crossAxisOffset` unflipped, which is CSS's other half — see
+    // `positionItems`.
     var crossCursor: Double = lineOffsets.leading
     for i in lines.indices {
         // Between lines only — a trailing gap would be as wrong here as it is
@@ -563,7 +586,7 @@ private func collectItems(
             // base size. Taking the base size here is the tempting wrong answer
             // and it disables shrinking entirely: every `flex-basis: 200px` item
             // would acquire a 200px floor and refuse to give up a single pixel.
-            // `anItemWithNoContentHasNoAutomaticMinimum` and Task 3's
+            // `anItemWithNoContentHasNoAutomaticMinimum` and
             // `shrinkIsWeightedByBaseSize` both redden if anyone tries it.
             //
             // An item with no measure function has no content, so its automatic
@@ -612,8 +635,8 @@ private func collectItems(
             // Percentages resolve against the containing block's **width**,
             // on every edge including top and bottom — CSS's rule, which
             // `resolveMargin` (like `resolveEdges`) already implements.
-            // `containerSize` here is the CONTENT box (Task 1 threads it
-            // into `collectItems`), not the border box.
+            // `containerSize` here is the CONTENT box (the BOX MODEL milestone
+            // threads it into `collectItems`), not the border box.
             //
             // Resolved BEFORE the stretch block below, not after: a stretched
             // item's cross size must subtract `marginCross` (CSS stretches the
@@ -771,7 +794,35 @@ private func positionItems(
     // Verified against WebKit: a `row-reverse` + `wrap` + `gap` + margin probe
     // agrees exactly, item-for-item and line-for-line.
     let isReverse = s.flexDirection.isReverse
+    // CSS Flexbox §8.3 — `wrap-reverse` flips the CROSS axis, exactly as
+    // `row-reverse`/`column-reverse` flip the main one, and it is converted
+    // here for the same reason: `layoutContainer`'s line cursor and
+    // `crossAxisOffset`'s per-item offset are both **flex-relative**, and this
+    // is the single place either becomes a physical coordinate.
+    //
+    // **Both halves need the flip; reversing the lines array is not enough.**
+    // Measured in WebKit on a 260x300 `wrap-reverse` row holding
+    // 120x40 / 120x30 / 120x90 with `align-content: flex-start`: `c` (line 1,
+    // alone) at **170**, and `a` and `b` (line 0, together) at **260 and 270**.
+    // `a` and `b` differ from each other despite sharing a 40-tall line
+    // because each is pinned to its OWN bottom edge — that is the per-item
+    // half. Reversing the array alone would put both at the line's top and
+    // leave the `align-content` leading offset measured from the wrong edge.
+    //
+    // The two conversions below are the exact cross-axis mirrors of the main
+    // axis's `containerMain - cursor - outerMain(item)`, one per nesting
+    // level: the line's flipped start inside the container, and the item's
+    // flipped start inside its line.
+    let isCrossReverse = s.flexWrap == .wrapReverse
     let containerMain = isRow ? containerSize.width : containerSize.height
+    let containerCross = isRow ? containerSize.height : containerSize.width
+    // The line's PHYSICAL cross-start. Forward, the flex-relative cursor
+    // already is one; reversed, the line's flex-start sits `lineCrossStart` in
+    // from the container's physical cross-END, so its physical start is the
+    // container's cross extent less the cursor less the line's own extent.
+    let linePhysicalCrossStart = isCrossReverse
+        ? (containerCross - lineCrossStart - lineCross)
+        : lineCrossStart
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
                             against: containerMain,
                             rootFontSize: rootFontSize) ?? 0
@@ -814,10 +865,29 @@ private func positionItems(
         // — because alignment (e.g. `flex-end`) measures the margin box
         // against the line, not the border box; the result is then nudged by
         // the leading cross margin to land on the border box's own origin.
+        //
+        // Under `wrap-reverse` the offset `crossAxisOffset` returns is
+        // flex-relative and is flipped inside the line before the line's own
+        // physical start is added — `align-items: flex-start` then lands the
+        // item on its line's BOTTOM edge in a row, and `flex-end` on its top.
+        // `center` is symmetric and does not move, which is why a
+        // centre-aligned fixture can never pin this flip.
+        //
+        // `marginCross.leading` is added AFTER the flip and is never flipped,
+        // for the same reason `marginMain.leading` is not: it is physical
+        // (`margin-top` in a row), and CSS's physical margins do not follow
+        // `wrap-reverse` any more than they follow `row-reverse`. The flipped
+        // quantity is the whole OUTER (margin) box, so what lands at the
+        // line's bottom is the margin box's bottom edge, and the border box
+        // starts its own top margin further down.
         let align = resolvedAlignment(tree.style(item.node), container: s)
         let outerCross = item.marginCross.leading + item.crossSize + item.marginCross.trailing
-        let crossOffset = lineCrossStart
-                         + crossAxisOffset(align, itemCross: outerCross, lineCross: lineCross)
+        let flexRelativeCross = crossAxisOffset(align, itemCross: outerCross, lineCross: lineCross)
+        let outerPhysicalCrossStart = isCrossReverse
+            ? (lineCross - flexRelativeCross - outerCross)
+            : flexRelativeCross
+        let crossOffset = linePhysicalCrossStart
+                         + outerPhysicalCrossStart
                          + item.marginCross.leading
 
         // Convert the flex-relative cursor to the OUTER box's physical
@@ -868,7 +938,8 @@ private func positionItems(
         // passes `box.size`), which is exactly the item's containing block — so
         // its width is the basis for the item's own percentage padding and
         // border. Passing `size.width` (the item's own width) instead is the
-        // bug Task 3 found: correct only when an item happens to be as wide as
+        // bug the BOX MODEL milestone's third task found: correct only when an
+        // item happens to be as wide as
         // its parent's content box.
         layoutContainer(tree, item.node, containerOrigin: (x, y), containerSize: size,
                         containingBlockWidth: containerSize.width,

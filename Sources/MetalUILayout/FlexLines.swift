@@ -35,13 +35,16 @@ struct FlexLine {
 /// a line is never empty. Without that guard an oversized item produces an empty
 /// line before it and every subsequent index shifts.
 ///
-/// **`.wrapReverse` collects lines exactly like `.wrap` here and is NOT
-/// reversed anywhere else** — Task 3 owns that, and until then a
-/// `wrap-reverse` container wraps but stacks its lines cross-start to
-/// cross-end, i.e. it lays out as `wrap`. Recorded in CLAUDE.md's inert-API
-/// table and pinned by `wrapReverseCollectsLinesButDoesNotReverseThemYet`;
-/// deleting either without implementing the reversal is how a half-rule goes
-/// silent.
+/// **`.wrapReverse` collects lines exactly like `.wrap` here, and that is
+/// CSS's rule rather than a shortcut.** §8.3 reverses the cross axis, not the
+/// order items are assigned to lines: a `wrap-reverse` container breaks in
+/// document order and `positionItems` then places the resulting lines from the
+/// container's cross-END, flipping both the `align-content` leading offset and
+/// each item's own `crossAxisOffset`. Pinned by
+/// `wrapReverseBreaksLinesInDocumentOrder` (the break half, asserted here
+/// because positions cannot distinguish "broke differently" from "placed
+/// differently") and by `wrapReverseStacksLinesFromTheCrossEnd` plus the
+/// `flex_wrap_reverse*` fixtures (the placement half).
 func collectLines(
     _ items: [FlexItem],
     wrap: FlexWrap,

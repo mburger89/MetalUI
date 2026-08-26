@@ -163,19 +163,31 @@ private func line(_ mains: [Double]) -> [FlexItem] {
     #expect(tree.layout(c).y == 43)
 }
 
-// MARK: - Scoped divergences this task knowingly ships
+// MARK: - CSS Flexbox §8.3: wrap-reverse flips the CROSS AXIS
 
-/// `wrap-reverse` wraps but does not reverse.
+/// `wrap-reverse` stacks lines from the container's cross-END, and pins each
+/// item to its line's *flipped* cross-start — the line's bottom edge in a row.
 ///
-/// `collectLines` treats it as `.wrap`, and nothing stacks the lines from the
-/// cross-END. Task 3 owns the reversal; until then a `wrap-reverse` container
-/// lays out identically to a `wrap` one — which is a *better* answer than the
-/// `nowrap` it produced before this task, and still not CSS's. CLAUDE.md's
-/// inert-API table carries the row. **Delete both when Task 3 lands.**
+/// **Reversing the line ORDER alone is not what CSS does**, and this tree shows
+/// why: `a` and `b` share line 0 and still land on different `y` values (260 and
+/// 270), because each sits at its own line's bottom edge inside a 40-tall line.
+/// No forward-wrapping fixture can exhibit that — a forward line pins both to
+/// the same top edge — which is why this composition needs its own coverage
+/// rather than inheriting it from the `wrap` tests.
 ///
-/// CSS's answer for the tree below: line 0 at the container's cross-END, so
-/// `c` (line 1) would sit above `a` and `b`, not below them.
-@Test func wrapReverseCollectsLinesButDoesNotReverseThemYet() {
+/// The numbers are WebKit's, measured on this exact tree and recorded in
+/// `docs/superpowers/2026-08-25-wrapping-decisions.md`:
+///
+///     align-content: flex-start (declared below)   c 170, a 260, b 270
+///
+/// `170` is `300 - 40 - 90`: line 1 sits one line-height plus line 0's height
+/// up from the bottom. Before the reversal landed this engine gave c 40, a 0,
+/// b 0 — i.e. it laid out as plain `wrap`.
+///
+/// `align-content: flex-start` is declared so this measures the REVERSAL alone;
+/// `wrapReverseUnderAlignContentStretch` is this same tree with CSS's initial
+/// value restored, and is the differential.
+@Test func wrapReverseStacksLinesFromTheCrossEnd() {
     let tree = LayoutTree()
     let a = item(tree, main: 120, cross: 40)
     let b = item(tree, main: 120, cross: 30)
@@ -184,11 +196,6 @@ private func line(_ mains: [Double]) -> [FlexItem] {
     var rootStyle = Style()
     rootStyle.flexDirection = .row
     rootStyle.flexWrap = .wrapReverse
-    // Declared so this test measures the REVERSAL alone. Under CSS's initial
-    // `align-content: stretch` the two lines would grow to 125 and 175 and the
-    // numbers below would move for a reason that has nothing to do with
-    // `wrap-reverse`. `align-content` x `wrap-reverse` is a composition Task 3
-    // owns, along with the reversal itself.
     rootStyle.alignContent = .flexStart
     rootStyle.size = Size(width: px(260), height: px(300))
     let root = tree.newNode(style: rootStyle, children: [a, b, c])
@@ -196,28 +203,144 @@ private func line(_ mains: [Double]) -> [FlexItem] {
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    // Wrapped — `nowrap` would put all three on one line at y = 0.
-    #expect(tree.layout(c).y == 40)
-    // Not reversed. CSS flips the CROSS AXIS, so cross-start becomes the
-    // container's physical BOTTOM: the lines pack upward from there and each
-    // item sits at its line's flipped cross-start, i.e. its line's bottom edge.
-    // Measured in WebKit on this exact tree, at both align-content values:
-    //
-    //     align-content: flex-start (declared above)   c 170, a 260, b 270
-    //     align-content: stretch (CSS's initial)       c  85, a 260, b 270
-    //
-    // This engine gives c 40, a 0, b 0 under either. `flex-start`'s 170 is
-    // 300 - 40 - 90; `stretch`'s 85 is 175 - 90 after both lines grow by 85.
-    // `a` and `b` differ from each other (260 vs 270) because each is pinned to
-    // its OWN bottom edge inside a 40-tall line — a detail no forward-wrapping
-    // fixture can exhibit.
-    //
-    // An earlier version of this comment claimed `c` at 0 and `a`/`b` at 210.
-    // Both were hand-derived, both are wrong under both values, and CLAUDE.md's
-    // `FlexWrap.wrapReverse` row cited this comment as naming "CSS's answer".
-    // Task 3 implements the reversal from the measured numbers above, not from
-    // that row.
-    #expect(tree.layout(a).y == 0)
+    // Line 1 (`c` alone) sits ABOVE line 0 — the whole cross axis is flipped,
+    // so `flex-start` packs the stack against the container's bottom.
+    #expect(tree.layout(c).y == 170)
+    // Line 0 is at the very bottom, and its two items are pinned to their own
+    // bottom edges: 260 = 300 - 40, 270 = 300 - 30.
+    #expect(tree.layout(a).y == 260)
+    #expect(tree.layout(b).y == 270)
+    // The MAIN axis is untouched — `wrap-reverse` reverses nothing about it.
+    #expect(tree.layout(a).x == 0)
+    #expect(tree.layout(b).x == 120)
+    #expect(tree.layout(c).x == 0)
+}
+
+/// The same tree under CSS's initial `align-content: stretch`.
+///
+/// Both lines grow by 85 (170 leftover, two lines), so line 0 becomes 125 tall
+/// and line 1 175. Reversed, line 1 sits at the top (y 0) and `c` is pinned to
+/// ITS bottom edge at 175 - 90 = 85; line 0 starts at 175 and its items still
+/// land at 260 and 270 because the container's bottom has not moved.
+///
+/// WebKit, on this exact tree: `c 85, a 260, b 270`.
+///
+/// The pair with `wrapReverseStacksLinesFromTheCrossEnd` is the differential:
+/// one property changes, `c` moves 170 -> 85, and `a`/`b` stay put — which is
+/// the signature of growth being distributed to LINES while the flipped
+/// cross-start of the last line remains the container's edge.
+@Test func wrapReverseUnderAlignContentStretch() {
+    let tree = LayoutTree()
+    let a = item(tree, main: 120, cross: 40)
+    let b = item(tree, main: 120, cross: 30)
+    let c = item(tree, main: 120, cross: 90)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrapReverse
+    // `alignContent` deliberately NOT set — CSS's initial `stretch` is the
+    // second half of the differential.
+    rootStyle.size = Size(width: px(260), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(c).y == 85)
+    #expect(tree.layout(a).y == 260)
+    #expect(tree.layout(b).y == 270)
+}
+
+/// `align-items` is expressed in FLEX-relative terms, so `wrap-reverse` flips
+/// what `flex-start` and `flex-end` mean: `flex-start` is the line's bottom
+/// edge and `flex-end` its top.
+///
+/// Three items on one 60-tall line inside a 60-tall container (so
+/// `align-content` cannot move anything and this measures §9.6 alone):
+/// a 20 tall at `flex-start`, b 20 tall at `flex-end`, c 20 tall centred.
+@Test func wrapReverseFlipsWhatAlignItemsFlexStartMeans() {
+    let tree = LayoutTree()
+
+    func child(_ align: AlignSelf) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(60), height: px(20))
+        s.alignSelf = align
+        return tree.newNode(style: s, children: [])
+    }
+    let a = child(.flexStart)
+    let b = child(.flexEnd)
+    let c = child(.center)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrapReverse
+    rootStyle.size = Size(width: px(200), height: px(60))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    // One line, 20 tall naturally, grown to the container's 60 by the initial
+    // `align-content: stretch` — so the line IS the container here.
+    // `flex-start` -> the line's flipped cross-start, i.e. its BOTTOM.
+    #expect(tree.layout(a).y == 40)
+    // `flex-end` -> the line's flipped cross-END, i.e. its TOP.
+    #expect(tree.layout(b).y == 0)
+    // `center` is symmetric and does not move — which is exactly why a
+    // centre-aligned fixture cannot pin this flip.
+    #expect(tree.layout(c).y == 20)
+}
+
+/// `row-reverse` + `wrap-reverse` flips BOTH axes: the container fills from the
+/// bottom-right.
+///
+/// The main axis's flip already existed (`positionItems`' cursor conversion);
+/// this asserts the two conversions compose rather than cancelling or
+/// double-applying. Same 260x300 tree as
+/// `wrapReverseStacksLinesFromTheCrossEnd`, so the cross numbers are
+/// identical and only `x` moves.
+@Test func rowReverseComposesWithWrapReverseToFillFromTheBottomRight() {
+    let tree = LayoutTree()
+    let a = item(tree, main: 120, cross: 40)
+    let b = item(tree, main: 120, cross: 30)
+    let c = item(tree, main: 120, cross: 90)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .rowReverse
+    rootStyle.flexWrap = .wrapReverse
+    rootStyle.alignContent = .flexStart
+    rootStyle.size = Size(width: px(260), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    // Main: the first item takes the container's RIGHT edge (260 - 120), the
+    // second sits to its left.
+    #expect(tree.layout(a).x == 140)
+    #expect(tree.layout(b).x == 20)
+    #expect(tree.layout(c).x == 140)
+    // Cross: unchanged from the forward-main case — the two flips are
+    // independent.
+    #expect(tree.layout(a).y == 260)
+    #expect(tree.layout(b).y == 270)
+    #expect(tree.layout(c).y == 170)
+}
+
+/// `wrap-reverse` breaks lines in DOCUMENT order, exactly as `wrap` does — only
+/// their placement is reversed.
+///
+/// Asserted on `collectLines` directly because the engine's positions cannot
+/// distinguish "broke differently" from "placed differently": a container that
+/// collected [a,b,c] / [d] and stacked it forwards is trivially different from
+/// one that collected [d] / [a,b,c], but both put `d` on top. This pins the
+/// break side.
+@Test func wrapReverseBreaksLinesInDocumentOrder() {
+    let items = line([60, 90, 40, 70])
+    let forward = collectLines(items, wrap: .wrap, containerMain: 200, gap: 0)
+    let reversed = collectLines(items, wrap: .wrapReverse, containerMain: 200, gap: 0)
+    #expect(forward.map(\.count) == reversed.map(\.count))
+    #expect(reversed.map { $0.map(\.targetMainSize) } == [[60, 90, 40], [70]])
 }
 
 // MARK: - Browser comparisons (shape 9: each fixture is a PAIR)
