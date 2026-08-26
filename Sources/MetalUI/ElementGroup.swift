@@ -302,14 +302,24 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
         }
     }
 
-    /// Reachable only by handing one `EitherGroup` a phase state produced by a
-    /// **different** `EitherGroup` value.
+    /// Reachable from **one** `EitherGroup` value whose content is rebuilt
+    /// between phases — an element that recomputes its `content` in `prepaint`
+    /// rather than storing what `requestLayout` built.
     ///
-    /// That is the mechanism, not a milestone: no phase here changes which case
-    /// `self` holds — each writes back the case it matched — and a container
-    /// threads the state it received back into the same stored child, so within
-    /// one frame the two cases are the same by construction. The trap exists
-    /// because the alternative is silently painting nothing.
+    /// **This comment said the opposite until the review caught it**, and the
+    /// commit that added `flippingAnEitherBranchBetweenPhasesTraps` — which
+    /// reaches this trap from a single value in ~35 lines of ordinary element
+    /// code — is the same commit that left the false sentence standing directly
+    /// above it. The old claim ("reachable only by handing one `EitherGroup` a
+    /// phase state produced by a *different* value") reasoned correctly from a
+    /// premise it never checked: that `self`'s case is fixed for the frame. It
+    /// is fixed only if the element *stores* its content; nothing requires that.
+    ///
+    /// What remains true is the narrower half: no phase in this file changes
+    /// which case `self` holds — each writes back the case it matched — and a
+    /// container threads state back into the same stored child. So a group that
+    /// holds its content still cannot reach here. The trap exists because the
+    /// alternative is silently painting nothing.
     /// **The phase is named in the message, and that is load-bearing.** Every
     /// trap in this file is backstopped by the next phase's, so an exit test
     /// that asserted only "the process died" cannot tell a `prepaint` guard
@@ -374,9 +384,13 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
         }
     }
 
-    /// Same mechanism as `EitherGroup.mismatch`: the arrays are produced by this
-    /// value's own `requestGroupLayout` and threaded back unmodified, so a
-    /// differing count means the states came from a different `ArrayGroup`.
+    /// Same mechanism as `EitherGroup.mismatch`, including its correction: the
+    /// arrays are produced by this value's own `requestGroupLayout` and threaded
+    /// back unmodified, so a differing count means **this value's own content
+    /// was rebuilt between phases** — not that the states came from a different
+    /// `ArrayGroup`, which is what this sentence claimed until the review caught
+    /// it. `changingAnArrayGroupsCountBetweenPhasesTraps` reaches it from a
+    /// single value, by the identical route.
     private static func countMismatch(_ phase: StaticString) -> String {
         """
         ArrayGroup \(phase): the phase state has a different member count than the group \
