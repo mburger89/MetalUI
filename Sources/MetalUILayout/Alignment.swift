@@ -71,7 +71,7 @@ func distributeMainAxis(
     freeSpace: Double,
     itemCount: Int
 ) -> MainAxisOffsets {
-    // Unreachable from the engine — `positionItems` returns early on an empty
+    // Unreachable from the engine — `layoutContainer` returns early on an empty
     // line, so `leading` would be discarded anyway — and therefore deliberately
     // untested: a test for it could not fail. Kept because this file is shared
     // with Grid, whose empty-track cases are not written yet.

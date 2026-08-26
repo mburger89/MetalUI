@@ -41,7 +41,7 @@ Three traps worth knowing before you start:
   resource bundle but does **not** rebuild Swift's view of the C struct. Use
   `swift package clean` after header edits — `rm -rf .build` is not always enough.
 
-## The taxonomy — nine shapes, all found in this repo
+## The taxonomy — ten shapes, all found in this repo
 
 Use this as a checklist when writing tests, and as a hit list when mutating.
 
@@ -173,6 +173,61 @@ correct, which then got fixtures rather than a footnote.
 **The tell in a review:** a mutation that reddens nothing, in code you are sure is
 right, usually means the composition it lives in has no fixture — not that the
 mutation is harmless.
+
+### 10. Claims whose scope quietly expired
+
+The nine shapes above are all defects in code or in tests. This one is a defect in
+what the repo **believes about itself** — and on the wrapping branch three
+instances turned up in a single afternoon, all found the same way.
+
+Each was a comment that was **true when written**, whose *arithmetic is still
+right*, and which became false in its **reach** as the engine grew around it:
+
+- `Resolve.swift` said the `Float` percentage error is "~1e-4pt … roughly 130x
+  below WebKit's 1/64 quantum, **so it never reaches a fixture**". The arithmetic
+  is correct. The conclusion is not: cumulative rounding amplifies it at a `.5`
+  boundary, and WebKit says 286/328 where the engine says 285/327.
+- `CLAUDE.md` said content-based cross sizing affects only a **non-stretched**
+  item and that "**no fixture can catch this** — every fixture in the corpus is an
+  empty div … needs the M2 text system". Both halves false: the size is lost in
+  §9.4.8 line measurement, which runs *before* stretch, and a **nested flex
+  container** has a content cross size with no text in it.
+- The `margin: auto` row scoped the gap to the main axis and `justify-content`.
+  WebKit also centres a `margin-block: auto` item within its line on the **cross**
+  axis.
+
+**Why this shape is hard to see.** A wrong claim about code gets caught the moment
+someone tests the code. A wrong claim about *what testing would reveal* is
+self-sealing: it tells the reader not to look, so nobody looks, so nothing
+disproves it. The three above had survived one, four and two milestones
+respectively.
+
+**The tell:** any sentence of the form *"no fixture can catch this"*, *"needs
+M2"*, *"unreachable"*, *"never reaches"*, *"0 uses"*, or *"only affects X"*. Each
+is a prediction about measurement, dressed as a fact about the code.
+
+**The check, and it is cheap:** periodically **measure the thing the comment says
+not to bother measuring**. All three were found by probe agents told to sweep
+compositions, not by anyone reading the comments. Grep the codebase for those
+phrases and spend an afternoon falsifying them; the yield here was 3 for 3 on the
+first sweep.
+
+**When you write one**, name the *mechanism* that makes it unreachable, not the
+milestone you expect to fix it — a mechanism can be checked, a milestone cannot.
+"Needs M2" was wrong because the gate was never text metrics; it was recursive
+subtree measurement, which nobody had written down.
+
+### A fixture hazard worth knowing before you write goldens
+
+WebKit quantizes to 1/64 of a pixel. Where the engine computes an exact `x.5`,
+WebKit may land on `112.484375` — and cumulative rounding then sends the two to
+different integers. Five probes on the wrapping branch appeared to differ by 1px
+for this reason alone and agreed exactly once re-cut with divisible geometry.
+
+**Choose fixture geometry so no box edge or line origin falls on `x.5`.**
+Otherwise the golden encodes a rounding coin-flip rather than the behaviour the
+fixture is named for — and it will look like a real disagreement to whoever
+inherits it.
 
 ## When *not* to add a test
 

@@ -84,7 +84,12 @@ Continuing the tables in the flex-sizing and alignment decisions docs:
 - **The root's percentage *width* still falls back to the available space** (800 where WebKit gives 400) while its percentage *padding* correctly uses `available.width`. Pre-existing, untouched by this branch, now documented with a measured number and cross-referenced at both sites. **Do not fix one without the other.**
 - **BM-4's over-constrained box** is a deliberate, documented divergence.
 - **`margin: auto` is inert** — CSS gives it priority over `justify-content`.
-- **Content-based cross sizing is still 0** and unreachable by any fixture until M2 measures content.
+- **Content-based cross sizing is still 0.** ~~Unreachable by any fixture until M2
+  measures content.~~ **That was false** — see ruling **WR-4** in
+  `2026-08-25-wrapping-decisions.md`: a nested flex container has a content cross
+  size with no text in it, and a fixture catches it today. Struck through rather
+  than deleted because the claim was repeated in four places and the pattern is
+  the point.
 - **Two known divergences carried from earlier milestones** — FS-9 and AL-4 together state one rule: two independent engines agreeing outrank the spec's letter; one engine alone does not. Do not change either without reading both.
 - **`LayoutNodeID` has no generation counter** (m1a ruling C-3).
 - **Two guarantees lapse under plausible CI configurations** — the ABI probe skips without a Metal device, and `committedGoldensMatchTheBrowser` is the only live-WebKit consumer. Both must be required, non-gateable jobs.

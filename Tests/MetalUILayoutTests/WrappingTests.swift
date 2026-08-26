@@ -1185,3 +1185,63 @@ private func line(_ mains: [Double]) -> [FlexItem] {
                         ids: [root: "root", a: "a", b: "b", c: "c"],
                         golden: golden, tolerance: 0.1)
 }
+
+// MARK: - Ruling WR-4: an auto-cross nested container collapses its line
+
+/// A line whose tallest item is an **auto-cross nested flex container** measures
+/// 0, so the line collapses and the next line stacks on top of it.
+///
+/// **This is the test ruling WR-4 promised and did not initially ship.** The
+/// decisions doc said the behaviour would get "the BM-4 treatment" — pinned, with
+/// WebKit's numbers named — and the whole-branch review found no such test
+/// existed. Without it the divergence is invisible, and whoever lands recursive
+/// subtree measurement moves it silently.
+///
+/// The tree, and what each engine says:
+///
+/// ```html
+/// #root { display: flex; flex-wrap: wrap; align-content: flex-start;
+///         width: 200px; height: 200px; }
+/// .x { display: flex; width: 120px; }        /* height: auto, holds 40x50 */
+/// .y { width: 120px; height: 20px; }
+/// ```
+///
+///     node   WebKit          this engine
+///     x      0,0 120x50      0,0 120x0
+///     y      0,50 120x20     0,0  120x20
+///
+/// `collectItems` gives an `auto`-cross item `crossSize = 0`; `lineCrossSize`
+/// then measures the line from that 0. It happens **before** stretch, which is
+/// why the item being stretch-eligible does not save it — the half of WR-4 that
+/// the old comments got wrong.
+///
+/// **`nowrap` on the same tree agrees with WebKit exactly**, because a single
+/// line's cross size is the container's. Wrapping is what made this observable:
+/// taxonomy shape 9.
+@Test func autoCrossNestedContainerCollapsesItsLineUnlikeWebKit() {
+    let tree = LayoutTree()
+    let inner = item(tree, main: 40, cross: 50)
+    var xStyle = Style()
+    xStyle.flexDirection = .row
+    xStyle.size = Size(width: px(120), height: .auto)
+    let x = tree.newNode(style: xStyle, children: [inner])
+    let y = item(tree, main: 120, cross: 20)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrap
+    rootStyle.alignContent = .flexStart
+    rootStyle.size = Size(width: px(200), height: px(200))
+    let root = tree.newNode(style: rootStyle, children: [x, y])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    // WebKit: 120x50. Ours collapses to 0 because the nested container's content
+    // cross size is never computed.
+    #expect(tree.layout(x).height == 0)
+    // WebKit puts `y` on the next line at y = 50. Ours stacks it at 0 — the two
+    // lines overlap.
+    #expect(tree.layout(y).y == 0)
+    #expect(tree.layout(y).height == 20)
+}

@@ -45,10 +45,14 @@ import MetalUICore
 /// evidence the rule is right.
 ///
 /// **Content-based cross sizing is still NOT implemented** — the other half of
-/// §9.4. An item that is not stretched (its alignment is `center`, `flex-start`
-/// or `flex-end`) and has an `auto` cross size measures 0 here, where CSS gives
-/// it its content's cross size. Every fixture in the corpus is an empty div, so
-/// no browser comparison can see it; it needs the M2 text system.
+/// §9.4. **Any** item with an `auto` cross size measures 0 here, stretched or
+/// not, because the size is lost in §9.4.8 line measurement, which runs *before*
+/// stretch. Ruling **WR-4**: this paragraph used to scope the gap to a
+/// *non-stretched* item and to say no fixture could catch it without the M2 text
+/// system. Both were disproved by measurement — a **nested flex container** has a
+/// content cross size with no text in it, and WebKit gives one `120×50` where
+/// this engine gives `120×0`. M2 is not the gate; recursive subtree measurement
+/// is, and that is its own plan.
 ///
 /// Every rect written here is **absolute to the root**, not relative to its
 /// parent. `roundLayout` keeps no cross-rect state, so its no-drift guarantee
@@ -180,9 +184,11 @@ struct FlexItem {
     /// container's — which is exactly why the split had to happen before any
     /// line code was written.
     ///
-    /// Still 0 for an item that is auto-sized on the cross axis and *not*
-    /// stretched: content-based cross sizing needs a measure function and
-    /// arrives with the M2 text system.
+    /// Still 0 for **any** item auto-sized on the cross axis, stretched or not —
+    /// the size is lost in §9.4.8 line measurement, before stretch runs. Ruling
+    /// **WR-4**; a measure function is not the only thing missing, a nested flex
+    /// container has a content cross size today and the engine does not compute
+    /// it.
     var crossSize: Double
     /// True when §9.4's stretch applies to this item: its resolved alignment is
     /// `stretch` **and** its cross size property is `auto`.
@@ -697,15 +703,25 @@ private func collectItems(
             // ordering against WebKit including a `max-height` probe.
             //
             // **Content-based cross sizing is still missing**, and it is the
-            // other half of §9.4. An item that is *not* stretched — because its
-            // alignment is `center`, `flex-start`, `flex-end` — and has an
-            // `auto` cross size gets 0 here, where CSS gives it its content's
-            // cross size. Every fixture in the corpus is an empty div, for
-            // which 0 is right, so nothing catches it; when the M2 text system
-            // lands, this is where `tree.measure` belongs. It matters more
-            // under wrapping than it did before: a line whose items are all
-            // auto-cross measures 0 tall, so the whole line collapses rather
-            // than one item within it.
+            // other half of §9.4. **Any** item with an `auto` cross size gets 0
+            // here — stretched or not, because `lineCrossSize` measures the line
+            // from this value *before* stretch runs (ruling **WR-4**).
+            //
+            // This comment previously said the item had to be non-stretched and
+            // that "every fixture in the corpus is an empty div, so nothing
+            // catches it — wait for M2". Measurement disproved both, and the
+            // wrapping branch rewrote this very comment while keeping the
+            // falsehood, which is why it now names its own history: a **nested
+            // flex container** has a content cross size with no text involved,
+            // and `autoCrossNestedContainerCollapsesItsLineUnlikeWebKit` pins
+            // the divergence with WebKit's numbers. M2 supplies text metrics;
+            // what this needs is recursive subtree measurement, which is a
+            // separate plan.
+            //
+            // Wrapping made it far louder: a line whose items are all auto-cross
+            // measures 0 tall, so the whole line collapses and every line after
+            // it shifts up — and under `align-content: stretch` the bad line
+            // corrupts the leftover and moves *every* line in the container.
             let crossDim = isRow ? ks.size.height : ks.size.width
             let own = resolveNodeSize(tree, kid, parent: parent, rootFontSize: rootFontSize)
             let ownCross = isRow ? own.height : own.width
