@@ -174,3 +174,203 @@ struct ProbeRow: Element {
     #expect(first.tree.nodeCount == 3)   // two children plus the root
     #expect(second.tree.nodeCount == 3)
 }
+
+// MARK: - Type erasure (spec §4.6)
+
+/// A counter shared by every copy of a probe element.
+///
+/// A **class**, for the same reason `PhaseLog` is one: the probe is a value
+/// type whose phases are `mutating`, so a counter stored inline would be
+/// incremented on whichever copy the caller happened to keep.
+@MainActor
+final class InstanceCounter {
+    var issued = 0
+    /// Hands out 1, 2, 3, … in call order.
+    func next() -> Int {
+        issued += 1
+        return issued
+    }
+}
+
+/// An element that stamps a **distinct** number into its `LayoutState` when
+/// `requestLayout` runs, and reads it back in the two later phases.
+///
+/// Both halves matter. Distinct values are what tells `[1, 2]` apart from
+/// `[2, 2]`: a probe that recorded a constant would agree with a shared box.
+/// Reading it back in a *later phase* is what makes the sharing observable at
+/// all — aliasing that nothing ever reads is aliasing no test can see.
+@MainActor
+struct StampedProbe: Element {
+    struct Layout {
+        var node: LayoutNodeID
+        /// Which `requestLayout` call produced this state.
+        var stamp: Int
+    }
+    struct Prepaint {
+        var stamp: Int
+    }
+
+    let counter: InstanceCounter
+    let stampsSeenInPrepaint: Recorder
+    let stampsSeenInPaint: Recorder
+
+    func requestLayout(_ id: GlobalElementID?, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var style = Style()
+        style.size = Size(width: .length(.pixels(Pixels(30))),
+                          height: .length(.pixels(Pixels(10))))
+        let node = pass.requestNode(style: style, children: [])
+        return (node, Layout(node: node, stamp: counter.next()))
+    }
+
+    func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+                  layout: inout Layout, pass: inout PrepaintPass) -> Prepaint {
+        stampsSeenInPrepaint.values.append(layout.stamp)
+        return Prepaint(stamp: layout.stamp)
+    }
+
+    func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+               layout: inout Layout, prepaint: inout Prepaint, pass: inout PaintPass) {
+        stampsSeenInPaint.values.append(prepaint.stamp)
+        pass.fill(bounds, color: .white)
+    }
+}
+
+@MainActor
+final class Recorder {
+    var values: [Int] = []
+}
+
+/// Two sibling copies of the same element must not share one `LayoutState`.
+///
+/// **Measured in the spec (§4.6): with a CLASS box both copies report
+/// `layoutState = 2`** — the first is then laid out at the second's bounds,
+/// with no error and no diagnostic. With the struct box it is 1 then 2.
+///
+/// This is why `AnyElementBox` is a struct, and why a future refactor that
+/// "simplifies" it to a class is a silent-corruption regression rather than a
+/// style change.
+///
+/// The shape is load-bearing in three ways, and dropping any one of them makes
+/// the test unable to fail: the two children are **copies of one `AnyElement`
+/// value** (a class box that each child constructed for itself would alias
+/// nothing), they are the **same element type** (two different types get two
+/// different boxes either way), and the stamp is **read back in a later phase**.
+@MainActor
+@Test func twoCopiesOfOneElementDoNotShareLayoutState() {
+    let counter = InstanceCounter()
+    let inPrepaint = Recorder()
+    let inPaint = Recorder()
+
+    // One value, copied. This is `Row { sep; sep }` from §4.6 — the erasure is
+    // copied into two slots, not built twice.
+    let separator = AnyElement(StampedProbe(counter: counter,
+                                            stampsSeenInPrepaint: inPrepaint,
+                                            stampsSeenInPaint: inPaint))
+    var children = [separator, separator]
+
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)), scaleFactor: 1)
+
+    var layoutPass = LayoutPass(frame: frame)
+    // In place, by index. Iterating `for child in children` would walk copies
+    // and drop every stored state on the floor — which would make this test
+    // green against a class box too, for the wrong reason.
+    var nodes: [LayoutNodeID] = []
+    for index in children.indices {
+        nodes.append(children[index].requestLayout(nil, pass: &layoutPass))
+    }
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    let root = layoutPass.requestNode(style: rootStyle, children: nodes)
+    frame.computeRootLayout(root: root)
+
+    var prepaintPass = PrepaintPass(frame: frame)
+    for index in children.indices {
+        children[index].prepaint(nil, bounds: frame.bounds(of: nodes[index]), pass: &prepaintPass)
+    }
+
+    var paintPass = PaintPass(frame: frame)
+    for index in children.indices {
+        children[index].paint(nil, bounds: frame.bounds(of: nodes[index]), pass: &paintPass)
+    }
+
+    #expect(counter.issued == 2)
+    #expect(inPrepaint.values == [1, 2])
+    #expect(inPaint.values == [1, 2])
+}
+
+/// An element that **mutates** state the box holds for it, in every place §4.1
+/// says it may.
+///
+/// Three separate write-backs, with three distinguishable values, because the
+/// box has three places to drop one: the element itself (`requestLayout` is
+/// `mutating`), the `LayoutState` after `prepaint` mutated it in place, and the
+/// `PrepaintState`. A probe that only read values back would agree with a box
+/// that discarded all three.
+@MainActor
+struct MutatingProbe: Element {
+    struct Layout {
+        var node: LayoutNodeID
+        var value: Int
+    }
+    struct Prepaint {
+        var value: Int
+    }
+
+    let seenInPaint: Recorder
+    /// Mutated by `requestLayout`, read in `paint`.
+    var generation = 0
+
+    mutating func requestLayout(_ id: GlobalElementID?,
+                                pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        generation += 7
+        var style = Style()
+        style.size = Size(width: .length(.pixels(Pixels(30))),
+                          height: .length(.pixels(Pixels(10))))
+        let node = pass.requestNode(style: style, children: [])
+        return (node, Layout(node: node, value: 1))
+    }
+
+    mutating func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+                           layout: inout Layout, pass: inout PrepaintPass) -> Prepaint {
+        // §4.1 threads `LayoutState` `inout` precisely so this is possible.
+        layout.value += 10
+        return Prepaint(value: 100)
+    }
+
+    mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+                        layout: inout Layout, prepaint: inout Prepaint,
+                        pass: inout PaintPass) {
+        seenInPaint.values.append(generation)      // 7 — the element's own mutation
+        seenInPaint.values.append(layout.value)    // 11 — prepaint's in-place edit
+        seenInPaint.values.append(prepaint.value)  // 100 — the prepaint state
+    }
+}
+
+/// The erasure must carry every mutation an element makes forward to the phase
+/// that reads it.
+///
+/// The box stores `LayoutState` and `PrepaintState` in `Optional`s and hands
+/// them to the element as `inout` locals, so each phase needs an explicit write
+/// back into the box. Dropping one loses a mutation **silently**: the phase
+/// still runs, and reads a stale value. `11` distinguishes "prepaint's edit
+/// survived" from `1` ("the layout state was carried, unedited") and from `10`
+/// ("prepaint's edit landed on a fresh zero").
+@MainActor
+@Test func theBoxCarriesEveryPhasesMutationForwardToTheNextPhase() {
+    let seen = Recorder()
+    var erased = AnyElement(MutatingProbe(seenInPaint: seen))
+
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)), scaleFactor: 1)
+
+    var layoutPass = LayoutPass(frame: frame)
+    let node = erased.requestLayout(nil, pass: &layoutPass)
+    frame.computeRootLayout(root: node)
+
+    var prepaintPass = PrepaintPass(frame: frame)
+    erased.prepaint(nil, bounds: frame.bounds(of: node), pass: &prepaintPass)
+
+    var paintPass = PaintPass(frame: frame)
+    erased.paint(nil, bounds: frame.bounds(of: node), pass: &paintPass)
+
+    #expect(seen.values == [7, 11, 100])
+}
