@@ -1,0 +1,70 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* `row-reverse` + `wrap-reverse` — BOTH axes flipped, so the container fills
+     from the bottom-right. Plus `align-content`'s initial `stretch`, which is
+     the third thing writing the cross axis here.
+
+     The two reversals are independent conversions in `positionItems` (main:
+     `containerMain - cursor - outerMain`; cross: the same shape twice, once
+     for the line inside the container and once for the item inside its line).
+     This fixture is the proof they compose rather than cancelling or
+     double-applying — the failure modes are a container that fills from the
+     bottom-LEFT (main flip lost), the top-right (cross flip lost) or the
+     top-left (both).
+
+     `align-content` IS DELIBERATELY NOT DECLARED, so CSS's initial `stretch`
+     applies and the lines GROW before anything is placed in them:
+
+       natural cross  line 0 = 40, line 1 = 4 + 50 = 54 (margin included)
+       used           40 + 54 + 10 (row-gap) = 104, leftover 196, 98 per line
+       grown          line 0 = 138, line 1 = 152
+       flipped        line 0 -> 300 - 0   - 138 = 162
+                      line 1 -> 300 - 148 - 152 =   0
+
+     The items do NOT grow — they all carry explicit heights — so each sits at
+     its GROWN line's bottom edge, and the growth is visible only in how far
+     down that is: a 162 + (138 - 40) = 260, b 162 + (138 - 30) = 270,
+     c 0 + (152 - 54) + 4 = 102.
+
+     BE CAREFUL READING THAT AS COVERAGE OF `stretch`: under
+     `align-content: flex-start` the same tree gives a 260, b 270 and c 200.
+     Line 0's items do not move at all — its flipped start is the container's
+     bottom under either value — so `.c`, 98 pixels adrift, is the ONLY box
+     that separates the two. It is on the second line for exactly that reason,
+     and shrinking this fixture to one line would leave `align-content` with
+     nothing to say here.
+
+     Main axis, right-to-left, with a 6px column-gap and `.a`'s 8px left margin
+     counted in the break:
+       a outer 108, +6+100 = 214 <= 260, +6+120 = 340 > 260 -> line 0 = [a, b]
+       a  outer start 260 - 0   - 108 = 152 -> 152 + 8 = 160, closing on the
+          container's right edge at 260
+       b  outer start 260 - 114 - 100 =  46 -> 46
+       c  outer start 260 - 0   - 120 = 140 -> 140
+
+     MARGINS ARE PHYSICAL UNDER BOTH FLIPS. `.a`'s `margin-left` stays on its
+     physical left (160 - 152) rather than following `row-reverse` to the
+     right, and `.c`'s `margin-top` stays on its physical top (102 - 98) rather
+     than following `wrap-reverse` to the bottom. Each is 
+     the cross-axis mirror of a bug the box-model milestone found on the main
+     axis, and neither is visible without a reversed container.
+
+     Sibling swap: `flex-wrap: wrap-reverse` -> `wrap` moves a 260->0, b 270->0
+     and c 102->152 while leaving every x untouched — the cross flip in
+     isolation, including a and b collapsing onto the same y, which is the
+     signature of the missing per-item half. */
+  #root { display: flex; flex-direction: row-reverse; flex-wrap: wrap-reverse;
+          gap: 10px 6px;
+          width: 260px; height: 300px; }
+  .a { width: 100px; height: 40px; margin-left: 8px; }
+  .b { width: 100px; height: 30px; }
+  .c { width: 120px; height: 50px; margin-top: 4px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+  </div>
+</body></html>

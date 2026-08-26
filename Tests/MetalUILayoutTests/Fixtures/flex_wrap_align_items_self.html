@@ -1,0 +1,63 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Wrapping x `align-items` / `align-self` — §9.6 alignment measures an item
+     against ITS OWN LINE, not against the container.
+
+     Probed against WebKit during the wrapping milestone's first task and left
+     uncommitted; this is the fixture that closes it.
+
+     WHAT IT PINS. Three lines of DIFFERENT cross sizes (60 / 90 / 50) inside a
+     240-tall container, so "centred in the line" and "centred in the
+     container" are 90 pixels apart on the very first item:
+
+       a  center in line 0  -> (60 - 20) / 2 = 20        (container model: 110)
+       b  the line's tallest, so 0 either way — it is here to SET the line's
+          cross size, and its own position cannot distinguish the models
+       c  align-self: flex-start in line 1 -> 60, the line's own top edge
+       d  the line's tallest -> 60
+       e  align-self: flex-end in line 2   -> 150 + (50 - 25) = 175
+       f  the line's tallest -> 150
+
+     ALL THREE VALUES APPEAR (`center` inherited from the container,
+     `flex-start` and `flex-end` overriding it per item), because each fails
+     differently: a container-relative `center` is 90 off, a container-relative
+     `flex-end` is 40 off, and a container-relative `flex-start` is not off at
+     all — which is exactly why `flex-start` alone would be a fixture that
+     cannot fail.
+
+     NO TWO LINES ARE THE SAME CROSS SIZE and the tallest item is the SECOND
+     on every line, so a line measured from its first item would give three
+     wrong answers rather than one.
+
+     `align-content: flex-start` is declared: 60 + 90 + 50 = 200 of the 240
+     content box, and the leftover 40 stays unused so that this fixture
+     measures item alignment alone.
+
+     Breaks: every item is 120 wide in a 260 container, so exactly two fit.
+
+     Sibling swap: `align-items: center` -> `flex-start` moves a 20->0 and
+     leaves b, c, e, f where they are (b/d/f are already at their line's top,
+     c and e carry their own `align-self`) — one box, which is the honest
+     differential for an inherited value that three items override. Swapping
+     `.c`'s `align-self: flex-start` -> `flex-end` moves c 60->120. */
+  #root { display: flex; flex-direction: row; flex-wrap: wrap;
+          align-items: center; align-content: flex-start;
+          width: 260px; height: 240px; }
+  .a { width: 120px; height: 20px; }
+  .b { width: 120px; height: 60px; }                          /* line 0 is 60 */
+  .c { width: 120px; height: 30px; align-self: flex-start; }
+  .d { width: 120px; height: 90px; }                          /* line 1 is 90 */
+  .e { width: 120px; height: 25px; align-self: flex-end; }
+  .f { width: 120px; height: 50px; }                          /* line 2 is 50 */
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+    <div class="d" data-id="d"></div>
+    <div class="e" data-id="e"></div>
+    <div class="f" data-id="f"></div>
+  </div>
+</body></html>

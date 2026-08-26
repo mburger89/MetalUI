@@ -1,0 +1,70 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Wrapping x percentage main sizes x main-axis min/max — the break decision
+     consumes the RESOLVED and CLAMPED hypothetical size, not the declared one.
+
+     Both pairs were probed against WebKit during the wrapping milestone's first
+     task and left uncommitted; one fixture closes both, because they are the
+     same claim about the same number.
+
+     THE PERCENTAGE BASIS IS LOAD-BEARING, and the root's 20px horizontal
+     padding is what makes it so: percentages resolve against the container's
+     CONTENT box (400), not its border box (440). Resolving against the border
+     box gives `.a` 110 and `.d` 132 and moves four boxes. A padding-free root
+     could not tell the two bases apart, which is the trap this fixture exists
+     to avoid — the same one `flex_percent_padding_nonsquare` avoids for
+     padding.
+
+     THE CLAMPS ARE LOAD-BEARING IN THE OPPOSITE DIRECTIONS. `.b` declares
+     100px and is floored UP to 180 by `min-width`; `.c` declares 250px and is
+     capped DOWN to 110 by `max-width`. A break decision reading the declared
+     `width` instead of the clamped hypothetical size gets 100 and 250, which
+     packs [a, b, c] at 450 > 400 and produces a different line SHAPE
+     ([a, b] / [c, d] / [e]) rather than a shifted offset.
+
+     Hypothetical sizes: a 100 (25% of 400), b 180 (clamped up), c 110 (clamped
+     down), d 120 (30% of 400), e 40 (10% of 400).
+
+     Breaks (no gap, main extent 400):
+       100, +180 = 280, +110 = 390 <= 400, +120 = 510 > 400 -> line 0 = [a,b,c]
+       120, +40 = 160                                       -> line 1 = [d, e]
+
+     Line 0 leaves 10px of free space and NOTHING takes it: `flex-grow` is 0 by
+     default, and `flex-shrink`'s default 1 is inert on a line that fits. That
+     is deliberate — it keeps this fixture about the break decision alone,
+     where `flex_wrap_grow_and_shrink` is about §9.7.
+
+     Expected, with the content box starting at x = 20:
+       a 20 w100, b 120 w180, c 300 w110, d 20 w120, e 140 w40
+       cross: line 0 is 30, line 1 is 35 -> y = 0 and 30
+
+     Sibling swaps:
+       `.a { width: 25% }` -> `40%` (160) makes line 0 [a, b] and reshapes
+         every line after it. (Swapping it to the equivalent `100px` is a
+         deliberate NO-OP and proves nothing — the differential for a
+         percentage is a different percentage, or a different basis.)
+       `#root { padding: 0 20px }` -> `0 40px` shrinks the content box to 360:
+         `.a` becomes 90, `.d` 108, `.e` 36, and line 0 is [a, b, c] at 350.
+         That swap moves the boxes WITHOUT touching any child declaration,
+         which is the basis test.
+       `.b { min-width: 180px }` -> `0` gives b 100 and pulls c and the line
+         shape with it. */
+  #root { display: flex; flex-direction: row; flex-wrap: wrap;
+          align-content: flex-start; padding: 0 20px;
+          width: 440px; height: 200px; }
+  .a { width: 25%;   height: 20px; }                    /* 100 of the 400 content box */
+  .b { width: 100px; height: 30px; min-width: 180px; }  /* floored UP to 180 */
+  .c { width: 250px; height: 25px; max-width: 110px; }  /* capped DOWN to 110 */
+  .d { width: 30%;   height: 35px; }                    /* 120 */
+  .e { width: 10%;   height: 15px; }                    /* 40 */
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+    <div class="d" data-id="d"></div>
+    <div class="e" data-id="e"></div>
+  </div>
+</body></html>

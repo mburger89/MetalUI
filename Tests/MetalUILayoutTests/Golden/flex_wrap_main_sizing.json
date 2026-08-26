@@ -1,0 +1,95 @@
+{
+  "fixture" : "flex_wrap_main_sizing",
+  "raw" : [
+    {
+      "height" : 200,
+      "id" : "root",
+      "width" : 440,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "a",
+      "width" : 100,
+      "x" : 20,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "b",
+      "width" : 180,
+      "x" : 120,
+      "y" : 0
+    },
+    {
+      "height" : 25,
+      "id" : "c",
+      "width" : 110,
+      "x" : 300,
+      "y" : 0
+    },
+    {
+      "height" : 35,
+      "id" : "d",
+      "width" : 120,
+      "x" : 20,
+      "y" : 30
+    },
+    {
+      "height" : 15,
+      "id" : "e",
+      "width" : 40,
+      "x" : 140,
+      "y" : 30
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 200,
+      "id" : "root",
+      "width" : 440,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "a",
+      "width" : 100,
+      "x" : 20,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "b",
+      "width" : 180,
+      "x" : 120,
+      "y" : 0
+    },
+    {
+      "height" : 25,
+      "id" : "c",
+      "width" : 110,
+      "x" : 300,
+      "y" : 0
+    },
+    {
+      "height" : 35,
+      "id" : "d",
+      "width" : 120,
+      "x" : 20,
+      "y" : 30
+    },
+    {
+      "height" : 15,
+      "id" : "e",
+      "width" : 40,
+      "x" : 140,
+      "y" : 30
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

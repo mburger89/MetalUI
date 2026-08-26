@@ -724,3 +724,464 @@ private func line(_ mains: [Double]) -> [FlexItem] {
                         ids: [root: "root", a: "a", b: "b", c: "c", d: "d", e: "e", f: "f"],
                         golden: golden, tolerance: 0.1)
 }
+
+// MARK: - The compositions the first two tasks measured and did not commit
+//
+// Taxonomy shape 9: a corpus grown one feature at a time covers each feature
+// and none of their pairs. `docs/superpowers/2026-08-25-wrapping-decisions.md`
+// lists every (wrapping x already-shipped feature) pair with its status; the
+// fixtures below move the ones that were "measured-correct against WebKit but
+// uncommitted" into the corpus. Two of them —
+// `flex_wrap_grow_and_shrink` and `flex_wrap_justify_between` — were worse than
+// uncommitted: a reviewer mutated the code each guards and all 184 tests at the
+// time stayed green.
+
+/// Wrapping x §9.7 grow/shrink, against WebKit.
+///
+/// `flex_wrap_grow_and_shrink` is the fixture. Its HTML shows why a line flexes
+/// into the CONTAINER's main extent rather than its own used extent — `.c`
+/// alone on its line grows to 300 while `.a` and `.b` sharing one grow by 10
+/// each — and why `.d` is the only reachable shrink case under wrapping.
+@Test func wrapGrowAndShrinkMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_grow_and_shrink")
+    let tree = LayoutTree()
+
+    func flexChild(grow: Float, shrink: Float, basis: Double, height: Double) -> LayoutNodeID {
+        var s = Style()
+        s.flexGrow = grow
+        s.flexShrink = shrink
+        s.flexBasis = px(basis)
+        s.size = Size(width: .auto, height: px(height))
+        return tree.newNode(style: s, children: [])
+    }
+    let a = flexChild(grow: 1, shrink: 1, basis: 140, height: 20)
+    let b = flexChild(grow: 1, shrink: 1, basis: 140, height: 30)
+    let c = flexChild(grow: 1, shrink: 1, basis: 140, height: 40)
+    let d = flexChild(grow: 0, shrink: 1, basis: 380, height: 25)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrap
+    rootStyle.alignContent = .flexStart
+    rootStyle.size = Size(width: px(300), height: px(200))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c, d])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c", d: "d"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// Wrapping x `justify-content`, against WebKit.
+///
+/// `flex_wrap_justify_between` is the fixture. Each line distributes its own
+/// main free space, measured against the container: 115 across one gap on line
+/// 0 and 10 across two on line 1. Taking the free space from the line's own
+/// used extent gives 0 on both and packs everything at main-start.
+@Test func wrapJustifyContentIsPerLineMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_justify_between")
+    let tree = LayoutTree()
+    let a = item(tree, main: 80,  cross: 20)
+    let b = item(tree, main: 100, cross: 30)
+    let c = item(tree, main: 120, cross: 25)
+    let d = item(tree, main: 90,  cross: 40)
+    let e = item(tree, main: 60,  cross: 15)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrap
+    rootStyle.justifyContent = .spaceBetween
+    rootStyle.alignContent = .flexStart
+    rootStyle.gap = Axes(horizontal: pxL(5), vertical: pxL(11))
+    rootStyle.size = Size(width: px(300), height: px(150))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c, d, e])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c", d: "d", e: "e"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// Wrapping x `align-items` / `align-self`, against WebKit.
+///
+/// `flex_wrap_align_items_self` is the fixture. Three lines of different cross
+/// sizes in a taller container, so "centred in the line" and "centred in the
+/// container" are 90px apart on `.a`; `.c` and `.e` override the inherited
+/// `center` with `flex-start` and `flex-end`, which fail by different amounts.
+@Test func wrapAlignItemsMeasuresTheLineMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_align_items_self")
+    let tree = LayoutTree()
+
+    func child(cross: Double, align: AlignSelf? = nil) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(120), height: px(cross))
+        s.alignSelf = align
+        return tree.newNode(style: s, children: [])
+    }
+    let a = child(cross: 20)
+    let b = child(cross: 60)
+    let c = child(cross: 30, align: .flexStart)
+    let d = child(cross: 90)
+    let e = child(cross: 25, align: .flexEnd)
+    let f = child(cross: 50)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrap
+    rootStyle.alignItems = .center
+    rootStyle.alignContent = .flexStart
+    rootStyle.size = Size(width: px(260), height: px(240))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c, d, e, f])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c", d: "d", e: "e", f: "f"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// Wrapping x `row-reverse` x gap x margins, against WebKit.
+///
+/// `flex_wrap_row_reverse_gap_margin` is the fixture. Lines are assigned in
+/// DOCUMENT order and placed right-to-left: a pre-reversed item array would put
+/// `.a` and `.b` on the second line, which is a line-SHAPE error rather than an
+/// offset error. `.a`'s horizontal margins differ (8 and 4) and `.b`'s vertical
+/// ones differ (5 and 3), so a flipped or transposed pair is visible.
+@Test func wrapRowReverseWithGapAndMarginsMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_row_reverse_gap_margin")
+    let tree = LayoutTree()
+
+    func child(w: Double, h: Double, m: (Double, Double, Double, Double)) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(w), height: px(h))
+        s.margin = Edges(top: px(m.0), right: px(m.1), bottom: px(m.2), left: px(m.3))
+        return tree.newNode(style: s, children: [])
+    }
+    let a = child(w: 100, h: 30, m: (0, 4, 0, 8))
+    let b = child(w: 120, h: 20, m: (5, 0, 3, 0))
+    let c = child(w: 90,  h: 40, m: (0, 6, 0, 0))
+    let d = child(w: 70,  h: 25, m: (0, 0, 0, 0))
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .rowReverse
+    rootStyle.flexWrap = .wrap
+    rootStyle.alignContent = .flexStart
+    rootStyle.gap = Axes(horizontal: pxL(7), vertical: pxL(9))
+    rootStyle.size = Size(width: px(300), height: px(160))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c, d])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c", d: "d"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// Wrapping x percentage main sizes x main-axis min/max, against WebKit.
+///
+/// `flex_wrap_main_sizing` is the fixture. The break decision consumes the
+/// RESOLVED, CLAMPED hypothetical size: `.b` is floored up from 100 to 180 and
+/// `.c` capped down from 250 to 110, and reading the declared `width` instead
+/// changes the line shape rather than an offset. The root's 20px horizontal
+/// padding makes the percentage basis (content box 400, not border box 440)
+/// load-bearing.
+@Test func wrapMainSizingUsesResolvedAndClampedSizesMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_main_sizing")
+    let tree = LayoutTree()
+
+    func child(width: MetalUICore.Dimension, height: Double,
+               minW: MetalUICore.Dimension = .auto,
+               maxW: MetalUICore.Dimension = .auto) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: width, height: px(height))
+        s.minSize = Size(width: minW, height: .auto)
+        s.maxSize = Size(width: maxW, height: .auto)
+        return tree.newNode(style: s, children: [])
+    }
+    let a = child(width: .length(.percent(0.25)), height: 20)
+    let b = child(width: px(100), height: 30, minW: px(180))
+    let c = child(width: px(250), height: 25, maxW: px(110))
+    let d = child(width: .length(.percent(0.30)), height: 35)
+    let e = child(width: .length(.percent(0.10)), height: 15)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrap
+    rootStyle.alignContent = .flexStart
+    rootStyle.padding = Edges(top: pxL(0), right: pxL(20), bottom: pxL(0), left: pxL(20))
+    rootStyle.size = Size(width: px(440), height: px(200))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c, d, e])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c", d: "d", e: "e"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// Wrapping x nesting x percentage padding, against WebKit.
+///
+/// `flex_wrap_nested_percent_padding` is the fixture: a wrapped container inside
+/// a wrapped container. `.mid`'s `padding: 5%` resolves against its containing
+/// block's WIDTH (the root's 380-wide content box) to 19 on all four edges, and
+/// its own two lines then stack inside its content box. Four candidate bases
+/// give four different answers and `.mid` is non-square, so none coincide.
+@Test func wrapNestedPercentPaddingMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_nested_percent_padding")
+    let tree = LayoutTree()
+
+    func child(w: Double, h: Double) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(w), height: px(h))
+        return tree.newNode(style: s, children: [])
+    }
+    let g1 = child(w: 70, h: 20)
+    let g2 = child(w: 80, h: 25)
+    let g3 = child(w: 60, h: 15)
+
+    var midStyle = Style()
+    midStyle.flexDirection = .row
+    midStyle.flexWrap = .wrap
+    midStyle.alignContent = .flexStart
+    midStyle.size = Size(width: px(200), height: px(120))
+    midStyle.padding = Edges(all: .percent(0.05))
+    let mid = tree.newNode(style: midStyle, children: [g1, g2, g3])
+
+    let lead = child(w: 120, h: 30)
+    let tail = child(w: 90, h: 40)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrap
+    rootStyle.alignContent = .flexStart
+    rootStyle.padding = Edges(all: pxL(10))
+    rootStyle.size = Size(width: px(400), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [lead, mid, tail])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", lead: "lead", mid: "mid",
+                              g1: "g1", g2: "g2", g3: "g3", tail: "tail"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// Wrapping x `column-reverse`, against WebKit.
+///
+/// `flex_wrap_column_reverse` is the fixture. It exists rather than inheriting
+/// `flex_wrap_row_reverse_gap_margin`'s confidence for the reason
+/// `flex_row_reverse_margins` and `flex_column_reverse_margins` are two files:
+/// a row-only implementation can transpose the axes on a column and nothing in
+/// the row fixture notices. It also mirrors ruling WR-1 in the harder
+/// direction — on a column the MAIN gap is `row-gap` (8) and the gap between
+/// LINES is `column-gap` (11).
+@Test func wrapColumnReverseMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_column_reverse")
+    let tree = LayoutTree()
+
+    func child(w: Double, h: Double) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(w), height: px(h))
+        return tree.newNode(style: s, children: [])
+    }
+    let a = child(w: 45, h: 50)
+    let b = child(w: 60, h: 70)
+    let c = child(w: 80, h: 40)
+    let d = child(w: 55, h: 90)
+    let e = child(w: 40, h: 60)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .columnReverse
+    rootStyle.flexWrap = .wrap
+    rootStyle.alignContent = .flexStart
+    rootStyle.gap = Axes(horizontal: pxL(11), vertical: pxL(8))
+    rootStyle.size = Size(width: px(320), height: px(150))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c, d, e])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c", d: "d", e: "e"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// `align-content: space-around` and `space-evenly`, against WebKit.
+///
+/// The two values measured correct twice and never fixtured. Until now they
+/// were pinned by `alignContentDistributesLeftoverCrossSpaceAmongLines` alone —
+/// a unit test over `distributeLines`, which delegates to `distributeMainAxis`
+/// and inherits ruling AL-4's negative-free-space clamp, a rule the spec's
+/// letter disagrees with. That wants a browser, not a second hand-derivation.
+///
+/// `flex_wrap_align_content_around_evenly` is the fixture: two wrapped
+/// containers side by side in a `nowrap` root, one per value, with
+/// DIFFERENT heights so `space-evenly`'s share divides exactly and so the two
+/// containers cannot accidentally agree.
+@Test func wrapAlignContentAroundAndEvenlyMatchWebKit() throws {
+    let golden = try loadGolden("flex_wrap_align_content_around_evenly")
+    let tree = LayoutTree()
+
+    func child(h: Double) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(120), height: px(h))
+        return tree.newNode(style: s, children: [])
+    }
+    func section(align: AlignContent, height: Double, kids: [LayoutNodeID]) -> LayoutNodeID {
+        var s = Style()
+        s.flexDirection = .row
+        s.flexWrap = .wrap
+        s.alignContent = align
+        s.size = Size(width: px(260), height: px(height))
+        return tree.newNode(style: s, children: kids)
+    }
+    let aa = child(h: 30), ab = child(h: 20), ac = child(h: 50)
+    let ea = child(h: 30), eb = child(h: 20), ec = child(h: 50)
+    let around = section(align: .spaceAround, height: 240, kids: [aa, ab, ac])
+    let evenly = section(align: .spaceEvenly, height: 260, kids: [ea, eb, ec])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .noWrap
+    rootStyle.gap = Axes(both: pxL(20))
+    rootStyle.size = Size(width: px(700), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [around, evenly])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", around: "around", evenly: "evenly",
+                              aa: "aa", ab: "ab", ac: "ac",
+                              ea: "ea", eb: "eb", ec: "ec"],
+                        golden: golden, tolerance: 0.1)
+}
+
+// MARK: - wrap-reverse against WebKit
+
+/// `wrap-reverse` x `align-items` / `align-self`, against WebKit.
+///
+/// `flex_wrap_reverse` is the fixture, and it separates the two flips: the line
+/// stack packs from the container's cross-END (`align-content: flex-start` puts
+/// line 0 at the bottom), and each item then sits at its LINE's flipped
+/// cross-start. `.a` and `.e` are the boxes that separate "flipped the array"
+/// from "flipped both", on different lines and by different amounts (20 and
+/// 65); `.b` at `flex-end` and `.c` at `center` land identically under either
+/// model and are here to make that visible rather than to pin it.
+@Test func wrapReverseAlignItemsMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_reverse")
+    let tree = LayoutTree()
+
+    func child(h: Double, align: AlignSelf? = nil) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(80), height: px(h))
+        s.alignSelf = align
+        return tree.newNode(style: s, children: [])
+    }
+    let a = child(h: 20)
+    let b = child(h: 40, align: .flexEnd)
+    let c = child(h: 26, align: .center)
+    let d = child(h: 90)
+    let e = child(h: 25, align: .flexStart)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrapReverse
+    rootStyle.alignContent = .flexStart
+    rootStyle.size = Size(width: px(260), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c, d, e])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c", d: "d", e: "e"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// `wrap-reverse` x `align-content: flex-end`, against WebKit — the pair where
+/// both features write the same axis.
+///
+/// `flex_wrap_reverse_align_content_end` is the fixture, and `flex-end` is not
+/// an arbitrary choice: reversing the lines ARRAY without flipping the leading
+/// offset is numerically identical to the correct answer for every symmetric
+/// distribution (`center`, both `space-*` pairs and `space-between` all put
+/// equal space at both ends). Only `flex-start` and `flex-end` can redden under
+/// that mutation, which is why this fixture declares one of them.
+///
+/// Under `wrap-reverse`, `flex-end` packs the lines to the container's TOP:
+/// `.c` closes on y = 0 and the 12px row-gap appears as 102 - 90.
+@Test func wrapReverseAlignContentEndMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_reverse_align_content_end")
+    let tree = LayoutTree()
+    let a = item(tree, main: 120, cross: 40)
+    let b = item(tree, main: 120, cross: 30)
+    let c = item(tree, main: 120, cross: 90)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrapReverse
+    rootStyle.alignContent = .flexEnd
+    rootStyle.gap = Axes(horizontal: pxL(0), vertical: pxL(12))
+    rootStyle.size = Size(width: px(260), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// `row-reverse` + `wrap-reverse` + `align-content`'s initial `stretch`,
+/// against WebKit — both axes flipped at once.
+///
+/// `flex_wrap_reverse_row_reverse` is the fixture. The failure modes are a
+/// container filling from the bottom-LEFT (main flip lost), the top-right
+/// (cross flip lost) or the top-left (both). `align-content` is left at its
+/// initial `stretch`, so the lines grow by 98 each before anything is placed,
+/// and `.c` is the one box that separates that from `flex-start` — line 0's
+/// flipped start is the container's bottom under either value.
+///
+/// Margins stay PHYSICAL under both flips: `.a`'s `margin-left` is on its left
+/// (160 - 152) rather than following `row-reverse`, and `.c`'s `margin-top` on
+/// its top (102 - 98) rather than following `wrap-reverse`.
+@Test func rowReverseWithWrapReverseMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_reverse_row_reverse")
+    let tree = LayoutTree()
+
+    func child(w: Double, h: Double, m: (Double, Double, Double, Double)) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(w), height: px(h))
+        s.margin = Edges(top: px(m.0), right: px(m.1), bottom: px(m.2), left: px(m.3))
+        return tree.newNode(style: s, children: [])
+    }
+    let a = child(w: 100, h: 40, m: (0, 0, 0, 8))
+    let b = child(w: 100, h: 30, m: (0, 0, 0, 0))
+    let c = child(w: 120, h: 50, m: (4, 0, 0, 0))
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .rowReverse
+    rootStyle.flexWrap = .wrapReverse
+    // `alignContent` deliberately NOT set — the initial `stretch` is part of
+    // what this fixture pins.
+    rootStyle.gap = Axes(horizontal: pxL(6), vertical: pxL(10))
+    rootStyle.size = Size(width: px(260), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c"],
+                        golden: golden, tolerance: 0.1)
+}
