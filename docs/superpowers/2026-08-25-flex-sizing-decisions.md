@@ -14,6 +14,10 @@ m1a decisions docs are different rulings entirely; three code comments on this
 branch originally cited bare `F-1`/`F-2`/`F-3` and resolved to the wrong
 document. Prefix every future milestone's rulings the same way.
 
+**Two of those three were renamed at the time; the third (`F-3`) survived until
+the alignment branch**, because the verification grep was case-sensitive and the
+citation read `Ruling F-3`. Sweep case-insensitively.
+
 ## Pre-flight (from scanning the plan before any code)
 
 | # | Ruling | Cost if wrong |
@@ -67,6 +71,12 @@ again.
 
 **The standing rule now has a stated limit:** the browser is right *because* it is
 the reference implementation. Where two engines disagree, the spec breaks the tie.
+
+**See also ruling AL-4** in `2026-08-25-alignment-decisions.md`, which is this
+case's mirror: there both engines agreed with each other and *disagreed* with the
+spec's letter, and we followed the engines. Read together the two give one rule —
+**two independent engines agreeing outrank the spec's letter; one engine alone
+does not.** Do not change either without reading both.
 
 ## The plan's arithmetic (FS-12)
 

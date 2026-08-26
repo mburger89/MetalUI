@@ -5,20 +5,35 @@ import MetalUICore
 
 private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(Float(v)))) }
 
+/// A flex child with an **explicit** cross size, for the hand-written tests
+/// that pin §9.7 arithmetic and want the cross axis held still.
+///
+/// The 40 is a constant, not a parameter. It used to be `cross: Double = 40`,
+/// and after `growMatchesWebKitOnTheUnusedGolden` stopped passing `cross: 100`
+/// to fake the stretch the engine could not do, every call site took the
+/// default — a customization point nothing customized, which is the same hazard
+/// class in test code as a dead production parameter. Use `fixtureFlexChild`
+/// when you want stretch instead; add the parameter back only when a second
+/// value genuinely exists.
 private func flexChild(_ tree: LayoutTree, grow: Float, shrink: Float,
-                       basis: MetalUICore.Dimension, cross: Double = 40) -> LayoutNodeID {
+                       basis: MetalUICore.Dimension) -> LayoutNodeID {
     var s = Style()
     s.flexGrow = grow
     s.flexShrink = shrink
     s.flexBasis = basis
-    s.size = Size(width: .auto, height: px(cross))
+    s.size = Size(width: .auto, height: px(40))
     return tree.newNode(style: s, children: [])
 }
 
 /// A child that mirrors a fixture's `.a { flex: <g> <s> <b>; }` **exactly** —
-/// no height, because the fixtures declare none. Our engine therefore gives it
-/// a cross size of 0 while WebKit stretches it to the container's height; see
-/// `assertMainAxisMatchesGolden` for why that is expected and not a defect.
+/// no height, because the fixtures declare none.
+///
+/// **Leave it that way.** Since §9.4 stretch landed, the missing height is what
+/// makes these comparisons exercise stretch at all: the engine fills the
+/// container's cross extent exactly as WebKit does, which is why every
+/// comparison below is full-rect and no golden was regenerated to get there.
+/// Giving these children an explicit height would make stretch unreachable from
+/// the corpus while the tests went on looking green.
 private func fixtureFlexChild(_ tree: LayoutTree, grow: Float, shrink: Float,
                               basis: MetalUICore.Dimension) -> LayoutNodeID {
     var s = Style()
@@ -33,49 +48,6 @@ private func row(_ tree: LayoutTree, width: Double, _ kids: [LayoutNodeID]) -> L
     s.flexDirection = .row
     s.size = Size(width: px(width), height: px(40))
     return tree.newNode(style: s, children: kids)
-}
-
-/// Compare **only the main axis** of every named node against the browser's
-/// rounded box — `x`/`width` for a row container, `y`/`height` for a column.
-///
-/// **The cross axis is deliberately not compared, and this is not
-/// cherry-picking the axes that happen to agree.** The fixtures behind these
-/// comparisons give their children no explicit cross size. WebKit lays those
-/// out at the container's full cross extent because `align-items` defaults to
-/// `stretch`; this engine does not implement alignment at all — `collectItems`
-/// takes an item's cross size from the item's own style, so ours is 0. The two
-/// sides therefore disagree on the cross axis for a reason that has nothing to
-/// do with §9.7, which is what these tests exist to pin.
-///
-/// **When the alignment task lands, widen this to all four fields** (or delete
-/// it in favour of `assertMatchesGolden` in `FlexEngineTests`, which already
-/// compares all four) — an axis excluded on purpose is only honest while the
-/// reason still holds. Do **not** close the gap by giving the fixtures explicit
-/// cross sizes: that hides a real missing feature behind a doctored fixture.
-private func assertMainAxisMatchesGolden(
-    _ tree: LayoutTree,
-    ids: [(LayoutNodeID, String)],
-    golden: GoldenFile,
-    isRow: Bool = true,
-    tolerance: Double = 0.1,
-    sourceLocation: SourceLocation = #_sourceLocation
-) throws {
-    let byID = Dictionary(uniqueKeysWithValues: golden.rounded.map { ($0.id, $0) })
-    for (node, id) in ids {
-        let ours = tree.layout(node)
-        let theirs = try #require(byID[id], "golden '\(golden.fixture)' has no node '\(id)'",
-                                  sourceLocation: sourceLocation)
-        let axis = isRow ? "x" : "y"
-        let (ourOrigin, theirOrigin) = isRow ? (ours.x, theirs.x) : (ours.y, theirs.y)
-        let (ourExtent, theirExtent) = isRow ? (ours.width, theirs.width)
-                                            : (ours.height, theirs.height)
-        #expect(abs(ourOrigin - theirOrigin) <= tolerance,
-                "\(id).\(axis) ours \(ourOrigin) vs \(theirOrigin)",
-                sourceLocation: sourceLocation)
-        #expect(abs(ourExtent - theirExtent) <= tolerance,
-                "\(id) main extent ours \(ourExtent) vs \(theirExtent)",
-                sourceLocation: sourceLocation)
-    }
 }
 
 @Test func growDistributesFreeSpaceInProportionToFlexGrow() {
@@ -209,17 +181,18 @@ private func assertMainAxisMatchesGolden(
     // flex_row_fixed_and_grow.json has been committed since M1a Task 4 and
     // nothing has ever compared against it. This is what makes it load-bearing.
     //
-    // Main axis only — see `assertMainAxisMatchesGolden`. (This fixture's `a`
-    // and `b` declare no height either; the hand-built tree below gives them
-    // 100 to match the container, but the comparison still excludes the cross
-    // axis so it stays honest alongside the other three.)
+    // The tree mirrors the fixture exactly: none of `.a`, `.b` or `.c` declares
+    // a height, so all three reach 100 only through §9.4 stretch. It used to
+    // hand `a` and `b` an explicit `cross: 100` to stand in for the stretch the
+    // engine could not do — restoring that would make this comparison green
+    // whether stretch worked or not.
     let golden = try loadGolden("flex_row_fixed_and_grow")
 
     let tree = LayoutTree()
-    let a = flexChild(tree, grow: 1, shrink: 1, basis: px(0), cross: 100)
-    let b = flexChild(tree, grow: 2, shrink: 1, basis: px(0), cross: 100)
+    let a = fixtureFlexChild(tree, grow: 1, shrink: 1, basis: px(0))
+    let b = fixtureFlexChild(tree, grow: 2, shrink: 1, basis: px(0))
     var cs = Style()
-    cs.size = Size(width: px(100), height: px(100))
+    cs.size = Size(width: px(100), height: .auto)
     let c = tree.newNode(style: cs, children: [])
     var rootStyle = Style()
     rootStyle.flexDirection = .row
@@ -229,16 +202,13 @@ private func assertMainAxisMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    try assertMainAxisMatchesGolden(
-        tree, ids: [(root, "root"), (a, "a"), (b, "b"), (c, "c")], golden: golden)
+    assertMatchesGolden(
+        tree, ids: [root: "root", a: "a", b: "b", c: "c"],
+        golden: golden, tolerance: 0.1)
 }
 
 /// `flex_row_grow_uneven`: 640 row, `1 1 0` / `3 1 0` / `0 0 140px`.
 /// 500 free after the fixed 140, split 1:3 -> 125 and 375.
-///
-/// Main axis only — see `assertMainAxisMatchesGolden`. All three children lack
-/// a height, so WebKit stretches them to 40 and ours are 0 until alignment
-/// lands; widen this comparison then.
 @MainActor
 @Test func unevenGrowMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_grow_uneven")
@@ -252,16 +222,13 @@ private func assertMainAxisMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    try assertMainAxisMatchesGolden(
-        tree, ids: [(root, "root"), (a, "a"), (b, "b"), (c, "c")], golden: golden)
+    assertMatchesGolden(
+        tree, ids: [root: "root", a: "a", b: "b", c: "c"],
+        golden: golden, tolerance: 0.1)
 }
 
 /// `flex_row_shrink`: 300 row holding 200 + 200 + 100. The browser's answer is
 /// the base-size-weighted one, which is the whole point of the fixture.
-///
-/// Main axis only — see `assertMainAxisMatchesGolden`. All three children lack
-/// a height, so WebKit stretches them to 40 and ours are 0 until alignment
-/// lands; widen this comparison then.
 @MainActor
 @Test func shrinkMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_shrink")
@@ -275,17 +242,14 @@ private func assertMainAxisMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    try assertMainAxisMatchesGolden(
-        tree, ids: [(root, "root"), (a, "a"), (b, "b"), (c, "c")], golden: golden)
+    assertMatchesGolden(
+        tree, ids: [root: "root", a: "a", b: "b", c: "c"],
+        golden: golden, tolerance: 0.1)
 }
 
 /// `flex_row_fractional_grow`: three `flex: 0.25 1 0` items in a 400 row.
 /// WebKit gives 100/100/100 and leaves 100px of the container empty — the
 /// browser's confirmation of §9.7.4.b's sub-one clause.
-///
-/// Main axis only — see `assertMainAxisMatchesGolden`. All three children lack
-/// a height, so WebKit stretches them to 40 and ours are 0 until alignment
-/// lands; widen this comparison then.
 @MainActor
 @Test func fractionalGrowMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_fractional_grow")
@@ -297,10 +261,9 @@ private func assertMainAxisMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    try assertMainAxisMatchesGolden(
-        tree,
-        ids: [(root, "root"), (kids[0], "a"), (kids[1], "b"), (kids[2], "c")],
-        golden: golden)
+    assertMatchesGolden(
+        tree, ids: [root: "root", kids[0]: "a", kids[1]: "b", kids[2]: "c"],
+        golden: golden, tolerance: 0.1)
 }
 
 /// §9.7.4.b scales the **initial** free space — the one fixed before the loop
@@ -339,10 +302,6 @@ private func assertMainAxisMatchesGolden(
 }
 
 /// The browser's word on the case above.
-///
-/// Main axis only — see `assertMainAxisMatchesGolden`. Both children lack a
-/// height, so WebKit stretches them to 40 and ours are 0 until alignment
-/// lands; widen this comparison then.
 @MainActor
 @Test func clampedFractionalGrowMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_fractional_grow_clamped")
@@ -360,8 +319,9 @@ private func assertMainAxisMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    try assertMainAxisMatchesGolden(
-        tree, ids: [(root, "root"), (a, "a"), (b, "b")], golden: golden)
+    assertMatchesGolden(
+        tree, ids: [root: "root", a: "a", b: "b"],
+        golden: golden, tolerance: 0.1)
 }
 
 /// §9.7.4.b's magnitude test: the sub-one scaling may only ever *reduce* the
@@ -445,10 +405,6 @@ private func assertMainAxisMatchesGolden(
 }
 
 /// The browser's word on the redistribution above.
-///
-/// Main axis only — see `assertMainAxisMatchesGolden`. All three children lack
-/// a height, so WebKit stretches them to 40 and ours are 0 until alignment
-/// lands; widen this comparison then.
 @MainActor
 @Test func growWithAMaxWidthMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_grow_with_max")
@@ -467,8 +423,9 @@ private func assertMainAxisMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    try assertMainAxisMatchesGolden(
-        tree, ids: [(root, "root"), (a, "a"), (b, "b"), (c, "c")], golden: golden)
+    assertMatchesGolden(
+        tree, ids: [root: "root", a: "a", b: "b", c: "c"],
+        golden: golden, tolerance: 0.1)
 }
 
 // MARK: - Fixes for mutations that the first round of fixtures could not catch.
@@ -504,10 +461,6 @@ private func assertMainAxisMatchesGolden(
 }
 
 /// The browser's word on the non-zero basis above.
-///
-/// Main axis only — see `assertMainAxisMatchesGolden`. Both children lack a
-/// height, so WebKit stretches them to 40 and ours are 0 until alignment
-/// lands; widen this comparison then.
 @MainActor
 @Test func growWithANonZeroBasisMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_grow_nonzero_basis")
@@ -520,8 +473,9 @@ private func assertMainAxisMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    try assertMainAxisMatchesGolden(
-        tree, ids: [(root, "root"), (a, "a"), (b, "b")], golden: golden)
+    assertMatchesGolden(
+        tree, ids: [root: "root", a: "a", b: "b"],
+        golden: golden, tolerance: 0.1)
 }
 
 /// The sub-one clause on the **shrink** side — the only place two more details
@@ -558,10 +512,6 @@ private func assertMainAxisMatchesGolden(
 }
 
 /// The browser's word on the fractional shrink above.
-///
-/// Main axis only — see `assertMainAxisMatchesGolden`. Both children lack a
-/// height, so WebKit stretches them to 40 and ours are 0 until alignment
-/// lands; widen this comparison then.
 @MainActor
 @Test func fractionalShrinkMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_fractional_shrink")
@@ -574,8 +524,9 @@ private func assertMainAxisMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    try assertMainAxisMatchesGolden(
-        tree, ids: [(root, "root"), (a, "a"), (b, "b")], golden: golden)
+    assertMatchesGolden(
+        tree, ids: [root: "root", a: "a", b: "b"],
+        golden: golden, tolerance: 0.1)
 }
 
 /// §9.7.4.d clamps against the **main** axis's min/max, which in a column is
@@ -618,11 +569,6 @@ private func assertMainAxisMatchesGolden(
 }
 
 /// The browser's word on the column clamp above.
-///
-/// Main axis only — here that is `y`/`height`, since the container is a column.
-/// The children lack a *width*, which is the cross axis in a column, so WebKit
-/// stretches them to 100 and ours are 0 until alignment lands; widen this
-/// comparison then.
 @MainActor
 @Test func columnGrowWithAMaxHeightMatchesWebKit() throws {
     let golden = try loadGolden("flex_column_grow_with_max")
@@ -645,9 +591,9 @@ private func assertMainAxisMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    try assertMainAxisMatchesGolden(
-        tree, ids: [(root, "root"), (a, "a"), (b, "b"), (c, "c")],
-        golden: golden, isRow: false)
+    assertMatchesGolden(
+        tree, ids: [root: "root", a: "a", b: "b", c: "c"],
+        golden: golden, tolerance: 0.1)
 }
 
 // MARK: - CSS Sizing §4.5, the automatic minimum size (`min-width: auto`).
@@ -788,10 +734,6 @@ private func assertMainAxisMatchesGolden(
 /// with the golden unchanged. Verified in WebKit — the equal-base form gives
 /// 150 / 150 with or without the `min-width`, while this one gives 100 / 200
 /// without it and 150 / 150 with it.
-///
-/// Main axis only — see `assertMainAxisMatchesGolden`. Both children lack a
-/// height, so WebKit stretches them to 40 and ours are 0 until alignment
-/// lands; widen this comparison then.
 @MainActor
 @Test func explicitMinWidthMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_explicit_min")
@@ -809,8 +751,9 @@ private func assertMainAxisMatchesGolden(
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    try assertMainAxisMatchesGolden(
-        tree, ids: [(root, "root"), (a, "a"), (b, "b")], golden: golden)
+    assertMatchesGolden(
+        tree, ids: [root: "root", a: "a", b: "b"],
+        golden: golden, tolerance: 0.1)
 }
 
 /// A **percentage** flex-basis, in a row whose main and cross extents are far
@@ -826,10 +769,6 @@ private func assertMainAxisMatchesGolden(
 /// arithmetically loud: `50%` is 350 against the main axis and 50 against the
 /// cross. `c` is a pixel basis and must not move under either wiring — it is
 /// the control that separates "wrong axis" from "percentages broken outright".
-///
-/// Main axis only — see `assertMainAxisMatchesGolden`. All three children lack
-/// a height, so WebKit stretches them to 100 and ours are 0 until alignment
-/// lands; widen this comparison then.
 @MainActor
 @Test func percentageFlexBasisResolvesAgainstTheMainAxis() throws {
     let golden = try loadGolden("flex_row_percent_basis")
@@ -853,8 +792,9 @@ private func assertMainAxisMatchesGolden(
     #expect(tree.layout(b).width == 175)
     #expect(tree.layout(c).width == 120)
 
-    try assertMainAxisMatchesGolden(
-        tree, ids: [(root, "root"), (a, "a"), (b, "b"), (c, "c")], golden: golden)
+    assertMatchesGolden(
+        tree, ids: [root: "root", a: "a", b: "b", c: "c"],
+        golden: golden, tolerance: 0.1)
 }
 
 /// §9.7.4.d's `max(0, ...)` — an item whose distributed target goes **negative**.
@@ -871,10 +811,6 @@ private func assertMainAxisMatchesGolden(
 /// the total violation is 0, the loop freezes the whole line on pass 1, and `a`
 /// stores a **negative width** while `b`'s origin is dragged to -36. Both the
 /// width and the origin assertions below catch it.
-///
-/// Main axis only — see `assertMainAxisMatchesGolden`. Both children lack a
-/// height, so WebKit stretches them to 40 and ours are 0 until alignment lands;
-/// widen this comparison then.
 @MainActor
 @Test func aShrinkTargetBelowZeroClampsToZeroInsteadOfStoringANegativeWidth() throws {
     let golden = try loadGolden("flex_row_shrink_to_zero")
@@ -891,6 +827,7 @@ private func assertMainAxisMatchesGolden(
     #expect(tree.layout(b).width == 50)
     #expect(tree.layout(b).x == 0)
 
-    try assertMainAxisMatchesGolden(
-        tree, ids: [(root, "root"), (a, "a"), (b, "b")], golden: golden)
+    assertMatchesGolden(
+        tree, ids: [root: "root", a: "a", b: "b"],
+        golden: golden, tolerance: 0.1)
 }

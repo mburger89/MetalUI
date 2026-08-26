@@ -4,23 +4,23 @@ import MetalUICore
 /// the tree.
 ///
 /// This milestone implements CSS Flexbox §9 incrementally. Right now: a single
-/// line, §9.2 flex base sizes, §9.7 grow/shrink, flex-start packing. Alignment,
-/// wrapping and absolute positioning arrive in later tasks, each with its own
-/// fixtures.
+/// line, §9.2 flex base sizes, §9.7 grow/shrink, §9.5 justify-content packing,
+/// §9.4 cross-axis stretch, §9.6 cross-axis placement. Wrapping, `align-content`
+/// and absolute positioning arrive in later tasks, each with its own fixtures.
 ///
-/// **Alignment is NOT implemented**, and that is visible in every browser
-/// comparison: `collectItems` takes an item's cross size from the item's own
-/// style, so an item with no explicit cross size is 0 where CSS's default
-/// `align-items: stretch` gives it the container's extent. The freeze-loop
-/// golden comparisons in `FreezeLoopTests` therefore compare the main axis
-/// only, and say so at the assertion helper.
+/// **Cross-axis `stretch` landed in the alignment task, and with it every golden
+/// comparison in the suite is now full-rect.** Twelve of them compared the main
+/// axis alone until then, because `collectItems` took an item's cross size from
+/// its own style and produced 0 where CSS's default `align-items: stretch` gives
+/// the container's extent. Nothing was regenerated when they widened: the
+/// committed goldens already held WebKit's stretched answers, which is the
+/// evidence the rule is right.
 ///
-/// **Reverse directions are NOT implemented.** `FlexDirection` offers
-/// `.rowReverse` and `.columnReverse`, and `FlexDirection.isReverse` exists, but
-/// `layoutContainer` keys only on `isRow`. A `.rowReverse` container therefore
-/// lays out silently as `.row` — wrong geometry, no error, no diagnostic. It is
-/// listed here because that is the whole mitigation until the alignment task
-/// implements it: nothing else in the code says so.
+/// **Content-based cross sizing is still NOT implemented** — the other half of
+/// §9.4. An item that is not stretched (its alignment is `center`, `flex-start`
+/// or `flex-end`) and has an `auto` cross size measures 0 here, where CSS gives
+/// it its content's cross size. Every fixture in the corpus is an empty div, so
+/// no browser comparison can see it; it needs the M2 text system.
 ///
 /// **The box model is NOT implemented either.** `margin`, `padding`, `border`
 /// and `inset` are live `Style` properties, and `resolveEdges` resolves all four
@@ -31,9 +31,9 @@ import MetalUICore
 /// reduced by them. This is a conspicuous gap rather than a minor one, because
 /// `border-box` sizing is the spec's headline sizing constraint (§5.2) — every
 /// size here already *claims* to include padding and border, while no code yet
-/// subtracts them to find the content box. Like reverse, it fails silently:
-/// wrong geometry, no error, no diagnostic, until the box-model work wires
-/// `resolveEdges` into `layoutContainer`.
+/// subtracts them to find the content box. It fails silently: wrong geometry,
+/// no error, no diagnostic, until the box-model work wires `resolveEdges` into
+/// `layoutContainer`.
 ///
 /// Every rect written here is **absolute to the root**, not relative to its
 /// parent. `roundLayout` keeps no cross-rect state, so its no-drift guarantee
@@ -136,10 +136,13 @@ struct FlexItem {
     /// value written at construction, and do not read this field before
     /// `resolveFlexibleLengths` has run.
     var targetMainSize: Double
-    /// The item's own style's cross-axis size. **Alignment is not
-    /// implemented**, so an item with no explicit cross size is 0 here where a
-    /// browser's `align-items: stretch` default would give it the container's
-    /// extent.
+    /// The item's final cross-axis size: its own style's cross size, or — when
+    /// its resolved alignment is `stretch` and that size is `auto` — the line's
+    /// cross extent clamped by the item's cross min/max (§9.4).
+    ///
+    /// Still 0 for an item that is auto-sized on the cross axis and *not*
+    /// stretched: content-based cross sizing needs a measure function and
+    /// arrives with the M2 text system.
     var crossSize: Double
     /// §9.7 freezes an item once its size is final, and the loop stops when
     /// every item is frozen.
@@ -300,7 +303,7 @@ private func collectItems(
             // When the text system lands, add a fixture with real content and
             // delete this paragraph.
             //
-            // **Ruling F-3 — half the rule is deliberately missing.** §4.5's
+            // **Ruling FS-3 — half the rule is deliberately missing.** §4.5's
             // automatic minimum is `min(specified size suggestion, content size
             // suggestion)`; only the content suggestion is implemented. The
             // specified suggestion (the item's own definite `width`/`height`,
@@ -329,10 +332,40 @@ private func collectItems(
                                            against: containerMain, rootFontSize: rootFontSize)
             let hypothetical = clamp(base, min: minMain, max: maxMain)
 
-            // Cross size still comes from the item's own style. Stretch and
-            // content-based cross sizing arrive with the alignment work.
+            // CSS Flexbox §9.4 — cross-axis stretch.
+            //
+            // An item stretches when its resolved alignment is `stretch` AND its
+            // cross size property is `auto`. A definite cross size wins outright;
+            // a stretched size is still clamped by the item's cross min/max.
+            //
+            // This is why every fixture whose children have no explicit cross
+            // size agreed with WebKit only on the main axis until now: CSS's
+            // initial `align-items` behaves as `stretch`, so the browser filled
+            // the container while we produced 0.
+            //
+            // `crossDim` is selected per axis, not hardwired to `height`: a
+            // column's cross axis is width, and `flex_column_grow_with_max`'s
+            // golden holds `width: 100` for children that declare none.
+            //
+            // **Content-based cross sizing is still missing**, and it is the
+            // other half of §9.4. An item that is *not* stretched — because its
+            // alignment is `center`, `flex-start`, `flex-end`, or because the
+            // container wraps — and has an `auto` cross size gets 0 here, where
+            // CSS gives it its content's cross size. Every fixture in the corpus
+            // is an empty div, for which 0 is right, so nothing catches it; when
+            // the M2 text system lands, this is where `tree.measure` belongs.
+            let crossDim = isRow ? ks.size.height : ks.size.width
             let own = resolveNodeSize(tree, kid, parent: parent, rootFontSize: rootFontSize)
-            let cross = isRow ? own.height : own.width
+            let ownCross = isRow ? own.height : own.width
+            let align = resolvedAlignment(ks, container: s)
+            var cross = ownCross
+            if align == .stretch, case .auto = crossDim {
+                let lowerCross = resolveDimension(isRow ? ks.minSize.height : ks.minSize.width,
+                                                  against: containerCross, rootFontSize: rootFontSize)
+                let upperCross = resolveDimension(isRow ? ks.maxSize.height : ks.maxSize.width,
+                                                  against: containerCross, rootFontSize: rootFontSize)
+                cross = clamp(containerCross, min: lowerCross, max: upperCross)
+            }
 
             // `targetMainSize:` here is dead — §9.7.2 overwrites it on every
             // item before it is read, and no empty-line path reaches
@@ -356,19 +389,68 @@ private func positionItems(
 ) {
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
+    // §9.4.2's "flex-start" and "flex-end" are keyed to the *flex-relative*
+    // direction, so a `.rowReverse`/`.columnReverse` container's main-start is
+    // its physical right/bottom edge, not its left/top. `cursor` below still
+    // accumulates along the flex-relative axis exactly as the forward case
+    // does — `distributeMainAxis`, `gap`, and item order are all unaware of
+    // reversal — and only the point where a position is *read out* converts
+    // that flex-relative cursor into a physical coordinate.
+    //
+    // Reversing `items` instead is not a correctness requirement: done
+    // correctly it is numerically equivalent to this cursor conversion.
+    // `distributeMainAxis` has no per-item notion of "first" to corrupt — it
+    // takes only `justify`, `freeSpace` and `itemCount`. What array-reversal
+    // would need is a compensating flip of which side `offsets.leading` is
+    // measured from, and that matters for exactly the **asymmetric**
+    // distributions — the ones where the space before the line differs from
+    // the space after it. That is `flex-start` (leading 0, trailing all of it)
+    // and `flex-end` (the reverse), and no others: `center`, `space-around`,
+    // `space-evenly` and `space-between` all put equal space at both ends, so
+    // reversing without a flip lands on identical numbers. Verified by
+    // measurement — a `row-reverse` + `space-around` + `gap` probe matches
+    // WebKit under array-reversal with no flip at all, while `flex-start` and
+    // `flex-end` do not. (Two earlier attempts at this paragraph named the
+    // wrong discriminator: it is `leading == trailing`, not `leading == 0`.)
+    // This file keeps `items` in document order instead because
+    // document order is the one thing about this loop with a use outside it:
+    // wrapping's line collection and baseline grouping (neither implemented
+    // yet) will need to index items by DOM position, and converting the
+    // cursor confines the reversal to the single place a physical position is
+    // actually derived, rather than threading a flipped item order through
+    // everything downstream of `collectItems`.
+    let isReverse = s.flexDirection.isReverse
+    let containerMain = isRow ? containerSize.width : containerSize.height
+    let containerCross = isRow ? containerSize.height : containerSize.width
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
-                            against: isRow ? containerSize.width : containerSize.height,
+                            against: containerMain,
                             rootFontSize: rootFontSize) ?? 0
 
-    var cursor: Double = 0
-    for (index, item) in items.enumerated() {
-        // Between items only. A trailing gap is invisible today because `cursor`
-        // dies with the loop, but `justify-content` will read the final cursor as
-        // the line's content size, where it is a real off-by-`gap` bug.
-        if index > 0 { cursor += gap }
+    let content = lineContentSize(items.map(\.targetMainSize), gap: gap)
+    let offsets = distributeMainAxis(s.justifyContent ?? .flexStart,
+                                     freeSpace: containerMain - content,
+                                     itemCount: items.count)
 
-        let x = containerOrigin.0 + (isRow ? cursor : 0)
-        let y = containerOrigin.1 + (isRow ? 0 : cursor)
+    var cursor: Double = offsets.leading
+    for (index, item) in items.enumerated() {
+        // Between items only.
+        if index > 0 { cursor += gap + offsets.between }
+
+        // CSS Flexbox §9.6 — the line's cross size is the container's cross
+        // extent (single-line only; wrapping would make this the line's own
+        // measured cross size instead).
+        let align = resolvedAlignment(tree.style(item.node), container: s)
+        let crossOffset = crossAxisOffset(align, itemCross: item.crossSize,
+                                          lineCross: containerCross)
+
+        // Convert the flex-relative cursor to a physical main-axis position.
+        // Forward: the cursor already IS the physical position. Reversed: the
+        // item's main-start sits `cursor` in from the container's flex-start,
+        // which is the container's physical main-end — so the item's physical
+        // leading edge is `containerMain - cursor - item.targetMainSize`.
+        let main = isReverse ? (containerMain - cursor - item.targetMainSize) : cursor
+        let x = containerOrigin.0 + (isRow ? main : crossOffset)
+        let y = containerOrigin.1 + (isRow ? crossOffset : main)
         let size = isRow
             ? SizeD(width: item.targetMainSize, height: item.crossSize)
             : SizeD(width: item.crossSize, height: item.targetMainSize)

@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Identical to flex_row_justify_between.html but with gap: 12px added.
+     This is NOT a duplicate, even though its committed golden's numbers are
+     byte-identical to the no-gap fixture (0 / 160 / 350 either way): `gap`
+     cancels *precisely* under a correct `space-between`, because
+     space-between's stride is (containerMain - content) / (n - 1), and
+     `content` already subtracts the gaps out of `containerMain` before the
+     division. Two fixtures, same numbers, on purpose.
+     What this fixture actually guards: `lineContentSizeCountsGapsBetweenItemsOnly`
+     tests `lineContentSize` in isolation and never calls `positionItems` or
+     `computeLayout` — it cannot catch a trailing-gap regression that lives in
+     the wiring between them. This fixture is the only end-to-end guard on
+     that: reintroduce the trailing gap (`gap * count` instead of `count - 1`)
+     and this fixture's `flexRowJustifyBetweenGapMatchesWebKit` reddens by 6px
+     per item (gap / (n - 1) = 12 / 2), far above the 0.1pt comparison
+     tolerance, even though the no-gap sibling stays green. Do not delete this
+     as a copy of flex_row_justify_between.html — the identical goldens are
+     the point. Ruling AL-5, in
+     docs/superpowers/2026-08-25-alignment-decisions.md. */
+  #root { display: flex; flex-direction: row; justify-content: space-between;
+          gap: 12px; width: 400px; height: 40px; }
+  .a { width: 40px; height: 40px; }
+  .b { width: 70px; height: 40px; }
+  .c { width: 50px; height: 40px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+  </div>
+</body></html>

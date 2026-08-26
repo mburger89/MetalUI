@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Composes both flips: flex-direction: column-reverse (main-start is the
+     bottom edge) AND justify-content: flex-end (packs toward main-end) —
+     which is where a sign error in either flip shows up on its own, since a
+     single flip alone would still place the packed run at a plausible-looking
+     edge. Three unequal children leave 240px of free space in the 400px
+     container, so a swap to plain `column` moves every number.
+
+     Ruling AL-7: `.a` has an explicit `height` — a definite MAIN size in a
+     column, which no other fixture in the corpus provides (every other column
+     child sources its main size from flex-basis and leaves `height: auto`).
+     `.a`'s `width` is left auto so it stretches to the container's 100px —
+     that is what exposes a stretch rule whose cross-dimension lookup is
+     hardwired to `.height` instead of picked per axis: hardwired, it would
+     find `.a`'s definite 40px height instead of its auto width, decide the
+     item does not need to stretch, and leave the width at 0 instead of 100. */
+  #root { display: flex; flex-direction: column-reverse; justify-content: flex-end;
+          width: 100px; height: 400px; }
+  .a { height: 40px; }
+  .b { width: 60px; height: 70px; }
+  .c { width: 80px; height: 50px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+  </div>
+</body></html>
