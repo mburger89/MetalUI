@@ -44,10 +44,20 @@ public final class Frame {
     /// Primitives emitted during paint. Written only through `fill`.
     private(set) var scene = Scene()
 
-    init(contentSize: Size<Pixels>, scaleFactor: Float, rootFontSize: Double = 16) {
+    /// The cross-frame state table (§4.3).
+    ///
+    /// **Not owned here — `Frame` is per-frame and this outlives it.** The
+    /// window owns it and hands the same instance to every frame; that is the
+    /// whole point, and a `Frame` that constructed its own would give every
+    /// element fresh state each frame while every test still passed.
+    let stateTable: StateTable
+
+    init(contentSize: Size<Pixels>, scaleFactor: Float, rootFontSize: Double = 16,
+         stateTable: StateTable = StateTable()) {
         self.contentSize = contentSize
         self.scaleFactor = scaleFactor
         self.rootFontSize = rootFontSize
+        self.stateTable = stateTable
     }
 
     // MARK: - Layout phase
@@ -108,24 +118,35 @@ public final class Frame {
     /// Walks `element` through layout, prepaint and paint, running the flex
     /// engine in between.
     ///
-    /// The `GlobalElementID` handed to each phase is `nil` at every level: the
-    /// identity path and the state table it keys are their own task. When they
-    /// land, this is the one function that has to build the path.
+    /// Builds the root's `GlobalElementID` from the element's own `elementID`
+    /// and hands it down, then **sweeps after the frame** (§4.3).
+    ///
+    /// Only the root's path is built here. Every deeper path comes from a
+    /// container calling `GlobalElementID.child(of:_:)`, and **no container
+    /// exists yet** — `Box`/`Column`/`Row` are Task 4 — so a tree deeper than
+    /// one element currently has one identified node and anonymous descendants.
+    /// Grep `child(of:` in `Sources/` to see whether that is still true.
     func render<E: Element>(_ element: inout E) {
+        let rootID = GlobalElementID.child(of: .root, element.elementID)
+
         var layoutPass = LayoutPass(frame: self)
-        let (root, layoutState) = element.requestLayout(nil, pass: &layoutPass)
+        let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)
         var state = layoutState
 
         computeRootLayout(root: root)
         let rootBounds = bounds(of: root)
 
         var prepaintPass = PrepaintPass(frame: self)
-        var prepaintState = element.prepaint(nil, bounds: rootBounds,
+        var prepaintState = element.prepaint(rootID, bounds: rootBounds,
                                              layout: &state, pass: &prepaintPass)
 
         var paintPass = PaintPass(frame: self)
-        element.paint(nil, bounds: rootBounds,
+        element.paint(rootID, bounds: rootBounds,
                       layout: &state, prepaint: &prepaintState, pass: &paintPass)
+
+        // After the frame, never before: sweeping first would discard every
+        // entry the previous frame established, which is the table's purpose.
+        stateTable.sweep()
     }
 }
 

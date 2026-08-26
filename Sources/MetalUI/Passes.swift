@@ -75,3 +75,59 @@ public struct PaintPass {
     /// double-scales them on any Retina display.
     public func fill(_ bounds: Bounds<Pixels>, color: Hsla) { frame.fill(bounds, color: color) }
 }
+
+// MARK: - Cross-frame state (§4.3)
+
+// Three identical methods rather than one protocol extension, and the
+// duplication is deliberate.
+//
+// A `StatefulPass` protocol would need `var frame: Frame { get }` as a public
+// requirement, which forces `frame` public on all three passes — and that hands
+// element authors the whole `Frame` surface, defeating the phase separation this
+// file exists to enforce. Emitting a primitive during layout would become
+// `pass.frame.fill(...)`, a compile *success*. Three one-line bodies is the
+// cheaper price. Measured: `error: property 'frame' must be declared public
+// because it matches a requirement in public protocol 'StatefulPass'`.
+//
+// Available in **all three** phases, unlike everything else here. Phase
+// separation stops an element doing a phase's work in the wrong phase;
+// cross-frame state is not a phase's work. A scroll offset is read during layout
+// to decide what is visible, updated during prepaint from the last frame's
+// input, and read again during paint. Restricting it to one phase would force
+// elements to smuggle it through `LayoutState`, which is the aliasing hazard
+// `AnyElementBox` exists to avoid.
+
+extension LayoutPass {
+    /// Read-modify-write this element's cross-frame state, creating it from
+    /// `initial` on first access (§4.3).
+    ///
+    /// An element with no identity gets scratch state discarded on return — not
+    /// an error, and why identity does not resume below an anonymous element.
+    /// See `GlobalElementID.child(of:_:)`.
+    @MainActor
+    public func withState<S>(_ id: GlobalElementID?,
+                             initial: @autoclosure () -> S,
+                             _ body: (inout S) -> Void) {
+        frame.stateTable.withState(id, initial: initial(), body)
+    }
+}
+
+extension PrepaintPass {
+    /// See `LayoutPass.withState(_:initial:_:)`.
+    @MainActor
+    public func withState<S>(_ id: GlobalElementID?,
+                             initial: @autoclosure () -> S,
+                             _ body: (inout S) -> Void) {
+        frame.stateTable.withState(id, initial: initial(), body)
+    }
+}
+
+extension PaintPass {
+    /// See `LayoutPass.withState(_:initial:_:)`.
+    @MainActor
+    public func withState<S>(_ id: GlobalElementID?,
+                             initial: @autoclosure () -> S,
+                             _ body: (inout S) -> Void) {
+        frame.stateTable.withState(id, initial: initial(), body)
+    }
+}

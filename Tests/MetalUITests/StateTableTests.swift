@@ -120,3 +120,72 @@ private func id(_ names: String...) -> GlobalElementID {
     table.sweep()
     #expect(table.peek(id("a"), as: Int.self) == nil)
 }
+
+// MARK: - The table reached through a Frame
+
+/// An element that stamps a per-frame counter into its cross-frame state.
+private struct CountingElement: Element {
+    let elementID: ElementID?
+    init(_ name: String?) { elementID = name.map(ElementID.init) }
+
+    func requestLayout(_ id: GlobalElementID?, pass: inout LayoutPass) -> (LayoutNodeID, Int) {
+        pass.withState(id, initial: 0) { $0 += 1 }
+        var style = Style()
+        style.size = Size(width: .length(.pixels(Pixels(10))),
+                          height: .length(.pixels(Pixels(10))))
+        return (pass.requestNode(style: style, children: []), 0)
+    }
+
+    func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+                  layout: inout Int, pass: inout PrepaintPass) -> Int { 0 }
+
+    func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+               layout: inout Int, prepaint: inout Int, pass: inout PaintPass) {}
+}
+
+/// State survives across frames **because the window owns the table, not the
+/// frame**.
+///
+/// A `Frame` that constructed its own `StateTable` would hand every element
+/// fresh state every frame — and every other test in this file would still pass,
+/// because they exercise `StateTable` directly and never go through a `Frame`.
+/// This is the only test that can see the difference.
+@MainActor
+@Test func aSharedTableCarriesStateAcrossFramesWhileAPerFrameTableWouldNot() {
+    let table = StateTable()
+    let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
+
+    for _ in 0..<3 {
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+        var element = CountingElement("counter")
+        frame.render(&element)
+    }
+
+    // Three frames, one element, one entry: the count accumulated rather than
+    // resetting, and the sweep kept the entry it was still marking.
+    #expect(table.peek(GlobalElementID([ElementID("counter")]), as: Int.self) == 3)
+    #expect(table.count == 1)
+}
+
+/// An element that stops being produced loses its state on the next sweep, and
+/// this is the mechanism behind §14's "no exit transitions".
+@MainActor
+@Test func anElementThatStopsBeingProducedIsSweptByTheNextFrame() {
+    let table = StateTable()
+    let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
+
+    let first = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+    var a = CountingElement("a")
+    first.render(&a)
+    #expect(table.count == 1)
+
+    // The next frame produces a different element. `a` is not marked, so the
+    // sweep at the end of that frame removes it.
+    let second = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+    var b = CountingElement("b")
+    second.render(&b)
+
+    #expect(table.peek(GlobalElementID([ElementID("a")]), as: Int.self) == nil)
+    #expect(table.peek(GlobalElementID([ElementID("b")]), as: Int.self) == 1)
+    #expect(table.count == 1)
+}
