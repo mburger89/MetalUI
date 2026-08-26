@@ -90,6 +90,9 @@ let allFixtures: [(String, CGSize)] = [
     ("flex_wrap_uneven",                 CGSize(width: 800, height: 600)),
     ("flex_wrap_stretch_auto_cross",     CGSize(width: 800, height: 600)),
     ("flex_wrap_with_margins_and_padding", CGSize(width: 800, height: 600)),
+    ("flex_wrap_align_content_between",   CGSize(width: 800, height: 600)),
+    ("flex_wrap_align_content_center",    CGSize(width: 800, height: 600)),
+    ("flex_wrap_align_content_stretch",   CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

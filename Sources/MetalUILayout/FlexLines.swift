@@ -9,8 +9,10 @@ import MetalUICore
 /// `lineContentSize` takes `[Double]` rather than `[FlexItem]`. This type is
 /// where `layoutContainer` pairs a returned line with the cross size it then
 /// computes for it, and it exists so that every line's cross size is known
-/// *before* any line is positioned — which is what `align-content` (Task 2)
-/// needs and this task does not yet use for anything but stacking.
+/// *before* any line is positioned — which is exactly what `align-content`
+/// needs, and now uses: `crossSize` is `var` for the second reason as well as
+/// the first, because `align-content: stretch` grows it in place before any
+/// item on the line is stretched into it.
 ///
 /// `items` is `var` because §9.7 mutates a line's items in place: the freeze
 /// loop runs **per line**, over this array.

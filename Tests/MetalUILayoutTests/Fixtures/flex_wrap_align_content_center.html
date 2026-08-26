@@ -1,0 +1,58 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* align-content: center on a COLUMN — the axis composition.
+
+     A column's cross axis is HORIZONTAL, so its lines stack left-to-right and
+     `align-content` distributes leftover WIDTH. Every other wrapped fixture in
+     the corpus is a row, so an align-content implementation that quietly
+     assumed the cross axis was vertical would pass all of them; here it puts
+     the 44px leading offset on the wrong axis and every box moves.
+
+     It also composes with ruling WR-1's other half. For a column the MAIN gap
+     is `row-gap` (8) and the gap BETWEEN LINES is `column-gap` (11) — the
+     mirror image of the row fixtures. Reading the wrong component gives
+     different line x positions AND different break indices, so the two cannot
+     cancel.
+
+     THREE lines with THREE different cross sizes (60 / 80 / 70) and clear
+     leftover space, for the reasons `flex_wrap_align_content_between.html`
+     spells out. The widest item on line 0 is the SECOND (`.b` at 60) and on
+     line 2 the SECOND (`.f` at 70), while on line 1 it is the FIRST (`.c` at
+     80) — a line measured from a fixed position within itself gets all three
+     wrong differently.
+
+     Breaks (row-gap 8 is the main gap, main extent 150):
+       50, +8+70 = 128 <= 150, +8+40 = 176 > 150  -> line 0 = [a, b]
+       40, +8+90 = 138 <= 150, +8+60 = 206 > 150  -> line 1 = [c, d]
+       60, +8+30 =  98                            -> line 2 = [e, f]
+
+     Cross: 60 + 80 + 70 = 210, plus 2 column-gaps of 11 = 232.
+     320 - 232 = 88 leftover, so `center` puts 44 before the first line and 44
+     after the last.
+
+     Expected: line 0 x = 44, line 1 x = 44 + 60 + 11 = 115,
+               line 2 x = 115 + 80 + 11 = 206, and 206 + 70 + 44 = 320.
+
+     Sibling swap: with `align-content: flex-start` the three lines sit at
+     x = 0 / 71 / 162 and all six children move 44px left. */
+  #root { display: flex; flex-direction: column; flex-wrap: wrap;
+          align-content: center; gap: 8px 11px;
+          width: 320px; height: 150px; }
+  .a { width: 45px; height: 50px; }
+  .b { width: 60px; height: 70px; }
+  .c { width: 80px; height: 40px; }
+  .d { width: 55px; height: 90px; }
+  .e { width: 40px; height: 60px; }
+  .f { width: 70px; height: 30px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+    <div class="d" data-id="d"></div>
+    <div class="e" data-id="e"></div>
+    <div class="f" data-id="f"></div>
+  </div>
+</body></html>

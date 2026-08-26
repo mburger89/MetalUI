@@ -31,10 +31,15 @@
      measure 0 (content-based cross sizing is not implemented, and every
      fixture here is an empty div).
 
-     `align-content: flex-start` for the same reason as `flex_wrap_uneven`:
-     the engine does not implement `align-content` until Task 2 and a fixture
-     must not encode a divergence. Lines pack at cross-start, 155 of the 300
-     used.
+     `align-content: flex-start` is LOAD-BEARING, and doubly so here. It pins
+     `flex-start` (as `flex_wrap_uneven` does), and it keeps this fixture's
+     subject — "stretch fills the item's LINE" — measured against each line's
+     NATURAL cross size. Under the initial `stretch` the lines would first grow
+     by 145/3 each and every auto-cross child above would follow them, which is
+     `flex_wrap_align_content_stretch`'s subject, not this one. Stripping the
+     declaration changes `.b` from 40 to 88.33 and `.f` from 11 to 59.33 — the
+     Task 1 reviewer measured the same shift. Lines pack at cross-start, 155 of
+     the 300 used.
 
      Widths: line 0 is 120 + 120 = 240 <= 260; adding `.c` (130) makes 370.
              line 1 is 130 + 100 = 230; adding `.e` (200) makes 430.

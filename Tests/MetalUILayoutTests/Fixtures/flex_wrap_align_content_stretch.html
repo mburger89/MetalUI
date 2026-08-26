@@ -1,0 +1,73 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* align-content: stretch — the INITIAL value, and the ordering it forces.
+
+     **`align-content` is deliberately NOT declared here.** The other two
+     align-content fixtures declare their value; this one pins CSS's DEFAULT,
+     which is what the previous task diverged from (lines packed at cross-start
+     with the leftover unused, i.e. `flex-start`). Defaulting the engine to
+     `flex-start` instead of `stretch` reddens this fixture and no other, which
+     is exactly the coverage it exists to provide. Do not "helpfully" add an
+     `align-content: stretch` line — that would make the default untested again.
+
+     THE ORDERING. `stretch` grows every LINE by an equal share of the leftover,
+     and a grown line changes what a stretch-eligible ITEM inside it fills. The
+     two steps must run in that order: distribute to lines first, resolve item
+     stretch second. Reversed, `.b` fills line 0's NATURAL 30 and sits in an
+     88-tall line with 58px of slack under it. That is why every line here has
+     an `auto`-cross child: with explicit heights everywhere, line growth is
+     invisible in the items and only their positions move.
+
+     Natural line cross sizes come from the items' UNSTRETCHED outer cross
+     sizes (§9.4.8), so the auto-height children contribute 0 and each line is
+     sized by its one explicit-height child: 30 / 50 / 22.
+
+     Breaks (column-gap 10, main extent 250):
+       90, +10+100 = 200 <= 250, +10+120 = 330 > 250  -> line 0 = [a, b]
+       120, +10+80 = 210 <= 250, +10+70  = 290 > 250  -> line 1 = [c, d]
+       70, +10+60 = 140                               -> line 2 = [e, f]
+
+     Cross: 30 + 50 + 22 = 102, plus 2 row-gaps of 12 = 126.
+     300 - 126 = 174 leftover, 174 / 3 = 58 GROWTH PER LINE (chosen to divide
+     exactly so the golden is readable; the arithmetic does not depend on it).
+
+     Stretched lines: 88 / 108 / 80. y = 0, 0 + 88 + 12 = 100,
+     100 + 108 + 12 = 220, and 220 + 80 = 300 fills the container exactly.
+
+       .b  auto  -> line 0's STRETCHED 88 (natural 30 is the reversed-order bug)
+       .d  auto, max-height 60 -> line 1's 108 clamped to 60; the clamp is
+           applied to the line's FINAL cross size, so growing the line after
+           the clamp instead of before is also visible here
+       .f  auto, margins 5 top / 9 bottom -> line 2's 80 minus 14 = 66, at
+           y = 220 + 5 = 225. Stretch fills the MARGIN box, and it is the
+           grown line it fills.
+
+     `.d`'s `max-height` and `.f`'s margins re-measure the two orderings that
+     `flex_wrap_stretch_auto_cross` pins against a natural line, now against a
+     GROWN one — the composition (align-content x item stretch x clamp x
+     margin) that has no other fixture.
+
+     Sibling swap: with `align-content: flex-start` declared, the lines stay at
+     their natural 30 / 50 / 22, `.b` becomes 30 tall, `.d` 50, `.f` 8, and
+     lines 1 and 2 move to y = 42 and y = 104. */
+  #root { display: flex; flex-direction: row; flex-wrap: wrap;
+          gap: 12px 10px;
+          width: 250px; height: 300px; }
+  .a { width: 90px;  height: 30px; }
+  .b { width: 100px; }                       /* auto -> line 0's grown 88 */
+  .c { width: 120px; height: 50px; }
+  .d { width: 80px; max-height: 60px; }      /* auto -> 108, clamped to 60 */
+  .e { width: 70px;  height: 22px; }
+  .f { width: 60px; margin: 5px 0 9px 0; }   /* auto -> 80 - 5 - 9 = 66 */
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+    <div class="d" data-id="d"></div>
+    <div class="e" data-id="e"></div>
+    <div class="f" data-id="f"></div>
+  </div>
+</body></html>

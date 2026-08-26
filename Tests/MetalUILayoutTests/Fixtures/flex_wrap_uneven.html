@@ -41,12 +41,14 @@
         each give a different, wrong stack.
 
      `align-content: flex-start` is declared rather than left to the initial
-     `stretch`: the engine does not implement `align-content` until Task 2, and
-     a fixture must never encode a divergence. With `stretch` WebKit would
-     grow all three lines to fill the 200px content box; with `flex-start` it
-     packs them at cross-start and leaves 74px unused, which is what the
-     engine does today AND what it will still do under this declaration once
-     Task 2 lands.
+     `stretch`, and it is LOAD-BEARING — it pins `flex-start`, which is the one
+     align-content value the three dedicated align_content fixtures do not
+     cover (they pin space-between, center and the default stretch). It was
+     first written as a workaround for an unimplemented property; since
+     `align-content` landed it is a genuine pin, and stripping it moves every
+     box in this fixture: with `stretch` WebKit grows all three lines to fill
+     the 200px content box (74px shared three ways) instead of packing them at
+     cross-start and leaving that 74px unused.
 
      Expected: line 0 y=0 h=35 [a,b,c], line 1 y=43 h=45 [d,e],
                line 2 y=96 h=30 [f]. */

@@ -5,25 +5,25 @@ import MetalUICore
 ///
 /// This milestone implements CSS Flexbox §9 incrementally. Right now: §9.2 flex
 /// base sizes, §9.3 line collection, §9.4 cross-axis stretch and §9.4.8 line
-/// cross sizing, §9.5 justify-content packing, §9.6 cross-axis placement, §9.7
-/// grow/shrink, and the box model — `padding` and `border` shrink the content
-/// box (`contentBox` below), `margin` sits outside each item's border box
-/// (`collectItems`, `positionItems`). `align-content`, `wrap-reverse` and
+/// cross sizing, §9.5 justify-content packing, §9.6 cross-axis placement,
+/// §9.6.15 align-content, §9.7 grow/shrink, and the box model — `padding` and
+/// `border` shrink the content box (`contentBox` below), `margin` sits outside
+/// each item's border box (`collectItems`, `positionItems`). `wrap-reverse` and
 /// absolute positioning arrive in later tasks, each with its own fixtures.
 ///
-/// **The phase order is: size every item, break into lines, then per line
-/// stretch → flex → position.** Breaking uses *hypothetical* main sizes
-/// (§9.3), because §9.7 runs per line and so cannot have run yet; stretch runs
-/// after the break, because a line's cross size is measured from its items'
-/// *unstretched* outer cross sizes (§9.4.8) and stretch then fills it. Both
-/// orderings are circular if reversed.
+/// **The phase order is: size every item, break into lines, distribute cross
+/// space among the lines, then per line stretch → flex → position.** Breaking
+/// uses *hypothetical* main sizes (§9.3), because §9.7 runs per line and so
+/// cannot have run yet; a line's cross size is measured from its items'
+/// *unstretched* outer cross sizes (§9.4.8), so it must be measured after the
+/// break; `align-content: stretch` then grows those measured sizes, and only
+/// after that does §9.4's item stretch fill them. Every one of those orderings
+/// is circular or wrong if reversed.
 ///
-/// Three gaps remain and are recorded rather than implied: `inset` is
-/// still read by nothing (absolute positioning is its own plan),
-/// `margin: auto` resolves to 0 instead of absorbing free space, and
-/// `align-content` is read by nothing — wrapped lines pack from cross-start
-/// where CSS's initial value is `stretch`. All three have rows in CLAUDE.md's
-/// inert-API table.
+/// Two gaps remain and are recorded rather than implied: `inset` is still read
+/// by nothing (absolute positioning is its own plan), and `margin: auto`
+/// resolves to 0 instead of absorbing free space. Both have rows in CLAUDE.md's
+/// inert-API table, as does `wrap-reverse`'s half-implemented reversal.
 ///
 /// **Cross-axis `stretch` landed in the alignment task, and with it every golden
 /// comparison in the suite is now full-rect.** Twelve of them compared the main
@@ -443,18 +443,58 @@ private func layoutContainer(
                      crossSize: s.flexWrap == .noWrap ? containerCross : lineCrossSize(line))
         }
 
-    // Lines stack from the container's cross-start, separated by `crossGap`,
-    // and any leftover cross space is simply unused.
+    // CSS Flexbox §9.6.15 / §8.4 — `align-content`. The lines' own cross sizes
+    // are now known, so whatever cross space they leave over is distributed
+    // among them here, before any line is positioned.
     //
-    // **That is `align-content: flex-start`, and CSS's initial value is
-    // `stretch`** — a divergence for wrapped containers only, deliberate and
-    // scoped to this task; Task 2 implements `align-content` and deletes it.
-    // `wrappedLinesPackFromCrossStartRatherThanStretching` pins it with
-    // WebKit's real numbers in its comment, and every wrapping fixture in the
-    // corpus declares `align-content: flex-start` explicitly so that no golden
-    // encodes the divergence. See CLAUDE.md's inert-API table.
-    var crossCursor: Double = 0
+    // The leftover counts the gaps BETWEEN lines: `crossGap` is space the
+    // container has already spent, not space `align-content` may spend again.
+    // (`lineContentSize` computes exactly this shape for the main axis, but it
+    // takes `[Double]` and is shared with Grid; mapping the lines through it
+    // reads worse than the one-line reduce.)
+    //
+    // **`nowrap` is untouched by construction, not by a special case.** Its
+    // single line's cross size IS `containerCross` (§9.4.8's single-line
+    // clause, above), so `leftoverCross` is exactly 0, every one of the seven
+    // values then yields zero offsets and zero growth, and every golden
+    // committed before wrapping stays byte-identical. CSS reaches the same
+    // place by a different route — §8.4 says the property "has no effect on a
+    // single-line flex container" — so there is nothing to key on `flexWrap`
+    // here, and keying on it would be a second, silently divergent definition
+    // of what a single line is.
+    //
+    // **The initial value is `stretch`, not `flex-start`.** Task 1 shipped
+    // cross-start packing as a scoped divergence with a test naming WebKit's
+    // numbers; this closes it, and that test is deleted rather than inverted.
+    let align = s.alignContent ?? .stretch
+    let usedCross = lines.reduce(0.0) { $0 + $1.crossSize }
+                  + crossGap * Double(lines.count - 1)
+    let leftoverCross = containerCross - usedCross
+
+    // **Grow the lines BEFORE resolving item stretch, not after.** §9.4's item
+    // stretch fills the item's line; if the line grows afterwards, every
+    // stretched item on it is short by exactly this amount and sits with slack
+    // below it — a composition that is invisible in any fixture whose children
+    // all carry explicit cross sizes. `flex_wrap_align_content_stretch` and
+    // `aStretchedLineChangesWhatItsStretchedItemsFill` both redden if the two
+    // are swapped.
+    let growth = lineStretchAmount(align, freeSpace: leftoverCross, lineCount: lines.count)
+    if growth != 0 {
+        for i in lines.indices { lines[i].crossSize += growth }
+    }
+    let lineOffsets = distributeLines(align, freeSpace: leftoverCross, lineCount: lines.count)
+
+    // Lines stack from the container's cross-start, separated by `crossGap`
+    // plus whatever `align-content` inserts between them, starting
+    // `lineOffsets.leading` in. Under `stretch` both offsets are 0 and the
+    // growth above has already consumed the leftover.
+    var crossCursor: Double = lineOffsets.leading
     for i in lines.indices {
+        // Between lines only — a trailing gap would be as wrong here as it is
+        // on the main axis, and unlike `positionItems`' cursor this one is
+        // observable: it feeds `crossCursor` for the next line.
+        if i > 0 { crossCursor += crossGap + lineOffsets.between }
+
         // §9.4 — resolve stretch NOW, against this line, not against the
         // container. `collectItems` recorded eligibility and the min/max
         // clamps; the extent is the one thing only the line knows.
@@ -491,7 +531,7 @@ private func layoutContainer(
                       containerOrigin: childOrigin,
                       containerSize: box.size, rootFontSize: rootFontSize)
 
-        crossCursor += lines[i].crossSize + crossGap
+        crossCursor += lines[i].crossSize
     }
 }
 

@@ -82,8 +82,14 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 ///
 /// Two lines in a 300-tall container: the first holds a 40-tall item, the second
 /// a 90-tall one. An auto-cross item on the first line stretches to 40, not to
-/// 300 and not to 90. Nothing before this task could tell those apart, because
+/// 300 and not to 90. Nothing before wrapping could tell those apart, because
 /// there was only ever one line and its cross size WAS the container's.
+///
+/// **`align-content: flex-start` is declared so this measures a line's NATURAL
+/// cross size.** Under CSS's initial `stretch` the same tree gives 125 — see
+/// `aStretchedLineChangesWhatItsStretchedItemsFill`, which is this exact tree
+/// with the default restored. The pair is the differential: one property, two
+/// answers, nothing else changed.
 @Test func stretchFillsTheItemsOwnLineNotTheContainer() {
     let tree = LayoutTree()
     let tall = item(tree, main: 120, cross: 40)
@@ -95,6 +101,7 @@ private func line(_ mains: [Double]) -> [FlexItem] {
     var rootStyle = Style()
     rootStyle.flexDirection = .row
     rootStyle.flexWrap = .wrap
+    rootStyle.alignContent = .flexStart
     rootStyle.size = Size(width: px(260), height: px(300))
     let root = tree.newNode(style: rootStyle, children: [tall, stretched, second])
 
@@ -133,6 +140,14 @@ private func line(_ mains: [Double]) -> [FlexItem] {
     rootStyle.flexDirection = .row
     rootStyle.flexWrap = .wrap
     rootStyle.gap = Axes(horizontal: pxL(14), vertical: pxL(8))
+    // Declared so this measures the GAP alone. Under CSS's initial
+    // `align-content: stretch` the two lines grow to 106 and 86 and `c` lands
+    // at 114 — still 8 below line 0, but with the 8 buried inside a number that
+    // moves for a second reason. That the leftover-cross computation SUBTRACTS
+    // the cross gaps before distributing them is a real rule, and it is pinned
+    // against the browser by `flex_wrap_align_content_stretch` (12px row-gap,
+    // three lines) rather than here.
+    rootStyle.alignContent = .flexStart
     rootStyle.size = Size(width: px(218), height: px(200))
     let root = tree.newNode(style: rootStyle, children: [a, b, c])
 
@@ -149,47 +164,6 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 }
 
 // MARK: - Scoped divergences this task knowingly ships
-
-/// Wrapped lines pack from cross-start; CSS's initial `align-content` is
-/// `stretch`.
-///
-/// **Delete this test in Task 2**, which implements `align-content`. It exists
-/// so the divergence is a decision rather than a surprise, and it names
-/// WebKit's real numbers, measured on the exact tree below with a probe
-/// fixture that was deliberately not committed (the same treatment as the
-/// WebKit sub-one-flex divergence: a future fix must move nothing in the
-/// corpus):
-///
-/// ```
-///            engine (flex-start)   WebKit (stretch)
-///   b        120x40 at (120, 0)    120x125 at (120, 0)
-///   c        120x90 at (0, 40)     120x90  at (0, 125)
-/// ```
-///
-/// WebKit's 125 is line 0's own 40 plus its share of the 170 left over
-/// (300 - 40 - 90), split evenly between the two lines. Every wrapped fixture
-/// in the corpus declares `align-content: flex-start` explicitly so that no
-/// GOLDEN encodes this — only this test does.
-@Test func wrappedLinesPackFromCrossStartRatherThanStretching() {
-    let tree = LayoutTree()
-    let a = item(tree, main: 120, cross: 40)
-    var autoStyle = Style()
-    autoStyle.size = Size(width: px(120), height: .auto)
-    let b = tree.newNode(style: autoStyle, children: [])
-    let c = item(tree, main: 120, cross: 90)
-
-    var rootStyle = Style()
-    rootStyle.flexDirection = .row
-    rootStyle.flexWrap = .wrap
-    rootStyle.size = Size(width: px(260), height: px(300))
-    let root = tree.newNode(style: rootStyle, children: [a, b, c])
-
-    computeLayout(tree, root: root,
-                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
-
-    #expect(tree.layout(b).height == 40)     // WebKit: 125
-    #expect(tree.layout(c).y == 40)          // WebKit: 125
-}
 
 /// `wrap-reverse` wraps but does not reverse.
 ///
@@ -210,6 +184,12 @@ private func line(_ mains: [Double]) -> [FlexItem] {
     var rootStyle = Style()
     rootStyle.flexDirection = .row
     rootStyle.flexWrap = .wrapReverse
+    // Declared so this test measures the REVERSAL alone. Under CSS's initial
+    // `align-content: stretch` the two lines would grow to 125 and 175 and the
+    // numbers below would move for a reason that has nothing to do with
+    // `wrap-reverse`. `align-content` x `wrap-reverse` is a composition Task 3
+    // owns, along with the reversal itself.
+    rootStyle.alignContent = .flexStart
     rootStyle.size = Size(width: px(260), height: px(300))
     let root = tree.newNode(style: rootStyle, children: [a, b, c])
 
@@ -241,8 +221,13 @@ private func line(_ mains: [Double]) -> [FlexItem] {
     var rootStyle = Style()
     rootStyle.flexDirection = .row
     rootStyle.flexWrap = .wrap
-    // Inert today — the engine packs lines from cross-start regardless — but
-    // declared because the FIXTURE declares it, and Task 2 makes it load-bearing.
+    // Load-bearing since `align-content` landed, and load-bearing in the
+    // FIXTURE too: `flex-start` is not the initial value, so dropping this
+    // line from either side moves every box (the lines would grow to fill the
+    // 200px content box under CSS's default `stretch`). It was written as a
+    // workaround for an unimplemented property; it is now a genuine pin of
+    // `flex-start`, which is the one align-content value the three dedicated
+    // fixtures do not cover.
     rootStyle.alignContent = .flexStart
     rootStyle.gap = Axes(horizontal: pxL(14), vertical: pxL(8))
     rootStyle.size = Size(width: px(218), height: px(200))
@@ -338,5 +323,261 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 
     assertMatchesGolden(tree,
                         ids: [root: "root", a: "a", b: "b", c: "c", d: "d"],
+                        golden: golden, tolerance: 0.1)
+}
+
+// MARK: - CSS Flexbox §9.6.15 / §8.4: align-content
+
+/// `align-content` distributes leftover cross space among LINES.
+///
+/// Three lines of cross sizes 40/60/30 in a 300-tall container: 170 used,
+/// 130 leftover. Three lines, not two — `space-between` and `space-around` are
+/// hard to distinguish with two, and `space-evenly` collapses toward them.
+@Test func alignContentDistributesLeftoverCrossSpaceAmongLines() {
+    #expect(distributeLines(.flexStart, freeSpace: 130, lineCount: 3).leading == 0)
+    #expect(distributeLines(.flexEnd, freeSpace: 130, lineCount: 3).leading == 130)
+    #expect(distributeLines(.center, freeSpace: 130, lineCount: 3).leading == 65)
+
+    let between = distributeLines(.spaceBetween, freeSpace: 130, lineCount: 3)
+    #expect(between.leading == 0)
+    #expect(between.between == 65)
+
+    let around = distributeLines(.spaceAround, freeSpace: 130, lineCount: 3)
+    #expect(abs(around.leading - 130.0 / 6.0) < 1e-9)
+    #expect(abs(around.between - 130.0 / 3.0) < 1e-9)
+
+    let evenly = distributeLines(.spaceEvenly, freeSpace: 130, lineCount: 3)
+    #expect(abs(evenly.leading - 32.5) < 1e-9)
+    #expect(abs(evenly.between - 32.5) < 1e-9)
+}
+
+/// `stretch` — the CSS default — grows every line by an equal share instead of
+/// leaving space between them.
+@Test func alignContentStretchGrowsEveryLineEqually() {
+    let o = distributeLines(.stretch, freeSpace: 130, lineCount: 3)
+    #expect(o.leading == 0)
+    #expect(o.between == 0)
+    // The growth is reported separately; lines are not moved apart.
+    #expect(lineStretchAmount(.stretch, freeSpace: 130, lineCount: 3) == 130.0 / 3.0)
+    #expect(lineStretchAmount(.center, freeSpace: 130, lineCount: 3) == 0)
+}
+
+/// §9.6.15 says to *increase* each line's cross size, so negative free space —
+/// lines that already overflow their container — never shrinks a line.
+///
+/// Without the guard, three lines overflowing a container by 90 would each be
+/// pulled 30 shorter and the whole stack would collapse inward, which is the
+/// opposite of what an overflowing container does. `flexEnd` is asserted
+/// alongside to show the guard is on `stretch`'s growth ALONE: the six
+/// delegated values do honour negative free space (ruling AL-4 governs which of
+/// them clamp), so a blanket "no negative free space" rule here would be wrong.
+@Test func lineStretchNeverShrinksAnOverflowingContainer() {
+    #expect(lineStretchAmount(.stretch, freeSpace: -90, lineCount: 3) == 0)
+    #expect(lineStretchAmount(.stretch, freeSpace: 0, lineCount: 3) == 0)
+    #expect(distributeLines(.flexEnd, freeSpace: -90, lineCount: 3).leading == -90)
+}
+
+/// A stretched LINE changes what a stretch-eligible ITEM inside it fills.
+///
+/// **Order is the whole subtlety: distribute to lines first, resolve item
+/// stretch second.** Reversed, `stretched` fills line 0's NATURAL 40 and then
+/// sits in a 125-tall line with 85px of slack beneath it — the item is wrong,
+/// not just the line.
+///
+/// This is `stretchFillsTheItemsOwnLineNotTheContainer`'s exact tree with
+/// `align-content` left at CSS's default, so it also pins that the default is
+/// `stretch` and not `flex-start`. The numbers are WebKit's, measured on this
+/// tree during the previous task and recorded in
+/// `docs/superpowers/2026-08-25-wrapping-decisions.md` as the divergence this
+/// task closes: 300 - 40 - 90 = 170 leftover, 85 to each of the two lines, so
+/// line 0 is 125 and line 1 starts at 125.
+///
+/// 125 is distinguishable from all three wrong answers: 40 (item stretch before
+/// line growth, or `align-content: flex-start`), 300 (stretch fills the
+/// container) and 175 (line 1's stretched size).
+@Test func aStretchedLineChangesWhatItsStretchedItemsFill() {
+    let tree = LayoutTree()
+    let tall = item(tree, main: 120, cross: 40)
+    var autoStyle = Style()
+    autoStyle.size = Size(width: px(120), height: .auto)
+    let stretched = tree.newNode(style: autoStyle, children: [])
+    let second = item(tree, main: 120, cross: 90)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrap
+    // `alignContent` deliberately NOT set — the default is what is under test.
+    rootStyle.size = Size(width: px(260), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [tall, stretched, second])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(stretched).height == 125)
+    #expect(tree.layout(stretched).y == 0)
+    // The explicit-height item on the same line does NOT grow — only the line
+    // does, and only `auto`-cross items follow it.
+    #expect(tree.layout(tall).height == 40)
+    #expect(tree.layout(second).y == 125)
+    #expect(tree.layout(second).height == 90)
+}
+
+/// A `nowrap` container's leftover cross space is zero by construction, so
+/// `align-content` cannot move anything on it — whatever value it declares.
+///
+/// This is the guarantee that keeps all 40 pre-wrapping goldens byte-identical,
+/// and it is a property of §9.4.8's single-line clause (the line's cross size
+/// IS the container's content-box cross extent), not of a `flexWrap` check in
+/// the align-content code. `space-between` is the value asserted because it is
+/// the one that would visibly explode a single line if any leftover leaked in;
+/// `flexEnd` would too, and both are checked against a container far taller
+/// than its items.
+@Test func alignContentIsANoOpForNowrap() {
+    for value in [AlignContent.spaceBetween, .flexEnd, .center, .stretch] {
+        let tree = LayoutTree()
+        let a = item(tree, main: 60, cross: 20)
+        let b = item(tree, main: 90, cross: 35)
+
+        var rootStyle = Style()
+        rootStyle.flexDirection = .row
+        rootStyle.flexWrap = .noWrap
+        rootStyle.alignContent = value
+        rootStyle.size = Size(width: px(300), height: px(240))
+        let root = tree.newNode(style: rootStyle, children: [a, b])
+
+        computeLayout(tree, root: root,
+                      available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+        #expect(tree.layout(a).y == 0, "align-content \(value) moved a nowrap line")
+        #expect(tree.layout(b).y == 0, "align-content \(value) moved a nowrap line")
+    }
+}
+
+/// `align-content: space-between` x the box model, against WebKit.
+///
+/// `flex_wrap_align_content_between` is the fixture; its HTML lists why it has
+/// three lines rather than two, why each line's cross size differs, and why the
+/// 68px of leftover space is the thing that makes the seven values
+/// distinguishable at all. The container's asymmetric padding and border are
+/// what make it a composition rather than a second unit test: the lines are
+/// distributed inside the CONTENT box, and the row-gap between them is space
+/// already spent that `align-content` must not spend again.
+@Test func wrapAlignContentBetweenMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_align_content_between")
+    let tree = LayoutTree()
+    let a = item(tree, main: 80,  cross: 28)
+    let b = item(tree, main: 100, cross: 40)
+    let c = item(tree, main: 70,  cross: 18)
+    let d = item(tree, main: 130, cross: 52)
+    let e = item(tree, main: 110, cross: 24)
+    let f = item(tree, main: 90,  cross: 36)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrap
+    rootStyle.alignContent = .spaceBetween
+    rootStyle.gap = Axes(horizontal: pxL(7), vertical: pxL(9))
+    rootStyle.size = Size(width: px(300), height: px(240))
+    rootStyle.padding = Edges(top: pxL(8), right: pxL(10), bottom: pxL(12), left: pxL(14))
+    rootStyle.border = Edges(top: pxL(2), right: pxL(3), bottom: pxL(4), left: pxL(5))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c, d, e, f])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c", d: "d", e: "e", f: "f"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// `align-content: center` on a COLUMN, against WebKit.
+///
+/// `flex_wrap_align_content_center` is the fixture. A column's cross axis is
+/// horizontal, so its lines stack left-to-right and `align-content` distributes
+/// leftover WIDTH — every other wrapped fixture in the corpus is a row, and an
+/// implementation that assumed a vertical cross axis would pass all of them.
+/// It also mirrors ruling WR-1: here the MAIN gap is `row-gap` (8) and the gap
+/// between LINES is `column-gap` (11).
+@Test func wrapAlignContentCenterOnAColumnMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_align_content_center")
+    let tree = LayoutTree()
+    // A column's main axis is vertical, so `main:` is the height here.
+    func child(w: Double, h: Double) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(w), height: px(h))
+        return tree.newNode(style: s, children: [])
+    }
+    let a = child(w: 45, h: 50)
+    let b = child(w: 60, h: 70)
+    let c = child(w: 80, h: 40)
+    let d = child(w: 55, h: 90)
+    let e = child(w: 40, h: 60)
+    let f = child(w: 70, h: 30)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .column
+    rootStyle.flexWrap = .wrap
+    rootStyle.alignContent = .center
+    rootStyle.gap = Axes(horizontal: pxL(11), vertical: pxL(8))
+    rootStyle.size = Size(width: px(320), height: px(150))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c, d, e, f])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c", d: "d", e: "e", f: "f"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// `align-content: stretch` — the DEFAULT — x item stretch, against WebKit.
+///
+/// `flex_wrap_align_content_stretch` is the fixture, and it declares no
+/// `align-content` at all: it pins CSS's initial value, which is what the
+/// previous task diverged from. Neither does this tree — `rootStyle.alignContent`
+/// is deliberately left `nil` below.
+///
+/// It is the one fixture where line growth is observable in the ITEMS rather
+/// than only in their positions, because every line carries an `auto`-cross
+/// child. `.d` adds a `max-height` and `.f` cross margins, so the clamp and
+/// margin-subtraction orderings are re-measured against a GROWN line rather
+/// than a natural one.
+@Test func wrapAlignContentStretchMatchesWebKit() throws {
+    let golden = try loadGolden("flex_wrap_align_content_stretch")
+    let tree = LayoutTree()
+
+    let a = item(tree, main: 90, cross: 30)
+
+    var bStyle = Style()
+    bStyle.size = Size(width: px(100), height: .auto)
+    let b = tree.newNode(style: bStyle, children: [])
+
+    let c = item(tree, main: 120, cross: 50)
+
+    var dStyle = Style()
+    dStyle.size = Size(width: px(80), height: .auto)
+    dStyle.maxSize = Size(width: .auto, height: px(60))
+    let d = tree.newNode(style: dStyle, children: [])
+
+    let e = item(tree, main: 70, cross: 22)
+
+    var fStyle = Style()
+    fStyle.size = Size(width: px(60), height: .auto)
+    fStyle.margin = Edges(top: px(5), right: px(0), bottom: px(9), left: px(0))
+    let f = tree.newNode(style: fStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrap
+    // `alignContent` deliberately NOT set — the fixture does not set it either.
+    rootStyle.gap = Axes(horizontal: pxL(10), vertical: pxL(12))
+    rootStyle.size = Size(width: px(250), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [a, b, c, d, e, f])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a", b: "b", c: "c", d: "d", e: "e", f: "f"],
                         golden: golden, tolerance: 0.1)
 }

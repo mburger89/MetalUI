@@ -34,8 +34,12 @@
                c (18, 63, 60x45)   d (101, 73, 90x25)
      line 1 starts at 10 + 42 + 9 = 61.
 
-     `align-content: flex-start` for the same reason as the other two wrapped
-     fixtures. */
+     `align-content: flex-start` is LOAD-BEARING, as in the other two wrapped
+     fixtures: it pins `flex-start`, and it keeps the numbers above a statement
+     about the BREAK decision and the line cross sizes rather than about line
+     distribution. Under the initial `stretch` the two lines would absorb the
+     144 left over (195 - 42 - 9 - 53) and every item on line 1 would move.
+     It began as a workaround for an unimplemented property; it is now a pin. */
   #root { display: flex; flex-direction: row; flex-wrap: wrap;
           align-content: flex-start; gap: 9px 6px;
           width: 300px; height: 220px;

@@ -147,3 +147,53 @@ func crossAxisOffset(_ align: AlignItems, itemCross: Double, lineCross: Double) 
     case .center:                         (lineCross - itemCross) / 2
     }
 }
+
+/// CSS Flexbox §9.6.15 / §8.4 — distribute leftover **cross** space among a
+/// container's flex lines.
+///
+/// Six of the seven values behave exactly as `justify-content`'s do, so this
+/// **delegates** to `distributeMainAxis` rather than repeating the switch — a
+/// second copy is how the two drift apart, and every clause that switch already
+/// carries (ruling AL-4's negative-free-space clamp on the three `space-*`
+/// values, the `itemCount == 1` degeneracies) would have to be re-derived
+/// correctly here to no benefit. Mutation-checked: re-implementing the six as a
+/// parallel switch with `space-around`'s edges halved wrongly reddens the
+/// browser fixtures, so the delegation is load-bearing rather than stylistic.
+///
+/// `stretch` is the seventh, has no `justify-content` counterpart, and is CSS's
+/// **initial value**: it grows every line rather than moving lines apart, so it
+/// returns zero offsets here and reports its growth through `lineStretchAmount`
+/// instead. Splitting it across two functions rather than returning a triple
+/// keeps the delegation above a straight forward of `MainAxisOffsets`.
+///
+/// `lineCount` is what `itemCount` is to `distributeMainAxis` — the number of
+/// things being distributed — so a single line collapses `spaceBetween` onto
+/// `flexStart` and both `spaceAround` and `spaceEvenly` onto `center`, per spec,
+/// for free.
+func distributeLines(_ align: AlignContent, freeSpace: Double, lineCount: Int) -> MainAxisOffsets {
+    switch align {
+    case .stretch:      return MainAxisOffsets(leading: 0, between: 0)
+    case .flexStart:    return distributeMainAxis(.flexStart, freeSpace: freeSpace, itemCount: lineCount)
+    case .flexEnd:      return distributeMainAxis(.flexEnd, freeSpace: freeSpace, itemCount: lineCount)
+    case .center:       return distributeMainAxis(.center, freeSpace: freeSpace, itemCount: lineCount)
+    case .spaceBetween: return distributeMainAxis(.spaceBetween, freeSpace: freeSpace, itemCount: lineCount)
+    case .spaceAround:  return distributeMainAxis(.spaceAround, freeSpace: freeSpace, itemCount: lineCount)
+    case .spaceEvenly:  return distributeMainAxis(.spaceEvenly, freeSpace: freeSpace, itemCount: lineCount)
+    }
+}
+
+/// How much **each** line grows under `align-content: stretch` (§9.6.15).
+///
+/// Zero for every other value, and zero when there is no leftover: §9.6.15 says
+/// to *increase* each line's cross size, so negative free space — lines that
+/// already overflow the container — never shrinks a line. Without that guard an
+/// overflowing wrapped container would pull its lines back on top of each other.
+///
+/// The caller must apply this **before** resolving item stretch: a stretched
+/// item fills its line, so growing the line afterwards leaves the item short by
+/// exactly this amount with slack below it. `aStretchedLineChangesWhatItsStretchedItemsFill`
+/// pins the ordering.
+func lineStretchAmount(_ align: AlignContent, freeSpace: Double, lineCount: Int) -> Double {
+    guard align == .stretch, lineCount > 0, freeSpace > 0 else { return 0 }
+    return freeSpace / Double(lineCount)
+}

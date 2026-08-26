@@ -63,8 +63,19 @@ Pairs left **untested**, with the honest label for each:
 
 ## Two divergences Task 1 knowingly shipped, both scoped and pinned
 
+**Divergence 1 is CLOSED — Task 2 implemented `align-content`.** The paragraph
+below is kept as the record of what Task 1 shipped and what closing it cost, not
+as a description of the engine today: `layoutContainer` now defaults
+`alignContent` to `.stretch`, `distributeLines`/`lineStretchAmount` live in
+`Alignment.swift`, `wrappedLinesPackFromCrossStartRatherThanStretching` is
+deleted, and WebKit's 125/125 below is what
+`aStretchedLineChangesWhatItsStretchedItemsFill` now asserts on that exact tree.
+The three fixtures' `align-content: flex-start` declarations were kept and their
+comments rewritten: they are pins of `flex-start` now, not workarounds.
+Divergence 2 (`wrap-reverse`) is still open and still Task 3's.
+
 1. **`align-content` is unimplemented, and that is now a real divergence rather
-   than a vacuous one.** There are multiple lines; the engine stacks them from
+   than a vacuous one.** *(Closed — see above.)* There are multiple lines; the engine stacks them from
    cross-start with leftover cross space unused, which is `align-content:
    flex-start`, while CSS's initial value is **`stretch`**. Measured in WebKit on a
    260×300 `wrap` row holding 120×40 / 120×auto / 120×90: WebKit gives the auto

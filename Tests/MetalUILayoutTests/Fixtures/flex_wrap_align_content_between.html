@@ -1,0 +1,69 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* align-content: space-between x the box model.
+
+     THREE lines, not two. With two lines `space-between` and `space-around`
+     put the SAME gap between them (they differ only at the edges), and
+     `space-evenly` collapses toward `space-around` — a two-line fixture
+     cannot tell the three apart at all. Three lines gives `between` a
+     distinct 34px stride that no other value produces.
+
+     Each line has a DIFFERENT cross size (40 / 52 / 36) and the tallest item
+     on each is in a different position (line 0's is the middle `.b`, line 1's
+     is the first `.d`, line 2 has one item). A line measured from its first
+     item, its last item, or the container gives three different wrong stacks.
+
+     There is 68px of LEFTOVER cross space, which is the whole point: when the
+     lines exactly fill the container every one of the seven values agrees and
+     the fixture pins nothing.
+
+     The container carries asymmetric padding, border and gaps so that
+     align-content composes with the box model rather than being measured in
+     isolation — lines are distributed inside the CONTENT box, not the border
+     box, and `crossGap` is space already spent that align-content must not
+     re-spend.
+
+     Content box: 300 - 10 - 14 - 3 - 5 = 268 wide, origin x = 14 + 5 = 19;
+                  240 -  8 - 12 - 2 - 4 = 214 tall, origin y =  8 + 2 = 10.
+     `border-style: solid` is not optional — `border-width` is inert without it
+     and the content box would be 276 x 220 instead.
+
+     Breaks (column-gap 7, main extent 268):
+       80, +7+100 = 187, +7+70 = 264 <= 268   -> line 0 = [a, b, c]
+       130, +7+110 = 247, +7+90 = 344 > 268   -> line 1 = [d, e]
+       90                                     -> line 2 = [f]
+
+     Cross: 40 + 52 + 36 = 128, plus 2 row-gaps of 9 = 146. 214 - 146 = 68
+     leftover, so `space-between` inserts 34 between each adjacent pair and
+     nothing at the edges.
+
+     Expected: line 0 y = 10, line 1 y = 10 + 40 + 9 + 34 = 93,
+               line 2 y = 93 + 52 + 9 + 34 = 188, and 188 + 36 = 224 lands
+               exactly on the content box's bottom edge.
+
+     Sibling swap (the check that this fixture can fail): with
+     `align-content: space-around` the three lines move to y = 10 + 11.33,
+     93 + 11.33 and 188 + 11.33 -- every box shifts. */
+  #root { display: flex; flex-direction: row; flex-wrap: wrap;
+          align-content: space-between; gap: 9px 7px;
+          width: 300px; height: 240px;
+          padding: 8px 10px 12px 14px;
+          border-style: solid; border-width: 2px 3px 4px 5px; }
+  .a { width: 80px;  height: 28px; }
+  .b { width: 100px; height: 40px; }
+  .c { width: 70px;  height: 18px; }
+  .d { width: 130px; height: 52px; }
+  .e { width: 110px; height: 24px; }
+  .f { width: 90px;  height: 36px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"></div>
+    <div class="b" data-id="b"></div>
+    <div class="c" data-id="c"></div>
+    <div class="d" data-id="d"></div>
+    <div class="e" data-id="e"></div>
+    <div class="f" data-id="f"></div>
+  </div>
+</body></html>
