@@ -84,7 +84,7 @@ demo is the proof — but nothing above the renderer can ask for one.
 what the demo draws — and no test can establish it.** `MetalLayerSurface` vends drawables whether its `CAMetalLayer` is
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
-sees — and all 303 tests still pass. If you touch that ordering, re-run the demo
+sees — and all 304 tests still pass. If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
 ## Three known divergences — expected, measured, not defects
@@ -210,7 +210,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 303 tests and 57 browser fixtures, warning-free.
+`swift build` · `swift test` — 304 tests and 57 browser fixtures, warning-free.
 **Seven** non-test targets with strictly one-way dependencies: `MetalUICore`,
 `MetalUILayout`, `MetalUIShaderTypes`, `MetalUIRender`, `MetalUIPlatform`,
 `MetalUI`, `MetalUIDemo`. **`MetalUITestSupport` is an eighth `.target` in
@@ -257,6 +257,26 @@ Three constraints that are easy to violate silently:
   `flex_nested_percent_padding` does the same one level down, where the
   containing block is not the viewport.
 
+**Adding an AppKit or WebKit test? Run the WHOLE suite and read the summary
+line — `--filter` is a different program.** Every test target runs in **one
+process**, so an AppKit test and the WebKit layout-oracle tests share a main run
+loop. That composition has already crashed the suite once: two
+`MetalUIPlatformTests` cases ended in `defer { nsWindow.close() }`, and
+`NSWindow(contentRect:…)` defaults `isReleasedWhenClosed` to **true** — an
+over-release of a window ARC already owns, which AppKit defers into an
+autorelease pool that CoreAnimation pops from a run-loop observer. Alone the
+process exited before that pool popped; alongside a test that `await`s it landed
+in `-[_NSWindowTransformAnimation dealloc]` as `EXC_BAD_ACCESS`, and `swift test`
+died with **297 of 303 tests reported and no summary line**. Fixed at the source
+(`AppKitWindow.init` now sets `isReleasedWhenClosed = false`) and pinned by
+`closingAWindowDoesNotOverReleaseTheOneARCAlreadyOwns`. **Serializing the two
+targets would not have fixed it** — a single `--no-parallel` test that closes a
+window and then drives the oracle crashes with no interleaving at all. The full
+write-up is under shape 11 in `docs/practices/verifying-tests-can-fail.md`; the
+short rule is that a test touching a process-wide host (AppKit windows, WebKit,
+CoreAnimation, the main run loop) is only verified by an unfiltered run whose
+count you read.
+
 **After editing `Sources/MetalUIRender/Shaders/MetalUIShaderTypes.h`, run
 `swift package clean`.** The header reaches its C target through a symlink SwiftPM
 does not track, so Swift's view goes stale while Metal's refreshes — the symptom is
@@ -284,7 +304,7 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
 
    **Taxonomy shape 11's count heuristic does not catch this one.** Measured, by
    forcing `canTypecheck` to `false`: exactly 25 tests report as skipped, the
-   total stays `Test run with 303 tests`, and the run passes. A falling count is
+   total stays `Test run with 304 tests`, and the run passes. A falling count is
    the signal shape 11 tells you to watch, and the count does not fall.
 
    **Not converted to a hard failure, and the reason is a configuration rather

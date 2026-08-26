@@ -154,3 +154,39 @@ import MetalUICore
     nsWindow.appearance = NSAppearance(named: .aqua)
     #expect(window.appearance == .light)
 }
+
+/// ARC owns the `NSWindow`, so AppKit must not release it a second time on
+/// `close()`.
+///
+/// **This is the guard for a crash the suite could not report.** Two tests above
+/// end in `defer { nsWindow.close() }`, which is the ordinary correct habit and
+/// stayed correct. `NSWindow(contentRect:…)` defaults `isReleasedWhenClosed` to
+/// **true**, so the close over-released a window `AppKitWindow` holds strongly;
+/// AppKit defers the window's close animation into an autorelease pool that
+/// CoreAnimation pops from a run-loop observer, so the dangling release fired
+/// later, in `-[_NSWindowTransformAnimation dealloc]`, the next time the main
+/// run loop spun a CA commit. Nothing in `MetalUIPlatformTests` awaits, so alone
+/// these tests exit before that happens; the WebKit layout-oracle tests in
+/// `MetalUILayoutTests` await for seconds, and the whole `swift test` process
+/// died with **SIGSEGV, 297 of 303 tests reported and no summary line** —
+/// practices doc, shape 11.
+///
+/// **Asserted as a property rather than as behaviour on purpose.** The
+/// behavioural failure is a process crash, and a crash is a truncated run, not a
+/// red test — reporting it is exactly what the bug prevents. This spelling
+/// reddens cleanly: delete the `isReleasedWhenClosed = false` line in
+/// `AppKitWindow.init` and this is the test that says so.
+@MainActor
+@Test func closingAWindowDoesNotOverReleaseTheOneARCAlreadyOwns() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let platform = AppKitPlatform(device: device)
+    let title = "Ownership \(UUID().uuidString)"
+    _ = try platform.openWindow(title: title,
+                                size: Size(width: Pixels(200), height: Pixels(200)))
+    let nsWindow = try #require(NSApplication.shared.windows.first { $0.title == title })
+    defer { nsWindow.close() }
+
+    #expect(nsWindow.isReleasedWhenClosed == false,
+            "AppKit will release a window ARC already owns; closing it crashes the process later")
+}

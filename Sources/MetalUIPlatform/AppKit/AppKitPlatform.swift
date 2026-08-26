@@ -146,6 +146,23 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
             backing: .buffered,
             defer: false)
         window.title = title
+        // `NSWindow(contentRect:…)` defaults `isReleasedWhenClosed` to **true**,
+        // a manual-retain-release convention that predates ARC. `window` above is
+        // a strong stored property, so ARC already owns this object: leaving the
+        // default on means `close()` sends it an extra `release` and every later
+        // reference — this property, `contentSize`, `title`, AppKit's own
+        // teardown — is to freed memory.
+        //
+        // The crash it produced is **not** at `close()`. AppKit defers the
+        // window's close animation (`_NSWindowTransformAnimation`) into an
+        // autorelease pool that CoreAnimation pops from a run-loop observer, so
+        // the over-release lands in `-[_NSWindowTransformAnimation dealloc]` ->
+        // `objc_release` -> `EXC_BAD_ACCESS` the next time the main run loop
+        // spins a CA commit. In `swift test` that is whenever a later `async`
+        // test awaits — which is why closing a window here killed the process
+        // inside the WebKit layout-oracle tests and nowhere else. See the
+        // practices doc, shape 11.
+        window.isReleasedWhenClosed = false
         window.contentView = hostView
         window.center()
 

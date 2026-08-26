@@ -251,6 +251,74 @@ The general form: **a cleanup path that can end the process turns a passing test
 into a truncated run.** Timeouts, `exit()` in a fatal-error handler, and anything
 that tears down a shared host have the same signature.
 
+#### The second instance, and the first that no per-test review could catch
+
+The element-pipeline branch produced the same shape from the opposite direction,
+and the difference is the lesson. In the first instance the offending test's own
+`defer` ended the process, so reading that one test could in principle have found
+it. In the second, **every test involved passed alone, and the crash needed two
+test targets in one process**:
+
+- `swift test` → **SIGSEGV, 297 of 303 tests reported, no summary line**.
+- `--filter MetalUIPlatformTests` → 5 passed, summary present.
+- `--filter committedGoldensMatchTheBrowser` → 2 passed, summary present.
+- Both filters together → **crash**.
+
+Two of the five AppKit tests were implicated — exactly the two ending in
+`defer { nsWindow.close() }`. A third mutates `NSApplication.shared.appearance`
+globally and does *not* crash, which ruled out "the test leaks global state"
+before anyone could settle on it.
+
+**The mechanism, from `lldb`, main thread:**
+
+```
+frame #0  libobjc      objc_release
+frame #1  AppKit       -[_NSWindowTransformAnimation dealloc] + 492
+frame #5  libobjc      AutoreleasePoolPage::releaseUntil(objc_object**)
+frame #7  QuartzCore   CA::Context::commit_transaction
+frame #9  QuartzCore   CA::Transaction::flush_as_runloop_observer(bool)
+frame #12 CoreFoundation __CFRunLoopRun
+frame #17 libswift_Concurrency swift_task_asyncMainDrainQueue
+```
+
+`NSWindow(contentRect:…)` defaults `isReleasedWhenClosed` to **true**, a
+pre-ARC convention. `AppKitWindow` holds the window in a strong stored property,
+so `close()` was an over-release. **The crash is not at `close()`**: AppKit defers
+the window's close animation into an autorelease pool that CoreAnimation pops
+from a run-loop observer, so the dangling release fires the next time the main
+run loop spins a CA commit. `MetalUIPlatformTests` contains no `async` test, so
+the process exits first; the WebKit oracle tests `await` for seconds, so the
+observer runs and the process dies — taking the rest of the suite with it.
+
+**Three things this taught that the first instance did not.**
+
+1. **Serializing the two groups would not have fixed it.** That was the obvious
+   fix and it is wrong, and the probe that showed so took ten minutes: a *single*
+   test, under `--no-parallel`, that opens a window, closes it, and then drives
+   the oracle crashes just as hard. There is no interleaving there at all. The
+   run loop does not care which test asked it to spin. **A cross-target mutex
+   would have reordered the crash, not removed it** — and would have left a real
+   over-release shipping in `MetalUIPlatform` for whoever first closes a window
+   in an app rather than quitting.
+2. **"Passes alone" is not evidence about a suite.** Both tests were reviewed,
+   both were well-formed, both were capable of failing, and both were correct.
+   The defect was in production code that only a *composition of test targets*
+   reached. This is shape 9 wearing shape 11's clothes: the untested pair was
+   `AppKit window teardown x a spinning main run loop`, and neither target's
+   fixtures contained the other half.
+3. **The guard has to be a property, not the behaviour.** The behavioural failure
+   is a process crash, and a crash is a truncated run rather than a red test —
+   reporting it is precisely what the bug prevents. So
+   `closingAWindowDoesNotOverReleaseTheOneARCAlreadyOwns` asserts
+   `isReleasedWhenClosed == false` directly. Verified by mutation: deleting the
+   line in `AppKitWindow.init` reddens that test and nothing else.
+
+**The check, for the next AppKit or WebKit test:** a test that touches a
+process-wide host — AppKit windows, WebKit, CoreAnimation, the main run loop —
+must be run *against the whole suite*, not only under its own `--filter`, and the
+**summary line and count** read afterwards. `--filter <one target>` is a
+different program from `swift test`.
+
 ### A fixture hazard worth knowing before you write goldens
 
 WebKit quantizes to 1/64 of a pixel. Where the engine computes an exact `x.5`,
