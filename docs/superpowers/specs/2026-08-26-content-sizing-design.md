@@ -83,9 +83,16 @@ passed *down*; it works until the first `wrap` container.
 
 ### 3.2 `LayoutContext`
 
-A per-run value threaded through the recursion, holding the memo cache and
+A per-run object threaded through the recursion, holding the memo cache and
 `rootFontSize` — which currently rides on every signature in the engine and
 collapses into this.
+
+**It must be a `final class`, not a `struct`.** A struct threaded by value gives
+every recursion level its own copy of the cache, so nothing is ever shared, every
+lookup misses, and the engine is correct and exponentially slow — a defect no
+assertion in §5.2 would catch except the hit-count one. If a struct is preferred
+for other reasons it must be threaded `inout` the whole way down, including
+through the closures `collectItems` passes.
 
 Created in `computeLayout`, destroyed with it. **It does not live on
 `LayoutTree`.** The tree is storage; a cache outliving a run is the stale-data
@@ -104,9 +111,14 @@ floating-point equality costs a recompute and never a wrong answer — the right
 direction for this to fail.
 
 **Soundness** rests on styles not mutating during a run, which nothing enforces
-today. `setStyle` gains a `precondition` that no layout is in progress. A style
-written mid-layout would hand back cached sizes for the old style, and no fixture
-could catch it.
+today. A style written mid-layout would hand back cached sizes for the old style,
+and no fixture could catch it.
+
+The enforcement is concrete: `LayoutTree` gains a private `isLayingOut` flag, set
+by `computeLayout` for the duration of the run and cleared on exit (including on
+an early return), and `setStyle` gains `precondition(!isLayingOut)`. The flag
+lives on the tree rather than on `LayoutContext` because `setStyle` is a tree
+method and must be able to check it without a context in hand.
 
 ### 3.4 Two hazards to close rather than document
 
