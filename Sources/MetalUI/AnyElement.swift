@@ -58,8 +58,12 @@ import MetalUILayout
 //
 // **Allocation.** §4.6's first mitigation is that result builders preserve
 // concrete types: `Column { Label(…); Button(…) }` builds a statically-typed
-// `Column<Pair<Label, Button>>` and boxes nothing. This file is for genuinely
-// dynamic children only, and must not become the default path.
+// `Column<Pair<Label, Button>>` and boxes nothing. That builder exists as of
+// Task 4, and so does this file's way into it — `extension AnyElement:
+// ElementGroup` in `ElementGroup.swift`, the one conformance in the module that
+// boxes. It is reached only by writing `AnyElement(…)` out by hand; nothing in
+// `ElementBuilder` produces one. `theBuilderPreservesConcreteTypesRatherThanBoxing`
+// is the guard, and it is the only test that can see the difference.
 
 /// The type-erased face of `Element`: the three phases with every associated
 /// type removed.

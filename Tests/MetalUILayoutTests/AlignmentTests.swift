@@ -18,7 +18,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// added a trailing gap passed the entire suite. `justify-content` reads it as
 /// the divisor for free space, which is what finally makes it observable.
 @Test func lineContentSizeCountsGapsBetweenItemsOnly() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let items = (0..<3).map { _ in
         FlexItem(node: fixedChild(tree, w: 50, h: 10), baseSize: 50,
                  hypotheticalMainSize: 50, minMain: nil, maxMain: nil,
@@ -164,7 +164,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// the 100 line, `definite` keeps its own 30, and `capped` is auto but stops at
 /// its `max-height: 60`.
 @Test func stretchFillsTheCrossAxisOnlyForAutoSizedItems() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     var autoStyle = Style()                       // height stays .auto
     autoStyle.size = Size(width: px(50), height: .auto)
@@ -200,7 +200,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// height is definite and stretches it anyway — 200 wide instead of 40, and a
 /// height of 200 instead of its own 25.
 @Test func stretchFillsTheWidthInAColumn() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     var autoStyle = Style()                       // width stays .auto
     autoStyle.size = Size(width: .auto, height: px(25))
@@ -239,7 +239,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// reads 100 instead of 140. The clamp's two halves need separate items
 /// because one item cannot violate both bounds at once.
 @Test func aStretchedSizeIsFlooredByTheCrossMinAsWellAsCappedByTheMax() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     var flooredStyle = Style()
     flooredStyle.size = Size(width: px(50), height: .auto)
@@ -259,7 +259,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 
 /// An explicit non-stretch alignment leaves an auto-sized item at its own size.
 @Test func aNonStretchAlignmentLeavesAnAutoSizedItemUnstretched() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.size = Size(width: px(50), height: .auto)
     s.alignSelf = .center
@@ -302,7 +302,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// `resolveDimension` call, and one item cannot violate a floor and a ceiling
 /// at once.
 @Test func aPercentageCrossBoundResolvesAgainstTheCrossExtentNotTheMain() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     var cappedStyle = Style()
     cappedStyle.size = Size(width: px(50), height: .auto)
@@ -337,7 +337,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// 360/290/240. Equal-sized items in a full container would make the two
 /// indistinguishable, which is why these differ.
 @Test func rowReversePacksFromTheEndAndFlipsJustifyContent() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = fixedChild(tree, w: 40, h: 40)
     let b = fixedChild(tree, w: 70, h: 40)
     let c = fixedChild(tree, w: 50, h: 40)
@@ -357,7 +357,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// Reverse flips the main axis only. The cross axis is untouched, so
 /// `align-items: flex-end` still means the bottom of a reversed row.
 @Test func reverseDoesNotFlipTheCrossAxis() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.size = Size(width: px(50), height: px(20))
     let item = tree.newNode(style: s, children: [])

@@ -5,7 +5,7 @@ import MetalUICore
 private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(Float(v)))) }
 
 @Test func definiteFlexBasisWins() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.flexBasis = px(120)
     s.size = Size(width: px(50), height: px(10))   // must be ignored
@@ -15,7 +15,7 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
 }
 
 @Test func autoBasisFallsBackToTheDefiniteMainSize() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.flexBasis = .auto
     s.size = Size(width: px(80), height: px(10))
@@ -34,7 +34,7 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
 /// the wrong one is arithmetically visible (300 vs 100), not just wrong by a
 /// rounding hair.
 @Test func autoBasisPercentageMainSizeResolvesAgainstContainerMainNotCross() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.flexBasis = .auto
     s.size = Size(width: .length(.percent(0.5)), height: px(10))
@@ -56,7 +56,7 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
 /// field to max-content is only visible from the direction that actually
 /// routes its cross axis through that field.
 @Test func autoBasisWithNoDefiniteSizeMeasuresContent() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.flexBasis = .auto                               // size stays .auto
     s.size = Size(width: .auto, height: px(20))        // cross (height) known; main (width) unknown
@@ -75,7 +75,7 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
 }
 
 @Test func autoBasisWithNoMeasureFunctionIsZero() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let item = tree.newNode(style: Style(), children: [])
     #expect(flexBaseSize(tree, item: item, isRow: true,
                          containerMain: 700, containerCross: 100, rootFontSize: 16) == 0)
@@ -89,7 +89,7 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
 /// width/height branches swapping, and `available`'s cross-axis half being
 /// hardcoded to max-content instead of the offered definite extent.
 @Test func columnContentSizeOffersKnownCrossAndMaxContentMain() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.flexBasis = .auto
     s.size = Size(width: px(50), height: .auto)   // cross (width) known; main (height) unknown
@@ -108,7 +108,7 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
 }
 
 @Test func percentageBasisResolvesAgainstTheContainerMainAxis() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.flexBasis = .length(.percent(0.25))
     let item = tree.newNode(style: s, children: [])

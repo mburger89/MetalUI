@@ -30,8 +30,15 @@ import MetalUILayout
 ///
 /// **Accepted cost (§4.1):** building an element must be synchronous and cheap.
 /// No I/O and no heavy allocation.
+///
+/// **Refines `ElementGroup`, so every element is also a list of one.** That is
+/// what lets a result builder fold `Column { Label(…); Button(…) }` into
+/// `Column<Pair<Label, Button>>` — the type §4.6 names — with nothing boxed and
+/// no wrapper node between the column and its children. The three group methods
+/// come from a default implementation in `ElementGroup.swift`; conformers write
+/// only the three below.
 @MainActor
-public protocol Element {
+public protocol Element: ElementGroup {
     /// Whatever `requestLayout` needs to hand to the later phases. Threaded
     /// `inout` so an element can mutate it in place rather than copy it.
     associatedtype LayoutState

@@ -44,11 +44,13 @@ public struct GlobalElementID: Hashable, Sendable {
     /// either end is anonymous.
     ///
     /// This is the whole of path construction. `Frame.render` calls it once for
-    /// the root; **every other caller is a container, and no container exists
-    /// yet** — `Box`/`Column`/`Row` are Task 4. Until they land, nesting is
-    /// exercised only by the probe containers in `StateTableTests.swift`, which
-    /// call this function rather than assembling paths themselves, so the
-    /// production rule is the one under test.
+    /// the root; **every other caller is a container**, and since Task 4 those
+    /// are production types: `ElementGroup`'s conformances call it once per
+    /// member, so `Box`, `Column` and `Row` build their children's paths through
+    /// this function rather than assembling paths themselves. Grep
+    /// `child(of:` in `Sources/` for the current caller list — it was two
+    /// (`Frame.render` and the probe containers in `StateTableTests.swift`)
+    /// while this comment said no container existed.
     public static func child(of parent: GlobalElementID?,
                              _ component: ElementID?) -> GlobalElementID? {
         guard let parent, let component else { return nil }

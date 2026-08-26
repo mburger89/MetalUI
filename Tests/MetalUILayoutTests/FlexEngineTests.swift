@@ -31,7 +31,7 @@ private func threeFixedChildren(
     height: Double,
     gap: Double = 0
 ) -> (LayoutTree, root: LayoutNodeID, x: LayoutNodeID, y: LayoutNodeID, z: LayoutNodeID) {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let x = fixedChild(tree, w: 60, h: 20)
     let y = fixedChild(tree, w: 90, h: 30)
     let z = fixedChild(tree, w: 40, h: 50)
@@ -74,7 +74,7 @@ func assertMatchesGolden(
 }
 
 @Test func rowPacksFixedChildrenLeftToRight() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let x = fixedChild(tree, w: 60, h: 20)
     let y = fixedChild(tree, w: 90, h: 30)
     let z = fixedChild(tree, w: 40, h: 50)
@@ -93,7 +93,7 @@ func assertMatchesGolden(
 }
 
 @Test func columnPacksFixedChildrenTopToBottom() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let x = fixedChild(tree, w: 60, h: 20)
     let y = fixedChild(tree, w: 90, h: 30)
     let z = fixedChild(tree, w: 40, h: 50)
@@ -128,7 +128,7 @@ func assertMatchesGolden(
 
 /// A column container takes its gap from the vertical axis, not the horizontal.
 @Test func gapUsesTheMainAxisOfTheContainer() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = fixedChild(tree, w: 20, h: 10)
     let b = fixedChild(tree, w: 20, h: 10)
     var rootStyle = Style()
@@ -150,7 +150,7 @@ func assertMatchesGolden(
 /// Deleting the `where tree.style(kid).display != .none` filter left the whole
 /// suite green before this test existed.
 @Test func displayNoneChildrenAreSkippedAndConsumeNoSpace() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = fixedChild(tree, w: 60, h: 20)
 
     var hiddenStyle = Style()
@@ -183,7 +183,7 @@ func assertMatchesGolden(
 /// grandchildren below sit at a non-zero offset in BOTH axes, so this test fails
 /// the moment anyone stores a parent-relative rect.
 @Test func nestedContainersStoreAbsoluteNotRelativeCoordinates() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let spacer = fixedChild(tree, w: 30, h: 40)
 
     let g1 = fixedChild(tree, w: 20, h: 25)
@@ -224,7 +224,7 @@ func assertMatchesGolden(
 /// before `grandchild` was added to the loop below; it reddens now because
 /// `grandchild`'s absolute position inherits `b`'s fractional raw origin.
 @Test func computeLayoutRoundsEveryStoredRect() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     // A fractional-width leaf, nested one level inside `b` below.
     let grandchild = fixedChild(tree, w: 100.0 / 7.0, h: 5)
     func third(children: [LayoutNodeID] = []) -> LayoutNodeID {
@@ -282,7 +282,7 @@ func assertMatchesGolden(
 /// not come from that function since the flex-sizing milestone, and pointing at
 /// it is the natural mistake. (It was mine, during this task's review.)
 @Test func autoSizedChildTakesNoMainSizeButStretchesOnTheCross() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let kid = tree.newNode(style: Style(), children: [])   // size defaults to .auto
     var rootStyle = Style()
     rootStyle.size = Size(width: px(300), height: px(100))
@@ -315,7 +315,7 @@ func assertMatchesGolden(
 /// leaves the main axis alone; asserting the whole rect again would conflate the
 /// two rules, and asserting only the width would drop stretch's coverage here.
 @Test func autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let kid = tree.newNode(style: Style(), children: [])      // size defaults to .auto
     let root = tree.newNode(style: Style(), children: [kid])  // ditto
 
@@ -339,7 +339,7 @@ func assertMatchesGolden(
 /// left the entire suite green before this test. The third child also pins
 /// CSS §10.4's tie-break — when min and max conflict, **min wins**.
 @Test func minAndMaxSizeClampAChildAndMinWinsOnConflict() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     // Asked for 200 wide, capped at 80. Asked for 10 tall, floored at 30.
     var cappedStyle = Style()
@@ -414,7 +414,7 @@ private func threeJustifiedChildren(
     width: Double,
     height: Double
 ) -> (LayoutTree, root: LayoutNodeID, a: LayoutNodeID, b: LayoutNodeID, c: LayoutNodeID) {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let isRow = direction.isRow
     let a = isRow ? fixedChild(tree, w: 40, h: 40) : fixedChild(tree, w: 60, h: 40)
     let b = isRow ? fixedChild(tree, w: 70, h: 40) : fixedChild(tree, w: 60, h: 70)
@@ -482,7 +482,7 @@ private func threeJustifiedChildren(
 /// task) are both checked in the one assertion.
 @Test func rowAlignCenterMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_align_center")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = fixedChild(tree, w: 40, h: 20)
     let b = fixedChild(tree, w: 70, h: 60)
     let c = fixedChild(tree, w: 50, h: 40)
@@ -506,7 +506,7 @@ private func threeJustifiedChildren(
 /// heights (20/60/40) as `flex_row_align_center`.
 @Test func rowAlignEndWithSelfOverrideMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_align_end_with_self")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = fixedChild(tree, w: 40, h: 20)
     var bStyle = Style()
     bStyle.size = Size(width: px(70), height: px(60))
@@ -539,7 +539,7 @@ private func threeJustifiedChildren(
 /// `align-items: flex-end` gives each of them a different `x` — a uniform
 /// width would make every alignment produce the same answer here too.
 @Test func columnAlignFlexEndOffsetsEachChildByItsOwnWidth() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = fixedChild(tree, w: 40, h: 30)
     let b = fixedChild(tree, w: 90, h: 40)
     let c = fixedChild(tree, w: 60, h: 50)
@@ -580,7 +580,7 @@ private func threeJustifiedChildren(
 /// stays green throughout. Do not delete this as a copy of that test.
 @Test func rowJustifySpaceBetweenWithGapMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_justify_between_gap")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = fixedChild(tree, w: 40, h: 40)
     let b = fixedChild(tree, w: 70, h: 40)
     let c = fixedChild(tree, w: 50, h: 40)
@@ -617,7 +617,7 @@ private func threeJustifiedChildren(
 /// here rather than merely present.
 @Test func rowStretchMixedMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_stretch_mixed")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     var aStyle = Style()                                  // auto height: stretches
     aStyle.size = Size(width: px(60), height: .auto)
@@ -657,7 +657,7 @@ private func threeJustifiedChildren(
 /// hand-computed.
 @Test func rowReverseMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_reverse")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = fixedChild(tree, w: 40, h: 40)
     let b = fixedChild(tree, w: 70, h: 40)
     let c = fixedChild(tree, w: 50, h: 40)
@@ -685,7 +685,7 @@ private func threeJustifiedChildren(
 /// `.c` have explicit widths and do not.
 @Test func columnReverseJustifyEndMatchesWebKit() throws {
     let golden = try loadGolden("flex_column_reverse_justify_end")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     var aStyle = Style()                      // definite main size, auto cross: stretches
     aStyle.size = Size(width: .auto, height: px(40))
@@ -715,7 +715,7 @@ private func threeJustifiedChildren(
 /// HTML for why every edge and both boxes differ.
 @Test func rowPaddingAndBorderMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_padding_border")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = fixedChild(tree, w: 50, h: 30)
     let b = fixedChild(tree, w: 60, h: 30)
 
@@ -754,7 +754,7 @@ private func threeJustifiedChildren(
 /// strongest single check that the content box reached the cross axis.
 @Test func columnPaddingAsymmetricMatchesWebKit() throws {
     let golden = try loadGolden("flex_column_padding_asymmetric")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func autoWidthChild(h: Double) -> LayoutNodeID {
         var s = Style()

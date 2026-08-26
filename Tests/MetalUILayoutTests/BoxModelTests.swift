@@ -34,7 +34,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// both below — and this test should be read together with those two, not as
 /// a complete guard by itself.
 @Test func paddingAndBorderInsetTheOriginOfEachChild() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = fixedChild(tree, w: 50, h: 30)
     let b = fixedChild(tree, w: 60, h: 30)
     var rootStyle = Style()
@@ -60,7 +60,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// Cross-axis stretch must use the reduced extent: 100 tall with 20/4 padding
 /// and 5/2 border leaves 69, not 100.
 @Test func stretchFillsTheContentBoxNotTheBorderBox() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var kidStyle = Style()
     kidStyle.size = Size(width: px(50), height: .auto)   // auto cross -> stretches
     let kid = tree.newNode(style: kidStyle, children: [])
@@ -82,7 +82,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// A grow item's free space comes from the content box, so padding reduces what
 /// it can grow into.
 @Test func growDistributesTheContentBoxNotTheBorderBox() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.flexGrow = 1
     s.flexBasis = px(0)
@@ -132,7 +132,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// removed; the root's own rect does not move under that particular mutation,
 /// since the guard lives downstream of it.
 @Test func containerDoesNotGrowToFitOverconstrainedPaddingUnlikeWebKit() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = tree.newNode(style: Style(), children: [])   // auto/auto: stretches on the cross
 
     var rootStyle = Style()
@@ -159,7 +159,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// Different margins per child, and margins on both ends, so neither "read the
 /// wrong child's margin" nor "drop the trailing margin" can pass.
 @Test func marginsConsumeMainAxisSpaceAndOffsetTheItem() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var aStyle = Style()
     aStyle.size = Size(width: px(50), height: px(30))
     aStyle.margin = Edges(top: px(0), right: px(12), bottom: px(0), left: px(7))
@@ -187,7 +187,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// A margin reduces what a grow item can grow into — proof the line's content
 /// size counts margins rather than only border boxes.
 @Test func marginsReduceTheSpaceAvailableToGrow() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.flexGrow = 1
     s.flexBasis = px(0)
@@ -210,7 +210,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// Cross margins offset placement, and `align-items: flex-end` measures from the
 /// content box's far edge minus the trailing margin.
 @Test func crossMarginsOffsetAlignment() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.size = Size(width: px(50), height: px(30))
     s.margin = Edges(top: px(6), right: px(0), bottom: px(9), left: px(0))
@@ -245,7 +245,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// the real Dimension is read and threaded through, while `x` stays 0 only
 /// because `.auto` — not because nothing is being read.
 @Test func autoMarginsResolveToZeroForNow() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.size = Size(width: px(50), height: px(30))
     s.margin = Edges(top: px(15), right: .auto, bottom: .auto, left: .auto)
@@ -274,7 +274,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// that drops margins moves every gap, not just the outer edges.
 @Test func rowMarginsMatchWebKit() throws {
     let golden = try loadGolden("flex_row_margins")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func marginChild(w: Double, h: Double, top: Double, right: Double,
                      bottom: Double, left: Double) -> LayoutNodeID {
@@ -307,7 +307,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// is shrunk by BOTH children's total margin, not only the growing one's.
 @Test func rowMarginWithGrowMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_margin_with_grow")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     var aStyle = Style()
     aStyle.flexGrow = 1
@@ -351,7 +351,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// BEFORE the reversal subtraction) gave `340` and `230` — each 20 off,
 /// which is `a`'s `margin-left` landing on the wrong side.
 @Test func reverseContainersApplyMarginsToThePhysicalEdge() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var aStyle = Style()
     aStyle.size = Size(width: px(50), height: px(20))
     aStyle.margin = Edges(top: px(0), right: px(30), bottom: px(0), left: px(10))
@@ -380,7 +380,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// numbers, transposed to height/margin-top/margin-bottom in a
 /// `column-reverse` container.
 @Test func columnReverseContainersApplyMarginsToThePhysicalEdge() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var aStyle = Style()
     aStyle.size = Size(width: px(20), height: px(50))
     aStyle.margin = Edges(top: px(10), right: px(0), bottom: px(30), left: px(0))
@@ -414,7 +414,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// (`cross = clamp(containerCross, …)`, margins never subtracted) gave
 /// `50x100` and overflowed the container by 35px.
 @Test func stretchSubtractsCrossMarginsBeforeClamping() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.size = Size(width: px(50), height: .auto)
     s.margin = Edges(top: px(10), right: px(0), bottom: px(25), left: px(0))
@@ -441,7 +441,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// different (and wrong) number — this test distinguishes the two orderings,
 /// not just the presence of a clamp.
 @Test func stretchWithMaxHeightClampsTheBorderBoxNotTheMarginBox() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.size = Size(width: px(70), height: .auto)
     s.maxSize = Size(width: .auto, height: px(50))
@@ -465,7 +465,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// fixture; see its HTML for the mutation this guards (bug 1).
 @Test func rowReverseMarginsMatchWebKit() throws {
     let golden = try loadGolden("flex_row_reverse_margins")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func marginChild(w: Double, h: Double, top: Double, right: Double,
                      bottom: Double, left: Double) -> LayoutNodeID {
@@ -496,7 +496,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// correctly for rows and silently transposed top/bottom for columns.
 @Test func columnReverseMarginsMatchWebKit() throws {
     let golden = try loadGolden("flex_column_reverse_margins")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     func marginChild(w: Double, h: Double, top: Double, right: Double,
                      bottom: Double, left: Double) -> LayoutNodeID {
@@ -527,7 +527,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// needs `max-height` (bug 2's clamp-ordering half).
 @Test func rowStretchWithMarginsMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_stretch_with_margins")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     var aStyle = Style()
     aStyle.size = Size(width: px(50), height: .auto)
@@ -564,7 +564,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// `justify-content`, must agree with each other.
 @Test func rowGrowSpaceBetweenWithMarginsMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_grow_space_between_margins")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     var aStyle = Style()
     aStyle.flexGrow = 1
@@ -626,7 +626,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// than with CSS until this test; see `flex_nested_percent_padding` for the
 /// same rule one level down, where the containing block is not the viewport.
 @Test func percentagePaddingResolvesAgainstTheContainingBlockWidthOnEveryEdge() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = fixedChild(tree, w: 50, h: 20)
     // Auto cross size: `b` stretches to the CONTENT box's height, so the
     // vertical basis is visible in a size and not only in an origin.
@@ -663,7 +663,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// **WebKit says 27.** `contentBox` passed `borderBox.width` — the box's own
 /// size — until Task 3, and gave 20.
 @Test func nestedPercentagePaddingResolvesAgainstTheParentsContentBox() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let g1 = fixedChild(tree, w: 20, h: 10)
 
     var g2Style = Style()
@@ -705,7 +705,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// at 10 + 5 + 20 + 3 = 38 from the root on both axes. Applying the outer inset
 /// to the grandchild as well would give 53; skipping the inner would give 15.
 @Test func nestedContainersComposeTheirInsetsExactlyOnce() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let grandchild = fixedChild(tree, w: 20, h: 10)
 
     var midStyle = Style()
@@ -744,7 +744,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// the main axis alone still reddens; `b` mixes a pixel width with a percentage
 /// height, so the axes cannot be confused, and its origin moves with `a`'s width.
 @Test func percentageChildSizesResolveAgainstTheParentsContentBox() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var aStyle = Style()
     aStyle.size = Size(width: pct(0.50), height: pct(0.50))
     let a = tree.newNode(style: aStyle, children: [])
@@ -773,7 +773,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// box, which this fixture is not about).
 @Test func percentPaddingNonSquareMatchesWebKit() throws {
     let golden = try loadGolden("flex_percent_padding_nonsquare")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let a = fixedChild(tree, w: 50, h: 20)
 
     var bStyle = Style()
@@ -800,7 +800,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// the probe that found the basis bug.
 @Test func nestedPercentPaddingMatchesWebKit() throws {
     let golden = try loadGolden("flex_nested_percent_padding")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let g1 = fixedChild(tree, w: 20, h: 10)
 
     var g2Style = Style()
@@ -838,7 +838,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// children.
 @Test func nestedPaddingMatchesWebKit() throws {
     let golden = try loadGolden("flex_nested_padding")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     let g1 = fixedChild(tree, w: 20, h: 10)
 
     var g2Style = Style()
@@ -877,7 +877,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// into `collectItems`' `parent` binding.
 @Test func percentChildInPaddedParentMatchesWebKit() throws {
     let golden = try loadGolden("flex_percent_child_in_padded")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     var aStyle = Style()
     aStyle.size = Size(width: pct(0.50), height: pct(0.50))
@@ -916,7 +916,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// `flex_row_stretch_with_margins` pins the same ordering against `max-height`.
 @Test func rowStretchWithMinHeightAndMarginsMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_stretch_min_height_margins")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     var aStyle = Style()
     aStyle.size = Size(width: px(50), height: .auto)
@@ -955,7 +955,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// what would notice a stretch that ignored the clamp.
 @Test func rowReverseStretchMatchesWebKit() throws {
     let golden = try loadGolden("flex_row_reverse_stretch")
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
 
     var aStyle = Style()
     aStyle.size = Size(width: px(50), height: .auto)
@@ -997,7 +997,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// The container is 400x100 on purpose. On a square, the two bases agree and this
 /// test cannot fail.
 @Test func percentageMarginsResolveAgainstTheContainingBlockWidth() {
-    let tree = LayoutTree()
+    let tree = LayoutTree(generation: 0)
     var s = Style()
     s.size = Size(width: px(50), height: px(20))
     // 10% of the 400 content width = 40 on the leading edges. Against the 100

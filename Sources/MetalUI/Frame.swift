@@ -32,14 +32,30 @@ public final class Frame {
 
     /// Layout nodes for this frame.
     ///
-    /// A `Frame` is built per frame and its tree is never `reset()`, so a
-    /// `LayoutNodeID` cannot outlive the tree that issued it: the id and the
-    /// storage are deallocated together. That is what closes m1a's ruling C-3
-    /// hazard (a `LayoutNodeID` has no generation counter, so a stale one
-    /// silently addresses a different node after a `reset()`) for this design.
-    /// **Reusing one `LayoutTree` across frames to keep its capacity would
-    /// reopen it**, and would need a generation counter first.
-    let tree = LayoutTree()
+    /// **A `LayoutNodeID` *can* outlive the frame that minted it, which is why
+    /// the tree is stamped.** It was tempting to argue the opposite — a `Frame`
+    /// is built per frame, its tree is never `reset`, so id and storage die
+    /// together — but that is a claim about the tree, not about the id, and the
+    /// id is a `Sendable` value an element may copy anywhere. The carrier that
+    /// makes m1a's ruling C-3 reachable here is `pass.withState`: its `S` is
+    /// unconstrained, so an element may stash a `LayoutNodeID` in the
+    /// cross-frame state table and read it back next frame, against a tree that
+    /// no longer knows it. Nothing in the type system prevents that, and a
+    /// stored property on a reused element value is a second, narrower route.
+    ///
+    /// So the hazard is closed rather than argued away: every `Frame` draws a
+    /// fresh generation from `nextTreeGeneration`, and `LayoutTree` rejects an
+    /// id from any other. A stale id now traps at the accessor instead of
+    /// silently returning whatever node shares its index.
+    let tree: LayoutTree
+
+    /// Source of `LayoutTree` generations, one per `Frame`, never reused.
+    ///
+    /// A plain `static var` and not an atomic: it is isolated to the main actor
+    /// by `Frame`'s own `@MainActor`, so the compiler — not a comment — is what
+    /// rules out a concurrent increment. `UInt64` at one per frame overflows
+    /// after about 10^11 years at 120 Hz.
+    private static var nextTreeGeneration: UInt64 = 1
 
     /// Primitives emitted during paint. Written only through `fill`.
     private(set) var scene = Scene()
@@ -54,6 +70,8 @@ public final class Frame {
 
     init(contentSize: Size<Pixels>, scaleFactor: Float, rootFontSize: Double = 16,
          stateTable: StateTable = StateTable()) {
+        self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
+        Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
         self.scaleFactor = scaleFactor
         self.rootFontSize = rootFontSize
@@ -122,10 +140,10 @@ public final class Frame {
     /// and hands it down, then **sweeps after the frame** (§4.3).
     ///
     /// Only the root's path is built here. Every deeper path comes from a
-    /// container calling `GlobalElementID.child(of:_:)`, and **no container
-    /// exists yet** — `Box`/`Column`/`Row` are Task 4 — so a tree deeper than
-    /// one element currently has one identified node and anonymous descendants.
-    /// Grep `child(of:` in `Sources/` to see whether that is still true.
+    /// container calling `GlobalElementID.child(of:_:)` — since Task 4 that is
+    /// `ElementGroup`'s conformances, so a deep tree is identified all the way
+    /// down provided every container on the path is named. An unnamed container
+    /// still poisons the subtree below it; see `GlobalElementID.child(of:_:)`.
     func render<E: Element>(_ element: inout E) {
         let rootID = GlobalElementID.child(of: .root, element.elementID)
 
