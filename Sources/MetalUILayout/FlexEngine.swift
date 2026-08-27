@@ -41,7 +41,8 @@ import MetalUICore
 /// minimum (ruling FS-3) — which content sizing turned from a dormant gap into
 /// a measured disagreement with WebKit, because the *content* suggestion it
 /// pairs with is now live for containers. All three have rows in CLAUDE.md's
-/// inert-API table.
+/// inert-API table, and FS-3 additionally has divergence 5 there, where its
+/// WebKit numbers live.
 ///
 /// **Cross-axis `stretch` landed in the alignment task, and with it every golden
 /// comparison in the suite is now full-rect.** Twelve of them compared the main
@@ -1204,9 +1205,17 @@ private func collectItems(
             // engine `a` 200 / `b` 0**, overflowing the root, because the floor
             // here is the content suggestion alone. The differential was run
             // rather than predicted: `.a { width: 130px }` moves WebKit to
-            // 130 / 20, and `min-width: 0` on `.a` gives 75 / 75. No fixture
-            // holds this shape — a container whose content exceeds its own
-            // specified size — which is what implementing FS-3 would need.
+            // 130 / 20 while this engine does not move at all, and
+            // `min-width: 0` on `.a` gives 75 / 75 in both.
+            //
+            // **Deliberate, recorded, and pinned** — CLAUDE.md's divergence 5
+            // and `aContainerIsNotFlooredByItsSpecifiedSizeUnlikeWebKit`, which
+            // is the ONLY pin, because a fixture would encode this engine's
+            // answer as correct and a future fix should move nothing in the
+            // corpus (the same footing as WebKit's flex sub-one clause). Adding
+            // the specified suggestion here changes an item's floor, which
+            // §9.7's freeze loop consumes and every ancestor then sees as a
+            // different stored size: sizing-plan reach, like ruling BM-4's.
             let minDim = isRow ? ks.minSize.width : ks.minSize.height
             let minMain: Double? = {
                 if case .auto = minDim {

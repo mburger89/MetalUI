@@ -366,10 +366,50 @@ milestone's four wrong hand-derivations are why): `.a { width: 130px }` gives
 WebKit 130 / 20, and `min-width: 0` on `.a` gives 75 / 75 — the floor tracks the
 specified width, which is what identifies it as §4.5's specified size
 suggestion rather than anything else. **FS-3 is therefore not closed and is not
-narrowed; its reach grew.** It is recorded in CLAUDE.md's inert table and at
-`collectItems`' automatic minimum, with these numbers. No fixture was added —
-the corpus has no container whose content exceeds its own specified size, and
-adding one would encode a divergence nobody has decided to keep.
+narrowed; its reach grew during this milestone** — it entered as a gap that
+nothing could distinguish and leaves as a measured disagreement with the oracle.
+
+**Ruling: declared deliberate, pinned, and not implemented here — exactly ruling
+BM-4's treatment**, which is this project's settled pattern for "we know, we
+chose, here are the browser's numbers". Implementing the specified size
+suggestion changes an item's *floor*, which §9.7's freeze loop consumes and
+every ancestor then sees as a different stored size; that is a sizing plan's
+reach, not a documentation task's — the identical argument that kept BM-4 out of
+the box-model milestone. So:
+
+- **A test named for the divergence**, `aContainerIsNotFlooredByItsSpecifiedSizeUnlikeWebKit`
+  in `FlexEngineTests.swift`, carrying WebKit's numbers and **both**
+  differentials in its comment. It asserts this engine's answers (200 / 0, twice,
+  then the agreeing 75 / 75), so implementing FS-3 reddens it by construction.
+- **CLAUDE.md's fifth known divergence**, with the repro, the three-row table
+  and the reason it is not fixed here.
+- **No fixture and no golden**, on the same footing as WebKit's flex sub-one
+  clause: a golden would record this engine's answer as correct, and a future fix
+  should move nothing in the corpus. That test is the only pin — which is why it
+  was mutation-checked rather than trusted (below).
+
+**The pin was verified by mutation, not by its own green** — a test that
+restates a number and a test that pins a behaviour look identical when they
+pass. The exact edit (ruling CS-N), at `collectItems`' automatic minimum, in
+place of `return isRow ? probe.width : probe.height`:
+
+```swift
+let content = isRow ? probe.width : probe.height
+let mainDim = isRow ? ks.size.width : ks.size.height
+if let specified = resolveDimension(mainDim, against: containerMain,
+                                    rootFontSize: rootFontSize) {
+    return Swift.min(specified, content)
+}
+return content
+```
+
+That is FS-3's missing half implemented, i.e. the engine giving WebKit's
+answers. Measured on **339 tests, `--no-parallel`: 1 test, 5 issues** — and the
+one test is `aContainerIsNotFlooredByItsSpecifiedSizeUnlikeWebKit`. Five of its
+seven expectations, which is the two divergent rows of its table; the
+`min-width: 0` row stays green because both engines agree there. **No golden
+moved**, which is the corpus half of the ruling holding: nothing in it encodes
+the divergence, so implementing FS-3 later will move one test and no fixture.
 
 **What was retired.**
 
@@ -400,7 +440,9 @@ adding one would encode a divergence nobody has decided to keep.
   that has since become four — it now cites the divergence by subject, since the
   count has moved twice.
 - **The counts.** Measured, not propagated: `Test run with 338 tests in 0 suites
-  passed`, and **61** fixtures with 61 goldens.
+  passed`, and **61** fixtures with 61 goldens. The fix round's divergence test
+  makes it **339**, which is the number in CLAUDE.md; the mutation figures above
+  keep the 338 they were taken on.
 - **EP-6 is unblocked and now says so where a future session starts reading** —
   CLAUDE.md's "Start here", alongside the two things a re-decision must not
   assume. The element-pipeline decisions doc's own EP-6 row carries a pointer,

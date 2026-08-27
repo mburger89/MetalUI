@@ -440,6 +440,88 @@ func assertMatchesGolden(
     #expect(free.layout(b2).width == 60)
 }
 
+/// **Ruling FS-3** (see CLAUDE.md's "known divergences", the fifth) — pins a
+/// deliberate divergence from CSS and from WebKit, not a bug.
+///
+/// CSS Sizing §4.5's automatic minimum is
+/// `min(specified size suggestion, content size suggestion)`. This engine
+/// implements the **content** half only — content sizing made it live for
+/// containers, and that is what turned FS-3 from a dormant gap into a
+/// measurable disagreement: an item is floored by its children even when its
+/// own definite `width` says it may be smaller.
+///
+/// **Measured against live WebKit**, on the tree this test builds:
+///
+/// ```html
+/// #root { display: flex; width: 150px; height: 60px; }
+/// .a { display: flex; width: 100px; }   /* holds a 200px child */
+/// .b { width: 100px; height: 20px; }
+/// ```
+///
+///     .a's style          WebKit        this engine    why
+///     width: 100px        a=100, b=50   a=200, b=0     min(100, 200) vs 200
+///     width: 130px        a=130, b=20   a=200, b=0     the floor ignores it
+///     width: 100px+min:0  a=75,  b=75   a=75,  b=75    no automatic minimum
+///
+/// The middle row is the sharpest form: WebKit's floor **tracks the specified
+/// width** and this engine's does not move at all, because it is the child's
+/// 200 in both cases. The third row is the differential that identifies the
+/// cause — an explicit `min-width: 0` replaces the automatic minimum, both
+/// engines shrink 100/100 into 150 as 75/75, and they agree exactly.
+///
+/// **Not implemented here, and the reason is reach, not effort** — the same
+/// one that kept ruling BM-4 out of the box-model milestone. The specified size
+/// suggestion changes an item's *floor*, which the freeze loop consumes and
+/// every ancestor then sees as a different stored size. It belongs in a sizing
+/// plan with the corpus regenerated behind it.
+///
+/// **Deliberately no fixture and no golden**, on the same footing as WebKit's
+/// flex sub-one clause: a golden would encode this engine's answer as correct,
+/// and a future fix should move nothing in the corpus. This test is the only
+/// pin, so implementing FS-3 must redden exactly it — verified by mutation.
+@Test func aContainerIsNotFlooredByItsSpecifiedSizeUnlikeWebKit() {
+    /// The same tree three ways: `.a` is a container 200 wide on the inside and
+    /// `aWidth` wide by declaration, `.b` is a leaf, and the root is too small
+    /// for both.
+    func build(aWidth: Double, aMin: MetalUICore.Dimension)
+        -> (LayoutTree, LayoutNodeID, LayoutNodeID) {
+        let tree = LayoutTree(generation: 0)
+        let g = fixedChild(tree, w: 200, h: 20)
+        var aStyle = Style()
+        aStyle.flexDirection = .row
+        aStyle.size = Size(width: px(aWidth), height: autoDim)
+        aStyle.minSize = Size(width: aMin, height: autoDim)
+        let a = tree.newNode(style: aStyle, children: [g])
+        let b = fixedChild(tree, w: 100, h: 20)
+        var rootStyle = Style()
+        rootStyle.flexDirection = .row
+        rootStyle.size = Size(width: px(150), height: px(60))
+        let root = tree.newNode(style: rootStyle, children: [a, b])
+        computeLayout(tree, root: root,
+                      available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+        return (tree, a, b)
+    }
+
+    // WebKit: a=100, b=50. Here the floor is the child's 200, so `.a` cannot
+    // shrink at all and `.b` is squeezed out of the root entirely.
+    let (t1, a1, b1) = build(aWidth: 100, aMin: autoDim)
+    #expect(t1.layout(a1).width == 200)
+    #expect(t1.layout(b1).width == 0)
+    #expect(t1.layout(b1).x == 200)
+
+    // WebKit: a=130, b=20 — its floor moved with the specified width. Ours did
+    // not move at all, which is the divergence stated as a differential.
+    let (t2, a2, b2) = build(aWidth: 130, aMin: autoDim)
+    #expect(t2.layout(a2).width == 200)
+    #expect(t2.layout(b2).width == 0)
+
+    // `min-width: 0` replaces the automatic minimum, so no suggestion of either
+    // kind applies and the two engines agree: 100 and 100 shrink into 150.
+    let (t3, a3, b3) = build(aWidth: 100, aMin: px(0))
+    #expect(t3.layout(a3).width == 75)
+    #expect(t3.layout(b3).width == 75)
+}
+
 /// `minSize` and `maxSize` are live `Style` properties, and the engine must
 /// honour them when resolving a node's size.
 ///
