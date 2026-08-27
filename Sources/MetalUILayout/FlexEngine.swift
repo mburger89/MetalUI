@@ -315,32 +315,51 @@ private func resolveRootSize(
     }
 
     // **An `auto` root axis with a definite offered extent still takes that
-    // extent, and this is ruling EP-5 — SwiftUI's answer over CSS's — not an
-    // unexamined fallback.**
+    // extent (ruling CS-I), and the justification is `computeLayout`'s own
+    // contract — not a ruling from a layer above this one.**
     //
-    // CSS disagrees, and the disagreement is measured rather than assumed: the
-    // root is a block-level box in the initial containing block, so a browser
-    // fills its inline axis and shrink-wraps its block axis. In WebKit, an
-    // 800x600 viewport holding `#root { display: flex }` with one 100x40 child
-    // gives the root **800 x 40**. This engine gives **800 x 600**.
+    // The engine's root is **not a block box in a CSS initial containing
+    // block**. It is a node whose size its host supplies: `available:` is the
+    // surface the caller is laying out into, and `.definite(w)` on an axis is
+    // the host saying "this axis is w". Honouring that is what the parameter
+    // means. A browser has no equivalent — its root's containing block is the
+    // viewport by construction, and it is never *told* a size.
     //
-    // Taking WebKit's answer here was implemented, measured, and reverted. It
-    // reddens six element-pipeline and frame-loop tests, all for the same
-    // reason: a `Row { … }` rendered into a 400x120 `Frame` has no declared
-    // height, so the window's root would collapse to its content and a
-    // `flexGrow(1)` child would stretch into 0. `computeLayout`'s `available:`
-    // is a window, not a CSS viewport, and ruling EP-6 keeps `Column`/`Row` on
-    // `stretch` precisely so a root fills the surface it was given. **No
-    // fixture can hold the divergence** — every fixture root declares both a
-    // width and a height, which is also why the corpus never noticed either
-    // answer.
+    // CSS therefore disagrees, and the disagreement is measured rather than
+    // assumed: a block-level box fills its inline axis and shrink-wraps its
+    // block axis, so in WebKit an 800x600 viewport holding
+    // `#root { display: flex }` with one 100x40 child gives the root
+    // **800 x 40**, where this engine gives **800 x 600**.
+    //
+    // **Do not cite EP-5 for this.** That ruling ends with "the WebKit corpus
+    // stays the oracle for the engine; this ruling binds everything above it",
+    // and `resolveRootSize` is inside the engine — citing it here reads it
+    // past its own boundary and weakens it. The evidence that the contract
+    // reading is the right one is behavioural, not authoritative: taking
+    // WebKit's answer was implemented and reverted, and it reddens six
+    // element-pipeline and frame-loop tests at once, because a `Row { … }`
+    // rendered into a 400x120 `Frame` declares no height and the window's root
+    // would collapse to its content with every `flexGrow(1)` child stretching
+    // into 0.
+    //
+    // **The engine can still express CSS's answer**, which is what makes this
+    // an interpretation of one call shape rather than a disagreement with
+    // WebKit: a host that offers `.maxContent` on the block axis takes the
+    // measuring branch below and gets the shrink-wrapped 40. What differs is
+    // only what a *definite* offered extent means for an `auto` axis.
+    //
+    // **A fixture could hold the divergence** — `#root { display: flex }` with
+    // no `width` or `height` is perfectly expressible and its golden would say
+    // 800x40 — so the corpus deliberately contains none, on the same footing
+    // as WebKit's flex sub-one clause. That all 57 roots declare both axes
+    // explains why no *existing* fixture notices; it is not a reason one
+    // could not exist.
     //
     // What content sizing *does* change here is the case where there is no
     // offered extent to take: that was a hardcoded 0, and it is now the
-    // subtree's own size. `computeLayout` can be handed `.minContent` or
-    // `.maxContent` on an axis, and shrink-to-fit is the only sensible answer
-    // for it. A browser cannot express an indefinite viewport, so this half is
-    // reasoned from CSS's shrink-to-fit rule rather than measured against one.
+    // subtree's own size. A browser cannot express an indefinite viewport, so
+    // this half is reasoned from CSS's shrink-to-fit rule rather than measured
+    // against one.
     let width = withoutMeasuring(s.size.width, available.width)
     let height = withoutMeasuring(s.size.height, available.height)
 

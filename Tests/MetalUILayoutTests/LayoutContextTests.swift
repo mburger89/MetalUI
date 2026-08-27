@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 import MetalUICore
 @testable import MetalUILayout
 
@@ -92,14 +93,35 @@ import MetalUICore
 @Test func layingOutATreeDeeperThanTheLimitTraps() async {
     let result = await #expect(processExitsWith: .failure,
                                observing: [\.standardErrorContent]) {
-        let tree = LayoutTree(generation: 0)
-        var node = tree.newNode(style: Style(), children: [])
-        for _ in 0..<LayoutContext.maxDepth {
-            node = tree.newNode(style: Style(), children: [node])
+        // **The layout runs on an explicitly-sized 4 MB thread, and that is
+        // load-bearing rather than tidiness.** A Swift Testing exit-test task
+        // gets a small stack — measured, 53 levels of this recursion — and
+        // `maxDepth` is a statement about the stacks the FRAMEWORK runs on,
+        // where the smallest is a 1 MB iOS main thread. Laying out on
+        // whatever stack the harness happens to hand over makes the test
+        // fixture the thing that sets a production capability limit: the
+        // constant was briefly dropped to 16 for exactly that reason, which
+        // is ~320x below the real ceiling in a release build.
+        //
+        // 4 MB is chosen to be comfortably above the iOS main thread's own
+        // budget, so this test asks "does the guard fire before a REAL stack
+        // runs out" rather than "before this harness's does".
+        let t = Thread {
+            let tree = LayoutTree(generation: 0)
+            var node = tree.newNode(style: Style(), children: [])
+            for _ in 0..<LayoutContext.maxDepth {
+                node = tree.newNode(style: Style(), children: [node])
+            }
+            computeLayout(tree, root: node,
+                          available: AvailableSpaceSize(width: .definite(100),
+                                                        height: .definite(100)))
         }
-        computeLayout(tree, root: node,
-                      available: AvailableSpaceSize(width: .definite(100),
-                                                    height: .definite(100)))
+        t.stackSize = 4 * 1024 * 1024
+        t.start()
+        // The guard aborts the whole process, so this spin never completes on
+        // the passing path; it exists so the body does not return first and
+        // report a clean exit.
+        while !t.isFinished { usleep(1000) }
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
     #expect(stderr.contains("layout recursion exceeded"),

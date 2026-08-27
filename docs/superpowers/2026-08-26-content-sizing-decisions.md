@@ -24,10 +24,45 @@ survived two branches' greps for lowercase `ruling`.
 | CS-G | **Spec §2's headline scope was unreachable, and the plan could not have delivered it.** A container could not distinguish min-content from max-content: the query died at `definiteExtent` inside `measureNode`, and `AvailableSpaceSize` existed nowhere below that line — so changing `FlexBaseSize`'s hardcoded `.maxContent`, which is what the plan told the wiring task to do, would have fixed nothing. Propagation is **three** sites, and the third had been named by nobody: `collectLines`' budget, because under `.minContent` the budget is zero and each item lines alone (§9.9.1.1), which is a wrapping fact no base-size work reaches. Given its own task, sequenced **before** the re-baseline. | The re-baseline's golden diff acquires two independent causes; and the failure is silent, because every fixture is a pixel-sized empty div where the two modes coincide, so the live-WebKit gate stays green either way. |
 | CS-H | **The query is threaded as an `IntrinsicQuery` (a per-axis `IntrinsicMode?`), not as an `AvailableSpaceSize`.** Task 4's brief left the choice open. `AvailableSpaceSize` can also be `.definite`, so threading it below `measureNode` would carry the definite extents a **second** time alongside `containerSize`, with nothing keeping the two agreed and a precedence rule at every consumer. `IntrinsicMode` cannot express `.definite` at all, and `IntrinsicQuery(known:available:)` establishes the invariant the consumers rely on — **an axis has a mode iff that axis of the probe is `nil`** — so each consuming site reads "the extent if there is one, otherwise the question" with no third case. `contentBox` maps `nil` to `nil` per axis, so the invariant survives into the content box. **No `MeasureKey` field**: the query is a pure function of `known` and `available`, both already in the key with `.minContent`/`.maxContent` distinct — the rule recorded at the key is that if that constructor ever reads anything else, that thing belongs in the key. **Review-verified at every consumer, and it buys a proof:** `containerCross == nil` and "the cross mode is non-nil" are the same condition, so `flexBaseSize`'s cross-axis `?? .maxContent` is unreachable — measured, `fatalError()` there leaves the suite green. It stays as a total-function default and says so. | Two sources of truth for a container's extent, and a stale cache entry the moment the query stops being derived from the key's own fields. |
 
-| CS-I | **An `auto` root axis keeps the space it was offered; only the case with NO offered extent measures.** Spec §1 lists `resolveRootSize`'s `auto` axis as one of the four constant-substituting sites, and the constant it names — "falls back to the offered space" — turns out to be **two** constants: the offered extent when there is one, and a hardcoded 0 when there is not. Only the second is replaced. CSS's answer for the first was implemented and measured before being reverted: a block-level root fills its inline axis and shrink-wraps its block axis, WebKit gives **800 × 40** for an 800×600 viewport holding one 100×40 child, and taking that answer reddened **six** element-pipeline and frame-loop tests (`paddingEdgesAreNotTransposed`, `marginEdgesAreNotTransposed`, `alignItemsAndAlignSelfBothReachTheEngine`, `resizingTheWindowDirtiesItAndTheNextFrameLaysOutAtTheNewSize`, `aRealAppKitResizeDirtiesTheWindowAndTheNextFrameReflows`, and one more in the same file) — all because a `Row { … }` rendered into a `Frame` declares no height and the window's root would collapse. Ruling **EP-5** (SwiftUI's answer over CSS's) and **EP-6** (`Column`/`Row` keep `stretch` so a root fills its surface) are the governing rulings, and `computeLayout`'s `available:` is a window rather than a viewport. Recorded as CLAUDE.md's **fourth** known divergence, with WebKit's numbers. | The framework's root silently stops filling its window, and the six tests that catch it are in a different target from the change. Conversely, if this ruling is wrong, an app that *wants* a shrink-wrapped root has no way to ask for one — the workaround is an explicit size, which every fixture already uses. |
+| CS-I | **An `auto` root axis keeps the space it was offered; only the case with NO offered extent measures.** Spec §1 names `resolveRootSize`'s `auto` axis as one of the four sites, and the constant it names — "falls back to the offered space" — is really **two** constants: the offered extent when there is one, and a hardcoded 0 when there is not. Only the second is replaced. **The justification is `computeLayout`'s contract**: the engine's root is not a block box in a CSS initial containing block, it is a node whose size its host supplies, and `.definite(w)` on an axis of `available:` is the host saying "this axis is w". A browser has no equivalent — its root's containing block is the viewport by construction and it is never *told* a size. **Not EP-5**, whose own text ends "the WebKit corpus stays the oracle for the engine; this ruling binds everything above it" — `resolveRootSize` is inside the engine, and citing EP-5 here reads it past its boundary and weakens it. The evidence is behavioural: CSS's answer (WebKit **800 × 40** for an 800×600 viewport holding one 100×40 child) was implemented and reverted because it reddens **six** element-pipeline and frame-loop tests, all because a `Row { … }` rendered into a `Frame` declares no height and the window root would collapse. **The engine can still express CSS's answer** — a host offering `.maxContent` on the block axis takes the measuring branch and gets 40 — so this is an interpretation of one call shape, not a disagreement with WebKit. Recorded as CLAUDE.md's **fourth** known divergence. | The framework's root silently stops filling its window, and the six tests that catch it are in a different target from the change. Conversely, if this is wrong, a host that wants a shrink-wrapped root must ask with `.maxContent` rather than with a definite extent — which is expressible, but undiscoverable from the signature. |
 | CS-J | **Only a literal `auto` cross size is measured; an unresolvable percentage stays 0.** CSS says a percentage against an indefinite basis behaves as `auto`, which would put it through `measureNode` too. WebKit does not: a `height: 50%` child of an auto-height flex item measures **0**, not its content (probed). So `ownCross` switches on the declaration, not on whether `resolveNodeSize` returned something. The same rule already governs `resolveRootSize` (a percentage root size keeps the offered-space fallback, spec §2). | Percentage cross sizes silently acquire content sizing, moving every nested percentage layout away from WebKit — and no fixture in the corpus would notice, because a percentage cross size against a *definite* container resolves and never reaches this branch. |
 | CS-K | **The hypothetical cross size is measured at max-content, with the item's HYPOTHETICAL main size as `known` — three separate choices, each probed.** (1) `known` main is `hypothetical`, not `base`: §9.4 step 7 says "perform layout with the **used** main size", which at that point is the base size already clamped by the item's own main min/max. The two differ exactly when a min/max binds. (2) The cross axis is offered `.maxContent` and never `.definite(containerCross)` — `measureNode` turns a definite available extent into the measured node's OWN extent (its `probe`), so offering the container's cross extent would make the item that tall and let its children's cross percentages resolve against it, which CS-J's probe shows WebKit does not do. (3) `.maxContent` rather than fit-content: an item whose content is 150 tall inside an 80-tall row measures **150** in WebKit and overflows. The mode is hardcoded rather than taken from `intrinsic`, for the same reason §4.5's probe is — the hypothetical cross size is a property of the item, not of the question the container was asked, and ruling CS-H's lesson is that a fourth propagation site would need a fourth guard test. | (2) is the one that fails silently: the returned border box would still be items-derived and correct, and only the *percentages inside the measured subtree* would be resolved against a fiction. No existing test has a percentage inside an auto-cross item. |
-| CS-L | **`LayoutContext.maxDepth` falls from 64 to 16, and the number is a re-measurement rather than a decision.** Wiring made `measureNode` recurse for real, and one tree level now costs `measureNode` → `layOutChildren` → `collectItems` → its item closure → `flexBaseSize` → `measureNode` on top of `placeNode` → `positionItems`. Bisected with the constant raised out of the way: a **256 KB thread reaches 26 levels and SIGBUSes at 27** (was ~110), a Swift Testing task reaches **53 and dies at 54** (was 196), an 8 MB thread clears 400. `layingOutATreeDeeperThanTheLimitTraps` went RED on the wiring commit — the stack won and the guard never printed — which is exactly the failure the 64 decision existed to prevent, arriving from the direction that decision predicted ("Task 4's measurement recursion adds frames per level"). 16 keeps that decision's criterion (fire before the stack dies on the *smallest* stack measured) at the same margin: 64/110 and 16/27 are both ≈0.58. | A 17-deep UI tree now traps with a cycle message that names no cycle. The alternative is worse — an unattributed SIGBUS — but the real fix is to shrink the per-level frames or make the descent iterative, not to raise the constant, and this is the first time the guard's ceiling has been *below* a plausible real tree. |
+| CS-L | **`LayoutContext.maxDepth` stays 64, and the measurement behind the number is now stated as a DEBUG figure.** Wiring made `measureNode` recurse for real: one tree level costs `measureNode` → `layOutChildren` → `collectItems` → its item closure → `flexBaseSize` → `measureNode` on top of `placeNode` → `positionItems`, and the stack ceilings fell ~4×. `layingOutATreeDeeperThanTheLimitTraps` went red on the wiring commit — SIGBUS, empty stderr, the stack winning before the guard could name anything. **The first fix was to drop the constant to 16, and that was wrong.** It bisected on a Swift Testing exit-test task and on an explicit 256 KB thread, and **neither is a stack this framework runs on** — `Frame.computeRootLayout` is `@MainActor`, so the floor is a 1 MB iOS main thread. A test harness was setting a production capability limit, `precondition` is live in `-O`, and `Column { Row { Box { … } } }` reaches 17 trivially: 16 was a shipping crash that would have reported "the child lists contain a cycle" for a tree with no cycle. The fix is to size the *test's* stack instead — `layingOutATreeDeeperThanTheLimitTraps` now runs its layout on an explicit 4 MB `Thread` — and to keep 64, which is 64/107 against the smallest **real** stack's debug ceiling: the same 0.60 margin the original 64 decision used. Measured ceilings (bisected, this branch): 256 KB **27 debug / 167 release**, 1 MB **107 / 654**; per level ~9,800 B debug and ~1,600 B release, i.e. **release is ~6× cheaper**. Quoting only the debug figure is how the next person re-measures in `-O`, gets a sixth of it, and concludes the table is wrong. | A guard whose ceiling is set by whichever stack the test harness happens to hand over. In one direction that is an unattributed SIGBUS in production; in the other — the direction this actually went — it is a `precondition` firing on an ordinary three-deep UI. |
+
+## EP-6 is unblocked — recorded, not re-decided
+
+**This is the milestone's stated purpose, and it was about to go unrecorded at
+the moment it was achieved.** The element-pipeline decisions doc's ruling EP-6
+keeps `Column`/`Row` on CSS's `stretch` cross-axis default, and its reason is a
+mechanism rather than a preference:
+
+> an `auto` cross size resolves to **0** in this engine … so a centred child
+> with no explicit cross size would measure 0 and **paint nothing at all** …
+> EP-5's stack half is *blocked on* recursive subtree measurement: it is a
+> prerequisite, not an application.
+
+**Task 5 supplied that prerequisite.** An `auto` cross size now measures its
+subtree (`collectItems`' `ownCross`), so a centred child with content no longer
+paints nothing. EP-6's blocking reason is gone and the stack-default question —
+SwiftUI centres, CSS stretches — is open for a deliberate re-decision.
+
+**It is deliberately not re-decided here.** Changing `Column`/`Row`'s default is
+an API change in `MetalUI`, not an engine change, and it belongs with whoever
+takes EP-5's stack half; content sizing's whole scope was the prerequisite. Two
+things a re-decision must not assume:
+
+- **A childless `Box` still measures 0.** The demo's sidebar boxes have no
+  children, so they would paint nothing under `center` today exactly as they
+  would have before. What changed is that a child *with content* no longer
+  does — the default is now a choice rather than a workaround.
+- **A leaf still has no production `MeasureFunction`** (`newLeaf` has no caller
+  in `Sources/`), so "content" means "a subtree of nodes" until M2, not text.
+
+Three places paraphrased EP-6 as "keeps `Column`/`Row` on stretch so a root
+fills its surface", which is not what it says and is not why: `FlexEngine.swift`'s
+`resolveRootSize`, CLAUDE.md's fourth divergence, and ruling CS-I. All three are
+corrected, and `Sources/MetalUIDemo/main.swift` — the only citation in shipping
+code — now records that the reason expired.
 
 **A letter collision, resolved here rather than left to a grep.** Task 3's
 report and commit called the `MeasureKey` ruling **CS-E**; the branch log
@@ -49,26 +84,25 @@ code, that tells the reader not to look.
 
 ## The depth guard's ceiling — a measurement, not a ruling
 
-`LayoutContext.maxDepth` was 256 and is now **64**. This is not a ruling because
-nothing was decided: the number was measured, and 256 failed.
+**Superseded by ruling CS-L above; kept for the history, which is the part that
+repeated.** This section recorded `maxDepth` going 256 → 64 after a bisection
+found 196 levels laying out and 197 dying with SIGBUS on a Swift Testing
+exit-test task, ~110 on an explicit 256 KB thread, and 256 reached only on the
+main thread — so at 256 the guard fired on the roomiest stack alone.
 
-Raising the constant out of the way and laying out N nested nodes gives, by
-bisection: **196 levels lay out and 197 dies with SIGBUS** on a Swift Testing
-exit-test task; review measured ~110 on an explicit 256 KB thread, and the main
-thread's 8 MB reaching 256 and trapping properly. So at 256 the guard fired on
-the main thread alone, and on every other stack the `placeNode` →
-`positionItems` recursion exhausted the stack first — the exact unattributed
-crash the guard exists to prevent.
+Content sizing invalidated every number in it. The current ceilings, and the
+current constant, are in ruling CS-L. What did **not** change is the lesson
+underneath, and it caught this branch out twice in opposite directions:
 
-**The lapse was invisible to the tests that existed**, and that is the part to
-carry: both depth tests entered the context by hand, so neither ever ran a real
-recursion and neither could see how far one gets.
-`layingOutATreeDeeperThanTheLimitTraps` now lays out `maxDepth + 1` **real**
-nested nodes and asserts the guard's own message on stderr — green at 64, red at
-256 — so the next change to the constant is a measurement rather than a claim.
-The boundary moves with frame size, and Task 4's measurement recursion adds
-frames per level.
+> **The lapse was invisible to the tests that existed**, because both depth
+> tests entered the context by hand and neither ever ran a real recursion.
 
+`layingOutATreeDeeperThanTheLimitTraps` was written to close that, and it
+worked — it is what caught the wiring. But it laid out on whatever stack the
+harness handed over, so the *fix* it prompted was to shrink the production
+limit to fit the harness. It now sizes its own thread. **A depth guard is a
+statement about the stacks the framework runs on, and a test that measures the
+harness will keep proposing the harness's answer.**
 
 ## The re-baseline — what moved, and the finding that the diff is empty
 
@@ -169,10 +203,27 @@ shrinks far enough to meet a floor.
 
 Design §5.2 lists five mutations that must redden. The two the re-baseline owns:
 
-| mutation | reddens, of 334 | golden comparisons among them |
+All figures `--no-parallel`, on 334 tests.
+
+| mutation | reddens | golden comparisons among them |
 |---|---|---|
 | `measureNode` returns 0 for a container (the pre-milestone bug, restored) | **15** | **0** |
-| `.minContent` / `.maxContent` swapped at the two sites that name them | **3** | **1** |
+| `.minContent` / `.maxContent` swapped at the two sites that name them | **6** | **2** |
+
+**"Returns 0 for a container" has two readings, and both were measured**, since
+the weaker one is the honest test of the guards: an unconditional `SizeD(0, 0)`
+and a `known`-respecting `SizeD(known.width ?? 0, known.height ?? 0)` redden the
+**same 15 tests**, differing by a single expectation (28 issues vs 27). The
+`known`-respecting spelling is what a real regression would look like, and it is
+caught just as well.
+
+**`--no-parallel` is load-bearing on these numbers.** The parallel runner drops
+failing-test *names* from the log when failures print concurrently: the
+composite mode swap reported **3** tests in a parallel run and **6** under
+`--no-parallel`, with an identical issue count both times. The summary line's
+issue count is the stable number; a test count scraped from the log body is not
+— taxonomy shape 11 one level in, since the summary line was right and the
+thing read instead of it was wrong.
 
 The first is the important number and the important zero. Fifteen tests see the
 bug this milestone exists to fix and **not one of them is a fixture** —
@@ -186,7 +237,9 @@ the non-mover list above.
 
 The second is broken out per site in the carried risk below, where the surprise
 is: the §4.5 half **does** redden two goldens, which the carried risk had said
-was impossible.
+was impossible. The composite is the exact **union** of its two halves — there
+is no masking effect on this branch, and the first version of this document
+claimed there was.
 
 ### What that list is for
 
@@ -205,8 +258,10 @@ get wrong without anything noticing:
 3. a nested container with **`auto` on its main axis** (site 1), which no
    fixture and no committed test currently exercises through `computeLayout`.
 4. **auto height at two levels**, per spec §5.2.
-5. a `wrap` container where **min-content and max-content genuinely differ** —
-   still the mutation the corpus cannot redden (see the carried risk).
+5. a `wrap` container whose **own reported size** differs between the two
+   queries. Note this is narrower than it was first written: §4.5's probe half
+   of the mode swap *does* redden two goldens (Group B), so what is missing is
+   specifically `flexBaseSize`'s half — see the carried risk.
 6. a **percentage cross size inside an auto-cross item**, which ruling CS-J
    decides against measuring and which nothing pins but a probe.
 
@@ -216,12 +271,54 @@ get wrong without anything noticing:
 |---|---|---|---|
 | `autoCrossNestedContainerCollapsesItsLineUnlikeWebKit` → renamed `…MeasuresItsLineLikeWebKit` | `x` 120×**0**, `y` at y=**0** | `x` 120×**50**, `y` at y=**50** — WebKit's own numbers | 3 |
 | `autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot` | root 800×600 | **unchanged**, after ruling CS-I reverted the CSS answer | 4 |
-| `layingOutATreeDeeperThanTheLimitTraps` | green at `maxDepth = 64` | red — SIGBUS before the guard; green again at `maxDepth = 16` | ruling CS-L |
+| `layingOutATreeDeeperThanTheLimitTraps` | green at `maxDepth = 64`, laying out on the harness's own stack | red — SIGBUS before the guard could print; green again at 64 once the layout runs on an explicit 4 MB `Thread` | ruling CS-L |
 
 Three tests were added and none deleted: `anAutoRootWithNoOfferedExtentMeasuresItsContent`,
 `aContainerItemsBaseSizeComesFromItsChildren`,
 `aContainerItemIsFlooredByItsChildrensWidth`. Suite: **331 → 334**, and the
 direction is the one ruling CS-B cares about.
+
+**Two tests were renamed, and a rename is a change a reviewer tracks even when
+no number moves.** `autoCrossNestedContainerCollapsesItsLineUnlikeWebKit` →
+`…MeasuresItsLineLikeWebKit` is in the table above because its numbers did
+move. `FlexBaseSizeTests.autoBasisWithNoMeasureFunctionIsZero` →
+`autoBasisWithNoMeasureFunctionOrChildrenIsZero` is **not**, because its answer
+is still 0 — but the *reason* changed from "there is no measure function" to
+"measuring a childless node returns its padding and border", and the old name
+asserted the old reason. Its cross-reference in `FlexEngineTests` was missed on
+the first pass and is fixed.
+## The cost of measuring — the milestone's largest unrecorded consequence
+
+Not a defect and not a ruling: a measurement, recorded next to CS-L because the
+two share a cause. §4.5's automatic minimum probes **every** item
+(`min-width: auto` is CSS's default), and an `auto`-cross item probes again, so
+a container's children are each measured up to three times per layout.
+
+Branching trees, `depth` levels of `branch` children each, interior nodes
+auto-sized flex containers and leaves 10×10. "Before" is the same engine with
+`measureNode` returning early, i.e. the pre-milestone cost profile:
+
+| tree | nodes | debug before | debug after | release before | release after |
+|---|---|---|---|---|---|
+| depth 12, branch 2 | 8,191 | 72.8 ms | **372.0 ms** | 10.2 ms | **45.0 ms** |
+| depth 10, branch 3 | 88,573 | 708.4 ms | **3,504.4 ms** | 96.3 ms | **456.9 ms** |
+
+**Complexity is unchanged — the constant factor is ~4.9×.** Per node: ~8 µs
+before and ~40 µs after in debug, ~1.2 µs and ~5.3 µs in release, and each is
+flat from 8 k to 88 k nodes, which is the evidence the memo cache is doing its
+job. Design §3.3 predicted "~700× at depth 6" without memoization; the cache
+turns that into a constant multiplier instead of a depth-exponential one, which
+is exactly what it was specified to do.
+
+**The single-chain measurement taken during the task showed linearity correctly
+and could not have shown this**, because a chain has one child per level and
+the three probes per item collapse onto the same few cache keys. A branching
+tree is what makes the per-item probe count visible. Whoever optimises this
+should start there: the §4.5 probe is the one that fires unconditionally.
+
+Release figures are ~8× faster in absolute terms but the ratio is the same, so
+quoting only the debug numbers would overstate the absolute cost and understate
+nothing.
 
 ## Carried risk
 
@@ -309,20 +406,36 @@ direction is the one ruling CS-B cares about.
   container can, and Group B put four of them in the corpus before this
   milestone existed.
 
-  Measured, on 334 tests (see ruling CS-L's sibling note on why each half is
-  reverted alone):
+  Measured on 334 tests, `--no-parallel`, each site reverted alone:
 
-  | mutation | reddens | of which golden comparisons |
-  |---|---|---|
-  | §4.5 probe modes swapped | 4 | **2** (`wrapNestedPercentPaddingMatchesWebKit`, `wrapAlignContentAroundAndEvenlyMatchWebKit`) |
-  | `flexBaseSize`'s main-axis `?? .maxContent` → `.minContent` | 2 | 0 |
-  | both together | 3 | 1 |
+  | mutation | reddens | issues | of which golden comparisons |
+  |---|---|---|---|
+  | §4.5 probe modes swapped | 4 | 20 | **2** (`wrapNestedPercentPaddingMatchesWebKit`, `wrapAlignContentAroundAndEvenlyMatchWebKit`) |
+  | `flexBaseSize`'s main-axis `?? .maxContent` → `.minContent` | 2 | 2 | 0 |
+  | both together | **6** | **22** | **2** — the exact union |
 
-  **The composite is weaker than either half**, which is the reason to revert
-  sites one at a time: `aContainersIntrinsicQueryReachesItsChildren` and
-  `automaticMinimumSizeUsesContentSizeNotFlexBasis` each go green again when
-  the other site is also wrong. A single "swap everything" mutation would have
-  reported 3 and hidden a site.
+  **There is no masking effect, and the first version of this paragraph claimed
+  one.** It said the composite was "weaker than either half" and named
+  `aContainersIntrinsicQueryReachesItsChildren` and
+  `automaticMinimumSizeUsesContentSizeNotFlexBasis` as going green again when
+  both sites are wrong. Both are **red** in the composite. The composite is the
+  exact union — 4 + 2 = 6 tests, 20 + 2 = 22 issues, 2 goldens — and the 22 was
+  in the original data, where it should have been read as the union and was
+  not.
+
+  **The cause was a bad measurement method, and it is worth more than the
+  claim was.** The failing-test count was extracted by grepping the *parallel*
+  streaming log, which drops names when failures print concurrently: the same
+  mutation reported **3** tests in one run and **6** under `--no-parallel`,
+  with the issue count identical in both. Every number in this document's
+  mutation tables is now a `--no-parallel` measurement. The taxonomy's shape 11
+  says to read the summary line rather than the exit status; this is the
+  sharper form — **the summary line's issue count is the stable number, and a
+  test count scraped from the log body is not**.
+
+  Reverting sites one at a time is still the right practice, because a
+  composite *can* mask. It simply does not here, and there is no evidence for
+  it on this branch.
 
   What still has no fixture is a container whose **own reported size** differs
   between the two queries — the `flexBaseSize` row above, 0 goldens. That is

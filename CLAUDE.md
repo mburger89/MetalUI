@@ -165,26 +165,37 @@ containing block, so a browser fills its inline axis and shrink-wraps its block
 axis. Measured: an 800×600 viewport holding `#root { display: flex }` with one
 100×40 child gives WebKit **800 × 40**. This engine gives **800 × 600**.
 
-CSS's answer was implemented and reverted, not skipped: it reddens six
-element-pipeline and frame-loop tests at once, all for one reason — a
-`Row { … }` rendered into a `Frame` declares no height, so the window's root
-would collapse to its content and every `flexGrow(1)` child would stretch into
-0. Ruling **EP-5** takes SwiftUI's answer where the two differ, and SwiftUI's
-root fills the window; **EP-6** keeps `Column`/`Row` on `stretch` for the same
-reason. `computeLayout`'s `available:` is a window, not a viewport.
+**The justification is `computeLayout`'s contract, not a ruling from a layer
+above.** The engine's root is not a block box in a CSS initial containing
+block; it is a node whose size its host supplies, and `.definite(w)` on an axis
+of `available:` is the host saying "this axis is w". A browser has no
+equivalent — its root's containing block is the viewport by construction, and
+it is never *told* a size. **Do not cite EP-5 here**: that ruling ends "the
+WebKit corpus stays the oracle for the engine; this ruling binds everything
+above it", and `resolveRootSize` is inside the engine.
 
-**No fixture holds this one, and that is a choice rather than an
-impossibility.** `#root { display: flex }` with no `width` or `height` is
-perfectly expressible, and a golden generated from it would say 800×40 and fail
-— so the corpus deliberately contains none, on the same footing as WebKit's
-flex sub-one clause above. All 57 roots declare both axes, which is also why
-the corpus never distinguished the two answers; `FixtureHygieneError` does not
-enforce that, it only checks the root lands at (0, 0).
+The evidence is behavioural. CSS's answer was implemented and reverted, and it
+reddens six element-pipeline and frame-loop tests at once, all for one reason —
+a `Row { … }` rendered into a `Frame` declares no height, so the window's root
+would collapse to its content and every `flexGrow(1)` child would stretch into 0.
 
-What content sizing *did* change here is the other constant hiding in the same
-branch — an `auto` axis with **no offered extent at all** was a hardcoded 0 and
-is now the subtree's own size. A browser cannot express an indefinite viewport,
-so that half is reasoned from CSS's shrink-to-fit rule; it is pinned by
+**The engine can still express CSS's answer**, which is what makes this "we
+interpret one call shape differently" rather than "we disagree with WebKit": a
+host that offers `.maxContent` on the block axis takes the measuring branch and
+gets the shrink-wrapped 40. Only the meaning of a *definite* offered extent on
+an `auto` axis differs.
+
+**A fixture could hold this one; the corpus deliberately has none.**
+`#root { display: flex }` with no `width` or `height` is perfectly expressible,
+and its golden would say 800×40 and fail — same footing as WebKit's flex
+sub-one clause above. That all 57 roots declare both axes explains why no
+*existing* fixture notices, not why one could not exist;
+`FixtureHygieneError` does not enforce it, it only checks the root lands at
+(0, 0).
+
+What content sizing *did* change here is the other constant in the same branch
+— an `auto` axis with **no offered extent at all** was a hardcoded 0 and is now
+the subtree's own size, pinned by
 `anAutoRootWithNoOfferedExtentMeasuresItsContent`.
 
 ## Declared but inert — verified, not remembered

@@ -259,7 +259,9 @@ func assertMatchesGolden(
 /// Replaces `autoSizedChildTakesItsContainersExtentForNow`. The Task 7
 /// fallback (auto -> container extent) is deleted here and never comes back:
 /// this pins `collectItems`' wiring through `computeLayout`, not §9.2 itself
-/// (that's `FlexBaseSizeTests.autoBasisWithNoMeasureFunctionIsZero`, which
+/// (that's `FlexBaseSizeTests.autoBasisWithNoMeasureFunctionOrChildrenIsZero`,
+/// renamed by content sizing because the reason changed while the number did
+/// not — see its own comment — and which
 /// pins the free function directly). A child with no measure function, no
 /// definite size and **no children** is zero because that is what measuring it
 /// returns — its own padding and border — not because flex base size is
