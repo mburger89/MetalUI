@@ -222,3 +222,88 @@ import MetalUICore
     #expect(table.peek(GlobalElementID.child(of: elseBranch, at: 0, name: nil),
                        as: Int.self) == 1)
 }
+
+// MARK: - `OptionalGroup` — an `if` with no `else`
+
+/// An element after a vanishing `if` **adopts that element's state entry**; it
+/// does not reset.
+///
+/// **This is the pin the plan's risk list and design spec §5 both claimed
+/// already existed.** Both say "adding a sibling shifts later siblings'
+/// identity" is *pinned as deliberate*, and before this test `grep` found no
+/// test pinning it — one inaccurate sentence at `OptionalGroup` was standing in
+/// for two claimed pins. The sentence said the later siblings were "reset",
+/// which is what intuition says and is not what happens: `OptionalGroup`
+/// consumes no index when absent, so the trailing element slides from
+/// `.positional(1)` to `.positional(0)` and finds the vanished element's entry
+/// sitting there.
+///
+/// **Deliberate, per ruling EP-5**, because it is SwiftUI's behaviour for an
+/// unkeyed `if`. It is a sharp edge and the remedy is the test below.
+@MainActor
+@Test func anElementAfterAVanishingIfAdoptsTheVanishedElementsState() {
+    let table = StateTable()
+    let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
+
+    for flag in [true, false] {
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+        var row = Row {
+            if flag { CountingElement(nil) }
+            CountingElement(nil)
+        }
+        frame.render(&row)
+    }
+
+    let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+    // 2, not 1: the trailing element continued a count it never started. A
+    // `1` here would mean the slot was reset; a `nil` at slot 0 with `2` at
+    // slot 1 would mean the absent branch had reserved its index.
+    #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: nil), as: Int.self) == 2)
+    #expect(table.peek(GlobalElementID.child(of: root, at: 1, name: nil), as: Int.self) == nil)
+    #expect(table.count == 1)
+}
+
+/// Naming the **later sibling** is the remedy; naming the conditional content is
+/// not.
+///
+/// Both halves are asserted because the obvious advice is the wrong one. A name
+/// replaces a position (`PathComponent`), so a named trailing element is not in
+/// the shifting index space at all and carries its count across the flip —
+/// **2**, and no adoption. Naming the *conditional content* instead moves only
+/// the vanishing element out of slot 0, which stops the adoption and leaves the
+/// trailing element starting from scratch at slot 0 — **1**. That is better than
+/// inheriting a stranger's state and still not "survives".
+@MainActor
+@Test func namingTheLaterSiblingIsWhatSurvivesAVanishingIf() {
+    let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
+    let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+
+    // Remedy: the trailing element carries a name.
+    let named = StateTable()
+    for flag in [true, false] {
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: named)
+        var row = Row {
+            if flag { CountingElement(nil) }
+            CountingElement("tail")
+        }
+        frame.render(&row)
+    }
+    #expect(named.peek(GlobalElementID.child(of: root, at: 0, name: ElementID("tail")),
+                       as: Int.self) == 2)
+    #expect(named.count == 1)
+
+    // Not the remedy: the *conditional content* carries the name instead.
+    let misplaced = StateTable()
+    for flag in [true, false] {
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: misplaced)
+        var row = Row {
+            if flag { CountingElement("conditional") }
+            CountingElement(nil)
+        }
+        frame.render(&row)
+    }
+    // No adoption — but the trailing element still moved slot and restarted.
+    #expect(misplaced.peek(GlobalElementID.child(of: root, at: 0, name: nil),
+                           as: Int.self) == 1)
+    #expect(misplaced.count == 1)
+}

@@ -214,8 +214,30 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
 
     /// Forwards the cursor when the group is present and consumes nothing when
     /// it is absent, so an `if` that goes false **shifts every later sibling's
-    /// index** and resets their state. That is SwiftUI's behaviour for an
-    /// unkeyed `if` and is deliberate; `.id()` on the siblings is the escape.
+    /// index down by however many elements the branch held**.
+    ///
+    /// **The later sibling does not reset — it ADOPTS the vanished element's
+    /// state entry**, and the difference matters because every reader's
+    /// intuition says "reset". This comment claimed the reset for one commit and
+    /// was corrected by measurement, the same way `EitherGroup`'s branch
+    /// collision above was. On `Row { if flag { C() }; C() }` across a flip the
+    /// trailing element lands on the vanished element's `.positional(0)` and
+    /// reads **2**, not 1. Pinned as deliberate by
+    /// `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`.
+    ///
+    /// It is deliberate because it is SwiftUI's behaviour for an unkeyed `if`
+    /// (ruling EP-5), and because the alternative — a positional slot reserved
+    /// for an absent branch — makes the index space depend on branch *width*,
+    /// which is the thing `EitherGroup`'s `+= 2` above buys precisely because
+    /// there the width is bounded at two and here it is not.
+    ///
+    /// **The remedy is naming the LATER SIBLINGS, not the conditional content**,
+    /// and that distinction is measured rather than assumed
+    /// (`namingTheLaterSiblingIsWhatSurvivesAVanishingIf`). A name replaces a
+    /// position, so a named sibling leaves the shifting space entirely and keeps
+    /// its state across the flip. Naming the *conditional content* only stops
+    /// the adoption — the trailing sibling still moves from index 1 to index 0
+    /// and still starts from scratch there.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
@@ -282,9 +304,22 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
     case first(First)
     case second(Second)
 
+    /// Each case carries **the branch's own id** alongside the branch's layout.
+    ///
+    /// It is stored for the same reason `SingleElementLayout.id` is: the id is
+    /// derived from a cursor that only `requestGroupLayout` has, so the later
+    /// phases cannot recompute it and must be handed the one layout built. The
+    /// alternative — forwarding the *container's* `parent` down to a branch
+    /// whose members hang under `branch` — threads a value that is simply wrong,
+    /// and it was wrong here for one commit without a single test noticing,
+    /// because no conformance reads `parent` in those two phases at all.
+    ///
+    /// **When `under parent:` leaves `prepaintGroup`/`paintGroup` this id loses
+    /// its only reader and must be deleted with it.** It is not carrying state
+    /// for its own sake.
     public enum Layout {
-        case first(First.GroupLayout)
-        case second(Second.GroupLayout)
+        case first(GlobalElementID, First.GroupLayout)
+        case second(GlobalElementID, Second.GroupLayout)
     }
 
     public enum Prepaint {
@@ -323,28 +358,32 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
             let branch = GlobalElementID(component: .positional(branchIndex), parent: parent)
             let (nodes, layout) = group.requestGroupLayout(under: branch, at: &inner, pass: &pass)
             self = .first(group)
-            return (nodes, .first(layout))
+            return (nodes, .first(branch, layout))
         case .second(var group):
             var inner = 0
             let branch = GlobalElementID(component: .positional(branchIndex + 1), parent: parent)
             let (nodes, layout) = group.requestGroupLayout(under: branch, at: &inner, pass: &pass)
             self = .second(group)
-            return (nodes, .second(layout))
+            return (nodes, .second(branch, layout))
         }
     }
 
+    /// **`parent` is deliberately not forwarded.** A branch's members hang under
+    /// the branch id, not under the container, so the correct value to thread is
+    /// the stored one — see `Layout`. Nothing reads it either way today, which
+    /// is exactly how the wrong value survived a whole task here.
     public mutating func prepaintGroup(under parent: GlobalElementID?, layout: inout Layout,
                                        pass: inout PrepaintPass) -> Prepaint {
         switch (self, layout) {
-        case (.first(var group), .first(var inner)):
-            let prepaint = group.prepaintGroup(under: parent, layout: &inner, pass: &pass)
+        case (.first(var group), .first(let branch, var inner)):
+            let prepaint = group.prepaintGroup(under: branch, layout: &inner, pass: &pass)
             self = .first(group)
-            layout = .first(inner)
+            layout = .first(branch, inner)
             return .first(prepaint)
-        case (.second(var group), .second(var inner)):
-            let prepaint = group.prepaintGroup(under: parent, layout: &inner, pass: &pass)
+        case (.second(var group), .second(let branch, var inner)):
+            let prepaint = group.prepaintGroup(under: branch, layout: &inner, pass: &pass)
             self = .second(group)
-            layout = .second(inner)
+            layout = .second(branch, inner)
             return .second(prepaint)
         default:
             preconditionFailure(Self.mismatch("prepaint"))
@@ -354,17 +393,17 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
     public mutating func paintGroup(under parent: GlobalElementID?, layout: inout Layout,
                                     prepaint: inout Prepaint, pass: inout PaintPass) {
         switch (self, layout, prepaint) {
-        case (.first(var group), .first(var innerLayout), .first(var innerPrepaint)):
-            group.paintGroup(under: parent, layout: &innerLayout,
+        case (.first(var group), .first(let branch, var innerLayout), .first(var innerPrepaint)):
+            group.paintGroup(under: branch, layout: &innerLayout,
                              prepaint: &innerPrepaint, pass: &pass)
             self = .first(group)
-            layout = .first(innerLayout)
+            layout = .first(branch, innerLayout)
             prepaint = .first(innerPrepaint)
-        case (.second(var group), .second(var innerLayout), .second(var innerPrepaint)):
-            group.paintGroup(under: parent, layout: &innerLayout,
+        case (.second(var group), .second(let branch, var innerLayout), .second(var innerPrepaint)):
+            group.paintGroup(under: branch, layout: &innerLayout,
                              prepaint: &innerPrepaint, pass: &pass)
             self = .second(group)
-            layout = .second(innerLayout)
+            layout = .second(branch, innerLayout)
             prepaint = .second(innerPrepaint)
         default:
             preconditionFailure(Self.mismatch("paint"))
