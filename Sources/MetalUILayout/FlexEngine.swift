@@ -518,7 +518,8 @@ private func layOutChildren(
     // `resolveDimension` already take an optional basis and answer `nil` for a
     // percentage against one, which is CSS's rule for an unresolvable
     // percentage and the reason a percentage `gap` resolves to 0 here rather
-    // than to `inf * 0`.
+    // than to an INFINITE gap — `inf * 0.1` is `inf`, and the line's budget
+    // `containerMain - totalGap` is then `inf - inf`, which is NaN.
     let containerMain = isRow ? box.size.width : box.size.height
     let containerCross = isRow ? box.size.height : box.size.width
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
@@ -578,10 +579,11 @@ private func layOutChildren(
     // has to be free of it.
     //
     // `lineCrossSize(items)` rather than `lines[i].crossSize`: under `nowrap`
-    // the line's cross size *is* `containerCross` (§9.4.8's single-line
-    // clause), so reading it back would answer `measureNode` with the extent it
-    // was asked about — and `measureNode` probes an unbounded axis with
-    // `.infinity`, which would come straight back out.
+    // with a DEFINITE container cross size, the line's cross size *is*
+    // `containerCross` (§9.4.8's single-line clause), so reading it back would
+    // answer `measureNode` with the extent it was asked about. (Under an
+    // indefinite one the clause does not apply and the two agree — this is
+    // about the definite case, which is the one that could be wrong.)
     let contentCross = lines.reduce(0.0) { $0 + lineCrossSize($1.items) }
                      + crossGap * Double(lines.count - 1)
 
@@ -781,15 +783,30 @@ func placeNode(
 ///
 /// **Nothing in `Sources/` calls this yet** — wiring the four sites is the task
 /// after the one that split it out, and until then its only callers are in
-/// `MeasureNodeTests.swift`. One limit that whoever wires it inherits, named
-/// here because a caller cannot see it from the signature:
+/// `MeasureNodeTests.swift`. Two limits that whoever wires it inherits, named
+/// here because a caller cannot see either from the signature:
 ///
-/// **`.minContent` and `.maxContent` are indistinguishable for a container.**
-/// Both leave the axis indefinite, and `layOutChildren` then does not wrap, so
-/// a `wrap` container returns its max-content answer under either. Only a
-/// leaf's own `MeasureFunction` tells them apart today. Design §5.2 lists
-/// "`.minContent` and `.maxContent` swapped at a call site" as a mutation that
-/// must redden a fixture; it cannot until this is closed.
+/// 1. **`.minContent` and `.maxContent` are indistinguishable for a
+///    container.** Both leave the axis indefinite, and `layOutChildren` then
+///    does not wrap, so a `wrap` container returns its max-content answer under
+///    either. Only a leaf's own `MeasureFunction` tells them apart today.
+///    Design §5.2 lists "`.minContent` and `.maxContent` swapped at a call
+///    site" as a mutation that must redden a fixture; it cannot until this is
+///    closed.
+/// 2. **`flex-grow` does not apply here, and under CSS it would.** An
+///    indefinite main axis skips §9.7 (ruling CS-D) and every item keeps its
+///    hypothetical main size — but CSS does not run §9.7 under intrinsic
+///    sizing either: it runs **§9.9.1**, which sums max-content
+///    *contributions* and lets a flex fraction grow them. The two agree only
+///    while that fraction is ≤ 0. Measured on §9.9.1.1's own worked example
+///    (`flex-basis: 100px`, `min-width: 0`, a `MeasureFunction` returning 200):
+///    `flex-grow: 0` gives 100 here and 100 in CSS; `flex-grow: 1` gives
+///    **100 here and 200 in CSS**. Unreachable in production by mechanism —
+///    `flexBaseSize`'s content branch is the only route to a contribution
+///    larger than the base size and it needs a non-nil `tree.measure(item)`,
+///    which `newLeaf` alone supplies and nothing in `Sources/` calls. Task 4
+///    puts it in the path. Recorded in the content-sizing decisions doc with
+///    the same numbers.
 ///
 /// This doc used to carry a second limit — "an unbounded probe leaves a
 /// `flex-grow` item's target infinite … no test here can see it". **Both halves
@@ -837,7 +854,7 @@ func measureNode(
 /// **`.minContent` and `.maxContent` return `nil`, and the first version of this
 /// returned `.infinity` instead.** That was not a smaller mistake than it looks:
 /// a `flex-grow` item's target became `inf`, a percentage width became `inf`, a
-/// percentage `gap` became `inf * 0` = NaN, and each of the three sent §9.7's
+/// percentage `gap` turned the line's budget into `inf - inf`, and each sent §9.7's
 /// freeze loop past its pass cap — which `assertionFailure`s, killing the test
 /// process mid-run with no summary line rather than returning a wrong number.
 /// Ruling **CS-D**: indefinite is `nil` and the CSS rules for an indefinite

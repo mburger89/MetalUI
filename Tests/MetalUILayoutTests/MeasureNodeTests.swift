@@ -203,15 +203,30 @@ private func px(_ v: Double) -> Dimension { .length(.pixels(Pixels(Float(v)))) }
 // readable rather than just an exit code.
 
 /// `flex-grow` does not apply on an axis with no definite size: free space is
-/// indefinite, so §9.7 has nothing to distribute and the item keeps its flex
-/// base size.
-@Test func aGrowingItemUnderMaxContentKeepsItsBaseSize() async {
+/// indefinite, so §9.7 has nothing to distribute and the item keeps the size
+/// §9.7.2 would freeze it at — its **hypothetical** main size, which is its
+/// flex base size clamped by its own min/max, not the raw base.
+///
+/// **The `min-width` is what makes those two different numbers**, and without
+/// it this test cannot see the distinction its own branch is written around:
+/// with a plain 60px child, base and hypothetical are both 60, and mutating the
+/// indefinite branch from `hypotheticalMainSize` to `baseSize` reddened **0 of
+/// 322** (taxonomy shape 1 — uniform values on both sides of the assertion).
+/// Base 60, floored to 90 by `min-width`, so the mutation now lands on 60 and
+/// this expects 90. §9.9.1.1's own wording for this clamp is "clamped by the
+/// max main size floored by the min main size".
+///
+/// The grow half stays visible too: 90 is the floor, not a ceiling, so an item
+/// that *had* grown would report more than 90 rather than the same 90 — which
+/// is why this uses `min-width` and not `max-width`.
+@Test func aGrowingItemUnderMaxContentKeepsItsHypotheticalMainSize() async {
     let result = await #expect(processExitsWith: .success,
                                observing: [\.standardErrorContent]) {
         let tree = LayoutTree(generation: 0)
         var kid = Style()
         kid.size = Size(width: .length(.pixels(Pixels(60))),
                         height: .length(.pixels(Pixels(20))))
+        kid.minSize = Size(width: .length(.pixels(Pixels(90))), height: .auto)
         kid.flexGrow = 1
         let a = tree.newNode(style: kid, children: [])
         var row = Style()
@@ -223,7 +238,7 @@ private func px(_ v: Double) -> Dimension { .length(.pixels(Pixels(Float(v)))) }
                                available: AvailableSpaceSize(width: .maxContent,
                                                              height: .maxContent),
                                containingBlockWidth: nil)
-        #expect(size == SizeD(width: 60, height: 20))
+        #expect(size == SizeD(width: 90, height: 20))
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
     #expect(stderr.isEmpty, "the child wrote:\n\(stderr)")
@@ -262,9 +277,11 @@ private func px(_ v: Double) -> Dimension { .length(.pixels(Pixels(Float(v)))) }
 }
 
 /// A percentage `gap` against an indefinite basis resolves to 0 — CSS's rule
-/// for an unresolvable percentage. Under `.infinity` it was `inf * 0.1` for the
-/// main axis and NaN thereafter, which is the case that made the *container*,
-/// not the item, the thing that could not be measured.
+/// for an unresolvable percentage. Under `.infinity` it was an *infinite* gap —
+/// `inf * 0.1` is `inf` — and the line's budget `containerMain - totalGap` was
+/// then `inf - inf`, i.e. NaN. That is the case that made the **container**,
+/// not the item, the thing that could not be measured: the two children here
+/// are ordinary fixed boxes.
 @Test func aPercentageGapUnderMaxContentResolvesToZero() async {
     let result = await #expect(processExitsWith: .success,
                                observing: [\.standardErrorContent]) {

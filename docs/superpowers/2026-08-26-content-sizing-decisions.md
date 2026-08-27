@@ -17,7 +17,7 @@ lowercase `ruling`.
 | CS-A | **`collectItems` and `flexBaseSize` do not take `LayoutContext` yet.** Task 4 wires the four constant-substituting sites and needs `ctx` at both to recurse; Task 2 does not, and adding a parameter one task early means a task's worth of code where it exists and is unused — this repo's most-repeated bug shape (taxonomy shape 4). Task 2's `layOutChildren` calls both with their existing `rootFontSize:` signature. *(Task 2 did change `collectItems`' `containerSize:` from `SizeD` to `OptionalSizeD`, which CS-D forced and which is not what this ruling is about.)* | A parameter that exists and does nothing reads, from outside, exactly like an implemented one. |
 | CS-B | **A predicted test count is a prediction, never a target.** The Task 2 brief predicted 309 → 314; Task 1's fix round had already made it 310, and the task shipped at 318. The measured number wins, always, and a test is never adjusted, added or deleted to reach a predicted one. What *is* load-bearing is the direction: a count that **falls** without a deletion you can name is taxonomy shape 11 — a truncated run — and must be treated as a failure until explained. | A number in a plan quietly becomes an instruction, and someone deletes a real test to hit it. |
 | CS-C | **A test that asserts something does NOT trap must run in a subprocess** — `await #expect(processExitsWith: .success) { … }`, matching `usingAnIdAgainstItsOwnTreeDoesNotTrap`. Task 1 shipped `layoutClearsTheGuardWhenItFinishes` with a bare `setStyle` call after `computeLayout`; mutating the guard it protected killed the test process with signal 5, printing **no summary line at all** and destroying every other test's result (taxonomy shape 11). In-process, the mutation's diagnosis is "the suite vanished"; in a subprocess it is one red test. `#expect(processExitsWith:)` bodies are non-capturing, so each call site is written out in full rather than sharing a helper. | The mutation that proves a guard works also destroys the evidence that anything else does. |
-| CS-D | **An indefinite axis is `nil`. Never `.infinity`, never a large finite stand-in.** `measureNode`'s first version probed an unbounded axis with `.infinity`; `layOutChildren` then did arithmetic on it. Three ten-line containers — a `flex-grow: 1` child, a `width: 50%` child, and a percentage `gap` — each drove §9.7's freeze loop past its pass cap and `assertionFailure`d the **process**, signal 5, no summary line. `inf - inf` and `inf * 0` are NaN, every comparison against a NaN is false, so no item registers a violation and nothing ever freezes. The fix is CSS's own rule rather than a clamp: under an indefinite main size the free space is indefinite, so §9.7 has nothing to distribute and every item keeps its hypothetical main size; percentages against an indefinite basis are unresolvable and already resolve to `nil` in `resolveDimension`. §9.4.8's single-line clause is likewise keyed on the container cross size being **definite**. The one place a missing extent still becomes a number is `collectLines`' budget, where `.infinity` is a *comparison bound* and no arithmetic touches it. | The engine kills the process on a shape as ordinary as a `flex-grow` child — and in a release build, where the assertion is compiled out, silently returns NaN rects instead. |
+| CS-D | **An indefinite axis is `nil`. Never `.infinity`, never a large finite stand-in.** `measureNode`'s first version probed an unbounded axis with `.infinity`; `layOutChildren` then did arithmetic on it. Three ten-line containers — a `flex-grow: 1` child, a `width: 50%` child, and a percentage `gap` — each drove §9.7's freeze loop past its pass cap and `assertionFailure`d the **process**, signal 5, no summary line. `inf - inf` and `inf * 0` are NaN, every comparison against a NaN is false, so no item registers a violation and nothing ever freezes. The fix is CSS's own rule **for the definite-vs-indefinite question**: percentages against an indefinite basis are unresolvable and already resolve to `nil` in `resolveDimension`, and §9.4 step 8 / §9.4.8's single-line clause are keyed on the word *definite* in the spec itself. **What replaces §9.7 is a substitute, not a citation** — every item keeps its hypothetical main size, which equals §9.9.1's answer only while the chosen flex fraction is ≤ 0. See the carried risk below; that difference is the finding, and confusing the two halves of this ruling is how it would get lost. The one place a missing extent still becomes a number is `collectLines`' budget, where `.infinity` is a *comparison bound* and no arithmetic touches it. | The engine kills the process on a shape as ordinary as a `flex-grow` child — and in a release build, where the assertion is compiled out, silently returns NaN rects instead. |
 
 **CS-D was found by a reviewer's ten-line probe, not by the 318-test suite**, and
 the reason is worth keeping: every test in `MeasureNodeTests.swift` at the time
@@ -51,6 +51,35 @@ The boundary moves with frame size, and Task 4's measurement recursion adds
 frames per level.
 
 ## Carried risk
+
+- **Under intrinsic sizing the engine skips §9.7 where CSS runs §9.9.1, and
+  §9.9.1 applies `flex-grow`.** This is the one place the engine is knowingly
+  not CSS after CS-D, and it is the item Task 4 inherits.
+
+  The spec's own worked example, measured against this engine
+  (`flex-basis: 100px`, `min-width: 0`, a `MeasureFunction` returning 200 wide,
+  measured at `.maxContent`):
+
+  | | engine | CSS §9.9.1 |
+  |---|---|---|
+  | `flex-grow: 0` | 100 | 100 |
+  | `flex-grow: 1` | **100** | **200** |
+
+  CSS Flexbox §9.9.1.1 says it outright: *"when the item is `flex-grow: 0`, the
+  flex container is 100px wide, but when the item is `flex-grow: 1` or higher,
+  the flex container (and flex item) is 200px wide."* The mechanism is that CSS
+  does not run §9.7 under intrinsic sizing at all — it runs §9.9.1, which sums
+  each item's max-content **contribution** and *does* let a flex fraction grow
+  them. `layOutChildren`'s "keep the hypothetical main size" substitute equals
+  that only while every item's max-content contribution is at most its outer
+  flex base size, i.e. while the chosen flex fraction is ≤ 0.
+
+  **Unreachable in production by a nameable mechanism, not by a milestone:**
+  `flexBaseSize`'s content branch is the only route to a max-content
+  contribution larger than the base size, and it needs `tree.measure(item)` to
+  be non-nil — `newLeaf` is the only thing that populates it and has no
+  production caller. It is reachable from a test today (the table above is
+  one), and Task 4 is what puts it in the path.
 
 - **`measureNode` cannot tell `.minContent` from `.maxContent` for a
   container.** Both leave the axis indefinite and `layOutChildren` does not wrap,
