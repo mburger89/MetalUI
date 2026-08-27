@@ -184,17 +184,32 @@ positionally flat whatever the tuple shape) and it is more stable: under nesting
 changing *how* the builder groups could shift paths when the visible child order
 did not.
 
-The three phases each restart the cursor at 0 and traverse in the same order, so
-they agree by construction. A traversal that disagreed would already trap on
+**Only `requestGroupLayout` carries a cursor, and the design is stronger than
+this section originally described.** An earlier draft said "the three phases each
+restart the cursor at 0 and traverse in the same order, so they agree by
+construction". In fact `SingleElementLayout` and `AnyElement.GroupLayout`
+**store** the id built during layout — deliberately, so all three phases see the
+same path even if the element's `elementID` changes between them — so
+`prepaintGroup` and `paintGroup` read `layout.id` and never re-derive an index.
+The three phases cannot disagree about an index at all, rather than agreeing by
+convention. A traversal that disagreed would already trap on
 `ElementGroup`'s existing phase-mismatch preconditions — that machinery was built
 during the element pipeline and this reuses it rather than adding a parallel
 guard.
 
 ### 3.5 Two sub-decisions, both following SwiftUI
 
-- **`EitherGroup`'s branches get distinct components** (`.positional(0)` and
-  `.positional(1)`), so flipping an `if/else` resets state rather than carrying it
-  across two structurally different subtrees.
+- **`EitherGroup`'s taken branch gets an id of its own**, and its members number
+  from 0 *inside* it; the outer cursor advances by 2 either way.
+
+  **An earlier draft said the branches get `.positional(0)` and `.positional(1)`
+  directly in the parent's flat space, and that is wrong twice.** Literal 0 and 1
+  collide between two sibling `if`s in one container. And numbering each branch's
+  members directly in the parent's space separates the branches only while each
+  holds **one** element: measured on `if flag { C(); C() } else { C() }` across a
+  flip, the `else` element found the second `if`-branch element's entry and
+  incremented it — an *inheritance*, not a reset. Giving the branch its own path
+  level costs one allocation per `if`/`else` and is correct at any branch size.
 - **`Frame.render`'s root** is `.positional(0)` unless the root element is named.
 
   **The `.root` sentinel disappears, and it must** — an earlier draft of this
@@ -226,7 +241,7 @@ collision is now deliberate and matches SwiftUI.
 | The **hash** distinguishes paths differing only in an ancestor | drop `parent` from the cached hash |
 | `==` respects the ancestor whatever the hash says | make components compare equal regardless of parent |
 | Flipping an `EitherGroup` branch resets state | give both branches the same component |
-| Adding a sibling shifts later siblings' identity | pinned as **deliberate**, SwiftUI's matching behaviour named in the comment |
+| Adding or removing a sibling shifts later siblings' identity | pinned as **deliberate** — and the behaviour is **adoption, not reset**: measured on `Row { if flag { C() }; C() }` across a flip, the trailing sibling reads the vanished element's value. An earlier version of this row claimed the pin existed when no test provided it |
 
 Every count is taken under `--no-parallel` with the exact edit quoted beside it
 (rulings CS-M and CS-N: a parallel run drops failing-test names from the log body,
@@ -240,7 +255,13 @@ directly; the figure goes in CLAUDE.md labelled with when and how it was taken.
 
 - [ ] `swift test` completes with a **summary line** and the full count;
       `swift package clean && swift build` warning-free
-- [ ] `GlobalElementID?` appears nowhere in `Sources/` — `nil` is gone from the type
+- [ ] `nil` is gone from the **identity a phase receives**: `Element`'s three
+      phases and `StateTable.withState` take a non-optional `GlobalElementID`,
+      and `child(of:at:name:)` returns one.
+      (This originally read "`GlobalElementID?` appears nowhere in `Sources/`",
+      which is unachievable and was never the point: `child`'s and `init`'s
+      `parent` parameters, `GlobalElementID.parent` itself, and two locals in
+      `==` all keep the optional by necessity — a root has no parent.)
 - [ ] An anonymous element holds state across frames, pinned
 - [ ] A named `ArrayGroup` carries state through a reorder; an unnamed one does not
 - [ ] Every mutation in §5 measured and recorded, `--no-parallel`, spelling quoted
