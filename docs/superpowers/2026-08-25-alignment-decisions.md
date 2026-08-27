@@ -100,10 +100,17 @@ nearest sibling, regenerate, and confirm the numbers move.**
 
 ## Carried risk
 
-- **`layoutContainer`, `collectItems` and `positionItems` each derive `isRow`,
+- **`layOutChildren`, `collectItems` and `positionItems` each derive `isRow`,
   `gap`, `containerMain`/`containerCross` and now `resolvedAlignment`
   independently.** A unilateral change to any one is caught by tests, but nothing
-  states that they must agree.
+  states that they must agree. *(`layoutContainer` became `layOutChildren` +
+  `placeNode` in the content-sizing milestone. Two things changed for this risk
+  and neither reduced it: `containerMain`/`containerCross` are now `Double?` in
+  `layOutChildren` and `collectItems` — where `nil` means indefinite, ruling
+  CS-D — while `positionItems` still takes a definite `SizeD`, so the three
+  derivations no longer even have the same type; and `contentMain` added a
+  fourth re-derivation of the outer-sizes-with-gaps total, unguarded until
+  `measuringAWrappedContainerCountsGapsAndMargins`.)*
 - **`ResolveFlexibleLengths.swift` re-implements `lineContentSize`'s gap
   arithmetic** rather than calling it. The two do not currently cancel — mutating
   both still reddens — but they are one edit apart from doing so.

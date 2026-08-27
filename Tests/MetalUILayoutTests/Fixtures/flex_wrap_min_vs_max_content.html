@@ -1,0 +1,54 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* A container whose OWN reported size differs between the two intrinsic
+     queries — the one gap the re-baseline's mutation table left open with a
+     measured zero.
+
+     Swapping `.minContent` and `.maxContent` at `collectItems`' §4.5 probe
+     already reddens two goldens (`flex_wrap_nested_percent_padding`,
+     `flex_wrap_align_content_around_evenly`). Swapping them at
+     `flexBaseSize`'s main-axis `?? .maxContent` reddened 2 tests and **0**
+     goldens. This file is that zero's fixture.
+
+     `.mid` has no `width`, so its main size comes from `flexBaseSize` step 3 —
+     `measureNode` under the container's question, which for a definite-width
+     row root is `.maxContent`. Its three 40px children give:
+
+         max-content   120   (all on one line)
+         min-content    40   (each on its own line, because `flex-wrap: wrap`
+                              lines every item alone at a zero budget)
+
+     and those are the only two numbers a mode swap can produce. `max-width:
+     100px` then clamps 120 to 100, which is what makes the WRAPPING visible:
+     at 100 the children break 2 + 1 and `g3` lands on a second line. Without
+     the cap the max-content answer would be 120, everything would fit on one
+     line, and the fixture would pin a width and no wrap. Under `.minContent`
+     `.mid` is 40 wide, the cap is inert, and all three children line
+     separately.
+
+     `align-items` is left at its `stretch` default on purpose, so `.mid`'s
+     CROSS size is the root's 160 and this fixture isolates site 1. Its own
+     measured cross size (40) is computed and then discarded by the single
+     line's cross extent, so reverting `ownCross` alone leaves this file green
+     — `flex_nested_auto_cross` is what covers that site, and one fixture
+     answering for two sites would make the differential ambiguous.
+
+     `align-content: stretch` inside `.mid` (also the default) is what puts
+     `g3` at y = 80 rather than 20: two lines share 160. That is a number the
+     line COUNT determines, which is the point — a third line would put the
+     rows at 0 / 53.33 / 106.67 and every one of them moves.
+
+     Geometry: 260 / 160 / 100 / 40 / 20 and the derived 80 are all integers,
+     so nothing here rides on WebKit's 1/64 quantum. */
+  #root { display: flex; width: 260px; height: 160px; }
+  .mid { display: flex; flex-wrap: wrap; max-width: 100px; }
+  .mid > div { width: 40px; height: 20px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="mid" data-id="mid">
+      <div data-id="g1"></div><div data-id="g2"></div><div data-id="g3"></div>
+    </div>
+  </div>
+</body></html>

@@ -1,0 +1,66 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* An `auto` MAIN size that has to travel two levels — `flexBaseSize` step 3,
+     the first of the four constant-substituting sites, which no fixture and no
+     committed test reached through `computeLayout` before this one.
+
+     Both `.outer` and `.inner` are columns with no `height`, so each takes its
+     main size from its children's content. `.inner` measures 48 (2 x 24) and
+     `.outer` measures 48 because `.inner` did: the second level is only load-
+     bearing because the first one answered. `.after` at y = 48 is what makes
+     that observable from outside `.outer` — without it, "outer is 48 tall" and
+     "outer is 0 tall and its child overflows" would differ only in `.outer`'s
+     own box.
+
+     THE ROOT DECLARES BOTH AXES, DELIBERATELY, AND THE DRAFT DID NOT. The
+     plan's version gave `#root` a width and no height and let the auto height
+     start there. WebKit shrink-wraps such a root — measured: `root: 300x48` —
+     and this engine deliberately does not (ruling CS-I, CLAUDE.md divergence
+     4): an auto root axis keeps the extent its host offered, because a window
+     root that shrink-wraps collapses. That fixture would have encoded WebKit's
+     answer for the one case the engine knowingly refuses, and it would have
+     failed correctly. Moving the auto axis one level down tests the same
+     propagation with none of the divergence in it.
+
+     THE THREE WIDTHS ARE DISTINCT (300 / 240 / 180) so that a level-skip is
+     visible in the cross axis too: `.inner` inheriting `.outer`'s 240, or
+     `.outer` inheriting the root's 300, would show up as a wrong width rather
+     than passing quietly. All are definite, so none of them stretches.
+
+     `min-height: 0` ON BOTH CONTAINERS, AND IT WAS ADDED AFTER A MEASUREMENT.
+     Without it this file is green under a site-1 revert (`flexBaseSize`'s
+     content branch back to 0) AND green under a site-2 revert (§4.5's
+     automatic minimum back to floorless), and red only under both — a real
+     masking pair, the first measured on this branch. In a COLUMN the two sites
+     compute the same number: §4.5 probes the item's min-content height, which
+     for fixed-height children is the same 48 the content branch returns, so
+     either one alone rescues the other. Switching the automatic minimum off
+     leaves the content branch as the only source of 48. WebKit's answer is
+     BYTE-IDENTICAL either way — nothing here shrinks, so the declaration
+     cannot bind — which is the evidence that it changes what this fixture
+     PINS and not what it IS.
+
+     WHAT THIS FIXTURE CANNOT CATCH: the two leaves are the same 60x24, so it
+     cannot distinguish "sum the children" from "twice the first child". The
+     sum is pinned instead by `flex_nested_auto_cross`'s max-over-a-line and by
+     `aContainerItemsBaseSizeComesFromItsChildren`; making these two unequal
+     would have put `.inner`'s own height and `.after`'s y on different
+     numbers, which is worth less than the level-skip check the equal widths
+     above buy. */
+  #root { display: flex; flex-direction: column; width: 300px; height: 220px; }
+  .outer { display: flex; flex-direction: column; width: 240px; min-height: 0; }
+  .inner { display: flex; flex-direction: column; width: 180px; min-height: 0; }
+  .inner > div { width: 60px; height: 24px; }
+  .after { width: 100px; height: 30px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="outer" data-id="outer">
+      <div class="inner" data-id="inner">
+        <div data-id="g1"></div><div data-id="g2"></div>
+      </div>
+    </div>
+    <div class="after" data-id="after"></div>
+  </div>
+</body></html>

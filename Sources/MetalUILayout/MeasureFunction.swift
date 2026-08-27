@@ -18,7 +18,7 @@ public struct OptionalSizeD: Sendable, Equatable {
 }
 
 /// How much room a leaf may use in one axis.
-public enum AvailableSpace: Sendable, Equatable {
+public enum AvailableSpace: Sendable, Hashable {
     case definite(Double)
     /// Size to the smallest width that avoids overflow — the longest
     /// unbreakable run, for text.

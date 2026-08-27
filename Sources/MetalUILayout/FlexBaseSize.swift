@@ -10,20 +10,41 @@ import MetalUICore
 /// The cascade, in spec order:
 /// 1. a definite `flex-basis` wins outright, even over an explicit `width`;
 /// 2. `flex-basis: auto` defers to the main size property, if that is definite;
-/// 3. otherwise the item is content-sized — its measure function at max-content.
+/// 3. otherwise the item is content-sized — its measure function under **the
+///    container's own question** in the main axis.
 ///
-/// An item with no measure function and no definite size is 0. That is honest
-/// rather than convenient: nothing measures content until the text system lands,
-/// and a zero-width box is visibly wrong where a container-width box is
-/// plausibly wrong.
+/// Step 3's main axis was a hardcoded `.maxContent` until the intrinsic query
+/// was threaded into the recursion. That is the whole of `intrinsic` here: a
+/// container asked for its min-content size must ask its items for theirs, and
+/// a hardcoded max-content silently answered the wrong one of the two
+/// questions. It is `nil` per axis for real layout, and non-nil only where the
+/// matching container extent is `nil` — so `containerCross` below is consulted
+/// first and the question is the fallback, never a competing answer.
+///
+/// **Step 3 asks `measureNode`, not `tree.measure(item)`.** It went straight to
+/// the measure function and returned 0 when there was none, so a **container**
+/// with no measure function reported 0 for its own content — one of the four
+/// sites that substituted a constant for a subtree's size. `measureNode`
+/// answers for a container by running the flex algorithm over its children and
+/// for a leaf from its `MeasureFunction`, and the caller cannot tell which
+/// happened.
+///
+/// What survives of the old "an item with no measure function is 0" note is
+/// the case it now describes exactly: a **childless leaf** with no measure
+/// function still reports 0, because `measureNode` returns its padding and
+/// border and that is 0 for such a node. That is honest rather than
+/// convenient — a zero-width box is visibly wrong where a container-width box
+/// is plausibly wrong. It is no longer a statement about containers.
 func flexBaseSize(
+    _ ctx: LayoutContext,
     _ tree: LayoutTree,
     item: LayoutNodeID,
     isRow: Bool,
     containerMain: Double?,
     containerCross: Double?,
-    rootFontSize: Double
+    intrinsic: IntrinsicQuery
 ) -> Double {
+    let rootFontSize = ctx.rootFontSize
     let s = tree.style(item)
 
     // 1. Definite flex-basis.
@@ -39,16 +60,46 @@ func flexBaseSize(
         return main
     }
 
-    // 3. Content size, at max-content in the main axis.
-    guard let measure = tree.measure(item) else { return 0 }
+    // 3. Content size, under the CONTAINER's own question in the main axis.
     let known = OptionalSizeD(
         width: isRow ? nil : resolveDimension(s.size.width, against: containerCross,
                                               rootFontSize: rootFontSize),
         height: isRow ? resolveDimension(s.size.height, against: containerCross,
                                          rootFontSize: rootFontSize) : nil)
+    // The container's question, per axis, with `.maxContent` as the fallback it
+    // has always had.
+    //
+    // **The two `?? .maxContent`s are not the same.** The main one is live and
+    // load-bearing: a `nil` mode there is real layout (`placeNode`) or an axis
+    // the caller made definite, and both still offer the item max-content,
+    // which is what keeps the intrinsic-query change behaviour-preserving.
+    //
+    // The CROSS one is **unreachable**, and by construction rather than by
+    // observation. Ruling CS-H's invariant is that an axis carries a mode iff
+    // that axis of the probe is `nil`, and `contentBox` maps `nil` to `nil`
+    // per axis — so `containerCross == nil` and "the cross mode is non-nil"
+    // are the same condition. When `containerCross` is non-nil the `.map`
+    // fires and the inner `??` is never evaluated; when it is `nil` the mode
+    // is always there. Measured: replacing the inner `?? .maxContent` with
+    // `fatalError()` leaves the whole suite green. It is kept only so the
+    // expression is a total function and does not depend on an invariant
+    // enforced two files away; delete it only together with that invariant.
+    // (An earlier version of this comment claimed the opposite — that the
+    // cross fallback was live for `placeNode` — which is exactly the case
+    // where `containerCross` IS definite.)
+    let mainAvailable = (isRow ? intrinsic.width : intrinsic.height)?.availableSpace ?? .maxContent
+    let crossAvailable = containerCross.map { AvailableSpace.definite($0) }
+        ?? ((isRow ? intrinsic.height : intrinsic.width)?.availableSpace ?? .maxContent)
     let available = AvailableSpaceSize(
-        width: isRow ? .maxContent : (containerCross.map { .definite($0) } ?? .maxContent),
-        height: isRow ? (containerCross.map { .definite($0) } ?? .maxContent) : .maxContent)
-    let measured = measure(known, available)
+        width: isRow ? mainAvailable : crossAvailable,
+        height: isRow ? crossAvailable : mainAvailable)
+    // The item's containing block is the container's CONTENT box, whose width
+    // is the container's main extent in a row and its cross extent in a column
+    // — the same `box.size.width` `collectItems` was handed, re-derived from
+    // the two axis-resolved extents this function already takes rather than
+    // added as a fifth parameter that would have to be kept agreeing with them.
+    let containingBlockWidth = isRow ? containerMain : containerCross
+    let measured = measureNode(ctx, tree, item, known: known, available: available,
+                               containingBlockWidth: containingBlockWidth)
     return isRow ? measured.width : measured.height
 }

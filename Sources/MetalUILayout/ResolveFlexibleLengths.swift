@@ -84,17 +84,38 @@ func resolveFlexibleLengths(
         $0 + ($1.frozen ? $1.targetMainSize : $1.baseSize)
     }
 
-    // Termination is provable: §9.7.4.e's three branches are exhaustive and each
-    // freezes a nonempty set, so every pass freezes at least one item and at
-    // most `items.count` passes can flex anything, with one more to observe the
-    // line fully frozen. The cap below is therefore **unreachable unless the
-    // freezing logic is broken** — and it costs nothing in correct operation.
+    // Termination is provable **for a finite `containerMain`**: §9.7.4.e's three
+    // branches are exhaustive and each freezes a nonempty set, so every pass
+    // freezes at least one item and at most `items.count` passes can flex
+    // anything, with one more to observe the line fully frozen. The cap costs
+    // nothing in correct operation.
     //
     // It exists because both plausible ways to break §9.7.4.e — dropping the
     // zero-violation branch, or swapping the two violation signs — spin forever
     // rather than producing a wrong number. A hung CI job diagnoses nothing; a
-    // named assertion diagnoses itself. Release builds freeze the line and carry
-    // on with a finite (if wrong) layout rather than trapping a user's app.
+    // named assertion diagnoses itself.
+    //
+    // **The cap is NOT "unreachable unless the freezing logic is broken", which
+    // is what this comment said until the CONTENT-SIZING milestone measured
+    // it.** A **non-finite `containerMain`** reaches it with the freezing logic
+    // entirely intact: `inf - inf` and `inf * 0` are NaN, every comparison
+    // against a NaN is false, so no item ever registers a violation, nothing
+    // freezes, and the loop runs to the cap. Not hypothetical — `measureNode`
+    // passed `.infinity` for an indefinite axis in its first version, and three
+    // different one-child containers (a `flex-grow` item, a percentage width, a
+    // percentage `gap`) each landed here. Ruling **CS-D** closed it at the
+    // source: an indefinite axis is `nil`, and `layOutChildren` skips this
+    // function rather than handing it a number that is not one. If you reach
+    // this from a stack trace, look at the caller's `containerMain` before
+    // looking at §9.7.4.e.
+    //
+    // **A release build has no assertion**, so this path silently freezes every
+    // item at whatever it holds — under a NaN `containerMain`, NaN sizes, which
+    // reach the stored rects and then the renderer. The debug trap is the only
+    // thing that ever says so, which is why the guard above is a `precondition`
+    // in spirit and an `assertionFailure` in fact: turning it into a hard trap
+    // would take down a user's app for what is, in a correct engine,
+    // unreachable.
     let maximumPasses = items.count + 1
     var passes = 0
 
@@ -104,8 +125,11 @@ func resolveFlexibleLengths(
             assertionFailure("""
                 §9.7 freeze loop did not converge: \(passes - 1) passes over \
                 \(items.count) items, and \(items.filter { !$0.frozen }.count) \
-                are still unfrozen. Every pass must freeze at least one item, so \
-                §9.7.4.e's freezing logic is broken.
+                are still unfrozen, with containerMain = \(containerMain). Every \
+                pass must freeze at least one item. If containerMain is not \
+                finite THAT is the fault and §9.7.4.e is innocent — every \
+                comparison against a NaN is false, so nothing ever freezes \
+                (ruling CS-D). Otherwise §9.7.4.e's freezing logic is broken.
                 """)
             for i in items.indices { items[i].frozen = true }
             break
@@ -125,8 +149,10 @@ func resolveFlexibleLengths(
         //
         // One narrow case here diverges from WebKit — free space positive and
         // the loop on its second pass. Blink and the spec agree with this code;
-        // WebKit is the outlier. See CLAUDE.md, "Two known divergences from the
-        // browsers", and `subOneScalingNeverExceedsTheRemainingFreeSpace`.
+        // WebKit is the outlier. See CLAUDE.md's known-divergences section —
+        // cited by its subject, "WebKit's flex sub-one clause", because the
+        // heading counts them and the count has changed twice — and
+        // `subOneScalingNeverExceedsTheRemainingFreeSpace`.
         let rawTotal = items.filter { !$0.frozen }.reduce(0) { $0 + rawFactor($1) }
         if rawTotal < 1 {
             let scaled = initialFreeSpace * rawTotal

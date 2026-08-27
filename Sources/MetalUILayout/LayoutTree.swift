@@ -57,6 +57,25 @@ public final class LayoutTree {
 
     public var nodeCount: Int { styles.count }
 
+    /// True while `computeLayout` is running over this tree.
+    ///
+    /// Task 3 memoizes `measureNode` on the assumption that styles do not change
+    /// during a run. Nothing enforced that before this flag, and a style written
+    /// mid-layout would hand back a cached size computed for the *old* style —
+    /// a wrong answer no fixture could catch, because the fixture and the golden
+    /// would both be generated from the settled tree.
+    ///
+    /// The flag lives here rather than on `LayoutContext` because `setStyle` is a
+    /// tree method and has no context in hand.
+    private(set) var isLayingOut = false
+
+    func beginLayout() {
+        precondition(!isLayingOut, "computeLayout re-entered on the same tree")
+        isLayingOut = true
+    }
+
+    func endLayout() { isLayingOut = false }
+
     /// Whether `id` was issued by this tree in its current generation.
     ///
     /// The same expression every accessor's precondition uses, exposed so the
@@ -79,7 +98,13 @@ public final class LayoutTree {
     }
 
     public func style(_ id: LayoutNodeID) -> Style { styles[slot(id)] }
-    public func setStyle(_ id: LayoutNodeID, _ s: Style) { styles[slot(id)] = s }
+
+    public func setStyle(_ id: LayoutNodeID, _ s: Style) {
+        precondition(!isLayingOut,
+                     "setStyle called while computeLayout is running — measured sizes are memoized against the styles this would change")
+        styles[slot(id)] = s
+    }
+
     public func children(_ id: LayoutNodeID) -> [LayoutNodeID] { childLists[slot(id)] }
     public func measure(_ id: LayoutNodeID) -> MeasureFunction? { measures[slot(id)] }
     public func layout(_ id: LayoutNodeID) -> LayoutRect { layouts[slot(id)] }

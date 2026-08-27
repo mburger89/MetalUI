@@ -259,12 +259,15 @@ func assertMatchesGolden(
 /// Replaces `autoSizedChildTakesItsContainersExtentForNow`. The Task 7
 /// fallback (auto -> container extent) is deleted here and never comes back:
 /// this pins `collectItems`' wiring through `computeLayout`, not §9.2 itself
-/// (that's `FlexBaseSizeTests.autoBasisWithNoMeasureFunctionIsZero`, which
-/// pins the free function directly). A child with no measure function and no
-/// definite size is zero because nothing measures content yet — not because
-/// flex base size is unimplemented, which it now is. This is the one test
-/// that would redden if `collectItems` ever reverted to a container-extent
-/// main size.
+/// (that's `FlexBaseSizeTests.autoBasisWithNoMeasureFunctionOrChildrenIsZero`,
+/// renamed by content sizing because the reason changed while the number did
+/// not — see its own comment — and which
+/// pins the free function directly). A child with no measure function, no
+/// definite size and **no children** is zero because that is what measuring it
+/// returns — its own padding and border — not because flex base size is
+/// unimplemented, and no longer because nothing measures content. This is the
+/// one test that would redden if `collectItems` ever reverted to a
+/// container-extent main size.
 ///
 /// **Retargeted when §9.4 stretch landed (ruling AL-2).** This test used to
 /// assert *both* axes were 0, and the cross half of that is now wrong CSS:
@@ -276,11 +279,15 @@ func assertMatchesGolden(
 /// the FS-1 guarantee at the moment it stopped being visible.
 ///
 /// **FS-1 lives in `flexBaseSize`, not `resolveNodeSize`.** To check this test
-/// still binds, mutate `flexBaseSize`'s `guard let measure … else { return 0 }`
-/// to `return containerMain ?? 0`; that reddens here. Mutating
-/// `resolveNodeSize`'s `resolved ?? 0` does **not** — an item's main size has
-/// not come from that function since the flex-sizing milestone, and pointing at
-/// it is the natural mistake. (It was mine, during this task's review.)
+/// still binds, make `flexBaseSize`'s step 3 `return containerMain ?? 0` ahead
+/// of the `measureNode` call; that reddens here. **The mutation used to be
+/// spelled against `guard let measure … else { return 0 }`, and that line no
+/// longer exists** — content sizing replaced it with the `measureNode` call, so
+/// the instruction is respelled rather than dropped. Mutating
+/// `resolveNodeSize`'s `resolved ?? 0` does **not** redden this — an item's
+/// main size has not come from that function since the flex-sizing milestone,
+/// and pointing at it is the natural mistake. (It was mine, during that task's
+/// review.)
 @Test func autoSizedChildTakesNoMainSizeButStretchesOnTheCross() {
     let tree = LayoutTree(generation: 0)
     let kid = tree.newNode(style: Style(), children: [])   // size defaults to .auto
@@ -314,6 +321,15 @@ func assertMatchesGolden(
 /// extent), and the height pins stretch. The FS-1 half survives because stretch
 /// leaves the main axis alone; asserting the whole rect again would conflate the
 /// two rules, and asserting only the width would drop stretch's coverage here.
+///
+/// **Content sizing deliberately left these numbers alone, and that was
+/// measured before it was decided.** Making an `auto` root axis shrink-wrap to
+/// its content — CSS's answer for a block box's block axis, WebKit **800 x 40**
+/// for an 800x600 viewport holding one 100x40 child — was implemented and
+/// reverted: it reddened six element-pipeline and frame-loop tests, because a
+/// `Row { … }` rendered into a `Frame` declares no height and its root would
+/// collapse. Ruling EP-5 takes SwiftUI's answer where the two differ, and
+/// SwiftUI's root fills the window. See `resolveRootSize`.
 @Test func autoSizedRootTakesTheAvailableSpaceButAnAutoItemDoesNot() {
     let tree = LayoutTree(generation: 0)
     let kid = tree.newNode(style: Style(), children: [])      // size defaults to .auto
@@ -329,6 +345,234 @@ func assertMatchesGolden(
     #expect(tree.layout(kid).width == 0)
     // §9.4: it does stretch to the line's cross extent, which is the root's 600.
     #expect(tree.layout(kid).height == 600)
+}
+
+/// An `auto` root axis with **no offered extent to take** measures its content.
+///
+/// This is the one thing content sizing changed in `resolveRootSize`, and it is
+/// the fourth of the four constant-substituting sites: the branch below was a
+/// hardcoded **0**, so a root offered `.maxContent` laid out at 0x0 and every
+/// descendant with it. Both axes are exercised and with **different numbers**,
+/// so an axis transposition in the measure call cannot pass: the row's content
+/// is 100 wide and 40 tall.
+///
+/// The sibling above is what keeps this honest — it offers definite extents and
+/// asserts they still win, so "measure when there is nothing offered" cannot
+/// quietly become "measure always".
+@Test func anAutoRootWithNoOfferedExtentMeasuresItsContent() {
+    let tree = LayoutTree(generation: 0)
+    var kidStyle = Style()
+    kidStyle.size = Size(width: px(100), height: px(40))
+    let kid = tree.newNode(style: kidStyle, children: [])
+    let root = tree.newNode(style: Style(), children: [kid])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .maxContent, height: .maxContent))
+
+    #expect(tree.layout(root) == LayoutRect(x: 0, y: 0, width: 100, height: 40))
+    #expect(tree.layout(kid) == LayoutRect(x: 0, y: 0, width: 100, height: 40))
+}
+
+/// CSS Sizing §4.5's automatic minimum, for a **container** item — the largest
+/// behavioural consequence of wiring `measureNode` into `collectItems`.
+///
+/// `min-width: auto` is CSS's default on every flex item and was **floorless**
+/// for a container until content sizing: the content suggestion came from
+/// `tree.measure(kid)`, which is `nil` for anything without a `MeasureFunction`,
+/// so a container shrank straight through its own children.
+///
+/// **Both halves are measured in WebKit, on the same tree**, because the
+/// unconstrained answer is what makes the floor visible:
+///
+/// ```html
+/// #root { display: flex; width: 160px; height: 60px; }
+/// .a { display: flex; flex: 0 1 200px; }   /* holds a 120px child */
+/// .b { width: 120px; height: 20px; }
+/// ```
+///
+///     min-width on .a   WebKit          why
+///     auto (default)    a=120, b=40     a's content floors it at 120
+///     0                 a=100, b=60     bases 200:120 shrink 160 as 100:60
+///
+/// The differential is the point: with the floor absent the engine lands on
+/// 100/60, which is a *plausible* answer, not an obviously broken one. Only the
+/// pair distinguishes them.
+///
+/// **`.b` is deliberately an empty div with a definite `width`**, and it must
+/// NOT be floored at 120: §4.5's automatic minimum is
+/// `min(specified suggestion, content suggestion)` and an empty div's content
+/// suggestion is 0. WebKit shrinks it to 40. That is what keeps ruling FS-3's
+/// missing half honest here — implementing the specified suggestion alone, or
+/// passing the item's own size down as `known`, would freeze `b` at 120 and
+/// redden this.
+@Test func aContainerItemIsFlooredByItsChildrensWidth() {
+    func build(minWidth: MetalUICore.Dimension) -> (LayoutTree, LayoutNodeID, LayoutNodeID, LayoutNodeID) {
+        let tree = LayoutTree(generation: 0)
+        let g = fixedChild(tree, w: 120, h: 20)
+        var aStyle = Style()
+        aStyle.flexDirection = .row
+        aStyle.flexBasis = px(200)
+        aStyle.flexGrow = 0
+        aStyle.flexShrink = 1
+        aStyle.minSize = Size(width: minWidth, height: autoDim)
+        let a = tree.newNode(style: aStyle, children: [g])
+        let b = fixedChild(tree, w: 120, h: 20)
+        var rootStyle = Style()
+        rootStyle.flexDirection = .row
+        rootStyle.size = Size(width: px(160), height: px(60))
+        let root = tree.newNode(style: rootStyle, children: [a, b])
+        computeLayout(tree, root: root,
+                      available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+        return (tree, a, b, g)
+    }
+
+    // `min-width: auto` — the CSS default, and the floor is now live.
+    let (floored, a1, b1, g1) = build(minWidth: autoDim)
+    #expect(floored.layout(a1).width == 120)
+    #expect(floored.layout(b1).width == 40)
+    #expect(floored.layout(b1).x == 120)
+    #expect(floored.layout(g1).width == 120)
+
+    // `min-width: 0` — an explicit minimum REPLACES the automatic one, so the
+    // same tree shrinks freely. This is the differential, not a second example.
+    let (free, a2, b2, _) = build(minWidth: px(0))
+    #expect(free.layout(a2).width == 100)
+    #expect(free.layout(b2).width == 60)
+}
+
+/// **Ruling FS-3** (see CLAUDE.md's "known divergences", the fifth) — pins a
+/// deliberate divergence from CSS and from WebKit, not a bug.
+///
+/// CSS Sizing §4.5's automatic minimum is
+/// `min(specified size suggestion, content size suggestion)`. This engine
+/// implements the **content** half only — content sizing made it live for
+/// containers, and that is what turned FS-3 from a dormant gap into a
+/// measurable disagreement: an item is floored by its children even when its
+/// own definite `width` says it may be smaller.
+///
+/// **Measured against live WebKit**, on the tree this test builds:
+///
+/// ```html
+/// #root { display: flex; width: 150px; height: 60px; }
+/// .a { display: flex; width: 100px; }   /* holds a 200px child */
+/// .b { width: 100px; height: 20px; }
+/// ```
+///
+///     .a's style          WebKit        this engine    why
+///     width: 100px        a=100, b=50   a=200, b=0     min(100, 200) vs 200
+///     width: 130px        a=130, b=20   a=200, b=0     the floor ignores it
+///     width: 100px+min:0  a=75,  b=75   a=75,  b=75    no automatic minimum
+///
+/// The middle row is the sharpest form: WebKit's floor **tracks the specified
+/// width** and this engine's does not move at all, because it is the child's
+/// 200 in both cases. The third row is the differential that identifies the
+/// cause — an explicit `min-width: 0` replaces the automatic minimum, both
+/// engines shrink 100/100 into 150 as 75/75, and they agree exactly.
+///
+/// **Not implemented here, and the reason is reach, not effort** — the same
+/// one that kept ruling BM-4 out of the box-model milestone. The specified size
+/// suggestion changes an item's *floor*, which the freeze loop consumes and
+/// every ancestor then sees as a different stored size. It belongs in a sizing
+/// plan with the corpus regenerated behind it.
+///
+/// **Deliberately no fixture and no golden**, on the same footing as WebKit's
+/// flex sub-one clause: a golden would encode this engine's answer as correct,
+/// and a future fix should move nothing in the corpus. This test is the only
+/// pin, so implementing FS-3 must redden exactly it — verified by mutation.
+/// Seven `flex: 1 1 0` children splitting 100px, against WebKit —
+/// **`flex_row_seven_equal`'s first engine-vs-golden comparison.**
+///
+/// It was the one fixture of 61 with a golden and no comparison test: read only
+/// by `committedGoldensMatchTheBrowser`, which measures the browser and checks
+/// it against a file the browser produced. That is taxonomy shape 3 — a
+/// committed artifact constrained by nothing that consumes it — and
+/// `ContentSizingFixtureTests`' own header names the shape while the corpus held
+/// a live instance of it.
+///
+/// **It is the second non-integral fixture an engine comparison reads, and that
+/// is the point of adding it here rather than anywhere else.** 100 split seven
+/// ways is 14.28125 per child in WebKit and 14.2857… in the engine, so every
+/// number in this test exists only after `roundLayout` has run on both sides:
+/// the raw values do not agree and the rounded ones do. `flex_row_shrink` was
+/// the sole fixture holding that distinction up (see `Rounding.swift`, which
+/// says so and is corrected by this test), and a single fixture holding a
+/// distinction is how a blind spot comes back — give `flex_row_shrink` bases
+/// that divide evenly and nothing would have noticed.
+///
+/// Killed by the rounding mutation `(r.x + r.width).rounded()` →
+/// `.rounded(.down)` in `roundLayout`: measured `--no-parallel`, that reddens
+/// this test alongside `committedGoldensMatchTheBrowser`, moving `c1` 15→14,
+/// `c2` 14→13, `c5` 15→14 and `c6` 14→13 — the same four boxes on both sides,
+/// which is the evidence that engine and browser are being compared in the same
+/// space rather than each in its own.
+@Test func sevenEqualChildrenMatchWebKit() throws {
+    let golden = try loadGolden("flex_row_seven_equal")
+    let tree = LayoutTree(generation: 0)
+
+    var kidStyle = Style()
+    kidStyle.flexGrow = 1
+    kidStyle.flexShrink = 1
+    kidStyle.flexBasis = px(0)
+    let kids = (0..<7).map { _ in tree.newNode(style: kidStyle, children: []) }
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(100), height: px(20))
+    let root = tree.newNode(style: rootStyle, children: kids)
+
+    // The fixture's own viewport (`allFixtures` in GeneratorTests), not the
+    // 800x600 most of the corpus uses.
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(400), height: .definite(200)))
+
+    var ids: [LayoutNodeID: String] = [root: "root"]
+    for (i, kid) in kids.enumerated() { ids[kid] = "c\(i)" }
+    // Tolerance 0.1, not 1: the whole subject here is which whole pixel each
+    // edge lands on, and a tolerance of 1 would accept the mutation above.
+    assertMatchesGolden(tree, ids: ids, golden: golden, tolerance: 0.1)
+}
+
+@Test func aContainerIsNotFlooredByItsSpecifiedSizeUnlikeWebKit() {
+    /// The same tree three ways: `.a` is a container 200 wide on the inside and
+    /// `aWidth` wide by declaration, `.b` is a leaf, and the root is too small
+    /// for both.
+    func build(aWidth: Double, aMin: MetalUICore.Dimension)
+        -> (LayoutTree, LayoutNodeID, LayoutNodeID) {
+        let tree = LayoutTree(generation: 0)
+        let g = fixedChild(tree, w: 200, h: 20)
+        var aStyle = Style()
+        aStyle.flexDirection = .row
+        aStyle.size = Size(width: px(aWidth), height: autoDim)
+        aStyle.minSize = Size(width: aMin, height: autoDim)
+        let a = tree.newNode(style: aStyle, children: [g])
+        let b = fixedChild(tree, w: 100, h: 20)
+        var rootStyle = Style()
+        rootStyle.flexDirection = .row
+        rootStyle.size = Size(width: px(150), height: px(60))
+        let root = tree.newNode(style: rootStyle, children: [a, b])
+        computeLayout(tree, root: root,
+                      available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+        return (tree, a, b)
+    }
+
+    // WebKit: a=100, b=50. Here the floor is the child's 200, so `.a` cannot
+    // shrink at all and `.b` is squeezed out of the root entirely.
+    let (t1, a1, b1) = build(aWidth: 100, aMin: autoDim)
+    #expect(t1.layout(a1).width == 200)
+    #expect(t1.layout(b1).width == 0)
+    #expect(t1.layout(b1).x == 200)
+
+    // WebKit: a=130, b=20 — its floor moved with the specified width. Ours did
+    // not move at all, which is the divergence stated as a differential.
+    let (t2, a2, b2) = build(aWidth: 130, aMin: autoDim)
+    #expect(t2.layout(a2).width == 200)
+    #expect(t2.layout(b2).width == 0)
+
+    // `min-width: 0` replaces the automatic minimum, so no suggestion of either
+    // kind applies and the two engines agree: 100 and 100 shrink into 150.
+    let (t3, a3, b3) = build(aWidth: 100, aMin: px(0))
+    #expect(t3.layout(a3).width == 75)
+    #expect(t3.layout(b3).width == 75)
 }
 
 /// `minSize` and `maxSize` are live `Style` properties, and the engine must

@@ -43,10 +43,18 @@ func demoContent() -> some Element {
         // Body: the row that absorbs every vertical resize.
         Row(gap: Pixels(12)) {
             // Fixed-width sidebar. Its children have no width of their own and
-            // reach full width through `align-items: stretch` (ruling EP-6),
-            // which is also what keeps them visible: an `auto` cross size
-            // resolves to 0 in this engine, so an unstretched child would paint
-            // nothing at all. See CLAUDE.md's inert table.
+            // reach full width through `align-items: stretch` (ruling EP-6).
+            //
+            // **EP-6's stated reason for that default is gone.** It kept
+            // `stretch` because an `auto` cross size resolved to 0, so an
+            // unstretched child here would have painted nothing at all — a
+            // mechanism, not a preference. The content-sizing milestone
+            // implemented recursive subtree measurement, which EP-6 itself
+            // named as its blocker, so an `auto` cross size now measures
+            // content. These boxes are still empty, so they would still
+            // measure 0; the difference is that the default is now a choice
+            // rather than a workaround. Re-deciding it is EP-5's stack half
+            // and is deliberately NOT part of content sizing.
             Column(gap: Pixels(10)) {
                 Box().height(Pixels(26)).background(.accent).cornerRadius(Pixels(6))
                 Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))

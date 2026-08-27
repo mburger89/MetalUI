@@ -7,7 +7,7 @@ import MetalUICore
 /// decision is a pure function over items — no styles, no cross sizes — so it
 /// stays testable alone and reusable by Grid, for the same reason
 /// `lineContentSize` takes `[Double]` rather than `[FlexItem]`. This type is
-/// where `layoutContainer` pairs a returned line with the cross size it then
+/// where `layOutChildren` pairs a returned line with the cross size it then
 /// computes for it, and it exists so that every line's cross size is known
 /// *before* any line is positioned — which is exactly what `align-content`
 /// needs, and now uses: `crossSize` is `var` for the second reason as well as
@@ -23,6 +23,16 @@ struct FlexLine {
     /// the reason `nowrap` layouts are byte-identical to what they were before
     /// wrapping existed); for a wrapped container it is `lineCrossSize`.
     var crossSize: Double
+    /// The line's offset from the container's content-box cross-start,
+    /// **flex-relative** — `positionItems` is the one place it becomes a
+    /// physical coordinate, because `wrap-reverse` flips the cross axis.
+    ///
+    /// Constructed as 0 and assigned by `layOutChildren`'s line loop, which is
+    /// the only thing that knows `crossGap` and what `align-content` inserted.
+    /// It is stored on the line rather than passed as `positionItems` computes
+    /// it, because measurement runs that loop and never positions anything:
+    /// the cursor had to outlive the loop for placement to happen afterwards.
+    var crossStart: Double
 }
 
 /// CSS Flexbox §9.3 — collect items into flex lines.
@@ -34,6 +44,17 @@ struct FlexLine {
 /// An item that does not fit on an empty line stays on it anyway and overflows;
 /// a line is never empty. Without that guard an oversized item produces an empty
 /// line before it and every subsequent index shifts.
+///
+/// **`containerMain` is a budget, not an extent, and `0` is a legitimate value
+/// for it.** CSS Flexbox §9.9.1.1 sizes a container under a min-content
+/// constraint by giving its lines no room at all, so every item after the first
+/// on a line "would not fit" and each item lines alone; `layOutChildren` passes
+/// `0` for exactly that, and `.infinity` for max-content. Neither is arithmetic
+/// on an extent — this function only ever *compares* against the budget, which
+/// is why an unbounded one is safe here and was not in the freeze loop (ruling
+/// CS-D). This is also why no intrinsic mode is threaded into this function:
+/// the mode's whole effect on breaking is the budget, and ruling WR-2 keeps the
+/// break decision a pure function over items and one number.
 ///
 /// **`.wrapReverse` collects lines exactly like `.wrap` here, and that is
 /// CSS's rule rather than a shortcut.** §8.3 reverses the cross axis, not the

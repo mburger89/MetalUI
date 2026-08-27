@@ -95,8 +95,9 @@ Pairs left **untested**, with the honest label for each:
 
 **Divergence 1 is CLOSED — Task 2 implemented `align-content`.** The paragraph
 below is kept as the record of what Task 1 shipped and what closing it cost, not
-as a description of the engine today: `layoutContainer` now defaults
-`alignContent` to `.stretch`, `distributeLines`/`lineStretchAmount` live in
+as a description of the engine today: `layOutChildren` (which is what
+`layoutContainer`'s sizing half became in the content-sizing milestone) now
+defaults `alignContent` to `.stretch`, `distributeLines`/`lineStretchAmount` live in
 `Alignment.swift`, `wrappedLinesPackFromCrossStartRatherThanStretching` is
 deleted, and WebKit's 125/125 below is what
 `aStretchedLineChangesWhatItsStretchedItemsFill` now asserts on that exact tree.

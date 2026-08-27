@@ -109,6 +109,16 @@ let allFixtures: [(String, CGSize)] = [
     ("flex_wrap_reverse",                  CGSize(width: 800, height: 600)),
     ("flex_wrap_reverse_align_content_end", CGSize(width: 800, height: 600)),
     ("flex_wrap_reverse_row_reverse",      CGSize(width: 800, height: 600)),
+    // The content-sizing milestone's Task 6. The 57 fixtures above are
+    // structurally blind to it: every child is an empty div whose content size
+    // is 0, and 0 is exactly the constant all four wired sites used to
+    // substitute — so all four are reached and return the same number. See
+    // `docs/superpowers/2026-08-26-content-sizing-decisions.md`, "the
+    // re-baseline", for the mechanism per group. These four are the complement.
+    ("flex_nested_auto_cross",             CGSize(width: 800, height: 600)),
+    ("flex_auto_height_two_levels",        CGSize(width: 800, height: 600)),
+    ("flex_wrap_min_vs_max_content",       CGSize(width: 800, height: 600)),
+    ("flex_item_floored_by_content",       CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.
