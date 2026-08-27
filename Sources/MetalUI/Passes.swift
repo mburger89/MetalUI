@@ -129,7 +129,8 @@ extension LayoutPass {
     ///
     /// An element with no identity gets scratch state discarded on return — not
     /// an error, and why identity does not resume below an anonymous element.
-    /// See `GlobalElementID.child(of:_:)`.
+    /// See `ElementGroup.requestGroupLayout` for where that `nil` still
+    /// originates today.
     @MainActor
     public func withState<S>(_ id: GlobalElementID?,
                              initial: @autoclosure () -> S,

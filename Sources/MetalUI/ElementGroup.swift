@@ -27,7 +27,9 @@ import MetalUILayout
 ///
 /// The three phases mirror `Element`'s and are threaded the same way. They take
 /// the **container's** identity and derive each child's from it with
-/// `GlobalElementID.child(of:_:)`, which is why identity does not resume below
+/// `GlobalElementID.child(of:at:name:)`, guarded by a `.flatMap`/`.map` pair
+/// that short-circuits to `nil` before calling it whenever the container or
+/// the child itself has no name — which is why identity does not resume below
 /// an anonymous container (§4.3).
 ///
 /// Unlike `Element`'s phases, these are handed no `Bounds`: a group's members
@@ -78,9 +80,11 @@ extension Element {
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], SingleElementLayout<Self>) {
-        // Index 0 for every member until Task 2 threads the cursor. Siblings collide
-        // meanwhile; the nil short-circuit below is what still separates them, and it
-        // is deleted in Task 2 together with this line.
+        // `at: 0` is inert here: `elementID.map` gives a non-optional name at every
+        // call, so `child` never builds a `.positional` component and no two members
+        // can share one. Members are still separated by name, and an unnamed one
+        // still gets no identity at all — that `.map`/`.flatMap` pair is the whole of
+        // today's nil-poisoning rule, and it is what a threaded cursor replaces.
         let id: GlobalElementID? = parent.flatMap { p in
             elementID.map { GlobalElementID.child(of: p, at: 0, name: $0) }
         }
@@ -423,9 +427,11 @@ extension AnyElement: ElementGroup {
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], GroupLayout) {
-        // Index 0 for every member until Task 2 threads the cursor. Siblings collide
-        // meanwhile; the nil short-circuit below is what still separates them, and it
-        // is deleted in Task 2 together with this line.
+        // `at: 0` is inert here: `elementID.map` gives a non-optional name at every
+        // call, so `child` never builds a `.positional` component and no two members
+        // can share one. Members are still separated by name, and an unnamed one
+        // still gets no identity at all — that `.map`/`.flatMap` pair is the whole of
+        // today's nil-poisoning rule, and it is what a threaded cursor replaces.
         let id: GlobalElementID? = parent.flatMap { p in
             elementID.map { GlobalElementID.child(of: p, at: 0, name: $0) }
         }

@@ -61,8 +61,9 @@ final class StateTable {
     /// when this returns. It is not an error: most elements have no identity and
     /// need none. It does mean a caller cannot tell "I have no identity" from "my
     /// state was just created" by observing the value, which is why
-    /// `GlobalElementID.child(of:_:)` propagates `nil` down a subtree rather than
-    /// letting an anonymous element borrow its parent's path.
+    /// `ElementGroup`'s `requestGroupLayout` propagates `nil` down a subtree —
+    /// short-circuiting before it ever calls `GlobalElementID.child(of:at:name:)`
+    /// — rather than letting an anonymous element borrow its parent's path.
     func withState<S>(_ id: GlobalElementID?,
                       initial: @autoclosure () -> S,
                       _ body: (inout S) -> Void) {

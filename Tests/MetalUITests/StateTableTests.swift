@@ -110,11 +110,18 @@ private func id(_ names: String...) -> GlobalElementID {
 ///
 /// The behavioural question the old test's name asked — do two anonymous
 /// siblings' identified children collide — has the same answer it always
-/// had, "no," and the same surviving witness named above,
-/// `anIdentifiedChildOfAnUnnamedContainerStillHasNoIdentity` in
-/// `ElementLayoutTests.swift`. What changed is that "no" now means "each
-/// gets its own identity and its own state," not "neither gets an identity
-/// at all" — visible below as `table.count == 2`, not `0`.
+/// had, "no." Unlike the previous rewrite, this one has **no** surviving
+/// witness through a real container: `anIdentifiedChildOfAnUnnamedContainerStillHasNoIdentity`
+/// in `ElementLayoutTests.swift` builds exactly one unnamed container, so it
+/// cannot see a sibling pair at all. The sibling case here is
+/// correct-by-construction instead — two ids built with different `at:`
+/// indices differ in their `.positional` component (or, once named, their
+/// parent), so `==`'s chain walk cannot equate them — and is exercised
+/// directly by `pathsDifferingOnlyInAnAncestorAreNotEqual` in
+/// `GlobalElementIDTests.swift`, which this test's construction mirrors.
+/// What changed since the old rule is that "no" now means "each gets its own
+/// identity and its own state," not "neither gets an identity at all" —
+/// visible below as `table.count == 2`, not `0`.
 @MainActor
 @Test func childrenOfDistinctUnnamedParentsDoNotCollide() {
     let left = GlobalElementID.child(of: nil, at: 0, name: nil)

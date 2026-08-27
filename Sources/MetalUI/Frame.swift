@@ -180,11 +180,18 @@ public final class Frame {
     /// and hands it down, then **sweeps after the frame** (§4.3).
     ///
     /// Only the root's path is built here. Every deeper path comes from a
-    /// container calling `GlobalElementID.child(of:_:)` — since Task 4 that is
+    /// container calling `GlobalElementID.child(of:at:name:)` through
     /// `ElementGroup`'s conformances, so a deep tree is identified all the way
-    /// down provided every container on the path is named. An unnamed container
-    /// still poisons the subtree below it; see `GlobalElementID.child(of:_:)`.
+    /// down provided every container on the path is named. An unnamed
+    /// container still poisons the subtree below it — `ElementGroup`'s
+    /// `requestGroupLayout` short-circuits to `nil` before `child` is ever
+    /// called, not `child` itself; see `ElementGroup.swift`.
     func render<E: Element>(_ element: inout E) {
+        // `at: 0` is inert here: `elementID.map` gives a non-optional name at every
+        // call, so `child` never builds a `.positional` component and no two members
+        // can share one. Members are still separated by name, and an unnamed one
+        // still gets no identity at all — that `.map`/`.flatMap` pair is the whole of
+        // today's nil-poisoning rule, and it is what a threaded cursor replaces.
         let rootID: GlobalElementID? = element.elementID.map {
             GlobalElementID.child(of: nil, at: 0, name: $0)
         }

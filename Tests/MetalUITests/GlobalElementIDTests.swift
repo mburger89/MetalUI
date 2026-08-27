@@ -24,10 +24,14 @@ import Testing
     #expect(a.hashValue == b.hashValue)
 }
 
-/// **The most dangerous line in this milestone.** If the cached hash omits the
-/// parent, two paths differing only in an ancestor land in the same bucket and
-/// compare by a hash that cannot tell them apart — two unrelated elements
-/// silently share state.
+/// `==` respects the ancestor, independent of hash quality. Two paths
+/// differing only in an ancestor are `!=`, and a `Set` keeps them as two
+/// entries — but **this does not exercise `cachedHash` at all**: `==` walks
+/// the full chain regardless of what the hash says, and `Set`/`Dictionary`
+/// fall back to `==` on any hash collision, so this test passes under any
+/// hash whatsoever, including one that ignores the parent entirely. The hash
+/// itself is guarded separately, by
+/// `theHashItselfDistinguishesPathsDifferingOnlyInAnAncestor` below.
 @Test func pathsDifferingOnlyInAnAncestorAreNotEqual() {
     let left = GlobalElementID.child(of: nil, at: 0, name: nil)
     let right = GlobalElementID.child(of: nil, at: 1, name: nil)
@@ -40,6 +44,23 @@ import Testing
     set.insert(underLeft)
     set.insert(underRight)
     #expect(set.count == 2)
+}
+
+/// **The most dangerous line in this milestone.** If the cached hash omits the
+/// parent, two paths differing only in an ancestor land in the same bucket and
+/// compare by a hash that cannot tell them apart — two unrelated elements
+/// silently share state.
+///
+/// `pathsDifferingOnlyInAnAncestorAreNotEqual` cannot see this: `==` walks the
+/// chain, so it returns the right answer under any hash at all. Measured —
+/// deleting `hasher.combine(parent?.cachedHash ?? 0)` leaves that test, and all
+/// 348, green. This one reddens, and it is the only thing that does.
+@Test func theHashItselfDistinguishesPathsDifferingOnlyInAnAncestor() {
+    let left = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let right = GlobalElementID.child(of: nil, at: 1, name: nil)
+    let underLeft = GlobalElementID.child(of: left, at: 0, name: ElementID("item"))
+    let underRight = GlobalElementID.child(of: right, at: 0, name: ElementID("item"))
+    #expect(underLeft.hashValue != underRight.hashValue)
 }
 
 /// Equality must walk the chain. A hash-equality shortcut turns a collision

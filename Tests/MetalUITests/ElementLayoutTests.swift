@@ -358,7 +358,9 @@ private enum Fixture {
 
 /// Builds a path from a sequence of local names, root to leaf — the
 /// linked-list equivalent of the old struct's `GlobalElementID([ElementID]...)`
-/// array literal (mirrors `StateTableTests.swift`'s private `id(_:)`).
+/// array literal (mirrors `StateTableTests.swift`'s private `id(_:)`). Every
+/// component here is `.named`; `at: 0` is inert because a name always wins
+/// over a position (`PathComponent`'s doc comment).
 private func pathID(_ names: String...) -> GlobalElementID {
     var current: GlobalElementID?
     for name in names {
@@ -371,13 +373,17 @@ private func pathID(_ names: String...) -> GlobalElementID {
 /// and not a local name.
 ///
 /// **Not a duplicate of `sameLocalIDUnderDifferentParentsDoesNotShareState`.**
-/// That one calls `GlobalElementID.child(of:_:)` and `StateTable` directly and
-/// says nothing about who calls them; this is the first test in the repo that a
-/// **production container** must satisfy — that `Box`, `Column` and `Row` derive
-/// their children's identities from their own rather than passing `nil`, their
-/// own path, or `.root` down. Measured: building the child id from `.root`
-/// instead of `parent` in `ElementGroup.swift` reddens this and nothing in
-/// `StateTableTests`.
+/// That one calls `GlobalElementID.child(of:at:name:)` and `StateTable`
+/// directly and says nothing about who calls them; this is the first test in
+/// the repo that a **production container** must satisfy — that `Box`,
+/// `Column` and `Row` derive their children's identities from their own
+/// rather than passing `nil` or a constant down. Measured: replacing
+/// `GlobalElementID.child(of: p, at: 0, name: $0)` with
+/// `GlobalElementID.child(of: nil, at: 0, name: $0)` at both
+/// `requestGroupLayout` sites in `ElementGroup.swift` reddens this test and
+/// one other, `twoSiblingsWithTheSameIDShareOneStateEntryForNow` in
+/// `ElementGroupTrapTests.swift` — nothing in `StateTableTests.swift`, which
+/// builds every path it asserts by hand and never goes through a container.
 ///
 /// The two `"leaf"` children carry the **same** local id under different
 /// parents; only a path distinguishes them, and a table keyed on the local name
@@ -407,14 +413,25 @@ private func pathID(_ names: String...) -> GlobalElementID {
 
 /// Identity does not resume below an anonymous container (§4.3).
 ///
-/// `GlobalElementID.child(of:_:)` returns `nil` when either end is anonymous,
-/// and a container is an "end". Named leaf, unnamed parent, no identity.
+/// `GlobalElementID.child(of:at:name:)` itself never returns `nil`; the `nil`
+/// that stops this subtree comes from `ElementGroup`'s `requestGroupLayout`,
+/// which short-circuits *before* calling `child` at all whenever the
+/// container has no name of its own. Named leaf, unnamed parent, no identity
+/// — same outcome as before structural identity, different mechanism.
 ///
-/// `anIdentifiedChildOfAnAnonymousParentHasNoIdentity` pins the *rule* on the
-/// function; this pins that a real container obeys it, including the part that
-/// is easy to get wrong by being helpful — a container that substituted its own
-/// parent's path when it had no id of its own would pass every rect assertion
-/// here and quietly give two anonymous siblings' children one shared entry.
+/// This is the surviving behavioural coverage for what
+/// `childOfAnUnnamedParentStillHasAnIdentity` and
+/// `childrenOfDistinctUnnamedParentsDoNotCollide` in `StateTableTests.swift`
+/// used to pin directly, before their assertions stopped being expressible
+/// against `GlobalElementID.child(of:at:name:)`'s non-optional return (their
+/// doc comments name this test by its current name). This one drives the
+/// rule through a real container rather than the type's static method, which
+/// is why it stays green and untouched by that rewrite — and it is the test
+/// that flips when the shim above is replaced by a threaded cursor,
+/// including the part that is easy to get wrong by being helpful — a
+/// container that substituted its own parent's path when it had no id of its
+/// own would pass every rect assertion here and quietly give two anonymous
+/// siblings' children one shared entry.
 @MainActor
 @Test func anIdentifiedChildOfAnUnnamedContainerStillHasNoIdentity() {
     let log = ElementLog()

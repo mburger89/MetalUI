@@ -51,11 +51,20 @@ public final class GlobalElementID: Hashable, Sendable {
 
     /// The identity of a child at `index` under `parent`, named or not.
     ///
-    /// **Never returns nil.** Before this milestone the equivalent returned `nil`
-    /// when either end was anonymous, so an unnamed container poisoned its whole
-    /// subtree. `index` is supplied unconditionally and `name` decides the
-    /// component, so the name-replaces-position rule lives here rather than at
-    /// every call site.
+    /// **Never returns nil — this function alone.** `index` is supplied
+    /// unconditionally and `name` decides the component, so the
+    /// name-replaces-position rule lives here rather than at every call site.
+    ///
+    /// **Nil-poisoning is not over this task, only relocated.** Every
+    /// production caller (`ElementGroup`'s `requestGroupLayout`,
+    /// `Frame.render`) still short-circuits to `nil` with a `.flatMap`/`.map`
+    /// pair *before* ever reaching this function: an unnamed element's own id
+    /// is `nil`, so its children's `parent` argument is `nil`, and `child` is
+    /// never called for them at all. An unnamed container still poisons its
+    /// subtree today — what changed is that the `nil` now originates at each
+    /// call site rather than inside this function. A threaded cursor is what
+    /// ends it for real; see `ElementGroup.swift` and `Frame.swift` for where
+    /// the short-circuit lives meanwhile.
     public static func child(of parent: GlobalElementID?,
                              at index: Int,
                              name: ElementID?) -> GlobalElementID {
@@ -63,6 +72,28 @@ public final class GlobalElementID: Hashable, Sendable {
                         parent: parent)
     }
 
+    /// **Structural equality. `==` walks both chains; `cachedHash` is a fast
+    /// reject and never a proof.**
+    ///
+    /// **Nothing in the suite guards this loop, and nothing can.** Replacing
+    /// this body with `l.cachedHash == r.cachedHash` is wrong only on a genuine
+    /// 64-bit collision, and a collision is not constructible in a test:
+    /// `Hasher` is seeded per process, so one cannot be written down, and
+    /// searching for one is ~2^32 trials. Measured: that replacement leaves all
+    /// 349 tests green. The guard is this loop existing. Do not delete it on the
+    /// evidence of a green suite — that is what shape 6 in
+    /// `docs/practices/verifying-tests-can-fail.md` is about.
+    ///
+    /// **The condition is a combination, not this line alone.** A hash-shortcut
+    /// `==` is safe exactly while the hash is good; a degraded hash is safe
+    /// exactly while `==` walks the chain. Dropping the parent from
+    /// `cachedHash` alone (leaving this loop intact) reddens exactly one
+    /// test, `theHashItselfDistinguishesPathsDifferingOnlyInAnAncestor` —
+    /// every other test stays green, because `Hashable` permits collisions
+    /// and `Set`/`Dictionary` resolve them through `==`, which that mutation
+    /// leaves untouched. Make *this* line's change instead (or both) and
+    /// nothing catches it: two unrelated elements share one `StateTable`
+    /// entry with nothing above to notice.
     public static func == (l: GlobalElementID, r: GlobalElementID) -> Bool {
         if l === r { return true }
         if l.cachedHash != r.cachedHash { return false }

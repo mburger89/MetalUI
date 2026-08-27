@@ -188,9 +188,12 @@ extension StyledElement {
     /// Names this element among its siblings, giving it and its subtree a
     /// `GlobalElementID` and therefore access to cross-frame state (§4.3).
     ///
-    /// **Identity does not resume below an unnamed ancestor**: `child(of:_:)`
-    /// returns `nil` when either end is anonymous, so naming a leaf under an
-    /// unnamed container buys nothing. Name the container too.
+    /// **Identity does not resume below an unnamed ancestor.**
+    /// `GlobalElementID.child(of:at:name:)` itself never returns `nil`; the
+    /// `nil` that stops a subtree today comes from `ElementGroup`'s
+    /// `requestGroupLayout`, which short-circuits before calling `child` at
+    /// all when the container has no id of its own. So naming a leaf under an
+    /// unnamed container still buys nothing. Name the container too.
     public func id(_ name: String) -> Self {
         var copy = self
         copy.elementID = ElementID(name)
