@@ -6,8 +6,16 @@ import MetalUICore
 /// swept after each frame. That dictionary plus mark-sweep is the whole of this
 /// framework's reconciliation.
 
+/// Builds a path from a sequence of local names, root to leaf — the
+/// linked-list equivalent of the old struct's `GlobalElementID([ElementID]...)`
+/// array literal. Every component here is `.named`; `at: 0` is inert because
+/// a name always wins over a position (`PathComponent`'s doc comment).
 private func id(_ names: String...) -> GlobalElementID {
-    GlobalElementID(names.map(ElementID.init))
+    var current: GlobalElementID?
+    for name in names {
+        current = GlobalElementID.child(of: current, at: 0, name: ElementID(name))
+    }
+    return current!
 }
 
 @MainActor
@@ -58,51 +66,68 @@ private func id(_ names: String...) -> GlobalElementID {
     #expect(table.count == 2)
 }
 
-/// An anonymous element gets scratch state, and its identified children get no
-/// identity at all.
+/// **Formerly `anIdentifiedChildOfAnAnonymousParentHasNoIdentity`.** That test
+/// asserted `GlobalElementID.child(of:_:)` returned `nil` when either end was
+/// anonymous — the old struct's `(GlobalElementID?, ElementID?) ->
+/// GlobalElementID?`. Structural identity's `child(of:at:name:)` has no
+/// `Optional` in that return position (design spec §3.3): every element gets
+/// an identity, named or positional, so that assertion is not weakened, it is
+/// uncompilable — there is no longer a `nil` for it to return. Rewritten to
+/// assert what replaced it: the constructor never returns `nil`, and a name
+/// given at construction is what the resulting id carries.
 ///
-/// `child(of:_:)` returns nil when either end is anonymous, so identity does not
-/// resume below an unidentified element. The alternative — letting an anonymous
-/// element forward its parent's path — is unsafe for a mechanical reason:
-/// `Element`'s phases receive exactly one `GlobalElementID?`, so an element that
-/// forwarded its parent's path to its children would also be *holding* that
-/// path, and `withState` on it would read and write the parent's own entry.
+/// What this test used to *guard* — that an unidentified container's
+/// identified descendants get no identity — is a behaviour, not a signature,
+/// and it is still live and still checked: through the real production path
+/// (a container calling `ElementGroup`'s conformances) rather than the type's
+/// static method directly, by
+/// `anIdentifiedChildOfAnUnnamedContainerStillHasNoIdentity` in
+/// `ElementLayoutTests.swift`. That test is untouched this task — it is the
+/// one that flips when EP-5's stack half or a later task deliberately
+/// reverses the rule structural identity is built to replace.
 @MainActor
-@Test func anIdentifiedChildOfAnAnonymousParentHasNoIdentity() {
-    let anonymous: GlobalElementID? = GlobalElementID.child(of: .root, nil)
-    #expect(anonymous == nil)
+@Test func childOfAnUnnamedParentStillHasAnIdentity() {
+    let unnamed = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let namedChild = GlobalElementID.child(of: unnamed, at: 0, name: ElementID("item"))
 
-    let childOfAnonymous = GlobalElementID.child(of: anonymous, ElementID("item"))
-    #expect(childOfAnonymous == nil)
+    #expect(namedChild.parent == unnamed)
+    #expect(namedChild.component == .named(ElementID("item")))
 
-    // And an anonymous element's state is scratch: written, then discarded.
+    // Where the old rule discarded this element's state as scratch
+    // (`table.count == 0`), it now holds a real entry.
     let table = StateTable()
-    table.withState(childOfAnonymous, initial: 0) { $0 = 42 }
-    #expect(table.count == 0)
+    table.withState(namedChild, initial: 0) { $0 = 42 }
+    #expect(table.count == 1)
 }
 
-/// Two anonymous siblings' same-named children **cannot** collide, because
-/// neither child has an identity to collide on.
+/// **Formerly `twoAnonymousSiblingsChildrenCannotCollideBecauseNeitherHasIdentity`.**
+/// That test built two anonymous siblings with `child(of: .root, nil)` and
+/// asserted both their named children came back `nil` — again the old
+/// struct's optional-returning signature, gone along with `.root`. Rewritten
+/// to assert what replaced it: siblings built under **distinct** parents
+/// (here, distinct positional indices — the shape a real cursor produces)
+/// never collide, named or not.
 ///
-/// Recorded because the natural worry — "two anonymous siblings would give their
-/// same-named children the same path" — is true of the *rejected* design, not
-/// this one. Here both children get `nil`, so nothing is shared; the cost is
-/// that neither can hold state at all. Fixing that needs a positional component
-/// folded into the key, which is a change to §4.3 and is not made here.
+/// The behavioural question the old test's name asked — do two anonymous
+/// siblings' identified children collide — has the same answer it always
+/// had, "no," and the same surviving witness named above,
+/// `anIdentifiedChildOfAnUnnamedContainerStillHasNoIdentity` in
+/// `ElementLayoutTests.swift`. What changed is that "no" now means "each
+/// gets its own identity and its own state," not "neither gets an identity
+/// at all" — visible below as `table.count == 2`, not `0`.
 @MainActor
-@Test func twoAnonymousSiblingsChildrenCannotCollideBecauseNeitherHasIdentity() {
-    let leftAnon = GlobalElementID.child(of: .root, nil)
-    let rightAnon = GlobalElementID.child(of: .root, nil)
-    let a = GlobalElementID.child(of: leftAnon, ElementID("item"))
-    let b = GlobalElementID.child(of: rightAnon, ElementID("item"))
+@Test func childrenOfDistinctUnnamedParentsDoNotCollide() {
+    let left = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let right = GlobalElementID.child(of: nil, at: 1, name: nil)
+    let a = GlobalElementID.child(of: left, at: 0, name: ElementID("item"))
+    let b = GlobalElementID.child(of: right, at: 0, name: ElementID("item"))
 
-    #expect(a == nil)
-    #expect(b == nil)
+    #expect(a != b)
 
     let table = StateTable()
     table.withState(a, initial: 0) { $0 = 1 }
     table.withState(b, initial: 0) { $0 = 2 }
-    #expect(table.count == 0)
+    #expect(table.count == 2)
 }
 
 // MARK: - The table reached through a Frame
@@ -147,7 +172,7 @@ private struct CountingElement: Element {
 
     // Three frames, one element, one entry: the count accumulated rather than
     // resetting, and the sweep kept the entry it was still marking.
-    #expect(table.peek(GlobalElementID([ElementID("counter")]), as: Int.self) == 3)
+    #expect(table.peek(id("counter"), as: Int.self) == 3)
     #expect(table.count == 1)
 }
 
@@ -179,7 +204,7 @@ private struct CountingElement: Element {
     var b = CountingElement("b")
     second.render(&b)
 
-    #expect(table.peek(GlobalElementID([ElementID("a")]), as: Int.self) == nil)
-    #expect(table.peek(GlobalElementID([ElementID("b")]), as: Int.self) == 1)
+    #expect(table.peek(id("a"), as: Int.self) == nil)
+    #expect(table.peek(id("b"), as: Int.self) == 1)
     #expect(table.count == 1)
 }

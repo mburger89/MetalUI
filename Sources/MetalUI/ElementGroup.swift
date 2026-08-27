@@ -78,7 +78,12 @@ extension Element {
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], SingleElementLayout<Self>) {
-        let id = GlobalElementID.child(of: parent, elementID)
+        // Index 0 for every member until Task 2 threads the cursor. Siblings collide
+        // meanwhile; the nil short-circuit below is what still separates them, and it
+        // is deleted in Task 2 together with this line.
+        let id: GlobalElementID? = parent.flatMap { p in
+            elementID.map { GlobalElementID.child(of: p, at: 0, name: $0) }
+        }
         let (node, state) = requestLayout(id, pass: &pass)
         return ([node], SingleElementLayout(id: id, node: node, state: state))
     }
@@ -418,7 +423,12 @@ extension AnyElement: ElementGroup {
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], GroupLayout) {
-        let id = GlobalElementID.child(of: parent, elementID)
+        // Index 0 for every member until Task 2 threads the cursor. Siblings collide
+        // meanwhile; the nil short-circuit below is what still separates them, and it
+        // is deleted in Task 2 together with this line.
+        let id: GlobalElementID? = parent.flatMap { p in
+            elementID.map { GlobalElementID.child(of: p, at: 0, name: $0) }
+        }
         let node = requestLayout(id, pass: &pass)
         return ([node], GroupLayout(id: id, node: node))
     }

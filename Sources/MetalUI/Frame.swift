@@ -185,7 +185,9 @@ public final class Frame {
     /// down provided every container on the path is named. An unnamed container
     /// still poisons the subtree below it; see `GlobalElementID.child(of:_:)`.
     func render<E: Element>(_ element: inout E) {
-        let rootID = GlobalElementID.child(of: .root, element.elementID)
+        let rootID: GlobalElementID? = element.elementID.map {
+            GlobalElementID.child(of: nil, at: 0, name: $0)
+        }
 
         var layoutPass = LayoutPass(frame: self)
         let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)

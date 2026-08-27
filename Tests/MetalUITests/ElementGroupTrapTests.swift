@@ -270,7 +270,8 @@ struct StateProbe: Element, StyledElement {
     #expect(log.counters.map(\.name) == ["left", "right"])
     #expect(log.counters.map(\.value) == [1, 2])
     #expect(table.count == 1)
-    #expect(table.peek(GlobalElementID([ElementID("root"), ElementID("a")]),
+    #expect(table.peek(GlobalElementID.child(of: GlobalElementID.child(of: nil, at: 0, name: ElementID("root")),
+                                             at: 0, name: ElementID("a")),
                        as: Int.self) == 2)
 }
 

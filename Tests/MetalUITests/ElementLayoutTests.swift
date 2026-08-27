@@ -356,6 +356,17 @@ private enum Fixture {
 
 // MARK: - Identity (§4.3)
 
+/// Builds a path from a sequence of local names, root to leaf — the
+/// linked-list equivalent of the old struct's `GlobalElementID([ElementID]...)`
+/// array literal (mirrors `StateTableTests.swift`'s private `id(_:)`).
+private func pathID(_ names: String...) -> GlobalElementID {
+    var current: GlobalElementID?
+    for name in names {
+        current = GlobalElementID.child(of: current, at: 0, name: ElementID(name))
+    }
+    return current!
+}
+
 /// A container builds its children's paths from its own, so identity is a path
 /// and not a local name.
 ///
@@ -390,10 +401,8 @@ private enum Fixture {
 
     frame.render(&tree)
 
-    #expect(log.identity(of: "left") == GlobalElementID([
-        ElementID("root"), ElementID("first"), ElementID("leaf")]))
-    #expect(log.identity(of: "right") == GlobalElementID([
-        ElementID("root"), ElementID("second"), ElementID("leaf")]))
+    #expect(log.identity(of: "left") == pathID("root", "first", "leaf"))
+    #expect(log.identity(of: "right") == pathID("root", "second", "leaf"))
 }
 
 /// Identity does not resume below an anonymous container (§4.3).
