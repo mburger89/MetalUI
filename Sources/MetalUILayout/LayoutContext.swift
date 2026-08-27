@@ -22,29 +22,42 @@ final class LayoutContext {
     /// before the stack runs out** — on every stack this engine has been
     /// measured on, not just the roomiest one.
     ///
-    /// **It was 256, and 256 is past most of the stacks this code runs on.**
-    /// Measured here by bisection, raising this constant out of the way and
-    /// laying out N nested nodes on a Swift Testing exit-test task: **196
-    /// levels lay out, 197 dies with SIGBUS.** Review measured the same shape
-    /// on two other stacks — an explicit 256 KB thread gives out around 110,
-    /// and the main thread's 8 MB does reach 256 and trap properly. So at 256
-    /// the guard fired on the main thread alone, and everywhere else the
-    /// `placeNode` -> `positionItems` recursion exhausted the stack first: the
-    /// exact crash this exists to attribute, happening unattributed.
+    /// **It has been 256, then 64, and is now 16, and every move was forced by
+    /// a re-measurement rather than chosen.** The number tracks how much stack
+    /// ONE tree level costs, and that grew twice:
     ///
-    /// **The boundary is a frame-size measurement, not a constant**, which is
-    /// the reason for the margin rather than for a number just under it. It
-    /// moves whenever a frame in that cycle grows, and Task 4's measurement
-    /// recursion adds frames per level; 64 clears the 256 KB ceiling with room
-    /// for that.
+    /// | stack | before content sizing | after |
+    /// |---|---|---|
+    /// | Swift Testing task | 196 levels, 197 SIGBUS | **53 levels, 54 SIGBUS** |
+    /// | explicit 256 KB thread | ~110 | **26 levels, 27 SIGBUS** |
+    /// | 8 MB thread (the main thread's size) | reached 256 and trapped | ≥ 400, no SIGBUS |
+    ///
+    /// Both columns are bisections with this constant raised out of the way,
+    /// laying out N nested single-child nodes through `computeLayout`.
+    ///
+    /// **The cause is the measurement recursion, and it is not a regression to
+    /// fix here.** Before content sizing, one tree level cost
+    /// `placeNode` -> `positionItems` -> `placeNode`. It now also costs
+    /// `measureNode` -> `layOutChildren` -> `collectItems` -> its item closure
+    /// -> `flexBaseSize` -> `measureNode`, five fatter frames instead of two,
+    /// and the 256 KB ceiling fell by 4x accordingly.
+    ///
+    /// 16 keeps the criterion the 64 decision set — fire before the stack dies
+    /// on the SMALLEST stack measured, not only the roomiest — at the same
+    /// margin: 64/110 and 16/27 are both ~0.58. **A 256 KB stack is what makes
+    /// it 16 rather than 32.** On the 8 MB main thread, where
+    /// `Frame.computeRootLayout` actually runs, the guard now fires roughly 25x
+    /// below the real ceiling; that is a deliberate cost of the "every stack"
+    /// criterion and the reason a follow-up should shrink the per-level frames
+    /// rather than raise this number.
     ///
     /// The number is not a matter of taste and must not be raised without
     /// re-measuring: `layingOutATreeDeeperThanTheLimitTraps` lays out
     /// `maxDepth + 1` **real** nested nodes and asserts the guard's own message
-    /// on stderr. It is green at 64 and red at 256 — the stack wins there and
+    /// on stderr. It is green at 16 and red at 64 — the stack wins there and
     /// the message never appears — so a future change to this constant is a
     /// measurement rather than a claim.
-    static let maxDepth = 64
+    static let maxDepth = 16
 
     init(rootFontSize: Double) {
         self.rootFontSize = rootFontSize

@@ -10,8 +10,8 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
     s.flexBasis = px(120)
     s.size = Size(width: px(50), height: px(10))   // must be ignored
     let item = tree.newNode(style: s, children: [])
-    #expect(flexBaseSize(tree, item: item, isRow: true,
-                         containerMain: 700, containerCross: 100, intrinsic: .unspecified, rootFontSize: 16) == 120)
+    #expect(flexBaseSize(LayoutContext(rootFontSize: 16), tree, item: item, isRow: true,
+                         containerMain: 700, containerCross: 100, intrinsic: .unspecified) == 120)
 }
 
 @Test func autoBasisFallsBackToTheDefiniteMainSize() {
@@ -20,11 +20,11 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
     s.flexBasis = .auto
     s.size = Size(width: px(80), height: px(10))
     let item = tree.newNode(style: s, children: [])
-    #expect(flexBaseSize(tree, item: item, isRow: true,
-                         containerMain: 700, containerCross: 100, intrinsic: .unspecified, rootFontSize: 16) == 80)
+    #expect(flexBaseSize(LayoutContext(rootFontSize: 16), tree, item: item, isRow: true,
+                         containerMain: 700, containerCross: 100, intrinsic: .unspecified) == 80)
     // In a column the main axis is height, so the same style yields 10.
-    #expect(flexBaseSize(tree, item: item, isRow: false,
-                         containerMain: 700, containerCross: 100, intrinsic: .unspecified, rootFontSize: 16) == 10)
+    #expect(flexBaseSize(LayoutContext(rootFontSize: 16), tree, item: item, isRow: false,
+                         containerMain: 700, containerCross: 100, intrinsic: .unspecified) == 10)
 }
 
 /// Step 2's main-size percentage must resolve against `containerMain`, never
@@ -42,8 +42,8 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
     // containerMain: 600, containerCross: 200 -> correct answer is 300 (50%
     // of 600). If the implementation resolved against containerCross
     // instead, it would report 100 (50% of 200).
-    #expect(abs(flexBaseSize(tree, item: item, isRow: true,
-                             containerMain: 600, containerCross: 200, intrinsic: .unspecified, rootFontSize: 16) - 300) < 1e-4)
+    #expect(abs(flexBaseSize(LayoutContext(rootFontSize: 16), tree, item: item, isRow: true,
+                             containerMain: 600, containerCross: 200, intrinsic: .unspecified) - 300) < 1e-4)
 }
 
 /// Row-direction content sizing: the main axis (width) must reach the
@@ -70,15 +70,28 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
         // also show up in the assertion below.
         return SizeD(width: 137, height: 999)
     }
-    #expect(flexBaseSize(tree, item: item, isRow: true,
-                         containerMain: 700, containerCross: 100, intrinsic: .unspecified, rootFontSize: 16) == 137)
+    #expect(flexBaseSize(LayoutContext(rootFontSize: 16), tree, item: item, isRow: true,
+                         containerMain: 700, containerCross: 100, intrinsic: .unspecified) == 137)
 }
 
-@Test func autoBasisWithNoMeasureFunctionIsZero() {
+/// A **childless** node with no measure function and no definite size still
+/// has a flex base size of 0 — and the reason changed even though the number
+/// did not.
+///
+/// It used to be the literal `else { return 0 }` on a missing measure function.
+/// Content sizing deleted that guard: step 3 now asks `measureNode`, which
+/// answers for a container by running the flex algorithm over its children. A
+/// node with no children has no content and no padding or border, so its
+/// border box is 0 and the answer is unchanged. Give it a child and the two
+/// spellings part company, which is what
+/// `aContainerItemsBaseSizeComesFromItsChildren` below is for — without that
+/// sibling this test is satisfied by a `return 0` that never measures anything
+/// (taxonomy shape 4).
+@Test func autoBasisWithNoMeasureFunctionOrChildrenIsZero() {
     let tree = LayoutTree(generation: 0)
     let item = tree.newNode(style: Style(), children: [])
-    #expect(flexBaseSize(tree, item: item, isRow: true,
-                         containerMain: 700, containerCross: 100, intrinsic: .unspecified, rootFontSize: 16) == 0)
+    #expect(flexBaseSize(LayoutContext(rootFontSize: 16), tree, item: item, isRow: true,
+                         containerMain: 700, containerCross: 100, intrinsic: .unspecified) == 0)
 }
 
 /// Column-direction content sizing: the main axis (height) must reach the
@@ -103,8 +116,33 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
         // also show up in the assertion below.
         return SizeD(width: 999, height: 77)
     }
-    #expect(flexBaseSize(tree, item: item, isRow: false,
-                         containerMain: 700, containerCross: 300, intrinsic: .unspecified, rootFontSize: 16) == 77)
+    #expect(flexBaseSize(LayoutContext(rootFontSize: 16), tree, item: item, isRow: false,
+                         containerMain: 700, containerCross: 300, intrinsic: .unspecified) == 77)
+}
+
+/// §9.2 step 3 for a **container**: its base size is what its own children
+/// come to, which is the whole of what wiring `measureNode` in here bought.
+///
+/// Before content sizing this returned **0** — `tree.measure(item)` is nil for
+/// a container, and the guard returned 0 without looking at the subtree. The
+/// row's children are 40 and 30 wide with a 10px gap, so 80 distinguishes
+/// "measured" from 0, from either child alone, and from a sum that forgets the
+/// gap.
+@Test func aContainerItemsBaseSizeComesFromItsChildren() {
+    let tree = LayoutTree(generation: 0)
+    func kid(_ w: Double) -> LayoutNodeID {
+        var ks = Style()
+        ks.size = Size(width: px(w), height: px(20))
+        return tree.newNode(style: ks, children: [])
+    }
+    var inner = Style()
+    inner.flexDirection = .row
+    inner.gap = Axes(both: .pixels(Pixels(10)))
+    let item = tree.newNode(style: inner, children: [kid(40), kid(30)])
+
+    #expect(flexBaseSize(LayoutContext(rootFontSize: 16), tree, item: item, isRow: true,
+                         containerMain: 700, containerCross: 100,
+                         intrinsic: .unspecified) == 80)
 }
 
 @Test func percentageBasisResolvesAgainstTheContainerMainAxis() {
@@ -112,6 +150,6 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
     var s = Style()
     s.flexBasis = .length(.percent(0.25))
     let item = tree.newNode(style: s, children: [])
-    #expect(abs(flexBaseSize(tree, item: item, isRow: true,
-                             containerMain: 800, containerCross: 100, intrinsic: .unspecified, rootFontSize: 16) - 200) < 1e-4)
+    #expect(abs(flexBaseSize(LayoutContext(rootFontSize: 16), tree, item: item, isRow: true,
+                             containerMain: 800, containerCross: 100, intrinsic: .unspecified) - 200) < 1e-4)
 }

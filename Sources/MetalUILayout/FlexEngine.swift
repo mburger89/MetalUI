@@ -71,8 +71,6 @@ public func computeLayout(
     tree.beginLayout()
     defer { tree.endLayout() }
 
-    let rootSize = resolveRootSize(tree, root, available: available, rootFontSize: ctx.rootFontSize)
-    tree.setLayout(root, LayoutRect(x: 0, y: 0, width: rootSize.width, height: rootSize.height))
     // The root's containing block is the space it was offered — ruling FS-1's
     // "the root is a block box in the initial containing block". So the root's
     // own percentage padding and border resolve against `available.width`, NOT
@@ -80,14 +78,22 @@ public func computeLayout(
     // viewport has `padding: 10%` of 800. Indefinite offered width means an
     // indefinite containing block, and percentage edges then resolve to 0.
     //
-    // `resolveRootSize` above still resolves the root's own `width: 50%`
+    // `resolveRootSize` below still resolves the root's own `width: 50%`
     // against nil rather than against this same extent — a separate, narrower
     // divergence, recorded in CLAUDE.md; do not "fix" one by reaching into the
     // other, they are different rules with different reach.
+    //
+    // Hoisted above `resolveRootSize` because that function may now measure the
+    // root, and a measure needs the same containing-block width a placement
+    // does — the basis for the root's own percentage padding and border, which
+    // is part of the border box it reports (ruling CS-F).
     let rootContainingBlockWidth: Double? = {
         if case .definite(let w) = available.width { return w }
         return nil
     }()
+    let rootSize = resolveRootSize(ctx, tree, root, available: available,
+                                   containingBlockWidth: rootContainingBlockWidth)
+    tree.setLayout(root, LayoutRect(x: 0, y: 0, width: rootSize.width, height: rootSize.height))
     placeNode(ctx, tree, root, origin: (0, 0), size: rootSize,
               containingBlockWidth: rootContainingBlockWidth)
 
@@ -258,47 +264,105 @@ struct FlexItem {
 /// `available` — doing so would silently reintroduce the Task 7 scope-boundary
 /// fallback this task deletes from item sizing.
 private func resolveRootSize(
+    _ ctx: LayoutContext,
     _ tree: LayoutTree,
     _ root: LayoutNodeID,
     available: AvailableSpaceSize,
-    rootFontSize: Double
+    containingBlockWidth: Double?
 ) -> SizeD {
     let s = tree.style(root)
+    let rootFontSize = ctx.rootFontSize
 
-    func axis(_ dim: Dimension, _ minDim: Dimension, _ maxDim: Dimension,
-              availableExtent: AvailableSpace) -> Double {
-        // The root has no parent, so percentages resolve against nil (CSS
-        // treats that as auto) — same as the `.unspecified` parent this
-        // function used before the split.
-        //
-        // **This is knowingly asymmetric with `computeLayout`, which resolves
-        // the root's percentage PADDING against `available.width`.** Both
-        // cannot be right, and this one is the divergence: measured in WebKit,
-        // a root with `width: 50%` in an 800-wide body is **400**, while this
-        // returns nil and falls back to the offered 800. Changing it means
-        // deciding whether `available` is the initial containing block (ruling
-        // FS-1 says it is) for *sizing* as well as for insets, and moves the
-        // root's stored size, which every descendant consumes — a sizing
-        // change, not a box-model one. Recorded in CLAUDE.md's inert table.
-        let resolved = resolveDimension(dim, against: nil, rootFontSize: rootFontSize)
-        let lower = resolveDimension(minDim, against: nil, rootFontSize: rootFontSize)
-        let upper = resolveDimension(maxDim, against: nil, rootFontSize: rootFontSize)
-        let base: Double
-        if let resolved {
-            base = resolved
-        } else if case .definite(let d) = availableExtent {
-            base = d
-        } else {
-            base = 0
-        }
-        return clamp(base, min: lower, max: upper)
+    // The root has no parent, so percentages resolve against nil (CSS
+    // treats that as auto) — same as the `.unspecified` parent this
+    // function used before the split.
+    //
+    // **This is knowingly asymmetric with `computeLayout`, which resolves
+    // the root's percentage PADDING against `available.width`.** Both
+    // cannot be right, and this one is the divergence: measured in WebKit,
+    // a root with `width: 50%` in an 800-wide body is **400**, while this
+    // returns nil and falls back to the offered 800. Changing it means
+    // deciding whether `available` is the initial containing block (ruling
+    // FS-1 says it is) for *sizing* as well as for insets, and moves the
+    // root's stored size, which every descendant consumes — a sizing
+    // change, not a box-model one. Recorded in CLAUDE.md's inert table, and
+    // deliberately NOT touched by the content-sizing milestone (spec §2):
+    // only the `auto` branch below changes, and a percentage still lands in
+    // the `offered` branch exactly as it did.
+    func declared(_ dim: Dimension) -> Double? {
+        resolveDimension(dim, against: nil, rootFontSize: rootFontSize)
+    }
+
+    /// What an axis resolves to without measuring anything: its declared size,
+    /// or the extent the root was offered. `nil` — "measure it" — only when
+    /// there is no declared size and no offered extent either.
+    ///
+    /// **The `auto` test is on the DECLARATION, not on `declared(dim) == nil`.**
+    /// A percentage against the root's absent parent is also unresolvable, and
+    /// routing it through the measuring branch would silently fix the
+    /// divergence described above from the wrong end. A percentage keeps
+    /// today's answer exactly: the offered extent, or 0.
+    func withoutMeasuring(_ dim: Dimension, _ offered: AvailableSpace) -> Double? {
+        if let d = declared(dim) { return d }
+        guard case .auto = dim else { return definiteExtent(offered) ?? 0 }
+        return definiteExtent(offered)
+    }
+
+    // **An `auto` root axis with a definite offered extent still takes that
+    // extent, and this is ruling EP-5 — SwiftUI's answer over CSS's — not an
+    // unexamined fallback.**
+    //
+    // CSS disagrees, and the disagreement is measured rather than assumed: the
+    // root is a block-level box in the initial containing block, so a browser
+    // fills its inline axis and shrink-wraps its block axis. In WebKit, an
+    // 800x600 viewport holding `#root { display: flex }` with one 100x40 child
+    // gives the root **800 x 40**. This engine gives **800 x 600**.
+    //
+    // Taking WebKit's answer here was implemented, measured, and reverted. It
+    // reddens six element-pipeline and frame-loop tests, all for the same
+    // reason: a `Row { … }` rendered into a 400x120 `Frame` has no declared
+    // height, so the window's root would collapse to its content and a
+    // `flexGrow(1)` child would stretch into 0. `computeLayout`'s `available:`
+    // is a window, not a CSS viewport, and ruling EP-6 keeps `Column`/`Row` on
+    // `stretch` precisely so a root fills the surface it was given. **No
+    // fixture can hold the divergence** — every fixture root declares both a
+    // width and a height, which is also why the corpus never noticed either
+    // answer.
+    //
+    // What content sizing *does* change here is the case where there is no
+    // offered extent to take: that was a hardcoded 0, and it is now the
+    // subtree's own size. `computeLayout` can be handed `.minContent` or
+    // `.maxContent` on an axis, and shrink-to-fit is the only sensible answer
+    // for it. A browser cannot express an indefinite viewport, so this half is
+    // reasoned from CSS's shrink-to-fit rule rather than measured against one.
+    let width = withoutMeasuring(s.size.width, available.width)
+    let height = withoutMeasuring(s.size.height, available.height)
+
+    // Measure only when an axis actually needs it. Skipping the call when both
+    // axes are settled is not an optimisation: `measureNode` runs the whole
+    // subtree, and every fixture in the corpus has a root with both a `width`
+    // and a `height`.
+    let base: SizeD
+    if let width, let height {
+        base = SizeD(width: width, height: height)
+    } else {
+        // A measured axis is offered `.maxContent`, never the definite extent
+        // it declined to take. `measureNode` turns a definite available extent
+        // into the node's OWN extent, so offering 600 here would lay the root
+        // out 600 tall internally — resolving its children's percentage heights
+        // against a height the root does not have.
+        base = measureNode(
+            ctx, tree, root,
+            known: OptionalSizeD(width: width, height: height),
+            available: AvailableSpaceSize(
+                width: width.map { AvailableSpace.definite($0) } ?? .maxContent,
+                height: height.map { AvailableSpace.definite($0) } ?? .maxContent),
+            containingBlockWidth: containingBlockWidth)
     }
 
     return SizeD(
-        width: axis(s.size.width, s.minSize.width, s.maxSize.width,
-                    availableExtent: available.width),
-        height: axis(s.size.height, s.minSize.height, s.maxSize.height,
-                     availableExtent: available.height))
+        width: clamp(base.width, min: declared(s.minSize.width), max: declared(s.maxSize.width)),
+        height: clamp(base.height, min: declared(s.minSize.height), max: declared(s.maxSize.height)))
 }
 
 /// Resolve a node's own border-box size from its style.
@@ -317,6 +381,13 @@ private func resolveRootSize(
 /// unlike `resolveRootSize`, this function never falls back to an offered
 /// available extent — an axis it cannot resolve from the node's own style is
 /// 0, on both the cross axis here and the (unused) main axis.
+///
+/// **Its 0 is no longer the last word on an `auto` cross size.** `collectItems`
+/// keeps calling this for the item's full `SizeD`, but takes the cross
+/// component from it only when the cross size property is *not* a literal
+/// `auto`; an `auto` one is measured through `measureNode` instead. The 0 above
+/// still describes what happens to an unresolvable **percentage**, which WebKit
+/// also leaves at 0 rather than content-sizing — see `ownCross` there.
 private func resolveNodeSize(
     _ tree: LayoutTree,
     _ node: LayoutNodeID,
@@ -504,8 +575,8 @@ private func layOutChildren(
                          containingBlockWidth: containingBlockWidth,
                          rootFontSize: ctx.rootFontSize)
 
-    let items = collectItems(tree, container, containerSize: box.size,
-                             intrinsic: intrinsic, rootFontSize: ctx.rootFontSize)
+    let items = collectItems(ctx, tree, container, containerSize: box.size,
+                             intrinsic: intrinsic)
     // No items, no lines: this is the early return the top-down recursion has
     // always had on a childless container. Returning here rather than
     // falling through is not only an optimisation — `align-content`'s leftover
@@ -815,13 +886,19 @@ func placeNode(
 /// below this function would return the right size and pass every golden;
 /// `measuringWritesNoLayout` is the guard.
 ///
-/// **Nothing in `Sources/` calls this yet**, and the task that propagated the
-/// intrinsic query below did not change that: it made the recursion answer the
-/// right question, not something ask it. Wiring the four constant-substituting
-/// sites is still ahead, and until then every caller is a test
-/// (`MeasureNodeTests.swift`, `IntrinsicModeTests.swift`, `MeasureCacheTests.swift`).
-/// Two limits that whoever wires it inherits, named here because a caller
-/// cannot see either from the signature:
+/// **The four constant-substituting sites now call this, and that is what makes
+/// it load-bearing rather than decorative.** They are `flexBaseSize`'s §9.2
+/// content branch, `collectItems`' CSS Sizing §4.5 automatic minimum,
+/// `collectItems`' `auto` cross size, and `resolveRootSize`'s `auto` axis with
+/// no offered extent. This doc previously said "nothing in `Sources/` calls
+/// this yet"; the sentence is kept in the negative because its *consequences*
+/// changed with it — `LayoutContext.maxDepth` fell from 64 to 16 when a real
+/// recursion started running through here, and `measuringWritesNoLayout` went
+/// from a property nobody could violate to the only guard on a path every
+/// layout takes.
+///
+/// Two limits that a caller inherits, named here because none of them is
+/// visible from the signature:
 ///
 /// 1. **`.minContent` and `.maxContent` are no longer indistinguishable for a
 ///    container** — this doc said they were, and the fix is the `intrinsic`
@@ -850,11 +927,17 @@ func placeNode(
 ///    `flexBaseSize`'s content branch is the only route to a contribution
 ///    larger than the base size and it needs a non-nil `tree.measure(item)`,
 ///    which `newLeaf` alone supplies and nothing in `Sources/` calls. **Still
-///    true after the intrinsic query landed** — that task changed what a
-///    container *asks*, not who calls `measureNode`, and it left the worked
-///    example at 100/100 on both queries. Wiring the call sites is what puts
-///    it in the path, and that is the next task. Recorded in the
-///    content-sizing decisions doc with the same numbers.
+///    true after the intrinsic query landed, and still true after the four
+///    sites were wired** — re-measured both times rather than assumed. Wiring
+///    put the content branch in the path and moved nothing here: the worked
+///    example is 100 under `flex-grow: 0` and 100 under `flex-grow: 1`, at both
+///    `.minContent` and `.maxContent`, because a definite `flex-basis: 100px`
+///    wins at `flexBaseSize`'s FIRST branch and the rewired content branch is
+///    never reached on that shape. Spelling the same example with
+///    `flex-basis: auto` does reach it and gives 200 for both grow values —
+///    the flex fraction is ≤ 0 there, which is precisely the region where the
+///    substitute and §9.9.1 agree. Recorded in the content-sizing decisions doc
+///    with the same numbers.
 ///
 /// This doc used to carry a second limit — "an unbounded probe leaves a
 /// `flex-grow` item's target infinite … no test here can see it". **Both halves
@@ -1012,12 +1095,13 @@ struct IntrinsicQuery: Sendable, Hashable {
 /// main and cross from it, and giving it a pre-resolved pair would be a second
 /// place the row/column choice is made.
 private func collectItems(
+    _ ctx: LayoutContext,
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
     containerSize: OptionalSizeD,
-    intrinsic: IntrinsicQuery,
-    rootFontSize: Double
+    intrinsic: IntrinsicQuery
 ) -> [FlexItem] {
+    let rootFontSize = ctx.rootFontSize
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
     // `nil` on an axis means the container has no given extent there (ruling
@@ -1032,11 +1116,10 @@ private func collectItems(
     return tree.children(container)
         .filter { tree.style($0).display != .none }
         .map { kid in
-            let base = flexBaseSize(tree, item: kid, isRow: isRow,
+            let base = flexBaseSize(ctx, tree, item: kid, isRow: isRow,
                                     containerMain: containerMain,
                                     containerCross: containerCross,
-                                    intrinsic: intrinsic,
-                                    rootFontSize: rootFontSize)
+                                    intrinsic: intrinsic)
 
             let ks = tree.style(kid)
             // CSS Sizing §4.5's automatic minimum size. `min-width: auto` on a
@@ -1048,18 +1131,24 @@ private func collectItems(
             // `anItemWithNoContentHasNoAutomaticMinimum` and
             // `shrinkIsWeightedByBaseSize` both redden if anyone tries it.
             //
-            // An item with no measure function has no content, so its automatic
-            // minimum is 0 and it shrinks freely.
+            // A childless leaf with no measure function has no content, so its
+            // automatic minimum is its own padding and border — 0 for the empty
+            // divs the corpus is made of, and it shrinks freely. It is a number
+            // now rather than `nil` ("no floor"), which is behaviour-neutral
+            // because `clamp` and §9.7.4.d's `max(0, …)` treat a 0 floor and no
+            // floor identically for any non-negative size.
             //
-            // **This rule is not, and cannot yet be, browser-verified.** WebKit's
-            // content size comes from real text; nothing in this framework
-            // measures any until the text system lands in M2, and every fixture
-            // in the corpus is an empty div — for which the rule is a no-op. So
-            // it is pinned only by hand-written tests carrying explicit measure
-            // closures (`automaticMinimumSizeUsesContentSizeNotFlexBasis`), and
+            // **This rule was "not, and cannot yet be, browser-verified" and now
+            // is, for containers.** That claim named the M2 text system as the
+            // gate and was the same shape as the two CLAUDE.md rows measurement
+            // has already disproved (taxonomy shape 10): a **container** item
+            // has a content size with no text in it, so a nested flex container
+            // whose children are wider than its shrunk main size is now floored
+            // by them exactly as WebKit floors it. What remains unverifiable
+            // until M2 is the **leaf** half, which needs a `MeasureFunction`
+            // that no production code attaches — that half is still pinned only
+            // by hand-written closures (`automaticMinimumSizeUsesContentSizeNotFlexBasis`).
             // `flex_row_explicit_min` covers **explicit** `min-width` alone.
-            // When the text system lands, add a fixture with real content and
-            // delete this paragraph.
             //
             // **Ruling FS-3 — half the rule is deliberately missing.** §4.5's
             // automatic minimum is `min(specified size suggestion, content size
@@ -1072,7 +1161,6 @@ private func collectItems(
             let minDim = isRow ? ks.minSize.width : ks.minSize.height
             let minMain: Double? = {
                 if case .auto = minDim {
-                    guard let measure = tree.measure(kid) else { return nil }
                     // **A FOURTH site with hardcoded intrinsic modes, and it
                     // stays hardcoded.** §4.5's content size suggestion IS the
                     // item's min-content size in the main axis, whatever the
@@ -1089,9 +1177,21 @@ private func collectItems(
                     // propagate, and hid it from the first probe written for
                     // `theCrossAxisOfTheQueryReachesTheChildToo`. That test
                     // sets `min-height: 0` to switch this off.
-                    let probe = measure(.unspecified,
-                                        AvailableSpaceSize(width: isRow ? .minContent : .maxContent,
-                                                           height: isRow ? .maxContent : .minContent))
+                    //
+                    // **`known: .unspecified` is deliberate and is what keeps
+                    // ruling FS-3 honest.** §4.5's automatic minimum is
+                    // `min(specified size suggestion, content size suggestion)`
+                    // and only the content half is implemented; handing the
+                    // item's own `width`/`height` down as `known` here would
+                    // silently substitute the *specified* suggestion for the
+                    // content one. Measured against WebKit: a `width: 120px`
+                    // empty div shrinks to 75 in a row that overflows, because
+                    // its content suggestion is 0 and 0 wins the `min`.
+                    let probe = measureNode(ctx, tree, kid, known: .unspecified,
+                                            available: AvailableSpaceSize(
+                                                width: isRow ? .minContent : .maxContent,
+                                                height: isRow ? .maxContent : .minContent),
+                                            containingBlockWidth: containerSize.width)
                     return isRow ? probe.width : probe.height
                 }
                 // An explicit `min-width` wins outright: it *replaces* the
@@ -1171,39 +1271,93 @@ private func collectItems(
             // `stretchWithMaxHeightClampsTheBorderBoxNotTheMarginBox` pins the
             // ordering against WebKit including a `max-height` probe.
             //
-            // **Content-based cross sizing is still missing**, and it is the
-            // other half of §9.4. **Any** item with an `auto` cross size gets 0
-            // here — stretched or not, because `lineCrossSize` measures the line
-            // from this value *before* stretch runs (ruling **WR-4**).
+            // **Content-based cross sizing is the other half of §9.4, and it is
+            // implemented now** — see `ownCross` below. It was missing for four
+            // milestones: **any** item with an `auto` cross size got 0 here,
+            // stretched or not, because `lineCrossSize` measures the line from
+            // this value *before* stretch runs (ruling **WR-4**). A line whose
+            // items were all auto-cross measured 0 tall, so it collapsed and
+            // every line after it shifted up, and under `align-content: stretch`
+            // the bad line corrupted the leftover and moved *every* line.
             //
-            // This comment previously said the item had to be non-stretched and
-            // that "every fixture in the corpus is an empty div, so nothing
-            // catches it — wait for M2". Measurement disproved both, and the
-            // wrapping branch rewrote this very comment while keeping the
-            // falsehood, which is why it now names its own history: a **nested
-            // flex container** has a content cross size with no text involved,
-            // and `autoCrossNestedContainerCollapsesItsLineUnlikeWebKit` pins
-            // the divergence with WebKit's numbers. M2 supplies text metrics;
-            // what this needs is recursive subtree measurement, which is a
-            // separate plan.
-            //
-            // Wrapping made it far louder: a line whose items are all auto-cross
-            // measures 0 tall, so the whole line collapses and every line after
-            // it shifts up — and under `align-content: stretch` the bad line
-            // corrupts the leftover and moves *every* line in the container.
+            // The history is kept because the claim that guarded it was wrong
+            // twice: this comment once said the item had to be non-stretched,
+            // and that "every fixture in the corpus is an empty div, so nothing
+            // catches it — wait for M2". A **nested flex container** has a
+            // content cross size with no text in it, which is what
+            // `autoCrossNestedContainerMeasuresItsLineLikeWebKit` measured as a
+            // divergence and now pins as an agreement;
+            // the gate was never text metrics but recursive subtree
+            // measurement, which is what `measureNode` now supplies.
             let crossDim = isRow ? ks.size.height : ks.size.width
             let own = resolveNodeSize(tree, kid, parent: parent, rootFontSize: rootFontSize)
-            let ownCross = isRow ? own.height : own.width
             let align = resolvedAlignment(ks, container: s)
             var stretchEligible = false
             if align == .stretch, case .auto = crossDim { stretchEligible = true }
             // Resolved against `containerCross` — the containing block's cross
             // extent — NOT against the line's, which does not exist yet and
             // would in any case be the wrong basis for a percentage min/max.
+            //
+            // Resolved BEFORE `ownCross` below, which needs them: an `auto`
+            // cross size is measured and then clamped by the item's own cross
+            // min/max, exactly as `resolveNodeSize` clamps a declared one.
             let minCross = resolveDimension(isRow ? ks.minSize.height : ks.minSize.width,
                                             against: containerCross, rootFontSize: rootFontSize)
             let maxCross = resolveDimension(isRow ? ks.maxSize.height : ks.maxSize.width,
                                             against: containerCross, rootFontSize: rootFontSize)
+
+            // §9.4 step 7 — the item's HYPOTHETICAL cross size: "perform layout
+            // with the used main size and the available space, treating auto as
+            // fit-content". This is the third of the four sites that
+            // substituted a constant, and the constant was `resolveNodeSize`'s
+            // 0 for an unresolvable axis.
+            //
+            // Three choices here, each measured against WebKit rather than
+            // derived, because each has a plausible wrong answer:
+            //
+            // 1. **Only a literal `auto` is measured.** A *percentage* cross
+            //    size against an indefinite `containerCross` is also
+            //    unresolvable, and CSS says an unresolvable percentage behaves
+            //    as auto — but WebKit does not content-size it: a
+            //    `height: 50%` child of an auto-height flex item measures **0**
+            //    there, not its content. So the switch is on the declaration,
+            //    not on whether `resolveNodeSize` came back with something.
+            // 2. **The main axis is passed as `known`, at the item's
+            //    HYPOTHETICAL main size, not its flex base size.** "The used
+            //    main size" at this point in §9.4 is the base size already
+            //    clamped by the item's own main min/max, which is exactly
+            //    `hypothetical`. They differ only when a min/max binds, which
+            //    is precisely when the difference matters.
+            // 3. **The cross axis is offered `.maxContent`, never
+            //    `.definite(containerCross)`.** `measureNode` turns a definite
+            //    available extent into the measured node's OWN extent (its
+            //    `probe`), so offering the container's cross extent would make
+            //    the item that big and let its children's cross percentages
+            //    resolve against it — WebKit resolves them against nothing
+            //    (see 1). It also does not clamp to the container: an item
+            //    whose content is 150 tall in an 80-tall row measures **150**
+            //    in WebKit and overflows, which is max-content, not
+            //    fit-content.
+            //
+            // `.maxContent` here is hardcoded rather than taken from
+            // `intrinsic`, for the same reason §4.5's probe above is: the
+            // hypothetical cross size is a property of the item, not of the
+            // question the container was asked. A fourth propagation site
+            // would need a fourth guard test, and ruling CS-H's lesson is that
+            // an unguarded propagation edit is worse than none.
+            let ownCross: Double = {
+                guard case .auto = crossDim else { return isRow ? own.height : own.width }
+                let crossKnown = isRow ? OptionalSizeD(width: hypothetical, height: nil)
+                                       : OptionalSizeD(width: nil, height: hypothetical)
+                let mainSpace = AvailableSpace.definite(hypothetical)
+                let measured = measureNode(
+                    ctx, tree, kid, known: crossKnown,
+                    available: AvailableSpaceSize(width: isRow ? mainSpace : .maxContent,
+                                                  height: isRow ? .maxContent : mainSpace),
+                    containingBlockWidth: containerSize.width)
+                return clamp(isRow ? measured.height : measured.width,
+                             min: minCross, max: maxCross)
+            }()
 
             // `targetMainSize:` here is dead — §9.7.2 overwrites it on every
             // item before it is read, and no empty-line path reaches

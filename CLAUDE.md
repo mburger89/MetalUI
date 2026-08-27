@@ -13,13 +13,16 @@ idiomatic Swift. macOS and iOS.
   `docs/superpowers/2026-08-25-alignment-decisions.md`,
   `docs/superpowers/2026-08-25-box-model-decisions.md`,
   `docs/superpowers/2026-08-25-wrapping-decisions.md`,
-  `docs/superpowers/2026-08-26-element-pipeline-decisions.md` — each ruling with
+  `docs/superpowers/2026-08-26-element-pipeline-decisions.md`,
+  `docs/superpowers/2026-08-26-content-sizing-decisions.md` — each ruling with
   its reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
   **Ruling IDs are namespaced by milestone.** `PF-3` and `C-3` belong to m1a;
   `FS-n` to flex sizing, `AL-n` to alignment, `BM-n` to the box model, `WR-n` to
-  wrapping, `EP-n` to the element pipeline (**`EP-2` and `EP-4` were never
+  wrapping, `EP-n` to the element pipeline, `CS-n` to content sizing (whose
+  rulings are **lettered**, `CS-A`…`CS-L`, so a bare `CS-3` is a typo rather
+  than a citation) (**`EP-2` and `EP-4` were never
   assigned** and must not be reused — a new ruling taking one would silently
   rebind any citation written against the gap). Sweep for stray citations **case-insensitively** — a `Ruling F-3` survived two branches' greps for lowercase `ruling`. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
   had one, and three code comments on the flex-sizing branch cited the wrong
@@ -84,10 +87,10 @@ demo is the proof — but nothing above the renderer can ask for one.
 what the demo draws — and no test can establish it.** `MetalLayerSurface` vends drawables whether its `CAMetalLayer` is
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
-sees — and all 304 tests still pass. If you touch that ordering, re-run the demo
+sees — and all 334 tests still pass. If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
-## Three known divergences — expected, measured, not defects
+## Four known divergences — expected, measured, not defects
 
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
@@ -156,6 +159,28 @@ root to 112 tall. If a new fixture's golden shows a root taller or wider than
 its declared size, this is why — shrink the percentages rather than encoding
 the divergence into the corpus.
 
+**4. Ruling CS-I — an `auto` root axis takes the space it was offered, where
+CSS shrink-wraps the block one.** The root is a block-level box in the initial
+containing block, so a browser fills its inline axis and shrink-wraps its block
+axis. Measured: an 800×600 viewport holding `#root { display: flex }` with one
+100×40 child gives WebKit **800 × 40**. This engine gives **800 × 600**.
+
+CSS's answer was implemented and reverted, not skipped: it reddens six
+element-pipeline and frame-loop tests at once, all for one reason — a
+`Row { … }` rendered into a `Frame` declares no height, so the window's root
+would collapse to its content and every `flexGrow(1)` child would stretch into
+0. Ruling **EP-5** takes SwiftUI's answer where the two differ, and SwiftUI's
+root fills the window; **EP-6** keeps `Column`/`Row` on `stretch` for the same
+reason. `computeLayout`'s `available:` is a window, not a viewport.
+
+**No fixture can hold this one**, and by a mechanism rather than a milestone:
+the golden generator measures a `#root` inside a real body, so the only way to
+express "offered nothing" is a viewport with no width, which a browser does not
+have. Every fixture root declares both a width and a height, which is also why
+the corpus never distinguished the two answers. What content sizing *did*
+change here is the case with no offered extent at all — a hardcoded 0, now the
+subtree's own size (`anAutoRootWithNoOfferedExtentMeasuresItsContent`).
+
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
@@ -186,7 +211,6 @@ are the dangerous ones.
 | Declared | Reality |
 |---|---|
 | `AlignItems.baseline` / `AlignSelf.baseline` | **Falls back to `flexStart`, not silently.** `crossAxisOffset` needs font metrics that arrive with the text system in M2; until then a `baseline`-aligned row lays out as a `flex-start` row. **Whoever implements it inherits a `wrap-reverse` clause**: CSS Flexbox §8.3 swaps first- and last-baseline alignment in a `wrap-reverse` container, and nothing in the flip `positionItems` does today expresses that — it flips an offset, and baseline alignment is not an offset. Ruling AL-6: the task that makes an API inert records it here; the task that makes one live deletes the row. **Task 4 made it reachable from the public API**: `StyledElement.alignItems(_:)` / `alignSelf(_:)` take the whole enum, so `.baseline` can now be written by a caller who will silently get `flexStart` — this row is the only thing guarding that, unlike `margin: .auto`, which the modifier's parameter type keeps out of reach. `justifyContent`, `alignItems` and `alignSelf` left this table when the alignment work implemented them and `alignContent` when wrapping's second task did; **a whole enum leaving is not the same as its every case leaving**, and this row is the standing counter-example |
-| An `auto` cross size on **any** item, stretched or not | **Resolves to 0, not to content.** §9.4's stretch half is implemented; its content-sizing half is not, so an `auto` cross size measures 0 where CSS gives it the content's cross extent. **This row said two things that were false until ruling **WR-4**'s probe round disproved them, and the corrections matter more than the row.** (1) It scoped the gap to a **non-stretched** item. It is not so scoped: the size is lost in §9.4.8 **line measurement**, which runs *before* stretch, so a `stretch`-aligned item loses it too. (2) It said "no fixture can catch this — every fixture in the corpus is an empty div" and blamed the **M2 text system**. A **nested flex container** has a content cross size with no text in it, and two probe agents caught it independently today: a 200×200 `wrap` root holding a `width: 120px` nested flex container gives WebKit `120×50` and this engine `120×0`, collapsing the line and stacking the next one on top of it. M2 is not the gate; recursive subtree measurement is, and that is its own plan. `flex_row_stretch_mixed`'s `.c` still agrees with WebKit at 0 for the wrong reason — that part was true. **Wrapping raised the stakes**: a line whose items are *all* auto-cross now measures 0 tall, so the whole line collapses and every line after it shifts up, rather than one item within a line being wrong. **`align-content` raised them again, and out of the "silent" category**: a nested `wrap` container with `height: auto` has a cross extent of 0, so its lines' total cross is *negative* free space and `align-content` distributes it — `flex-end` places children at **y = −102** and `center` at **−51** where WebKit gives 0 and 50. That is internally consistent given `containerCross == 0`, and it was positionally invisible while lines packed from cross-start; it is not any more. Negative stored coordinates are the loudest symptom this divergence has ever had, and they are a symptom of the auto-cross gap, not of `align-content`. `wrap-reverse` neither helps nor worsens it: its flip is `containerCross - lineCrossStart - lineCross`, so a zero-height container simply gets the same wrong numbers with the sign structure inverted |
 | `aspectRatio` | **0 uses** |
 | `margin: auto` (`Style.margin`'s `.auto` case) | **Resolves to 0, not to CSS's answer.** Item margins landed in the box-model task's second step — `resolveMargin` in `Resolve.swift` shrinks the main-axis budget and offsets each item by its own margin — but `.auto` maps to 0 on the single line marked for it in that function, not to CSS's "absorb free space before `justify-content` distributes any." A `margin-left: auto` item that CSS would push to the far end of the line lays out at the line's start instead, silently. Pinned by `autoMarginsResolveToZeroForNow` in `BoxModelTests.swift`, with CSS's real answer named in its comment. **This row's scope was too narrow until the wrapping branch's final review measured it** — the third claim of that shape on this project, after ruling WR-4's and WR-5's. Auto margins are not only a main-axis/`justify-content` gap: WebKit **centres a `margin-block: auto` item within its line on the CROSS axis** and we give 0 (`b` at 90 vs our 0). That was already true under `nowrap`; `align-content: stretch` — the default this branch made reachable — grows lines and widened it (`d` at 255 vs our 225). Whoever implements auto margins owns both axes, not just the one `justify-content` sees. **Unreachable from the public modifier API since Task 4**, and by a type rather than by a convention: `StyledElement.margin(_:)` takes `Length`, not `Dimension`, so `.auto` cannot be written through it at all. `Style.margin` is still public, so the case is reachable by setting `style` directly |
 | `MUIRect.borderColor` / `MUIRect.borderWidths` | **Round-trip the ABI, are drawn by `rect_fragment` — the M0 demo proved that end to end — and nothing in `MetalUI` can set either.** `Frame.fill` hard-codes `.transparent` and zero widths, and `Decoration` deliberately has no `borderColor`. The blocker is the **width**, not the colour: `Style.border` is an `Edges<Length>` whose percentage case resolves against the *containing block's* width, and the engine computes that inside `contentBox` and throws it away, so paint has no resolved width to pair a colour with. Re-resolving one at paint time against the box's own width is the exact mistake the percentage-inset constraint below records. Storing the resolved edges on `LayoutTree` is what unblocks it. Note the asymmetry this leaves: `StyledElement.borderWidth(_:)` is **live** and shrinks the content box, so a border affects sizing today and paints nothing |
@@ -194,9 +218,9 @@ are the dangerous ones.
 | A percentage `width`/`height` on the **root** | **Falls back to the offered space, not to the percentage.** `resolveRootSize` resolves the root's percentages against `nil` and then takes `available` — so `width: 50%` in an 800-wide space gives **800**. Measured in WebKit: **400**. The root's percentage *padding* does resolve against `available.width` (see `computeLayout`), so the two halves of "the root's containing block" disagree with each other today. Fixing it moves the root's stored size, which every descendant consumes; it belongs to a sizing plan, not the box model |
 | `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
 | `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **Re-measured, with a mutation that compiles.** The number this row used to quote came from adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder`, and that mutation **no longer compiles**: `anExplicitAnyElementIsStillAcceptedAsAChild` — added by the same Task 4 commit — puts an `AnyElement` inside a builder block, so the generic overload demands `AnyElement: Element`, which it is not, and the suite fails to build with `error: static method 'buildExpression' requires that 'AnyElement' conform to 'Element'`. Pairing it with a non-generic `buildExpression(_ e: AnyElement) -> AnyElement` restores the measurement: **exactly the three type-level tests in that file redden, and no behavioural test at all, out of 303.** Delete this row when the static path demonstrably does not serve a real container |
-| `MeasureFunction` / `tree.measure()` | **Two callers, never populated.** `flexBaseSize`'s content-size branch and `collectItems`' CSS Sizing §4.5 automatic-minimum probe both read it, but `newLeaf` — the only way to attach a measure function — has no production caller, so every production node's `tree.measure()` returns `nil`: `flexBaseSize` always takes its 0 fallback and `min-width: auto` always resolves to no floor. Both rules are therefore exercised **only by tests that build their own closures**, which is why `min-width: auto` has no browser fixture — see `automaticMinimumSizeUsesContentSizeNotFlexBasis` |
+| `MeasureFunction` / `tree.measure()` | **A LEAF still has no production caller; a CONTAINER no longer needs one.** `newLeaf` is the only thing that attaches a measure function and nothing in `Sources/` calls it, so every production node's `tree.measure()` is still `nil` — that half is M2 and is the whole of what this row is now about. What changed is that `tree.measure()` stopped being the only route to a content size: `measureNode` falls through to the flex algorithm over the node's children, so `flexBaseSize`'s content branch and §4.5's automatic minimum are **live and browser-verified for containers** (`aContainerItemsBaseSizeComesFromItsChildren`, `aContainerItemIsFlooredByItsChildrensWidth`, whose WebKit numbers are named in its comment). The **leaf** halves are still exercised only by tests that build their own closures — `automaticMinimumSizeUsesContentSizeNotFlexBasis` — and still have no browser fixture, because a leaf's content is text |
 | `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` matches only the string inside its own precondition message. The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
-| CSS Sizing §4.5's **specified size suggestion** | **Not implemented** (ruling FS-3). The automatic minimum is `min(specified suggestion, content suggestion)`; only the content half exists. Indistinguishable until something measures content in production — M2 |
+| CSS Sizing §4.5's **specified size suggestion** | **Still not implemented** (ruling FS-3), and content sizing supplied the *other* half. The automatic minimum is `min(specified suggestion, content suggestion)`; the content half is now live for containers. **What expired is the claim that the two are "indistinguishable until M2"** — they differ whenever a measured content size exceeds a specified one, and a container reaches that today. It is not yet a wrong answer anywhere: `min` takes the smaller, so the *visible* error would be implementing this half alone (WebKit shrinks a `width: 120px` empty div to 40, because its content suggestion is 0 — pinned by `aContainerItemIsFlooredByItsChildrensWidth`). Reachable now, so what it needs is a fixture, not a milestone |
 
 Re-check any row rather than trusting this table:
 
@@ -210,7 +234,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 304 tests and 57 browser fixtures, warning-free.
+`swift build` · `swift test` — 334 tests and 57 browser fixtures, warning-free.
 **Seven** non-test targets with strictly one-way dependencies: `MetalUICore`,
 `MetalUILayout`, `MetalUIShaderTypes`, `MetalUIRender`, `MetalUIPlatform`,
 `MetalUI`, `MetalUIDemo`. **`MetalUITestSupport` is an eighth `.target` in

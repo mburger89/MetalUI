@@ -1188,16 +1188,16 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 
 // MARK: - Ruling WR-4: an auto-cross nested container collapses its line
 
-/// A line whose tallest item is an **auto-cross nested flex container** measures
-/// 0, so the line collapses and the next line stacks on top of it.
+/// A line whose tallest item is an **auto-cross nested flex container** now
+/// measures that container's content, so the line does not collapse and the
+/// next line stacks below it.
 ///
-/// **This is the test ruling WR-4 promised and did not initially ship.** The
-/// decisions doc said the behaviour would get "the BM-4 treatment" — pinned, with
-/// WebKit's numbers named — and the whole-branch review found no such test
-/// existed. Without it the divergence is invisible, and whoever lands recursive
-/// subtree measurement moves it silently.
-///
-/// The tree, and what each engine says:
+/// **This test was a divergence and is now an agreement, and it is renamed
+/// rather than deleted.** It shipped as `autoCrossNestedContainerCollapsesItsLineUnlikeWebKit`,
+/// asserting `x.height == 0` and `y.y == 0` with WebKit's real numbers named in
+/// the comment — ruling WR-4's "BM-4 treatment". Content sizing wired
+/// `collectItems`' `auto` cross branch to `measureNode`, and the engine's
+/// answers moved onto WebKit's:
 ///
 /// ```html
 /// #root { display: flex; flex-wrap: wrap; align-content: flex-start;
@@ -1206,19 +1206,21 @@ private func line(_ mains: [Double]) -> [FlexItem] {
 /// .y { width: 120px; height: 20px; }
 /// ```
 ///
-///     node   WebKit          this engine
-///     x      0,0 120x50      0,0 120x0
-///     y      0,50 120x20     0,0  120x20
+///     node   WebKit          before          now
+///     x      0,0 120x50      0,0 120x0       0,0 120x50
+///     y      0,50 120x20     0,0  120x20     0,50 120x20
 ///
-/// `collectItems` gives an `auto`-cross item `crossSize = 0`; `lineCrossSize`
-/// then measures the line from that 0. It happens **before** stretch, which is
-/// why the item being stretch-eligible does not save it — the half of WR-4 that
-/// the old comments got wrong.
+/// The mechanism it still pins is the ordering: `lineCrossSize` measures the
+/// line from the items' **unstretched** cross sizes, *before* stretch runs, so
+/// the fix had to land in `collectItems` and not in the stretch clamp. Reverting
+/// `ownCross`'s measured branch to `resolveNodeSize`'s 0 reddens exactly this
+/// test's first two expectations, which is the differential the old version
+/// could not have.
 ///
-/// **`nowrap` on the same tree agrees with WebKit exactly**, because a single
-/// line's cross size is the container's. Wrapping is what made this observable:
-/// taxonomy shape 9.
-@Test func autoCrossNestedContainerCollapsesItsLineUnlikeWebKit() {
+/// **`nowrap` on the same tree agreed with WebKit even before**, because a
+/// single line's cross size is the container's. Wrapping is what made this
+/// observable: taxonomy shape 9.
+@Test func autoCrossNestedContainerMeasuresItsLineLikeWebKit() {
     let tree = LayoutTree(generation: 0)
     let inner = item(tree, main: 40, cross: 50)
     var xStyle = Style()
@@ -1237,11 +1239,11 @@ private func line(_ mains: [Double]) -> [FlexItem] {
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    // WebKit: 120x50. Ours collapses to 0 because the nested container's content
-    // cross size is never computed.
-    #expect(tree.layout(x).height == 0)
-    // WebKit puts `y` on the next line at y = 50. Ours stacks it at 0 — the two
-    // lines overlap.
-    #expect(tree.layout(y).y == 0)
+    // WebKit: 120x50, and so are we now — `x`'s content cross size is the
+    // inner item's 50. It was 0 until content sizing wired `collectItems`.
+    #expect(tree.layout(x).height == 50)
+    // WebKit puts `y` on the next line at y = 50, and so do we. It was 0, i.e.
+    // the two lines overlapped.
+    #expect(tree.layout(y).y == 50)
     #expect(tree.layout(y).height == 20)
 }

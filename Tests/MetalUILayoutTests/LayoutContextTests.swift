@@ -106,13 +106,18 @@ import MetalUICore
             "aborted, but not at the depth guard this test is about:\n\(stderr)")
 }
 
-/// The same for `measureNode`, and it cannot be written the way the test above
-/// is: measurement does not recurse into children **yet** — nothing below
-/// `measureNode` calls `measureNode` until the four constant-substituting sites
-/// are wired — so no tree, however deep, reaches its `ctx.enter` more than once.
-/// Entering the context by hand is the only thing that pins this call site at
-/// all, and it stops being the only thing the moment Task 4 wires the four
-/// sites, at which point this deserves the nested-tree treatment too.
+/// The same for `measureNode`, entered by hand.
+///
+/// **This comment claimed "measurement does not recurse into children yet" and
+/// that is no longer true.** Wiring the four constant-substituting sites made
+/// `collectItems` and `flexBaseSize` call `measureNode`, so a deep tree does
+/// now reach this `ctx.enter` once per level — which is exactly what
+/// `layingOutATreeDeeperThanTheLimitTraps` above exercises, and why that test's
+/// stack ceiling fell from 196 levels to 53 (see `LayoutContext.maxDepth`).
+/// Entering by hand is therefore no longer the *only* thing pinning this call
+/// site; it is kept because it is the only thing that pins it **specifically**,
+/// with the real-recursion test unable to say which of the two `ctx.enter`
+/// calls fired.
 @Test func measureNodeConsultsTheDepthGuard() async {
     let result = await #expect(processExitsWith: .failure,
                                observing: [\.standardErrorContent]) {
