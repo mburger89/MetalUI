@@ -144,9 +144,17 @@ move.**
 
 ## Carried risk
 
-- **`layoutContainer`, `collectItems` and `positionItems` each re-derive
+- **`layOutChildren`, `collectItems` and `positionItems` each re-derive
   `isRow` and `gap`** from the container's style independently. Only
   `gapUsesTheMainAxisOfTheContainer` notices if two of them ever disagree.
+  *(The function was `layoutContainer` until the content-sizing milestone split
+  it into `layOutChildren` + `placeNode`; the risk survived the split intact.
+  It also **widened** there: `layOutChildren`'s `contentMain` is now a fourth
+  independent re-derivation of "sum the outer main sizes with gaps between",
+  after `lineContentSize`, `positionItems`' own `content`, and
+  `ResolveFlexibleLengths`' `totalGap`. It was the unguarded one until
+  `measuringAWrappedContainerCountsGapsAndMargins` — its margin term and its
+  gap term were each mutable with 318 tests green.)*
 - **`LayoutNodeID` still has no generation counter** (m1a ruling C-3). A stale ID
   after `reset()` traps safely if the new tree is smaller but **silently
   addresses a different node** if larger. Nothing calls `reset()` mid-flight yet.

@@ -65,48 +65,54 @@ import MetalUICore
     }
 }
 
-/// `placeNode` **consults** the depth guard — the call, not the guard.
+/// The depth guard fires on a **real layout**: `maxDepth + 1` nested nodes,
+/// laid out through `computeLayout`, trapping with the guard's own message.
 ///
-/// `aCycleInTheChildListTrapsRatherThanHanging` above drives `LayoutContext`
-/// directly, so it stays green with `ctx.enter(node)` deleted from `placeNode`:
-/// the guard would exist and never be reached, which is the shape `resolveEdges`
-/// sat in for a milestone (taxonomy shape 4). This one reddens when that call
-/// is removed — measured, both ways.
+/// **Three separate things can only be seen from here.**
 ///
-/// **Driven to the limit by hand rather than by a deep tree, because a deep
-/// tree cannot get there.** The obvious version of this test lays out
-/// `maxDepth + 1` nested nodes; it passes with `ctx.enter` deleted, because 257
-/// frames of `placeNode` -> `positionItems` **overflow the stack first**. That
-/// was measured, not assumed: on a Swift Testing exit-test task, 150 nested
-/// nodes lay out fine and 200 die with SIGBUS, so a real recursion reaches the
-/// guard's own message on no path this suite can run. (`computeLayout` on the
-/// main thread has an 8 MB stack and would; a task gets far less.) Entering
-/// the context by hand and then calling `placeNode` **once** reaches the
-/// guard's call site with three stack frames.
+/// 1. **That `placeNode` consults the guard at all.**
+///    `aCycleInTheChildListTrapsRatherThanHanging` above drives `LayoutContext`
+///    directly, so it stays green with `ctx.enter(node)` deleted from
+///    `placeNode` — the guard would exist and never be reached, taxonomy shape
+///    4. Measured: with that call removed this test exits 0 and reddens.
+/// 2. **That `maxDepth` is below the stack's own ceiling.** This is the one the
+///    hand-entered tests cannot see by construction, and it is why the constant
+///    was wrong for a whole milestone. At `maxDepth = 256` this test is RED:
+///    the recursion SIGBUSes at 199 levels on a test task's stack, so the
+///    process dies before the guard can name anything and stderr is empty. At
+///    64 it is green. Re-run it if the constant ever moves.
+/// 3. **That the guard's message is what came out**, rather than any other
+///    fatal error — which is what the `stderr.contains` is for. `.failure`
+///    alone is satisfied by a stack overflow, and that is precisely the failure
+///    mode being ruled out.
 ///
-/// A cycle is not the way in either: `LayoutTree.newNode` takes children that
-/// already exist, so every edge points at an earlier node and the child lists
-/// are a DAG by construction.
-@Test func placeNodeConsultsTheDepthGuard() async {
+/// A cycle is not the way in: `LayoutTree.newNode` takes children that already
+/// exist, so every edge points at an earlier node and the child lists are a DAG
+/// by construction. Depth is the only reachable route.
+@Test func layingOutATreeDeeperThanTheLimitTraps() async {
     let result = await #expect(processExitsWith: .failure,
                                observing: [\.standardErrorContent]) {
         let tree = LayoutTree(generation: 0)
-        let node = tree.newNode(style: Style(), children: [])
-        let ctx = LayoutContext(rootFontSize: 16)
-        for _ in 0..<LayoutContext.maxDepth { ctx.enter(node) }   // exactly at the limit
-        placeNode(ctx, tree, node, origin: (0, 0),
-                  size: SizeD(width: 10, height: 10), containingBlockWidth: nil)
+        var node = tree.newNode(style: Style(), children: [])
+        for _ in 0..<LayoutContext.maxDepth {
+            node = tree.newNode(style: Style(), children: [node])
+        }
+        computeLayout(tree, root: node,
+                      available: AvailableSpaceSize(width: .definite(100),
+                                                    height: .definite(100)))
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
     #expect(stderr.contains("layout recursion exceeded"),
             "aborted, but not at the depth guard this test is about:\n\(stderr)")
 }
 
-/// The same for `measureNode`, and it needs its own test rather than trusting
-/// the one above: measurement does not recurse into children **yet** — nothing
-/// below `measureNode` calls `measureNode` until the four constant-substituting
-/// sites are wired — so its `ctx.enter` is the one call in this engine that no
-/// nesting can reach, and only a hand-entered context can pin it at all.
+/// The same for `measureNode`, and it cannot be written the way the test above
+/// is: measurement does not recurse into children **yet** — nothing below
+/// `measureNode` calls `measureNode` until the four constant-substituting sites
+/// are wired — so no tree, however deep, reaches its `ctx.enter` more than once.
+/// Entering the context by hand is the only thing that pins this call site at
+/// all, and it stops being the only thing the moment Task 4 wires the four
+/// sites, at which point this deserves the nested-tree treatment too.
 @Test func measureNodeConsultsTheDepthGuard() async {
     let result = await #expect(processExitsWith: .failure,
                                observing: [\.standardErrorContent]) {
@@ -124,10 +130,21 @@ import MetalUICore
             "aborted, but not at the depth guard this test is about:\n\(stderr)")
 }
 
-@Test func nestingBelowTheDepthLimitDoesNotTrap() {
-    let ctx = LayoutContext(rootFontSize: 16)
-    let fake = LayoutNodeID(generation: 0, index: 0)
-    for _ in 0..<LayoutContext.maxDepth { ctx.enter(fake) }
-    for _ in 0..<LayoutContext.maxDepth { ctx.leave() }
-    #expect(ctx.depth == 0)
+/// The positive control for the guard's threshold: `maxDepth` levels are fine
+/// and only the one past it traps.
+///
+/// **In a subprocess, per ruling CS-C.** In-process — how this shipped in Task
+/// 1 — mutating the guard to `depth < maxDepth` does not redden it, it *traps
+/// inside it*, and a trap in the test process is signal 5 with no summary line
+/// and every other test's result destroyed (taxonomy shape 11). The assertion
+/// is unchanged; only where it runs is. A wrong `depth` records an issue in the
+/// child, which exits non-zero, which reddens this cleanly.
+@Test func nestingBelowTheDepthLimitDoesNotTrap() async {
+    await #expect(processExitsWith: .success) {
+        let ctx = LayoutContext(rootFontSize: 16)
+        let fake = LayoutNodeID(generation: 0, index: 0)
+        for _ in 0..<LayoutContext.maxDepth { ctx.enter(fake) }
+        for _ in 0..<LayoutContext.maxDepth { ctx.leave() }
+        #expect(ctx.depth == 0)
+    }
 }

@@ -18,24 +18,33 @@ final class LayoutContext {
     /// recurse until the stack dies with no attribution.
     private(set) var depth: Int = 0
 
-    /// Deeper than any real UI, and shallower than the **main thread's** stack.
-    /// A tree legitimately this deep is a bug in the caller, not a limit worth
-    /// raising.
+    /// Deeper than any real UI, and shallow enough that the **guard fires
+    /// before the stack runs out** — on every stack this engine has been
+    /// measured on, not just the roomiest one.
     ///
-    /// **Not shallower than every stack, which is what "the stack can take"
-    /// said here until it was measured.** On a Swift Testing exit-test task,
-    /// `computeLayout` over 150 nested nodes finishes and over 200 dies with
-    /// SIGBUS: the `placeNode` -> `positionItems` recursion exhausts a task's
-    /// stack long before depth 256, so on that stack this guard never fires and
-    /// the crash it exists to attribute happens anyway. Layout runs on the main
-    /// thread in production (`Frame`, `@MainActor`), which has 8 MB and reaches
-    /// the limit — but the claim is about a stack, not about all of them.
+    /// **It was 256, and 256 is past most of the stacks this code runs on.**
+    /// Measured here by bisection, raising this constant out of the way and
+    /// laying out N nested nodes on a Swift Testing exit-test task: **196
+    /// levels lay out, 197 dies with SIGBUS.** Review measured the same shape
+    /// on two other stacks — an explicit 256 KB thread gives out around 110,
+    /// and the main thread's 8 MB does reach 256 and trap properly. So at 256
+    /// the guard fired on the main thread alone, and everywhere else the
+    /// `placeNode` -> `positionItems` recursion exhausted the stack first: the
+    /// exact crash this exists to attribute, happening unattributed.
     ///
-    /// That is why `placeNodeConsultsTheDepthGuard` enters this context by hand
-    /// and then calls `placeNode` once, rather than laying out a deep tree: the
-    /// deep-tree version of that test passes with the guard's call site
-    /// **deleted**, because the stack kills the subprocess either way.
-    static let maxDepth = 256
+    /// **The boundary is a frame-size measurement, not a constant**, which is
+    /// the reason for the margin rather than for a number just under it. It
+    /// moves whenever a frame in that cycle grows, and Task 4's measurement
+    /// recursion adds frames per level; 64 clears the 256 KB ceiling with room
+    /// for that.
+    ///
+    /// The number is not a matter of taste and must not be raised without
+    /// re-measuring: `layingOutATreeDeeperThanTheLimitTraps` lays out
+    /// `maxDepth + 1` **real** nested nodes and asserts the guard's own message
+    /// on stderr. It is green at 64 and red at 256 — the stack wins there and
+    /// the message never appears — so a future change to this constant is a
+    /// measurement rather than a claim.
+    static let maxDepth = 64
 
     init(rootFontSize: Double) {
         self.rootFontSize = rootFontSize

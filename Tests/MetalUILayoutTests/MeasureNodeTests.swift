@@ -138,3 +138,154 @@ private func px(_ v: Double) -> Dimension { .length(.pixels(Pixels(Float(v)))) }
     #expect(size.width == 82)
     #expect(size.height == 38)
 }
+
+/// The measured size of a **multi-line** container, with a different gap on
+/// each axis and a different margin on each edge.
+///
+/// Everything else in this file is one line, gapless and marginless — the
+/// degenerate case of `contentSize`, which is the only arithmetic in this task
+/// that was written rather than moved. Review mutated both of its terms against
+/// the six tests that existed then and **neither reddened anything**: dropping
+/// the margins from the main total, and dropping `crossGap * (n - 1)` from the
+/// cross total. Both redden here.
+///
+/// The numbers, so a failure is diagnosable rather than mysterious. The probe
+/// width is definite at 200 and the height indefinite, so the main axis wraps
+/// and the cross axis is measured from the items:
+///
+/// - each item's outer main extent is `3 + 60 + 5 = 68`;
+/// - `68 + 10 + 68 = 146` fits in 200 and `+ 10 + 68 = 224` does not, so the
+///   lines are `[a, b]` and `[c]`, and the widest is **146**;
+/// - each item's outer cross extent is `2 + 20 + 4 = 26`, one line each way,
+///   plus the 7px CROSS gap between them: **59**.
+///
+/// Every one of those constants is distinct from every other, so a
+/// horizontal/vertical swap, a leading/trailing swap or a dropped term all land
+/// somewhere other than (146, 59). No edge falls on an `x.5`.
+@Test func measuringAWrappedContainerCountsGapsAndMargins() {
+    let tree = LayoutTree(generation: 0)
+    var kid = Style()
+    kid.size = Size(width: px(60), height: px(20))
+    kid.margin = Edges(top: px(2), right: px(5), bottom: px(4), left: px(3))
+    let a = tree.newNode(style: kid, children: [])
+    let b = tree.newNode(style: kid, children: [])
+    let c = tree.newNode(style: kid, children: [])
+
+    var row = Style()
+    row.flexDirection = .row
+    row.flexWrap = .wrap
+    row.gap = Axes(horizontal: .pixels(Pixels(10)), vertical: .pixels(Pixels(7)))
+    let container = tree.newNode(style: row, children: [a, b, c])
+
+    let ctx = LayoutContext(rootFontSize: 16)
+    let size = measureNode(ctx, tree, container, known: .unspecified,
+                           available: AvailableSpaceSize(width: .definite(200),
+                                                         height: .maxContent),
+                           containingBlockWidth: nil)
+    #expect(size.width == 146)
+    #expect(size.height == 59)
+}
+
+// MARK: - An indefinite axis (ruling CS-D)
+//
+// Every test above sizes its children in pixels, uses no gap and no margins,
+// and that is the one shape for which `.infinity` and "indefinite" agree. These
+// three are the shapes for which they do not, and each of them **killed the
+// test process** before ruling CS-D: `Fatal error: §9.7 freeze loop did not
+// converge` at `ResolveFlexibleLengths.swift`, signal 5, no summary line and
+// every other test's result destroyed with it (taxonomy shape 11).
+//
+// That is also why all three run in a subprocess. Their failure mode is a trap,
+// not a wrong number, and ruling CS-C says a trap belongs behind
+// `processExitsWith`. The `#expect`s inside each body still do the real work —
+// a wrong number records an issue in the child, which exits non-zero, which
+// reddens the parent — and the child's stderr is surfaced so the failure is
+// readable rather than just an exit code.
+
+/// `flex-grow` does not apply on an axis with no definite size: free space is
+/// indefinite, so §9.7 has nothing to distribute and the item keeps its flex
+/// base size.
+@Test func aGrowingItemUnderMaxContentKeepsItsBaseSize() async {
+    let result = await #expect(processExitsWith: .success,
+                               observing: [\.standardErrorContent]) {
+        let tree = LayoutTree(generation: 0)
+        var kid = Style()
+        kid.size = Size(width: .length(.pixels(Pixels(60))),
+                        height: .length(.pixels(Pixels(20))))
+        kid.flexGrow = 1
+        let a = tree.newNode(style: kid, children: [])
+        var row = Style()
+        row.flexDirection = .row
+        let container = tree.newNode(style: row, children: [a])
+
+        let size = measureNode(LayoutContext(rootFontSize: 16), tree, container,
+                               known: .unspecified,
+                               available: AvailableSpaceSize(width: .maxContent,
+                                                             height: .maxContent),
+                               containingBlockWidth: nil)
+        #expect(size == SizeD(width: 60, height: 20))
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.isEmpty, "the child wrote:\n\(stderr)")
+}
+
+/// A percentage size against an indefinite basis is unresolvable, so the item
+/// falls through §9.2's cascade to its content size — 0, with no measure
+/// function. The 40px sibling is there so the answer is not uniformly zero:
+/// dropping the percentage child entirely gives the same 40, and dropping the
+/// *indefiniteness* gives a nonzero contribution instead.
+@Test func aPercentageSizedItemUnderMaxContentContributesNothing() async {
+    let result = await #expect(processExitsWith: .success,
+                               observing: [\.standardErrorContent]) {
+        let tree = LayoutTree(generation: 0)
+        var fixed = Style()
+        fixed.size = Size(width: .length(.pixels(Pixels(40))),
+                          height: .length(.pixels(Pixels(20))))
+        let a = tree.newNode(style: fixed, children: [])
+        var half = Style()
+        half.size = Size(width: .length(.percent(0.5)),
+                         height: .length(.pixels(Pixels(20))))
+        let b = tree.newNode(style: half, children: [])
+        var row = Style()
+        row.flexDirection = .row
+        let container = tree.newNode(style: row, children: [a, b])
+
+        let size = measureNode(LayoutContext(rootFontSize: 16), tree, container,
+                               known: .unspecified,
+                               available: AvailableSpaceSize(width: .maxContent,
+                                                             height: .maxContent),
+                               containingBlockWidth: nil)
+        #expect(size == SizeD(width: 40, height: 20))
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.isEmpty, "the child wrote:\n\(stderr)")
+}
+
+/// A percentage `gap` against an indefinite basis resolves to 0 — CSS's rule
+/// for an unresolvable percentage. Under `.infinity` it was `inf * 0.1` for the
+/// main axis and NaN thereafter, which is the case that made the *container*,
+/// not the item, the thing that could not be measured.
+@Test func aPercentageGapUnderMaxContentResolvesToZero() async {
+    let result = await #expect(processExitsWith: .success,
+                               observing: [\.standardErrorContent]) {
+        let tree = LayoutTree(generation: 0)
+        var kid = Style()
+        kid.size = Size(width: .length(.pixels(Pixels(60))),
+                        height: .length(.pixels(Pixels(20))))
+        let a = tree.newNode(style: kid, children: [])
+        let b = tree.newNode(style: kid, children: [])
+        var row = Style()
+        row.flexDirection = .row
+        row.gap = Axes(horizontal: .percent(0.1), vertical: .percent(0.2))
+        let container = tree.newNode(style: row, children: [a, b])
+
+        let size = measureNode(LayoutContext(rootFontSize: 16), tree, container,
+                               known: .unspecified,
+                               available: AvailableSpaceSize(width: .maxContent,
+                                                             height: .maxContent),
+                               containingBlockWidth: nil)
+        #expect(size == SizeD(width: 120, height: 20))
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.isEmpty, "the child wrote:\n\(stderr)")
+}

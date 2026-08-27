@@ -375,16 +375,24 @@ private func resolveNodeSize(
 /// `edges` is the total this box spends on padding and border per axis — the
 /// term that turns a content box back into a border box. It is returned rather
 /// than recovered as `borderBox - size` by the caller because that subtraction
-/// is not invertible: `size` is clamped at 0 (ruling BM-4, below), and
-/// `measureNode` probes with an *infinite* `borderBox`, where the difference is
-/// `inf - inf`.
+/// is not invertible: `size` is clamped at 0 (ruling BM-4, below), and an axis
+/// of `borderBox` may be **indefinite**, where there is nothing to subtract
+/// from.
+///
+/// `borderBox` is an `OptionalSizeD` because `measureNode` asks about a node
+/// whose size is exactly what it is trying to find out: `nil` on an axis means
+/// "indefinite", and the content box is then indefinite too. Padding and border
+/// still resolve — they are measured against `containingBlockWidth`, which is a
+/// different box — so `edges` is always definite. Ruling **CS-D**: an
+/// indefinite axis is `nil`, never `.infinity` and never a large finite
+/// stand-in.
 private func contentBox(
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
-    borderBox: SizeD,
+    borderBox: OptionalSizeD,
     containingBlockWidth: Double?,
     rootFontSize: Double
-) -> (origin: (Double, Double), size: SizeD, edges: SizeD) {
+) -> (origin: (Double, Double), size: OptionalSizeD, edges: SizeD) {
     let s = tree.style(container)
     let padding = resolveEdges(s.padding, against: containingBlockWidth, rootFontSize: rootFontSize)
     let border = resolveEdges(s.border, against: containingBlockWidth, rootFontSize: rootFontSize)
@@ -403,9 +411,9 @@ private func contentBox(
     // box exactly as specified and only prevents the content box from
     // inverting. See `containerDoesNotGrowToFitOverconstrainedPaddingUnlikeWebKit`
     // in BoxModelTests.swift for the pinned divergence and WebKit's real numbers.
-    let size = SizeD(
-        width: max(0, borderBox.width - padding.horizontal - border.horizontal),
-        height: max(0, borderBox.height - padding.vertical - border.vertical))
+    let size = OptionalSizeD(
+        width: borderBox.width.map { max(0, $0 - padding.horizontal - border.horizontal) },
+        height: borderBox.height.map { max(0, $0 - padding.vertical - border.vertical) })
     let edges = SizeD(width: padding.horizontal + border.horizontal,
                       height: padding.vertical + border.vertical)
     return (leading, size, edges)
@@ -430,10 +438,14 @@ private struct ContainerLayout {
     /// Padding + border per axis, from `contentBox`. `contentSize + edges` is
     /// the container's border box, which is what `measureNode` reports.
     var edges: SizeD
-    /// The content box of the extent this container was *given*: `origin` is the
-    /// leading padding + border, `size` the content box `positionItems` places
-    /// into. Not interchangeable with `contentSize` — that one is measured from
-    /// the items, this one from the container.
+    /// Where and how big the items are placed: `origin` is the leading padding +
+    /// border, `size` the content box `positionItems` places into.
+    ///
+    /// Definite on both axes even when the container's own size was not, because
+    /// an axis with no given extent shrinks to fit — `size` takes the measured
+    /// `contentSize` there. Not interchangeable with `contentSize` all the same:
+    /// where the container *was* given an extent, this is that extent and
+    /// `contentSize` is what the items came to.
     var box: (origin: (Double, Double), size: SizeD)
 }
 
@@ -452,11 +464,23 @@ private struct ContainerLayout {
 /// reads anything `positionItems` writes — it writes only stored rects and
 /// recurses — and nothing `positionItems` reads changes after its own line has
 /// been stretched and flexed. The 57 browser goldens are the check.
+///
+/// **An axis of `containerSize` may be `nil`, and that is not the same as 0**
+/// (ruling CS-D). It means the container has no given extent there — the shape
+/// `measureNode` asks about — and the CSS consequences run right through this
+/// function: percentages against it are unresolvable and resolve to 0 or auto
+/// (`resolveDimension` already does that with a `nil` basis), free space is
+/// indefinite so §9.7 has nothing to distribute, and §9.4.8's single-line
+/// clause does not apply because it needs a *definite* container cross size.
+/// Each is marked below. Substituting `.infinity` for the missing extent
+/// instead — the first version of this — makes the freeze loop diverge and
+/// `assertionFailure` out of the process; substituting a large finite number
+/// resolves percentages against a fiction.
 private func layOutChildren(
     _ ctx: LayoutContext,
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
-    containerSize: SizeD,
+    containerSize: OptionalSizeD,
     containingBlockWidth: Double?
 ) -> ContainerLayout {
     // `containerSize` is the border box (§5.2). Everything below this line that
@@ -479,12 +503,22 @@ private func layOutChildren(
     // arithmetic below spends `crossGap * (lines.count - 1)`, which is a
     // *negative* gap for zero lines.
     guard !items.isEmpty else {
-        return ContainerLayout(lines: [], contentSize: .zero, edges: box.edges,
-                               box: (box.origin, box.size))
+        // Nothing to place, so the placement box is whatever extent the
+        // container has; an indefinite axis shrinks to fit nothing, which is 0.
+        return ContainerLayout(
+            lines: [], contentSize: .zero, edges: box.edges,
+            box: (box.origin, SizeD(width: box.size.width ?? 0,
+                                    height: box.size.height ?? 0)))
     }
 
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
+    // Both `nil` where the container has no given extent on that axis. Every
+    // use below is written for that case; `resolveLength` and
+    // `resolveDimension` already take an optional basis and answer `nil` for a
+    // percentage against one, which is CSS's rule for an unresolvable
+    // percentage and the reason a percentage `gap` resolves to 0 here rather
+    // than to `inf * 0`.
     let containerMain = isRow ? box.size.width : box.size.height
     let containerCross = isRow ? box.size.height : box.size.width
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
@@ -517,12 +551,25 @@ private func layOutChildren(
     // change. It is keyed on the wrap MODE, not on `lines.count == 1`: a
     // `wrap` container that happens to produce one line measures that line
     // from its items, which is a different (and, per CSS, correct) answer.
+    // **`.infinity` here is a comparison bound, not an extent**, and it is the
+    // one place a missing main size becomes a number: `collectLines` only ever
+    // asks whether the next item's outer size *exceeds* the line's budget, and
+    // nothing exceeds an unbounded one. That is also CSS's answer — a container
+    // sized to its max-content does not wrap — and no arithmetic is done on it,
+    // which is what separates this from the `inf` that made the freeze loop
+    // diverge.
     var lines = collectLines(items, wrap: s.flexWrap,
-                             containerMain: containerMain, gap: gap)
+                             containerMain: containerMain ?? .infinity, gap: gap)
         .map { line in
-            FlexLine(items: line,
-                     crossSize: s.flexWrap == .noWrap ? containerCross : lineCrossSize(line),
-                     crossStart: 0)
+            // §9.4.8's single-line clause is keyed on the container's cross size
+            // being **definite**, which is the spec's own wording and not a
+            // paraphrase: an indefinite one gives the line nothing to take, so
+            // the line measures itself from its items exactly as a wrapped
+            // line does.
+            let single = s.flexWrap == .noWrap ? containerCross : nil
+            return FlexLine(items: line,
+                            crossSize: single ?? lineCrossSize(line),
+                            crossStart: 0)
         }
 
     // The cross extent the items themselves imply — measured HERE, before
@@ -565,7 +612,11 @@ private func layOutChildren(
     let align = s.alignContent ?? .stretch
     let usedCross = lines.reduce(0.0) { $0 + $1.crossSize }
                   + crossGap * Double(lines.count - 1)
-    let leftoverCross = containerCross - usedCross
+    // No given cross extent, no leftover: `align-content` distributes space the
+    // container has and an indefinite container has none to distribute. (It is
+    // 0 rather than "skip the rest", so the `stretch` growth and the offsets
+    // below stay one code path.)
+    let leftoverCross = containerCross.map { $0 - usedCross } ?? 0
 
     // **Grow the lines BEFORE resolving item stretch, not after.** §9.4's item
     // stretch fills the item's line; if the line grows afterwards, every
@@ -628,8 +679,28 @@ private func layOutChildren(
         // to grow into space the first line had no room for — so only the
         // margin total is line-local.
         let totalMargin = lines[i].items.reduce(0.0) { $0 + $1.marginMain.leading + $1.marginMain.trailing }
-        resolveFlexibleLengths(tree, items: &lines[i].items,
-                               containerMain: containerMain - totalMargin, gap: gap)
+        if let containerMain {
+            resolveFlexibleLengths(tree, items: &lines[i].items,
+                                   containerMain: containerMain - totalMargin, gap: gap)
+        } else {
+            // §9.7 against an indefinite main size: the free space is
+            // indefinite, so there is nothing to grow into and nothing to
+            // shrink out of, and every item keeps the size §9.7.2 would freeze
+            // it at — its hypothetical main size, i.e. its flex base size
+            // clamped to its own min/max. `flex-grow` does not apply.
+            //
+            // Written here rather than by handing `resolveFlexibleLengths` an
+            // optional: passing it `.infinity` is what diverged its freeze loop
+            // (`inf - inf` and `inf * 0` are NaN, no item ever gets a
+            // resolvable violation, and it `assertionFailure`s out of the
+            // process), and passing the line's own content total would send the
+            // sub-one clause down a path whose answer depends on factors that
+            // cannot apply.
+            for j in lines[i].items.indices {
+                lines[i].items[j].targetMainSize = lines[i].items[j].hypotheticalMainSize
+                lines[i].items[j].frozen = true
+            }
+        }
 
         // Where `positionItems` used to be called from. The line records the
         // cursor instead and `placeNode` positions every line once this loop
@@ -648,12 +719,15 @@ private func layOutChildren(
         crossCursor += lines[i].crossSize
     }
 
+    let contentSize = isRow ? SizeD(width: contentMain, height: contentCross)
+                            : SizeD(width: contentCross, height: contentMain)
     return ContainerLayout(
         lines: lines,
-        contentSize: isRow ? SizeD(width: contentMain, height: contentCross)
-                           : SizeD(width: contentCross, height: contentMain),
+        contentSize: contentSize,
         edges: box.edges,
-        box: (box.origin, box.size))
+        // An axis with no given extent shrinks to fit — see `box`'s own comment.
+        box: (box.origin, SizeD(width: box.size.width ?? contentSize.width,
+                                height: box.size.height ?? contentSize.height)))
 }
 
 /// Lay out one container: collect its items, resolve flexible lengths, position
@@ -673,7 +747,12 @@ func placeNode(
     ctx.enter(node)
     defer { ctx.leave() }
 
-    let laid = layOutChildren(ctx, tree, node, containerSize: size,
+    // Definite on both axes: `placeNode` is only ever called for a node whose
+    // size is already decided — `computeLayout` resolves the root's and
+    // `positionItems` has just written each item's rect.
+    let laid = layOutChildren(ctx, tree, node,
+                              containerSize: OptionalSizeD(width: size.width,
+                                                           height: size.height),
                               containingBlockWidth: containingBlockWidth)
     // The items' origin is this container's own origin plus its leading padding
     // and border. `laid.box.origin` is that leading edge alone — the container's
@@ -702,19 +781,25 @@ func placeNode(
 ///
 /// **Nothing in `Sources/` calls this yet** — wiring the four sites is the task
 /// after the one that split it out, and until then its only callers are in
-/// `MeasureNodeTests.swift`. Two limits that whoever wires it inherits, named
-/// here because a caller cannot see either from the signature:
+/// `MeasureNodeTests.swift`. One limit that whoever wires it inherits, named
+/// here because a caller cannot see it from the signature:
 ///
-/// 1. **`.minContent` and `.maxContent` are indistinguishable for a
-///    container.** `availableExtent` maps both to an unbounded axis, so a
-///    `wrap` container returns its max-content answer under either. Only a
-///    leaf's own `MeasureFunction` tells them apart today.
-/// 2. **An unbounded probe leaves a `flex-grow` item's target infinite.** The
-///    freeze loop distributes `containerMain - content`, which is `.infinity`
-///    when the axis is unbounded, so a container holding a growing item reports
-///    an infinite content size. CSS sizes the container from its items *first*
-///    and flexes into that (Taffy does the same); this function does not, and
-///    no test here can see it because nothing consumes the result yet.
+/// **`.minContent` and `.maxContent` are indistinguishable for a container.**
+/// Both leave the axis indefinite, and `layOutChildren` then does not wrap, so
+/// a `wrap` container returns its max-content answer under either. Only a
+/// leaf's own `MeasureFunction` tells them apart today. Design §5.2 lists
+/// "`.minContent` and `.maxContent` swapped at a call site" as a mutation that
+/// must redden a fixture; it cannot until this is closed.
+///
+/// This doc used to carry a second limit — "an unbounded probe leaves a
+/// `flex-grow` item's target infinite … no test here can see it". **Both halves
+/// were false, and the correction stays here** because the shape is this repo's
+/// most repeated one (taxonomy shape 10, a prediction about measurement dressed
+/// as a fact about the code): the probe did not return infinity, it sent §9.7's
+/// freeze loop past its pass cap and `assertionFailure`d the process; and three
+/// ten-line tests see it, one each for `flex-grow`, a percentage size and a
+/// percentage `gap`. Ruling CS-D and `MeasureNodeTests.swift`'s indefinite
+/// group are what replaced it.
 func measureNode(
     _ ctx: LayoutContext,
     _ tree: LayoutTree,
@@ -735,9 +820,11 @@ func measureNode(
     //
     // `probe` is a BORDER box, like every `containerSize` `layOutChildren`
     // takes — which is why `known` can be returned unchanged below while the
-    // measured half has to have `edges` added back to it.
-    let probe = SizeD(width: known.width ?? availableExtent(available.width),
-                      height: known.height ?? availableExtent(available.height))
+    // measured half has to have `edges` added back to it. An axis with neither
+    // a known size nor a definite available space stays `nil`: **indefinite**,
+    // not infinite (ruling CS-D).
+    let probe = OptionalSizeD(width: known.width ?? definiteExtent(available.width),
+                              height: known.height ?? definiteExtent(available.height))
     let laid = layOutChildren(ctx, tree, node, containerSize: probe,
                               containingBlockWidth: containingBlockWidth)
 
@@ -745,25 +832,38 @@ func measureNode(
                  height: known.height ?? (laid.contentSize.height + laid.edges.height))
 }
 
-/// `.minContent` and `.maxContent` carry no number; a probe under them uses an
-/// unbounded extent and lets the children's own sizes decide.
-private func availableExtent(_ a: AvailableSpace) -> Double {
+/// The number an available space carries, if it carries one.
+///
+/// **`.minContent` and `.maxContent` return `nil`, and the first version of this
+/// returned `.infinity` instead.** That was not a smaller mistake than it looks:
+/// a `flex-grow` item's target became `inf`, a percentage width became `inf`, a
+/// percentage `gap` became `inf * 0` = NaN, and each of the three sent §9.7's
+/// freeze loop past its pass cap — which `assertionFailure`s, killing the test
+/// process mid-run with no summary line rather than returning a wrong number.
+/// Ruling **CS-D**: indefinite is `nil` and the CSS rules for an indefinite
+/// basis then apply on their own.
+private func definiteExtent(_ a: AvailableSpace) -> Double? {
     if case .definite(let v) = a { return v }
-    return .infinity
+    return nil
 }
 
 /// Phase 1 — size every item without positioning any of them.
 private func collectItems(
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
-    containerSize: SizeD,
+    containerSize: OptionalSizeD,
     rootFontSize: Double
 ) -> [FlexItem] {
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
+    // `nil` on an axis means the container has no given extent there (ruling
+    // CS-D). Nothing in this function needed changing for it: `flexBaseSize`
+    // and every `resolve*` below already take an optional basis, and a
+    // percentage against `nil` is unresolvable, which is what CSS says a
+    // percentage against an indefinite containing block is.
     let containerMain = isRow ? containerSize.width : containerSize.height
     let containerCross = isRow ? containerSize.height : containerSize.width
-    let parent = OptionalSizeD(width: containerSize.width, height: containerSize.height)
+    let parent = containerSize
 
     return tree.children(container)
         .filter { tree.style($0).display != .none }
