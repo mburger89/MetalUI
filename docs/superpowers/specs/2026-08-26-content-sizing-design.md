@@ -176,10 +176,31 @@ That is why the corpus is regenerated rather than frozen (§5.1).
 
 ### 5.1 The corpus
 
-1. **Regenerate all 57 fixtures against live WebKit and read the diff as
-   evidence.** A golden that moves exercised auto sizing; one that does not,
-   did not. The list of non-movers is a map of what the corpus never covered and
-   belongs in the decisions doc.
+1. **Do NOT regenerate to gather evidence. Run the suite against the unchanged
+   committed goldens.**
+
+   **This section originally said the opposite, and it was incoherent.** It told
+   the implementer to regenerate all 57 and read the golden diff as evidence of
+   what content sizing changed. A golden cannot move that way: `generateGolden`
+   reads a fixture's HTML, hands it to a `WKWebView`, rounds, and writes JSON —
+   it never constructs a `LayoutTree`, never calls `computeLayout`, and imports
+   nothing from the engine but the size and rounding types. **A golden is a pure
+   function of (fixture HTML, viewport, WebKit version).** No engine change can
+   move one, so `git diff Golden` was guaranteed empty and would have been empty
+   had the engine been left untouched. The procedure could not detect the thing
+   it existed to detect.
+
+   The engine meets a golden only in `assertMatchesGolden`, called from the
+   hand-written comparison tests. So:
+
+   - **A reddened engine-vs-golden comparison is the evidence** — it says the
+     engine moved relative to WebKit. A green one says that fixture cannot see
+     the change.
+   - **Regenerate only when a *fixture* or the browser changes.**
+     `committedGoldensMatchTheBrowser` is what detects that, and it is the only
+     reason to run the generator.
+   - The non-mover list is still worth producing, but derive it from **which
+     comparison tests stayed green**, not from a file diff.
 2. **New fixtures** where there is no coverage: a nested container with an auto
    cross size (the divergence repro above); auto height at two levels; a `wrap`
    container where min-content and max-content genuinely differ; and an item
@@ -212,9 +233,13 @@ something wraps.
 - CLAUDE.md's **auto-cross divergence row leaves** the inert table.
 - The `MeasureFunction` / `tree.measure()` row **shrinks** to "leaves have no
   production caller until M2" rather than disappearing.
-- **Ruling FS-3** is re-examined: the automatic minimum is
-  `min(specified suggestion, content suggestion)` and this milestone supplies the
-  half that was missing.
+- **Ruling FS-3** is re-examined — and this sentence originally claimed too
+  much. The automatic minimum is `min(specified suggestion, content suggestion)`.
+  FS-3's missing half is the **specified** size suggestion, and this milestone
+  does **not** supply it. What it supplies is the **content** half working for
+  *containers*, which previously returned `nil` for anything but a leaf with a
+  measure function. State that distinction rather than "the half that was
+  missing".
 
 ## 6. Exit criteria
 
