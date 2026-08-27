@@ -68,12 +68,10 @@ public protocol ElementGroup {
                                      at cursor: inout Int,
                                      pass: inout LayoutPass) -> ([LayoutNodeID], GroupLayout)
 
-    mutating func prepaintGroup(under parent: GlobalElementID?,
-                                layout: inout GroupLayout,
+    mutating func prepaintGroup(layout: inout GroupLayout,
                                 pass: inout PrepaintPass) -> GroupPrepaint
 
-    mutating func paintGroup(under parent: GlobalElementID?,
-                             layout: inout GroupLayout,
+    mutating func paintGroup(layout: inout GroupLayout,
                              prepaint: inout GroupPrepaint,
                              pass: inout PaintPass)
 }
@@ -109,15 +107,13 @@ extension Element {
         return ([node], SingleElementLayout(id: id, node: node, state: state))
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?,
-                                       layout: inout SingleElementLayout<Self>,
+    public mutating func prepaintGroup(layout: inout SingleElementLayout<Self>,
                                        pass: inout PrepaintPass) -> PrepaintState {
         prepaint(layout.id, bounds: pass.bounds(of: layout.node),
                  layout: &layout.state, pass: &pass)
     }
 
-    public mutating func paintGroup(under parent: GlobalElementID?,
-                                    layout: inout SingleElementLayout<Self>,
+    public mutating func paintGroup(layout: inout SingleElementLayout<Self>,
                                     prepaint: inout PrepaintState,
                                     pass: inout PaintPass) {
         paint(layout.id, bounds: pass.bounds(of: layout.node),
@@ -138,10 +134,9 @@ public struct EmptyGroup: ElementGroup {
         ([], ())
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?, layout: inout Void,
-                                       pass: inout PrepaintPass) {}
+    public mutating func prepaintGroup(layout: inout Void, pass: inout PrepaintPass) {}
 
-    public mutating func paintGroup(under parent: GlobalElementID?, layout: inout Void,
+    public mutating func paintGroup(layout: inout Void,
                                     prepaint: inout Void, pass: inout PaintPass) {}
 }
 
@@ -186,17 +181,17 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
                 Layout(first: firstLayout, second: secondLayout))
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?, layout: inout Layout,
+    public mutating func prepaintGroup(layout: inout Layout,
                                        pass: inout PrepaintPass) -> Prepaint {
-        Prepaint(first: first.prepaintGroup(under: parent, layout: &layout.first, pass: &pass),
-                 second: second.prepaintGroup(under: parent, layout: &layout.second, pass: &pass))
+        Prepaint(first: first.prepaintGroup(layout: &layout.first, pass: &pass),
+                 second: second.prepaintGroup(layout: &layout.second, pass: &pass))
     }
 
-    public mutating func paintGroup(under parent: GlobalElementID?, layout: inout Layout,
+    public mutating func paintGroup(layout: inout Layout,
                                     prepaint: inout Prepaint, pass: inout PaintPass) {
-        first.paintGroup(under: parent, layout: &layout.first,
+        first.paintGroup(layout: &layout.first,
                          prepaint: &prepaint.first, pass: &pass)
-        second.paintGroup(under: parent, layout: &layout.second,
+        second.paintGroup(layout: &layout.second,
                           prepaint: &prepaint.second, pass: &pass)
     }
 }
@@ -248,22 +243,20 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
         return (nodes, layout)
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?,
-                                       layout: inout Wrapped.GroupLayout?,
+    public mutating func prepaintGroup(layout: inout Wrapped.GroupLayout?,
                                        pass: inout PrepaintPass) -> Wrapped.GroupPrepaint? {
         guard var inner = wrapped else {
             precondition(layout == nil, Self.mismatch("prepaint"))
             return nil
         }
         guard var innerLayout = layout else { preconditionFailure(Self.mismatch("prepaint")) }
-        let prepaint = inner.prepaintGroup(under: parent, layout: &innerLayout, pass: &pass)
+        let prepaint = inner.prepaintGroup(layout: &innerLayout, pass: &pass)
         wrapped = inner
         layout = innerLayout
         return prepaint
     }
 
-    public mutating func paintGroup(under parent: GlobalElementID?,
-                                    layout: inout Wrapped.GroupLayout?,
+    public mutating func paintGroup(layout: inout Wrapped.GroupLayout?,
                                     prepaint: inout Wrapped.GroupPrepaint?,
                                     pass: inout PaintPass) {
         guard var inner = wrapped else {
@@ -272,7 +265,7 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
         }
         guard var innerLayout = layout,
               var innerPrepaint = prepaint else { preconditionFailure(Self.mismatch("paint")) }
-        inner.paintGroup(under: parent, layout: &innerLayout,
+        inner.paintGroup(layout: &innerLayout,
                          prepaint: &innerPrepaint, pass: &pass)
         wrapped = inner
         layout = innerLayout
@@ -304,22 +297,17 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
     case first(First)
     case second(Second)
 
-    /// Each case carries **the branch's own id** alongside the branch's layout.
+    /// Each case carries only the branch's layout.
     ///
-    /// It is stored for the same reason `SingleElementLayout.id` is: the id is
-    /// derived from a cursor that only `requestGroupLayout` has, so the later
-    /// phases cannot recompute it and must be handed the one layout built. The
-    /// alternative — forwarding the *container's* `parent` down to a branch
-    /// whose members hang under `branch` — threads a value that is simply wrong,
-    /// and it was wrong here for one commit without a single test noticing,
-    /// because no conformance reads `parent` in those two phases at all.
-    ///
-    /// **When `under parent:` leaves `prepaintGroup`/`paintGroup` this id loses
-    /// its only reader and must be deleted with it.** It is not carrying state
-    /// for its own sake.
+    /// A branch's own id used to be carried alongside it here, because the id is
+    /// derived from a cursor that only `requestGroupLayout` has and the later
+    /// phases could not recompute it. `prepaintGroup`/`paintGroup` no longer take
+    /// a `parent` to forward, so no phase below `requestGroupLayout` needs a
+    /// branch id at all — the branch's id was its only reader, and both are gone
+    /// together.
     public enum Layout {
-        case first(GlobalElementID, First.GroupLayout)
-        case second(GlobalElementID, Second.GroupLayout)
+        case first(First.GroupLayout)
+        case second(Second.GroupLayout)
     }
 
     public enum Prepaint {
@@ -358,52 +346,48 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
             let branch = GlobalElementID(component: .positional(branchIndex), parent: parent)
             let (nodes, layout) = group.requestGroupLayout(under: branch, at: &inner, pass: &pass)
             self = .first(group)
-            return (nodes, .first(branch, layout))
+            return (nodes, .first(layout))
         case .second(var group):
             var inner = 0
             let branch = GlobalElementID(component: .positional(branchIndex + 1), parent: parent)
             let (nodes, layout) = group.requestGroupLayout(under: branch, at: &inner, pass: &pass)
             self = .second(group)
-            return (nodes, .second(branch, layout))
+            return (nodes, .second(layout))
         }
     }
 
-    /// **`parent` is deliberately not forwarded.** A branch's members hang under
-    /// the branch id, not under the container, so the correct value to thread is
-    /// the stored one — see `Layout`. Nothing reads it either way today, which
-    /// is exactly how the wrong value survived a whole task here.
-    public mutating func prepaintGroup(under parent: GlobalElementID?, layout: inout Layout,
+    public mutating func prepaintGroup(layout: inout Layout,
                                        pass: inout PrepaintPass) -> Prepaint {
         switch (self, layout) {
-        case (.first(var group), .first(let branch, var inner)):
-            let prepaint = group.prepaintGroup(under: branch, layout: &inner, pass: &pass)
+        case (.first(var group), .first(var inner)):
+            let prepaint = group.prepaintGroup(layout: &inner, pass: &pass)
             self = .first(group)
-            layout = .first(branch, inner)
+            layout = .first(inner)
             return .first(prepaint)
-        case (.second(var group), .second(let branch, var inner)):
-            let prepaint = group.prepaintGroup(under: branch, layout: &inner, pass: &pass)
+        case (.second(var group), .second(var inner)):
+            let prepaint = group.prepaintGroup(layout: &inner, pass: &pass)
             self = .second(group)
-            layout = .second(branch, inner)
+            layout = .second(inner)
             return .second(prepaint)
         default:
             preconditionFailure(Self.mismatch("prepaint"))
         }
     }
 
-    public mutating func paintGroup(under parent: GlobalElementID?, layout: inout Layout,
+    public mutating func paintGroup(layout: inout Layout,
                                     prepaint: inout Prepaint, pass: inout PaintPass) {
         switch (self, layout, prepaint) {
-        case (.first(var group), .first(let branch, var innerLayout), .first(var innerPrepaint)):
-            group.paintGroup(under: branch, layout: &innerLayout,
+        case (.first(var group), .first(var innerLayout), .first(var innerPrepaint)):
+            group.paintGroup(layout: &innerLayout,
                              prepaint: &innerPrepaint, pass: &pass)
             self = .first(group)
-            layout = .first(branch, innerLayout)
+            layout = .first(innerLayout)
             prepaint = .first(innerPrepaint)
-        case (.second(var group), .second(let branch, var innerLayout), .second(var innerPrepaint)):
-            group.paintGroup(under: branch, layout: &innerLayout,
+        case (.second(var group), .second(var innerLayout), .second(var innerPrepaint)):
+            group.paintGroup(layout: &innerLayout,
                              prepaint: &innerPrepaint, pass: &pass)
             self = .second(group)
-            layout = .second(branch, innerLayout)
+            layout = .second(innerLayout)
             prepaint = .second(innerPrepaint)
         default:
             preconditionFailure(Self.mismatch("paint"))
@@ -474,27 +458,24 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
         return (nodes, layouts)
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?,
-                                       layout: inout [Group.GroupLayout],
+    public mutating func prepaintGroup(layout: inout [Group.GroupLayout],
                                        pass: inout PrepaintPass) -> [Group.GroupPrepaint] {
         precondition(layout.count == groups.count, Self.countMismatch("prepaint"))
         var prepaints: [Group.GroupPrepaint] = []
         prepaints.reserveCapacity(groups.count)
         for index in groups.indices {
-            prepaints.append(groups[index].prepaintGroup(under: parent,
-                                                         layout: &layout[index], pass: &pass))
+            prepaints.append(groups[index].prepaintGroup(layout: &layout[index], pass: &pass))
         }
         return prepaints
     }
 
-    public mutating func paintGroup(under parent: GlobalElementID?,
-                                    layout: inout [Group.GroupLayout],
+    public mutating func paintGroup(layout: inout [Group.GroupLayout],
                                     prepaint: inout [Group.GroupPrepaint],
                                     pass: inout PaintPass) {
         precondition(layout.count == groups.count && prepaint.count == groups.count,
                      Self.countMismatch("paint"))
         for index in groups.indices {
-            groups[index].paintGroup(under: parent, layout: &layout[index],
+            groups[index].paintGroup(layout: &layout[index],
                                      prepaint: &prepaint[index], pass: &pass)
         }
     }
@@ -542,13 +523,12 @@ extension AnyElement: ElementGroup {
         return ([node], GroupLayout(id: id, node: node))
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?,
-                                       layout: inout GroupLayout,
+    public mutating func prepaintGroup(layout: inout GroupLayout,
                                        pass: inout PrepaintPass) {
         prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
     }
 
-    public mutating func paintGroup(under parent: GlobalElementID?, layout: inout GroupLayout,
+    public mutating func paintGroup(layout: inout GroupLayout,
                                     prepaint: inout Void, pass: inout PaintPass) {
         paint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
     }

@@ -77,7 +77,7 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // the engine stores rects **absolute to the root**, so each child looks
         // its own up rather than being offset by its parent. Adding `bounds`
         // here would double-count every ancestor's origin.
-        content.prepaintGroup(under: id, layout: &layout.content, pass: &pass)
+        content.prepaintGroup(layout: &layout.content, pass: &pass)
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -92,7 +92,7 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
             pass.fill(bounds, color: pass.theme[token],
                       cornerRadii: Corners(all: decoration.cornerRadius))
         }
-        content.paintGroup(under: id, layout: &layout.content,
+        content.paintGroup(layout: &layout.content,
                            prepaint: &prepaint, pass: &pass)
     }
 }

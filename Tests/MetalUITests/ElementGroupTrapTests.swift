@@ -39,13 +39,13 @@ struct ContentSwapper<Content: ElementGroup>: Element {
                            layout: inout Content.GroupLayout,
                            pass: inout PrepaintPass) -> Content.GroupPrepaint {
         if let replacement { content = replacement }
-        return content.prepaintGroup(under: id, layout: &layout, pass: &pass)
+        return content.prepaintGroup(layout: &layout, pass: &pass)
     }
 
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                         layout: inout Content.GroupLayout,
                         prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
-        content.paintGroup(under: id, layout: &layout, prepaint: &prepaint, pass: &pass)
+        content.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
     }
 }
 
