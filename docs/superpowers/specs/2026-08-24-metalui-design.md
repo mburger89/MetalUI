@@ -665,11 +665,40 @@ scale linearly, zoom folds into the atlas key's `size` component as originally i
 re-shaping is needed. Cost is a one-time descriptor construction. *(Revised — the first draft claimed
 this was free with no new machinery.)*
 
-**Rejected for v1: MSDF glyphs.** At 12–14pt — the shader source editor — SDF loses thin stems, cannot
-carry hinting fidelity, and cannot represent color emoji. Documented as a fallback if bucket thrash
-appears in profiling; would apply to the zoomable canvas only.
+**Two glyph pipelines, chosen by SURFACE rather than by fallback. (Revised 2026-08-27.)**
 
-Consequence: atlas eviction is mandatory (§7.6).
+- **UI chrome and the code editor: the CoreText atlas** described above. Fixed sizes, so the atlas
+  keys are stable, and CoreText's hinting and stem darkening are exactly what 12–14pt needs.
+- **The node canvas: MSDF.** One rasterization per glyph, scale-free, no re-keying under continuous
+  zoom.
+
+**This paragraph previously read "Rejected for v1: MSDF glyphs … documented as a fallback if bucket
+thrash appears in profiling", and the premise under it was wrong.** It assumed the fixed-size shader
+source editor was the demanding surface and the zoomable canvas was secondary. **The node editor is
+the product**, so the canvas is the primary surface and continuous zoom is the primary case.
+
+The quality argument inverts with that premise. MSDF's weakness is small text — thin stems, no
+hinting — and on a canvas, small text is text nobody is reading: zoomed out it is a few points tall
+and wants culling or LOD, zoomed in it is large, which is where SDF is strong. The atlas's weakness
+is the opposite: fine at any *fixed* size, and thrashing precisely while the user is zooming.
+
+**What both pipelines share, and it is most of the work.** §6.2's `opsz` pinning makes advances scale
+linearly, so glyph *positions* are exact under a zoom matrix in either pipeline. Shaping, metrics and
+the `MeasureFunction` are common. **The choice is only about how a glyph image is produced**, not
+about layout.
+
+**Accepted cost, recorded now rather than discovered at M5:** two glyph shaders and two atlas formats
+(R8 for the CoreText path, a multi-channel texture for MSDF), plus MSDF generation from
+`CTFontCreatePathForGlyph` outlines. Colour emoji route to `polychromeSprite` in both cases — MSDF
+cannot represent them, which is why the atlas path is permanent rather than transitional.
+
+**Sequencing: the atlas is M2, MSDF is M5.** §12's milestone table puts the node-graph prototype at
+M5, so there is no zoomable canvas before then — and MSDF quality and bucket thrash cannot be
+measured against a surface that does not exist. Building MSDF earlier would ship a claim nobody could
+check.
+
+Consequence: atlas eviction is mandatory (§7.6) for the CoreText path. The MSDF atlas does not
+re-key on zoom and so does not need eviction for that reason.
 
 ### 6.3 Bidirectional text and the wrap fast path
 
