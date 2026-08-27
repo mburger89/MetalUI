@@ -884,11 +884,14 @@ Run: `swift test --filter MetalUILayoutTests`
 
 Expected: several golden comparisons FAIL. **Do not regenerate yet.** Write down every failing fixture and, for each, one sentence on which of the four sites moved it. That list is the raw material for Step 4 and is the only moment it is cheap to collect.
 
-- [ ] **Step 3: Regenerate the corpus**
+- [ ] **Step 3: Do NOT regenerate — read the comparison tests instead**
+
+**This step originally said to regenerate and read `git diff --stat Golden`, and that cannot work.** A golden is browser output: `generateGolden` reads the fixture HTML, drives a `WKWebView`, rounds, and writes JSON. No engine change can move one, so that diff was guaranteed empty and would have been empty with the engine untouched.
+
+The evidence is the **engine-vs-golden comparison tests**: a reddened comparison says the engine moved relative to WebKit; a green one says that fixture cannot see the change. Regenerate only when a *fixture* or the browser changes — `committedGoldensMatchTheBrowser` is what detects that.
 
 ```bash
-METALUI_REGENERATE_GOLDENS=1 swift test --filter regenerateAllGoldens
-git diff --stat Tests/MetalUILayoutTests/Golden
+swift test --no-parallel        # read which comparisons redden
 ```
 
 - [ ] **Step 4: Explain every moved golden**
@@ -1099,7 +1102,7 @@ git commit -m "docs: retire the auto-cross divergence and correct what content s
 - [ ] `MetalUILayout` still imports only `MetalUICore` (anchored grep)
 - [ ] `measureNode` answers for containers and leaves alike, honouring `.definite`, `.minContent` and `.maxContent`
 - [ ] The WebKit repro (`120×50`, not `120×0`) matches, pinned by `flex_nested_auto_cross`
-- [ ] All 57 existing goldens regenerated; **every moved golden explained** in the decisions doc, and every non-mover listed
+- [ ] **Every fixture whose engine-vs-golden *comparison* moved is explained** in the decisions doc, and every non-mover listed. (This originally read "all 57 existing goldens regenerated; every moved golden explained". **A golden cannot move under an engine change** — `generateGolden` drives a `WKWebView` and imports nothing from the engine but the size types and `roundLayout`, so a golden is a pure function of (fixture HTML, viewport, WebKit version). The criterion could be ticked by an empty diff that proved nothing. Corrected in the spec by `c869e58`; this copy was missed until the whole-branch review.)
 - [ ] Every mutation named in Tasks 1-5 measured and recorded — including the ones that redden only one test
 - [ ] Cache hit-count asserted; `measureNode` purity asserted; the cycle guard traps with the node id
 - [ ] `setStyle` during layout traps, with a positive control
