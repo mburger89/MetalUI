@@ -154,6 +154,13 @@ comment claimed was not the property the line bought.
 shows the centred rounded rect with its antialiased border, and the close button
 quits the process.
 
+**Re-verified on 2026-08-27 after ruling EP-8 made `Column`/`Row` centre on the
+cross axis**, because that ruling's failure mode is an *invisible rectangle* and
+no test in this repo can see one: a human ran the demo and reported it looks
+right — nothing vanished, the sidebar rows and the separator still fill their
+containers through their new explicit `.alignItems(.stretch)`, and resize and the
+light/dark toggle still work.
+
 **That was M0's demo, and it is not what `MetalUIDemo` draws today.** The demo
 was replaced by the element pipeline's — a four-level nested flex layout of
 themed, rounded, background-filled boxes with a light/dark switch — and **it was
