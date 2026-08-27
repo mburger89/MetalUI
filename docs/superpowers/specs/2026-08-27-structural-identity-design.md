@@ -1,7 +1,14 @@
 # Structural Identity — Design
 
 **Date:** 2026-08-27
-**Status:** Approved design; implementation plan not yet written.
+**Status:** **Implemented and merged (2026-08-27).** Rulings, measurements and
+what execution falsified are in
+`docs/superpowers/2026-08-27-structural-identity-decisions.md`; the shipped rule
+is summarised in `CLAUDE.md` and in the parent spec's §4.3. Sections written in
+the present tense about the *old* rule — §1's "Today identity is opt-in", §3.3's
+"the constructor is" — are the design's own framing at the time it was approved,
+and are kept rather than rewritten so the corrections marked inside each section
+still have something to correct.
 **Parent spec:** `docs/superpowers/specs/2026-08-24-metalui-design.md` §4.3 (identity and cross-frame state), §9 (accessibility)
 **Ruling this milestone serves:** EP-5 — where CSS and SwiftUI answer a design question differently, take SwiftUI's answer.
 
@@ -100,9 +107,39 @@ hash-equality shortcut would turn a collision into two unrelated elements
 silently sharing state — the same failure shape as the memo key that shipped
 without `containingBlockWidth` during content sizing.
 
-**The parent must be in the hash.** If it is not, paths differing only in an
-ancestor collide. This is the single most dangerous line in the milestone and it
-gets a test whose mutation is exactly that omission.
+**The parent must be in the hash — but this section originally overstated why,
+and the overstatement was falsified by measurement during Task 1.**
+
+It called the omission "the single most dangerous line in the milestone" and
+claimed a test whose mutation is exactly that omission. Measured, `--no-parallel`,
+reconfirmed after a clean build: **dropping the parent from `cachedHash` reddened
+nothing**, and **replacing `==` with `l.cachedHash == r.cachedHash` also reddened
+nothing.** Neither is dangerous alone.
+
+**Both halves are past tense on purpose, and only one has changed since.** The
+guard this section goes on to specify was then written, so *today* dropping the
+parent from `cachedHash` reddens exactly `theHashItselfDistinguishesPathsDifferingOnlyInAnAncestor`
+and nothing else — re-measured 2026-08-27, `--no-parallel`, 358 tests. The `==`
+half still reddens nothing, at 358, and that is the half no test can reach.
+
+The accurate statement: `cachedHash` and `==` are safe individually and unsafe
+only **together**. `==` uses the hash as a fast *reject*, so a collision falls
+through to the chain walk, which is independent of hash quality; and
+`Set`/`Dictionary` correctness depends on `==`, not on distribution. `Hashable`
+permits collisions.
+
+So a degraded hash alone is a **performance** defect — though a sharp one
+*because of this milestone*: once every node is identified, most components are
+`.positional(k)`, so every node at the same index in the whole tree hashes into
+one bucket and `StateTable` lookups go quadratic per frame. Symmetrically, a
+hash-shortcut `==` is correct exactly while the hash is good.
+
+**The load-bearing line is `==`'s chain walk, not the hash formula.** The hash
+half *is* guardable and gets a test — `theHashItselfDistinguishesPathsDifferingOnlyInAnAncestor`,
+asserting on the public `hashValue`, which needs no visibility change because
+`hash(into:)` is `hasher.combine(cachedHash)`. The `==` half is **not** guardable:
+a 64-bit collision is not constructible against a per-process-seeded `Hasher`, so
+per taxonomy shape 6 the mechanism is stated at `==` rather than left silent.
 
 Retention: a `StateTable` key holds its whole ancestor chain alive, bounded by
 live entries and released by the sweep. The array representation held the same
@@ -113,10 +150,15 @@ data; nothing changes.
 The constructor is:
 
 ```swift
-static func child(of parent: GlobalElementID,
+static func child(of parent: GlobalElementID?,
                   at index: Int,
                   name: ElementID?) -> GlobalElementID
 ```
+
+**`parent` is optional and §3.5 is why** — an earlier draft declared it
+non-optional, which contradicts "the root element's id is simply the one with
+`parent: nil`" two sections later. Both could not hold, and the optional form is
+the only one that lets `Frame.render` build a root at all.
 
 It returns a **non-optional**, and `name` decides the component: non-`nil` gives
 `.named(name)`, `nil` gives `.positional(index)`. The `index` is passed
@@ -155,17 +197,32 @@ positionally flat whatever the tuple shape) and it is more stable: under nesting
 changing *how* the builder groups could shift paths when the visible child order
 did not.
 
-The three phases each restart the cursor at 0 and traverse in the same order, so
-they agree by construction. A traversal that disagreed would already trap on
+**Only `requestGroupLayout` carries a cursor, and the design is stronger than
+this section originally described.** An earlier draft said "the three phases each
+restart the cursor at 0 and traverse in the same order, so they agree by
+construction". In fact `SingleElementLayout` and `AnyElement.GroupLayout`
+**store** the id built during layout — deliberately, so all three phases see the
+same path even if the element's `elementID` changes between them — so
+`prepaintGroup` and `paintGroup` read `layout.id` and never re-derive an index.
+The three phases cannot disagree about an index at all, rather than agreeing by
+convention. A traversal that disagreed would already trap on
 `ElementGroup`'s existing phase-mismatch preconditions — that machinery was built
 during the element pipeline and this reuses it rather than adding a parallel
 guard.
 
 ### 3.5 Two sub-decisions, both following SwiftUI
 
-- **`EitherGroup`'s branches get distinct components** (`.positional(0)` and
-  `.positional(1)`), so flipping an `if/else` resets state rather than carrying it
-  across two structurally different subtrees.
+- **`EitherGroup`'s taken branch gets an id of its own**, and its members number
+  from 0 *inside* it; the outer cursor advances by 2 either way.
+
+  **An earlier draft said the branches get `.positional(0)` and `.positional(1)`
+  directly in the parent's flat space, and that is wrong twice.** Literal 0 and 1
+  collide between two sibling `if`s in one container. And numbering each branch's
+  members directly in the parent's space separates the branches only while each
+  holds **one** element: measured on `if flag { C(); C() } else { C() }` across a
+  flip, the `else` element found the second `if`-branch element's entry and
+  incremented it — an *inheritance*, not a reset. Giving the branch its own path
+  level costs one allocation per `if`/`else` and is correct at any branch size.
 - **`Frame.render`'s root** is `.positional(0)` unless the root element is named.
 
   **The `.root` sentinel disappears, and it must** — an earlier draft of this
@@ -194,10 +251,10 @@ collision is now deliberate and matches SwiftUI.
 | An anonymous element holds state across frames | revert `child` to the nil-propagating form |
 | Reordering a **named** `ArrayGroup` carries state | make `.named` also include the index |
 | Reordering an **unnamed** one does not | make positional components constant |
-| Two siblings' children never collide | **drop `parent` from the cached hash** |
-| Equality is not hash-equality | make `==` return `cachedHash == other.cachedHash` |
+| The **hash** distinguishes paths differing only in an ancestor | drop `parent` from the cached hash |
+| `==` respects the ancestor whatever the hash says | make components compare equal regardless of parent |
 | Flipping an `EitherGroup` branch resets state | give both branches the same component |
-| Adding a sibling shifts later siblings' identity | pinned as **deliberate**, SwiftUI's matching behaviour named in the comment |
+| Adding or removing a sibling shifts later siblings' identity | pinned as **deliberate** — and the behaviour is **adoption, not reset**: measured on `Row { if flag { C() }; C() }` across a flip, the trailing sibling reads the vanished element's value. An earlier version of this row claimed the pin existed when no test provided it |
 
 Every count is taken under `--no-parallel` with the exact edit quoted beside it
 (rulings CS-M and CS-N: a parallel run drops failing-test names from the log body,
@@ -211,11 +268,26 @@ directly; the figure goes in CLAUDE.md labelled with when and how it was taken.
 
 - [ ] `swift test` completes with a **summary line** and the full count;
       `swift package clean && swift build` warning-free
-- [ ] `GlobalElementID?` appears nowhere in `Sources/` — `nil` is gone from the type
+- [ ] `nil` is gone from the **identity a phase receives**: `Element`'s three
+      phases and `StateTable.withState` take a non-optional `GlobalElementID`,
+      and `child(of:at:name:)` returns one.
+      (This originally read "`GlobalElementID?` appears nowhere in `Sources/`",
+      which is unachievable and was never the point. **Six code sites keep the
+      optional**, and this list omitted the sixth: `GlobalElementID.parent`,
+      `init`'s and `child`'s `parent` parameters, and two locals in `==` — five
+      forced by a root having no parent — plus **`requestGroupLayout`'s
+      `parent`**, on all eight conformances, which is **not** forced. `Frame.render`
+      builds the root id itself and never calls `requestGroupLayout`; every
+      production call site passes a non-optional. That one is an inert optional
+      rather than a necessity, and it is recorded as such at its declaration.)
 - [ ] An anonymous element holds state across frames, pinned
 - [ ] A named `ArrayGroup` carries state through a reorder; an unnamed one does not
 - [ ] Every mutation in §5 measured and recorded, `--no-parallel`, spelling quoted
-- [ ] The parent-in-hash test exists and its omission mutation reddens exactly it
+- [ ] The parent-in-hash test exists, asserts on `hashValue`, and its omission
+      mutation reddens **exactly** it
+- [ ] `==`'s chain walk carries a stated mechanism explaining why no test can
+      guard it and why the danger is a combination — shape 6 requires the
+      statement where the test cannot exist
 - [ ] Path-construction cost measured on a branching tree and recorded in
       CLAUDE.md with when and how
 - [ ] The four falsified tests rewritten, not deleted, each naming what changed

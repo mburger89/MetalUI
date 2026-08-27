@@ -27,7 +27,7 @@
 
 ---
 
-### Task 1: `PathComponent` and the linked-list `GlobalElementID`
+### Task 1: `PathComponent`, the linked-list `GlobalElementID`, and the call sites
 
 **Files:**
 - Modify: `Sources/MetalUI/ElementID.swift`
@@ -37,7 +37,9 @@
 - Consumes: nothing.
 - Produces: `enum PathComponent { case positional(Int); case named(ElementID) }`; `final class GlobalElementID` with `let component: PathComponent`, `let parent: GlobalElementID?`, `init(component:parent:)`, and `static func child(of parent: GlobalElementID?, at index: Int, name: ElementID?) -> GlobalElementID`.
 
-This task adds the new type **beside** the existing one. Nothing uses it yet, so the suite cannot move: all 342 tests stay green and no golden may change. Task 2 switches the call sites.
+**Ruling SI-C — this task originally stopped at the type, and that was impossible.** The first draft added the new type "beside" the existing one and left the call sites to a second task. Swift cannot have a struct and a class share one name in a module, so replacing `GlobalElementID` breaks `ElementGroup.swift:81`, `:421` and `Frame.swift:188` immediately — measured, 10 `error:` diagnostics at exactly those three sites, zero inside `ElementID.swift`. The suite could not build, let alone stay green. **A type replacement cannot be staged behind its own call sites.** The two tasks are merged; the former Task 2's call-site shim is Step 4b below.
+
+The gate survives the merge and is the reason for the shim: **this task changes no behaviour.** All 342 existing tests stay green — including the four asserting the nil-poisoning rule — and no golden may change. Those four are rewritten in Task 2, deliberately and with comments naming what changed.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -191,6 +193,29 @@ public final class GlobalElementID: Hashable, Sendable {
 
 **Try plain `Sendable` first.** Every stored property is a `let` of a `Sendable` type, and the recursive `parent` reference is fine — the compiler handles that. Fall back to `@unchecked Sendable` **only if it does not compile**, and if you do, state the exact diagnostic at the declaration as the reason. Do not reach for `@unchecked` pre-emptively: it silences a check rather than satisfying it.
 
+- [ ] **Step 4b: Switch the three call sites, keeping today's nil semantics**
+
+At `ElementGroup.swift:81` and `:421`, replace `let id = GlobalElementID.child(of: parent, elementID)` with:
+
+```swift
+// Index 0 for every member until Task 2 threads the cursor. Siblings collide
+// meanwhile; the nil short-circuit below is what still separates them, and it
+// is deleted in Task 2 together with this line.
+let id: GlobalElementID? = parent.flatMap { p in
+    elementID.map { GlobalElementID.child(of: p, at: 0, name: $0) }
+}
+```
+
+At `Frame.swift:188`, replace `GlobalElementID.child(of: .root, element.elementID)` with:
+
+```swift
+let rootID: GlobalElementID? = element.elementID.map {
+    GlobalElementID.child(of: nil, at: 0, name: $0)
+}
+```
+
+`SingleElementLayout.id` and `AnyElement.GroupLayout.id` stay `GlobalElementID?`; dropping the optional is Task 2.
+
 - [ ] **Step 5: Run the tests**
 
 Run: `swift test --filter GlobalElementIDTests`
@@ -226,62 +251,7 @@ git commit -m "feat(element): GlobalElementID becomes a persistent linked list"
 
 ---
 
-### Task 2: Switch the call sites, keeping today's nil semantics
-
-**Files:**
-- Modify: `Sources/MetalUI/ElementGroup.swift:81` (`Element`'s default `requestGroupLayout`), `:421` (`AnyElement`'s), `Sources/MetalUI/Frame.swift:188`
-- Test: existing tests only
-
-**Interfaces:**
-- Consumes: `GlobalElementID.child(of:at:name:)` from Task 1.
-- Produces: no signature changes yet. All three call sites build ids through the new constructor.
-
-**This task is behaviour-preserving and that is the gate.** The nil-poisoning rule stays for one more task: a caller with no name still gets a stable id, but every element in a given position gets `.positional(0)` because no cursor exists yet, so **siblings collide**. That is expected and temporary — Task 3 adds the cursor. To keep behaviour identical meanwhile, the three call sites pass the element's own `elementID` as `name` and `0` as `index`, and **the tests that assert nil-poisoning still pass because `SingleElementLayout.id` remains `GlobalElementID?` and the callers still short-circuit on an anonymous parent.**
-
-- [ ] **Step 1: Change the three call sites**
-
-At `ElementGroup.swift:81` and `:421`, replace:
-
-```swift
-let id = GlobalElementID.child(of: parent, elementID)
-```
-
-with:
-
-```swift
-// Index 0 for every member until Task 3 threads the cursor. Siblings collide
-// meanwhile; the nil short-circuit below is what still separates them, and it
-// is deleted in Task 3 together with this line.
-let id: GlobalElementID? = parent.flatMap { p in
-    elementID.map { GlobalElementID.child(of: p, at: 0, name: $0) }
-}
-```
-
-At `Frame.swift:188`, replace `GlobalElementID.child(of: .root, element.elementID)` with:
-
-```swift
-let rootID: GlobalElementID? = element.elementID.map {
-    GlobalElementID.child(of: nil, at: 0, name: $0)
-}
-```
-
-- [ ] **Step 2: Run the whole suite**
-
-Run: `swift test --no-parallel`
-Expected: **348**, all passing, summary line present. Goldens unmoved.
-
-**If any test reddens, stop and report it rather than adjusting the test.** This task changes no behaviour; a red test means the shim is wrong.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add Sources/MetalUI
-git commit -m "refactor(element): build ids through the linked-list constructor"
-```
-
----
-
-### Task 3: The cursor, the flat index space, and the end of `nil`
+### Task 2: The cursor, the flat index space, and the end of `nil`
 
 **Files:**
 - Modify: `Sources/MetalUI/ElementGroup.swift` (the protocol's `requestGroupLayout`, and every conformance: `Element`, `EmptyGroup`, `Pair`, `OptionalGroup`, `EitherGroup`, `ArrayGroup`, `AnyElement`)
@@ -351,6 +321,8 @@ import MetalUICore
     #expect(table.count == 3)
 }
 ```
+
+```swift
 
 /// **A named list carries state through a reorder.** This is the whole reason a
 /// name replaces a position rather than joining it: if the index were also in
@@ -490,7 +462,7 @@ git commit -m "feat(element): structural identity, and nil leaves the type"
 
 ---
 
-### Task 4: Delete the dead `parent` parameter
+### Task 3: Delete the dead `parent` parameter
 
 **Files:**
 - Modify: `Sources/MetalUI/ElementGroup.swift` (`prepaintGroup` and `paintGroup` on the protocol and every conformance)
@@ -501,7 +473,7 @@ git commit -m "feat(element): structural identity, and nil leaves the type"
 
 **`under parent:` on the two later phases has no reader.** Every conformance either ignores it (`Element`, `AnyElement`, `EmptyGroup`) or forwards it unchanged (`Pair`, `ArrayGroup`, `OptionalGroup`, `EitherGroup`), because the identity those phases use is the one **stored** in the layout state — deliberately, so that all three phases see the same path even if the element's `elementID` changes between them. A threaded parameter nothing reads is the inert-API shape CLAUDE.md's table exists for, and this milestone is what makes it obvious.
 
-Kept as its own task so a reviewer can reject it while approving Task 3.
+Kept as its own task so a reviewer can reject it while approving Task 2.
 
 - [ ] **Step 1: Confirm it is genuinely dead before removing it**
 
@@ -527,7 +499,7 @@ git commit -m "refactor(element): drop the unread parent from prepaint and paint
 
 ---
 
-### Task 5: Measure the cost, and update what this falsified
+### Task 4: Measure the cost, and update what this falsified
 
 **Files:**
 - Modify: `CLAUDE.md`, `docs/superpowers/specs/2026-08-24-metalui-design.md` §4.3
@@ -579,12 +551,12 @@ git commit -m "docs: record structural identity and retire the anonymous-element
 ## Exit criteria
 
 - [ ] `swift test` completes with a **summary line** and the full count; `swift package clean && swift build` warning-free
-- [ ] `GlobalElementID?` appears nowhere in `Sources/` except `requestGroupLayout`'s `parent` and `GlobalElementID.parent` itself
+- [ ] `nil` is gone from the **identity a phase receives**: `Element`'s three phases and `StateTable.withState` take a non-optional `GlobalElementID`, and `child(of:at:name:)` returns one. **This criterion originally read "`GlobalElementID?` appears nowhere in `Sources/` except `requestGroupLayout`'s `parent` and `GlobalElementID.parent` itself", which is unmet as literally written** — six code sites keep the optional, not two: `GlobalElementID.parent`, `init`'s and `child`'s `parent` parameters, two locals inside `==`, and `requestGroupLayout`'s `parent` (× 8 conformances). Five of those are forced by a root having no parent; **`requestGroupLayout`'s is not forced, it is inert** — `Frame.render` builds the root itself and never calls it, and every production call site passes a non-optional. Spec §6 and the decisions doc carry the same list.
 - [ ] An anonymous element holds state across frames, pinned
 - [ ] Two unnamed siblings do not share a state entry, pinned
 - [ ] The index space is flat, pinned against the builder's `Pair` nesting
 - [ ] The parent-in-hash test exists and its omission mutation reddens exactly it
-- [ ] Every mutation named in Tasks 1 and 3 measured under `--no-parallel`, with its exact edit quoted
+- [ ] Every mutation named in Tasks 1 and 2 measured under `--no-parallel`, with its exact edit quoted
 - [ ] Path-construction cost measured on a **branching** tree and recorded in CLAUDE.md with when and how
 - [ ] The falsified tests rewritten, not deleted, each naming what changed
 - [ ] §4.3 updated; decisions doc written and listed in CLAUDE.md's "Start here"
@@ -602,6 +574,6 @@ git commit -m "docs: record structural identity and retire the anonymous-element
 
 - **The parent-in-hash omission is the milestone's worst failure mode**: two unrelated elements silently sharing state, invisible to every layout and paint assertion. One test guards it.
 - **`==` must walk the chain.** A hash-equality shortcut converts a collision into a wrong answer. The chain walk is cheap because `cachedHash` rejects first.
-- **Adding a sibling shifts later siblings' identity** and resets their state. This is SwiftUI's behaviour and is pinned as deliberate — but it will surprise someone, so the pin's comment must say so.
+- **Adding a sibling shifts later siblings' identity.** This is SwiftUI's behaviour and is deliberate — but it will surprise someone, so the pin's comment must say so. **Two corrections this sentence needed, both measured during execution (ruling SI-G):** the trailing sibling does not *reset*, it **adopts** the vanished element's state entry and reads its value; and "is pinned as deliberate" was false when written — `grep` found no such test. Both pins exist now (`anElementAfterAVanishingIfAdoptsTheVanishedElementsState`, `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`).
 - **Reference semantics are new.** `===` becomes spellable next to `==` and they differ: two structurally identical paths from different frames are `==` and never `===`. Only `==` may be used for lookup.
 - **Layout is untouched, so the goldens cannot vouch for this milestone.** Every guard here is a hand-written test; there is no browser oracle for identity.

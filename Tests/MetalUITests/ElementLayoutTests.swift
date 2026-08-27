@@ -33,12 +33,19 @@ final class ElementLog {
     var nodes: [String: LayoutNodeID] = [:]
     /// Cross-frame counter readings, in the order the probes took them.
     var counters: [(name: String, value: Int)] = []
-    /// Identities as delivered to `prepaint`; `nil` is a real answer (§4.3), so
-    /// this is an array rather than a dictionary that would swallow it.
-    var identities: [(name: String, id: GlobalElementID?)] = []
+    /// Identities as delivered to `prepaint`, in call order.
+    ///
+    /// **This was `[(String, GlobalElementID?)]` read through a double
+    /// optional**, because `nil` was a real answer before structural identity
+    /// and a dictionary would have swallowed the difference between "unnamed
+    /// ancestor" and "never visited". Every element now has an identity, so the
+    /// inner optional is gone; the array stays, because two probes may share a
+    /// name and order is what `aContainerGivesItsChildrenPathsBuiltFromItsOwn`
+    /// reads.
+    var identities: [(name: String, id: GlobalElementID)] = []
 
-    func identity(of name: String) -> GlobalElementID?? {
-        identities.first { $0.name == name }.map(\.id)
+    func identity(of name: String) -> GlobalElementID? {
+        identities.first { $0.name == name }?.id
     }
 }
 
@@ -59,7 +66,7 @@ struct Probe: Element, StyledElement {
         self.log = log
     }
 
-    func requestLayout(_ id: GlobalElementID?,
+    func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
         log.registered.append(name)
         let node = pass.requestNode(style: style, children: [])
@@ -67,13 +74,13 @@ struct Probe: Element, StyledElement {
         return (node, node)
     }
 
-    func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                   layout: inout LayoutNodeID, pass: inout PrepaintPass) {
         log.bounds[name] = bounds
         log.identities.append((name, id))
     }
 
-    func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                layout: inout LayoutNodeID, prepaint: inout Void, pass: inout PaintPass) {}
 }
 
@@ -356,17 +363,53 @@ private enum Fixture {
 
 // MARK: - Identity (§4.3)
 
+/// Builds a path from a sequence of local names, root to leaf — the
+/// linked-list equivalent of the old struct's `GlobalElementID([ElementID]...)`
+/// array literal (mirrors `StateTableTests.swift`'s private `id(_:)`). Every
+/// component here is `.named`; `at: 0` is inert because a name always wins
+/// over a position (`PathComponent`'s doc comment).
+private func pathID(_ names: String...) -> GlobalElementID {
+    var current: GlobalElementID?
+    for name in names {
+        current = GlobalElementID.child(of: current, at: 0, name: ElementID(name))
+    }
+    return current!
+}
+
 /// A container builds its children's paths from its own, so identity is a path
 /// and not a local name.
 ///
 /// **Not a duplicate of `sameLocalIDUnderDifferentParentsDoesNotShareState`.**
-/// That one calls `GlobalElementID.child(of:_:)` and `StateTable` directly and
-/// says nothing about who calls them; this is the first test in the repo that a
-/// **production container** must satisfy — that `Box`, `Column` and `Row` derive
-/// their children's identities from their own rather than passing `nil`, their
-/// own path, or `.root` down. Measured: building the child id from `.root`
-/// instead of `parent` in `ElementGroup.swift` reddens this and nothing in
-/// `StateTableTests`.
+/// That one calls `GlobalElementID.child(of:at:name:)` and `StateTable`
+/// directly and says nothing about who calls them; this is the first test in
+/// the repo that a **production container** must satisfy — that `Box`,
+/// `Column` and `Row` derive their children's identities from their own
+/// rather than passing `nil` or a constant down. **Re-measured 2026-08-27,
+/// `--no-parallel`, on a 358-test suite**: replacing
+/// `GlobalElementID.child(of: parent, at: cursor, name: elementID)` with
+/// `GlobalElementID.child(of: nil, at: cursor, name: elementID)` in
+/// `Element.requestGroupLayout` (`ElementGroup.swift`, the default
+/// implementation and not `AnyElement`'s copy) reddens **ten** tests —
+/// this one and `anIdentifiedChildOfAnUnnamedContainerHasAnIdentityThroughItsPosition`
+/// below, `twoSiblingsWithTheSameIDShareOneStateEntry` in
+/// `ElementGroupTrapTests.swift`, and seven in `IdentityTests.swift`
+/// (`theIndexSpaceIsFlatRatherThanNested`,
+/// `reorderingANamedListCarriesEachItemsState`,
+/// `reorderingAnUnnamedListKeepsStateWithThePositionNotTheItem`,
+/// `flippingAnEitherBranchResetsTheBranchesState`,
+/// `aBranchWithTwoMembersDoesNotLeakStateIntoAOneMemberBranch`,
+/// `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`,
+/// `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`). **This comment said
+/// "eight" until Task 4 re-ran it**: the count was taken before the fix commit
+/// that added the last two, which is ruling SI-H.
+///
+/// **Two things a first draft of this paragraph predicted and measurement
+/// falsified**, which is why it is worth reading rather than trusting: it named
+/// six tests, and it named `twoSiblingsWithDifferentIDsDoNotShareState` among
+/// them. That one stays **green** — its two siblings have different names, so
+/// they get distinct ids with or without a parent, and it cannot see this
+/// mutation at all. Nothing in `StateTableTests.swift` moves either: it builds
+/// every path it asserts by hand and never goes through a container.
 ///
 /// The two `"leaf"` children carry the **same** local id under different
 /// parents; only a path distinguishes them, and a table keyed on the local name
@@ -390,24 +433,30 @@ private enum Fixture {
 
     frame.render(&tree)
 
-    #expect(log.identity(of: "left") == GlobalElementID([
-        ElementID("root"), ElementID("first"), ElementID("leaf")]))
-    #expect(log.identity(of: "right") == GlobalElementID([
-        ElementID("root"), ElementID("second"), ElementID("leaf")]))
+    #expect(log.identity(of: "left") == pathID("root", "first", "leaf"))
+    #expect(log.identity(of: "right") == pathID("root", "second", "leaf"))
 }
 
-/// Identity does not resume below an anonymous container (§4.3).
+/// Identity **does** resume below an unnamed container (§4.3).
 ///
-/// `GlobalElementID.child(of:_:)` returns `nil` when either end is anonymous,
-/// and a container is an "end". Named leaf, unnamed parent, no identity.
+/// **Formerly `anIdentifiedChildOfAnUnnamedContainerStillHasNoIdentity`, and
+/// this is the reversal the milestone exists for.** That test rendered exactly
+/// this tree and asserted `log.identity(of: "deep") == GlobalElementID??.some(nil)`
+/// — a named leaf under an unnamed `Row` got no identity at all, because
+/// `ElementGroup`'s `requestGroupLayout` short-circuited to `nil` before
+/// `GlobalElementID.child(of:at:name:)` was ever called. The tree is unchanged
+/// on purpose so the two assertions can be read against each other.
 ///
-/// `anIdentifiedChildOfAnAnonymousParentHasNoIdentity` pins the *rule* on the
-/// function; this pins that a real container obeys it, including the part that
-/// is easy to get wrong by being helpful — a container that substituted its own
-/// parent's path when it had no id of its own would pass every rect assertion
-/// here and quietly give two anonymous siblings' children one shared entry.
+/// The unnamed `Row` now contributes `.positional(0)` — its index in the
+/// `Column`'s flat child list — and the leaf's own `.id("named")` sits under it.
+/// Note what is *not* the answer: the leaf's path is **not**
+/// `["root", "named"]`. A container that substituted its own parent's path when
+/// it had no name would produce that, would pass every rect assertion in this
+/// file, and would quietly give two unnamed siblings' children one shared state
+/// entry — which is why the unnamed level is asserted explicitly rather than
+/// skipped over.
 @MainActor
-@Test func anIdentifiedChildOfAnUnnamedContainerStillHasNoIdentity() {
+@Test func anIdentifiedChildOfAnUnnamedContainerHasAnIdentityThroughItsPosition() {
     let log = ElementLog()
     let frame = Frame(contentSize: Size(width: px(200), height: px(80)), scaleFactor: 1)
     var tree = Column {
@@ -420,7 +469,16 @@ private enum Fixture {
 
     frame.render(&tree)
 
-    #expect(log.identity(of: "deep") == GlobalElementID??.some(nil))
+    let root = GlobalElementID.child(of: nil, at: 0, name: ElementID("root"))
+    let unnamedRow = GlobalElementID.child(of: root, at: 0, name: nil)
+    let leaf = GlobalElementID.child(of: unnamedRow, at: 0, name: ElementID("named"))
+
+    #expect(log.identity(of: "deep") == leaf)
+    // The unnamed level is a component of the path, not a level skipped: the
+    // shorter path a "borrow the parent's id" container would produce is a
+    // different id, and asserting it is not equal is what says so.
+    #expect(log.identity(of: "deep") != GlobalElementID.child(of: root, at: 0,
+                                                              name: ElementID("named")))
 }
 
 // MARK: - Modifiers

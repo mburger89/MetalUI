@@ -27,8 +27,15 @@ import MetalUILayout
 ///
 /// The three phases mirror `Element`'s and are threaded the same way. They take
 /// the **container's** identity and derive each child's from it with
-/// `GlobalElementID.child(of:_:)`, which is why identity does not resume below
-/// an anonymous container (§4.3).
+/// `GlobalElementID.child(of:at:name:)`. Identity is now **structural and
+/// universal** (§4.3): a member with no `.id()` takes its position in the
+/// group's flat index space, so an unnamed container no longer stops identity
+/// below it. `.id()` replaces that position rather than creating the identity.
+///
+/// **Only `requestGroupLayout` carries the cursor**, because it is the only
+/// phase that derives an identity. `prepaintGroup` and `paintGroup` read the id
+/// each member *stored* during layout, deliberately, so all three phases see the
+/// same path even if the element's `elementID` changes between them.
 ///
 /// Unlike `Element`'s phases, these are handed no `Bounds`: a group's members
 /// have N different rects, so each looks its own up from the node it stashed
@@ -45,15 +52,33 @@ public protocol ElementGroup {
     ///
     /// The order is the order the container will hand to `requestNode`, and is
     /// therefore the flex order — so it must match source order.
+    ///
+    /// `cursor` is the container's **flat** child index, threaded rather than
+    /// nested: `Pair` hands the same cursor to both halves in order, so
+    /// `Column { A; B; C }` — whose type is `Column<Pair<A, Pair<B, C>>>` —
+    /// identifies its children `0, 1, 2` and not `[0], [1, 0], [1, 1]`.
+    /// A conformance consumes one index per element it identifies and leaves the
+    /// cursor pointing at the next free one.
+    ///
+    /// **`parent`'s optionality is INERT, not forced.** It matches
+    /// `GlobalElementID.child(of:at:name:)`'s parameter, whose optional *is*
+    /// forced — a root has no parent — but the root never travels this path:
+    /// `Frame.render` builds the root id itself and never calls
+    /// `requestGroupLayout`, and every container below hands down its own
+    /// non-optional id. So **no production caller passes `nil` and nothing would
+    /// break if this lost its `?`**; it keeps it only because tightening it
+    /// touches eight conformances and every hand-built test group for no
+    /// behavioural gain. Said here rather than left implied, because three
+    /// documents counted the surviving optionals differently and each read this
+    /// one as a necessity.
     mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                     at cursor: inout Int,
                                      pass: inout LayoutPass) -> ([LayoutNodeID], GroupLayout)
 
-    mutating func prepaintGroup(under parent: GlobalElementID?,
-                                layout: inout GroupLayout,
+    mutating func prepaintGroup(layout: inout GroupLayout,
                                 pass: inout PrepaintPass) -> GroupPrepaint
 
-    mutating func paintGroup(under parent: GlobalElementID?,
-                             layout: inout GroupLayout,
+    mutating func paintGroup(layout: inout GroupLayout,
                              prepaint: inout GroupPrepaint,
                              pass: inout PaintPass)
 }
@@ -69,29 +94,33 @@ public protocol ElementGroup {
 /// `paint` from a changed `elementID` would silently address a different state
 /// entry than the one `requestLayout` marked.
 public struct SingleElementLayout<E: Element> {
-    var id: GlobalElementID?
+    var id: GlobalElementID
     var node: LayoutNodeID
     var state: E.LayoutState
 }
 
 extension Element {
+    /// One element is one index. `child(of:at:name:)` decides which component
+    /// that becomes: a `.named` one when the element carries an `.id()`, a
+    /// `.positional(cursor)` one otherwise. The index is supplied either way, so
+    /// the name-replaces-position rule lives in the constructor and not here.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], SingleElementLayout<Self>) {
-        let id = GlobalElementID.child(of: parent, elementID)
+        let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
+        cursor += 1
         let (node, state) = requestLayout(id, pass: &pass)
         return ([node], SingleElementLayout(id: id, node: node, state: state))
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?,
-                                       layout: inout SingleElementLayout<Self>,
+    public mutating func prepaintGroup(layout: inout SingleElementLayout<Self>,
                                        pass: inout PrepaintPass) -> PrepaintState {
         prepaint(layout.id, bounds: pass.bounds(of: layout.node),
                  layout: &layout.state, pass: &pass)
     }
 
-    public mutating func paintGroup(under parent: GlobalElementID?,
-                                    layout: inout SingleElementLayout<Self>,
+    public mutating func paintGroup(layout: inout SingleElementLayout<Self>,
                                     prepaint: inout PrepaintState,
                                     pass: inout PaintPass) {
         paint(layout.id, bounds: pass.bounds(of: layout.node),
@@ -105,15 +134,16 @@ extension Element {
 public struct EmptyGroup: ElementGroup {
     public init() {}
 
+    /// No members, so no index is consumed and the cursor is left where it was.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass) -> ([LayoutNodeID], Void) {
         ([], ())
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?, layout: inout Void,
-                                       pass: inout PrepaintPass) {}
+    public mutating func prepaintGroup(layout: inout Void, pass: inout PrepaintPass) {}
 
-    public mutating func paintGroup(under parent: GlobalElementID?, layout: inout Void,
+    public mutating func paintGroup(layout: inout Void,
                                     prepaint: inout Void, pass: inout PaintPass) {}
 }
 
@@ -141,25 +171,34 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
         var second: Second.GroupPrepaint
     }
 
+    /// **This is the line that makes the index space flat.** The *same* cursor
+    /// goes to both halves, in order, so the builder's left-nested
+    /// `Pair<Pair<A, B>, C>` yields indices 0, 1, 2 rather than a path per
+    /// nesting level. Handing `second` a fresh cursor — or wrapping either half
+    /// in an id of its own — would make identity depend on how the builder
+    /// happened to group statements, which is what §3.4 rejects.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass) -> ([LayoutNodeID], Layout) {
-        let (firstNodes, firstLayout) = first.requestGroupLayout(under: parent, pass: &pass)
-        let (secondNodes, secondLayout) = second.requestGroupLayout(under: parent, pass: &pass)
+        let (firstNodes, firstLayout) = first.requestGroupLayout(under: parent, at: &cursor,
+                                                                 pass: &pass)
+        let (secondNodes, secondLayout) = second.requestGroupLayout(under: parent, at: &cursor,
+                                                                    pass: &pass)
         return (firstNodes + secondNodes,
                 Layout(first: firstLayout, second: secondLayout))
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?, layout: inout Layout,
+    public mutating func prepaintGroup(layout: inout Layout,
                                        pass: inout PrepaintPass) -> Prepaint {
-        Prepaint(first: first.prepaintGroup(under: parent, layout: &layout.first, pass: &pass),
-                 second: second.prepaintGroup(under: parent, layout: &layout.second, pass: &pass))
+        Prepaint(first: first.prepaintGroup(layout: &layout.first, pass: &pass),
+                 second: second.prepaintGroup(layout: &layout.second, pass: &pass))
     }
 
-    public mutating func paintGroup(under parent: GlobalElementID?, layout: inout Layout,
+    public mutating func paintGroup(layout: inout Layout,
                                     prepaint: inout Prepaint, pass: inout PaintPass) {
-        first.paintGroup(under: parent, layout: &layout.first,
+        first.paintGroup(layout: &layout.first,
                          prepaint: &prepaint.first, pass: &pass)
-        second.paintGroup(under: parent, layout: &layout.second,
+        second.paintGroup(layout: &layout.second,
                           prepaint: &prepaint.second, pass: &pass)
     }
 }
@@ -175,31 +214,56 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
 
     public init(_ wrapped: Wrapped?) { self.wrapped = wrapped }
 
+    /// Forwards the cursor when the group is present and consumes nothing when
+    /// it is absent, so an `if` that goes false **shifts every later sibling's
+    /// index down by however many elements the branch held**.
+    ///
+    /// **The later sibling does not reset — it ADOPTS the vanished element's
+    /// state entry**, and the difference matters because every reader's
+    /// intuition says "reset". This comment claimed the reset for one commit and
+    /// was corrected by measurement, the same way `EitherGroup`'s branch
+    /// collision above was. On `Row { if flag { C() }; C() }` across a flip the
+    /// trailing element lands on the vanished element's `.positional(0)` and
+    /// reads **2**, not 1. Pinned as deliberate by
+    /// `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`.
+    ///
+    /// It is deliberate because it is SwiftUI's behaviour for an unkeyed `if`
+    /// (ruling EP-5), and because the alternative — a positional slot reserved
+    /// for an absent branch — makes the index space depend on branch *width*,
+    /// which is the thing `EitherGroup`'s `+= 2` above buys precisely because
+    /// there the width is bounded at two and here it is not.
+    ///
+    /// **The remedy is naming the LATER SIBLINGS, not the conditional content**,
+    /// and that distinction is measured rather than assumed
+    /// (`namingTheLaterSiblingIsWhatSurvivesAVanishingIf`). A name replaces a
+    /// position, so a named sibling leaves the shifting space entirely and keeps
+    /// its state across the flip. Naming the *conditional content* only stops
+    /// the adoption — the trailing sibling still moves from index 1 to index 0
+    /// and still starts from scratch there.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], Wrapped.GroupLayout?) {
         guard var inner = wrapped else { return ([], nil) }
-        let (nodes, layout) = inner.requestGroupLayout(under: parent, pass: &pass)
+        let (nodes, layout) = inner.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
         wrapped = inner
         return (nodes, layout)
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?,
-                                       layout: inout Wrapped.GroupLayout?,
+    public mutating func prepaintGroup(layout: inout Wrapped.GroupLayout?,
                                        pass: inout PrepaintPass) -> Wrapped.GroupPrepaint? {
         guard var inner = wrapped else {
             precondition(layout == nil, Self.mismatch("prepaint"))
             return nil
         }
         guard var innerLayout = layout else { preconditionFailure(Self.mismatch("prepaint")) }
-        let prepaint = inner.prepaintGroup(under: parent, layout: &innerLayout, pass: &pass)
+        let prepaint = inner.prepaintGroup(layout: &innerLayout, pass: &pass)
         wrapped = inner
         layout = innerLayout
         return prepaint
     }
 
-    public mutating func paintGroup(under parent: GlobalElementID?,
-                                    layout: inout Wrapped.GroupLayout?,
+    public mutating func paintGroup(layout: inout Wrapped.GroupLayout?,
                                     prepaint: inout Wrapped.GroupPrepaint?,
                                     pass: inout PaintPass) {
         guard var inner = wrapped else {
@@ -208,7 +272,7 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
         }
         guard var innerLayout = layout,
               var innerPrepaint = prepaint else { preconditionFailure(Self.mismatch("paint")) }
-        inner.paintGroup(under: parent, layout: &innerLayout,
+        inner.paintGroup(layout: &innerLayout,
                          prepaint: &innerPrepaint, pass: &pass)
         wrapped = inner
         layout = innerLayout
@@ -240,6 +304,14 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
     case first(First)
     case second(Second)
 
+    /// Each case carries only the branch's layout.
+    ///
+    /// A branch's own id used to be carried alongside it here, because the id is
+    /// derived from a cursor that only `requestGroupLayout` has and the later
+    /// phases could not recompute it. `prepaintGroup`/`paintGroup` no longer take
+    /// a `parent` to forward, so no phase below `requestGroupLayout` needs a
+    /// branch id at all — the branch's id was its only reader, and both are gone
+    /// together.
     public enum Layout {
         case first(First.GroupLayout)
         case second(Second.GroupLayout)
@@ -250,30 +322,70 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
         case second(Second.GroupPrepaint)
     }
 
+    /// **The two branches never share a component, so flipping the `if` resets
+    /// the subtree's state instead of carrying it into structurally different
+    /// elements.** The taken branch hangs under an id of its own —
+    /// `.positional(cursor)` for `.first`, `.positional(cursor + 1)` for
+    /// `.second` — and its members number from 0 *inside* that id.
+    ///
+    /// **The outer cursor advances by 2 because the branch RESERVES both slots,
+    /// not because a later sibling's index would otherwise move.** This comment
+    /// said the latter and measurement falsified it: `cursor += 2` runs before
+    /// the switch, so under `+= 1` a later sibling's index is stable too —
+    /// `Row { if flag { C() } else { C() }; C() }` puts the trailing element at
+    /// `.positional(1)` on **both** frames of a flip and it counts 2 either way.
+    /// What actually breaks is a sibling landing on the slot the *untaken*
+    /// branch would have used: measured, `Row { if flag { C() } else { C() };
+    /// Row { C() } }` collapses two state entries into one reading 3, and
+    /// `Row { if a {…} else {…}; if b {…} else {…} }` — spec §3.5's collision —
+    /// collapses into one reading 2. Pinned by
+    /// `aBranchReservesBothIndicesSoASiblingCannotLandOnTheUntakenOne`, which is
+    /// the only test that reddens on `+= 1`; the composition it needs did not
+    /// exist in the suite until it was written, which is taxonomy shape 9.
+    ///
+    /// **The intermediate id is what makes that true for a branch of any size,
+    /// and a flat pair of indices would not be.** Numbering the branches'
+    /// members directly in the parent's space from `cursor` and `cursor + 1`
+    /// works only while both branches hold exactly one element: in
+    /// `if flag { Box(); Box() } else { Box() }` the first branch's *second*
+    /// member and the second branch's only member would both be
+    /// `.positional(cursor + 1)` — the collision this method exists to prevent,
+    /// reachable from ordinary builder code. Members numbering from 0 under a
+    /// per-branch id cannot collide however many there are.
+    ///
+    /// This is the same rule the phase-mismatch trap below already applies: a
+    /// flipped branch is a different subtree, not the same one rebuilt.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass) -> ([LayoutNodeID], Layout) {
+        let branchIndex = cursor
+        cursor += 2
         switch self {
         case .first(var group):
-            let (nodes, layout) = group.requestGroupLayout(under: parent, pass: &pass)
+            var inner = 0
+            let branch = GlobalElementID(component: .positional(branchIndex), parent: parent)
+            let (nodes, layout) = group.requestGroupLayout(under: branch, at: &inner, pass: &pass)
             self = .first(group)
             return (nodes, .first(layout))
         case .second(var group):
-            let (nodes, layout) = group.requestGroupLayout(under: parent, pass: &pass)
+            var inner = 0
+            let branch = GlobalElementID(component: .positional(branchIndex + 1), parent: parent)
+            let (nodes, layout) = group.requestGroupLayout(under: branch, at: &inner, pass: &pass)
             self = .second(group)
             return (nodes, .second(layout))
         }
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?, layout: inout Layout,
+    public mutating func prepaintGroup(layout: inout Layout,
                                        pass: inout PrepaintPass) -> Prepaint {
         switch (self, layout) {
         case (.first(var group), .first(var inner)):
-            let prepaint = group.prepaintGroup(under: parent, layout: &inner, pass: &pass)
+            let prepaint = group.prepaintGroup(layout: &inner, pass: &pass)
             self = .first(group)
             layout = .first(inner)
             return .first(prepaint)
         case (.second(var group), .second(var inner)):
-            let prepaint = group.prepaintGroup(under: parent, layout: &inner, pass: &pass)
+            let prepaint = group.prepaintGroup(layout: &inner, pass: &pass)
             self = .second(group)
             layout = .second(inner)
             return .second(prepaint)
@@ -282,17 +394,17 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
         }
     }
 
-    public mutating func paintGroup(under parent: GlobalElementID?, layout: inout Layout,
+    public mutating func paintGroup(layout: inout Layout,
                                     prepaint: inout Prepaint, pass: inout PaintPass) {
         switch (self, layout, prepaint) {
         case (.first(var group), .first(var innerLayout), .first(var innerPrepaint)):
-            group.paintGroup(under: parent, layout: &innerLayout,
+            group.paintGroup(layout: &innerLayout,
                              prepaint: &innerPrepaint, pass: &pass)
             self = .first(group)
             layout = .first(innerLayout)
             prepaint = .first(innerPrepaint)
         case (.second(var group), .second(var innerLayout), .second(var innerPrepaint)):
-            group.paintGroup(under: parent, layout: &innerLayout,
+            group.paintGroup(layout: &innerLayout,
                              prepaint: &innerPrepaint, pass: &pass)
             self = .second(group)
             layout = .second(innerLayout)
@@ -344,7 +456,13 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
 
     public init(_ groups: [Group]) { self.groups = groups }
 
+    /// Forwards the one cursor per member, so a `for` loop's items sit in the
+    /// container's flat space alongside its other children rather than in a
+    /// space of their own. An item that carries `.id()` therefore keeps its
+    /// state through a reorder — the name replaces the index outright — while an
+    /// unnamed item's identity *is* its position and does not travel with it.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], [Group.GroupLayout]) {
         var nodes: [LayoutNodeID] = []
@@ -352,6 +470,7 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
         layouts.reserveCapacity(groups.count)
         for index in groups.indices {
             let (childNodes, childLayout) = groups[index].requestGroupLayout(under: parent,
+                                                                            at: &cursor,
                                                                             pass: &pass)
             nodes.append(contentsOf: childNodes)
             layouts.append(childLayout)
@@ -359,27 +478,24 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
         return (nodes, layouts)
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?,
-                                       layout: inout [Group.GroupLayout],
+    public mutating func prepaintGroup(layout: inout [Group.GroupLayout],
                                        pass: inout PrepaintPass) -> [Group.GroupPrepaint] {
         precondition(layout.count == groups.count, Self.countMismatch("prepaint"))
         var prepaints: [Group.GroupPrepaint] = []
         prepaints.reserveCapacity(groups.count)
         for index in groups.indices {
-            prepaints.append(groups[index].prepaintGroup(under: parent,
-                                                         layout: &layout[index], pass: &pass))
+            prepaints.append(groups[index].prepaintGroup(layout: &layout[index], pass: &pass))
         }
         return prepaints
     }
 
-    public mutating func paintGroup(under parent: GlobalElementID?,
-                                    layout: inout [Group.GroupLayout],
+    public mutating func paintGroup(layout: inout [Group.GroupLayout],
                                     prepaint: inout [Group.GroupPrepaint],
                                     pass: inout PaintPass) {
         precondition(layout.count == groups.count && prepaint.count == groups.count,
                      Self.countMismatch("paint"))
         for index in groups.indices {
-            groups[index].paintGroup(under: parent, layout: &layout[index],
+            groups[index].paintGroup(layout: &layout[index],
                                      prepaint: &prepaint[index], pass: &pass)
         }
     }
@@ -411,25 +527,35 @@ extension AnyElement: ElementGroup {
     /// `AnyElement` holds its own phase states inside the box, so all a
     /// container needs to carry between phases is the node and the identity.
     public struct GroupLayout {
-        var id: GlobalElementID?
+        var id: GlobalElementID
         var node: LayoutNodeID
     }
 
+    /// Identical to `Element`'s default: an erased element is still one element
+    /// and therefore one index.
+    ///
+    /// **A second copy of the cursor advance, and it was unguarded until
+    /// `twoErasedSiblingsDoNotShareOneStateEntry`.** "Identical to `Element`'s
+    /// default" is a claim about two separate lines, and `Element`'s tests
+    /// cannot reach this one — nothing in the suite put two `AnyElement`s with
+    /// cross-frame state in one container, so deleting the `cursor += 1` below
+    /// left all 358 green. It now reddens exactly that test.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], GroupLayout) {
-        let id = GlobalElementID.child(of: parent, elementID)
+        let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
+        cursor += 1
         let node = requestLayout(id, pass: &pass)
         return ([node], GroupLayout(id: id, node: node))
     }
 
-    public mutating func prepaintGroup(under parent: GlobalElementID?,
-                                       layout: inout GroupLayout,
+    public mutating func prepaintGroup(layout: inout GroupLayout,
                                        pass: inout PrepaintPass) {
         prepaint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
     }
 
-    public mutating func paintGroup(under parent: GlobalElementID?, layout: inout GroupLayout,
+    public mutating func paintGroup(layout: inout GroupLayout,
                                     prepaint: inout Void, pass: inout PaintPass) {
         paint(layout.id, bounds: pass.bounds(of: layout.node), pass: &pass)
     }

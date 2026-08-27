@@ -259,7 +259,28 @@ struct Inspector: Component {
 
 State that must survive a rebuild — scroll offset, hover, animation progress, text selection,
 in-progress node drag, `MetalView` render targets (§7.7) — lives in a side table on the window keyed
-by `GlobalElementID`: the path of `ElementID` components from the root.
+by `GlobalElementID`: the path of **`PathComponent`s** from the root.
+
+**Identity is structural and universal; `.id()` is an override, not a source.** Every element has an
+identity. A component is either `.positional(Int)` — the element's index in its container's **flat**
+child list — or `.named(ElementID)` when the element carries an `.id()`, and **a name replaces a
+position rather than joining it**, so an item keeps its state through a reorder. What a name buys is
+survival across a change of position; what position buys is that an unnamed element has state at
+all. See `docs/superpowers/specs/2026-08-27-structural-identity-design.md` and
+`docs/superpowers/2026-08-27-structural-identity-decisions.md` for the whole rule and its costs.
+
+**This section originally read "the path of `ElementID` components", and identity was opt-in.** Under
+that rule `GlobalElementID.child(of:_:)` returned `nil` when either the parent path or the child's
+local id was `nil`, so an unnamed container poisoned its entire subtree: no descendant could hold
+cross-frame state however carefully it was named. That is a DOM-ish rule — identity exists because
+someone wrote an attribute — and ruling EP-5 selects SwiftUI's inverse. `nil` is now gone from the
+identity a phase receives, so "every element has identity" is enforced by the compiler rather than
+remembered by the reader.
+
+`GlobalElementID` is a **persistent linked list** — one allocation per child regardless of depth,
+tails shared — because universal identity makes every node build a path every frame. It is a class,
+so `===` is spellable beside `==` and they differ: two structurally identical paths from different
+frames are `==` and never `===`, and **only `==` may be used for lookup**.
 
 Entries are marked on access and swept after each frame. This dictionary plus mark-sweep **is** the
 entire reconciliation story.
@@ -269,7 +290,10 @@ entire reconciliation story.
 - **Accessibility identity rides this table.** AX clients retain element references across frames, so
   `GlobalElementID` is the only structure that can back stable AX identity (§9). A node an AX client
   still holds must survive the sweep as a tombstone that reports itself invalid, rather than
-  vanishing.
+  vanishing. **Universal identity helps §9 rather than complicating it**: every element can now back
+  an AX node, where under the opt-in rule an unnamed ancestor left whole subtrees unaddressable no
+  matter how their elements were named. It does not make tombstones any easier — that is a change to
+  the sweep, not to the key, and it is still unbuilt.
 - **Exit transitions are impossible without a tombstone mechanism.** An element that stops being
   produced has its animation state swept on that very frame. **v1 does not support exit transitions**
   (§14); the sweep is why. Adding them later means deferred-sweep tombstones, which is a change to

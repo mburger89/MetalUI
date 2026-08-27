@@ -28,23 +28,24 @@ struct ContentSwapper<Content: ElementGroup>: Element {
     /// Installed at the top of `prepaint`, after layout has already run.
     var replacement: Content?
 
-    mutating func requestLayout(_ id: GlobalElementID?,
+    mutating func requestLayout(_ id: GlobalElementID,
                                 pass: inout LayoutPass) -> (LayoutNodeID, Content.GroupLayout) {
-        let (children, layout) = content.requestGroupLayout(under: id, pass: &pass)
+        var cursor = 0
+        let (children, layout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         return (pass.requestNode(style: Style(), children: children), layout)
     }
 
-    mutating func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                            layout: inout Content.GroupLayout,
                            pass: inout PrepaintPass) -> Content.GroupPrepaint {
         if let replacement { content = replacement }
-        return content.prepaintGroup(under: id, layout: &layout, pass: &pass)
+        return content.prepaintGroup(layout: &layout, pass: &pass)
     }
 
-    mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                         layout: inout Content.GroupLayout,
                         prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
-        content.paintGroup(under: id, layout: &layout, prepaint: &prepaint, pass: &pass)
+        content.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
     }
 }
 
@@ -214,13 +215,13 @@ struct StateProbe: Element, StyledElement {
         self.log = log
     }
 
-    func requestLayout(_ id: GlobalElementID?,
+    func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
         let node = pass.requestNode(style: style, children: [])
         return (node, node)
     }
 
-    func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                   layout: inout LayoutNodeID, pass: inout PrepaintPass) {
         pass.withState(id, initial: 0) { (value: inout Int) in
             value += 1
@@ -228,31 +229,37 @@ struct StateProbe: Element, StyledElement {
         }
     }
 
-    func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                layout: inout LayoutNodeID, prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-/// Two siblings with the same local id share **one** state entry.
+/// Two siblings with the same local id share **one** state entry, and that is
+/// the settled answer rather than a placeholder.
 ///
-/// **This is current behaviour pinned, not behaviour endorsed.** §4.3 keys state
-/// on the path of `ElementID` components and nothing else, so
-/// `Column { X().id("a"); X().id("a") }` gives both children `[root, a]` and one
-/// slot: the second child reads the first's counter and writes 2 over it.
-/// SwiftUI and every CSS-shaped model give sibling positions distinct
-/// identities; the fix here is a positional component folded into the key where
-/// siblings collide, which is a change to §4.3 and is not made in task 4.
+/// **Formerly `twoSiblingsWithTheSameIDShareOneStateEntryForNow`.** The "for
+/// now" promised a fix that structural identity has now declined to make, so the
+/// assertions below are unchanged and only the claim about them has moved. The
+/// old comment said "the fix here is a positional component folded into the key
+/// where siblings collide". A positional component now exists — it is what an
+/// **unnamed** sibling is keyed on — and folding it in *alongside* a name is
+/// exactly what `PathComponent` refuses to do: a name **replaces** a position,
+/// because an index in the key would reset a named list item's state whenever it
+/// moved, which is the one thing `.id()` exists to prevent
+/// (`reorderingANamedListCarriesEachItemsState` in `IdentityTests.swift` is that
+/// rule's pin). Two siblings written with the same id therefore have the same
+/// path, by construction and on purpose.
 ///
-/// **Deliberately not a trap.** Aborting on duplicate sibling ids would forbid
-/// exactly the positional keying that fix will want — a future `[root, a#0]` and
-/// `[root, a#1]` are *supposed* to come from two children written with the same
-/// id. The same reasoning as `containerDoesNotGrowToFitOverconstrainedPaddingUnlikeWebKit`:
-/// name the other answer in the comment so the change is a decision rather than
-/// a surprise.
+/// **SwiftUI behaves the same way and documents it as a caller error**, so this
+/// is a matching hazard rather than a divergence: duplicate ids among siblings
+/// give one identity, and the caller is expected not to write them.
 ///
-/// Containers made this writable for the first time — before task 4 there was no
-/// production element that could give a sibling a local id at all.
+/// **Deliberately not a trap.** Aborting would turn a data bug into a crash in a
+/// shipping app — an `ArrayGroup` whose data genuinely holds duplicate keys is a
+/// wrong list, not a wrong program. The same reasoning as
+/// `containerDoesNotGrowToFitOverconstrainedPaddingUnlikeWebKit`: name the other
+/// answer in the comment so the choice is a decision rather than a surprise.
 @MainActor
-@Test func twoSiblingsWithTheSameIDShareOneStateEntryForNow() {
+@Test func twoSiblingsWithTheSameIDShareOneStateEntry() {
     let log = ElementLog()
     let table = StateTable()
     let frame = Frame(contentSize: Size(width: px(100), height: px(100)),
@@ -270,7 +277,8 @@ struct StateProbe: Element, StyledElement {
     #expect(log.counters.map(\.name) == ["left", "right"])
     #expect(log.counters.map(\.value) == [1, 2])
     #expect(table.count == 1)
-    #expect(table.peek(GlobalElementID([ElementID("root"), ElementID("a")]),
+    #expect(table.peek(GlobalElementID.child(of: GlobalElementID.child(of: nil, at: 0, name: ElementID("root")),
+                                             at: 0, name: ElementID("a")),
                        as: Int.self) == 2)
 }
 

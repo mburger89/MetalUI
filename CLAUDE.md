@@ -14,19 +14,50 @@ idiomatic Swift. macOS and iOS.
   `docs/superpowers/2026-08-25-box-model-decisions.md`,
   `docs/superpowers/2026-08-25-wrapping-decisions.md`,
   `docs/superpowers/2026-08-26-element-pipeline-decisions.md`,
-  `docs/superpowers/2026-08-26-content-sizing-decisions.md` — each ruling with
+  `docs/superpowers/2026-08-26-content-sizing-decisions.md`,
+  `docs/superpowers/2026-08-27-structural-identity-decisions.md` — each ruling with
   its reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
   **Ruling IDs are namespaced by milestone.** `PF-3` and `C-3` belong to m1a;
   `FS-n` to flex sizing, `AL-n` to alignment, `BM-n` to the box model, `WR-n` to
-  wrapping, `EP-n` to the element pipeline, `CS-n` to content sizing (whose
-  rulings are **lettered**, `CS-A`…`CS-O`, so a bare `CS-3` is a typo rather
+  wrapping, `EP-n` to the element pipeline, `CS-n` to content sizing and `SI-n`
+  to structural identity (the last two are **lettered** — `CS-A`…`CS-O` and
+  `SI-A`…`SI-H` — so a bare `CS-3` or `SI-3` is a typo rather
   than a citation) (**`EP-2` and `EP-4` were never
   assigned** and must not be reused — a new ruling taking one would silently
   rebind any citation written against the gap). Sweep for stray citations **case-insensitively** — a `Ruling F-3` survived two branches' greps for lowercase `ruling`. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
   had one, and three code comments on the flex-sizing branch cited the wrong
   document before this was fixed. Prefix new milestones' rulings the same way.
+
+- **Identity is structural and universal, and `.id()` is an override rather than
+  a source.** Every element has a `GlobalElementID` — a persistent linked list of
+  `PathComponent`, each either `.positional(Int)` (the element's index in its
+  container's **flat** child list) or `.named(ElementID)`. **A name replaces a
+  position; it never joins it**, so a named item keeps its state through a
+  reorder. `nil` is gone from the identity a phase receives, so "every element
+  has identity" is a compile-time fact rather than a rule to remember. Two
+  consequences a reader will otherwise get wrong:
+
+  - **A vanishing `if` makes the trailing sibling ADOPT the vanished element's
+    state, not reset it** — measured, and the remedy is the half intuition gets
+    backwards: naming the **trailing sibling** carries its state through, while
+    naming the **conditional content** removes the inheritance and still leaves
+    the reset. Both pinned (`anElementAfterAVanishingIfAdoptsTheVanishedElementsState`,
+    `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`).
+  - **`cachedHash` and `==` are safe individually and unsafe only together.**
+    Dropping the parent from the hash reddens exactly one test; a hash-shortcut
+    `==` reddens nothing; do both and two unrelated elements silently share a
+    `StateTable` entry. The load-bearing line is **`==`'s chain walk**, which no
+    test can guard — a 64-bit collision is not constructible against a
+    per-process-seeded `Hasher` — so the mechanism is stated at `==` per
+    taxonomy shape 6. Do not "simplify" it on the evidence of a green suite.
+
+  **Tombstones and exit transitions are untouched** by this: §4.3 still records
+  that AX identity needs entries surviving the sweep as invalid-reporting
+  tombstones and that exit transitions are impossible until that exists.
+  Universal identity makes tombstones *more* useful and no easier — it is a
+  change to the **sweep**, not to the key.
 
 - **One decision is now open rather than settled: `Column`/`Row`'s cross-axis
   default.** Ruling EP-6 keeps them on CSS's `stretch` **because** an `auto`
@@ -76,6 +107,30 @@ claimed, **four were wrong**, every one of them hand-derived; running the swaps
 through the live oracle is what caught them. "Change the declaration and confirm
 the numbers move" is not satisfied by predicting which numbers move. Run it.
 
+**Structural identity added two variations, both about the record rather than
+the code.** First, **"pinned as deliberate" is a claim to grep for, not to
+believe**: a plan's risk list and a spec section both asserted the vanishing-`if`
+behaviour was already pinned, and no test pinned it — one inaccurate sentence
+standing in for two claimed pins, and the behaviour it described (reset) was not
+the behaviour the code had (adoption). Second, **a mutation count measured
+mid-task is stale by the end of the task** (ruling SI-H): three of this
+milestone's five recorded counts were taken before a fix round added two tests
+sensitive to the same line, and each under-counted by exactly those two. The two
+that survived re-measurement were the two that **named** the tests they reddened
+instead of only counting them — which is CS-N's rule with a reason attached.
+
+**And its fix round produced the branch's only taxonomy-shape-9 pair**, found by
+mutating every line of new code rather than by reading any of it: `EitherGroup`'s
+`cursor += 2` and `AnyElement`'s `cursor += 1` each reddened **nothing** on a
+358-test suite while being asserted as a property in two documents apiece. Both
+now have a test. The `+= 2` one carries the sharper lesson: **the composition the
+stated property suggests does not fail.** `Row { if flag { C() } else { C() };
+C() }` keeps the trailing element's state under `+= 1` — the cursor advances
+before the branch is chosen, so the shift is identical on both frames. Only a
+sibling that lands on the *untaken* slot and then goes one level deeper breaks,
+which took three candidate compositions and a probe to find. The property the
+comment claimed was not the property the line bought.
+
 ## Verified on real hardware
 
 `swift run MetalUIDemo` was run and inspected on a Retina display: the window
@@ -101,7 +156,9 @@ demo is the proof — but nothing above the renderer can ask for one.
 what the demo draws — and no test can establish it.** `MetalLayerSurface` vends drawables whether its `CAMetalLayer` is
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
-sees — and all 342 tests still pass. If you touch that ordering, re-run the demo
+sees — and the whole suite still passed when that was measured, at 342 tests
+(**360 today**; the count is quoted so the measurement can be dated, not because
+342 is a property of anything). If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
 ## Five known divergences — expected, measured, not defects
@@ -281,14 +338,14 @@ are the dangerous ones.
 
 | Declared | Reality |
 |---|---|
-| `AlignItems.baseline` / `AlignSelf.baseline` | **Falls back to `flexStart`, not silently.** `crossAxisOffset` needs font metrics that arrive with the text system in M2; until then a `baseline`-aligned row lays out as a `flex-start` row. **Whoever implements it inherits a `wrap-reverse` clause**: CSS Flexbox §8.3 swaps first- and last-baseline alignment in a `wrap-reverse` container, and nothing in the flip `positionItems` does today expresses that — it flips an offset, and baseline alignment is not an offset. Ruling AL-6: the task that makes an API inert records it here; the task that makes one live deletes the row. **Task 4 made it reachable from the public API**: `StyledElement.alignItems(_:)` / `alignSelf(_:)` take the whole enum, so `.baseline` can now be written by a caller who will silently get `flexStart` — this row is the only thing guarding that, unlike `margin: .auto`, which the modifier's parameter type keeps out of reach. `justifyContent`, `alignItems` and `alignSelf` left this table when the alignment work implemented them and `alignContent` when wrapping's second task did; **a whole enum leaving is not the same as its every case leaving**, and this row is the standing counter-example |
+| `AlignItems.baseline` / `AlignSelf.baseline` | **Falls back to `flexStart`, not silently.** `crossAxisOffset` needs font metrics that arrive with the text system in M2; until then a `baseline`-aligned row lays out as a `flex-start` row. **Whoever implements it inherits a `wrap-reverse` clause**: CSS Flexbox §8.3 swaps first- and last-baseline alignment in a `wrap-reverse` container, and nothing in the flip `positionItems` does today expresses that — it flips an offset, and baseline alignment is not an offset. Ruling AL-6: the task that makes an API inert records it here; the task that makes one live deletes the row. **The element pipeline's Task 4 made it reachable from the public API**: `StyledElement.alignItems(_:)` / `alignSelf(_:)` take the whole enum, so `.baseline` can now be written by a caller who will silently get `flexStart` — this row is the only thing guarding that, unlike `margin: .auto`, which the modifier's parameter type keeps out of reach. `justifyContent`, `alignItems` and `alignSelf` left this table when the alignment work implemented them and `alignContent` when wrapping's second task did; **a whole enum leaving is not the same as its every case leaving**, and this row is the standing counter-example |
 | `aspectRatio` | **0 uses** |
-| `margin: auto` (`Style.margin`'s `.auto` case) | **Resolves to 0, not to CSS's answer.** Item margins landed in the box-model task's second step — `resolveMargin` in `Resolve.swift` shrinks the main-axis budget and offsets each item by its own margin — but `.auto` maps to 0 on the single line marked for it in that function, not to CSS's "absorb free space before `justify-content` distributes any." A `margin-left: auto` item that CSS would push to the far end of the line lays out at the line's start instead, silently. Pinned by `autoMarginsResolveToZeroForNow` in `BoxModelTests.swift`, with CSS's real answer named in its comment. **This row's scope was too narrow until the wrapping branch's final review measured it** — the third claim of that shape on this project, after ruling WR-4's and WR-5's. Auto margins are not only a main-axis/`justify-content` gap: WebKit **centres a `margin-block: auto` item within its line on the CROSS axis** and we give 0 (`b` at 90 vs our 0). That was already true under `nowrap`; `align-content: stretch` — the default this branch made reachable — grows lines and widened it (`d` at 255 vs our 225). Whoever implements auto margins owns both axes, not just the one `justify-content` sees. **Unreachable from the public modifier API since Task 4**, and by a type rather than by a convention: `StyledElement.margin(_:)` takes `Length`, not `Dimension`, so `.auto` cannot be written through it at all. `Style.margin` is still public, so the case is reachable by setting `style` directly |
+| `margin: auto` (`Style.margin`'s `.auto` case) | **Resolves to 0, not to CSS's answer.** Item margins landed in the box-model task's second step — `resolveMargin` in `Resolve.swift` shrinks the main-axis budget and offsets each item by its own margin — but `.auto` maps to 0 on the single line marked for it in that function, not to CSS's "absorb free space before `justify-content` distributes any." A `margin-left: auto` item that CSS would push to the far end of the line lays out at the line's start instead, silently. Pinned by `autoMarginsResolveToZeroForNow` in `BoxModelTests.swift`, with CSS's real answer named in its comment. **This row's scope was too narrow until the wrapping branch's final review measured it** — the third claim of that shape on this project, after ruling WR-4's and WR-5's. Auto margins are not only a main-axis/`justify-content` gap: WebKit **centres a `margin-block: auto` item within its line on the CROSS axis** and we give 0 (`b` at 90 vs our 0). That was already true under `nowrap`; `align-content: stretch` — the default this branch made reachable — grows lines and widened it (`d` at 255 vs our 225). Whoever implements auto margins owns both axes, not just the one `justify-content` sees. **Unreachable from the public modifier API since the element pipeline's Task 4**, and by a type rather than by a convention: `StyledElement.margin(_:)` takes `Length`, not `Dimension`, so `.auto` cannot be written through it at all. `Style.margin` is still public, so the case is reachable by setting `style` directly |
 | `MUIRect.borderColor` / `MUIRect.borderWidths` | **Round-trip the ABI, are drawn by `rect_fragment` — the M0 demo proved that end to end — and nothing in `MetalUI` can set either.** `Frame.fill` hard-codes `.transparent` and zero widths, and `Decoration` deliberately has no `borderColor`. The blocker is the **width**, not the colour: `Style.border` is an `Edges<Length>` whose percentage case resolves against the *containing block's* width, and the engine computes that inside `contentBox` and throws it away, so paint has no resolved width to pair a colour with. Re-resolving one at paint time against the box's own width is the exact mistake the percentage-inset constraint below records. Storing the resolved edges on `LayoutTree` is what unblocks it. Note the asymmetry this leaves: `StyledElement.borderWidth(_:)` is **live** and shrinks the content box, so a border affects sizing today and paints nothing |
 | `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping. `grep contentMask Sources/` is not a clean 0 — `abi_probe` in `shaders.metal` reads `contentMask.size.width` to prove the field's offset survives the MSL boundary. That is the test harness, not rendering |
 | A percentage `width`/`height` on the **root** | **Falls back to the offered space, not to the percentage.** `resolveRootSize` resolves the root's percentages against `nil` and then takes `available` — so `width: 50%` in an 800-wide space gives **800**. Measured in WebKit: **400**. The root's percentage *padding* does resolve against `available.width` (see `computeLayout`), so the two halves of "the root's containing block" disagree with each other today. Fixing it moves the root's stored size, which every descendant consumes; it belongs to a sizing plan, not the box model |
 | `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
-| `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **Re-measured, with a mutation that compiles.** The number this row used to quote came from adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder`, and that mutation **no longer compiles**: `anExplicitAnyElementIsStillAcceptedAsAChild` — added by the same Task 4 commit — puts an `AnyElement` inside a builder block, so the generic overload demands `AnyElement: Element`, which it is not, and the suite fails to build with `error: static method 'buildExpression' requires that 'AnyElement' conform to 'Element'`. Pairing it with a non-generic `buildExpression(_ e: AnyElement) -> AnyElement` restores the measurement: **exactly the three type-level tests in that file redden, and no behavioural test at all, out of 303.** Delete this row when the static path demonstrably does not serve a real container |
+| `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** The element pipeline's Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **Re-measured, with a mutation that compiles.** The number this row used to quote came from adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder`, and that mutation **no longer compiles**: `anExplicitAnyElementIsStillAcceptedAsAChild` — added by that same commit — puts an `AnyElement` inside a builder block, so the generic overload demands `AnyElement: Element`, which it is not, and the suite fails to build with `error: static method 'buildExpression' requires that 'AnyElement' conform to 'Element'`. Pairing it with a non-generic `buildExpression(_ e: AnyElement) -> AnyElement` restores the measurement: **exactly the three type-level tests in that file redden, and no behavioural test at all — re-measured `--no-parallel` on 2026-08-27 after structural identity, out of 358 rather than the 303 first recorded, and the three are the same three.** Universal identity does not disturb it: `AnyElement`'s `requestGroupLayout` consumes one cursor index exactly as `Element`'s default does, so boxing every child moves no path and no `StateTable` entry. Delete this row when the static path demonstrably does not serve a real container |
 | `MeasureFunction` / `tree.measure()` | **A LEAF still has no production caller; a CONTAINER no longer needs one.** `newLeaf` is the only thing that attaches a measure function and nothing in `Sources/` calls it — re-measured rather than remembered: `grep -rn "newLeaf" Sources/` returns **3 lines and not one of them is a call**, the declaration in `LayoutTree.swift` plus two doc comments (`FlexEngine.swift`, `Box.swift`) that say it has no caller. So every production node's `tree.measure()` is still `nil` — that half is M2 and is the whole of what this row is now about. What changed is that `tree.measure()` stopped being the only route to a content size: `measureNode` falls through to the flex algorithm over the node's children, so `flexBaseSize`'s content branch and §4.5's automatic minimum are **live and browser-verified for containers** (`aContainerItemsBaseSizeComesFromItsChildren`, `aContainerItemIsFlooredByItsChildrensWidth`, whose WebKit numbers are named in its comment). The **leaf** halves are still exercised only by tests that build their own closures — `automaticMinimumSizeUsesContentSizeNotFlexBasis` — and still have no browser fixture, because a leaf's content is text |
 | `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` matches only the string inside its own precondition message. The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
 | CSS Sizing §4.5's **specified size suggestion** | **Still not implemented** (ruling FS-3), and it **left this table's premise behind**: content sizing made the *content* half live for containers, so the missing half is no longer inert-and-invisible but a measured disagreement with WebKit — **divergence 5 above** carries the repro, the numbers and the pin, and is the one place to update. Two claims expired here in one milestone, and the second was written by the commit that retired the first (ruling CS-E's shape, third occurrence on this project): "indistinguishable until M2", then "not yet a wrong answer anywhere". Kept as a row because the *declaration* half is what this table is for — the rule is half-implemented at `collectItems`' automatic minimum, and silence there would read as complete. `aContainerItemIsFlooredByItsChildrensWidth` cannot see it: its `.a` has no specified width to be floored by |
@@ -305,7 +362,8 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 342 tests and 61 browser fixtures, warning-free.
+`swift build` · `swift test` — **360 tests** and 61 browser fixtures, warning-free
+(measured 2026-08-27; read the summary line, never the exit status — shape 11).
 **Seven** non-test targets with strictly one-way dependencies: `MetalUICore`,
 `MetalUILayout`, `MetalUIShaderTypes`, `MetalUIRender`, `MetalUIPlatform`,
 `MetalUI`, `MetalUIDemo`. **`MetalUITestSupport` is an eighth `.target` in
@@ -384,15 +442,22 @@ from 8 k to 88 k nodes. The same trees cost ~8 us and ~1.2 us per node before
 content sizing, so **the complexity is unchanged and the constant factor is
 ~4.9x**:
 
-**Measured during the content-sizing milestone's Task 6, on that machine; debug
-build unless a column says release.** They were not re-timed since, and a
-performance figure drifts more quietly than a behavioural one — re-measure
-before deciding anything on them.
+**Measured during the content-sizing milestone's Task 6 (2026-08-26), on that
+machine; debug build unless a column says release.** A performance figure drifts
+more quietly than a behavioural one — re-measure before deciding anything on
+these.
 
 | tree | nodes | debug before → after | release before → after |
 |---|---|---|---|
 | depth 12, branch 2 | 8,191 | 72.8 → **372.0 ms** | 10.2 → **45.0 ms** |
 | depth 10, branch 3 | 88,573 | 708.4 → **3,504.4 ms** | 96.3 → **456.9 ms** |
+
+**Corroborated 2026-08-27** on the structural-identity branch, and it is
+corroboration rather than a re-run: a whole `Frame.render` — element walk,
+`computeLayout`, prepaint and paint — over the same node counts cost **369.5 ms**
+and **3,540 ms** in debug, **51.6 ms** and **520.7 ms** in release. Those bracket
+the `computeLayout`-only figures above from the correct side, so the table has
+not rotted on this machine; it has not been re-taken with the same harness.
 
 **The cause is §4.5's automatic minimum, which now probes EVERY item** —
 `min-width: auto` is CSS's default — and an `auto`-cross item probes again, so a
@@ -409,6 +474,48 @@ showed, and why this number went unrecorded until the milestone's last task.
 Absolute figures are this machine's; the ratio is the part that transfers.
 Release is ~8x faster in absolute terms with the same ratio. For scale, Yoga and
 Taffy are quoted in the 0.1-0.5 us/node range.
+
+### Identity path construction — measured 2026-08-27, and it is ~0.4% of a frame
+
+**Measured 2026-08-27 on the structural-identity branch, debug unless a column
+says release**, with a throwaway spike deleted in the same task. Re-measure
+before deciding anything on these. The counterfactual is the pre-milestone array
+representation (`(parent?.path ?? []) + [component]`) reconstructed beside the
+shipping linked list and timed on the same trees in the same process; best of
+five, one path per node.
+
+**The `depth` column counts LEVELS here and EDGES in the table above** — the two
+harnesses were written a day apart and disagree. The **node count** is the
+unambiguous key, and it is deliberately the same 8,191 and 88,573, so the rows
+line up despite the labels.
+
+| tree | nodes | avg depth | linked us/node | array us/node | ratio |
+|---|---|---|---|---|---|
+| 13 levels, branch 2 | 8,191 | ~12 | **0.154** / 0.093 rel | 0.697 / 0.300 rel | 4.5x / 3.2x rel |
+| 11 levels, branch 3 | 88,573 | ~10 | **0.150** / 0.088 rel | 0.660 / 0.272 rel | 4.4x / 3.1x rel |
+| 3 levels, branch 90 | 8,191 | ~3 | **0.144** / 0.084 rel | 0.501 / 0.141 rel | 3.5x / 1.7x rel |
+
+**The third row is the control**, and it is what makes this a measurement of the
+O(1)-vs-O(depth) claim rather than of the tree: same 8,191 nodes, average depth
+~3 instead of ~12.
+
+**Release is the load-bearing column for the O(1) claim, and an independent
+re-run is why this clause exists.** In debug the linked list's own depth
+sensitivity across the control (−6% here, −25% in the re-run) is comparable to
+the array form's (−28% here, −18% there), so the debug rows do not separate the
+two models cleanly — allocation and retain/release traffic dominate both. In
+release they do separate: array 0.300 → 0.141 against linked 0.093 → 0.084. Read
+the release figures for the claim and the debug figures for the absolute cost.
+
+**End to end the win is at or below noise, and that is the honest headline.**
+Path construction is 0.3-0.4% of a debug `Frame.render` and ~1.5% of a release
+one. The saving over the array form is 4.5 ms on the 8,191-node tree against a
+7.2 ms run-to-run spread — **not visible above noise** — and 45 ms against a 19
+ms spread on the 88,573-node tree, which is measurable and still ~1.3% of the
+frame. The linked list is the right structure for the reason it was chosen (it
+removes a depth factor from a per-frame cost for one allocation's price), but
+nobody should expect a frame-time change from it while `computeLayout` costs
+~40 us/node.
 
 ## When CI lands
 
@@ -432,7 +539,10 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
 
    **Taxonomy shape 11's count heuristic does not catch this one.** Measured, by
    forcing `canTypecheck` to `false`: exactly 25 tests report as skipped, the
-   total stays `Test run with 304 tests`, and the run passes. A falling count is
+   total does not move, and the run passes. Re-measured 2026-08-27 at
+   `Test run with 358 tests` (it read 304 when first taken, and the guard count
+   is still 25 — 15 + 7 + 1 + 2 across the four files; the suite is 360 after
+   the fix round added two). A falling count is
    the signal shape 11 tells you to watch, and the count does not fall.
 
    **Not converted to a hard failure, and the reason is a configuration rather

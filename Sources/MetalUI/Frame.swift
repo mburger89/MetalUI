@@ -180,12 +180,18 @@ public final class Frame {
     /// and hands it down, then **sweeps after the frame** (§4.3).
     ///
     /// Only the root's path is built here. Every deeper path comes from a
-    /// container calling `GlobalElementID.child(of:_:)` — since Task 4 that is
+    /// container calling `GlobalElementID.child(of:at:name:)` through
     /// `ElementGroup`'s conformances, so a deep tree is identified all the way
-    /// down provided every container on the path is named. An unnamed container
-    /// still poisons the subtree below it; see `GlobalElementID.child(of:_:)`.
+    /// down **whether or not any container on the path is named** — an unnamed
+    /// one contributes its own positional component instead of stopping the
+    /// path. See `ElementGroup.swift` for the cursor that supplies the index.
     func render<E: Element>(_ element: inout E) {
-        let rootID = GlobalElementID.child(of: .root, element.elementID)
+        // The root is the only id with no parent, and the only one this file
+        // builds. `at: 0` is not inert: an unnamed root element takes
+        // `.positional(0)`, which is what gives a `Row { … }` rendered straight
+        // into a frame an identity for its children to hang from. A named root
+        // takes `.named` instead — the constructor decides, here as everywhere.
+        let rootID = GlobalElementID.child(of: nil, at: 0, name: element.elementID)
 
         var layoutPass = LayoutPass(frame: self)
         let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)

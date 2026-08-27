@@ -53,26 +53,34 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         var content: Content.GroupLayout
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID?,
+    public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         // Children first: `requestNode` takes already-registered ids, so a
         // container builds bottom-up and the engine sees a complete subtree.
-        let (children, contentLayout) = content.requestGroupLayout(under: id, pass: &pass)
+        //
+        // The cursor starts at 0 here and nowhere else: it is this container's
+        // own flat child index space, so a child's identity depends on its
+        // position among *its* siblings and not on how many elements the frame
+        // has visited. `prepaintGroup` and `paintGroup` need no cursor — each
+        // member stored its id during this call.
+        var cursor = 0
+        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
+                                                                   pass: &pass)
         let node = pass.requestNode(style: style, children: children)
         return (node, Layout(node: node, content: contentLayout))
     }
 
-    public mutating func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         // `bounds` is this box's own rect and is deliberately not passed down:
         // the engine stores rects **absolute to the root**, so each child looks
         // its own up rather than being offset by its parent. Adding `bounds`
         // here would double-count every ancestor's origin.
-        content.prepaintGroup(under: id, layout: &layout.content, pass: &pass)
+        content.prepaintGroup(layout: &layout.content, pass: &pass)
     }
 
-    public mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
         // Own background first, then children. Every rect is emitted at
@@ -84,7 +92,7 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
             pass.fill(bounds, color: pass.theme[token],
                       cornerRadii: Corners(all: decoration.cornerRadius))
         }
-        content.paintGroup(under: id, layout: &layout.content,
+        content.paintGroup(layout: &layout.content,
                            prepaint: &prepaint, pass: &pass)
     }
 }
@@ -185,12 +193,17 @@ extension StyledElement {
 
     // MARK: Identity
 
-    /// Names this element among its siblings, giving it and its subtree a
-    /// `GlobalElementID` and therefore access to cross-frame state (§4.3).
+    /// Names this element among its siblings, **replacing** the position it
+    /// would otherwise be identified by (§4.3).
     ///
-    /// **Identity does not resume below an unnamed ancestor**: `child(of:_:)`
-    /// returns `nil` when either end is anonymous, so naming a leaf under an
-    /// unnamed container buys nothing. Name the container too.
+    /// It does not *create* identity — every element has one. What a name buys
+    /// is stability under a change of position: an unnamed element's identity is
+    /// its index in its container's flat child list, so inserting a sibling
+    /// above it or reordering a list resets its cross-frame state, and a name
+    /// carries that state with the element instead. Naming a leaf under an
+    /// unnamed container is therefore useful on its own — identity no longer
+    /// stops at an unnamed ancestor, and the ancestor's own positional
+    /// component is still part of the leaf's path.
     public func id(_ name: String) -> Self {
         var copy = self
         copy.elementID = ElementID(name)

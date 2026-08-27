@@ -91,15 +91,15 @@ public protocol ElementObject {
 
     /// Runs the erased element's `requestLayout` and **stores** the
     /// `LayoutState` it returned.
-    mutating func requestLayout(_ id: GlobalElementID?, pass: inout LayoutPass) -> LayoutNodeID
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> LayoutNodeID
 
     /// Runs `prepaint` against the stored `LayoutState` and stores the
     /// `PrepaintState` it returned.
-    mutating func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                            pass: inout PrepaintPass)
 
     /// Runs `paint` against both stored states.
-    mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>, pass: inout PaintPass)
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, pass: inout PaintPass)
 }
 
 /// Holds one concrete element together with the state its phases hand forward.
@@ -138,14 +138,14 @@ public struct AnyElementBox<E: Element>: ElementObject {
 
     public var elementID: ElementID? { element.elementID }
 
-    public mutating func requestLayout(_ id: GlobalElementID?,
+    public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> LayoutNodeID {
         let (node, state) = element.requestLayout(id, pass: &pass)
         layoutState = state
         return node
     }
 
-    public mutating func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   pass: inout PrepaintPass) {
         guard var layout = layoutState else {
             preconditionFailure("AnyElement.prepaint before requestLayout: no LayoutState to pass")
@@ -158,7 +158,7 @@ public struct AnyElementBox<E: Element>: ElementObject {
         layoutState = layout
     }
 
-    public mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                pass: inout PaintPass) {
         guard var layout = layoutState else {
             preconditionFailure("AnyElement.paint before requestLayout: no LayoutState to pass")
@@ -202,17 +202,17 @@ public struct AnyElement {
     /// The erased element's local identity (§4.3).
     public var elementID: ElementID? { box.elementID }
 
-    public mutating func requestLayout(_ id: GlobalElementID?,
+    public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> LayoutNodeID {
         box.requestLayout(id, pass: &pass)
     }
 
-    public mutating func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   pass: inout PrepaintPass) {
         box.prepaint(id, bounds: bounds, pass: &pass)
     }
 
-    public mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                pass: inout PaintPass) {
         box.paint(id, bounds: bounds, pass: &pass)
     }

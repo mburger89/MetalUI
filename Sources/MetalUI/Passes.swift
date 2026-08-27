@@ -127,11 +127,14 @@ extension LayoutPass {
     /// Read-modify-write this element's cross-frame state, creating it from
     /// `initial` on first access (§4.3).
     ///
-    /// An element with no identity gets scratch state discarded on return — not
-    /// an error, and why identity does not resume below an anonymous element.
-    /// See `GlobalElementID.child(of:_:)`.
+    /// **Every element has an identity, so there is no unidentified case.** This
+    /// took a `GlobalElementID?` and discarded an unnamed element's state as
+    /// scratch; structural identity replaced that with a `.positional` component
+    /// derived from the element's index in its container, and the compiler now
+    /// enforces the presence of a key rather than a comment describing one. See
+    /// `ElementGroup.requestGroupLayout` for where the index comes from.
     @MainActor
-    public func withState<S>(_ id: GlobalElementID?,
+    public func withState<S>(_ id: GlobalElementID,
                              initial: @autoclosure () -> S,
                              _ body: (inout S) -> Void) {
         frame.stateTable.withState(id, initial: initial(), body)
@@ -141,7 +144,7 @@ extension LayoutPass {
 extension PrepaintPass {
     /// See `LayoutPass.withState(_:initial:_:)`.
     @MainActor
-    public func withState<S>(_ id: GlobalElementID?,
+    public func withState<S>(_ id: GlobalElementID,
                              initial: @autoclosure () -> S,
                              _ body: (inout S) -> Void) {
         frame.stateTable.withState(id, initial: initial(), body)
@@ -151,7 +154,7 @@ extension PrepaintPass {
 extension PaintPass {
     /// See `LayoutPass.withState(_:initial:_:)`.
     @MainActor
-    public func withState<S>(_ id: GlobalElementID?,
+    public func withState<S>(_ id: GlobalElementID,
                              initial: @autoclosure () -> S,
                              _ body: (inout S) -> Void) {
         frame.stateTable.withState(id, initial: initial(), body)
