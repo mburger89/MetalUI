@@ -21,7 +21,7 @@ idiomatic Swift. macOS and iOS.
   **Ruling IDs are namespaced by milestone.** `PF-3` and `C-3` belong to m1a;
   `FS-n` to flex sizing, `AL-n` to alignment, `BM-n` to the box model, `WR-n` to
   wrapping, `EP-n` to the element pipeline, `CS-n` to content sizing (whose
-  rulings are **lettered**, `CS-A`…`CS-L`, so a bare `CS-3` is a typo rather
+  rulings are **lettered**, `CS-A`…`CS-N`, so a bare `CS-3` is a typo rather
   than a citation) (**`EP-2` and `EP-4` were never
   assigned** and must not be reused — a new ruling taking one would silently
   rebind any citation written against the gap). Sweep for stray citations **case-insensitively** — a `Ruling F-3` survived two branches' greps for lowercase `ruling`. A bare `F-1` is ambiguous — m0, m1a and flex sizing each

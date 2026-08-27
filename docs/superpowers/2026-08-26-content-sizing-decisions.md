@@ -4,7 +4,7 @@ Every ruling taken on the user's behalf while executing
 `docs/superpowers/plans/2026-08-26-metalui-content-sizing.md`, in order. Each
 says what was decided, why, and what it costs if wrong.
 
-**Ruling IDs here are prefixed `CS-` and are LETTERED, `CS-A`…`CS-M`.** A bare
+**Ruling IDs here are prefixed `CS-` and are LETTERED, `CS-A`…`CS-N`.** A bare
 `CS-3` is therefore a typo, not a citation. `PF-`/`C-` belong to m1a, `FS-` to
 flex sizing, `AL-` to alignment, `BM-` to the box model, `WR-` to wrapping,
 `EP-` to the element pipeline. A bare `F-n` is ambiguous across three documents
@@ -29,6 +29,7 @@ survived two branches' greps for lowercase `ruling`.
 | CS-K | **The hypothetical cross size is measured at max-content, with the item's HYPOTHETICAL main size as `known` — three separate choices, each probed.** (1) `known` main is `hypothetical`, not `base`: §9.4 step 7 says "perform layout with the **used** main size", which at that point is the base size already clamped by the item's own main min/max. The two differ exactly when a min/max binds. (2) The cross axis is offered `.maxContent` and never `.definite(containerCross)` — `measureNode` turns a definite available extent into the measured node's OWN extent (its `probe`), so offering the container's cross extent would make the item that tall and let its children's cross percentages resolve against it, which CS-J's probe shows WebKit does not do. (3) `.maxContent` rather than fit-content: an item whose content is 150 tall inside an 80-tall row measures **150** in WebKit and overflows. The mode is hardcoded rather than taken from `intrinsic`, for the same reason §4.5's probe is — the hypothetical cross size is a property of the item, not of the question the container was asked, and ruling CS-H's lesson is that a fourth propagation site would need a fourth guard test. | (2) is the one that fails silently: the returned border box would still be items-derived and correct, and only the *percentages inside the measured subtree* would be resolved against a fiction. No existing test has a percentage inside an auto-cross item. |
 | CS-L | **`LayoutContext.maxDepth` stays 64, and the measurement behind the number is now stated as a DEBUG figure.** Wiring made `measureNode` recurse for real: one tree level costs `measureNode` → `layOutChildren` → `collectItems` → its item closure → `flexBaseSize` → `measureNode` on top of `placeNode` → `positionItems`, and the stack ceilings fell ~4×. `layingOutATreeDeeperThanTheLimitTraps` went red on the wiring commit — SIGBUS, empty stderr, the stack winning before the guard could name anything. **The first fix was to drop the constant to 16, and that was wrong.** It bisected on a Swift Testing exit-test task and on an explicit 256 KB thread, and **neither is a stack this framework runs on** — `Frame.computeRootLayout` is `@MainActor`, so the floor is a 1 MB iOS main thread. A test harness was setting a production capability limit, `precondition` is live in `-O`, and `Column { Row { Box { … } } }` reaches 17 trivially: 16 was a shipping crash that would have reported "the child lists contain a cycle" for a tree with no cycle. The fix is to size the *test's* stack instead — `layingOutATreeDeeperThanTheLimitTraps` now runs its layout on an explicit 4 MB `Thread` — and to keep 64, which is 64/107 against the smallest **real** stack's debug ceiling: the same 0.60 margin the original 64 decision used. Measured ceilings (bisected, this branch): 256 KB **27 debug / 167 release**, 1 MB **107 / 654**; per level ~9,800 B debug and ~1,600 B release, i.e. **release is ~6× cheaper**. Quoting only the debug figure is how the next person re-measures in `-O`, gets a sixth of it, and concludes the table is wrong. | A guard whose ceiling is set by whichever stack the test harness happens to hand over. In one direction that is an unattributed SIGBUS in production; in the other — the direction this actually went — it is a `precondition` firing on an ordinary three-deep UI. |
 | CS-M | **Every mutation count in this document is a `--no-parallel` measurement, and the SUMMARY LINE's issue count is the stable number.** The parallel runner drops failing-test *names* from the log when failures print concurrently: the same mode swap reported **3** tests in a parallel run and **6** under `--no-parallel`, with an identical issue count both times. That artifact manufactured a false finding — the "masking effect" the carried risk below retracts — so this is a ruling rather than a note. It was recorded as carried-risk prose while the letter `CS-M` circulated in the task ledger and in two task reports, which is the same shape as the CS-E/CS-F collision this branch already spent a review cycle on: a cited letter that the table does not define. **A test count scraped from the log body is evidence only under `--no-parallel`; the issue count is evidence either way.** | A number that moves with the scheduler is read as a number that moves with the code, and the conclusion drawn from it is published. |
+| CS-N | **A mutation count is only reproducible with its SPELLING, and the spelling belongs next to the number.** "Revert site 2" admits at least two forms — an unconditional early `return nil` and a measure-guarded `if tree.measure(kid) == nil { return nil }` — which agree for containers and diverge for **leaves carrying measure closures**, and the hand-written tests build exactly those. Site 1 has the same pair, and it is already known to matter: the composite's two readings differ 15 vs 3. Three careful `--no-parallel` measurements of "the same" sites-1+2 composite gave **5 / 22**, **6 / 25** and **9 / 27**, and none of the three is wrong. **What reproduced in all three is which fixtures moved** — `autoHeightAtTwoLevelsMatchesWebKit` red in the composite, green under each half alone. This is CS-M one level deeper: CS-M says the summary line's issue count is stable where a scraped test count is not; CS-N says even the summary line is stable only per spelling. **Quote the exact edit beside any mutation number, and prefer "this fixture reddens" over "N tests redden" when recording coverage — record what moved, not how much.** | Two people measure the same mutation, disagree by 4 tests, and spend a review cycle deciding which is lying, when the answer is that they mutated different code. |
 
 ## EP-6 is unblocked — recorded, not re-decided
 
@@ -428,13 +429,25 @@ nothing.
   default CSS, was green under a site-1 revert *and* green under a site-2
   revert, and red only under both — measured, `--no-parallel`, against the
   fixture as first committed: site 1 alone **6 tests / 10 issues**, site 2 alone
-  **2 / 8**, the two together **9 / 27**. The name union of the halves is 8, and
-  the composite gains exactly one test over it:
-  `autoHeightAtTwoLevelsMatchesWebKit`. (The review's figure for the composite
-  was 5 / 22; it does not reproduce here across two runs, while its structural
-  claim — the composite gaining exactly that test — reproduces exactly. Ruling
-  CS-M: the summary line's issue count is the stable number, so 9 / 27 is what
-  is recorded.) In a
+  **2 / 8**, the two together **9 / 27** — site 1 spelled
+  `_ = measured; return 0` at `flexBaseSize`'s step-3 return, site 2 spelled
+  `if tree.measure(kid) == nil { return nil }` at the top of `collectItems`'
+  `if case .auto = minDim` branch. The name union of the halves is 8, and the
+  composite gains exactly one test over it:
+  `autoHeightAtTwoLevelsMatchesWebKit`.
+
+  **Two independent measurements of the same composite give different counts and
+  the same pair.** The review's first run gave **5 / 22**; its second, spelling
+  site 1 as `if tree.measure(item) == nil { return 0 }` before `mainAvailable`
+  and site 2 as an unconditional `return nil`, gave **6 / 25** —
+  `aContainerItemIsFlooredByItsChildrensWidth`,
+  `aContainerItemsBaseSizeComesFromItsChildren`,
+  `autoHeightAtTwoLevelsMatchesWebKit`,
+  `automaticMinimumSizeUsesContentSizeNotFlexBasis`,
+  `itemFlooredByItsContentMatchesWebKit`, `wrapMinVersusMaxContentMatchesWebKit`.
+  **`autoHeightAtTwoLevelsMatchesWebKit` is red in all three composites and
+  green under each half alone in all three.** The pair is real and
+  spelling-independent; the counts are neither. See ruling **CS-N**. In a
   **column**, §4.5's automatic minimum probes the item's min-content **height**,
   which for fixed-height children is the same 48 the content branch computes, so
   each site rescues the other and the fixture cannot attribute to the site its
