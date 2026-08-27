@@ -4,7 +4,7 @@ Every ruling taken on the user's behalf while executing
 `docs/superpowers/plans/2026-08-26-metalui-content-sizing.md`, in order. Each
 says what was decided, why, and what it costs if wrong.
 
-**Ruling IDs here are prefixed `CS-` and are LETTERED, `CS-A`…`CS-L`.** A bare
+**Ruling IDs here are prefixed `CS-` and are LETTERED, `CS-A`…`CS-M`.** A bare
 `CS-3` is therefore a typo, not a citation. `PF-`/`C-` belong to m1a, `FS-` to
 flex sizing, `AL-` to alignment, `BM-` to the box model, `WR-` to wrapping,
 `EP-` to the element pipeline. A bare `F-n` is ambiguous across three documents
@@ -28,6 +28,7 @@ survived two branches' greps for lowercase `ruling`.
 | CS-J | **Only a literal `auto` cross size is measured; an unresolvable percentage stays 0.** CSS says a percentage against an indefinite basis behaves as `auto`, which would put it through `measureNode` too. WebKit does not: a `height: 50%` child of an auto-height flex item measures **0**, not its content (probed). So `ownCross` switches on the declaration, not on whether `resolveNodeSize` returned something. The same rule already governs `resolveRootSize` (a percentage root size keeps the offered-space fallback, spec §2). | Percentage cross sizes silently acquire content sizing, moving every nested percentage layout away from WebKit — and no fixture in the corpus would notice, because a percentage cross size against a *definite* container resolves and never reaches this branch. |
 | CS-K | **The hypothetical cross size is measured at max-content, with the item's HYPOTHETICAL main size as `known` — three separate choices, each probed.** (1) `known` main is `hypothetical`, not `base`: §9.4 step 7 says "perform layout with the **used** main size", which at that point is the base size already clamped by the item's own main min/max. The two differ exactly when a min/max binds. (2) The cross axis is offered `.maxContent` and never `.definite(containerCross)` — `measureNode` turns a definite available extent into the measured node's OWN extent (its `probe`), so offering the container's cross extent would make the item that tall and let its children's cross percentages resolve against it, which CS-J's probe shows WebKit does not do. (3) `.maxContent` rather than fit-content: an item whose content is 150 tall inside an 80-tall row measures **150** in WebKit and overflows. The mode is hardcoded rather than taken from `intrinsic`, for the same reason §4.5's probe is — the hypothetical cross size is a property of the item, not of the question the container was asked, and ruling CS-H's lesson is that a fourth propagation site would need a fourth guard test. | (2) is the one that fails silently: the returned border box would still be items-derived and correct, and only the *percentages inside the measured subtree* would be resolved against a fiction. No existing test has a percentage inside an auto-cross item. |
 | CS-L | **`LayoutContext.maxDepth` stays 64, and the measurement behind the number is now stated as a DEBUG figure.** Wiring made `measureNode` recurse for real: one tree level costs `measureNode` → `layOutChildren` → `collectItems` → its item closure → `flexBaseSize` → `measureNode` on top of `placeNode` → `positionItems`, and the stack ceilings fell ~4×. `layingOutATreeDeeperThanTheLimitTraps` went red on the wiring commit — SIGBUS, empty stderr, the stack winning before the guard could name anything. **The first fix was to drop the constant to 16, and that was wrong.** It bisected on a Swift Testing exit-test task and on an explicit 256 KB thread, and **neither is a stack this framework runs on** — `Frame.computeRootLayout` is `@MainActor`, so the floor is a 1 MB iOS main thread. A test harness was setting a production capability limit, `precondition` is live in `-O`, and `Column { Row { Box { … } } }` reaches 17 trivially: 16 was a shipping crash that would have reported "the child lists contain a cycle" for a tree with no cycle. The fix is to size the *test's* stack instead — `layingOutATreeDeeperThanTheLimitTraps` now runs its layout on an explicit 4 MB `Thread` — and to keep 64, which is 64/107 against the smallest **real** stack's debug ceiling: the same 0.60 margin the original 64 decision used. Measured ceilings (bisected, this branch): 256 KB **27 debug / 167 release**, 1 MB **107 / 654**; per level ~9,800 B debug and ~1,600 B release, i.e. **release is ~6× cheaper**. Quoting only the debug figure is how the next person re-measures in `-O`, gets a sixth of it, and concludes the table is wrong. | A guard whose ceiling is set by whichever stack the test harness happens to hand over. In one direction that is an unattributed SIGBUS in production; in the other — the direction this actually went — it is a `precondition` firing on an ordinary three-deep UI. |
+| CS-M | **Every mutation count in this document is a `--no-parallel` measurement, and the SUMMARY LINE's issue count is the stable number.** The parallel runner drops failing-test *names* from the log when failures print concurrently: the same mode swap reported **3** tests in a parallel run and **6** under `--no-parallel`, with an identical issue count both times. That artifact manufactured a false finding — the "masking effect" the carried risk below retracts — so this is a ruling rather than a note. It was recorded as carried-risk prose while the letter `CS-M` circulated in the task ledger and in two task reports, which is the same shape as the CS-E/CS-F collision this branch already spent a review cycle on: a cited letter that the table does not define. **A test count scraped from the log body is evidence only under `--no-parallel`; the issue count is evidence either way.** | A number that moves with the scheduler is read as a number that moves with the code, and the conclusion drawn from it is published. |
 
 ## EP-6 is unblocked — recorded, not re-decided
 
@@ -414,21 +415,43 @@ nothing.
   | `flexBaseSize`'s main-axis `?? .maxContent` → `.minContent` | 2 | 2 | 0 |
   | both together | **6** | **22** | **2** — the exact union |
 
-  **There is no masking effect, and the first version of this paragraph claimed
-  one.** It said the composite was "weaker than either half" and named
+  **The composite is not weaker than its halves, and the first version of this
+  paragraph claimed it was.** It said the composite went green on
   `aContainersIntrinsicQueryReachesItsChildren` and
-  `automaticMinimumSizeUsesContentSizeNotFlexBasis` as going green again when
-  both sites are wrong. Both are **red** in the composite. The composite is the
-  exact union — 4 + 2 = 6 tests, 20 + 2 = 22 issues, 2 goldens — and the 22 was
-  in the original data, where it should have been read as the union and was
-  not.
+  `automaticMinimumSizeUsesContentSizeNotFlexBasis`; both are **red** in it. On
+  the tests measured here the composite is the exact union — 4 + 2 = 6 tests,
+  20 + 2 = 22 issues, 2 goldens — and the cause of the error was the
+  parallel-log undercount, not a real effect.
+
+  **That is not the same as "there is no masking on this branch", and Task 6
+  found a genuine pair.** `flex_auto_height_two_levels`, as first committed with
+  default CSS, was green under a site-1 revert *and* green under a site-2
+  revert, and red only under both — measured, `--no-parallel`, against the
+  fixture as first committed: site 1 alone **6 tests / 10 issues**, site 2 alone
+  **2 / 8**, the two together **9 / 27**. The name union of the halves is 8, and
+  the composite gains exactly one test over it:
+  `autoHeightAtTwoLevelsMatchesWebKit`. (The review's figure for the composite
+  was 5 / 22; it does not reproduce here across two runs, while its structural
+  claim — the composite gaining exactly that test — reproduces exactly. Ruling
+  CS-M: the summary line's issue count is the stable number, so 9 / 27 is what
+  is recorded.) In a
+  **column**, §4.5's automatic minimum probes the item's min-content **height**,
+  which for fixed-height children is the same 48 the content branch computes, so
+  each site rescues the other and the fixture cannot attribute to the site its
+  doc names. Fixed by `min-height: 0` on both containers; the golden is
+  byte-identical across the change. **The general form: a composite can be the
+  exact union of its halves on the tests that already exist and still hide a
+  defect from a fixture that neither half alone reaches. Revert sites one at a
+  time, and read which fixtures move, not only how many tests do.**
 
   **The cause was a bad measurement method, and it is worth more than the
   claim was.** The failing-test count was extracted by grepping the *parallel*
   streaming log, which drops names when failures print concurrently: the same
   mutation reported **3** tests in one run and **6** under `--no-parallel`,
   with the issue count identical in both. Every number in this document's
-  mutation tables is now a `--no-parallel` measurement. The taxonomy's shape 11
+  mutation tables is now a `--no-parallel` measurement — **ruling CS-M**, which
+  was this paragraph until Task 6's review pointed out that the letter was being
+  cited in task reports while the table stopped at CS-L. The taxonomy's shape 11
   says to read the summary line rather than the exit status; this is the
   sharper form — **the summary line's issue count is the stable number, and a
   test count scraped from the log body is not**.
@@ -437,9 +460,23 @@ nothing.
   composite *can* mask. It simply does not here, and there is no evidence for
   it on this branch.
 
-  What still has no fixture is a container whose **own reported size** differs
-  between the two queries — the `flexBaseSize` row above, 0 goldens. That is
-  item 5 on Task 6's list.
+  ~~What still has no fixture is a container whose **own reported size** differs
+  between the two queries — the `flexBaseSize` row above, 0 goldens.~~ **Closed
+  by Task 6**: `flex_wrap_min_vs_max_content` reddens under that exact mutation
+  (3 tests / 6 issues, 1 golden), so every row of the table above now names at
+  least one fixture.
+
+- **§4.5's automatic minimum has no browser fixture on the COLUMN axis** — the
+  one cost of Task 6's `min-height: 0` re-cut, recorded rather than left to be
+  rediscovered. `flex_auto_height_two_levels` reached site 2 in a column before
+  the re-cut, and switching the automatic minimum off is exactly what made the
+  fixture able to attribute its numbers to site 1. Site 2 is covered in a **row**
+  by `flex_item_floored_by_content`, so the corpus loses no site — but the column
+  half of the rule now rests on `aContainerItemIsFlooredByItsChildrensWidth` and
+  on the composite mutation, neither of which is a golden. A row-only
+  implementation of §4.5 that transposes the axes on a column is the shape this
+  no longer catches; `flex_row_reverse_margins` and
+  `flex_column_reverse_margins` are two files for the same reason.
 - **`measureNode`'s purity is not enforced by the type system.** A `setLayout`
   anywhere beneath it returns the right size and passes every golden;
   `measuringWritesNoLayout` is the only thing that sees it, and it asserts on

@@ -331,6 +331,28 @@ Otherwise the golden encodes a rounding coin-flip rather than the behaviour the
 fixture is named for — and it will look like a real disagreement to whoever
 inherits it.
 
+#### The differential is necessary and not sufficient
+
+Changing the declaration a fixture is named for and watching the numbers move
+proves the *browser* is sensitive to that declaration. It does not prove the
+*engine site* the fixture exists to pin is load-bearing for the golden — a
+downstream rule (stretch, a clamp, a single line taking its cross size from the
+container) can overwrite the measured value before it reaches any number, and
+then the fixture is green before the feature, after it, and with the feature
+deleted. Measured: the content-sizing plan's `flex_nested_auto_cross` gave
+WebKit `mid 120x200`, moved to `120x10` under its own differential, and produced
+the identical layout in the engine with the entire milestone reverted.
+**Close the loop with a mutation: revert the site the fixture names and confirm
+that fixture reddens.** The differential is a fixture-authoring check; mutation
+is the coverage check. They are not substitutes.
+
+**It is not a one-off.** The mechanism recurs wherever a downstream rule
+overwrites the measured value, and the corpus already held a prior instance
+before anyone looked for one: `flex_wrap_stretch_auto_cross` is *named* for the
+auto cross size, and its `.b`/`.d`/`.f` are empty divs stretched by their line —
+which is why the content-sizing re-baseline found that site reddening **zero**
+goldens while a fixture bearing its name sat in the corpus.
+
 ## When *not* to add a test
 
 Not every unguarded behaviour should be forced into a test. The trailing-gap fix

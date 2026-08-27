@@ -5,12 +5,21 @@ import MetalUICore
 
 /// The content-sizing milestone's **browser evidence**.
 ///
-/// A golden is a pure function of (fixture HTML, viewport, WebKit version) —
-/// `generateGolden` drives a `WKWebView` and imports nothing from the engine, so
-/// no engine change can move one. The engine meets a golden only here, in
-/// `assertMatchesGolden`. A fixture with a golden and no comparison test is read
-/// by `committedGoldensMatchTheBrowser` alone, which checks the browser against
-/// itself: taxonomy shape 3, an artifact that is written and never read *by the
+/// A golden is very nearly a pure function of (fixture HTML, viewport, WebKit
+/// version) — `generateGolden` drives a `WKWebView` and imports nothing from the
+/// engine but the size types and `roundLayout`, so no engine change **outside
+/// the rounding pass** can move one. That clause is not decoration: `roundBoxes`
+/// calls `roundLayout` in `Sources/MetalUILayout/Rounding.swift`, and changing
+/// its `(r.x + r.width).rounded()` to `.rounded(.down)` reddens
+/// `committedGoldensMatchTheBrowser` — `flex_row_seven_equal` moves `c1` 15→14,
+/// `c2` 14→13, `c5` 15→14, `c6` 14→13. An earlier version of this comment said
+/// "imports nothing from the engine, so no engine change can move one", which
+/// dropped the spec's own caveat while strengthening the claim: taxonomy shape
+/// 10, in the commit whose job was adding evidence.
+///
+/// The engine meets a golden only here, in `assertMatchesGolden`. A fixture with
+/// a golden and no comparison test is read by `committedGoldensMatchTheBrowser`
+/// alone, which checks the browser against itself: taxonomy shape 3, an artifact that is written and never read *by the
 /// thing it exists to constrain*. These four tests are what make the four new
 /// fixtures load-bearing.
 ///
