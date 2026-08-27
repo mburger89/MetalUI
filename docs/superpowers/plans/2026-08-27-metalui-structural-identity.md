@@ -143,7 +143,7 @@ public enum PathComponent: Hashable, Sendable {
 /// chains. A hash-equality shortcut would let two unrelated elements share one
 /// state entry — the same failure shape as content sizing's memo key shipping
 /// without `containingBlockWidth`.
-public final class GlobalElementID: Hashable, @unchecked Sendable {
+public final class GlobalElementID: Hashable, Sendable {
     public let component: PathComponent
     public let parent: GlobalElementID?
     private let cachedHash: Int
@@ -189,7 +189,7 @@ public final class GlobalElementID: Hashable, @unchecked Sendable {
 }
 ```
 
-`@unchecked Sendable` is required rather than plain `Sendable`: every stored property is a `let`, but the compiler cannot see that the recursive `parent` reference forms an immutable acyclic chain. State why at the declaration — a mechanism, not a milestone.
+**Try plain `Sendable` first.** Every stored property is a `let` of a `Sendable` type, and the recursive `parent` reference is fine — the compiler handles that. Fall back to `@unchecked Sendable` **only if it does not compile**, and if you do, state the exact diagnostic at the declaration as the reason. Do not reach for `@unchecked` pre-emptively: it silences a check rather than satisfying it.
 
 - [ ] **Step 5: Run the tests**
 
@@ -352,6 +352,50 @@ import MetalUICore
 }
 ```
 
+/// **A named list carries state through a reorder.** This is the whole reason a
+/// name replaces a position rather than joining it: if the index were also in
+/// the key, moving an item would mint a new key and reset it.
+@MainActor
+@Test func reorderingANamedListCarriesEachItemsState() {
+    let table = StateTable()
+    let size = Size<Pixels>(width: Pixels(300), height: Pixels(100))
+
+    let first = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+    var forward = Row { for n in ["a", "b"] { CountingElement(n) } }
+    first.render(&forward)
+
+    // Same two elements, opposite order. Each keeps its own entry and count.
+    let second = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+    var reversed = Row { for n in ["b", "a"] { CountingElement(n) } }
+    second.render(&reversed)
+
+    let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+    #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: ElementID("a")),
+                       as: Int.self) == 2)
+    #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: ElementID("b")),
+                       as: Int.self) == 2)
+    #expect(table.count == 2)
+}
+
+/// **An unnamed list does not**, because position IS the identity there. The
+/// counts stay at 2 but they belong to the slots, not to the items — which is
+/// exactly why `.id()` exists.
+@MainActor
+@Test func reorderingAnUnnamedListKeepsStateWithThePositionNotTheItem() {
+    let table = StateTable()
+    let size = Size<Pixels>(width: Pixels(300), height: Pixels(100))
+    for _ in 0..<2 {
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+        var row = Row { CountingElement(nil); CountingElement(nil) }
+        frame.render(&row)
+    }
+    let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+    #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: nil), as: Int.self) == 2)
+    #expect(table.peek(GlobalElementID.child(of: root, at: 1, name: nil), as: Int.self) == 2)
+    #expect(table.count == 2)
+}
+```
+
 Add `CountingElement` an initialiser taking `String?` if it does not already accept one; it exists in `StateTableTests.swift`.
 
 - [ ] **Step 2: Run them and confirm they fail**
@@ -431,8 +475,8 @@ Expected: a summary line and the full count. Goldens unmoved — this task touch
 #    Expect: report what reddens. If nothing does, no test covers a branch flip
 #    carrying state — say so and add one.
 # 3. Make `child` include the index even when a name is given.
-#    Expect: report what reddens. This is the reorder rule; if nothing reddens,
-#    no test covers a named reorder — say so and add one.
+#    Expect: `reorderingANamedListCarriesEachItemsState` reddens — the moved
+#    item mints a new key and its count restarts at 1.
 ```
 
 Report measured counts under `--no-parallel` with each exact edit quoted.
