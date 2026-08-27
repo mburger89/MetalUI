@@ -574,6 +574,6 @@ git commit -m "docs: record structural identity and retire the anonymous-element
 
 - **The parent-in-hash omission is the milestone's worst failure mode**: two unrelated elements silently sharing state, invisible to every layout and paint assertion. One test guards it.
 - **`==` must walk the chain.** A hash-equality shortcut converts a collision into a wrong answer. The chain walk is cheap because `cachedHash` rejects first.
-- **Adding a sibling shifts later siblings' identity** and resets their state. This is SwiftUI's behaviour and is pinned as deliberate — but it will surprise someone, so the pin's comment must say so.
+- **Adding a sibling shifts later siblings' identity.** This is SwiftUI's behaviour and is deliberate — but it will surprise someone, so the pin's comment must say so. **Two corrections this sentence needed, both measured during execution (ruling SI-G):** the trailing sibling does not *reset*, it **adopts** the vanished element's state entry and reads its value; and "is pinned as deliberate" was false when written — `grep` found no such test. Both pins exist now (`anElementAfterAVanishingIfAdoptsTheVanishedElementsState`, `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`).
 - **Reference semantics are new.** `===` becomes spellable next to `==` and they differ: two structurally identical paths from different frames are `==` and never `===`. Only `==` may be used for lookup.
 - **Layout is untouched, so the goldens cannot vouch for this milestone.** Every guard here is a hand-written test; there is no browser oracle for identity.

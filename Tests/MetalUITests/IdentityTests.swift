@@ -45,12 +45,17 @@ import MetalUICore
 ///
 /// **This is the test the brief named for deleting `cursor += 1`**, and it does
 /// redden: with the cursor pinned at 0 both children get `.positional(0)`, one
-/// entry, counted twice. Measured, `--no-parallel`, 356 tests — deleting that
-/// line reddens **three**: this one,
-/// `theIndexSpaceIsFlatRatherThanNested` and
-/// `reorderingAnUnnamedListKeepsStateWithThePositionNotTheItem`. The other two
-/// are not redundant with it: they see the collapse at three children and
-/// across two frames respectively.
+/// entry, counted twice. **Re-measured 2026-08-27, `--no-parallel`, 358 tests**
+/// — edit: delete the `cursor += 1` line from `Element.requestGroupLayout` in
+/// `ElementGroup.swift` — reddens **five**: this one,
+/// `theIndexSpaceIsFlatRatherThanNested`,
+/// `reorderingAnUnnamedListKeepsStateWithThePositionNotTheItem`,
+/// `anElementAfterAVanishingIfAdoptsTheVanishedElementsState` and
+/// `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`. The other four are not
+/// redundant with it: they see the collapse at three children, across two
+/// frames, and — the last two — through a vanishing `if`. **This comment said
+/// "three" until Task 4 re-ran it** — the count was taken before the fix commit
+/// that added the last two, which is ruling SI-H.
 @MainActor
 @Test func twoUnnamedSiblingsDoNotShareOneStateEntry() {
     let table = StateTable()
@@ -88,17 +93,20 @@ import MetalUICore
 /// name replaces a position rather than joining it: if the index were also in
 /// the key, moving an item would mint a new key and reset it.
 ///
-/// Measured, `--no-parallel`, 356 tests: spelling `child(of:at:name:)`'s
-/// component as
+/// **Re-measured 2026-08-27, `--no-parallel`, 358 tests**: spelling
+/// `child(of:at:name:)`'s component as
 /// `name.map { PathComponent.named(ElementID("\($0.name)#\(index)")) }` —
 /// the index folded into the name rather than replaced by it — reddens
-/// **five**: this one, `aNameReplacesThePositionRatherThanJoiningIt`
+/// **six**: this one, `aNameReplacesThePositionRatherThanJoiningIt`
 /// (`GlobalElementIDTests.swift`), `childOfAnUnnamedParentStillHasAnIdentity`
 /// (`StateTableTests.swift`), `aContainerGivesItsChildrenPathsBuiltFromItsOwn`
-/// (`ElementLayoutTests.swift`) and `twoSiblingsWithTheSameIDShareOneStateEntry`
-/// (`ElementGroupTrapTests.swift`). This is the only one of the five that shows
-/// the *consequence* — a moved item's state resetting — rather than the shape of
-/// the component.
+/// (`ElementLayoutTests.swift`), `twoSiblingsWithTheSameIDShareOneStateEntry`
+/// (`ElementGroupTrapTests.swift`) and
+/// `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`. This comment said "five"
+/// until Task 4 re-ran it, missing the last — the count was taken before the fix
+/// commit that added it (ruling SI-H). This is the only one of the six that
+/// shows the *consequence* — a moved item's state resetting — rather than the
+/// shape of the component.
 @MainActor
 @Test func reorderingANamedListCarriesEachItemsState() {
     let table = StateTable()
@@ -153,7 +161,10 @@ import MetalUICore
 /// than assumed: giving both branches the same component — `.positional(branchIndex)`
 /// in place of `.positional(branchIndex + 1)` in `EitherGroup.requestGroupLayout` —
 /// reddens **exactly this test and the one below it**, both added by the same
-/// commit, and nothing else in 356. `flippingAnEitherBranchBetweenPhasesTraps`
+/// commit, and nothing else — re-measured 2026-08-27, `--no-parallel`, and this
+/// is one of the two counts in the milestone that survived re-measurement
+/// unchanged, out of 358 rather than the 356 first recorded.
+/// `flippingAnEitherBranchBetweenPhasesTraps`
 /// is about a branch changing *between phases* and stays green; the three
 /// type-level builder tests cannot see a key at all.
 ///

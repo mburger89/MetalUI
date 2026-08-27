@@ -15,7 +15,9 @@ public struct ElementID: Hashable, Sendable {
 /// were also in the key the move would mint a new key and reset the item's
 /// scroll offset, hover and animation progress — the opposite of what `.id()`
 /// exists for. Where no name is given, the position is the identity, which is
-/// what lets an anonymous element hold state at all.
+/// what lets an unnamed element hold state at all. ("Anonymous" was the old
+/// rule's word for an element with *no* identity; there is no such element any
+/// more, so this file says "unnamed".)
 public enum PathComponent: Hashable, Sendable {
     case positional(Int)
     case named(ElementID)
@@ -75,10 +77,10 @@ public final class GlobalElementID: Hashable, Sendable {
     /// this body with `l.cachedHash == r.cachedHash` is wrong only on a genuine
     /// 64-bit collision, and a collision is not constructible in a test:
     /// `Hasher` is seeded per process, so one cannot be written down, and
-    /// searching for one is ~2^32 trials. Re-measured after structural identity
-    /// made every node build a path: that replacement still leaves the whole
-    /// suite green, now **356** tests rather than the 349 first recorded — the
-    /// count moved, the finding did not. The guard is this loop existing, and
+    /// searching for one is ~2^32 trials. Measured three times as the suite grew
+    /// around it — 349, then 356, then **358** (`--no-parallel`, 2026-08-27) —
+    /// and that replacement leaves the whole suite green every time. The count
+    /// moved twice and the finding did not. The guard is this loop existing, and
     /// universal identity makes it *more* load-bearing, not less: every node has
     /// a key now, so a collision is a shared `StateTable` entry between two
     /// arbitrary elements. Do not delete it on the
@@ -88,8 +90,10 @@ public final class GlobalElementID: Hashable, Sendable {
     /// **The condition is a combination, not this line alone.** A hash-shortcut
     /// `==` is safe exactly while the hash is good; a degraded hash is safe
     /// exactly while `==` walks the chain. Dropping the parent from
-    /// `cachedHash` alone (leaving this loop intact) reddens exactly one
-    /// test, `theHashItselfDistinguishesPathsDifferingOnlyInAnAncestor` —
+    /// `cachedHash` alone (leaving this loop intact) — edit:
+    /// delete `hasher.combine(parent?.cachedHash ?? 0)` from `init` — reddens
+    /// exactly one test out of 358 (`--no-parallel`, 2026-08-27),
+    /// `theHashItselfDistinguishesPathsDifferingOnlyInAnAncestor` —
     /// every other test stays green, because `Hashable` permits collisions
     /// and `Set`/`Dictionary` resolve them through `==`, which that mutation
     /// leaves untouched. Make *this* line's change instead (or both) and

@@ -1,7 +1,14 @@
 # Structural Identity — Design
 
 **Date:** 2026-08-27
-**Status:** Approved design; implementation plan not yet written.
+**Status:** **Implemented and merged (2026-08-27).** Rulings, measurements and
+what execution falsified are in
+`docs/superpowers/2026-08-27-structural-identity-decisions.md`; the shipped rule
+is summarised in `CLAUDE.md` and in the parent spec's §4.3. Sections written in
+the present tense about the *old* rule — §1's "Today identity is opt-in", §3.3's
+"the constructor is" — are the design's own framing at the time it was approved,
+and are kept rather than rewritten so the corrections marked inside each section
+still have something to correct.
 **Parent spec:** `docs/superpowers/specs/2026-08-24-metalui-design.md` §4.3 (identity and cross-frame state), §9 (accessibility)
 **Ruling this milestone serves:** EP-5 — where CSS and SwiftUI answer a design question differently, take SwiftUI's answer.
 
@@ -105,9 +112,15 @@ and the overstatement was falsified by measurement during Task 1.**
 
 It called the omission "the single most dangerous line in the milestone" and
 claimed a test whose mutation is exactly that omission. Measured, `--no-parallel`,
-reconfirmed after a clean build: **dropping the parent from `cachedHash` reddens
-nothing**, and **replacing `==` with `l.cachedHash == r.cachedHash` also reddens
+reconfirmed after a clean build: **dropping the parent from `cachedHash` reddened
+nothing**, and **replacing `==` with `l.cachedHash == r.cachedHash` also reddened
 nothing.** Neither is dangerous alone.
+
+**Both halves are past tense on purpose, and only one has changed since.** The
+guard this section goes on to specify was then written, so *today* dropping the
+parent from `cachedHash` reddens exactly `theHashItselfDistinguishesPathsDifferingOnlyInAnAncestor`
+and nothing else — re-measured 2026-08-27, `--no-parallel`, 358 tests. The `==`
+half still reddens nothing, at 358, and that is the half no test can reach.
 
 The accurate statement: `cachedHash` and `==` are safe individually and unsafe
 only **together**. `==` uses the hash as a fast *reject*, so a collision falls

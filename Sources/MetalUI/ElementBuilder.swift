@@ -13,7 +13,12 @@
 /// `type(of:)`, and they are the only kind of test that can see the difference.
 /// Measured: adding **both** `buildExpression<E: Element>(_:) -> AnyElement` and
 /// `buildExpression(_ e: AnyElement) -> AnyElement` here reddens exactly those
-/// three and no behavioural test at all, out of 303.
+/// three and no behavioural test at all — re-measured `--no-parallel` after
+/// structural identity, **out of 358** rather than the 303 first recorded, and
+/// the three are the same three. Universal identity does not change that, and
+/// the reason is that `AnyElement`'s `requestGroupLayout` consumes exactly one
+/// cursor index like `Element`'s default does, so boxing every child moves no
+/// path and no `StateTable` entry.
 ///
 /// **The second overload is not optional, and the generic one alone is no longer
 /// a measurable mutation.** `anExplicitAnyElementIsStillAcceptedAsAChild` puts an

@@ -384,19 +384,24 @@ private func pathID(_ names: String...) -> GlobalElementID {
 /// directly and says nothing about who calls them; this is the first test in
 /// the repo that a **production container** must satisfy — that `Box`,
 /// `Column` and `Row` derive their children's identities from their own
-/// rather than passing `nil` or a constant down. Measured, `--no-parallel`, on
-/// a 356-test suite: replacing
+/// rather than passing `nil` or a constant down. **Re-measured 2026-08-27,
+/// `--no-parallel`, on a 358-test suite**: replacing
 /// `GlobalElementID.child(of: parent, at: cursor, name: elementID)` with
 /// `GlobalElementID.child(of: nil, at: cursor, name: elementID)` in
-/// `Element.requestGroupLayout` (`ElementGroup.swift`) reddens **eight** tests —
+/// `Element.requestGroupLayout` (`ElementGroup.swift`, the default
+/// implementation and not `AnyElement`'s copy) reddens **ten** tests —
 /// this one and `anIdentifiedChildOfAnUnnamedContainerHasAnIdentityThroughItsPosition`
 /// below, `twoSiblingsWithTheSameIDShareOneStateEntry` in
-/// `ElementGroupTrapTests.swift`, and five in `IdentityTests.swift`
+/// `ElementGroupTrapTests.swift`, and seven in `IdentityTests.swift`
 /// (`theIndexSpaceIsFlatRatherThanNested`,
 /// `reorderingANamedListCarriesEachItemsState`,
 /// `reorderingAnUnnamedListKeepsStateWithThePositionNotTheItem`,
 /// `flippingAnEitherBranchResetsTheBranchesState`,
-/// `aBranchWithTwoMembersDoesNotLeakStateIntoAOneMemberBranch`).
+/// `aBranchWithTwoMembersDoesNotLeakStateIntoAOneMemberBranch`,
+/// `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`,
+/// `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`). **This comment said
+/// "eight" until Task 4 re-ran it**: the count was taken before the fix commit
+/// that added the last two, which is ruling SI-H.
 ///
 /// **Two things a first draft of this paragraph predicted and measurement
 /// falsified**, which is why it is worth reading rather than trusting: it named
