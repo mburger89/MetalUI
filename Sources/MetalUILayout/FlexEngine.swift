@@ -13,7 +13,10 @@ import MetalUICore
 /// fixtures.
 ///
 /// **The phase order is: size every item, break into lines, distribute cross
-/// space among the lines, then per line stretch → flex → position.** Breaking
+/// space among the lines, then per line stretch → flex — and finally position
+/// every line.** Positioning is the last phase and a separate pass
+/// (`layOutChildren` sizes, `placeNode` positions) so that `measureNode` can
+/// run everything up to it and write nothing. Breaking
 /// uses *hypothetical* main sizes (§9.3), because §9.7 runs per line and so
 /// cannot have run yet; a line's cross size is measured from its items'
 /// *unstretched* outer cross sizes (§9.4.8), so it must be measured after the
@@ -614,7 +617,7 @@ private func layOutChildren(
         // containerMain - totalMargin` makes `containerMain' - totalGap -
         // sum(targets)` equal `containerMain - totalGap - sum(outerSizes)`, the
         // real leftover space, for any split of `targets` the freeze loop
-        // produces. `positionItems` below still uses the real, un-shrunk
+        // produces. `positionItems` still uses the real, un-shrunk
         // `containerMain` for its own free-space math (`justify-content`),
         // because it distributes space around the outer (margin-inclusive)
         // boxes, not the reduced budget.
