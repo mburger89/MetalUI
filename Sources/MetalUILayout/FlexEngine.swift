@@ -830,7 +830,8 @@ func measureNode(
 
     let key = LayoutContext.MeasureKey(
         node: node, knownWidth: known.width, knownHeight: known.height,
-        availableWidth: available.width, availableHeight: available.height)
+        availableWidth: available.width, availableHeight: available.height,
+        containingBlockWidth: containingBlockWidth)
     if let hit = ctx.cachedMeasure(key) { return hit }
 
     if let measure = tree.measure(node) {

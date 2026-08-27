@@ -60,15 +60,35 @@ final class LayoutContext {
         depth -= 1
     }
 
-    /// A measurement query. `Double`s are hashed by `bitPattern` so the key is
-    /// deterministic: a near-miss on floating-point equality costs a recompute
-    /// and never a wrong answer, which is the right direction for this to fail.
+    /// A measurement query.
+    ///
+    /// **Not every field has the same equality.** `knownWidth`, `knownHeight`
+    /// and `containingBlockWidth` are hashed and compared by `bitPattern`: a
+    /// near-miss on floating-point equality costs a recompute and never a
+    /// wrong answer, which is the right direction for those three to fail.
+    /// `availableWidth`/`availableHeight` are `AvailableSpace`, whose
+    /// `Hashable` is the compiler-synthesized one over its `.definite(Double)`
+    /// case — ordinary IEEE equality, not `bitPattern`: `definite(0.0)` and
+    /// `definite(-0.0)` collide there and `definite(.nan)` does not collide
+    /// with itself. Harmless today (nothing feeds `-0` or `NaN` into an
+    /// `AvailableSpace`), but it is a real difference from the other three
+    /// fields, not a paraphrase of it.
+    ///
+    /// **`containingBlockWidth` is here because dropping it once made a cache
+    /// hit return a wrong answer, not a recompute.** `measureNode` passes it
+    /// straight to `layOutChildren`, where it is the basis for the
+    /// container's own percentage padding/border and so changes the border
+    /// box `measureNode` returns — the same node measured once with an
+    /// indefinite containing block (a parent's speculative measure) and once
+    /// with a definite one (real placement) must not share an entry. Guarded
+    /// by `aCacheHitRespectsTheContainingBlockWidth`.
     struct MeasureKey: Hashable {
         var node: LayoutNodeID
         var knownWidth: Double?
         var knownHeight: Double?
         var availableWidth: AvailableSpace
         var availableHeight: AvailableSpace
+        var containingBlockWidth: Double?
 
         static func == (l: MeasureKey, r: MeasureKey) -> Bool {
             l.node == r.node
@@ -76,6 +96,7 @@ final class LayoutContext {
                 && l.knownHeight?.bitPattern == r.knownHeight?.bitPattern
                 && l.availableWidth == r.availableWidth
                 && l.availableHeight == r.availableHeight
+                && l.containingBlockWidth?.bitPattern == r.containingBlockWidth?.bitPattern
         }
 
         func hash(into hasher: inout Hasher) {
@@ -84,6 +105,7 @@ final class LayoutContext {
             hasher.combine(knownHeight?.bitPattern)
             hasher.combine(availableWidth)
             hasher.combine(availableHeight)
+            hasher.combine(containingBlockWidth?.bitPattern)
         }
     }
 

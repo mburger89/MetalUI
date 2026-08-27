@@ -3,6 +3,7 @@ import MetalUICore
 @testable import MetalUILayout
 
 private func px(_ v: Double) -> Dimension { .length(.pixels(Pixels(Float(v)))) }
+private func pctL(_ f: Float) -> Length { .percent(f) }
 
 private func nestedTree() -> (LayoutTree, LayoutNodeID) {
     let tree = LayoutTree(generation: 0)
@@ -20,6 +21,16 @@ private func nestedTree() -> (LayoutTree, LayoutNodeID) {
 /// **The only test that can see whether the cache is a cache.** A `storeMeasure`
 /// that never stores, or a `cachedMeasure` that always returns nil, leaves every
 /// other test in this repo green and the engine exponentially slow.
+///
+/// **What this actually pins today: one entry, not depth-scaling.** Measured
+/// on `nestedTree()` (depth 4): the first call is `misses = 1, hits = 0`, the
+/// second is `hits = 1` and no new miss. `measureNode` does not re-enter
+/// itself yet — nothing in `Sources/` calls it recursively until the four
+/// constant-substituting sites (CLAUDE.md's inert-API table) are wired, which
+/// is Task 4's job, not this one's. So the cache holds exactly one entry per
+/// top-level call, and the "roughly 700x at depth 6" cost this task exists to
+/// avoid is not yet defended by any assertion here — it will need its own,
+/// once Task 4 makes the recursion real.
 @Test func theCacheIsActuallyConsulted() {
     let (tree, root) = nestedTree()
     let ctx = LayoutContext(rootFontSize: 16)
@@ -31,6 +42,27 @@ private func nestedTree() -> (LayoutTree, LayoutNodeID) {
     #expect(ctx.hits > 0)
     // The second identical query must add no misses at all.
     #expect(ctx.misses == firstMisses)
+}
+
+/// **The leaf branch, not just the container branch.** `theCacheIsActuallyConsulted`
+/// above measures a container root, so a `storeMeasure` deleted from only
+/// `measureNode`'s leaf branch (the one `tree.measure(node)` takes) left the
+/// whole 326-test suite green — measured directly, and the composed-tree
+/// tests never repeat an identical query against the same leaf. That branch
+/// is the one that matters most once M2's text leaves make measurement
+/// expensive, so it gets its own direct witness: a leaf queried twice with an
+/// identical key must record a hit the second time.
+@Test func aRepeatedLeafQueryIsCached() {
+    let tree = LayoutTree(generation: 0)
+    let leaf = tree.newLeaf(style: Style()) { _, _ in SizeD(width: 40, height: 20) }
+    let ctx = LayoutContext(rootFontSize: 16)
+    let q = AvailableSpaceSize(width: .maxContent, height: .maxContent)
+    _ = measureNode(ctx, tree, leaf, known: .unspecified, available: q, containingBlockWidth: nil)
+    #expect(ctx.hits == 0)
+    _ = measureNode(ctx, tree, leaf, known: .unspecified, available: q, containingBlockWidth: nil)
+
+    #expect(ctx.hits == 1)
+    #expect(ctx.misses == 1)
 }
 
 /// A cached answer must equal the uncached one. Guards a key that collides.
@@ -46,23 +78,66 @@ private func nestedTree() -> (LayoutTree, LayoutNodeID) {
     #expect(second == fresh)
 }
 
+/// **A cache hit must respect `containingBlockWidth`, not just `available`.**
+/// `measureNode` passes it straight to `layOutChildren`, where it is the basis
+/// for the container's own percentage padding/border and so changes the
+/// border box `measureNode` returns — the field `MeasureKey` omitted until a
+/// reviewer measured a stale hit on this branch: a container with `10%`
+/// padding on all four edges (which CLAUDE.md's rule resolves against the
+/// containing block's WIDTH on every edge, vertical included) measured at
+/// `containingBlockWidth: 100` and then, in the SAME context, at `400` must
+/// not read back the `100`-basis answer.
+@Test func aCacheHitRespectsTheContainingBlockWidth() {
+    let tree = LayoutTree(generation: 0)
+    var kid = Style()
+    kid.size = Size(width: px(200), height: px(200))
+    let child = tree.newNode(style: kid, children: [])
+
+    var root = Style()
+    root.flexDirection = .row
+    root.padding = Edges(top: pctL(0.1), right: pctL(0.1), bottom: pctL(0.1), left: pctL(0.1))
+    let container = tree.newNode(style: root, children: [child])
+
+    let ctx = LayoutContext(rootFontSize: 16)
+    let q = AvailableSpaceSize(width: .maxContent, height: .maxContent)
+
+    let narrow = measureNode(ctx, tree, container, known: .unspecified,
+                             available: q, containingBlockWidth: 100)
+    let wideCached = measureNode(ctx, tree, container, known: .unspecified,
+                                 available: q, containingBlockWidth: 400)
+
+    let fresh = LayoutContext(rootFontSize: 16)
+    let wideFresh = measureNode(fresh, tree, container, known: .unspecified,
+                                available: q, containingBlockWidth: 400)
+
+    #expect(narrow == SizeD(width: 220, height: 220))
+    #expect(wideFresh == SizeD(width: 280, height: 280))
+    // The bug this guards: without `containingBlockWidth` in the key, `wideCached`
+    // reads back `narrow`'s stale 220x220 instead of recomputing 280x280.
+    #expect(wideCached == wideFresh)
+}
+
 /// Different queries must not share an entry. A key that ignored `available`
 /// would pass every other test here.
 ///
-/// **Deviates from the task-3 brief, which wrapped this leaf in a row
-/// container.** That version measures 90 for both `narrow` and `wide`, not
-/// because the cache shares an entry, but because of the carried-risk gap
-/// already on record in `docs/superpowers/2026-08-26-content-sizing-decisions.md`:
-/// "`measureNode` cannot tell `.minContent` from `.maxContent` for a
-/// container." `FlexBaseSize.swift`'s content-size branch (line ~50) queries
-/// a row's content child at a hardcoded `.maxContent` regardless of the
-/// container's own query, so the *first, uncached* computation already
-/// returns 90 either way — confirmed by running the brief's version verbatim
-/// before this edit. Fixing that composition would be a layout-behaviour
-/// change, which this task's gate forbids. Querying the leaf directly still
-/// fully exercises `MeasureKey.availableWidth`: dropping it from the key (Step
-/// 7's mutation 2) makes `wide` read back `narrow`'s cached 30 instead of
-/// computing 90, reddening the second assertion below.
+/// **Deviates from the task's original brief, which wrapped this leaf in a
+/// row container and measured the container.** That version measures 90 for
+/// both `narrow` and `wide`, not because the cache shares an entry, but
+/// because of the carried-risk gap already on record in
+/// `docs/superpowers/2026-08-26-content-sizing-decisions.md`: "`measureNode`
+/// cannot tell `.minContent` from `.maxContent` for a container." The
+/// PRIMARY barrier is `definiteExtent` in `FlexEngine.swift`, which
+/// `measureNode`'s container branch calls to build `probe`: it maps both
+/// `.minContent` and `.maxContent` to `nil` before a container ever passes
+/// anything to its children, so a real `AvailableSpaceSize` distinguishing
+/// the two does not exist below that point — `FlexBaseSize.swift`'s
+/// content-size branch (downstream, and itself hardcoding `.maxContent` on a
+/// row's main axis) never receives one to begin with, and changing that one
+/// literal alone would fix nothing. Fixing the composition would be a
+/// layout-behaviour change, which this task's gate forbids. Querying the leaf
+/// directly still fully exercises `MeasureKey.availableWidth`: dropping it
+/// from the key (Step 7's mutation 2) makes `wide` read back `narrow`'s
+/// cached 30 instead of computing 90, reddening the second assertion below.
 @Test func minContentAndMaxContentDoNotShareACacheEntry() {
     let tree = LayoutTree(generation: 0)
     let leaf = tree.newLeaf(style: Style()) { _, available in
