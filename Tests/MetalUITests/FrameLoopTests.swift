@@ -177,7 +177,7 @@ private struct FrameCounter: Element, StyledElement {
 
     @MainActor final class Counts { var values: [Int] = [] }
 
-    func requestLayout(_ id: GlobalElementID?,
+    func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
         let node = pass.requestNode(style: style, children: [])
         pass.withState(id, initial: 0) { (value: inout Int) in
@@ -187,10 +187,10 @@ private struct FrameCounter: Element, StyledElement {
         return (node, node)
     }
 
-    func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                   layout: inout LayoutNodeID, pass: inout PrepaintPass) {}
 
-    func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                layout: inout LayoutNodeID, prepaint: inout Void, pass: inout PaintPass) {}
 }
 

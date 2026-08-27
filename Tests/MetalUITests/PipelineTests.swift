@@ -6,6 +6,17 @@ import MetalUILayout
 // The runtime half of spec §4.1. `PhaseSeparationTests` pins what must not
 // compile; this file pins what the three phases actually do when they run.
 
+/// The identity a test hands an element it drives **by hand**, outside any
+/// container.
+///
+/// These tests used to pass `nil` here. Structural identity removed the
+/// `Optional` from `Element`'s phases, so an unparented probe needs a real id;
+/// `.positional(0)` under no parent is exactly what `Frame.render` would build
+/// for an unnamed root, so the value is the production one rather than a
+/// fabrication. None of these tests reads it — they assert on phase ordering and
+/// state write-back — which is why one shared constant is enough.
+private let standaloneID = GlobalElementID.child(of: nil, at: 0, name: nil)
+
 /// Records phase entries in order, and what each phase could see.
 ///
 /// A **class**, held by reference from the probe element: `Element`'s phases are
@@ -36,7 +47,7 @@ struct ProbeRow: Element {
 
     let log: PhaseLog
 
-    func requestLayout(_ id: GlobalElementID?, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         log.phases.append("requestLayout")
 
         var rootStyle = Style()
@@ -57,7 +68,7 @@ struct ProbeRow: Element {
         return (root, Layout(root: root, children: children))
     }
 
-    func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                   layout: inout Layout, pass: inout PrepaintPass) -> Prepaint {
         log.phases.append("prepaint")
         let childBounds = layout.children.map { pass.bounds(of: $0) }
@@ -65,7 +76,7 @@ struct ProbeRow: Element {
         return Prepaint(childBounds: childBounds)
     }
 
-    func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                layout: inout Layout, prepaint: inout Prepaint, pass: inout PaintPass) {
         log.phases.append("paint")
         log.boundsSeenInPaint = bounds
@@ -214,7 +225,7 @@ struct StampedProbe: Element {
     let stampsSeenInPrepaint: Recorder
     let stampsSeenInPaint: Recorder
 
-    func requestLayout(_ id: GlobalElementID?, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         var style = Style()
         style.size = Size(width: .length(.pixels(Pixels(30))),
                           height: .length(.pixels(Pixels(10))))
@@ -222,13 +233,13 @@ struct StampedProbe: Element {
         return (node, Layout(node: node, stamp: counter.next()))
     }
 
-    func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                   layout: inout Layout, pass: inout PrepaintPass) -> Prepaint {
         stampsSeenInPrepaint.values.append(layout.stamp)
         return Prepaint(stamp: layout.stamp)
     }
 
-    func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                layout: inout Layout, prepaint: inout Prepaint, pass: inout PaintPass) {
         stampsSeenInPaint.values.append(prepaint.stamp)
         pass.fill(bounds, color: .white)
@@ -277,7 +288,7 @@ final class Recorder {
     // this comment. Measured; see `AnyElement`'s doc comment.
     var nodes: [LayoutNodeID] = []
     for index in children.indices {
-        nodes.append(children[index].requestLayout(nil, pass: &layoutPass))
+        nodes.append(children[index].requestLayout(standaloneID, pass: &layoutPass))
     }
     var rootStyle = Style()
     rootStyle.flexDirection = .row
@@ -286,12 +297,12 @@ final class Recorder {
 
     var prepaintPass = PrepaintPass(frame: frame)
     for index in children.indices {
-        children[index].prepaint(nil, bounds: frame.bounds(of: nodes[index]), pass: &prepaintPass)
+        children[index].prepaint(standaloneID, bounds: frame.bounds(of: nodes[index]), pass: &prepaintPass)
     }
 
     var paintPass = PaintPass(frame: frame)
     for index in children.indices {
-        children[index].paint(nil, bounds: frame.bounds(of: nodes[index]), pass: &paintPass)
+        children[index].paint(standaloneID, bounds: frame.bounds(of: nodes[index]), pass: &paintPass)
     }
 
     #expect(counter.issued == 2)
@@ -323,7 +334,7 @@ struct MutatingProbe: Element {
     /// than merely wrong: see the test below.
     var generation = 0
 
-    mutating func requestLayout(_ id: GlobalElementID?,
+    mutating func requestLayout(_ id: GlobalElementID,
                                 pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         generation += 7
         var style = Style()
@@ -333,7 +344,7 @@ struct MutatingProbe: Element {
         return (node, Layout(node: node, value: 1))
     }
 
-    mutating func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                            layout: inout Layout, pass: inout PrepaintPass) -> Prepaint {
         // §4.1 threads `LayoutState` `inout` precisely so this is possible.
         layout.value += 10
@@ -343,7 +354,7 @@ struct MutatingProbe: Element {
         return Prepaint(value: 100)
     }
 
-    mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                         layout: inout Layout, prepaint: inout Prepaint,
                         pass: inout PaintPass) {
         generation += 300
@@ -384,16 +395,16 @@ struct MutatingProbe: Element {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)), scaleFactor: 1)
 
     var layoutPass = LayoutPass(frame: frame)
-    let node = erased.requestLayout(nil, pass: &layoutPass)
+    let node = erased.requestLayout(standaloneID, pass: &layoutPass)
     frame.computeRootLayout(root: node)
 
     var prepaintPass = PrepaintPass(frame: frame)
-    erased.prepaint(nil, bounds: frame.bounds(of: node), pass: &prepaintPass)
+    erased.prepaint(standaloneID, bounds: frame.bounds(of: node), pass: &prepaintPass)
 
     var paintPass = PaintPass(frame: frame)
     let bounds = frame.bounds(of: node)
-    erased.paint(nil, bounds: bounds, pass: &paintPass)
-    erased.paint(nil, bounds: bounds, pass: &paintPass)
+    erased.paint(standaloneID, bounds: bounds, pass: &paintPass)
+    erased.paint(standaloneID, bounds: bounds, pass: &paintPass)
 
     // 7 + 20 + 300 = 327, then + 300 = 627. Each stride names one lost
     // write-back on its own: 320/620 is requestLayout's, 307/607 is prepaint's,
@@ -421,7 +432,7 @@ struct IdentifiedProbe: Element {
     let seenInPaint: Recorder
     let elementID: ElementID?
 
-    func requestLayout(_ id: GlobalElementID?, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         var style = Style()
         style.size = Size(width: .length(.pixels(Pixels(30))),
                           height: .length(.pixels(Pixels(10))))
@@ -429,12 +440,12 @@ struct IdentifiedProbe: Element {
         return (node, Layout(node: node, paints: 0))
     }
 
-    func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                   layout: inout Layout, pass: inout PrepaintPass) -> Prepaint {
         Prepaint(paints: 0)
     }
 
-    func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                layout: inout Layout, prepaint: inout Prepaint, pass: inout PaintPass) {
         layout.paints += 1
         prepaint.paints += 10
@@ -478,16 +489,16 @@ struct IdentifiedProbe: Element {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)), scaleFactor: 1)
 
     var layoutPass = LayoutPass(frame: frame)
-    let node = erased.requestLayout(nil, pass: &layoutPass)
+    let node = erased.requestLayout(standaloneID, pass: &layoutPass)
     frame.computeRootLayout(root: node)
 
     var prepaintPass = PrepaintPass(frame: frame)
-    erased.prepaint(nil, bounds: frame.bounds(of: node), pass: &prepaintPass)
+    erased.prepaint(standaloneID, bounds: frame.bounds(of: node), pass: &prepaintPass)
 
     var paintPass = PaintPass(frame: frame)
     let bounds = frame.bounds(of: node)
-    erased.paint(nil, bounds: bounds, pass: &paintPass)
-    erased.paint(nil, bounds: bounds, pass: &paintPass)
+    erased.paint(standaloneID, bounds: bounds, pass: &paintPass)
+    erased.paint(standaloneID, bounds: bounds, pass: &paintPass)
 
     // Two counters at different strides: 1,10 then 2,20. A single counter
     // could not tell "the layout state was carried" from "the prepaint state

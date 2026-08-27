@@ -34,7 +34,8 @@ func requestLayoutCanBeCalledOnAnExistentialElement() throws {
     // about `inout` at all.
     let result = try typecheck("""
         @MainActor func probe(element: inout any Element, pass: inout LayoutPass) {
-            _ = element.requestLayout(nil, pass: &pass)
+            let id = GlobalElementID.child(of: nil, at: 0, name: nil)
+            _ = element.requestLayout(id, pass: &pass)
         }
         """, importing: "MetalUI")
     #expect(result.succeeded,
@@ -63,8 +64,9 @@ func prepaintCannotBeCalledOnAnExistentialElement() throws {
     let result = try typecheck("""
         @MainActor func probe(element: inout any Element, bounds: Bounds<Pixels>,
                               layoutPass: inout LayoutPass, pass: inout PrepaintPass) {
-            var layout = element.requestLayout(nil, pass: &layoutPass).1
-            _ = element.prepaint(nil, bounds: bounds, layout: &layout, pass: &pass)
+            let id = GlobalElementID.child(of: nil, at: 0, name: nil)
+            var layout = element.requestLayout(id, pass: &layoutPass).1
+            _ = element.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
         }
         """, importing: "MetalUI")
     #expect(!result.succeeded,
@@ -153,13 +155,13 @@ func aStructCanConformToElementObject() throws {
     let result = try typecheck("""
         @MainActor struct ValueBox: ElementObject {
             var elementID: ElementID? { nil }
-            mutating func requestLayout(_ id: GlobalElementID?,
+            mutating func requestLayout(_ id: GlobalElementID,
                                         pass: inout LayoutPass) -> LayoutNodeID {
                 pass.requestNode(style: Style(), children: [])
             }
-            mutating func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+            mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                    pass: inout PrepaintPass) {}
-            mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+            mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                 pass: inout PaintPass) {}
         }
         _ = ValueBox.self

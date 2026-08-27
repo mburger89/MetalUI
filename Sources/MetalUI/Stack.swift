@@ -46,18 +46,18 @@ public struct Column<Content: ElementGroup>: Element, StyledElement {
         set { box.elementID = newValue }
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID?, pass: inout LayoutPass)
+    public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Box<Content>.Layout) {
         box.requestLayout(id, pass: &pass)
     }
 
-    public mutating func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Box<Content>.Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
     }
 
-    public mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Box<Content>.Layout,
                                prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
@@ -91,18 +91,18 @@ public struct Row<Content: ElementGroup>: Element, StyledElement {
         set { box.elementID = newValue }
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID?, pass: inout LayoutPass)
+    public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Box<Content>.Layout) {
         box.requestLayout(id, pass: &pass)
     }
 
-    public mutating func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Box<Content>.Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
     }
 
-    public mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Box<Content>.Layout,
                                prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {

@@ -78,13 +78,14 @@ private func id(_ names: String...) -> GlobalElementID {
 ///
 /// What this test used to *guard* — that an unidentified container's
 /// identified descendants get no identity — is a behaviour, not a signature,
-/// and it is still live and still checked: through the real production path
-/// (a container calling `ElementGroup`'s conformances) rather than the type's
-/// static method directly, by
-/// `anIdentifiedChildOfAnUnnamedContainerStillHasNoIdentity` in
-/// `ElementLayoutTests.swift`. That test is untouched this task — it is the
-/// one that flips when EP-5's stack half or a later task deliberately
-/// reverses the rule structural identity is built to replace.
+/// and it was still live when this rewrite was made, through the real
+/// production path (a container calling `ElementGroup`'s conformances) rather
+/// than the type's static method. **That behaviour has since been reversed**,
+/// which is what this milestone existed to do: the test named it is now
+/// `anIdentifiedChildOfAnUnnamedContainerHasAnIdentityThroughItsPosition` in
+/// `ElementLayoutTests.swift`, and it asserts the unnamed container contributes
+/// a `.positional` component instead of stopping the path. So the sentence above
+/// describes what this test used to guard, not a rule anything still holds.
 @MainActor
 @Test func childOfAnUnnamedParentStillHasAnIdentity() {
     let unnamed = GlobalElementID.child(of: nil, at: 0, name: nil)
@@ -111,7 +112,8 @@ private func id(_ names: String...) -> GlobalElementID {
 /// The behavioural question the old test's name asked — do two anonymous
 /// siblings' identified children collide — has the same answer it always
 /// had, "no." Unlike the previous rewrite, this one has **no** surviving
-/// witness through a real container: `anIdentifiedChildOfAnUnnamedContainerStillHasNoIdentity`
+/// witness through a real container:
+/// `anIdentifiedChildOfAnUnnamedContainerHasAnIdentityThroughItsPosition`
 /// in `ElementLayoutTests.swift` builds exactly one unnamed container, so it
 /// cannot see a sibling pair at all. The sibling case here is
 /// correct-by-construction instead — two ids built with different `at:`
@@ -140,11 +142,16 @@ private func id(_ names: String...) -> GlobalElementID {
 // MARK: - The table reached through a Frame
 
 /// An element that stamps a per-frame counter into its cross-frame state.
-private struct CountingElement: Element {
+///
+/// `internal` rather than `private` so `IdentityTests.swift` can drive the same
+/// element: structural identity's tests differ from these only in whether the
+/// element is named, and two copies of this probe would be two things to keep
+/// in step.
+struct CountingElement: Element {
     let elementID: ElementID?
     init(_ name: String?) { elementID = name.map(ElementID.init) }
 
-    func requestLayout(_ id: GlobalElementID?, pass: inout LayoutPass) -> (LayoutNodeID, Int) {
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Int) {
         pass.withState(id, initial: 0) { $0 += 1 }
         var style = Style()
         style.size = Size(width: .length(.pixels(Pixels(10))),
@@ -152,10 +159,10 @@ private struct CountingElement: Element {
         return (pass.requestNode(style: style, children: []), 0)
     }
 
-    func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                   layout: inout Int, pass: inout PrepaintPass) -> Int { 0 }
 
-    func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                layout: inout Int, prepaint: inout Int, pass: inout PaintPass) {}
 }
 

@@ -55,16 +55,12 @@ public final class GlobalElementID: Hashable, Sendable {
     /// unconditionally and `name` decides the component, so the
     /// name-replaces-position rule lives here rather than at every call site.
     ///
-    /// **Nil-poisoning is not over this task, only relocated.** Every
-    /// production caller (`ElementGroup`'s `requestGroupLayout`,
-    /// `Frame.render`) still short-circuits to `nil` with a `.flatMap`/`.map`
-    /// pair *before* ever reaching this function: an unnamed element's own id
-    /// is `nil`, so its children's `parent` argument is `nil`, and `child` is
-    /// never called for them at all. An unnamed container still poisons its
-    /// subtree today — what changed is that the `nil` now originates at each
-    /// call site rather than inside this function. A threaded cursor is what
-    /// ends it for real; see `ElementGroup.swift` and `Frame.swift` for where
-    /// the short-circuit lives meanwhile.
+    /// **Nil-poisoning is over.** No production caller short-circuits any more:
+    /// `Frame.render` builds the root from this function and `ElementGroup`'s
+    /// `requestGroupLayout` builds every descendant from it with a threaded
+    /// cursor, so an unnamed element contributes `.positional(index)` rather
+    /// than stopping the path. `parent` stays optional for one reason — the root
+    /// genuinely has none — and that is the only `nil` this file still admits.
     public static func child(of parent: GlobalElementID?,
                              at index: Int,
                              name: ElementID?) -> GlobalElementID {

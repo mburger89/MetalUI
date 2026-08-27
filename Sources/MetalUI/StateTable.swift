@@ -57,21 +57,16 @@ final class StateTable {
     /// and because `Element`'s phases have no "I exist" callback separate from
     /// the work they do.
     ///
-    /// An anonymous element (`id == nil`) gets a scratch value that is discarded
-    /// when this returns. It is not an error: most elements have no identity and
-    /// need none. It does mean a caller cannot tell "I have no identity" from "my
-    /// state was just created" by observing the value, which is why
-    /// `ElementGroup`'s `requestGroupLayout` propagates `nil` down a subtree —
-    /// short-circuiting before it ever calls `GlobalElementID.child(of:at:name:)`
-    /// — rather than letting an anonymous element borrow its parent's path.
-    func withState<S>(_ id: GlobalElementID?,
+    /// **There is no longer an unidentified caller.** This took a
+    /// `GlobalElementID?` and gave an anonymous element a scratch value that was
+    /// discarded on return; structural identity removed the `nil` from the type,
+    /// so every element that calls this has a real key and a real entry. The
+    /// scratch branch is gone rather than unreachable — the mechanism is
+    /// `GlobalElementID.child(of:at:name:)`'s non-optional return, which the
+    /// compiler checks, not a convention a reader has to remember.
+    func withState<S>(_ id: GlobalElementID,
                       initial: @autoclosure () -> S,
                       _ body: (inout S) -> Void) {
-        guard let id else {
-            var scratch = initial()
-            body(&scratch)
-            return
-        }
         marked.insert(id)
         var value = (storage[id] as? S) ?? initial()
         body(&value)

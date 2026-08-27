@@ -169,7 +169,7 @@ func codeOutsideTheFrameworkCannotFabricateAPaintPass() throws {
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func withStateIsReachableFromOutsideTheModule() throws {
     let result = try typecheck("""
-        @MainActor func probe(pass: inout PrepaintPass, id: GlobalElementID?) {
+        @MainActor func probe(pass: inout PrepaintPass, id: GlobalElementID) {
             pass.withState(id, initial: 0) { $0 += 1 }
         }
         """, importing: "MetalUI")

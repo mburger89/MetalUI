@@ -27,10 +27,15 @@ import MetalUILayout
 ///
 /// The three phases mirror `Element`'s and are threaded the same way. They take
 /// the **container's** identity and derive each child's from it with
-/// `GlobalElementID.child(of:at:name:)`, guarded by a `.flatMap`/`.map` pair
-/// that short-circuits to `nil` before calling it whenever the container or
-/// the child itself has no name — which is why identity does not resume below
-/// an anonymous container (§4.3).
+/// `GlobalElementID.child(of:at:name:)`. Identity is now **structural and
+/// universal** (§4.3): a member with no `.id()` takes its position in the
+/// group's flat index space, so an unnamed container no longer stops identity
+/// below it. `.id()` replaces that position rather than creating the identity.
+///
+/// **Only `requestGroupLayout` carries the cursor**, because it is the only
+/// phase that derives an identity. `prepaintGroup` and `paintGroup` read the id
+/// each member *stored* during layout, deliberately, so all three phases see the
+/// same path even if the element's `elementID` changes between them.
 ///
 /// Unlike `Element`'s phases, these are handed no `Bounds`: a group's members
 /// have N different rects, so each looks its own up from the node it stashed
@@ -47,7 +52,20 @@ public protocol ElementGroup {
     ///
     /// The order is the order the container will hand to `requestNode`, and is
     /// therefore the flex order — so it must match source order.
+    ///
+    /// `cursor` is the container's **flat** child index, threaded rather than
+    /// nested: `Pair` hands the same cursor to both halves in order, so
+    /// `Column { A; B; C }` — whose type is `Column<Pair<A, Pair<B, C>>>` —
+    /// identifies its children `0, 1, 2` and not `[0], [1, 0], [1, 1]`.
+    /// A conformance consumes one index per element it identifies and leaves the
+    /// cursor pointing at the next free one.
+    ///
+    /// `parent` is optional only because `GlobalElementID.child(of:at:name:)`
+    /// takes an optional parent — the root has none. No production caller passes
+    /// `nil`: `Frame.render` builds the root id itself and every container below
+    /// hands down its own non-optional id.
     mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                     at cursor: inout Int,
                                      pass: inout LayoutPass) -> ([LayoutNodeID], GroupLayout)
 
     mutating func prepaintGroup(under parent: GlobalElementID?,
@@ -71,23 +89,22 @@ public protocol ElementGroup {
 /// `paint` from a changed `elementID` would silently address a different state
 /// entry than the one `requestLayout` marked.
 public struct SingleElementLayout<E: Element> {
-    var id: GlobalElementID?
+    var id: GlobalElementID
     var node: LayoutNodeID
     var state: E.LayoutState
 }
 
 extension Element {
+    /// One element is one index. `child(of:at:name:)` decides which component
+    /// that becomes: a `.named` one when the element carries an `.id()`, a
+    /// `.positional(cursor)` one otherwise. The index is supplied either way, so
+    /// the name-replaces-position rule lives in the constructor and not here.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], SingleElementLayout<Self>) {
-        // `at: 0` is inert here: `elementID.map` gives a non-optional name at every
-        // call, so `child` never builds a `.positional` component and no two members
-        // can share one. Members are still separated by name, and an unnamed one
-        // still gets no identity at all — that `.map`/`.flatMap` pair is the whole of
-        // today's nil-poisoning rule, and it is what a threaded cursor replaces.
-        let id: GlobalElementID? = parent.flatMap { p in
-            elementID.map { GlobalElementID.child(of: p, at: 0, name: $0) }
-        }
+        let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
+        cursor += 1
         let (node, state) = requestLayout(id, pass: &pass)
         return ([node], SingleElementLayout(id: id, node: node, state: state))
     }
@@ -114,7 +131,9 @@ extension Element {
 public struct EmptyGroup: ElementGroup {
     public init() {}
 
+    /// No members, so no index is consumed and the cursor is left where it was.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass) -> ([LayoutNodeID], Void) {
         ([], ())
     }
@@ -150,10 +169,19 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
         var second: Second.GroupPrepaint
     }
 
+    /// **This is the line that makes the index space flat.** The *same* cursor
+    /// goes to both halves, in order, so the builder's left-nested
+    /// `Pair<Pair<A, B>, C>` yields indices 0, 1, 2 rather than a path per
+    /// nesting level. Handing `second` a fresh cursor — or wrapping either half
+    /// in an id of its own — would make identity depend on how the builder
+    /// happened to group statements, which is what §3.4 rejects.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass) -> ([LayoutNodeID], Layout) {
-        let (firstNodes, firstLayout) = first.requestGroupLayout(under: parent, pass: &pass)
-        let (secondNodes, secondLayout) = second.requestGroupLayout(under: parent, pass: &pass)
+        let (firstNodes, firstLayout) = first.requestGroupLayout(under: parent, at: &cursor,
+                                                                 pass: &pass)
+        let (secondNodes, secondLayout) = second.requestGroupLayout(under: parent, at: &cursor,
+                                                                    pass: &pass)
         return (firstNodes + secondNodes,
                 Layout(first: firstLayout, second: secondLayout))
     }
@@ -184,11 +212,16 @@ public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
 
     public init(_ wrapped: Wrapped?) { self.wrapped = wrapped }
 
+    /// Forwards the cursor when the group is present and consumes nothing when
+    /// it is absent, so an `if` that goes false **shifts every later sibling's
+    /// index** and resets their state. That is SwiftUI's behaviour for an
+    /// unkeyed `if` and is deliberate; `.id()` on the siblings is the escape.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], Wrapped.GroupLayout?) {
         guard var inner = wrapped else { return ([], nil) }
-        let (nodes, layout) = inner.requestGroupLayout(under: parent, pass: &pass)
+        let (nodes, layout) = inner.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
         wrapped = inner
         return (nodes, layout)
     }
@@ -259,15 +292,42 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
         case second(Second.GroupPrepaint)
     }
 
+    /// **The two branches never share a component, so flipping the `if` resets
+    /// the subtree's state instead of carrying it into structurally different
+    /// elements.** The taken branch hangs under an id of its own —
+    /// `.positional(cursor)` for `.first`, `.positional(cursor + 1)` for
+    /// `.second` — and its members number from 0 *inside* that id. The outer
+    /// cursor then advances by 2 either way, so a later sibling's index does not
+    /// depend on which branch was taken.
+    ///
+    /// **The intermediate id is what makes that true for a branch of any size,
+    /// and a flat pair of indices would not be.** Numbering the branches'
+    /// members directly in the parent's space from `cursor` and `cursor + 1`
+    /// works only while both branches hold exactly one element: in
+    /// `if flag { Box(); Box() } else { Box() }` the first branch's *second*
+    /// member and the second branch's only member would both be
+    /// `.positional(cursor + 1)` — the collision this method exists to prevent,
+    /// reachable from ordinary builder code. Members numbering from 0 under a
+    /// per-branch id cannot collide however many there are.
+    ///
+    /// This is the same rule the phase-mismatch trap below already applies: a
+    /// flipped branch is a different subtree, not the same one rebuilt.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass) -> ([LayoutNodeID], Layout) {
+        let branchIndex = cursor
+        cursor += 2
         switch self {
         case .first(var group):
-            let (nodes, layout) = group.requestGroupLayout(under: parent, pass: &pass)
+            var inner = 0
+            let branch = GlobalElementID(component: .positional(branchIndex), parent: parent)
+            let (nodes, layout) = group.requestGroupLayout(under: branch, at: &inner, pass: &pass)
             self = .first(group)
             return (nodes, .first(layout))
         case .second(var group):
-            let (nodes, layout) = group.requestGroupLayout(under: parent, pass: &pass)
+            var inner = 0
+            let branch = GlobalElementID(component: .positional(branchIndex + 1), parent: parent)
+            let (nodes, layout) = group.requestGroupLayout(under: branch, at: &inner, pass: &pass)
             self = .second(group)
             return (nodes, .second(layout))
         }
@@ -353,7 +413,13 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
 
     public init(_ groups: [Group]) { self.groups = groups }
 
+    /// Forwards the one cursor per member, so a `for` loop's items sit in the
+    /// container's flat space alongside its other children rather than in a
+    /// space of their own. An item that carries `.id()` therefore keeps its
+    /// state through a reorder — the name replaces the index outright — while an
+    /// unnamed item's identity *is* its position and does not travel with it.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], [Group.GroupLayout]) {
         var nodes: [LayoutNodeID] = []
@@ -361,6 +427,7 @@ public struct ArrayGroup<Group: ElementGroup>: ElementGroup {
         layouts.reserveCapacity(groups.count)
         for index in groups.indices {
             let (childNodes, childLayout) = groups[index].requestGroupLayout(under: parent,
+                                                                            at: &cursor,
                                                                             pass: &pass)
             nodes.append(contentsOf: childNodes)
             layouts.append(childLayout)
@@ -420,21 +487,18 @@ extension AnyElement: ElementGroup {
     /// `AnyElement` holds its own phase states inside the box, so all a
     /// container needs to carry between phases is the node and the identity.
     public struct GroupLayout {
-        var id: GlobalElementID?
+        var id: GlobalElementID
         var node: LayoutNodeID
     }
 
+    /// Identical to `Element`'s default: an erased element is still one element
+    /// and therefore one index.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], GroupLayout) {
-        // `at: 0` is inert here: `elementID.map` gives a non-optional name at every
-        // call, so `child` never builds a `.positional` component and no two members
-        // can share one. Members are still separated by name, and an unnamed one
-        // still gets no identity at all — that `.map`/`.flatMap` pair is the whole of
-        // today's nil-poisoning rule, and it is what a threaded cursor replaces.
-        let id: GlobalElementID? = parent.flatMap { p in
-            elementID.map { GlobalElementID.child(of: p, at: 0, name: $0) }
-        }
+        let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
+        cursor += 1
         let node = requestLayout(id, pass: &pass)
         return ([node], GroupLayout(id: id, node: node))
     }

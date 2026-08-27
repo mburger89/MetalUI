@@ -46,14 +46,19 @@ public protocol Element: ElementGroup {
     /// Whatever `prepaint` needs to hand to `paint`.
     associatedtype PrepaintState
 
-    /// The element's local identity, or `nil` for an element with no state to
-    /// carry across frames.
+    /// The element's local name among its siblings, or `nil` to be identified by
+    /// **position** instead (§4.3).
+    ///
+    /// `nil` is not "no identity": `ElementGroup` supplies a `.positional`
+    /// component from the container's child cursor, so an unnamed element still
+    /// holds cross-frame state. What a name buys is survival across a change of
+    /// position — a reorder, or a sibling inserted above.
     var elementID: ElementID? { get }
 
     /// Contribute style and a layout node. The flex engine runs on the root
     /// after every element has been visited, so no resolved size is available
     /// here — asking for one does not compile.
-    mutating func requestLayout(_ id: GlobalElementID?, pass: inout LayoutPass)
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, LayoutState)
 
     /// Layout has resolved, so absolute bounds are known — this is the first
@@ -67,11 +72,11 @@ public protocol Element: ElementGroup {
     /// bounds is the whole of what this phase can currently do. Each registry is
     /// a store on `Frame` plus one method on `PrepaintPass`; input and focus
     /// bring theirs (M3), accessibility brings its own (§9).
-    mutating func prepaint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                            layout: inout LayoutState, pass: inout PrepaintPass) -> PrepaintState
 
     /// Emit GPU primitives into the scene.
-    mutating func paint(_ id: GlobalElementID?, bounds: Bounds<Pixels>,
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                         layout: inout LayoutState, prepaint: inout PrepaintState,
                         pass: inout PaintPass)
 }
