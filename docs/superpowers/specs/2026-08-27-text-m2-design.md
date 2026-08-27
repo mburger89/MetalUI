@@ -106,8 +106,26 @@ path over it, measurable against a working implementation.
 | `available` | answer |
 |---|---|
 | `.maxContent` | one line, full advance |
-| `.minContent` | typeset at ~0 width; the **widest** resulting line — the longest unbreakable run |
+| `.minContent` | typeset at a **small positive** width; the **widest** resulting line — the longest unbreakable run |
 | `.definite(w)` | typeset at `w`; width is the widest line, height is `lines × lineHeight` |
+
+**"A small positive width", not zero, and this needs pinning rather than
+assuming.** `CTTypesetterSuggestLineBreak` at width 0 may return a zero-length
+break, which turns the min-content loop into a non-terminating one — a hang, not
+a wrong answer. The implementation must (a) pass a small positive width, and
+(b) treat a zero-length suggested break as a hard error rather than looping,
+because a silent guard there would convert a hang into an infinite quiet loop
+one refactor later. Both get a test.
+
+**A `known` size wins over the measured one**, as `measureNode` already
+guarantees: a `Text` with an explicit `.width(100)` is typeset at 100 and reports
+100, whatever the content measures. That is the existing contract, not a new
+rule — §5.5's `known` versus `available` distinction — and it needs a test here
+only because `Text` is the first production leaf to exercise it.
+
+**Line height is uniform in this milestone** — one font, one size per `Text` (§2)
+— so total height is `lines × (ascent + descent + leading)`. Rich text makes that
+per-line, and is out.
 
 **This is what makes a long label behave.** With real min-content, §4.5's
 automatic minimum floors a text item at its longest *word* rather than its whole
@@ -167,6 +185,8 @@ failure modes are specific enough to name in advance:
 | the cache key drops `resolvedFontKey`'s variation coords | a two-font metrics test |
 | `.minContent` returns the full advance | the longest-word floor test |
 | the shelf packer overlaps two glyphs | a packing test |
+| `.minContent` typesets at width 0 | the non-termination guard's test |
+| `known.width` ignored in favour of the measured width | the explicit-width test |
 | eviction runs mid-frame | the ordering precondition's exit test |
 
 ## 5. Exit criteria
