@@ -7,7 +7,7 @@ import MetalUICore
 /// decision is a pure function over items — no styles, no cross sizes — so it
 /// stays testable alone and reusable by Grid, for the same reason
 /// `lineContentSize` takes `[Double]` rather than `[FlexItem]`. This type is
-/// where `layoutContainer` pairs a returned line with the cross size it then
+/// where `layOutChildren` pairs a returned line with the cross size it then
 /// computes for it, and it exists so that every line's cross size is known
 /// *before* any line is positioned — which is exactly what `align-content`
 /// needs, and now uses: `crossSize` is `var` for the second reason as well as
@@ -23,6 +23,16 @@ struct FlexLine {
     /// the reason `nowrap` layouts are byte-identical to what they were before
     /// wrapping existed); for a wrapped container it is `lineCrossSize`.
     var crossSize: Double
+    /// The line's offset from the container's content-box cross-start,
+    /// **flex-relative** — `positionItems` is the one place it becomes a
+    /// physical coordinate, because `wrap-reverse` flips the cross axis.
+    ///
+    /// Constructed as 0 and assigned by `layOutChildren`'s line loop, which is
+    /// the only thing that knows `crossGap` and what `align-content` inserted.
+    /// It is stored on the line rather than passed as `positionItems` computes
+    /// it, because measurement runs that loop and never positions anything:
+    /// the cursor had to outlive the loop for placement to happen afterwards.
+    var crossStart: Double
 }
 
 /// CSS Flexbox §9.3 — collect items into flex lines.

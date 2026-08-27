@@ -85,9 +85,8 @@ public func computeLayout(
         if case .definite(let w) = available.width { return w }
         return nil
     }()
-    layoutContainer(tree, root, containerOrigin: (0, 0), containerSize: rootSize,
-                    containingBlockWidth: rootContainingBlockWidth,
-                    rootFontSize: ctx.rootFontSize)
+    placeNode(ctx, tree, root, origin: (0, 0), size: rootSize,
+              containingBlockWidth: rootContainingBlockWidth)
 
     // Round last, over the finished absolute rects. Spec §5.7 designates the
     // rounded layout as the comparison space, so the engine must apply the same
@@ -157,7 +156,7 @@ struct FlexItem {
     /// freeze loop refines.** §9.7.2 assigns `targetMainSize` unconditionally
     /// across `items.indices` — every item takes either its hypothetical size
     /// (if frozen) or its base size (if not) — before anything reads the field,
-    /// and both guards on the way in (`layoutContainer`'s `!items.isEmpty` and
+    /// and both guards on the way in (`layOutChildren`'s `!items.isEmpty` and
     /// `resolveFlexibleLengths`' own) return early on an empty line. So no
     /// constructed item can reach `positionItems` without passing through that
     /// loop. Measured rather than reasoned: setting the argument at
@@ -182,7 +181,7 @@ struct FlexItem {
     /// **`collectItems` leaves this at the item's own resolved cross size even
     /// for a stretch-eligible item**, because the line it stretches into does
     /// not exist yet: `collectLines` needs cross sizes to measure a line, and
-    /// stretch needs the measured line. `layoutContainer`'s line phase writes
+    /// stretch needs the measured line. `layOutChildren`'s line phase writes
     /// the stretched value, once per line. Until wrapping landed the two
     /// coincided — there was one line and its cross size *was* the
     /// container's — which is exactly why the split had to happen before any
@@ -197,7 +196,7 @@ struct FlexItem {
     /// True when §9.4's stretch applies to this item: its resolved alignment is
     /// `stretch` **and** its cross size property is `auto`.
     ///
-    /// **Read only by `layoutContainer`'s line phase.** `collectItems` decides
+    /// **Read only by `layOutChildren`'s line phase.** `collectItems` decides
     /// it (it is the phase that has the styles) and nothing else consumes it;
     /// if a second reader ever appears, say so here.
     var stretchEligible: Bool
@@ -224,7 +223,7 @@ struct FlexItem {
     ///
     /// Margins sit *outside* the border box `targetMainSize` describes; an
     /// item's outer main extent is `marginMain.leading + targetMainSize +
-    /// marginMain.trailing`. **Two readers**, and both matter: `layoutContainer`
+    /// marginMain.trailing`. **Two readers**, and both matter: `layOutChildren`
     /// sums every item's pair into `totalMargin` and pre-reduces the grow
     /// budget with it, and `positionItems` uses each item's own pair — the cursor
     /// advances by the outer extent, and the item's own rect starts
@@ -369,13 +368,20 @@ private func resolveNodeSize(
 /// `nil` means the containing block is indefinite on that axis; `resolveEdges`
 /// then treats every percentage edge as 0, which is CSS's rule for an
 /// unresolvable percentage.
+///
+/// `edges` is the total this box spends on padding and border per axis — the
+/// term that turns a content box back into a border box. It is returned rather
+/// than recovered as `borderBox - size` by the caller because that subtraction
+/// is not invertible: `size` is clamped at 0 (ruling BM-4, below), and
+/// `measureNode` probes with an *infinite* `borderBox`, where the difference is
+/// `inf - inf`.
 private func contentBox(
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
     borderBox: SizeD,
     containingBlockWidth: Double?,
     rootFontSize: Double
-) -> (origin: (Double, Double), size: SizeD) {
+) -> (origin: (Double, Double), size: SizeD, edges: SizeD) {
     let s = tree.style(container)
     let padding = resolveEdges(s.padding, against: containingBlockWidth, rootFontSize: rootFontSize)
     let border = resolveEdges(s.border, against: containingBlockWidth, rootFontSize: rootFontSize)
@@ -397,18 +403,59 @@ private func contentBox(
     let size = SizeD(
         width: max(0, borderBox.width - padding.horizontal - border.horizontal),
         height: max(0, borderBox.height - padding.vertical - border.vertical))
-    return (leading, size)
+    let edges = SizeD(width: padding.horizontal + border.horizontal,
+                      height: padding.vertical + border.vertical)
+    return (leading, size, edges)
 }
 
-/// Lay out one container: collect its items, resolve flexible lengths, position.
-private func layoutContainer(
+/// The result of running §9.2–§9.7 over a container's children, before anything
+/// is positioned. `placeNode` goes on to position from it; `measureNode` reads
+/// only `contentSize` and `edges` and discards the rest.
+private struct ContainerLayout {
+    /// The lines, sized and flexed, each carrying the `crossStart` the line
+    /// phase computed for it. Empty when the container has no items — which is
+    /// the whole of "there is nothing to place", so there is no second
+    /// representation of that state.
+    var lines: [FlexLine]
+    /// The container's resolved CONTENT box — what the items actually occupy,
+    /// measured from them rather than from the extent they were offered. That
+    /// distinction is the entire reason this field exists: under a `nowrap`
+    /// container the *line's* cross size is the container's own extent
+    /// (§9.4.8's single-line clause), so reading it back would answer
+    /// `measureNode` with the question it asked.
+    var contentSize: SizeD
+    /// Padding + border per axis, from `contentBox`. `contentSize + edges` is
+    /// the container's border box, which is what `measureNode` reports.
+    var edges: SizeD
+    /// The content box of the extent this container was *given*: `origin` is the
+    /// leading padding + border, `size` the content box `positionItems` places
+    /// into. Not interchangeable with `contentSize` — that one is measured from
+    /// the items, this one from the container.
+    var box: (origin: (Double, Double), size: SizeD)
+}
+
+/// Phases 1–2 — collect a container's items, break them into lines, and resolve
+/// every size, **without positioning anything**.
+///
+/// Split out of what used to be `layoutContainer` so the sizing work is
+/// reachable without the writing work: `placeNode` runs this and then positions,
+/// `measureNode` runs this and reads the size off it. Nothing here calls
+/// `setLayout`, and that is the property `measuringWritesNoLayout` guards.
+///
+/// **Positioning moved out of the per-line loop, and that is behaviour-neutral
+/// by construction.** The loop below used to call `positionItems` for each line
+/// before advancing its cursor; now it records `crossStart` on the line and
+/// `placeNode` positions all the lines afterwards. Nothing the loop computes
+/// reads anything `positionItems` writes — it writes only stored rects and
+/// recurses — and nothing `positionItems` reads changes after its own line has
+/// been stretched and flexed. The 57 browser goldens are the check.
+private func layOutChildren(
+    _ ctx: LayoutContext,
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
-    containerOrigin: (Double, Double),
     containerSize: SizeD,
-    containingBlockWidth: Double?,
-    rootFontSize: Double
-) {
+    containingBlockWidth: Double?
+) -> ContainerLayout {
     // `containerSize` is the border box (§5.2). Everything below this line that
     // concerns the children — their available space, the freeze loop's main
     // extent, and their positioned origin and cross extent — works in the
@@ -419,19 +466,26 @@ private func layoutContainer(
     // the basis for this container's own percentage padding and border.
     let box = contentBox(tree, container, borderBox: containerSize,
                          containingBlockWidth: containingBlockWidth,
-                         rootFontSize: rootFontSize)
-    let childOrigin = (containerOrigin.0 + box.origin.0, containerOrigin.1 + box.origin.1)
+                         rootFontSize: ctx.rootFontSize)
 
     let items = collectItems(tree, container, containerSize: box.size,
-                             rootFontSize: rootFontSize)
-    guard !items.isEmpty else { return }
+                             rootFontSize: ctx.rootFontSize)
+    // No items, no lines: this is the early return the top-down recursion has
+    // always had on a childless container. Returning here rather than
+    // falling through is not only an optimisation — `align-content`'s leftover
+    // arithmetic below spends `crossGap * (lines.count - 1)`, which is a
+    // *negative* gap for zero lines.
+    guard !items.isEmpty else {
+        return ContainerLayout(lines: [], contentSize: .zero, edges: box.edges,
+                               box: (box.origin, box.size))
+    }
 
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
     let containerMain = isRow ? box.size.width : box.size.height
     let containerCross = isRow ? box.size.height : box.size.width
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
-                            against: containerMain, rootFontSize: rootFontSize) ?? 0
+                            against: containerMain, rootFontSize: ctx.rootFontSize) ?? 0
     // Ruling WR-1 — the CROSS-axis gap, which is the space **between lines**
     // and had no meaning at all until this task: both `gap` call sites read
     // `isRow ? .horizontal : .vertical`, so a row silently dropped its
@@ -448,7 +502,7 @@ private func layoutContainer(
     // `flex_wrap_with_margins_and_padding` both declare the two axes
     // *differently*, so reading the wrong one reddens rather than cancelling.
     let crossGap = resolveLength(isRow ? s.gap.vertical : s.gap.horizontal,
-                                 against: containerCross, rootFontSize: rootFontSize) ?? 0
+                                 against: containerCross, rootFontSize: ctx.rootFontSize) ?? 0
 
     // CSS Flexbox §9.3 then §9.4.8: break into lines on the items' hypothetical
     // main sizes, then measure each line's cross size.
@@ -464,8 +518,22 @@ private func layoutContainer(
                              containerMain: containerMain, gap: gap)
         .map { line in
             FlexLine(items: line,
-                     crossSize: s.flexWrap == .noWrap ? containerCross : lineCrossSize(line))
+                     crossSize: s.flexWrap == .noWrap ? containerCross : lineCrossSize(line),
+                     crossStart: 0)
         }
+
+    // The cross extent the items themselves imply — measured HERE, before
+    // `align-content` grows the lines and before §9.4 stretches any item into
+    // them, because both of those distribute the CONTAINER's extent and this
+    // has to be free of it.
+    //
+    // `lineCrossSize(items)` rather than `lines[i].crossSize`: under `nowrap`
+    // the line's cross size *is* `containerCross` (§9.4.8's single-line
+    // clause), so reading it back would answer `measureNode` with the extent it
+    // was asked about — and `measureNode` probes an unbounded axis with
+    // `.infinity`, which would come straight back out.
+    let contentCross = lines.reduce(0.0) { $0 + lineCrossSize($1.items) }
+                     + crossGap * Double(lines.count - 1)
 
     // CSS Flexbox §9.6.15 / §8.4 — `align-content`. The lines' own cross sizes
     // are now known, so whatever cross space they leave over is distributed
@@ -522,6 +590,7 @@ private func layoutContainer(
     // `crossAxisOffset` unflipped, which is CSS's other half — see
     // `positionItems`.
     var crossCursor: Double = lineOffsets.leading
+    var contentMain: Double = 0
     for i in lines.indices {
         // Between lines only — a trailing gap would be as wrong here as it is
         // on the main axis, and unlike `positionItems`' cursor this one is
@@ -559,13 +628,125 @@ private func layoutContainer(
         resolveFlexibleLengths(tree, items: &lines[i].items,
                                containerMain: containerMain - totalMargin, gap: gap)
 
-        positionItems(tree, container, items: lines[i].items,
-                      lineCross: lines[i].crossSize, lineCrossStart: crossCursor,
-                      containerOrigin: childOrigin,
-                      containerSize: box.size, rootFontSize: rootFontSize)
+        // Where `positionItems` used to be called from. The line records the
+        // cursor instead and `placeNode` positions every line once this loop
+        // has finished, so that `measureNode` can run the same loop and write
+        // nothing.
+        lines[i].crossStart = crossCursor
+
+        // The main extent this line's items occupy once flexed — the same
+        // quantity `positionItems` computes as `content` for `justify-content`,
+        // margins and gaps included. The container's content main size is the
+        // widest line's, exactly as its cross size is the sum of all of them.
+        contentMain = max(contentMain, lineContentSize(
+            lines[i].items.map { $0.marginMain.leading + $0.targetMainSize + $0.marginMain.trailing },
+            gap: gap))
 
         crossCursor += lines[i].crossSize
     }
+
+    return ContainerLayout(
+        lines: lines,
+        contentSize: isRow ? SizeD(width: contentMain, height: contentCross)
+                           : SizeD(width: contentCross, height: contentMain),
+        edges: box.edges,
+        box: (box.origin, box.size))
+}
+
+/// Lay out one container: collect its items, resolve flexible lengths, position
+/// — and recurse into every child.
+///
+/// **The only entry point that writes layout.** `measureNode` runs the same
+/// sizing work through `layOutChildren` and writes nothing; the split is what
+/// lets a subtree be asked its size speculatively.
+func placeNode(
+    _ ctx: LayoutContext,
+    _ tree: LayoutTree,
+    _ node: LayoutNodeID,
+    origin: (Double, Double),
+    size: SizeD,
+    containingBlockWidth: Double?
+) {
+    ctx.enter(node)
+    defer { ctx.leave() }
+
+    let laid = layOutChildren(ctx, tree, node, containerSize: size,
+                              containingBlockWidth: containingBlockWidth)
+    // The items' origin is this container's own origin plus its leading padding
+    // and border. `laid.box.origin` is that leading edge alone — the container's
+    // position is placement data and `layOutChildren` never sees it.
+    let childOrigin = (origin.0 + laid.box.origin.0, origin.1 + laid.box.origin.1)
+
+    for line in laid.lines {
+        positionItems(ctx, tree, node, items: line.items,
+                      lineCross: line.crossSize, lineCrossStart: line.crossStart,
+                      containerOrigin: childOrigin,
+                      containerSize: laid.box.size)
+    }
+}
+
+/// The size `node` reports for itself, **without writing any layout**.
+///
+/// A leaf answers from its `MeasureFunction`; a container answers by running the
+/// flex algorithm over its children and returning the border box that implies.
+/// Callers cannot tell which happened, which is the whole point: the four sites
+/// that substitute a constant for a container's content size (CLAUDE.md's
+/// inert-API table names them) become one call that works for both.
+///
+/// **Purity is not enforced by the type system.** A `setLayout` added anywhere
+/// below this function would return the right size and pass every golden;
+/// `measuringWritesNoLayout` is the guard.
+///
+/// **Nothing in `Sources/` calls this yet** — wiring the four sites is the task
+/// after the one that split it out, and until then its only callers are in
+/// `MeasureNodeTests.swift`. Two limits that whoever wires it inherits, named
+/// here because a caller cannot see either from the signature:
+///
+/// 1. **`.minContent` and `.maxContent` are indistinguishable for a
+///    container.** `availableExtent` maps both to an unbounded axis, so a
+///    `wrap` container returns its max-content answer under either. Only a
+///    leaf's own `MeasureFunction` tells them apart today.
+/// 2. **An unbounded probe leaves a `flex-grow` item's target infinite.** The
+///    freeze loop distributes `containerMain - content`, which is `.infinity`
+///    when the axis is unbounded, so a container holding a growing item reports
+///    an infinite content size. CSS sizes the container from its items *first*
+///    and flexes into that (Taffy does the same); this function does not, and
+///    no test here can see it because nothing consumes the result yet.
+func measureNode(
+    _ ctx: LayoutContext,
+    _ tree: LayoutTree,
+    _ node: LayoutNodeID,
+    known: OptionalSizeD,
+    available: AvailableSpaceSize,
+    containingBlockWidth: Double?
+) -> SizeD {
+    ctx.enter(node)
+    defer { ctx.leave() }
+
+    if let measure = tree.measure(node) {
+        return measure(known, available)
+    }
+
+    // A container: run the algorithm and report what the children imply,
+    // letting a known size on either axis win over the measured one.
+    //
+    // `probe` is a BORDER box, like every `containerSize` `layOutChildren`
+    // takes — which is why `known` can be returned unchanged below while the
+    // measured half has to have `edges` added back to it.
+    let probe = SizeD(width: known.width ?? availableExtent(available.width),
+                      height: known.height ?? availableExtent(available.height))
+    let laid = layOutChildren(ctx, tree, node, containerSize: probe,
+                              containingBlockWidth: containingBlockWidth)
+
+    return SizeD(width: known.width ?? (laid.contentSize.width + laid.edges.width),
+                 height: known.height ?? (laid.contentSize.height + laid.edges.height))
+}
+
+/// `.minContent` and `.maxContent` carry no number; a probe under them uses an
+/// unbounded extent and lets the children's own sizes decide.
+private func availableExtent(_ a: AvailableSpace) -> Double {
+    if case .definite(let v) = a { return v }
+    return .infinity
 }
 
 /// Phase 1 — size every item without positioning any of them.
@@ -693,7 +874,7 @@ private func collectItems(
             // landed the two were indistinguishable: there was exactly one
             // line and its cross size WAS `containerCross`. Everything below
             // records what the line phase needs, and
-            // `layoutContainer` does the arithmetic once per line.
+            // `layOutChildren` does the arithmetic once per line.
             //
             // The arithmetic it does, unchanged in substance, is: **stretch
             // fills the line's cross extent MINUS the item's own cross
@@ -766,14 +947,14 @@ private func collectItems(
 /// justifies into the whole container, not into itself), and the width is the
 /// containing block for each item's own percentage padding, border and margin.
 private func positionItems(
+    _ ctx: LayoutContext,
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
     items: [FlexItem],
     lineCross: Double,
     lineCrossStart: Double,
     containerOrigin: (Double, Double),
-    containerSize: SizeD,
-    rootFontSize: Double
+    containerSize: SizeD
 ) {
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
@@ -816,7 +997,7 @@ private func positionItems(
     let isReverse = s.flexDirection.isReverse
     // CSS Flexbox §8.3 — `wrap-reverse` flips the CROSS axis, exactly as
     // `row-reverse`/`column-reverse` flip the main one, and it is converted
-    // here for the same reason: `layoutContainer`'s line cursor and
+    // here for the same reason: `layOutChildren`'s line cursor and
     // `crossAxisOffset`'s per-item offset are both **flex-relative**, and this
     // is the single place either becomes a physical coordinate.
     //
@@ -845,7 +1026,7 @@ private func positionItems(
         : lineCrossStart
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
                             against: containerMain,
-                            rootFontSize: rootFontSize) ?? 0
+                            rootFontSize: ctx.rootFontSize) ?? 0
 
     // The line's content size counts margins — an item's OUTER main extent,
     // not its border box — or free space is overstated and every
@@ -954,16 +1135,15 @@ private func positionItems(
             : SizeD(width: item.crossSize, height: item.targetMainSize)
 
         tree.setLayout(item.node, LayoutRect(x: x, y: y, width: size.width, height: size.height))
-        // `containerSize` here is THIS container's content box (`layoutContainer`
-        // passes `box.size`), which is exactly the item's containing block — so
+        // `containerSize` here is THIS container's content box (`placeNode`
+        // passes `laid.box.size`), which is exactly the item's containing block — so
         // its width is the basis for the item's own percentage padding and
         // border. Passing `size.width` (the item's own width) instead is the
         // bug the BOX MODEL milestone's third task found: correct only when an
         // item happens to be as wide as
         // its parent's content box.
-        layoutContainer(tree, item.node, containerOrigin: (x, y), containerSize: size,
-                        containingBlockWidth: containerSize.width,
-                        rootFontSize: rootFontSize)
+        placeNode(ctx, tree, item.node, origin: (x, y), size: size,
+                  containingBlockWidth: containerSize.width)
 
         cursor += outerMain(item)
     }

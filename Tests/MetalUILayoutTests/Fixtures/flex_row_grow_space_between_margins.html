@@ -8,7 +8,7 @@
      distribute — without that cap a fully-grown line has zero leftover space
      and `space-between` is a no-op, which would not exercise this at all.
      This is the browser-checked proof that the engine's two separate margin
-     paths — the grow budget shrunk by total margin in `layoutContainer`, and
+     paths — the grow budget shrunk by total margin in `layOutChildren`, and
      the outer-size content total `positionItems` feeds to `justify-content`
      — agree with each other rather than double-counting or disagreeing. */
   #root { display: flex; flex-direction: row; justify-content: space-between;

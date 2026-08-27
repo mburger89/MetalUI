@@ -65,6 +65,33 @@ import MetalUICore
     }
 }
 
+/// The depth guard fires on a **real layout**, not only when `enter` is called
+/// by hand.
+///
+/// `aCycleInTheChildListTrapsRatherThanHanging` above drives `LayoutContext`
+/// directly, so it stays green with `ctx.enter(node)` deleted from `placeNode`
+/// — the guard would exist and never be consulted, which is exactly the shape
+/// `resolveEdges` was in for a milestone (taxonomy shape 4). This one goes
+/// through `computeLayout` and reddens when that call is removed.
+///
+/// **Depth, not a cycle, because a cycle is not constructible.**
+/// `LayoutTree.newNode` takes children that already exist, so every edge points
+/// at an earlier node and the child lists are a DAG by construction. Nesting is
+/// therefore the only way a real tree reaches the guard: `maxDepth + 1` nodes,
+/// one child each, so the innermost `placeNode` is the level past the limit.
+@Test func layingOutATreeDeeperThanTheLimitTraps() async {
+    await #expect(processExitsWith: .failure) {
+        let tree = LayoutTree(generation: 0)
+        var node = tree.newNode(style: Style(), children: [])
+        for _ in 0..<LayoutContext.maxDepth {
+            node = tree.newNode(style: Style(), children: [node])
+        }
+        computeLayout(tree, root: node,
+                      available: AvailableSpaceSize(width: .definite(100),
+                                                    height: .definite(100)))
+    }
+}
+
 @Test func nestingBelowTheDepthLimitDoesNotTrap() {
     let ctx = LayoutContext(rootFontSize: 16)
     let fake = LayoutNodeID(generation: 0, index: 0)

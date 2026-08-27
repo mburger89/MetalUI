@@ -559,7 +559,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 /// its HTML for why `.a` needs `max-width` (otherwise growth alone consumes
 /// all free space and `space-between` becomes a no-op, testing nothing new).
 /// This is the browser-checked version of the double-count argument in the
-/// Task 2 report: the grow budget `layoutContainer` shrinks by total margin,
+/// Task 2 report: the grow budget `layOutChildren` shrinks by total margin,
 /// and the outer-size content total `positionItems` feeds to
 /// `justify-content`, must agree with each other.
 @Test func rowGrowSpaceBetweenWithMarginsMatchesWebKit() throws {
