@@ -34,9 +34,13 @@ import MetalUICore
 /// lines. See `positionItems` for the four conversions (two axes × two nesting
 /// levels) and the WebKit numbers each was measured against.
 ///
-/// Two gaps remain and are recorded rather than implied: `inset` is still read
-/// by nothing (absolute positioning is its own plan), and `margin: auto`
-/// resolves to 0 instead of absorbing free space. Both have rows in CLAUDE.md's
+/// Three gaps remain and are recorded rather than implied: `inset` is still
+/// read by nothing (absolute positioning is its own plan), `margin: auto`
+/// resolves to 0 instead of absorbing free space, and CSS Sizing §4.5's
+/// **specified** size suggestion is missing from `collectItems`' automatic
+/// minimum (ruling FS-3) — which content sizing turned from a dormant gap into
+/// a measured disagreement with WebKit, because the *content* suggestion it
+/// pairs with is now live for containers. All three have rows in CLAUDE.md's
 /// inert-API table.
 ///
 /// **Cross-axis `stretch` landed in the alignment task, and with it every golden
@@ -258,12 +262,16 @@ struct FlexItem {
 /// Resolve the **root's** own border-box size from its style, falling back to
 /// the offered `available` space on any axis its style leaves unresolved.
 ///
-/// This fallback belongs to the root alone (ruling FS-1). The root is a block
-/// box in the initial containing block, and CSS §10.3.4/§9.2's block-layout
-/// rule is that `width: auto` (and, per this framework's single-pass sizing,
-/// `height: auto`) on such a box fills the space the box is offered — that is
-/// what `computeLayout`'s public `available:` parameter is *for*. A flex
-/// item's `auto` main size means something else entirely: it is resolved via
+/// This fallback belongs to the root alone (ruling FS-1), and **its
+/// justification is `computeLayout`'s contract rather than CSS's block-layout
+/// rule** — the two are not the same argument and the difference is ruling
+/// **CS-I**, recorded at the `auto` branch below. The engine's root is *not* a
+/// block box in a CSS initial containing block: it is a node whose size its
+/// host supplies, and `.definite(w)` on an axis of `available:` is the host
+/// saying "this axis is w". CSS's block box shrink-wraps its block axis and
+/// WebKit measurably does (**800 x 40** where this engine gives 800 x 600), so
+/// citing §10.3.4 here would claim agreement that does not exist. A flex
+/// item's `auto` main size means something else again: it is resolved via
 /// §9.2's flex base size (the FLEX-SIZING milestone's second task) and never by
 /// inheriting a container's
 /// extent, which is why `resolveNodeSize` below must not fall back to
@@ -351,7 +359,7 @@ private func resolveRootSize(
     // **A fixture could hold the divergence** — `#root { display: flex }` with
     // no `width` or `height` is perfectly expressible and its golden would say
     // 800x40 — so the corpus deliberately contains none, on the same footing
-    // as WebKit's flex sub-one clause. That all 57 roots declare both axes
+    // as WebKit's flex sub-one clause. That all 61 roots declare both axes
     // explains why no *existing* fixture notices; it is not a reason one
     // could not exist.
     //
@@ -904,8 +912,8 @@ func placeNode(
 /// A leaf answers from its `MeasureFunction`; a container answers by running the
 /// flex algorithm over its children and returning the border box that implies.
 /// Callers cannot tell which happened, which is the whole point: the four sites
-/// that substitute a constant for a container's content size (CLAUDE.md's
-/// inert-API table names them) become one call that works for both.
+/// that substitute a constant for a container's content size (listed below, and
+/// in the content-sizing design spec §1) become one call that works for both.
 ///
 /// **Purity is not enforced by the type system.** A `setLayout` added anywhere
 /// below this function would return the right size and pass every golden;
@@ -917,10 +925,13 @@ func placeNode(
 /// `collectItems`' `auto` cross size, and `resolveRootSize`'s `auto` axis with
 /// no offered extent. This doc previously said "nothing in `Sources/` calls
 /// this yet"; the sentence is kept in the negative because its *consequences*
-/// changed with it — `LayoutContext.maxDepth` fell from 64 to 16 when a real
-/// recursion started running through here, and `measuringWritesNoLayout` went
-/// from a property nobody could violate to the only guard on a path every
-/// layout takes.
+/// changed with it — the stack cost of one tree level roughly quadrupled when a
+/// real recursion started running through here, and `measuringWritesNoLayout`
+/// went from a property nobody could violate to the only guard on a path every
+/// layout takes. **`LayoutContext.maxDepth` is 64 and stayed 64** (ruling
+/// CS-L): it was dropped to 16 for one commit to fit the stack a test harness
+/// happened to hand over, which would have trapped on an ordinary
+/// `Column { Row { Box { … } } }`; the test sizes its own 4 MB thread instead.
 ///
 /// Two limits that a caller inherits, named here because none of them is
 /// visible from the signature:
@@ -1175,14 +1186,27 @@ private func collectItems(
             // by hand-written closures (`automaticMinimumSizeUsesContentSizeNotFlexBasis`).
             // `flex_row_explicit_min` covers **explicit** `min-width` alone.
             //
-            // **Ruling FS-3 — half the rule is deliberately missing.** §4.5's
-            // automatic minimum is `min(specified size suggestion, content size
-            // suggestion)`; only the content suggestion is implemented. The
-            // specified suggestion (the item's own definite `width`/`height`,
-            // when it has one) can never be distinguished from this until
-            // something measures content in production, because the two differ
-            // only when a measured content size exceeds a specified size. That
-            // is M2 work, not an oversight.
+            // **Ruling FS-3 — half the rule is missing, and since content
+            // sizing that is a measured divergence rather than a dormant one.**
+            // §4.5's automatic minimum is `min(specified size suggestion,
+            // content size suggestion)`; only the content suggestion is
+            // implemented. The two differ exactly when a measured content size
+            // exceeds a specified one — which needed something to measure
+            // content, and a **container** now does. This comment used to say
+            // the two "can never be distinguished until M2"; the gate was never
+            // the text system, it was the same recursive subtree measurement
+            // that closed the auto-cross gap, and it has arrived.
+            //
+            // Measured against the oracle: `#root { width: 150px }` holding
+            // `.a { display: flex; width: 100px }` whose child is 200 wide, and
+            // `.b { width: 100px }`, gives **WebKit `a` 100 / `b` 50** — `.a`
+            // floors at `min(100, 200)`, its own specified width — and **this
+            // engine `a` 200 / `b` 0**, overflowing the root, because the floor
+            // here is the content suggestion alone. The differential was run
+            // rather than predicted: `.a { width: 130px }` moves WebKit to
+            // 130 / 20, and `min-width: 0` on `.a` gives 75 / 75. No fixture
+            // holds this shape — a container whose content exceeds its own
+            // specified size — which is what implementing FS-3 would need.
             let minDim = isRow ? ks.minSize.width : ks.minSize.height
             let minMain: Double? = {
                 if case .auto = minDim {

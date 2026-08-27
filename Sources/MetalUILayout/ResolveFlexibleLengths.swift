@@ -149,8 +149,10 @@ func resolveFlexibleLengths(
         //
         // One narrow case here diverges from WebKit — free space positive and
         // the loop on its second pass. Blink and the spec agree with this code;
-        // WebKit is the outlier. See CLAUDE.md, "Two known divergences from the
-        // browsers", and `subOneScalingNeverExceedsTheRemainingFreeSpace`.
+        // WebKit is the outlier. See CLAUDE.md's known-divergences section —
+        // cited by its subject, "WebKit's flex sub-one clause", because the
+        // heading counts them and the count has changed twice — and
+        // `subOneScalingNeverExceedsTheRemainingFreeSpace`.
         let rawTotal = items.filter { !$0.frozen }.reduce(0) { $0 + rawFactor($1) }
         if rawTotal < 1 {
             let scaled = initialFreeSpace * rawTotal

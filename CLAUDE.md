@@ -28,6 +28,20 @@ idiomatic Swift. macOS and iOS.
   had one, and three code comments on the flex-sizing branch cited the wrong
   document before this was fixed. Prefix new milestones' rulings the same way.
 
+- **One decision is now open rather than settled: `Column`/`Row`'s cross-axis
+  default.** Ruling EP-6 keeps them on CSS's `stretch` **because** an `auto`
+  cross size resolved to 0, so a centred child with no cross size would have
+  measured 0 and painted nothing; EP-6 says outright that EP-5's stack half is
+  "blocked on recursive subtree measurement: a prerequisite, not an
+  application". Content sizing built that prerequisite, so the reason is gone
+  and the question — SwiftUI centres, CSS stretches — is a choice again.
+  **It was deliberately not re-decided**: it is an API change in `MetalUI` and
+  belongs with whoever takes EP-5's stack half. Two things a re-decision must
+  not assume: a **childless** `Box` still measures 0, so the demo's sidebar
+  boxes would still paint nothing under `center`; and a **leaf** still has no
+  production `MeasureFunction`, so "content" means "a subtree of nodes" until
+  M2, not text.
+
 ## Practices
 
 **`docs/practices/verifying-tests-can-fail.md` — read this before writing tests.**
@@ -87,7 +101,7 @@ demo is the proof — but nothing above the renderer can ask for one.
 what the demo draws — and no test can establish it.** `MetalLayerSurface` vends drawables whether its `CAMetalLayer` is
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
-sees — and all 334 tests still pass. If you touch that ordering, re-run the demo
+sees — and all 338 tests still pass. If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
 ## Four known divergences — expected, measured, not defects
@@ -188,7 +202,7 @@ an `auto` axis differs.
 **A fixture could hold this one; the corpus deliberately has none.**
 `#root { display: flex }` with no `width` or `height` is perfectly expressible,
 and its golden would say 800×40 and fail — same footing as WebKit's flex
-sub-one clause above. That all 57 roots declare both axes explains why no
+sub-one clause above. That all 61 roots declare both axes explains why no
 *existing* fixture notices, not why one could not exist;
 `FixtureHygieneError` does not enforce it, it only checks the root lands at
 (0, 0).
@@ -235,9 +249,9 @@ are the dangerous ones.
 | A percentage `width`/`height` on the **root** | **Falls back to the offered space, not to the percentage.** `resolveRootSize` resolves the root's percentages against `nil` and then takes `available` — so `width: 50%` in an 800-wide space gives **800**. Measured in WebKit: **400**. The root's percentage *padding* does resolve against `available.width` (see `computeLayout`), so the two halves of "the root's containing block" disagree with each other today. Fixing it moves the root's stored size, which every descendant consumes; it belongs to a sizing plan, not the box model |
 | `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
 | `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **Re-measured, with a mutation that compiles.** The number this row used to quote came from adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder`, and that mutation **no longer compiles**: `anExplicitAnyElementIsStillAcceptedAsAChild` — added by the same Task 4 commit — puts an `AnyElement` inside a builder block, so the generic overload demands `AnyElement: Element`, which it is not, and the suite fails to build with `error: static method 'buildExpression' requires that 'AnyElement' conform to 'Element'`. Pairing it with a non-generic `buildExpression(_ e: AnyElement) -> AnyElement` restores the measurement: **exactly the three type-level tests in that file redden, and no behavioural test at all, out of 303.** Delete this row when the static path demonstrably does not serve a real container |
-| `MeasureFunction` / `tree.measure()` | **A LEAF still has no production caller; a CONTAINER no longer needs one.** `newLeaf` is the only thing that attaches a measure function and nothing in `Sources/` calls it, so every production node's `tree.measure()` is still `nil` — that half is M2 and is the whole of what this row is now about. What changed is that `tree.measure()` stopped being the only route to a content size: `measureNode` falls through to the flex algorithm over the node's children, so `flexBaseSize`'s content branch and §4.5's automatic minimum are **live and browser-verified for containers** (`aContainerItemsBaseSizeComesFromItsChildren`, `aContainerItemIsFlooredByItsChildrensWidth`, whose WebKit numbers are named in its comment). The **leaf** halves are still exercised only by tests that build their own closures — `automaticMinimumSizeUsesContentSizeNotFlexBasis` — and still have no browser fixture, because a leaf's content is text |
+| `MeasureFunction` / `tree.measure()` | **A LEAF still has no production caller; a CONTAINER no longer needs one.** `newLeaf` is the only thing that attaches a measure function and nothing in `Sources/` calls it — re-measured rather than remembered: `grep -rn "newLeaf" Sources/` returns **3 lines and not one of them is a call**, the declaration in `LayoutTree.swift` plus two doc comments (`FlexEngine.swift`, `Box.swift`) that say it has no caller. So every production node's `tree.measure()` is still `nil` — that half is M2 and is the whole of what this row is now about. What changed is that `tree.measure()` stopped being the only route to a content size: `measureNode` falls through to the flex algorithm over the node's children, so `flexBaseSize`'s content branch and §4.5's automatic minimum are **live and browser-verified for containers** (`aContainerItemsBaseSizeComesFromItsChildren`, `aContainerItemIsFlooredByItsChildrensWidth`, whose WebKit numbers are named in its comment). The **leaf** halves are still exercised only by tests that build their own closures — `automaticMinimumSizeUsesContentSizeNotFlexBasis` — and still have no browser fixture, because a leaf's content is text |
 | `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` matches only the string inside its own precondition message. The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
-| CSS Sizing §4.5's **specified size suggestion** | **Still not implemented** (ruling FS-3), and content sizing supplied the *other* half. The automatic minimum is `min(specified suggestion, content suggestion)`; the content half is now live for containers. **What expired is the claim that the two are "indistinguishable until M2"** — they differ whenever a measured content size exceeds a specified one, and a container reaches that today. It is not yet a wrong answer anywhere: `min` takes the smaller, so the *visible* error would be implementing this half alone (WebKit shrinks a `width: 120px` empty div to 40, because its content suggestion is 0 — pinned by `aContainerItemIsFlooredByItsChildrensWidth`). Reachable now, so what it needs is a fixture, not a milestone |
+| CSS Sizing §4.5's **specified size suggestion** | **Still not implemented** (ruling FS-3), and content sizing supplied the *other* half — which turns this row from a dormant gap into a **measured disagreement with WebKit**. The automatic minimum is `min(specified suggestion, content suggestion)`; only the content half exists, and it went live for containers. **Two claims expired here in one milestone, and the second was written by the commit that retired the first** (ruling CS-E's shape, third occurrence on this project). The first was "indistinguishable until M2" — they differ whenever a measured content size exceeds a specified one, and a container reaches that today. The second was "it is not yet a wrong answer anywhere". **It is one.** Measured against the oracle: `#root { width: 150px }` holding `.a { display: flex; width: 100px }` whose child is 200 wide, plus `.b { width: 100px }`, gives **WebKit `a` 100 / `b` 50** — `.a` floors at `min(100, 200)`, its own specified width — and **this engine `a` 200 / `b` 0**, overflowing the root, because the floor here is the content suggestion alone. The differential was run rather than derived: `.a { width: 130px }` moves WebKit to 130 / 20, and `min-width: 0` on `.a` gives 75 / 75. Nothing in the corpus holds the shape — a container whose content exceeds its own specified size — and `aContainerItemIsFlooredByItsChildrensWidth` cannot, because its `.a` has no specified width to be floored by |
 
 Re-check any row rather than trusting this table:
 
@@ -251,7 +265,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — 334 tests and 57 browser fixtures, warning-free.
+`swift build` · `swift test` — 338 tests and 61 browser fixtures, warning-free.
 **Seven** non-test targets with strictly one-way dependencies: `MetalUICore`,
 `MetalUILayout`, `MetalUIShaderTypes`, `MetalUIRender`, `MetalUIPlatform`,
 `MetalUI`, `MetalUIDemo`. **`MetalUITestSupport` is an eighth `.target` in
@@ -269,7 +283,7 @@ which is an executable rather than a layer. The two counts agreeing today is a
 coincidence and it expires: when Text lands the package has eight non-test
 targets against the spec's seven. Do not "reconcile" one list to the other.
 
-Three constraints that are easy to violate silently:
+Four constraints that are easy to violate silently:
 
 - **`MetalUILayout` must import only `MetalUICore`.** Verify with an anchored
   pattern — an unanchored `Metal` also matches the legitimate `import MetalUICore`.
@@ -322,6 +336,34 @@ count you read.
 `swift package clean`.** The header reaches its C target through a symlink SwiftPM
 does not track, so Swift's view goes stale while Metal's refreshes — the symptom is
 a vanished rect that looks exactly like a shader bug.
+
+## Layout cost — measured, and content sizing multiplied it by ~4.9x
+
+`computeLayout` costs **~40 us per node in debug and ~5.3 us in release**, flat
+from 8 k to 88 k nodes. The same trees cost ~8 us and ~1.2 us per node before
+content sizing, so **the complexity is unchanged and the constant factor is
+~4.9x**:
+
+| tree | nodes | debug before → after | release before → after |
+|---|---|---|---|
+| depth 12, branch 2 | 8,191 | 72.8 → **372.0 ms** | 10.2 → **45.0 ms** |
+| depth 10, branch 3 | 88,573 | 708.4 → **3,504.4 ms** | 96.3 → **456.9 ms** |
+
+**The cause is §4.5's automatic minimum, which now probes EVERY item** —
+`min-width: auto` is CSS's default — and an `auto`-cross item probes again, so a
+container's children are each measured up to three times per layout. Whoever
+optimises this starts there: it is the probe that fires unconditionally. The
+memo cache in `LayoutContext` is what keeps this a constant multiplier instead
+of the depth-exponential ~700x the design spec predicted without it, and
+`theCacheIsActuallyConsulted` is the only test that can see the cache working.
+
+**Measure on a BRANCHING tree, never a chain.** A chain has one child per level,
+so the three probes per item collapse onto the same few cache keys and the cost
+looks linear and cheap — which is exactly what the during-task measurement
+showed, and why this number went unrecorded until the milestone's last task.
+Absolute figures are this machine's; the ratio is the part that transfers.
+Release is ~8x faster in absolute terms with the same ratio. For scale, Yoga and
+Taffy are quoted in the 0.1-0.5 us/node range.
 
 ## When CI lands
 

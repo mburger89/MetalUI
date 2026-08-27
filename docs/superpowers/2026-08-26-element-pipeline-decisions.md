@@ -27,7 +27,7 @@ continue from EP-8.
 | # | Ruling | Cost if wrong |
 |---|---|---|
 | EP-5 | **Where CSS and SwiftUI answer a design question differently, take SwiftUI's answer.** CSS is this project's *implementation substrate*: flexbox is the layout algorithm, and a browser is a testable oracle for it, which is the whole value of the 57-fixture corpus. It is not the design authority for anything above the engine — the element API, defaults, spacing, identity, or what a container does when the author says nothing. Those are questions about what a Swift UI framework should feel like, and SwiftUI is the answer the users of this framework already know. **The WebKit corpus stays the oracle for the engine; this ruling binds everything above it.** | The engine and the API drift apart in their idea of what "reasonable" means. A fixture's answer stops predicting a user's answer, and the browser corpus stops being evidence about the framework — it becomes evidence about a layer users never touch. |
-| EP-6 | **`Column`/`Row` keep CSS's `stretch` cross-axis default, and no default `gap` is invented.** This is where EP-5 does *not* apply, and the reason is a mechanism rather than a preference. SwiftUI would centre a stack's children on the cross axis. But an `auto` cross size resolves to **0** in this engine (CLAUDE.md's inert table — it is lost in §9.4.8 line measurement), so a centred child with no explicit cross size would measure 0 and **paint nothing at all**. `stretch` is what keeps the demo's sidebar visible. So EP-5's stack half is *blocked on* recursive subtree measurement: it is a prerequisite, not an application. No default gap either, for an unrelated reason — SwiftUI's stack spacing is contextual and platform-derived, not a number, and hardcoding `8` would be a guess wearing SwiftUI's name. `Column(gap:)`/`Row(gap:)` take it explicitly and default to 0. | Every child of a stack with no explicit cross size paints nothing, and the framework's first impression is a blank window. Or a hardcoded gap acquires callers and becomes impossible to change once real spacing rules exist. |
+| EP-6 | **`Column`/`Row` keep CSS's `stretch` cross-axis default, and no default `gap` is invented.** ***Its mechanism expired on 2026-08-26 — the decision stands, its reason does not; see "EP-6 is unblocked — recorded, not re-decided" in the content-sizing decisions doc, and CLAUDE.md's "Start here". An `auto` cross size measures its subtree now, and the CLAUDE.md row cited below has been deleted. The text is kept as written because a ruling is a record of what was decided and why.*** This is where EP-5 does *not* apply, and the reason is a mechanism rather than a preference. SwiftUI would centre a stack's children on the cross axis. But an `auto` cross size resolves to **0** in this engine (CLAUDE.md's inert table — it is lost in §9.4.8 line measurement), so a centred child with no explicit cross size would measure 0 and **paint nothing at all**. `stretch` is what keeps the demo's sidebar visible. So EP-5's stack half is *blocked on* recursive subtree measurement: it is a prerequisite, not an application. No default gap either, for an unrelated reason — SwiftUI's stack spacing is contextual and platform-derived, not a number, and hardcoding `8` would be a guess wearing SwiftUI's name. `Column(gap:)`/`Row(gap:)` take it explicitly and default to 0. | Every child of a stack with no explicit cross size paints nothing, and the framework's first impression is a blank window. Or a hardcoded gap acquires callers and becomes impossible to change once real spacing rules exist. |
 | EP-7 | **Margins stay publicly settable, and an explicit margin outranks any automatic spacing.** SwiftUI has no margin: spacing lives on the container. This engine has margins, they are live (the box-model milestone wired them in), and hiding them would leave an implemented rule unreachable — which is the same defect as an unimplemented one being reachable. `margin(_:)` is public in two overloads, taking `Pixels` and `Edges<Length>`; `.auto` remains unspellable because both take `Length`, not `Dimension`. The second half constrains future work: **if automatic stack spacing lands, an explicit margin must override it, not sum with it.** CSS would sum a `gap` and an adjacent margin; that is the answer to avoid, because it makes a margin's effect depend on which container it happens to be in. | Automatic spacing arrives and silently adds itself to every explicit margin already written. Every existing layout shifts, and the fix is a breaking change to whichever of the two rules loses. |
 
 ## Carried into the next milestone
@@ -43,13 +43,18 @@ way SwiftUI does, and both are engine work rather than API work:
   name share one state entry with no diagnostic. `id(_:)` is therefore a
   requirement today where SwiftUI makes it an escape hatch. Closing this is what
   lets state be the default rather than an opt-in.
-- **An `auto` cross size that measures content** rather than resolving to 0.
-  This is EP-6's blocker, stated as its own item because it is the larger of the
-  two: it is recursive subtree measurement, not a clamp, and CLAUDE.md's row
-  records how far its consequences now reach (a whole line collapses under
-  wrapping; `align-content` distributes *negative* free space and produces
-  negative stored coordinates). Until it lands, every cross-axis default this
-  framework picks is picked around a hole.
+- ~~**An `auto` cross size that measures content** rather than resolving to 0.~~
+  **CLOSED by the content-sizing milestone (2026-08-26).** It was EP-6's
+  blocker, stated as its own item because it is the larger of the two: recursive
+  subtree measurement, not a clamp. It is implemented — `collectItems`'
+  `ownCross` calls `measureNode`, WebKit's `120x50` is pinned by
+  `flex_nested_auto_cross`, and CLAUDE.md's row describing the hole (a collapsed
+  line under wrapping, `align-content` distributing *negative* free space) is
+  deleted rather than amended. **So EP-6's stated reason no longer holds**: see
+  "EP-6 is unblocked — recorded, not re-decided" in
+  `docs/superpowers/2026-08-26-content-sizing-decisions.md`. The ruling's
+  *decision* stands until someone re-decides it deliberately; only its mechanism
+  expired.
 
 ## Carried risk
 

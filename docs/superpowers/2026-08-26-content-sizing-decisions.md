@@ -209,7 +209,7 @@ All figures `--no-parallel`, on 334 tests.
 
 | mutation | reddens | golden comparisons among them |
 |---|---|---|
-| `measureNode` returns 0 for a container (the pre-milestone bug, restored) | **15** | **0** |
+| `measureNode` returns 0 for a container (the pre-milestone bug, restored) | **15** | **0** — ~~and no fixture can~~ **superseded by Task 6: 4 goldens, re-measured in Task 7 below** |
 | `.minContent` / `.maxContent` swapped at the two sites that name them | **6** | **2** |
 
 **"Returns 0 for a container" has two readings, and both were measured**, since
@@ -236,6 +236,20 @@ bug this milestone exists to fix and **not one of them is a fixture** —
 four are hand-written. The plan predicted "the auto-cross **fixture** reddens
 specifically"; there is no auto-cross fixture, which is the whole content of
 the non-mover list above.
+
+**That zero was true when measured and is not true now — Task 6 is what changed
+it, and Task 7 re-measured rather than reasoning about it.** Same spelling as
+the `known`-respecting reading above, written out exactly:
+`let result = SizeD(width: known.width ?? 0, height: known.height ?? 0)` in
+place of the two `laid.contentSize` terms at the end of `measureNode`. On **338
+tests, `--no-parallel`: 19 tests, 47 issues, and 4 of them golden
+comparisons** — `nestedAutoCrossMatchesWebKit`,
+`autoHeightAtTwoLevelsMatchesWebKit`, `itemFlooredByItsContentMatchesWebKit`
+and `wrapMinVersusMaxContentMatchesWebKit`, i.e. every fixture Task 6 added.
+The plan's prediction — "the auto-cross fixture reddens specifically" — is now
+satisfied, and the practices doc's rule that a differential is necessary but not
+sufficient is closed for all four: each fixture reddens under a revert of the
+engine site it is named for.
 
 The second is broken out per site in the carried risk below, where the surprise
 is: the §4.5 half **does** redden two goldens, which the carried risk had said
@@ -321,6 +335,99 @@ should start there: the §4.5 probe is the one that fires unconditionally.
 Release figures are ~8× faster in absolute terms but the ratio is the same, so
 quoting only the debug numbers would overstate the absolute cost and understate
 nothing.
+
+## Task 7 — every claim re-measured, and the one it falsified
+
+Task 7's whole job was retiring claims the milestone disproved, which ruling
+CS-E says is the likeliest place to write a new one. So each was re-measured.
+
+**The finding: CLAUDE.md's FS-3 row was wrong, and the wrong sentence was
+written by the commit that corrected the row's other half.** Third occurrence of
+CS-E's shape on this project. The row said the missing *specified* size
+suggestion "is not yet a wrong answer anywhere". It is one, as of this milestone,
+because the content half it pairs with went live for containers. Probed against
+the oracle:
+
+```html
+#root { display: flex; width: 150px; height: 60px; }
+.a { display: flex; width: 100px; }   /* child is 200 wide */
+.b { width: 100px; height: 20px; }
+```
+
+| | `.a` | `.b` |
+|---|---|---|
+| WebKit | **100** | **50** |
+| this engine | **200** | **0** (overflowing the root) |
+
+WebKit floors `.a` at `min(specified 100, content 200) = 100`; the engine floors
+at the content suggestion alone, so `.a` cannot shrink below its child and `.b`
+is squeezed out. **The differential was run, not derived** (the wrapping
+milestone's four wrong hand-derivations are why): `.a { width: 130px }` gives
+WebKit 130 / 20, and `min-width: 0` on `.a` gives 75 / 75 — the floor tracks the
+specified width, which is what identifies it as §4.5's specified size
+suggestion rather than anything else. **FS-3 is therefore not closed and is not
+narrowed; its reach grew.** It is recorded in CLAUDE.md's inert table and at
+`collectItems`' automatic minimum, with these numbers. No fixture was added —
+the corpus has no container whose content exceeds its own specified size, and
+adding one would encode a divergence nobody has decided to keep.
+
+**What was retired.**
+
+- **The auto-cross divergence row is gone from CLAUDE.md's inert table.** The
+  behaviour it described — an `auto` cross size measuring 0, collapsing its
+  line — is fixed, pinned by `flex_nested_auto_cross` /
+  `nestedAutoCrossMatchesWebKit` against WebKit's `120x50`, and by
+  `autoCrossNestedContainerMeasuresItsLineLikeWebKit` for the
+  measured-before-stretch ordering the fixture cannot see. The row's own
+  history — twice wrong about what measurement would reveal — is kept at
+  `collectItems`' `ownCross` and in `computeLayout`'s doc comment, because the
+  shape is what recurs, not the arithmetic.
+- **The `MeasureFunction` row narrowed to leaves rather than disappearing.**
+  Re-measured: `grep -rn "newLeaf" Sources/` returns **3 lines, none a call** —
+  the declaration plus two doc comments saying it has no caller. A container no
+  longer needs one; a leaf still has none, and that half is M2.
+- **Three stale claims in the engine's own comments**, each a mechanism rather
+  than a milestone once corrected: `measureNode`'s doc said
+  `LayoutContext.maxDepth` "fell from 64 to 16" (ruling CS-L put it back and it
+  is 64 — verified in `LayoutContext.swift`); `resolveRootSize`'s header doc
+  justified the offered-space fallback as CSS §10.3.4 block layout, which is the
+  framing ruling CS-I explicitly rejects and which claims an agreement with
+  WebKit that the same function's body measures as a disagreement; and
+  `collectItems` said FS-3's two halves "can never be distinguished until M2".
+- **Two citation-rot fixes:** `resolveRootSize` said "all 57 roots declare both
+  axes" (**61** now, and all 61 verified to declare both);
+  `ResolveFlexibleLengths` cited a CLAUDE.md heading, "Two known divergences",
+  that has since become four — it now cites the divergence by subject, since the
+  count has moved twice.
+- **The counts.** Measured, not propagated: `Test run with 338 tests in 0 suites
+  passed`, and **61** fixtures with 61 goldens.
+- **EP-6 is unblocked and now says so where a future session starts reading** —
+  CLAUDE.md's "Start here", alongside the two things a re-decision must not
+  assume. The element-pipeline decisions doc's own EP-6 row carries a pointer,
+  since its stated mechanism ("an `auto` cross size resolves to 0 in this
+  engine") is no longer true and it cites a CLAUDE.md row that no longer exists.
+- **The cost of measuring is now in CLAUDE.md**, not only in this document. A
+  ~4.9x constant factor is a thing a future session needs before it profiles,
+  and the section says to measure on a branching tree, which is the mistake this
+  milestone made once already.
+
+**Checked and deliberately left alone**, because re-measuring confirmed them:
+the `margin: auto` row (`resolveMargin`'s `?? 0` is unchanged; `margin(_:)`
+still takes `Length`), the `baseline` row (`crossAxisOffset` still returns 0 for
+`.baseline`), `aspectRatio` / `position` / `inset` / `overflow` (0 production
+reads each, greps re-run), `LayoutTree.reset` (no callers), `MUIRect.contentMask`
+and the border rows (`Frame.fill` still hard-codes `.transparent` and 0),
+and the two root claims, both **re-probed against the live oracle rather than
+read**: divergence 4's auto root (WebKit **800x40**, engine **800x600**) and the
+percentage-root row (`width: 50%` in an 800-wide space — WebKit **400**, engine
+**800**, exactly as the row says, and CS-J is why content sizing did not change
+it). Also the `Style`
+property count (**23** anchored, 21 stored), the target count (**8** matches,
+minus `MetalUITestSupport`), and the 25 `swiftc -typecheck` guards
+(15 + 7 + 1 + 2, counted per file). Historical measurements that quote an older
+suite size — "on 334 tests" in the tables above, "297 of 303", "304" — are left
+at the number they were taken on; re-stamping them with today's count would
+turn a measurement into a guess.
 
 ## Carried risk
 
