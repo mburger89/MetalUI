@@ -1,0 +1,63 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* The divergence this milestone is named for, as a browser fixture.
+
+     Before content sizing, `collectItems`' `ownCross` took an `auto` cross size
+     from `resolveNodeSize`, which resolves an unresolvable axis to 0. A nested
+     flex container therefore measured `120x0`, the line it sat on collapsed to
+     0 tall, and every later line stacked on top of it. WebKit gives `120x50`.
+     Recorded in CLAUDE.md's inert table for a whole milestone under the claim
+     that "no fixture can catch this — every fixture in the corpus is an empty
+     div"; a nested flex container has a content cross size with no text in it,
+     which is what this file is.
+
+     THREE LINES, NOT TWO, and each a different height (50 / 30 / 20). One line
+     after `.mid` proves the collapse moved `after`; a second proves the shift
+     ACCUMULATES, which is the difference between "the first line is wrong" and
+     "every line after it is wrong". With `ownCross` back at 0 the three lines
+     are at y = 0 / 0 / 30 instead of 0 / 50 / 80.
+
+     `.mid` HOLDS TWO CHILDREN OF DIFFERENT HEIGHTS (50 and 24) on purpose. Its
+     content cross size is the MAX over its line, and with a single child —
+     which is how the plan's draft was written — "measure the line" and
+     "measure the first child" and "measure the last child" all give the same
+     number. 24 vs 50 separates them.
+
+     `align-content: flex-start`, not the `stretch` default, so the line cross
+     sizes reach the goldens undistributed: 50 + 30 + 20 = 100 in a 200-tall
+     root would otherwise be spread as 33.33 per line and the measured 50 would
+     never appear in a number anyone can read. `flex_wrap_stretch_auto_cross`
+     and `flex_wrap_align_content_stretch` cover the stretch path.
+
+     WHAT THIS FIXTURE CANNOT CATCH: `.mid` is stretch-eligible (`height: auto`
+     with the default `align-items: stretch`) and its line's cross size equals
+     its own measured 50, so it is stretched from 50 to 50. The fixture
+     therefore does not distinguish "measured before stretch" from "measured
+     after stretch" — `autoCrossNestedContainerMeasuresItsLineLikeWebKit` in
+     WrappingTests carries that ordering claim, and `.after`'s y is the only
+     thing here that depends on it.
+
+     THE DRAFT OF THIS FIXTURE DID NOT WRAP AND WAS MEASURED, NOT REASONED
+     ABOUT. It had `.after { width: 60px }` against a 200-wide root, so
+     120 + 60 = 180 fit on ONE line; a single line takes its cross size from the
+     container, WebKit reported `mid: 120x200`, and the file pinned nothing at
+     all about content sizing while still passing its own differential. The
+     120s below are what make it wrap. */
+  #root { display: flex; flex-wrap: wrap; align-content: flex-start;
+          width: 200px; height: 200px; }
+  .mid { display: flex; width: 120px; }
+  .a { width: 40px; height: 50px; }
+  .b { width: 30px; height: 24px; }
+  .after { width: 120px; height: 30px; }
+  .tail { width: 120px; height: 20px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="mid" data-id="mid">
+      <div class="a" data-id="a"></div><div class="b" data-id="b"></div>
+    </div>
+    <div class="after" data-id="after"></div>
+    <div class="tail" data-id="tail"></div>
+  </div>
+</body></html>
