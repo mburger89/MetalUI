@@ -258,7 +258,7 @@ git commit -m "feat(layout): add LayoutContext with cycle and style-mutation gua
   ```
   `measureNode` returns the node's **border box** and never writes layout.
 
-**This task is behaviour-preserving.** Nothing calls `measureNode` yet except its own tests. Every existing test stays green and **no golden moves** — that is the review gate. Wiring the call sites is Task 4.
+**This task is behaviour-preserving.** Nothing calls `measureNode` yet except its own tests. Every existing test stays green and **no golden moves** — that is the review gate. Wiring the call sites is Task 5.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -475,7 +475,7 @@ Expected: PASS, 5 tests.
 - [ ] **Step 7: Run the whole suite — this is the gate**
 
 Run: `swift test`
-Expected: `Test run with 314 tests in 0 suites passed` (309 + 5). **`git status --short Tests/MetalUILayoutTests/Golden` must be empty.** A moved golden here means the refactor changed behaviour and is a defect, not a discovery — Task 4 is where behaviour changes.
+Expected: `Test run with 314 tests in 0 suites passed` (309 + 5). **`git status --short Tests/MetalUILayoutTests/Golden` must be empty.** A moved golden here means the refactor changed behaviour and is a defect, not a discovery — Task 5 is where behaviour changes.
 
 - [ ] **Step 8: Prove the split**
 
@@ -702,7 +702,128 @@ git commit -m "feat(layout): memoize measureNode per run"
 
 ---
 
-### Task 4: Wire the four call sites and re-baseline the corpus
+### Task 4: Propagate the intrinsic query into the recursion
+
+**Files:**
+- Modify: `Sources/MetalUILayout/FlexEngine.swift` (`measureNode`'s probe, `layOutChildren`, `collectItems`)
+- Modify: `Sources/MetalUILayout/FlexBaseSize.swift` (the content branch's hardcoded `.maxContent`)
+- Modify: `Sources/MetalUILayout/FlexLines.swift` (`collectLines`' budget)
+- Test: `Tests/MetalUILayoutTests/IntrinsicModeTests.swift`
+
+**Interfaces:**
+- Consumes: `measureNode`, `layOutChildren`, `LayoutContext` from Tasks 1-3.
+- Produces: an intrinsic mode threaded below `measureNode` — `nil` for real layout, `.minContent` / `.maxContent` for a speculative measure.
+
+**Why this task exists, and why it is not folded into wiring.** Spec §2 claims *"the recursion honours `.definite`, `.minContent` and `.maxContent`, so a container answers the same three questions a leaf does."* **It does not today, and Task 5 as originally written could not make it true.** The container's query is destroyed inside `measureNode` itself:
+
+```swift
+let probe = OptionalSizeD(width:  known.width  ?? definiteExtent(available.width),
+                          height: known.height ?? definiteExtent(available.height))
+```
+
+`definiteExtent` maps **both** `.minContent` and `.maxContent` to `nil`, and from that line down the only type threaded is `OptionalSizeD`. **`AvailableSpaceSize` does not exist below `measureNode`** — so changing `FlexBaseSize.swift`'s `.maxContent` literal alone fixes nothing, because there is no container query in scope there to substitute for it.
+
+**This must land before the corpus is re-baselined**, because the failure is silent. Every fixture in the corpus is a pixel-sized empty div, for which min-content and max-content coincide, so `committedGoldensMatchTheBrowser` stays green either way and §6's first exit criterion gets ticked with nothing able to falsify it.
+
+- [ ] **Step 1: Write the failing tests**
+
+```swift
+import Testing
+import MetalUICore
+@testable import MetalUILayout
+
+/// A container asked for min-content must ask its children for min-content.
+/// Before this task the leaf received `.maxContent` under both queries.
+@Test func aContainersIntrinsicQueryReachesItsChildren() {
+    let tree = LayoutTree(generation: 0)
+    let leaf = tree.newLeaf(style: Style()) { _, available in
+        if case .minContent = available.width { return SizeD(width: 30, height: 40) }
+        return SizeD(width: 90, height: 20)
+    }
+    var row = Style()
+    row.flexDirection = .row
+    let container = tree.newNode(style: row, children: [leaf])
+
+    let ctx = LayoutContext(rootFontSize: 16)
+    let narrow = measureNode(ctx, tree, container, known: .unspecified,
+                             available: AvailableSpaceSize(width: .minContent, height: .maxContent),
+                             containingBlockWidth: nil)
+    let wide = measureNode(LayoutContext(rootFontSize: 16), tree, container, known: .unspecified,
+                           available: AvailableSpaceSize(width: .maxContent, height: .maxContent),
+                           containingBlockWidth: nil)
+    #expect(narrow.width == 30)
+    #expect(wide.width == 90)
+}
+
+/// §9.9.1.1: under min-content the line budget is zero, so each item lines
+/// alone. This is a WRAPPING fact, not a base-size fact — no amount of
+/// `flexBaseSize` work reaches it, which is why `collectLines` is in scope here.
+@Test func aWrapContainerUnderMinContentPutsEachItemOnItsOwnLine() {
+    let tree = LayoutTree(generation: 0)
+    var kid = Style()
+    kid.size = Size(width: .length(.pixels(Pixels(40))),
+                    height: .length(.pixels(Pixels(20))))
+    let kids = (0..<3).map { _ in tree.newNode(style: kid, children: []) }
+    var wrap = Style()
+    wrap.flexDirection = .row
+    wrap.flexWrap = .wrap
+    let container = tree.newNode(style: wrap, children: kids)
+
+    let narrow = measureNode(LayoutContext(rootFontSize: 16), tree, container,
+                             known: .unspecified,
+                             available: AvailableSpaceSize(width: .minContent, height: .maxContent),
+                             containingBlockWidth: nil)
+    let wide = measureNode(LayoutContext(rootFontSize: 16), tree, container,
+                           known: .unspecified,
+                           available: AvailableSpaceSize(width: .maxContent, height: .maxContent),
+                           containingBlockWidth: nil)
+    #expect(narrow == SizeD(width: 40, height: 60))
+    #expect(wide == SizeD(width: 120, height: 20))
+}
+```
+
+- [ ] **Step 2: Run them and confirm they fail**
+
+Run: `swift test --filter IntrinsicModeTests`
+Expected: FAIL — both currently return the max-content answer.
+
+- [ ] **Step 3: Thread the mode**
+
+Add the container's query to `layOutChildren` and `collectItems` (an `AvailableSpaceSize`, or a small `IntrinsicMode?` that is `nil` for real layout — pick one and say why at its definition). **Ruling CS-A already has this task touching both signatures**, so this costs no extra churn.
+
+- [ ] **Step 4: Substitute it at the two consuming sites**
+
+`FlexBaseSize.swift`'s content branch replaces its `.maxContent` literal with the container's main-axis query. `collectLines`' budget becomes 0 under `.minContent` and unbounded under `.maxContent`.
+
+- [ ] **Step 5: Run the new tests, then the whole suite**
+
+Run: `swift test`
+Expected: a summary line and the full count. **No golden may move** — `git status --short Tests/MetalUILayoutTests/Golden` must be empty. Nothing calls `measureNode` from production yet, so this task is behaviour-preserving exactly as Tasks 1-3 were.
+
+- [ ] **Step 6: Prove it**
+
+```bash
+# 1. Restore `definiteExtent`'s collapse of both modes to nil.
+#    Expect: both new tests redden.
+# 2. Restore `FlexBaseSize`'s hardcoded `.maxContent`.
+#    Expect: `aContainersIntrinsicQueryReachesItsChildren` reddens.
+# 3. Restore `collectLines`' budget to unbounded under both modes.
+#    Expect: `aWrapContainerUnderMinContentPutsEachItemOnItsOwnLine` reddens
+#    and the other does NOT — they must be independently guarded.
+```
+
+Report the measured counts.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add Sources/MetalUILayout Tests/MetalUILayoutTests/IntrinsicModeTests.swift
+git commit -m "feat(layout): propagate the intrinsic sizing query into the recursion"
+```
+
+---
+
+### Task 5: Wire the four call sites and re-baseline the corpus
 
 **Files:**
 - Modify: `Sources/MetalUILayout/FlexBaseSize.swift:43`
@@ -775,7 +896,7 @@ git diff --stat Tests/MetalUILayoutTests/Golden
 Create `docs/superpowers/2026-08-26-content-sizing-decisions.md`. It must contain:
 
 - **A table of every golden that moved**, with the fixture name, the numbers before and after, and which of the four sites caused it. A moved golden with no explanation is a regression wearing a regeneration's clothes.
-- **The list of goldens that did NOT move**, which is a map of what the corpus never covered — as valuable as the movers, and the input to Task 5's fixture list.
+- **The list of goldens that did NOT move**, which is a map of what the corpus never covered — as valuable as the movers, and the input to Task 6's fixture list.
 - Rulings `CS-1`… for every judgement made during execution, each with its reasoning and what it costs if wrong.
 
 - [ ] **Step 5: Confirm the engine still matches the browser**
@@ -794,8 +915,13 @@ Expected: a summary line, and the full count. Any test that asserted the old `0`
 # 1. Revert `measureNode` to return 0 for containers.
 #    Expect: the auto-cross fixture reddens SPECIFICALLY. Record the count.
 # 2. Swap `.minContent` and `.maxContent` at the two sites that use them.
-#    Expect: reddens. If it does NOT, the corpus has no fixture where the two
-#    differ — say so in the report; Task 5 must add one.
+#    Expect: reddens, via Task 4's IntrinsicModeTests.
+#    NOTE: before Task 4 this mutation could not redden at all, and the reason
+#    was NOT a corpus gap — `definiteExtent` collapsed both modes to nil, so the
+#    engine could not express the difference. An earlier draft of this plan told
+#    you to record it as missing coverage; that would have filed an architecture
+#    finding as a fixture finding. If it still does not redden, the propagation
+#    from Task 4 has regressed.
 ```
 
 - [ ] **Step 8: Commit**
@@ -807,7 +933,7 @@ git commit -m "feat(layout): measure content instead of resolving auto sizes to 
 
 ---
 
-### Task 5: Fixtures for what the corpus never covered
+### Task 6: Fixtures for what the corpus never covered
 
 **Files:**
 - Create: `Tests/MetalUILayoutTests/Fixtures/flex_nested_auto_cross.html`, `flex_auto_height_two_levels.html`, `flex_wrap_min_vs_max_content.html`, `flex_item_floored_by_content.html`
@@ -815,7 +941,7 @@ git commit -m "feat(layout): measure content instead of resolving auto sizes to 
 - Create: the four corresponding goldens (generated, never hand-written)
 
 **Interfaces:**
-- Consumes: content sizing live, from Task 4.
+- Consumes: content sizing live, from Task 5.
 - Produces: four fixtures in `allFixtures`.
 
 - [ ] **Step 1: Write `flex_nested_auto_cross.html` — the divergence repro**
@@ -923,7 +1049,7 @@ git commit -m "test(layout): fixtures for auto cross, auto height, min-vs-max co
 
 ---
 
-### Task 6: Update the claims this milestone falsified
+### Task 7: Update the claims this milestone falsified
 
 **Files:**
 - Modify: `CLAUDE.md`
