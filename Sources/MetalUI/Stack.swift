@@ -27,6 +27,30 @@ public struct Column<Content: ElementGroup>: Element, StyledElement {
     public init(gap: Pixels = Pixels(0), @ElementBuilder content: () -> Content) {
         var style = Style()
         style.flexDirection = .column
+        // **Ruling EP-8 — `Column` and `Row` centre on the cross axis, where CSS
+        // stretches.** SwiftUI's `VStack`/`HStack` centre, and ruling EP-5 takes
+        // SwiftUI's answer where the two differ. It supersedes EP-6, whose
+        // `stretch` answer was blocked on recursive subtree measurement that
+        // content sizing then supplied.
+        //
+        // **EP-8, not EP-7.** EP-7 is already spent on "margins stay publicly
+        // settable"; the decisions doc's header says to continue from EP-8, and
+        // EP-2/EP-4 stay unassigned forever.
+        //
+        // **This is set here and NOT in `Style`.** The engine keeps CSS's
+        // `stretch` default, so the 61 browser fixtures stay valid and WebKit
+        // stays the oracle for the flex algorithm; the change lives strictly
+        // above the engine, which is what EP-5 means by CSS being the substrate
+        // rather than the design authority. `Box` is untouched and still
+        // stretches.
+        //
+        // **What it costs an author, and it is not nothing.** A childless `Box`
+        // measures 0 — content sizing did not change that — so a box with no
+        // cross size now paints nothing instead of filling its container.
+        // That is a louder failure than the silent one it replaces, and the
+        // remedy is a cross size or an explicit `.alignItems(.stretch)`, which
+        // is what the demo's sidebar and separator now say out loud.
+        style.alignItems = .center
         style.gap = Axes(both: .pixels(gap))
         box = Box(style: style, content: content())
     }
@@ -72,6 +96,9 @@ public struct Row<Content: ElementGroup>: Element, StyledElement {
     public init(gap: Pixels = Pixels(0), @ElementBuilder content: () -> Content) {
         var style = Style()
         style.flexDirection = .row
+        // Ruling EP-8 — see `Column.init` above for why this is here and not in
+        // `Style`, and for what a childless `Box` now does.
+        style.alignItems = .center
         style.gap = Axes(both: .pixels(gap))
         box = Box(style: style, content: content())
     }

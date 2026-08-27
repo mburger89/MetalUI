@@ -266,8 +266,9 @@ which stays green with a summary line. The doc now says which.
 - **Trapping on duplicate sibling ids.** See above — it would turn a data bug
   into a crash.
 - **Any change to mark-and-sweep.** Only the key changed.
-- **EP-6's re-decision** (`Column`/`Row` centring by default). Unblocked by
-  content sizing, untouched here, and still open.
+- ~~**EP-6's re-decision** (`Column`/`Row` centring by default).~~ **TAKEN on
+  2026-08-27 as ruling EP-8** — stacks centre. Unblocked by content sizing,
+  untouched by this milestone, decided by the one after it.
 - **A production `MeasureFunction` on a leaf.** `newLeaf` still has no caller in
   `Sources/`; that is M2 and nothing here moves it.
 
