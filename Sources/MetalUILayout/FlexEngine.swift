@@ -828,8 +828,15 @@ func measureNode(
     ctx.enter(node)
     defer { ctx.leave() }
 
+    let key = LayoutContext.MeasureKey(
+        node: node, knownWidth: known.width, knownHeight: known.height,
+        availableWidth: available.width, availableHeight: available.height)
+    if let hit = ctx.cachedMeasure(key) { return hit }
+
     if let measure = tree.measure(node) {
-        return measure(known, available)
+        let result = measure(known, available)
+        ctx.storeMeasure(key, result)
+        return result
     }
 
     // A container: run the algorithm and report what the children imply,
@@ -845,8 +852,10 @@ func measureNode(
     let laid = layOutChildren(ctx, tree, node, containerSize: probe,
                               containingBlockWidth: containingBlockWidth)
 
-    return SizeD(width: known.width ?? (laid.contentSize.width + laid.edges.width),
-                 height: known.height ?? (laid.contentSize.height + laid.edges.height))
+    let result = SizeD(width: known.width ?? (laid.contentSize.width + laid.edges.width),
+                       height: known.height ?? (laid.contentSize.height + laid.edges.height))
+    ctx.storeMeasure(key, result)
+    return result
 }
 
 /// The number an available space carries, if it carries one.

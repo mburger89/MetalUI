@@ -59,4 +59,47 @@ final class LayoutContext {
     func leave() {
         depth -= 1
     }
+
+    /// A measurement query. `Double`s are hashed by `bitPattern` so the key is
+    /// deterministic: a near-miss on floating-point equality costs a recompute
+    /// and never a wrong answer, which is the right direction for this to fail.
+    struct MeasureKey: Hashable {
+        var node: LayoutNodeID
+        var knownWidth: Double?
+        var knownHeight: Double?
+        var availableWidth: AvailableSpace
+        var availableHeight: AvailableSpace
+
+        static func == (l: MeasureKey, r: MeasureKey) -> Bool {
+            l.node == r.node
+                && l.knownWidth?.bitPattern == r.knownWidth?.bitPattern
+                && l.knownHeight?.bitPattern == r.knownHeight?.bitPattern
+                && l.availableWidth == r.availableWidth
+                && l.availableHeight == r.availableHeight
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(node)
+            hasher.combine(knownWidth?.bitPattern)
+            hasher.combine(knownHeight?.bitPattern)
+            hasher.combine(availableWidth)
+            hasher.combine(availableHeight)
+        }
+    }
+
+    private var memo: [MeasureKey: SizeD] = [:]
+
+    /// Cache observability. **Test-only in intent and the only way to see that
+    /// the cache is a cache** — a `storeMeasure` that never stores leaves every
+    /// behavioural test green. Pinned by `theCacheIsActuallyConsulted`.
+    private(set) var hits = 0
+    private(set) var misses = 0
+
+    func cachedMeasure(_ key: MeasureKey) -> SizeD? {
+        if let v = memo[key] { hits += 1; return v }
+        misses += 1
+        return nil
+    }
+
+    func storeMeasure(_ key: MeasureKey, _ size: SizeD) { memo[key] = size }
 }
