@@ -246,8 +246,12 @@ something wraps.
 - [ ] `measureNode` answers for containers and leaves alike, honouring
       `.definite`, `.minContent` and `.maxContent`
 - [ ] The WebKit repro (`120×50` vs `120×0`) matches, pinned by a fixture
-- [ ] All 57 existing fixtures regenerated; every moved golden explained in the
-      decisions doc
+- [ ] **Every fixture whose engine-vs-golden *comparison* moved is explained** in
+      the decisions doc, and the non-movers listed. (This criterion originally
+      read "all 57 existing fixtures regenerated; every moved golden explained",
+      which survives from the version of §5.1 that was corrected as incoherent —
+      a golden cannot move under an engine change, so the criterion could be
+      ticked by an empty diff that proved nothing.)
 - [ ] Every mutation in §5.2 reddens, measured and recorded
 - [ ] Cache hit-count asserted; purity asserted; cycle guard traps
 - [ ] `swift test` completes with a **summary line** and the full count —
