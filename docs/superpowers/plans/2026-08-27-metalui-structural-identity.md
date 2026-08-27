@@ -322,6 +322,8 @@ import MetalUICore
 }
 ```
 
+```swift
+
 /// **A named list carries state through a reorder.** This is the whole reason a
 /// name replaces a position rather than joining it: if the index were also in
 /// the key, moving an item would mint a new key and reset it.
