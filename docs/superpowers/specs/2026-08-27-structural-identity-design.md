@@ -80,6 +80,13 @@ public final class GlobalElementID: Hashable, Sendable {
 All stored properties are `let`, so the class is `Sendable`. Building a child is
 **one allocation regardless of depth**, and tails are shared rather than copied.
 
+Note this changes `GlobalElementID` from a struct to a class, so `===` becomes
+spellable alongside `==`. They are not the same: two structurally identical paths
+built on different frames are `==` and never `===`, and **`==` is the only one
+that may be used as a key or a comparison.** `StateTable` is keyed on
+`Hashable`, so it uses `==` by construction; the hazard is a hand-written
+comparison elsewhere. No production code compares ids today apart from the table.
+
 This is a cost decision, not an aesthetic one. Today `child(of:_:)` does
 `GlobalElementID(parent.path + [component])` — an array copy per level, O(depth)
 per node — and only *named* subtrees pay it. Making identity universal makes
@@ -103,7 +110,18 @@ data; nothing changes.
 
 ### 3.3 `nil` leaves the type
 
-`child(of:at:name:)` returns a **non-optional**. Consequently:
+The constructor is:
+
+```swift
+static func child(of parent: GlobalElementID,
+                  at index: Int,
+                  name: ElementID?) -> GlobalElementID
+```
+
+It returns a **non-optional**, and `name` decides the component: non-`nil` gives
+`.named(name)`, `nil` gives `.positional(index)`. The `index` is passed
+unconditionally even when a name is present, so a caller never has to decide
+which of the two to supply — that decision lives in one place. Consequently:
 
 - `Element`'s three phases take `GlobalElementID`, not `GlobalElementID?`.
 - `StateTable.withState`'s `guard let id else { …scratch… }` branch is **deleted**.
@@ -149,7 +167,13 @@ guard.
   `.positional(1)`), so flipping an `if/else` resets state rather than carrying it
   across two structurally different subtrees.
 - **`Frame.render`'s root** is `.positional(0)` unless the root element is named.
-  The `.root` sentinel remains the empty path.
+
+  **The `.root` sentinel disappears, and it must** — an earlier draft of this
+  section said it "remains the empty path", which contradicts §3.2: every
+  `GlobalElementID` has a component, so an empty path is not constructible. The
+  root element's id is simply the one with `parent: nil`. Where `Frame.render`
+  today writes `child(of: .root, element.elementID)`, it constructs the root id
+  directly.
 
 ## 4. What this falsifies
 
