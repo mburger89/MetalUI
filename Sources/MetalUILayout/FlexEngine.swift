@@ -815,21 +815,29 @@ func placeNode(
 /// below this function would return the right size and pass every golden;
 /// `measuringWritesNoLayout` is the guard.
 ///
-/// **Nothing in `Sources/` calls this yet** — wiring the four sites is the task
-/// after the one that split it out, and until then its only callers are in
-/// `MeasureNodeTests.swift`. Two limits that whoever wires it inherits, named
-/// here because a caller cannot see either from the signature:
+/// **Nothing in `Sources/` calls this yet**, and the task that propagated the
+/// intrinsic query below did not change that: it made the recursion answer the
+/// right question, not something ask it. Wiring the four constant-substituting
+/// sites is still ahead, and until then every caller is a test
+/// (`MeasureNodeTests.swift`, `IntrinsicModeTests.swift`, `MeasureCacheTests.swift`).
+/// Two limits that whoever wires it inherits, named here because a caller
+/// cannot see either from the signature:
 ///
 /// 1. **`.minContent` and `.maxContent` are no longer indistinguishable for a
 ///    container** — this doc said they were, and the fix is the `intrinsic`
 ///    argument below. Both still leave the axis *indefinite*, which is why the
 ///    correction is worth keeping: the question does not survive in
-///    `containerSize`, it survives beside it, and it reaches exactly two
-///    places — `flexBaseSize`'s content branch (an item's base size is its
-///    contribution under the container's own question) and `collectLines`'
-///    budget (§9.9.1.1: under min-content each item lines alone). Guarded by
-///    `IntrinsicModeTests.swift`, whose two tests are independently killed by
-///    those two sites.
+///    `containerSize`, it survives beside it. It reaches **three** places:
+///    `flexBaseSize`'s content branch in the MAIN axis (an item's base size is
+///    its contribution under the container's own question), the same branch's
+///    CROSS axis, and `collectLines`' budget (§9.9.1.1: under min-content each
+///    item lines alone). `IntrinsicModeTests.swift` kills each independently —
+///    one test per site, verified by reverting each site alone.
+///
+///    **This sentence has already been wrong once, and in the commit that
+///    wrote it**: it said "exactly two places" and claimed two tests covered
+///    them, while reverting the cross-axis edit reddened 0 of 330. Adding a
+///    site here without adding the test that kills it is how that recurs.
 /// 2. **`flex-grow` does not apply here, and under CSS it would.** An
 ///    indefinite main axis skips §9.7 (ruling CS-D) and every item keeps its
 ///    hypothetical main size — but CSS does not run §9.7 under intrinsic
@@ -841,9 +849,12 @@ func placeNode(
 ///    **100 here and 200 in CSS**. Unreachable in production by mechanism —
 ///    `flexBaseSize`'s content branch is the only route to a contribution
 ///    larger than the base size and it needs a non-nil `tree.measure(item)`,
-///    which `newLeaf` alone supplies and nothing in `Sources/` calls. Task 4
-///    puts it in the path. Recorded in the content-sizing decisions doc with
-///    the same numbers.
+///    which `newLeaf` alone supplies and nothing in `Sources/` calls. **Still
+///    true after the intrinsic query landed** — that task changed what a
+///    container *asks*, not who calls `measureNode`, and it left the worked
+///    example at 100/100 on both queries. Wiring the call sites is what puts
+///    it in the path, and that is the next task. Recorded in the
+///    content-sizing decisions doc with the same numbers.
 ///
 /// This doc used to carry a second limit — "an unbounded probe leaves a
 /// `flex-grow` item's target infinite … no test here can see it". **Both halves
@@ -975,7 +986,11 @@ struct IntrinsicQuery: Sendable, Hashable {
     var width: IntrinsicMode?
     var height: IntrinsicMode?
 
-    init(width: IntrinsicMode?, height: IntrinsicMode?) {
+    /// **Private on purpose.** CS-H's whole argument is that the invariant
+    /// above is *established* by `init(known:available:)` rather than
+    /// remembered — which is only true if that is the sole door that can build
+    /// an arbitrary combination. `.unspecified` is the one caller here.
+    private init(width: IntrinsicMode?, height: IntrinsicMode?) {
         self.width = width
         self.height = height
     }
@@ -1058,6 +1073,22 @@ private func collectItems(
             let minMain: Double? = {
                 if case .auto = minDim {
                     guard let measure = tree.measure(kid) else { return nil }
+                    // **A FOURTH site with hardcoded intrinsic modes, and it
+                    // stays hardcoded.** §4.5's content size suggestion IS the
+                    // item's min-content size in the main axis, whatever the
+                    // container was asked — so unlike `flexBaseSize`'s content
+                    // branch, this probe must not take `intrinsic`.
+                    //
+                    // Worth knowing before measuring a column: the CROSS axis
+                    // here is max-content, so this floor is computed from the
+                    // item's widest content even when the container is being
+                    // asked for its min-content width. A column whose item
+                    // reports 33 tall at min-content width and 77 at
+                    // max-content gets a floor of 77 and answers 77 — which
+                    // looks exactly like the cross-axis query failing to
+                    // propagate, and hid it from the first probe written for
+                    // `theCrossAxisOfTheQueryReachesTheChildToo`. That test
+                    // sets `min-height: 0` to switch this off.
                     let probe = measure(.unspecified,
                                         AvailableSpaceSize(width: isRow ? .minContent : .maxContent,
                                                            height: isRow ? .maxContent : .minContent))

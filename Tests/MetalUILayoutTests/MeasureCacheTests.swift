@@ -121,23 +121,29 @@ private func nestedTree() -> (LayoutTree, LayoutNodeID) {
 /// would pass every other test here.
 ///
 /// **Deviates from the task's original brief, which wrapped this leaf in a
-/// row container and measured the container.** That version measures 90 for
-/// both `narrow` and `wide`, not because the cache shares an entry, but
-/// because of the carried-risk gap already on record in
-/// `docs/superpowers/2026-08-26-content-sizing-decisions.md`: "`measureNode`
-/// cannot tell `.minContent` from `.maxContent` for a container." The
-/// PRIMARY barrier is `definiteExtent` in `FlexEngine.swift`, which
-/// `measureNode`'s container branch calls to build `probe`: it maps both
-/// `.minContent` and `.maxContent` to `nil` before a container ever passes
-/// anything to its children, so a real `AvailableSpaceSize` distinguishing
-/// the two does not exist below that point — `FlexBaseSize.swift`'s
-/// content-size branch (downstream, and itself hardcoding `.maxContent` on a
-/// row's main axis) never receives one to begin with, and changing that one
-/// literal alone would fix nothing. Fixing the composition would be a
-/// layout-behaviour change, which this task's gate forbids. Querying the leaf
-/// directly still fully exercises `MeasureKey.availableWidth`: dropping it
-/// from the key (Step 7's mutation 2) makes `wide` read back `narrow`'s
-/// cached 30 instead of computing 90, reddening the second assertion below.
+/// row container and measured the container** — and the reason it deviated has
+/// since expired. The paragraph here used to say that the container form
+/// "measures 90 for both", that `definiteExtent` was the PRIMARY barrier, that
+/// "changing that one literal alone would fix nothing", and that fixing the
+/// composition "would be a layout-behaviour change, which this task's gate
+/// forbids". All four were true when written and the intrinsic-query task made
+/// them false; it did not open this file, which is why they survived it. That
+/// is taxonomy shape 10 — a prediction about measurement dressed as a fact
+/// about the code — and it is the third instance on this branch, so the
+/// correction is kept rather than deleted.
+///
+/// **Measured now**, container form, one `LayoutContext`, queried
+/// min → max → min: **30, 90, 30, with `hits = 1` and `misses = 2`.** The
+/// container form would therefore work as this test.
+///
+/// It is still not what this test uses, for a reason that did not expire:
+/// querying the **leaf** directly is the shortest thing that can fail for the
+/// key's own reason. The container form routes the same distinction through
+/// `flexBaseSize`, so it reddens for a propagation bug as readily as for a key
+/// bug — `IntrinsicModeTests.swift` is where propagation is pinned, and this
+/// file is about `MeasureKey`. Dropping `availableWidth` from the key makes
+/// `wide` read back `narrow`'s cached 30 instead of computing 90, reddening
+/// the second assertion below.
 @Test func minContentAndMaxContentDoNotShareACacheEntry() {
     let tree = LayoutTree(generation: 0)
     let leaf = tree.newLeaf(style: Style()) { _, available in

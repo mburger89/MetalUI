@@ -49,7 +49,7 @@ func flexBaseSize(
         return main
     }
 
-    // 3. Content size, at max-content in the main axis.
+    // 3. Content size, under the CONTAINER's own question in the main axis.
     guard let measure = tree.measure(item) else { return 0 }
     let known = OptionalSizeD(
         width: isRow ? nil : resolveDimension(s.size.width, against: containerCross,
@@ -57,10 +57,26 @@ func flexBaseSize(
         height: isRow ? resolveDimension(s.size.height, against: containerCross,
                                          rootFontSize: rootFontSize) : nil)
     // The container's question, per axis, with `.maxContent` as the fallback it
-    // has always had. **`?? .maxContent` is not dead in either axis**: a `nil`
-    // mode is real layout (`placeNode`) as well as an axis the caller made
-    // definite, and both of those still offer the item max-content here —
-    // which is what keeps this task behaviour-preserving.
+    // has always had.
+    //
+    // **The two `?? .maxContent`s are not the same.** The main one is live and
+    // load-bearing: a `nil` mode there is real layout (`placeNode`) or an axis
+    // the caller made definite, and both still offer the item max-content,
+    // which is what keeps the intrinsic-query change behaviour-preserving.
+    //
+    // The CROSS one is **unreachable**, and by construction rather than by
+    // observation. Ruling CS-H's invariant is that an axis carries a mode iff
+    // that axis of the probe is `nil`, and `contentBox` maps `nil` to `nil`
+    // per axis — so `containerCross == nil` and "the cross mode is non-nil"
+    // are the same condition. When `containerCross` is non-nil the `.map`
+    // fires and the inner `??` is never evaluated; when it is `nil` the mode
+    // is always there. Measured: replacing the inner `?? .maxContent` with
+    // `fatalError()` leaves the whole suite green. It is kept only so the
+    // expression is a total function and does not depend on an invariant
+    // enforced two files away; delete it only together with that invariant.
+    // (An earlier version of this comment claimed the opposite — that the
+    // cross fallback was live for `placeNode` — which is exactly the case
+    // where `containerCross` IS definite.)
     let mainAvailable = (isRow ? intrinsic.width : intrinsic.height)?.availableSpace ?? .maxContent
     let crossAvailable = containerCross.map { AvailableSpace.definite($0) }
         ?? ((isRow ? intrinsic.height : intrinsic.width)?.availableSpace ?? .maxContent)
