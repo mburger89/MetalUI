@@ -388,15 +388,27 @@ import MetalUICore
 import MetalUILayout
 @testable import MetalUI
 
+/// Renders `Column { Text(text) }` into a frame `width` points wide and returns
+/// the TEXT node's resolved bounds.
+///
+/// **`Frame.render` does not hand back the root node id**, so this drives the
+/// element directly rather than through `render`. Check `LayoutPass`'s current
+/// shape before writing this — it is `LayoutPass(frame:)` today and the frame's
+/// `tree`, `requestNode` and `bounds(of:)` are all `internal`, so
+/// `@testable import MetalUI` is required.
 @MainActor
-private func measured(_ text: String, in width: Double) -> SizeD {
-    let tree = LayoutTree(generation: 0)
+private func measuredTextBounds(_ text: String, in width: Double) -> (w: Double, h: Double) {
     let frame = Frame(contentSize: Size(width: Pixels(Float(width)), height: Pixels(600)),
                       scaleFactor: 1, stateTable: StateTable())
-    var root = Column { Text(text) }
-    frame.render(&root)
-    return SizeD(width: Double(frame.bounds(of: /* root */ tree.rootNode).size.width.value),
-                 height: Double(frame.bounds(of: tree.rootNode).size.height.value))
+    var pass = LayoutPass(frame: frame)
+    var column = Column { Text(text) }
+    let id = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let (root, _) = column.requestLayout(id, pass: &pass)
+    frame.computeRootLayout(root: root)
+    // The column has exactly one child: the text node.
+    let textNode = frame.tree.children(root)[0]
+    let r = frame.tree.layout(textNode)
+    return (r.width, r.height)
 }
 
 /// **`newLeaf` has a production caller.** Before this task nothing in `Sources/`
@@ -435,9 +447,9 @@ private func measured(_ text: String, in width: Double) -> SizeD {
 @MainActor
 @Test func aLongLabelInANarrowColumnWrapsRatherThanOverflowing() {
     let narrow = 120.0
-    let size = measured("The quick brown fox jumps over the lazy dog", in: narrow)
-    #expect(size.width <= narrow + 0.5)
-    #expect(size.height > 20)      // more than one line
+    let size = measuredTextBounds("The quick brown fox jumps over the lazy dog", in: narrow)
+    #expect(size.w <= narrow + 0.5)
+    #expect(size.h > 20)      // more than one line
 }
 
 /// A `known` size wins over the measured one — `measureNode`'s existing
@@ -527,6 +539,10 @@ git commit -m "feat(text): Text element, measure function, and newLeaf's first c
   }
   public struct GlyphImage: Sendable { let width, height: Int; let bytes: [UInt8] }  // R8
   public struct AtlasSlot: Sendable { let x, y, width, height: Int }
+  public enum GlyphRaster {
+      public static func rasterize(glyph: CGGlyph, font: ResolvedFont,
+                                   subpixelVariant: Int, scaleFactor: Float) -> GlyphImage
+  }
   public final class GlyphAtlas {
       public init(width: Int, height: Int)
       public func slot(for key: GlyphKey, rasterize: () -> GlyphImage) -> AtlasSlot?
@@ -644,7 +660,7 @@ git commit -m "feat(text): glyph rasterization and shelf packing"
 - Test: `Tests/MetalUITextTests/AtlasEvictionTests.swift`
 
 **Interfaces:**
-- Produces: `GlyphAtlas.beginFrame()`, `endFrame()`, `evictUnusedSince(_ generation: Int)`, `private(set) var isBuildingFrame: Bool`.
+- Produces: `GlyphAtlas.beginFrame()`, `endFrame()`, `evictUnusedSince(_ generation: Int)`, `private(set) var isBuildingFrame: Bool`, `private(set) var currentGeneration: Int`.
 
 **Why this is its own task.** §6.2 makes eviction mandatory, and eviction is invisible when wrong: evict a glyph the current frame's scene still references and you get a wrong glyph or a blank, **on one frame, intermittently** — the hardest thing in this milestone to reproduce. The guard is the same shape as `LayoutTree.isLayingOut`, which this project already built.
 
@@ -757,21 +773,55 @@ The existing `abi_probe` proves a struct's field offsets survive the MSL boundar
 import Testing
 @testable import MetalUIRender
 
+private func makeGlyph(order: MUIUInt, x: Float = 0) -> MUIGlyph {
+    MUIGlyph(
+        bounds: MUIBounds(origin: MUIPoint(x: x, y: 0),
+                          size: MUISize(width: 8, height: 12)),
+        atlasBounds: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                               size: MUISize(width: 8, height: 12)),
+        color: MUIHsla(h: 0, s: 0, l: 1, a: 1),
+        order: order,
+        _reserved: 0)
+}
+
+private func makeRect() -> MUIRect {
+    MUIRect(
+        bounds: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                          size: MUISize(width: 10, height: 10)),
+        contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                               size: MUISize(width: 100, height: 100)),
+        background: MUIHsla(h: 0, s: 0, l: 0, a: 1),
+        borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
+        cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+        borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
+        order: 0,
+        _reserved: 0)
+}
+
 @Test func sceneKeepsGlyphsAndRectsInSeparateLists() {
     var scene = Scene()
-    scene.insert(MUIRect(/* … as existing tests construct one … */))
-    scene.insert(MUIGlyph(/* … */))
+    scene.insert(makeRect())
+    scene.insert(makeGlyph(order: 0))
     #expect(scene.rects.count == 1)
     #expect(scene.glyphs.count == 1)
 }
 
+/// Stable, so equal orders keep emission sequence — the same guarantee
+/// `finalize` already gives rects.
 @Test func finalizeSortsGlyphsStablyByOrder() {
     var scene = Scene()
-    for order in [2, 0, 1, 0] as [UInt32] { scene.insert(makeGlyph(order: order)) }
+    for (i, order) in ([2, 0, 1, 0] as [MUIUInt]).enumerated() {
+        scene.insert(makeGlyph(order: order, x: Float(i)))
+    }
     scene.finalize()
     #expect(scene.glyphs.map(\.order) == [0, 0, 1, 2])
+    // The two order-0 glyphs keep their emission order: x = 1 then x = 3.
+    #expect(scene.glyphs[0].bounds.origin.x == 1)
+    #expect(scene.glyphs[1].bounds.origin.x == 3)
 }
 ```
+
+**Check `MUIRect`'s field list against the header before writing `makeRect`** — it is the ABI and it may have gained a field. `sed -n '/typedef struct {/,/} MUIRect;/p' Sources/MetalUIRender/Shaders/MetalUIShaderTypes.h`.
 
 - [ ] **Step 4: Implement the shader pair and the upload**
 
