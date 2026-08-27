@@ -463,8 +463,11 @@ private enum Fixture {
 ///   **three** tests, 6 issues: this one, `columnStacksOnTheAxisRowDoesNot` and
 ///   `aNestedLayoutMatchesTheEngineRunDirectly`. That is the mutation this test
 ///   exists for.
-/// - Deleting it from **`Row.init`** reddens **nine**, 17 issues: this one and
-///   the eight row-shaped tests in this file.
+/// - Deleting it from **`Row.init`** reddens **seven**, 15 issues: this one and
+///   the six row-shaped tests in this file. `paddingEdgesAreNotTransposed` and
+///   `marginEdgesAreNotTransposed` are deliberately *not* among them — they
+///   declare `.alignItems(.stretch)` explicitly, so the default cannot reach
+///   them, which is the point of writing it there.
 /// - **Moving the default down into `Style`** — `alignItems: AlignItems? =
 ///   .center` with both stack lines deleted — reddens **84** tests and 271
 ///   issues, almost all of them the browser corpus
@@ -636,26 +639,27 @@ private func pathID(_ names: String...) -> GlobalElementID {
 ///
 /// **Four different values, and every one of them observable**: with a uniform
 /// `padding(8)` an `init` that transposed top and bottom passes. `left` and
-/// `top` show up in the child's origin; `right` shows up in the grown child's
-/// width; `bottom` shows up in the child's `y`, through the centring arithmetic.
+/// `top` show up in the child's origin; `right` and `bottom` show up in the
+/// grown/stretched child's size, so a transposed pair moves a number.
 ///
-/// **That last clause is what ruling EP-8 changed.** It used to read "`right`
-/// and `bottom` show up in the grown/**stretched** child's size", and the
-/// assertion was `(16, 4, 376, 104)` — the child's height was the content box's
-/// height because stretch gave it one. `Row` now centres, so an `auto` cross
-/// size is the child's own content size, and `Probe` is childless: **height 0.**
-/// That is EP-8's stated cost showing up in a test rather than in a window, and
-/// it is the reason the demo's sidebar now says `.alignItems(.stretch)` out
-/// loud.
+/// **`.alignItems(.stretch)` is written here on purpose, and it is no longer
+/// the default — ruling EP-8 made `Row` centre.** It is kept, rather than
+/// re-baselined onto the new default, because centring would give this childless
+/// `Probe` an `auto` cross size of **0**, and a zero extent hides transposition
+/// errors: `height` stops carrying `bottom`, and two of the four edges would be
+/// readable only through one `y`. Cross-axis extent is also **a shape this
+/// engine has actually been wrong about** — CLAUDE.md's box-model work found
+/// that a stretched item's cross size ignored its cross margins, WebKit
+/// `50x65` against the engine's `50x100` — so an element-layer guard on it is
+/// worth two tests sitting deliberately off the new default. The browser corpus
+/// covers the composition at the engine level; this covers it through the
+/// modifiers.
 ///
-/// All four edges are still observable, which is the whole point of the test —
-/// derived, not pasted, content box x [16, 392], y [4, 108]:
-///   x      = left = **16**              (transposing left/right gives 8)
-///   width  = 400 - 16 - 8 = **376**     (unchanged by the transposition, which
-///                                        is why `x` carries that half)
-///   height = the child's content = **0**
-///   y      = 4 + (104 - 0) / 2 = **56** (transposing top/bottom gives 64;
-///                                        a dropped `bottom` gives 62)
+/// Derived, not pasted. Content box x [16, 392], y [4, 108]:
+///   x      = left = **16**            (transposing left/right gives 8)
+///   y      = top  = **4**             (transposing top/bottom gives 12)
+///   width  = 400 - 16 - 8  = **376**
+///   height = 120 -  4 - 12 = **104**  (stretch fills the content box)
 @MainActor
 @Test func paddingEdgesAreNotTransposed() {
     let log = ElementLog()
@@ -665,34 +669,34 @@ private func pathID(_ names: String...) -> GlobalElementID {
     }
     .padding(Edges(top: .pixels(px(4)), right: .pixels(px(8)),
                    bottom: .pixels(px(12)), left: .pixels(px(16))))
+    // Not the default since EP-8 — see the doc comment for why it stays.
+    .alignItems(.stretch)
 
     frame.render(&row)
 
-    #expect(rect(log.bounds["only"]!) == (16, 56, 376, 0))
+    // origin = (left, top); size = content box = (400-16-8, 120-4-12).
+    #expect(rect(log.bounds["only"]!) == (16, 4, 376, 104))
 }
 
 /// Margins land on the edge they name too, and shrink the space available to
 /// the item rather than moving it alone.
 ///
-/// **Was `(16, 4, 376, 104)` before ruling EP-8**, for the same reason as the
-/// padding test above: the cross size came from stretch, and `Row` now centres,
-/// so a childless `Probe` measures 0 on the cross axis. The margin box is what
-/// gets centred — CSS Flexbox §8.3 aligns the item's *margin* box within the
-/// line — so `bottom` is still observable, and now through `y` rather than
-/// through the height:
-///   x      = margin-left = **16**
-///   width  = 400 - 16 - 8 = **376**   (the item grows into what the margins left)
-///   height = the child's content = **0**
-///   y      = (120 - (4 + 0 + 12)) / 2 + 4 = 52 + 4 = **56**
-///           (transposing top/bottom gives 64; a dropped `bottom` gives 62)
+/// **`.alignItems(.stretch)` is written here on purpose and is no longer the
+/// default** — see `paddingEdgesAreNotTransposed` above for the general reason.
+/// This test is the *stronger* of the two cases for keeping it, because the
+/// composition it exercises is **stretch x cross-margins**, and that is one of
+/// the three real engine bugs the box-model milestone found: a stretched item's
+/// cross size ignored its cross margins and overflowed its container, WebKit
+/// `50x65` against the engine's `50x100`. A shape this engine has been wrong
+/// about once keeps its element-layer guard; re-baselining onto centring would
+/// have replaced it with a 0-height child that cannot see the bug at all.
 ///
-/// **What this test stopped covering, said out loud rather than left silent.**
-/// Under stretch it also exercised stretch x cross-margins — one of the three
-/// real engine bugs the box-model milestone found. That composition is not lost,
-/// it just is not here any more: it lives in the browser corpus, at the engine
-/// level where the oracle can judge it (`flex_column_reverse_margins` and the
-/// stretch fixtures beside it), which is the right place for it under EP-8's
-/// split.
+/// Derived, not pasted:
+///   x      = margin-left = **16**        (transposing left/right gives 8)
+///   y      = margin-top  = **4**         (transposing top/bottom gives 12)
+///   width  = 400 - 16 - 8  = **376**     (the item grows into what the margins left)
+///   height = 120 -  4 - 12 = **104**     (stretch subtracts the cross margins —
+///                                         the clause that was once missing)
 @MainActor
 @Test func marginEdgesAreNotTransposed() {
     let log = ElementLog()
@@ -702,10 +706,12 @@ private func pathID(_ names: String...) -> GlobalElementID {
             .margin(Edges(top: .pixels(px(4)), right: .pixels(px(8)),
                           bottom: .pixels(px(12)), left: .pixels(px(16))))
     }
+    // Not the default since EP-8 — see the doc comment for why it stays.
+    .alignItems(.stretch)
 
     frame.render(&row)
 
-    #expect(rect(log.bounds["only"]!) == (16, 56, 376, 0))
+    #expect(rect(log.bounds["only"]!) == (16, 4, 376, 104))
 }
 
 /// `gap(horizontal:vertical:)` writes both axes, and the row reads the
