@@ -67,7 +67,7 @@ public final class LayoutTree {
     ///
     /// The flag lives here rather than on `LayoutContext` because `setStyle` is a
     /// tree method and has no context in hand.
-    public private(set) var isLayingOut = false
+    private(set) var isLayingOut = false
 
     func beginLayout() {
         precondition(!isLayingOut, "computeLayout re-entered on the same tree")

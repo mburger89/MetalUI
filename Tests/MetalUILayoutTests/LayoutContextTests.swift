@@ -34,7 +34,27 @@ import MetalUICore
                   available: AvailableSpaceSize(width: .definite(100),
                                                 height: .definite(100)))
     #expect(tree.isLayingOut == false)
-    tree.setStyle(node, Style())   // must not trap
+}
+
+/// The other half of `layoutClearsTheGuardWhenItFinishes`'s claim: once layout
+/// has finished, `setStyle` actually works again rather than merely reporting
+/// `isLayingOut == false`.
+///
+/// Carried in a subprocess rather than in-process. If `endLayout` never ran,
+/// `setStyle`'s own guard traps for real on the line below — and a trap
+/// in-process would take the rest of the suite down with it (taxonomy shape
+/// 11: a crash-on-fail destroys the evidence for every *other* test, which is
+/// strictly worse than one clean redden). Here that trap is just a subprocess
+/// exit code, so the mutation that breaks it reddens cleanly instead.
+@Test func setStyleAfterLayoutFinishesDoesNotTrap() async {
+    await #expect(processExitsWith: .success) {
+        let tree = LayoutTree(generation: 0)
+        let node = tree.newNode(style: Style(), children: [])
+        computeLayout(tree, root: node,
+                      available: AvailableSpaceSize(width: .definite(100),
+                                                    height: .definite(100)))
+        tree.setStyle(node, Style())   // must not trap
+    }
 }
 
 @Test func aCycleInTheChildListTrapsRatherThanHanging() async {
