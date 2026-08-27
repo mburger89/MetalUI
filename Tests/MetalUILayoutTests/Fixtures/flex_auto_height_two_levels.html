@@ -29,6 +29,19 @@
      `.outer` inheriting the root's 300, would show up as a wrong width rather
      than passing quietly. All are definite, so none of them stretches.
 
+     `min-height: 0` ON BOTH CONTAINERS, AND IT WAS ADDED AFTER A MEASUREMENT.
+     Without it this file is green under a site-1 revert (`flexBaseSize`'s
+     content branch back to 0) AND green under a site-2 revert (§4.5's
+     automatic minimum back to floorless), and red only under both — a real
+     masking pair, the first measured on this branch. In a COLUMN the two sites
+     compute the same number: §4.5 probes the item's min-content height, which
+     for fixed-height children is the same 48 the content branch returns, so
+     either one alone rescues the other. Switching the automatic minimum off
+     leaves the content branch as the only source of 48. WebKit's answer is
+     BYTE-IDENTICAL either way — nothing here shrinks, so the declaration
+     cannot bind — which is the evidence that it changes what this fixture
+     PINS and not what it IS.
+
      WHAT THIS FIXTURE CANNOT CATCH: the two leaves are the same 60x24, so it
      cannot distinguish "sum the children" from "twice the first child". The
      sum is pinned instead by `flex_nested_auto_cross`'s max-over-a-line and by
@@ -37,8 +50,8 @@
      numbers, which is worth less than the level-skip check the equal widths
      above buy. */
   #root { display: flex; flex-direction: column; width: 300px; height: 220px; }
-  .outer { display: flex; flex-direction: column; width: 240px; }
-  .inner { display: flex; flex-direction: column; width: 180px; }
+  .outer { display: flex; flex-direction: column; width: 240px; min-height: 0; }
+  .inner { display: flex; flex-direction: column; width: 180px; min-height: 0; }
   .inner > div { width: 60px; height: 24px; }
   .after { width: 100px; height: 30px; }
 </style></head><body>

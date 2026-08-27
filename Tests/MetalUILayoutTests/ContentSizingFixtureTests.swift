@@ -86,6 +86,19 @@ private func leaf(_ tree: LayoutTree, _ w: Double, _ h: Double) -> LayoutNodeID 
 /// the draft of this fixture), this engine keeps the offered extent. Putting
 /// the auto axis one level down tests the propagation with none of the
 /// divergence in it.
+///
+/// **`min-height: 0` on both containers is what makes this test site 1 at all,
+/// and it was added after a measurement, not before one.** Without it, the
+/// fixture is green under a site-1 revert *and* green under a site-2 revert,
+/// and red only under both — a real masking pair, and the first one measured on
+/// this branch. In a column, §4.5's automatic minimum probes the item's
+/// min-content HEIGHT, which for fixed-height children is the same 48 the
+/// content branch computes, so either site alone rescues the other. Switching
+/// the automatic minimum off leaves the content branch as the only source of
+/// the number. WebKit's answer is **byte-identical** either way — nothing here
+/// shrinks — so the golden did not move when the declaration was added, which
+/// is the evidence that it changes what the fixture *pins* and not what it
+/// *is*.
 @Test func autoHeightAtTwoLevelsMatchesWebKit() throws {
     let golden = try loadGolden("flex_auto_height_two_levels")
     let tree = LayoutTree(generation: 0)
@@ -95,11 +108,13 @@ private func leaf(_ tree: LayoutTree, _ w: Double, _ h: Double) -> LayoutNodeID 
     var innerStyle = Style()
     innerStyle.flexDirection = .column
     innerStyle.size = Size(width: px(180), height: .auto)
+    innerStyle.minSize = Size(width: .auto, height: px(0))
     let inner = tree.newNode(style: innerStyle, children: [g1, g2])
 
     var outerStyle = Style()
     outerStyle.flexDirection = .column
     outerStyle.size = Size(width: px(240), height: .auto)
+    outerStyle.minSize = Size(width: .auto, height: px(0))
     let outer = tree.newNode(style: outerStyle, children: [inner])
 
     let after = leaf(tree, 100, 30)
