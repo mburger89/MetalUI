@@ -144,8 +144,13 @@ same number**:
   built around this, and its `.b`/`.d`/`.f` are still empty divs: measured cross
   0, then stretched by the line exactly as before;
 - site 4 (`resolveRootSize`) — **no fixture root has an `auto` axis at all**;
-  every one declares both a `width` and a `height`, which is forced by the
-  generator's own hygiene check.
+  all 57 declare both a `width` and a `height`. That is a convention, not
+  something the harness enforces: `FixtureHygieneError` checks only that the
+  root box lands at (0, 0). A fixture *could* declare an `auto` root — and it
+  would fail, because it would encode ruling CS-I's divergence. The corpus
+  deliberately holds no such fixture, on the same footing as WebKit's flex
+  sub-one clause (CLAUDE.md divergence 2), and the divergence is pinned by a
+  named test instead.
 
 **Group B — 4 fixtures, three levels deep, with a real nested container.**
 
@@ -159,6 +164,29 @@ size and `ownCross` takes `resolveNodeSize`'s declared value. Site 2 does
 compute a real content-based floor for them for the first time, and it binds on
 none of the four — nothing in these fixtures overflows its container, so no item
 shrinks far enough to meet a floor.
+
+### The mutations, measured
+
+Design §5.2 lists five mutations that must redden. The two the re-baseline owns:
+
+| mutation | reddens, of 334 | golden comparisons among them |
+|---|---|---|
+| `measureNode` returns 0 for a container (the pre-milestone bug, restored) | **15** | **0** |
+| `.minContent` / `.maxContent` swapped at the two sites that name them | **3** | **1** |
+
+The first is the important number and the important zero. Fifteen tests see the
+bug this milestone exists to fix and **not one of them is a fixture** —
+`autoCrossNestedContainerMeasuresItsLineLikeWebKit`,
+`aContainerItemIsFlooredByItsChildrensWidth`,
+`aContainerItemsBaseSizeComesFromItsChildren` and
+`anAutoRootWithNoOfferedExtentMeasuresItsContent` cover one site each, and all
+four are hand-written. The plan predicted "the auto-cross **fixture** reddens
+specifically"; there is no auto-cross fixture, which is the whole content of
+the non-mover list above.
+
+The second is broken out per site in the carried risk below, where the surprise
+is: the §4.5 half **does** redden two goldens, which the carried risk had said
+was impossible.
 
 ### What that list is for
 
@@ -266,13 +294,39 @@ direction is the one ruling CS-B cares about.
   is observability, and it was observable at exactly the level of the two
   committed tests: a column container asked `.minContent` in its cross axis,
   with `min-height: 0` to switch off §4.5's own max-content probe. Design §5.2's "`.minContent` and `.maxContent` swapped
-  at a call site" is now a mutation that *can* redden something; it still
-  cannot redden a **fixture**, because every fixture in the corpus is a
-  pixel-sized empty div for which the two modes coincide. **The re-baseline
-  measured that half rather than inheriting it**: swapping the two modes at
-  both sites reddens 2 of 334 tests, both in `IntrinsicModeTests`, and **0 of
-  the 57 golden comparisons**. It stays open, and it is item 5 on Task 6's
-  fixture list above.
+  at a call site" is now a mutation that *can* redden something.
+
+  **The second half of this risk — "it still cannot redden a fixture, because
+  every fixture in the corpus is a pixel-sized empty div for which the two
+  modes coincide" — is FALSE after the wiring, and was measured rather than
+  re-asserted.** It is the third claim of this shape on this branch. Swapping
+  the modes at **`collectItems`' §4.5 probe** reddens `wrap_nested_percent_padding`
+  and `wrap_align_content_around_evenly` — two real golden comparisons — because
+  the probed item is a **nested `wrap` container**, whose min-content width
+  (each child on its own line) and max-content width (all on one) genuinely
+  differ, and §4.5's floor clamps the `hypotheticalMainSize` that
+  `collectLines` then breaks on. An empty div cannot tell the modes apart; a
+  container can, and Group B put four of them in the corpus before this
+  milestone existed.
+
+  Measured, on 334 tests (see ruling CS-L's sibling note on why each half is
+  reverted alone):
+
+  | mutation | reddens | of which golden comparisons |
+  |---|---|---|
+  | §4.5 probe modes swapped | 4 | **2** (`wrapNestedPercentPaddingMatchesWebKit`, `wrapAlignContentAroundAndEvenlyMatchWebKit`) |
+  | `flexBaseSize`'s main-axis `?? .maxContent` → `.minContent` | 2 | 0 |
+  | both together | 3 | 1 |
+
+  **The composite is weaker than either half**, which is the reason to revert
+  sites one at a time: `aContainersIntrinsicQueryReachesItsChildren` and
+  `automaticMinimumSizeUsesContentSizeNotFlexBasis` each go green again when
+  the other site is also wrong. A single "swap everything" mutation would have
+  reported 3 and hidden a site.
+
+  What still has no fixture is a container whose **own reported size** differs
+  between the two queries — the `flexBaseSize` row above, 0 goldens. That is
+  item 5 on Task 6's list.
 - **`measureNode`'s purity is not enforced by the type system.** A `setLayout`
   anywhere beneath it returns the right size and passes every golden;
   `measuringWritesNoLayout` is the only thing that sees it, and it asserts on

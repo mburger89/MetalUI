@@ -173,13 +173,19 @@ would collapse to its content and every `flexGrow(1)` child would stretch into
 root fills the window; **EP-6** keeps `Column`/`Row` on `stretch` for the same
 reason. `computeLayout`'s `available:` is a window, not a viewport.
 
-**No fixture can hold this one**, and by a mechanism rather than a milestone:
-the golden generator measures a `#root` inside a real body, so the only way to
-express "offered nothing" is a viewport with no width, which a browser does not
-have. Every fixture root declares both a width and a height, which is also why
-the corpus never distinguished the two answers. What content sizing *did*
-change here is the case with no offered extent at all — a hardcoded 0, now the
-subtree's own size (`anAutoRootWithNoOfferedExtentMeasuresItsContent`).
+**No fixture holds this one, and that is a choice rather than an
+impossibility.** `#root { display: flex }` with no `width` or `height` is
+perfectly expressible, and a golden generated from it would say 800×40 and fail
+— so the corpus deliberately contains none, on the same footing as WebKit's
+flex sub-one clause above. All 57 roots declare both axes, which is also why
+the corpus never distinguished the two answers; `FixtureHygieneError` does not
+enforce that, it only checks the root lands at (0, 0).
+
+What content sizing *did* change here is the other constant hiding in the same
+branch — an `auto` axis with **no offered extent at all** was a hardcoded 0 and
+is now the subtree's own size. A browser cannot express an indefinite viewport,
+so that half is reasoned from CSS's shrink-to-fit rule; it is pinned by
+`anAutoRootWithNoOfferedExtentMeasuresItsContent`.
 
 ## Declared but inert — verified, not remembered
 

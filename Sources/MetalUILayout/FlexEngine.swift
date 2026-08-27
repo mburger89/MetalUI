@@ -47,15 +47,21 @@ import MetalUICore
 /// committed goldens already held WebKit's stretched answers, which is the
 /// evidence the rule is right.
 ///
-/// **Content-based cross sizing is still NOT implemented** — the other half of
-/// §9.4. **Any** item with an `auto` cross size measures 0 here, stretched or
-/// not, because the size is lost in §9.4.8 line measurement, which runs *before*
-/// stretch. Ruling **WR-4**: this paragraph used to scope the gap to a
-/// *non-stretched* item and to say no fixture could catch it without the M2 text
-/// system. Both were disproved by measurement — a **nested flex container** has a
-/// content cross size with no text in it, and WebKit gives one `120×50` where
-/// this engine gives `120×0`. M2 is not the gate; recursive subtree measurement
-/// is, and that is its own plan.
+/// **Content-based cross sizing landed with content sizing** — the other half of
+/// §9.4, and the last of the four constants. **Any** item with an `auto` cross
+/// size used to measure 0 here, stretched or not, because the size is lost in
+/// §9.4.8 line measurement, which runs *before* stretch; `collectItems`'
+/// `ownCross` now asks `measureNode` instead. WebKit gives a nested
+/// `width: 120px` flex container `120×50` where this engine gave `120×0`, and
+/// gives it `120×50` now.
+///
+/// Ruling **WR-4**'s history is worth keeping because the paragraph that stood
+/// here was wrong twice: it scoped the gap to a *non-stretched* item, and said
+/// no fixture could catch it without the M2 text system. Both were disproved by
+/// measurement — a **nested flex container** has a content cross size with no
+/// text in it. The gate was never text metrics but recursive subtree
+/// measurement, and naming a mechanism rather than a milestone is what let it
+/// be closed a milestone early.
 ///
 /// Every rect written here is **absolute to the root**, not relative to its
 /// parent. `roundLayout` keeps no cross-rect state, so its no-drift guarantee
