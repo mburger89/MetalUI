@@ -58,6 +58,87 @@ import MetalUICore
     }
 }
 
+/// The tree the re-entrancy test below lays out, at **file scope on purpose**.
+///
+/// Two constraints meet here and neither is stylistic. A
+/// `#expect(processExitsWith:)` body may not capture, per ruling CS-C; and a
+/// `MeasureFunction` is `@Sendable` while `LayoutTree` is a non-Sendable final
+/// class, so the closure cannot capture the tree it is measuring under Swift 6
+/// mode either. A `nonisolated(unsafe)` global is what lets the closure reach
+/// the tree without either capture. Single-threaded, one subprocess, written
+/// once and read once.
+nonisolated(unsafe) private var reentrantTree: LayoutTree?
+nonisolated(unsafe) private var reentrantRoot: LayoutNodeID?
+
+/// `beginLayout`'s precondition — **re-entering `computeLayout` on a tree that
+/// is already laying out traps**, rather than corrupting the measure cache.
+///
+/// The hazard is not hypothetical and not exotic: `measureNode` memoizes on the
+/// assumption that styles and structure hold still for the duration of a run,
+/// and a nested `computeLayout` would `setLayout` every node underneath it and
+/// return into the outer run's arithmetic. It is reachable by exactly one
+/// mechanism — a `MeasureFunction` that lays out the tree it is being asked to
+/// measure — which is what this test builds, so the route is the real one and
+/// not a hand-set flag.
+///
+/// **It was unguarded until this test.** Deleting the precondition left
+/// `Test run with 339 tests in 0 suites passed`: its two sibling guards from the
+/// same commit — `setStyle`'s and `LayoutContext.enter`'s — each had a killing
+/// test and this one had none. Taxonomy shape 6, a guard nobody proved can fire.
+///
+/// **The `stderr` check is what makes it about *this* guard.** `.failure` alone
+/// is satisfied by `setStyle`'s precondition, by the depth guard, or by a stack
+/// overflow — and the depth guard is a live candidate here, since a measure
+/// function that re-enters layout would otherwise recurse until the stack or
+/// `maxDepth` ended it. The message names which one fired.
+///
+/// **In a subprocess, per ruling CS-C**: the passing path traps, and a trap
+/// in-process is signal 5 with no summary line and every other test's result
+/// destroyed (taxonomy shape 11).
+@Test func computeLayoutReenteredFromAMeasureFunctionTraps() async {
+    let result = await #expect(processExitsWith: .failure,
+                               observing: [\.standardErrorContent]) {
+        let tree = LayoutTree(generation: 0)
+        reentrantTree = tree
+        // An `auto`-sized leaf, so §9.2's content branch actually consults the
+        // measure function during the outer layout.
+        let leaf = tree.newLeaf(style: Style()) { _, _ in
+            if let t = reentrantTree, let r = reentrantRoot {
+                computeLayout(t, root: r,
+                              available: AvailableSpaceSize(width: .definite(100),
+                                                            height: .definite(100)))
+            }
+            return SizeD(width: 10, height: 10)
+        }
+        var rootStyle = Style()
+        rootStyle.flexDirection = .row
+        let root = tree.newNode(style: rootStyle, children: [leaf])
+        reentrantRoot = root
+        computeLayout(tree, root: root,
+                      available: AvailableSpaceSize(width: .definite(100),
+                                                    height: .definite(100)))
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("computeLayout re-entered on the same tree"),
+            "aborted, but not at the re-entrancy guard this test is about:\n\(stderr)")
+}
+
+/// The positive control, and it pins the half `computeLayoutReenteredFromAMeasureFunctionTraps`
+/// cannot: that the guard is **conditional**. A `precondition(false)` in
+/// `beginLayout`, or an `endLayout` that never clears the flag, satisfies the
+/// test above and reddens this one — laying the same tree out twice in sequence
+/// is ordinary and must work.
+@Test func layingOutTheSameTreeTwiceInSequenceDoesNotTrap() async {
+    await #expect(processExitsWith: .success) {
+        let tree = LayoutTree(generation: 0)
+        let node = tree.newNode(style: Style(), children: [])
+        let space = AvailableSpaceSize(width: .definite(100), height: .definite(100))
+        computeLayout(tree, root: node, available: space)
+        computeLayout(tree, root: node, available: space)
+        #expect(tree.isLayingOut == false)
+    }
+}
+
 @Test func aCycleInTheChildListTrapsRatherThanHanging() async {
     await #expect(processExitsWith: .failure) {
         let ctx = LayoutContext(rootFontSize: 16)

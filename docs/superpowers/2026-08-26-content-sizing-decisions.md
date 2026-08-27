@@ -4,7 +4,7 @@ Every ruling taken on the user's behalf while executing
 `docs/superpowers/plans/2026-08-26-metalui-content-sizing.md`, in order. Each
 says what was decided, why, and what it costs if wrong.
 
-**Ruling IDs here are prefixed `CS-` and are LETTERED, `CS-A`…`CS-N`.** A bare
+**Ruling IDs here are prefixed `CS-` and are LETTERED, `CS-A`…`CS-O`.** A bare
 `CS-3` is therefore a typo, not a citation. `PF-`/`C-` belong to m1a, `FS-` to
 flex sizing, `AL-` to alignment, `BM-` to the box model, `WR-` to wrapping,
 `EP-` to the element pipeline. A bare `F-n` is ambiguous across three documents
@@ -30,6 +30,7 @@ survived two branches' greps for lowercase `ruling`.
 | CS-L | **`LayoutContext.maxDepth` stays 64, and the measurement behind the number is now stated as a DEBUG figure.** Wiring made `measureNode` recurse for real: one tree level costs `measureNode` → `layOutChildren` → `collectItems` → its item closure → `flexBaseSize` → `measureNode` on top of `placeNode` → `positionItems`, and the stack ceilings fell ~4×. `layingOutATreeDeeperThanTheLimitTraps` went red on the wiring commit — SIGBUS, empty stderr, the stack winning before the guard could name anything. **The first fix was to drop the constant to 16, and that was wrong.** It bisected on a Swift Testing exit-test task and on an explicit 256 KB thread, and **neither is a stack this framework runs on** — `Frame.computeRootLayout` is `@MainActor`, so the floor is a 1 MB iOS main thread. A test harness was setting a production capability limit, `precondition` is live in `-O`, and `Column { Row { Box { … } } }` reaches 17 trivially: 16 was a shipping crash that would have reported "the child lists contain a cycle" for a tree with no cycle. The fix is to size the *test's* stack instead — `layingOutATreeDeeperThanTheLimitTraps` now runs its layout on an explicit 4 MB `Thread` — and to keep 64, which is 64/107 against the smallest **real** stack's debug ceiling: the same 0.60 margin the original 64 decision used. Measured ceilings (bisected, this branch): 256 KB **27 debug / 167 release**, 1 MB **107 / 654**; per level ~9,800 B debug and ~1,600 B release, i.e. **release is ~6× cheaper**. Quoting only the debug figure is how the next person re-measures in `-O`, gets a sixth of it, and concludes the table is wrong. | A guard whose ceiling is set by whichever stack the test harness happens to hand over. In one direction that is an unattributed SIGBUS in production; in the other — the direction this actually went — it is a `precondition` firing on an ordinary three-deep UI. |
 | CS-M | **Every mutation count in this document is a `--no-parallel` measurement, and the SUMMARY LINE's issue count is the stable number.** The parallel runner drops failing-test *names* from the log when failures print concurrently: the same mode swap reported **3** tests in a parallel run and **6** under `--no-parallel`, with an identical issue count both times. That artifact manufactured a false finding — the "masking effect" the carried risk below retracts — so this is a ruling rather than a note. It was recorded as carried-risk prose while the letter `CS-M` circulated in the task ledger and in two task reports, which is the same shape as the CS-E/CS-F collision this branch already spent a review cycle on: a cited letter that the table does not define. **A test count scraped from the log body is evidence only under `--no-parallel`; the issue count is evidence either way.** | A number that moves with the scheduler is read as a number that moves with the code, and the conclusion drawn from it is published. |
 | CS-N | **A mutation count is only reproducible with its SPELLING, and the spelling belongs next to the number.** "Revert site 2" admits at least two forms — an unconditional early `return nil` and a measure-guarded `if tree.measure(kid) == nil { return nil }` — which agree for containers and diverge for **leaves carrying measure closures**, and the hand-written tests build exactly those. Site 1 has the same pair, and it is already known to matter: the composite's two readings differ 15 vs 3. Three careful `--no-parallel` measurements of "the same" sites-1+2 composite gave **5 / 22**, **6 / 25** and **9 / 27**, and none of the three is wrong. **What reproduced in all three is which fixtures moved** — `autoHeightAtTwoLevelsMatchesWebKit` red in the composite, green under each half alone. This is CS-M one level deeper: CS-M says the summary line's issue count is stable where a scraped test count is not; CS-N says even the summary line is stable only per spelling. **Quote the exact edit beside any mutation number, and prefer "this fixture reddens" over "N tests redden" when recording coverage — record what moved, not how much.** | Two people measure the same mutation, disagree by 4 tests, and spend a review cycle deciding which is lying, when the answer is that they mutated different code. |
+| CS-O | **A divergence that becomes measurable mid-milestone gets ruling BM-4's treatment: declared, pinned by a named test carrying the browser's numbers, and deliberately given NO fixture.** FS-3's missing *specified* size suggestion was dormant while nothing measured content; making the content half live for containers turned it into a measured disagreement with WebKit (a=200/b=0 against WebKit's 100/50). Implementing it was refused **in this milestone** for the reason that kept BM-4 out of the box model — it changes an item's floor, which §9.7 consumes and every ancestor then sees as a different stored size — so the divergence is recorded three times over instead: CLAUDE.md's fifth known divergence, `aContainerIsNotFlooredByItsSpecifiedSizeUnlikeWebKit`, and the engine comment at the site. **No fixture and no golden**, on WebKit's sub-one clause's footing: a golden would record this engine's answer as correct, and a future fix should move nothing in the corpus. **This letter was cited by a commit before it had a row** — the inverse of the CS-E/CS-F collision, and the reason CS-M exists; a letter without a row is as unciteable as a row without a letter. | A divergence with no pin is invisible to the next reader; a divergence with a *fixture* is worse, because the corpus then asserts the wrong answer is right and a future fix reddens the oracle. |
 
 ## EP-6 is unblocked — recorded, not re-decided
 
@@ -440,9 +441,9 @@ the divergence, so implementing FS-3 later will move one test and no fixture.
   that has since become four — it now cites the divergence by subject, since the
   count has moved twice.
 - **The counts.** Measured, not propagated: `Test run with 338 tests in 0 suites
-  passed`, and **61** fixtures with 61 goldens. The fix round's divergence test
-  makes it **339**, which is the number in CLAUDE.md; the mutation figures above
-  keep the 338 they were taken on.
+  passed`, and **61** fixtures with 61 goldens. Fix round 1's divergence test
+  makes it 339 and fix round 2's three make it **342**, which is the number in
+  CLAUDE.md; every mutation figure keeps the suite size it was taken on.
 - **EP-6 is unblocked and now says so where a future session starts reading** —
   CLAUDE.md's "Start here", alongside the two things a re-decision must not
   assume. The element-pipeline decisions doc's own EP-6 row carries a pointer,
@@ -470,6 +471,68 @@ minus `MetalUITestSupport`), and the 25 `swiftc -typecheck` guards
 suite size — "on 334 tests" in the tables above, "297 of 303", "304" — are left
 at the number they were taken on; re-stamping them with today's count would
 turn a measurement into a guess.
+
+### Fix round 2 — the whole-branch review's five
+
+Four corrections and one guard, all measured. The guard is the finding.
+
+- **`beginLayout`'s re-entrancy precondition was unguarded — taxonomy shape 6,
+  and it shipped in the same Task 1 commit as two guards that each got a killing
+  test.** Deleting
+  `precondition(!isLayingOut, "computeLayout re-entered on the same tree")` left
+  the suite green. Closed by `computeLayoutReenteredFromAMeasureFunctionTraps`
+  in `LayoutContextTests.swift`, which reaches the guard by its **one real
+  mechanism** — a `MeasureFunction` that lays out the tree it is being asked to
+  measure — rather than by setting the flag by hand, so it also pins that
+  `computeLayout` calls `beginLayout` at all. It checks `stderr` for the guard's
+  own message, because `.failure` alone is satisfied by `setStyle`'s
+  precondition, by the depth guard, or by a stack overflow — and an unbounded
+  re-entrant recursion makes the depth guard a live candidate. Its positive
+  control, `layingOutTheSameTreeTwiceInSequenceDoesNotTrap`, is what keeps the
+  guard *conditional*: `precondition(false)` satisfies the first test and
+  reddens the second.
+
+  **Two things had to be worked around, and both are recorded at the
+  declaration.** A `#expect(processExitsWith:)` body may not capture (ruling
+  CS-C), and a `@Sendable MeasureFunction` cannot capture a non-Sendable
+  `LayoutTree` under Swift 6 mode — so the tree reaches the closure through a
+  `nonisolated(unsafe)` file-scope var. Written once, read once, one subprocess.
+
+- **The corpus's one taxonomy-shape-3 instance is closed.**
+  `flex_row_seven_equal` was the only fixture of 61 with a golden and **no**
+  engine-vs-golden comparison — read solely by `committedGoldensMatchTheBrowser`,
+  which checks the browser against itself — while `ContentSizingFixtureTests`'
+  header named that exact shape. `sevenEqualChildrenMatchWebKit` closes it, and
+  it was **mutation-verified rather than assumed**: `roundLayout`'s
+  `let x1 = (r.x + r.width).rounded()` → `.rounded(.down)` reddens it with `c1`
+  15→14, `c2` 14→13, `c5` 15→14, `c6` 14→13 (6 tests / 12 issues, 342 tests,
+  `--no-parallel`).
+
+  It also moves a claim in `Rounding.swift`: **pointing both golden-comparison
+  helpers at `golden.raw` now reddens two tests, not one** — re-measured,
+  `shrinkMatchesWebKit` **and** `sevenEqualChildrenMatchWebKit`, 16 issues at 342
+  tests, spelled `golden.raw.map` in `assertMatchesGolden` plus `committed.raw` /
+  `fresh.raw` in `committedGoldensMatchTheBrowser`. The raw/rounded distinction
+  rested on one fixture reaching one comparison; it rests on two, and they fail
+  differently (a 1/64 quantum against a seventh of 100).
+
+- **Ruling CS-O now has a row.** It was cited by the commit that took it and
+  defined nowhere — the CS-E/CS-F collision inverted, which is what CS-M exists
+  to prevent. Both range declarations (this doc's header, CLAUDE.md's namespace
+  note) extended to `CS-A…CS-O`; `grep -rhoE "CS-[A-Z]"` gives A-O with no gaps.
+
+- **Two fixture counts the Task 7 citation sweep missed**: `FlexEngine.swift`'s
+  "The 57 browser goldens are the check" and `ModifierTests.swift`'s "The 57
+  browser fixtures build a `Style` directly" — both **61**. The sweep had updated
+  `ElementLayoutTests.swift` and missed its sibling `ModifierTests.swift`, which
+  is the lesson: a count that appears in a *pair* of files is the one a grep for
+  the number will half-fix, because fixing the first hit reads as done.
+
+- **An understated coverage claim, scoped.** See the `.minContent`/`.maxContent`
+  entry in the carried risk below: "each redden exactly one test" is true within
+  `IntrinsicModeTests` and false globally for the line-budget site, which reddens
+  4 tests and 3 goldens. Under-stating coverage invites someone to add a fixture
+  for a site three goldens already cover.
 
 ## Carried risk
 
@@ -534,7 +597,16 @@ turn a measurement into a guess.
   at `flexBaseSize`'s content branch and `collectLines`' budget.
   `IntrinsicModeTests.swift` guards the **three** sites independently — the
   main-axis literal, the cross-axis fallback and the line budget each redden
-  exactly one test when reverted alone. It was two until review: the
+  exactly one test *in that file* when reverted alone. **That "exactly one" is a
+  statement about the file, not about the suite, and the branch review caught it
+  understating itself**: reverting `collectLines`' budget alone — spelled
+  `let lineBudget = containerMain ?? .infinity`, i.e. the pre-milestone line —
+  reddens **4 tests / 20 issues at 341 tests, `--no-parallel`, 3 of them golden
+  comparisons** (`wrapAlignContentAroundAndEvenlyMatchWebKit`,
+  `wrapMinVersusMaxContentMatchesWebKit`, `wrapNestedPercentPaddingMatchesWebKit`)
+  alongside `aWrapContainerUnderMinContentPutsEachItemOnItsOwnLine`. A claim that
+  under-states coverage is not harmless: it invites someone to "add the missing
+  fixture" for a site three goldens already cover. It was two until review: the
   cross-axis edit shipped wired but unguarded, reverting it reddened 0 of 330,
   and the fix's own doc comment claimed coverage of it. **A wired-but-unguarded
   edit is not taxonomy shape 4** — shape 4 is a silent no-op, and this was a

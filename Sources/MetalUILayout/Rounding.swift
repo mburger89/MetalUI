@@ -35,7 +35,8 @@ public struct LayoutRect: Sendable, Equatable {
 /// pointing the comparison helpers at `golden.raw` would leave the suite green,
 /// and that `computeLayoutRoundsEveryStoredRect` was the only test that could
 /// catch a missing pass. All three were measured false during the whole-branch
-/// review. What is true, measured at 115 tests and 16 fixtures:
+/// review. What is true, measured at 115 tests and 16 fixtures unless a bullet
+/// says otherwise:
 ///
 /// - **Two fixtures are non-integral**: `flex_row_shrink` (WebKit's 1/64
 ///   quantum puts `a` at 133.328125 and `b` at 66.671875) and
@@ -44,18 +45,22 @@ public struct LayoutRect: Sendable, Equatable {
 /// - **Deleting `roundStoredRects`' call from `computeLayout` reddens three
 ///   tests**: `computeLayoutRoundsEveryStoredRect`, `shrinkIsWeightedByBaseSize`
 ///   and `shrinkMatchesWebKit`.
-/// - **Pointing both golden-comparison helpers at `golden.raw` reddens exactly
-///   one**: `shrinkMatchesWebKit`. `flex_row_shrink` is the only non-integral
-///   fixture an *engine* comparison consumes; `flex_row_seven_equal`'s sole
-///   consumer, `generatorRoundsWhenTheBrowserQuantizes`, measures the browser
-///   and never runs the engine, so it cannot notice which space it is compared
-///   in.
+/// - **Pointing both golden-comparison helpers at `golden.raw` reddens two** —
+///   `shrinkMatchesWebKit` and `sevenEqualChildrenMatchWebKit`, 16 issues,
+///   re-measured `--no-parallel` at 342 tests and 61 fixtures. It was **one**
+///   until the content-sizing branch's final fix round, and the second is the
+///   point: `flex_row_seven_equal` had a golden and no engine comparison at all,
+///   so its only reader was `generatorRoundsWhenTheBrowserQuantizes`, which
+///   measures the browser and never runs the engine — taxonomy shape 3, and the
+///   asymmetry the paragraph below used to describe as live.
 ///
-/// That last asymmetry is the live hazard: the raw/rounded distinction rests on
-/// one fixture reaching one comparison. Deleting `flex_row_shrink`, or giving it
-/// bases that divide evenly, restores the exact blind spot this paragraph used
-/// to describe — and nothing would say so. Re-measure these three claims rather
-/// than trusting them; they have been wrong once already.
+/// **That hazard is now half-closed rather than open.** The raw/rounded
+/// distinction rested on *one* fixture reaching *one* comparison; it rests on
+/// two, and the two fail differently (a 1/64 quantum against a seventh of 100).
+/// Deleting either alone no longer restores the blind spot, but deleting both —
+/// or giving them geometry that divides evenly — still does, and nothing would
+/// say so. Re-measure these claims rather than trusting them; they have been
+/// wrong once already.
 public func roundLayout(_ rects: [LayoutRect]) -> [LayoutRect] {
     rects.map { r in
         let x0 = r.x.rounded()

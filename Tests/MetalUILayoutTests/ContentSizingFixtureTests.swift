@@ -23,6 +23,15 @@ import MetalUICore
 /// thing it exists to constrain*. These four tests are what make the four new
 /// fixtures load-bearing.
 ///
+/// **The corpus held one live instance of that shape while this comment
+/// described it, and the branch review found it**: `flex_row_seven_equal` had a
+/// golden and no engine comparison, alone among 61. Closed by
+/// `sevenEqualChildrenMatchWebKit` in `FlexEngineTests`, which reddens under the
+/// same `.rounded(.down)` mutation quoted above with the same four boxes moving
+/// — so the fixture now constrains the engine and not only the browser. Naming a
+/// hazard is not the same as checking for it; the check is
+/// `ls Fixtures | wc -l` against the number of `loadGolden` call sites.
+///
 /// They exist because the 57 fixtures that preceded them are **structurally
 /// blind to this whole milestone**. Every one of their children is an empty
 /// `div` whose content size is 0 — and 0 is exactly the constant all four wired

@@ -479,6 +479,59 @@ func assertMatchesGolden(
 /// flex sub-one clause: a golden would encode this engine's answer as correct,
 /// and a future fix should move nothing in the corpus. This test is the only
 /// pin, so implementing FS-3 must redden exactly it — verified by mutation.
+/// Seven `flex: 1 1 0` children splitting 100px, against WebKit —
+/// **`flex_row_seven_equal`'s first engine-vs-golden comparison.**
+///
+/// It was the one fixture of 61 with a golden and no comparison test: read only
+/// by `committedGoldensMatchTheBrowser`, which measures the browser and checks
+/// it against a file the browser produced. That is taxonomy shape 3 — a
+/// committed artifact constrained by nothing that consumes it — and
+/// `ContentSizingFixtureTests`' own header names the shape while the corpus held
+/// a live instance of it.
+///
+/// **It is the second non-integral fixture an engine comparison reads, and that
+/// is the point of adding it here rather than anywhere else.** 100 split seven
+/// ways is 14.28125 per child in WebKit and 14.2857… in the engine, so every
+/// number in this test exists only after `roundLayout` has run on both sides:
+/// the raw values do not agree and the rounded ones do. `flex_row_shrink` was
+/// the sole fixture holding that distinction up (see `Rounding.swift`, which
+/// says so and is corrected by this test), and a single fixture holding a
+/// distinction is how a blind spot comes back — give `flex_row_shrink` bases
+/// that divide evenly and nothing would have noticed.
+///
+/// Killed by the rounding mutation `(r.x + r.width).rounded()` →
+/// `.rounded(.down)` in `roundLayout`: measured `--no-parallel`, that reddens
+/// this test alongside `committedGoldensMatchTheBrowser`, moving `c1` 15→14,
+/// `c2` 14→13, `c5` 15→14 and `c6` 14→13 — the same four boxes on both sides,
+/// which is the evidence that engine and browser are being compared in the same
+/// space rather than each in its own.
+@Test func sevenEqualChildrenMatchWebKit() throws {
+    let golden = try loadGolden("flex_row_seven_equal")
+    let tree = LayoutTree(generation: 0)
+
+    var kidStyle = Style()
+    kidStyle.flexGrow = 1
+    kidStyle.flexShrink = 1
+    kidStyle.flexBasis = px(0)
+    let kids = (0..<7).map { _ in tree.newNode(style: kidStyle, children: []) }
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(100), height: px(20))
+    let root = tree.newNode(style: rootStyle, children: kids)
+
+    // The fixture's own viewport (`allFixtures` in GeneratorTests), not the
+    // 800x600 most of the corpus uses.
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(400), height: .definite(200)))
+
+    var ids: [LayoutNodeID: String] = [root: "root"]
+    for (i, kid) in kids.enumerated() { ids[kid] = "c\(i)" }
+    // Tolerance 0.1, not 1: the whole subject here is which whole pixel each
+    // edge lands on, and a tolerance of 1 would accept the mutation above.
+    assertMatchesGolden(tree, ids: ids, golden: golden, tolerance: 0.1)
+}
+
 @Test func aContainerIsNotFlooredByItsSpecifiedSizeUnlikeWebKit() {
     /// The same tree three ways: `.a` is a container 200 wide on the inside and
     /// `aWidth` wide by declaration, `.b` is a leaf, and the root is too small
