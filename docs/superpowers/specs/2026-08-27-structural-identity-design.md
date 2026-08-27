@@ -100,9 +100,33 @@ hash-equality shortcut would turn a collision into two unrelated elements
 silently sharing state — the same failure shape as the memo key that shipped
 without `containingBlockWidth` during content sizing.
 
-**The parent must be in the hash.** If it is not, paths differing only in an
-ancestor collide. This is the single most dangerous line in the milestone and it
-gets a test whose mutation is exactly that omission.
+**The parent must be in the hash — but this section originally overstated why,
+and the overstatement was falsified by measurement during Task 1.**
+
+It called the omission "the single most dangerous line in the milestone" and
+claimed a test whose mutation is exactly that omission. Measured, `--no-parallel`,
+reconfirmed after a clean build: **dropping the parent from `cachedHash` reddens
+nothing**, and **replacing `==` with `l.cachedHash == r.cachedHash` also reddens
+nothing.** Neither is dangerous alone.
+
+The accurate statement: `cachedHash` and `==` are safe individually and unsafe
+only **together**. `==` uses the hash as a fast *reject*, so a collision falls
+through to the chain walk, which is independent of hash quality; and
+`Set`/`Dictionary` correctness depends on `==`, not on distribution. `Hashable`
+permits collisions.
+
+So a degraded hash alone is a **performance** defect — though a sharp one
+*because of this milestone*: once every node is identified, most components are
+`.positional(k)`, so every node at the same index in the whole tree hashes into
+one bucket and `StateTable` lookups go quadratic per frame. Symmetrically, a
+hash-shortcut `==` is correct exactly while the hash is good.
+
+**The load-bearing line is `==`'s chain walk, not the hash formula.** The hash
+half *is* guardable and gets a test — `theHashItselfDistinguishesPathsDifferingOnlyInAnAncestor`,
+asserting on the public `hashValue`, which needs no visibility change because
+`hash(into:)` is `hasher.combine(cachedHash)`. The `==` half is **not** guardable:
+a 64-bit collision is not constructible against a per-process-seeded `Hasher`, so
+per taxonomy shape 6 the mechanism is stated at `==` rather than left silent.
 
 Retention: a `StateTable` key holds its whole ancestor chain alive, bounded by
 live entries and released by the sweep. The array representation held the same
@@ -113,10 +137,15 @@ data; nothing changes.
 The constructor is:
 
 ```swift
-static func child(of parent: GlobalElementID,
+static func child(of parent: GlobalElementID?,
                   at index: Int,
                   name: ElementID?) -> GlobalElementID
 ```
+
+**`parent` is optional and §3.5 is why** — an earlier draft declared it
+non-optional, which contradicts "the root element's id is simply the one with
+`parent: nil`" two sections later. Both could not hold, and the optional form is
+the only one that lets `Frame.render` build a root at all.
 
 It returns a **non-optional**, and `name` decides the component: non-`nil` gives
 `.named(name)`, `nil` gives `.positional(index)`. The `index` is passed
@@ -194,8 +223,8 @@ collision is now deliberate and matches SwiftUI.
 | An anonymous element holds state across frames | revert `child` to the nil-propagating form |
 | Reordering a **named** `ArrayGroup` carries state | make `.named` also include the index |
 | Reordering an **unnamed** one does not | make positional components constant |
-| Two siblings' children never collide | **drop `parent` from the cached hash** |
-| Equality is not hash-equality | make `==` return `cachedHash == other.cachedHash` |
+| The **hash** distinguishes paths differing only in an ancestor | drop `parent` from the cached hash |
+| `==` respects the ancestor whatever the hash says | make components compare equal regardless of parent |
 | Flipping an `EitherGroup` branch resets state | give both branches the same component |
 | Adding a sibling shifts later siblings' identity | pinned as **deliberate**, SwiftUI's matching behaviour named in the comment |
 
@@ -215,7 +244,11 @@ directly; the figure goes in CLAUDE.md labelled with when and how it was taken.
 - [ ] An anonymous element holds state across frames, pinned
 - [ ] A named `ArrayGroup` carries state through a reorder; an unnamed one does not
 - [ ] Every mutation in §5 measured and recorded, `--no-parallel`, spelling quoted
-- [ ] The parent-in-hash test exists and its omission mutation reddens exactly it
+- [ ] The parent-in-hash test exists, asserts on `hashValue`, and its omission
+      mutation reddens **exactly** it
+- [ ] `==`'s chain walk carries a stated mechanism explaining why no test can
+      guard it and why the danger is a combination — shape 6 requires the
+      statement where the test cannot exist
 - [ ] Path-construction cost measured on a branching tree and recorded in
       CLAUDE.md with when and how
 - [ ] The four falsified tests rewritten, not deleted, each naming what changed
