@@ -84,14 +84,14 @@ import MetalUICore
 @Test func aCycleInTheChildListTrapsRatherThanHanging() async {
     await #expect(processExitsWith: .failure) {
         let ctx = LayoutContext(rootFontSize: 16)
-        let fake = LayoutNodeID(index: 0, generation: 0)
+        let fake = LayoutNodeID(generation: 0, index: 0)
         for _ in 0...LayoutContext.maxDepth { ctx.enter(fake) }
     }
 }
 
 @Test func nestingBelowTheDepthLimitDoesNotTrap() {
     let ctx = LayoutContext(rootFontSize: 16)
-    let fake = LayoutNodeID(index: 0, generation: 0)
+    let fake = LayoutNodeID(generation: 0, index: 0)
     for _ in 0..<LayoutContext.maxDepth { ctx.enter(fake) }
     for _ in 0..<LayoutContext.maxDepth { ctx.leave() }
     #expect(ctx.depth == 0)
@@ -197,7 +197,10 @@ public func computeLayout(
     defer { tree.endLayout() }
 
     let rootSize = resolveRootSize(tree, root, available: available, rootFontSize: ctx.rootFontSize)
-    // ... rest of the existing body unchanged, passing ctx.rootFontSize ...
+    // The remaining ~25 lines of today's body are unchanged and are NOT retyped
+    // here: keep `tree.setLayout(root, …)`, the `rootContainingBlockWidth`
+    // computation with its FS-1 comment, the `layoutContainer` call, and
+    // `roundStoredRects`, substituting `ctx.rootFontSize` for `rootFontSize`.
 }
 ```
 
@@ -409,7 +412,12 @@ func placeNode(_ ctx: LayoutContext, _ tree: LayoutTree, _ node: LayoutNodeID,
                                     containingBlockWidth: containingBlockWidth)
     else { return }
 
-    positionItems(/* ... exactly as today, from `laid` ... */)
+    // `positionItems` is called with exactly today's arguments, now read off
+    // `laid` instead of recomputed: `laid.lines`, `laid.box.origin` as the child
+    // origin, and `laid.box.size` as the container's content box. Its body does
+    // not change in this task.
+    positionItems(ctx, tree, node, lines: laid.lines,
+                  childOrigin: laid.box.origin, contentSize: laid.box.size)
 }
 ```
 
