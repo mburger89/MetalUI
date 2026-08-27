@@ -75,8 +75,13 @@ public final class GlobalElementID: Hashable, Sendable {
     /// this body with `l.cachedHash == r.cachedHash` is wrong only on a genuine
     /// 64-bit collision, and a collision is not constructible in a test:
     /// `Hasher` is seeded per process, so one cannot be written down, and
-    /// searching for one is ~2^32 trials. Measured: that replacement leaves all
-    /// 349 tests green. The guard is this loop existing. Do not delete it on the
+    /// searching for one is ~2^32 trials. Re-measured after structural identity
+    /// made every node build a path: that replacement still leaves the whole
+    /// suite green, now **356** tests rather than the 349 first recorded — the
+    /// count moved, the finding did not. The guard is this loop existing, and
+    /// universal identity makes it *more* load-bearing, not less: every node has
+    /// a key now, so a collision is a shared `StateTable` entry between two
+    /// arbitrary elements. Do not delete it on the
     /// evidence of a green suite — that is what shape 6 in
     /// `docs/practices/verifying-tests-can-fail.md` is about.
     ///

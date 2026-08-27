@@ -18,9 +18,15 @@ import MetalUICore
 /// across frames. Before this, an unnamed element got scratch state that was
 /// discarded on return.
 ///
-/// Reddened by reverting `GlobalElementID.child(of:at:name:)` to the
-/// nil-propagating form, and by anything that stops `Frame.render` giving an
-/// unnamed root a `.positional` component.
+/// **This test is the only guard on the ROOT's own identity, and none of the
+/// six mutations run while implementing this milestone reaches it** — measured,
+/// `--no-parallel`, all six green here while reddening twelve distinct tests
+/// between them, none of which is this one. That is why it asserts
+/// the key (`.positional(0)` under no parent) and not only `table.count == 1`:
+/// a count of 1 is also what a root that got one shared wrong key every frame
+/// would produce. The mutation that would redden it is a change to
+/// `Frame.render`'s `child(of: nil, at: 0, name: element.elementID)`, and the
+/// mechanism that keeps it honest is that the id is spelled out here.
 @MainActor
 @Test func anAnonymousElementHoldsStateAcrossFrames() {
     let table = StateTable()
@@ -37,8 +43,14 @@ import MetalUICore
 /// Position discriminates siblings, so two unnamed siblings do not collide.
 /// Before this milestone neither had an identity at all.
 ///
-/// **This is the test that deleting `cursor += 1` reddens** — with the cursor
-/// pinned at 0 both children get `.positional(0)`, one entry, counted twice.
+/// **This is the test the brief named for deleting `cursor += 1`**, and it does
+/// redden: with the cursor pinned at 0 both children get `.positional(0)`, one
+/// entry, counted twice. Measured, `--no-parallel`, 356 tests — deleting that
+/// line reddens **three**: this one,
+/// `theIndexSpaceIsFlatRatherThanNested` and
+/// `reorderingAnUnnamedListKeepsStateWithThePositionNotTheItem`. The other two
+/// are not redundant with it: they see the collapse at three children and
+/// across two frames respectively.
 @MainActor
 @Test func twoUnnamedSiblingsDoNotShareOneStateEntry() {
     let table = StateTable()
@@ -76,9 +88,17 @@ import MetalUICore
 /// name replaces a position rather than joining it: if the index were also in
 /// the key, moving an item would mint a new key and reset it.
 ///
-/// Reddened by making `child(of:at:name:)` fold the index into a `.named`
-/// component: the moved items mint fresh keys, so both counts restart at 1 and
-/// the table holds four entries rather than two.
+/// Measured, `--no-parallel`, 356 tests: spelling `child(of:at:name:)`'s
+/// component as
+/// `name.map { PathComponent.named(ElementID("\($0.name)#\(index)")) }` —
+/// the index folded into the name rather than replaced by it — reddens
+/// **five**: this one, `aNameReplacesThePositionRatherThanJoiningIt`
+/// (`GlobalElementIDTests.swift`), `childOfAnUnnamedParentStillHasAnIdentity`
+/// (`StateTableTests.swift`), `aContainerGivesItsChildrenPathsBuiltFromItsOwn`
+/// (`ElementLayoutTests.swift`) and `twoSiblingsWithTheSameIDShareOneStateEntry`
+/// (`ElementGroupTrapTests.swift`). This is the only one of the five that shows
+/// the *consequence* — a moved item's state resetting — rather than the shape of
+/// the component.
 @MainActor
 @Test func reorderingANamedListCarriesEachItemsState() {
     let table = StateTable()
@@ -129,10 +149,13 @@ import MetalUICore
 /// it across two structurally different elements — SwiftUI's rule, and the one
 /// `EitherGroup`'s phase-mismatch trap already applies mid-frame.
 ///
-/// **Nothing in the suite covered this before.** The Step 7 mutation "give
-/// `EitherGroup`'s two branches the same component" reddened nothing without
-/// it: `flippingAnEitherBranchBetweenPhasesTraps` is about a branch changing
-/// *between phases*, and the three type-level builder tests cannot see a key.
+/// **Nothing in the suite covered this before**, and that is measured rather
+/// than assumed: giving both branches the same component — `.positional(branchIndex)`
+/// in place of `.positional(branchIndex + 1)` in `EitherGroup.requestGroupLayout` —
+/// reddens **exactly this test and the one below it**, both added by the same
+/// commit, and nothing else in 356. `flippingAnEitherBranchBetweenPhasesTraps`
+/// is about a branch changing *between phases* and stays green; the three
+/// type-level builder tests cannot see a key at all.
 ///
 /// The `== 1` is the load-bearing assertion. Were the branches to share a
 /// component, the second frame would find the first frame's entry and write 2.

@@ -384,16 +384,26 @@ private func pathID(_ names: String...) -> GlobalElementID {
 /// directly and says nothing about who calls them; this is the first test in
 /// the repo that a **production container** must satisfy — that `Box`,
 /// `Column` and `Row` derive their children's identities from their own
-/// rather than passing `nil` or a constant down. Measured, `--no-parallel`:
-/// replacing `GlobalElementID.child(of: parent, at: cursor, name: elementID)`
-/// with `GlobalElementID.child(of: nil, at: cursor, name: elementID)` in
-/// `Element.requestGroupLayout` (`ElementGroup.swift`) reddens **six** tests —
-/// this one, `twoSiblingsWithTheSameIDShareOneStateEntry` and
-/// `twoSiblingsWithDifferentIDsDoNotShareState` in `ElementGroupTrapTests.swift`,
-/// and `theIndexSpaceIsFlatRatherThanNested`,
-/// `reorderingANamedListCarriesEachItemsState` and
-/// `reorderingAnUnnamedListKeepsStateWithThePositionNotTheItem` in
-/// `IdentityTests.swift`. Nothing in `StateTableTests.swift` moves: it builds
+/// rather than passing `nil` or a constant down. Measured, `--no-parallel`, on
+/// a 356-test suite: replacing
+/// `GlobalElementID.child(of: parent, at: cursor, name: elementID)` with
+/// `GlobalElementID.child(of: nil, at: cursor, name: elementID)` in
+/// `Element.requestGroupLayout` (`ElementGroup.swift`) reddens **eight** tests —
+/// this one and `anIdentifiedChildOfAnUnnamedContainerHasAnIdentityThroughItsPosition`
+/// below, `twoSiblingsWithTheSameIDShareOneStateEntry` in
+/// `ElementGroupTrapTests.swift`, and five in `IdentityTests.swift`
+/// (`theIndexSpaceIsFlatRatherThanNested`,
+/// `reorderingANamedListCarriesEachItemsState`,
+/// `reorderingAnUnnamedListKeepsStateWithThePositionNotTheItem`,
+/// `flippingAnEitherBranchResetsTheBranchesState`,
+/// `aBranchWithTwoMembersDoesNotLeakStateIntoAOneMemberBranch`).
+///
+/// **Two things a first draft of this paragraph predicted and measurement
+/// falsified**, which is why it is worth reading rather than trusting: it named
+/// six tests, and it named `twoSiblingsWithDifferentIDsDoNotShareState` among
+/// them. That one stays **green** — its two siblings have different names, so
+/// they get distinct ids with or without a parent, and it cannot see this
+/// mutation at all. Nothing in `StateTableTests.swift` moves either: it builds
 /// every path it asserts by hand and never goes through a container.
 ///
 /// The two `"leaf"` children carry the **same** local id under different
