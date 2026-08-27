@@ -10,7 +10,16 @@ import MetalUICore
 /// The cascade, in spec order:
 /// 1. a definite `flex-basis` wins outright, even over an explicit `width`;
 /// 2. `flex-basis: auto` defers to the main size property, if that is definite;
-/// 3. otherwise the item is content-sized — its measure function at max-content.
+/// 3. otherwise the item is content-sized — its measure function under **the
+///    container's own question** in the main axis.
+///
+/// Step 3's main axis was a hardcoded `.maxContent` until the intrinsic query
+/// was threaded into the recursion. That is the whole of `intrinsic` here: a
+/// container asked for its min-content size must ask its items for theirs, and
+/// a hardcoded max-content silently answered the wrong one of the two
+/// questions. It is `nil` per axis for real layout, and non-nil only where the
+/// matching container extent is `nil` — so `containerCross` below is consulted
+/// first and the question is the fallback, never a competing answer.
 ///
 /// An item with no measure function and no definite size is 0. That is honest
 /// rather than convenient: nothing measures content until the text system lands,
@@ -22,6 +31,7 @@ func flexBaseSize(
     isRow: Bool,
     containerMain: Double?,
     containerCross: Double?,
+    intrinsic: IntrinsicQuery,
     rootFontSize: Double
 ) -> Double {
     let s = tree.style(item)
@@ -46,9 +56,17 @@ func flexBaseSize(
                                               rootFontSize: rootFontSize),
         height: isRow ? resolveDimension(s.size.height, against: containerCross,
                                          rootFontSize: rootFontSize) : nil)
+    // The container's question, per axis, with `.maxContent` as the fallback it
+    // has always had. **`?? .maxContent` is not dead in either axis**: a `nil`
+    // mode is real layout (`placeNode`) as well as an axis the caller made
+    // definite, and both of those still offer the item max-content here —
+    // which is what keeps this task behaviour-preserving.
+    let mainAvailable = (isRow ? intrinsic.width : intrinsic.height)?.availableSpace ?? .maxContent
+    let crossAvailable = containerCross.map { AvailableSpace.definite($0) }
+        ?? ((isRow ? intrinsic.height : intrinsic.width)?.availableSpace ?? .maxContent)
     let available = AvailableSpaceSize(
-        width: isRow ? .maxContent : (containerCross.map { .definite($0) } ?? .maxContent),
-        height: isRow ? (containerCross.map { .definite($0) } ?? .maxContent) : .maxContent)
+        width: isRow ? mainAvailable : crossAvailable,
+        height: isRow ? crossAvailable : mainAvailable)
     let measured = measure(known, available)
     return isRow ? measured.width : measured.height
 }

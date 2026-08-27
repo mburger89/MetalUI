@@ -82,6 +82,17 @@ final class LayoutContext {
     /// indefinite containing block (a parent's speculative measure) and once
     /// with a definite one (real placement) must not share an entry. Guarded
     /// by `aCacheHitRespectsTheContainingBlockWidth`.
+    ///
+    /// **The intrinsic query needs no field of its own**, and that is a
+    /// derivation rather than an oversight: `IntrinsicQuery(known:available:)`
+    /// is a pure function of `known` and `available`, both of which are already
+    /// here in full — `availableWidth`/`availableHeight` keep `.minContent` and
+    /// `.maxContent` as distinct cases rather than collapsing them the way
+    /// `definiteExtent` does. Two calls that differ only in their query
+    /// therefore differ in this key already. Adding a field would be redundant
+    /// today and would go stale the moment the query stops being derived that
+    /// way, so the rule for whoever changes that constructor is: if it ever
+    /// reads anything not in this key, it belongs in this key.
     struct MeasureKey: Hashable {
         var node: LayoutNodeID
         var knownWidth: Double?

@@ -476,11 +476,20 @@ private struct ContainerLayout {
 /// instead — the first version of this — makes the freeze loop diverge and
 /// `assertionFailure` out of the process; substituting a large finite number
 /// resolves percentages against a fiction.
+///
+/// **`intrinsic` is the question the container is being asked, and it is only
+/// ever consulted on an axis where `containerSize` is `nil`.** That is not a
+/// convention to remember: `measureNode` builds it so that a non-nil mode on an
+/// axis and a `nil` extent on that axis are the same condition (see
+/// `IntrinsicQuery`), and `contentBox` maps `nil` to `nil`, so the same holds
+/// for the content box below. `placeNode` passes `.unspecified` — real layout
+/// asks no intrinsic question.
 private func layOutChildren(
     _ ctx: LayoutContext,
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
     containerSize: OptionalSizeD,
+    intrinsic: IntrinsicQuery,
     containingBlockWidth: Double?
 ) -> ContainerLayout {
     // `containerSize` is the border box (§5.2). Everything below this line that
@@ -496,7 +505,7 @@ private func layOutChildren(
                          rootFontSize: ctx.rootFontSize)
 
     let items = collectItems(tree, container, containerSize: box.size,
-                             rootFontSize: ctx.rootFontSize)
+                             intrinsic: intrinsic, rootFontSize: ctx.rootFontSize)
     // No items, no lines: this is the early return the top-down recursion has
     // always had on a childless container. Returning here rather than
     // falling through is not only an optimisation — `align-content`'s leftover
@@ -522,6 +531,11 @@ private func layOutChildren(
     // `containerMain - totalGap` is then `inf - inf`, which is NaN.
     let containerMain = isRow ? box.size.width : box.size.height
     let containerCross = isRow ? box.size.height : box.size.width
+    // The container's own intrinsic question, resolved onto its axes exactly as
+    // the two extents above are. Non-nil only where the matching extent is
+    // `nil`, so the two are never both usable and there is no precedence rule
+    // to get wrong.
+    let mainIntrinsic = isRow ? intrinsic.width : intrinsic.height
     let gap = resolveLength(isRow ? s.gap.horizontal : s.gap.vertical,
                             against: containerMain, rootFontSize: ctx.rootFontSize) ?? 0
     // Ruling WR-1 — the CROSS-axis gap, which is the space **between lines**
@@ -552,15 +566,31 @@ private func layOutChildren(
     // change. It is keyed on the wrap MODE, not on `lines.count == 1`: a
     // `wrap` container that happens to produce one line measures that line
     // from its items, which is a different (and, per CSS, correct) answer.
-    // **`.infinity` here is a comparison bound, not an extent**, and it is the
-    // one place a missing main size becomes a number: `collectLines` only ever
-    // asks whether the next item's outer size *exceeds* the line's budget, and
-    // nothing exceeds an unbounded one. That is also CSS's answer — a container
-    // sized to its max-content does not wrap — and no arithmetic is done on it,
-    // which is what separates this from the `inf` that made the freeze loop
-    // diverge.
+    // **The budget is a comparison bound, not an extent**, and it is the one
+    // place a missing main size becomes a number: `collectLines` only ever asks
+    // whether the next item's outer size *exceeds* the line's budget, and no
+    // arithmetic is done on it — which is what separates both values below from
+    // the `inf` that made the freeze loop diverge (ruling CS-D).
+    //
+    // With no main extent the budget comes from the question being asked, and
+    // this is CSS Flexbox §9.9.1.1 rather than a convenience:
+    //
+    // - **max-content, or no question at all: unbounded.** Nothing exceeds it,
+    //   so nothing wraps — a container sized to its max-content is a container
+    //   wide enough for one line.
+    // - **min-content: zero.** Every item after the first "would not fit", so
+    //   each item lines alone. That is a WRAPPING fact and it is the whole of
+    //   the difference between the two questions for a container: no amount of
+    //   `flexBaseSize` work reaches it, because base sizes are per item and
+    //   this is about where the breaks go.
+    //
+    // `.unspecified` (real layout) and `.maxContent` deliberately share the
+    // unbounded branch: `placeNode` always has a definite extent here, so that
+    // branch is only reachable for it if the invariant above ever breaks, and
+    // an unbounded budget is the pre-existing answer.
+    let lineBudget = containerMain ?? (mainIntrinsic == .minContent ? 0 : .infinity)
     var lines = collectLines(items, wrap: s.flexWrap,
-                             containerMain: containerMain ?? .infinity, gap: gap)
+                             containerMain: lineBudget, gap: gap)
         .map { line in
             // §9.4.8's single-line clause is keyed on the container's cross size
             // being **definite**, which is the spec's own wording and not a
@@ -755,6 +785,10 @@ func placeNode(
     let laid = layOutChildren(ctx, tree, node,
                               containerSize: OptionalSizeD(width: size.width,
                                                            height: size.height),
+                              // Real layout asks no intrinsic question: both
+                              // axes above are definite, so there is nothing
+                              // for a mode to answer.
+                              intrinsic: .unspecified,
                               containingBlockWidth: containingBlockWidth)
     // The items' origin is this container's own origin plus its leading padding
     // and border. `laid.box.origin` is that leading edge alone — the container's
@@ -786,13 +820,16 @@ func placeNode(
 /// `MeasureNodeTests.swift`. Two limits that whoever wires it inherits, named
 /// here because a caller cannot see either from the signature:
 ///
-/// 1. **`.minContent` and `.maxContent` are indistinguishable for a
-///    container.** Both leave the axis indefinite, and `layOutChildren` then
-///    does not wrap, so a `wrap` container returns its max-content answer under
-///    either. Only a leaf's own `MeasureFunction` tells them apart today.
-///    Design §5.2 lists "`.minContent` and `.maxContent` swapped at a call
-///    site" as a mutation that must redden a fixture; it cannot until this is
-///    closed.
+/// 1. **`.minContent` and `.maxContent` are no longer indistinguishable for a
+///    container** — this doc said they were, and the fix is the `intrinsic`
+///    argument below. Both still leave the axis *indefinite*, which is why the
+///    correction is worth keeping: the question does not survive in
+///    `containerSize`, it survives beside it, and it reaches exactly two
+///    places — `flexBaseSize`'s content branch (an item's base size is its
+///    contribution under the container's own question) and `collectLines`'
+///    budget (§9.9.1.1: under min-content each item lines alone). Guarded by
+///    `IntrinsicModeTests.swift`, whose two tests are independently killed by
+///    those two sites.
 /// 2. **`flex-grow` does not apply here, and under CSS it would.** An
 ///    indefinite main axis skips §9.7 (ruling CS-D) and every item keeps its
 ///    hypothetical main size — but CSS does not run §9.7 under intrinsic
@@ -850,7 +887,14 @@ func measureNode(
     // not infinite (ruling CS-D).
     let probe = OptionalSizeD(width: known.width ?? definiteExtent(available.width),
                               height: known.height ?? definiteExtent(available.height))
+    // What `probe` throws away, carried alongside it. `definiteExtent` maps both
+    // intrinsic cases to `nil`, so without this the container's question dies on
+    // the line above and every child is asked max-content whatever the container
+    // was asked. `IntrinsicQuery.init(known:available:)` is what makes "a
+    // non-nil mode means a `nil` extent" true rather than remembered.
+    let intrinsic = IntrinsicQuery(known: known, available: available)
     let laid = layOutChildren(ctx, tree, node, containerSize: probe,
+                              intrinsic: intrinsic,
                               containingBlockWidth: containingBlockWidth)
 
     let result = SizeD(width: known.width ?? (laid.contentSize.width + laid.edges.width),
@@ -874,11 +918,89 @@ private func definiteExtent(_ a: AvailableSpace) -> Double? {
     return nil
 }
 
+/// Which intrinsic size a speculative measure is asking for, on one axis.
+///
+/// **A separate enum rather than `AvailableSpace?`, and that is the point of
+/// it.** `AvailableSpace` can also be `.definite`, and a definite extent is not
+/// an intrinsic question — it reaches the recursion as `containerSize`'s
+/// extent, where every existing rule already consumes it. Storing one here
+/// would make "which of the two wins" a precedence rule someone has to
+/// remember; this type cannot express the collision at all.
+enum IntrinsicMode: Sendable, Hashable {
+    case minContent
+    case maxContent
+
+    /// `nil` for `.definite` — see the type's own note.
+    init?(_ space: AvailableSpace) {
+        switch space {
+        case .definite: return nil
+        case .minContent: self = .minContent
+        case .maxContent: self = .maxContent
+        }
+    }
+
+    /// Back to the vocabulary a `MeasureFunction` speaks, for the one consumer
+    /// that hands the question on to a leaf (`flexBaseSize`'s content branch).
+    var availableSpace: AvailableSpace {
+        switch self {
+        case .minContent: return .minContent
+        case .maxContent: return .maxContent
+        }
+    }
+}
+
+/// The intrinsic question a container is being asked, per axis — `nil` on an
+/// axis meaning there is none.
+///
+/// **This exists because `measureNode`'s probe destroys the question.**
+/// `definiteExtent` maps both `.minContent` and `.maxContent` to `nil`, and
+/// below that line the only size type threaded is `OptionalSizeD`, which cannot
+/// say *why* an axis is indefinite. `AvailableSpaceSize` is not threaded down
+/// instead because it would then carry the definite extents a second time,
+/// beside `containerSize`, with nothing keeping the two agreed.
+///
+/// **The invariant, which `init(known:available:)` establishes rather than
+/// documents:** an axis has a mode here **iff** that axis of the probe is
+/// `nil`. A known extent wins outright (it is what a `MeasureFunction`'s
+/// `known` means) and clears the mode; a definite available space produces no
+/// mode to begin with. `contentBox` maps `nil` to `nil` per axis, so the
+/// invariant survives into the content box every consumer actually reads.
+/// That is what lets the two consuming sites be written as "the extent if
+/// there is one, otherwise the question" with no third case.
+///
+/// Named `unspecified` for the neither-axis case to match
+/// `OptionalSizeD.unspecified`, and for the same reason: a static `.none` on a
+/// non-`Optional` type shadows `Optional.none` at call sites.
+struct IntrinsicQuery: Sendable, Hashable {
+    var width: IntrinsicMode?
+    var height: IntrinsicMode?
+
+    init(width: IntrinsicMode?, height: IntrinsicMode?) {
+        self.width = width
+        self.height = height
+    }
+
+    init(known: OptionalSizeD, available: AvailableSpaceSize) {
+        self.width = known.width == nil ? IntrinsicMode(available.width) : nil
+        self.height = known.height == nil ? IntrinsicMode(available.height) : nil
+    }
+
+    /// No question on either axis: real layout, or a measure whose axes are
+    /// both definite.
+    static let unspecified = IntrinsicQuery(width: nil, height: nil)
+}
+
 /// Phase 1 — size every item without positioning any of them.
+///
+/// `intrinsic` is passed through **unresolved onto axes**, exactly as
+/// `containerSize` is: `flexBaseSize` already takes `isRow:` and picks its own
+/// main and cross from it, and giving it a pre-resolved pair would be a second
+/// place the row/column choice is made.
 private func collectItems(
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
     containerSize: OptionalSizeD,
+    intrinsic: IntrinsicQuery,
     rootFontSize: Double
 ) -> [FlexItem] {
     let s = tree.style(container)
@@ -898,6 +1020,7 @@ private func collectItems(
             let base = flexBaseSize(tree, item: kid, isRow: isRow,
                                     containerMain: containerMain,
                                     containerCross: containerCross,
+                                    intrinsic: intrinsic,
                                     rootFontSize: rootFontSize)
 
             let ks = tree.style(kid)

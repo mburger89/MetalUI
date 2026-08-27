@@ -45,6 +45,17 @@ struct FlexLine {
 /// a line is never empty. Without that guard an oversized item produces an empty
 /// line before it and every subsequent index shifts.
 ///
+/// **`containerMain` is a budget, not an extent, and `0` is a legitimate value
+/// for it.** CSS Flexbox §9.9.1.1 sizes a container under a min-content
+/// constraint by giving its lines no room at all, so every item after the first
+/// on a line "would not fit" and each item lines alone; `layOutChildren` passes
+/// `0` for exactly that, and `.infinity` for max-content. Neither is arithmetic
+/// on an extent — this function only ever *compares* against the budget, which
+/// is why an unbounded one is safe here and was not in the freeze loop (ruling
+/// CS-D). This is also why no intrinsic mode is threaded into this function:
+/// the mode's whole effect on breaking is the budget, and ruling WR-2 keeps the
+/// break decision a pure function over items and one number.
+///
 /// **`.wrapReverse` collects lines exactly like `.wrap` here, and that is
 /// CSS's rule rather than a shortcut.** §8.3 reverses the cross axis, not the
 /// order items are assigned to lines: a `wrap-reverse` container breaks in
