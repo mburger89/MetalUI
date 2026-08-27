@@ -64,7 +64,11 @@ public func computeLayout(
     available: AvailableSpaceSize,
     rootFontSize: Double = 16
 ) {
-    let rootSize = resolveRootSize(tree, root, available: available, rootFontSize: rootFontSize)
+    let ctx = LayoutContext(rootFontSize: rootFontSize)
+    tree.beginLayout()
+    defer { tree.endLayout() }
+
+    let rootSize = resolveRootSize(tree, root, available: available, rootFontSize: ctx.rootFontSize)
     tree.setLayout(root, LayoutRect(x: 0, y: 0, width: rootSize.width, height: rootSize.height))
     // The root's containing block is the space it was offered — ruling FS-1's
     // "the root is a block box in the initial containing block". So the root's
@@ -83,7 +87,7 @@ public func computeLayout(
     }()
     layoutContainer(tree, root, containerOrigin: (0, 0), containerSize: rootSize,
                     containingBlockWidth: rootContainingBlockWidth,
-                    rootFontSize: rootFontSize)
+                    rootFontSize: ctx.rootFontSize)
 
     // Round last, over the finished absolute rects. Spec §5.7 designates the
     // rounded layout as the comparison space, so the engine must apply the same
