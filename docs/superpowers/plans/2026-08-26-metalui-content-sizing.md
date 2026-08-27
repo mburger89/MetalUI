@@ -991,6 +991,46 @@ git commit -m "docs: retire the auto-cross divergence and correct what content s
 ## Risks carried in
 
 - **`min-width: auto` going live is the widest change here**, not the auto-cross fix the milestone is named for. If the regenerated corpus moves far more than expected, that is why — check it against WebKit before assuming a bug.
+- **The engine is ~10-50x slower per node than it should be, measured 2026-08-26
+  — and this milestone multiplies that constant.** A throwaway spike timed
+  `computeLayout` over synthetic trees on this machine: **1,365 nodes = 6.83 ms**,
+  **5,461 = 27.3 ms**, **19,531 = 94.1 ms**. That is ~5 us per node, and it
+  scales linearly (3.58x the nodes gave 3.45x the time), so it is a constant
+  factor rather than an algorithmic problem. Yoga and Taffy are in the
+  0.1-0.5 us/node range.
+
+  What that means in practice: **a modest 1,365-node screen already eats 41% of a
+  60 fps frame budget**, before any text and before this milestone adds three
+  measurement queries per node.
+
+  The likely cause is allocation rather than algorithm — `tree.children()`
+  returns a freshly-allocated array on every call, `collectItems` builds
+  `[FlexItem]` through `.map`, and `collectLines` allocates per line, all inside
+  a per-level recursion. **Do not fix it here.** Content sizing should land
+  against a stable baseline so a later optimisation can be measured against it
+  rather than confounded with it. But two consequences bind this plan:
+
+  1. **Task 3's cache is the highest-value item in it.** At 5 us per node,
+     uncached measurement is not slow, it is unusable.
+  2. **Any implementer tempted to add a convenience that allocates per node
+     should not.** The constant is already the problem.
+
+  Recorded here because the spike's numbers exist nowhere else — the spike was
+  throwaway and was deleted. Re-measure rather than trusting these if a decision
+  depends on them.
+
+- **GPU compute is not the answer to the above, and the spike is why.** An empty
+  Metal dispatch round-trip (encode, commit, wait) measured **0.197 ms** on this
+  machine — only 0.7% of a 5,461-node layout, so dispatch latency does *not*
+  disqualify GPU layout at that size, contrary to the obvious first argument.
+  The real blockers are untested by that number and unchanged: SS9.7's freeze
+  loop iterates a data-dependent number of times, wrap/clamp/percentage handling
+  is branch-divergent, tree traversal is pointer-chasing, a barrier is needed per
+  tree level, and CoreText cannot be called from a compute kernel — so M2's leaf
+  measurement stays on the CPU regardless. **The comparison only looked close
+  because the CPU path is slow.** Fix the constant first; revisit only with new
+  measurements, never from this paragraph.
+
 - **The cache is invisible.** Only `theCacheIsActuallyConsulted` can see it working. If that test is ever weakened, exponential layout cost returns silently.
 - **`measureNode`'s purity is unenforced by the type system.** A `setLayout` added below it returns the right size and passes every golden.
 - **Taxonomy shape 9** — this milestone's whole subject is a composition (measurement × wrapping × margins × the freeze loop). The last time a task multiplied against three shipped features it produced three engine bugs. Ask what each change composes with, and check that pair against the browser.
