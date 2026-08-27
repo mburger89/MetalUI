@@ -272,9 +272,14 @@ directly; the figure goes in CLAUDE.md labelled with when and how it was taken.
       phases and `StateTable.withState` take a non-optional `GlobalElementID`,
       and `child(of:at:name:)` returns one.
       (This originally read "`GlobalElementID?` appears nowhere in `Sources/`",
-      which is unachievable and was never the point: `child`'s and `init`'s
-      `parent` parameters, `GlobalElementID.parent` itself, and two locals in
-      `==` all keep the optional by necessity — a root has no parent.)
+      which is unachievable and was never the point. **Six code sites keep the
+      optional**, and this list omitted the sixth: `GlobalElementID.parent`,
+      `init`'s and `child`'s `parent` parameters, and two locals in `==` — five
+      forced by a root having no parent — plus **`requestGroupLayout`'s
+      `parent`**, on all eight conformances, which is **not** forced. `Frame.render`
+      builds the root id itself and never calls `requestGroupLayout`; every
+      production call site passes a non-optional. That one is an inert optional
+      rather than a necessity, and it is recorded as such at its declaration.)
 - [ ] An anonymous element holds state across frames, pinned
 - [ ] A named `ArrayGroup` carries state through a reorder; an unnamed one does not
 - [ ] Every mutation in §5 measured and recorded, `--no-parallel`, spelling quoted

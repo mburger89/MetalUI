@@ -60,10 +60,17 @@ public protocol ElementGroup {
     /// A conformance consumes one index per element it identifies and leaves the
     /// cursor pointing at the next free one.
     ///
-    /// `parent` is optional only because `GlobalElementID.child(of:at:name:)`
-    /// takes an optional parent — the root has none. No production caller passes
-    /// `nil`: `Frame.render` builds the root id itself and every container below
-    /// hands down its own non-optional id.
+    /// **`parent`'s optionality is INERT, not forced.** It matches
+    /// `GlobalElementID.child(of:at:name:)`'s parameter, whose optional *is*
+    /// forced — a root has no parent — but the root never travels this path:
+    /// `Frame.render` builds the root id itself and never calls
+    /// `requestGroupLayout`, and every container below hands down its own
+    /// non-optional id. So **no production caller passes `nil` and nothing would
+    /// break if this lost its `?`**; it keeps it only because tightening it
+    /// touches eight conformances and every hand-built test group for no
+    /// behavioural gain. Said here rather than left implied, because three
+    /// documents counted the surviving optionals differently and each read this
+    /// one as a necessity.
     mutating func requestGroupLayout(under parent: GlobalElementID?,
                                      at cursor: inout Int,
                                      pass: inout LayoutPass) -> ([LayoutNodeID], GroupLayout)
@@ -319,9 +326,22 @@ public enum EitherGroup<First: ElementGroup, Second: ElementGroup>: ElementGroup
     /// the subtree's state instead of carrying it into structurally different
     /// elements.** The taken branch hangs under an id of its own —
     /// `.positional(cursor)` for `.first`, `.positional(cursor + 1)` for
-    /// `.second` — and its members number from 0 *inside* that id. The outer
-    /// cursor then advances by 2 either way, so a later sibling's index does not
-    /// depend on which branch was taken.
+    /// `.second` — and its members number from 0 *inside* that id.
+    ///
+    /// **The outer cursor advances by 2 because the branch RESERVES both slots,
+    /// not because a later sibling's index would otherwise move.** This comment
+    /// said the latter and measurement falsified it: `cursor += 2` runs before
+    /// the switch, so under `+= 1` a later sibling's index is stable too —
+    /// `Row { if flag { C() } else { C() }; C() }` puts the trailing element at
+    /// `.positional(1)` on **both** frames of a flip and it counts 2 either way.
+    /// What actually breaks is a sibling landing on the slot the *untaken*
+    /// branch would have used: measured, `Row { if flag { C() } else { C() };
+    /// Row { C() } }` collapses two state entries into one reading 3, and
+    /// `Row { if a {…} else {…}; if b {…} else {…} }` — spec §3.5's collision —
+    /// collapses into one reading 2. Pinned by
+    /// `aBranchReservesBothIndicesSoASiblingCannotLandOnTheUntakenOne`, which is
+    /// the only test that reddens on `+= 1`; the composition it needs did not
+    /// exist in the suite until it was written, which is taxonomy shape 9.
     ///
     /// **The intermediate id is what makes that true for a branch of any size,
     /// and a flat pair of indices would not be.** Numbering the branches'
@@ -513,6 +533,13 @@ extension AnyElement: ElementGroup {
 
     /// Identical to `Element`'s default: an erased element is still one element
     /// and therefore one index.
+    ///
+    /// **A second copy of the cursor advance, and it was unguarded until
+    /// `twoErasedSiblingsDoNotShareOneStateEntry`.** "Identical to `Element`'s
+    /// default" is a claim about two separate lines, and `Element`'s tests
+    /// cannot reach this one — nothing in the suite put two `AnyElement`s with
+    /// cross-frame state in one container, so deleting the `cursor += 1` below
+    /// left all 358 green. It now reddens exactly that test.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)

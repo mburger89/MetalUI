@@ -46,15 +46,34 @@ import Testing
     #expect(set.count == 2)
 }
 
-/// **The most dangerous line in this milestone.** If the cached hash omits the
-/// parent, two paths differing only in an ancestor land in the same bucket and
-/// compare by a hash that cannot tell them apart — two unrelated elements
-/// silently share state.
+/// **Not the most dangerous line in this milestone — this comment said it was,
+/// and ruling SI-E retired the claim by measurement.** Omitting the parent from
+/// `cachedHash` does *not* make two unrelated elements share state on its own:
+/// `==` uses the hash as a fast **reject** and falls through to a chain walk,
+/// and `Set`/`Dictionary` resolve collisions through `==` rather than through
+/// distribution. `Hashable` permits collisions. A degraded hash alone is a
+/// **performance** defect — a sharp one after this milestone, because once every
+/// node is identified most components are `.positional(k)` and every node at the
+/// same index in the tree hashes into one bucket, which takes `StateTable`
+/// quadratic per frame.
 ///
-/// `pathsDifferingOnlyInAnAncestorAreNotEqual` cannot see this: `==` walks the
-/// chain, so it returns the right answer under any hash at all. Measured —
-/// deleting `hasher.combine(parent?.cachedHash ?? 0)` leaves that test, and all
-/// 348, green. This one reddens, and it is the only thing that does.
+/// **The danger is the combination**, and the load-bearing line is `==`'s chain
+/// walk, not this hash. `ElementID.swift` carries the whole statement at `==`,
+/// which is where no test can reach it.
+///
+/// So what this test pins is the hash **alone**, and it is the only thing that
+/// does. `pathsDifferingOnlyInAnAncestorAreNotEqual` cannot see the omission —
+/// `==` walks the chain, so it returns the right answer under any hash at all.
+/// Measured, `--no-parallel` — edit: delete
+/// `hasher.combine(parent?.cachedHash ?? 0)` from `GlobalElementID.init` — that
+/// test stays green and this one reddens, alone, out of **360**.
+///
+/// **The 348 this comment used to claim was never a measurement of the suite it
+/// was written against.** Counting `@Test` across `Tests/`: **348** at
+/// `97c0277`, **349** at `0effc4c` — the commit that wrote the sentence — and
+/// 358 at the commit before this one. The twin of this error was caught and
+/// fixed in `ElementID.swift` during Task 1 and missed here; ruling SI-H is the
+/// general form. Re-measured rather than re-derived.
 @Test func theHashItselfDistinguishesPathsDifferingOnlyInAnAncestor() {
     let left = GlobalElementID.child(of: nil, at: 0, name: nil)
     let right = GlobalElementID.child(of: nil, at: 1, name: nil)

@@ -551,7 +551,7 @@ git commit -m "docs: record structural identity and retire the anonymous-element
 ## Exit criteria
 
 - [ ] `swift test` completes with a **summary line** and the full count; `swift package clean && swift build` warning-free
-- [ ] `GlobalElementID?` appears nowhere in `Sources/` except `requestGroupLayout`'s `parent` and `GlobalElementID.parent` itself
+- [ ] `nil` is gone from the **identity a phase receives**: `Element`'s three phases and `StateTable.withState` take a non-optional `GlobalElementID`, and `child(of:at:name:)` returns one. **This criterion originally read "`GlobalElementID?` appears nowhere in `Sources/` except `requestGroupLayout`'s `parent` and `GlobalElementID.parent` itself", which is unmet as literally written** — six code sites keep the optional, not two: `GlobalElementID.parent`, `init`'s and `child`'s `parent` parameters, two locals inside `==`, and `requestGroupLayout`'s `parent` (× 8 conformances). Five of those are forced by a root having no parent; **`requestGroupLayout`'s is not forced, it is inert** — `Frame.render` builds the root itself and never calls it, and every production call site passes a non-optional. Spec §6 and the decisions doc carry the same list.
 - [ ] An anonymous element holds state across frames, pinned
 - [ ] Two unnamed siblings do not share a state entry, pinned
 - [ ] The index space is flat, pinned against the builder's `Pair` nesting

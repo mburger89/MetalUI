@@ -318,3 +318,93 @@ import MetalUICore
                            as: Int.self) == 1)
     #expect(misplaced.count == 1)
 }
+
+// MARK: - The two index-arithmetic lines the branch shipped unguarded
+
+/// **`EitherGroup` reserves BOTH of its index slots, because it may take
+/// either.** `cursor += 2` runs before the branch is chosen, so `.first` uses
+/// `branchIndex` and `.second` uses `branchIndex + 1`; whichever runs, the other
+/// slot must stay reserved or something else in the container lands on it.
+///
+/// **The comment at that line, and ruling SI-F, both justified `+= 2` with the
+/// wrong property, and this test is why the justification changed.** They said a
+/// later sibling's index must not depend on which branch was taken — but the
+/// cursor advances *before* the switch, so that holds under `+= 1` too.
+/// Measured, `Row { if flag { C() } else { C() }; C() }` across a flip: the
+/// trailing element sits at `.positional(2)` under `+= 2` and `.positional(1)`
+/// under `+= 1`, and **counts 2 either way**. Its state survives the mutation,
+/// so it cannot pin the line — which is exactly why the line was unguarded on a
+/// 358-test suite.
+///
+/// What does break is a sibling that lands on the *untaken* slot and then goes
+/// one level deeper, which this test builds. Measured, `--no-parallel`, 358
+/// tests — edit: `cursor += 2` → `cursor += 1` in
+/// `EitherGroup.requestGroupLayout` (`ElementGroup.swift`):
+///
+/// - this composition — the trailing `Row`'s child and the `else` branch's
+///   member share one path, `table.count` collapses 2 → 1, and the shared entry
+///   reads **3** across the two frames instead of 1 and 2;
+/// - `Row { if a { C() } else { C() }; if b { C() } else { C() } }` — the
+///   collision spec §3.5 names — collapses 2 → 1 the same way, reading **2**.
+///
+/// The `== 1` on the branch member is as load-bearing as the count: a shared
+/// entry shows up there as a 3.
+@MainActor
+@Test func aBranchReservesBothIndicesSoASiblingCannotLandOnTheUntakenOne() {
+    let table = StateTable()
+    let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
+
+    for flag in [true, false] {
+        let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+        var row = Row {
+            if flag { CountingElement(nil) } else { CountingElement(nil) }
+            Row { CountingElement(nil) }
+        }
+        frame.render(&row)
+    }
+
+    let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+    // The `if`/`else` owns indices 0 and 1; the trailing `Row` is index 2.
+    let takenBranch = GlobalElementID.child(of: root, at: 1, name: nil)   // `.second`, frame 2
+    let sibling = GlobalElementID.child(of: root, at: 2, name: nil)
+
+    #expect(table.peek(GlobalElementID.child(of: takenBranch, at: 0, name: nil),
+                       as: Int.self) == 1)
+    #expect(table.peek(GlobalElementID.child(of: sibling, at: 0, name: nil),
+                       as: Int.self) == 2)
+    #expect(table.count == 2)
+}
+
+/// **An erased element is still one element and therefore one index.**
+/// `AnyElement.requestGroupLayout` has its own copy of `Element`'s default —
+/// including its own `cursor += 1` — and nothing reached it: two `AnyElement`
+/// siblings did not exist in any test, so the whole erased path was outside the
+/// index space's coverage.
+///
+/// The claim this pins is asserted in two places — CLAUDE.md's `AnyElement` row
+/// ("boxing every child moves no path and no `StateTable` entry") and
+/// `ElementBuilder.swift`'s note that the boxing mutation reddens only
+/// type-level tests. Both were true by inspection and measured by nothing.
+///
+/// Measured, `--no-parallel`, 358 tests — edit: delete `cursor += 1` from
+/// `AnyElement.requestGroupLayout` (`ElementGroup.swift`, **not** `Element`'s
+/// default, which its own tests already cover) — reddens exactly this test:
+/// both erased siblings take `.positional(0)`, `table.count` collapses 2 → 1,
+/// and the single entry reads 2.
+@MainActor
+@Test func twoErasedSiblingsDoNotShareOneStateEntry() {
+    let table = StateTable()
+    let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
+    let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
+
+    var row = Row {
+        AnyElement(CountingElement(nil))
+        AnyElement(CountingElement(nil))
+    }
+    frame.render(&row)
+
+    let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+    #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: nil), as: Int.self) == 1)
+    #expect(table.peek(GlobalElementID.child(of: root, at: 1, name: nil), as: Int.self) == 1)
+    #expect(table.count == 2)
+}

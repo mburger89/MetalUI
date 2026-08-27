@@ -33,6 +33,16 @@ public enum PathComponent: Hashable, Sendable {
 /// every frame. Sharing the tail makes a child one allocation regardless of
 /// depth: O(n) per frame rather than O(n·depth).
 ///
+/// **Releasing a chain is recursive, and that is bounded by layout rather than by
+/// anything here.** Dropping the last reference to a leaf id releases its parent
+/// from `deinit`, which releases *its* parent, so a pathological depth would
+/// overflow the stack at teardown. The mechanism that keeps it theoretical is
+/// `LayoutContext.maxDepth` (64): identity depth is element-container nesting
+/// plus one level per enclosing `if`/`else`, and `computeLayout` traps on the
+/// container nesting long before a release chain matters. Worth knowing because
+/// "one allocation per child regardless of depth" says nothing about the other
+/// end.
+///
 /// **`cachedHash` is a fast reject, never a proof of equality.** `==` walks both
 /// chains. A hash-equality shortcut would let two unrelated elements share one
 /// state entry — the same failure shape as content sizing's memo key shipping
@@ -73,14 +83,28 @@ public final class GlobalElementID: Hashable, Sendable {
     /// **Structural equality. `==` walks both chains; `cachedHash` is a fast
     /// reject and never a proof.**
     ///
-    /// **Nothing in the suite guards this loop, and nothing can.** Replacing
+    /// **What no test can guard is the HASH-SHORTCUT spelling — not the loop.**
+    /// The distinction matters and this comment was over-broad without it:
+    /// losing the chain walk outright is caught, loudly. Measured, `--no-parallel`
+    /// — edit: replace this whole body with `return l.component == r.component`
+    /// — `pathsDifferingOnlyInAnAncestorAreNotEqual` and
+    /// `differentDepthsWithTheSameTailAreNotEqual` fail, and then the process
+    /// **traps**: `Fatal error: Duplicate elements of type 'GlobalElementID'
+    /// were found in a Set.` So that mutation has no reproducible count at all —
+    /// it is a truncated run with **no summary line**, taxonomy shape 11, and two
+    /// runs of it reported four failing names and three. Loud, but not a number.
+    ///
+    /// The unguardable spelling is the *other* one. Replacing
     /// this body with `l.cachedHash == r.cachedHash` is wrong only on a genuine
     /// 64-bit collision, and a collision is not constructible in a test:
     /// `Hasher` is seeded per process, so one cannot be written down, and
-    /// searching for one is ~2^32 trials. Measured three times as the suite grew
-    /// around it — 349, then 356, then **358** (`--no-parallel`, 2026-08-27) —
-    /// and that replacement leaves the whole suite green every time. The count
-    /// moved twice and the finding did not. The guard is this loop existing, and
+    /// searching for one is ~2^32 trials. Measured four times as the suite grew
+    /// around it — 349, 356, 358, **360** (`--no-parallel`, 2026-08-27) —
+    /// and that replacement leaves the whole suite green every time, summary line
+    /// and all. The count moved twice and the finding did not. That is the
+    /// contrast: a wrong `==` that keeps the hash good is silent, and a wrong
+    /// `==` that discards the chain is a process trap. The guard is this loop
+    /// existing, and
     /// universal identity makes it *more* load-bearing, not less: every node has
     /// a key now, so a collision is a shared `StateTable` entry between two
     /// arbitrary elements. Do not delete it on the
@@ -92,7 +116,8 @@ public final class GlobalElementID: Hashable, Sendable {
     /// exactly while `==` walks the chain. Dropping the parent from
     /// `cachedHash` alone (leaving this loop intact) — edit:
     /// delete `hasher.combine(parent?.cachedHash ?? 0)` from `init` — reddens
-    /// exactly one test out of 358 (`--no-parallel`, 2026-08-27),
+    /// exactly one test out of 360 (`--no-parallel`, 2026-08-27, re-measured
+    /// after the two index tests landed),
     /// `theHashItselfDistinguishesPathsDifferingOnlyInAnAncestor` —
     /// every other test stays green, because `Hashable` permits collisions
     /// and `Set`/`Dictionary` resolve them through `==`, which that mutation

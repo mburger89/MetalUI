@@ -119,6 +119,18 @@ sensitive to the same line, and each under-counted by exactly those two. The two
 that survived re-measurement were the two that **named** the tests they reddened
 instead of only counting them — which is CS-N's rule with a reason attached.
 
+**And its fix round produced the branch's only taxonomy-shape-9 pair**, found by
+mutating every line of new code rather than by reading any of it: `EitherGroup`'s
+`cursor += 2` and `AnyElement`'s `cursor += 1` each reddened **nothing** on a
+358-test suite while being asserted as a property in two documents apiece. Both
+now have a test. The `+= 2` one carries the sharper lesson: **the composition the
+stated property suggests does not fail.** `Row { if flag { C() } else { C() };
+C() }` keeps the trailing element's state under `+= 1` — the cursor advances
+before the branch is chosen, so the shift is identical on both frames. Only a
+sibling that lands on the *untaken* slot and then goes one level deeper breaks,
+which took three candidate compositions and a probe to find. The property the
+comment claimed was not the property the line bought.
+
 ## Verified on real hardware
 
 `swift run MetalUIDemo` was run and inspected on a Retina display: the window
@@ -145,7 +157,7 @@ what the demo draws — and no test can establish it.** `MetalLayerSurface` vend
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and the whole suite still passed when that was measured, at 342 tests
-(**358 today**; the count is quoted so the measurement can be dated, not because
+(**360 today**; the count is quoted so the measurement can be dated, not because
 342 is a property of anything). If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
@@ -350,7 +362,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **358 tests** and 61 browser fixtures, warning-free
+`swift build` · `swift test` — **360 tests** and 61 browser fixtures, warning-free
 (measured 2026-08-27; read the summary line, never the exit status — shape 11).
 **Seven** non-test targets with strictly one-way dependencies: `MetalUICore`,
 `MetalUILayout`, `MetalUIShaderTypes`, `MetalUIRender`, `MetalUIPlatform`,
@@ -485,9 +497,15 @@ line up despite the labels.
 
 **The third row is the control**, and it is what makes this a measurement of the
 O(1)-vs-O(depth) claim rather than of the tree: same 8,191 nodes, average depth
-~3 instead of ~12. The linked list is **flat** across it (0.154 → 0.144 debug,
-0.093 → 0.084 release); the array form is not (0.300 → 0.141 in release, where
-allocation overhead stops masking the copy).
+~3 instead of ~12.
+
+**Release is the load-bearing column for the O(1) claim, and an independent
+re-run is why this clause exists.** In debug the linked list's own depth
+sensitivity across the control (−6% here, −25% in the re-run) is comparable to
+the array form's (−28% here, −18% there), so the debug rows do not separate the
+two models cleanly — allocation and retain/release traffic dominate both. In
+release they do separate: array 0.300 → 0.141 against linked 0.093 → 0.084. Read
+the release figures for the claim and the debug figures for the absolute cost.
 
 **End to end the win is at or below noise, and that is the honest headline.**
 Path construction is 0.3-0.4% of a debug `Frame.render` and ~1.5% of a release
@@ -523,7 +541,8 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    forcing `canTypecheck` to `false`: exactly 25 tests report as skipped, the
    total does not move, and the run passes. Re-measured 2026-08-27 at
    `Test run with 358 tests` (it read 304 when first taken, and the guard count
-   is still 25 — 15 + 7 + 1 + 2 across the four files). A falling count is
+   is still 25 — 15 + 7 + 1 + 2 across the four files; the suite is 360 after
+   the fix round added two). A falling count is
    the signal shape 11 tells you to watch, and the count does not fall.
 
    **Not converted to a hard failure, and the reason is a configuration rather
