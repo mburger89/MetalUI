@@ -59,19 +59,36 @@ idiomatic Swift. macOS and iOS.
   Universal identity makes tombstones *more* useful and no easier — it is a
   change to the **sweep**, not to the key.
 
-- **One decision is now open rather than settled: `Column`/`Row`'s cross-axis
-  default.** Ruling EP-6 keeps them on CSS's `stretch` **because** an `auto`
-  cross size resolved to 0, so a centred child with no cross size would have
-  measured 0 and painted nothing; EP-6 says outright that EP-5's stack half is
-  "blocked on recursive subtree measurement: a prerequisite, not an
-  application". Content sizing built that prerequisite, so the reason is gone
-  and the question — SwiftUI centres, CSS stretches — is a choice again.
-  **It was deliberately not re-decided**: it is an API change in `MetalUI` and
-  belongs with whoever takes EP-5's stack half. Two things a re-decision must
-  not assume: a **childless** `Box` still measures 0, so the demo's sidebar
-  boxes would still paint nothing under `center`; and a **leaf** still has no
-  production `MeasureFunction`, so "content" means "a subtree of nodes" until
-  M2, not text.
+- **`Column` and `Row` centre on the cross axis; `Box` stretches. Ruling EP-8,
+  2026-08-27, and this closes what was open.** SwiftUI's `VStack`/`HStack`
+  centre, CSS stretches, and EP-5 takes SwiftUI's answer where the two differ.
+  EP-6 held `stretch` on a *mechanism* — an `auto` cross size resolved to 0, so
+  a centred child with no cross size would have painted nothing — and named that
+  mechanism as "a prerequisite, not an application"; content sizing built the
+  prerequisite, and EP-8 is the application. EP-6's other half, **no invented
+  default `gap`, still stands**.
+
+  **The change is in `Column.init`/`Row.init`, not in `Style`.** `Style`'s
+  `alignItems` default is still `nil`, the engine still reads that as CSS's
+  `stretch`, `Box` is untouched, and **no golden moved** — WebKit stays the
+  oracle for the flex algorithm and the split is what makes that true. If a
+  golden ever moves for a stack-default change, something reached the engine
+  that should not have. The split is a checked property, not a convention:
+  `aStackCentresOnTheCrossAxisWhereABoxStretches` asserts the `Column` answer
+  (70) and the `Box` answer (0) side by side, so moving the default down into
+  `Style` reddens its second half while leaving the first green.
+
+  **The cost, and it is real: a childless `Box` measures 0, so a box with no
+  cross size now paints nothing** where `stretch` silently filled its container.
+  That is a *louder* failure than the one it replaces — a missing rectangle is
+  visible, a wrongly-filling one is not — but it has to be paid in writing. The
+  remedy is a declared cross size, or `.alignItems(.stretch)` on the container
+  where "these fill their parent" is what the code means;
+  `Sources/MetalUIDemo/main.swift` pays it in **five** places (root column, body
+  row, sidebar, main pane, the row of weights) and says so at each. Note also
+  that a **leaf** still has no production `MeasureFunction`, so "content" means
+  "a subtree of nodes" until M2, not text — a `Column` of text-shaped leaves
+  will measure 0 on the cross axis for that reason and not this one.
 
 ## Practices
 
@@ -136,6 +153,13 @@ comment claimed was not the property the line bought.
 `swift run MetalUIDemo` was run and inspected on a Retina display: the window
 shows the centred rounded rect with its antialiased border, and the close button
 quits the process.
+
+**Re-verified on 2026-08-27 after ruling EP-8 made `Column`/`Row` centre on the
+cross axis**, because that ruling's failure mode is an *invisible rectangle* and
+no test in this repo can see one: a human ran the demo and reported it looks
+right — nothing vanished, the sidebar rows and the separator still fill their
+containers through their new explicit `.alignItems(.stretch)`, and resize and the
+light/dark toggle still work.
 
 **That was M0's demo, and it is not what `MetalUIDemo` draws today.** The demo
 was replaced by the element pipeline's — a four-level nested flex layout of

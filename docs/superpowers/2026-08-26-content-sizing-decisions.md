@@ -34,6 +34,13 @@ survived two branches' greps for lowercase `ruling`.
 
 ## EP-6 is unblocked — recorded, not re-decided
 
+***Settled on 2026-08-27 by ruling EP-8** (element-pipeline decisions doc):
+`Column`/`Row` centre. The section below is left as written, because it is the
+record of the milestone that made the choice available; only its closing
+sentence — "deliberately not re-decided here" — has been overtaken. Both things
+it warned a re-decision must not assume held: a childless `Box` still measures
+0, and that is EP-8's stated cost.*
+
 **This is the milestone's stated purpose, and it was about to go unrecorded at
 the moment it was achieved.** The element-pipeline decisions doc's ruling EP-6
 keeps `Column`/`Row` on CSS's `stretch` cross-axis default, and its reason is a

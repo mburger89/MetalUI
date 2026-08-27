@@ -30,31 +30,41 @@ func demoContent() -> some Element {
         }
         .height(Pixels(72))
         .padding(Pixels(16))
+        // Kept although ruling EP-8 now makes it the default, because it is the
+        // one container here where centring is what the design *wants* — a 40pt
+        // avatar and a 12pt bar on a common centre line — rather than something
+        // it inherited. Both children declare a cross size, so this row needed
+        // no change; every other container below did.
         .alignItems(.center)
         .background(.surface)
         .cornerRadius(Pixels(14))
 
         // A hairline. A separator is a thin filled box, which is why
         // `ColorToken.separator` is a token the renderer can actually honour.
+        // It declares no width: it spans whatever its parent is, and the root
+        // column's `.alignItems(.stretch)` below is what says so.
         Box()
             .height(Pixels(1))
             .background(.separator)
 
         // Body: the row that absorbs every vertical resize.
         Row(gap: Pixels(12)) {
-            // Fixed-width sidebar. Its children have no width of their own and
-            // reach full width through `align-items: stretch` (ruling EP-6).
+            // Fixed-width sidebar. Its rows declare a height and no width:
+            // they fill the sidebar, and `.alignItems(.stretch)` is where the
+            // demo says that rather than inheriting it.
             //
-            // **EP-6's stated reason for that default is gone.** It kept
-            // `stretch` because an `auto` cross size resolved to 0, so an
-            // unstretched child here would have painted nothing at all — a
-            // mechanism, not a preference. The content-sizing milestone
-            // implemented recursive subtree measurement, which EP-6 itself
-            // named as its blocker, so an `auto` cross size now measures
-            // content. These boxes are still empty, so they would still
-            // measure 0; the difference is that the default is now a choice
-            // rather than a workaround. Re-deciding it is EP-5's stack half
-            // and is deliberately NOT part of content sizing.
+            // **This is ruling EP-8 in one line.** EP-6 kept CSS's `stretch` as
+            // `Column`/`Row`'s default because an `auto` cross size resolved to
+            // 0, so a centred child here would have painted nothing — a
+            // mechanism, not a preference. Content sizing implemented the
+            // recursive subtree measurement EP-6 named as its blocker, the
+            // reason expired, and EP-8 took SwiftUI's answer (EP-5): stacks
+            // centre. **A childless `Box` still measures 0**, so these four
+            // would be 0 wide and invisible without the modifier below. That is
+            // the cost EP-8 accepted, and the remedy is exactly this — say
+            // "these fill their container" out loud, rather than hardcoding
+            // 196 - 28 into four children that would then silently disagree
+            // with the padding above them.
             Column(gap: Pixels(10)) {
                 Box().height(Pixels(26)).background(.accent).cornerRadius(Pixels(6))
                 Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
@@ -63,6 +73,7 @@ func demoContent() -> some Element {
             }
             .width(Pixels(196))
             .padding(Pixels(14))
+            .alignItems(.stretch)
             .background(.surface)
             .cornerRadius(Pixels(14))
 
@@ -79,15 +90,26 @@ func demoContent() -> some Element {
                     Box().flexGrow(1).background(.surfaceSecondary).cornerRadius(Pixels(10))
                 }
                 .flexGrow(1)
+                // The three weights size themselves horizontally and fill
+                // vertically. `flexGrow` is a main-axis rule and says nothing
+                // about the cross one, which is what this modifier is for.
+                .alignItems(.stretch)
             }
             .flexGrow(1)
             .padding(Pixels(16))
+            // The hero box and the row of weights each declare one axis and
+            // fill the other.
+            .alignItems(.stretch)
             .background(.surface)
             .cornerRadius(Pixels(14))
         }
         .flexGrow(1)
+        // Sidebar and main pane are full-height columns side by side.
+        .alignItems(.stretch)
     }
     .padding(Pixels(16))
+    // Header, hairline and body are full-width bands stacked down the window.
+    .alignItems(.stretch)
     .background(.background)
 }
 
