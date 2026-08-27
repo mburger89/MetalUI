@@ -65,31 +65,63 @@ import MetalUICore
     }
 }
 
-/// The depth guard fires on a **real layout**, not only when `enter` is called
-/// by hand.
+/// `placeNode` **consults** the depth guard — the call, not the guard.
 ///
 /// `aCycleInTheChildListTrapsRatherThanHanging` above drives `LayoutContext`
-/// directly, so it stays green with `ctx.enter(node)` deleted from `placeNode`
-/// — the guard would exist and never be consulted, which is exactly the shape
-/// `resolveEdges` was in for a milestone (taxonomy shape 4). This one goes
-/// through `computeLayout` and reddens when that call is removed.
+/// directly, so it stays green with `ctx.enter(node)` deleted from `placeNode`:
+/// the guard would exist and never be reached, which is the shape `resolveEdges`
+/// sat in for a milestone (taxonomy shape 4). This one reddens when that call
+/// is removed — measured, both ways.
 ///
-/// **Depth, not a cycle, because a cycle is not constructible.**
-/// `LayoutTree.newNode` takes children that already exist, so every edge points
-/// at an earlier node and the child lists are a DAG by construction. Nesting is
-/// therefore the only way a real tree reaches the guard: `maxDepth + 1` nodes,
-/// one child each, so the innermost `placeNode` is the level past the limit.
-@Test func layingOutATreeDeeperThanTheLimitTraps() async {
-    await #expect(processExitsWith: .failure) {
+/// **Driven to the limit by hand rather than by a deep tree, because a deep
+/// tree cannot get there.** The obvious version of this test lays out
+/// `maxDepth + 1` nested nodes; it passes with `ctx.enter` deleted, because 257
+/// frames of `placeNode` -> `positionItems` **overflow the stack first**. That
+/// was measured, not assumed: on a Swift Testing exit-test task, 150 nested
+/// nodes lay out fine and 200 die with SIGBUS, so a real recursion reaches the
+/// guard's own message on no path this suite can run. (`computeLayout` on the
+/// main thread has an 8 MB stack and would; a task gets far less.) Entering
+/// the context by hand and then calling `placeNode` **once** reaches the
+/// guard's call site with three stack frames.
+///
+/// A cycle is not the way in either: `LayoutTree.newNode` takes children that
+/// already exist, so every edge points at an earlier node and the child lists
+/// are a DAG by construction.
+@Test func placeNodeConsultsTheDepthGuard() async {
+    let result = await #expect(processExitsWith: .failure,
+                               observing: [\.standardErrorContent]) {
         let tree = LayoutTree(generation: 0)
-        var node = tree.newNode(style: Style(), children: [])
-        for _ in 0..<LayoutContext.maxDepth {
-            node = tree.newNode(style: Style(), children: [node])
-        }
-        computeLayout(tree, root: node,
-                      available: AvailableSpaceSize(width: .definite(100),
-                                                    height: .definite(100)))
+        let node = tree.newNode(style: Style(), children: [])
+        let ctx = LayoutContext(rootFontSize: 16)
+        for _ in 0..<LayoutContext.maxDepth { ctx.enter(node) }   // exactly at the limit
+        placeNode(ctx, tree, node, origin: (0, 0),
+                  size: SizeD(width: 10, height: 10), containingBlockWidth: nil)
     }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("layout recursion exceeded"),
+            "aborted, but not at the depth guard this test is about:\n\(stderr)")
+}
+
+/// The same for `measureNode`, and it needs its own test rather than trusting
+/// the one above: measurement does not recurse into children **yet** — nothing
+/// below `measureNode` calls `measureNode` until the four constant-substituting
+/// sites are wired — so its `ctx.enter` is the one call in this engine that no
+/// nesting can reach, and only a hand-entered context can pin it at all.
+@Test func measureNodeConsultsTheDepthGuard() async {
+    let result = await #expect(processExitsWith: .failure,
+                               observing: [\.standardErrorContent]) {
+        let tree = LayoutTree(generation: 0)
+        let node = tree.newNode(style: Style(), children: [])
+        let ctx = LayoutContext(rootFontSize: 16)
+        for _ in 0..<LayoutContext.maxDepth { ctx.enter(node) }   // exactly at the limit
+        _ = measureNode(ctx, tree, node, known: .unspecified,
+                        available: AvailableSpaceSize(width: .maxContent,
+                                                      height: .maxContent),
+                        containingBlockWidth: nil)
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("layout recursion exceeded"),
+            "aborted, but not at the depth guard this test is about:\n\(stderr)")
 }
 
 @Test func nestingBelowTheDepthLimitDoesNotTrap() {
