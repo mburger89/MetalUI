@@ -219,25 +219,17 @@ public final class Window {
         // `nil` dirty rect, and a guard here would couple the upload to a
         // property of the scene that can drift from it.
         //
-        // **A FOURTH failure no test here can see, and it is not on spec §4.2's
-        // list.** This method commits frame N-1's command buffer and never
-        // waits — there is no semaphore and no `waitUntilCompleted` on the live
-        // path (`grep -n "waitUntil" Sources/` finds exactly one, in
-        // `Renderer.renderOffscreen`, which is test support). `upload` then
-        // mutates the persistent `.shared` atlas texture **in place** with
-        // `texture.replace`, while frame N-1's encoded draw may still be
-        // sampling it. Every other GPU resource `encode` touches is a fresh
-        // per-frame `makeBuffer`; the atlas is the only persistent
-        // CPU-mutated one, so it is the only one exposed. The window is exactly
-        // the frame that packs a NEW glyph — a resize, new text, a font-size
-        // change — and the symptom is one torn or wrong glyph, intermittently.
-        // `renderOffscreen` waits, so no test in this repo can reach it.
-        //
-        // Not fixed here, and the reason is reach: the honest fix is
-        // double-buffering the atlas texture behind an in-flight semaphore in
-        // this method, which changes the frame loop rather than the upload. The
-        // cheap version — allocate a fresh texture on every dirty upload —
-        // churns a full atlas per new-glyph frame and only narrows the window.
+        // **This method commits and never waits, and `upload` is safe anyway —
+        // but only because of an invariant `Renderer` maintains, not because of
+        // anything here.** There is no semaphore on this path, so frame N-1's
+        // draw may still be sampling the atlas texture while this call runs.
+        // `Renderer.atlasTextureWasEncoded` is what makes that harmless: a
+        // texture is written only while it has never been bound, and a dirty
+        // upload after an encode allocates a replacement. **If you add an
+        // in-flight semaphore here, that invariant becomes redundant rather than
+        // wrong** — do not remove it in the same change, because the atlas is
+        // the only persistent CPU-mutated GPU resource in the renderer and it
+        // would be the only thing standing between a torn glyph and a frame.
         renderer.upload(glyphAtlas)
 
         do {

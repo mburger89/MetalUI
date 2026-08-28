@@ -498,3 +498,119 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
     #expect(pixels[hit + 2] > 200, "the glyph's red must be on top")
     #expect(pixels[hit] < 60, "the rect's blue must be mostly covered")
 }
+
+/// A dirty upload after the texture has been encoded must allocate a REPLACEMENT
+/// rather than write into the one an in-flight frame may still be sampling.
+///
+/// **Found by the M2 whole-branch review, not by any assertion — and no
+/// assertion in this repo can see the race itself.** `Window.drawFrameIfNeeded`
+/// commits a frame's command buffer and never waits; the live path has no
+/// semaphore (`grep -n "waitUntil" Sources/` finds one line, in
+/// `renderOffscreen`, which is test support). So a `texture.replace` on the next
+/// frame writes pixels the previous frame's draw may be reading, and the atlas
+/// is the only resource exposed to that — every other thing `encode` binds is a
+/// fresh per-frame `makeBuffer`. The symptom is one torn or wrong glyph on
+/// exactly the frame that packs a new one: a resize, new text, a font-size
+/// change.
+///
+/// **What this test can and cannot do.** It cannot observe the race — the
+/// window is a GPU-timing one and `renderOffscreen` waits, which is the same
+/// reason nothing else here can see spec §4.2's three. What it pins is the
+/// *invariant that makes the race impossible*: a texture is written only while
+/// unencoded, so the identity assertion below is the mechanism and the pixel
+/// assertion is that the replacement carries the whole atlas rather than an
+/// empty one. Both halves are needed — returning a fresh blank texture would
+/// satisfy the first alone, and that is spec §4.2's third failure mode arriving
+/// by a different road.
+///
+/// **Measured `--no-parallel`, suite 445, one mutation at a time — all four
+/// redden this test and NOTHING else**, which is the point: no other test in the
+/// repo is sensitive to any of them.
+///
+/// 1. `sizeChanged || false && wouldMutateAnEncodedTexture` — the fix reverted.
+/// 2. `wouldMutateAnEncodedTexture = atlasTextureWasEncoded` — the
+///    `dirtyRect != nil` conjunct dropped, so clean frames churn.
+/// 3. `atlasTextureWasEncoded = false` in `encodeGlyphs` — the flag never set.
+/// 4. `if needsFullUpload, atlas.dirtyRect == nil` — the replacement refilled
+///    from the dirty rect instead of the whole atlas.
+///
+/// Mutation 4 is the one that justifies the pixel half.
+/// `anAtlasWithNoDirtyRectStillUploadsInFullToANewTexture` looks like it should
+/// catch it and does not: its atlas has no dirty rect, so that mutation leaves
+/// it on the full-upload path. This is the only guard for "a *replacement*
+/// texture carries the whole atlas".
+@Test @MainActor func aDirtyUploadAfterEncodingReplacesTheTextureRatherThanWritingIntoIt() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let renderer = try Renderer(device: device)
+
+    let font = FontResolver.resolve(family: nil, size: 13)
+    let atlas = GlyphAtlas(width: 128, height: 128)
+
+    func pack(_ character: Character) throws -> AtlasSlot {
+        var utf16 = Array(String(character).utf16)
+        var glyphIDs = [CGGlyph](repeating: 0, count: utf16.count)
+        try #require(CTFontGetGlyphsForCharacters(font.ctFont, &utf16, &glyphIDs, utf16.count))
+        let key = GlyphKey(font: font.key, glyph: glyphIDs[0], size: 13,
+                           subpixelVariant: 0, scaleFactor: 2)
+        return try #require(atlas.slot(for: key) {
+            GlyphRaster.rasterize(glyph: glyphIDs[0], font: font,
+                                  subpixelVariant: 0, scaleFactor: 2)
+        })
+    }
+
+    atlas.beginFrame()
+    let first = try pack("H")
+    atlas.endFrame()
+    renderer.upload(atlas)
+    let beforeEncoding = try #require(renderer.atlasTexture)
+
+    // Bind it. From here the texture is off limits to the CPU.
+    let side = 64
+    let size = Size(width: DevicePixels(Int32(side)), height: DevicePixels(Int32(side)))
+    var firstScene = Scene()
+    firstScene.insert(sprite(first, at: (x: 4, y: 4), color: .white))
+    firstScene.finalize()
+    _ = try renderer.renderOffscreen(firstScene, size: size)
+
+    // An upload with nothing dirty must NOT churn a new texture — without the
+    // `dirtyRect != nil` conjunct in `upload`, every steady-state frame would
+    // allocate a whole atlas.
+    renderer.upload(atlas)
+    #expect(renderer.atlasTexture === beforeEncoding,
+            "a clean upload after encoding reallocated; steady-state frames will churn")
+
+    atlas.beginFrame()
+    let second = try pack("W")
+    atlas.endFrame()
+    try #require(atlas.dirtyRect != nil, "the second glyph must have dirtied the atlas")
+    renderer.upload(atlas)
+
+    #expect(renderer.atlasTexture !== beforeEncoding,
+            "a dirty upload wrote into the texture the previous frame encoded")
+
+    // The replacement must carry the whole atlas, not just what was dirty: the
+    // FIRST glyph is the one a dirty-rect-only refill would blank.
+    var scene = Scene()
+    scene.insert(sprite(first, at: (x: 4, y: 4), color: .white))
+    scene.insert(sprite(second, at: (x: 4, y: 30), color: .white, order: 1))
+    scene.finalize()
+    let pixels = try renderer.renderOffscreen(scene, size: size)
+
+    for (slot, originY) in [(first, 4), (second, 30)] {
+        var mismatches = 0
+        var ink = 0
+        for row in 0..<slot.height {
+            for column in 0..<slot.width {
+                let expected = atlas.pixels[(slot.y + row) * atlas.width + slot.x + column]
+                if expected > 0 { ink += 1 }
+                if expected != alpha(pixels, 4 + column, originY + row, width: side) {
+                    mismatches += 1
+                }
+            }
+        }
+        #expect(ink > 0, "the glyph at y=\(originY) must have ink for a blank to be visible")
+        #expect(mismatches == 0,
+                "\(mismatches) pixels differ at y=\(originY) after the texture was replaced")
+    }
+}

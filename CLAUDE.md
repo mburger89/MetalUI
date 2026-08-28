@@ -261,7 +261,7 @@ what the demo draws — and no test can establish it.** `MetalLayerSurface` vend
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and the whole suite still passed when that was measured, at 342 tests
-(**444 today**; the count is quoted so the measurement can be dated, not because
+(**445 today**; the count is quoted so the measurement can be dated, not because
 342 is a property of anything). If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
@@ -278,25 +278,35 @@ which compares every unambiguously covered byte of the drawable against the
 glyph's own rasterized bitmap — and its doc comment names the three failures it
 still cannot see, and why each one hides from it.
 
-**A third thing no test can establish, and it is a race rather than a gap —
-found by the whole-branch review, not by any assertion.** `Window.drawFrameIfNeeded`
-commits frame N-1's command buffer and never waits (the live path has no
-semaphore; `grep -n "waitUntil" Sources/` finds one line, in
-`Renderer.renderOffscreen`, which is test support). `renderer.upload` then
-mutates the persistent `.shared` atlas texture **in place** with
-`texture.replace`, while frame N-1's encoded draw may still be sampling it.
-Every other GPU resource `encode` touches is a fresh per-frame `makeBuffer`, so
-the atlas is the only exposed one. The window is exactly the frame that packs a
-**new** glyph — a resize, new text, a font-size change — and the symptom is one
-torn or wrong glyph, intermittently. **It is a fourth member of the "nothing
-here can see it" set and spec §4.2 does not list it**, which matters because
-that list is the basis on which this milestone's risks were accepted. Not fixed:
-the honest fix is double-buffering the atlas texture behind an in-flight
-semaphore in the frame loop, and the cheap one (a fresh texture per dirty
-upload) churns a full atlas per new-glyph frame and only narrows the window.
-Recorded at both `Window.swift`'s `renderer.upload` call and `Renderer.upload`.
+**A race the whole-branch review found, now closed — and the way it is closed is
+the part to know before touching the renderer.** `Window.drawFrameIfNeeded`
+commits a frame's command buffer and never waits; there is no semaphore on the
+live path (`grep -n "waitUntil" Sources/` finds one line, in
+`Renderer.renderOffscreen`, which is test support). `renderer.upload` used to
+`texture.replace` **in place** on the persistent `.shared` atlas texture, so the
+frame that packed a new glyph wrote pixels the previous frame's draw could still
+be sampling — one torn glyph, intermittently, on exactly a resize or a
+font-size change. The atlas was the only resource exposed to this: everything
+else `encode` binds is a fresh per-frame `makeBuffer`.
 
-**A fourth thing no test can establish, and this one is a live release trap.**
+**The fix is an invariant, not a lock**: `Renderer.atlasTextureWasEncoded` is set
+when the texture is bound, and a texture is written only while that is `false`.
+A dirty upload after an encode therefore allocates a *replacement* and fills it
+from the whole atlas; the old object stays alive as long as the in-flight command
+buffer retains it, which is Metal's job. Steady-state frames allocate nothing —
+that is what the `dirtyRect != nil` conjunct in `upload` buys, and dropping it
+churns a full atlas per frame.
+
+**What is tested is the invariant, not the race** — the race is a GPU-timing
+window and `renderOffscreen` waits, so nothing here can reach it, exactly as with
+§4.2's three. `aDirtyUploadAfterEncodingReplacesTheTextureRatherThanWritingIntoIt`
+pins both halves (the texture is replaced, *and* the replacement carries the
+whole atlas), and four mutations redden it and nothing else. **Spec §4.2 does not
+list this failure class**, which is worth knowing because that list is the basis
+on which M2's risks were accepted — it was three, and the true count of things
+that can produce a wrong glyph with no assertion able to see it was four.
+
+**A thing no test can establish, and this one is a live release trap.**
 The `MeasureFunction` a `Text` attaches (`Text.requestLayout`) reduces to
 `SizeD` inside `MainActor.assumeIsolated`, because the shaping cache is
 `@MainActor` and a `ShapedText` may not cross an isolation boundary. That is
@@ -596,12 +606,13 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **444 tests** and 67 browser fixtures, warning-free
+`swift build` · `swift test` — **445 tests** and 67 browser fixtures, warning-free
 (re-measured 2026-08-27 `--no-parallel` at the **end** of M2, on `feat/text-m2`
 after `swift package clean`, per rulings CS-M/CS-N/SI-H: a count is stale the
 moment a test is added, so it is taken at the milestone's last commit rather
 than at the commit that first quoted it. Task 8 added no test — it is docs and
-the demo — so the emitter's 444 reproduced exactly. Read the
+the demo — so the emitter's 444 reproduced exactly, and the whole-branch
+review's atlas-race fix took it to 445. Read the
 summary line, never the exit status — shape 11. It was 429 before the emitter,
 396 after the divergence-6 task, 365 after Task 1 and 360
 before the branch, and that 360 measured 361 on the same checkout — so treat a
@@ -785,7 +796,9 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    `Test run with 304 tests`, re-measured at 358 on the structural-identity
    branch, and **re-counted at the end of M2 (suite 444): still 25 — 15 + 7 + 1
    + 2 across the four files**, where `grep -c canTypecheck` reads 3 in
-   `UnitSafetyTests` because one is a comment. **The guard count does not track
+   `UnitSafetyTests` because one is a comment. The suite is 445 today and the 25
+   is unchanged, the extra test being an ordinary runtime one — which is this
+   paragraph's own point arriving as an example. **The guard count does not track
    the suite count and neither number implies the other.** A falling suite count
    is the signal shape 11 tells you to watch, and this failure does not move it.
 

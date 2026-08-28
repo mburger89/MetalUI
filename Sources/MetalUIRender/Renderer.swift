@@ -45,6 +45,29 @@ public final class Renderer {
     /// then drawn against whatever was uploaded last.
     private(set) var atlasTexture: (any MTLTexture)?
 
+    /// Whether ``atlasTexture`` has been bound into a render command encoder
+    /// since it was created.
+    ///
+    /// **This exists to keep `upload(_:)` from writing to a texture the GPU may
+    /// still be reading**, and it is the whole of that guarantee. `Window`
+    /// commits a frame's command buffer and does not wait; there is no
+    /// semaphore on the live path. So on the next frame, a `texture.replace`
+    /// into the same object races the previous frame's sampling of it — and the
+    /// atlas is the *only* place that could happen, every other GPU resource
+    /// `encode` touches being a fresh per-frame `makeBuffer`.
+    ///
+    /// The invariant this buys: **a texture is written only while this is
+    /// `false`** — that is, only before any command buffer references it. Once
+    /// encoded, the object is immutable for the rest of its life and a dirty
+    /// upload allocates a replacement instead. The old one stays alive as long
+    /// as the in-flight buffer retains it, which is Metal's job and not ours.
+    ///
+    /// Conservative on purpose: set when the texture is *bound*, not when a
+    /// glyph is actually drawn from it. `encodeGlyphs` only runs on a non-empty
+    /// glyph array, so the two coincide today; binding is the property that
+    /// stays true if that changes.
+    private var atlasTextureWasEncoded = false
+
     public init(device: any MTLDevice) throws {
         self.device = device
         guard let queue = device.makeCommandQueue() else {
@@ -238,6 +261,10 @@ public final class Renderer {
                                   index: Int(MUIGlyphBufferGlyphs.rawValue))
         encoder.setFragmentTexture(atlasTexture,
                                    index: Int(MUIGlyphTextureAtlas.rawValue))
+        // From here the GPU may read this texture at any time until the command
+        // buffer completes, and nothing waits for that. See
+        // ``atlasTextureWasEncoded``.
+        atlasTextureWasEncoded = true
 
         encoder.drawPrimitives(type: .triangleStrip,
                                vertexStart: 0,
@@ -269,9 +296,17 @@ public final class Renderer {
     ///   can see.
     public func upload(_ atlas: GlyphAtlas) {
         let existing = atlasTexture
-        let needsFullUpload = existing == nil
+        let sizeChanged = existing == nil
             || existing!.width != atlas.width
             || existing!.height != atlas.height
+        // **A texture that has been encoded is immutable from here on.** See
+        // ``atlasTextureWasEncoded``: writing into it would race the in-flight
+        // frame that bound it. Note the `dirtyRect != nil` conjunct — without
+        // it, a steady-state frame with nothing to upload would allocate a whole
+        // atlas every time, which is the churn this formulation avoids.
+        let wouldMutateAnEncodedTexture = atlasTextureWasEncoded
+            && atlas.dirtyRect != nil
+        let needsFullUpload = sizeChanged || wouldMutateAnEncodedTexture
 
         let texture: any MTLTexture
         if needsFullUpload {
@@ -285,9 +320,12 @@ public final class Renderer {
                 // would paint the wrong glyphs from a stale atlas, and there is
                 // no smaller correct answer than "no text this frame".
                 atlasTexture = nil
+                atlasTextureWasEncoded = false
                 return
             }
             texture = made
+            // Never bound; safe to write for exactly as long as that holds.
+            atlasTextureWasEncoded = false
         } else {
             texture = existing!
         }
@@ -302,11 +340,10 @@ public final class Renderer {
             return
         }
 
-        // **`replace` mutates a texture a previous frame may still be reading.**
-        // See the hazard note at the call site (`Window.drawFrameIfNeeded`): the
-        // live path commits without waiting, and this is the only persistent
-        // CPU-mutated GPU resource in the renderer. Nothing in this repo can
-        // observe it, because the only other caller (`renderOffscreen`) waits.
+        // **`texture` is unencoded here, and that is a precondition rather than
+        // a coincidence** — `needsFullUpload` made a fresh one if the existing
+        // one had ever been bound. Writing to an encoded texture would race the
+        // frame still sampling it (``atlasTextureWasEncoded``).
         atlas.pixels.withUnsafeBufferPointer { buffer in
             // `bytesPerRow` stays the ATLAS's width, not the region's: the
             // source rows are slices of a wider bitmap, and Metal walks them by
