@@ -64,8 +64,14 @@ public final class Window {
     /// window showing an unbounded stream of *distinct* glyphs fills it, after
     /// which `Frame.draw` silently drops the ones that will not fit. That is
     /// recorded in CLAUDE.md's inert table with this mechanism named.
-    private let glyphAtlas = GlyphAtlas(width: Window.atlasExtent,
-                                        height: Window.atlasExtent)
+    ///
+    /// **Internal rather than private**, for `lastScene`'s reason: a window that
+    /// built a *fresh* atlas per frame would produce identical pixels on every
+    /// frame the suite renders, so nothing observable from outside distinguishes
+    /// it. `currentGeneration` does, and
+    /// `aWindowKeepsOneAtlasAcrossFrames` reads it.
+    private(set) var glyphAtlas = GlyphAtlas(width: Window.atlasExtent,
+                                             height: Window.atlasExtent)
 
     /// The atlas is square and this is its side, in **device pixels**.
     ///

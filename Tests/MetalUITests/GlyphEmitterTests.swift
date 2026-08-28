@@ -478,3 +478,27 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
     }
     #expect(outside == 0, "\(outside) inked pixels fell outside every sprite's box")
 }
+
+/// The window owns **one** atlas across frames, and nothing else can see that.
+///
+/// `theAtlasSurvivesTheFrameThatFilledIt` pins `Frame`'s half — a frame uses the
+/// atlas it was handed. This pins the window's: a `Window` that built a fresh
+/// `GlyphAtlas` per frame would re-rasterize and re-upload everything on every
+/// frame and render **byte-identical pixels**, so no pixel comparison and no
+/// scene assertion anywhere can distinguish it. `currentGeneration` can: it
+/// advances once per `beginFrame`, so two frames on one atlas read 2 and two
+/// frames on two atlases read 1.
+@MainActor
+@Test func aWindowKeepsOneAtlasAcrossFrames() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let (window, _) = try makeFakeWindow(device: device, size: 128) { Text(word) }
+
+    window.drawFrameIfNeeded()
+    #expect(window.glyphAtlas.currentGeneration == 1)
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    #expect(window.framesDrawn == 2)
+    #expect(window.glyphAtlas.currentGeneration == 2,
+            "the window built a second atlas rather than keeping one")
+}
