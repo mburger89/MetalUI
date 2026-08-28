@@ -41,7 +41,46 @@ Three traps worth knowing before you start:
   resource bundle but does **not** rebuild Swift's view of the C struct. Use
   `swift package clean` after header edits — `rm -rf .build` is not always enough.
 
-## The taxonomy — eleven shapes, all found in this repo
+### A mutation that reddens nothing is a broken instrument, or it is the finding
+
+Step 3 above says a green suite means the behaviour is unguarded. That is the
+usual case and it is not the only one: sometimes the edit you made **did not
+mutate anything**, and reading it as a coverage gap banks a finding that is not
+there. Telling the two apart is part of the method, not an afterthought — the
+text milestone hit both, three times each way, in one branch.
+
+**Broken instrument.** Two spellings that look like mutations and are not:
+
+- **Replacing a stored property with a computed one over surviving storage does
+  not mutate synthesized `Hashable`/`Equatable` at all.** Dropping `size` from
+  `FontKey` by making it computed from the font left the derived conformances
+  keying on exactly the same storage. Nothing changed, so nothing reddened.
+- **"Make the sort unstable" is not a mutation where the sort is already
+  stable** — Swift's sort is recorded as stable at every size measured in this
+  repo, so `glyphs.sort { $0.order < $1.order }` cannot be destabilised by
+  wishing. Reversing the tiebreaker, and deleting the sort, each redden
+  `finalizeSortsGlyphsStablyByOrder` alone.
+
+**The finding.** Three in the same branch, each on code everyone was sure of:
+
+- Deleting `!isRow` — the single operator carrying a whole CSS axis distinction
+  (inline versus block) — left **all 395 tests green**. The measurement that
+  would have caught it existed, in a comment, and had never been pinned.
+- Turning font subpixel *quantization* back on left the suite green at 412,
+  because quantization collapses four variants onto two positions and the test
+  compared the only equal-sized pair, straddling the surviving boundary.
+- Storing `left: 0, top: 0` in the glyph atlas while still *returning* the real
+  bearings from the miss path left all 442 green: every test in the repo drew
+  each glyph once against a fresh atlas, so the **cache-hit path the seam exists
+  for had no coverage at all.** On screen that is text correct on the frame it
+  appears and displaced on every frame after.
+
+**The discriminator, and it is cheap:** before banking a green mutation as a
+coverage gap, prove the mutant *behaves* differently — print the two values, or
+mutate one step further out. A mutation you cannot show changed an observable
+quantity has told you nothing about the tests.
+
+## The taxonomy — thirteen shapes, all found in this repo
 
 Use this as a checklist when writing tests, and as a hit list when mutating.
 
@@ -318,6 +357,88 @@ process-wide host — AppKit windows, WebKit, CoreAnimation, the main run loop �
 must be run *against the whole suite*, not only under its own `--filter`, and the
 **summary line and count** read afterwards. `--filter <one target>` is a
 different program from `swift test`.
+
+### 12. The oracle is the code under test
+
+A test whose **expected value is produced by the code under test** moves with
+the mutation and cannot fail. It is not shape 1 (uniform values on both sides of
+one assertion) and not shape 9 (a composition with no fixture): the mechanism is
+that both sides of the comparison are computed from the same source, so any edit
+to that source changes them together.
+
+**Four instances on the text milestone**, and the range is the point:
+
+- `noWrappedLineExceedsTheOfferedWidth` asserted that no wrapped line is wider
+  than the width — against line widths the wrapper itself had produced. Caught
+  by its author and re-oracled on raw `CTTypesetterSuggestLineBreak`.
+- **`FontMetrics.lineHeight`, under a shape-10 banner.** Both shaping assertions
+  read `abs(totalHeight - lineHeight) < 0.001`, where `totalHeight` is
+  `lines × lineHeight` — so `lineHeight { ascent }`, dropping two of its three
+  terms, left the **whole suite green at 371**. The fix is an independent oracle:
+  `metricsMatchCoreText` compares against `CTFontGetAscent`/`Descent`/`Leading`
+  directly, and the same mutation now reddens that test alone.
+- `widestLine` was unpinned as a *maximum*: `lines.first?.advance` was green
+  across 371 tests, and a min-content probe consumed exactly that value.
+- **Inside a byte-exact per-pixel comparison**, which is the instance worth
+  remembering. A test read back every pixel a real `Renderer` drew and compared
+  it to the glyph atlas — indexing into the atlas **through the sprite's own
+  `atlasBounds`**. A one-texel source shift left it green, because the
+  expectation moved with the mutation. It reads as the strongest assertion in
+  its file: hundreds of bytes, exact equality, a real GPU. Rewritten to take its
+  expectation from a locally rasterized bitmap, both one-texel shifts now redden
+  exactly it.
+
+**The generalisation is the useful part: a hand-built fixture escapes this and
+production-built input does not.** The earlier version of that same pixel test
+built its sprites *by hand* and had no problem — the atlas coordinate was on one
+side of the comparison only. The moment the sprites came from production code,
+the coordinate appeared on both sides and the assertion went hollow. So the
+hazard arrives exactly when a test is made more end-to-end, which is when it
+feels like it is getting stronger.
+
+**The check:** for every expected value in a test, name where it came from. If
+the answer is "the thing I am testing", or "a function that calls the thing I am
+testing", the test cannot fail for the bug it exists to catch. An independent
+oracle — the platform API, a hand-computed constant with its arithmetic in the
+comment, a second implementation — is the whole fix.
+
+### 13. A test whose own structure truncates the suite
+
+Shape 11 is a *run that did not happen*, and every instance of it so far came
+from a **cleanup path** — a `defer { close() }` that reached
+`NSApplication.terminate`, an over-released window that crashed a run-loop
+observer. This one is new to this project and arrives from the opposite
+direction: **the test body itself**, and only when the implementation is wrong.
+
+Swift Testing's `#expect` **records and continues**. So:
+
+```swift
+#expect(placed.count == word.count)     // records the failure, keeps going
+for i in 0..<word.count {
+    #expect(placed[i].x == ctPenX(line, i))   // Index out of range
+}
+```
+
+A mutation that made the emitter produce one glyph per *run* instead of per
+glyph made the first `#expect` fail, the loop run anyway, and the subscript go
+off the end of the implementation's own array: `Fatal error: Index out of
+range`, **no summary line, ~200 tests never run.** A **wrong implementation
+truncated the suite instead of reddening it**, which is the worst available
+response to a defect — the report is exactly what the bug suppresses.
+
+**The rule, and it costs one word: any count a later loop indexes on must be
+`try #require`, not `#expect`.** `#require` throws out of the one test and
+leaves the suite reporting.
+
+```swift
+try #require(placed.count == word.count)
+```
+
+The general form is wider than arrays: any `#expect` whose failure leaves the
+rest of the test body operating on invalid state — an index, a force-unwrap
+guard, a precondition on a count, a loop bound — belongs in a `#require`. Assert
+with `#expect` where a failure is *survivable*, with `#require` where the next
+line depends on it.
 
 ### A fixture hazard worth knowing before you write goldens
 

@@ -27,8 +27,20 @@ public final class Frame {
     /// in `fill`, so element code never has to think about it.
     public let scaleFactor: Float
 
-    /// CSS's `rem` basis. One value per frame; the text system may make it
-    /// settable in M2.
+    /// CSS's `rem` basis for `Length.rem`. One value per frame.
+    ///
+    /// **M2 came and went without making this settable, and that was a
+    /// decision rather than an oversight.** This comment used to predict that
+    /// "the text system may make it settable in M2". It did not: `Text` carries
+    /// its own `fontSize` in points and never consults this value, and `Frame`
+    /// is only ever constructed with the 16 default from `Window` — so a `rem`
+    /// still resolves against 16 whatever font a `Text` is using. The two are
+    /// unrelated quantities that share a word: this one is the *document* root
+    /// font size CSS resolves `rem` against, and M2 supplies a *per-element*
+    /// size. Wiring one to the other needs a root-level text style, which no
+    /// element has. Measured rather than assumed: `grep -rn "rootFontSize:"
+    /// Sources/ Tests/` finds no caller that passes it to a `Frame` at all, so
+    /// the default below is the only value the engine has ever seen.
     let rootFontSize: Double
 
     /// The active theme (spec §7.9), fixed for the whole frame.
