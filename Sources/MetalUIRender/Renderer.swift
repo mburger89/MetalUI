@@ -154,19 +154,20 @@ public final class Renderer {
         // so a stereo backend's per-eye matrices work without a renderer change.
         var projection = view.projection
 
-        // Each pipeline is guarded by its own array being non-empty, not by
-        // `scene.isEmpty`. A glyph-only scene reaches here — a `Text` with no
-        // background is an ordinary element — and `makeBuffer(bytes:length: 0)`
-        // returns nil, so an unguarded rect encode would throw
-        // `bufferAllocationFailed` on a scene that is perfectly well formed.
-        if !scene.rects.isEmpty {
-            try encodeRects(scene.rects, into: encoder,
-                            viewport: &viewport, projection: &projection)
-        }
-        // After every rect, whatever the orders say — see `Scene.finalize`.
-        if !scene.glyphs.isEmpty {
-            try encodeGlyphs(scene.glyphs, into: encoder,
-                             viewport: &viewport, projection: &projection)
+        // **One draw per run, pipeline bound only when the kind changes.** This
+        // is what makes a rect able to occlude text: before the draw list,
+        // `encode` drew every rect and then every glyph regardless of `order`.
+        // A run's `count` is always >= 1 (`Scene.finalize` never emits an empty
+        // run), so `makeBuffer(bytes:length: 0)` is unreachable here.
+        for run in scene.drawList {
+            switch run.kind {
+            case .rect:
+                try encodeRects(Array(scene.rects[run.start..<(run.start + run.count)]),
+                                into: encoder, viewport: &viewport, projection: &projection)
+            case .glyph:
+                try encodeGlyphs(Array(scene.glyphs[run.start..<(run.start + run.count)]),
+                                 into: encoder, viewport: &viewport, projection: &projection)
+            }
         }
     }
 
