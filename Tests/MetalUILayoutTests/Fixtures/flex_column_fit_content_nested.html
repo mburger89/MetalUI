@@ -1,0 +1,37 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* The same rule one level down, where the available space is a CONTENT box
+     rather than the root's own width.
+
+     `.outer` is 144 wide with 10 + 14 of horizontal padding, so its content box
+     is 120 and `.a` must shrink-to-fit against 120 — not against 144, and not
+     against the root's 300. `.a` therefore comes out 120 at x = 10 (`.outer`'s
+     padding-left). The three candidate bases give three different answers on
+     every edge, which is `flex_percent_padding_nonsquare`'s trick applied to
+     this rule.
+
+     THE PADDING IS ASYMMETRIC for the same reason it is there at all: 10 and 14
+     make "content box" distinguishable from "border box minus twice one edge".
+
+     `.after` sits below `.outer` inside the root, so `.outer`'s own declared
+     height is what places it — this fixture does not depend on `.outer`
+     content-sizing itself, which is `flex_column_fit_content_nested_auto`. */
+  #root { display: flex; flex-direction: column; width: 300px; height: 400px; }
+  .outer { display: flex; flex-direction: column; align-items: center;
+           width: 144px; height: 200px; padding-left: 10px; padding-right: 14px; }
+  .a { display: flex; flex-wrap: wrap; }
+  .k { width: 50px; height: 20px; }
+  .after { width: 80px; height: 30px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="outer" data-id="outer">
+      <div class="a" data-id="a">
+        <div class="k" data-id="k1"></div><div class="k" data-id="k2"></div>
+        <div class="k" data-id="k3"></div><div class="k" data-id="k4"></div>
+      </div>
+    </div>
+    <div class="after" data-id="after"></div>
+  </div>
+</body></html>

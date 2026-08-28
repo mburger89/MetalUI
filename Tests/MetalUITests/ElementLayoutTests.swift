@@ -4,7 +4,7 @@ import MetalUILayout
 @testable import MetalUI
 
 // Task 4: the flex engine's first production caller. Six milestones of engine
-// with 61 browser fixtures already pin *flexbox*; what is new here is the
+// with 66 browser fixtures already pin *flexbox*; what is new here is the
 // **plumbing** — that a container hands the engine its children in source
 // order, that each child reads back its own rect and not a sibling's or its
 // parent's, and that the builder folds a block into concrete types rather than
@@ -452,7 +452,7 @@ private enum Fixture {
 ///   from the old default *and* from an overshoot, on one number.
 /// - The `Box` half is EP-8's **split** — the ruling is implemented in
 ///   `Column.init`/`Row.init` and deliberately not in `Style`, so that the
-///   engine keeps answering as WebKit does and the 61 browser fixtures stay
+///   engine keeps answering as WebKit does and the 66 browser fixtures stay
 ///   valid. Moving the default down into `Style.alignItems` would keep the
 ///   `Column` half green and redden this one. Without it, "at the element
 ///   layer" is a comment rather than a checked property.

@@ -94,3 +94,45 @@ import MetalUICore
     #expect(narrowCross.height == 33)
     #expect(wideCross.height == 77)
 }
+
+/// The **fourth** propagation site, and the one divergence 6's fix added:
+/// `collectItems`' `ownCross`.
+///
+/// A column's own min-content width is the max over its items' min-content
+/// widths, and an item with an `auto` cross size contributes through `ownCross`.
+/// That probe's cross axis was hardcoded to `.maxContent` — deliberately, and
+/// harmlessly, while `ownCross` *was* max-content — so a column reported the
+/// same number for both of its intrinsic widths. Shrink-to-fit made that a wrong
+/// answer: an auto-width column nested in a narrower one takes 200 where WebKit
+/// gives 120 (`flex_column_fit_content_nested_auto`).
+///
+/// The width is what moves here; `theCrossAxisOfTheQueryReachesTheChildToo`
+/// above covers `flexBaseSize`'s cross fallback and reads a **height**, so
+/// neither test can stand in for the other.
+///
+/// **The oracle is the closure, not the engine**: 40 and 90 are written into the
+/// measure function and the assertions read them back out through a container
+/// that never sees them directly.
+@Test func theCrossAxisQueryReachesAnAutoCrossItem() {
+    let tree = LayoutTree(generation: 0)
+    let leaf = tree.newLeaf(style: Style()) { _, available in
+        if case .minContent = available.width { return SizeD(width: 40, height: 25) }
+        return SizeD(width: 90, height: 25)
+    }
+    var column = Style()
+    column.flexDirection = .column
+    let container = tree.newNode(style: column, children: [leaf])
+
+    // Neither call gives the column a width, so `containerCross` is indefinite
+    // in both and only the QUESTION distinguishes them.
+    let narrow = measureNode(LayoutContext(rootFontSize: 16), tree, container,
+                             known: .unspecified,
+                             available: AvailableSpaceSize(width: .minContent, height: .maxContent),
+                             containingBlockWidth: nil)
+    let wide = measureNode(LayoutContext(rootFontSize: 16), tree, container,
+                           known: .unspecified,
+                           available: AvailableSpaceSize(width: .maxContent, height: .maxContent),
+                           containingBlockWidth: nil)
+    #expect(narrow.width == 40)
+    #expect(wide.width == 90)
+}

@@ -1,0 +1,33 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* fit-content x CROSS MARGINS — the composition that existed in the engine and
+     in no fixture, and the one the prototype of this fix got wrong.
+
+     The available space shrink-to-fit is measured against is the container's
+     cross extent MINUS the item's own cross margins: 120 - 10 - 6 = **104**, not
+     120. 104 still fits two 50px items per line, so `.a` is 104x40 at x = 10 —
+     `104` is the only number in the file that distinguishes the two readings,
+     and a fit-content that ignored margins would overflow the column by exactly
+     16.
+
+     THE MARGINS ARE ASYMMETRIC ON PURPOSE (10 left, 6 right). Equal margins
+     cannot distinguish "subtract both" from "subtract twice the leading one",
+     and cannot detect a left/right transposition either — taxonomy shape 1.
+
+     `.tail` below carries `.a`'s height into a coordinate. */
+  #root { display: flex; flex-direction: column; align-items: center;
+          width: 120px; height: 200px; }
+  .a { display: flex; flex-wrap: wrap; margin-left: 10px; margin-right: 6px; }
+  .k { width: 50px; height: 20px; }
+  .tail { width: 40px; height: 24px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a">
+      <div class="k" data-id="k1"></div><div class="k" data-id="k2"></div>
+      <div class="k" data-id="k3"></div><div class="k" data-id="k4"></div>
+    </div>
+    <div class="tail" data-id="tail"></div>
+  </div>
+</body></html>

@@ -258,13 +258,17 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// `3 × 15.3105 = 45.93` tall, rounded to 46. A single-line implementation would
 /// report one line and 16.
 ///
-/// **`.alignItems(.stretch)` is load-bearing and is not incidental to the
-/// wrap.** `Column` centres by default (ruling EP-8), and a centred child takes
-/// its cross size from `collectItems`' `auto` branch, which offers
-/// `.maxContent` — so the same label in a *centring* column is laid out 270 wide
-/// inside a 120 column while still being sized 46 tall, as if it had wrapped.
-/// That divergence is measured against WebKit and pinned by
-/// `aCentringColumnDoesNotShrinkWrapItsTextUnlikeWebKit` below.
+/// **`.alignItems(.stretch)` no longer changes this answer, and the paragraph
+/// that used to stand here is why the test keeps it.** It said `.stretch` was
+/// "load-bearing and not incidental to the wrap", because `Column` centres by
+/// default (ruling EP-8) and a centred child took its cross size from
+/// `collectItems`' max-content branch — 270 wide inside a 120 column while still
+/// sized 46 tall. Divergence 6's fix makes a column's `auto` cross size
+/// shrink-to-fit, so the centred label is 120 wide too and
+/// `aCentringColumnShrinkWrapsItsTextLikeWebKit` below is the same wrap without
+/// the modifier. `.stretch` stays here as the explicit half of the pair: the two
+/// tests agreeing is the evidence, and one of them has to spell the modifier
+/// out for that to mean anything.
 @MainActor
 @Test func aLongLabelInAStretchedColumnWrapsRatherThanOverflowing() {
     var column = Column { Text(label) }.alignItems(.stretch)
@@ -284,32 +288,63 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
             == lineHeight.rounded())
 }
 
-/// **An `auto` cross size is max-content where WebKit shrink-wraps it, and the
-/// two axes of the same box then disagree.** Not introduced here — `Text` is
-/// what makes it visible, because text is the first content whose min-content
-/// and max-content differ.
+/// **A centring column shrink-wraps its text, and the box's two axes now agree
+/// with each other.** Ruling TX-H, and the end-to-end consequence of divergence
+/// 6's fix.
 ///
-/// The label's box in a 120-wide centring column comes out **270 wide and 46
-/// tall**: the height is the three lines it takes at 120, and the width is the
-/// one line it would take if nothing wrapped it. It hangs 75pt off each side.
+/// **This test asserted the opposite until that fix landed**, and it was named
+/// `aCentringColumnDoesNotShrinkWrapItsTextUnlikeWebKit`: the label's box came
+/// out **270 wide and 46 tall** in a 120-wide column — the height being the
+/// three lines it takes at 120 and the width the one line it would take if
+/// nothing wrapped it — so it hung 75pt off each side while being sized as
+/// though it had not. `collectItems`' `ownCross` measured max-content on
+/// whichever axis was the cross one; a column's cross axis is the **inline**
+/// axis, where CSS shrink-wraps. The rule is the engine's rather than this
+/// element's, and `anAutoCrossSizeInAColumnIsFitContentLikeWebKit` in
+/// `MetalUILayoutTests` pins it with no text in it at all.
 ///
-/// WebKit's answer is 120 wide. Measured without any text at all —
-/// `anAutoCrossSizeIsMaxContentRatherThanFitContentUnlikeWebKit` in
-/// `MetalUILayoutTests` carries the repro and the numbers (WebKit `120x40`,
-/// engine `200x40`), because the rule is the engine's and not this element's.
-/// Fixing it belongs to a sizing plan: it moves an item's stored cross size,
-/// which every ancestor consumes and 61 goldens depend on.
+/// **The narrow column is the discriminator and the 120-wide one is not.**
+/// Where the widest word fits, fit-content answers exactly the offered width —
+/// which is also what `.alignItems(.stretch)` gives, so the first block below
+/// would pass against an implementation that stretched everything. At 20pt the
+/// min-content floor binds: the box takes its **widest word**, overflows, and
+/// sits at a negative x that a stretched box never has.
+///
+/// Both oracles are CoreText's, not this engine's: `ctAdvance` per word for the
+/// floor, and `roundLayout`'s own rule — round both edges, subtract — applied to
+/// numbers computed here.
+///
+/// **This does not mean text renders correctly.** Divergence 7 is untouched: a
+/// `Row { Text(…) }` still takes its cross size from the item's *hypothetical*
+/// main size rather than its used one, so a shrunk row of text is one line tall
+/// while §4.5 narrows it to three lines' worth of width. See
+/// `anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit`.
 @MainActor
-@Test func aCentringColumnDoesNotShrinkWrapItsTextUnlikeWebKit() {
+@Test func aCentringColumnShrinkWrapsItsTextLikeWebKit() {
     var column = Column { Text(label) }
     let (frame, root) = laidOut(&column, width: 120)
     let rect = frame.tree.layout(frame.tree.children(root)[0])
 
-    #expect(rect.width == ctAdvance(label, font.ctFont).rounded())
-    #expect(rect.width > 120)
-    #expect(rect.x < 0)
-    // Sized as if it had wrapped, laid out as if it had not.
+    #expect(rect.width == 120)
+    #expect(rect.x == 0)
+    // Three lines at 120 — the height it was already being given, now paired
+    // with a width that agrees with it.
     #expect(rect.height == (3 * ctLineHeight(font.ctFont)).rounded())
+
+    // 20pt is narrower than every word, so fit-content floors at min-content —
+    // the widest word, shaped standalone, which is what a min-content query
+    // asks for. A stretched box would be exactly 20 wide at x = 0.
+    let widestWord = label.split(separator: " ")
+        .map { ctAdvance(String($0), font.ctFont) }.max()!
+    var narrow = Column { Text(label) }
+    let (narrowFrame, narrowRoot) = laidOut(&narrow, width: 20)
+    let narrowRect = narrowFrame.tree.layout(narrowFrame.tree.children(narrowRoot)[0])
+
+    let x = (20 - widestWord) / 2
+    #expect(narrowRect.x == x.rounded())
+    #expect(narrowRect.width == (x + widestWord).rounded() - x.rounded())
+    #expect(narrowRect.width > 20)
+    #expect(narrowRect.x < 0)
 }
 
 // MARK: - The cache is the window's, not the frame's

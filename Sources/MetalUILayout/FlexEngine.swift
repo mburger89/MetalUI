@@ -360,7 +360,7 @@ private func resolveRootSize(
     // **A fixture could hold the divergence** — `#root { display: flex }` with
     // no `width` or `height` is perfectly expressible and its golden would say
     // 800x40 — so the corpus deliberately contains none, on the same footing
-    // as WebKit's flex sub-one clause. That all 61 roots declare both axes
+    // as WebKit's flex sub-one clause. That all 66 roots declare both axes
     // explains why no *existing* fixture notices; it is not a reason one
     // could not exist.
     //
@@ -568,7 +568,7 @@ private struct ContainerLayout {
 /// `placeNode` positions all the lines afterwards. Nothing the loop computes
 /// reads anything `positionItems` writes — it writes only stored rects and
 /// recurses — and nothing `positionItems` reads changes after its own line has
-/// been stretched and flexed. The 61 browser goldens are the check.
+/// been stretched and flexed. The 66 browser goldens are the check.
 ///
 /// **An axis of `containerSize` may be `nil`, and that is not the same as 0**
 /// (ruling CS-D). It means the container has no given extent there — the shape
@@ -1417,33 +1417,84 @@ private func collectItems(
             //    apart. Re-measured on the mirror case, a column 80 wide
             //    holding an auto-width item whose content is a rigid 150x30:
             //    WebKit **150x30** and this engine **150x30** — agreeing, and
-            //    for the same reason. What separates the two rules is content
-            //    whose two intrinsic widths differ, i.e. text or a wrapping
-            //    container, and there the answers diverge: CSS shrink-wraps an
-            //    `auto` **inline** axis and content-sizes an `auto` **block**
-            //    one, while this line is axis-agnostic. In a row the cross axis
-            //    is the block axis and this is right; in a column it is the
-            //    inline axis and it is wrong. See CLAUDE.md's divergence 6 and
-            //    `anAutoCrossSizeIsMaxContentRatherThanFitContentUnlikeWebKit`.
+            //    for the same reason.
             //
-            // `.maxContent` here is hardcoded rather than taken from
-            // `intrinsic`, for the same reason §4.5's probe above is: the
-            // hypothetical cross size is a property of the item, not of the
-            // question the container was asked. A fourth propagation site
-            // would need a fourth guard test, and ruling CS-H's lesson is that
-            // an unguarded propagation edit is worse than none.
+            //    **The measurement stands; the inference "which is max-content,
+            //    not fit-content" does not, and the rule it was reaching for is
+            //    an INLINE-vs-BLOCK distinction (ruling TX-H).** CSS sizes an
+            //    `auto` **inline** axis by shrink-to-fit and an `auto` **block**
+            //    axis by content height. A row's cross axis IS the block axis,
+            //    so max-content is right there and the 150 above is what both
+            //    rules give. A **column's** cross axis is the INLINE axis, and
+            //    there the two rules separate as soon as the item's two
+            //    intrinsic widths differ — text, or a wrapping container. That
+            //    is what the `!isRow` branch below implements, and what
+            //    divergence 6 used to be.
+            //
+            // §10.3.5's fit-content, spelt out because three of its four terms
+            // were measured against WebKit rather than derived:
+            //
+            //   `min(max(min-content, available), max-content)`
+            //
+            // - **`available` is the container's cross extent MINUS the item's
+            //   own cross margins.** A wrapping child of a 120-wide centring
+            //   column with `margin-left: 10px; margin-right: 6px` measures
+            //   **104** in WebKit, not 120. This is the auto-cross x margins
+            //   composition, and it is the pair that existed in the engine and
+            //   in no fixture — `flex_column_fit_content_margins` is now the
+            //   fixture.
+            // - **The `max` with min-content really is a floor and it
+            //   overflows.** Four 50-wide items in a **30**-wide centring
+            //   column measure `50x80` at `x = -10` in WebKit, not `30x…`.
+            //   `flex_column_fit_content_floor`.
+            // - **`min` with max-content is why nothing above the fit-content
+            //   regime moves**: when `available >= max-content` the second
+            //   probe is never taken, which is why no existing golden moves.
+            //
+            // The `.minContent` probe is taken **only** when the max-content
+            // answer overflows `available`, so the ordinary case still costs
+            // exactly one measure — which matters here, because this site
+            // already fires for every item on every layout.
+            //
+            // **`intrinsic` is consulted for the indefinite case, and that IS a
+            // fourth propagation site.** Ruling CS-H's warning is against an
+            // *unguarded* propagation edit, so this one is guarded: an
+            // indefinite `containerCross` means the container has no cross
+            // extent of its own, and CS-H's invariant is that such an axis
+            // always carries a mode. Under `.minContent` the available space is
+            // **0** and fit-content collapses to the item's min-content width;
+            // under `.maxContent` it is infinite and nothing changes, which is
+            // the whole of the old behaviour. Without it a column with an
+            // `auto` width reports its *max-content* width as its min-content
+            // width, and the nested case diverges: WebKit lays an auto-width
+            // centring column inside a 120-wide one out at **120**, and the
+            // engine at 200. Pinned by `flex_column_fit_content_nested_auto`
+            // and `theCrossAxisQueryReachesAnAutoCrossItem`.
             let ownCross: Double = {
                 guard case .auto = crossDim else { return isRow ? own.height : own.width }
                 let crossKnown = isRow ? OptionalSizeD(width: hypothetical, height: nil)
                                        : OptionalSizeD(width: nil, height: hypothetical)
                 let mainSpace = AvailableSpace.definite(hypothetical)
-                let measured = measureNode(
-                    ctx, tree, kid, known: crossKnown,
-                    available: AvailableSpaceSize(width: isRow ? mainSpace : .maxContent,
-                                                  height: isRow ? .maxContent : mainSpace),
-                    containingBlockWidth: containerSize.width)
-                return clamp(isRow ? measured.height : measured.width,
-                             min: minCross, max: maxCross)
+                func measure(cross: AvailableSpace) -> SizeD {
+                    measureNode(
+                        ctx, tree, kid, known: crossKnown,
+                        available: AvailableSpaceSize(width: isRow ? mainSpace : cross,
+                                                      height: isRow ? cross : mainSpace),
+                        containingBlockWidth: containerSize.width)
+                }
+                let maxContent = measure(cross: .maxContent)
+                var value = isRow ? maxContent.height : maxContent.width
+                if !isRow {
+                    // `nil` here means "infinite", which is what max-content
+                    // already answers — so the probe below is skipped.
+                    let available: Double? = containerCross
+                        .map { $0 - marginCross.leading - marginCross.trailing }
+                        ?? (intrinsic.width == .minContent ? 0 : nil)
+                    if let available, value > available {
+                        value = max(measure(cross: .minContent).width, available)
+                    }
+                }
+                return clamp(value, min: minCross, max: maxCross)
             }()
 
             // `targetMainSize:` here is dead — §9.7.2 overwrites it on every

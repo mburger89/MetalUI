@@ -87,14 +87,17 @@ idiomatic Swift. macOS and iOS.
   `Sources/MetalUIDemo/main.swift` pays it in **five** places (root column, body
   row, sidebar, main pane, the row of weights) and says so at each.
 
-  **The sentence that used to end this bullet — "a leaf still has no production
-  `MeasureFunction`, so a `Column` of text-shaped leaves will measure 0 on the
-  cross axis" — expired with M2 Task 4, and what replaced it is worse than a 0.**
-  A `Text` measures, and a centred one takes its **max-content** width: a label
-  in a 120-wide `Column` is laid out 270 wide, overflowing both sides, while
-  being sized 46 tall as though it had wrapped at 120. That is divergence 6
-  below, it is older than the text system, and `.alignItems(.stretch)` is the
-  remedy there too.
+  **Two sentences have now expired here in two commits, and the second was
+  written by the commit that retired the first.** The original — "a leaf still
+  has no production `MeasureFunction`, so a `Column` of text-shaped leaves will
+  measure 0 on the cross axis" — expired with M2 Task 4. Its replacement said a
+  centred `Text` took its **max-content** width and was laid out 270 wide in a
+  120-wide `Column`; that was divergence 6, and **it is fixed** (ruling TX-H): a
+  column's cross axis is the inline axis, so an `auto` cross size shrink-wraps
+  and the label is 120 wide at `x = 0`, agreeing with WebKit. **`Column { Text }`
+  now needs no remedy at all.** What the bullet above still costs is the
+  *childless* `Box`, which measures 0 because it has no content to wrap — the
+  demo's five `.alignItems(.stretch)` are paying for that and not for text.
 
 ## Practices
 
@@ -206,7 +209,7 @@ a test that got this wrong would crash the run rather than redden. If layout
 ever moves off the main actor, the measure closure is the first thing to
 rewrite.
 
-## Seven known divergences — expected, measured, not defects
+## Six known divergences — expected, measured, not defects
 
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
@@ -304,7 +307,7 @@ an `auto` axis differs.
 **A fixture could hold this one; the corpus deliberately has none.**
 `#root { display: flex }` with no `width` or `height` is perfectly expressible,
 and its golden would say 800×40 and fail — same footing as WebKit's flex
-sub-one clause above. That all 61 roots declare both axes explains why no
+sub-one clause above. That all 66 roots declare both axes explains why no
 *existing* fixture notices, not why one could not exist;
 `FixtureHygieneError` does not enforce it, it only checks the root lands at
 (0, 0).
@@ -354,55 +357,55 @@ clause above: a golden would record this engine's answer as correct, and a
 future fix should move nothing in the corpus. That test is the only pin, so
 implementing FS-3 must redden exactly it.
 
-**6 and 7 — two `auto` cross-size divergences, both found by M2's text leaf and
-both older than it.** They are stated together because one tree exhibits both
-and because neither was reachable before: every box in the corpus has the same
-min-content and max-content width, so nothing could tell shrink-to-fit from
-max-content, or a hypothetical main size from a used one. A `Text` is the first
-content in this framework whose two intrinsic widths differ — and a **wrapping
-flex container** is the second, which is what lets both pins be written with no
-text in them at all.
+**6. Ruling TX-H — an item's cross size is measured before §9.7 flexes it.**
+CSS Flexbox resolves the flexible lengths (step 6) and *then* determines each
+item's hypothetical cross size "by performing layout with the **used** main
+size" (§9.4 step 7). `collectItems` computes `ownCross` in the same pass as the
+hypothetical main size, so an item that is about to shrink keeps the cross size
+it had at its unshrunk width.
 
-The shared repro, measured through the oracle: a 120x600 root holding one
-`display: flex; flex-wrap: wrap` child of four 50x20 items.
+Measured through the oracle on a 120x600 root holding one
+`display: flex; flex-wrap: wrap` child of four 50x20 items:
 
 | container | WebKit | this engine |
 |---|---|---|
-| `column; align-items: center` | `120x40` | **`200x40`, at `x = -40`** |
-| `column` (stretch) | `120x40` | `120x40` — agree |
 | `row; align-items: flex-start` | `120x40` | **`120x20`** |
 | `row` (stretch) | `120x600` | `120x600` — agree |
 
-**6. An `auto` cross size is max-content where CSS shrink-wraps the inline
-axis.** CSS sizes an item's `auto` *inline* axis by shrink-to-fit —
-`min(max(min-content, available), max-content)` — and its `auto` *block* axis by
-max-content. `collectItems`' `ownCross` uses max-content on whichever axis is
-the cross one: right for a row (its comment carries the WebKit measurement that
-established it — an item 150 tall in an 80-tall row measures 150 and overflows)
-and wrong for a column. Ruling EP-8 made `Column` centre, so
-`Column { Text(…) }` now lays a label out at its full one-line width inside a
-narrow column **while sizing it as though it had wrapped**: 270 wide and 46
-tall, hanging 75pt off each side. Pinned by
-`anAutoCrossSizeIsMaxContentRatherThanFitContentUnlikeWebKit`
-(`FlexEngineTests.swift`) and, for the composed consequence,
-`aCentringColumnDoesNotShrinkWrapItsTextUnlikeWebKit` (`TextMeasureTests.swift`).
-**The remedy for an author today is `.alignItems(.stretch)`**, which agrees with
-WebKit exactly.
-
-**7. An item's cross size is measured before §9.7 flexes it.** CSS Flexbox
-resolves the flexible lengths (step 6) and *then* determines each item's
-hypothetical cross size "by performing layout with the **used** main size"
-(§9.4 step 7). `collectItems` computes `ownCross` in the same pass as the
-hypothetical main size, so an item that is about to shrink keeps the cross size
-it had at its unshrunk width. `Row { Text(longLabel) }` is therefore **one line
-tall while being narrower than one line**. Pinned by
+`Row { Text(longLabel) }` is therefore **one line tall while being narrower than
+one line**: §4.5's automatic minimum shrinks it to three lines' worth of width
+and the height it keeps is the one line it had before shrinking, so glyphs will
+spill out of the box once anything draws them. Pinned by
 `anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit`.
 
-**Neither is fixed here, and the reason is reach — BM-4's and FS-3's reason.**
-Both move an item's *stored* cross size, which every ancestor consumes and 61
-goldens are downstream of; 7 additionally reorders the main algorithm. **No
-fixture and no golden encodes either**, deliberately: a golden would record this
-engine's answer as correct, and a future fix should move nothing in the corpus.
+**Not fixed, and the reason is reach — BM-4's and FS-3's reason.** It moves an
+item's stored cross size, which every ancestor consumes and 66 goldens are
+downstream of, and it reorders the main algorithm. **No fixture and no golden
+encodes it**, deliberately: a golden would record this engine's answer as
+correct, and a future fix should move nothing in the corpus.
+
+**This was divergence 7 of seven, and 6 is gone.** Divergence 6 was the other
+half of the same tree — `ownCross` measured **max-content** on whichever axis
+was the cross one, so a **column** (whose cross axis is the *inline* axis, where
+CSS shrink-wraps) laid a wrapping child out 200 wide at `x = -40` inside a
+120-wide centring column, and `Column { Text(…) }` 270 wide at `x = -75`. It is
+fixed: `ownCross` now computes CSS's fit-content —
+`min(max(min-content, available), max-content)` — on a column's cross axis and
+still max-content on a row's, which is right there because a row's cross axis is
+the block axis.
+
+**Read the caveat that came with that fix before trusting any similar one.** The
+change moved **no** existing golden, and that was weak evidence rather than
+strong: every box in the 61 fixtures preceding it is an empty div whose
+min-content and max-content widths are the **same number**, so the corpus could
+neither regress under the change nor validate it. Five fixtures with **wrapping**
+children were generated against the oracle to close that
+(`flex_column_fit_content*`, `FitContentFixtureTests`), and two of the fix's
+four clauses were wrong before they were measured: the available space is the
+container's cross extent **minus the item's own cross margins** (WebKit 104, not
+120, for a 120-wide column and `margin: 0 6px 0 10px`), and the `max` with
+min-content is a real floor that overflows (four 50-wide items in a **30**-wide
+centring column measure `50x80` at `x = -10`).
 
 ## Declared but inert — verified, not remembered
 
@@ -441,7 +444,7 @@ are the dangerous ones.
 | A percentage `width`/`height` on the **root** | **Falls back to the offered space, not to the percentage.** `resolveRootSize` resolves the root's percentages against `nil` and then takes `available` — so `width: 50%` in an 800-wide space gives **800**. Measured in WebKit: **400**. The root's percentage *padding* does resolve against `available.width` (see `computeLayout`), so the two halves of "the root's containing block" disagree with each other today. Fixing it moves the root's stored size, which every descendant consumes; it belongs to a sizing plan, not the box model |
 | `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
 | `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** The element pipeline's Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **Re-measured, with a mutation that compiles.** The number this row used to quote came from adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder`, and that mutation **no longer compiles**: `anExplicitAnyElementIsStillAcceptedAsAChild` — added by that same commit — puts an `AnyElement` inside a builder block, so the generic overload demands `AnyElement: Element`, which it is not, and the suite fails to build with `error: static method 'buildExpression' requires that 'AnyElement' conform to 'Element'`. Pairing it with a non-generic `buildExpression(_ e: AnyElement) -> AnyElement` restores the measurement: **exactly the three type-level tests in that file redden, and no behavioural test at all — re-measured `--no-parallel` on 2026-08-27 after structural identity, out of 358 rather than the 303 first recorded, and the three are the same three.** Universal identity does not disturb it: `AnyElement`'s `requestGroupLayout` consumes one cursor index exactly as `Element`'s default does, so boxing every child moves no path and no `StateTable` entry. Delete this row when the static path demonstrably does not serve a real container |
-| `Text.foregroundColor` / every glyph | **Stored, and read by no production code — a `Text` occupies the right box and draws nothing inside it.** `Text.paint` emits its background if one is set and returns; glyph rasterization, the atlas and the renderer's text pipeline are M2's Tasks 5-7. The modifier exists rather than being withheld (unlike the four `Style` properties above) because the value it stores is the one Task 7 will consume unchanged, and withholding it would mean changing every call site then — but until that task lands, setting it is indistinguishable from an implemented tint. **Delete this row in the task that draws a glyph.** The row this replaces said `MeasureFunction` / `tree.measure()` had **no production caller**: `Text` is that caller, through `LayoutPass.requestLeaf` → `Frame.requestLeaf` → `newLeaf` — re-measure with `grep -rn "newLeaf" Sources/`, which now finds the call in `Frame.swift` among the declaration and its doc comments. §9.2's content branch and §4.5's automatic minimum are live for **leaves** as well as containers, and the leaf halves have browser-verified consequences for the first time (divergences 6 and 7) |
+| `Text.foregroundColor` / every glyph | **Stored, and read by no production code — a `Text` occupies the right box and draws nothing inside it.** `Text.paint` emits its background if one is set and returns; glyph rasterization, the atlas and the renderer's text pipeline are M2's Tasks 5-7. The modifier exists rather than being withheld (unlike the four `Style` properties above) because the value it stores is the one Task 7 will consume unchanged, and withholding it would mean changing every call site then — but until that task lands, setting it is indistinguishable from an implemented tint. **Delete this row in the task that draws a glyph.** The row this replaces said `MeasureFunction` / `tree.measure()` had **no production caller**: `Text` is that caller, through `LayoutPass.requestLeaf` → `Frame.requestLeaf` → `newLeaf` — re-measure with `grep -rn "newLeaf" Sources/`, which now finds the call in `Frame.swift` among the declaration and its doc comments. §9.2's content branch and §4.5's automatic minimum are live for **leaves** as well as containers, and the leaf halves have browser-verified consequences for the first time — two of them, of which one (an `auto` cross size measured as max-content on a column's inline axis) was **fixed** in its own task and the other is divergence 6 above |
 | `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` matches only the string inside its own precondition message. The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
 | CSS Sizing §4.5's **specified size suggestion** | **Still not implemented** (ruling FS-3), and it **left this table's premise behind**: content sizing made the *content* half live for containers, so the missing half is no longer inert-and-invisible but a measured disagreement with WebKit — **divergence 5 above** carries the repro, the numbers and the pin, and is the one place to update. Two claims expired here in one milestone, and the second was written by the commit that retired the first (ruling CS-E's shape, third occurrence on this project): "indistinguishable until M2", then "not yet a wrong answer anywhere". Kept as a row because the *declaration* half is what this table is for — the rule is half-implemented at `collectItems`' automatic minimum, and silence there would read as complete. `aContainerItemIsFlooredByItsChildrensWidth` cannot see it: its `.a` has no specified width to be floored by |
 
@@ -457,8 +460,9 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **389 tests** and 61 browser fixtures, warning-free
-(measured 2026-08-27 `--no-parallel` on `feat/text-m2` after M2 Task 4; read the
+`swift build` · `swift test` — **395 tests** and 66 browser fixtures, warning-free
+(measured 2026-08-27 `--no-parallel` on `feat/text-m2` after the divergence-6 task,
+which added five fixtures and six tests; read the
 summary line, never the exit status — shape 11. It was 365 after Task 1 and 360
 before the branch, and that 360 measured 361 on the same checkout — so treat a
 ±1 as a stale doc rather than a missing test, and re-measure).
