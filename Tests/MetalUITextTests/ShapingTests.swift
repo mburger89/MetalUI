@@ -53,25 +53,43 @@ private let ctFontKey = NSAttributedString.Key(kCTFontAttributeName as String)
 /// never exceeds the width it was given **unless CoreText cannot break it any
 /// further**.
 ///
-/// **Rewritten from the plan's draft, which could not fail (ruling TX-A,
-/// taxonomy shape 1).** The draft read
+/// **Rewritten twice from the plan's draft, and both rewrites were forced by a
+/// mutation rather than by reading (ruling TX-A).**
+///
+/// *The draft could not fail (taxonomy shape 1).* It read
 /// `line.advance <= width + 0.001 || shaped.lines.count == 1 || line.advance ==
 /// shaped.widestLine`. The last disjunct exempts the widest line — which is
 /// always the *first* line to exceed the width, so the case the test is named
-/// for was the one case it excused. An implementation that ignored `width`
-/// entirely and returned one full-width line satisfies both escape clauses at
-/// once.
+/// for was the one case it excused. An implementation ignoring `width` and
+/// returning one full-width line satisfies both escape clauses at once.
 ///
-/// The exemption the comment actually wanted is "a single unbreakable word may
-/// overflow", and that is decidable rather than approximable: re-offer the
-/// overflowing line's own substring at the same width and ask CoreText whether
-/// it can split it. One line back means unbreakable and the overflow is legal;
-/// two means the wrap loop left a break on the table.
+/// *The first rewrite asked the wrong oracle (taxonomy shape 9's tell, applied
+/// to a test rather than a fixture).* It decided "unbreakable" by re-offering
+/// the overflowing line's substring to `Shaper.shape` — the function under
+/// test. Measured: under the mutation "ignore `wrappingAt`, always one line",
+/// the re-offer returned one line too, so the test stayed green on a shaper
+/// that does not wrap at all. **A test whose oracle is the code under test
+/// mutates along with it.**
+///
+/// The oracle here is therefore raw CoreText, reached without going through
+/// `Shaper`: ask `CTTypesetterSuggestLineBreak` what it would do with the
+/// overflowing line's own text at the same width. A suggestion covering the
+/// whole substring means genuinely unbreakable and the overflow is legal; a
+/// shorter one means the wrap loop passed up a break.
 @Test func noWrappedLineExceedsTheOfferedWidthUnlessItIsUnbreakable() {
     let s = "Supercalifragilistic expialidocious antidisestablishmentarianism"
     let utf16 = Array(s.utf16)
+    let ctFont = font.ctFont
     var overflowsSeen = 0
     var fitsSeen = 0
+
+    /// The longest prefix of `text` CoreText itself would put on one line at
+    /// `width`, in UTF-16 units.
+    func coreTextWouldBreakAfter(_ text: String, width: Double) -> Int {
+        let attr = NSAttributedString(string: text, attributes: [ctFontKey: ctFont])
+        let typesetter = CTTypesetterCreateWithAttributedString(attr)
+        return CTTypesetterSuggestLineBreak(typesetter, 0, width)
+    }
 
     for width in [40.0, 90.0, 150.0, 400.0] {
         let shaped = Shaper.shape(s, font: font, wrappingAt: width)
@@ -82,12 +100,13 @@ private let ctFontKey = NSAttributedString.Key(kCTFontAttributeName as String)
             let range = CTLineGetStringRange(shapedLine.line)
             let text = String(decoding: utf16[range.location ..< range.location + range.length],
                               as: UTF16.self)
-            let again = Shaper.shape(text, font: font, wrappingAt: width)
-            #expect(again.lines.count == 1,
+            let coreTextPrefix = coreTextWouldBreakAfter(text, width: width)
+            #expect(coreTextPrefix == range.length,
                     """
                     line \(text.debugDescription) measures \(shapedLine.advance) at \
-                    width \(width) and CoreText splits it into \(again.lines.count) \
-                    lines, so the wrap loop passed up a break opportunity.
+                    width \(width), and CoreText would have broken it after \
+                    \(coreTextPrefix) of its \(range.length) UTF-16 units — so the \
+                    wrap loop passed up a break opportunity.
                     """)
         }
     }
