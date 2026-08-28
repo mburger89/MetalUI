@@ -660,10 +660,47 @@ size (13pt→17, 26pt→26, 52pt→52). Advances for a 28-character label: **13p
 rasterizing at the zoomed size drifts progressively (~28px accumulated at 2× on one label).
 Non-variable faces are exactly linear (Menlo, Helvetica verified identical at 13 and 26pt).
 
-**Decision: pin `opsz` via a `CTFontDescriptor` variation attribute** for canvas text. Advances then
-scale linearly, zoom folds into the atlas key's `size` component as originally intended, and no
-re-shaping is needed. Cost is a one-time descriptor construction. *(Revised — the first draft claimed
-this was free with no new machinery.)*
+**Decision, corrected 2026-08-27 by measurement: pinning `opsz` does NOT make advances linear, and
+it does not belong in M2.**
+
+The paragraph here previously read: *"pin `opsz` via a `CTFontDescriptor` variation attribute for
+canvas text. Advances then scale linearly, zoom folds into the atlas key's `size` component as
+originally intended, and no re-shaping is needed."* Measured on §6.2's own 28-character string, via
+`CTLineGetTypographicBounds`:
+
+| | 13pt | 26pt | ratio |
+|---|---|---|---|
+| unpinned | 180.2544 | 329.9257 | **1.8303** |
+| **pinned** | 157.7646 | 325.8379 | **2.0653** |
+| pinned + reference size carried in the font matrix | 157.7646 | 315.5293 | **2.00000000** |
+
+**A second mechanism defeats it, independent of the axis: CoreText's advances are hinted per size.**
+Not integer-ppem quantization — a 0.125pt sweep of one glyph gives 6.322266 / 6.382202 / 6.436035 /
+6.495667, which would be identical under ppem rounding. What is quantized is the advance in integer
+**design units** (upem 2048), varying continuously and non-monotonically with size, converging on the
+unhinted `CGFont` value at **80pt** and above. Helvetica and Menlo — no hinting, no axes — are
+exactly linear at every size, which isolates the cause.
+
+**And the pin is a no-op for linearity across M2's whole surface anyway.** The unpinned axis is
+`clamp(size, 17, 96)`, so at every UI-chrome and code-editor size (8–17pt) it already sits at its
+minimum and is already constant. What the pin actually changes there is the optical *design*:
+measured cost 11.7% at 8pt rising to 13.0% at 17pt, and **zero at 28pt and above**. That is SF's
+display cut used at text size — the precise tradeoff the optical axis exists to avoid — bought on the
+only surface M2 ships and paying nothing anywhere M2 goes.
+
+**So: no pin in M2** (`FontResolver.resolve` is a plain resolve), and **linear advances are an M5
+canvas requirement solved by a fixed reference size carried in the font matrix**, which measures
+exactly 2.00000000. Zoom drift on §6.2's label at 2×: unpinned **30.6px**, pinned **10.3px**, matrix
+**0.0px**.
+
+**The recorded consequence of the matrix approach, which is why it is M5 work and not M2's:**
+`CTFontGetSize` then reports the *reference* size, so `FontKey`'s identity moves off `size` and onto
+the matrix — a type that M2's shaping cache, atlas key and renderer all key on. Changing it belongs
+with the canvas that needs it.
+
+*(Two earlier revisions of this paragraph are folded in: the first draft claimed the pin was free
+with no new machinery; the second claimed it delivered linearity. Both were wrong, and both were
+found by measuring rather than by reading.)*
 
 **Two glyph pipelines, chosen by SURFACE rather than by fallback. (Revised 2026-08-27.)**
 
