@@ -130,7 +130,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // the block, `pass`'s active clip has already absorbed this rect, so a
         // nested `ScrollView` registers ITS rect intersected with this one —
         // see `Frame.registerScrollRegion`.
-        pass.registerScrollRegion(bounds, id: id)
+        pass.registerScrollRegion(bounds, id: id, axis: axis)
         var result: Content.GroupPrepaint!
         pass.clipped(to: bounds, offsetBy: delta(-offset)) {
             result = content.prepaintGroup(layout: &layout.inner, pass: &pass)

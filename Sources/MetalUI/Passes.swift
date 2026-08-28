@@ -117,8 +117,9 @@ public struct PrepaintPass {
     /// Registration happens here rather than in `paint` because §8.1 requires
     /// it after positions resolve and before the first primitive is emitted —
     /// prepaint is the phase between the two.
-    public func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID) {
-        frame.registerScrollRegion(bounds, id: id)
+    public func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID,
+                                     axis: ScrollAxis) {
+        frame.registerScrollRegion(bounds, id: id, axis: axis)
     }
 }
 

@@ -32,6 +32,26 @@ private func wheel(at position: Point<Pixels>, deltaY: Float,
                             isMomentum: isMomentum))
 }
 
+/// A horizontal wheel event at a chosen window position — the counterpart
+/// `wheel(at:deltaY:)` needs for a `.horizontal` `ScrollView`.
+private func wheel(at position: Point<Pixels>, deltaX: Float,
+                   isMomentum: Bool = false) -> InputEvent {
+    .scrollWheel(ScrollEvent(position: position, delta: Point(x: Pixels(deltaX), y: Pixels(0)),
+                            isMomentum: isMomentum))
+}
+
+private func rowStyle() -> Style {
+    var s = Style()
+    s.flexDirection = .row
+    return s
+}
+
+private func fixedWidth(_ w: Float) -> Style {
+    var s = rowStyle()
+    s.size = Size(width: .length(.pixels(Pixels(w))), height: .auto)
+    return s
+}
+
 /// A wheel event inside a region moves that region's offset.
 ///
 /// **-37, not a round number.** `Box(style: fixedHeight(40))` appears five
@@ -224,4 +244,51 @@ private func wheel(at position: Point<Pixels>, deltaY: Float,
             "a point inside inner's RAW (unclipped) rect but outside outer's viewport must not scroll inner")
     #expect(window.stateTable.peek(outer.id, as: ScrollState.self)?.offset == 0,
             "the same point is also outside outer's own (0,0,120,120) region")
+}
+
+/// **A `.horizontal` `ScrollView` scrolls on `delta.x` only — a vertical
+/// wheel does not move it.** The fix for the axis bug this test exists to
+/// catch: `Window.applyScroll` used to read `delta.y` unconditionally
+/// regardless of the target region's axis, so a horizontal list responded to
+/// vertical wheel motion and ignored horizontal motion entirely.
+///
+/// Both halves are asserted, and the second is the one that would have
+/// caught the original bug: the first `#expect` alone (delta.x moves the
+/// offset) also passes under the old always-`y` code whenever `delta.y`
+/// happens to be 0, which is exactly the shape of event AppKit sends for a
+/// horizontal trackpad swipe (`ScrollEvent(delta: Point(x: dx, y: 0))`) —
+/// so without the second `#expect`, this test alone would not have reddened
+/// against the bug the coordinator reported. `delta.y` here is deliberately
+/// **nonzero** (-19) rather than 0, so a wrong implementation that still
+/// reads `delta.y` at all has something to wrongly move.
+///
+/// What a wrong `applyScroll` this catches: reading `delta.y` instead of
+/// `delta.x` for a horizontal region (mutation, verified in the report); a
+/// fallback that lets a vertical wheel drive a horizontal list (the second
+/// `#expect` would catch a nonzero result from the -19 sent on that axis);
+/// or a `registerScrollRegion` that dropped `axis` and defaulted it to
+/// `.vertical` regardless of what the `ScrollView` declared.
+@Test @MainActor func aHorizontalScrollViewMovesOnDeltaXNotDeltaY() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120) {
+        ScrollView(.horizontal, elementID: ElementID("row")) {
+            Box(style: rowStyle()) {
+                Box(style: fixedWidth(40)); Box(style: fixedWidth(40))
+                Box(style: fixedWidth(40)); Box(style: fixedWidth(40))
+                Box(style: fixedWidth(40))
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    let region = try #require(window.lastScrollRegions.first)
+    #expect(region.axis == .horizontal, "the region must carry the ScrollView's own axis")
+
+    platformWindow.simulateInput(.scrollWheel(
+        ScrollEvent(position: pt(60, 60), delta: Point(x: Pixels(0), y: Pixels(-19)))))
+    #expect(window.stateTable.peek(region.id, as: ScrollState.self)?.offset == 0,
+            "a vertical wheel delta must not move a horizontal region")
+
+    platformWindow.simulateInput(wheel(at: pt(60, 60), deltaX: -37))
+    #expect(window.stateTable.peek(region.id, as: ScrollState.self)?.offset == 37,
+            "delta.x -37 must move a horizontal region's offset by +37")
 }

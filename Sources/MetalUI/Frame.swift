@@ -156,7 +156,14 @@ public final class Frame {
     /// the general hit-test system: it exists only to answer "which region did
     /// this wheel event land in", nothing else consumes it, and nothing here
     /// tracks opacity or z-order beyond registration sequence.
-    private(set) var scrollRegions: [(bounds: Bounds<Pixels>, id: GlobalElementID)] = []
+    ///
+    /// **`axis` rides along because routing, not `ScrollState`, is what needs
+    /// it.** A `ScrollView` already knows its own axis and maps the stored
+    /// scalar offset through it (`ScrollView.delta(_:)`), so `ScrollState`
+    /// stays a bare `Double`. `Window.applyScroll` is the reader: it has no
+    /// other way to know whether a region wants `delta.x` or `delta.y`.
+    private(set) var scrollRegions:
+        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis)] = []
 
     /// Records a scroll region at its **clipped** bounds — the intersection of
     /// its own rect with whatever ancestor clip is active when it registers.
@@ -167,8 +174,8 @@ public final class Frame {
     /// scrolled) must not receive wheel events for the area it cannot actually
     /// show. Storing the raw, un-intersected bounds instead would let a wheel
     /// event land on a region the user cannot see.
-    func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID) {
-        scrollRegions.append((Self.intersect(activeClip, bounds), id))
+    func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis) {
+        scrollRegions.append((Self.intersect(activeClip, bounds), id, axis))
     }
 
     /// The cross-frame state table (§4.3).

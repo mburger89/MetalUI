@@ -136,7 +136,8 @@ public final class Window {
     /// registration order, captured alongside `lastScene` for the same reason:
     /// `Frame` dies at the end of `drawFrameIfNeeded`, and a wheel event may
     /// arrive at any point afterward.
-    private(set) var lastScrollRegions: [(bounds: Bounds<Pixels>, id: GlobalElementID)] = []
+    private(set) var lastScrollRegions:
+        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis)] = []
 
     init<Root: Element>(platformWindow: any PlatformWindow,
                         renderer: Renderer,
@@ -293,14 +294,35 @@ public final class Window {
     /// empty and returns `false`.** That is correct, not a startup race to
     /// close: there is no layout yet for a region to have been registered
     /// against, so there is nothing to route the event to.
+    ///
+    /// **The delta component is chosen by the region's OWN axis, not fixed to
+    /// `y`.** A `.horizontal` `ScrollView` stores its offset along `x`
+    /// (`ScrollView.delta(_:)`) and must be driven by `delta.x`; a `.vertical`
+    /// one by `delta.y`. This was wrong for one commit — every region read
+    /// `delta.y` regardless of axis, so a horizontal `ScrollView` responded to
+    /// vertical wheel motion and ignored horizontal motion entirely — fixed by
+    /// carrying `axis` on the registration (`Frame.scrollRegions`) rather than
+    /// guessing it here.
+    ///
+    /// **Semantics are narrow on purpose: one axis, no borrowing the other's
+    /// delta.** A horizontal region takes `delta.x` only and does not move on
+    /// a vertical wheel, and a vertical region the reverse — there is no
+    /// fallback that lets a plain vertical wheel drive a horizontal list, the
+    /// way some web UIs do. AppKit already remaps components for shift-scroll
+    /// on trackpads that report it, so this layer does not need to. Whether a
+    /// wheel-only device should be able to drive a horizontal list at all is a
+    /// UX decision with real trade-offs, and it is deliberately left to
+    /// whoever owns that decision rather than made here by default.
     private func applyScroll(_ event: ScrollEvent) -> Bool {
         guard let region = lastScrollRegions.last(where: { contains($0.bounds, event.position) })
         else { return false }
+        let componentDelta = region.axis == .horizontal ? event.delta.x : event.delta.y
         stateTable.withState(region.id, initial: ScrollState()) {
-            // Natural scrolling: a positive scrollingDeltaY means content moves
-            // down (the user's fingers moved down), so the offset — how far
-            // the content has scrolled up and out of view — decreases.
-            $0.offset -= Double(event.delta.y.value)
+            // Natural scrolling: a positive scrollingDelta means content moves
+            // in the positive direction (the user's fingers moved that way),
+            // so the offset — how far the content has scrolled away from its
+            // start — decreases.
+            $0.offset -= Double(componentDelta.value)
         }
         return true
     }
