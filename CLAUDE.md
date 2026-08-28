@@ -326,21 +326,48 @@ a test that got this wrong would crash the run rather than redden. If layout
 ever moves off the main actor, the measure closure is the first thing to
 rewrite.
 
-**The clipping-and-scroll milestone's demo exists; the look does not, yet.**
-`Sources/MetalUIDemo/main.swift`'s main pane now has a `ScrollView` over 40 rows
-in a rounded, background-filled `Box` in place of the old three-weights filler
-row, built to exercise all four things this sub-project added: rows clipped at
-the container's edge, wheel scrolling with trackpad momentum, the fading
-indicator painted over the rows' text, and the rectangular-vs-rounded clip
-mismatch `Box.cornerRadius` and ruling CL-A both name. **No sentence in this
-file yet says a human has run it**, and until one does, this milestone's exit
-criterion is open the same way M2's was before its own look. `docs/superpowers/specs/2026-08-28-clipping-and-scroll-design.md`
-§9 names what a look could establish that no test here can — clip-edge
-antialiasing quality, whether the indicator's fade timing feels right, and
-whether scrolling feels native — and, symmetrically, what it could NOT: those
-three are looks, not assertions, so even a positive report only closes the
-milestone's exit criterion, not those three open questions, which stay looks
-forever by construction.
+**Clipping and scroll verified on 2026-08-28 — this milestone's exit criterion,
+and it took three looks to close.** A human ran `swift run MetalUIDemo` and
+reported, on the third: scrolling works as expected with no intermittent issues,
+and the scroll indicator is correctly clipped by the container's rounded corner.
+
+**The first two looks each found a defect nothing in the 501 tests could see,
+which is the entire argument for this section.**
+
+1. **Odd text wrapping in the list rows.** Chased to a mechanism now recorded as
+   **divergence 8**, and it is PRE-EXISTING — measured byte-identical at this
+   branch's base `ba22e4a` with no `ScrollView` in the probed tree. The branch's
+   only contribution was putting 40 shrink-wrapped strings on screen at once,
+   turning a per-string coin flip into something unmissable. **Still visible in
+   the demo, by decision**: the honest fixes move a node's stored size and belong
+   in a sizing/text milestone, and a paint-side clamp was measured and rejected.
+2. **"The ScrollView is not rounded, it has hard edges"**, then **"the scroll bar
+   is painted outside the corner"** — both real, both fixed here (`f081b9d`,
+   `55ed142`). The first exposed a contradiction in this milestone's own spec:
+   §1 scoped rounded clip corners *out* while §3.1 justified choosing a fragment
+   mask over `[[clip_distance]]` *because* it could clip a rounded container. The
+   mechanism was chosen on a capability the same document excluded.
+3. **"Scrolling stopped working intermittently."** The offset was clamped on
+   *read* and unbounded on *write*, so overscroll banked an invisible dead band
+   and reversing events spent themselves unwinding it (`19f55f7`). Measured: 20
+   events of −37 into 80pt of real travel stored **740**, and 17 of the next 20
+   reversing events moved nothing. Chasing it found a second defect the human had
+   not reached yet — the indicator never appeared after ~1s idle, because its fade
+   clock was stamped from a display-link timestamp that freezes while the link is
+   paused (`329fa04`).
+
+**What the look established that nothing here can: scroll direction.**
+`Window.applyScroll` subtracts the delta, and AppKit folds the user's
+natural-scrolling preference into that delta's sign — every test pins the
+arithmetic against a synthetic delta whose sign the test itself chose. Only a
+human on a real trackpad can say which way the list actually moves. The human
+also reported that apparent tearing was the wrapping rather than real tearing.
+
+**What it did NOT establish, and these stay looks forever by construction**
+(`docs/superpowers/specs/2026-08-28-clipping-and-scroll-design.md` §9): clip-edge
+antialiasing *quality*, whether the fade *timing* feels right, and whether
+scrolling feels native. A positive report closes the exit criterion and closes
+none of those three.
 
 ## Seven known divergences — expected, measured, not defects
 
