@@ -116,12 +116,12 @@ func textMeasure(_ string: String, font: ResolvedFont, cache: ShapingCache,
 /// and §4.5's automatic minimum were live for *containers* and dead for
 /// *leaves*. A `Text` measures.
 ///
-/// **It does not draw yet, and that is the whole of what is missing.** `paint`
-/// emits this element's background if one is set and nothing else: glyphs need
-/// the atlas and the renderer's text pipeline, which are Tasks 5–7 of this
-/// milestone. So a `Text` today occupies exactly the right box and shows
-/// nothing inside it. ``foregroundColor(_:)`` is stored against that arrival and
-/// is read by no production code — CLAUDE.md's inert table carries the row.
+/// **It draws.** ``paint(_:bounds:layout:prepaint:pass:)`` shapes the string at
+/// the width layout settled on, walks each line's runs, and hands every glyph to
+/// the frame's ``MetalUIText/GlyphAtlas`` — which rasterizes it once and keeps
+/// the bitmap for every later frame. That is the unit joining the two halves
+/// this milestone built: the shaper, the rasterizer and the packer on one side,
+/// `MUIGlyph` and the glyph pipeline on the other.
 ///
 /// **One font at one size per `Text`** (spec §2): rich text, per-run attributes
 /// and per-line metrics are out of M2, which is what lets height be
@@ -143,8 +143,10 @@ public struct Text: Element, StyledElement {
     public var fontFamily: String?
     public var fontSize: Double
 
-    /// The colour glyphs will be tinted with **when this element can draw
-    /// them** (Task 7). Read by nothing today.
+    /// The colour the glyphs are tinted with. `nil` means
+    /// ``ColorToken/textPrimary``, resolved against the frame's theme like any
+    /// other token — never a literal, so unthemed text cannot end up black in a
+    /// dark window.
     public var foregroundColor: ColorToken?
 
     public init(_ string: String) {
@@ -164,10 +166,9 @@ public struct Text: Element, StyledElement {
         return copy
     }
 
-    /// The token glyphs will be tinted with once text can draw (Task 7). A
-    /// semantic token rather than an `Hsla`, for §7.9's reason: a literal would
-    /// paint identically in both appearances while looking exactly like a themed
-    /// colour at the call site.
+    /// The token the glyphs are tinted with. A semantic token rather than an
+    /// `Hsla`, for §7.9's reason: a literal would paint identically in both
+    /// appearances while looking exactly like a themed colour at the call site.
     public func foregroundColor(_ token: ColorToken) -> Text {
         var copy = self
         copy.foregroundColor = token
@@ -249,14 +250,55 @@ public struct Text: Element, StyledElement {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout, pass: inout PrepaintPass) {}
 
+    /// Emits the background, then one sprite per inked glyph.
+    ///
+    /// ## Why this shapes again rather than carrying the shape from layout
+    ///
+    /// The measure function was asked about several widths — §4.5's automatic
+    /// minimum probes min-content, the flex algorithm probes the offered
+    /// extent, and `roundLayout` then rounds the answer to a whole point — so
+    /// the width a `Text` *ends up* occupying is not necessarily any of the
+    /// widths it was measured at, and it is the one the glyphs must wrap to. So
+    /// paint asks for the shape at the final box width. That is a `ShapingCache`
+    /// lookup, not a re-typeset, whenever layout happened to ask the same
+    /// question — and a genuine miss when rounding moved the width, which is
+    /// correct rather than wasteful: shaping at the measured width and drawing
+    /// in the rounded box is what would put a glyph outside its own box.
+    ///
+    /// `Layout` deliberately does not carry the `ShapedText` forward for the
+    /// same reason: it would be the shape at a width that is one rounding step
+    /// stale, and the staleness would be invisible.
+    ///
+    /// ## The origin is the box, and today the box has no inside
+    ///
+    /// Glyphs are laid from `bounds.origin`, the node's **border box**. For a
+    /// `Text` those are the same rectangle, because a leaf's `padding` and
+    /// `border` reach nothing: `measureNode` returns a leaf's measured size
+    /// unchanged where it adds a container's `edges` back on, and `contentBox`
+    /// only ever runs on a node with children. So `Text(…).padding(…)` is inert
+    /// in layout *and* in paint, consistently — CLAUDE.md's inert table carries
+    /// the row. When a leaf's box model is implemented, the origin here becomes
+    /// the content box and must come from the engine rather than be re-resolved
+    /// here, for the percentage-inset reason recorded at `Frame.fill`.
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Void,
                                pass: inout PaintPass) {
-        // The background is all this can draw. Glyphs arrive with the atlas and
-        // the text pipeline (Tasks 5-7); see the type's doc comment.
         if let token = decoration.background {
             pass.fill(bounds, color: pass.theme[token],
                       cornerRadii: Corners(all: decoration.cornerRadius))
+        }
+
+        let font = FontResolver.resolve(family: fontFamily, size: fontSize)
+        let width = max(Double(bounds.size.width.value), smallestWrapWidth)
+        let shaped = pass.shapingCache.shaped(string, font: font, wrappingAt: width)
+        let color = pass.theme[foregroundColor ?? .textPrimary]
+
+        for glyph in shaped.placedGlyphs(
+            at: (x: Double(bounds.origin.x.value), y: Double(bounds.origin.y.value)),
+            font: font,
+            scaleFactor: pass.scaleFactor
+        ) {
+            pass.draw(glyph, color: color)
         }
     }
 }

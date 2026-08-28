@@ -379,12 +379,21 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 
 // MARK: - Paint
 
-/// A `Text` paints its background and **no glyphs** — the atlas and the text
-/// pipeline are Tasks 5-7. This is the whole of what `render` produces for one,
-/// and it is here so that "text draws nothing yet" is a checked fact rather than
-/// a sentence in a doc comment.
+/// A `Text` paints its background **and its glyphs**.
+///
+/// **This was `aTextPaintsItsBackgroundAndNoGlyphsYet`, and both halves of that
+/// name have expired.** It asserted that a `Text` produced one rect and nothing
+/// else, because the atlas and the renderer's text pipeline were still ahead;
+/// the glyph emitter closed that, so the claim is now false and the test says
+/// the new truth instead of being deleted.
+///
+/// **The other half is a lesson rather than a change of fact: the old test never
+/// pinned "no glyphs" at all.** It predates `Scene.glyphs`, so its body only
+/// ever counted rects — and it stayed green through the entire commit that made
+/// a `Text` emit forty-odd sprites. A name is not an assertion, which is why the
+/// glyph count below is here and not merely in the title.
 @MainActor
-@Test func aTextPaintsItsBackgroundAndNoGlyphsYet() {
+@Test func aTextPaintsItsBackgroundAndItsGlyphs() {
     let frame = Frame(contentSize: Size(width: Pixels(120), height: Pixels(600)),
                       scaleFactor: 1)
     var column = Column { Text(label).background(.surface) }.alignItems(.stretch)
@@ -396,4 +405,12 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
         #expect(rect.bounds.size.width == 120)
         #expect(rect.bounds.size.height == Float((3 * ctLineHeight(font.ctFont)).rounded()))
     }
+
+    // One sprite per inked glyph. The count comes from CoreText's own line —
+    // every glyph of the string, minus its eight spaces, which have no ink and
+    // therefore no sprite. `GlyphEmitterTests` pins where each one lands.
+    let attributed = NSAttributedString(string: label, attributes: [ctFontKey: font.ctFont])
+    let runs = CTLineGetGlyphRuns(CTLineCreateWithAttributedString(attributed)) as! [CTRun]
+    let glyphs = runs.reduce(0) { $0 + CTRunGetGlyphCount($1) }
+    #expect(scene.glyphs.count == glyphs - label.filter { $0 == " " }.count)
 }

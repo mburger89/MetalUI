@@ -64,6 +64,32 @@ public struct AtlasSlot: Hashable, Sendable {
     }
 }
 
+/// A glyph's whole placement: where its bitmap sits in the atlas, and how that
+/// bitmap sits relative to the pen.
+///
+/// **The two halves travel together because they were produced together.**
+/// ``AtlasSlot`` is the packer's answer; ``left`` and ``top`` are copies of
+/// ``GlyphImage/left`` and ``GlyphImage/top``, carried out of the `rasterize`
+/// closure so that a caller which *hits* the cache gets them too. Without this
+/// the only route to a bearing on a cache hit is to rasterize the glyph again
+/// or to re-derive it from `CTFontGetBoundingRectsForGlyphs` at paint time —
+/// and the second is the mistake CLAUDE.md's percentage-inset constraint
+/// records, a quantity resolved twice and free to disagree with itself.
+public struct PackedGlyph: Hashable, Sendable {
+    /// Where the bitmap is, in atlas pixels.
+    public let slot: AtlasSlot
+
+    /// See ``GlyphImage/left`` — device pixels from the pen origin rightwards
+    /// to the bitmap's left edge, and negative for a glyph whose ink starts
+    /// left of the pen.
+    public let left: Int
+
+    /// See ``GlyphImage/top`` — device pixels from the baseline upwards to the
+    /// bitmap's top edge. A y-down renderer places the bitmap's top at
+    /// `baselineY - top`.
+    public let top: Int
+}
+
 /// A CPU-side R8 glyph atlas with a shelf packer.
 ///
 /// **Shelf packing**, not a full 2D bin packer: glyphs from one font at one
@@ -85,9 +111,9 @@ public final class GlyphAtlas {
     /// `replaceRegion` call.
     public private(set) var dirtyRect: (x: Int, y: Int, width: Int, height: Int)?
 
-    private var placed: [GlyphKey: AtlasSlot] = [:]
+    private var placed: [GlyphKey: PackedGlyph] = [:]
 
-    /// The generation each key was last handed back in, by ``slot(for:rasterize:)``.
+    /// The generation each key was last handed back in, by ``packed(for:rasterize:)``.
     /// ``evictUnusedSince(_:)`` reads this and this alone to decide what to drop —
     /// kept as a separate dictionary rather than folded into ``AtlasSlot`` because
     /// that type is public and its equality is compared in tests against packer
@@ -105,7 +131,7 @@ public final class GlyphAtlas {
 
     /// Advances by one on every ``beginFrame()``, starting at 1 for the first
     /// frame. 0 is deliberately never a live generation, so a slot that has
-    /// never been touched by ``slot(for:rasterize:)`` (absent from
+    /// never been touched by ``packed(for:rasterize:)`` (absent from
     /// ``lastUsedGeneration``, defaulting to 0) is indistinguishable from one
     /// stamped before the atlas's first frame — both are "older than anything
     /// eviction would keep."
@@ -128,15 +154,31 @@ public final class GlyphAtlas {
     /// The slot holding `key`'s bitmap, rasterizing and packing it on first
     /// request, or `nil` if the atlas has no room for it.
     ///
+    /// Sugar over ``packed(for:rasterize:)`` for a caller that needs only the
+    /// atlas rectangle — the tests that assert packer geometry, which is why
+    /// the two entry points exist rather than one. A **drawing** caller needs
+    /// the bearings as well and must use `packed`, because they are the only
+    /// way to place the bitmap relative to the pen.
+    public func slot(for key: GlyphKey, rasterize: () -> GlyphImage) -> AtlasSlot? {
+        packed(for: key, rasterize: rasterize)?.slot
+    }
+
+    /// The slot holding `key`'s bitmap **and the bearings that place it**,
+    /// rasterizing and packing it on first request, or `nil` if the atlas has
+    /// no room for it.
+    ///
     /// `rasterize` is called **at most once per key** — that is the whole point
     /// of the cache, `CTFontDrawGlyphs` being far and away the expensive part
     /// of drawing text, and `theSameKeyReturnsTheSameSlotWithoutRasterizingTwice`
-    /// is what pins it.
+    /// is what pins it. The bearings are stored with the slot for the same
+    /// reason: on a cache hit `rasterize` does not run, so a caller that read
+    /// `left`/`top` off the returned ``GlyphImage`` would have them on the
+    /// first frame and not on the second.
     ///
     /// A `nil` return is **not cached**: the atlas being full is a state that
     /// eviction is meant to relieve, so a key refused today must be free to
     /// succeed tomorrow.
-    public func slot(for key: GlyphKey, rasterize: () -> GlyphImage) -> AtlasSlot? {
+    public func packed(for key: GlyphKey, rasterize: () -> GlyphImage) -> PackedGlyph? {
         if let existing = placed[key] {
             lastUsedGeneration[key] = currentGeneration
             return existing
@@ -149,7 +191,8 @@ public final class GlyphAtlas {
         // glyph there is. It touches neither the packer's state nor the dirty
         // rect, because a zero-area blit writes nothing.
         guard !image.isEmpty else {
-            let empty = AtlasSlot(x: 0, y: 0, width: 0, height: 0)
+            let empty = PackedGlyph(slot: AtlasSlot(x: 0, y: 0, width: 0, height: 0),
+                                    left: 0, top: 0)
             placed[key] = empty
             lastUsedGeneration[key] = currentGeneration
             return empty
@@ -157,12 +200,13 @@ public final class GlyphAtlas {
 
         guard let slot = place(width: image.width, height: image.height) else { return nil }
         blit(image, into: slot)
-        placed[key] = slot
+        let entry = PackedGlyph(slot: slot, left: image.left, top: image.top)
+        placed[key] = entry
         lastUsedGeneration[key] = currentGeneration
-        return slot
+        return entry
     }
 
-    /// Begins constructing one frame's scene. Every ``slot(for:rasterize:)``
+    /// Begins constructing one frame's scene. Every ``packed(for:rasterize:)``
     /// call made before the matching ``endFrame()`` is stamped with the
     /// generation this call establishes, which is what
     /// ``evictUnusedSince(_:)`` later uses to tell "used this frame" from
@@ -184,7 +228,7 @@ public final class GlyphAtlas {
         isBuildingFrame = false
     }
 
-    /// Drops every slot whose most recent ``slot(for:rasterize:)`` call
+    /// Drops every slot whose most recent ``packed(for:rasterize:)`` call
     /// predates `generation`, so the next request for that key rasterizes and
     /// packs it again rather than reusing a stale entry.
     ///

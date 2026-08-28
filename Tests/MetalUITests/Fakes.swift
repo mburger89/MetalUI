@@ -25,11 +25,35 @@ final class FakeRenderSurface: RenderSurface {
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: Renderer.pixelFormat, width: size, height: size, mipmapped: false)
         descriptor.usage = .renderTarget
-        descriptor.storageMode = .private
+        // **`.shared`, not `.private`**, so a test can read back what the window
+        // actually drew. That is the only way to see a defect whose symptom is
+        // "the first frame is blank": `lastScene` holds the right primitives
+        // either way, and the AppKit surface renders into a drawable no test can
+        // sample. See `aWindowUploadsTheAtlasBeforeEncodingSoTheFirstFrameOfTextIsNotBlank`.
+        descriptor.storageMode = .shared
         guard let texture = device.makeTexture(descriptor: descriptor) else {
             throw RendererError.bufferAllocationFailed
         }
         self.texture = texture
+    }
+
+    /// The command buffer the window last presented into, so `readPixels` can
+    /// wait on the right one. `Window.drawFrameIfNeeded` commits without
+    /// waiting, and a barrier committed on a *different* queue would not be
+    /// ordered against it.
+    private var lastCommandBuffer: (any MTLCommandBuffer)?
+
+    /// The BGRA bytes of the most recently rendered frame, row-major.
+    func readPixels() -> [UInt8] {
+        lastCommandBuffer?.waitUntilCompleted()
+        var pixels = [UInt8](repeating: 0, count: size * size * 4)
+        pixels.withUnsafeMutableBytes { raw in
+            texture.getBytes(raw.baseAddress!,
+                             bytesPerRow: size * 4,
+                             from: MTLRegionMake2D(0, 0, size, size),
+                             mipmapLevel: 0)
+        }
+        return pixels
     }
 
     func nextFrame() throws -> SurfaceFrame {
@@ -46,6 +70,7 @@ final class FakeRenderSurface: RenderSurface {
 
     func present(_ frame: SurfaceFrame, in commandBuffer: any MTLCommandBuffer) {
         presentCalls += 1
+        lastCommandBuffer = commandBuffer
     }
 }
 

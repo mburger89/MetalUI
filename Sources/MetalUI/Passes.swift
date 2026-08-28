@@ -119,6 +119,37 @@ public struct PaintPass {
                      cornerRadii: Corners<Pixels> = Corners(all: Pixels(0))) {
         frame.fill(bounds, color: color, cornerRadii: cornerRadii)
     }
+
+    // MARK: - Text
+    //
+    // Three internal members, for `LayoutPass.shapingCache`'s reason and one
+    // more. They are not phase capabilities: an element author outside
+    // `MetalUI` has no `ResolvedFont` to shape with, no `PlacedGlyph` to draw
+    // and — the extra reason — no business seeing a scale factor at all, which
+    // is stated at `fill` above. Making any of them public would put
+    // `ShapingCache`'s and `GlyphAtlas`'s whole surface into `MetalUI`'s API by
+    // reachability, and would hand an element the double-scaling hazard `fill`
+    // exists to remove.
+    //
+    // Text is inside this module, so it needs no public seam. When an element
+    // *outside* it needs to draw glyphs, the public API is a `Text`-shaped one
+    // rather than these three.
+
+    /// The window's shaping cache (spec §3.2). See `LayoutPass.shapingCache`.
+    var shapingCache: ShapingCache { frame.shapingCache }
+
+    /// Logical points to device pixels for this frame's target.
+    ///
+    /// **The one place in the paint phase that may read it**, because a glyph
+    /// bitmap is rasterized on the device grid and its placement is therefore
+    /// stated there and not in points. `fill` applies the same factor itself
+    /// and must not be handed pre-scaled bounds.
+    var scaleFactor: Float { frame.scaleFactor }
+
+    /// Emits one glyph sprite. See `Frame.draw(_:color:)`.
+    func draw(_ glyph: PlacedGlyph, color: Hsla) {
+        frame.draw(glyph, color: color)
+    }
 }
 
 // MARK: - Cross-frame state (§4.3)

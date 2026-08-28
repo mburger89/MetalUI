@@ -1,4 +1,5 @@
 import MetalUICore
+import MetalUIText
 @_exported import MetalUIShaderTypes
 
 extension MUIPoint {
@@ -48,6 +49,31 @@ extension MUIRect {
                   borderColor: MUIHsla(borderColor),
                   cornerRadii: MUICorners(cornerRadii),
                   borderWidths: MUIEdges(borderWidths),
+                  order: order,
+                  _reserved: 0)
+    }
+}
+
+extension MUIGlyph {
+    /// Build a GPU glyph sprite from framework types.
+    ///
+    /// **Two coordinate systems meet here, which is why they are two
+    /// parameters.** `bounds` is the destination on the render target, in
+    /// `ScaledPixels`; `slot` is the source in atlas texels, and it supplies the
+    /// sprite's *size* as well as its origin — a sprite is a 1:1 blit, so a
+    /// destination whose size disagreed with the slot's would resample the
+    /// bitmap. The caller still passes the destination size explicitly because
+    /// scaling is where this path goes next (spec §7.5), and a size taken from
+    /// the slot by construction could not express it.
+    public init(bounds: Bounds<ScaledPixels>,
+                slot: AtlasSlot,
+                color: Hsla,
+                order: UInt32) {
+        self.init(bounds: MUIBounds(bounds),
+                  atlasBounds: MUIBounds(
+                      origin: MUIPoint(x: Float(slot.x), y: Float(slot.y)),
+                      size: MUISize(width: Float(slot.width), height: Float(slot.height))),
+                  color: MUIHsla(color),
                   order: order,
                   _reserved: 0)
     }

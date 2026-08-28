@@ -101,9 +101,31 @@ public final class Frame {
     /// `Text` that moves keeps its shape.
     let shapingCache: ShapingCache
 
+    /// The glyph atlas (spec §3.5), owned **by the window** for exactly the
+    /// reasons `stateTable` and `shapingCache` are, and with a sharper
+    /// consequence than either.
+    ///
+    /// **A per-frame atlas would re-rasterize every glyph on every frame** —
+    /// `CTFontDrawGlyphs` per glyph per variant, the single most expensive step
+    /// in drawing text — *and* would upload a whole fresh texture to the GPU
+    /// each time, while every test in the repo stayed green: a single-frame
+    /// test cannot tell a warm atlas from a cold one, and the pixels are
+    /// identical either way. `theAtlasSurvivesTheFrameThatFilledIt` is what can
+    /// see it.
+    ///
+    /// It is keyed on ``MetalUIText/GlyphKey`` — face, glyph id, size, subpixel
+    /// variant and scale factor — so two `Text`s in one font share every glyph
+    /// they have in common, and a window dragged onto a display with a
+    /// different backing scale re-rasterizes rather than serving a 1x bitmap
+    /// into a 2x frame.
+    let glyphAtlas: GlyphAtlas
+
     init(contentSize: Size<Pixels>, scaleFactor: Float, rootFontSize: Double = 16,
          stateTable: StateTable = StateTable(),
-         shapingCache: ShapingCache = ShapingCache(), theme: Theme = .light) {
+         shapingCache: ShapingCache = ShapingCache(),
+         glyphAtlas: GlyphAtlas = GlyphAtlas(width: Window.atlasExtent,
+                                             height: Window.atlasExtent),
+         theme: Theme = .light) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
@@ -111,6 +133,7 @@ public final class Frame {
         self.rootFontSize = rootFontSize
         self.stateTable = stateTable
         self.shapingCache = shapingCache
+        self.glyphAtlas = glyphAtlas
         self.theme = theme
     }
 
@@ -191,6 +214,49 @@ public final class Frame {
             order: 0))
     }
 
+    /// Emits one glyph sprite, taking its bitmap from the atlas and rasterizing
+    /// it there on first sight.
+    ///
+    /// **Everything here is already in device pixels and nothing is scaled**,
+    /// which is the opposite of `fill` above and is deliberate. A glyph bitmap
+    /// is rasterized *on* the device grid — `GlyphKey` carries the scale factor
+    /// and `GlyphImage`'s bearings are in device pixels — so the conversion has
+    /// already happened, in `ShapedText.placedGlyphs`, once. Scaling again here
+    /// would double-scale exactly the way `PaintPass.fill`'s doc warns about.
+    ///
+    /// **The bearings come from the atlas, not from a second look at the
+    /// font.** `PackedGlyph.left`/`.top` are the values the rasterizer computed
+    /// with the same `floor`/`ceil` that produced the bitmap's width and height;
+    /// re-deriving them from `CTFontGetBoundingRectsForGlyphs` here is the
+    /// percentage-inset mistake CLAUDE.md records — one quantity resolved twice,
+    /// free to disagree with itself by a pixel.
+    ///
+    /// Two returns without an error, and they are different situations:
+    ///
+    /// - **The atlas is full** (`nil`). Nothing this frame can do about it: the
+    ///   packer never revisits a closed shelf, so there is no smaller correct
+    ///   answer than dropping the glyph. It is silent because a `throw` here
+    ///   would take down a frame that is otherwise entirely drawable.
+    /// - **The glyph has no ink** (a zero-area slot — a space, and the
+    ///   commonest glyph in a paragraph). Emitting it would add an instance
+    ///   whose quad is degenerate and whose sampler reads nothing; the atlas
+    ///   still records it so `rasterize` is not re-run for every space.
+    func draw(_ placed: PlacedGlyph, color: Hsla) {
+        guard let packed = glyphAtlas.packed(for: placed.key, rasterize: {
+            GlyphRaster.rasterize(glyph: placed.key.glyph, font: placed.font,
+                                  subpixelVariant: placed.key.subpixelVariant,
+                                  scaleFactor: placed.key.scaleFactor)
+        }) else { return }
+        guard packed.slot.width > 0, packed.slot.height > 0 else { return }
+
+        let bounds = Bounds(
+            origin: Point(x: ScaledPixels(Float(placed.pixelX + packed.left)),
+                          y: ScaledPixels(Float(placed.baselineY - packed.top))),
+            size: Size(width: ScaledPixels(Float(packed.slot.width)),
+                       height: ScaledPixels(Float(packed.slot.height))))
+        scene.insert(MUIGlyph(bounds: bounds, slot: packed.slot, color: color, order: 0))
+    }
+
     /// This frame's primitives, in paint order. Call after `render`.
     ///
     /// A copy, so `scene` stays the *emission* record: a test that asserts
@@ -235,9 +301,25 @@ public final class Frame {
         var prepaintState = element.prepaint(rootID, bounds: rootBounds,
                                              layout: &state, pass: &prepaintPass)
 
+        // The atlas's frame brackets go around the paint phase and nothing
+        // else, because scene construction is the whole of what they protect:
+        // `GlyphAtlas.evictUnusedSince` traps while a frame is being built, so
+        // that a glyph this scene still holds an `AtlasSlot` for cannot be
+        // dropped underneath it (spec §3.5). They also stamp every slot handed
+        // out here with this frame's generation, which is what eviction reads.
+        //
+        // **Not a `defer`, and the reason is a mechanism rather than taste.**
+        // The only way `paint` fails to reach `endFrame` is a Swift trap, and a
+        // trap aborts the process — there is no later frame to be left with
+        // `isBuildingFrame` still true. A `defer` here would be insurance
+        // against a case that cannot occur, and would additionally hold the
+        // bracket open across `stateTable.sweep()` below, which is not scene
+        // construction.
+        glyphAtlas.beginFrame()
         var paintPass = PaintPass(frame: self)
         element.paint(rootID, bounds: rootBounds,
                       layout: &state, prepaint: &prepaintState, pass: &paintPass)
+        glyphAtlas.endFrame()
 
         // After the frame, not before — but **not for the reason it is tempting
         // to write down.** Sweeping first does *not* discard everything the

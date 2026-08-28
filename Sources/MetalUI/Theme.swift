@@ -8,12 +8,13 @@ import MetalUICore
 /// would do so *invisibly*: nothing about a call site holding a hex value says
 /// it will not follow the theme.
 ///
-/// **Every case below is paintable today**, which is the reason there is no
-/// `textPrimary` here even though §7.9 names one as an example. There is no
-/// text system until M2 and no glyph primitive for a colour to apply to, so a
-/// `textPrimary` token would be a value with nothing to read it — the shape
-/// CLAUDE.md's inert-API table exists to catch. `separator` earns its place
-/// because a separator is a thin filled box, which `fill` already draws.
+/// **Every case below is paintable today.** That rule is what kept
+/// `textPrimary` out until the glyph emitter landed: §7.9 names it as an
+/// example, but a token with no primitive to apply it to is a value nothing
+/// reads — the shape CLAUDE.md's inert-API table exists to catch. `Text.paint`
+/// now tints glyphs with it, so it is here on the same footing as the rest;
+/// `separator` earned its place earlier for the same reason, a separator being
+/// a thin filled box that `fill` already draws.
 public enum ColorToken: Sendable, Hashable, CaseIterable {
     /// The window's canvas, behind everything else.
     case background
@@ -25,6 +26,12 @@ public enum ColorToken: Sendable, Hashable, CaseIterable {
     case accent
     /// Hairlines between regions.
     case separator
+    /// Body text on `background` or `surface`.
+    ///
+    /// The default a `Text` tints with when the author names no colour, which
+    /// is why it is a token and not a literal: unthemed text is the single
+    /// easiest thing to leave black in a dark window.
+    case textPrimary
 }
 
 /// The mapping from `ColorToken` to colour, for one appearance (spec §7.9).
@@ -50,14 +57,16 @@ public struct Theme: Sendable, Hashable {
     public var surfaceSecondary: Hsla
     public var accent: Hsla
     public var separator: Hsla
+    public var textPrimary: Hsla
 
     public init(background: Hsla, surface: Hsla, surfaceSecondary: Hsla,
-                accent: Hsla, separator: Hsla) {
+                accent: Hsla, separator: Hsla, textPrimary: Hsla) {
         self.background = background
         self.surface = surface
         self.surfaceSecondary = surfaceSecondary
         self.accent = accent
         self.separator = separator
+        self.textPrimary = textPrimary
     }
 
     public subscript(token: ColorToken) -> Hsla {
@@ -67,6 +76,7 @@ public struct Theme: Sendable, Hashable {
         case .surfaceSecondary: surfaceSecondary
         case .accent:           accent
         case .separator:        separator
+        case .textPrimary:      textPrimary
         }
     }
 
@@ -82,7 +92,8 @@ public struct Theme: Sendable, Hashable {
         surface:          .rgb(0xFFFFFF),
         surfaceSecondary: .rgb(0xE4E7EC),
         accent:           .rgb(0x2563EB),
-        separator:        .rgb(0xC8CDD6))
+        separator:        .rgb(0xC8CDD6),
+        textPrimary:      .rgb(0x14181F))
 
     /// See `light` for why every value here differs from its counterpart.
     public static let dark = Theme(
@@ -90,7 +101,8 @@ public struct Theme: Sendable, Hashable {
         surface:          .rgb(0x161C2E),
         surfaceSecondary: .rgb(0x27304A),
         accent:           .rgb(0x60A5FA),
-        separator:        .rgb(0x3A4260))
+        separator:        .rgb(0x3A4260),
+        textPrimary:      .rgb(0xE9EDF5))
 
     /// The theme the host's current appearance calls for.
     ///
