@@ -163,6 +163,14 @@ let allFixtures: [(String, CGSize)] = [
     // than being stretched to the cell.
     ("stack_stretch_declared_size",    CGSize(width: 800, height: 600)),
     ("stack_sizes_to_largest",         CGSize(width: 800, height: 600)),
+    // Task 6 -- the seam between the two paths. `layOutChildren` branches on
+    // `display` and a dispatch bug hides exactly where a stack and a flex
+    // container meet: neither direction is exercised by a fixture where the
+    // stack is the document root, which is all six above. See
+    // `StackFixtureTests.swift`'s nesting-fixture comments for what each one
+    // distinguishes and why its geometry is not simplifiable.
+    ("stack_in_flex",                  CGSize(width: 800, height: 600)),
+    ("flex_in_stack",                  CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

@@ -192,3 +192,70 @@ private func alignmentTree(align: AlignItems, justify: JustifyItems)
                               wide: "wide", tall: "tall", mid: "mid"],
                         golden: golden, tolerance: 0.1)
 }
+
+/// A stack as one item of a flex ROW, with siblings on both sides —
+/// `layOutChildren` is shared by both paths and branches on `display`, and a
+/// dispatch bug hides exactly here: a stack whose parent is a flex container
+/// must contribute its own MEASURED size (max over its children, per axis) to
+/// the row's line. A dispatch bug that instead summed the stack's children
+/// like a flex row would report `90 + 20 = 110` wide instead of `max(90, 20)
+/// = 90`, and the `.after` sibling would land at `40 + 110 = 150` instead of
+/// `40 + 90 = 130`. `.before`/`.after` are what make that visible as a
+/// POSITION shift on a sibling, not only as the stack's own (untested-against)
+/// width.
+///
+/// `align-items: flex-start` on the row keeps the stack from being stretched
+/// to the row's full 150pt height, which would hide the 70pt the stack itself
+/// measures from its `.tall` child.
+@Test func stackInFlexMatchesWebKit() throws {
+    let golden = try loadGolden("stack_in_flex")
+    let tree = LayoutTree(generation: 0)
+    let before = sized(tree, 40, 30)
+    let wide = sized(tree, 90, 10)
+    let tall = sized(tree, 20, 70)
+    let stack = stackNode(tree, [wide, tall], align: .center, justify: .center)
+    let after = sized(tree, 60, 20)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.alignItems = .flexStart
+    rootStyle.size = Size(width: px(400), height: px(150))
+    let root = tree.newNode(style: rootStyle, children: [before, stack, after])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree,
+                        ids: [root: "root", before: "before", stack: "stack",
+                              wide: "wide", tall: "tall", after: "after"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// A flex ROW as one child of a stack, alongside a larger sibling — the other
+/// direction of the same seam. A dispatch bug here would lay the nested row
+/// out at the stack's own width (or at the backdrop's 200) instead of its own
+/// 90, since `.backdrop` is deliberately the largest child on both axes: if
+/// the row instead won either axis, "the stack measured the row correctly"
+/// and "the stack ignored the row and used the backdrop" would produce
+/// identical numbers, and this fixture could not distinguish them.
+@Test func flexInStackMatchesWebKit() throws {
+    let golden = try loadGolden("flex_in_stack")
+    let tree = LayoutTree(generation: 0)
+    let backdrop = sized(tree, 200, 120)
+
+    let item0 = sized(tree, 30, 25)
+    let item1 = sized(tree, 30, 25)
+    let item2 = sized(tree, 30, 25)
+    var rowStyle = Style()
+    rowStyle.flexDirection = .row
+    let row = tree.newNode(style: rowStyle, children: [item0, item1, item2])
+
+    let root = stackNode(tree, [backdrop, row], align: .center, justify: .center,
+                         size: Size(width: px(300), height: px(200)))
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree,
+                        ids: [root: "root", backdrop: "backdrop", row: "row",
+                              item0: "item0", item1: "item1", item2: "item2"],
+                        golden: golden, tolerance: 0.1)
+}
