@@ -191,12 +191,14 @@ public struct ScrollView<Content: ElementGroup>: Element {
         let age = pass.timestamp - lastScroll
         let alpha = age < 0.6 ? 1.0 : max(0, 1.0 - (age - 0.6) / 0.4)
         guard alpha > 0 else { return }
-        // Only while still fading. Once `alpha` above has reached zero this
-        // point is unreachable — the guard just above already returned — so
-        // an idle window that was scrolled once and left alone stops asking
-        // for frames on its own, rather than spinning the display link
-        // forever on a thumb nobody can see any more.
-        if age < 1.0 { pass.requestAnotherFrame() }
+        // Unconditional here on purpose: the guard just above is what stops
+        // the asking. Once `alpha` has reached zero this point is
+        // unreachable at all, so an idle window that was scrolled once and
+        // left alone stops requesting frames on its own — a wrapping
+        // `if age < 1.0` here would read as a second guard but can never be
+        // false when reached (`alpha > 0` above already implies it), so it
+        // stayed as a comment instead of a condition that cannot fail.
+        pass.requestAnotherFrame()
 
         let thumb = max(20, viewport * (viewport / content))
         let travel = (offset / scrollable) * (viewport - thumb)
