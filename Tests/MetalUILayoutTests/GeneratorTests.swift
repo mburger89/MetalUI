@@ -125,7 +125,9 @@ let allFixtures: [(String, CGSize)] = [
     // are empty divs whose min-content and max-content widths are the SAME
     // number, so fit-content and max-content cannot be told apart in any of
     // them — which is why "no golden moved" was weak evidence for this change
-    // and why these five exist. Each child that matters here is a WRAPPING flex
+    // and why these five exist, with `flex_row_block_axis_max_content` below
+    // as the row that guards the `!isRow` confining them. Each child that
+    // matters here is a WRAPPING flex
     // container, the only content in this framework other than text whose two
     // intrinsic widths differ.
     ("flex_column_fit_content",             CGSize(width: 800, height: 600)),
@@ -133,6 +135,11 @@ let allFixtures: [(String, CGSize)] = [
     ("flex_column_fit_content_margins",     CGSize(width: 800, height: 600)),
     ("flex_column_fit_content_nested",      CGSize(width: 800, height: 600)),
     ("flex_column_fit_content_nested_auto", CGSize(width: 800, height: 600)),
+    // The other half of the axis rule, and the guard on the `!isRow` that
+    // confines the four above: a ROW's cross axis is the BLOCK axis, which
+    // content-sizes. Added because extending the fit-content branch to rows
+    // reddened **nothing** out of 395.
+    ("flex_row_block_axis_max_content",      CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

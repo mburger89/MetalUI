@@ -360,7 +360,7 @@ private func resolveRootSize(
     // **A fixture could hold the divergence** — `#root { display: flex }` with
     // no `width` or `height` is perfectly expressible and its golden would say
     // 800x40 — so the corpus deliberately contains none, on the same footing
-    // as WebKit's flex sub-one clause. That all 66 roots declare both axes
+    // as WebKit's flex sub-one clause. That all 67 roots declare both axes
     // explains why no *existing* fixture notices; it is not a reason one
     // could not exist.
     //
@@ -568,7 +568,7 @@ private struct ContainerLayout {
 /// `placeNode` positions all the lines afterwards. Nothing the loop computes
 /// reads anything `positionItems` writes — it writes only stored rects and
 /// recurses — and nothing `positionItems` reads changes after its own line has
-/// been stretched and flexed. The 66 browser goldens are the check.
+/// been stretched and flexed. The 67 browser goldens are the check.
 ///
 /// **An axis of `containerSize` may be `nil`, and that is not the same as 0**
 /// (ruling CS-D). It means the container has no given extent there — the shape
@@ -1467,8 +1467,8 @@ private func collectItems(
             // the whole of the old behaviour. Without it a column with an
             // `auto` width reports its *max-content* width as its min-content
             // width, and the nested case diverges: WebKit lays an auto-width
-            // centring column inside a 120-wide one out at **120**, and the
-            // engine at 200. Pinned by `flex_column_fit_content_nested_auto`
+            // centring column inside a 60-wide one out at **70** — its widest
+            // item — and the engine at 200. Pinned by `flex_column_fit_content_nested_auto`
             // and `theCrossAxisQueryReachesAnAutoCrossItem`.
             let ownCross: Double = {
                 guard case .auto = crossDim else { return isRow ? own.height : own.width }

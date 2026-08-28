@@ -307,7 +307,7 @@ an `auto` axis differs.
 **A fixture could hold this one; the corpus deliberately has none.**
 `#root { display: flex }` with no `width` or `height` is perfectly expressible,
 and its golden would say 800×40 and fail — same footing as WebKit's flex
-sub-one clause above. That all 66 roots declare both axes explains why no
+sub-one clause above. That all 67 roots declare both axes explains why no
 *existing* fixture notices, not why one could not exist;
 `FixtureHygieneError` does not enforce it, it only checks the root lands at
 (0, 0).
@@ -379,7 +379,7 @@ spill out of the box once anything draws them. Pinned by
 `anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit`.
 
 **Not fixed, and the reason is reach — BM-4's and FS-3's reason.** It moves an
-item's stored cross size, which every ancestor consumes and 66 goldens are
+item's stored cross size, which every ancestor consumes and 67 goldens are
 downstream of, and it reorders the main algorithm. **No fixture and no golden
 encodes it**, deliberately: a golden would record this engine's answer as
 correct, and a future fix should move nothing in the corpus.
@@ -398,9 +398,10 @@ the block axis.
 change moved **no** existing golden, and that was weak evidence rather than
 strong: every box in the 61 fixtures preceding it is an empty div whose
 min-content and max-content widths are the **same number**, so the corpus could
-neither regress under the change nor validate it. Five fixtures with **wrapping**
+neither regress under the change nor validate it. Six fixtures with **wrapping**
 children were generated against the oracle to close that
-(`flex_column_fit_content*`, `FitContentFixtureTests`), and two of the fix's
+(`flex_column_fit_content*` plus `flex_row_block_axis_max_content`,
+`FitContentFixtureTests`), and two of the fix's
 four clauses were wrong before they were measured: the available space is the
 container's cross extent **minus the item's own cross margins** (WebKit 104, not
 120, for a 120-wide column and `margin: 0 6px 0 10px`), and the `max` with
@@ -460,9 +461,9 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **395 tests** and 66 browser fixtures, warning-free
+`swift build` · `swift test` — **396 tests** and 67 browser fixtures, warning-free
 (measured 2026-08-27 `--no-parallel` on `feat/text-m2` after the divergence-6 task,
-which added five fixtures and six tests; read the
+which added six fixtures and seven tests; read the
 summary line, never the exit status — shape 11. It was 365 after Task 1 and 360
 before the branch, and that 360 measured 361 on the same checkout — so treat a
 ±1 as a stale doc rather than a missing test, and re-measure).

@@ -1,119 +1,105 @@
 {
-  "fixture" : "flex_column_fit_content_nested_auto",
+  "fixture" : "flex_row_block_axis_max_content",
   "raw" : [
     {
-      "height" : 400,
+      "height" : 30,
       "id" : "root",
-      "width" : 60,
+      "width" : 300,
       "x" : 0,
       "y" : 0
     },
     {
-      "height" : 96,
-      "id" : "col",
-      "width" : 70,
-      "x" : -5,
-      "y" : 0
-    },
-    {
-      "height" : 80,
+      "height" : 40,
       "id" : "a",
-      "width" : 70,
-      "x" : -5,
+      "width" : 120,
+      "x" : 0,
       "y" : 0
     },
     {
       "height" : 20,
       "id" : "k1",
       "width" : 50,
-      "x" : -5,
+      "x" : 0,
       "y" : 0
     },
     {
       "height" : 20,
       "id" : "k2",
       "width" : 50,
-      "x" : -5,
-      "y" : 20
+      "x" : 50,
+      "y" : 0
     },
     {
       "height" : 20,
       "id" : "k3",
       "width" : 50,
-      "x" : -5,
-      "y" : 40
+      "x" : 0,
+      "y" : 20
     },
     {
       "height" : 20,
       "id" : "k4",
       "width" : 50,
-      "x" : -5,
-      "y" : 60
+      "x" : 50,
+      "y" : 20
     },
     {
       "height" : 16,
-      "id" : "mark",
-      "width" : 70,
-      "x" : -5,
-      "y" : 80
+      "id" : "after",
+      "width" : 40,
+      "x" : 120,
+      "y" : 0
     }
   ],
   "rounded" : [
     {
-      "height" : 400,
+      "height" : 30,
       "id" : "root",
-      "width" : 60,
+      "width" : 300,
       "x" : 0,
       "y" : 0
     },
     {
-      "height" : 96,
-      "id" : "col",
-      "width" : 70,
-      "x" : -5,
-      "y" : 0
-    },
-    {
-      "height" : 80,
+      "height" : 40,
       "id" : "a",
-      "width" : 70,
-      "x" : -5,
+      "width" : 120,
+      "x" : 0,
       "y" : 0
     },
     {
       "height" : 20,
       "id" : "k1",
       "width" : 50,
-      "x" : -5,
+      "x" : 0,
       "y" : 0
     },
     {
       "height" : 20,
       "id" : "k2",
       "width" : 50,
-      "x" : -5,
-      "y" : 20
+      "x" : 50,
+      "y" : 0
     },
     {
       "height" : 20,
       "id" : "k3",
       "width" : 50,
-      "x" : -5,
-      "y" : 40
+      "x" : 0,
+      "y" : 20
     },
     {
       "height" : 20,
       "id" : "k4",
       "width" : 50,
-      "x" : -5,
-      "y" : 60
+      "x" : 50,
+      "y" : 20
     },
     {
       "height" : 16,
-      "id" : "mark",
-      "width" : 70,
-      "x" : -5,
-      "y" : 80
+      "id" : "after",
+      "width" : 40,
+      "x" : 120,
+      "y" : 0
     }
   ],
   "viewport" : [

@@ -1084,7 +1084,7 @@ private func wrappingChildInANarrowContainer(
 /// never measured. At 30 the min-content floor binds, `.a` overflows to 50, and
 /// centre / stretch give different widths *and* different x.
 ///
-/// The browser evidence is `FitContentFixtureTests` and its five fixtures; this
+/// The browser evidence is `FitContentFixtureTests` and its six fixtures; this
 /// test is the hand-written companion that carries the differential a single
 /// golden cannot.
 @Test func anAutoCrossSizeInAColumnIsFitContentLikeWebKit() {

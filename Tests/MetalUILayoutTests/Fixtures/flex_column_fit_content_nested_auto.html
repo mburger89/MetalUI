@@ -13,17 +13,18 @@
      root's fit-content collapses to `max(200, 120) = 200`, and the whole subtree
      hangs 40 off each side. WebKit puts `.col` at 120.
 
-     `.mark` IS THE SECOND OBSERVABLE and it is why this file is not one box:
-     `.col` centres it, so its x reads off `.col`'s width directly (25 at 120,
-     65 at 200). Its 70px width also separates `.col`'s min-content (70, not 50)
-     from `.a`'s, so "the column's min-content is the max over its items" is
-     pinned rather than assumed.
+     `.mark` IS THE SECOND OBSERVABLE, and the root is 60 wide rather than 120
+     so that it is a load-bearing one. `.mark` is 70 wide and `.a`'s min-content
+     is 50, so `.col`'s min-content is `.mark`'s 70 — the fit-content floor binds
+     at 70 and "a column's min-content is the max over its items" is pinned
+     rather than assumed. A draft of this file used a 120-wide root, where the
+     floor never binds and `.mark`'s only contribution is a y coordinate.
 
      This is the fourth intrinsic-propagation site (ruling CS-H). It is guarded
      here and by `theCrossAxisQueryReachesAnAutoCrossItem` in
      `IntrinsicModeTests`. */
   #root { display: flex; flex-direction: column; align-items: center;
-          width: 120px; height: 400px; }
+          width: 60px; height: 400px; }
   .col { display: flex; flex-direction: column; align-items: center; }
   .a { display: flex; flex-wrap: wrap; }
   .k { width: 50px; height: 20px; }

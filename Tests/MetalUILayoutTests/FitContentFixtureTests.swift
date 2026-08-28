@@ -6,8 +6,9 @@ import MetalUICore
 /// **Browser evidence for ruling TX-H** — a column's `auto` cross size is
 /// shrink-to-fit, not max-content.
 ///
-/// These five fixtures exist because of a caveat, and the caveat is the point of
-/// the file. The change that produced them moved **no** existing golden, and
+/// These six fixtures exist because of a caveat, and the caveat is the point of
+/// the file. Five are columns, where the rule changed; the sixth is the ROW that
+/// guards the `!isRow` confining them. The change that produced them moved **no** existing golden, and
 /// that is *weak* evidence rather than strong — for exactly the reason
 /// divergence 6 survived four milestones. Every box in the 61 fixtures that
 /// preceded these is an empty div with a declared size, so its min-content and
@@ -199,13 +200,17 @@ private func wrapper(_ tree: LayoutTree, count: Int,
 /// shrink-to-fit against and the answer must come from the question. With the
 /// cross axis hardcoded to max-content — which is what it was before this fix,
 /// and what it still is in a **row** — `.col` reports 200 as both of its
-/// intrinsic widths and the root's own fit-content collapses to `max(200, 120)`.
-/// WebKit puts `.col` at 120.
+/// intrinsic widths and the root's own fit-content collapses to `max(200, 60)`.
+/// WebKit puts `.col` at 70.
 ///
-/// `.mark` is the second observable: `.col` centres it, so its x reads `.col`'s
-/// width off directly (25 at 120, 65 at 200), and its 70pt width makes `.col`'s
-/// min-content 70 rather than `.a`'s 50 — so "a column's min-content is the max
-/// over its items" is pinned and not assumed.
+/// `.mark` is the second observable, and the root is **60** wide rather than 120
+/// so that it is a load-bearing one: `.mark` is 70 wide against `.a`'s
+/// min-content of 50, so the floor binds at `.mark`'s 70 and "a column's
+/// min-content is the max over its items" is pinned rather than assumed. A draft
+/// used a 120-wide root, where the floor never binds — and where `.mark`'s
+/// absolute x is 25 under **both** rules, because `.col` moving to `x = -40`
+/// exactly cancels its own extra width. Measured through the oracle rather than
+/// reasoned about, which is what caught it.
 @Test func nestedAutoWidthColumnFitContentMatchesWebKit() throws {
     let golden = try loadGolden("flex_column_fit_content_nested_auto")
     let tree = LayoutTree(generation: 0)
@@ -221,7 +226,7 @@ private func wrapper(_ tree: LayoutTree, count: Int,
     var rootStyle = Style()
     rootStyle.flexDirection = .column
     rootStyle.alignItems = .center
-    rootStyle.size = Size(width: px(120), height: px(400))
+    rootStyle.size = Size(width: px(60), height: px(400))
     let root = tree.newNode(style: rootStyle, children: [col])
 
     computeLayout(tree, root: root,
@@ -231,5 +236,50 @@ private func wrapper(_ tree: LayoutTree, count: Int,
                         ids: [root: "root", col: "col", a: "a",
                               k[0]: "k1", k[1]: "k2", k[2]: "k3", k[3]: "k4",
                               mark: "mark"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// **The other half of the axis rule, and the guard on the `!isRow` that
+/// confines the five above.** A row's cross axis is the **block** axis, where
+/// CSS content-sizes: `.a` measures 40 tall in a 30-tall row and overflows it.
+///
+/// **This fixture exists because a mutation reddened nothing.** Extending the
+/// fit-content branch to rows as well as columns — deleting the `!isRow` guard —
+/// left all 396 tests green, so the axis distinction that is the whole of ruling
+/// TX-H was carried by one operator with nothing checking it. Taxonomy shape 5.
+///
+/// **`.a` is a wrapping container, not the rigid box ruling CS-K measured this
+/// case on**, and that is the improvement rather than a detail: a rigid box has
+/// min-content == max-content on both axes and so cannot distinguish
+/// content-sizing from shrink-wrapping at all — which is exactly the invalid
+/// inference that let divergence 6 stand for four milestones.
+///
+/// **`.a` declares its width on purpose.** The first draft made it an auto-width
+/// column-wrap, which put its MAIN size under test too — and there this engine
+/// and WebKit already disagree for an unrelated reason: `flexBaseSize` offers
+/// the container's cross extent as available space where WebKit leaves it
+/// unconstrained, giving `180x50` against WebKit's `60x150`. That is a real
+/// finding and it is **not** this task's; declaring the width keeps it out of
+/// this fixture instead of encoding it.
+@Test func rowBlockAxisIsMaxContentMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_block_axis_max_content")
+    let tree = LayoutTree(generation: 0)
+
+    let (a, k) = wrapper(tree, count: 4) { $0.size = Size(width: px(120), height: .auto) }
+    let after = leaf(tree, 40, 16)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.alignItems = .flexStart
+    rootStyle.size = Size(width: px(300), height: px(30))
+    let root = tree.newNode(style: rootStyle, children: [a, after])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree,
+                        ids: [root: "root", a: "a",
+                              k[0]: "k1", k[1]: "k2", k[2]: "k3", k[3]: "k4",
+                              after: "after"],
                         golden: golden, tolerance: 0.1)
 }
