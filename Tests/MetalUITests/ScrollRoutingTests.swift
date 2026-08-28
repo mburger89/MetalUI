@@ -8,7 +8,9 @@ import MetalUIPlatform
 // A `Box(style:)` column, not the public `Column` element — `Column` centres
 // its cross axis by ruling EP-8, and these fixtures need the plain engine
 // default (`nil` alignItems, read as CSS's `stretch`) so a fixed-width child
-// fills the frame predictably. See `Style.swift` and `Stack.swift`.
+// fills the frame predictably. See `Style.swift` and `Flex.swift` (which held
+// `Column`/`Row` under the name `Stack.swift` until the stack-container
+// milestone took that name for the `Stack` element).
 private func columnStyle() -> Style {
     var s = Style()
     s.flexDirection = .column

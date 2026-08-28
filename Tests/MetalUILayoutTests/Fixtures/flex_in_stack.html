@@ -1,0 +1,35 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* A flex row as ONE CHILD of a stack, alongside a larger sibling. This is
+     the other half of the nesting composition: a flex container inside a
+     stack must be sized on its OWN terms (its three 30x25 children pack to
+     90x25) and then aligned as a single item, not stretched to the stack's
+     full width. A dispatch bug here would lay `#row` out at the stack's own
+     300x200 (or at least at 200x120, the backdrop's size) instead of its true
+     90x25.
+
+     `.backdrop` is deliberately LARGER than `#row` on both axes (200x120 vs
+     90x25). If the nested flex container were the largest child instead, a
+     stack that measured it correctly and a stack that ignored it and used the
+     backdrop's size would report identical numbers -- the composition would
+     be untestable. Because `.backdrop` wins here, the stack's own size (and
+     therefore `#row`'s centred position) is direct evidence of whether
+     `#row` was measured at all. */
+  #root { display: grid; justify-items: center; align-items: center;
+          width: 300px; height: 200px; }
+  #root > div { grid-area: 1 / 1; }
+  .backdrop { width: 200px; height: 120px; }
+  #row { display: flex; flex-direction: row; }
+  #row > div { width: 30px; height: 25px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="backdrop" data-id="backdrop"></div>
+    <div id="row" data-id="row">
+      <div data-id="item0"></div>
+      <div data-id="item1"></div>
+      <div data-id="item2"></div>
+    </div>
+  </div>
+</body></html>

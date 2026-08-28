@@ -23,7 +23,9 @@ import MetalUILayout
 /// recorded there — paint has no *resolved* border width to pair a colour with,
 /// because the engine computes one inside `contentBox` and does not store it.
 ///
-/// `Column` and `Row` are this type with a `flexDirection` — see `Stack.swift`.
+/// `Column` and `Row` are this type with a `flexDirection` — see `Flex.swift`.
+/// (That file was called `Stack.swift` until the stack-container milestone gave
+/// the name to the `Stack` element and renamed this one for what it holds.)
 public struct Box<Content: ElementGroup>: Element, StyledElement {
     public var style: Style
     public var decoration: Decoration
@@ -115,11 +117,16 @@ extension Box where Content == EmptyGroup {
 extension Box {
     /// The main axis, and **`Box`'s alone**.
     ///
-    /// It is not on `StyledElement` because `Column` and `Row` conform to that
-    /// protocol: `Column { … }.flexDirection(.row)` would compile, keep its
-    /// `Column<…>` type, and lay its children out horizontally — a type saying
-    /// one thing while the style says another. Measured before this was moved:
-    /// it did compile, and the second child landed at `x = 40`.
+    /// It is not on `StyledElement` because `Column`, `Row` and `Stack` all
+    /// conform to that protocol: `Column { … }.flexDirection(.row)` would
+    /// compile, keep its `Column<…>` type, and lay its children out
+    /// horizontally — a type saying one thing while the style says another.
+    /// Measured before this was moved: it did compile, and the second child
+    /// landed at `x = 40`. `Stack` joined the list in the stack-container
+    /// milestone and makes the argument stronger rather than weaker: a
+    /// `flexDirection` on a `display: .stack` node is read by nothing at all
+    /// (`layOutStack` never consults it), so the modifier would be inert there
+    /// as well as misleading.
     ///
     /// `.rowReverse` and `.columnReverse` are reached here too; `Column` and
     /// `Row` choose their axis at construction and offer no way to change it.
@@ -157,10 +164,16 @@ public struct Decoration: Sendable, Hashable {
 
 /// An element whose layout inputs are a `Style` the caller may modify.
 ///
-/// The modifiers live here rather than on each container so `Box`, `Column` and
-/// `Row` share one definition, and every one of them returns `Self` — a
-/// modified `Column<Pair<A, B>>` is still a `Column<Pair<A, B>>`, so §4.6's
-/// mitigation 1 survives the chain.
+/// The modifiers live here rather than on each container so `Box`, `Column`,
+/// `Row` and `Stack` share one definition, and every one of them returns
+/// `Self` — a modified `Column<Pair<A, B>>` is still a `Column<Pair<A, B>>`, so
+/// §4.6's mitigation 1 survives the chain.
+///
+/// **Not every modifier means something on every conformer**, and the list
+/// above is where that starts to bite. `Stack` conforms as of the
+/// stack-container milestone, and `flexGrow`/`flexShrink`/`flexBasis` are inert
+/// on it (there is no main axis) while `alignSelf` is inert on its *children*
+/// — see `Display.stack`'s own doc comment for the mechanism in each case.
 ///
 /// **Every modifier below maps to a `Style` property the engine reads.** There
 /// are deliberately none for `position`, `inset`, `overflow` or `aspectRatio`:

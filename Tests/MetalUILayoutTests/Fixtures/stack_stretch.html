@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Same root as the other three alignment fixtures -- this is the fourth leg
+     of the differential, and the one CSS's real default (`stretch`) and this
+     framework's real default (centre) disagree about (spec §2).
+
+     The child is deliberately UNSIZED here, unlike the other three's 20x10.
+     CSS Box Alignment's `stretch` only fills the cell when the item's own
+     width/height is `auto`; a box with an explicit size falls back to `start`
+     and keeps its own size -- verified against this repo's own oracle before
+     writing this fixture (a 20x10 child under `justify-items: stretch;
+     align-items: stretch` measured 20x10 at (0,0), not 300x200). This fixture
+     covers the AUTO branch of that rule; `stack_stretch_declared_size.html`
+     covers the declared-size branch, and the two are each other's negative
+     control.
+
+     THIS PARAGRAPH USED TO SAY the opposite of the code, and it said it in the
+     document a reader consults when deciding whether this fixture's child may
+     have a size: "`positionStackItems` overrides a stretched item's size
+     unconditionally, matching CSS's own answer for an auto-sized box", which
+     argued that an explicit-size child would disagree with the engine over
+     "CSS's fine print, not a stack bug". It was true when written and the
+     engine was wrong: commit a8bcbb6 on this branch added the
+     `widthIsAuto`/`heightIsAuto` carve-out and
+     `stack_stretch_declared_size.html` beside it, and the sentence was not
+     updated. An explicit-size child now agrees with this engine exactly. The
+     child here stays auto-sized because that is the branch this fixture is
+     the differential for, not because the other branch is unsupported. */
+  #root { display: grid; justify-items: stretch; align-items: stretch;
+          width: 300px; height: 200px; }
+  #root > div { grid-area: 1 / 1; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div data-id="child"></div>
+  </div>
+</body></html>

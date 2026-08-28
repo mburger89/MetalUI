@@ -1,0 +1,109 @@
+{
+  "fixture" : "stack_in_flex",
+  "raw" : [
+    {
+      "height" : 150,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "before",
+      "width" : 40,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 70,
+      "id" : "stack",
+      "width" : 90,
+      "x" : 40,
+      "y" : 0
+    },
+    {
+      "height" : 40,
+      "id" : "mid",
+      "width" : 50,
+      "x" : 60,
+      "y" : 15
+    },
+    {
+      "height" : 10,
+      "id" : "wide",
+      "width" : 90,
+      "x" : 40,
+      "y" : 30
+    },
+    {
+      "height" : 70,
+      "id" : "tall",
+      "width" : 20,
+      "x" : 75,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "after",
+      "width" : 60,
+      "x" : 130,
+      "y" : 0
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 150,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "before",
+      "width" : 40,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 70,
+      "id" : "stack",
+      "width" : 90,
+      "x" : 40,
+      "y" : 0
+    },
+    {
+      "height" : 40,
+      "id" : "mid",
+      "width" : 50,
+      "x" : 60,
+      "y" : 15
+    },
+    {
+      "height" : 10,
+      "id" : "wide",
+      "width" : 90,
+      "x" : 40,
+      "y" : 30
+    },
+    {
+      "height" : 70,
+      "id" : "tall",
+      "width" : 20,
+      "x" : 75,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "after",
+      "width" : 60,
+      "x" : 130,
+      "y" : 0
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

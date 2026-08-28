@@ -140,6 +140,48 @@ let allFixtures: [(String, CGSize)] = [
     // content-sizes. Added because extending the fit-content branch to rows
     // reddened **nothing** out of 395.
     ("flex_row_block_axis_max_content",      CGSize(width: 800, height: 600)),
+    // The stack-container milestone's Task 4 — the first browser evidence for
+    // `Display.stack`. CSS has no stack, so the oracle is a one-cell grid
+    // (`display: grid` + `grid-area: 1/1` on every child); see
+    // `StackFixtureTests.swift`'s header comment for the full mapping. The
+    // three alignment fixtures share geometry deliberately (same root, same
+    // child, three alignments) so they read as a differential rather than
+    // three unrelated numbers. `stack_sizes_to_largest` makes the stack a
+    // MEASURED child of a fixed-size flex root rather than the declared-size
+    // document root the milestone's own brief first proposed — a declared
+    // size asserts nothing about max-over-children, and an `auto`-sized root
+    // would hit this engine's own divergence 4 (an `auto` root axis takes the
+    // offered space rather than shrink-wrapping), unrelated to stacking.
+    ("stack_alignment_center",         CGSize(width: 800, height: 600)),
+    ("stack_alignment_topleading",     CGSize(width: 800, height: 600)),
+    ("stack_alignment_bottomtrailing", CGSize(width: 800, height: 600)),
+    ("stack_stretch",                  CGSize(width: 800, height: 600)),
+    // Fix round 1's finding: `stretch` fills an axis only when the child's own
+    // size on it is `auto` (CSS Box Alignment's rule). `stack_stretch` above
+    // covers the auto branch; this covers the declared-size branch that
+    // motivated the fix -- a 20x10 child stays 20x10 at the start edge rather
+    // than being stretched to the cell.
+    ("stack_stretch_declared_size",    CGSize(width: 800, height: 600)),
+    ("stack_sizes_to_largest",         CGSize(width: 800, height: 600)),
+    // Task 6 -- the seam between the two paths. `layOutChildren` branches on
+    // `display` and a dispatch bug hides exactly where a stack and a flex
+    // container meet: neither direction is exercised by a fixture where the
+    // stack is the document root, which is FIVE of the six above --
+    // `stack_sizes_to_largest` is already a child of a flex root, deliberately,
+    // for the reason its own comment gives. See `StackFixtureTests.swift`'s
+    // nesting-fixture comments for what each one distinguishes and why its
+    // geometry is not simplifiable.
+    ("stack_in_flex",                  CGSize(width: 800, height: 600)),
+    ("flex_in_stack",                  CGSize(width: 800, height: 600)),
+    // The milestone's final review: an auto-sized stack holding a PERCENTAGE
+    // child that has content. Ruling ST-E claimed this engine already matched
+    // WebKit here, generalising from a Task 1 probe whose percentage child was
+    // EMPTY -- a shape for which "contributes zero" and "contributes its
+    // content size" are the same number. They are not the same number here,
+    // and the engine answered `40x30 / 20x30` against WebKit's `80x30 / 40x30`
+    // until `layOutStack`'s `resolvedAxis` stopped folding an unresolvable
+    // percentage to 0.
+    ("stack_percent_child_with_content", CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

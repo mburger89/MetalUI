@@ -1,0 +1,39 @@
+{
+  "fixture" : "stack_alignment_bottomtrailing",
+  "raw" : [
+    {
+      "height" : 200,
+      "id" : "root",
+      "width" : 300,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 10,
+      "id" : "child",
+      "width" : 20,
+      "x" : 280,
+      "y" : 190
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 200,
+      "id" : "root",
+      "width" : 300,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 10,
+      "id" : "child",
+      "width" : 20,
+      "x" : 280,
+      "y" : 190
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

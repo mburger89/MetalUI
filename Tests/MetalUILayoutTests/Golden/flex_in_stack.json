@@ -1,0 +1,95 @@
+{
+  "fixture" : "flex_in_stack",
+  "raw" : [
+    {
+      "height" : 200,
+      "id" : "root",
+      "width" : 300,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 120,
+      "id" : "backdrop",
+      "width" : 200,
+      "x" : 50,
+      "y" : 40
+    },
+    {
+      "height" : 25,
+      "id" : "row",
+      "width" : 90,
+      "x" : 105,
+      "y" : 87.5
+    },
+    {
+      "height" : 25,
+      "id" : "item0",
+      "width" : 30,
+      "x" : 105,
+      "y" : 87.5
+    },
+    {
+      "height" : 25,
+      "id" : "item1",
+      "width" : 30,
+      "x" : 135,
+      "y" : 87.5
+    },
+    {
+      "height" : 25,
+      "id" : "item2",
+      "width" : 30,
+      "x" : 165,
+      "y" : 87.5
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 200,
+      "id" : "root",
+      "width" : 300,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 120,
+      "id" : "backdrop",
+      "width" : 200,
+      "x" : 50,
+      "y" : 40
+    },
+    {
+      "height" : 25,
+      "id" : "row",
+      "width" : 90,
+      "x" : 105,
+      "y" : 88
+    },
+    {
+      "height" : 25,
+      "id" : "item0",
+      "width" : 30,
+      "x" : 105,
+      "y" : 88
+    },
+    {
+      "height" : 25,
+      "id" : "item1",
+      "width" : 30,
+      "x" : 135,
+      "y" : 88
+    },
+    {
+      "height" : 25,
+      "id" : "item2",
+      "width" : 30,
+      "x" : 165,
+      "y" : 88
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

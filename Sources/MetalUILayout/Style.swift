@@ -1,6 +1,32 @@
 import MetalUICore
 
-public enum Display: Sendable, Equatable { case flex, none }
+/// How a container lays its children out.
+///
+/// `.stack` layers every child at the same position and sizes the container to
+/// the largest of them on each axis — CSS's one-cell grid, SwiftUI's `ZStack`.
+/// It reads neither `flexDirection` nor any flex property on its children;
+/// `flexGrow`, `flexShrink` and `flexBasis` are flex-container properties and a
+/// stack ignores them, as CSS does.
+///
+/// **`alignSelf` is ignored too, and it is the dangerous one on this list.**
+/// The three above are flex-*sizing* properties whose names announce that they
+/// belong to a flex container; `alignSelf` is the *alignment* property a reader
+/// most expects to work on an *alignment* container, and it is public and live
+/// for flex — so `Stack { Box().alignSelf(.flexEnd) }` compiles today and does
+/// nothing. Measured, at the milestone's final review: a 20x10 child with
+/// `alignSelf = .flexEnd` in a 100x60 stack lays out at `y = 0`; WebKit's grid
+/// puts the same child at `y = 50`.
+///
+/// **The mechanism, not a milestone** (taxonomy shape 10's rule):
+/// `positionStackItems` reads the *container's* `alignItems`/`justifyItems`
+/// once, before its item loop, and never consults `tree.style(item.node)` for
+/// an override — the only per-item style it reads is `size`, for the `stretch`
+/// carve-out. A per-item override is deliberately out of this milestone's
+/// scope, and it needs two things rather than one: `alignSelf` for the block
+/// axis and a `justifySelf` that does not exist in this `Style` at all for the
+/// inline one. Implementing one without the other would make a stack's two axes
+/// disagree about whether a child may override its container.
+public enum Display: Sendable, Equatable { case flex, stack, none }
 public enum Position: Sendable, Equatable { case relative, absolute }
 public enum FlexWrap: Sendable, Equatable { case noWrap, wrap, wrapReverse }
 public enum Overflow: Sendable, Equatable { case visible, hidden, scroll }
@@ -17,6 +43,29 @@ public enum FlexDirection: Sendable, Equatable {
 public enum AlignItems: Sendable, Equatable {
     case flexStart, flexEnd, center, baseline, stretch
 }
+
+/// Inline-axis alignment of each item within its own area — CSS's
+/// `justify-items`.
+///
+/// **Read only by the stack path**, and that is not a declared-but-inert entry:
+/// it has a production reader. It is also what CSS does — `justify-items` has no
+/// effect on a flex container there either, so the inertness belongs to the
+/// model rather than to this implementation. Do not add it to CLAUDE.md's table.
+///
+/// Four cases rather than CSS's full set: `start`/`end` instead of
+/// `flexStart`/`flexEnd` because a stack has no flex-relative axis to be the
+/// start of, and no `baseline` because `AlignItems.baseline` is itself
+/// unimplemented and falls back to `flexStart` (CLAUDE.md's inert table). Adding
+/// a case later is additive.
+///
+/// **`.stretch` fills an item's axis only when that item's own declared size on
+/// that axis is `auto`** — CSS Box Alignment's rule, matched exactly by
+/// `positionStackItems`. A child with a declared size (including a percentage,
+/// which is not `auto` either) keeps it and sits at the start edge instead;
+/// stretching it anyway is the bug `stack_stretch_declared_size` in
+/// `StackFixtureTests.swift` pins. This applies to `AlignItems.stretch` too —
+/// both axes share the one rule.
+public enum JustifyItems: Sendable, Equatable { case start, center, end, stretch }
 
 public enum AlignSelf: Sendable, Equatable {
     case flexStart, flexEnd, center, baseline, stretch
@@ -55,6 +104,9 @@ public struct Style: Sendable, Equatable {
     public var justifyContent: JustifyContent? = nil
     public var alignItems: AlignItems? = nil
     public var alignContent: AlignContent? = nil
+    /// `nil` means CSS's `stretch`, matching `alignItems`'s convention. See
+    /// ``JustifyItems``.
+    public var justifyItems: JustifyItems? = nil
 
     // As a flex item
     public var flexGrow: Float = 0
