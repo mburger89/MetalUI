@@ -67,7 +67,7 @@ import MetalUIShaderTypes
 /// verbatim after `MUIRect`'s own converter had exactly this bug — and
 /// `Frame.draw` is `MUIGlyph`'s only production caller of this init, so a
 /// silent `bounds`-for-`contentMask` swap here would clip every glyph the
-/// framework ever draws to its own bounding box the moment Task 5 makes masks
+/// framework ever draws to its own bounding box now that Task 5 makes masks
 /// real, with nothing else in the suite noticing (every other test that
 /// touches `contentMask` builds `MUIGlyph` through the raw C struct init,
 /// bypassing this converter entirely).
