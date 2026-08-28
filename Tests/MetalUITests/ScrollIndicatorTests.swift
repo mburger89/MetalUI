@@ -388,3 +388,109 @@ private func wheel(at position: Point<Pixels>, deltaY: Float) -> InputEvent {
                 - (Double(viewport.origin.y.value) + Double(viewport.size.height.value) - 5)) < 0.001,
             "it sits 5pt up from the viewport's bottom edge: a 2pt inset plus its own 3pt height")
 }
+
+// MARK: - 7. Clipped by the viewport's rounded corner, without scrolling with it
+
+/// A padded wrapper so the `ScrollView`'s viewport lands at a **non-zero origin
+/// on both axes**, and the ids for both levels.
+///
+/// The origin matters more than it looks. Two GPU clip mutants survived this
+/// branch's whole suite because every fixture in it sat at `(0, 0)` and cut in
+/// `x` only, so a mask that ignored its origin — or that read `x` where it
+/// meant `y` — produced the right answer by coincidence. 17 and 23 are
+/// deliberately different from each other and from every other number in the
+/// fixture's geometry.
+private func paddedRow() -> Style {
+    var s = Style()
+    s.flexDirection = .row
+    s.padding = Edges(top: .pixels(Pixels(23)), right: .pixels(Pixels(0)),
+                      bottom: .pixels(Pixels(0)), left: .pixels(Pixels(17)))
+    return s
+}
+
+private func fixedSize(_ w: Float, _ h: Float) -> Style {
+    var s = columnStyle()
+    s.size = Size(width: .length(.pixels(Pixels(w))), height: .length(.pixels(Pixels(h))))
+    return s
+}
+
+private let nestedRootID = GlobalElementID.child(of: nil, at: 0, name: nil)
+private let nestedListID = GlobalElementID.child(of: nestedRootID, at: 0, name: listID)
+
+/// The overlay indicator carries the viewport's clip — rounded corners included
+/// — while carrying none of its scroll translation.
+///
+/// **The two halves pull in opposite directions, which is why they are asserted
+/// together.** The thumb is painted OUTSIDE `paint`'s `clipped(to:offsetBy:)`
+/// block so that it does not scroll away with the content; before this, outside
+/// the block also meant clipped by nothing at all, and `Frame.fill` stamped it
+/// with the whole surface and zero radii — so on a rounded viewport it painted
+/// square across the corner the background had curved away. The fix is its own
+/// `clipped(to:)` at the same bounds and the same radii with `offsetBy: .zero`,
+/// and a test that checked only the clip would pass just as well if that
+/// `.zero` were the content's `-offset`.
+///
+/// **Every number below is hand-derived from the fixture, not read back from
+/// the implementation.** A 160×140 frame, 17pt of left padding and 23pt of top
+/// padding put a 100×117 viewport at (17, 23): 100 because the `ScrollView`'s
+/// main axis in a `.row` parent is its width and its content declares 100, 117
+/// because its height is the cross axis and stretches into 140 - 23. Content is
+/// 400 tall, so the thumb is 117 × (117/400) = 34.2225 — clear of the 20pt
+/// floor — and the track is 117 - 34.2225 = 82.7775 over 400 - 117 = 283 of
+/// scrollable range, giving exactly 0.2925 of travel per point of offset.
+///
+/// **The 24pt radius is chosen so an unclipped thumb genuinely crosses the
+/// curve**, which a smaller one would not. The viewport's top-right corner arc
+/// is centred at (117 - 24, 23 + 24) = (93, 47); at the thumb's x of 112 the arc
+/// sits at y = 47 - sqrt(24² - 19²) = 32.34, while at offset 0 the thumb starts
+/// at y = 23. Roughly nine points of it are outside the rounded corner and must
+/// be masked away.
+@Test @MainActor func theIndicatorIsClippedByTheViewportsRoundedCornerWithoutScrollingWithIt() throws {
+    func indicator(offset: Double) throws -> MUIRect {
+        let table = StateTable()
+        table.withState(nestedListID, initial: ScrollState()) {
+            $0.offset = offset
+            $0.lastScrollTime = 0
+        }
+        var root = Box(style: paddedRow()) {
+            ScrollView(.vertical, elementID: listID) {
+                Box(style: fixedSize(100, 400))
+            }
+            .cornerRadius(Pixels(24))
+        }
+        let (frame, _) = fullyRendered(&root, width: 160, height: 140, stateTable: table)
+        let scene = frame.finalizedScene()
+        try #require(scene.rects.count == 1,
+                     "only the thumb paints here — the boxes carry no decoration")
+        return try #require(scene.rects.first)
+    }
+
+    // Offset 0: the thumb sits at the very top of its track, inside the
+    // top-right corner's curve, which is the position the missing clip was
+    // visible in.
+    let atTop = try indicator(offset: 0)
+    #expect(Double(atTop.contentMask.origin.x) == 17 && Double(atTop.contentMask.origin.y) == 23,
+            "the thumb must be masked to the VIEWPORT, at its own non-zero origin on both axes — unclipped it would carry the whole 160×140 surface at (0, 0)")
+    #expect(Double(atTop.contentMask.size.width) == 100 && Double(atTop.contentMask.size.height) == 117,
+            "and to the viewport's own extent, not the surface's")
+    #expect(Double(atTop.maskCornerRadii.topRight) == 24
+            && Double(atTop.maskCornerRadii.topLeft) == 24
+            && Double(atTop.maskCornerRadii.bottomRight) == 24
+            && Double(atTop.maskCornerRadii.bottomLeft) == 24,
+            "the mask must carry the viewport's 24pt curve; a square mask lets the thumb paint across the corner the background curved away")
+    #expect(abs(Double(atTop.bounds.origin.y) - 23) < 0.001,
+            "at offset 0 the thumb starts flush with the top of its track")
+
+    // Offset 100: the thumb must have moved by its OWN travel term and by
+    // nothing else. 100 × 0.2925 = 29.25, so y = 23 + 29.25 = 52.25. Had the
+    // new clip been pushed with the content's `-offset` instead of `.zero`,
+    // this would read 52.25 - 100 = -47.75 and the thumb would have scrolled
+    // off the top of the window.
+    let scrolled = try indicator(offset: 100)
+    #expect(abs(Double(scrolled.bounds.origin.y) - 52.25) < 0.001,
+            "the thumb moves by its travel term (29.25) alone; a clip pushed with the scroll translation would put it at -47.75")
+    #expect(abs(Double(scrolled.bounds.origin.x) - 112) < 0.001,
+            "and not at all on the cross axis: 17 + 100 - 5")
+    #expect(Double(scrolled.contentMask.origin.x) == 17 && Double(scrolled.contentMask.origin.y) == 23,
+            "the mask is the viewport's rect in its own space, so scrolling must not move it either")
+}

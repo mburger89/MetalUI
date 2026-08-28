@@ -86,16 +86,23 @@ public struct ScrollView<Content: ElementGroup>: Element {
     public var elementID: ElementID?
     public var content: Content
 
-    /// The radius the clip this element pushes is rounded to, in points.
+    /// The radius the clips this element pushes are rounded to, in points.
     /// Zero — a square clip — unless `cornerRadius(_:)` sets it.
     ///
     /// **`ScrollView` has no `Decoration` and paints no background of its
     /// own** — the caller supplies one, typically a wrapping
     /// `Box(decoration:)`, exactly as `Sources/MetalUIDemo/main.swift` does.
-    /// This property is what lets the caller give this element's CLIP the
+    /// This property is what lets the caller give this element's CLIPS the
     /// same curve as that background: ruling CL-A. Nothing enforces that the
     /// two values agree — this element cannot see its container's
     /// `Decoration` — so a caller that changes one radius owns changing both.
+    ///
+    /// **It governs the overlay indicator's clip as well as the content's**,
+    /// which is not decoration: the thumb is painted outside the content's
+    /// clipped block so that it does not scroll, and outside that block it
+    /// carried no clip at all — so it painted square across the very corner
+    /// this radius exists to curve. `paintIndicator` pushes the same bounds
+    /// and the same radii with a zero offset.
     public var cornerRadius: Pixels = Pixels(0)
 
     public init(_ axis: ScrollAxis = .vertical, elementID: ElementID? = nil,
@@ -105,8 +112,11 @@ public struct ScrollView<Content: ElementGroup>: Element {
         self.content = content()
     }
 
-    /// Rounds the corners of the clip this element pushes around its content
-    /// — see `cornerRadius`'s doc comment for what this does and does not do.
+    /// Rounds the corners of both clips this element pushes — the one around
+    /// its scrolling content and the one around its overlay indicator, which
+    /// take the same bounds and the same radii and differ only in that the
+    /// indicator's carries no scroll translation. See `cornerRadius`'s doc
+    /// comment for what this does and does not do.
     public func cornerRadius(_ points: Pixels) -> Self {
         var copy = self
         copy.cornerRadius = points
@@ -206,6 +216,12 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // rect emitted here would still have drawn BENEATH any glyphs the
         // content just emitted regardless of order, so an overlay indicator
         // over a list of text was not expressible at all.
+        //
+        // **Outside this block, not unclipped**: `paintIndicator` pushes its
+        // own clip at the same bounds and radii with a ZERO offset, which is
+        // what leaves the thumb inside the rounded corner without leaving it
+        // subject to the scroll. Being outside here and clipped by nothing at
+        // all was a reported defect — see `paintIndicator`.
         paintIndicator(id, bounds: bounds, offset: offset, layout: layout, pass: &pass)
     }
 
@@ -247,8 +263,24 @@ public struct ScrollView<Content: ElementGroup>: Element {
 
         var color = pass.theme[.scrollIndicator]
         color.a *= Float(alpha)
-        pass.fill(indicatorBounds(bounds: bounds, thumb: thumb, travel: travel),
-                 color: color, cornerRadii: Corners(all: Pixels(3)))
+        // **The same clip as the content, with the translation taken out.**
+        // Being outside `paint`'s `clipped(to:offsetBy:)` block is what stops
+        // the thumb scrolling away with the content; it also left it clipped by
+        // nothing at all, so on a rounded viewport it painted square across the
+        // corner the background had curved away — `Frame.fill` stamps every
+        // rect with `activeClip` and `activeClipRadii`, and outside a block
+        // those are the whole surface and zero radii.
+        //
+        // `offsetBy: .zero` is the load-bearing half of this call, and it is
+        // what makes "clipped but not scrolled" expressible: the same `bounds`
+        // and the same `cornerRadius` as the content clip, and none of its
+        // `-offset` translation. Passing `delta(-offset)` here instead would
+        // reproduce exactly the bug painting inside the block would.
+        pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                    cornerRadii: Corners(all: cornerRadius)) {
+            pass.fill(indicatorBounds(bounds: bounds, thumb: thumb, travel: travel),
+                     color: color, cornerRadii: Corners(all: Pixels(3)))
+        }
     }
 
     /// The thumb's rect: 3pt wide (or tall, for `.horizontal`), inset 2pt from
