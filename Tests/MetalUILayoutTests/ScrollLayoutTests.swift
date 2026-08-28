@@ -13,18 +13,20 @@ import MetalUICore
 /// 100 and there is nothing left to scroll. That is a real and correctly
 /// implemented engine mechanism.
 ///
-/// **It was first written as a `ScrollView`-specific differential and that
-/// framing was wrong.** `ScrollView`'s content node never carries an explicit
+/// **It was first written as a `ScrollView`-specific differential, and it is
+/// not one.** `ScrollView`'s content node never carries an explicit
 /// `min-height: 0` — it has no modifier surface to set one, conforming to
-/// `Element` rather than `StyledElement` — so the row this test exercises is
-/// unreachable through that type today, and `ScrollView.requestLayout`
-/// carries no `flexShrink` override for this test to guard (see its doc
-/// comment, `Sources/MetalUI/ScrollView.swift`, for the mutation that
-/// established this: deleting `flexShrink = 0` there reddened nothing,
-/// including this test). Kept here, renamed, as the engine-level pin for the
-/// mechanism — whoever gives a content node a real minimum override in the
-/// future is the one who should add a `ScrollView`-specific test that this
-/// one is not.
+/// `Element` rather than `StyledElement` — so the *row* this test exercises
+/// is unreachable through that type today. That says nothing about whether
+/// `ScrollView` needs `flexShrink: 0`, and for a while it was wrongly read as
+/// saying so: `ScrollView.requestLayout` does carry the override, it is
+/// load-bearing for any content whose min-content and max-content sizes
+/// differ, and `aScrollViewOfTextDoesNotShrinkItsContentToTheViewport`
+/// (`Tests/MetalUITests/ScrollViewTests.swift`) is the test through that type
+/// which this one is not. Kept here as the engine-level pin for the *other*
+/// half of the mechanism — holding a node open once an explicit zero minimum
+/// has removed the automatic one — which no element in `Sources/MetalUI`
+/// reaches yet.
 @Test @MainActor func flexShrinkHoldsAContentNodeOpenOnceItsAutomaticMinimumIsRemoved() throws {
     let tree = LayoutTree(generation: 0)
     var row = Style()

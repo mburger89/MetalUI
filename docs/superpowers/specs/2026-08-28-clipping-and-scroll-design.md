@@ -289,10 +289,21 @@ design asserted `flexShrink: 0` was what did it; the differential above
 falsified that, and the rows are kept so the claim cannot silently revert to
 the wrong one.
 
-`flexShrink: 0` is still specified, as the belt to the automatic minimum's
-braces: it is the only one of the two that survives an explicit `min-height: 0`
-somewhere up the chain. **Neither is redundant on its own evidence** — row 4 is
-what a reader needs to see to know why both are there.
+**`flexShrink: 0` is specified, and the four rows above are the wrong evidence
+for why.** Every row is measured on fixed-height `Box`es, whose min-content and
+max-content sizes are the same number, so the freeze loop has nothing to shrink
+in any of them — which is why `flexShrink` looks inert across rows one and two.
+Give the content intrinsic sizes that *differ* (any content holding text) and
+it stops being inert: the automatic minimum floors the node at **min-content**
+while its flex base size is **max-content**, the freeze loop shrinks it from
+the latter to the former, and `flexShrink: 0` is the only thing that stops it.
+Measured through `ScrollView` on 2026-08-28: `ScrollView(.horizontal) { Text;
+Text }` in a 200pt viewport gives a content node of **200** without the line —
+equal to the viewport, so nothing scrolls and the indicator is suppressed — and
+**507.8** with it; `ScrollView(.vertical) { 5 × Text }` in 200×40 gives **80**
+against **160**. Pinned by
+`aScrollViewOfTextDoesNotShrinkItsContentToTheViewport`. See ruling CL-C for
+the full history of the claim that went the other way.
 
 **No engine change is required.** Overflow is what the engine already does.
 

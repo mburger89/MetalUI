@@ -39,35 +39,40 @@ public struct ScrollState: Sendable {
 /// | `min-height: 0`, `flexShrink: 0` | 200 | yes |
 /// | `min-height: 0`, `flexShrink` default | **100** | **no** |
 ///
-/// **CSS Sizing §4.5's automatic minimum is the sole mechanism by which this
-/// content node overflows** — `min-height: auto` floors it at its content
-/// size, divergence FS-3's mechanism. Rows one and two agree with each other
-/// regardless of `flexShrink`, which is what rules it out; only removing the
-/// automatic minimum (rows three vs. four) changes the answer, and only then
-/// does `flexShrink` matter.
+/// **CSS Sizing §4.5's automatic minimum is what overflows this content node**
+/// — `min-height: auto` floors it at its content size, divergence FS-3's
+/// mechanism — and rows one and two show `flexShrink` cannot be *substituted*
+/// for it: with the automatic minimum in place, both spellings overflow.
 ///
-/// **`flexShrink: 0` was specified in the design's first draft as the
-/// mechanism, measured against this type, and removed.** The content node
-/// here never carries an explicit `min-height: 0` — `ScrollView` conforms to
-/// `Element`, not `StyledElement`, so it has no modifier surface, and nothing
-/// inside `requestLayout` ever sets `contentStyle.minSize` away from its
-/// `.auto` default. Row four, the one row where `flexShrink` matters, is
-/// therefore unreachable through this type: there is no caller who can ever
-/// put it there. Setting `flexShrink = 0` here was measured to be inert (the
-/// required mutation — delete it, run the full 468-test suite, revert —
-/// reddened nothing, including a differential built specifically to catch
-/// it) and, being unreachable rather than merely untested today, it was
-/// deleted rather than kept "for later": CLAUDE.md's declared-but-inert table
-/// opens on exactly this hazard — an API that exists, compiles, and does
-/// nothing reads as considered and invites the next container to cargo-cult
-/// it. The engine fact that made `flexShrink: 0` worth specifying at all —
-/// that it holds a node open once an explicit zero minimum removes the
-/// automatic one — is real and is pinned independently of this type by
+/// **Those four rows are true and the conclusion once drawn from them was
+/// not.** They were read as "`flexShrink` matters only in row four, row four
+/// is unreachable through this type, therefore `flexShrink: 0` is inert here",
+/// and the line was deleted on that argument. The rows cannot support it,
+/// because every one of them is measured on fixed-height `Box`es — content
+/// whose **min-content and max-content sizes are the same number**. That is
+/// exactly the corpus-uniformity hazard CLAUDE.md records about the 61
+/// empty-div fixtures, reproduced in a four-row probe.
+///
+/// **`flexShrink: 0` is load-bearing whenever the content's intrinsic sizes
+/// differ — which is any content holding text.** The automatic minimum floors
+/// this node at **min-content**; its flex base size is **max-content**. Where
+/// those differ, the freeze loop shrinks the node down from the base size
+/// towards the floor, and only `flexShrink = 0` stops it. Measured through
+/// this type:
+///
+/// | probe | line deleted | line present |
+/// |---|---|---|
+/// | `ScrollView(.horizontal) { Text(…); Text(…) }` in 200pt | content **200** == viewport: nothing to scroll, indicator suppressed | content **507.8** |
+/// | `ScrollView(.vertical) { 5 × Text(…) }` in 200×40 | content **80**: half the list unreachable | content **160** |
+///
+/// `aScrollViewOfTextDoesNotShrinkItsContentToTheViewport`
+/// (`Tests/MetalUITests/ScrollViewTests.swift`) is the pin, with CoreText as
+/// its oracle; deleting the line reddens exactly it. The engine mechanism the
+/// four-row table *does* isolate — that `flexShrink: 0` also holds a node open
+/// once an explicit zero minimum has removed the automatic one — stays pinned
+/// independently of this type by
 /// `flexShrinkHoldsAContentNodeOpenOnceItsAutomaticMinimumIsRemoved`
-/// (`Tests/MetalUILayoutTests/ScrollLayoutTests.swift`). If a future change
-/// gives this content node a real minimum override, that change is what adds
-/// `flexShrink: 0` back, together with a test through `ScrollView` itself
-/// that the mutation would then redden.
+/// (`Tests/MetalUILayoutTests/ScrollLayoutTests.swift`).
 ///
 /// **Scroll position is `StateTable` state, so it inherits §4.3's adoption
 /// rule**: a `ScrollView` inside a vanishing `if` hands its offset to the
@@ -113,10 +118,16 @@ public struct ScrollView<Content: ElementGroup>: Element {
 
         var contentStyle = Style()
         contentStyle.flexDirection = axis == .vertical ? .column : .row
-        // No `flexShrink` override: the type doc explains why one is
-        // unreachable here (this node's `minSize` never leaves `.auto`, so
-        // CSS Sizing §4.5's automatic minimum is what overflows it) and was
-        // measured, then deleted, rather than kept inert.
+        // **Load-bearing, and for content whose min-content and max-content
+        // widths DIFFER — i.e. anything with text in it.** The automatic
+        // minimum floors this node at its *min-content* size; its flex base
+        // size is *max-content*. Where those differ the freeze loop shrinks
+        // the node from the latter towards the former, and only
+        // `flexShrink = 0` stops it. Measured through this type: a
+        // horizontal `ScrollView` of two `Text`s in a 200pt viewport gives a
+        // content node of 200 (== viewport, nothing to scroll) without this
+        // line and 508 with it. See the type doc.
+        contentStyle.flexShrink = 0
         let contentNode = pass.requestNode(style: contentStyle, children: children)
 
         var viewportStyle = Style()

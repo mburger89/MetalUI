@@ -61,35 +61,59 @@ wants clipping without going through `ScrollView`'s explicit `pass.clipped(...)`
 as its own row for exactly this reason — a *write* with no *read* is a sharper trap than a property
 nobody touches, because the write is evidence-shaped without being evidence.
 
-## CL-C — the automatic minimum, not `flexShrink`, is what makes a `ScrollView`'s content overflow
+## CL-C — `flexShrink: 0` on the content node is load-bearing, and a probe made of fixed-size boxes said otherwise
 
-**The design's first draft named `flexShrink: 0` on the content node as the mechanism** that holds a
-`ScrollView`'s content open past its viewport, an item that has shed the automatic minimum via an
-explicit `min-height: 0` and would otherwise be shrunk back down by the freeze loop. Measured against
-the actual four-row probe in `ScrollView.swift`'s doc comment (5×40pt rows in a 200×100 viewport):
-rows one and two — `min-height: auto` (the default) with `flexShrink: 0` and with `flexShrink`
-default — **agree with each other regardless of `flexShrink`**, both landing the content node at 200
-(overflowing). Only removing the automatic minimum (`min-height: 0`) changes the answer, and only
-*then* does `flexShrink` start to matter (row three vs. row four: 200 vs. 100). CSS Sizing §4.5's
-automatic minimum — the content-based floor `min-width`/`min-height: auto` resolves to by default —
-is therefore the **sole** mechanism by which `ScrollView`'s content node overflows its viewport; the
-content node never carries an explicit `min-height: 0` at all, so row four (where `flexShrink` would
-matter) is unreachable through this type by any caller.
+**This ruling was decided the wrong way once, and the record of the error is the point of it.** It
+originally read: *the automatic minimum, not `flexShrink`, is what makes a `ScrollView`'s content
+overflow* — and on that reading `contentStyle.flexShrink = 0` was deleted from
+`ScrollView.requestLayout` as an inert line. That was wrong. The line is restored.
 
-**`flexShrink: 0` was written, measured, and deleted rather than kept "for later."** The required
-mutation — delete the line, run the full 468-test suite of the day, revert — reddened nothing,
-including a differential built specifically to catch it. Being unreachable rather than merely
-untested, it was removed: CLAUDE.md's declared-but-inert table exists precisely because a line that
-compiles and does nothing reads as considered and invites the next container to cargo-cult it. The
-engine fact `flexShrink: 0` would have been worth specifying *if* reachable — that it holds a node
-open once an explicit zero minimum has removed the automatic one — is real and stays pinned
-independently of `ScrollView` by `flexShrinkHoldsAContentNodeOpenOnceItsAutomaticMinimumIsRemoved`
-(`Tests/MetalUILayoutTests/ScrollLayoutTests.swift`).
+**What was claimed.** The four-row probe in `ScrollView.swift`'s doc comment (5×40pt rows in a
+200×100 viewport) shows rows one and two — `min-height: auto` with `flexShrink: 0` and with
+`flexShrink` default — landing the content node at 200 either way, and only row four
+(`min-height: 0`, `flexShrink` default) collapsing it to 100. From that: `flexShrink` matters only
+where an explicit `min-height: 0` has removed the automatic minimum; `ScrollView`'s content node
+never carries one, having no modifier surface; therefore the line is unreachable and inert, and
+CLAUDE.md's declared-but-inert table says to delete rather than keep such a line. The required
+mutation was run — delete it, run the full 468-test suite of the day, revert — and reddened nothing,
+including a differential built specifically to catch it.
 
-**What it costs if wrong.** A reader who assumes `flexShrink` is doing the work here and "fixes" a
-future regression by touching it will change nothing, because the content node's `flexShrink` is
-never read for this purpose in the first place. The floor is `min-height: auto`'s automatic minimum,
-computed from the rows' own stacked heights; that is the line to look at.
+**What falsified it.** Every row of that probe is measured on **fixed-height `Box`es, whose
+min-content and max-content sizes are the same number.** With nothing between the floor and the base
+size, the freeze loop has nothing to shrink, and `flexShrink` is invisible *by construction of the
+fixture* rather than by any property of the type. That is exactly the corpus-uniformity hazard
+CLAUDE.md records about the 61 empty-div fixtures, reproduced at probe scale — and the mutation
+reddening nothing was the tell taxonomy shape 9 describes, not the evidence it was read as.
+
+`flexShrink` is load-bearing in a second case the probe never contained: whenever the content's
+**min-content is smaller than its max-content**, which is any content holding text. The automatic
+minimum floors the content node at min-content; its flex base size is max-content; the freeze loop
+shrinks it from the latter towards the former, and `flexShrink = 0` is the only thing that stops it.
+No explicit `min-height: 0` is involved anywhere.
+
+**Measured through `ScrollView` itself, 2026-08-28:**
+
+| probe | line deleted | line restored |
+|---|---|---|
+| `ScrollView(.horizontal) { Text(…); Text(…) }` in a 200pt viewport | content **200** — equal to the viewport, so nothing to scroll and the indicator is suppressed entirely | content **507.8** |
+| `ScrollView(.vertical) { 5 × Text(…) }` in 200×40 | content **80** — half the list unreachable | content **160** |
+
+**The decision.** `contentStyle.flexShrink = 0` stays, and it is now pinned through `ScrollView`
+itself by `aScrollViewOfTextDoesNotShrinkItsContentToTheViewport`
+(`Tests/MetalUITests/ScrollViewTests.swift`), whose oracle is `CTLineGetTypographicBounds` rather
+than anything in this engine. Deleting the line reddens exactly that test, on both of its
+expectations. The engine fact the four-row probe *does* isolate — that `flexShrink: 0` also holds a
+node open once an explicit zero minimum has removed the automatic one — remains pinned independently
+by `flexShrinkHoldsAContentNodeOpenOnceItsAutomaticMinimumIsRemoved`
+(`Tests/MetalUILayoutTests/ScrollLayoutTests.swift`), and no element reaches that row today.
+
+**What it costs if wrong.** Concretely, and this is what it cost while the line was absent: a
+horizontal `ScrollView` of labels does not scroll at all — its content is shrunk to exactly the
+viewport, `scrollable` is 0, and `paintIndicator` returns before drawing anything, so the failure is
+a list that silently refuses to move rather than an error. A vertical one loses the tail of its
+content the same way. The general lesson is the one the whole repo runs on: **a mutation reddening
+nothing is a claim about the fixtures, not about the line** — and a probe built from uniform
+content cannot speak for content that is not uniform.
 
 ## CL-D — two borrowed M4 primitives, not an animation system
 
