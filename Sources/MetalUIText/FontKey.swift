@@ -95,11 +95,16 @@ public struct FontMetrics: Hashable, Sendable {
 
     /// The distance from one baseline to the next.
     ///
-    /// **No caller and no assertion as of M2 Task 1** — taxonomy shape 4, said
-    /// here rather than left silent. Task 4 lands the consumer: the `Text`
-    /// element's `MeasureFunction` reports this as the measured height. Until
-    /// then a transposition inside it would go unnoticed, unlike the three
-    /// stored properties, which `metricsMatchCoreText` asserts individually.
+    /// **That row expired one task early, and this is the corrected claim**
+    /// (taxonomy shape 10). Task 1 recorded "no caller and no assertion … Task 4
+    /// lands the consumer"; **Task 2 did**. ``ShapedText/totalHeight`` is
+    /// `lines.count ×` this, per spec §3.4, and two shaping tests assert the
+    /// product for a known line count —
+    /// `anUnwrappedStringIsOneLineWhoseAdvanceMatchesCoreText` and
+    /// `anEmptyStringIsOneEmptyLineWhetherWrappedOrNot` both require exactly one
+    /// line height, so dropping a term here reddens them. Task 4's
+    /// `MeasureFunction` reports the same product; it is a second consumer, not
+    /// the first.
     public var lineHeight: Double { ascent + descent + leading }
 
     public init(ascent: Double, descent: Double, leading: Double) {
