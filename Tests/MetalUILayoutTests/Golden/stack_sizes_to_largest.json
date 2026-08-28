@@ -16,6 +16,13 @@
       "y" : 0
     },
     {
+      "height" : 40,
+      "id" : "mid",
+      "width" : 50,
+      "x" : 20,
+      "y" : 15
+    },
+    {
       "height" : 10,
       "id" : "wide",
       "width" : 90,
@@ -28,13 +35,6 @@
       "width" : 20,
       "x" : 35,
       "y" : 0
-    },
-    {
-      "height" : 40,
-      "id" : "mid",
-      "width" : 50,
-      "x" : 20,
-      "y" : 15
     }
   ],
   "rounded" : [
@@ -53,6 +53,13 @@
       "y" : 0
     },
     {
+      "height" : 40,
+      "id" : "mid",
+      "width" : 50,
+      "x" : 20,
+      "y" : 15
+    },
+    {
       "height" : 10,
       "id" : "wide",
       "width" : 90,
@@ -65,13 +72,6 @@
       "width" : 20,
       "x" : 35,
       "y" : 0
-    },
-    {
-      "height" : 40,
-      "id" : "mid",
-      "width" : 50,
-      "x" : 20,
-      "y" : 15
     }
   ],
   "viewport" : [

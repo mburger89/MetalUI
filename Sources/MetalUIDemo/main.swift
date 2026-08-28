@@ -117,8 +117,12 @@ func demoContent() -> some Element {
                 // to look at (CLAUDE.md records whether that look has
                 // happened yet).
                 //
-                // Declaration order is back-to-front (`Stack.paint`'s doc
-                // comment): the backdrop is declared first and painted
+                // Declaration order is back-to-front (the `Stack` TYPE's doc
+                // comment, `Stack.swift` — not `Stack.paint`'s, which says
+                // only why the stack's own background is emitted before its
+                // children; `paint` itself just calls `content.paintGroup`
+                // and the ordering claim is one level up): the backdrop is
+                // declared first and painted
                 // first, the badge is declared last and painted last, so it
                 // sits on top. If the order in this file were reversed, the
                 // backdrop — the largest child, exactly covering the

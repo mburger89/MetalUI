@@ -5,7 +5,7 @@ import MetalUILayout
 
 // The public modifier surface: `StyledElement`'s twenty-nine and `Box`'s one.
 //
-// **Nothing else in the repo can see a modifier write the wrong field.** The 67
+// **Nothing else in the repo can see a modifier write the wrong field.** The 76
 // browser fixtures build a `Style` directly and never call a modifier; the
 // element tests call a handful of them and assert on the *rect* that comes out,
 // so they cover the few they use and say nothing about the rest. Measured before

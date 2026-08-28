@@ -4,8 +4,18 @@
   body { margin: 0; }
   /* The one that proves max-over-children, with a different winner per axis:
      `.wide` is widest and shortest, `.tall` is narrowest and tallest, `.mid`
-     wins NEITHER axis -- so a "return the first/last child" bug cannot pass
-     by coincidence (same shape as StackLayoutTests's own unit test).
+     wins NEITHER axis -- and `.mid` is FIRST in document order, so a "return
+     the first child" bug cannot pass either axis by coincidence.
+
+     The order is load-bearing and this fixture did not always have it. It
+     shipped as `wide, tall, mid`, where `wide.width == max(...).width == 90`
+     -- so mutating the engine's width accumulator to take only the first
+     child left this fixture GREEN and reddened one unit test out of 529. The
+     unit test `StackLayoutTests.aStackSizesToItsLargestChildOnEachAxis-
+     Independently` had already been reordered for exactly this reason two
+     commits earlier, and the fixture reintroduced the coincidence it was
+     reordered to remove. Same three sizes as that unit test, and now the same
+     order for the same reason.
 
      Deliberately NOT sized on `#stack` itself. A declared size asserts
      nothing about max-over-children sizing -- every candidate implementation
@@ -32,9 +42,9 @@
 </style></head><body>
   <div id="root" data-id="root">
     <div id="stack" data-id="stack">
+      <div class="mid" data-id="mid"></div>
       <div class="wide" data-id="wide"></div>
       <div class="tall" data-id="tall"></div>
-      <div class="mid" data-id="mid"></div>
     </div>
   </div>
 </body></html>

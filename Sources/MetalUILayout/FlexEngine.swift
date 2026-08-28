@@ -360,7 +360,7 @@ private func resolveRootSize(
     // **A fixture could hold the divergence** — `#root { display: flex }` with
     // no `width` or `height` is perfectly expressible and its golden would say
     // 800x40 — so the corpus deliberately contains none, on the same footing
-    // as WebKit's flex sub-one clause. That all 67 roots declare both axes
+    // as WebKit's flex sub-one clause. That all 76 fixture roots declare both axes
     // explains why no *existing* fixture notices; it is not a reason one
     // could not exist.
     //
@@ -586,7 +586,7 @@ private struct ContainerLayout {
 /// `placeNode` positions all the lines afterwards. Nothing the loop computes
 /// reads anything `positionItems` writes — it writes only stored rects and
 /// recurses — and nothing `positionItems` reads changes after its own line has
-/// been stretched and flexed. The 67 browser goldens are the check.
+/// been stretched and flexed. The 76 browser goldens are the check.
 ///
 /// **An axis of `containerSize` may be `nil`, and that is not the same as 0**
 /// (ruling CS-D). It means the container has no given extent there — the shape
@@ -903,14 +903,20 @@ private func layOutChildren(
 /// space the stack itself was offered, and the container reports the largest.
 ///
 /// **`box.size` is the ONLY basis a stack child's percentage resolves against,
-/// and it is `nil` on an axis the stack itself has no extent on** — Task 1's
-/// probe measured this directly (through the equivalent flex shape, since this
-/// path did not exist yet): during the intrinsic pass `box.size` is
-/// `(nil, nil)`, a `width: 50%` child is unresolvable and contributes 0 exactly
-/// as an `auto` childless box does; during placement `box.size` is definite and
-/// the same child resolves the ordinary way. That is why each axis below is
-/// resolved independently against `box.size`, never against a literal
-/// `.definite` extent invented for the indefinite case.
+/// and it is `nil` on an axis the stack itself has no extent on.** During the
+/// intrinsic pass `box.size` is `(nil, nil)`, so a `width: 50%` child is
+/// unresolvable and is **measured from its own content**, exactly as a literal
+/// `auto` is; during placement `box.size` is definite and the same child
+/// resolves the ordinary way. That is why each axis below is resolved
+/// independently against `box.size`, never against a literal `.definite` extent
+/// invented for the indefinite case.
+///
+/// **"Contributes 0" is what Task 1's probe measured and it was the wrong
+/// generalisation.** That probe's percentage child was *empty*, so "contributes
+/// 0" and "contributes its own content size" were the same number and the probe
+/// could not tell them apart; ST-E generalised from it to percentage children
+/// with content, a shape nothing had measured. WebKit measures the content —
+/// see `resolvedAxis` below for the numbers and the fixture that pins them.
 private func layOutStack(
     _ ctx: LayoutContext,
     _ tree: LayoutTree,
@@ -921,10 +927,25 @@ private func layOutStack(
 
     // A literal `auto` is measured from the child's own content (a stack does
     // not stretch, so this is always `.maxContent` — shrink-wrap, never fill).
-    // Anything else that fails to resolve — a percentage against `box.size`'s
-    // `nil` — is 0, not content-measured: that is `resolveNodeSize`'s rule
-    // elsewhere in this file, and per its comment there it is WebKit's too.
-    // Returning `nil` here is the signal "this axis needs measuring".
+    // **So is a percentage that fails to resolve** — against `box.size`'s `nil`
+    // on an axis the stack itself has no extent on yet. Returning `nil` here is
+    // the signal "this axis needs measuring", and both cases return it.
+    //
+    // **This line was `?? 0` until the milestone's final review, and that was a
+    // measured disagreement with WebKit rather than a judgement call.** The `0`
+    // was justified by citing `resolveNodeSize`'s rule for an unresolvable
+    // percentage, and that citation was a scope error: `resolveNodeSize`'s
+    // comment is about a flex item's *cross* axis, where the item is about to be
+    // stretched or aligned by a container that already has a definite cross
+    // extent, and `layOutStack` applied it to *both* axes of a child whose
+    // container is still being intrinsically sized. Measured through this
+    // repo's own `LayoutOracle` — an auto-sized stack holding a `width: 50%`
+    // child that itself contains an 80x30 box, plus a fixed 40x20 sibling:
+    // WebKit gives the stack `80x30` and the percentage child `40x30`; the `?? 0`
+    // engine gave `40x30` and `20x30`. `stack_percent_child_with_content`
+    // pins it. Ruling ST-E's original text asserted WebKit's numbers as this
+    // engine's without ever calling the engine — see
+    // `docs/superpowers/2026-08-28-stack-decisions.md`.
     //
     // `lower`/`upper` clamp the resolved value exactly as `resolveNodeSize`
     // clamps its own `axis` closure — a stack child is not exempt from its own
@@ -937,7 +958,8 @@ private func layOutStack(
     // than after.
     func resolvedAxis(_ dim: Dimension, basis: Double?, lower: Double?, upper: Double?) -> Double? {
         if case .auto = dim { return nil }
-        let resolved = resolveDimension(dim, against: basis, rootFontSize: rootFontSize) ?? 0
+        guard let resolved = resolveDimension(dim, against: basis, rootFontSize: rootFontSize)
+        else { return nil }
         return clamp(resolved, min: lower, max: upper)
     }
 

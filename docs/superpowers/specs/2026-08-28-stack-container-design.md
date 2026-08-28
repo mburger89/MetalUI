@@ -190,12 +190,15 @@ at the declaration so the next reader does not add it to the table.
 
 ### 4.1 The file rename
 
-`Sources/MetalUI/Stack.swift` currently holds `Column` and `Row` — the file is
+`Sources/MetalUI/Stack.swift` held `Column` and `Row` when this spec was
+written — the file was
 named for the SwiftUI concept those two belong to, not for a type. Adding a type
 called `Stack` to it would make the name mean two things at once.
 
 **Rename it to `Flex.swift` in the same change**, and give `Stack` its own
-`Stack.swift`. A file whose name misdescribes its contents is the cheapest
+`Stack.swift`. **Done** — `Sources/MetalUI/Flex.swift` holds `Column`/`Row` and
+`Sources/MetalUI/Stack.swift` holds `Stack`, so read this section in the past
+tense. A file whose name misdescribes its contents is the cheapest
 possible defect to avoid and the most annoying to meet.
 
 ---

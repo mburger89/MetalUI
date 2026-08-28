@@ -18,7 +18,15 @@
 
      `align-items: flex-start` keeps the row's cross axis from stretching the
      stack to the row's full 150px height, which would hide the 70px the
-     stack itself measures. */
+     stack itself measures.
+
+     `.mid` (50x40) wins NEITHER axis and is FIRST in document order. It
+     contributes nothing to the numbers this fixture is named for -- it exists
+     only so that a "the container's size is its first child's size" bug
+     cannot pass here by coincidence. It could, before: this fixture shipped
+     with `.wide` first, where `wide.width == max(...).width == 90`, and
+     mutating the engine's width accumulator to take only the first child left
+     it green. Same correction as `stack_sizes_to_largest.html`. */
   #root { display: flex; flex-direction: row; width: 400px; height: 150px;
           align-items: flex-start; }
   .before { width: 40px; height: 30px; }
@@ -26,12 +34,14 @@
   /* The stack: one cell, children overlapped, sized to the largest. */
   #stack { display: grid; justify-items: center; align-items: center; }
   #stack > div { grid-area: 1 / 1; }
+  .mid  { width: 50px; height: 40px; }
   .wide { width: 90px; height: 10px; }
   .tall { width: 20px; height: 70px; }
 </style></head><body>
   <div id="root" data-id="root">
     <div class="before" data-id="before"></div>
     <div id="stack" data-id="stack">
+      <div class="mid" data-id="mid"></div>
       <div class="wide" data-id="wide"></div>
       <div class="tall" data-id="tall"></div>
     </div>

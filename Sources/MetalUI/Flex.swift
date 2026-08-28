@@ -40,7 +40,7 @@ public struct Column<Content: ElementGroup>: Element, StyledElement {
         // EP-2/EP-4 stay unassigned forever.
         //
         // **This is set here and NOT in `Style`.** The engine keeps CSS's
-        // `stretch` default, so the 67 browser fixtures stay valid and WebKit
+        // `stretch` default, so the browser fixtures (76 today) stay valid and WebKit
         // stays the oracle for the flex algorithm; the change lives strictly
         // above the engine, which is what EP-5 means by CSS being the substrate
         // rather than the design authority. `Box` is untouched and still

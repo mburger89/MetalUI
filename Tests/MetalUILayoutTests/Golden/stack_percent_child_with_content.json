@@ -1,0 +1,81 @@
+{
+  "fixture" : "stack_percent_child_with_content",
+  "raw" : [
+    {
+      "height" : 300,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "stack",
+      "width" : 80,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "fixed",
+      "width" : 40,
+      "x" : 20,
+      "y" : 5
+    },
+    {
+      "height" : 30,
+      "id" : "pct",
+      "width" : 40,
+      "x" : 20,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "inner",
+      "width" : 40,
+      "x" : 20,
+      "y" : 0
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 300,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "stack",
+      "width" : 80,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "fixed",
+      "width" : 40,
+      "x" : 20,
+      "y" : 5
+    },
+    {
+      "height" : 30,
+      "id" : "pct",
+      "width" : 40,
+      "x" : 20,
+      "y" : 0
+    },
+    {
+      "height" : 30,
+      "id" : "inner",
+      "width" : 40,
+      "x" : 20,
+      "y" : 0
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

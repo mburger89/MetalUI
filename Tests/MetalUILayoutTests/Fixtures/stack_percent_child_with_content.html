@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* An auto-sized stack holding a PERCENTAGE child that has content -- the
+     shape ruling ST-E generalised to without ever measuring it, and the one
+     the milestone's final review found the engine getting wrong.
+
+     `#stack` declares no size, so during the intrinsic pass it has no extent
+     for `.pct`'s `width: 50%` to resolve against. The question this fixture
+     answers is what an unresolvable percentage then contributes: zero, or the
+     box's own content size. Task 1's probe used an EMPTY percentage child, for
+     which those two answers are the same number (0), so it could not tell them
+     apart. `.pct` here holds an 80x30 box, which separates them: WebKit sizes
+     `#stack` to 80x30 (the percentage child contributed its content) and then,
+     with `#stack` definite at 80, resolves `50%` to 40 for placement. The
+     engine used to answer 40x30 / 20x30 -- a percentage that contributed zero
+     and then resolved against a stack narrowed by its own absence.
+
+     `.fixed` is deliberately FIRST and wins NEITHER axis (40x20 against
+     80x30), so a "width/height takes only the first child" bug cannot pass
+     here by coincidence -- the hazard this milestone hit four times.
+
+     `.pct` is `display: flex` rather than a block so the engine's tree and
+     this HTML agree about the inner box: as a flex item the 80px inner box
+     shrinks to the 40 its parent resolves to (`min-width: auto` floors it at
+     min-content, which is 0 for an empty div) in BOTH engines. As a block it
+     would overflow in WebKit and shrink here, a divergence unrelated to
+     stacking.
+
+     `#stack` is a child of a fixed-size flex `#root` rather than the document
+     root for `stack_sizes_to_largest`'s reason: an `auto` root axis takes the
+     space it is offered in this engine (CLAUDE.md divergence 4).
+
+     `justify-items`/`align-items` are stated explicitly because grid defaults
+     both to stretch and this framework's Stack does not (spec section 2). */
+  #root { display: flex; align-items: flex-start; width: 400px; height: 300px; }
+  #stack { display: grid; justify-items: center; align-items: center; }
+  #stack > div { grid-area: 1 / 1; }
+  .fixed { width: 40px; height: 20px; }
+  .pct { width: 50%; display: flex; }
+  .inner { width: 80px; height: 30px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div id="stack" data-id="stack">
+      <div class="fixed" data-id="fixed"></div>
+      <div class="pct" data-id="pct"><div class="inner" data-id="inner"></div></div>
+    </div>
+  </div>
+</body></html>

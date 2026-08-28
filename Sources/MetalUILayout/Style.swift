@@ -7,6 +7,25 @@ import MetalUICore
 /// It reads neither `flexDirection` nor any flex property on its children;
 /// `flexGrow`, `flexShrink` and `flexBasis` are flex-container properties and a
 /// stack ignores them, as CSS does.
+///
+/// **`alignSelf` is ignored too, and it is the dangerous one on this list.**
+/// The three above are flex-*sizing* properties whose names announce that they
+/// belong to a flex container; `alignSelf` is the *alignment* property a reader
+/// most expects to work on an *alignment* container, and it is public and live
+/// for flex — so `Stack { Box().alignSelf(.flexEnd) }` compiles today and does
+/// nothing. Measured, at the milestone's final review: a 20x10 child with
+/// `alignSelf = .flexEnd` in a 100x60 stack lays out at `y = 0`; WebKit's grid
+/// puts the same child at `y = 50`.
+///
+/// **The mechanism, not a milestone** (taxonomy shape 10's rule):
+/// `positionStackItems` reads the *container's* `alignItems`/`justifyItems`
+/// once, before its item loop, and never consults `tree.style(item.node)` for
+/// an override — the only per-item style it reads is `size`, for the `stretch`
+/// carve-out. A per-item override is deliberately out of this milestone's
+/// scope, and it needs two things rather than one: `alignSelf` for the block
+/// axis and a `justifySelf` that does not exist in this `Style` at all for the
+/// inline one. Implementing one without the other would make a stack's two axes
+/// disagree about whether a child may override its container.
 public enum Display: Sendable, Equatable { case flex, stack, none }
 public enum Position: Sendable, Equatable { case relative, absolute }
 public enum FlexWrap: Sendable, Equatable { case noWrap, wrap, wrapReverse }

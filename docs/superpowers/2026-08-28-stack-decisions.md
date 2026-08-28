@@ -128,7 +128,7 @@ stay in the table because a `Text` genuinely never reads them. `justifyItems` is
 different in kind: there is no context where a production code path *should* read it
 and does not.
 
-## ST-E — Task 1's probe: a percentage stack child resolves through `auto`, not through a special zero rule
+## ST-E — an unresolvable percentage stack child is CONTENT-MEASURED, like a literal `auto` (corrected: the original ruling asserted this and the engine did not do it)
 
 **The question.** A stack child's percentage size looks circular: resolving
 `width: 50%` needs the container's width, and the container's width (during the
@@ -160,18 +160,58 @@ its `auto` size" happened to coincide here only by the fixture's own constructio
 An unresolved percentage does not have a special "counts as zero" rule; it becomes
 `Dimension.auto` and then goes through ordinary content sizing of that box, exactly
 like a literal `auto`. For an empty box that content size is 0 — this probe's case.
-A percentage child **with content** would contribute that content's own auto
-(min/max-content) size during the intrinsic pass instead; the probe does not exercise
-that shape, and none of Tasks 2–6 needed it to, because `positionStackItems` always
-runs after the container's own size is already settled — exactly like the flex path,
-where the same resolve-then-place split already holds.
+A percentage child **with content** contributes that content's own auto
+(max-content) size during the intrinsic pass instead.
 
-**What this closed and what it did not.** `layOutStack`'s `resolvedAxis` implements
-exactly this: `.auto` (a literal or an unresolved percentage) is measured from content
-at `.maxContent`; a percentage that *does* resolve is computed the ordinary way against
-whatever basis is available. No fixture in this corpus exercises a percentage stack
-child with non-empty content — a gap worth knowing rather than a defect, since nothing
-in this milestone's scope needed it closed.
+### The two paragraphs that stood here were WRONG, and this is the error record
+
+**What they claimed.** That `layOutStack`'s `resolvedAxis` "implements exactly this",
+and — in the paragraph above, as originally written — that a percentage child with
+content "would contribute that content's own auto (min/max-content) size during the
+intrinsic pass". Both sentences asserted an *engine* behaviour. Neither was ever run
+against the engine: the probe they generalised from measured an **empty** percentage
+child, for which "contributes zero" and "contributes its content size" are the same
+number (0) and therefore indistinguishable. The ruling then closed with "No fixture
+in this corpus exercises a percentage stack child with non-empty content — a gap
+worth knowing rather than a defect", which is a prediction about measurement dressed
+as a fact about the code (the practices doc's taxonomy shape 10) and told the next
+reader not to look.
+
+**What falsified it.** The milestone's final review ran the shape through this repo's
+own `LayoutOracle` and through `computeLayout` side by side — an auto-sized stack
+holding a `width: 50%` child that itself contains an `80×30` box, plus a fixed
+`40×20` sibling:
+
+```
+              stack        pct child
+engine       40 x 30        20 x 30
+WebKit       80 x 30        40 x 30
+```
+
+`resolvedAxis` returned `clamp(0, …)` for the unresolvable percentage — **non-`nil`**,
+so `measureNode` never ran for that axis and the child contributed 0. The stack then
+sized to its fixed sibling alone, and `50%` of that narrowed stack gave the child 20.
+The flex path did **not** have this bug: the identical tree as a flex row measures 120
+in both engines.
+
+**What was done about it.** The engine was fixed rather than the divergence recorded,
+for three reasons: the stack path was new and unshipped, so nothing depended on the
+old answer; `Box().width(percent:)` is a live public modifier, so the shape is
+reachable from the public API; and this project's standing rule is that the WebKit
+corpus is the oracle for the engine. `resolvedAxis` now returns `nil` — the
+"this axis needs measuring" signal — for a percentage that fails to resolve, exactly
+as it already did for a literal `auto`. All five boxes then match WebKit exactly.
+
+**And the gap the ruling declared "worth knowing rather than a defect" is closed by a
+fixture**, `stack_percent_child_with_content.html` /
+`stackPercentChildWithContentMatchesWebKit`, generated against live WebKit and
+matching the fixed engine on first generation. Reverting the one-line fix reddens
+exactly that test and nothing else in the 538-test suite.
+
+**The transferable part.** A probe whose input cannot distinguish two candidate rules
+has not chosen between them, however precisely its output is recorded — and writing
+the un-chosen answer down as settled is what makes it survive six tasks. The
+discriminating input here cost one nested `<div>`.
 
 ## ST-F — `.stretch` fills an axis only when the item's own size is `auto`, and the oracle found the bug tests did not
 

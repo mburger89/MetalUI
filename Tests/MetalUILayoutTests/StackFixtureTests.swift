@@ -9,7 +9,7 @@ import MetalUICore
 /// `Display.stack` must do.
 ///
 /// **Nothing checks that the HTML and the Swift tree describe the same layout.**
-/// That is true of all 67 fixtures here, but flex-HTML against flex-`Style` is a
+/// That is true of all 76 fixtures here, but flex-HTML against flex-`Style` is a
 /// small conceptual gap and grid-HTML against stack-`Style` is a larger one: a
 /// reader has to know the two are *intended* to be equivalent. They are, and the
 /// mapping is: `display: grid` + `grid-area: 1/1` on every child ⇒
@@ -39,8 +39,9 @@ import MetalUICore
 /// below pin the declared-size branch `stack_stretch` cannot reach.
 ///
 /// **`stack_sizes_to_largest` needed a structural correction too** (controller
-/// ruling PF-2), and it is why this fixture's tree has two levels where the
-/// other four have one. The stack itself declares no size and is a child of a
+/// ruling PF-2), and it is why its tree has two levels where the five
+/// stack-as-document-root fixtures (the three alignments, both stretches) have
+/// one. The stack itself declares no size and is a child of a
 /// fixed-size flex root instead of being the document root: a declared size on
 /// the stack would assert nothing about max-over-children (every candidate
 /// implementation gives the declared size back), and an `auto`-sized document
@@ -69,6 +70,10 @@ private func stackNode(_ tree: LayoutTree, _ children: [LayoutNodeID],
 /// The three alignment fixtures' shared geometry: a 300x200 stack holding one
 /// 20x10 child. Sharing this builder is what keeps the three a differential —
 /// same root, same child, only the alignment changes.
+///
+/// `stack_stretch_declared_size` uses the same geometry but builds its tree
+/// inline, since it is a differential against `stack_stretch` (whose child is
+/// unsized and so cannot come from here) rather than against these three.
 private func alignmentTree(align: AlignItems, justify: JustifyItems)
     -> (LayoutTree, root: LayoutNodeID, child: LayoutNodeID) {
     let tree = LayoutTree(generation: 0)
@@ -122,7 +127,8 @@ private func alignmentTree(align: AlignItems, justify: JustifyItems)
 /// stretch only when written literally) disagree, so an implementation that
 /// silently took CSS's default instead of SwiftUI's would pass every other
 /// fixture in this file and only fail here. See the file header for why this
-/// child, alone among the four alignment fixtures, is unsized.
+/// child, alone among the five fixtures sharing the 300x200 alignment
+/// geometry, is unsized.
 @Test func stackStretchMatchesWebKit() throws {
     let golden = try loadGolden("stack_stretch")
     let tree = LayoutTree(generation: 0)
@@ -145,9 +151,14 @@ private func alignmentTree(align: AlignItems, justify: JustifyItems)
 /// see this branch at all — its child has no declared size to keep — and this
 /// one cannot see that branch, so the two are each other's negative control:
 /// mutating the `widthIsAuto`/`heightIsAuto` guard back to unconditional in
-/// `positionStackItems` reddens this test alone and leaves
-/// `stackStretchMatchesWebKit` green, which is the pairing the fix-round
-/// verification recorded.
+/// `positionStackItems` reddens exactly TWO tests — this one and
+/// `StackLayoutTests.stretchDoesNotOverrideADeclaredChildSize` — and leaves
+/// `stackStretchMatchesWebKit` green.
+///
+/// **"This test alone" is what this comment used to say, and
+/// `stretchDoesNotOverrideADeclaredChildSize`'s comment said it too, of
+/// itself.** Both could not be true. Re-measured on the whole suite at the
+/// milestone's final review: the pair above, nothing else.
 @Test func stackStretchDeclaredSizeMatchesWebKit() throws {
     let golden = try loadGolden("stack_stretch_declared_size")
     let tree = LayoutTree(generation: 0)
@@ -162,9 +173,20 @@ private func alignmentTree(align: AlignItems, justify: JustifyItems)
 /// The one that proves max-over-children, with a different winner per axis —
 /// `wide` (90x10) wins width, `tall` (20x70) wins height, and `mid` (50x40)
 /// wins neither, so a "return the first/last child" or "return the width
-/// winner's height too" bug cannot pass by coincidence. Same three sizes
-/// `StackLayoutTests.aStackSizesToItsLargestChildOnEachAxisIndependently` uses,
-/// for the same reason.
+/// winner's height too" bug cannot pass by coincidence. Same three sizes AND
+/// the same order as
+/// `StackLayoutTests.aStackSizesToItsLargestChildOnEachAxisIndependently`, for
+/// the same reason — `mid` first, because it is the one child that wins neither
+/// axis.
+///
+/// **The order was `wide, tall, mid` until the milestone's final review, and
+/// that sentence used to say "same sizes … for the same reason" while the
+/// orders differed.** They were not the same reason: with `wide` first,
+/// `wide.width == max(…).width == 90`, so mutating the engine's width
+/// accumulator to take only the first child left this fixture and
+/// `stack_in_flex` both GREEN and reddened exactly one test out of 529 — the
+/// unit test, which had been reordered for precisely this hazard two commits
+/// before the fixtures reintroduced it.
 ///
 /// The stack (`data-id="stack"`) is a MEASURED child of a fixed-size flex root,
 /// not a declared-size document root — see the file header for why. The flex
@@ -175,10 +197,10 @@ private func alignmentTree(align: AlignItems, justify: JustifyItems)
 @Test func stackSizesToLargestChildMatchesWebKit() throws {
     let golden = try loadGolden("stack_sizes_to_largest")
     let tree = LayoutTree(generation: 0)
+    let mid  = sized(tree, 50, 40)
     let wide = sized(tree, 90, 10)
     let tall = sized(tree, 20, 70)
-    let mid  = sized(tree, 50, 40)
-    let stack = stackNode(tree, [wide, tall, mid], align: .center, justify: .center)
+    let stack = stackNode(tree, [mid, wide, tall], align: .center, justify: .center)
 
     var rootStyle = Style()
     rootStyle.alignItems = .flexStart
@@ -207,13 +229,20 @@ private func alignmentTree(align: AlignItems, justify: JustifyItems)
 /// `align-items: flex-start` on the row keeps the stack from being stretched
 /// to the row's full 150pt height, which would hide the 70pt the stack itself
 /// measures from its `.tall` child.
+///
+/// **`mid` (50x40) is first and wins neither axis**, and it exists only for
+/// that — it changes none of the numbers above. Without it the stack's first
+/// child was `wide`, whose 90 *is* the stack's width, so a width accumulator
+/// that took only the first child agreed with this golden by coincidence. See
+/// `stackSizesToLargestChildMatchesWebKit` for the measurement.
 @Test func stackInFlexMatchesWebKit() throws {
     let golden = try loadGolden("stack_in_flex")
     let tree = LayoutTree(generation: 0)
     let before = sized(tree, 40, 30)
+    let mid  = sized(tree, 50, 40)
     let wide = sized(tree, 90, 10)
     let tall = sized(tree, 20, 70)
-    let stack = stackNode(tree, [wide, tall], align: .center, justify: .center)
+    let stack = stackNode(tree, [mid, wide, tall], align: .center, justify: .center)
     let after = sized(tree, 60, 20)
 
     var rootStyle = Style()
@@ -226,7 +255,8 @@ private func alignmentTree(align: AlignItems, justify: JustifyItems)
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
     assertMatchesGolden(tree,
                         ids: [root: "root", before: "before", stack: "stack",
-                              wide: "wide", tall: "tall", after: "after"],
+                              mid: "mid", wide: "wide", tall: "tall",
+                              after: "after"],
                         golden: golden, tolerance: 0.1)
 }
 
@@ -257,5 +287,52 @@ private func alignmentTree(align: AlignItems, justify: JustifyItems)
     assertMatchesGolden(tree,
                         ids: [root: "root", backdrop: "backdrop", row: "row",
                               item0: "item0", item1: "item1", item2: "item2"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// An auto-sized stack holding a **percentage child that has content** — the
+/// shape ruling ST-E asserted an answer for without ever calling the engine,
+/// and the one this milestone's final review found the engine getting wrong.
+///
+/// **What it catches, stated as an implementation:** `layOutStack`'s
+/// `resolvedAxis` folding an unresolvable percentage to `0`
+/// (`resolveDimension(…) ?? 0`) instead of returning `nil` and letting the
+/// child be content-measured. Under that implementation the stack measures
+/// `40x30` (the fixed sibling alone) where WebKit says `80x30`, and the
+/// percentage child then resolves `50%` against a stack its own absence
+/// narrowed — `20x30` against WebKit's `40x30`. All four numbers were measured
+/// through `LayoutOracle` before this fixture existed; the golden matched the
+/// fixed engine on first generation.
+///
+/// **Task 1's probe could not have caught it**, which is the transferable part:
+/// its percentage child was an *empty* box, and for an empty box "contributes
+/// zero" and "contributes its own content size" are the same number. The
+/// distinguishing input is a percentage child with content, and nothing in the
+/// corpus had one — taxonomy shape 9.
+///
+/// `fixed` is first and wins neither axis, for
+/// `stackSizesToLargestChildMatchesWebKit`'s reason.
+@Test func stackPercentChildWithContentMatchesWebKit() throws {
+    let golden = try loadGolden("stack_percent_child_with_content")
+    let tree = LayoutTree(generation: 0)
+    let fixed = sized(tree, 40, 20)
+
+    let inner = sized(tree, 80, 30)
+    var pctStyle = Style()
+    pctStyle.size = Size(width: .length(.percent(0.5)), height: .auto)
+    let pct = tree.newNode(style: pctStyle, children: [inner])
+
+    let stack = stackNode(tree, [fixed, pct], align: .center, justify: .center)
+
+    var rootStyle = Style()
+    rootStyle.alignItems = .flexStart
+    rootStyle.size = Size(width: px(400), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [stack])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree,
+                        ids: [root: "root", stack: "stack", fixed: "fixed",
+                              pct: "pct", inner: "inner"],
                         golden: golden, tolerance: 0.1)
 }

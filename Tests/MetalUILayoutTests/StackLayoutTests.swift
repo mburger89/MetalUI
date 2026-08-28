@@ -291,8 +291,14 @@ private func stack(_ tree: LayoutTree, _ children: [LayoutNodeID],
 /// (`stack_stretch_declared_size` in `StackFixtureTests.swift` pins the same
 /// rule against the live oracle). Verified as a negative control: reverting
 /// `positionStackItems`'s `widthIsAuto`/`heightIsAuto` guard to unconditional
-/// reddens this test alone and leaves `stretchFillsTheContainerOnThatAxis`
-/// above green.
+/// reddens exactly TWO tests — this one and
+/// `StackFixtureTests.stackStretchDeclaredSizeMatchesWebKit` — and leaves
+/// `stretchFillsTheContainerOnThatAxis` above green.
+///
+/// **"This test alone" is what this comment used to say, and the fixture's
+/// comment said it too — of a different test.** Both could not be right; the
+/// fix round's own ledger recorded the pair. Re-measured on the whole suite at
+/// the milestone's final review: the two named above, and nothing else.
 @Test func stretchDoesNotOverrideADeclaredChildSize() {
     let tree = LayoutTree(generation: 0)
     let kid = sized(tree, 20, 10)
@@ -348,4 +354,254 @@ private func stack(_ tree: LayoutTree, _ children: [LayoutNodeID],
     let r = tree.layout(kid)
     #expect(r.x == 70, "100 - 10 padding - 20 wide")
     #expect(r.y == 40, "60 - 10 padding - 10 tall")
+}
+
+// MARK: - Live clauses the milestone's final review found unreached (shape 9)
+//
+// Every test below was written from a mutation that stayed GREEN across the
+// whole suite, and each mutation was first shown to change an observable number
+// (the practices doc's "a mutation that reddens nothing is a broken instrument
+// or it is the finding" discriminator). The clause each one covers, the exact
+// mutation, and the reddened test are named in the test's own comment.
+
+/// `maxSize` clamps a stack child's own DECLARED size — the other half of
+/// `aStackChildsMinWidthClampsItsDeclaredSize`, and the half nothing reached.
+///
+/// **Mutation that was green across 529 tests:** `resolvedAxis`'s
+/// `clamp(resolved, min: lower, max: upper)` with `max: nil`. Every stack test
+/// in the suite declared a `minSize` or nothing at all, so the upper bound was
+/// carried into `clamp` and never consulted. A wrong implementation this
+/// catches: reading `maxSize` and dropping it on the declared path, which ships
+/// `Stack { Box().width(200).maxWidth(60) }` at 200.
+@Test func aStackChildsMaxWidthClampsItsDeclaredSize() {
+    let tree = LayoutTree(generation: 0)
+    var s = Style()
+    s.size = Size(width: px(200), height: px(30))
+    s.maxSize = Size(width: px(60), height: .auto)
+    let kid = tree.newNode(style: s, children: [])
+    let node = stack(tree, [kid])
+
+    let ctx = LayoutContext(rootFontSize: 16)
+    let measured = measureNode(ctx, tree, node, known: .unspecified,
+                               available: AvailableSpaceSize(width: .maxContent,
+                                                             height: .maxContent),
+                               containingBlockWidth: nil)
+    #expect(measured.width == 60, "max-width must clamp the declared 200 down to 60")
+}
+
+/// `maxSize` and `minSize` clamp a stack child's CONTENT-MEASURED size on both
+/// axes — the three bounds `aStackChildsMinWidthClampsItsContentMeasuredSize`
+/// leaves untouched.
+///
+/// **Mutation that was green across 529 tests:** dropping `max: maxWidthBound`
+/// and `max: maxHeightBound` from the measured path, and dropping
+/// `min: minHeight` with them. Only the measured *min-width* bound had a test,
+/// so three of the four bounds on that line were carried and never read. A
+/// wrong implementation this catches: clamping the axis that happens to have a
+/// test and passing the other three through, which ships an auto-sized child
+/// overflowing its own `maxHeight`.
+///
+/// Every bound moves a different number here — the child's content is 100x100,
+/// the width is capped at 40, the height floored at 10 and then capped at 25 —
+/// so no two of the three could be satisfied by one accident.
+@Test func aStackChildsMaxAndMinClampItsContentMeasuredSizeOnBothAxes() {
+    let tree = LayoutTree(generation: 0)
+    let grandchild = sized(tree, 100, 100)
+    var s = Style()
+    // No declared size: both axes take the measured path.
+    s.maxSize = Size(width: px(40), height: px(25))
+    s.minSize = Size(width: .auto, height: px(10))
+    let kid = tree.newNode(style: s, children: [grandchild])
+    let node = stack(tree, [kid])
+
+    let ctx = LayoutContext(rootFontSize: 16)
+    let measured = measureNode(ctx, tree, node, known: .unspecified,
+                               available: AvailableSpaceSize(width: .maxContent,
+                                                             height: .maxContent),
+                               containingBlockWidth: nil)
+    #expect(measured.width == 40, "max-width clamps the measured 100 down to 40")
+    #expect(measured.height == 25, "max-height clamps the measured 100 down to 25")
+}
+
+/// The measured min-HEIGHT bound alone, with nothing else to satisfy: a
+/// childless leaf measures 0 and `minHeight` is the only thing that can raise
+/// it. The negative control for the test above, whose child is large enough
+/// that `min: minHeight` could be dropped without moving a number.
+@Test func aStackChildsMinHeightClampsItsContentMeasuredSize() {
+    let tree = LayoutTree(generation: 0)
+    var s = Style()
+    s.minSize = Size(width: .auto, height: px(35))
+    let kid = tree.newNode(style: s, children: [])
+    let node = stack(tree, [kid])
+
+    let ctx = LayoutContext(rootFontSize: 16)
+    let measured = measureNode(ctx, tree, node, known: .unspecified,
+                               available: AvailableSpaceSize(width: .maxContent,
+                                                             height: .maxContent),
+                               containingBlockWidth: nil)
+    #expect(measured.height == 35, "a childless leaf measures 0; min-height clamps it up to 35")
+}
+
+/// A child with a KNOWN width and an `auto` height is measured **at that
+/// width**, not at max-content.
+///
+/// **Mutation that was green across 529 tests:** replacing `layOutStack`'s
+/// `measureNode` arguments with `known: .unspecified` and
+/// `available: AvailableSpaceSize(width: .maxContent, height: .maxContent)` —
+/// throwing the resolved axis away when asking the child its other axis. Every
+/// other stack test in the suite has children whose two axes are independent
+/// (both declared, or both auto), so the mixed case was reached and could not
+/// be seen: `size` on line 983 takes `knownWidth` back regardless, and only the
+/// *height* moves.
+///
+/// The child here is a WRAPPING flex row of two 30x20 boxes, which is the one
+/// content in this framework other than text whose height depends on the width
+/// it is measured at: at the declared 50 the two wrap onto two lines (height
+/// 40), at max-content they sit on one (height 20). A wrong implementation this
+/// catches ships every auto-height child of a fixed-width stack item one line
+/// too short.
+@Test func aStackChildWithAKnownWidthIsMeasuredAtThatWidthNotMaxContent() {
+    let tree = LayoutTree(generation: 0)
+    let a = sized(tree, 30, 20)
+    let b = sized(tree, 30, 20)
+    var wrapper = Style()
+    wrapper.flexDirection = .row
+    wrapper.flexWrap = .wrap
+    wrapper.size = Size(width: px(50), height: .auto)   // width known, height auto
+    let kid = tree.newNode(style: wrapper, children: [a, b])
+    let node = stack(tree, [kid])
+
+    let ctx = LayoutContext(rootFontSize: 16)
+    let measured = measureNode(ctx, tree, node, known: .unspecified,
+                               available: AvailableSpaceSize(width: .maxContent,
+                                                             height: .maxContent),
+                               containingBlockWidth: nil)
+    #expect(measured.width == 50, "the declared width is kept")
+    #expect(measured.height == 40, "two lines at width 50 — one line (20) means the width was dropped")
+}
+
+/// A stack child's percentage padding resolves against the STACK's content
+/// box while the child is being MEASURED — `layOutStack` passing
+/// `containingBlockWidth: box.size.width` into `measureNode`.
+///
+/// **Mutation that was green across 529 tests:** `containingBlockWidth: nil`.
+/// No stack test had a child with a percentage anything, so the argument was
+/// passed and never read. This is CLAUDE.md's "percentage inset resolves
+/// against the containing block's width" constraint — one of four listed as
+/// easy to violate silently, and violated here in the direction that produces
+/// zero rather than a wrong number.
+///
+/// The stack is 300 wide, so 10% is 30 a side and the child measures
+/// `20 + 30 + 30 = 80`. Under `nil` the percentage resolves to nothing and the
+/// child measures 20 — a whole padding box silently gone.
+@Test func aStackChildsPercentagePaddingResolvesAgainstTheStackWhenMeasured() {
+    let tree = LayoutTree(generation: 0)
+    let grandchild = sized(tree, 20, 20)
+    var s = Style()
+    s.padding = Edges(all: .percent(0.1))
+    let kid = tree.newNode(style: s, children: [grandchild])
+    var stackStyle = Style()
+    stackStyle.display = .stack
+    stackStyle.alignItems = .flexStart
+    stackStyle.justifyItems = .start
+    stackStyle.size = Size(width: px(300), height: px(200))
+    let node = tree.newNode(style: stackStyle, children: [kid])
+
+    computeLayout(tree, root: node,
+                  available: AvailableSpaceSize(width: .definite(800),
+                                                height: .definite(600)))
+    #expect(tree.layout(kid).width == 80, "20 content + 10% of the stack's 300 on each side")
+}
+
+/// A stack child's own percentage padding resolves against the STACK's content
+/// box while the child is being PLACED — `positionStackItems` passing
+/// `containingBlockWidth: containerSize.width` into `placeNode`.
+///
+/// **Mutation that was green across 529 tests:** passing the item's own
+/// `size.width` instead of `containerSize.width` at that call. Nothing under a
+/// stack had a percentage inset, so the two were never distinguishable. This is
+/// CLAUDE.md's "a percentage inset resolves against the CONTAINING BLOCK's
+/// width — not the box's own width" constraint, one of four listed as easy to
+/// violate silently, and the mutation is precisely the mistake it names.
+///
+/// **The paired-but-different site from
+/// `aStackChildsPercentagePaddingResolvesAgainstTheStackWhenMeasured` above,
+/// and neither test can see the other's.** That one's child is auto-sized, so
+/// `layOutStack` measures it and the basis comes from `measureNode`'s argument;
+/// this one's child declares both axes, so `layOutStack` never measures it at
+/// all and the basis reaches it only through `placeNode`. Verified: each
+/// mutation reddens its own test and leaves the other green.
+///
+/// The stack's content box is 300 and the child is 100 wide, so the two
+/// candidate bases give different numbers — 10% is 30 against the containing
+/// block and 10 against the child's own width, and the leaf inside the child's
+/// content box lands at `x = 30` rather than `x = 10`.
+@Test func aStackChildsPercentagePaddingResolvesAgainstTheStackWhenPlaced() {
+    let tree = LayoutTree(generation: 0)
+    let leaf = sized(tree, 10, 10)
+    var padded = Style()
+    padded.padding = Edges(all: .percent(0.1))
+    padded.size = Size(width: px(100), height: px(60))
+    padded.alignItems = .flexStart
+    let kid = tree.newNode(style: padded, children: [leaf])
+
+    var stackStyle = Style()
+    stackStyle.display = .stack
+    stackStyle.alignItems = .flexStart
+    stackStyle.justifyItems = .start
+    stackStyle.size = Size(width: px(300), height: px(200))
+    let node = tree.newNode(style: stackStyle, children: [kid])
+
+    computeLayout(tree, root: node,
+                  available: AvailableSpaceSize(width: .definite(800),
+                                                height: .definite(600)))
+    #expect(tree.layout(kid).x == 0, "the child itself is at the stack's start edge")
+    #expect(tree.layout(leaf).x == 30,
+            "10% of the stack's 300 content box, not of the child's own 100")
+}
+
+/// A `nil` `alignItems`/`justifyItems` on a stack reads as CSS's `stretch`.
+///
+/// **Mutation that was green across 529 tests:** `?? .flexEnd` and `?? .end` in
+/// `positionStackItems`. Every stack test in the suite wrote both fields
+/// explicitly, so the fallback was reached only through `stack()`'s own
+/// defaults, which are `.center`/`.center`. A hand-built `Style` — the only way
+/// to reach `display: .stack` outside `Stack.init` — leaves both `nil`, and a
+/// wrong fallback silently pins every such child to one corner.
+///
+/// The child is unsized so the two candidates are maximally far apart: under
+/// `stretch` it fills 100x60 at the origin, under any end-edge fallback it is a
+/// 0x0 box at (100, 60).
+@Test func aStacksNilAlignmentFieldsReadAsStretch() {
+    let tree = LayoutTree(generation: 0)
+    let kid = tree.newNode(style: Style(), children: [])
+    let node = stack(tree, [kid], align: nil, justify: nil)
+    computeLayout(tree, root: node,
+                  available: AvailableSpaceSize(width: .definite(100),
+                                                height: .definite(60)))
+    let r = tree.layout(kid)
+    #expect(r.width == 100, "nil alignItems must read as stretch, not an end edge")
+    #expect(r.height == 60, "nil justifyItems must read as stretch, not an end edge")
+    #expect(r.x == 0)
+    #expect(r.y == 0)
+}
+
+/// `AlignItems.baseline` on a stack falls back to the START edge, exactly as it
+/// does in `crossAxisOffset` — the engine cannot see an item's baseline at all,
+/// because a `MeasureFunction` returns a `SizeD`.
+///
+/// **Mutation that was green across 529 tests:** `case .baseline: y =
+/// containerSize.height - size.height`. Nothing set `.baseline` on a stack, so
+/// the arm was live and unreached. `StyledElement.alignItems(_:)` takes the
+/// whole enum, so `Stack { … }.alignItems(.baseline)` compiles today — this is
+/// the pin on which of the two wrong-but-documented answers it gets, and it
+/// must move in the same commit that implements real baseline alignment.
+@Test func baselineOnAStackFallsBackToTheStartEdge() {
+    let tree = LayoutTree(generation: 0)
+    let kid = sized(tree, 20, 10)
+    let node = stack(tree, [kid], align: .baseline, justify: .start)
+    computeLayout(tree, root: node,
+                  available: AvailableSpaceSize(width: .definite(100),
+                                                height: .definite(60)))
+    #expect(tree.layout(kid).y == 0, "baseline falls back to flexStart, not flexEnd")
 }
