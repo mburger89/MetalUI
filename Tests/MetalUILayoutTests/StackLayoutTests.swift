@@ -27,12 +27,20 @@ private func stack(_ tree: LayoutTree, _ children: [LayoutNodeID],
 /// the other axis would all give a different answer here. With uniform children
 /// none of those could be told apart — the corpus-uniformity hazard that hid
 /// divergence 6 for four milestones.
+///
+/// **`mid` is deliberately first, since it wins NEITHER axis.** A "return
+/// `items.first`" bug used to pass this test's width assertion by coincidence
+/// when `wide` (the width winner) was first, and putting `tall` (the height
+/// winner) first instead only moves the coincidence to the other axis. `mid`
+/// is the one child that cannot make a first-item bug pass either assertion —
+/// found by mutation, fixed by reordering rather than by trusting either
+/// original order.
 @Test func aStackSizesToItsLargestChildOnEachAxisIndependently() {
     let tree = LayoutTree(generation: 0)
+    let mid   = sized(tree, 50, 40)
     let wide  = sized(tree, 90, 10)   // widest, shortest
     let tall  = sized(tree, 20, 70)   // narrowest, tallest
-    let mid   = sized(tree, 50, 40)
-    let node = stack(tree, [wide, tall, mid])
+    let node = stack(tree, [mid, wide, tall])
 
     let ctx = LayoutContext(rootFontSize: 16)
     let measured = measureNode(ctx, tree, node, known: .unspecified,
@@ -131,4 +139,60 @@ private func stack(_ tree: LayoutTree, _ children: [LayoutNodeID],
                                containingBlockWidth: nil)
     #expect(measured.width == 20, "the 200-wide none child must not win")
     #expect(measured.height == 20, "the 200-tall none child must not win")
+}
+
+/// An auto-sized stack child is measured from its own content — the branch
+/// nothing else in this file reaches.
+///
+/// **Every other fixture uses `sized()`**, which sets an explicit width and
+/// height, so `layOutStack`'s `if let knownWidth, let knownHeight` branch is
+/// always taken and the content-measuring `else` branch — the one spec §3.2 is
+/// actually about, "measured with the stack's own available space" — never
+/// runs. This is that branch's only test: a default-styled container (size
+/// `auto`/`auto`) whose own child is a fixed 60x25 measures 60x25 by content,
+/// and the stack sizes to it. Verified to reach the branch by making it
+/// temporarily return `SizeD(width: 0, height: 0)`: only this test reddens,
+/// and the other five stay green — see the fix-round report for the exact
+/// output.
+@Test func aStackSizesAnAutoChildFromItsOwnContent() {
+    let tree = LayoutTree(generation: 0)
+    let grandchild = sized(tree, 60, 25)
+    // `Style()`'s default size is `.auto`/`.auto` — no `sized()` call, so this
+    // is genuinely unresolved rather than resolved-to-zero.
+    let content = tree.newNode(style: Style(), children: [grandchild])
+    let node = stack(tree, [content])
+
+    let ctx = LayoutContext(rootFontSize: 16)
+    let measured = measureNode(ctx, tree, node, known: .unspecified,
+                               available: AvailableSpaceSize(width: .maxContent,
+                                                             height: .maxContent),
+                               containingBlockWidth: nil)
+    #expect(measured.width == 60, "the stack sizes to the auto child's content width")
+    #expect(measured.height == 25, "the stack sizes to the auto child's content height")
+}
+
+/// `minWidth` clamps a stack child's own declared size, the same as it clamps
+/// every other node in this engine.
+///
+/// **A child declares `width: 10px` but `min-width: 40px`.** An unclamped
+/// implementation sizes the stack to 10; the correct answer is 40.
+/// `minSize`/`maxSize` are unreachable from the public API until Task 5 makes
+/// `Stack` public — this sets `Style` directly, the same way every test in
+/// this file reaches `display: .stack` itself, before there is a modifier for
+/// it. Verified by removing the clamp: this test reddens (`measured.width` →
+/// `10`) and nothing else does — see the fix-round report.
+@Test func aStackChildsMinWidthClampsItsDeclaredSize() {
+    let tree = LayoutTree(generation: 0)
+    var s = Style()
+    s.size = Size(width: px(10), height: px(30))
+    s.minSize = Size(width: px(40), height: .auto)
+    let kid = tree.newNode(style: s, children: [])
+    let node = stack(tree, [kid])
+
+    let ctx = LayoutContext(rootFontSize: 16)
+    let measured = measureNode(ctx, tree, node, known: .unspecified,
+                               available: AvailableSpaceSize(width: .maxContent,
+                                                             height: .maxContent),
+                               containingBlockWidth: nil)
+    #expect(measured.width == 40, "min-width must clamp the declared 10 up to 40")
 }

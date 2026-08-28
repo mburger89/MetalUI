@@ -925,9 +925,20 @@ private func layOutStack(
     // `nil` — is 0, not content-measured: that is `resolveNodeSize`'s rule
     // elsewhere in this file, and per its comment there it is WebKit's too.
     // Returning `nil` here is the signal "this axis needs measuring".
-    func resolvedAxis(_ dim: Dimension, basis: Double?) -> Double? {
+    //
+    // `lower`/`upper` clamp the resolved value exactly as `resolveNodeSize`
+    // clamps its own `axis` closure — a stack child is not exempt from its own
+    // `minSize`/`maxSize` just because it has no flex algorithm to run them
+    // through. Review found this unclamped in the first round: nothing could
+    // reach `display: .stack` yet to notice, but Task 5 makes `Stack` public,
+    // and from that commit a `.minWidth(_:)` on a stack child would otherwise
+    // compile and silently do nothing — the exact "declared but inert" trap
+    // CLAUDE.md's table exists to catch, closed here before it opens rather
+    // than after.
+    func resolvedAxis(_ dim: Dimension, basis: Double?, lower: Double?, upper: Double?) -> Double? {
         if case .auto = dim { return nil }
-        return resolveDimension(dim, against: basis, rootFontSize: rootFontSize) ?? 0
+        let resolved = resolveDimension(dim, against: basis, rootFontSize: rootFontSize) ?? 0
+        return clamp(resolved, min: lower, max: upper)
     }
 
     var items: [StackItem] = []
@@ -936,8 +947,17 @@ private func layOutStack(
 
     for kid in tree.children(container) where tree.style(kid).display != .none {
         let ks = tree.style(kid)
-        let knownWidth = resolvedAxis(ks.size.width, basis: box.size.width)
-        let knownHeight = resolvedAxis(ks.size.height, basis: box.size.height)
+        // Resolved against `box.size` — the stack's own content box, the same
+        // basis the size itself resolves against — exactly as `collectItems`
+        // resolves an item's cross min/max against `containerCross` before
+        // using them to clamp `ownCross`.
+        let minWidth = resolveDimension(ks.minSize.width, against: box.size.width, rootFontSize: rootFontSize)
+        let maxWidthBound = resolveDimension(ks.maxSize.width, against: box.size.width, rootFontSize: rootFontSize)
+        let minHeight = resolveDimension(ks.minSize.height, against: box.size.height, rootFontSize: rootFontSize)
+        let maxHeightBound = resolveDimension(ks.maxSize.height, against: box.size.height, rootFontSize: rootFontSize)
+
+        let knownWidth = resolvedAxis(ks.size.width, basis: box.size.width, lower: minWidth, upper: maxWidthBound)
+        let knownHeight = resolvedAxis(ks.size.height, basis: box.size.height, lower: minHeight, upper: maxHeightBound)
 
         let size: SizeD
         if let knownWidth, let knownHeight {
@@ -946,13 +966,22 @@ private func layOutStack(
             // recurses into it once it has a final origin.
             size = SizeD(width: knownWidth, height: knownHeight)
         } else {
-            size = measureNode(
+            let measured = measureNode(
                 ctx, tree, kid,
                 known: OptionalSizeD(width: knownWidth, height: knownHeight),
                 available: AvailableSpaceSize(
                     width: knownWidth.map { .definite($0) } ?? .maxContent,
                     height: knownHeight.map { .definite($0) } ?? .maxContent),
                 containingBlockWidth: box.size.width)
+            // A content-measured axis is clamped here, after measuring — the
+            // same order `collectItems`' `ownCross` uses, and CSS's own: min/max
+            // bounds the USED size regardless of how it was computed, so a
+            // measured axis needs the clamp exactly as much as a declared one
+            // (`knownWidth`/`knownHeight` were already clamped by
+            // `resolvedAxis` above when they came back non-nil, so this `??`
+            // only ever runs the clamp on the axis that was actually measured).
+            size = SizeD(width: knownWidth ?? clamp(measured.width, min: minWidth, max: maxWidthBound),
+                         height: knownHeight ?? clamp(measured.height, min: minHeight, max: maxHeightBound))
         }
 
         items.append(StackItem(node: kid, size: size))
