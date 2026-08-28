@@ -98,7 +98,8 @@ final class MetalHostView: NSView {
             delta: Point(x: Pixels(Float(event.scrollingDeltaX)),
                          y: Pixels(Float(event.scrollingDeltaY))),
             modifiers: modifiers(event),
-            isMomentum: momentum)))
+            isMomentum: momentum,
+            timestamp: event.timestamp)))
     }
 
     override func keyDown(with event: NSEvent) {

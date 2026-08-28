@@ -7,12 +7,16 @@ public enum ScrollAxis: Sendable, Equatable { case vertical, horizontal }
 public struct ScrollState: Sendable {
     public var offset: Double = 0
 
-    /// `PaintPass.timestamp` of the most recent scroll — the display link's
-    /// tick, not a wall clock read independently. Drives the overlay
-    /// indicator's fade in `ScrollView.paint`: opaque while
+    /// The most recent scroll's instant, on the same clock as
+    /// `PaintPass.timestamp` (both trace to `mach_absolute_time`) but sourced
+    /// from the input event itself rather than the display link's last tick.
+    /// Drives the overlay indicator's fade in `ScrollView.paint`: opaque while
     /// `timestamp - lastScrollTime` is small, ramping to invisible after.
-    /// `Window.applyScroll` is the sole writer, stamping it from `lastTick`
-    /// at the moment a wheel event lands.
+    /// `Window.applyScroll` is the sole writer, stamping it from
+    /// `ScrollEvent.timestamp` at the moment a wheel event lands — not from
+    /// the display link's `lastTick`, which is frozen at whatever instant the
+    /// last frame ran and goes stale for as long as the link is paused while
+    /// idle (spec §4.4).
     public var lastScrollTime: Double = 0
 
     public init(offset: Double = 0, lastScrollTime: Double = 0) {

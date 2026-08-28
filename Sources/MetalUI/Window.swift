@@ -358,10 +358,19 @@ public final class Window {
             // so the offset — how far the content has scrolled away from its
             // start — decreases.
             $0.offset -= Double(componentDelta.value)
-            // Stamped from `lastTick`, the same display-link instant every
-            // element in the next frame will see as `PaintPass.timestamp` —
-            // not a wall clock read here, which would disagree with it.
-            $0.lastScrollTime = lastTick
+            // Stamped from the EVENT's own timestamp, not `lastTick`. The
+            // display link pauses while the window is clean (spec §4.4), so
+            // after an idle period `lastTick` is however many seconds stale —
+            // a wheel event arriving then would be stamped with that stale
+            // instant, and the next frame's `age = timestamp - lastScrollTime`
+            // would already exceed the fade duration, suppressing the
+            // indicator on the very frame meant to show it. `event.timestamp`
+            // and `PaintPass.timestamp` (from the display link) share
+            // `mach_absolute_time`'s base, so the subtraction stays valid —
+            // and the event's own time is also simply more current than
+            // `lastTick`, which is the *previous* frame's instant, even when
+            // not idle.
+            $0.lastScrollTime = event.timestamp
         }
         return true
     }

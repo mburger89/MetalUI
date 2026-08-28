@@ -305,6 +305,146 @@ private func wheel(at position: Point<Pixels>, deltaY: Float) -> InputEvent {
             "idle stays idle: nothing dirtied the window, so no further frame may draw")
 }
 
+// MARK: - 5b. A scroll that follows a display-link pause still shows the indicator
+
+/// A wheel event whose own timestamp — the thing `Window.applyScroll` now
+/// stamps `ScrollState.lastScrollTime` from — is far ahead of the display
+/// link's last delivered tick.
+///
+/// `FakePlatformWindow.simulateInput` only substitutes `currentTime` for a
+/// `.scrollWheel` event that leaves `timestamp` at `ScrollEvent`'s default
+/// (`0`); passing one explicitly here is what drives the two clocks apart.
+private func wheel(at position: Point<Pixels>, deltaY: Float, timestamp: Double) -> InputEvent {
+    .scrollWheel(ScrollEvent(position: position, delta: Point(x: Pixels(0), y: Pixels(deltaY)),
+                             isMomentum: false, timestamp: timestamp))
+}
+
+/// A scroll that arrives after the display link has gone idle and paused
+/// still shows the indicator — the defect this task fixes.
+///
+/// **Mechanism reproduced end to end.** `Window.applyScroll` used to stamp
+/// `ScrollState.lastScrollTime` from `Window.lastTick`, the most recent
+/// display-link tick — but the link pauses while the window is clean (spec
+/// §4.4), so `lastTick` is frozen at whatever instant the last real tick
+/// delivered. A wheel event arriving after a longer idle gets stamped with
+/// that stale instant, and the next frame's `age = timestamp - lastScrollTime`
+/// is then large enough that `paintIndicator`'s `guard alpha > 0 else {
+/// return }` suppresses the indicator outright — content scrolls, nothing
+/// paints to show it.
+///
+/// **The idle gap (6) and the fade duration (1.0) are deliberately different
+/// numbers**, per the practices doc's fixture-hygiene rule: a fixture where
+/// they coincided could not distinguish "the indicator appeared because `age`
+/// happened to be small" from "the indicator appeared because the stamp was
+/// fresh" — the two claims this test exists to tell apart.
+///
+/// The tick that renders the post-scroll frame lands 0.05s after the SCROLL
+/// EVENT's own timestamp (11), not after the paused tick (5) — the realistic
+/// shape of "the wheel event dirties the window, which un-pauses the display
+/// link, which ticks again almost immediately." Under the reverted code this
+/// still reads `age = 11.05 - 5 = 6.05` (suppressed); under the fix it reads
+/// `age = 11.05 - 11 = 0.05` (visible).
+@Test @MainActor func aScrollFollowingAnIdleThatPausedTheDisplayLinkStillShowsTheIndicator() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true) {
+        ScrollView(.vertical, elementID: listID) {
+            Box(style: columnStyle()) {
+                Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
+                Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
+                Box(style: fixedHeight(40))
+            }
+        }
+    }
+
+    // First real tick: renders once, nothing scrolled, and the window goes
+    // clean — nothing requests another frame.
+    platformWindow.simulateTick(timestamp: 100)
+    #expect(!window.needsRedraw, "an idle, never-scrolled ScrollView must not keep the window dirty")
+
+    // A second tick, 5 seconds later, with the window still clean: this is
+    // the tick on which `drawFrameIfNeeded` finds `needsRedraw` already
+    // false and pauses the link — the mechanism's "the link pauses while the
+    // window goes clean" made concrete rather than assumed.
+    let framesBeforeIdle = window.framesDrawn
+    platformWindow.simulateTick(timestamp: 105)
+    #expect(platformWindow.pauseCalls.last == true, "the display link must be paused while idle")
+    #expect(window.framesDrawn == framesBeforeIdle, "a paused-and-clean tick draws no frame")
+
+    // Real time keeps passing — nothing ticks the (paused) link — and then a
+    // wheel event arrives, 6 seconds after the link's last delivered tick and
+    // well past the fade's ~1s window. Its OWN timestamp (11) is what must
+    // reach `ScrollState.lastScrollTime`, not the stale tick (5).
+    platformWindow.simulateInput(wheel(at: pt(60, 60), deltaY: -20, timestamp: 111))
+    #expect(window.needsRedraw, "the scroll itself must dirty the window and resume the link")
+
+    // The resumed link ticks again almost immediately — close to the EVENT's
+    // own timestamp, far from the stale one.
+    platformWindow.simulateTick(timestamp: 111.05)
+
+    let rect = try #require(window.lastScene.rects.first,
+                            "the indicator must be emitted for a scroll that follows an idle longer than the fade duration")
+    #expect(rect.background.a > 0, "and it must be visible, not a fully transparent no-op rect")
+}
+
+/// The idle guarantee is not a casualty of this fix: after waking from a
+/// paused link on a fresh event timestamp, the indicator still fades on
+/// schedule and the window still returns to idle — spec §4.4's "no frames
+/// built and display link paused while idle" holds using the event's own
+/// clock exactly as it held using the display link's.
+///
+/// Continues from the same scenario as the test above rather than asserting
+/// termination in isolation, because the failure mode this guards against is
+/// specific to THIS fix: a stamp sourced from the wrong clock (say, a wall
+/// read that keeps advancing with "now") would make `age` never grow and the
+/// fade would never complete, silently breaking the idle guarantee this same
+/// change touches.
+@Test @MainActor func theIndicatorStillFadesAndTheWindowReturnsIdleAfterWakingFromAPausedLink() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true) {
+        ScrollView(.vertical, elementID: listID) {
+            Box(style: columnStyle()) {
+                Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
+                Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
+                Box(style: fixedHeight(40))
+            }
+        }
+    }
+
+    platformWindow.simulateTick(timestamp: 100)
+    platformWindow.simulateTick(timestamp: 105)
+    #expect(platformWindow.pauseCalls.last == true, "set up: the link is paused before the wake-up scroll")
+
+    platformWindow.simulateInput(wheel(at: pt(60, 60), deltaY: -20, timestamp: 111))
+    platformWindow.simulateTick(timestamp: 111.05)
+    #expect(!window.lastScene.rects.isEmpty, "set up: the indicator is visible right after the wake-up scroll")
+
+    // age 0.3 (11.05's render already covered age 0.05): inside the fully
+    // opaque window measured from the EVENT's timestamp (11), not the stale
+    // tick (5) — from the latter this would already read age 6.3.
+    platformWindow.simulateTick(timestamp: 111.3)
+    #expect(window.needsRedraw, "age 0.3 from the event's own timestamp is inside the opaque window")
+
+    // age 0.8: inside the fade ramp, still visible, must still be requesting.
+    platformWindow.simulateTick(timestamp: 111.8)
+    #expect(window.needsRedraw, "age 0.8 is inside the fade ramp and must still request another frame")
+
+    // age 1.1: fully faded. This render must be the LAST one this scroll
+    // causes.
+    let framesBeforeFadeCompletes = window.framesDrawn
+    platformWindow.simulateTick(timestamp: 112.1)
+    #expect(window.framesDrawn == framesBeforeFadeCompletes + 1,
+            "this tick was still dirty going in and must have drawn once")
+    #expect(!window.needsRedraw, "age 1.1 > 1.0: fully faded, and this render must not ask for another frame")
+    #expect(window.lastScene.rects.isEmpty, "a fully faded indicator must emit no primitive at all")
+
+    // And it stays idle.
+    let framesAfterFade = window.framesDrawn
+    platformWindow.simulateTick(timestamp: 120)
+    #expect(window.framesDrawn == framesAfterFade, "idle stays idle: no further frame may draw")
+}
+
 // MARK: - 6. The fade is a RAMP, and it uses the scroll-indicator token
 
 /// The alpha at a mid-ramp age, which is the one measurement that separates a
