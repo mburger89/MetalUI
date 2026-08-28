@@ -386,24 +386,27 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **360 tests** and 61 browser fixtures, warning-free
-(measured 2026-08-27; read the summary line, never the exit status — shape 11).
-**Seven** non-test targets with strictly one-way dependencies: `MetalUICore`,
-`MetalUILayout`, `MetalUIShaderTypes`, `MetalUIRender`, `MetalUIPlatform`,
-`MetalUI`, `MetalUIDemo`. **`MetalUITestSupport` is an eighth `.target` in
-`Package.swift` and is not one of them** — it lives under `Tests/`, ships in no
-product, and holds the single copy of the `swiftc -typecheck` machinery the
-negative type-system guards shell out to (ruling EP-1). Count with
-`grep -cE "^ +\.(target|executableTarget)\(" Package.swift`, which returns 8
+`swift build` · `swift test` — **366 tests** and 61 browser fixtures, warning-free
+(measured 2026-08-27 on `feat/text-m2` after M2 Task 1; read the summary line,
+never the exit status — shape 11. The 360 recorded here before that task
+measured 361 on the same checkout, so treat a ±1 as a stale doc rather than a
+missing test, and re-measure).
+**Eight** non-test targets with strictly one-way dependencies: `MetalUICore`,
+`MetalUILayout`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
+`MetalUIPlatform`, `MetalUI`, `MetalUIDemo`. **`MetalUITestSupport` is a ninth
+`.target` in `Package.swift` and is not one of them** — it lives under `Tests/`,
+ships in no product, and holds the single copy of the `swiftc -typecheck`
+machinery the negative type-system guards shell out to (ruling EP-1). Count with
+`grep -cE "^ +\.(target|executableTarget)\(" Package.swift`, which returns 9
 (`.testTarget(` does not match), and subtract `MetalUITestSupport`.
 
-**Spec §3.1 also says "seven targets", and it is a different seven.** Its list is
+**Spec §3.1 says "seven targets", and it is a different seven.** Its list is
 the module *layering* — `MetalUI`, `MetalUILayout`, **`MetalUIText`**,
 `MetalUIRender`, `MetalUIPlatform`, `MetalUICore`, `MetalUIShaderTypes` — which
-includes the text target that does not exist yet and excludes `MetalUIDemo`,
-which is an executable rather than a layer. The two counts agreeing today is a
-coincidence and it expires: when Text lands the package has eight non-test
-targets against the spec's seven. Do not "reconcile" one list to the other.
+excludes `MetalUIDemo`, an executable rather than a layer. **The two counts used
+to agree and no longer do**: M2 Task 1 landed `MetalUIText`, which this section
+had already named as the coincidence's expiry date. Eight here against §3.1's
+seven is the expected state. Do not "reconcile" one list to the other.
 
 Four constraints that are easy to violate silently:
 
