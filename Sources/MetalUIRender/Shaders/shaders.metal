@@ -42,6 +42,22 @@ static float4 hsla_to_srgba(MUIHsla hsla) {
     return float4(rgb + m, hsla.a);
 }
 
+// Antialiased coverage of `p` inside an axis-aligned mask, in the same pixel
+// space as `[[position]]`.
+//
+// **Not `discard_fragment()`.** There is no depth buffer, so discarding buys
+// nothing, and on some GPUs it disables early-Z for the whole shader. Returning
+// coverage keeps this composable with the SDF coverage the callers already
+// compute, which is also what antialiases the clip edge: a hard step jags on a
+// fractional boundary exactly as an unantialiased rect edge would.
+static inline float mask_coverage(float2 p, MUIBounds mask) {
+    float2 lo = float2(mask.origin.x, mask.origin.y);
+    float2 hi = lo + float2(mask.size.width, mask.size.height);
+    // 0.5 is half a pixel: the same antialiasing threshold `rect_sdf` uses.
+    float2 inside = saturate(p - lo + 0.5) * saturate(hi - p + 0.5);
+    return inside.x * inside.y;
+}
+
 // ---------------------------------------------------------------------------
 // Rect pipeline
 // ---------------------------------------------------------------------------
@@ -114,7 +130,10 @@ fragment float4 rect_fragment(
     float4 color = mix(borderColor, background, innerAlpha);
 
     // Premultiplied output, to pair with a (one, oneMinusSourceAlpha) blend.
-    return float4(color.rgb * color.a, color.a) * outerAlpha;
+    // Clip last, so it composes with the rounded-rect coverage above rather
+    // than replacing it. A primitive is drawn where it intersects its mask.
+    float clip = mask_coverage(in.pixelPosition, r.contentMask);
+    return float4(color.rgb * color.a, color.a) * outerAlpha * clip;
 }
 
 // ---------------------------------------------------------------------------

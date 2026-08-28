@@ -24,10 +24,10 @@ typedef struct { float top, right, bottom, left; } MUIEdges;
 // the fragment shader's [[position]], which is in render-target pixels.
 typedef struct {
     MUIBounds bounds;
-    // CARRIED BUT NOT YET APPLIED. Every call site fills this in and it
-    // round-trips the ABI, but `rect_fragment` never reads it, so nothing is
-    // clipped today. Clipping arrives in M1 (spec 7.3); until then a rect
-    // paints outside its content mask.
+    // Axis-aligned clip, same space as `bounds`. `rect_fragment` multiplies
+    // coverage by it, antialiased on the same half-pixel threshold as the
+    // rect's own edge. The whole surface means "no clip" and is what
+    // `Frame.fill` passes when no clip stack is active.
     MUIBounds contentMask;
     MUIHsla background;
     MUIHsla borderColor;
@@ -48,8 +48,9 @@ typedef struct {
 // share a field cannot be told apart when one of them is wrong.
 //
 // There is deliberately NO `contentMask` here. `MUIRect` carries one that
-// `rect_fragment` never reads, and a second inert field would be a second thing
-// that looks implemented from the outside.
+// `rect_fragment` reads and applies; `glyph_fragment` does not yet clip
+// glyphs the same way, so a masked `MUIGlyph` here would be a second thing
+// that looks implemented from the outside and is not.
 typedef struct {
     MUIBounds bounds;        // destination, ScaledPixels
     MUIBounds atlasBounds;   // source, atlas texels
