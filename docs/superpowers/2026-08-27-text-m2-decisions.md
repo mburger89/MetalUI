@@ -138,7 +138,7 @@ repacker or a whole-atlas rebuild, not a call site. One story, one CLAUDE.md row
 
 - **`MeasureFunction` / `newLeaf`'s inert row is deleted.** `grep -rn "newLeaf"
   Sources/` returns seven lines and **one of them is a call**:
-  `Sources/MetalUI/Frame.swift:154`, reached by `Text.requestLayout` →
+  `Sources/MetalUI/Frame.swift:166`, reached by `Text.requestLayout` →
   `LayoutPass.requestLeaf` → `Frame.requestLeaf`. Pinned two ways — replacing
   `requestLeaf` with `newNode` reddens 7 tests, and making `requestNode` attach a
   trivial measure function reddens `aTextLeafCarriesAMeasureFunctionWhereABoxDoesNot`

@@ -224,7 +224,7 @@ private enum Fixture {
         // **Ruling EP-8, and the one line that stops these styles mirroring the
         // element tree.** `Style`'s `alignItems` default is `nil`, which the
         // engine reads as CSS's `stretch`; `Column.init`/`Row.init` now write
-        // `.center` instead. The engine is deliberately NOT changed — the 61
+        // `.center` instead. The engine is deliberately NOT changed — the 67
         // browser fixtures depend on it answering as WebKit does — so the
         // hand-built tree has to say `.center` out loud to be the same tree.
         // Deleting either line below is a real mutation of this fixture and

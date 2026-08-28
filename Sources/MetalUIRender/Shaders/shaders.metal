@@ -188,8 +188,19 @@ fragment float4 glyph_fragment(
     //
     // The exactness is the interpolated coordinate landing on texel centres:
     // at destination pixel k the fragment centre carries
-    // `atlasBounds.origin + k + 0.5`. Shifting it by a single texel reddens
-    // four tests, so the alignment is guarded rather than assumed.
+    // `atlasBounds.origin + k + 0.5`. Shifting `atlasPosition` by a single
+    // texel (`origin.x + 1.0` in `glyph_vertex`) reddens
+    // `aGlyphSpriteBlitsExactlyTheAtlasPixelsItPointsAt`,
+    // `glyphsAreTintedByTheirColorAndScaledByCoverage`,
+    // `aGlyphPackedAfterTheFirstUploadStillReachesTheGPU`,
+    // `anAtlasWithNoDirtyRectStillUploadsInFullToANewTexture`,
+    // `aRectAndAGlyphBothDrawInOneScene` and
+    // `theWindowsPixelsAreExactlyTheGlyphBitmapsItsSpritesStandFor` — so the
+    // alignment is guarded rather than assumed. **Named rather than counted
+    // (ruling SI-H)**: this comment said "four tests" when it was written in
+    // Task 7, two tests sensitive to the same line landed after it, and a count
+    // is stale the moment one does. Re-measured `--no-parallel` on 2026-08-28,
+    // 9 issues across those six, suite 444.
     constexpr sampler atlas_sampler(coord::pixel,
                                     address::clamp_to_edge,
                                     filter::linear);

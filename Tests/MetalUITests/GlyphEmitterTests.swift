@@ -594,8 +594,12 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
 /// atlas served the **wrong glyph** for a key (a `FontKey` collision — the
 /// oracle would rasterize the same wrong glyph), if the **subpixel variant**
 /// were dropped and text wobbled during a scroll, or if **eviction blanked a
-/// run** mid-frame. Those three remain the human look's, and the human look has
-/// not happened: the demo has no `Text` in it yet.
+/// run** mid-frame. Those three remain the human look's, and the look has now
+/// happened (2026-08-28, recorded in `CLAUDE.md`) — it caught **none** of them,
+/// by construction: wobble needs sub-pixel motion a static look cannot show,
+/// eviction is unwired so its blanks are absent rather than checked, and the
+/// demo uses one font family so no cross-family key can collide. Two of the
+/// three are still unverified by anything.
 ///
 /// **The cheap non-assertive companion, for whoever needs it next**: print the
 /// same `readPixels()` buffer as ASCII art, one character per pixel keyed on

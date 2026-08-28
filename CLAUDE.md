@@ -147,7 +147,8 @@ committing a fixture, change the declaration it is named for — a percentage to
 pixel, an inset to 0 — regenerate, and confirm the numbers move. That document
 catalogues **thirteen** shapes of test that cannot fail, all observed in this repo,
 plus the method for finding them and the cases where adding a test is the wrong
-answer. Count the `###` headings rather than trusting that number.
+answer. Count the `### <n>.` headings rather than trusting that number — a bare
+`grep -c "^### "` reads 15, because two sections in that document are unnumbered.
 
 The recurring lesson of the last two tasks has a sharper form: **a feature that
 works alone and a feature that works alone can be wrong together.** All three
@@ -264,27 +265,38 @@ sees — and the whole suite still passed when that was measured, at 342 tests
 342 is a property of anything). If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
-**Text draws, and the demo now contains it — a single-line label in the
-sidebar, a 22pt heading, and a paragraph that re-wraps on resize
-(`Sources/MetalUIDemo/main.swift`). **No sentence in this file yet says a human
-has looked at it**, and until one does the milestone's exit criterion is open —
-the criterion is the look, not the presence of the code, because the three failure
-modes spec §4.2 names (wrong glyph from a
-key collision, wobble from a missing subpixel variant, intermittent blanks from
-eviction) are all key failures that no assertion here can see. What *was*
-established, and is worth knowing before that look: a `Text("Hi Wag")` at 22pt
-rendered through a real `Renderer` into a real `Window`'s drawable and read back
-produces **legible glyph shapes in the right order at the right advances** — the
-readback was printed as ASCII art and the word was readable. That rules out the
-gross failures (nothing drawn, every glyph stacked, the atlas sampled at the
-wrong scale) and rules out none of §4.2's three. The assertable half of that
-technique is kept as a test —
-`theWindowsPixelsAreExactlyTheGlyphBitmapsItsSpritesStandFor`, which compares
-every unambiguously covered byte of the drawable against the glyph's own
-rasterized bitmap — and its doc comment names the three failures it still cannot
-see, and why each one hides from it.
+**What the machine established about text before that look, and it is a
+different thing from the look.** A `Text("Hi Wag")` at 22pt rendered through a
+real `Renderer` into a real `Window`'s drawable and read back produces
+**legible glyph shapes in the right order at the right advances** — the readback
+was printed as ASCII art and the word was readable. That rules out the gross
+failures (nothing drawn, every glyph stacked, the atlas sampled at the wrong
+scale) and rules out none of §4.2's three, which is why the human look above is
+the exit criterion and this is not. The assertable half of that technique is
+kept as a test — `theWindowsPixelsAreExactlyTheGlyphBitmapsItsSpritesStandFor`,
+which compares every unambiguously covered byte of the drawable against the
+glyph's own rasterized bitmap — and its doc comment names the three failures it
+still cannot see, and why each one hides from it.
 
-**A second thing no test can establish, and this one is a live release trap.**
+**A third thing no test can establish, and it is a race rather than a gap —
+found by the whole-branch review, not by any assertion.** `Window.drawFrameIfNeeded`
+commits frame N-1's command buffer and never waits (the live path has no
+semaphore; `grep -n "waitUntil" Sources/` finds one line, in
+`Renderer.renderOffscreen`, which is test support). `renderer.upload` then
+mutates the persistent `.shared` atlas texture **in place** with
+`texture.replace`, while frame N-1's encoded draw may still be sampling it.
+Every other GPU resource `encode` touches is a fresh per-frame `makeBuffer`, so
+the atlas is the only exposed one. The window is exactly the frame that packs a
+**new** glyph — a resize, new text, a font-size change — and the symptom is one
+torn or wrong glyph, intermittently. **It is a fourth member of the "nothing
+here can see it" set and spec §4.2 does not list it**, which matters because
+that list is the basis on which this milestone's risks were accepted. Not fixed:
+the honest fix is double-buffering the atlas texture behind an in-flight
+semaphore in the frame loop, and the cheap one (a fresh texture per dirty
+upload) churns a full atlas per new-glyph frame and only narrows the window.
+Recorded at both `Window.swift`'s `renderer.upload` call and `Renderer.upload`.
+
+**A fourth thing no test can establish, and this one is a live release trap.**
 The `MeasureFunction` a `Text` attaches (`Text.requestLayout`) reduces to
 `SizeD` inside `MainActor.assumeIsolated`, because the shaping cache is
 `@MainActor` and a `ShapedText` may not cross an isolation boundary. That is

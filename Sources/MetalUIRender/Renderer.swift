@@ -302,6 +302,11 @@ public final class Renderer {
             return
         }
 
+        // **`replace` mutates a texture a previous frame may still be reading.**
+        // See the hazard note at the call site (`Window.drawFrameIfNeeded`): the
+        // live path commits without waiting, and this is the only persistent
+        // CPU-mutated GPU resource in the renderer. Nothing in this repo can
+        // observe it, because the only other caller (`renderOffscreen`) waits.
         atlas.pixels.withUnsafeBufferPointer { buffer in
             // `bytesPerRow` stays the ATLAS's width, not the region's: the
             // source rows are slices of a wider bitmap, and Metal walks them by
