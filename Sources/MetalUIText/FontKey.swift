@@ -95,6 +95,48 @@ public struct FontMetrics: Hashable, Sendable {
 
     /// The distance from one baseline to the next.
     ///
+    /// **Rounded up to a whole point** — `ceil(ascent + descent + leading)`,
+    /// not the raw sum. A human looked at the M2 demo and reported the leading
+    /// tight against typical Mac apps; measured against
+    /// `NSLayoutManager.defaultLineHeight` on the **same font instance**
+    /// (verified by PostScript name, so this is not a font-resolution
+    /// difference), the platform lays text out taller than
+    /// `ascent + descent + leading` says. `CTFontGetLeading` is **0.0000 at
+    /// every size measured** below, so this is not about leading at all — it is
+    /// that the platform does not lay out at exactly `ascent + descent`:
+    ///
+    /// | pt | `ascent+descent+leading` | `NSLayoutManager.defaultLineHeight` |
+    /// |---|---|---|
+    /// | 11 | 12.9551 | 13 |
+    /// | 12 | 14.1328 | 15 |
+    /// | 13 | 15.3105 | **16** |
+    /// | 14 | 16.4883 | 17 |
+    /// | 15 | 17.6660 | 18 |
+    /// | 16 | 18.8438 | 18 |
+    /// | 17 | 20.0215 | 20 |
+    /// | 22 | 25.9102 | 26 |
+    ///
+    /// `ceil` matches the platform at 11, 12, 13, 14, 15 and 22, and **misses
+    /// only 16 and 17** — the two sizes where `NSLayoutManager` returns *less*
+    /// than the font's own ascent+descent. That is the platform's oddity rather
+    /// than a rule to chase: `round` would fix 13 (15.3105 rounds to 15, not
+    /// 16 — the wrong direction) while doing nothing for 16 or 17, so it is not
+    /// a closer general answer, only a different accident.
+    ///
+    /// **The reason that matters more than matching a number: pixel alignment.**
+    /// A fractional line height puts every line after the first on a fractional
+    /// baseline, so each line's glyphs rasterize at a different subpixel phase
+    /// — line 1 sharp, line 2 soft, cycling with no period any layout controls.
+    /// A whole-point line height keeps every baseline pixel-aligned at 1x and
+    /// even-pixel-aligned at 2x. This is very likely *why* the platform rounds,
+    /// and it is a crispness argument that would hold even where the table
+    /// above disagrees with `NSLayoutManager`.
+    ///
+    /// **Only the line-to-line advance is rounded — `ascent` and `descent`
+    /// themselves are not.** Glyph placement *within* a line depends on the true
+    /// ascent; rounding it would shift glyphs against their own baseline rather
+    /// than only changing how far apart baselines are.
+    ///
     /// **Task 1 said "no caller and no assertion"; Task 2 gave it a caller and
     /// then wrote a false claim about the assertion, which is worth keeping as
     /// the warning.** ``ShapedText/totalHeight`` is `lines.count ×` this, per
@@ -111,9 +153,10 @@ public struct FontMetrics: Hashable, Sendable {
     /// comment written under a shape-10 banner.
     ///
     /// The pin is now `metricsMatchCoreText`, which adds CoreText's three
-    /// numbers up itself rather than asking this property to. Task 4's
-    /// `MeasureFunction` is a second consumer, not the first.
-    public var lineHeight: Double { ascent + descent + leading }
+    /// numbers up itself and applies the same `ceil`, rather than asking this
+    /// property to. Task 4's `MeasureFunction` is a second consumer, not the
+    /// first.
+    public var lineHeight: Double { ceil(ascent + descent + leading) }
 
     public init(ascent: Double, descent: Double, leading: Double) {
         self.ascent = ascent

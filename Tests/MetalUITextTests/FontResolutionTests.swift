@@ -109,14 +109,23 @@ import CoreText
 /// but nothing pinned their *sum*, which is the composition every measured text
 /// height is built from. The line below is the independent oracle: CoreText's
 /// three numbers, added up here rather than in the property under test.
+///
+/// **`lineHeight` rounds up to a whole point (line-height rounding), so the
+/// oracle rounds too — computed from CoreText directly, never from `metrics`,
+/// or this would be shape 12 (the oracle is the code under test) by
+/// construction.** Ascent/descent/leading stay unrounded, exactly as
+/// `FontMetrics` reports them; only the summed line height is `ceil`'d, here
+/// with `Foundation.ceil` rather than `.rounded(.up)` on the property, so a
+/// mutation to *either* implementation of the rounding is still caught by an
+/// independently-computed value.
 @Test func metricsMatchCoreText() {
     let f = FontResolver.resolve(family: nil, size: 13)
     #expect(abs(f.metrics.ascent - CTFontGetAscent(f.ctFont)) < 0.001)
     #expect(abs(f.metrics.descent - CTFontGetDescent(f.ctFont)) < 0.001)
     #expect(abs(f.metrics.leading - CTFontGetLeading(f.ctFont)) < 0.001)
-    #expect(abs(f.metrics.lineHeight
-                - Double(CTFontGetAscent(f.ctFont) + CTFontGetDescent(f.ctFont)
-                         + CTFontGetLeading(f.ctFont))) < 0.001)
+    let oracleLineHeight = ceil(Double(CTFontGetAscent(f.ctFont) + CTFontGetDescent(f.ctFont)
+                                       + CTFontGetLeading(f.ctFont)))
+    #expect(abs(f.metrics.lineHeight - oracleLineHeight) < 0.001)
 }
 
 // **`pinningOpszRemovesTheOpticalSizeAxisFromAdvanceScaling` was DELETED here,

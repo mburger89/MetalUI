@@ -50,7 +50,8 @@ public struct ShapedText {
     /// needs at the width it was wrapped to.
     public let widestLine: Double
 
-    /// `lines.count × (ascent + descent + leading)`.
+    /// `lines.count × lineHeight`, where `lineHeight` is
+    /// `ceil(ascent + descent + leading)` — see ``FontMetrics/lineHeight``.
     ///
     /// Uniform per spec §3.4, because a `Text` carries one font at one size
     /// (§2). Rich text makes line height per-line, and is out of M2.

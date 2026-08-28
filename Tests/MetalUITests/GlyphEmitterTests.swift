@@ -73,8 +73,12 @@ private func ctGlyphCount(_ line: CTLine) -> Int {
     ((CTLineGetGlyphRuns(line) as? [CTRun]) ?? []).reduce(0) { $0 + CTRunGetGlyphCount($1) }
 }
 
+/// Baseline-to-baseline distance, rounded up to a whole point exactly as
+/// `FontMetrics.lineHeight` is (line-height rounding) — computed from
+/// CoreText's three raw numbers here, not by calling the property under test,
+/// so a mutation to the rounding is still caught by an independent oracle.
 private func ctLineHeight(_ ctFont: CTFont) -> Double {
-    Double(CTFontGetAscent(ctFont) + CTFontGetDescent(ctFont) + CTFontGetLeading(ctFont))
+    ceil(Double(CTFontGetAscent(ctFont) + CTFontGetDescent(ctFont) + CTFontGetLeading(ctFont)))
 }
 
 /// Renders `element` for one frame and hands back the frame and the finished

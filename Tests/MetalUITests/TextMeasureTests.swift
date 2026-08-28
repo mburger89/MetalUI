@@ -36,9 +36,13 @@ private func ctAdvance(_ text: String, _ ctFont: CTFont) -> Double {
 /// Baseline-to-baseline distance, added up from CoreText's three numbers rather
 /// than read off `FontMetrics.lineHeight` — which is the property under test's
 /// own summand, and would move with it (shape 12; measured on this branch:
-/// `lineHeight { ascent }` left the whole suite green at 371 tests).
+/// `lineHeight { ascent }` left the whole suite green at 371 tests). Rounded up
+/// to a whole point, matching `FontMetrics.lineHeight`'s own `ceil`
+/// (line-height rounding) — applied here from the raw CoreText sum, not by
+/// calling the property, so this stays an independent oracle for the rounding
+/// too.
 private func ctLineHeight(_ ctFont: CTFont) -> Double {
-    Double(CTFontGetAscent(ctFont) + CTFontGetDescent(ctFont) + CTFontGetLeading(ctFont))
+    ceil(Double(CTFontGetAscent(ctFont) + CTFontGetDescent(ctFont) + CTFontGetLeading(ctFont)))
 }
 
 /// `"a bb supercalifragilistic dd"` — one long unbreakable run among short ones,
@@ -206,7 +210,9 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
     let (frame, root) = laidOut(&column, width: 400)
     let rect = frame.tree.layout(frame.tree.children(root)[0])
     #expect(rect.width == 50)
-    // 4 x 15.3105 = 61.24, rounded to whole pixels by the engine.
+    // lineHeight is 16 (ceil(15.3105), line-height rounding), so 4 x 16 = 64 —
+    // already a whole number, and `.rounded()` here is the engine's own
+    // pixel-rounding pass rather than anything moving it further.
     #expect(rect.height == (4 * lineHeight).rounded())
 }
 
@@ -255,8 +261,9 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// the reason wrapping is in M2 rather than deferred.
 ///
 /// 120pt of system 13pt holds three lines of the label, so the box is
-/// `3 × 15.3105 = 45.93` tall, rounded to 46. A single-line implementation would
-/// report one line and 16.
+/// `3 × 16 = 48` tall — `lineHeight` is `ceil(15.3105) = 16` (line-height
+/// rounding), already a whole number before the engine's own pixel rounding
+/// runs. A single-line implementation would report one line and 16.
 ///
 /// **`.alignItems(.stretch)` no longer changes this answer, and the paragraph
 /// that used to stand here is why the test keeps it.** It said `.stretch` was
