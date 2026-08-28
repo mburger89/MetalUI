@@ -36,14 +36,19 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 
 /// The content node overflows the viewport, which is what there is to scroll.
 ///
-/// **The mechanism is §4.5's automatic minimum, not `flexShrink`** — measured,
-/// and the differential is `aContentNodeWithAnExplicitZeroMinimumStillOverflows`
-/// in `Tests/MetalUILayoutTests/ScrollLayoutTests.swift`. Getting this backwards
-/// produces a `ScrollView` whose content silently equals its viewport and which
-/// therefore never scrolls. What a wrong `requestLayout` (e.g. one that resolved
-/// the content node's height instead of letting it overflow) catches here: the
-/// content height would read 100, matching the viewport, and the second
-/// `#expect` reddens.
+/// **The mechanism is §4.5's automatic minimum, not `flexShrink`** — measured
+/// (`Sources/MetalUI/ScrollView.swift`'s doc comment carries the four-row
+/// table). `ScrollView`'s content node has no `flexShrink` override at all:
+/// this type's content node never gets an explicit `min-height: 0`, so the
+/// automatic minimum is the only thing doing the work, and
+/// `flexShrinkHoldsAContentNodeOpenOnceItsAutomaticMinimumIsRemoved`
+/// (`Tests/MetalUILayoutTests/ScrollLayoutTests.swift`) pins the engine
+/// mechanism independently, without going through `ScrollView`. Getting the
+/// wrong half of the table implemented here produces a `ScrollView` whose
+/// content silently equals its viewport and which therefore never scrolls.
+/// What a wrong `requestLayout` (e.g. one that resolved the content node's
+/// height instead of letting it overflow) catches here: the content height
+/// would read 100, matching the viewport, and the second `#expect` reddens.
 @MainActor
 @Test func theContentNodeOverflowsTheViewport() throws {
     var view = ScrollView(.vertical) {

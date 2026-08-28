@@ -2,22 +2,30 @@ import Testing
 import MetalUICore
 @testable import MetalUILayout
 
-/// **The differential that names the mechanism.** `ScrollView`'s content node
-/// sets `flexShrink: 0` as a belt to CSS Sizing §4.5's automatic minimum, which
-/// is what actually keeps it from collapsing (CLAUDE.md, `Sources/MetalUI/
-/// ScrollView.swift`). With an explicit `min-height: 0` the automatic minimum
-/// is gone, and then `flexShrink: 0` is the only thing left keeping the content
-/// from collapsing to the viewport. Measured against the engine 2026-08-28:
-/// without both, content = 100 and there is nothing to scroll.
+/// **An engine fact, not a `ScrollView` guard — no production type currently
+/// relies on this.** It builds a `LayoutTree` by hand, with `flexShrink: 0`
+/// and an explicit `min-height: 0` set directly on the content node; it does
+/// not go through `ScrollView` or any other element in `Sources/MetalUI`.
 ///
-/// This is what stops the doc comment on `ScrollView` reverting to the wrong
-/// mechanism — the required mutation (Task 6's brief) removes
-/// `contentStyle.flexShrink = 0` from `ScrollView.requestLayout` and expects
-/// exactly this test to redden while `theContentNodeOverflowsTheViewport`
-/// (`ScrollViewTests.swift`, which leaves `min-height: auto`) stays green. That
-/// split is the proof the two mechanisms are distinct rather than the same one
-/// reported twice.
-@Test @MainActor func aContentNodeWithAnExplicitZeroMinimumStillOverflows() throws {
+/// What it pins: once CSS Sizing §4.5's automatic minimum is removed by an
+/// explicit `min-height: 0`, `flexShrink: 0` is what keeps a node open against
+/// the freeze loop's shrink — without it, content collapses to the viewport's
+/// 100 and there is nothing left to scroll. That is a real and correctly
+/// implemented engine mechanism.
+///
+/// **It was first written as a `ScrollView`-specific differential and that
+/// framing was wrong.** `ScrollView`'s content node never carries an explicit
+/// `min-height: 0` — it has no modifier surface to set one, conforming to
+/// `Element` rather than `StyledElement` — so the row this test exercises is
+/// unreachable through that type today, and `ScrollView.requestLayout`
+/// carries no `flexShrink` override for this test to guard (see its doc
+/// comment, `Sources/MetalUI/ScrollView.swift`, for the mutation that
+/// established this: deleting `flexShrink = 0` there reddened nothing,
+/// including this test). Kept here, renamed, as the engine-level pin for the
+/// mechanism — whoever gives a content node a real minimum override in the
+/// future is the one who should add a `ScrollView`-specific test that this
+/// one is not.
+@Test @MainActor func flexShrinkHoldsAContentNodeOpenOnceItsAutomaticMinimumIsRemoved() throws {
     let tree = LayoutTree(generation: 0)
     var row = Style()
     row.size = Size(width: .auto, height: .length(.pixels(Pixels(40))))
