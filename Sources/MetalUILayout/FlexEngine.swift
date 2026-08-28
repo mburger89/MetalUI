@@ -1046,40 +1046,71 @@ func placeNode(
     // `ContainerLayout`), so exactly one of these two loops ever does
     // anything for a given node.
     if !laid.stackItems.isEmpty {
-        positionStackItems(ctx, tree, items: laid.stackItems,
+        positionStackItems(ctx, tree, node, items: laid.stackItems,
                            containerOrigin: childOrigin,
                            containerSize: laid.box.size)
     }
 }
 
-/// Write each stack item's rect and recurse into it.
+/// Places a `.stack` container's children, each aligned independently on both
+/// axes within the container's content box, and recurses into each.
 ///
-/// **The offset is a placeholder, not Task 3's.** Every item lands at the
-/// container's top-leading corner, at its own already-resolved size — neither
-/// `alignItems` nor `justifyItems` is read here yet. Task 3 replaces `x`/`y`
-/// below with the real nine-alignment placement; what this function already
-/// gets right, and what Task 3 inherits rather than rebuilds, is that every
-/// item keeps its own size (no stretch) and its own subtree is written through
-/// the same `placeNode` recursion every other container uses — the two
-/// `aStackDoesNotResizeItsChildren`/`aStackIgnoresFlexGrowOnItsChildren` tests
-/// only check size for exactly this reason: position is not this task's claim.
+/// **A separate function rather than a branch inside `positionItems`.** That one
+/// is dense with flex-specific work — `justifyContent` distribution, gap
+/// arithmetic, `wrap-reverse`'s cross-axis flip and §9.4.2's flex-relative
+/// start/end mapping — none of which a stack has. Sharing it would mean
+/// threading a "there is no main axis" flag through all of it.
+///
+/// `alignItems` is the block (vertical) axis and `justifyItems` the inline
+/// (horizontal) one, unconditionally: a stack does not read `flexDirection`, so
+/// there is no axis swap to apply.
 private func positionStackItems(
     _ ctx: LayoutContext,
     _ tree: LayoutTree,
+    _ container: LayoutNodeID,
     items: [StackItem],
     containerOrigin: (Double, Double),
     containerSize: SizeD
 ) {
+    // `nil` reads as CSS's `stretch` on both axes, matching `alignItems`'s
+    // existing convention. `Stack.init` always writes an explicit value; a
+    // hand-built `Style` may not.
+    let s = tree.style(container)
+    let vertical = s.alignItems ?? .stretch
+    let horizontal = s.justifyItems ?? .stretch
+
     for item in items {
-        let x = containerOrigin.0
-        let y = containerOrigin.1
-        tree.setLayout(item.node, LayoutRect(x: x, y: y,
-                                             width: item.size.width, height: item.size.height))
+        var size = item.size
+        if horizontal == .stretch { size.width = containerSize.width }
+        if vertical == .stretch { size.height = containerSize.height }
+
+        let x: Double
+        switch horizontal {
+        case .start, .stretch: x = 0
+        case .center:           x = (containerSize.width - size.width) / 2
+        case .end:               x = containerSize.width - size.width
+        }
+
+        let y: Double
+        switch vertical {
+        case .flexStart, .stretch: y = 0
+        case .center:                y = (containerSize.height - size.height) / 2
+        case .flexEnd:                y = containerSize.height - size.height
+        // `baseline` falls back to the start edge, exactly as it does in
+        // `crossAxisOffset` — the engine cannot see an item's baseline at all,
+        // because a `MeasureFunction` returns a `SizeD`. See CLAUDE.md's inert
+        // table row for what is missing.
+        case .baseline:              y = 0
+        }
+
+        let origin = (containerOrigin.0 + x, containerOrigin.1 + y)
+        tree.setLayout(item.node, LayoutRect(x: origin.0, y: origin.1,
+                                             width: size.width, height: size.height))
         // `containerSize` here is the stack's own content box — the item's
         // containing block — exactly as `positionItems` passes it for a flex
         // item, and for the same reason (percentage padding/border resolve
         // against it).
-        placeNode(ctx, tree, item.node, origin: (x, y), size: item.size,
+        placeNode(ctx, tree, item.node, origin: origin, size: size,
                   containingBlockWidth: containerSize.width)
     }
 }
