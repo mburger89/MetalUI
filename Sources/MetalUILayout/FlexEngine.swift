@@ -524,6 +524,18 @@ private func contentBox(
     return (leading, size, edges)
 }
 
+/// One child of a `.stack` container, at its own size.
+///
+/// Deliberately NOT a `FlexItem`: eight of that type's eleven fields —
+/// `baseSize`, `hypotheticalMainSize`, `minMain`, `maxMain`, `targetMainSize`,
+/// `frozen` among them — are meaningless here, because a stack has no main axis
+/// and never runs §9.7. Reusing it would need a convention ("width goes in
+/// `targetMainSize`") that reads as flex semantics to anyone who did not write it.
+private struct StackItem {
+    let node: LayoutNodeID
+    var size: SizeD
+}
+
 /// The result of running §9.2–§9.7 over a container's children, before anything
 /// is positioned. `placeNode` goes on to position from it; `measureNode` reads
 /// only `contentSize` and `edges` and discards the rest.
@@ -552,6 +564,12 @@ private struct ContainerLayout {
     /// where the container *was* given an extent, this is that extent and
     /// `contentSize` is what the items came to.
     var box: (origin: (Double, Double), size: SizeD)
+    /// The children of a `.stack` container, each at its own size.
+    ///
+    /// Empty for a flex container, exactly as `lines` is empty for a stack.
+    /// Each field is honest about what it holds rather than one field carrying
+    /// two meanings.
+    var stackItems: [StackItem]
 }
 
 /// Phases 1–2 — collect a container's items, break them into lines, and resolve
@@ -609,6 +627,14 @@ private func layOutChildren(
                          containingBlockWidth: containingBlockWidth,
                          rootFontSize: ctx.rootFontSize)
 
+    // A `.stack` container has no main axis, no lines and no §9.7 — it shares
+    // only `contentBox` and the `edges` bookkeeping above with the flex path.
+    // Branching here, before `collectItems`, means nothing below this line
+    // (every flex-specific field and function) is ever reached for a stack.
+    if tree.style(container).display == .stack {
+        return layOutStack(ctx, tree, container, box: box)
+    }
+
     let items = collectItems(ctx, tree, container, containerSize: box.size,
                              intrinsic: intrinsic)
     // No items, no lines: this is the early return the top-down recursion has
@@ -622,7 +648,8 @@ private func layOutChildren(
         return ContainerLayout(
             lines: [], contentSize: .zero, edges: box.edges,
             box: (box.origin, SizeD(width: box.size.width ?? 0,
-                                    height: box.size.height ?? 0)))
+                                    height: box.size.height ?? 0)),
+            stackItems: [])
     }
 
     let s = tree.style(container)
@@ -864,7 +891,86 @@ private func layOutChildren(
         edges: box.edges,
         // An axis with no given extent shrinks to fit — see `box`'s own comment.
         box: (box.origin, SizeD(width: box.size.width ?? contentSize.width,
-                                height: box.size.height ?? contentSize.height)))
+                                height: box.size.height ?? contentSize.height)),
+        stackItems: [])
+}
+
+/// A `.stack` container: every child at its own size, the container at the
+/// maximum of them on each axis.
+///
+/// **No main axis, so no §9.7.** There is no flex base size, no freeze loop, no
+/// line breaking and no distribution — each child is measured once against the
+/// space the stack itself was offered, and the container reports the largest.
+///
+/// **`box.size` is the ONLY basis a stack child's percentage resolves against,
+/// and it is `nil` on an axis the stack itself has no extent on** — Task 1's
+/// probe measured this directly (through the equivalent flex shape, since this
+/// path did not exist yet): during the intrinsic pass `box.size` is
+/// `(nil, nil)`, a `width: 50%` child is unresolvable and contributes 0 exactly
+/// as an `auto` childless box does; during placement `box.size` is definite and
+/// the same child resolves the ordinary way. That is why each axis below is
+/// resolved independently against `box.size`, never against a literal
+/// `.definite` extent invented for the indefinite case.
+private func layOutStack(
+    _ ctx: LayoutContext,
+    _ tree: LayoutTree,
+    _ container: LayoutNodeID,
+    box: (origin: (Double, Double), size: OptionalSizeD, edges: SizeD)
+) -> ContainerLayout {
+    let rootFontSize = ctx.rootFontSize
+
+    // A literal `auto` is measured from the child's own content (a stack does
+    // not stretch, so this is always `.maxContent` — shrink-wrap, never fill).
+    // Anything else that fails to resolve — a percentage against `box.size`'s
+    // `nil` — is 0, not content-measured: that is `resolveNodeSize`'s rule
+    // elsewhere in this file, and per its comment there it is WebKit's too.
+    // Returning `nil` here is the signal "this axis needs measuring".
+    func resolvedAxis(_ dim: Dimension, basis: Double?) -> Double? {
+        if case .auto = dim { return nil }
+        return resolveDimension(dim, against: basis, rootFontSize: rootFontSize) ?? 0
+    }
+
+    var items: [StackItem] = []
+    var maxWidth = 0.0
+    var maxHeight = 0.0
+
+    for kid in tree.children(container) where tree.style(kid).display != .none {
+        let ks = tree.style(kid)
+        let knownWidth = resolvedAxis(ks.size.width, basis: box.size.width)
+        let knownHeight = resolvedAxis(ks.size.height, basis: box.size.height)
+
+        let size: SizeD
+        if let knownWidth, let knownHeight {
+            // Both axes resolved from the child's own style — no need to run
+            // the child's own layout to size it; `positionStackItems` (Task 3)
+            // recurses into it once it has a final origin.
+            size = SizeD(width: knownWidth, height: knownHeight)
+        } else {
+            size = measureNode(
+                ctx, tree, kid,
+                known: OptionalSizeD(width: knownWidth, height: knownHeight),
+                available: AvailableSpaceSize(
+                    width: knownWidth.map { .definite($0) } ?? .maxContent,
+                    height: knownHeight.map { .definite($0) } ?? .maxContent),
+                containingBlockWidth: box.size.width)
+        }
+
+        items.append(StackItem(node: kid, size: size))
+        maxWidth = max(maxWidth, size.width)
+        maxHeight = max(maxHeight, size.height)
+    }
+
+    let contentSize = SizeD(width: maxWidth, height: maxHeight)
+    return ContainerLayout(
+        lines: [],
+        contentSize: contentSize,
+        edges: box.edges,
+        // An axis with no given extent shrinks to fit — see `box`'s own comment
+        // on `ContainerLayout`, and `layOutChildren`'s flex return above, which
+        // does the same thing for the same reason.
+        box: (box.origin, SizeD(width: box.size.width ?? contentSize.width,
+                                height: box.size.height ?? contentSize.height)),
+        stackItems: items)
 }
 
 /// Lay out one container: collect its items, resolve flexible lengths, position
@@ -905,6 +1011,47 @@ func placeNode(
                       lineCross: line.crossSize, lineCrossStart: line.crossStart,
                       containerOrigin: childOrigin,
                       containerSize: laid.box.size)
+    }
+    // `laid.lines` is empty for a stack and `laid.stackItems` is empty for a
+    // flex container (each is honest about what it holds — see
+    // `ContainerLayout`), so exactly one of these two loops ever does
+    // anything for a given node.
+    if !laid.stackItems.isEmpty {
+        positionStackItems(ctx, tree, items: laid.stackItems,
+                           containerOrigin: childOrigin,
+                           containerSize: laid.box.size)
+    }
+}
+
+/// Write each stack item's rect and recurse into it.
+///
+/// **The offset is a placeholder, not Task 3's.** Every item lands at the
+/// container's top-leading corner, at its own already-resolved size — neither
+/// `alignItems` nor `justifyItems` is read here yet. Task 3 replaces `x`/`y`
+/// below with the real nine-alignment placement; what this function already
+/// gets right, and what Task 3 inherits rather than rebuilds, is that every
+/// item keeps its own size (no stretch) and its own subtree is written through
+/// the same `placeNode` recursion every other container uses — the two
+/// `aStackDoesNotResizeItsChildren`/`aStackIgnoresFlexGrowOnItsChildren` tests
+/// only check size for exactly this reason: position is not this task's claim.
+private func positionStackItems(
+    _ ctx: LayoutContext,
+    _ tree: LayoutTree,
+    items: [StackItem],
+    containerOrigin: (Double, Double),
+    containerSize: SizeD
+) {
+    for item in items {
+        let x = containerOrigin.0
+        let y = containerOrigin.1
+        tree.setLayout(item.node, LayoutRect(x: x, y: y,
+                                             width: item.size.width, height: item.size.height))
+        // `containerSize` here is the stack's own content box — the item's
+        // containing block — exactly as `positionItems` passes it for a flex
+        // item, and for the same reason (percentage padding/border resolve
+        // against it).
+        placeNode(ctx, tree, item.node, origin: (x, y), size: item.size,
+                  containingBlockWidth: containerSize.width)
     }
 }
 
