@@ -388,29 +388,40 @@ antialiasing *quality*, whether the fade *timing* feels right, and whether
 scrolling feels native. A positive report closes the exit criterion and closes
 none of those three.
 
-**The Stack milestone's demo exists; the look does not, yet.**
+**Stack's layering was confirmed on 2026-08-28 from a RENDERED READBACK, not
+from the running app, and the distinction is the point of this entry.**
 `Sources/MetalUIDemo/main.swift`'s main pane now opens with a `Stack` in place
 of the plain accent hero box: a 360×128 backdrop, a 160×72 panel and a 28×28
-numeral badge, all centred on one another and declared back-to-front so the
-badge paints last, on top. A `swift run MetalUIDemo` smoke check confirms the
-process launches and does not crash — that is not the look, and **no sentence
-here asserts a human has looked at this window.** Until one does, this
-milestone's exit criterion (`docs/superpowers/specs/2026-08-28-stack-container-design.md`
-§7, item 8) is open, the same way M2's and the clipping-and-scroll milestone's
-were before their own looks landed above.
+numeral badge, centred on one another and declared back-to-front.
 
-**Z-order is why this exit criterion exists, and it is worth restating
-precisely.** A `Stack`'s children are placed independently of paint order —
+**What was actually checked.** A throwaway harness built that same `Stack`,
+drove it through a real `Frame` and a real `Renderer.renderOffscreen`, wrote the
+BGRA readback to a PNG, and a human looked at the image and confirmed it matched
+expectation. The geometry it produced, at scale 2: backdrop `(100, 72) 720×256`,
+panel `(300, 128) 320×144`, badge `(432, 172) 56×56` — all three concentric on
+`(460, 200)` — in two draw runs, the glyph last.
+
+**That is real evidence about z-order and it is NOT the exit criterion.** It goes
+through the production `Scene`, draw list and shaders, so an inversion would have
+shown. But `renderOffscreen` is the same instrument M2's ASCII-art glyph readback
+used, and this file already records that such a readback "rules out the gross
+failures and rules out none of §4.2's three". **Nobody has run
+`swift run MetalUIDemo` for this milestone** beyond a launch-and-don't-crash
+smoke check, so
+`docs/superpowers/specs/2026-08-28-stack-container-design.md` §7 item 8 stays
+**open**. What the readback cannot see: compositing against the rest of the
+window, the layer's Display P3 colorspace (divergence 1 — colours render more
+saturated than the hex implies), and the appearance at a real display's scale
+factor.
+
+**Z-order is why that criterion exists, and it is worth restating precisely.**
+A `Stack`'s children are placed independently of paint order —
 `positionStackItems` never reads which child was declared first — so a
-regression that reversed the order children paint in would move not one
-number any of the 538 tests or 76 goldens check: every rect's `(x, y, width,
-height)` is identical whichever child painted first. Only a human can see
-that "3" is drawn on the panel rather than the panel painting over "3" and
-the panel drawn on the backdrop rather than under it. A look that reports
-"the layered children are stacked, the badge is on top, and the container is
-sized to its largest child" is the only check this repo has for that
-property, and a look that never happens leaves it unchecked indefinitely —
-not failed, just open.
+regression reversing paint order would move not one number any of the 538 tests
+or 76 goldens check: every rect's `(x, y, width, height)` is identical whichever
+child painted first. The readback above is the only artifact in this repo that
+has ever observed the property, and it observed it once, by hand, outside the
+suite.
 
 ## Seven known divergences, numbered 1-6 and 8 — expected, measured, not defects
 
