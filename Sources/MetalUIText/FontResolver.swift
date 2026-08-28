@@ -72,6 +72,30 @@ public enum FontResolver {
     ///
     /// A face with no variation axes at all (Menlo, Helvetica — §6.2 verified
     /// both are already exactly linear) is returned untouched.
+    ///
+    /// **Two traps, both measured here, for whoever debugs this next.**
+    ///
+    /// 1. **The pinned font's ``FontKey/variations`` is empty, and that is not
+    ///    evidence the pin failed.** `CTFontCopyVariation` omits any axis
+    ///    sitting at its default value, and the default is exactly what this
+    ///    pins to — so the resolved system font reads back with *no* `opsz`
+    ///    coordinate while an unpinned one reads back with `opsz` equal to the
+    ///    point size. Check the pin by comparing advances, not by reading the
+    ///    key. (The key is still correct: an absent coordinate is constant
+    ///    across sizes, and ``FontKey/size`` separates them.)
+    /// 2. **Pinning does not make advances exactly proportional to point size,
+    ///    and §6.2 does not say so because it did not measure it.** CoreText
+    ///    grid-fits advances to the ppem below roughly 96pt, which is a second
+    ///    mechanism entirely: with `opsz` held fixed, advance-per-point still
+    ///    moves from 12.263 at 13pt to 11.743 at 18pt to 12.782 at 32pt,
+    ///    converging on the unhinted `CGFont` value of 12.4268 at ≥96pt. The
+    ///    pin removes the axis (a 16.3% spread over 10–96pt becomes 8.8%); it
+    ///    does not remove the grid-fitting. Fixing the ppem — resolving at one
+    ///    reference size and carrying the target size in the font *matrix* — is
+    ///    exactly linear and is a different font model from the one the rest of
+    ///    M2 is written against. `pinningOpszRemovesTheOpticalSizeAxisFrom-
+    ///    AdvanceScaling` carries the numbers and the three measurements that
+    ///    tell the two mechanisms apart.
     private static func pinningOpticalSize(_ font: CTFont, size: Double) -> CTFont {
         guard let axes = CTFontCopyVariationAxes(font) as? [[CFString: Any]],
               let opsz = axes.first(where: {
