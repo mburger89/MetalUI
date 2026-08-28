@@ -145,6 +145,16 @@ public final class Renderer {
         defer { encoder.endEncoding() }
 
         guard !scene.isEmpty else { return }
+        // **A scene with primitives and no draw list was never finalized.**
+        // `finalize()` is what builds `drawList`, and the loop at the foot of
+        // this method iterates it — so an unfinalized non-empty scene would
+        // encode zero draw calls and paint nothing, silently. Before the draw
+        // list existed a forgotten `finalize()` merely left the primitives
+        // unsorted; now it is a blank frame, which is a far quieter failure
+        // and a public entry point away (`Window` always goes through
+        // `Frame.finalizedScene()`, so production cannot reach this).
+        precondition(!scene.drawList.isEmpty,
+                     "Renderer.encode: the scene holds primitives but its draw list is empty — call Scene.finalize() (or use Frame.finalizedScene()) before encoding, or this frame draws nothing at all.")
 
         encoder.setViewport(view.viewport)
 

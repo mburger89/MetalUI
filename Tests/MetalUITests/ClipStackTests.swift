@@ -21,9 +21,20 @@ import MetalUIText
 /// written around. At `-25` the translated origin is 5 and the clip's is 10:
 /// a swap now makes `r.bounds.origin.y` read 10 and `r.contentMask.origin.y`
 /// read 5, and both assertions below catch it.
+///
+/// **`scaleFactor: 2`, and that is the other load-bearing number.** Every
+/// `fill`-inside-a-clip test in this file ran at 1x, where
+/// `activeClip.scaled(by: scaleFactor)` and `activeClip.scaled(by: 1)` are the
+/// same rect — so `Frame.fill`'s scaling of the MASK (as opposed to the
+/// bounds, which `aDrawInsideAClipIsScaledAndMasked` already covers on the
+/// glyph path) was unguarded. Dropping `.scaled(by:)` altogether is a compile
+/// error, the unit system seeing to that; writing `.scaled(by: 1)` typechecks
+/// and passed the whole suite. On a Retina display that clips every scrolled
+/// list to the top-left quadrant of its own viewport. At 2x the mask's numbers
+/// (20, 100) are twice the pushed clip's (10, 50) and cannot coincide with it.
 @Test @MainActor func aFillInsideAClipIsTranslatedAndMasked() throws {
     let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)),
-                      scaleFactor: 1, stateTable: StateTable(),
+                      scaleFactor: 2, stateTable: StateTable(),
                       shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
                       theme: Theme.forAppearance(.light))
     let pass = PaintPass(frame: frame)
@@ -36,9 +47,12 @@ import MetalUIText
     }
     let scene = frame.finalizedScene()
     let r = try #require(scene.rects.first)
-    #expect(r.bounds.origin.y == 5, "y 30 offset by -25 must reach the scene at 5")
-    #expect(r.contentMask.origin.y == 10, "the pushed clip's own origin, not the translated fill")
-    #expect(r.contentMask.size.height == 50)
+    #expect(r.bounds.origin.y == 10,
+            "y 30 offset by -25 is 5 in points, and 10 device pixels at scaleFactor 2")
+    #expect(r.contentMask.origin.y == 20,
+            "the pushed clip's own origin (10pt), scaled: NOT the translated fill, and not the unscaled 10")
+    #expect(r.contentMask.size.height == 100,
+            "a 50pt clip is 100 device pixels at scaleFactor 2 — `activeClip.scaled(by: 1)` gives 50 here")
 }
 
 /// Nested clips INTERSECT. An inner clip larger than its outer must not widen

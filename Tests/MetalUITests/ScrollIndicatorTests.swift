@@ -27,6 +27,13 @@ private func fixedHeight(_ h: Float) -> Style {
     return s
 }
 
+private func fixedWidth(_ w: Float) -> Style {
+    var s = Style()
+    s.flexDirection = .row
+    s.size = Size(width: .length(.pixels(Pixels(w))), height: .auto)
+    return s
+}
+
 private let listID = ElementID("list")
 private let rootID = GlobalElementID.child(of: nil, at: 0, name: listID)
 
@@ -155,6 +162,15 @@ private func scrolledState(offset: Double, lastScrollTime: Double) -> StateTable
         let rect = try #require(frame.scene.rects.first)
         #expect(abs(Double(rect.bounds.size.height) - 50) < 0.05,
                 "100 * (100/200) = 50 — a bare proportional size, not the floor")
+        // The CROSS axis, which nothing else in this file reads: 3pt wide,
+        // inset 2pt from the viewport's trailing edge (origin.x + width - 5).
+        // Catches a transposed `width:`/`height:` in `indicatorBounds`'s
+        // `.vertical` branch (the thumb would come back 50 wide and 3 tall)
+        // and a wrong inset (a thumb hard against the edge, or off it).
+        #expect(abs(Double(rect.bounds.size.width) - 3) < 0.001,
+                "the thumb is 3pt on its cross axis")
+        #expect(abs(Double(rect.bounds.origin.x) - (120 - 5)) < 0.001,
+                "the thumb sits 5pt in from the 120pt-wide viewport's left origin: 2pt inset plus its own 3pt width")
     }
 
     // viewport 100, content 1000 → 100 * (100/1000) = 10, an invisible sliver:
@@ -287,4 +303,88 @@ private func wheel(at position: Point<Pixels>, deltaY: Float) -> InputEvent {
     platformWindow.simulateTick(timestamp: 105)
     #expect(window.framesDrawn == framesAfterFade,
             "idle stays idle: nothing dirtied the window, so no further frame may draw")
+}
+
+// MARK: - 6. The fade is a RAMP, and it uses the scroll-indicator token
+
+/// The alpha at a mid-ramp age, which is the one measurement that separates a
+/// ramp from a step and names the theme token in one assertion.
+///
+/// Two wrong implementations this catches, both of which passed the whole
+/// suite before it existed:
+///
+/// - **`let alpha = age < 1.0 ? 1.0 : 0.0`** — a hard step with no fade at
+///   all. Every existing assertion about the indicator is about its
+///   *presence*, and this mutant keeps it present for exactly as long, so
+///   nothing saw it. At age 0.8 it gives 0.35 where the ramp gives 0.175.
+/// - **`pass.theme[.textPrimary]`** in place of `pass.theme[.scrollIndicator]`.
+///   `textPrimary` is opaque (alpha 1) and `scrollIndicator` is alpha 0.35, so
+///   the same assertion separates them 0.5 against 0.175.
+///
+/// The expectation is arithmetic named here rather than read back from the
+/// element: `Theme.light.scrollIndicator` is `.rgb(0x000000, alpha: 0.35)`, and
+/// the ramp at age 0.8 is `1 - (0.8 - 0.6) / 0.4 = 0.5`.
+@Test @MainActor func theIndicatorFadesOnARampAndTakesItsColourFromTheScrollIndicatorToken() throws {
+    func alphaAtAge(_ age: Double) throws -> Double {
+        var view = ScrollView(.vertical, elementID: listID) {
+            Box(style: fixedHeight(200))
+        }
+        let (frame, _) = fullyRendered(&view, width: 120, height: 100,
+                                       stateTable: scrolledState(offset: 20, lastScrollTime: 100),
+                                       timestamp: 100 + age)
+        return Double(try #require(frame.scene.rects.first).background.a)
+    }
+
+    // age 0.2: inside the fully-opaque window, so the token's own alpha.
+    #expect(abs(try alphaAtAge(0.2) - 0.35) < 0.001,
+            "before the ramp starts the thumb is the scroll-indicator token at full strength")
+    // age 0.8: halfway down the 0.6...1.0 ramp.
+    #expect(abs(try alphaAtAge(0.8) - 0.175) < 0.001,
+            "0.35 x 0.5 — a step function gives 0.35 here, and the textPrimary token gives 0.5")
+    // The token is black, not `textPrimary`'s 0x14181F. Named separately so a
+    // failure says WHICH half is wrong.
+    var view = ScrollView(.vertical, elementID: listID) { Box(style: fixedHeight(200)) }
+    let (frame, _) = fullyRendered(&view, width: 120, height: 100,
+                                   stateTable: scrolledState(offset: 20, lastScrollTime: 100),
+                                   timestamp: 100.2)
+    #expect(try #require(frame.scene.rects.first).background.l == 0,
+            "Theme.light.scrollIndicator is 0x000000; textPrimary is 0x14181F and is not black")
+}
+
+// MARK: - 7. The horizontal branch's geometry
+
+/// The `.horizontal` branch of `indicatorBounds`, which ran in
+/// `aHorizontalScrollViewMovesOnDeltaXNotDeltaY` with nothing reading the rect
+/// it produced.
+///
+/// What this catches, measured: **transposing `width:` and `height:` at
+/// `ScrollView.indicatorBounds`'s `.horizontal` case** — the thumb comes back
+/// 3pt wide and 50pt tall, a vertical bar lying across a horizontal track —
+/// passed the entire suite. So did an inset or a travel axis taken from the
+/// wrong coordinate.
+///
+/// The numbers, computed here rather than read off the element: viewport 100
+/// wide over 200 of content gives `thumb = max(20, 100 * (100/200)) = 50` and
+/// a scrollable range of 100; at offset 50 the travel is
+/// `(50/100) * (100 - 50) = 25`.
+@Test @MainActor func theHorizontalIndicatorLiesAlongTheBottomOfItsViewport() throws {
+    var view = ScrollView(.horizontal, elementID: listID) {
+        Box(style: fixedWidth(200))
+    }
+    let (frame, layout) = fullyRendered(&view, width: 100, height: 60,
+                                        stateTable: scrolledState(offset: 50, lastScrollTime: 0))
+    let viewport = frame.bounds(of: layout.node)
+    try #require(Double(frame.bounds(of: layout.contentNode).size.width.value) == 200,
+                 "the fixture must overflow horizontally, or there is no thumb to measure")
+
+    let rect = try #require(frame.scene.rects.first)
+    #expect(abs(Double(rect.bounds.size.width) - 50) < 0.05,
+            "the thumb runs ALONG the scroll axis: 50pt wide, not 50pt tall")
+    #expect(abs(Double(rect.bounds.size.height) - 3) < 0.001,
+            "and 3pt across it")
+    #expect(abs(Double(rect.bounds.origin.x) - (Double(viewport.origin.x.value) + 25)) < 0.05,
+            "travel is (50/100) * (100 - 50) = 25 along x, the scroll axis")
+    #expect(abs(Double(rect.bounds.origin.y)
+                - (Double(viewport.origin.y.value) + Double(viewport.size.height.value) - 5)) < 0.001,
+            "it sits 5pt up from the viewport's bottom edge: a 2pt inset plus its own 3pt height")
 }

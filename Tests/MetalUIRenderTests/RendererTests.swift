@@ -288,3 +288,59 @@ private func coverRect(_ color: Hsla, side: Float) -> MUIRect {
     #expect(centre.2 == centre.0)
     #expect(centre.3 > 200, "the black underneath is opaque, so the result must be")
 }
+
+// MARK: - The unfinalized-scene guard
+
+private func whiteRect() -> MUIRect {
+    MUIRect(bounds: MUIBounds(origin: MUIPoint(x: 4, y: 4),
+                              size: MUISize(width: 8, height: 8)),
+            contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                                   size: MUISize(width: 32, height: 32)),
+            background: MUIHsla(h: 0, s: 0, l: 1, a: 1),
+            borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
+            cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+            borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
+            order: 0, _reserved: 0)
+}
+
+/// `encode` traps on a non-empty scene whose `finalize()` was never called.
+///
+/// **The failure it replaces was silent.** `encode` guards on `scene.isEmpty`
+/// and then iterates `scene.drawList`, which `finalize()` is what builds — so
+/// an unfinalized scene holding primitives encoded zero draw calls and painted
+/// **0 pixels, with no error anywhere**. Before the draw list existed, a
+/// forgotten `finalize()` meant unsorted primitives; since Task 1 it means a
+/// blank frame. `encode` is public; production is safe only because `Window`
+/// goes through `Frame.finalizedScene()`.
+///
+/// What a wrong implementation this catches: deleting the `precondition` (or
+/// weakening it to `scene.isEmpty`, which is already false here) — the process
+/// would then exit cleanly, having drawn nothing.
+@Test @MainActor func encodingAnUnfinalizedSceneTraps() async throws {
+    try #require(MTLCreateSystemDefaultDevice() != nil,
+                 "no Metal device; run on macOS hardware")
+    await #expect(processExitsWith: .failure) {
+        let renderer = try await Renderer(device: MTLCreateSystemDefaultDevice()!)
+        var scene = Scene()
+        scene.insert(whiteRect())
+        // No `scene.finalize()`.
+        _ = try await renderer.renderOffscreen(
+            scene, size: Size(width: DevicePixels(32), height: DevicePixels(32)))
+    }
+}
+
+/// The positive control (ruling CS-C). Without it the test above passes
+/// against an `encode` that traps unconditionally — on every scene, finalized
+/// or not, which would take down every frame this framework ever draws.
+@Test @MainActor func encodingAFinalizedSceneDoesNotTrap() async throws {
+    try #require(MTLCreateSystemDefaultDevice() != nil,
+                 "no Metal device; run on macOS hardware")
+    await #expect(processExitsWith: .success) {
+        let renderer = try await Renderer(device: MTLCreateSystemDefaultDevice()!)
+        var scene = Scene()
+        scene.insert(whiteRect())
+        scene.finalize()
+        _ = try await renderer.renderOffscreen(
+            scene, size: Size(width: DevicePixels(32), height: DevicePixels(32)))
+    }
+}
