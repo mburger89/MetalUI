@@ -200,7 +200,13 @@ import Testing
 import CoreText
 @testable import MetalUIText
 
-private let font = FontResolver.resolve(family: nil, size: 13)
+// NOT `private let` — `ResolvedFont` is not `Sendable` (it holds a `CTFont`,
+// a CF class), so a file-scope `let` fails Swift 6 concurrency checking with
+// "not concurrency-safe because non-'Sendable' type ... may have shared
+// mutable state". A computed property is the fix; do NOT bind the file to
+// `@MainActor` instead, which would drag the `processExitsWith:` tests onto
+// the main actor for no reason. Tasks 2 and 3 both hit this.
+private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
 
 @Test func anUnwrappedStringIsOneLineWhoseAdvanceMatchesCoreText() {
     let s = "Hello, world"
@@ -312,7 +318,13 @@ git commit -m "feat(text): shaping and wrapping via CTTypesetter"
 import Testing
 @testable import MetalUIText
 
-private let font = FontResolver.resolve(family: nil, size: 13)
+// NOT `private let` — `ResolvedFont` is not `Sendable` (it holds a `CTFont`,
+// a CF class), so a file-scope `let` fails Swift 6 concurrency checking with
+// "not concurrency-safe because non-'Sendable' type ... may have shared
+// mutable state". A computed property is the fix; do NOT bind the file to
+// `@MainActor` instead, which would drag the `processExitsWith:` tests onto
+// the main actor for no reason. Tasks 2 and 3 both hit this.
+private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
 
 /// **The only test that can see whether the cache is a cache.** A `store` that
 /// never stores leaves every other test green and the engine typesetting on
