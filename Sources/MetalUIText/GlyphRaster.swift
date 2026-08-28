@@ -122,12 +122,31 @@ public enum GlyphRaster {
     ///
     /// ## Grayscale antialiasing only
     ///
-    /// Spec §6.1: macOS retired LCD subpixel antialiasing. The context is
-    /// `DeviceGray` and font smoothing is switched off explicitly rather than
-    /// left to the default, because the default is a *system setting* — a
-    /// machine with LCD smoothing forced on would otherwise produce colour
-    /// fringing baked into a single-channel bitmap, where two of the three
-    /// channels are simply discarded.
+    /// Spec §6.1: macOS retired LCD subpixel antialiasing. **That decision is
+    /// carried by the `DeviceGray` context itself** — CoreGraphics cannot emit
+    /// three-channel coverage into a one-channel bitmap — so the explicit
+    /// `setShouldSmoothFonts(false)` below is *not* what implements it, and
+    /// saying otherwise would be the kind of claim this repo has had to correct
+    /// eight times.
+    ///
+    /// What that call does do is measurable and worth stating, because
+    /// switching it off is a decision taken here with no test behind it.
+    /// **Measured:** with font smoothing on, "H" at 13pt and 2x totals **34173**
+    /// of coverage against **26594** off — 28.5% more ink, CoreGraphics' stem
+    /// darkening. It is off because smoothing is defined against a *known
+    /// opaque background* (which is why `CGContextSetShouldSmoothFonts` is
+    /// documented as requiring one), and an atlas sprite is tinted at draw time
+    /// and composited over a background this module never sees.
+    ///
+    /// **It is pinned, which was not obvious and was measured rather than
+    /// assumed.** The draft of this comment said no assertion could see it
+    /// short of an absolute coverage total — taxonomy shape 10's "no test can
+    /// catch this", written without running the mutation. Turning smoothing on
+    /// reddens `aRasterizedBitmapIsTightAroundItsInkAndDoesNotClipIt` and
+    /// nothing else, on its *unclipped* clause rather than on coverage:
+    /// smoothing spreads ink past the outline's bounding box by more than
+    /// ``inkPadding``, so "H" at 13pt and 2x reaches column 16 of 17 and would
+    /// be clipped in the atlas.
     ///
     /// ## Colour glyphs are a recorded gap, not a handled case
     ///
@@ -196,11 +215,25 @@ public enum GlyphRaster {
             // Grayscale AA only (§6.1), stated rather than inherited.
             context.setShouldSmoothFonts(false)
             context.setAllowsFontSmoothing(false)
-            // Subpixel *quantization* is what would defeat this whole function:
-            // it snaps the pen to a fraction CoreGraphics chooses, so every
-            // variant would rasterize identically and the atlas would hold four
-            // copies of one bitmap. Pinned by
-            // `twoSubpixelVariantsRasterizeDifferentCoverage`.
+            // Both pairs are load-bearing, and they fail differently —
+            // measured as the ink centroid's device-space step between
+            // consecutive variants, which is 0.258, 0.267, 0.250 as written:
+            //
+            //   positioning off      -> 0.000, 0.000, 0.000: one position, all
+            //                           four variants identical.
+            //   quantization on      -> 0.000, 0.525, 0.000: CoreGraphics snaps
+            //                           the pen to halves, so four variants
+            //                           become two.
+            //   both calls deleted   -> the same as quantization on, the
+            //                           default being to quantize.
+            //
+            // So the defaults do not merely blur this — they halve or erase the
+            // subpixel resolution the atlas is paying four entries per glyph
+            // for. Pinned by
+            // `eachSubpixelVariantMovesTheInkAQuarterOfADevicePixel`, which
+            // measures the centroid rather than comparing bitmaps: variants 1
+            // and 2 straddle the half-pixel boundary, so a byte comparison of
+            // that pair stays green under quantization.
             context.setAllowsFontSubpixelPositioning(true)
             context.setShouldSubpixelPositionFonts(true)
             context.setAllowsFontSubpixelQuantization(false)

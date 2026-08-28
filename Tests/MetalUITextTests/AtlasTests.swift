@@ -338,6 +338,13 @@ private func inkBounds(_ image: GlyphImage) -> (minX: Int, maxX: Int, minY: Int,
 /// `(1.168, 0.0, 7.3125, 9.1597)`, the bitmap is 17x21 with `left` 1 and `top`
 /// 20, and the ink occupies columns 1...15 of 17 and rows 1...19 of 21 — an
 /// inset of exactly 1 on all four sides.
+///
+/// **It is also the only guard on `setShouldSmoothFonts(false)`**, which is not
+/// what it was written for. Turning font smoothing on spreads ink past the
+/// outline's bounding box by more than `GlyphRaster.inkPadding` — "H" reaches
+/// column 16 of 17 — so the unclipped clause reddens. Recorded here as well as
+/// at the setting, because a fix that lands in one file while the claim stays
+/// in the other is this milestone's most repeated defect.
 @Test func aRasterizedBitmapIsTightAroundItsInkAndDoesNotClipIt() {
     let f = FontResolver.resolve(family: nil, size: 13)
     let image = GlyphRaster.rasterize(glyph: glyph(0x48, in: f), font: f,
@@ -365,22 +372,51 @@ private func inkBounds(_ image: GlyphImage) -> (minX: Int, maxX: Int, minY: Int,
 
 /// **Subpixel positioning is live, not merely parameterised.** §6.1 rasterizes
 /// each glyph at a few fractional x-offsets because without it spacing visibly
-/// wobbles during horizontal scroll — and the way to get four identical
-/// bitmaps out of four variants is not to ignore the argument but to leave
-/// CoreGraphics' font *subpixel quantization* on, which snaps the pen back to a
-/// fraction of its own choosing.
+/// wobbles during horizontal scroll, and the atlas pays four entries per glyph
+/// for it. This asserts it gets four *positions* for them.
 ///
-/// Variants 1 and 2 are compared because they measure the same 18x21 (variant 0
-/// is 17 wide, so a size comparison would pass for the wrong reason). Measured
-/// at 13pt scale 2: 110 of the 378 bytes differ.
-@Test func twoSubpixelVariantsRasterizeDifferentCoverage() {
+/// The oracle is the ink's centre of mass in device space —
+/// `left + Σ(x · coverage) / Σ coverage` — which is a physical property of the
+/// bitmap, computed here and nowhere in the implementation. Comparing bitmaps
+/// instead is what a first draft of this test did, and it could not fail for
+/// the mutation it existed to catch: **measured**, turning CoreGraphics' font
+/// subpixel *quantization* back on collapses the four variants onto two
+/// positions (steps 0.000, 0.525, 0.000) and variants 1 and 2 — the pair a
+/// byte comparison must use, being the only pair with equal dimensions —
+/// straddle the surviving boundary and still differ. The whole suite stayed
+/// green.
+///
+/// Measured as written: centroids 9.134, 9.392, 9.659, 9.908, so steps of
+/// 0.258, 0.267 and 0.250 device pixels against the 0.25 the variant count
+/// asks for. Switching subpixel positioning off instead gives 0.000, 0.000,
+/// 0.000 — one position for all four.
+@Test func eachSubpixelVariantMovesTheInkAQuarterOfADevicePixel() {
     let f = FontResolver.resolve(family: nil, size: 13)
     let g = glyph(0x48, in: f)
-    let one = GlyphRaster.rasterize(glyph: g, font: f, subpixelVariant: 1, scaleFactor: 2)
-    let two = GlyphRaster.rasterize(glyph: g, font: f, subpixelVariant: 2, scaleFactor: 2)
-    #expect(one.width == two.width)
-    #expect(one.height == two.height)
-    #expect(one.bytes != two.bytes)
+
+    func inkCentroidX(_ image: GlyphImage) -> Double {
+        var weighted = 0.0
+        var total = 0.0
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                let coverage = Double(image.bytes[y * image.width + x])
+                weighted += Double(x) * coverage
+                total += coverage
+            }
+        }
+        return Double(image.left) + weighted / total
+    }
+
+    let centroids = (0..<GlyphRaster.subpixelVariants).map {
+        inkCentroidX(GlyphRaster.rasterize(glyph: g, font: f,
+                                           subpixelVariant: $0, scaleFactor: 2))
+    }
+    let step = 1.0 / Double(GlyphRaster.subpixelVariants)
+    for i in 1..<centroids.count {
+        let moved = centroids[i] - centroids[i - 1]
+        #expect(moved > step * 0.6)
+        #expect(moved < step * 1.4)
+    }
 }
 
 /// The scale factor reaches the rasterizer, not only the key. A bitmap
