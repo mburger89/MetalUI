@@ -139,6 +139,13 @@ public final class Window {
     private(set) var lastScrollRegions:
         [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis)] = []
 
+    /// The most recent display-link tick, in seconds — `0` until the first
+    /// tick arrives. Carried into every `Frame` as its `timestamp` (spec §8 of
+    /// the clipping/scroll design): a borrowed M4 primitive, read once here so
+    /// every element in one frame sees the same instant rather than each
+    /// sampling a wall clock independently.
+    private var lastTick: Double = 0
+
     init<Root: Element>(platformWindow: any PlatformWindow,
                         renderer: Renderer,
                         startsDisplayLink: Bool = true,
@@ -175,7 +182,10 @@ public final class Window {
         // Tests pass false so frame counts stay deterministic: a running link
         // could tick between assertions and inflate `framesDrawn`.
         if startsDisplayLink {
-            platformWindow.startDisplayLink { [weak self] in self?.drawFrameIfNeeded() }
+            platformWindow.startDisplayLink { [weak self] t in
+                self?.lastTick = t
+                self?.drawFrameIfNeeded()
+            }
         }
     }
 
@@ -220,11 +230,18 @@ public final class Window {
                           stateTable: stateTable,
                           shapingCache: shapingCache,
                           glyphAtlas: glyphAtlas,
-                          theme: theme)
+                          theme: theme,
+                          timestamp: lastTick)
         renderRoot(frame)
         let scene = frame.finalizedScene()
         lastScene = scene
         lastScrollRegions = frame.scrollRegions
+        // An element asked for another frame — an animation in progress. Marking
+        // dirty here (rather than leaving the window to go clean) is what keeps
+        // the display link running: without it, a fade stops the instant the
+        // last input event stops arriving, because `needsRedraw` above already
+        // went false for this pass and nothing else would flip it back.
+        if frame.wantsAnotherFrame { setNeedsRedraw() }
 
         // **Before `encode`, and the ordering is the whole point.** Paint has
         // just packed whatever glyphs this frame needed and the scene holds

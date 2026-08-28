@@ -27,6 +27,27 @@ public final class Frame {
     /// in `fill`, so element code never has to think about it.
     public let scaleFactor: Float
 
+    /// This frame's display-link timestamp, in seconds — identical for every
+    /// element in this frame, because it is read once here rather than by each
+    /// element calling a wall clock.
+    ///
+    /// **A borrowed M4 primitive** (spec §8 of the clipping/scroll design): the
+    /// input to a time-based animation, not an animation system. Defaulted to
+    /// `0` so every existing `Frame(...)` call site in the corpus and the test
+    /// suite keeps compiling unchanged; `Window` is the only production caller
+    /// that passes a real one.
+    public let timestamp: Double
+
+    /// Set by an element that needs another frame — an in-progress animation.
+    ///
+    /// **A borrowed M4 primitive** (spec §8 of the clipping/scroll design): the
+    /// input to animation, not an animation system. `Window` reads it after
+    /// render and marks itself dirty, which unpauses the display link.
+    private(set) var wantsAnotherFrame = false
+
+    /// Ask for another frame after this one — for an animation in progress.
+    func requestAnotherFrame() { wantsAnotherFrame = true }
+
     /// CSS's `rem` basis for `Length.rem`. One value per frame.
     ///
     /// **M2 came and went without making this settable, and that was a
@@ -227,7 +248,8 @@ public final class Frame {
          shapingCache: ShapingCache = ShapingCache(),
          glyphAtlas: GlyphAtlas = GlyphAtlas(width: Window.atlasExtent,
                                              height: Window.atlasExtent),
-         theme: Theme = .light) {
+         theme: Theme = .light,
+         timestamp: Double = 0) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
@@ -237,6 +259,7 @@ public final class Frame {
         self.shapingCache = shapingCache
         self.glyphAtlas = glyphAtlas
         self.theme = theme
+        self.timestamp = timestamp
     }
 
     // MARK: - Layout phase

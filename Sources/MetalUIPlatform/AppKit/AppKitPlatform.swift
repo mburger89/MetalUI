@@ -127,7 +127,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     private let hostView: MetalHostView
     private let metalSurface: MetalLayerSurface
     private var displayLink: CADisplayLink?
-    private var tick: (() -> Void)?
+    private var tick: ((Double) -> Void)?
 
     var onInput: ((InputEvent) -> Bool)?
     var onResize: ((Size<Pixels>, Float) -> Void)?
@@ -225,7 +225,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
         onResize?(contentSize, Float(scale))
     }
 
-    func startDisplayLink(_ tick: @escaping () -> Void) {
+    func startDisplayLink(_ tick: @escaping (Double) -> Void) {
         self.tick = tick
         // NSView.displayLink supersedes CVDisplayLink, deprecated in full as of
         // macOS 15. It returns a CADisplayLink and fires on the main run loop,
@@ -240,7 +240,7 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     }
 
     @objc private func displayLinkFired() {
-        tick?()
+        tick?(displayLink?.timestamp ?? 0)
     }
 
     func windowWillClose(_ notification: Notification) {

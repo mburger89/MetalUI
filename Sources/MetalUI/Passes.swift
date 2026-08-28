@@ -154,6 +154,13 @@ public struct PaintPass {
     /// and prepaint reads resolved rects. See `Frame.theme`.
     public var theme: Theme { frame.theme }
 
+    /// This frame's display-link timestamp, in seconds. Identical for every
+    /// element in one frame.
+    public var timestamp: Double { frame.timestamp }
+
+    /// Ask for another frame after this one — for an animation in progress.
+    public func requestAnotherFrame() { frame.requestAnotherFrame() }
+
     /// Emits a filled rect, **in logical points**.
     ///
     /// The display scale factor is applied here, once, on the way to the scene.

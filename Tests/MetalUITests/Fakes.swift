@@ -84,6 +84,11 @@ final class FakePlatformWindow: PlatformWindow {
     private(set) var pauseCalls: [Bool] = []
     private(set) var displayLinkStarted = false
 
+    /// The tick callback `startDisplayLink` was handed, so a test can drive a
+    /// tick at a timestamp of its own choosing rather than waiting on a real
+    /// `CADisplayLink`.
+    private var tick: ((Double) -> Void)?
+
     var contentSize: Size<Pixels>
     var scaleFactor: Float = 1
     var surface: any RenderSurface { fakeSurface }
@@ -132,12 +137,22 @@ final class FakePlatformWindow: PlatformWindow {
         self.contentSize = Size(width: Pixels(Float(size)), height: Pixels(Float(size)))
     }
 
-    func startDisplayLink(_ tick: @escaping () -> Void) {
+    func startDisplayLink(_ tick: @escaping (Double) -> Void) {
         displayLinkStarted = true
+        self.tick = tick
     }
 
     func setDisplayLinkPaused(_ paused: Bool) {
         pauseCalls.append(paused)
+    }
+
+    /// Deliver a display-link tick at `timestamp`, the way a real
+    /// `CADisplayLink` fires `displayLinkFired`. A test that needs a specific,
+    /// non-zero timestamp on a window built with `startsDisplayLink: false`
+    /// calls this directly instead — `simulateInput` is the analogous shape for
+    /// input events.
+    func simulateTick(timestamp: Double) {
+        tick?(timestamp)
     }
 }
 
@@ -165,6 +180,14 @@ func makeFakeWindow<Root: Element>(
     device: any MTLDevice,
     size: Int = 64,
     appearance: Appearance = .light,
+    // False by default for the reason every other call site passes it: the
+    // fake's `startDisplayLink` schedules nothing on its own, but leaving
+    // `Window`'s registration path untaken keeps this indistinguishable from
+    // every existing test that never drives a tick. A test that needs
+    // `FakePlatformWindow.simulateTick(timestamp:)` to reach `Window` — the
+    // frame-clock tests — passes `true` so `Window.init` hands the fake the
+    // closure `simulateTick` fires.
+    startsDisplayLink: Bool = false,
     content: @escaping @MainActor () -> Root
 ) throws -> (Window, FakePlatformWindow) {
     let platformWindow = try FakePlatformWindow(device: device, size: size)
@@ -172,7 +195,7 @@ func makeFakeWindow<Root: Element>(
     let renderer = try Renderer(device: device)
     let window = Window(platformWindow: platformWindow,
                         renderer: renderer,
-                        startsDisplayLink: false,
+                        startsDisplayLink: startsDisplayLink,
                         content: content)
     return (window, platformWindow)
 }
