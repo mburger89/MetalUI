@@ -274,9 +274,15 @@ private func stack(_ tree: LayoutTree, _ children: [LayoutNodeID],
     #expect(r.y == 0)
 }
 
-/// Children overlap: two children at the same alignment share an origin.
-/// This is the property the container exists for, and nothing else asserts it.
-@Test func twoChildrenAtTheSameAlignmentShareAnOrigin() {
+/// Two children of DIFFERENT sizes, both centred: each is centred against the
+/// CONTAINER, independently, so they land at different origins — 40 wide
+/// centres at 30, 60 wide at 20. This is what distinguishes stacking from
+/// sequencing. A sequencing container would place the second child after the
+/// first rather than over it, and an implementation that instead centred each
+/// child against the OTHER child (or that ignored size entirely and pinned
+/// both to one shared origin) would also fail this — the two numbers per axis
+/// are the whole assertion, and they must NOT match.
+@Test func twoOverlappingChildrenAreCentredIndependentlyNotSequenced() {
     let tree = LayoutTree(generation: 0)
     let a = sized(tree, 40, 20)
     let b = sized(tree, 60, 30)
@@ -284,8 +290,6 @@ private func stack(_ tree: LayoutTree, _ children: [LayoutNodeID],
     computeLayout(tree, root: node,
                   available: AvailableSpaceSize(width: .definite(100),
                                                 height: .definite(100)))
-    // Centred independently, so their origins differ by half the size difference
-    // rather than being sequenced — 40 wide centres at 30, 60 wide at 20.
     #expect(tree.layout(a).x == 30)
     #expect(tree.layout(b).x == 20)
     #expect(tree.layout(a).y == 40)
