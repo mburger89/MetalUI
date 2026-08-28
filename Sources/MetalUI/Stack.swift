@@ -1,138 +1,125 @@
 import MetalUICore
 import MetalUILayout
 
-// `Column` and `Row` are `Box` with a `flexDirection` chosen for you.
-//
-// They **wrap** a `Box` rather than duplicating it, so there is one
-// implementation of the three phases in the module and the two names cannot
-// drift apart. They are distinct types rather than typealiases so that
-// `type(of:)` reads `Column<Pair<…>>` — the spelling §4.6 uses, and the one the
-// builder's type-level guard reads back.
-//
-// Direction is set at construction and there is no modifier for it on these
-// two, because `Column(...).flexDirection(.row)` would be a `Column` that is a
-// row and the type would then be lying. **That is enforced by where the
-// modifier lives, not by this paragraph**: `flexDirection(_:)` is declared in
-// `extension Box`, not on `StyledElement`, which `Column` and `Row` also
-// conform to. It sat on `StyledElement` for one commit, and the comment saying
-// it did not was the fourth shape-10 claim corrected on this branch —
-// `columnCannotBeTurnedIntoARowByAModifier` is the guard now. `Box` carries it
-// for callers who want to choose, and `.rowReverse` / `.columnReverse` are
-// reached that way.
+/// Where a `Stack` places each child within itself.
+///
+/// SwiftUI's nine-position `Alignment`, and its spelling, because SwiftUI is
+/// this framework's design authority (ruling EP-5). One value covers both axes;
+/// `Stack.init` translates it into the substrate's `alignItems` (block axis) and
+/// `justifyItems` (inline axis).
+public enum Alignment: Sendable, Equatable {
+    case topLeading,    top,    topTrailing
+    case leading,       center, trailing
+    case bottomLeading, bottom, bottomTrailing
 
-/// A vertical flex container: `flex-direction: column`.
-public struct Column<Content: ElementGroup>: Element, StyledElement {
-    var box: Box<Content>
-
-    public init(gap: Pixels = Pixels(0), @ElementBuilder content: () -> Content) {
-        var style = Style()
-        style.flexDirection = .column
-        // **Ruling EP-8 — `Column` and `Row` centre on the cross axis, where CSS
-        // stretches.** SwiftUI's `VStack`/`HStack` centre, and ruling EP-5 takes
-        // SwiftUI's answer where the two differ. It supersedes EP-6, whose
-        // `stretch` answer was blocked on recursive subtree measurement that
-        // content sizing then supplied.
-        //
-        // **EP-8, not EP-7.** EP-7 is already spent on "margins stay publicly
-        // settable"; the decisions doc's header says to continue from EP-8, and
-        // EP-2/EP-4 stay unassigned forever.
-        //
-        // **This is set here and NOT in `Style`.** The engine keeps CSS's
-        // `stretch` default, so the 67 browser fixtures stay valid and WebKit
-        // stays the oracle for the flex algorithm; the change lives strictly
-        // above the engine, which is what EP-5 means by CSS being the substrate
-        // rather than the design authority. `Box` is untouched and still
-        // stretches.
-        //
-        // **What it costs an author, and it is not nothing.** A childless `Box`
-        // measures 0 — content sizing did not change that — so a box with no
-        // cross size now paints nothing instead of filling its container.
-        // That is a louder failure than the silent one it replaces, and the
-        // remedy is a cross size or an explicit `.alignItems(.stretch)`, which
-        // is what the demo's sidebar and separator now say out loud.
-        style.alignItems = .center
-        style.gap = Axes(both: .pixels(gap))
-        box = Box(style: style, content: content())
+    var blockAxis: AlignItems {
+        switch self {
+        case .topLeading, .top, .topTrailing:             return .flexStart
+        case .leading, .center, .trailing:                return .center
+        case .bottomLeading, .bottom, .bottomTrailing:    return .flexEnd
+        }
     }
 
-    public var style: Style {
-        get { box.style }
-        set { box.style = newValue }
-    }
-
-    public var decoration: Decoration {
-        get { box.decoration }
-        set { box.decoration = newValue }
-    }
-
-    public var elementID: ElementID? {
-        get { box.elementID }
-        set { box.elementID = newValue }
-    }
-
-    public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
-        -> (LayoutNodeID, Box<Content>.Layout) {
-        box.requestLayout(id, pass: &pass)
-    }
-
-    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Box<Content>.Layout,
-                                  pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
-    }
-
-    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                               layout: inout Box<Content>.Layout,
-                               prepaint: inout Content.GroupPrepaint,
-                               pass: inout PaintPass) {
-        box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+    var inlineAxis: JustifyItems {
+        switch self {
+        case .topLeading, .leading, .bottomLeading:       return .start
+        case .top, .center, .bottom:                      return .center
+        case .topTrailing, .trailing, .bottomTrailing:    return .end
+        }
     }
 }
 
-/// A horizontal flex container: `flex-direction: row`.
-public struct Row<Content: ElementGroup>: Element, StyledElement {
-    var box: Box<Content>
+/// A container that layers its children at the same position.
+///
+/// The container sizes to its largest child on each axis — independently, so the
+/// widest and the tallest child may be different children — and every child is
+/// placed within that box by `alignment`.
+///
+/// **Not absolute positioning.** A `Stack`'s children participate in its sizing.
+/// Absolutely-positioned children are removed from flow and contribute nothing
+/// to their parent's size; that is a different feature, the one modals and
+/// popovers need, and `Style.position`/`Style.inset` are still read by no
+/// production code (CLAUDE.md's declared-but-inert table).
+///
+/// **Children paint in declaration order, first at the back.** That ordering is
+/// only real because `Scene.finalize`'s draw list orders primitives across types
+/// — before it, every rect drew beneath every glyph regardless of `order`, so a
+/// background could not be layered under text.
+///
+/// **The default is `.center`, which is SwiftUI's answer and not CSS's.** A CSS
+/// one-cell grid stretches its items; `ZStack` centres them at their natural
+/// size. Ruling EP-5 takes SwiftUI's, as EP-8 already did for `Column`/`Row`.
+///
+/// **A `Stack` differs from a `Box` only in the `Style` it builds** — `display`,
+/// `alignItems` and `justifyItems`, all set once in `init` and never touched
+/// again. The three phase methods below are `Box`'s, unchanged: this type does
+/// not wrap a `Box` the way `Column`/`Row` do, because its stored properties
+/// already match `Box`'s exactly and there is nothing left to delegate.
+public struct Stack<Content: ElementGroup>: Element, StyledElement {
+    public var style: Style
+    public var decoration: Decoration
+    public var elementID: ElementID?
+    public var content: Content
 
-    public init(gap: Pixels = Pixels(0), @ElementBuilder content: () -> Content) {
+    public init(alignment: Alignment = .center,
+                elementID: ElementID? = nil,
+                @ElementBuilder content: () -> Content) {
         var style = Style()
-        style.flexDirection = .row
-        // Ruling EP-8 — see `Column.init` above for why this is here and not in
-        // `Style`, and for what a childless `Box` now does.
-        style.alignItems = .center
-        style.gap = Axes(both: .pixels(gap))
-        box = Box(style: style, content: content())
+        style.display = .stack
+        style.alignItems = alignment.blockAxis
+        style.justifyItems = alignment.inlineAxis
+        self.style = style
+        self.decoration = Decoration()
+        self.elementID = elementID
+        self.content = content()
     }
 
-    public var style: Style {
-        get { box.style }
-        set { box.style = newValue }
+    /// Carried from `requestLayout` to the later phases. Identical in shape to
+    /// `Box.Layout` — see its doc comment for why `node` is stored rather than
+    /// re-derived.
+    public struct Layout {
+        public var node: LayoutNodeID
+        var content: Content.GroupLayout
     }
 
-    public var decoration: Decoration {
-        get { box.decoration }
-        set { box.decoration = newValue }
-    }
-
-    public var elementID: ElementID? {
-        get { box.elementID }
-        set { box.elementID = newValue }
-    }
-
-    public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
-        -> (LayoutNodeID, Box<Content>.Layout) {
-        box.requestLayout(id, pass: &pass)
+    public mutating func requestLayout(_ id: GlobalElementID,
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        // Children first: `requestNode` takes already-registered ids, so a
+        // container builds bottom-up and the engine sees a complete subtree.
+        //
+        // The cursor starts at 0 here and nowhere else: it is this container's
+        // own flat child index space, so a child's identity depends on its
+        // position among *its* siblings and not on how many elements the frame
+        // has visited. `prepaintGroup` and `paintGroup` need no cursor — each
+        // member stored its id during this call.
+        var cursor = 0
+        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
+                                                                   pass: &pass)
+        let node = pass.requestNode(style: style, children: children)
+        return (node, Layout(node: node, content: contentLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Box<Content>.Layout,
+                                  layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+        // `bounds` is this stack's own rect and is deliberately not passed
+        // down: the engine stores rects **absolute to the root**, so each
+        // child looks its own up rather than being offset by its parent.
+        // Adding `bounds` here would double-count every ancestor's origin.
+        content.prepaintGroup(layout: &layout.content, pass: &pass)
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                               layout: inout Box<Content>.Layout,
-                               prepaint: inout Content.GroupPrepaint,
+                               layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
-        box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+        // Own background first, then children, so a background never paints
+        // over a child — see `Box.paint`'s comment for why emission order is
+        // paint order.
+        if let token = decoration.background {
+            pass.fill(bounds, color: pass.theme[token],
+                      cornerRadii: Corners(all: decoration.cornerRadius))
+        }
+        content.paintGroup(layout: &layout.content,
+                           prepaint: &prepaint, pass: &pass)
     }
 }
