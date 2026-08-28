@@ -960,10 +960,17 @@ func placeNode(
 ///    while that fraction is ≤ 0. Measured on §9.9.1.1's own worked example
 ///    (`flex-basis: 100px`, `min-width: 0`, a `MeasureFunction` returning 200):
 ///    `flex-grow: 0` gives 100 here and 100 in CSS; `flex-grow: 1` gives
-///    **100 here and 200 in CSS**. Unreachable in production by mechanism —
-///    `flexBaseSize`'s content branch is the only route to a contribution
-///    larger than the base size and it needs a non-nil `tree.measure(item)`,
-///    which `newLeaf` alone supplies and nothing in `Sources/` calls. **Still
+///    **100 here and 200 in CSS**. **The "unreachable in production by
+///    mechanism" clause that stood here has expired, and it expired the way
+///    taxonomy shape 10 predicts.** It read: `flexBaseSize`'s content branch is
+///    the only route to a contribution larger than the base size, it needs a
+///    non-nil `tree.measure(item)`, and `newLeaf` — the only thing that
+///    attaches one — has no caller in `Sources/`. M2's `Text` is that caller,
+///    so `Column { Text(…).flexGrow(1) }` inside a container that is being
+///    *measured* is squarely in the region this paragraph describes. The
+///    arithmetic below is unchanged and was **not** re-measured against a text
+///    leaf; whoever needs the answer there owes a measurement rather than a
+///    reading of this comment. **Still
 ///    true after the intrinsic query landed, and still true after the four
 ///    sites were wired** — re-measured both times rather than assumed. Wiring
 ///    put the content branch in the path and moved nothing here: the worked
@@ -1181,10 +1188,15 @@ private func collectItems(
             // has already disproved (taxonomy shape 10): a **container** item
             // has a content size with no text in it, so a nested flex container
             // whose children are wider than its shrunk main size is now floored
-            // by them exactly as WebKit floors it. What remains unverifiable
-            // until M2 is the **leaf** half, which needs a `MeasureFunction`
-            // that no production code attaches — that half is still pinned only
-            // by hand-written closures (`automaticMinimumSizeUsesContentSizeNotFlexBasis`).
+            // by them exactly as WebKit floors it. **The leaf half is live too
+            // since M2's `Text` — what it is not is browser-verified**, and the
+            // gate there is the oracle rather than the code: WebKit shapes with
+            // its own font stack, so no text fixture can compare numbers with
+            // this engine, which is why the corpus has none and ruling TX-B
+            // treats any moved golden as a stop-and-report. The leaf half is
+            // pinned by hand-written closures
+            // (`automaticMinimumSizeUsesContentSizeNotFlexBasis`) and, end to
+            // end, by `TextMeasureTests`' CoreText oracles.
             // `flex_row_explicit_min` covers **explicit** `min-width` alone.
             //
             // **Ruling FS-3 — half the rule is missing, and since content
