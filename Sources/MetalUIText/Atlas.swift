@@ -87,6 +87,30 @@ public final class GlyphAtlas {
 
     private var placed: [GlyphKey: AtlasSlot] = [:]
 
+    /// The generation each key was last handed back in, by ``slot(for:rasterize:)``.
+    /// ``evictUnusedSince(_:)`` reads this and this alone to decide what to drop —
+    /// kept as a separate dictionary rather than folded into ``AtlasSlot`` because
+    /// that type is public and its equality is compared in tests against packer
+    /// geometry alone.
+    private var lastUsedGeneration: [GlyphKey: Int] = [:]
+
+    /// True for the duration of one frame's scene construction — the same shape
+    /// as `LayoutTree.isLayingOut`. ``evictUnusedSince(_:)`` traps while this is
+    /// true: evicting a slot the frame in flight may still hold an `AtlasSlot`
+    /// for produces a wrong glyph or a blank, on that one frame, intermittently
+    /// (spec §3.5) — the hardest failure in this milestone to reproduce, and
+    /// nothing in this repo can see a wrong glyph at all (spec §4.2). This flag
+    /// and the precondition on ``evictUnusedSince(_:)`` are the whole defence.
+    public private(set) var isBuildingFrame = false
+
+    /// Advances by one on every ``beginFrame()``, starting at 1 for the first
+    /// frame. 0 is deliberately never a live generation, so a slot that has
+    /// never been touched by ``slot(for:rasterize:)`` (absent from
+    /// ``lastUsedGeneration``, defaulting to 0) is indistinguishable from one
+    /// stamped before the atlas's first frame — both are "older than anything
+    /// eviction would keep."
+    public private(set) var currentGeneration = 0
+
     /// The shelf packer's whole state. `shelfY` is the current shelf's top,
     /// `shelfHeight` the tallest glyph on it so far, `cursorX` the next free
     /// column on it.
@@ -113,7 +137,10 @@ public final class GlyphAtlas {
     /// eviction is meant to relieve, so a key refused today must be free to
     /// succeed tomorrow.
     public func slot(for key: GlyphKey, rasterize: () -> GlyphImage) -> AtlasSlot? {
-        if let existing = placed[key] { return existing }
+        if let existing = placed[key] {
+            lastUsedGeneration[key] = currentGeneration
+            return existing
+        }
 
         let image = rasterize()
         // A whitespace glyph occupies no pixels. It still gets a slot — an
@@ -124,13 +151,62 @@ public final class GlyphAtlas {
         guard !image.isEmpty else {
             let empty = AtlasSlot(x: 0, y: 0, width: 0, height: 0)
             placed[key] = empty
+            lastUsedGeneration[key] = currentGeneration
             return empty
         }
 
         guard let slot = place(width: image.width, height: image.height) else { return nil }
         blit(image, into: slot)
         placed[key] = slot
+        lastUsedGeneration[key] = currentGeneration
         return slot
+    }
+
+    /// Begins constructing one frame's scene. Every ``slot(for:rasterize:)``
+    /// call made before the matching ``endFrame()`` is stamped with the
+    /// generation this call establishes, which is what
+    /// ``evictUnusedSince(_:)`` later uses to tell "used this frame" from
+    /// "not touched since."
+    ///
+    /// `precondition(!isBuildingFrame)` guards re-entry — the same shape as
+    /// `LayoutTree.beginLayout`'s guard against a nested `computeLayout` —
+    /// because a nested frame would advance `currentGeneration` out from under
+    /// the outer one's in-flight slots.
+    public func beginFrame() {
+        precondition(!isBuildingFrame, "beginFrame called while a frame is already being built")
+        isBuildingFrame = true
+        currentGeneration += 1
+    }
+
+    /// Ends the frame ``beginFrame()`` began. After this, and only after this,
+    /// ``evictUnusedSince(_:)`` may run.
+    public func endFrame() {
+        isBuildingFrame = false
+    }
+
+    /// Drops every slot whose most recent ``slot(for:rasterize:)`` call
+    /// predates `generation`, so the next request for that key rasterizes and
+    /// packs it again rather than reusing a stale entry.
+    ///
+    /// **May only run between frames — `precondition(!isBuildingFrame)`
+    /// enforces it.** The hazard it guards: a glyph the current frame's scene
+    /// still references, evicted mid-construction, paints as a wrong glyph or
+    /// a blank on that one frame, intermittently — the hardest failure in this
+    /// milestone to reproduce (spec §3.5), and nothing in this repo can see a
+    /// wrong glyph at all (spec §4.2).
+    ///
+    /// This frees dictionary entries, not atlas pixels — the shelf packer
+    /// "never revisits a closed shelf" (see the type doc), so an evicted key's
+    /// bitmap stays resident and unreachable until the atlas is replaced
+    /// wholesale. Reclaiming that space belongs to whichever task adds a
+    /// repacker; it is not this one.
+    public func evictUnusedSince(_ generation: Int) {
+        precondition(!isBuildingFrame,
+                     "evictUnusedSince called while a frame is being built — the frame in flight may still hold an AtlasSlot for the entry this would evict")
+        for (key, used) in lastUsedGeneration where used < generation {
+            placed.removeValue(forKey: key)
+            lastUsedGeneration.removeValue(forKey: key)
+        }
     }
 
     /// Forgets the dirty region, after a consumer has uploaded it.
