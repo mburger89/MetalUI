@@ -38,6 +38,14 @@ public enum AlignItems: Sendable, Equatable {
 /// start of, and no `baseline` because `AlignItems.baseline` is itself
 /// unimplemented and falls back to `flexStart` (CLAUDE.md's inert table). Adding
 /// a case later is additive.
+///
+/// **`.stretch` fills an item's axis only when that item's own declared size on
+/// that axis is `auto`** — CSS Box Alignment's rule, matched exactly by
+/// `positionStackItems`. A child with a declared size (including a percentage,
+/// which is not `auto` either) keeps it and sits at the start edge instead;
+/// stretching it anyway is the bug `stack_stretch_declared_size` in
+/// `StackFixtureTests.swift` pins. This applies to `AlignItems.stretch` too —
+/// both axes share the one rule.
 public enum JustifyItems: Sendable, Equatable { case start, center, end, stretch }
 
 public enum AlignSelf: Sendable, Equatable {

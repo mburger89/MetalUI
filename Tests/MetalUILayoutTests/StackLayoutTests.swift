@@ -258,11 +258,22 @@ private func stack(_ tree: LayoutTree, _ children: [LayoutNodeID],
     try #require(seen.count == 9, "all nine must be distinct, got \(seen.count): \(seen)")
 }
 
-/// `stretch` fills the container on that axis — the CSS default this framework
-/// deliberately does NOT take for `Stack`, kept reachable through `Style`.
+/// `stretch` fills the container on that axis for a child with no declared
+/// size there — the CSS default this framework deliberately does NOT take for
+/// `Stack`, kept reachable through `Style`.
+///
+/// **Auto-sized, not `sized(tree, 20, 10)`.** This test used to use a declared
+/// 20x10 child and expect it stretched to 100x60 — that was wrong: fix round
+/// 1 found (via a browser oracle probe while building Task 4's fixtures) that
+/// CSS's `stretch` fills an axis only when the child's own size on it is
+/// `auto`; a declared size falls back to `start` and keeps its own value.
+/// `stretchDoesNotOverrideADeclaredChildSize` below pins that branch, and the
+/// two are each other's negative control.
 @Test func stretchFillsTheContainerOnThatAxis() {
     let tree = LayoutTree(generation: 0)
-    let kid = sized(tree, 20, 10)
+    // `Style()`'s default size is `.auto`/`.auto` — genuinely unresolved,
+    // unlike `sized()`, so `positionStackItems` takes the stretch branch.
+    let kid = tree.newNode(style: Style(), children: [])
     let node = stack(tree, [kid], align: .stretch, justify: .stretch)
     computeLayout(tree, root: node,
                   available: AvailableSpaceSize(width: .definite(100),
@@ -272,6 +283,28 @@ private func stack(_ tree: LayoutTree, _ children: [LayoutNodeID],
     #expect(r.height == 60)
     #expect(r.x == 0)
     #expect(r.y == 0)
+}
+
+/// The other half of the stretch rule: a child with a DECLARED size is not
+/// stretched, even under `align: .stretch, justify: .stretch` — it keeps its
+/// own 20x10 and sits at the start edge, matching WebKit
+/// (`stack_stretch_declared_size` in `StackFixtureTests.swift` pins the same
+/// rule against the live oracle). Verified as a negative control: reverting
+/// `positionStackItems`'s `widthIsAuto`/`heightIsAuto` guard to unconditional
+/// reddens this test alone and leaves `stretchFillsTheContainerOnThatAxis`
+/// above green.
+@Test func stretchDoesNotOverrideADeclaredChildSize() {
+    let tree = LayoutTree(generation: 0)
+    let kid = sized(tree, 20, 10)
+    let node = stack(tree, [kid], align: .stretch, justify: .stretch)
+    computeLayout(tree, root: node,
+                  available: AvailableSpaceSize(width: .definite(100),
+                                                height: .definite(60)))
+    let r = tree.layout(kid)
+    #expect(r.width == 20, "a declared size must not be overridden by stretch")
+    #expect(r.height == 10, "a declared size must not be overridden by stretch")
+    #expect(r.x == 0, "stretch falls back to the start edge for a declared size")
+    #expect(r.y == 0, "stretch falls back to the start edge for a declared size")
 }
 
 /// Two children of DIFFERENT sizes, both centred: each is centred against the

@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* The case stack_stretch.html's unsized child cannot cover: a child with a
+     DECLARED size under `justify-items: stretch; align-items: stretch`. CSS
+     Box Alignment's `stretch` fills an axis only when the item's own size on
+     that axis is `auto` -- an explicitly sized box falls back to `start` and
+     keeps its own size. Measured directly against this repo's own
+     `LayoutOracle` before committing: a 20x10 child here stays 20x10 at
+     (0,0), not 300x200. Together with stack_stretch.html (unsized child,
+     fills the cell) the two fixtures cover both branches of the rule --
+     neither alone would catch an implementation that gets the OTHER branch
+     wrong. */
+  #root { display: grid; justify-items: stretch; align-items: stretch;
+          width: 300px; height: 200px; }
+  #root > div { grid-area: 1 / 1; }
+  .child { width: 20px; height: 10px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="child" data-id="child"></div>
+  </div>
+</body></html>

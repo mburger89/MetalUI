@@ -1081,8 +1081,21 @@ private func positionStackItems(
 
     for item in items {
         var size = item.size
-        if horizontal == .stretch { size.width = containerSize.width }
-        if vertical == .stretch { size.height = containerSize.height }
+        // `stretch` fills the axis ONLY when the child's own declared size on
+        // that axis is `auto` — CSS Box Alignment's rule, and WebKit's
+        // measured behaviour (a 20x10 child under `justify-items: stretch;
+        // align-items: stretch` stays 20x10 at the start edge; only an
+        // unsized child fills the cell). A declared size — including a
+        // percentage, which is not `auto` either — keeps its own value and is
+        // placed at the start edge below, exactly as an unstretched item
+        // would be. Read from the child's own `Style`, not threaded through
+        // `StackItem`, since `tree.style(item.node)` is already how every
+        // other per-item read in this file reaches it.
+        let itemStyle = tree.style(item.node)
+        let widthIsAuto: Bool = { if case .auto = itemStyle.size.width { return true }; return false }()
+        let heightIsAuto: Bool = { if case .auto = itemStyle.size.height { return true }; return false }()
+        if horizontal == .stretch && widthIsAuto { size.width = containerSize.width }
+        if vertical == .stretch && heightIsAuto { size.height = containerSize.height }
 
         let x: Double
         switch horizontal {

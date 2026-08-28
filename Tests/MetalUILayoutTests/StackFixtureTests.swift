@@ -20,18 +20,23 @@ import MetalUICore
 /// grid defaults both to `stretch` while `Stack` centres (spec §2). A fixture
 /// relying on grid's defaults measures the wrong thing and reads as an engine bug.
 ///
-/// **`stack_stretch` needed one more correction beyond the mapping above.** CSS
-/// Box Alignment's `stretch` only fills the cell when the item's own
-/// width/height is `auto` — a box with an explicit size falls back to `start`
-/// and keeps its declared size. Verified directly against this repo's own
-/// `LayoutOracle` before committing the fixture: a 20x10 child under
-/// `justify-items: stretch; align-items: stretch` measures 20x10 at (0,0), not
-/// 300x200. `positionStackItems` (`FlexEngine.swift`) carries no such carve-out
-/// — it overrides a stretched item's size unconditionally, which is CSS's own
-/// answer for an *auto*-sized box. So `stack_stretch.html`'s child is
-/// deliberately unsized, unlike the other three alignment fixtures' 20x10 —
-/// sizing it explicitly would make the fixture disagree with the engine for a
-/// reason that is CSS's fine print on `stretch`, not a stack bug.
+/// **`stack_stretch` needed one more correction beyond the mapping above, and
+/// it found a real engine bug rather than only a fixture wrinkle.** CSS Box
+/// Alignment's `stretch` only fills the cell when the item's own width/height
+/// is `auto` — a box with an explicit size falls back to `start` and keeps its
+/// declared size. Verified directly against this repo's own `LayoutOracle`
+/// before committing the fixture: a 20x10 child under `justify-items: stretch;
+/// align-items: stretch` measures 20x10 at (0,0), not 300x200.
+/// `positionStackItems` (`FlexEngine.swift`) used to carry no such carve-out —
+/// it overrode a stretched item's size unconditionally. `stack_stretch.html`'s
+/// child is unsized so it exercises the auto branch cleanly, but that alone
+/// was a workaround, not a fix: `Stack` becomes `StyledElement`-reachable in
+/// Task 5, so `Stack { Box().width(20).height(10) }.alignItems(.stretch)`
+/// would have compiled and silently disagreed with WebKit. **Fix round 1
+/// closed it**: `positionStackItems` now stretches an axis only when
+/// `tree.style(item.node)`'s size on that axis is `.auto`, and
+/// `stack_stretch_declared_size.html`/`stackStretchDeclaredSizeMatchesWebKit`
+/// below pin the declared-size branch `stack_stretch` cannot reach.
 ///
 /// **`stack_sizes_to_largest` needed a structural correction too** (controller
 /// ruling PF-2), and it is why this fixture's tree has two levels where the
@@ -123,6 +128,30 @@ private func alignmentTree(align: AlignItems, justify: JustifyItems)
     let tree = LayoutTree(generation: 0)
     // Deliberately unsized — see the file header.
     let child = tree.newNode(style: Style(), children: [])
+    let root = stackNode(tree, [child], align: .stretch, justify: .stretch,
+                         size: Size(width: px(300), height: px(200)))
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree, ids: [root: "root", child: "child"], golden: golden, tolerance: 0.1)
+}
+
+/// `justify-items: stretch; align-items: stretch` again, but with a
+/// **declared** 20x10 child rather than the unsized one above — the other
+/// half of the stretch rule, added in this milestone's fix round 1 after the
+/// task's own oracle probe found `positionStackItems` stretching a declared
+/// size unconditionally. CSS Box Alignment's `stretch` fills an axis only
+/// when the item's own size on it is `auto`; a declared size falls back to
+/// `start` and keeps its own value. `stackStretchMatchesWebKit` above cannot
+/// see this branch at all — its child has no declared size to keep — and this
+/// one cannot see that branch, so the two are each other's negative control:
+/// mutating the `widthIsAuto`/`heightIsAuto` guard back to unconditional in
+/// `positionStackItems` reddens this test alone and leaves
+/// `stackStretchMatchesWebKit` green, which is the pairing the fix-round
+/// verification recorded.
+@Test func stackStretchDeclaredSizeMatchesWebKit() throws {
+    let golden = try loadGolden("stack_stretch_declared_size")
+    let tree = LayoutTree(generation: 0)
+    let child = sized(tree, 20, 10)
     let root = stackNode(tree, [child], align: .stretch, justify: .stretch,
                          size: Size(width: px(300), height: px(200)))
     computeLayout(tree, root: root,

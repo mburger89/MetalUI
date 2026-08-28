@@ -156,6 +156,12 @@ let allFixtures: [(String, CGSize)] = [
     ("stack_alignment_topleading",     CGSize(width: 800, height: 600)),
     ("stack_alignment_bottomtrailing", CGSize(width: 800, height: 600)),
     ("stack_stretch",                  CGSize(width: 800, height: 600)),
+    // Fix round 1's finding: `stretch` fills an axis only when the child's own
+    // size on it is `auto` (CSS Box Alignment's rule). `stack_stretch` above
+    // covers the auto branch; this covers the declared-size branch that
+    // motivated the fix -- a 20x10 child stays 20x10 at the start edge rather
+    // than being stretched to the cell.
+    ("stack_stretch_declared_size",    CGSize(width: 800, height: 600)),
     ("stack_sizes_to_largest",         CGSize(width: 800, height: 600)),
 ]
 
