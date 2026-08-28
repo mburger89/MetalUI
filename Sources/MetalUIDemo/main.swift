@@ -221,8 +221,12 @@ func demoContent() -> some Element {
             }
             .flexGrow(1)
             .padding(Pixels(16))
-            // The hero box and the row of weights each declare one axis and
-            // fill the other.
+            // The hero box declares its height and fills its width from
+            // here, and so does the wrapping paragraph — which is what makes
+            // it re-wrap on resize. (This used to name "the row of weights";
+            // the clipping-and-scroll milestone replaced that row with the
+            // `ScrollView` box above, which declares both of its axes and
+            // takes nothing from this line.)
             .alignItems(.stretch)
             .background(.surface)
             .cornerRadius(Pixels(14))

@@ -954,7 +954,9 @@ planes, while a mask multiplies straight into the coverage `rect_fragment` was a
 its SDF — `mask_coverage` (`shaders.metal`) is a few lines beside code that existed before this
 milestone, not a new subsystem.
 That the built mechanism is still rectangular, not rounded, is a real and separately recorded gap
-(ruling CL-A; CLAUDE.md's `Box.cornerRadius` row) — it is a *cost* of the fragment-mask choice, not
+(ruling CL-A, whose "what it costs if wrong" carries it, and `Box.cornerRadius`'s own doc comment
+in `Sources/MetalUI/Box.swift` — **not** a CLAUDE.md table row: there is none, and this sentence
+invented one) — it is a *cost* of the fragment-mask choice, not
 a reason `[[clip_distance]]` would have done better, since `[[clip_distance]]` cannot express a
 rounded clip at all.
 

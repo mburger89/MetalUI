@@ -86,8 +86,13 @@ idiomatic Swift. macOS and iOS.
   visible, a wrongly-filling one is not — but it has to be paid in writing. The
   remedy is a declared cross size, or `.alignItems(.stretch)` on the container
   where "these fill their parent" is what the code means;
-  `Sources/MetalUIDemo/main.swift` pays it in **five** places (root column, body
-  row, sidebar, main pane, the row of weights) and says so at each.
+  `Sources/MetalUIDemo/main.swift` pays it in **four** places (root column, body
+  row, sidebar, main pane) and says so at each. It was five until the
+  clipping-and-scroll milestone deleted the row of weights — re-count with an
+  **anchored** pattern, `grep -cE "^ +\.alignItems\(\.stretch\)"
+  Sources/MetalUIDemo/main.swift`, which returns 4. An unanchored `grep -c`
+  returns **7**: three of the demo's comments name the modifier while
+  explaining why it is there.
 
   **Two sentences have now expired here in two commits, and the second was
   written by the commit that retired the first.** The original — "a leaf still
@@ -99,7 +104,7 @@ idiomatic Swift. macOS and iOS.
   and the label is 120 wide at `x = 0`, agreeing with WebKit. **`Column { Text }`
   now needs no remedy at all.** What the bullet above still costs is the
   *childless* `Box`, which measures 0 because it has no content to wrap — the
-  demo's five `.alignItems(.stretch)` are paying for that and not for text.
+  demo's four `.alignItems(.stretch)` are paying for that and not for text.
 
 - **`Text` measures and draws, and three things about it are load-bearing.**
   M2 landed `MetalUIText` (CoreText, no Metal), a shaping cache and a glyph
@@ -261,7 +266,7 @@ what the demo draws — and no test can establish it.** `MetalLayerSurface` vend
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and the whole suite still passed when that was measured, at 342 tests
-(**445 today**; the count is quoted so the measurement can be dated, not because
+(**488 today**; the count is quoted so the measurement can be dated, not because
 342 is a property of anything). If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
@@ -485,6 +490,27 @@ clause above: a golden would record this engine's answer as correct, and a
 future fix should move nothing in the corpus. That test is the only pin, so
 implementing FS-3 must redden exactly it.
 
+**That last sentence was measured before `ScrollView` existed, and a shipped
+feature now sits downstream of the half that DOES work.** The *content* half of
+§4.5's automatic minimum — the half this engine implements — is the sole reason
+a `ScrollView`'s content node overflows its viewport at all, and
+`Sources/MetalUIDemo/main.swift` relies on the missing *specified* half in the
+opposite direction: it must set `.minHeight(Pixels(0))` on the box wrapping the
+demo's scroll list, because an explicit height alone is silently overridden back
+up to the content height. So whoever implements FS-3 owns three things this
+sentence did not anticipate. **(1)** "must redden exactly it" is still the
+claim to check, but re-measure it rather than trusting it — the pin was counted
+against a suite with no `ScrollView` in it. **(2)** The demo's
+`.minHeight(Pixels(0))` and the paragraph explaining it become wrong the moment
+the specified-size suggestion lands, since an explicit height would then bind on
+its own. **(3)** `ScrollView.requestLayout`'s `contentStyle.flexShrink = 0`
+interacts with the change: the automatic minimum is what floors the content node
+at min-content and `flexShrink: 0` is what stops the freeze loop shrinking it
+from max-content down to that floor (ruling CL-C). A specified-size suggestion
+that lowers the floor changes what the freeze loop would do, not what it is
+allowed to do — `aScrollViewOfTextDoesNotShrinkItsContentToTheViewport` is the
+test to watch.
+
 **6. Ruling TX-H — an item's cross size is measured before §9.7 flexes it.**
 CSS Flexbox resolves the flexible lengths (step 6) and *then* determines each
 item's hypothetical cross size "by performing layout with the **used** main
@@ -636,13 +662,17 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **482 tests** and 67 browser fixtures, warning-free
+`swift build` · `swift test` — **488 tests** and 67 browser fixtures, warning-free
 (re-measured 2026-08-28 `--no-parallel` at the **end** of the clipping-and-scroll
 milestone, on `feat/clipping-scroll` after `swift package clean`, per rulings
 CS-M/CS-N/SI-H: a count is stale the moment a test is added, so it is taken at
 the milestone's last commit rather than at the commit that first quoted it.
-Task 10 (this one) is docs and the demo and added no test, so Task 9's 482
-reproduced exactly. Read the summary line, never the exit status — shape 11.
+Task 10 was docs and the demo and added no test, so Task 9's 482 reproduced
+exactly; the whole-branch review's fix round then added **six** — a `ScrollView`
+text pin for ruling CL-C, a rect pre-projection clip test, an
+unfinalized-scene trap and its positive control, an indicator fade/token
+assertion and a horizontal-indicator geometry one. Read the summary line, never
+the exit status — shape 11.
 The milestone started at **445** (M2's own end-of-milestone count) and climbed
 task by task: 451 after Task 1 (`DrawListTests`), 452 after Task 2, 455 after
 Task 3 (`ClipTests`), 458 after Task 4, 463 after Task 5 (`ClipStackTests`),
@@ -830,10 +860,14 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    `Test run with 304 tests`, re-measured at 358 on the structural-identity
    branch, and **re-counted at the end of M2 (suite 444): still 25 — 15 + 7 + 1
    + 2 across the four files**, where `grep -c canTypecheck` reads 3 in
-   `UnitSafetyTests` because one is a comment. The suite is 445 today and the 25
-   is unchanged, the extra test being an ordinary runtime one — which is this
-   paragraph's own point arriving as an example. **The guard count does not track
-   the suite count and neither number implies the other.** A falling suite count
+   `UnitSafetyTests` because one is a comment. **Re-counted again at the end of
+   the clipping-and-scroll milestone (suite 488): still 25.** The suite has
+   moved 304 → 358 → 444 → 488 and the guard count has not moved at all, which
+   is the paragraph's point arriving as four data points rather than as one
+   delta — the argument is that the two numbers are independent, so do not
+   restate it as "the suite grew by N and the 25 held", which rots the moment N
+   changes. **The guard count does not track the suite count and neither number
+   implies the other.** A falling suite count
    is the signal shape 11 tells you to watch, and this failure does not move it.
 
    **Not converted to a hard failure, and the reason is a configuration rather
