@@ -1,5 +1,6 @@
 import Testing
 import Metal
+import simd
 import CoreText
 import MetalUICore
 import MetalUIShaderTypes
@@ -169,4 +170,76 @@ private func clippedSprite(_ slot: AtlasSlot, atX x: Float, y: Float,
     }
     #expect(inkLeft > 0, "the glyph must still paint left of the cut")
     #expect(spilledRight == 0, "\(spilledRight) glyph pixels painted right of the clip")
+}
+
+/// `contentMask` lives in the same pre-projection ScaledPixels space as
+/// `bounds`, for both `MUIRect` and `MUIGlyph` (`rect_fragment` already clips
+/// against `RectVertexOut.pixelPosition`, the pre-projection field, precisely
+/// because the built-in `[[position]]` is post-projection — see that struct's
+/// doc comment). A glyph shifted left on screen by exactly half its own width,
+/// under a clip that keeps only its left half, must still show only its
+/// (now-shifted) left half: the clip boundary is a property of the glyph and
+/// its own mask, not of where the projection happens to put it on screen.
+///
+/// Sized to fail loudly rather than by a sliver: shifting left by exactly
+/// `slot.width / 2` and clipping against `in.position.xy` (post-projection)
+/// instead of `pixelPosition` moves the effective cut by that same half-width,
+/// which is enough to let the ENTIRE glyph through unclipped — not merely move
+/// the boundary by a pixel.
+@Test @MainActor func aGlyphsContentMaskIsEvaluatedInPreProjectionSpace() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let renderer = try Renderer(device: device)
+    let (atlas, slots) = try packedAtlasForClipping(["M"])
+    let slot = slots[0]
+    renderer.upload(atlas)
+
+    let side = 64
+    let size = Size(width: DevicePixels(Int32(side)), height: DevicePixels(Int32(side)))
+    let originX = 20, originY = 8
+    try #require(slot.width >= 6, "need a glyph wide enough to clip through the middle")
+    let halfWidth = slot.width / 2
+    let cut = Float(originX + halfWidth)
+
+    // Shift the glyph LEFT on screen by exactly `halfWidth` device pixels.
+    // NDC spans [-1, 1] across `side` pixels, so a delta of `d` in NDC.x moves
+    // the rendered geometry by `d / 2 * side` device pixels (same derivation
+    // `RendererTests.projectionMatrixMovesTheRenderedRect` uses, negated here
+    // for a leftward shift).
+    let deltaNDC = -2 * Float(halfWidth) / Float(side)
+    let projection = simd_float4x4(columns: (SIMD4<Float>(1, 0, 0, 0),
+                                             SIMD4<Float>(0, 1, 0, 0),
+                                             SIMD4<Float>(0, 0, 1, 0),
+                                             SIMD4<Float>(deltaNDC, 0, 0, 1)))
+
+    var scene = Scene()
+    scene.insert(clippedSprite(slot, atX: Float(originX), y: Float(originY),
+                               mask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                                               size: MUISize(width: cut, height: Float(side)))))
+    scene.finalize()
+    let pixels = try renderer.renderOffscreen(scene, size: size, projection: projection)
+    func alphaAt(_ x: Int, _ y: Int) -> UInt8 { pixels[((y * side) + x) * 4 + 3] }
+
+    // Read back at the SHIFTED screen location — the glyph moved, its mask
+    // (in the glyph's own pre-projection frame) did not.
+    var inkLeft = 0
+    var spilledRight = 0
+    for row in 0..<slot.height {
+        for column in 0..<slot.width {
+            let coverage = atlas.pixels[(slot.y + row) * atlas.width + slot.x + column]
+            guard coverage > 200 else { continue }
+            let x = Float(originX + column)
+            let screenX = originX + column - halfWidth
+            let y = originY + row
+            guard screenX >= 0, screenX < side else { continue }
+            if x + 0.5 < cut - 0.5 {
+                if alphaAt(screenX, y) > 100 { inkLeft += 1 }
+            } else if x + 0.5 > cut + 0.5 {
+                if alphaAt(screenX, y) > 20 { spilledRight += 1 }
+            }
+        }
+    }
+    #expect(inkLeft > 0, "the shifted glyph must still paint left of its own cut")
+    #expect(spilledRight == 0,
+            "\(spilledRight) glyph pixels painted right of the clip — the clip moved with the projection instead of staying in the glyph's own pre-projection space")
 }

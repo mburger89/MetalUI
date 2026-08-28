@@ -146,6 +146,12 @@ fragment float4 rect_fragment(
 
 struct GlyphVertexOut {
     float4 position [[position]];
+    /// Unprojected position, in the same ScaledPixels space as `MUIGlyph.bounds`
+    /// (and `contentMask`). The fragment shader must clip here, not in
+    /// `position.xy`: under a non-identity projection those spaces differ, and
+    /// using `position.xy` would clip each glyph to its unprojected footprint.
+    /// Same reasoning as `RectVertexOut.pixelPosition` — see the note there.
+    float2 pixelPosition;
     /// Source position in ATLAS TEXELS, not normalised — the sampler below is
     /// declared `coord::pixel`. Interpolating this rather than recomputing it
     /// per fragment is what makes the blit exact: at a fragment centre it is
@@ -177,6 +183,7 @@ vertex GlyphVertexOut glyph_vertex(
     GlyphVertexOut out;
     // Same POST-NDC projection contract as `rect_vertex` — see the note there.
     out.position = projection * float4(ndc, 0.0, 1.0);
+    out.pixelPosition = pos;
     out.atlasPosition = float2(g.atlasBounds.origin.x, g.atlasBounds.origin.y)
                       + unit * float2(g.atlasBounds.size.width, g.atlasBounds.size.height);
     out.glyphID = instanceID;
@@ -232,10 +239,13 @@ fragment float4 glyph_fragment(
     float4 tint = hsla_to_srgba(g.color);
     // Spec 7.8: coverage is a blend weight applied to alpha, used unmodified
     // and with no linearization anywhere. gpui's `color.a *= sample.a`.
-    // Same clip as `rect_fragment`, same helper, so a glyph and a rect under
-    // one clip stack cut on exactly the same boundary. `in.position.xy` is the
-    // fragment centre in render-target pixels, which is `contentMask`'s space.
-    float clip = mask_coverage(in.position.xy, g.contentMask);
+    // Same clip as `rect_fragment`, same helper, evaluated in the same
+    // pre-projection space via `pixelPosition` (not the built-in
+    // `in.position.xy`, which is post-projection — see `GlyphVertexOut`'s doc
+    // comment). That is what makes a glyph and a rect under one clip stack cut
+    // on exactly the same boundary under ANY projection, not only the identity
+    // one every existing test used before this was fixed.
+    float clip = mask_coverage(in.pixelPosition, g.contentMask);
     float alpha = tint.a * coverage * clip;
     // Premultiplied output, to pair with a (one, oneMinusSourceAlpha) blend.
     return float4(tint.rgb * alpha, alpha);
