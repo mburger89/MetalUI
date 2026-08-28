@@ -321,6 +321,22 @@ a test that got this wrong would crash the run rather than redden. If layout
 ever moves off the main actor, the measure closure is the first thing to
 rewrite.
 
+**The clipping-and-scroll milestone's demo exists; the look does not, yet.**
+`Sources/MetalUIDemo/main.swift`'s main pane now has a `ScrollView` over 40 rows
+in a rounded, background-filled `Box` in place of the old three-weights filler
+row, built to exercise all four things this sub-project added: rows clipped at
+the container's edge, wheel scrolling with trackpad momentum, the fading
+indicator painted over the rows' text, and the rectangular-vs-rounded clip
+mismatch `Box.cornerRadius` and ruling CL-A both name. **No sentence in this
+file yet says a human has run it**, and until one does, this milestone's exit
+criterion is open the same way M2's was before its own look. `docs/superpowers/specs/2026-08-28-clipping-and-scroll-design.md`
+§9 names what a look could establish that no test here can — clip-edge
+antialiasing quality, whether the indicator's fade timing feels right, and
+whether scrolling feels native — and, symmetrically, what it could NOT: those
+three are looks, not assertions, so even a positive report only closes the
+milestone's exit criterion, not those three open questions, which stay looks
+forever by construction.
+
 ## Six known divergences — expected, measured, not defects
 
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
@@ -559,7 +575,21 @@ them are read by no production code** — `position`, `inset`, `overflow`,
 `aspectRatio`. **`StyledElement` deliberately exposes no modifier for any of the
 four** (`Box.swift`): a modifier for an inert property is worse than none,
 because from outside it is indistinguishable from an implemented one. When one
-becomes live, add its modifier in the same task that deletes its row. Re-count with the grep below rather
+becomes live, add its modifier in the same task that deletes its row.
+
+**`overflow` is the counter-intuitive case the clipping-and-scroll milestone
+added, and it stays in this table on purpose.** `ScrollView.requestLayout`
+now WRITES `viewportStyle.overflow = Axes(both: .scroll)` — the first
+production write this property has ever had — but the engine still reads it
+nowhere: removing that line was measured (a probe built for exactly this
+question) to move no number in the layout it produces. Clipping and scrolling
+both work anyway, driven entirely by `ScrollView` pushing an explicit
+`pass.clipped(to:offsetBy:)` and registering a scroll region — mechanisms that
+do not consult `Style.overflow` at all. So the property documents intent for a
+reader of the style, same as CSS's own keyword would, and does nothing when
+the engine runs. A production write is not the same as a production read, and
+silence in this table on that distinction would read as "implemented" — the
+one thing this table exists to prevent. Re-count with the grep below rather
 than trusting the number: it was nine before the box model wired `padding`,
 `border` and `margin` in, six before wrapping wired `flexWrap`, and five before
 `align-content` landed. Count the properties with an *anchored* pattern and
@@ -584,9 +614,9 @@ are the dangerous ones.
 | `aspectRatio` | **0 uses** |
 | `margin: auto` (`Style.margin`'s `.auto` case) | **Resolves to 0, not to CSS's answer.** Item margins landed in the box-model task's second step — `resolveMargin` in `Resolve.swift` shrinks the main-axis budget and offsets each item by its own margin — but `.auto` maps to 0 on the single line marked for it in that function, not to CSS's "absorb free space before `justify-content` distributes any." A `margin-left: auto` item that CSS would push to the far end of the line lays out at the line's start instead, silently. Pinned by `autoMarginsResolveToZeroForNow` in `BoxModelTests.swift`, with CSS's real answer named in its comment. **This row's scope was too narrow until the wrapping branch's final review measured it** — the third claim of that shape on this project, after ruling WR-4's and WR-5's. Auto margins are not only a main-axis/`justify-content` gap: WebKit **centres a `margin-block: auto` item within its line on the CROSS axis** and we give 0 (`b` at 90 vs our 0). That was already true under `nowrap`; `align-content: stretch` — the default this branch made reachable — grows lines and widened it (`d` at 255 vs our 225). Whoever implements auto margins owns both axes, not just the one `justify-content` sees. **Unreachable from the public modifier API since the element pipeline's Task 4**, and by a type rather than by a convention: `StyledElement.margin(_:)` takes `Length`, not `Dimension`, so `.auto` cannot be written through it at all. `Style.margin` is still public, so the case is reachable by setting `style` directly |
 | `MUIRect.borderColor` / `MUIRect.borderWidths` | **Round-trip the ABI, are drawn by `rect_fragment` — the M0 demo proved that end to end — and nothing in `MetalUI` can set either.** `Frame.fill` hard-codes `.transparent` and zero widths, and `Decoration` deliberately has no `borderColor`. The blocker is the **width**, not the colour: `Style.border` is an `Edges<Length>` whose percentage case resolves against the *containing block's* width, and the engine computes that inside `contentBox` and throws it away, so paint has no resolved width to pair a colour with. Re-resolving one at paint time against the box's own width is the exact mistake the percentage-inset constraint below records. Storing the resolved edges on `LayoutTree` is what unblocks it. Note the asymmetry this leaves: `StyledElement.borderWidth(_:)` is **live** and shrinks the content box, so a border affects sizing today and paints nothing |
-| `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping. `grep contentMask Sources/` is not a clean 0 — `abi_probe` in `shaders.metal` reads `contentMask.size.width` to prove the field's offset survives the MSL boundary. That is the test harness, not rendering |
 | A percentage `width`/`height` on the **root** | **Falls back to the offered space, not to the percentage.** `resolveRootSize` resolves the root's percentages against `nil` and then takes `available` — so `width: 50%` in an 800-wide space gives **800**. Measured in WebKit: **400**. The root's percentage *padding* does resolve against `available.width` (see `computeLayout`), so the two halves of "the root's containing block" disagree with each other today. Fixing it moves the root's stored size, which every descendant consumes; it belongs to a sizing plan, not the box model |
-| `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
+| `position`, `inset` | **0 uses each.** No absolute positioning. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
+| `overflow` | **Written for the first time, still read nowhere.** `ScrollView.requestLayout` sets `viewportStyle.overflow = Axes(both: .scroll)` (ruling CL-B) — a production write, unlike `position`/`inset` above — but the engine consults it in no code path: `grep -rn "\.overflow\b" Sources/` outside `Style.swift`'s own declaration finds exactly the one write and nothing that reads it back. Clipping and scrolling both work, but through `ScrollView` pushing an explicit `pass.clipped(to:offsetBy:)` and registering a scroll region directly — mechanisms independent of this property. Kept as its own row rather than folded into the one above, because a write with no read is a sharper trap than a property nobody touches at all: a reader who sees `ScrollView` set `overflow: .scroll` and then finds clipping working would reasonably conclude the two are connected |
 | `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** The element pipeline's Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **Re-measured, with a mutation that compiles.** The number this row used to quote came from adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder`, and that mutation **no longer compiles**: `anExplicitAnyElementIsStillAcceptedAsAChild` — added by that same commit — puts an `AnyElement` inside a builder block, so the generic overload demands `AnyElement: Element`, which it is not, and the suite fails to build with `error: static method 'buildExpression' requires that 'AnyElement' conform to 'Element'`. Pairing it with a non-generic `buildExpression(_ e: AnyElement) -> AnyElement` restores the measurement: **exactly the three type-level tests in that file redden, and no behavioural test at all — re-measured `--no-parallel` on 2026-08-27 after structural identity, out of 358 rather than the 303 first recorded, and the three are the same three.** Universal identity does not disturb it: `AnyElement`'s `requestGroupLayout` consumes one cursor index exactly as `Element`'s default does, so boxing every child moves no path and no `StateTable` entry. Delete this row when the static path demonstrably does not serve a real container |
 | **Colour glyphs** (emoji, `COLR`/`sbix`) | **Wrong rather than absent, and now visibly so.** Spec §6.1 routes them to a *polychrome* atlas that skips tinting; there is no polychrome atlas in M2 and `GlyphRaster.rasterize` does not detect one either. So `CTFontDrawGlyphs` renders an emoji into the `DeviceGray` context as a **luminance silhouette**, it packs into the R8 atlas like any other glyph, and `glyph_fragment` multiplies it by the text colour — `Text("hi 🎉")` paints a flat blob in the text's colour where the emoji should be. It does not trap and it is not blank, which is exactly why it is written down: **nothing in this repo can see it**, there being no oracle for a rendered glyph at all (spec §4.2). The fix is a second atlas and a second draw path, not a branch in the rasterizer. Note that it was *invisible* rather than *wrong* until the glyph emitter landed — this row's status changed without its text changing, which is the shape ruling CS-E names |
 | `GlyphAtlas.evictUnusedSince(_:)`, and the grow-only atlas it leaves | **Zero production callers — and a caller would make things WORSE, not better, until the packer can reclaim.** That is the mechanism, and it is checkable rather than a milestone to wait for: the shelf packer never revisits a closed shelf, so evicting a key frees a dictionary entry and **strands its pixels**; the next frame that wants that glyph packs a *second* copy further down. Calling eviction every frame therefore makes the atlas fill **faster**. `grep -rn "evictUnusedSince" Sources/` returns **nine** lines and **not one of them is a call**: the declaration, the string inside its own precondition message, and seven doc comments — the same shape as `LayoutTree.reset(generation:)` below. Re-count rather than trusting the nine; two of the doc comments were added by the emitter task, so this number moves with the prose and the "no call" half is the claim. The frame brackets it depends on *are* live: `Frame.render` calls `beginFrame`/`endFrame` around the paint phase, so the ordering guard is enforceable; what is absent is only the call. **These three facts are one story, so read them together:** eviction is unwired, the atlas is therefore **grow-only**, and when it is full `Frame.draw` **silently drops** the glyphs that will not fit — a window showing an unbounded stream of distinct glyphs loses text with no error anywhere. What unblocks it is a repacker or a whole-atlas rebuild, not a call site. Its guards (`evictingDuringFrameConstructionTraps`, `aGlyphUnusedSinceAnOlderGenerationIsEvicted`) stay for `LayoutTree.reset`'s reason: they pin the contract for whoever does call it |
@@ -606,17 +636,21 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **445 tests** and 67 browser fixtures, warning-free
-(re-measured 2026-08-27 `--no-parallel` at the **end** of M2, on `feat/text-m2`
-after `swift package clean`, per rulings CS-M/CS-N/SI-H: a count is stale the
-moment a test is added, so it is taken at the milestone's last commit rather
-than at the commit that first quoted it. Task 8 added no test — it is docs and
-the demo — so the emitter's 444 reproduced exactly, and the whole-branch
-review's atlas-race fix took it to 445. Read the
-summary line, never the exit status — shape 11. It was 429 before the emitter,
-396 after the divergence-6 task, 365 after Task 1 and 360
-before the branch, and that 360 measured 361 on the same checkout — so treat a
-±1 as a stale doc rather than a missing test, and re-measure).
+`swift build` · `swift test` — **482 tests** and 67 browser fixtures, warning-free
+(re-measured 2026-08-28 `--no-parallel` at the **end** of the clipping-and-scroll
+milestone, on `feat/clipping-scroll` after `swift package clean`, per rulings
+CS-M/CS-N/SI-H: a count is stale the moment a test is added, so it is taken at
+the milestone's last commit rather than at the commit that first quoted it.
+Task 10 (this one) is docs and the demo and added no test, so Task 9's 482
+reproduced exactly. Read the summary line, never the exit status — shape 11.
+The milestone started at **445** (M2's own end-of-milestone count) and climbed
+task by task: 451 after Task 1 (`DrawListTests`), 452 after Task 2, 455 after
+Task 3 (`ClipTests`), 458 after Task 4, 463 after Task 5 (`ClipStackTests`),
+468 after Task 6 (`ScrollViewTests`/`ScrollLayoutTests`), 474 after Task 7
+(`ScrollRoutingTests`), 477 after Task 8, 482 after Task 9 (`ScrollIndicatorTests`).
+Every one of those was itself re-measured rather than summed by hand at the
+time — treat a ±1 against this list as a stale doc rather than a missing test,
+and re-measure).
 **Eight** non-test targets with strictly one-way dependencies: `MetalUICore`,
 `MetalUILayout`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
 `MetalUIPlatform`, `MetalUI`, `MetalUIDemo`. **`MetalUITestSupport` is a ninth
