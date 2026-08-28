@@ -115,6 +115,22 @@ content the same way. The general lesson is the one the whole repo runs on: **a 
 nothing is a claim about the fixtures, not about the line** — and a probe built from uniform
 content cannot speak for content that is not uniform.
 
+**Correction, 2026-08-28 — Task 10's report gave the wrong reason for the demo's fixed
+`.width(Pixels(420))`, and the record should say so rather than quietly move on.** The report
+said width had "no equivalent fix" to `.minHeight(Pixels(0))`'s height fix. That conclusion is
+right but the reason is wrong twice over: `.minWidth(_:)` **does** exist (`Box.swift:269`), so
+"no equivalent" overstates it; and measured, `.minWidth(Pixels(0))` on the wrapping `Box` is
+bit-identical to no width spelling at all (1027/771/554 wrapper, 243/244/244 viewport, at windows
+1200/920/700) — the escape that exists does not work. The real blocker, found by mutation:
+`viewportStyle.flexGrow = 1` inside `ScrollView.requestLayout` makes the viewport fill at every
+width (1027/771/554) — an ordinary flex fact about the viewport's own main axis, nothing to do
+with §4.5's automatic minimum, and unreachable because `ScrollView` has no modifier surface. Full
+write-up, including the row/column wrapper symmetry this falls out of, is in CLAUDE.md's FS-3
+divergence entry, point (4) — this note exists so a reader of this file alone does not re-derive
+the wrong reason from Task 10's original report. See also
+`.superpowers/sdd/2026-08-28-clipping-and-scroll/wrap-investigation.md`, "The coordinator's
+`minWidth` question, folded in", which is where this was measured.
+
 ## CL-D — two borrowed M4 primitives, not an animation system
 
 `Frame.timestamp` (the display link's tick, threaded through every element in one frame) and
