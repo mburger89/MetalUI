@@ -105,22 +105,47 @@ start/end mapping — none of which a stack has. Sharing it would mean threading
 Each child is placed independently on both axes from `alignItems` (block axis)
 and `justifyItems` (inline axis), within the container's content box.
 
-### 3.4 A claim to verify in Task 1, not to assume
+### 3.4 The percentage question, measured
 
 **Percentage-sized children look circular**: a child at `width: 50%` resolves
 against the stack, whose size is the maximum over its children.
 
-The expectation is that this falls out of existing machinery — `measureNode`
-passes `containingBlockWidth: nil` during the intrinsic pass, so a percentage
-does not resolve and the child contributes its `auto` size; `placeNode` then runs
-with a definite size and the percentage resolves against it. That is how the flex
-path already behaves.
+**Measured against the real engine in Task 1**, on a flex row (the same shape a
+stack container has: one node, several children, no `flexDirection` a stack
+would read) holding a `width: 50%` child (`height: 20px`, no content) beside a
+fixed `80x30` child:
 
-**This is an expectation, not a measurement.** It could not be probed while
-writing this spec because the path does not exist yet. Task 1 probes it against
-the real engine and records the numbers before anything is built on top. If the
-expectation is wrong, the rule is decided then and written here — not worked
-around in the element.
+```
+// Intrinsic pass: measureNode(..., known: .unspecified,
+//   available: .maxContent x .maxContent, containingBlockWidth: nil)
+PROBE measured (indefinite): SizeD(width: 80.0, height: 30.0)
+
+// Placement pass: computeLayout(..., available: .definite(200) x .definite(100))
+PROBE container:   LayoutRect(x: 0, y: 0,   width: 200, height: 100)
+PROBE pct child:   LayoutRect(x: 0, y: 0,   width: 100, height: 20)
+PROBE fixed child: LayoutRect(x: 100, y: 0, width: 80,  height: 30)
+```
+
+This confirms the expectation exactly. During the intrinsic pass
+`containingBlockWidth: nil` means the percentage does not resolve, and the
+child — having no content of its own — contributes an `auto` width of **0**:
+the container's indefinite-pass width is `80`, which is the fixed child alone
+(`0 + 80` on the row's main axis), and its height is `30`, the max of the two
+children's cross-axis sizes (`max(20, 30)`). During the placement pass, once
+the container has a definite width of `200`, the percentage resolves against
+it in the ordinary way: the child is `100` wide (50% of 200).
+
+So a percentage child contributes **zero**, not its resolved width and not a
+distinct "auto" value — those coincide here because the child is empty, but
+the mechanism is: unresolved percentage → `Dimension.auto` → a childless box's
+content size, which is 0 (this is the same fact CLAUDE.md records as "a
+childless `Box` measures 0" under ruling EP-8). A stack sized from its
+children's intrinsic pass therefore does not see a `width: 50%` child's
+resolved width at all in that pass — only in the placement pass, against the
+size the intrinsic pass already settled. No rule needed to change; `placeNode`
+runs after the container's own size is fixed, exactly as the flex path already
+does, and the stack's `positionStackItems` (§3.3) can rely on the same
+two-pass split without new machinery.
 
 ---
 
