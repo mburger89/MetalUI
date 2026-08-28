@@ -100,10 +100,61 @@ func demoContent() -> some Element {
             .cornerRadius(Pixels(14))
 
             Column(gap: Pixels(12)) {
-                Box()
-                    .height(Pixels(128))
-                    .background(.accent)
-                    .cornerRadius(Pixels(12))
+                // **The Stack milestone's exit criterion.** Replaces the
+                // plain accent hero box with a `Stack` of three children of
+                // visibly different sizes — a backdrop, a "photo" panel
+                // nested inside it, and a numeral badge nested inside that —
+                // all centred on one another rather than sequenced.
+                //
+                // **Z-order is the one thing about a `Stack` no positional
+                // test can see.** Every rect's `(x, y, width, height)` comes
+                // out identical whichever child painted first, so a
+                // regression that reversed paint order would leave all 517+
+                // layout tests green; only a human looking at the window can
+                // tell that "3" is drawn ON the panel rather than the panel
+                // painting over it. That is why this element, and not a unit
+                // test, is what the milestone's exit criterion asks a human
+                // to look at (CLAUDE.md records whether that look has
+                // happened yet).
+                //
+                // Declaration order is back-to-front (`Stack.paint`'s doc
+                // comment): the backdrop is declared first and painted
+                // first, the badge is declared last and painted last, so it
+                // sits on top. If the order in this file were reversed, the
+                // backdrop — the largest child, exactly covering the
+                // container — would paint over both smaller children and
+                // "3" would vanish entirely; that is the plainly-wrong
+                // result a flipped z-order produces here.
+                //
+                // `.alignSelf(.flexStart)` opts this one item out of the
+                // surrounding column's `.alignItems(.stretch)` (EP-8):
+                // without it, the `Stack`'s own auto width would stretch to
+                // the whole pane and the "sizes to its largest child"
+                // property (`Stack.swift`'s doc comment) would be invisible
+                // — the backdrop would end up centred in far more empty
+                // space than its own 360×128, rather than the container
+                // visibly being exactly that size.
+                Stack(alignment: .center) {
+                    Box()
+                        .width(Pixels(360))
+                        .height(Pixels(128))
+                        .background(.accent)
+                        .cornerRadius(Pixels(12))
+                    Box()
+                        .width(Pixels(160))
+                        .height(Pixels(72))
+                        .background(.surface)
+                        .cornerRadius(Pixels(10))
+                    Box(decoration: Decoration(background: .surfaceSecondary,
+                                               cornerRadius: Pixels(14))) {
+                        Text("3").font(size: 13)
+                    }
+                    .width(Pixels(28))
+                    .height(Pixels(28))
+                    .alignItems(.center)
+                    .justifyContent(.center)
+                }
+                .alignSelf(.flexStart)
 
                 // **A second size, and it is a diagnostic rather than
                 // decoration.** The atlas key is
@@ -197,7 +248,8 @@ func demoContent() -> some Element {
                             // doc comment — and this demo is where a mismatch
                             // would show.
                             Box(decoration: Decoration(
-                                background: i.isMultiple(of: 2) ? .surface : .surfaceSecondary)) {
+                                background: i.isMultiple(of: 2) ? .surface : .surfaceSecondary)
+                            ) {
                                 Text("Row \(i + 1) of 40 — a scrollable list item")
                             }
                             .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
