@@ -109,13 +109,36 @@ path over it, measurable against a working implementation.
 | `.minContent` | typeset at a **small positive** width; the **widest** resulting line — the longest unbreakable run |
 | `.definite(w)` | typeset at `w`; width is the widest line, height is `lines × lineHeight` |
 
-**"A small positive width", not zero, and this needs pinning rather than
-assuming.** `CTTypesetterSuggestLineBreak` at width 0 may return a zero-length
-break, which turns the min-content loop into a non-terminating one — a hang, not
-a wrong answer. The implementation must (a) pass a small positive width, and
-(b) treat a zero-length suggested break as a hard error rather than looping,
-because a silent guard there would convert a hang into an infinite quiet loop
-one refactor later. Both get a test.
+**"A small positive width", not zero — and this section's first draft got the
+reason wrong.** It claimed `CTTypesetterSuggestLineBreak` at width 0 "may return
+a zero-length break, which turns the min-content loop into a non-terminating one
+— a hang, not a wrong answer." **Measured during execution: width 0 does not
+hang.** The call returns ≥ 1 for every `start < length` at every width — 84,300
+samples over 10 fonts, 52 strings (including break-sensitive, degenerate and
+cluster-heavy leads) and 15 widths from −∞ to +∞, with zero non-positive returns.
+The only input returning 0 is `start == length`, which the loop excludes.
+
+**The live guard is the positive-width precondition, not the zero-length-break
+one.** A non-positive width is an ill-formed request rather than a narrower line,
+so `shape` preconditions on `width > 0`; deleting *that* reddens
+`shapingAtAZeroWidthTraps` and nothing else, and deleting it makes the subprocess
+exit **0** — independent confirmation there is no hang.
+
+**The zero-length-break precondition is kept and is unreachable from any input.**
+It is a contract assertion against a future CoreText: Apple documents no minimum
+return, which is what makes the ≥ 1 behaviour a dependency worth asserting rather
+than paranoia. It is doubly unreachable — `width > 0` is guaranteed above it, so
+the non-positive widths are ones the call site cannot pass. **Deleting it reddens
+nothing and does not hang. Do not write a test for it, and do not add an
+injection seam to make one possible** — a seam would manufacture an input class
+the API cannot produce and yield a test that passes because it tests the seam.
+
+**A `.definite(0)` available extent is therefore the MEASURE FUNCTION's problem,
+not the shaper's.** `precondition` is live in `-O`, so an unclamped zero width
+terminates the app in release — and a flex item shrinking to zero main size is an
+ordinary layout state, not a pathological one. **The measure function clamps to a
+small positive width at its boundary**, with a test that a zero available extent
+measures rather than traps.
 
 **A `known` size wins over the measured one**, as `measureNode` already
 guarantees: a `Text` with an explicit `.width(100)` is typeset at 100 and reports
@@ -184,6 +207,9 @@ failure modes are specific enough to name in advance:
 | the cache key drops `width` | a wrap test at two widths |
 | the cache key drops `resolvedFontKey`'s variation coords | a two-font metrics test |
 | `.minContent` returns the full advance | the longest-word floor test |
+| a `.definite(0)` available extent | the zero-extent measure test — it must measure, not trap |
+| `widestLine` returns the first line rather than the widest | the widest-line test |
+| `lineHeight` drops a term | `metricsMatchCoreText`'s independent `CTFontGet*` oracle |
 | the shelf packer overlaps two glyphs | a packing test |
 | `.minContent` typesets at width 0 | the non-termination guard's test |
 | `known.width` ignored in favour of the measured width | the explicit-width test |
