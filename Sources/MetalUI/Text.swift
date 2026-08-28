@@ -289,6 +289,13 @@ public struct Text: Element, StyledElement {
         }
 
         let font = FontResolver.resolve(family: fontFamily, size: fontSize)
+        // The **rounded** box width, which is what the reader can see — see the
+        // doc comment. Usually the same number layout measured at, and so a
+        // cache hit; when `roundLayout` moved it, this is a second
+        // `CTTypesetter` pass in the same frame. **That cost is observable in
+        // exactly one place, `ShapingCache.misses`**, and in no rendered pixel:
+        // the output is right either way, only the work is not. If a frame's
+        // miss count is ever surprising, this line is the first suspect.
         let width = max(Double(bounds.size.width.value), smallestWrapWidth)
         let shaped = pass.shapingCache.shaped(string, font: font, wrappingAt: width)
         let color = pass.theme[foregroundColor ?? .textPrimary]

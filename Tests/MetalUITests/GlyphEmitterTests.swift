@@ -552,3 +552,108 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
     #expect(window.glyphAtlas.currentGeneration == 2,
             "the window built a second atlas rather than keeping one")
 }
+
+/// **Every byte the window drew, against the glyph's own rasterized bitmap** —
+/// the one oracle the shader does not share, now reaching all the way from a
+/// `Text` element rather than from a hand-built sprite.
+///
+/// Task 7 established this technique on two sprites placed by hand
+/// (`aGlyphSpriteBlitsExactlyTheAtlasPixelsItPointsAt`). This runs it through
+/// the whole chain the emitter added — shape, place, pack, upload, encode —
+/// with nothing but a string as input. An opaque tint over a cleared target
+/// makes the premultiplied result's **alpha byte the coverage byte** with no
+/// arithmetic in between, so the comparison is exact rather than tolerant;
+/// `textPrimary` has `a == 1`, so the default tint qualifies.
+///
+/// **The expectation is a locally rasterized `GlyphImage`, NOT
+/// `sprite.atlasBounds` into `GlyphAtlas.pixels` — and that distinction was
+/// measured rather than reasoned.** The first version of this test mapped each
+/// window pixel back through the sprite's own `atlasBounds`, which is taxonomy
+/// shape 12 in disguise: shifting the source coordinate by **one texel**
+/// (`MUIGlyph.init`'s `slot.x + 1`) left it green, because the expectation
+/// moved with the mutation. Rasterizing the glyph here instead — from the key
+/// the emitter placed, through `GlyphRaster`, which never learns where the
+/// packer put it — makes the same mutation redden. A per-pixel comparison looks
+/// immune to shape 12 and is not.
+///
+/// **Only pixels covered by exactly one sprite are compared.** Adjacent glyph
+/// boxes can overlap by a pixel — `GlyphRaster.inkPadding` puts a margin on
+/// every side — and two premultiplied sprites blended together are legitimately
+/// not either one's coverage. The compared, inked and empty counts are all
+/// asserted so this cannot pass by comparing nothing, by comparing a blank
+/// region, or against a solid rectangle.
+///
+/// **What this CANNOT see, stated because the temptation is to read it as
+/// end-to-end verification.** It is exact about *geometry* and blind to
+/// *identity*: in all three of spec §4.2's named failures the CPU and the GPU
+/// agree on a wrong answer together, so this test passes unchanged if the
+/// atlas served the **wrong glyph** for a key (a `FontKey` collision — the
+/// oracle would rasterize the same wrong glyph), if the **subpixel variant**
+/// were dropped and text wobbled during a scroll, or if **eviction blanked a
+/// run** mid-frame. Those three remain the human look's, and the human look has
+/// not happened: the demo has no `Text` in it yet.
+///
+/// **The cheap non-assertive companion, for whoever needs it next**: print the
+/// same `readPixels()` buffer as ASCII art, one character per pixel keyed on
+/// the alpha byte. `Text("Hi Wag")` at 22pt comes back legible, which is how
+/// this emitter was first confirmed to draw letters rather than rectangles. It
+/// asserts nothing and it catches the gross failures in one glance.
+@MainActor
+@Test func theWindowsPixelsAreExactlyTheGlyphBitmapsItsSpritesStandFor() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let side = 128
+    let (window, platform) = try makeFakeWindow(device: device, size: side) { Text(word) }
+    window.drawFrameIfNeeded()
+
+    let sprites = window.lastScene.glyphs
+    try #require(sprites.count == word.count)
+
+    // The window's surface reports `scaleFactor: 1`, and a `Text` as the root
+    // fills the offered width at (0, 0) — CLAUDE.md divergence 4.
+    let placed = Shaper.shape(word, font: font, wrappingAt: Double(side))
+        .placedGlyphs(at: (x: 0, y: 0), font: font, scaleFactor: 1)
+    try #require(placed.count == sprites.count)
+    // Emission order is `placedGlyphs`' order and `finalize` sorts stably at one
+    // order, so sprite i is glyph i. Checked rather than assumed: a mismatch
+    // would make every comparison below compare the wrong pair.
+    let images = placed.map {
+        GlyphRaster.rasterize(glyph: $0.key.glyph, font: $0.font,
+                              subpixelVariant: $0.key.subpixelVariant, scaleFactor: 1)
+    }
+    for i in 0..<sprites.count {
+        try #require(sprites[i].bounds.size.width == Float(images[i].width))
+        try #require(sprites[i].bounds.size.height == Float(images[i].height))
+    }
+
+    let pixels = platform.fakeSurface.readPixels()
+    func contains(_ box: MUIBounds, _ x: Int, _ y: Int) -> Bool {
+        Float(x) >= box.origin.x && Float(x) < box.origin.x + box.size.width
+            && Float(y) >= box.origin.y && Float(y) < box.origin.y + box.size.height
+    }
+
+    var compared = 0
+    var inked = 0
+    var mismatches: [String] = []
+    for y in 0..<side {
+        for x in 0..<side {
+            let covering = sprites.indices.filter { contains(sprites[$0].bounds, x, y) }
+            guard covering.count == 1, let i = covering.first else { continue }
+            let column = x - Int(sprites[i].bounds.origin.x)
+            let row = y - Int(sprites[i].bounds.origin.y)
+            let expected = images[i].bytes[row * images[i].width + column]
+            let actual = pixels[(y * side + x) * 4 + 3]
+            compared += 1
+            if expected > 0 { inked += 1 }
+            if expected != actual {
+                mismatches.append("(\(x),\(y)) glyph \(i) wants \(expected), drew \(actual)")
+            }
+        }
+    }
+
+    #expect(compared > 200, "only \(compared) pixels were unambiguously covered")
+    #expect(inked > 50, "the compared region is almost entirely blank; it cannot discriminate")
+    #expect(compared - inked > 20, "no empty pixels compared; a solid rectangle would pass")
+    #expect(mismatches.isEmpty,
+            "\(mismatches.count) of \(compared) pixels differ — \(mismatches.prefix(6).joined(separator: ", "))")
+}

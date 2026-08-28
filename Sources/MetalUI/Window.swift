@@ -53,17 +53,21 @@ public final class Window {
     /// re-upload a whole texture on every frame, with the whole suite green.
     /// See `Frame.glyphAtlas`.
     ///
-    /// **Nothing evicts from it, and that is a deliberate omission rather than
-    /// an oversight.** `GlyphAtlas.evictUnusedSince` exists and works, and
-    /// calling it here every frame would make text *worse*: the shelf packer
-    /// never revisits a closed shelf, so an evicted glyph's pixels stay
-    /// resident and unreachable, and the next frame that wants it packs a
-    /// second copy further down the atlas. Eviction is only a net gain once
-    /// something can reclaim the space — a repacker, or a whole-atlas rebuild —
-    /// and neither is M2's. Until then the atlas is a grow-only cache, and a
-    /// window showing an unbounded stream of *distinct* glyphs fills it, after
-    /// which `Frame.draw` silently drops the ones that will not fit. That is
-    /// recorded in CLAUDE.md's inert table with this mechanism named.
+    /// **Nothing evicts from it, and a caller would make things WORSE rather
+    /// than better** — which is a mechanism a reader can check, not a milestone
+    /// to wait for. `GlyphAtlas.evictUnusedSince` exists, works and is guarded;
+    /// calling it here every frame would make the atlas fill *faster*, because
+    /// the shelf packer never revisits a closed shelf: an evicted glyph's
+    /// pixels stay resident and unreachable, and the next frame that wants it
+    /// packs a **second** copy further down. Eviction is a net gain only once
+    /// something reclaims the space — a repacker, or a whole-atlas rebuild —
+    /// and that is a task, not a call site.
+    ///
+    /// **Read the consequence with it, because the two are one fact.** The
+    /// atlas is therefore **grow-only**, and when it is full `Frame.draw`
+    /// **silently drops** the glyphs that will not fit: a window showing an
+    /// unbounded stream of *distinct* glyphs loses text with no error
+    /// anywhere. CLAUDE.md's inert table carries the same story.
     ///
     /// **Internal rather than private**, for `lastScene`'s reason: a window that
     /// built a *fresh* atlas per frame would produce identical pixels on every
