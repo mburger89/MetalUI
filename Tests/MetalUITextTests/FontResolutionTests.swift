@@ -98,11 +98,25 @@ import CoreText
 }
 
 /// Metrics come from CoreText, not from us. This asserts we report what it says.
+///
+/// **The `lineHeight` expectation needs an oracle that is not `lineHeight`, and
+/// the version added by M2 Task 2 did not have one.** Both shaping tests spell
+/// their assertion `abs(shaped.totalHeight - font.metrics.lineHeight) < 0.001`,
+/// which puts the property on **both sides**: any change to its formula moves
+/// the expectation along with the implementation. Measured —
+/// `public var lineHeight: Double { ascent }` left the **whole suite green at
+/// 371 tests**. The three stored properties above are each pinned individually,
+/// but nothing pinned their *sum*, which is the composition every measured text
+/// height is built from. The line below is the independent oracle: CoreText's
+/// three numbers, added up here rather than in the property under test.
 @Test func metricsMatchCoreText() {
     let f = FontResolver.resolve(family: nil, size: 13)
     #expect(abs(f.metrics.ascent - CTFontGetAscent(f.ctFont)) < 0.001)
     #expect(abs(f.metrics.descent - CTFontGetDescent(f.ctFont)) < 0.001)
     #expect(abs(f.metrics.leading - CTFontGetLeading(f.ctFont)) < 0.001)
+    #expect(abs(f.metrics.lineHeight
+                - Double(CTFontGetAscent(f.ctFont) + CTFontGetDescent(f.ctFont)
+                         + CTFontGetLeading(f.ctFont))) < 0.001)
 }
 
 // **`pinningOpszRemovesTheOpticalSizeAxisFromAdvanceScaling` was DELETED here,

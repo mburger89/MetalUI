@@ -117,6 +117,30 @@ private let ctFontKey = NSAttributedString.Key(kCTFontAttributeName as String)
     #expect(fitsSeen > 0)
 }
 
+/// **`widestLine` is the MAXIMUM line advance, not the first line's.**
+///
+/// Measured gap, not a hypothesis: `widestLine: lines.first?.advance ?? 0` was
+/// **green across all 371 tests** before this test existed. Every other shaping
+/// test happens to use a sample whose first line is also its widest, or asserts
+/// an inequality that a first-line answer satisfies. §3.4 defines min-content as
+/// the *widest* line and Task 4's measure function consumes exactly that, so a
+/// first-line answer is wrong for every string whose longest word is not first —
+/// which is most of them.
+///
+/// **The review's suggested width of 20 does not produce this shape, and the
+/// test moves rather than the claim (ruling TX-A).** At 20pt the system font at
+/// 13pt cannot fit `"ccc"` (21.59) on a line at all, so CoreText character-wraps
+/// it to `"cc"` / `"c"` and the widest line becomes the *middle* one — which
+/// still kills the mutation, but by accident rather than by the stated property.
+/// At 25 the intended three lines appear: `"a "` 10.68, `"bb "` 19.40,
+/// `"ccc"` 21.59.
+@Test func widestLineIsTheWidestLineNotTheFirst() {
+    let shaped = Shaper.shape("a bb ccc", font: font, wrappingAt: 25)
+    #expect(shaped.lines.count == 3)
+    #expect(shaped.widestLine == shaped.lines.last!.advance)
+    #expect(shaped.widestLine > shaped.lines.first!.advance)
+}
+
 /// **The non-termination guard (spec §3.4).** `CTTypesetterSuggestLineBreak`
 /// takes a width by construction, and a non-positive width is an ill-formed
 /// request rather than a narrower line. Spec §3.4 requires callers to offer a

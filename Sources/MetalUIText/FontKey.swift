@@ -95,16 +95,24 @@ public struct FontMetrics: Hashable, Sendable {
 
     /// The distance from one baseline to the next.
     ///
-    /// **That row expired one task early, and this is the corrected claim**
-    /// (taxonomy shape 10). Task 1 recorded "no caller and no assertion … Task 4
-    /// lands the consumer"; **Task 2 did**. ``ShapedText/totalHeight`` is
-    /// `lines.count ×` this, per spec §3.4, and two shaping tests assert the
-    /// product for a known line count —
-    /// `anUnwrappedStringIsOneLineWhoseAdvanceMatchesCoreText` and
-    /// `anEmptyStringIsOneEmptyLineWhetherWrappedOrNot` both require exactly one
-    /// line height, so dropping a term here reddens them. Task 4's
-    /// `MeasureFunction` reports the same product; it is a second consumer, not
-    /// the first.
+    /// **Task 1 said "no caller and no assertion"; Task 2 gave it a caller and
+    /// then wrote a false claim about the assertion, which is worth keeping as
+    /// the warning.** ``ShapedText/totalHeight`` is `lines.count ×` this, per
+    /// spec §3.4, so the caller half is now true. The assertion half was not:
+    /// Task 2's comment named the two shaping tests that compare `totalHeight`
+    /// against `lineHeight` and said dropping a term here would redden them.
+    /// **They cannot see it.** Both spell the expectation
+    /// `abs(shaped.totalHeight - font.metrics.lineHeight) < 0.001` — this
+    /// property is on *both* sides, so it moves the expectation and the
+    /// implementation together. Measured: `{ ascent }` alone left the whole
+    /// suite green at 371 tests. That is the same defect Task 2 had just fixed
+    /// nine lines away in `noWrappedLineExceedsTheOfferedWidthUnlessItIsUnbreakable`
+    /// — **an oracle that is the code under test** — reappearing in a doc
+    /// comment written under a shape-10 banner.
+    ///
+    /// The pin is now `metricsMatchCoreText`, which adds CoreText's three
+    /// numbers up itself rather than asking this property to. Task 4's
+    /// `MeasureFunction` is a second consumer, not the first.
     public var lineHeight: Double { ascent + descent + leading }
 
     public init(ascent: Double, descent: Double, leading: Double) {
