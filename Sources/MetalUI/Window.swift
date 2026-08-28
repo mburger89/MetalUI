@@ -32,7 +32,12 @@ public final class Window {
     /// each frame construct its own would hand every element fresh state on
     /// every frame — a running app that silently forgets, with the whole suite
     /// still green, because a single-frame test cannot tell the two apart.
-    private let stateTable = StateTable()
+    ///
+    /// **Internal rather than private**, for `lastScene`'s reason: a wheel test
+    /// has to read back the `ScrollState` `applyScroll` wrote, and there is no
+    /// other window through which to see it. `@testable import MetalUI` reaches
+    /// it from `Tests/MetalUITests`.
+    let stateTable = StateTable()
 
     /// The shaping cache (spec §3.2), owned here for the same reason
     /// `stateTable` is: a `Frame` lives for one frame and a cache that died with
@@ -127,6 +132,20 @@ public final class Window {
     /// happened". `@testable import MetalUI` reaches it.
     private(set) var lastScene = Scene()
 
+    /// The scroll regions the most recent frame's prepaint registered, in
+    /// registration order, captured alongside `lastScene` for the same reason:
+    /// `Frame` dies at the end of `drawFrameIfNeeded`, and a wheel event may
+    /// arrive at any point afterward.
+    private(set) var lastScrollRegions:
+        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis)] = []
+
+    /// The most recent display-link tick, in seconds — `0` until the first
+    /// tick arrives. Carried into every `Frame` as its `timestamp` (spec §8 of
+    /// the clipping/scroll design): a borrowed M4 primitive, read once here so
+    /// every element in one frame sees the same instant rather than each
+    /// sampling a wall clock independently.
+    private var lastTick: Double = 0
+
     init<Root: Element>(platformWindow: any PlatformWindow,
                         renderer: Renderer,
                         startsDisplayLink: Bool = true,
@@ -148,6 +167,14 @@ public final class Window {
         }
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
+            // Scroll routing runs before the window's general `onInput`, and
+            // claims the event outright when it hits a region — there is no
+            // scroll chaining (see `applyScroll`'s doc comment), so a claimed
+            // wheel event does not also reach whoever opened the window.
+            if case .scrollWheel(let scroll) = event, self.applyScroll(scroll) {
+                self.setNeedsRedraw()
+                return true
+            }
             let handled = self.onInput?(event) ?? false
             self.setNeedsRedraw()
             return handled
@@ -155,7 +182,10 @@ public final class Window {
         // Tests pass false so frame counts stay deterministic: a running link
         // could tick between assertions and inflate `framesDrawn`.
         if startsDisplayLink {
-            platformWindow.startDisplayLink { [weak self] in self?.drawFrameIfNeeded() }
+            platformWindow.startDisplayLink { [weak self] t in
+                self?.lastTick = t
+                self?.drawFrameIfNeeded()
+            }
         }
     }
 
@@ -200,10 +230,18 @@ public final class Window {
                           stateTable: stateTable,
                           shapingCache: shapingCache,
                           glyphAtlas: glyphAtlas,
-                          theme: theme)
+                          theme: theme,
+                          timestamp: lastTick)
         renderRoot(frame)
         let scene = frame.finalizedScene()
         lastScene = scene
+        lastScrollRegions = frame.scrollRegions
+        // An element asked for another frame — an animation in progress. Marking
+        // dirty here (rather than leaving the window to go clean) is what keeps
+        // the display link running: without it, a fade stops the instant the
+        // last input event stops arriving, because `needsRedraw` above already
+        // went false for this pass and nothing else would flip it back.
+        if frame.wantsAnotherFrame { setNeedsRedraw() }
 
         // **Before `encode`, and the ordering is the whole point.** Paint has
         // just packed whatever glyphs this frame needed and the scene holds
@@ -242,5 +280,106 @@ public final class Window {
         platformWindow.surface.present(surfaceFrame, in: commandBuffer)
         commandBuffer.commit()
         framesDrawn += 1
+    }
+
+    /// Applies a wheel delta to the topmost scroll region under the pointer.
+    ///
+    /// **Reverse order**, the same rule §8.1 states for the general hit-test
+    /// registry this one is scoped down from: "dispatch walks them in reverse
+    /// so the topmost opaque hit wins." `lastScrollRegions` is in prepaint
+    /// order — outermost first, since a `ScrollView` registers itself before
+    /// descending into its content — so the last match in a reverse walk is
+    /// the most deeply nested region containing the point, which is the
+    /// visually topmost one.
+    ///
+    /// Momentum deltas are applied identically to direct ones — `isMomentum` is
+    /// read by nothing here, on purpose. AppKit already ran the physics; a
+    /// second simulation on top of an already-physical delta would fight it,
+    /// and building our own inertia now means building it twice — once more
+    /// for iOS and for programmatic scrolling, which have no momentum phase at
+    /// all.
+    ///
+    /// **Not handled: scroll chaining.** An inner region already at its scroll
+    /// limit does not pass the remainder of the delta to an ancestor region —
+    /// the way, say, a nested list in a page does in a browser. That is a
+    /// dispatch concern belonging with the general hit-test work (§8.1), and
+    /// this method claims the topmost match outright rather than falling
+    /// through; its absence is a decision recorded here, not an oversight
+    /// waiting to be found as a bug.
+    ///
+    /// **A wheel event arriving before the first frame finds `lastScrollRegions`
+    /// empty and returns `false`.** That is correct, not a startup race to
+    /// close: there is no layout yet for a region to have been registered
+    /// against, so there is nothing to route the event to.
+    ///
+    /// **The write below is deliberately unbounded, and the thing that bounds
+    /// it is `ScrollView.resolvedOffset`, not anything here.** This method has
+    /// the region's rect but not its content node's size, and no layout at all
+    /// for the frame it is about to cause, so it cannot know where the end is;
+    /// the next frame clamps the stored value against the layout it just
+    /// resolved and writes the clamped number back. **Do not "simplify" that
+    /// write-back into a plain read** — a read-only clamp is what shipped, and
+    /// it let a gesture against either end bank an invisible excess that every
+    /// reversing event then had to unwind before the view moved, which is the
+    /// defect `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind` pins.
+    ///
+    /// Clamping *here* instead was implemented and reverted: it needs the
+    /// ceiling carried on the registration, and it makes a region with **zero**
+    /// travel — a `ScrollView` whose content exactly fits — refuse to record an
+    /// offset at all, which reddens
+    /// `theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove`, a routing test
+    /// that reads routing off exactly such a region's offset.
+    ///
+    /// **The delta component is chosen by the region's OWN axis, not fixed to
+    /// `y`.** A `.horizontal` `ScrollView` stores its offset along `x`
+    /// (`ScrollView.delta(_:)`) and must be driven by `delta.x`; a `.vertical`
+    /// one by `delta.y`. This was wrong for one commit — every region read
+    /// `delta.y` regardless of axis, so a horizontal `ScrollView` responded to
+    /// vertical wheel motion and ignored horizontal motion entirely — fixed by
+    /// carrying `axis` on the registration (`Frame.scrollRegions`) rather than
+    /// guessing it here.
+    ///
+    /// **Semantics are narrow on purpose: one axis, no borrowing the other's
+    /// delta.** A horizontal region takes `delta.x` only and does not move on
+    /// a vertical wheel, and a vertical region the reverse — there is no
+    /// fallback that lets a plain vertical wheel drive a horizontal list, the
+    /// way some web UIs do. AppKit already remaps components for shift-scroll
+    /// on trackpads that report it, so this layer does not need to. Whether a
+    /// wheel-only device should be able to drive a horizontal list at all is a
+    /// UX decision with real trade-offs, and it is deliberately left to
+    /// whoever owns that decision rather than made here by default.
+    private func applyScroll(_ event: ScrollEvent) -> Bool {
+        guard let region = lastScrollRegions.last(where: { contains($0.bounds, event.position) })
+        else { return false }
+        let componentDelta = region.axis == .horizontal ? event.delta.x : event.delta.y
+        stateTable.withState(region.id, initial: ScrollState()) {
+            // Natural scrolling: a positive scrollingDelta means content moves
+            // in the positive direction (the user's fingers moved that way),
+            // so the offset — how far the content has scrolled away from its
+            // start — decreases.
+            $0.offset -= Double(componentDelta.value)
+            // Stamped from the EVENT's own timestamp, not `lastTick`. The
+            // display link pauses while the window is clean (spec §4.4), so
+            // after an idle period `lastTick` is however many seconds stale —
+            // a wheel event arriving then would be stamped with that stale
+            // instant, and the next frame's `age = timestamp - lastScrollTime`
+            // would already exceed the fade duration, suppressing the
+            // indicator on the very frame meant to show it. `event.timestamp`
+            // and `PaintPass.timestamp` (from the display link) share
+            // `mach_absolute_time`'s base, so the subtraction stays valid —
+            // and the event's own time is also simply more current than
+            // `lastTick`, which is the *previous* frame's instant, even when
+            // not idle.
+            $0.lastScrollTime = event.timestamp
+        }
+        return true
+    }
+
+    /// Whether `point` falls within `bounds`, half-open on the max edges. A
+    /// small free function rather than reaching for `Bounds.contains(_:)`
+    /// inline in `applyScroll` above, purely so that closure reads as
+    /// "does this region contain the point" at a glance.
+    private func contains(_ bounds: Bounds<Pixels>, _ point: Point<Pixels>) -> Bool {
+        bounds.contains(point)
     }
 }

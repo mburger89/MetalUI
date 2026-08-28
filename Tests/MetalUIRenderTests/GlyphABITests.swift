@@ -19,6 +19,9 @@ private func makeGlyph(order: MUIUInt, x: Float = 0) -> MUIGlyph {
                           size: MUISize(width: 8, height: 12)),
         atlasBounds: MUIBounds(origin: MUIPoint(x: 0, y: 0),
                                size: MUISize(width: 8, height: 12)),
+        contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                               size: MUISize(width: 1000, height: 1000)),
+        maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
         color: MUIHsla(h: 0, s: 0, l: 1, a: 1),
         order: order,
         _reserved: 0)
@@ -30,6 +33,7 @@ private func makeRect() -> MUIRect {
                           size: MUISize(width: 10, height: 10)),
         contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
                                size: MUISize(width: 100, height: 100)),
+        maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
         background: MUIHsla(h: 0, s: 0, l: 0, a: 1),
         borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
         cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
@@ -116,6 +120,13 @@ private func makeRect() -> MUIRect {
                           size: MUISize(width: 33, height: 34)),
         atlasBounds: MUIBounds(origin: MUIPoint(x: 41, y: 42),
                                size: MUISize(width: 43, height: 44)),
+        contentMask: MUIBounds(origin: MUIPoint(x: 51, y: 52),
+                               size: MUISize(width: 53, height: 54)),
+        // Distinct from `contentMask`'s own numbers and from `MUIRect`'s
+        // `cornerRadii`, so a transposition with either shows up as a wrong
+        // number.
+        maskCornerRadii: MUICorners(topLeft: 61, topRight: 62,
+                                    bottomRight: 63, bottomLeft: 64),
         color: MUIHsla(h: 0.125, s: 0.25, l: 0.375, a: 0.5),
         order: 7,
         _reserved: 0)
@@ -159,7 +170,10 @@ private func makeRect() -> MUIRect {
     #expect(out[23] == 250)  // color.s * 1000
     #expect(out[24] == 375)  // color.l * 1000
     #expect(out[25] == 500)  // color.a * 1000
-    #expect(out[26] == 7)    // order
+    #expect(out[26] == 51)   // contentMask.origin.x
+    #expect(out[27] == 53)   // contentMask.size.width
+    #expect(out[28] == 7)    // order
+    #expect(out[31] == 61)   // maskCornerRadii.topLeft
 }
 
 // MARK: - The draw path, against the CPU atlas as its oracle
@@ -202,6 +216,11 @@ private func sprite(_ slot: AtlasSlot, at origin: (x: Float, y: Float),
                           size: MUISize(width: Float(slot.width), height: Float(slot.height))),
         atlasBounds: MUIBounds(origin: MUIPoint(x: Float(slot.x), y: Float(slot.y)),
                                size: MUISize(width: Float(slot.width), height: Float(slot.height))),
+        // Whole surface: these tests are not about clipping, so nothing here
+        // should cut the sprite.
+        contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                               size: MUISize(width: 10000, height: 10000)),
+        maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
         color: MUIHsla(color),
         order: order,
         _reserved: 0)
@@ -613,4 +632,84 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
         #expect(mismatches == 0,
                 "\(mismatches) pixels differ at y=\(originY) after the texture was replaced")
     }
+}
+
+/// An opaque rect at a higher order must cover text beneath it.
+///
+/// **This is the assertion `Scene.finalize`'s doc comment said could not
+/// exist** — "nothing in this repo can see a glyph painted through a rect" —
+/// and it could not, while `encode` drew every rect before every glyph. The
+/// draw list is what makes it visible, so this test is the draw list's reason
+/// for being rather than a detail of it.
+///
+/// The differential is the second half: the SAME two primitives with the orders
+/// swapped must give the opposite answer. Without it this test passes on a
+/// renderer that draws nothing but rects.
+@Test @MainActor func anOpaqueRectAtAHigherOrderCoversTheTextBeneathIt() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let renderer = try Renderer(device: device)
+    let (atlas, slots) = try packedAtlas(["H"])
+    let slot = slots[0]
+    renderer.upload(atlas)
+
+    let side = 64
+    let size = Size(width: DevicePixels(Int32(side)), height: DevicePixels(Int32(side)))
+
+    // A blue rect exactly covering the glyph's box.
+    func cover(order: MUIUInt) -> MUIRect {
+        MUIRect(bounds: MUIBounds(origin: MUIPoint(x: 4, y: 4),
+                                  size: MUISize(width: Float(slot.width),
+                                                height: Float(slot.height))),
+                contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                                       size: MUISize(width: Float(side), height: Float(side))),
+                maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+                background: MUIHsla(h: 0.6, s: 1, l: 0.5, a: 1),
+                borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
+                cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+                borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
+                order: order, _reserved: 0)
+    }
+
+    // Find a pixel the glyph definitely inks, so "covered" is meaningful.
+    var inkX = -1, inkY = -1
+    for row in 0..<slot.height where inkY < 0 {
+        for column in 0..<slot.width {
+            if atlas.pixels[(slot.y + row) * atlas.width + slot.x + column] > 200 {
+                inkX = column; inkY = row; break
+            }
+        }
+    }
+    try #require(inkY >= 0, "the glyph must have a near-opaque pixel for this test to mean anything")
+
+    // Rect ABOVE the glyph: the covered pixel is the rect's colour.
+    //
+    // The glyph is RED, not white — `aRectAndAGlyphBothDrawInOneScene`'s
+    // convention, kept for the same reason: white is 255 on every channel,
+    // so it cannot be told apart from a blue rect's own maxed blue channel.
+    // Red and blue are complementary (blue channel 255/~0, red channel
+    // ~0/255 for rect/glyph respectively), so every assertion below actually
+    // discriminates which primitive is on top. Practices doc shape 1 records
+    // this exact trap: "white and black are symmetric under a red<->blue
+    // channel transposition."
+    var above = Scene()
+    above.insert(sprite(slot, at: (x: 4, y: 4), color: .rgb(0xFF0000), order: 0))
+    above.insert(cover(order: 1))
+    above.finalize()
+    #expect(above.drawList.count == 2)
+    let coveredPixels = try renderer.renderOffscreen(above, size: size)
+
+    // Rect BELOW the glyph: the same pixel is the glyph's red.
+    var below = Scene()
+    below.insert(cover(order: 0))
+    below.insert(sprite(slot, at: (x: 4, y: 4), color: .rgb(0xFF0000), order: 1))
+    below.finalize()
+    #expect(below.drawList.count == 2)
+    let textPixels = try renderer.renderOffscreen(below, size: size)
+
+    // BGRA8: index 0 is blue, index 2 is red.
+    let hit = (((4 + inkY) * side) + 4 + inkX) * 4
+    #expect(coveredPixels[hit] > 200, "the rect's blue channel must be maxed where it is on top")
+    #expect(coveredPixels[hit + 2] < 80, "no red text may show through an opaque rect (red channel)")
+    #expect(textPixels[hit + 2] > 200, "with the orders swapped, the red glyph's red channel must win")
 }

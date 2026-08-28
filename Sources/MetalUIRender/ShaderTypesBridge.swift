@@ -34,9 +34,14 @@ extension MUIEdges {
 
 extension MUIRect {
     /// Build a GPU rect from framework types. All geometry must already be scaled.
+    ///
+    /// `maskCornerRadii` defaults to a square clip — every call site written
+    /// before this parameter existed means exactly that, and keeps compiling
+    /// and behaving identically without mentioning it.
     public init(
         bounds: Bounds<ScaledPixels>,
         contentMask: Bounds<ScaledPixels>,
+        maskCornerRadii: Corners<ScaledPixels> = Corners(all: ScaledPixels(0)),
         background: Hsla,
         borderColor: Hsla,
         cornerRadii: Corners<ScaledPixels>,
@@ -45,6 +50,7 @@ extension MUIRect {
     ) {
         self.init(bounds: MUIBounds(bounds),
                   contentMask: MUIBounds(contentMask),
+                  maskCornerRadii: MUICorners(maskCornerRadii),
                   background: MUIHsla(background),
                   borderColor: MUIHsla(borderColor),
                   cornerRadii: MUICorners(cornerRadii),
@@ -65,14 +71,19 @@ extension MUIGlyph {
     /// bitmap. The caller still passes the destination size explicitly because
     /// scaling is where this path goes next (spec §7.5), and a size taken from
     /// the slot by construction could not express it.
+    /// `maskCornerRadii` defaults to a square clip — see `MUIRect`'s init.
     public init(bounds: Bounds<ScaledPixels>,
                 slot: AtlasSlot,
+                contentMask: Bounds<ScaledPixels>,
+                maskCornerRadii: Corners<ScaledPixels> = Corners(all: ScaledPixels(0)),
                 color: Hsla,
                 order: UInt32) {
         self.init(bounds: MUIBounds(bounds),
                   atlasBounds: MUIBounds(
                       origin: MUIPoint(x: Float(slot.x), y: Float(slot.y)),
                       size: MUISize(width: Float(slot.width), height: Float(slot.height))),
+                  contentMask: MUIBounds(contentMask),
+                  maskCornerRadii: MUICorners(maskCornerRadii),
                   color: MUIHsla(color),
                   order: order,
                   _reserved: 0)

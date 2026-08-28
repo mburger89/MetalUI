@@ -145,6 +145,16 @@ public final class Renderer {
         defer { encoder.endEncoding() }
 
         guard !scene.isEmpty else { return }
+        // **A scene with primitives and no draw list was never finalized.**
+        // `finalize()` is what builds `drawList`, and the loop at the foot of
+        // this method iterates it — so an unfinalized non-empty scene would
+        // encode zero draw calls and paint nothing, silently. Before the draw
+        // list existed a forgotten `finalize()` merely left the primitives
+        // unsorted; now it is a blank frame, which is a far quieter failure
+        // and a public entry point away (`Window` always goes through
+        // `Frame.finalizedScene()`, so production cannot reach this).
+        precondition(!scene.drawList.isEmpty,
+                     "Renderer.encode: the scene holds primitives but its draw list is empty — call Scene.finalize() (or use Frame.finalizedScene()) before encoding, or this frame draws nothing at all.")
 
         encoder.setViewport(view.viewport)
 
@@ -154,19 +164,37 @@ public final class Renderer {
         // so a stereo backend's per-eye matrices work without a renderer change.
         var projection = view.projection
 
-        // Each pipeline is guarded by its own array being non-empty, not by
-        // `scene.isEmpty`. A glyph-only scene reaches here — a `Text` with no
-        // background is an ordinary element — and `makeBuffer(bytes:length: 0)`
-        // returns nil, so an unguarded rect encode would throw
-        // `bufferAllocationFailed` on a scene that is perfectly well formed.
-        if !scene.rects.isEmpty {
-            try encodeRects(scene.rects, into: encoder,
-                            viewport: &viewport, projection: &projection)
-        }
-        // After every rect, whatever the orders say — see `Scene.finalize`.
-        if !scene.glyphs.isEmpty {
-            try encodeGlyphs(scene.glyphs, into: encoder,
-                             viewport: &viewport, projection: &projection)
+        // **One draw per run, pipeline bound only when the kind changes.** This
+        // is what makes a rect able to occlude text: before the draw list,
+        // `encode` drew every rect and then every glyph regardless of `order`.
+        // A run's `count` is always >= 1 (`Scene.finalize` never emits an empty
+        // run), so `makeBuffer(bytes:length: 0)` is unreachable here.
+        //
+        // **Cost, unrecorded until now: `Array(scene.rects[...])` /
+        // `Array(scene.glyphs[...])` below copy a fresh array per run.** Before
+        // the draw list there were two slices a frame, full stop; now a scene
+        // with N rows that alternate rect/glyph — the exact composition this
+        // task exists to draw correctly — produces up to 2N runs and therefore
+        // 2N array allocations plus 2N `MTLBuffer` allocations in
+        // `encodeRects`/`encodeGlyphs`, scaling with how finely the two types
+        // interleave in z-order rather than with primitive count. Spec §7.3
+        // already names the mitigation: a z-order layout choice, not a change
+        // here — the M5 node-graph editor keeps every wire beneath every node
+        // body so the whole graph is two runs, and the same discipline (e.g. a
+        // list painting all row backgrounds before all row text) keeps this
+        // cheap for any caller that wants it to be. Not fixed here because it
+        // is a real optimisation (slicing without copying, or batching by kind
+        // with a per-instance kind tag) with its own design, not a comment's
+        // worth of change.
+        for run in scene.drawList {
+            switch run.kind {
+            case .rect:
+                try encodeRects(Array(scene.rects[run.start..<(run.start + run.count)]),
+                                into: encoder, viewport: &viewport, projection: &projection)
+            case .glyph:
+                try encodeGlyphs(Array(scene.glyphs[run.start..<(run.start + run.count)]),
+                                 into: encoder, viewport: &viewport, projection: &projection)
+            }
         }
     }
 

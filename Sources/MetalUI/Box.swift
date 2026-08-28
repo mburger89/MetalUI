@@ -230,10 +230,15 @@ extension StyledElement {
     /// Rounds all four corners of the background by the same radius.
     ///
     /// **Paint only — it does not affect layout or clip the children.** The
-    /// engine has no corner-radius input (`Style` carries none), and clipping
-    /// needs `contentMask`, which the fragment shader does not read; a child
-    /// painted into a rounded parent's corner therefore still shows square.
-    /// Per-corner radii wait for a caller that wants them.
+    /// engine has no corner-radius input (`Style` carries none), and `Box`
+    /// itself never calls `PaintPass.clipped(to:offsetBy:cornerRadii:)` — it
+    /// has no clip of its own at all, rounded or square, so a child painted
+    /// into its corner shows square regardless of this radius. **This is no
+    /// longer because the clip stack cannot carry a radius** — ruling CL-A's
+    /// follow-on gave it one, and `ScrollView.cornerRadius(_:)` is the one
+    /// production caller that uses it, rounding the clip it pushes around its
+    /// own content. `Box` simply pushes no clip for this radius to round;
+    /// wiring one in is a `Box`-specific follow-on, not a stack limitation.
     public func cornerRadius(_ points: Pixels) -> Self {
         decorating { $0.cornerRadius = points }
     }

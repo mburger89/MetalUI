@@ -140,23 +140,93 @@ func demoContent() -> some Element {
                      width layout settled on.
                      """)
 
-                // Three unequal weights: 1 / 2 / 1. Equal ones would still look
-                // right under a grow term that ignored the weight entirely.
-                Row(gap: Pixels(12)) {
-                    Box().flexGrow(1).background(.surfaceSecondary).cornerRadius(Pixels(10))
-                    Box().flexGrow(2).background(.surfaceSecondary).cornerRadius(Pixels(10))
-                    Box().flexGrow(1).background(.surfaceSecondary).cornerRadius(Pixels(10))
+                // **The clipping-and-scroll milestone's exit criterion.**
+                // Replaces the three-weights filler row (M1's flexGrow demo,
+                // now covered by the sidebar rows and the header bar above) with
+                // a `ScrollView` over 40 rows — the one element in this file
+                // that exercises clipping (rectangular AND, since ruling CL-A's
+                // follow-on, rounded), wheel routing with trackpad momentum,
+                // and an indicator painted over text.
+                //
+                // **`ScrollView` has no modifier surface** — it conforms to
+                // `Element`, not `StyledElement` — so nothing here can call
+                // `.height(_:)` or `.flexGrow(_:)` on it directly. Measured
+                // (a throwaway probe against this exact tree) rather than
+                // assumed: giving the wrapping `Box` an explicit height alone
+                // does NOT bound the viewport, because CSS Sizing §4.5's
+                // automatic minimum floors a container at its CONTENT height on
+                // whichever axis is its MAIN axis relative to ITS OWN parent —
+                // here, height — and this engine implements only the content
+                // half of that floor (ruling FS-3), so an explicit height is
+                // silently overridden back up to the full 1120pt of stacked
+                // rows. Two things fix it, both on the wrapping `Box` alone:
+                // `.minHeight(Pixels(0))` replaces the automatic (content-based)
+                // floor with a literal zero, and `.flexGrow(1).flexBasis(Pixels(0))`
+                // makes the box's HEIGHT grow-derived rather than content-derived,
+                // so it takes exactly the pane's leftover vertical space and
+                // reflows on resize. The automatic minimum only ever binds an
+                // item's MAIN axis, so the viewport's HEIGHT — the wrapping
+                // `Box`'s CROSS axis, since it keeps `Box`'s default `.row`
+                // direction — reaches it cleanly through ordinary
+                // `align-items: stretch`, with no override needed there.
+                //
+                // **Width takes the opposite route, and is a real cost.** The
+                // same automatic-minimum gap means nothing here can make the
+                // viewport's WIDTH responsive either — it is `ScrollView`'s own
+                // MAIN axis relative to this wrapping `Box`, and there is no
+                // modifier to grow it. Each row below is pinned to a literal
+                // 420pt instead, which is what fixes the viewport's own
+                // content-based width at exactly 420 regardless of the pane's
+                // available space; the wrapping `Box` repeats the same literal
+                // so its rounded background matches the viewport with no gap.
+                // Unlike the height fix, this one does not reflow on resize —
+                // the same trade-off the 196pt sidebar above already makes.
+                Box {
+                    ScrollView(.vertical) {
+                        for i in 0..<40 {
+                            // Alternating row backgrounds, deliberately painted
+                            // edge-to-edge with the viewport: `ScrollView`'s
+                            // own `.cornerRadius(_:)` below (ruling CL-A) cuts
+                            // the clip to the SAME 14pt curve the wrapping
+                            // `Box`'s background paints, so a row scrolled to
+                            // the very top or bottom is cut by that curve too
+                            // instead of painting square into the corner the
+                            // background left transparent. The two radii are
+                            // two separate literals that must agree — nothing
+                            // enforces that they do, see `ScrollView.cornerRadius`'s
+                            // doc comment — and this demo is where a mismatch
+                            // would show.
+                            Box(decoration: Decoration(
+                                background: i.isMultiple(of: 2) ? .surface : .surfaceSecondary)) {
+                                Text("Row \(i + 1) of 40 — a scrollable list item")
+                            }
+                            .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
+                                          bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
+                            .height(Pixels(28))
+                            .width(Pixels(420))
+                            // Vertical centring within the row; horizontal
+                            // stays flex-start, the ordinary reading direction
+                            // for a list item's label.
+                            .alignItems(.center)
+                        }
+                    }
+                    .cornerRadius(Pixels(14))
                 }
+                .width(Pixels(420))
                 .flexGrow(1)
-                // The three weights size themselves horizontally and fill
-                // vertically. `flexGrow` is a main-axis rule and says nothing
-                // about the cross one, which is what this modifier is for.
-                .alignItems(.stretch)
+                .flexBasis(Pixels(0))
+                .minHeight(Pixels(0))
+                .background(.surface)
+                .cornerRadius(Pixels(14))
             }
             .flexGrow(1)
             .padding(Pixels(16))
-            // The hero box and the row of weights each declare one axis and
-            // fill the other.
+            // The hero box declares its height and fills its width from
+            // here, and so does the wrapping paragraph — which is what makes
+            // it re-wrap on resize. (This used to name "the row of weights";
+            // the clipping-and-scroll milestone replaced that row with the
+            // `ScrollView` box above, which declares both of its axes and
+            // takes nothing from this line.)
             .alignItems(.stretch)
             .background(.surface)
             .cornerRadius(Pixels(14))

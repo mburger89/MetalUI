@@ -86,8 +86,13 @@ idiomatic Swift. macOS and iOS.
   visible, a wrongly-filling one is not — but it has to be paid in writing. The
   remedy is a declared cross size, or `.alignItems(.stretch)` on the container
   where "these fill their parent" is what the code means;
-  `Sources/MetalUIDemo/main.swift` pays it in **five** places (root column, body
-  row, sidebar, main pane, the row of weights) and says so at each.
+  `Sources/MetalUIDemo/main.swift` pays it in **four** places (root column, body
+  row, sidebar, main pane) and says so at each. It was five until the
+  clipping-and-scroll milestone deleted the row of weights — re-count with an
+  **anchored** pattern, `grep -cE "^ +\.alignItems\(\.stretch\)"
+  Sources/MetalUIDemo/main.swift`, which returns 4. An unanchored `grep -c`
+  returns **7**: three of the demo's comments name the modifier while
+  explaining why it is there.
 
   **Two sentences have now expired here in two commits, and the second was
   written by the commit that retired the first.** The original — "a leaf still
@@ -99,7 +104,7 @@ idiomatic Swift. macOS and iOS.
   and the label is 120 wide at `x = 0`, agreeing with WebKit. **`Column { Text }`
   now needs no remedy at all.** What the bullet above still costs is the
   *childless* `Box`, which measures 0 because it has no content to wrap — the
-  demo's five `.alignItems(.stretch)` are paying for that and not for text.
+  demo's four `.alignItems(.stretch)` are paying for that and not for text.
 
 - **`Text` measures and draws, and three things about it are load-bearing.**
   M2 landed `MetalUIText` (CoreText, no Metal), a shaping cache and a glyph
@@ -261,7 +266,7 @@ what the demo draws — and no test can establish it.** `MetalLayerSurface` vend
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and the whole suite still passed when that was measured, at 342 tests
-(**445 today**; the count is quoted so the measurement can be dated, not because
+(**489 today**; the count is quoted so the measurement can be dated, not because
 342 is a property of anything). If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
@@ -321,7 +326,50 @@ a test that got this wrong would crash the run rather than redden. If layout
 ever moves off the main actor, the measure closure is the first thing to
 rewrite.
 
-## Six known divergences — expected, measured, not defects
+**Clipping and scroll verified on 2026-08-28 — this milestone's exit criterion,
+and it took three looks to close.** A human ran `swift run MetalUIDemo` and
+reported, on the third: scrolling works as expected with no intermittent issues,
+and the scroll indicator is correctly clipped by the container's rounded corner.
+
+**The first two looks each found a defect nothing in the 501 tests could see,
+which is the entire argument for this section.**
+
+1. **Odd text wrapping in the list rows.** Chased to a mechanism now recorded as
+   **divergence 8**, and it is PRE-EXISTING — measured byte-identical at this
+   branch's base `ba22e4a` with no `ScrollView` in the probed tree. The branch's
+   only contribution was putting 40 shrink-wrapped strings on screen at once,
+   turning a per-string coin flip into something unmissable. **Still visible in
+   the demo, by decision**: the honest fixes move a node's stored size and belong
+   in a sizing/text milestone, and a paint-side clamp was measured and rejected.
+2. **"The ScrollView is not rounded, it has hard edges"**, then **"the scroll bar
+   is painted outside the corner"** — both real, both fixed here (`f081b9d`,
+   `55ed142`). The first exposed a contradiction in this milestone's own spec:
+   §1 scoped rounded clip corners *out* while §3.1 justified choosing a fragment
+   mask over `[[clip_distance]]` *because* it could clip a rounded container. The
+   mechanism was chosen on a capability the same document excluded.
+3. **"Scrolling stopped working intermittently."** The offset was clamped on
+   *read* and unbounded on *write*, so overscroll banked an invisible dead band
+   and reversing events spent themselves unwinding it (`19f55f7`). Measured: 20
+   events of −37 into 80pt of real travel stored **740**, and 17 of the next 20
+   reversing events moved nothing. Chasing it found a second defect the human had
+   not reached yet — the indicator never appeared after ~1s idle, because its fade
+   clock was stamped from a display-link timestamp that freezes while the link is
+   paused (`329fa04`).
+
+**What the look established that nothing here can: scroll direction.**
+`Window.applyScroll` subtracts the delta, and AppKit folds the user's
+natural-scrolling preference into that delta's sign — every test pins the
+arithmetic against a synthetic delta whose sign the test itself chose. Only a
+human on a real trackpad can say which way the list actually moves. The human
+also reported that apparent tearing was the wrapping rather than real tearing.
+
+**What it did NOT establish, and these stay looks forever by construction**
+(`docs/superpowers/specs/2026-08-28-clipping-and-scroll-design.md` §9): clip-edge
+antialiasing *quality*, whether the fade *timing* feels right, and whether
+scrolling feels native. A positive report closes the exit criterion and closes
+none of those three.
+
+## Seven known divergences — expected, measured, not defects
 
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
@@ -469,6 +517,56 @@ clause above: a golden would record this engine's answer as correct, and a
 future fix should move nothing in the corpus. That test is the only pin, so
 implementing FS-3 must redden exactly it.
 
+**That last sentence was measured before `ScrollView` existed, and a shipped
+feature now sits downstream of the half that DOES work.** The *content* half of
+§4.5's automatic minimum — the half this engine implements — is the sole reason
+a `ScrollView`'s content node overflows its viewport at all, and
+`Sources/MetalUIDemo/main.swift` relies on the missing *specified* half in the
+opposite direction: it must set `.minHeight(Pixels(0))` on the box wrapping the
+demo's scroll list, because an explicit height alone is silently overridden back
+up to the content height. So whoever implements FS-3 owns three things this
+sentence did not anticipate. **(1)** "must redden exactly it" is still the
+claim to check, but re-measure it rather than trusting it — the pin was counted
+against a suite with no `ScrollView` in it. **(2)** The demo's
+`.minHeight(Pixels(0))` and the paragraph explaining it become wrong the moment
+the specified-size suggestion lands, since an explicit height would then bind on
+its own. **(3)** `ScrollView.requestLayout`'s `contentStyle.flexShrink = 0`
+interacts with the change: the automatic minimum is what floors the content node
+at min-content and `flexShrink: 0` is what stops the freeze loop shrinking it
+from max-content down to that floor (ruling CL-C). A specified-size suggestion
+that lowers the floor changes what the freeze loop would do, not what it is
+allowed to do — `aScrollViewOfTextDoesNotShrinkItsContentToTheViewport` is the
+test to watch. **(4)** Task 10's own report gave a wrong reason for the demo's
+`ScrollView` wrapper needing a literal `.width(Pixels(420))` instead of
+reflowing, and it was wrong in **two directions at once** — corrected here
+rather than silently fixed, per this repo's own rule about false claims.
+`.minWidth(_:)` **does** exist (`Box.swift:269`, beside `.minHeight(_:)`), so
+"width has no equivalent escape" is wrong as literally stated. But measured on
+the full demo tree at windows 1200/920/700, `.minWidth(Pixels(0))` on the
+wrapping `Box` is **bit-identical** to writing no width spelling at all —
+wrapper 1027/771/554, viewport (and every row) still 243/244/244 either way —
+so the escape that does exist does not work, and the fixed 420 is not "a
+problem with an available fix that went unused." The real blocker, found by
+mutation: adding `viewportStyle.flexGrow = 1` inside
+`ScrollView.requestLayout` makes the viewport fill at every width
+(1027/771/554, matching the wrapper) — an ordinary flex fact about the
+viewport's own **main** axis, unconnected to §4.5's automatic minimum, and
+unreachable from any caller because `ScrollView` conforms to `Element`, not
+`StyledElement`, and has no modifier surface at all. **There is a genuine
+symmetry underneath both wrong and right halves of Task 10's claim.** A `Row`
+wrapper (shipped) bounds the height via cross-axis stretch and strands the
+width, because the viewport's width is its *main* axis relative to a row and
+nothing can grow it there. A `Column` wrapper does the exact reverse: it gives
+the viewport the full width via cross-axis stretch (measured: 1200/920/700),
+but its height goes unbounded to **1120** — the whole content — because height
+is now the viewport's main axis and no `.minHeight(0)` is spellable on
+`ScrollView` either. With today's API you get one axis or the other, never
+both. Task 10's **conclusion** — a literal width is the only option today —
+was right; its **stated reason** was wrong twice over (`.minWidth` exists;
+the actual blocker is `flexGrow`, not the automatic minimum). The real fix is
+a modifier surface on `ScrollView` (or a reachable `flexGrow`/`minSize`), not
+a demo spelling change.
+
 **6. Ruling TX-H — an item's cross size is measured before §9.7 flexes it.**
 CSS Flexbox resolves the flexible lengths (step 6) and *then* determines each
 item's hypothetical cross size "by performing layout with the **used** main
@@ -515,11 +613,16 @@ follows at y = 55. **As the only item of a `Row`** the identical column gives it
 32/33/38 and 69 at 2x), so the second line lands inside the `Box`, which has
 moved up to y = 39. The label's height is the item's *main* size in a column,
 not its cross size, so **this is not literally §9.4 step 7**, and the site was
-not isolated. It is visible in the demo: at the 920pt default the sidebar's
-`Text("Library")` is one line and correct, and by 620pt the body row has shrunk
-the 196pt sidebar to ~70pt, the label wraps, and its second line overlaps the
-row below it. Whoever fixes divergence 6 should check this against the same
-edit before assuming one change closes both.
+not isolated. It is visible in the demo: the 196pt-declared sidebar is
+squeezed below its declaration at **every** window width measured, not only a
+narrow one — **97 / 73 / 70** at windows 1200 / 920 / 700 (ruling FS-3; this
+file previously said the squeeze was visible "at 620pt", which understated
+it — the sidebar is already at 97pt on the *widest* window measured). What
+does change with width is whether the squeeze is narrow enough to force a
+wrap: at 920pt the sidebar's 73pt is still wide enough for `Text("Library")`
+to sit on one line, and by 620pt (sidebar ~70pt) the label wraps and its
+second line overlaps the row below it. Whoever fixes divergence 6 should
+check this against the same edit before assuming one change closes both.
 
 **Not fixed, and the reason is reach — BM-4's and FS-3's reason.** It moves an
 item's stored cross size, which every ancestor consumes and 67 goldens are
@@ -551,6 +654,104 @@ container's cross extent **minus the item's own cross margins** (WebKit 104, not
 min-content is a real floor that overflows (four 50-wide items in a **30**-wide
 centring column measure `50x80` at `x = -10`).
 
+**8. A shrink-wrapped `Text`'s rounded box can be narrower than the max-content
+it was measured at, and paint disagrees with layout about how many lines there
+are.** Every divergence above, and TX-H, is this engine disagreeing with
+WebKit. This one is not — WebKit is not the oracle here at all, and it is the
+first divergence where **layout is right and paint is wrong**, entirely within
+this engine.
+
+A `Text` that is a flex item shrink-wraps to its own max-content, which is a
+fractional number: `"Row 1 of 40 — a scrollable list item"` at 13pt measures
+**209.3203**pt wide. `roundLayout` (`Sources/MetalUILayout/Rounding.swift`)
+rounds the *cumulative* edges and subtracts — `width = round(x + w) −
+round(x)` — which is correct for keeping a row's boundary closed on its
+parent, but it can round a node's own stored width down by as much as a whole
+point (up to 0.5 from each of two independent roundings; here `x == 0`, so the
+entire 0.3203pt loss is the box's own). `Text.paint` then re-shapes the string
+at that **rounded** width (`Sources/MetalUI/Text.swift`'s `let width =
+max(Double(bounds.size.width.value), smallestWrapWidth)`), and when rounding
+went down the string no longer fits the box it was measured into — CoreText
+breaks the last word onto a second line.
+
+Reproduce with:
+
+```swift
+Row { Text("Row 1 of 40 — a scrollable list item") }   // in a 900pt frame
+```
+
+Layout measures this correctly: a 209×16 box, one line, exactly the
+rounded-down max-content width. Paint, rendered through a real `Frame`, emits
+glyphs on **two** distinct baselines inside that same 16pt-tall box. Nothing is
+flexed and nothing shrinks here — this is not TX-H — the box is the right
+height for the one-line layout the engine itself computed, and the whole
+defect lives in the seam between the width layout stored and the width paint
+re-asked CoreText about.
+
+The outcome is not tied to any particular string or window size: a sweep
+varying only a spacer's width by a tenth of a point
+(`Row { Box().width(spacer); Text(s) }`, holding the text's max-content fixed
+at 209.3203) shows the wrap flipping with `frac(x + maxContent)`:
+
+```
+spacer=126.0  boxW=209  paint draws 2 lines
+spacer=126.2  boxW=210  paint draws 1 line
+spacer=126.4  boxW=210  paint draws 1 line
+spacer=126.5  boxW=209  paint draws 2 lines
+spacer=127.0  boxW=209  paint draws 2 lines
+```
+
+Layout height is 16.0 on every row of that table. In a 40-row demo list this
+shows up as a handful of rows that look identical to their neighbours but wrap
+differently and get clipped by the row's fixed height: at windows
+860/800/700/620 the wrapping rows are `[2, 12, 20, 21, 23, 24, 25, 32]` — row
+12's max-content 217.0898 rounds down to 217 and wraps, while rows 11
+(215.2744 → 216) and 13 (217.3945 → 218) round up and do not. The direction is
+**not monotone in window width** — 1200pt is the worst case measured, not the
+best — because what moves the outcome is the pane's fractional origin, not
+anything about the window getting narrower.
+
+**Pre-existing, and not introduced by the clipping-and-scroll branch.**
+Measured byte-identical at that branch's base commit `ba22e4a`, before a
+single line of clipping or scroll code existed, with no `ScrollView` anywhere
+in the probed tree. The branch's only contribution was putting 40
+shrink-wrapped strings on screen at once, which turned a roughly one-in-three
+per-string coin flip into something visible — a reporting contribution, not a
+causal one.
+
+**Not fixed here, and the reason is reach — BM-4's, FS-3's and TX-H's
+reason.** A paint-side epsilon is not the fix, and that was measured rather
+than argued: giving paint back half a point of slack
+(`wrappingAt: bounds.width + 0.5`) still leaves 19 of 40 rows wrapping at
+window 1200, because the error is the **sum** of two independent roundings and
+can reach a full point; a full point of slack is what would let a glyph paint
+outside its own box, which is a wider hole, not a fix. Divergence 6's rule
+applies again — the box is what is wrong, the glyphs are where the box says,
+and a clamp in paint would move the defect somewhere nothing can see it. The
+two honest fixes are both larger than this branch: **(1)** carry the wrap
+*width* forward from layout onto `LayoutTree`, so paint asks the same question
+layout already answered instead of re-deriving a rounded one — `Text.paint`'s
+own doc comment currently argues against carrying the shape forward because it
+would be "one rounding step stale", and that argument needs revisiting against
+this measurement: the rounded width is not a staler version of the right
+question, it is a *different* question, and today's code answers the wrong
+one. **(2)** make `roundStoredRects` never round a measured leaf's box below
+the content size its own measure function reported. Either one moves a node's
+stored size, which every ancestor then consumes and the corpus is downstream
+of; it belongs in a sizing/text milestone.
+
+**No fixture and no golden encode it, on the same footing as BM-4 and FS-3.**
+Ruling TX-B also forbids a text fixture outright, independently of that
+reason. Pinned instead by
+`roundingCanMakePaintWrapAShrinkWrappedTextThatLayoutMeasuredAsOneLine` in
+`GlyphEmitterTests.swift`, which is the only assertion in the 488-test suite
+that reaches this composition at all: every glyph-emitter test before it
+paints a **root** `Text`, whose `auto` inline axis takes the whole offered
+extent (divergence 4) rather than shrink-wrapping to a fractional max-content,
+so nothing else in the suite can land on the down side of this rounding —
+taxonomy shape 9, a composition that existed in the code and in no test.
+Implementing either fix above must redden exactly that test.
+
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
@@ -559,7 +760,21 @@ them are read by no production code** — `position`, `inset`, `overflow`,
 `aspectRatio`. **`StyledElement` deliberately exposes no modifier for any of the
 four** (`Box.swift`): a modifier for an inert property is worse than none,
 because from outside it is indistinguishable from an implemented one. When one
-becomes live, add its modifier in the same task that deletes its row. Re-count with the grep below rather
+becomes live, add its modifier in the same task that deletes its row.
+
+**`overflow` is the counter-intuitive case the clipping-and-scroll milestone
+added, and it stays in this table on purpose.** `ScrollView.requestLayout`
+now WRITES `viewportStyle.overflow = Axes(both: .scroll)` — the first
+production write this property has ever had — but the engine still reads it
+nowhere: removing that line was measured (a probe built for exactly this
+question) to move no number in the layout it produces. Clipping and scrolling
+both work anyway, driven entirely by `ScrollView` pushing an explicit
+`pass.clipped(to:offsetBy:)` and registering a scroll region — mechanisms that
+do not consult `Style.overflow` at all. So the property documents intent for a
+reader of the style, same as CSS's own keyword would, and does nothing when
+the engine runs. A production write is not the same as a production read, and
+silence in this table on that distinction would read as "implemented" — the
+one thing this table exists to prevent. Re-count with the grep below rather
 than trusting the number: it was nine before the box model wired `padding`,
 `border` and `margin` in, six before wrapping wired `flexWrap`, and five before
 `align-content` landed. Count the properties with an *anchored* pattern and
@@ -584,9 +799,9 @@ are the dangerous ones.
 | `aspectRatio` | **0 uses** |
 | `margin: auto` (`Style.margin`'s `.auto` case) | **Resolves to 0, not to CSS's answer.** Item margins landed in the box-model task's second step — `resolveMargin` in `Resolve.swift` shrinks the main-axis budget and offsets each item by its own margin — but `.auto` maps to 0 on the single line marked for it in that function, not to CSS's "absorb free space before `justify-content` distributes any." A `margin-left: auto` item that CSS would push to the far end of the line lays out at the line's start instead, silently. Pinned by `autoMarginsResolveToZeroForNow` in `BoxModelTests.swift`, with CSS's real answer named in its comment. **This row's scope was too narrow until the wrapping branch's final review measured it** — the third claim of that shape on this project, after ruling WR-4's and WR-5's. Auto margins are not only a main-axis/`justify-content` gap: WebKit **centres a `margin-block: auto` item within its line on the CROSS axis** and we give 0 (`b` at 90 vs our 0). That was already true under `nowrap`; `align-content: stretch` — the default this branch made reachable — grows lines and widened it (`d` at 255 vs our 225). Whoever implements auto margins owns both axes, not just the one `justify-content` sees. **Unreachable from the public modifier API since the element pipeline's Task 4**, and by a type rather than by a convention: `StyledElement.margin(_:)` takes `Length`, not `Dimension`, so `.auto` cannot be written through it at all. `Style.margin` is still public, so the case is reachable by setting `style` directly |
 | `MUIRect.borderColor` / `MUIRect.borderWidths` | **Round-trip the ABI, are drawn by `rect_fragment` — the M0 demo proved that end to end — and nothing in `MetalUI` can set either.** `Frame.fill` hard-codes `.transparent` and zero widths, and `Decoration` deliberately has no `borderColor`. The blocker is the **width**, not the colour: `Style.border` is an `Edges<Length>` whose percentage case resolves against the *containing block's* width, and the engine computes that inside `contentBox` and throws it away, so paint has no resolved width to pair a colour with. Re-resolving one at paint time against the box's own width is the exact mistake the percentage-inset constraint below records. Storing the resolved edges on `LayoutTree` is what unblocks it. Note the asymmetry this leaves: `StyledElement.borderWidth(_:)` is **live** and shrinks the content box, so a border affects sizing today and paints nothing |
-| `MUIRect.contentMask` | Round-trips the whole CPU/GPU ABI; **`rect_fragment` never reads it.** No clipping. `grep contentMask Sources/` is not a clean 0 — `abi_probe` in `shaders.metal` reads `contentMask.size.width` to prove the field's offset survives the MSL boundary. That is the test harness, not rendering |
 | A percentage `width`/`height` on the **root** | **Falls back to the offered space, not to the percentage.** `resolveRootSize` resolves the root's percentages against `nil` and then takes `available` — so `width: 50%` in an 800-wide space gives **800**. Measured in WebKit: **400**. The root's percentage *padding* does resolve against `available.width` (see `computeLayout`), so the two halves of "the root's containing block" disagree with each other today. Fixing it moves the root's stored size, which every descendant consumes; it belongs to a sizing plan, not the box model |
-| `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
+| `position`, `inset` | **0 uses each.** No absolute positioning. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
+| `overflow` | **Written for the first time, still read nowhere.** `ScrollView.requestLayout` sets `viewportStyle.overflow = Axes(both: .scroll)` (ruling CL-B) — a production write, unlike `position`/`inset` above — but the engine consults it in no code path: `grep -rn "\.overflow\b" Sources/` outside `Style.swift`'s own declaration finds exactly the one write and nothing that reads it back. Clipping and scrolling both work, but through `ScrollView` pushing an explicit `pass.clipped(to:offsetBy:)` and registering a scroll region directly — mechanisms independent of this property. Kept as its own row rather than folded into the one above, because a write with no read is a sharper trap than a property nobody touches at all: a reader who sees `ScrollView` set `overflow: .scroll` and then finds clipping working would reasonably conclude the two are connected |
 | `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** The element pipeline's Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **Re-measured, with a mutation that compiles.** The number this row used to quote came from adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder`, and that mutation **no longer compiles**: `anExplicitAnyElementIsStillAcceptedAsAChild` — added by that same commit — puts an `AnyElement` inside a builder block, so the generic overload demands `AnyElement: Element`, which it is not, and the suite fails to build with `error: static method 'buildExpression' requires that 'AnyElement' conform to 'Element'`. Pairing it with a non-generic `buildExpression(_ e: AnyElement) -> AnyElement` restores the measurement: **exactly the three type-level tests in that file redden, and no behavioural test at all — re-measured `--no-parallel` on 2026-08-27 after structural identity, out of 358 rather than the 303 first recorded, and the three are the same three.** Universal identity does not disturb it: `AnyElement`'s `requestGroupLayout` consumes one cursor index exactly as `Element`'s default does, so boxing every child moves no path and no `StateTable` entry. Delete this row when the static path demonstrably does not serve a real container |
 | **Colour glyphs** (emoji, `COLR`/`sbix`) | **Wrong rather than absent, and now visibly so.** Spec §6.1 routes them to a *polychrome* atlas that skips tinting; there is no polychrome atlas in M2 and `GlyphRaster.rasterize` does not detect one either. So `CTFontDrawGlyphs` renders an emoji into the `DeviceGray` context as a **luminance silhouette**, it packs into the R8 atlas like any other glyph, and `glyph_fragment` multiplies it by the text colour — `Text("hi 🎉")` paints a flat blob in the text's colour where the emoji should be. It does not trap and it is not blank, which is exactly why it is written down: **nothing in this repo can see it**, there being no oracle for a rendered glyph at all (spec §4.2). The fix is a second atlas and a second draw path, not a branch in the rasterizer. Note that it was *invisible* rather than *wrong* until the glyph emitter landed — this row's status changed without its text changing, which is the shape ruling CS-E names |
 | `GlyphAtlas.evictUnusedSince(_:)`, and the grow-only atlas it leaves | **Zero production callers — and a caller would make things WORSE, not better, until the packer can reclaim.** That is the mechanism, and it is checkable rather than a milestone to wait for: the shelf packer never revisits a closed shelf, so evicting a key frees a dictionary entry and **strands its pixels**; the next frame that wants that glyph packs a *second* copy further down. Calling eviction every frame therefore makes the atlas fill **faster**. `grep -rn "evictUnusedSince" Sources/` returns **nine** lines and **not one of them is a call**: the declaration, the string inside its own precondition message, and seven doc comments — the same shape as `LayoutTree.reset(generation:)` below. Re-count rather than trusting the nine; two of the doc comments were added by the emitter task, so this number moves with the prose and the "no call" half is the claim. The frame brackets it depends on *are* live: `Frame.render` calls `beginFrame`/`endFrame` around the paint phase, so the ordering guard is enforceable; what is absent is only the call. **These three facts are one story, so read them together:** eviction is unwired, the atlas is therefore **grow-only**, and when it is full `Frame.draw` **silently drops** the glyphs that will not fit — a window showing an unbounded stream of distinct glyphs loses text with no error anywhere. What unblocks it is a repacker or a whole-atlas rebuild, not a call site. Its guards (`evictingDuringFrameConstructionTraps`, `aGlyphUnusedSinceAnOlderGenerationIsEvicted`) stay for `LayoutTree.reset`'s reason: they pin the contract for whoever does call it |
@@ -606,17 +821,28 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **445 tests** and 67 browser fixtures, warning-free
-(re-measured 2026-08-27 `--no-parallel` at the **end** of M2, on `feat/text-m2`
-after `swift package clean`, per rulings CS-M/CS-N/SI-H: a count is stale the
-moment a test is added, so it is taken at the milestone's last commit rather
-than at the commit that first quoted it. Task 8 added no test — it is docs and
-the demo — so the emitter's 444 reproduced exactly, and the whole-branch
-review's atlas-race fix took it to 445. Read the
-summary line, never the exit status — shape 11. It was 429 before the emitter,
-396 after the divergence-6 task, 365 after Task 1 and 360
-before the branch, and that 360 measured 361 on the same checkout — so treat a
-±1 as a stale doc rather than a missing test, and re-measure).
+`swift build` · `swift test` — **489 tests** and 67 browser fixtures, warning-free
+(re-measured 2026-08-28 `--no-parallel` after `swift package clean`, per rulings
+CS-M/CS-N/SI-H: a count is stale the moment a test is added, so it is taken at
+the latest commit rather than at the commit that first quoted it.
+Task 10 was docs and the demo and added no test, so Task 9's 482 reproduced
+exactly; the whole-branch review's fix round then added **six** — a `ScrollView`
+text pin for ruling CL-C, a rect pre-projection clip test, an
+unfinalized-scene trap and its positive control, an indicator fade/token
+assertion and a horizontal-indicator geometry one — reaching 488 at the
+milestone's own last commit. The wrap-investigation record-and-pin work that
+followed added **one** —
+`roundingCanMakePaintWrapAShrinkWrappedTextThatLayoutMeasuredAsOneLine`,
+divergence 8's pin — bringing it to 489. Read the summary line, never
+the exit status — shape 11.
+The milestone started at **445** (M2's own end-of-milestone count) and climbed
+task by task: 451 after Task 1 (`DrawListTests`), 452 after Task 2, 455 after
+Task 3 (`ClipTests`), 458 after Task 4, 463 after Task 5 (`ClipStackTests`),
+468 after Task 6 (`ScrollViewTests`/`ScrollLayoutTests`), 474 after Task 7
+(`ScrollRoutingTests`), 477 after Task 8, 482 after Task 9 (`ScrollIndicatorTests`).
+Every one of those was itself re-measured rather than summed by hand at the
+time — treat a ±1 against this list as a stale doc rather than a missing test,
+and re-measure).
 **Eight** non-test targets with strictly one-way dependencies: `MetalUICore`,
 `MetalUILayout`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
 `MetalUIPlatform`, `MetalUI`, `MetalUIDemo`. **`MetalUITestSupport` is a ninth
@@ -796,10 +1022,14 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    `Test run with 304 tests`, re-measured at 358 on the structural-identity
    branch, and **re-counted at the end of M2 (suite 444): still 25 — 15 + 7 + 1
    + 2 across the four files**, where `grep -c canTypecheck` reads 3 in
-   `UnitSafetyTests` because one is a comment. The suite is 445 today and the 25
-   is unchanged, the extra test being an ordinary runtime one — which is this
-   paragraph's own point arriving as an example. **The guard count does not track
-   the suite count and neither number implies the other.** A falling suite count
+   `UnitSafetyTests` because one is a comment. **Re-counted again at the end of
+   the clipping-and-scroll milestone (suite 488): still 25.** The suite has
+   moved 304 → 358 → 444 → 488 and the guard count has not moved at all, which
+   is the paragraph's point arriving as four data points rather than as one
+   delta — the argument is that the two numbers are independent, so do not
+   restate it as "the suite grew by N and the 25 held", which rots the moment N
+   changes. **The guard count does not track the suite count and neither number
+   implies the other.** A falling suite count
    is the signal shape 11 tells you to watch, and this failure does not move it.
 
    **Not converted to a hard failure, and the reason is a configuration rather

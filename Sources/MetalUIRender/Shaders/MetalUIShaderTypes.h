@@ -24,11 +24,17 @@ typedef struct { float top, right, bottom, left; } MUIEdges;
 // the fragment shader's [[position]], which is in render-target pixels.
 typedef struct {
     MUIBounds bounds;
-    // CARRIED BUT NOT YET APPLIED. Every call site fills this in and it
-    // round-trips the ABI, but `rect_fragment` never reads it, so nothing is
-    // clipped today. Clipping arrives in M1 (spec 7.3); until then a rect
-    // paints outside its content mask.
+    // Axis-aligned clip, same space as `bounds`. `rect_fragment` multiplies
+    // coverage by it, antialiased on the same half-pixel threshold as the
+    // rect's own edge. The whole surface means "no clip" and is what
+    // `Frame.fill` passes when no clip stack is active.
     MUIBounds contentMask;
+    // Corner radii for `contentMask`, in the same space as `bounds` and
+    // interpreted by `pick_corner_radius`/`rect_sdf` exactly as `cornerRadii`
+    // below is for the rect's own edge. All-zero — the zero value every call
+    // site written before this field existed gets by default — is a square
+    // clip, identical to `contentMask` alone.
+    MUICorners maskCornerRadii;
     MUIHsla background;
     MUIHsla borderColor;
     MUICorners cornerRadii;
@@ -47,12 +53,17 @@ typedef struct {
 // does (a zoomed canvas, spec 7.5), and because a source and a destination that
 // share a field cannot be told apart when one of them is wrong.
 //
-// There is deliberately NO `contentMask` here. `MUIRect` carries one that
-// `rect_fragment` never reads, and a second inert field would be a second thing
-// that looks implemented from the outside.
 typedef struct {
     MUIBounds bounds;        // destination, ScaledPixels
     MUIBounds atlasBounds;   // source, atlas texels
+    // Axis-aligned clip, same space as `bounds`, read by `glyph_fragment`. This
+    // struct deliberately had no such field while `MUIRect`'s was inert; it
+    // gained one in the same commit that made both live.
+    MUIBounds contentMask;
+    // Corner radii for `contentMask` — see `MUIRect.maskCornerRadii`. A glyph
+    // has no corner radii of its own (a sprite is always a plain rect), so
+    // this is the only `MUICorners` field on this struct.
+    MUICorners maskCornerRadii;
     MUIHsla   color;         // tint; the R8 atlas carries coverage only
     MUIUInt   order;
     MUIUInt   _reserved;

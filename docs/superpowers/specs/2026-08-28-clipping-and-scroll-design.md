@@ -32,18 +32,32 @@ the rest and because it ends in something runnable.
 - Dragging the indicator's thumb; the indicator widening on hover (both need
   hit testing); keyboard scrolling (needs focus); scroll-into-view;
   programmatic or animated scrolling.
-- Rounded *clip* corners on anything but the container's own painted
-  background — see §4.
+
+**In, and not scoped out despite an earlier draft of this line saying
+otherwise:** rounded clip corners. §3.1 below chose a fragment mask over
+`[[clip_distance]]` *because* "rounded clipping comes nearly free" — a
+capability this line used to exclude in the same spec that justified the
+mechanism on having it. `MUICorners` on `contentMask` (§3.1, §4), and
+`ScrollView.cornerRadius(_:)` (§6) are that capability, landed in the same
+milestone. See ruling CL-A's follow-on in
+`docs/superpowers/2026-08-28-clipping-scroll-decisions.md` for what shipped
+and its one documented approximation (nested clips with two independently
+rounded corners near the same point).
 
 ---
 
 ## 2. Renderer: ordering
 
-### 2.1 What is wrong today
+### 2.1 What was wrong before Task 2
 
-`Scene` holds one array per primitive type and `finalize()` sorts **within**
-each. `Renderer.encode` then draws all rects, then all glyphs. Its own doc
-comment states the consequence:
+**Fixed by Task 1 and pinned by Task 2** (`anOpaqueRectAtAHigherOrderCoversTheTextBeneathIt`,
+`GlyphABITests.swift`) — this section is the design rationale that motivated
+both, kept for that reason even though the quote below no longer describes the
+code.
+
+`Scene` held one array per primitive type and `finalize()` sorted **within**
+each. `Renderer.encode` then drew all rects, then all glyphs. Its own doc
+comment stated the consequence:
 
 > `order` sorts WITHIN a primitive type and not between them. Every glyph is
 > drawn after every rect regardless of order … it is wrong for a rect that
@@ -284,10 +298,21 @@ design asserted `flexShrink: 0` was what did it; the differential above
 falsified that, and the rows are kept so the claim cannot silently revert to
 the wrong one.
 
-`flexShrink: 0` is still specified, as the belt to the automatic minimum's
-braces: it is the only one of the two that survives an explicit `min-height: 0`
-somewhere up the chain. **Neither is redundant on its own evidence** — row 4 is
-what a reader needs to see to know why both are there.
+**`flexShrink: 0` is specified, and the four rows above are the wrong evidence
+for why.** Every row is measured on fixed-height `Box`es, whose min-content and
+max-content sizes are the same number, so the freeze loop has nothing to shrink
+in any of them — which is why `flexShrink` looks inert across rows one and two.
+Give the content intrinsic sizes that *differ* (any content holding text) and
+it stops being inert: the automatic minimum floors the node at **min-content**
+while its flex base size is **max-content**, the freeze loop shrinks it from
+the latter to the former, and `flexShrink: 0` is the only thing that stops it.
+Measured through `ScrollView` on 2026-08-28: `ScrollView(.horizontal) { Text;
+Text }` in a 200pt viewport gives a content node of **200** without the line —
+equal to the viewport, so nothing scrolls and the indicator is suppressed — and
+**507.8** with it; `ScrollView(.vertical) { 5 × Text }` in 200×40 gives **80**
+against **160**. Pinned by
+`aScrollViewOfTextDoesNotShrinkItsContentToTheViewport`. See ruling CL-C for
+the full history of the claim that went the other way.
 
 **No engine change is required.** Overflow is what the engine already does.
 

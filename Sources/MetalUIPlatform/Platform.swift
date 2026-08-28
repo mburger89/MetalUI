@@ -27,8 +27,13 @@ public protocol PlatformWindow: AnyObject {
     var onAppearanceChange: ((Appearance) -> Void)? { get set }
     var onClose: (() -> Void)? { get set }
 
-    /// Begin delivering frame ticks. The callback runs on the main actor.
-    func startDisplayLink(_ tick: @escaping () -> Void)
+    /// Begin delivering frame ticks. The callback runs on the main actor and
+    /// receives the display link's timestamp in seconds.
+    ///
+    /// **The timestamp is the link's, not a wall-clock read.** Every element in
+    /// one frame must see the same instant, and `CACurrentMediaTime()` sampled
+    /// per element would not give them one.
+    func startDisplayLink(_ tick: @escaping (Double) -> Void)
     /// Pausing lets an idle window permit display downclocking (spec 4.4).
     func setDisplayLinkPaused(_ paused: Bool)
 }

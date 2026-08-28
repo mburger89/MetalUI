@@ -665,3 +665,122 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
     #expect(mismatches.isEmpty,
             "\(mismatches.count) of \(compared) pixels differ — \(mismatches.prefix(6).joined(separator: ", "))")
 }
+
+// MARK: - CLAUDE.md's divergence 8: paint disagrees with layout about line count
+
+/// The four-token repro from
+/// `.superpowers/sdd/2026-08-28-clipping-and-scroll/wrap-investigation.md`.
+/// As a `Row`'s only child, this string shrink-wraps to its own max-content
+/// width — a fractional number, 209.3203pt at 13pt — which `roundLayout`
+/// rounds DOWN to 209 (`x == 0` here, so the whole 0.3203 loss is the box's
+/// own rounding). `Text.paint` then re-shapes at that rounded 209, which is
+/// too narrow for the string, and CoreText wraps the last word onto a second
+/// line inside a box layout measured as exactly one line tall.
+private let wrapDivergenceSample = "Row 1 of 40 — a scrollable list item"
+
+/// A full three-phase render, like `Frame.render`, but — unlike `painted`
+/// above — also hands back the ROOT's `LayoutNodeID`. `Frame.render` builds
+/// that id and never exposes it, so this spells out the same three calls to
+/// get at it: a test needs the root to read a CHILD's `LayoutRect` off
+/// `frame.tree` (what LAYOUT decided) beside the `Scene` paint produced (what
+/// PAINT actually drew) — the seam this divergence lives in.
+@MainActor
+private func renderedWithRoot<E: Element>(_ element: inout E, width: Double,
+                                          height: Double = 600,
+                                          scaleFactor: Float = 2) -> (Frame, LayoutNodeID, Scene) {
+    let frame = Frame(
+        contentSize: Size(width: Pixels(Float(width)), height: Pixels(Float(height))),
+        scaleFactor: scaleFactor)
+    let rootID = GlobalElementID.child(of: nil, at: 0, name: element.elementID)
+    var layoutPass = LayoutPass(frame: frame)
+    let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)
+    var state = layoutState
+    frame.computeRootLayout(root: root)
+    let rootBounds = frame.bounds(of: root)
+
+    var prepaintPass = PrepaintPass(frame: frame)
+    var prepaintState = element.prepaint(rootID, bounds: rootBounds, layout: &state,
+                                         pass: &prepaintPass)
+
+    frame.glyphAtlas.beginFrame()
+    var paintPass = PaintPass(frame: frame)
+    element.paint(rootID, bounds: rootBounds, layout: &state, prepaint: &prepaintState,
+                  pass: &paintPass)
+    frame.glyphAtlas.endFrame()
+
+    return (frame, root, frame.finalizedScene())
+}
+
+/// Clusters a scene's glyph `bounds.origin.y` values into distinct visual
+/// lines. A fixed bucket size is not reliable here — measured on this exact
+/// sample, bucketing by `/10` split a single real line into two buckets (the
+/// glyph origins for one line spanned 588 to 599, eleven device pixels, from
+/// ordinary ascender/descender variation among the letters). Splitting
+/// instead at any gap bigger than HALF a device line height is: measured on
+/// the same sample, the intra-line spread is 11 device px and the true
+/// inter-line gap is 21, against a half-line-height threshold of 16 (13pt
+/// line height 16.0 × scaleFactor 2 ÷ 2) — comfortably on the correct side of
+/// both, and confirmed against a one-line control below (`"Hello"`, which
+/// clusters to 1).
+private func lineClusterCount(_ scene: Scene, font: ResolvedFont, scaleFactor: Double) -> Int {
+    let halfLineHeight = ctLineHeight(font.ctFont) * scaleFactor / 2
+    let ys = scene.glyphs.map { Double($0.bounds.origin.y) }.sorted()
+    guard !ys.isEmpty else { return 0 }
+    var clusters = 1
+    for i in 1..<ys.count where ys[i] - ys[i - 1] > halfLineHeight { clusters += 1 }
+    return clusters
+}
+
+/// **Pins CLAUDE.md's divergence 8** — pre-existing, not introduced by the
+/// clipping-and-scroll branch (measured byte-identical at the branch's base
+/// commit `ba22e4a`, before a line of clipping or scroll code existed, with
+/// no `ScrollView` anywhere in the probed tree), and the first of the
+/// engine's recorded divergences where the disagreement is not with WebKit at
+/// all — it is between this engine's own layout and this engine's own paint.
+///
+/// **What correct behaviour looks like, so a future fix reddens this
+/// deliberately rather than by surprise.** The layout box would still measure
+/// one line tall — nothing here is flexed and nothing shrinks below its
+/// content, so this is not TX-H — but the scene would hold glyphs on exactly
+/// ONE baseline, not two, because paint would either wrap at the width layout
+/// actually measured (not the rounded-down stored width) or layout would
+/// never round a measured leaf's box below the content size its own measure
+/// function reported. CLAUDE.md's divergence 8 entry names both real fixes
+/// and why neither belongs on this branch — a paint-side epsilon was measured
+/// and rejected there, not merely argued against.
+///
+/// **This is the only pin.** Taxonomy shape 9
+/// (`wrap-investigation.md`, "The five questions", Q5): every glyph-emitter
+/// test elsewhere in this file paints a ROOT `Text`, whose `auto` inline axis
+/// takes the whole offered extent (CLAUDE.md divergence 4) rather than
+/// shrink-wrapping to a fractional max-content, so nothing else in the suite
+/// this branch started from (488 tests) can land on the down side of this
+/// rounding. Implementing either of CLAUDE.md's two named fixes must redden
+/// exactly this test.
+@MainActor
+@Test func roundingCanMakePaintWrapAShrinkWrappedTextThatLayoutMeasuredAsOneLine() {
+    var row = Row { Text(wrapDivergenceSample) }
+    let (frame, root, scene) = renderedWithRoot(&row, width: 900)
+    let child = frame.tree.children(root)[0]
+    let box = frame.tree.layout(child)
+
+    // Layout is right: one line, and the stored width is the max-content
+    // 209.3203 rounded DOWN to 209 — not up to 210, which is the whole defect.
+    #expect(box.height == 16, "layout's own line-count disagrees with itself")
+    #expect(box.width == 209)
+
+    // Paint is wrong: what it actually emitted lands on two baselines, not
+    // the one the box it was handed says there should be.
+    #expect(lineClusterCount(scene, font: font, scaleFactor: 2) == 2, """
+            expected the paint-side wrap defect (two baselines in a one-line box) — if this \
+            reads 1, the roundLayout/Text.paint seam has been fixed and CLAUDE.md's \
+            divergence 8 should be retired
+            """)
+
+    // Positive control: a string whose max-content is nowhere near a rounding
+    // boundary stays on one baseline, so the assertion above is not vacuous.
+    var control = Row { Text("Hello") }
+    let (_, controlRoot, controlScene) = renderedWithRoot(&control, width: 900)
+    _ = controlRoot
+    #expect(lineClusterCount(controlScene, font: font, scaleFactor: 2) == 1)
+}

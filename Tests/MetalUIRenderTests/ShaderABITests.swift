@@ -25,6 +25,10 @@ import MetalUIShaderTypes
                        size: Size(width: ScaledPixels(13), height: ScaledPixels(14))),
         contentMask: Bounds(origin: Point(x: ScaledPixels(21), y: ScaledPixels(22)),
                             size: Size(width: ScaledPixels(23), height: ScaledPixels(24))),
+        // Distinct from `cornerRadii` below (same type, four lines apart), so a
+        // transposition between the two shows up as a wrong number.
+        maskCornerRadii: Corners(topLeft: ScaledPixels(51), topRight: ScaledPixels(52),
+                                 bottomRight: ScaledPixels(53), bottomLeft: ScaledPixels(54)),
         background: Hsla(h: 0.5, s: 0.25, l: 0.75, a: 1),
         borderColor: Hsla(h: 0.1, s: 0.2, l: 0.3, a: 0.4),
         cornerRadii: Corners(topLeft: ScaledPixels(1), topRight: ScaledPixels(2),
@@ -40,6 +44,8 @@ import MetalUIShaderTypes
     var glyph = MUIGlyph(
         bounds: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0)),
         atlasBounds: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0)),
+        contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0)),
+        maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
         color: MUIHsla(h: 0, s: 0, l: 0, a: 0),
         order: 0,
         _reserved: 0)
@@ -85,4 +91,6 @@ import MetalUIShaderTypes
     #expect(out[10] == 4)    // cornerRadii.bottomLeft
     #expect(out[11] == 8)    // borderWidths.left
     #expect(out[12] == 9)    // order
+    #expect(out[29] == 51)   // maskCornerRadii.topLeft
+    #expect(out[30] == 53)   // maskCornerRadii.bottomRight
 }

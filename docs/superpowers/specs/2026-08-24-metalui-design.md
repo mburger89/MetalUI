@@ -941,14 +941,40 @@ Primitives are appended during `paint` with a monotonically increasing `order`. 
 sorts by order and **groups consecutive runs of the same type into one instanced draw call**.
 Draw-call count is the number of *type transitions* in z-order.
 
-**Clipping is per-primitive via `[[clip_distance]]`, not scissor rects.** Scissor clipping would force
-a state change and therefore a batch break at every clip boundary; clip distances make clipping free
-and composable with instancing.
+**Clipping is per-primitive via a fragment mask in the instance buffer, not `[[clip_distance]]` and
+not scissor rects.** *(Amended — the clipping-and-scroll milestone, 2026-08-28; the first draft
+specified `[[clip_distance]]`, and that is what was built against.)* The batching argument this
+section opened with is what a fragment mask keeps: `contentMask`, an axis-aligned `Bounds` already
+riding along on `MUIRect` and `MUIGlyph`, costs nothing to change between adjacent instances in the
+same draw call the way a scissor rect's state change would — clipping still causes no batch break.
+`[[clip_distance]]` was rejected for a reason scissor rects share with it and a fragment mask does
+not: a container that clips to *rounded* corners — the motivating case this milestone built,
+a `ScrollView` viewport inside a rounded `Box` — has no representation as a small, fixed set of clip
+planes, while a mask multiplies straight into the coverage `rect_fragment` was already computing for
+its SDF — `mask_coverage` (`shaders.metal`) is a few lines beside code that existed before this
+milestone, not a new subsystem.
+That the built mechanism is still rectangular, not rounded, is a real and separately recorded gap
+(ruling CL-A, whose "what it costs if wrong" carries it, and `Box.cornerRadius`'s own doc comment
+in `Sources/MetalUI/Box.swift` — **not** a CLAUDE.md table row: there is none, and this sentence
+invented one) — it is a *cost* of the fragment-mask choice, not
+a reason `[[clip_distance]]` would have done better, since `[[clip_distance]]` cannot express a
+rounded clip at all.
+
+**Draw-call count is now assertable, not just estimated.** `Scene.finalize()` builds `drawList: [DrawRun]`,
+grouping consecutive same-`PrimitiveKind` runs exactly as this section's opening paragraph describes;
+`Scene.drawList.count` is the number a test or a caller reads instead of counting by inspection.
 
 **Draw-call expectation, stated with its constraint.** The "under ~10 draw calls" figure holds when
 same-type primitives are contiguous in z-order. Paths in particular batch only in contiguous runs
 (§7.4). The M5 node-graph demo is designed accordingly: all wires on one layer beneath all node
-bodies, rather than interleaved per node.
+bodies, rather than interleaved per node. **A `ScrollView` list is the same constraint in a second
+shape, measured rather than designed around**: each row is a rect (its background) immediately
+followed by a glyph run (its text), so *N* interleaved rows cost *2N* draw-call runs, not the ~1 the
+node-graph mitigation achieves for a single homogeneous layer — `Scene.drawList` on the demo's
+40-row list shows the alternation directly. Rows do not get the wires-beneath-bodies treatment
+because a list has no equivalent layer to sort onto: every row's background sits directly beneath
+that row's own text, not beneath every row's text, so z-order cannot flatten the interleaving away
+the way it does for a node graph's wires and bodies.
 
 ### 7.4 Frame graph
 

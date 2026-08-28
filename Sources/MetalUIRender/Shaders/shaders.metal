@@ -42,6 +42,29 @@ static float4 hsla_to_srgba(MUIHsla hsla) {
     return float4(rgb + m, hsla.a);
 }
 
+// Antialiased coverage of `p` inside an axis-aligned, optionally rounded mask,
+// in the same pixel space as `[[position]]`.
+//
+// Reuses `rect_sdf`/`pick_corner_radius` — the same machinery `rect_fragment`
+// already uses for its own `outerAlpha` — rather than a second rounded-rect
+// implementation, and on the same half-pixel threshold, so a clip edge and a
+// rect edge antialias identically. `maskRadii` all zero degenerates to a plain
+// axis-aligned box, which is every call site written before this parameter
+// existed.
+//
+// **Not `discard_fragment()`.** There is no depth buffer, so discarding buys
+// nothing, and on some GPUs it disables early-Z for the whole shader. Returning
+// coverage keeps this composable with the SDF coverage the callers already
+// compute.
+static inline float mask_coverage(float2 p, MUIBounds mask, MUICorners maskRadii) {
+    float2 halfSize = float2(mask.size.width, mask.size.height) * 0.5;
+    float2 center   = float2(mask.origin.x, mask.origin.y) + halfSize;
+    float2 rel      = p - center;
+    float radius = pick_corner_radius(rel, maskRadii);
+    // 0.5 is half a pixel: the same antialiasing threshold `rect_sdf` uses.
+    return saturate(0.5 - rect_sdf(rel, halfSize, radius));
+}
+
 // ---------------------------------------------------------------------------
 // Rect pipeline
 // ---------------------------------------------------------------------------
@@ -114,7 +137,10 @@ fragment float4 rect_fragment(
     float4 color = mix(borderColor, background, innerAlpha);
 
     // Premultiplied output, to pair with a (one, oneMinusSourceAlpha) blend.
-    return float4(color.rgb * color.a, color.a) * outerAlpha;
+    // Clip last, so it composes with the rounded-rect coverage above rather
+    // than replacing it. A primitive is drawn where it intersects its mask.
+    float clip = mask_coverage(in.pixelPosition, r.contentMask, r.maskCornerRadii);
+    return float4(color.rgb * color.a, color.a) * outerAlpha * clip;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +153,12 @@ fragment float4 rect_fragment(
 
 struct GlyphVertexOut {
     float4 position [[position]];
+    /// Unprojected position, in the same ScaledPixels space as `MUIGlyph.bounds`
+    /// (and `contentMask`). The fragment shader must clip here, not in
+    /// `position.xy`: under a non-identity projection those spaces differ, and
+    /// using `position.xy` would clip each glyph to its unprojected footprint.
+    /// Same reasoning as `RectVertexOut.pixelPosition` — see the note there.
+    float2 pixelPosition;
     /// Source position in ATLAS TEXELS, not normalised — the sampler below is
     /// declared `coord::pixel`. Interpolating this rather than recomputing it
     /// per fragment is what makes the blit exact: at a fragment centre it is
@@ -158,6 +190,7 @@ vertex GlyphVertexOut glyph_vertex(
     GlyphVertexOut out;
     // Same POST-NDC projection contract as `rect_vertex` — see the note there.
     out.position = projection * float4(ndc, 0.0, 1.0);
+    out.pixelPosition = pos;
     out.atlasPosition = float2(g.atlasBounds.origin.x, g.atlasBounds.origin.y)
                       + unit * float2(g.atlasBounds.size.width, g.atlasBounds.size.height);
     out.glyphID = instanceID;
@@ -209,10 +242,18 @@ fragment float4 glyph_fragment(
     // reading anything but .r here would silently paint a constant.
     float coverage = atlas.sample(atlas_sampler, in.atlasPosition).r;
 
-    float4 tint = hsla_to_srgba(glyphs[in.glyphID].color);
+    MUIGlyph g = glyphs[in.glyphID];
+    float4 tint = hsla_to_srgba(g.color);
     // Spec 7.8: coverage is a blend weight applied to alpha, used unmodified
     // and with no linearization anywhere. gpui's `color.a *= sample.a`.
-    float alpha = tint.a * coverage;
+    // Same clip as `rect_fragment`, same helper, evaluated in the same
+    // pre-projection space via `pixelPosition` (not the built-in
+    // `in.position.xy`, which is post-projection — see `GlyphVertexOut`'s doc
+    // comment). That is what makes a glyph and a rect under one clip stack cut
+    // on exactly the same boundary under ANY projection, not only the identity
+    // one every existing test used before this was fixed.
+    float clip = mask_coverage(in.pixelPosition, g.contentMask, g.maskCornerRadii);
+    float alpha = tint.a * coverage * clip;
     // Premultiplied output, to pair with a (one, oneMinusSourceAlpha) blend.
     return float4(tint.rgb * alpha, alpha);
 }
@@ -262,5 +303,15 @@ kernel void abi_probe(
     out[23] = (MUIUInt)(g.color.s * 1000.0);
     out[24] = (MUIUInt)(g.color.l * 1000.0);
     out[25] = (MUIUInt)(g.color.a * 1000.0);
-    out[26] = g.order;
+    out[26] = (MUIUInt)g.contentMask.origin.x;
+    out[27] = (MUIUInt)g.contentMask.size.width;
+    out[28] = g.order;
+
+    // `maskCornerRadii` on both structs — two corners each (not one), so a
+    // transposition with the existing `cornerRadii` field (same type,
+    // adjacent on `MUIRect`) shows up as a wrong number rather than a
+    // coincidental match.
+    out[29] = (MUIUInt)r.maskCornerRadii.topLeft;
+    out[30] = (MUIUInt)r.maskCornerRadii.bottomRight;
+    out[31] = (MUIUInt)g.maskCornerRadii.topLeft;
 }

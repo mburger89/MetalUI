@@ -32,6 +32,16 @@ public enum ColorToken: Sendable, Hashable, CaseIterable {
     /// is why it is a token and not a literal: unthemed text is the single
     /// easiest thing to leave black in a dark window.
     case textPrimary
+    /// The `ScrollView` overlay thumb (Task 9 of the clipping/scroll design).
+    ///
+    /// Added in this task rather than reused from an existing token: the
+    /// indicator draws over arbitrary content — including `textPrimary`-tinted
+    /// glyphs, which is the whole point of Task 1's draw list — so it needs a
+    /// value translucent enough to read as an overlay rather than a full-alpha
+    /// hairline the way `separator` is authored. `ScrollView.paint` multiplies
+    /// this token's own alpha by the fade's `alpha` on top, so the base value
+    /// here is what a freshly-scrolled thumb looks like at full opacity.
+    case scrollIndicator
 }
 
 /// The mapping from `ColorToken` to colour, for one appearance (spec §7.9).
@@ -58,15 +68,17 @@ public struct Theme: Sendable, Hashable {
     public var accent: Hsla
     public var separator: Hsla
     public var textPrimary: Hsla
+    public var scrollIndicator: Hsla
 
     public init(background: Hsla, surface: Hsla, surfaceSecondary: Hsla,
-                accent: Hsla, separator: Hsla, textPrimary: Hsla) {
+                accent: Hsla, separator: Hsla, textPrimary: Hsla, scrollIndicator: Hsla) {
         self.background = background
         self.surface = surface
         self.surfaceSecondary = surfaceSecondary
         self.accent = accent
         self.separator = separator
         self.textPrimary = textPrimary
+        self.scrollIndicator = scrollIndicator
     }
 
     public subscript(token: ColorToken) -> Hsla {
@@ -77,6 +89,7 @@ public struct Theme: Sendable, Hashable {
         case .accent:           accent
         case .separator:        separator
         case .textPrimary:      textPrimary
+        case .scrollIndicator:  scrollIndicator
         }
     }
 
@@ -93,7 +106,8 @@ public struct Theme: Sendable, Hashable {
         surfaceSecondary: .rgb(0xE4E7EC),
         accent:           .rgb(0x2563EB),
         separator:        .rgb(0xC8CDD6),
-        textPrimary:      .rgb(0x14181F))
+        textPrimary:      .rgb(0x14181F),
+        scrollIndicator:  .rgb(0x000000, alpha: 0.35))
 
     /// See `light` for why every value here differs from its counterpart.
     public static let dark = Theme(
@@ -102,7 +116,8 @@ public struct Theme: Sendable, Hashable {
         surfaceSecondary: .rgb(0x27304A),
         accent:           .rgb(0x60A5FA),
         separator:        .rgb(0x3A4260),
-        textPrimary:      .rgb(0xE9EDF5))
+        textPrimary:      .rgb(0xE9EDF5),
+        scrollIndicator:  .rgb(0xFFFFFF, alpha: 0.35))
 
     /// The theme the host's current appearance calls for.
     ///

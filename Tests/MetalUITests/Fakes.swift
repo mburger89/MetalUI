@@ -84,6 +84,18 @@ final class FakePlatformWindow: PlatformWindow {
     private(set) var pauseCalls: [Bool] = []
     private(set) var displayLinkStarted = false
 
+    /// The tick callback `startDisplayLink` was handed, so a test can drive a
+    /// tick at a timestamp of its own choosing rather than waiting on a real
+    /// `CADisplayLink`.
+    private var tick: ((Double) -> Void)?
+
+    /// The timestamp of the most recent `simulateTick`, `0` until the first
+    /// one. Tracked here — not read off `Window`, which keeps its own copy
+    /// private — purely so `simulateInput` below has a deterministic "now" to
+    /// fall back on; it never advances on its own, so a test that drives no
+    /// ticks between two `simulateInput` calls sees no drift.
+    private(set) var currentTime: Double = 0
+
     var contentSize: Size<Pixels>
     var scaleFactor: Float = 1
     var surface: any RenderSurface { fakeSurface }
@@ -122,9 +134,25 @@ final class FakePlatformWindow: PlatformWindow {
     /// window said about it. AppKit reads that answer to decide whether to keep
     /// propagating the event, so a test that ignored the return value would not
     /// notice a window that always claimed "unhandled".
+    ///
+    /// **A `.scrollWheel` event whose `timestamp` is left at `ScrollEvent`'s
+    /// default (`0`) is stamped with `currentTime` before delivery.** Real
+    /// AppKit always supplies a populated `NSEvent.timestamp`, so this is what
+    /// stands in for that here — every test written before `ScrollEvent`
+    /// gained a `timestamp` field constructs one with the implicit `0`, and
+    /// this fallback reproduces exactly what `Window.applyScroll` used to
+    /// stamp in that case (`lastTick`, which `currentTime` mirrors), so none of
+    /// those tests observes any change. A test that wants to simulate the
+    /// event's own clock diverging from the display link's last tick — a wheel
+    /// event arriving after the link has paused and real time has moved on —
+    /// sets `timestamp` explicitly and this leaves it untouched.
     @discardableResult
     func simulateInput(_ event: InputEvent) -> Bool {
-        onInput?(event) ?? false
+        if case .scrollWheel(var scroll) = event, scroll.timestamp == 0 {
+            scroll.timestamp = currentTime
+            return onInput?(.scrollWheel(scroll)) ?? false
+        }
+        return onInput?(event) ?? false
     }
 
     init(device: any MTLDevice, size: Int = 64) throws {
@@ -132,12 +160,23 @@ final class FakePlatformWindow: PlatformWindow {
         self.contentSize = Size(width: Pixels(Float(size)), height: Pixels(Float(size)))
     }
 
-    func startDisplayLink(_ tick: @escaping () -> Void) {
+    func startDisplayLink(_ tick: @escaping (Double) -> Void) {
         displayLinkStarted = true
+        self.tick = tick
     }
 
     func setDisplayLinkPaused(_ paused: Bool) {
         pauseCalls.append(paused)
+    }
+
+    /// Deliver a display-link tick at `timestamp`, the way a real
+    /// `CADisplayLink` fires `displayLinkFired`. A test that needs a specific,
+    /// non-zero timestamp on a window built with `startsDisplayLink: false`
+    /// calls this directly instead — `simulateInput` is the analogous shape for
+    /// input events.
+    func simulateTick(timestamp: Double) {
+        currentTime = timestamp
+        tick?(timestamp)
     }
 }
 
@@ -165,6 +204,14 @@ func makeFakeWindow<Root: Element>(
     device: any MTLDevice,
     size: Int = 64,
     appearance: Appearance = .light,
+    // False by default for the reason every other call site passes it: the
+    // fake's `startDisplayLink` schedules nothing on its own, but leaving
+    // `Window`'s registration path untaken keeps this indistinguishable from
+    // every existing test that never drives a tick. A test that needs
+    // `FakePlatformWindow.simulateTick(timestamp:)` to reach `Window` — the
+    // frame-clock tests — passes `true` so `Window.init` hands the fake the
+    // closure `simulateTick` fires.
+    startsDisplayLink: Bool = false,
     content: @escaping @MainActor () -> Root
 ) throws -> (Window, FakePlatformWindow) {
     let platformWindow = try FakePlatformWindow(device: device, size: size)
@@ -172,7 +219,7 @@ func makeFakeWindow<Root: Element>(
     let renderer = try Renderer(device: device)
     let window = Window(platformWindow: platformWindow,
                         renderer: renderer,
-                        startsDisplayLink: false,
+                        startsDisplayLink: startsDisplayLink,
                         content: content)
     return (window, platformWindow)
 }

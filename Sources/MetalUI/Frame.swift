@@ -27,6 +27,27 @@ public final class Frame {
     /// in `fill`, so element code never has to think about it.
     public let scaleFactor: Float
 
+    /// This frame's display-link timestamp, in seconds — identical for every
+    /// element in this frame, because it is read once here rather than by each
+    /// element calling a wall clock.
+    ///
+    /// **A borrowed M4 primitive** (spec §8 of the clipping/scroll design): the
+    /// input to a time-based animation, not an animation system. Defaulted to
+    /// `0` so every existing `Frame(...)` call site in the corpus and the test
+    /// suite keeps compiling unchanged; `Window` is the only production caller
+    /// that passes a real one.
+    public let timestamp: Double
+
+    /// Set by an element that needs another frame — an in-progress animation.
+    ///
+    /// **A borrowed M4 primitive** (spec §8 of the clipping/scroll design): the
+    /// input to animation, not an animation system. `Window` reads it after
+    /// render and marks itself dirty, which unpauses the display link.
+    private(set) var wantsAnotherFrame = false
+
+    /// Ask for another frame after this one — for an animation in progress.
+    func requestAnotherFrame() { wantsAnotherFrame = true }
+
     /// CSS's `rem` basis for `Length.rem`. One value per frame.
     ///
     /// **M2 came and went without making this settable, and that was a
@@ -88,6 +109,175 @@ public final class Frame {
     /// Primitives emitted during paint. Written only through `fill`.
     private(set) var scene = Scene()
 
+    /// Clip and translation, innermost last. Both are in **logical points**;
+    /// `fill` and `draw` scale on the way to the scene as they already do.
+    ///
+    /// **This is emission state, not geometry.** `bounds(of:)` keeps returning
+    /// what the engine computed, untranslated — a child that fills its own
+    /// resolved bounds is translated automatically and needs to know nothing
+    /// about scrolling. It is the same division `fill` already makes for the
+    /// scale factor, and for the same reason: a caller who could see the value
+    /// would apply it a second time.
+    private var clipStack: [(clip: Bounds<Pixels>, offset: Point<Pixels>, radii: Corners<Pixels>)] = []
+
+    /// The clip currently in effect, in logical points. The whole surface when
+    /// no `clipped(to:offsetBy:)` block is active — the same "no clip" answer
+    /// `fill`/`draw` always passed before this stack existed.
+    var activeClip: Bounds<Pixels> {
+        clipStack.last?.clip ?? Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                                       size: contentSize)
+    }
+
+    /// The corner radii of the clip currently in effect, in logical points.
+    /// All zero — a square clip — when no `clipped(to:offsetBy:)` block is
+    /// active, or when one is active but was pushed with no radii (every call
+    /// site written before this existed).
+    var activeClipRadii: Corners<Pixels> {
+        clipStack.last?.radii ?? Corners(all: Pixels(0))
+    }
+
+    /// The translation currently in effect, in logical points. Zero when no
+    /// `clipped(to:offsetBy:)` block is active.
+    var activeOffset: Point<Pixels> {
+        clipStack.last?.offset ?? Point(x: Pixels(0), y: Pixels(0))
+    }
+
+    /// Pushes an **intersected** clip (radii included, see `intersect(_:radii:_:radii:)`)
+    /// and an **accumulated** offset.
+    ///
+    /// Intersection rather than replacement is what makes nesting correct: an
+    /// inner clip wider than its outer must not widen it, or a nested scroller
+    /// paints over its parent's chrome. Pinned by
+    /// `nestedClipsIntersectRatherThanReplace`.
+    func pushClip(_ bounds: Bounds<Pixels>, offset: Point<Pixels>,
+                 radii: Corners<Pixels> = Corners(all: Pixels(0))) {
+        let (clip, clipRadii) = Self.intersect(activeClip, radii: activeClipRadii,
+                                               bounds, radii: radii)
+        let composed = Point(x: Pixels(activeOffset.x.value + offset.x.value),
+                             y: Pixels(activeOffset.y.value + offset.y.value))
+        clipStack.append((clip, composed, clipRadii))
+    }
+
+    /// Pops one level pushed by `pushClip`. Callers reach this only through
+    /// `clipped(to:offsetBy:)`'s `defer`, which is what keeps the stack
+    /// balanced — see that method's doc comment.
+    func popClip() { clipStack.removeLast() }
+
+    /// The axis-aligned intersection of two bounds. Either dimension can go to
+    /// zero (or below, clamped to zero) when the two do not overlap; it never
+    /// goes negative.
+    static func intersect(_ a: Bounds<Pixels>, _ b: Bounds<Pixels>) -> Bounds<Pixels> {
+        let x0 = max(a.origin.x.value, b.origin.x.value)
+        let y0 = max(a.origin.y.value, b.origin.y.value)
+        let x1 = min(a.origin.x.value + a.size.width.value,
+                     b.origin.x.value + b.size.width.value)
+        let y1 = min(a.origin.y.value + a.size.height.value,
+                     b.origin.y.value + b.size.height.value)
+        return Bounds(origin: Point(x: Pixels(x0), y: Pixels(y0)),
+                      size: Size(width: Pixels(max(0, x1 - x0)),
+                                 height: Pixels(max(0, y1 - y0))))
+    }
+
+    /// The axis-aligned intersection of two clips, **carrying radii** — the
+    /// half of ruling CL-A's follow-on this milestone closes.
+    ///
+    /// **Two rounded rects do not intersect into a rounded rect in general**:
+    /// the true shape can need a distinct curve at each corner where the two
+    /// rounded regions overlap. This function does not attempt that shape. It
+    /// uses two cases where a rounded intersection collapses exactly, and
+    /// falls back to a square-cornered box otherwise:
+    ///
+    /// 1. **`outer` has NO rounding at all**, and `inner`'s bounding box sits
+    ///    inside `outer`'s (touching an edge is fine — a straight edge has no
+    ///    curve to interact with). `outer` then contributes nothing to the
+    ///    shape at all, so the intersection is exactly `inner`, radii and all.
+    ///    This is the common case: a single top-level `ScrollView` pushes its
+    ///    first clip against the frame's whole-surface (zero-radius) default,
+    ///    and its own bounds are routinely FLUSH with that default — a
+    ///    full-bleed list has no padding to keep it "strictly" inside.
+    /// 2. **`inner`'s bounding box sits STRICTLY inside `outer`'s** — not
+    ///    touching or crossing any of its four edges — regardless of
+    ///    `outer`'s own rounding. The intersection of the two REGIONS still
+    ///    reduces to `inner` alone here: `outer`'s curve only removes area
+    ///    outside its own bounding box, which `inner` never reaches. This is
+    ///    what a NESTED `ScrollView` gets — one rounded clip strictly inside
+    ///    another — once ordinary padding is in play.
+    ///
+    /// **What this gets wrong, on purpose, and why nothing in this corpus
+    /// notices.** Case 2's containment check is against `outer`'s bounding
+    /// BOX, not its rounded shape: an `inner` clip that sits inside `outer`'s
+    /// box but reaches into the disk `outer`'s OWN corner rounds away — a
+    /// small `inner` clip tucked into `outer`'s corner — is still accepted as
+    /// "strictly inside" and keeps `inner`'s radii un-clipped by `outer`'s
+    /// curve there, so a corner of `inner` can paint past where the true
+    /// intersection would stop. Not reachable today: `ScrollView` is the only
+    /// production caller and nests at most one clip inside another, so no
+    /// fixture or test in this corpus nests two DIFFERENTLY-rounded clips
+    /// close enough to a shared corner to see it. Whenever neither case
+    /// applies — `outer` is itself rounded AND `inner` merely touches or
+    /// crosses its bounding box, or is larger than it — this falls back to
+    /// the plain intersected box (`intersect(_:_:)` above) with SQUARE
+    /// corners: the tighter box, rounding dropped rather than guessed at.
+    static func intersect(_ outer: Bounds<Pixels>, radii outerRadii: Corners<Pixels>,
+                          _ inner: Bounds<Pixels>, radii innerRadii: Corners<Pixels>)
+        -> (bounds: Bounds<Pixels>, radii: Corners<Pixels>) {
+        let bounds = intersect(outer, inner)
+
+        let containedNonStrict =
+            inner.origin.x.value >= outer.origin.x.value &&
+            inner.origin.y.value >= outer.origin.y.value &&
+            inner.origin.x.value + inner.size.width.value
+                <= outer.origin.x.value + outer.size.width.value &&
+            inner.origin.y.value + inner.size.height.value
+                <= outer.origin.y.value + outer.size.height.value
+        let outerIsSquare = outerRadii.topLeft == Pixels(0) && outerRadii.topRight == Pixels(0) &&
+            outerRadii.bottomRight == Pixels(0) && outerRadii.bottomLeft == Pixels(0)
+        if outerIsSquare && containedNonStrict {
+            return (bounds, innerRadii)
+        }
+
+        let strictlyInside =
+            inner.origin.x.value > outer.origin.x.value &&
+            inner.origin.y.value > outer.origin.y.value &&
+            inner.origin.x.value + inner.size.width.value
+                < outer.origin.x.value + outer.size.width.value &&
+            inner.origin.y.value + inner.size.height.value
+                < outer.origin.y.value + outer.size.height.value
+        return strictlyInside ? (bounds, innerRadii) : (bounds, Corners(all: Pixels(0)))
+    }
+
+    /// Scroll regions registered this frame, in prepaint order.
+    ///
+    /// **A hitbox list scoped to scroll, and named as such rather than
+    /// generalised.** §8.1's eventual signature is `insertHitbox(bounds,
+    /// contentMask, opaque:)` and takes exactly this stack's product — the
+    /// active clip at registration time, paired with an id — so the hit-test
+    /// sub-project widens this list rather than replacing it. This is *not*
+    /// the general hit-test system: it exists only to answer "which region did
+    /// this wheel event land in", nothing else consumes it, and nothing here
+    /// tracks opacity or z-order beyond registration sequence.
+    ///
+    /// **`axis` rides along because routing, not `ScrollState`, is what needs
+    /// it.** A `ScrollView` already knows its own axis and maps the stored
+    /// scalar offset through it (`ScrollView.delta(_:)`), so `ScrollState`
+    /// stays a bare `Double`. `Window.applyScroll` is the reader: it has no
+    /// other way to know whether a region wants `delta.x` or `delta.y`.
+    private(set) var scrollRegions:
+        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis)] = []
+
+    /// Records a scroll region at its **clipped** bounds — the intersection of
+    /// its own rect with whatever ancestor clip is active when it registers.
+    ///
+    /// The CLIPPED bounds, not the raw ones: a nested scroller positioned
+    /// outside its ancestor's viewport window (whether because the ancestor's
+    /// content overflows past that scroller, or because the ancestor itself is
+    /// scrolled) must not receive wheel events for the area it cannot actually
+    /// show. Storing the raw, un-intersected bounds instead would let a wheel
+    /// event land on a region the user cannot see.
+    func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis) {
+        scrollRegions.append((Self.intersect(activeClip, bounds), id, axis))
+    }
+
     /// The cross-frame state table (§4.3).
     ///
     /// **Not owned here — `Frame` is per-frame and this outlives it.** The
@@ -137,7 +327,8 @@ public final class Frame {
          shapingCache: ShapingCache = ShapingCache(),
          glyphAtlas: GlyphAtlas = GlyphAtlas(width: Window.atlasExtent,
                                              height: Window.atlasExtent),
-         theme: Theme = .light) {
+         theme: Theme = .light,
+         timestamp: Double = 0) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
@@ -147,6 +338,7 @@ public final class Frame {
         self.shapingCache = shapingCache
         self.glyphAtlas = glyphAtlas
         self.theme = theme
+        self.timestamp = timestamp
     }
 
     // MARK: - Layout phase
@@ -194,12 +386,14 @@ public final class Frame {
 
     /// Emits one filled rect, optionally with rounded corners.
     ///
-    /// Borders, clip stacks and explicit z-order are still ahead (§7.3): every
-    /// rect here is emitted at `order: 0`, and `Scene.finalize()` sorts stably,
-    /// so equal orders keep emission sequence — which is why a container's own
+    /// Borders and explicit z-order are still ahead (§7.3): every rect here is
+    /// emitted at `order: 0`, and `Scene.finalize()` sorts stably, so equal
+    /// orders keep emission sequence — which is why a container's own
     /// background paints under its children provided it emits first.
-    /// `contentMask` is the whole surface: nothing clips yet, and the fragment
-    /// shader does not read the field in any case.
+    /// `bounds` is translated by `activeOffset` and `contentMask` is
+    /// `activeClip`, both scaled to match — the whole surface and zero offset
+    /// when no `clipped(to:offsetBy:)` block is active, which is why no
+    /// existing call site's output moves.
     ///
     /// **`borderColor` is `.transparent` and there is no way to set it**, even
     /// though `MUIRect` carries it and the fragment shader draws it — the M0
@@ -213,12 +407,14 @@ public final class Frame {
     /// edges on `LayoutTree` is what unblocks it.
     func fill(_ bounds: Bounds<Pixels>, color: Hsla,
               cornerRadii: Corners<Pixels> = Corners(all: Pixels(0))) {
-        let surface = Bounds(
-            origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
-            size: contentSize.scaled(by: scaleFactor))
+        let translated = Bounds(
+            origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                          y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+            size: bounds.size)
         scene.insert(MUIRect(
-            bounds: bounds.scaled(by: scaleFactor),
-            contentMask: surface,
+            bounds: translated.scaled(by: scaleFactor),
+            contentMask: activeClip.scaled(by: scaleFactor),
+            maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
             background: color,
             borderColor: .transparent,
             cornerRadii: cornerRadii.scaled(by: scaleFactor),
@@ -253,6 +449,16 @@ public final class Frame {
     ///   commonest glyph in a paragraph). Emitting it would add an instance
     ///   whose quad is degenerate and whose sampler reads nothing; the atlas
     ///   still records it so `rasterize` is not re-run for every space.
+    ///
+    /// `contentMask` is `activeClip`, scaled exactly as `fill` above scales
+    /// it. **The offset is scaled here too, and that is the one place this
+    /// method is not the mirror of `fill`.** `fill` receives points and scales
+    /// the whole translated rect at the end; `draw`'s `bounds` are already in
+    /// device pixels, so `activeOffset` — still in points, the space the clip
+    /// stack is pushed in — has to be multiplied by `scaleFactor` before it is
+    /// added, not after. Adding it unscaled would shift glyphs by the scale
+    /// factor's worth of points on a Retina display and by nothing at 1x,
+    /// which is exactly the kind of bug a 1x-only test cannot see.
     func draw(_ placed: PlacedGlyph, color: Hsla) {
         guard let packed = glyphAtlas.packed(for: placed.key, rasterize: {
             GlyphRaster.rasterize(glyph: placed.key.glyph, font: placed.font,
@@ -266,7 +472,16 @@ public final class Frame {
                           y: ScaledPixels(Float(placed.baselineY - packed.top))),
             size: Size(width: ScaledPixels(Float(packed.slot.width)),
                        height: ScaledPixels(Float(packed.slot.height))))
-        scene.insert(MUIGlyph(bounds: bounds, slot: packed.slot, color: color, order: 0))
+        let dx = activeOffset.x.value * scaleFactor
+        let dy = activeOffset.y.value * scaleFactor
+        let placedBounds = Bounds(
+            origin: Point(x: ScaledPixels(bounds.origin.x.value + dx),
+                          y: ScaledPixels(bounds.origin.y.value + dy)),
+            size: bounds.size)
+        scene.insert(MUIGlyph(bounds: placedBounds, slot: packed.slot,
+                              contentMask: activeClip.scaled(by: scaleFactor),
+                              maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
+                              color: color, order: 0))
     }
 
     /// This frame's primitives, in paint order. Call after `render`.

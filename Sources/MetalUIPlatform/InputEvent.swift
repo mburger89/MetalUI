@@ -25,10 +25,20 @@ public struct ScrollEvent: Sendable {
     /// Trackpad phase. Honouring this is what makes scrolling feel native
     /// rather than web-like (spec 8.2).
     public var isMomentum: Bool
+    /// When the event occurred, on the same clock as `CADisplayLink.timestamp`
+    /// (both trace to `mach_absolute_time`) — `NSEvent.timestamp` on AppKit.
+    /// `Window.applyScroll` stamps `ScrollState.lastScrollTime` from this
+    /// rather than from the display link's last tick, because the link pauses
+    /// while the window is clean (spec §4.4): a wheel event arriving after an
+    /// idle period would otherwise be stamped with a stale tick and the fade
+    /// ramp would compute an `age` large enough to suppress the indicator on
+    /// the very frame that should show it.
+    public var timestamp: Double
     public init(position: Point<Pixels>, delta: Point<Pixels>,
-                modifiers: Modifiers = [], isMomentum: Bool = false) {
+                modifiers: Modifiers = [], isMomentum: Bool = false, timestamp: Double = 0) {
         self.position = position; self.delta = delta
         self.modifiers = modifiers; self.isMomentum = isMomentum
+        self.timestamp = timestamp
     }
 }
 
