@@ -212,6 +212,27 @@ comment claimed was not the property the line bought.
 shows the centred rounded rect with its antialiased border, and the close button
 quits the process.
 
+**Text verified on 2026-08-28 — M2's exit criterion, and the only check no test
+here can perform.** A human ran `swift run MetalUIDemo` and reported it looks
+right: the sidebar label, the 22pt heading and the wrapping paragraph all render
+legibly, and the paragraph re-wraps at word boundaries when the window is
+resized.
+
+**The look was directed rather than general**, because §4.2 of the M2 spec names
+three failure modes no test in this repo can see — a wrong glyph from an atlas
+key collision, fuzzy or wobbling text from a missing subpixel variant, and
+intermittent blank runs from eviction during a frame. **Two of the three remain
+unchecked and it is worth knowing which**: wobble needs sub-pixel *motion* and
+neither a static look nor a screenshot can show it, and eviction blanks are
+absent by construction in M2 rather than tested, since nothing calls
+`evictUnusedSince`. The cross-*family* key collision is also unexercised — the
+demo uses one font family.
+
+**A second look followed the line-height change** (`ceil(ascent + descent +
+leading)`, 15.3105 → 16.0 at 13pt): the leading now reads correctly against
+typical Mac apps, which is what prompted the change. Whether the pixel-alignment
+argument for rounding is *visible* was not established either way.
+
 **Re-verified on 2026-08-27 after ruling EP-8 made `Column`/`Row` centre on the
 cross axis**, because that ruling's failure mode is an *invisible rectangle* and
 no test in this repo can see one: a human ran the demo and reported it looks
