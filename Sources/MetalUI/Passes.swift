@@ -66,12 +66,13 @@ public struct LayoutPass {
 /// been painted yet, which is what makes this the only correct place to register
 /// hit-test, focus, scroll and accessibility structure.
 ///
-/// **It registers none of them today, and the omission is in `Frame`, not
-/// here.** `Frame` owns no hitbox, focus, scroll or accessibility store, so
-/// there is nothing for a `register…` method to write into and none is
-/// declared. `bounds(of:)` and `contentSize` are the entire surface. Adding a
-/// registry means a store on `Frame` and a method here; input and focus bring
-/// theirs (M3), accessibility brings its own (§9).
+/// **Scroll registers now; general hit-test, focus and accessibility still do
+/// not.** `registerScrollRegion` below is the first `register…` method this
+/// pass gained, and it is deliberately scoped to scroll rather than general —
+/// see its doc comment. `Frame` still owns no hitbox, focus or accessibility
+/// store, so there is nothing for a broader `register…` method to write into
+/// and none is declared; input and focus bring theirs (M3), accessibility
+/// brings its own (§9).
 @MainActor
 public struct PrepaintPass {
     let frame: Frame
@@ -105,6 +106,19 @@ public struct PrepaintPass {
         frame.pushClip(bounds, offset: offset)
         defer { frame.popClip() }
         body()
+    }
+
+    /// Records a region that consumes scroll wheel events.
+    ///
+    /// **A hitbox list scoped to scroll, not the general hit-test system** —
+    /// see `Frame.scrollRegions`'s doc comment for the split and what §8.1
+    /// widens later.
+    ///
+    /// Registration happens here rather than in `paint` because §8.1 requires
+    /// it after positions resolve and before the first primitive is emitted —
+    /// prepaint is the phase between the two.
+    public func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID) {
+        frame.registerScrollRegion(bounds, id: id)
     }
 }
 

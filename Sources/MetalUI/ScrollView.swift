@@ -123,6 +123,14 @@ public struct ScrollView<Content: ElementGroup>: Element {
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         let offset = resolvedOffset(id, bounds: bounds, layout: layout, pass: pass)
+        // Registered OUTSIDE `clipped(to:offsetBy:)`, using the bounds handed
+        // in rather than anything computed inside the block: `bounds` here is
+        // this viewport's rect in its PARENT's space, which is what a wheel
+        // event's window-space position needs to be compared against. Inside
+        // the block, `pass`'s active clip has already absorbed this rect, so a
+        // nested `ScrollView` registers ITS rect intersected with this one —
+        // see `Frame.registerScrollRegion`.
+        pass.registerScrollRegion(bounds, id: id)
         var result: Content.GroupPrepaint!
         pass.clipped(to: bounds, offsetBy: delta(-offset)) {
             result = content.prepaintGroup(layout: &layout.inner, pass: &pass)

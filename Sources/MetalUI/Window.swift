@@ -32,7 +32,12 @@ public final class Window {
     /// each frame construct its own would hand every element fresh state on
     /// every frame — a running app that silently forgets, with the whole suite
     /// still green, because a single-frame test cannot tell the two apart.
-    private let stateTable = StateTable()
+    ///
+    /// **Internal rather than private**, for `lastScene`'s reason: a wheel test
+    /// has to read back the `ScrollState` `applyScroll` wrote, and there is no
+    /// other window through which to see it. `@testable import MetalUI` reaches
+    /// it from `Tests/MetalUITests`.
+    let stateTable = StateTable()
 
     /// The shaping cache (spec §3.2), owned here for the same reason
     /// `stateTable` is: a `Frame` lives for one frame and a cache that died with
@@ -127,6 +132,12 @@ public final class Window {
     /// happened". `@testable import MetalUI` reaches it.
     private(set) var lastScene = Scene()
 
+    /// The scroll regions the most recent frame's prepaint registered, in
+    /// registration order, captured alongside `lastScene` for the same reason:
+    /// `Frame` dies at the end of `drawFrameIfNeeded`, and a wheel event may
+    /// arrive at any point afterward.
+    private(set) var lastScrollRegions: [(bounds: Bounds<Pixels>, id: GlobalElementID)] = []
+
     init<Root: Element>(platformWindow: any PlatformWindow,
                         renderer: Renderer,
                         startsDisplayLink: Bool = true,
@@ -148,6 +159,14 @@ public final class Window {
         }
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
+            // Scroll routing runs before the window's general `onInput`, and
+            // claims the event outright when it hits a region — there is no
+            // scroll chaining (see `applyScroll`'s doc comment), so a claimed
+            // wheel event does not also reach whoever opened the window.
+            if case .scrollWheel(let scroll) = event, self.applyScroll(scroll) {
+                self.setNeedsRedraw()
+                return true
+            }
             let handled = self.onInput?(event) ?? false
             self.setNeedsRedraw()
             return handled
@@ -204,6 +223,7 @@ public final class Window {
         renderRoot(frame)
         let scene = frame.finalizedScene()
         lastScene = scene
+        lastScrollRegions = frame.scrollRegions
 
         // **Before `encode`, and the ordering is the whole point.** Paint has
         // just packed whatever glyphs this frame needed and the scene holds
@@ -242,5 +262,54 @@ public final class Window {
         platformWindow.surface.present(surfaceFrame, in: commandBuffer)
         commandBuffer.commit()
         framesDrawn += 1
+    }
+
+    /// Applies a wheel delta to the topmost scroll region under the pointer.
+    ///
+    /// **Reverse order**, the same rule §8.1 states for the general hit-test
+    /// registry this one is scoped down from: "dispatch walks them in reverse
+    /// so the topmost opaque hit wins." `lastScrollRegions` is in prepaint
+    /// order — outermost first, since a `ScrollView` registers itself before
+    /// descending into its content — so the last match in a reverse walk is
+    /// the most deeply nested region containing the point, which is the
+    /// visually topmost one.
+    ///
+    /// Momentum deltas are applied identically to direct ones — `isMomentum` is
+    /// read by nothing here, on purpose. AppKit already ran the physics; a
+    /// second simulation on top of an already-physical delta would fight it,
+    /// and building our own inertia now means building it twice — once more
+    /// for iOS and for programmatic scrolling, which have no momentum phase at
+    /// all.
+    ///
+    /// **Not handled: scroll chaining.** An inner region already at its scroll
+    /// limit does not pass the remainder of the delta to an ancestor region —
+    /// the way, say, a nested list in a page does in a browser. That is a
+    /// dispatch concern belonging with the general hit-test work (§8.1), and
+    /// this method claims the topmost match outright rather than falling
+    /// through; its absence is a decision recorded here, not an oversight
+    /// waiting to be found as a bug.
+    ///
+    /// **A wheel event arriving before the first frame finds `lastScrollRegions`
+    /// empty and returns `false`.** That is correct, not a startup race to
+    /// close: there is no layout yet for a region to have been registered
+    /// against, so there is nothing to route the event to.
+    private func applyScroll(_ event: ScrollEvent) -> Bool {
+        guard let region = lastScrollRegions.last(where: { contains($0.bounds, event.position) })
+        else { return false }
+        stateTable.withState(region.id, initial: ScrollState()) {
+            // Natural scrolling: a positive scrollingDeltaY means content moves
+            // down (the user's fingers moved down), so the offset — how far
+            // the content has scrolled up and out of view — decreases.
+            $0.offset -= Double(event.delta.y.value)
+        }
+        return true
+    }
+
+    /// Whether `point` falls within `bounds`, half-open on the max edges. A
+    /// small free function rather than reaching for `Bounds.contains(_:)`
+    /// inline in `applyScroll` above, purely so that closure reads as
+    /// "does this region contain the point" at a glance.
+    private func contains(_ bounds: Bounds<Pixels>, _ point: Point<Pixels>) -> Bool {
+        bounds.contains(point)
     }
 }

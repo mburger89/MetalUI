@@ -146,6 +146,31 @@ public final class Frame {
                                  height: Pixels(max(0, y1 - y0))))
     }
 
+    /// Scroll regions registered this frame, in prepaint order.
+    ///
+    /// **A hitbox list scoped to scroll, and named as such rather than
+    /// generalised.** §8.1's eventual signature is `insertHitbox(bounds,
+    /// contentMask, opaque:)` and takes exactly this stack's product — the
+    /// active clip at registration time, paired with an id — so the hit-test
+    /// sub-project widens this list rather than replacing it. This is *not*
+    /// the general hit-test system: it exists only to answer "which region did
+    /// this wheel event land in", nothing else consumes it, and nothing here
+    /// tracks opacity or z-order beyond registration sequence.
+    private(set) var scrollRegions: [(bounds: Bounds<Pixels>, id: GlobalElementID)] = []
+
+    /// Records a scroll region at its **clipped** bounds — the intersection of
+    /// its own rect with whatever ancestor clip is active when it registers.
+    ///
+    /// The CLIPPED bounds, not the raw ones: a nested scroller positioned
+    /// outside its ancestor's viewport window (whether because the ancestor's
+    /// content overflows past that scroller, or because the ancestor itself is
+    /// scrolled) must not receive wheel events for the area it cannot actually
+    /// show. Storing the raw, un-intersected bounds instead would let a wheel
+    /// event land on a region the user cannot see.
+    func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID) {
+        scrollRegions.append((Self.intersect(activeClip, bounds), id))
+    }
+
     /// The cross-frame state table (§4.3).
     ///
     /// **Not owned here — `Frame` is per-frame and this outlives it.** The
