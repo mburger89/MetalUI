@@ -51,12 +51,21 @@ let package = Package(
 
         .target(name: "MetalUIShaderTypes"),
 
+        // The `MetalUIText` edge is one-way and points this way on purpose (M2
+        // text design §3.1): the renderer uploads the CPU-side `GlyphAtlas` to
+        // an `MTLTexture`, and `MetalUIText` never learns that Metal exists.
+        // Reversing it would put the shelf packer behind a device and leave it
+        // with no CI.
         .target(
             name: "MetalUIRender",
-            dependencies: ["MetalUICore", "MetalUIShaderTypes"],
+            dependencies: ["MetalUICore", "MetalUIShaderTypes", "MetalUIText"],
             resources: [.copy("Shaders")]
         ),
-        .testTarget(name: "MetalUIRenderTests", dependencies: ["MetalUIRender"]),
+        // `MetalUIText` is a dependency of `MetalUIRender` already; it is named
+        // again so the glyph tests may build a real `GlyphAtlas` and read its
+        // `pixels` back as the oracle for what the GPU should have sampled.
+        .testTarget(name: "MetalUIRenderTests",
+                    dependencies: ["MetalUIRender", "MetalUIText"]),
 
         .target(
             name: "MetalUIPlatform",

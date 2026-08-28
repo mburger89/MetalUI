@@ -37,6 +37,27 @@ typedef struct {
     MUIUInt _reserved;
 } MUIRect;
 
+// One glyph sprite: a 1:1 blit of an R8 coverage bitmap, tinted.
+//
+// `bounds` and `atlasBounds` are the SAME size in every case this renderer can
+// currently produce — the atlas is rasterized at the device scale factor and
+// `bounds` is in ScaledPixels, which is that same grid — so `glyph_fragment`
+// samples texel centres exactly. They are two rectangles rather than an origin
+// plus one size because the sprite path is where scaling would land if it ever
+// does (a zoomed canvas, spec 7.5), and because a source and a destination that
+// share a field cannot be told apart when one of them is wrong.
+//
+// There is deliberately NO `contentMask` here. `MUIRect` carries one that
+// `rect_fragment` never reads, and a second inert field would be a second thing
+// that looks implemented from the outside.
+typedef struct {
+    MUIBounds bounds;        // destination, ScaledPixels
+    MUIBounds atlasBounds;   // source, atlas texels
+    MUIHsla   color;         // tint; the R8 atlas carries coverage only
+    MUIUInt   order;
+    MUIUInt   _reserved;
+} MUIGlyph;
+
 typedef enum {
     MUIRectBufferVertices   = 0,
     MUIRectBufferRects      = 1,
@@ -45,8 +66,20 @@ typedef enum {
 } MUIRectBufferIndex;
 
 typedef enum {
-    MUIProbeBufferOut  = 0,
-    MUIProbeBufferRect = 1
+    MUIGlyphBufferVertices   = 0,
+    MUIGlyphBufferGlyphs     = 1,
+    MUIGlyphBufferViewport   = 2,
+    MUIGlyphBufferProjection = 3
+} MUIGlyphBufferIndex;
+
+typedef enum {
+    MUIGlyphTextureAtlas = 0
+} MUIGlyphTextureIndex;
+
+typedef enum {
+    MUIProbeBufferOut   = 0,
+    MUIProbeBufferRect  = 1,
+    MUIProbeBufferGlyph = 2
 } MUIProbeBufferIndex;
 
 #endif

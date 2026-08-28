@@ -1,6 +1,7 @@
 import Metal
 import MetalUICore
 import MetalUIShaderTypes
+import MetalUIText
 import simd
 
 public enum RendererError: Error, CustomStringConvertible {
@@ -25,11 +26,24 @@ public final class Renderer {
     /// the hardware blend in linear space, which is the opposite of the decision.
     public static let pixelFormat: MTLPixelFormat = .bgra8Unorm
 
+    /// The glyph atlas's texture format. R8: coverage, no colour (spec 7.8 —
+    /// "glyph coverage (`r8Unorm`) is used as a blend weight directly,
+    /// unmodified"). Not an `_sRGB` view, for the same reason the drawable is
+    /// not one: a decode to linear here would be linear compositing entering
+    /// through the atlas instead of through the target.
+    public static let atlasPixelFormat: MTLPixelFormat = .r8Unorm
+
     public let device: any MTLDevice
     public let commandQueue: any MTLCommandQueue
 
     private let rectPipeline: any MTLRenderPipelineState
+    private let glyphPipeline: any MTLRenderPipelineState
     private let unitVertexBuffer: any MTLBuffer
+
+    /// The GPU copy of a ``MetalUIText/GlyphAtlas``, maintained by
+    /// ``upload(_:)``. `nil` until the first upload; a scene carrying glyphs is
+    /// then drawn against whatever was uploaded last.
+    private(set) var atlasTexture: (any MTLTexture)?
 
     public init(device: any MTLDevice) throws {
         self.device = device
@@ -39,28 +53,38 @@ public final class Renderer {
         self.commandQueue = queue
 
         let library = try ShaderLibrary.make(device: device)
-        guard let vertexFn = library.makeFunction(name: "rect_vertex") else {
-            throw RendererError.functionMissing("rect_vertex")
-        }
-        guard let fragmentFn = library.makeFunction(name: "rect_fragment") else {
-            throw RendererError.functionMissing("rect_fragment")
+
+        /// Both pipelines are premultiplied source-over into the same
+        /// gamma-encoded target, and they must stay identical in that respect:
+        /// a glyph is composited over the rect behind it by the hardware, so
+        /// two different blend configurations would make text's edges depend on
+        /// what it was drawn over.
+        func makePipeline(vertex: String, fragment: String) throws
+            -> any MTLRenderPipelineState {
+            guard let vertexFn = library.makeFunction(name: vertex) else {
+                throw RendererError.functionMissing(vertex)
+            }
+            guard let fragmentFn = library.makeFunction(name: fragment) else {
+                throw RendererError.functionMissing(fragment)
+            }
+            let descriptor = MTLRenderPipelineDescriptor()
+            descriptor.vertexFunction = vertexFn
+            descriptor.fragmentFunction = fragmentFn
+            let attachment = descriptor.colorAttachments[0]!
+            attachment.pixelFormat = Self.pixelFormat
+            // Premultiplied source-over, matching the shaders' premultiplied output.
+            attachment.isBlendingEnabled = true
+            attachment.rgbBlendOperation = .add
+            attachment.alphaBlendOperation = .add
+            attachment.sourceRGBBlendFactor = .one
+            attachment.sourceAlphaBlendFactor = .one
+            attachment.destinationRGBBlendFactor = .oneMinusSourceAlpha
+            attachment.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+            return try device.makeRenderPipelineState(descriptor: descriptor)
         }
 
-        let descriptor = MTLRenderPipelineDescriptor()
-        descriptor.vertexFunction = vertexFn
-        descriptor.fragmentFunction = fragmentFn
-        let attachment = descriptor.colorAttachments[0]!
-        attachment.pixelFormat = Self.pixelFormat
-        // Premultiplied source-over, matching the shader's premultiplied output.
-        attachment.isBlendingEnabled = true
-        attachment.rgbBlendOperation = .add
-        attachment.alphaBlendOperation = .add
-        attachment.sourceRGBBlendFactor = .one
-        attachment.sourceAlphaBlendFactor = .one
-        attachment.destinationRGBBlendFactor = .oneMinusSourceAlpha
-        attachment.destinationAlphaBlendFactor = .oneMinusSourceAlpha
-
-        self.rectPipeline = try device.makeRenderPipelineState(descriptor: descriptor)
+        self.rectPipeline = try makePipeline(vertex: "rect_vertex", fragment: "rect_fragment")
+        self.glyphPipeline = try makePipeline(vertex: "glyph_vertex", fragment: "glyph_fragment")
 
         // Unit quad as a triangle strip: 4 vertices, no index buffer.
         var unitVertices: [SIMD2<Float>] = [
@@ -100,13 +124,34 @@ public final class Renderer {
         guard !scene.isEmpty else { return }
 
         encoder.setViewport(view.viewport)
-        encoder.setRenderPipelineState(rectPipeline)
 
         var viewport = MUISize(width: Float(view.viewport.width),
                                height: Float(view.viewport.height))
         // Passed through uninterpreted: the renderer never reads or composes it,
         // so a stereo backend's per-eye matrices work without a renderer change.
         var projection = view.projection
+
+        // Each pipeline is guarded by its own array being non-empty, not by
+        // `scene.isEmpty`. A glyph-only scene reaches here — a `Text` with no
+        // background is an ordinary element — and `makeBuffer(bytes:length: 0)`
+        // returns nil, so an unguarded rect encode would throw
+        // `bufferAllocationFailed` on a scene that is perfectly well formed.
+        if !scene.rects.isEmpty {
+            try encodeRects(scene.rects, into: encoder,
+                            viewport: &viewport, projection: &projection)
+        }
+        // After every rect, whatever the orders say — see `Scene.finalize`.
+        if !scene.glyphs.isEmpty {
+            try encodeGlyphs(scene.glyphs, into: encoder,
+                             viewport: &viewport, projection: &projection)
+        }
+    }
+
+    private func encodeRects(_ rects: [MUIRect],
+                             into encoder: any MTLRenderCommandEncoder,
+                             viewport: inout MUISize,
+                             projection: inout simd_float4x4) throws {
+        encoder.setRenderPipelineState(rectPipeline)
 
         // The rect array goes through an `MTLBuffer`, not `setVertexBytes`.
         //
@@ -133,8 +178,8 @@ public final class Renderer {
         // it, so this one lives exactly as long as it is read. Pooling is an
         // optimisation for whoever measures the allocation, not a correctness
         // fix.
-        let rectsLength = MemoryLayout<MUIRect>.stride * scene.rects.count
-        guard let rectBuffer = device.makeBuffer(bytes: scene.rects,
+        let rectsLength = MemoryLayout<MUIRect>.stride * rects.count
+        guard let rectBuffer = device.makeBuffer(bytes: rects,
                                                  length: rectsLength,
                                                  options: .storageModeShared) else {
             throw RendererError.bufferAllocationFailed
@@ -154,7 +199,124 @@ public final class Renderer {
         encoder.drawPrimitives(type: .triangleStrip,
                                vertexStart: 0,
                                vertexCount: 4,
-                               instanceCount: scene.rects.count)
+                               instanceCount: rects.count)
+    }
+
+    /// Encodes the glyph sprites. **Silently draws nothing when no atlas has
+    /// been uploaded**, which is the one branch here that cannot raise an error:
+    /// the texture is per-renderer state rather than per-scene data, so a caller
+    /// that forgot ``upload(_:)`` has produced a scene the renderer cannot draw
+    /// but that is not itself malformed. It is not a throw because that would
+    /// make the *first* frame of a window with text fail outright if the paint
+    /// pass emitted glyphs before the atlas reached the renderer, and blank text
+    /// for one frame is recoverable where a thrown frame is not.
+    private func encodeGlyphs(_ glyphs: [MUIGlyph],
+                              into encoder: any MTLRenderCommandEncoder,
+                              viewport: inout MUISize,
+                              projection: inout simd_float4x4) throws {
+        guard let atlasTexture else { return }
+
+        encoder.setRenderPipelineState(glyphPipeline)
+
+        // A fresh buffer per encode, for the reason spelled out above.
+        let glyphsLength = MemoryLayout<MUIGlyph>.stride * glyphs.count
+        guard let glyphBuffer = device.makeBuffer(bytes: glyphs,
+                                                  length: glyphsLength,
+                                                  options: .storageModeShared) else {
+            throw RendererError.bufferAllocationFailed
+        }
+
+        encoder.setVertexBuffer(unitVertexBuffer, offset: 0,
+                                index: Int(MUIGlyphBufferVertices.rawValue))
+        encoder.setVertexBuffer(glyphBuffer, offset: 0,
+                                index: Int(MUIGlyphBufferGlyphs.rawValue))
+        encoder.setVertexBytes(&viewport, length: MemoryLayout<MUISize>.stride,
+                               index: Int(MUIGlyphBufferViewport.rawValue))
+        encoder.setVertexBytes(&projection, length: MemoryLayout<simd_float4x4>.stride,
+                               index: Int(MUIGlyphBufferProjection.rawValue))
+        encoder.setFragmentBuffer(glyphBuffer, offset: 0,
+                                  index: Int(MUIGlyphBufferGlyphs.rawValue))
+        encoder.setFragmentTexture(atlasTexture,
+                                   index: Int(MUIGlyphTextureAtlas.rawValue))
+
+        encoder.drawPrimitives(type: .triangleStrip,
+                               vertexStart: 0,
+                               vertexCount: 4,
+                               instanceCount: glyphs.count)
+    }
+
+    /// Brings the GPU's copy of `atlas` up to date, and clears the atlas's dirty
+    /// rect because this is the consumer it exists for.
+    ///
+    /// **Must run before ``encode(_:view:in:)`` of any scene whose `AtlasSlot`s
+    /// came from a newly packed glyph**, and it is the caller's job to sequence
+    /// that: the renderer cannot tell a slot it has uploaded from one it has
+    /// not. The `GlyphAtlas` is the authority on which pixels changed, and it
+    /// tracks that across an arbitrary number of `slot(for:)` calls, so uploading
+    /// once per frame after scene construction is the intended shape.
+    ///
+    /// Two cases, and the second is the one that is easy to get wrong:
+    ///
+    /// - **The texture already matches the atlas's dimensions.** Only
+    ///   `dirtyRect` is copied; `nil` means nothing was written and the call is
+    ///   a no-op.
+    /// - **There is no texture, or it is the wrong size.** A fresh
+    ///   `MTLTexture`'s contents are undefined, so the *whole* atlas is copied,
+    ///   `dirtyRect` notwithstanding — every previously packed glyph is clean
+    ///   from the atlas's point of view and absent from the GPU's. A dirty-rect
+    ///   upload here would leave every earlier glyph blank, which is the
+    ///   intermittent-blank-run failure spec 4.2 names and nothing in this repo
+    ///   can see.
+    public func upload(_ atlas: GlyphAtlas) {
+        let existing = atlasTexture
+        let needsFullUpload = existing == nil
+            || existing!.width != atlas.width
+            || existing!.height != atlas.height
+
+        let texture: any MTLTexture
+        if needsFullUpload {
+            let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+                pixelFormat: Self.atlasPixelFormat,
+                width: atlas.width, height: atlas.height, mipmapped: false)
+            descriptor.usage = .shaderRead
+            descriptor.storageMode = .shared
+            guard let made = device.makeTexture(descriptor: descriptor) else {
+                // Nothing to recover to: leaving the previous texture bound
+                // would paint the wrong glyphs from a stale atlas, and there is
+                // no smaller correct answer than "no text this frame".
+                atlasTexture = nil
+                return
+            }
+            texture = made
+        } else {
+            texture = existing!
+        }
+
+        let region: (x: Int, y: Int, width: Int, height: Int)
+        if needsFullUpload {
+            region = (0, 0, atlas.width, atlas.height)
+        } else if let dirty = atlas.dirtyRect {
+            region = dirty
+        } else {
+            atlasTexture = texture
+            return
+        }
+
+        atlas.pixels.withUnsafeBufferPointer { buffer in
+            // `bytesPerRow` stays the ATLAS's width, not the region's: the
+            // source rows are slices of a wider bitmap, and Metal walks them by
+            // this stride. Passing the region's width would read a diagonal
+            // smear out of the atlas.
+            let base = buffer.baseAddress! + (region.y * atlas.width + region.x)
+            texture.replace(
+                region: MTLRegionMake2D(region.x, region.y, region.width, region.height),
+                mipmapLevel: 0,
+                withBytes: base,
+                bytesPerRow: atlas.width)
+        }
+
+        atlas.clearDirtyRect()
+        atlasTexture = texture
     }
 
     /// Render to an offscreen texture and read the pixels back. Test support.

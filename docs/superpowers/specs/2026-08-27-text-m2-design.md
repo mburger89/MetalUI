@@ -218,6 +218,20 @@ failure modes are specific enough to name in advance:
   from the key
 - **blank runs, intermittent** → eviction during a frame
 
+**"A wrong atlas coordinate" was too broad by one layer, measured in Task 7.**
+The three failure modes above stand exactly as written — all three are *key*
+failures, where the wrong bitmap is in the slot and the CPU and the GPU agree on
+a wrong answer together. But the **renderer's sampling geometry** does have an
+oracle the shader does not share: `GlyphAtlas.pixels`, produced entirely on the
+CPU by CoreText and a shelf packer that never learns Metal exists. A sprite that
+samples the wrong texels for a correctly packed slot produces a different byte,
+and `aGlyphSpriteBlitsExactlyTheAtlasPixelsItPointsAt` asserts **every** byte of
+two glyphs against it, exactly — white at full alpha over a cleared target makes
+the premultiplied result's alpha byte the coverage byte with no arithmetic in
+between. That test skips without a Metal device like the ABI probe, so §7's
+"guarantees that lapse under configuration" covers it too. Nothing about the
+human look changes: it is still the only check on all three modes named above.
+
 ### 4.3 Mutations that must redden
 
 | Mutation | Must redden |
