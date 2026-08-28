@@ -3,6 +3,25 @@ import MetalUILayout
 
 public enum ScrollAxis: Sendable, Equatable { case vertical, horizontal }
 
+/// Whether `ScrollView` paints its fading overlay indicator.
+///
+/// **SwiftUI's spelling, deliberately narrowed to two cases** (ruling EP-5):
+/// SwiftUI's `ScrollIndicatorVisibility` also has `.visible` and `.never`,
+/// but those distinctions only pay off with nested scroll views and
+/// platform-level defaults this framework does not have. `.automatic` is
+/// this element's only behaviour today, so a third case would be a case
+/// that does nothing — the exact shape CLAUDE.md's declared-but-inert table
+/// exists to keep out. Add one later if a caller needs it; that is
+/// source-compatible, unlike shipping an inert case now.
+public enum ScrollIndicatorVisibility: Sendable, Equatable {
+    /// Today's behaviour: the thumb appears while scrolling and fades out
+    /// afterward. The default.
+    case automatic
+    /// No indicator is ever painted, and no frame is ever requested to fade
+    /// one — `paintIndicator` returns before either happens.
+    case hidden
+}
+
 /// Cross-frame scroll position, in logical points along the scroll axis.
 public struct ScrollState: Sendable {
     public var offset: Double = 0
@@ -109,6 +128,10 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// and the same radii with a zero offset.
     public var cornerRadius: Pixels = Pixels(0)
 
+    /// Whether `paintIndicator` paints the fading thumb at all. `.automatic`
+    /// unless `scrollIndicators(_:)` sets it.
+    public var indicatorVisibility: ScrollIndicatorVisibility = .automatic
+
     public init(_ axis: ScrollAxis = .vertical, elementID: ElementID? = nil,
                 @ElementBuilder content: () -> Content) {
         self.axis = axis
@@ -124,6 +147,15 @@ public struct ScrollView<Content: ElementGroup>: Element {
     public func cornerRadius(_ points: Pixels) -> Self {
         var copy = self
         copy.cornerRadius = points
+        return copy
+    }
+
+    /// Sets whether the fading overlay indicator is ever painted.
+    /// `.hidden` suppresses it entirely, including the frame requests it
+    /// makes while fading — see `paintIndicator`'s guard.
+    public func scrollIndicators(_ visibility: ScrollIndicatorVisibility) -> Self {
+        var copy = self
+        copy.indicatorVisibility = visibility
         return copy
     }
 
@@ -240,6 +272,12 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// with a `let` and an `if`.
     private func paintIndicator(_ id: GlobalElementID, bounds: Bounds<Pixels>, offset: Double,
                                 layout: Layout, pass: inout PaintPass) {
+        // Checked first and unconditionally: `.hidden` must cost nothing at
+        // all, not paint a suppressed-alpha rect, and must never reach
+        // `requestAnotherFrame()` below — a hidden indicator that kept
+        // asking would hold the display link awake forever, exactly the
+        // failure `guard alpha > 0` exists to prevent for a faded one.
+        guard indicatorVisibility != .hidden else { return }
         let content = extent(pass.bounds(of: layout.contentNode).size)
         let viewport = extent(bounds.size)
         let scrollable = max(0, content - viewport)

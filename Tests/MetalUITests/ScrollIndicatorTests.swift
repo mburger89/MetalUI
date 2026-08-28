@@ -634,3 +634,96 @@ private let nestedListID = GlobalElementID.child(of: nestedRootID, at: 0, name: 
     #expect(Double(scrolled.contentMask.origin.x) == 17 && Double(scrolled.contentMask.origin.y) == 23,
             "the mask is the viewport's rect in its own space, so scrolling must not move it either")
 }
+
+// MARK: - 7. `scrollIndicators(.hidden)`
+
+/// `.hidden` emits no indicator rect at all, in a fixture that would
+/// otherwise definitely show one — content taller than the viewport,
+/// rendered immediately after a scroll so the fade has not had time to
+/// elapse (`lastScrollTime` equals the render's own `timestamp`, giving
+/// `age == 0`, deep inside the fully-opaque window).
+///
+/// Paired with `automaticStillPaintsTheIndicatorInTheSameFixture` below as
+/// the differential this rule needs: without that second test, this one
+/// would pass equally against a `ScrollView` that never painted an
+/// indicator at all, proving nothing about `.hidden` specifically.
+@Test @MainActor func hiddenEmitsNoIndicatorRect() throws {
+    var view = ScrollView(.vertical, elementID: listID) {
+        Box(style: fixedHeight(200))
+    }
+    .scrollIndicators(.hidden)
+    let (frame, _) = fullyRendered(&view, width: 120, height: 100,
+                                   stateTable: scrolledState(offset: 20, lastScrollTime: 100),
+                                   timestamp: 100)
+    #expect(frame.scene.rects.isEmpty,
+            "content overflows and the fade has not elapsed (age 0), so an `.automatic` indicator would definitely paint here — `.hidden` must suppress it entirely")
+}
+
+/// The differential for the test above: the identical fixture, `.automatic`
+/// (the default) in place of `.hidden`, does paint the thumb. Without this,
+/// `hiddenEmitsNoIndicatorRect` could pass against a fixture that never
+/// draws an indicator regardless of the setting.
+@Test @MainActor func automaticStillPaintsTheIndicatorInTheSameFixture() throws {
+    var view = ScrollView(.vertical, elementID: listID) {
+        Box(style: fixedHeight(200))
+    }
+    let (frame, _) = fullyRendered(&view, width: 120, height: 100,
+                                   stateTable: scrolledState(offset: 20, lastScrollTime: 100),
+                                   timestamp: 100)
+    #expect(!frame.scene.rects.isEmpty,
+            "the same fixture under `.automatic` (the default) must paint the thumb, or the test above proves nothing")
+}
+
+/// A hidden indicator must not keep the window dirty or the display link
+/// awake. `paintIndicator`'s `.hidden` guard sits before
+/// `pass.requestAnotherFrame()`; if it moved after that call (or was
+/// removed), a hidden scroll view would still ask for another frame on
+/// every tick while nothing ever fades, holding the display link awake
+/// forever — spec §4.4's "no frames built and display link paused while
+/// idle" is an M4 exit criterion this must not break.
+///
+/// Driven through a real `Window`, matching
+/// `theIndicatorRequestsFramesWhileFadingAndStopsWhenDone` above — a bare
+/// `Frame` has no "stays idle" concept to fail.
+@Test @MainActor func hiddenIndicatorDoesNotKeepTheWindowDirtyOrTheLinkAwake() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true) {
+        ScrollView(.vertical, elementID: listID) {
+            Box(style: columnStyle()) {
+                Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
+                Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
+                Box(style: fixedHeight(40))
+            }
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    platformWindow.simulateTick(timestamp: 100)
+    #expect(!window.needsRedraw, "an idle, never-scrolled ScrollView must not keep the window dirty")
+
+    // The scroll itself still dirties the window and draws once — hiding
+    // the indicator does not stop content from scrolling.
+    platformWindow.simulateInput(wheel(at: pt(60, 60), deltaY: -20))
+    #expect(window.needsRedraw, "the scroll itself must still dirty the window")
+    let framesBeforeSettling = window.framesDrawn
+    platformWindow.simulateTick(timestamp: 100.05)
+    #expect(window.framesDrawn == framesBeforeSettling + 1, "the dirtied window draws exactly once")
+    #expect(window.lastScene.rects.isEmpty, "a hidden indicator paints no rect on the scroll's own frame either")
+
+    // The load-bearing assertion: with an `.automatic` indicator this same
+    // shape (age 0.05, well inside the 0.6s opaque window) would still be
+    // requesting frames — see `theIndicatorRequestsFramesWhileFadingAndStopsWhenDone`
+    // above. Here the window must already be clean, because `.hidden`
+    // returns before `requestAnotherFrame()` is ever called.
+    #expect(!window.needsRedraw, "`.hidden` must not request another frame even while an `.automatic` indicator would still be fading")
+
+    // And it stays clean: the (already paused, or about to pause) link
+    // never ticks it back to life.
+    let framesAfterSettling = window.framesDrawn
+    platformWindow.simulateTick(timestamp: 100.2)
+    platformWindow.simulateTick(timestamp: 101.1)
+    #expect(window.framesDrawn == framesAfterSettling,
+            "nothing dirtied the window after the scroll settled, so no further frame may draw")
+    #expect(platformWindow.pauseCalls.last == true, "the display link must pause — a hidden indicator must not hold it awake")
+}
