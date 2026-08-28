@@ -292,3 +292,87 @@ private func fixedWidth(_ w: Float) -> Style {
     #expect(window.stateTable.peek(region.id, as: ScrollState.self)?.offset == 37,
             "delta.x -37 must move a horizontal region's offset by +37")
 }
+
+/// Scrolling past either end does not bank an offset the user must unwind
+/// before the view moves again.
+///
+/// **The defect this pins was reported from a running demo as "scrolling
+/// stopped working intermittently", and the intermittency was the tell.**
+/// `Window.applyScroll` writes `offset -= delta` with no bound, and
+/// `ScrollView.resolvedOffset` used to clamp what it *read* while leaving what
+/// was *stored* alone. Scrolling hard against an end therefore banked an
+/// arbitrarily large excess that was invisible — the view sat at the end
+/// looking correct — and every reversing event then spent itself paying that
+/// excess down instead of moving anything. Measured on this exact fixture with
+/// one frame per event, before the fix: twenty -37 events stored **740**
+/// against 80pt of travel, and seventeen of the twenty events that followed in
+/// the opposite direction moved the view by nothing at all. How long the dead
+/// band lasted was a function of how far past the end the user had already
+/// scrolled, which is why it read as intermittent rather than as a stuck view.
+///
+/// **One frame per event, deliberately**, because that is both the regime the
+/// running app is in — `Window` dirties on every wheel event and the display
+/// link renders each one — and the regime in which the fix has to hold. The
+/// write-back in `resolvedOffset` bounds the stored value to one frame's worth
+/// of events, not to zero; driving a whole batch between two frames would
+/// measure the looser bound and let a weaker implementation through.
+///
+/// **Both ends, because the clamp is two terms and each is separately
+/// removable.** `min(…)` bounds the bottom and `max(0, …)` bounds the top; the
+/// second half of this test is the only thing that distinguishes them, and
+/// scrolling up at the top of a list is the more common way to reach the bug.
+///
+/// **Asserted on the painted thumb as well as on the stored value**, because
+/// the stored value alone cannot show the symptom: under the old code the
+/// stored number was wrong while everything painted looked right until the
+/// direction reversed. The arithmetic is hand-derived rather than recomputed
+/// from the implementation's own formula — viewport 120 over content 200 gives
+/// a thumb of 120 × (120/200) = 72 and a track of 120 - 72 = 48, so an offset
+/// of 51 out of a scrollable 80 puts the thumb's top at (51/80) × 48 = 30.6.
+/// The old code would have read a clamped 80 here and parked the thumb at 48,
+/// flush with the end of its track.
+@Test @MainActor func scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120) {
+        ScrollView(.vertical, elementID: ElementID("list")) {
+            Box(style: columnStyle()) {
+                Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
+                Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
+                Box(style: fixedHeight(40))
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    let region = try #require(window.lastScrollRegions.first)
+    func stored() -> Double? {
+        window.stateTable.peek(region.id, as: ScrollState.self)?.offset
+    }
+    func scroll(_ deltaY: Float) {
+        platformWindow.simulateInput(wheel(at: pt(60, 60), deltaY: deltaY))
+        window.drawFrameIfNeeded()
+    }
+
+    // 5 × 40 of content in a 120pt viewport: 80pt of travel. Six -37 events
+    // sum to 222, six times further than the list can actually go.
+    for _ in 0..<6 { scroll(-37) }
+    #expect(stored() == 80,
+            "the stored offset must sit at the 80pt ceiling, not at the 222 the six deltas sum to")
+
+    // One event back the other way must move the view immediately, by its own
+    // full amount — not spend itself unwinding a banked 142.
+    scroll(29)
+    #expect(stored() == 51,
+            "80 - 29 = 51; under a read-only clamp this reads 193 and paints as 80")
+    let thumb = try #require(window.lastScene.rects.last)
+    #expect(abs(Double(thumb.bounds.origin.y) - 30.6) < 0.05,
+            "the thumb must have left the end of its track: (51/80) × 48 = 30.6, not the 48 a still-clamped 193 would give")
+
+    // The top end. Five more +29 events reach 0 after the second and would
+    // carry the stored value to -94 without the `max(0, …)` term.
+    for _ in 0..<5 { scroll(29) }
+    #expect(stored() == 0,
+            "the stored offset must sit at 0, not at the -94 the five deltas would carry it to")
+    scroll(-37)
+    #expect(stored() == 37,
+            "one -37 from a floored 0 must move the full 37; from a banked -94 it would read -57 and paint as 0")
+}

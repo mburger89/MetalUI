@@ -127,6 +127,10 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// value may legitimately be out of range when content shrinks between
     /// frames. `aStoredOffsetPastTheEndIsClampedWhenItIsRead` in
     /// `ScrollViewTests.swift` is what this guarantees.
+    ///
+    /// **The result is written back to the state table by `resolvedOffset`, and
+    /// that write-back is what bounds the stored value.** Clamping the read
+    /// alone leaves the stored number free to run away — see `resolvedOffset`.
     static func clamp(offset: Double, content: Double, viewport: Double) -> Double {
         min(max(0, offset), max(0, content - viewport))
     }
@@ -273,15 +277,52 @@ public struct ScrollView<Content: ElementGroup>: Element {
     // leaking makes `scaleFactor` reachable through it, which is exactly the
     // double-application hazard `PaintPass` is built to keep out of element
     // code. Three lines duplicated is cheaper than that leak.
+    ///
+    /// **The prepaint overload writes the clamped value BACK, and that line is
+    /// what keeps scrolling responsive rather than being a tidy-up.** `Window.applyScroll`
+    /// writes `offset -= delta` with no bound — it has this region's rect but
+    /// not the content node's size, and no layout at all for the frame it is
+    /// about to cause. Reading through a clamp while leaving the stored number
+    /// alone therefore lets a gesture against either end bank an arbitrarily
+    /// large excess *invisibly*: the view sits at the end looking correct, and
+    /// every event in the opposite direction then spends itself paying that
+    /// excess down instead of moving anything. Measured on a 200pt content in a
+    /// 120pt viewport (80pt of travel), one frame per event, before the
+    /// write-back existed: twenty -37 events stored **740**, and seventeen of
+    /// the twenty events that followed in the opposite direction moved the view
+    /// by nothing. How long that dead band lasted was a function of how far past
+    /// the end the user had already scrolled, which is why it was reported as
+    /// scrolling that worked and then intermittently stopped.
+    ///
+    /// The bound this buys is "one frame's worth of events", not zero: events
+    /// arriving between two frames still accumulate unclamped, and `Window`
+    /// dirties the window on every one of them, so the next frame normalises
+    /// them together. That is the tightest bound available from here — the
+    /// ceiling does not exist until layout has run. Pinned by
+    /// `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind`
+    /// (`ScrollRoutingTests.swift`).
     private func resolvedOffset(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                 layout: Layout, pass: PrepaintPass) -> Double {
         let viewport = extent(bounds.size)
         let content = extent(pass.bounds(of: layout.contentNode).size)
-        var stored: Double = 0
-        pass.withState(id, initial: ScrollState()) { stored = $0.offset }
-        return Self.clamp(offset: stored, content: content, viewport: viewport)
+        var resolved: Double = 0
+        pass.withState(id, initial: ScrollState()) {
+            $0.offset = Self.clamp(offset: $0.offset, content: content, viewport: viewport)
+            resolved = $0.offset
+        }
+        return resolved
     }
 
+    /// **This one clamps on read and does NOT write back, unlike the prepaint
+    /// overload above — measured, not assumed.** `Frame.render` runs prepaint
+    /// before paint unconditionally, and `ScrollView.prepaint` calls its
+    /// overload unconditionally, so by the time this runs the stored value has
+    /// already been normalised against this same layout and a second write
+    /// could only store the number it just read. Adding one back reddens
+    /// nothing on a 498-test suite, which is redundancy rather than a coverage
+    /// gap: the mutant provably cannot behave differently. The read clamp
+    /// itself stays, so this phase is correct on its own terms rather than by
+    /// trusting the phase before it.
     private func resolvedOffset(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                 layout: Layout, pass: PaintPass) -> Double {
         let viewport = extent(bounds.size)

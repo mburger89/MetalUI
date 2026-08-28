@@ -312,6 +312,24 @@ public final class Window {
     /// close: there is no layout yet for a region to have been registered
     /// against, so there is nothing to route the event to.
     ///
+    /// **The write below is deliberately unbounded, and the thing that bounds
+    /// it is `ScrollView.resolvedOffset`, not anything here.** This method has
+    /// the region's rect but not its content node's size, and no layout at all
+    /// for the frame it is about to cause, so it cannot know where the end is;
+    /// the next frame clamps the stored value against the layout it just
+    /// resolved and writes the clamped number back. **Do not "simplify" that
+    /// write-back into a plain read** — a read-only clamp is what shipped, and
+    /// it let a gesture against either end bank an invisible excess that every
+    /// reversing event then had to unwind before the view moved, which is the
+    /// defect `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind` pins.
+    ///
+    /// Clamping *here* instead was implemented and reverted: it needs the
+    /// ceiling carried on the registration, and it makes a region with **zero**
+    /// travel — a `ScrollView` whose content exactly fits — refuse to record an
+    /// offset at all, which reddens
+    /// `theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove`, a routing test
+    /// that reads routing off exactly such a region's offset.
+    ///
     /// **The delta component is chosen by the region's OWN axis, not fixed to
     /// `y`.** A `.horizontal` `ScrollView` stores its offset along `x`
     /// (`ScrollView.delta(_:)`) and must be driven by `delta.x`; a `.vertical`
