@@ -39,11 +39,16 @@ the rest and because it ends in something runnable.
 
 ## 2. Renderer: ordering
 
-### 2.1 What is wrong today
+### 2.1 What was wrong before Task 2
 
-`Scene` holds one array per primitive type and `finalize()` sorts **within**
-each. `Renderer.encode` then draws all rects, then all glyphs. Its own doc
-comment states the consequence:
+**Fixed by Task 1 and pinned by Task 2** (`anOpaqueRectAtAHigherOrderCoversTheTextBeneathIt`,
+`GlyphABITests.swift`) — this section is the design rationale that motivated
+both, kept for that reason even though the quote below no longer describes the
+code.
+
+`Scene` held one array per primitive type and `finalize()` sorted **within**
+each. `Renderer.encode` then drew all rects, then all glyphs. Its own doc
+comment stated the consequence:
 
 > `order` sorts WITHIN a primitive type and not between them. Every glyph is
 > drawn after every rect regardless of order … it is wrong for a rect that

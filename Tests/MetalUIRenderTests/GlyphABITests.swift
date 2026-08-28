@@ -614,3 +614,73 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
                 "\(mismatches) pixels differ at y=\(originY) after the texture was replaced")
     }
 }
+
+/// An opaque rect at a higher order must cover text beneath it.
+///
+/// **This is the assertion `Scene.finalize`'s doc comment said could not
+/// exist** — "nothing in this repo can see a glyph painted through a rect" —
+/// and it could not, while `encode` drew every rect before every glyph. The
+/// draw list is what makes it visible, so this test is the draw list's reason
+/// for being rather than a detail of it.
+///
+/// The differential is the second half: the SAME two primitives with the orders
+/// swapped must give the opposite answer. Without it this test passes on a
+/// renderer that draws nothing but rects.
+@Test @MainActor func anOpaqueRectAtAHigherOrderCoversTheTextBeneathIt() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let renderer = try Renderer(device: device)
+    let (atlas, slots) = try packedAtlas(["H"])
+    let slot = slots[0]
+    renderer.upload(atlas)
+
+    let side = 64
+    let size = Size(width: DevicePixels(Int32(side)), height: DevicePixels(Int32(side)))
+
+    // A blue rect exactly covering the glyph's box.
+    func cover(order: MUIUInt) -> MUIRect {
+        MUIRect(bounds: MUIBounds(origin: MUIPoint(x: 4, y: 4),
+                                  size: MUISize(width: Float(slot.width),
+                                                height: Float(slot.height))),
+                contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                                       size: MUISize(width: Float(side), height: Float(side))),
+                background: MUIHsla(h: 0.6, s: 1, l: 0.5, a: 1),
+                borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
+                cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
+                borderWidths: MUIEdges(top: 0, right: 0, bottom: 0, left: 0),
+                order: order, _reserved: 0)
+    }
+
+    // Find a pixel the glyph definitely inks, so "covered" is meaningful.
+    var inkX = -1, inkY = -1
+    for row in 0..<slot.height where inkY < 0 {
+        for column in 0..<slot.width {
+            if atlas.pixels[(slot.y + row) * atlas.width + slot.x + column] > 200 {
+                inkX = column; inkY = row; break
+            }
+        }
+    }
+    try #require(inkY >= 0, "the glyph must have a near-opaque pixel for this test to mean anything")
+
+    // Rect ABOVE the glyph: the covered pixel is the rect's colour.
+    var above = Scene()
+    above.insert(sprite(slot, at: (x: 4, y: 4), color: .white, order: 0))
+    above.insert(cover(order: 1))
+    above.finalize()
+    #expect(above.drawList.count == 2)
+    let coveredPixels = try renderer.renderOffscreen(above, size: size)
+
+    // Rect BELOW the glyph: the same pixel is the glyph's white.
+    var below = Scene()
+    below.insert(cover(order: 0))
+    below.insert(sprite(slot, at: (x: 4, y: 4), color: .white, order: 1))
+    below.finalize()
+    #expect(below.drawList.count == 2)
+    let textPixels = try renderer.renderOffscreen(below, size: size)
+
+    // BGRA8: index 0 is blue, index 2 is red.
+    let hit = (((4 + inkY) * side) + 4 + inkX) * 4
+    #expect(coveredPixels[hit] > 200, "the rect's blue must win where it is on top")
+    #expect(coveredPixels[hit + 2] < 80, "no white text may show through an opaque rect")
+    #expect(textPixels[hit + 2] > 200, "with the orders swapped, the white glyph must win")
+}
