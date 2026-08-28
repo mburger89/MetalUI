@@ -22,7 +22,30 @@ import CoreText
     }
 }
 
+/// Two sizes of one face must not share a key — glyph images are rasterized at
+/// the size, so a shared key serves 13pt images for 26pt text.
+///
+/// **The non-variable face leads because the system font stopped being able to
+/// pin `size`, and that is a consequence of ruling TX-C worth recording.** With
+/// no axis pinned, the system font resolves with `opsz` = `clamp(size, 17, 96)`
+/// — 17 at 13pt, 26 at 26pt — so its two keys differ in ``FontKey/variations``
+/// *as well as* in ``FontKey/size``, and the size component is no longer what
+/// separates them. Measured under TX-C, with the system font as the only case
+/// here: `self.size = 0` in `FontKey.init(resolved:)` left the **whole suite
+/// green**. Helvetica carries no variation axes, so name, variations and matrix
+/// are equal across the two and `size` is the only component left that can
+/// separate them — which is what makes the mutation redden again.
 @Test func theKeyDistinguishesSizes() {
+    let small = FontResolver.resolve(family: "Helvetica", size: 13).key
+    let large = FontResolver.resolve(family: "Helvetica", size: 26).key
+    #expect(small.postScriptName == large.postScriptName)   // same face …
+    #expect(small.variations == large.variations)           // … no axes to move …
+    #expect(small.matrix == large.matrix)                   // … same matrix …
+    #expect(small.size != large.size)                       // … only the size …
+    #expect(small != large)                                 // … so different keys.
+
+    // And the production case, which no longer isolates `size` but is what the
+    // shaping and atlas caches will actually be handed.
     #expect(FontResolver.resolve(family: nil, size: 13).key
             != FontResolver.resolve(family: nil, size: 26).key)
 }
@@ -82,61 +105,15 @@ import CoreText
     #expect(abs(f.metrics.leading - CTFontGetLeading(f.ctFont)) < 0.001)
 }
 
-/// **§6.2's `opsz` pinning — and the residual §6.2 did not measure.**
-///
-/// Unpinned, `CTFontCreateUIFontForLanguage(.system, …)` returns a variable font
-/// whose optical-size axis *tracks* the point size, so advances stop scaling
-/// linearly: §6.2 measured a 28-character label at 13pt = 164.804 and 26pt =
-/// 301.703, a ratio of **1.8307** where 2.0 was wanted (−8.5%). This machine
-/// reproduces that ratio to four figures — 180.254 and 329.926 → **1.8303** —
-/// which is why the string below is §6.2's own 28 characters.
-///
-/// **The plan's draft asserted `abs(ratio - 2.0) < 0.01` after the pin, and that
-/// is not reachable by this mechanism (ruling TX-A).** Measured with the axis
-/// pinned: 159.415 and 329.139 → **2.0653**. The pin does what §6.2 says it does
-/// — it fixes the *outline instance*, so the optical-size axis stops varying
-/// with point size — but a **second, independent mechanism** that §6.2 never
-/// measured remains: CoreText grid-fits advances to the pixel grid at small
-/// ppem. Three measurements identify it and rule the axis out:
-///
-/// 1. With `opsz` pinned, advance-per-point converges to the *unhinted* value
-///    `CGFont` reports (12.4268) at ≥96pt and wobbles below it — 12.263 at 13pt,
-///    11.743 at 18pt, 12.782 at 32pt.
-/// 2. Helvetica, which carries no such hinting, is **exactly** linear at 13, 26
-///    and 52pt — with no variation axes to pin.
-/// 3. Resolving at one reference size and carrying the target size in the font
-///    *matrix* — which is what fixes the ppem — is exactly linear (176.122 /
-///    352.244 = 2.000000). That is a different font model from the one §6.2
-///    decided on and from the one the rest of M2 is written against, so it is
-///    reported rather than taken.
-///
-/// So the test asserts what the pin actually buys, and the first expectation is
-/// a **positive control**: if Apple ever ships a system font that is already
-/// linear, the trap this whole mechanism exists for is gone and this test says
-/// so, rather than passing for a reason that no longer exists.
-@Test func pinningOpszRemovesTheOpticalSizeAxisFromAdvanceScaling() {
-    let text = "The quick brown fox jumps ov"   // 28 characters, per §6.2
-    func advance(_ f: CTFont) -> Double {
-        let attr = NSAttributedString(
-            string: text,
-            attributes: [kCTFontAttributeName as NSAttributedString.Key: f]
-        )
-        return CTLineGetTypographicBounds(CTLineCreateWithAttributedString(attr),
-                                          nil, nil, nil)
-    }
-
-    let unpinned = advance(CTFontCreateUIFontForLanguage(.system, 26, nil)!)
-                 / advance(CTFontCreateUIFontForLanguage(.system, 13, nil)!)
-    let pinned = advance(FontResolver.resolve(family: nil, size: 26).ctFont)
-               / advance(FontResolver.resolve(family: nil, size: 13).ctFont)
-
-    // The trap is still here (measured 1.8303, error 0.1697).
-    #expect(abs(unpinned - 2.0) > 0.15)
-    // The pin more than halves the error (measured 2.0653, error 0.0653). This
-    // is the scale-free half: it fails the moment the resolver stops pinning,
-    // because then `pinned` and `unpinned` are the same number.
-    #expect(abs(pinned - 2.0) < abs(unpinned - 2.0) / 2)
-    // …and bounds the residual, so a regression that pins the wrong axis or the
-    // wrong value cannot hide behind the comparison above.
-    #expect(abs(pinned - 2.0) < 0.10)
-}
+// **`pinningOpszRemovesTheOpticalSizeAxisFromAdvanceScaling` was DELETED here,
+// not rewritten (ruling TX-C), and a deletion is unusual enough in this repo to
+// owe a reason.** The test asserted that pinning the `opsz` axis moves the
+// 13pt→26pt advance ratio most of the way to 2.0. That was true — and it pinned
+// a property M2 neither uses nor obtains. Does not use: every M2 surface is
+// 8–17pt, where the unpinned axis is already constant at 17 by CoreText's own
+// `clamp(size, 17, 96)`, so nothing on those surfaces scales between two optical
+// sizes. Does not obtain: even pinned, advances are not proportional to point
+// size, because a hinting-driven adjustment quantized in design units remains.
+// Rewriting it would have kept a green assertion about a mechanism no longer in
+// the code. The requirement it was reaching for is M5's, and it now lives as a
+// requirement — with its measurements — at `FontResolver.resolve`.

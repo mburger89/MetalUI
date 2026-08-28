@@ -386,7 +386,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **366 tests** and 61 browser fixtures, warning-free
+`swift build` · `swift test` — **365 tests** and 61 browser fixtures, warning-free
 (measured 2026-08-27 on `feat/text-m2` after M2 Task 1; read the summary line,
 never the exit status — shape 11. The 360 recorded here before that task
 measured 361 on the same checkout, so treat a ±1 as a stale doc rather than a

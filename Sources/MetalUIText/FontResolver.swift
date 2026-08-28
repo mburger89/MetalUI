@@ -22,22 +22,62 @@ public struct ResolvedFont {
 /// Turns a *request* — an optional family name and a point size — into a
 /// ``ResolvedFont``.
 public enum FontResolver {
-    /// The `'opsz'` four-character axis tag, as `CTFontCopyVariationAxes`
-    /// reports axis identifiers.
-    static let opticalSizeAxis: Int = 0x6F70_737A  // 'o','p','s','z'
-
-    /// Resolves `family` at `size`, pinning the optical-size axis (§6.2).
-    ///
-    /// `family: nil` means the platform UI font.
+    /// Resolves `family` at `size`. `family: nil` means the platform UI font.
     ///
     /// **The returned font's identity may not be the requested one, and that is
     /// the point.** `CTFontCreateWithName` substitutes rather than failing, so
     /// callers must key caches on ``ResolvedFont/key`` and never on `family` —
     /// see ``FontKey`` for §6.1's measurement.
+    ///
+    /// ## A requirement this deliberately does not meet, for M5
+    ///
+    /// **Ruling TX-C.** M5's zoomable canvas wants glyph *advances* proportional
+    /// to point size, so that zoom folds into the atlas key's size component and
+    /// a zoom step needs no re-shaping. This function does not deliver that, and
+    /// removing the `opsz` pin that M2 Task 1 first shipped is what makes the
+    /// gap honest rather than half-closed. The requirement is recorded here; the
+    /// numbers below are what a canvas implementer needs and what an M2 reader
+    /// must not mistake for a live variable on their own surface.
+    ///
+    /// All advances quoted are the **`CTLineGetTypographicBounds` metric** —
+    /// what a shaped line actually measures, kerning included — over §6.2's
+    /// 28-character string, and are per point unless stated.
+    ///
+    /// 1. **The optical-size axis is already constant across every size M2
+    ///    ships.** Unpinned, `CTFontCreateUIFontForLanguage(.system, …)` resolves
+    ///    `opsz` to `clamp(size, 17, 96)`: it reads **17 at 6, 8, 10, 12, 13, 14,
+    ///    16 and 17pt alike**, tracks the point size from 18 to 96, and sticks at
+    ///    96 above that. UI chrome and a code editor live at 8–17pt, where the
+    ///    axis is pinned already, by the clamp. §6.2's "the axis tracks the point
+    ///    size (13pt → 17, 26 → 26, 52 → 52)" is true only over 17–96pt, and
+    ///    reading it as a general statement is what made a pin look necessary.
+    /// 2. **Pinning `opsz` to the axis default therefore buys no linearity where
+    ///    M2 lives, and costs the optical cut.** Measured against unpinned: −11.74%
+    ///    at 8pt, −12.05% at 10, −12.33% at 12, −12.48% at 13, −12.60% at 14,
+    ///    −12.83% at 16, −12.99% at 17 — then shrinking through 18–26pt and
+    ///    **bit-identical from 28pt up**, the axis default being 28. That is not
+    ///    merely narrower text: it is SF's *display* cut rendered at text size,
+    ///    the exact trade the optical axis exists to avoid.
+    /// 3. **A pin would not have obtained proportionality anyway.** With `opsz`
+    ///    held fixed, advance-per-point still moves with size and is
+    ///    non-monotonic — 12.13574 at 13pt, 11.61621 at 18pt, 12.65527 at 32pt —
+    ///    settling on a bit-identical 12.2998046875 from **80pt** upward. The
+    ///    residual is a hinting-driven, size-dependent advance adjustment,
+    ///    quantized in integer **design units** (2048 per em) rather than at
+    ///    integer ppem: a 0.125pt sweep from 12.000 to 13.000 moves the measured
+    ///    advance at every step (168.357422, 169.945374, 171.362427, …), which
+    ///    ppem quantization could not do.
+    /// 4. **What would obtain it**, if M5 needs exactness: fix the ppem —
+    ///    resolve at one reference size and carry the target size in the font
+    ///    *matrix*. Measured, that is exactly proportional. It is a different
+    ///    font model from this one: `CTFontGetSize` then reports the reference
+    ///    size, so ``FontKey``'s identity would rest on ``FontKey/matrix``
+    ///    instead of ``FontKey/size``, which every cache keyed on a `FontKey`
+    ///    would feel. It belongs to the milestone that needs it.
     public static func resolve(family: String?, size: Double) -> ResolvedFont {
-        let requested: CTFont
+        let font: CTFont
         if let family {
-            requested = CTFontCreateWithName(family as CFString, CGFloat(size), nil)
+            font = CTFontCreateWithName(family as CFString, CGFloat(size), nil)
         } else {
             // `CTFontCreateUIFontForLanguage` is documented to return nil for an
             // unsupported ui-font/language pair. `.system` with a nil language
@@ -45,76 +85,9 @@ public enum FontResolver {
             // below is unreachable in the sense that no argument this function
             // can construct reaches it — it exists because the API is optional,
             // not because a case is expected.
-            requested = CTFontCreateUIFontForLanguage(.system, CGFloat(size), nil)
+            font = CTFontCreateUIFontForLanguage(.system, CGFloat(size), nil)
                 ?? CTFontCreateWithName("Helvetica" as CFString, CGFloat(size), nil)
         }
-        return ResolvedFont(ctFont: pinningOpticalSize(requested, size: size))
-    }
-
-    /// Pins `'opsz'` to the axis's **default** value via a `CTFontDescriptor`
-    /// variation attribute, so that advances scale linearly with point size
-    /// (spec §6.2).
-    ///
-    /// **Measured, not assumed.** `CTFontCreateUIFontForLanguage(.system, …)`
-    /// returns a variable font whose optical-size axis *tracks* the point size
-    /// (13pt → 17, 26pt → 26, 52pt → 52). Different optical sizes are different
-    /// outlines with different sidebearings, so advances stop scaling linearly:
-    /// §6.2 measured a 28-character label at 13pt = 164.804 and 26pt = 301.703,
-    /// which is −8.5% against 13pt × 2 = 329.608. Anything that computes
-    /// positions from base-size advances and then applies a scale — §7.1's zoom
-    /// matrix — drifts progressively, ~28px accumulated at 2× on one label.
-    ///
-    /// With the axis pinned, one point size is a uniform scale of another, so
-    /// zoom folds into the atlas key's `size` component and no re-shaping is
-    /// needed. That matters most at M5's canvas; it is cheapest to get right
-    /// here, because every advance computed before it would otherwise have to be
-    /// invalidated.
-    ///
-    /// A face with no variation axes at all (Menlo, Helvetica — §6.2 verified
-    /// both are already exactly linear) is returned untouched.
-    ///
-    /// **Two traps, both measured here, for whoever debugs this next.**
-    ///
-    /// 1. **The pinned font's ``FontKey/variations`` is empty, and that is not
-    ///    evidence the pin failed.** `CTFontCopyVariation` omits any axis
-    ///    sitting at its default value, and the default is exactly what this
-    ///    pins to — so the resolved system font reads back with *no* `opsz`
-    ///    coordinate while an unpinned one reads back with `opsz` equal to the
-    ///    point size. Check the pin by comparing advances, not by reading the
-    ///    key. (The key is still correct: an absent coordinate is constant
-    ///    across sizes, and ``FontKey/size`` separates them.)
-    /// 2. **Pinning does not make advances exactly proportional to point size,
-    ///    and §6.2 does not say so because it did not measure it.** CoreText
-    ///    grid-fits advances to the ppem below roughly 96pt, which is a second
-    ///    mechanism entirely: with `opsz` held fixed, advance-per-point still
-    ///    moves from 12.263 at 13pt to 11.743 at 18pt to 12.782 at 32pt,
-    ///    converging on the unhinted `CGFont` value of 12.4268 at ≥96pt. The
-    ///    pin removes the axis (a 16.3% spread over 10–96pt becomes 8.8%); it
-    ///    does not remove the grid-fitting. Fixing the ppem — resolving at one
-    ///    reference size and carrying the target size in the font *matrix* — is
-    ///    exactly linear and is a different font model from the one the rest of
-    ///    M2 is written against. `pinningOpszRemovesTheOpticalSizeAxisFrom-
-    ///    AdvanceScaling` carries the numbers and the three measurements that
-    ///    tell the two mechanisms apart.
-    private static func pinningOpticalSize(_ font: CTFont, size: Double) -> CTFont {
-        guard let axes = CTFontCopyVariationAxes(font) as? [[CFString: Any]],
-              let opsz = axes.first(where: {
-                  ($0[kCTFontVariationAxisIdentifierKey] as? NSNumber)?.intValue == opticalSizeAxis
-              }),
-              let pinned = (opsz[kCTFontVariationAxisDefaultValueKey] as? NSNumber)?.doubleValue
-        else { return font }
-
-        // Keep every other axis where it resolved; move only `opsz`.
-        var coordinates = (CTFontCopyVariation(font) as? [NSNumber: NSNumber]) ?? [:]
-        coordinates[NSNumber(value: opticalSizeAxis)] = NSNumber(value: pinned)
-
-        // Copy the resolved font's own descriptor rather than building one from
-        // the variation alone: a bare variation attribute names no family, and
-        // the font created from it would be a different face.
-        let descriptor = CTFontDescriptorCreateCopyWithAttributes(
-            CTFontCopyFontDescriptor(font),
-            [kCTFontVariationAttribute: coordinates] as CFDictionary
-        )
-        return CTFontCreateWithFontDescriptor(descriptor, CGFloat(size), nil)
+        return ResolvedFont(ctFont: font)
     }
 }

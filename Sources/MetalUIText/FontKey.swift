@@ -7,12 +7,20 @@ import Foundation
 /// **Every component is read back off the `CTFont` CoreText handed us, never
 /// off the request, and §6.1 measured why.** `CTFontCreateWithName` does not
 /// fail on a name it cannot find — it *substitutes*. Requesting
-/// `"SFMono-Regular"` by name on the target machine returned a font whose
-/// PostScript name is `Helvetica`. A key built from the requested family would
-/// therefore hand out one font's glyph images for another font's outlines, and
-/// nothing above it could notice: both fonts measure, shape and lay out
-/// perfectly well, so no layout assertion and no golden can see it. The only
-/// place the substitution is visible is the resolved `CTFont` itself.
+/// `"SFMono-Regular"` by name on this machine returns a font whose PostScript
+/// name is `Helvetica` — as does `"NoSuchFontXYZ"`. A key built from the
+/// requested family would therefore hand out one font's glyph images for
+/// another font's outlines.
+///
+/// **What would and would not catch that, by mechanism.** The substituted font
+/// measures, shapes and lays out perfectly well, so the wrongness is confined to
+/// *which glyph image* is served — and no test in this repo renders a glyph and
+/// compares it: the layout corpus contains no text fixture, its WebKit oracle
+/// covers boxes rather than glyphs, and the ABI probe skips without a Metal
+/// device. So no *rendered* evidence exists. The key itself is a different
+/// matter and is directly testable:
+/// `theKeyComesFromTheRESOLVEDFontNotTheRequestedName` reddens when the key is
+/// built from the request, which was measured by mutation rather than assumed.
 ///
 /// The four components, and what each one alone would let collide:
 ///
@@ -21,10 +29,16 @@ import Foundation
 /// - ``size`` — a `CTFont` carries its point size, and glyph images are
 ///   rasterized at it. Without this, 13pt and 26pt of one face share a key.
 /// - ``variations`` — the resolved variation coordinates
-///   (`CTFontCopyVariation`). Two `CTFont`s can share a PostScript name and a
-///   size and differ on every axis. §6.2's `opsz` pin *is* such a coordinate,
-///   so without this component a pinned and an unpinned system font are
-///   indistinguishable.
+///   (`CTFontCopyVariation`). Two `CTFont`s can share a PostScript name *and* a
+///   size *and* a matrix and differ on every axis: a `wght` 400 and a `wght` 700
+///   instance of the system font do exactly that, which is the differential
+///   `everyComponentOfTheFontKeyDiscriminates` pins. This component is live in
+///   production, and it is live **because** `FontResolver` pins no axis
+///   (ruling TX-C): the system font resolves with `opsz` = `clamp(size, 17, 96)`
+///   in its variation dictionary, so 13pt and 26pt differ here as well as in
+///   ``size``. Pinning an axis to its *default* would empty this dictionary —
+///   `CTFontCopyVariation` omits any axis sitting at its default — and quietly
+///   make the component production-inert.
 /// - ``matrix`` — `CTFontGetMatrix`. A synthesised oblique, or a flipped font,
 ///   is the same face and size producing different outlines.
 ///
@@ -80,6 +94,12 @@ public struct FontMetrics: Hashable, Sendable {
     public let leading: Double
 
     /// The distance from one baseline to the next.
+    ///
+    /// **No caller and no assertion as of M2 Task 1** — taxonomy shape 4, said
+    /// here rather than left silent. Task 4 lands the consumer: the `Text`
+    /// element's `MeasureFunction` reports this as the measured height. Until
+    /// then a transposition inside it would go unnoticed, unlike the three
+    /// stored properties, which `metricsMatchCoreText` asserts individually.
     public var lineHeight: Double { ascent + descent + leading }
 
     public init(ascent: Double, descent: Double, leading: Double) {
