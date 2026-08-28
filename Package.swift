@@ -66,11 +66,17 @@ let package = Package(
 
         .target(
             name: "MetalUI",
-            dependencies: ["MetalUICore", "MetalUILayout", "MetalUIRender", "MetalUIPlatform"]
+            dependencies: [
+                "MetalUICore", "MetalUILayout", "MetalUIText", "MetalUIRender", "MetalUIPlatform",
+            ]
         ),
+        // `MetalUIText` is a dependency of `MetalUI` already; it is named again
+        // here so the tests may `@testable import` it. `ShapingCache.misses` is
+        // internal, and the two-frame cache test is the only thing in the repo
+        // that can see a per-frame cache — see `Frame.shapingCache`.
         .testTarget(
             name: "MetalUITests",
-            dependencies: ["MetalUI", "MetalUITestSupport"]
+            dependencies: ["MetalUI", "MetalUIText", "MetalUITestSupport"]
         ),
         .executableTarget(name: "MetalUIDemo", dependencies: ["MetalUI"]),
     ],

@@ -1,6 +1,7 @@
 import MetalUICore
 import MetalUILayout
 import MetalUIRender
+import MetalUIText
 
 /// The single owner of one frame's mutable state (spec §4.1).
 ///
@@ -83,14 +84,33 @@ public final class Frame {
     /// element fresh state each frame while every test still passed.
     let stateTable: StateTable
 
+    /// The shaping cache (spec §3.2), owned **by the window** exactly as
+    /// `stateTable` is, and handed to every frame.
+    ///
+    /// **A per-frame cache would be a cache that never hits.** It would re-shape
+    /// every string on every frame — through CoreText, three times per text item
+    /// per layout, since §4.5's automatic minimum probes every item — while
+    /// leaving the entire suite green, because a single-frame test cannot tell
+    /// a warm cache from a cold one. That is the `StateTable` hazard in a second
+    /// place, and `twoFramesShareOneShapingCacheRatherThanReShapingEachFrame`
+    /// is the test that can see it: it renders two frames and asserts the miss
+    /// count did not double.
+    ///
+    /// It is keyed on content — `(string, FontKey, width)` — not on element
+    /// identity, so two `Text`s showing the same string share one entry and a
+    /// `Text` that moves keeps its shape.
+    let shapingCache: ShapingCache
+
     init(contentSize: Size<Pixels>, scaleFactor: Float, rootFontSize: Double = 16,
-         stateTable: StateTable = StateTable(), theme: Theme = .light) {
+         stateTable: StateTable = StateTable(),
+         shapingCache: ShapingCache = ShapingCache(), theme: Theme = .light) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
         self.scaleFactor = scaleFactor
         self.rootFontSize = rootFontSize
         self.stateTable = stateTable
+        self.shapingCache = shapingCache
         self.theme = theme
     }
 
@@ -98,6 +118,17 @@ public final class Frame {
 
     func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
         tree.newNode(style: style, children: children)
+    }
+
+    /// Registers a **leaf** — a childless node that reports its own content size
+    /// through `measure` (spec §3.1).
+    ///
+    /// This is `newLeaf`'s only production call site. Everything the engine can
+    /// do with a measured content size — §9.2's content branch, §4.5's automatic
+    /// minimum, an `auto` cross size — was reachable only for containers before
+    /// it existed, because `tree.measure()` was `nil` on every production node.
+    func requestLeaf(style: Style, measure: @escaping MeasureFunction) -> LayoutNodeID {
+        tree.newLeaf(style: style, measure: measure)
     }
 
     /// Runs the flex engine over the tree, between `requestLayout` and

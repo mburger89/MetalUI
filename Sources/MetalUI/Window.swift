@@ -2,6 +2,7 @@ import Metal
 import MetalUICore
 import MetalUIRender
 import MetalUIPlatform
+import MetalUIText
 
 @MainActor
 public final class Window {
@@ -32,6 +33,19 @@ public final class Window {
     /// every frame — a running app that silently forgets, with the whole suite
     /// still green, because a single-frame test cannot tell the two apart.
     private let stateTable = StateTable()
+
+    /// The shaping cache (spec §3.2), owned here for the same reason
+    /// `stateTable` is: a `Frame` lives for one frame and a cache that died with
+    /// it would re-shape every string through CoreText on every frame, with the
+    /// whole suite green. See `Frame.shapingCache`.
+    ///
+    /// It is not swept the way `stateTable` is. Its key is *content*, not
+    /// element identity, so an entry is valid for as long as the string, font
+    /// and width recur — and nothing yet evicts. A window showing an unbounded
+    /// stream of distinct strings therefore grows unboundedly; eviction is the
+    /// atlas's problem first (spec §3.5) and this cache's next, and neither is
+    /// M2's.
+    private let shapingCache = ShapingCache()
 
     /// The active theme (spec §7.9).
     ///
@@ -143,6 +157,7 @@ public final class Window {
         let frame = Frame(contentSize: platformWindow.contentSize,
                           scaleFactor: surfaceFrame.scaleFactor,
                           stateTable: stateTable,
+                          shapingCache: shapingCache,
                           theme: theme)
         renderRoot(frame)
         let scene = frame.finalizedScene()

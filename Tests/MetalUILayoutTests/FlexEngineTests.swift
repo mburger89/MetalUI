@@ -1025,3 +1025,108 @@ private func threeJustifiedChildren(
                         ids: [root: "root", a: "a", b: "b", c: "c"],
                         golden: golden, tolerance: 0.1)
 }
+
+// MARK: - Two `auto` cross-size divergences, both found by M2's text leaf
+
+/// The tree both tests below use, and the reason they can be written without
+/// text at all: `.a` is a **wrapping** container, so — like a run of text and
+/// unlike every empty div in the corpus — its min-content width (50, one item)
+/// and its max-content width (200, four items) are different numbers, and its
+/// height depends on which of them it is laid out at.
+private func wrappingChildInA120Container(direction: FlexDirection, align: AlignItems?)
+    -> (LayoutTree, LayoutNodeID) {
+    let tree = LayoutTree(generation: 0)
+    let kids = (0..<4).map { _ in fixedChild(tree, w: 50, h: 20) }
+    var innerStyle = Style()
+    innerStyle.flexWrap = .wrap
+    let a = tree.newNode(style: innerStyle, children: kids)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = direction
+    rootStyle.alignItems = align
+    rootStyle.size = Size(width: px(120), height: px(600))
+    let root = tree.newNode(style: rootStyle, children: [a])
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(120), height: .definite(600)))
+    return (tree, a)
+}
+
+/// **An `auto` cross size is max-content; WebKit shrink-wraps it into the
+/// container.** Measured against WebKit through the oracle, on the tree above:
+///
+/// | container | WebKit | this engine |
+/// |---|---|---|
+/// | `column; align-items: center` | `120x40` | **`200x40`**, at `x = -40` |
+/// | `column` (stretch) | `120x40` | `120x40` — agree |
+///
+/// CSS sizes a flex item's `auto` **inline** axis by shrink-to-fit —
+/// `min(max(min-content, available), max-content)` — and its `auto` **block**
+/// axis by max-content. This engine uses max-content on whichever axis is the
+/// cross one, which is right for a row (`ownCross` in `collectItems` names the
+/// WebKit measurement that established it: an item 150 tall in an 80-tall row
+/// measures 150 and overflows) and wrong for a column.
+///
+/// **Nothing in the corpus could see it before M2**, and the reason is in the
+/// helper above: every fixture's boxes have min-content == max-content, so
+/// shrink-to-fit and max-content coincide. Ruling EP-8 then made `Column`
+/// centre by default, and a `Text` is the first content in the framework whose
+/// two intrinsic widths differ — so `Column { Text(…) }` now lays a label out at
+/// its full one-line width inside a narrow column *while sizing it as though it
+/// had wrapped*. `aCentringColumnDoesNotShrinkWrapItsTextUnlikeWebKit` in
+/// `MetalUITests` pins that consequence.
+///
+/// **Not fixed here.** It moves an item's stored cross size, which every
+/// ancestor consumes and 61 goldens depend on — sizing-plan reach, the same
+/// reason rulings BM-4 and FS-3 record a divergence rather than closing one. No
+/// fixture and no golden encodes it, deliberately: a golden would record this
+/// engine's answer as correct and a future fix should move nothing in the
+/// corpus.
+@Test func anAutoCrossSizeIsMaxContentRatherThanFitContentUnlikeWebKit() {
+    let (centred, a) = wrappingChildInA120Container(direction: .column, align: .center)
+    #expect(centred.layout(a).width == 200)
+    #expect(centred.layout(a).height == 40)
+    #expect(centred.layout(a).x == -40)
+
+    // The stretched column is the differential: there the engine and WebKit
+    // agree exactly, which is what isolates the `auto` cross branch as the site.
+    let (stretched, b) = wrappingChildInA120Container(direction: .column, align: nil)
+    #expect(stretched.layout(b).width == 120)
+    #expect(stretched.layout(b).height == 40)
+}
+
+/// **An item's cross size is measured from its HYPOTHETICAL main size, before
+/// §9.7 flexes it; CSS measures it from the USED main size, after.** Measured
+/// against WebKit on the same tree:
+///
+/// | container | WebKit | this engine |
+/// |---|---|---|
+/// | `row; align-items: flex-start` | `120x40` | **`120x20`** |
+/// | `row` (stretch) | `120x600` | `120x600` — agree |
+///
+/// CSS Flexbox orders this explicitly: §9.7 resolves the flexible lengths
+/// (step 6) and *then* §9.4 step 7 determines each item's hypothetical cross
+/// size "by performing layout with the **used** main size". `collectItems`
+/// computes `ownCross` in the same pass that computes the hypothetical main
+/// size, so an item that is about to shrink keeps the cross size it had at its
+/// unshrunk width: `.a` here is laid out 120 wide and 20 tall, one row of four
+/// 50pt items in a space that only fits two.
+///
+/// Invisible before M2 for the reason the helper above states — an item whose
+/// content does not reflow has the same cross size at every main size — and it
+/// is what makes `Row { Text(longLabel) }` one line tall while being narrower
+/// than one line.
+///
+/// **Not fixed here**, on the same footing as the divergence above: it is a
+/// reordering of the main algorithm, and every golden in the corpus is
+/// downstream of it.
+@Test func anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit() {
+    let (flexStart, a) = wrappingChildInA120Container(direction: .row, align: .flexStart)
+    #expect(flexStart.layout(a).width == 120)
+    #expect(flexStart.layout(a).height == 20)
+
+    // Stretch takes its cross size from the line rather than from the item, so
+    // it is unaffected — the differential that names `ownCross` as the site.
+    let (stretched, b) = wrappingChildInA120Container(direction: .row, align: nil)
+    #expect(stretched.layout(b).width == 120)
+    #expect(stretched.layout(b).height == 600)
+}
