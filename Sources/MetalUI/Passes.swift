@@ -82,6 +82,30 @@ public struct PrepaintPass {
 
     /// A node's resolved bounds, absolute to the root.
     public func bounds(of node: LayoutNodeID) -> Bounds<Pixels> { frame.bounds(of: node) }
+
+    /// Runs `body` with `bounds` intersected into the active clip and `offset`
+    /// added to the active translation.
+    ///
+    /// **Closure form rather than push/pop, so an unbalanced stack is not
+    /// expressible.** A `pushClip` without its `popClip` would silently clip
+    /// every later sibling in the frame.
+    ///
+    /// **On `PrepaintPass` as well as `PaintPass`, and that is not symmetry for
+    /// its own sake**: a scroll region's on-screen position depends on ancestor
+    /// scrolls, so a nested `ScrollView` that its parent has scrolled out of
+    /// view must not receive wheel events.
+    ///
+    /// `bounds(of:)` on this pass is unaffected by the stack — it keeps
+    /// returning the engine's untranslated geometry, same as `PaintPass`'s.
+    /// Translation and clipping are properties of what a pass *does* with
+    /// geometry, not of the geometry itself.
+    public func clipped(to bounds: Bounds<Pixels>,
+                        offsetBy offset: Point<Pixels>,
+                        _ body: () -> Void) {
+        frame.pushClip(bounds, offset: offset)
+        defer { frame.popClip() }
+        body()
+    }
 }
 
 /// Phase 3. Primitives are emitted here and nowhere else.
@@ -93,6 +117,14 @@ public struct PaintPass {
 
     public var contentSize: Size<Pixels> { frame.contentSize }
 
+    /// A node's resolved bounds, absolute to the root, **untranslated**.
+    ///
+    /// This is engine geometry, not what lands in the scene: `fill` and `draw`
+    /// apply the active clip/translate stack (`clipped(to:offsetBy:)` below) on
+    /// the way to the scene, so a caller who filled its own `bounds(of:)`
+    /// result inside a `clipped` block is translated automatically. Reading a
+    /// translation back out here so a caller could apply it a second time is
+    /// exactly the hazard this pass avoids by exposing no `scaleFactor`.
     public func bounds(of node: LayoutNodeID) -> Bounds<Pixels> { frame.bounds(of: node) }
 
     /// The active theme (spec §7.9).
@@ -115,9 +147,34 @@ public struct PaintPass {
     /// way to know it had already been applied, and pre-scaling its bounds
     /// double-scales them on any Retina display. `cornerRadii` is scaled with
     /// them, for the same reason.
+    ///
+    /// **The active clip/translate stack is applied here too, for the same
+    /// reason.** `bounds` is offset by `clipped(to:offsetBy:)`'s accumulated
+    /// translation and the emitted rect's mask is the intersected clip, both
+    /// scaled to match. `bounds(of:)` above never reflects either, so `bounds`
+    /// passed in here is always untranslated engine geometry — the same
+    /// geometry a caller outside any `clipped` block would pass, and the two
+    /// look identical to a caller either way, which is the point.
     public func fill(_ bounds: Bounds<Pixels>, color: Hsla,
                      cornerRadii: Corners<Pixels> = Corners(all: Pixels(0))) {
         frame.fill(bounds, color: color, cornerRadii: cornerRadii)
+    }
+
+    /// Runs `body` with `bounds` intersected into the active clip and `offset`
+    /// added to the active translation. See `PrepaintPass.clipped(to:offsetBy:_:)`
+    /// for why this exists on both passes and why a closure rather than
+    /// push/pop.
+    ///
+    /// **This is what makes `fill` and `draw` translate and clip automatically**
+    /// — a child inside this block that fills its own `bounds(of:)` result
+    /// scrolls correctly while knowing nothing about scrolling, exactly as
+    /// `fill`'s doc above says it needs no `scaleFactor`.
+    public func clipped(to bounds: Bounds<Pixels>,
+                        offsetBy offset: Point<Pixels>,
+                        _ body: () -> Void) {
+        frame.pushClip(bounds, offset: offset)
+        defer { frame.popClip() }
+        body()
     }
 
     // MARK: - Text

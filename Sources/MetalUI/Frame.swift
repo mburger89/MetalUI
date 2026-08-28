@@ -88,6 +88,64 @@ public final class Frame {
     /// Primitives emitted during paint. Written only through `fill`.
     private(set) var scene = Scene()
 
+    /// Clip and translation, innermost last. Both are in **logical points**;
+    /// `fill` and `draw` scale on the way to the scene as they already do.
+    ///
+    /// **This is emission state, not geometry.** `bounds(of:)` keeps returning
+    /// what the engine computed, untranslated — a child that fills its own
+    /// resolved bounds is translated automatically and needs to know nothing
+    /// about scrolling. It is the same division `fill` already makes for the
+    /// scale factor, and for the same reason: a caller who could see the value
+    /// would apply it a second time.
+    private var clipStack: [(clip: Bounds<Pixels>, offset: Point<Pixels>)] = []
+
+    /// The clip currently in effect, in logical points. The whole surface when
+    /// no `clipped(to:offsetBy:)` block is active — the same "no clip" answer
+    /// `fill`/`draw` always passed before this stack existed.
+    var activeClip: Bounds<Pixels> {
+        clipStack.last?.clip ?? Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                                       size: contentSize)
+    }
+
+    /// The translation currently in effect, in logical points. Zero when no
+    /// `clipped(to:offsetBy:)` block is active.
+    var activeOffset: Point<Pixels> {
+        clipStack.last?.offset ?? Point(x: Pixels(0), y: Pixels(0))
+    }
+
+    /// Pushes an **intersected** clip and an **accumulated** offset.
+    ///
+    /// Intersection rather than replacement is what makes nesting correct: an
+    /// inner clip wider than its outer must not widen it, or a nested scroller
+    /// paints over its parent's chrome. Pinned by
+    /// `nestedClipsIntersectRatherThanReplace`.
+    func pushClip(_ bounds: Bounds<Pixels>, offset: Point<Pixels>) {
+        let clip = Self.intersect(activeClip, bounds)
+        let composed = Point(x: Pixels(activeOffset.x.value + offset.x.value),
+                             y: Pixels(activeOffset.y.value + offset.y.value))
+        clipStack.append((clip, composed))
+    }
+
+    /// Pops one level pushed by `pushClip`. Callers reach this only through
+    /// `clipped(to:offsetBy:)`'s `defer`, which is what keeps the stack
+    /// balanced — see that method's doc comment.
+    func popClip() { clipStack.removeLast() }
+
+    /// The axis-aligned intersection of two bounds. Either dimension can go to
+    /// zero (or below, clamped to zero) when the two do not overlap; it never
+    /// goes negative.
+    static func intersect(_ a: Bounds<Pixels>, _ b: Bounds<Pixels>) -> Bounds<Pixels> {
+        let x0 = max(a.origin.x.value, b.origin.x.value)
+        let y0 = max(a.origin.y.value, b.origin.y.value)
+        let x1 = min(a.origin.x.value + a.size.width.value,
+                     b.origin.x.value + b.size.width.value)
+        let y1 = min(a.origin.y.value + a.size.height.value,
+                     b.origin.y.value + b.size.height.value)
+        return Bounds(origin: Point(x: Pixels(x0), y: Pixels(y0)),
+                      size: Size(width: Pixels(max(0, x1 - x0)),
+                                 height: Pixels(max(0, y1 - y0))))
+    }
+
     /// The cross-frame state table (§4.3).
     ///
     /// **Not owned here — `Frame` is per-frame and this outlives it.** The
@@ -194,14 +252,14 @@ public final class Frame {
 
     /// Emits one filled rect, optionally with rounded corners.
     ///
-    /// Borders, clip stacks and explicit z-order are still ahead (§7.3): every
-    /// rect here is emitted at `order: 0`, and `Scene.finalize()` sorts stably,
-    /// so equal orders keep emission sequence — which is why a container's own
+    /// Borders and explicit z-order are still ahead (§7.3): every rect here is
+    /// emitted at `order: 0`, and `Scene.finalize()` sorts stably, so equal
+    /// orders keep emission sequence — which is why a container's own
     /// background paints under its children provided it emits first.
-    /// `contentMask` is the whole surface: `rect_fragment` reads and applies
-    /// the field, but every production call site here passes the whole
-    /// surface, so nothing clips yet. Task 5 (the clip stack) is what gives
-    /// this a real mask to pass.
+    /// `bounds` is translated by `activeOffset` and `contentMask` is
+    /// `activeClip`, both scaled to match — the whole surface and zero offset
+    /// when no `clipped(to:offsetBy:)` block is active, which is why no
+    /// existing call site's output moves.
     ///
     /// **`borderColor` is `.transparent` and there is no way to set it**, even
     /// though `MUIRect` carries it and the fragment shader draws it — the M0
@@ -215,12 +273,13 @@ public final class Frame {
     /// edges on `LayoutTree` is what unblocks it.
     func fill(_ bounds: Bounds<Pixels>, color: Hsla,
               cornerRadii: Corners<Pixels> = Corners(all: Pixels(0))) {
-        let surface = Bounds(
-            origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
-            size: contentSize.scaled(by: scaleFactor))
+        let translated = Bounds(
+            origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                          y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+            size: bounds.size)
         scene.insert(MUIRect(
-            bounds: bounds.scaled(by: scaleFactor),
-            contentMask: surface,
+            bounds: translated.scaled(by: scaleFactor),
+            contentMask: activeClip.scaled(by: scaleFactor),
             background: color,
             borderColor: .transparent,
             cornerRadii: cornerRadii.scaled(by: scaleFactor),
@@ -256,10 +315,15 @@ public final class Frame {
     ///   whose quad is degenerate and whose sampler reads nothing; the atlas
     ///   still records it so `rasterize` is not re-run for every space.
     ///
-    /// `contentMask` is the whole surface, exactly as `fill` above passes it:
-    /// `glyph_fragment` reads and applies the field, but every production call
-    /// site here still passes the whole surface, so nothing clips yet. Task 5
-    /// (the clip stack) is what gives this a real mask to pass.
+    /// `contentMask` is `activeClip`, scaled exactly as `fill` above scales
+    /// it. **The offset is scaled here too, and that is the one place this
+    /// method is not the mirror of `fill`.** `fill` receives points and scales
+    /// the whole translated rect at the end; `draw`'s `bounds` are already in
+    /// device pixels, so `activeOffset` — still in points, the space the clip
+    /// stack is pushed in — has to be multiplied by `scaleFactor` before it is
+    /// added, not after. Adding it unscaled would shift glyphs by the scale
+    /// factor's worth of points on a Retina display and by nothing at 1x,
+    /// which is exactly the kind of bug a 1x-only test cannot see.
     func draw(_ placed: PlacedGlyph, color: Hsla) {
         guard let packed = glyphAtlas.packed(for: placed.key, rasterize: {
             GlyphRaster.rasterize(glyph: placed.key.glyph, font: placed.font,
@@ -273,11 +337,15 @@ public final class Frame {
                           y: ScaledPixels(Float(placed.baselineY - packed.top))),
             size: Size(width: ScaledPixels(Float(packed.slot.width)),
                        height: ScaledPixels(Float(packed.slot.height))))
-        let surface = Bounds(
-            origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
-            size: contentSize.scaled(by: scaleFactor))
-        scene.insert(MUIGlyph(bounds: bounds, slot: packed.slot,
-                              contentMask: surface, color: color, order: 0))
+        let dx = activeOffset.x.value * scaleFactor
+        let dy = activeOffset.y.value * scaleFactor
+        let placedBounds = Bounds(
+            origin: Point(x: ScaledPixels(bounds.origin.x.value + dx),
+                          y: ScaledPixels(bounds.origin.y.value + dy)),
+            size: bounds.size)
+        scene.insert(MUIGlyph(bounds: placedBounds, slot: packed.slot,
+                              contentMask: activeClip.scaled(by: scaleFactor),
+                              color: color, order: 0))
     }
 
     /// This frame's primitives, in paint order. Call after `render`.
