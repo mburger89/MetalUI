@@ -13,7 +13,9 @@ by CoreText, wrapped at its offered width, rasterized into an atlas, and painted
 as `monochromeSprite`.
 
 This closes the last thing content sizing left open. `newLeaf` is the only way to
-attach a `MeasureFunction` and **nothing in `Sources/` calls it** — every
+attach a `MeasureFunction` and **nothing in `Sources/` called it before this
+milestone** — as of Task 4 the caller is `Frame.requestLeaf`, reached from
+`Text.requestLayout` — every
 production node's `tree.measure()` is `nil`, so §9.2's content branch and §4.5's
 automatic minimum are live for *containers* and dead for *leaves*. A leaf's
 content is text, and this is the milestone that supplies it.
@@ -106,11 +108,27 @@ path over it, measurable against a working implementation.
 | `available` | answer |
 |---|---|
 | `.maxContent` | one line, full advance |
-| `.minContent` | typeset at a **small positive** width; the **widest** resulting line — the longest unbreakable run |
+| `.minContent` | the **widest unbreakable run**, from `CFStringTokenizer(kCFStringTokenizerUnitLineBreak)`, trailing whitespace trimmed |
 | `.definite(w)` | typeset at `w`; width is the widest line, height is `lines × lineHeight` |
 
-**"A small positive width", not zero — and this section's first draft got the
-reason wrong.** It claimed `CTTypesetterSuggestLineBreak` at width 0 "may return
+**The min-content recipe in this section's first two drafts was wrong, and it
+would have shipped a §4.5 floor an order of magnitude too small.** They said
+"typeset at a small positive width; the widest resulting line — the longest
+unbreakable run". Measured: `CTTypesetterSuggestLineBreak` **breaks inside a word
+it cannot fit**, so at any width below the longest word that recipe returns the
+widest *character*. For `"a bb supercalifragilistic dd"` at 13pt it answers
+**11.489** where CSS's min-content is **110.348** — the exact mid-word squeeze the
+rule exists to prevent. Attaching `kCTLineBreakByWordWrapping` via a
+`CTParagraphStyle` changes nothing: byte-identical line arrays at widths 0.5, 10
+and 50.
+
+The replacement is width-independent and does not typeset at all:
+`CFStringTokenizer` with `kCFStringTokenizerUnitLineBreak` yields the run
+boundaries directly. See §6.4's revision — this is the API that section says does
+not exist.
+
+**"A small positive width", not zero — and this section's first draft got that
+reason wrong too.** It claimed `CTTypesetterSuggestLineBreak` at width 0 "may return
 a zero-length break, which turns the min-content loop into a non-terminating one
 — a hang, not a wrong answer." **Measured during execution: width 0 does not
 hang.** The call returns ≥ 1 for every `start < length` at every width — 84,300

@@ -761,9 +761,39 @@ Character-wrap snaps to grapheme-cluster boundaries and never splits a `CTRun` m
 arithmetic re-wrap needs. `NSString.enumerateSubstrings(.byWords)` is UAX #29 word segmentation, not
 UAX #14, and is wrong for hyphens, CJK, and non-breaking sequences.
 
-v1 implements a **hand-rolled UAX #14 subset** covering the classes a code editor and Latin/CJK UI
-text actually hit: `BK CR LF NL SP ZW WJ GL BA HY NS OP CL QU AL NU ID CJ IN EX SY IS PR PO`, with
-everything else falling back to `AL`. Full UAX #14 (~50 classes, pair table, tailoring) is out of v1.
+**Revised 2026-08-27: CoreFoundation exposes the API CoreText does not, and the hand-rolled subset is
+demoted to a contingency.** The sentence above is literally true of **CoreText** and materially
+misleading, because `CFStringTokenizer` with `kCFStringTokenizerUnitLineBreak` is a width-independent
+UAX #14 line-break enumerator. Measured against the very class list this section enumerates:
+
+| input | runs | class |
+|---|---|---|
+| `well-known thing` | `well-` `known ` `thing` | HY — breaks *after* the hyphen |
+| `hello\u{00A0}world` | one run | GL — no break |
+| `zero\u{200B}width` | two runs | ZW |
+| `日本語` | `日` `本` `語` | ID |
+| `Hello「世界」です` | `Hello` `「世` `界」` `で` `す` | OP/CL |
+| `1,000.50 units` | `1,000.50 ` `units` | NU, LB25 |
+| `$5 and 5%` | `$5 ` `and ` `5%` | PR/PO |
+| `http://example.com/a/b` | `http://` `example.com/` `a/` `b` | SY |
+| `ภาษาไทยเป็นภาษา` | `ภาษา` `ไทย` `เป็น` `ภาษา` | **SA** — dictionary, *beyond* the subset |
+
+It covers every class listed, plus `SA`, which the hand-rolled subset explicitly excludes. Token
+ranges partition the string contiguously with full coverage — the shape an arithmetic re-wrap needs.
+Throughput `-O`: **93.6 ns/char**, ~22 µs per 231-character line, paid once and cacheable *because*
+it is width-independent.
+
+`NSString.enumerateSubstrings(.byWords)` remains wrong for the reasons this section gives, and
+measurably so: `well-known` → `["well","known"]`, hyphen dropped; `日本語` → `["日本","語"]`.
+
+**So the hand-rolled subset is a contingency, not a plan.** It stays written down for the case that
+forces it — tailoring, or a measured `CFStringTokenizer` behaviour we cannot accept — and M6 should
+start by trying to delete it rather than by building it. M2 uses `CFStringTokenizer` today for
+min-content (spec `2026-08-27-text-m2-design.md` §3.4).
+
+*(The subset as originally specified: `BK CR LF NL SP ZW WJ GL BA HY NS OP CL QU AL NU ID CJ IN EX
+SY IS PR PO`, everything else falling back to `AL`; full UAX #14 with its ~50 classes, pair table and
+tailoring was out of v1 either way.)*
 
 **Overflow policy:** word wrap by default; a run with no break opportunity wider than the line falls
 back to character wrap at grapheme boundaries. **Tabs** advance to the next multiple of the
