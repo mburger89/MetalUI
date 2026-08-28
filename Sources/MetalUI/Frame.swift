@@ -198,8 +198,10 @@ public final class Frame {
     /// rect here is emitted at `order: 0`, and `Scene.finalize()` sorts stably,
     /// so equal orders keep emission sequence — which is why a container's own
     /// background paints under its children provided it emits first.
-    /// `contentMask` is the whole surface: nothing clips yet, and the fragment
-    /// shader does not read the field in any case.
+    /// `contentMask` is the whole surface: `rect_fragment` reads and applies
+    /// the field, but every production call site here passes the whole
+    /// surface, so nothing clips yet. Task 5 (the clip stack) is what gives
+    /// this a real mask to pass.
     ///
     /// **`borderColor` is `.transparent` and there is no way to set it**, even
     /// though `MUIRect` carries it and the fragment shader draws it — the M0

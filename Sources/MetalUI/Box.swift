@@ -230,10 +230,13 @@ extension StyledElement {
     /// Rounds all four corners of the background by the same radius.
     ///
     /// **Paint only — it does not affect layout or clip the children.** The
-    /// engine has no corner-radius input (`Style` carries none), and clipping
-    /// needs `contentMask`, which the fragment shader does not read; a child
-    /// painted into a rounded parent's corner therefore still shows square.
-    /// Per-corner radii wait for a caller that wants them.
+    /// engine has no corner-radius input (`Style` carries none). `rect_fragment`
+    /// does now apply `contentMask`, but `Frame.fill` still passes the whole
+    /// surface as every rect's mask, so nothing is actually clipped to this
+    /// radius — a child painted into a rounded parent's corner therefore still
+    /// shows square. Task 5 (the clip stack) is what gives `fill` a real mask
+    /// to pass, at which point this changes. Per-corner radii wait for a
+    /// caller that wants them.
     public func cornerRadius(_ points: Pixels) -> Self {
         decorating { $0.cornerRadius = points }
     }
