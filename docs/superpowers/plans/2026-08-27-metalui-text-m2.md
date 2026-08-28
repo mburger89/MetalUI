@@ -79,12 +79,18 @@ import CoreText
     #expect(abs(f.metrics.leading - CTFontGetLeading(f.ctFont)) < 0.001)
 }
 
-/// **§6.2's `opsz` pinning, and the reason it exists.** An unpinned system font
-/// tracks point size on its optical-size axis, so advances stop scaling
-/// linearly: §6.2 measured a 28-character label at 13pt = 164.804 and 26pt =
-/// 301.703, which is -8.5% against 13 x 2 = 329.608. Positions computed from
-/// base-size advances then drift under zoom.
-@Test func advancesScaleLinearlyBecauseOpszIsPinned() {
+/// **WITHDRAWN by ruling TX-C — do not write this test.** It asserted that
+/// pinning `opsz` makes advances scale linearly. Measured during execution: the
+/// pinned 13->26pt ratio is **2.0653**, not 2.0, because CoreText hints advances
+/// per size independently of the axis; and the unpinned axis is
+/// `clamp(size, 17, 96)`, so across every M2 size it is constant already and the
+/// pin changes only the optical design, at a cost of 11.7-13.0%. `resolve` is a
+/// plain resolve and there is no pin to test. Spec §6.2 is corrected; linear
+/// advances are an M5 canvas requirement solved by the font matrix.
+///
+/// Left here rather than deleted so the next reader sees that the assertion was
+/// considered and refuted by measurement, not forgotten.
+@Test func advancesScaleLinearlyBecauseOpszIsPinned_WITHDRAWN() {
     let small = FontResolver.resolve(family: nil, size: 13)
     let large = FontResolver.resolve(family: nil, size: 26)
     let text = "The quick brown fox jumps ov"   // 28 characters, per §6.2
@@ -99,12 +105,27 @@ import CoreText
 }
 ```
 
-- [ ] **Step 2: Run them and confirm they fail**
+- [ ] **Step 2: Add the target to `Package.swift` FIRST, then run them**
+
+**The order matters and the first draft had it backwards.** With no test target
+the file is not compiled at all, and `swift test --filter FontResolutionTests`
+reports `Test run with 0 tests in 0 suites passed` — taxonomy shape 11's exact
+signature, reached by following the plan. Add the target, then run.
+
+**Standing rule for every "confirm it fails" step in this plan:** the evidence of
+failure is an `error:` line, or a non-zero issue count in a summary line. It is
+**never** the absence of a summary line, and never `0 tests … passed` — that
+means the filter matched nothing, not that the test failed. If you see it, the
+tests are not being compiled; fix that and re-run until you get a real compile
+error or a real red.
+
+(Tasks 2–7 do not have this hazard: each adds a file to a target that already
+exists, so a missing symbol is a build failure, which is a genuine red.)
+
+- [ ] **Step 3: Confirm the tests fail for the right reason**
 
 Run: `swift test --no-parallel --filter FontResolutionTests`
-Expected: FAIL — the target does not exist.
-
-- [ ] **Step 3: Add the target to `Package.swift`**
+Expected: a compile error naming `FontResolver` — not `0 tests … passed`.
 
 Add `.target(name: "MetalUIText", dependencies: ["MetalUICore"])` and a matching `.testTarget(name: "MetalUITextTests", dependencies: ["MetalUIText"])`. **Do not** add it to `MetalUILayout`'s dependencies.
 
@@ -124,13 +145,20 @@ Expected: a summary line and the full count. **No golden may move.**
 ```bash
 # 1. Build FontKey from the REQUESTED family name instead of the resolved font.
 #    Expect: report what reddens. On a machine where the two requests resolve to
-#    the same font this may redden nothing — if so, SAY SO and say that the test
-#    is machine-dependent, rather than claiming coverage. That is the honest
-#    result and it is why the test brackets both outcomes.
-# 2. Drop the opsz pin from the descriptor.
-#    Expect: `advancesScaleLinearlyBecauseOpszIsPinned` reddens.
-# 3. Drop `size` from FontKey.
+#    the same font this may redden nothing — if so, SAY SO rather than claiming
+#    coverage. (Measured during execution: §6.1's trap DOES reproduce here —
+#    `CTFontCreateWithName("SFMono-Regular")` gives PostScript name `Helvetica`,
+#    and so does a nonexistent name, because the API substitutes rather than
+#    failing. So this mutation is not vacuous on this machine.)
+# 2. Drop `size` from FontKey.
 #    Expect: `theKeyDistinguishesSizes` reddens.
+#    **Spelling matters here (ruling CS-N).** Replacing the stored property with
+#    a computed one that returns 0 while leaving the storage in place reddens
+#    NOTHING — synthesized `Hashable`/`Equatable` derive from stored properties,
+#    so the key never changed. That is a mutation that did not mutate, not a
+#    coverage gap. Use `self.size = 0` in the initialiser.
+# 3. Transpose ascent and descent in FontMetrics.
+#    Expect: `metricsMatchCoreText` reddens.
 ```
 
 - [ ] **Step 7: Commit**
@@ -172,7 +200,13 @@ import Testing
 import CoreText
 @testable import MetalUIText
 
-private let font = FontResolver.resolve(family: nil, size: 13)
+// NOT `private let` — `ResolvedFont` is not `Sendable` (it holds a `CTFont`,
+// a CF class), so a file-scope `let` fails Swift 6 concurrency checking with
+// "not concurrency-safe because non-'Sendable' type ... may have shared
+// mutable state". A computed property is the fix; do NOT bind the file to
+// `@MainActor` instead, which would drag the `processExitsWith:` tests onto
+// the main actor for no reason. Tasks 2 and 3 both hit this.
+private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
 
 @Test func anUnwrappedStringIsOneLineWhoseAdvanceMatchesCoreText() {
     let s = "Hello, world"
@@ -284,7 +318,13 @@ git commit -m "feat(text): shaping and wrapping via CTTypesetter"
 import Testing
 @testable import MetalUIText
 
-private let font = FontResolver.resolve(family: nil, size: 13)
+// NOT `private let` — `ResolvedFont` is not `Sendable` (it holds a `CTFont`,
+// a CF class), so a file-scope `let` fails Swift 6 concurrency checking with
+// "not concurrency-safe because non-'Sendable' type ... may have shared
+// mutable state". A computed property is the fix; do NOT bind the file to
+// `@MainActor` instead, which would drag the `processExitsWith:` tests onto
+// the main actor for no reason. Tasks 2 and 3 both hit this.
+private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
 
 /// **The only test that can see whether the cache is a cache.** A `store` that
 /// never stores leaves every other test green and the engine typesetting on
@@ -919,5 +959,5 @@ git commit -m "docs: record M2's rulings and retire the text-system blockers"
 - **Nothing in this repo can see a wrong glyph, a wrong atlas coordinate, or a blank run.** No WebKit oracle for text rendering; the ABI probe skips without a device. The human look is the only check, which is why the three failure modes are named in advance.
 - **Eviction is the subtlest thing here.** Its failure is one wrong frame, intermittently. The between-frames guard is the whole defence, and its own test is the only thing pinning it.
 - **The shaping cache is invisible.** A store that never stores leaves the engine correct and typesetting three times per node per frame. `theCacheIsActuallyConsulted` is the only guard.
-- **`opsz` pinning is load-bearing for M5.** §6.2 measured −8.5% advance drift at 2× without it. It is tested here at 13/26pt, but its consequence lands on the canvas.
+- **Linear advances are load-bearing for M5 and NOT for M2** — and the plan originally said the first half while shipping the mechanism in M2 anyway. That sentence ("its consequence lands on the canvas") was the prompt to ask whether the mechanism belonged here at all, and nobody asked until Task 1 measured it. **When a plan states that a mechanism's consequence lands in a later milestone, that is the moment to question its presence in the earlier one.**
 - **The header symlink.** Editing `MetalUIShaderTypes.h` without `swift package clean` produces a vanished primitive that looks exactly like a shader bug.

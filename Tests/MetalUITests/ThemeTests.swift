@@ -49,19 +49,26 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
 /// `Theme.light` cannot do this job: a transposed arm — `.surface` returning
 /// `surfaceSecondary` — would still return *a* plausible colour, and only
 /// distinct authored values make the swap visible.
+///
+/// Every token gets an arm here, so adding one to `ColorToken` without adding a
+/// line below leaves the new arm unasserted. `everyTokenDiffersBetweenLightAndDark`
+/// and `noTwoTokensCollideWithinAVariant` above iterate `allCases` and therefore
+/// pick a new token up on their own; this one does not.
 @Test func theSubscriptReturnsEachTokensOwnProperty() {
     let theme = Theme(
         background:       Hsla(h: 0.10, s: 0.11, l: 0.12, a: 0.13),
         surface:          Hsla(h: 0.20, s: 0.21, l: 0.22, a: 0.23),
         surfaceSecondary: Hsla(h: 0.30, s: 0.31, l: 0.32, a: 0.33),
         accent:           Hsla(h: 0.40, s: 0.41, l: 0.42, a: 0.43),
-        separator:        Hsla(h: 0.50, s: 0.51, l: 0.52, a: 0.53))
+        separator:        Hsla(h: 0.50, s: 0.51, l: 0.52, a: 0.53),
+        textPrimary:      Hsla(h: 0.60, s: 0.61, l: 0.62, a: 0.63))
 
     #expect(theme[.background] == theme.background)
     #expect(theme[.surface] == theme.surface)
     #expect(theme[.surfaceSecondary] == theme.surfaceSecondary)
     #expect(theme[.accent] == theme.accent)
     #expect(theme[.separator] == theme.separator)
+    #expect(theme[.textPrimary] == theme.textPrimary)
 
     // …and pinned to literals too, because the five expectations above all pass
     // against a subscript that returns `background` for every token *if* the
@@ -72,6 +79,7 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
     #expect(theme[.accent].h == 0.40)
     #expect(theme[.separator].h == 0.50)
     #expect(theme[.separator].a == 0.53)
+    #expect(theme[.textPrimary].h == 0.60)
 }
 
 /// The single place the two variants are chosen between. Returning `light`

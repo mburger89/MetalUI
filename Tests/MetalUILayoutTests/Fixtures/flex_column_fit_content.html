@@ -1,0 +1,46 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Ruling TX-H's headline: a COLUMN's cross axis is the INLINE axis, so an
+     `auto` cross size is shrink-to-fit — `min(max(min-content, available),
+     max-content)` — and not max-content.
+
+     `.a` is a wrapping flex container, which (like text, and unlike every empty
+     div in the 61 fixtures that preceded these five) has two DIFFERENT
+     intrinsic widths: 50 at min-content, 200 at max-content. That is the whole
+     reason this fixture can exist and the reason divergence 6 was invisible for
+     four milestones — a rigid box gives the same answer under both rules.
+
+     `.a` therefore comes out 120 (the available space), NOT 200. `collectItems`'
+     `ownCross` gave 200 before this fix, and `align-items: center` then put it
+     at x = -40, hanging off both sides of a box it had sized as if it had
+     wrapped.
+
+     `.pct` IS THE CONTROL, and it controls for the right thing: a percentage
+     cross size is not `auto`, so `ownCross` returns it unmeasured. 50% of 120 is
+     60, which fits one 50px item per line and so is 4 lines / 80 tall — a shape
+     no fit-content answer produces. If someone widens the `auto` branch to cover
+     declared sizes, this box moves and `.a` does not.
+
+     `.tail` follows both, so their heights are load-bearing in a coordinate and
+     not only in a size. */
+  #root { display: flex; flex-direction: column; align-items: center;
+          width: 120px; height: 300px; }
+  .wrapper { display: flex; flex-wrap: wrap; }
+  .pct { width: 50%; }
+  .k { width: 50px; height: 20px; }
+  .tail { width: 80px; height: 20px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="wrapper" data-id="a">
+      <div class="k" data-id="k1"></div><div class="k" data-id="k2"></div>
+      <div class="k" data-id="k3"></div><div class="k" data-id="k4"></div>
+    </div>
+    <div class="wrapper pct" data-id="pct">
+      <div class="k" data-id="p1"></div><div class="k" data-id="p2"></div>
+      <div class="k" data-id="p3"></div><div class="k" data-id="p4"></div>
+    </div>
+    <div class="tail" data-id="tail"></div>
+  </div>
+</body></html>

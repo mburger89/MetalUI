@@ -1,0 +1,48 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* The OTHER half of ruling TX-H, and the guard on the `!isRow` that confines
+     it: a ROW's cross axis is the BLOCK axis, where CSS content-sizes rather
+     than shrink-wrapping. `.a` measures 40 tall in a 30-tall row and overflows
+     it; a fit-content block axis would pull it back toward the container.
+
+     This file exists because a mutation reddened nothing. Extending the
+     fit-content branch to rows as well as columns left all 396 tests green —
+     `!isRow` was carrying the whole axis distinction with nothing checking it,
+     which is taxonomy shape 5 (the loudest-stated constraint is the most likely
+     to be unguarded). Ruling CS-K's original measurement of this case — an item
+     150 tall in an 80-tall row — was recorded in a comment and never pinned.
+
+     `.a` IS A WRAPPING CONTAINER, not the rigid box CS-K used, and that is the
+     whole improvement. A rigid box has min-content == max-content on both axes,
+     so it CANNOT distinguish content-sizing from shrink-wrapping — which is
+     precisely the invalid inference that let divergence 6 stand for four
+     milestones. `.a`'s height depends on the width it is laid out at, and the
+     row takes the height that width implies rather than the row's own 30.
+
+     `.a` DECLARES ITS WIDTH, and that is deliberate rather than incidental.
+     An auto-width child here would have its MAIN size measured too, and this
+     engine measures an item's main size with the container's cross extent
+     offered as available space where WebKit leaves it unconstrained — a
+     separate disagreement (a column-wrap draft of this fixture came out
+     180x50 against WebKit's 60x150). Declaring the width keeps that out and
+     leaves only the cross axis under test.
+
+     Nothing here shrinks: 120 + 40 fits the 300-wide root with room to spare,
+     so divergence 6 — an item's cross size measured from its hypothetical
+     rather than its used main size — cannot reach these numbers. */
+  #root { display: flex; flex-direction: row; align-items: flex-start;
+          width: 300px; height: 30px; }
+  .a { display: flex; flex-wrap: wrap; width: 120px; }
+  .k { width: 50px; height: 20px; }
+  .after { width: 40px; height: 16px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a">
+      <div class="k" data-id="k1"></div><div class="k" data-id="k2"></div>
+      <div class="k" data-id="k3"></div><div class="k" data-id="k4"></div>
+    </div>
+    <div class="after" data-id="after"></div>
+  </div>
+</body></html>

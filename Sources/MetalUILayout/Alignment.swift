@@ -128,10 +128,32 @@ func resolvedAlignment(_ item: Style, container: Style) -> AlignItems {
 /// size is not stretched at all, and CSS places it at cross-start — also zero.
 /// Nothing here changed when stretch landed, and nothing here should.
 ///
-/// **`baseline` is NOT implemented** and falls back to `flexStart`. It requires
-/// font metrics that arrive with the text system in M2; until then a baseline
-/// row lays out silently as a flex-start row. Recorded in CLAUDE.md's inert-API
-/// table — do not remove that row without implementing this.
+/// **`baseline` is NOT implemented** and falls back to `flexStart`: a
+/// baseline-aligned row lays out silently as a flex-start row.
+///
+/// **The blocker this comment used to name is gone, and the work is not done.**
+/// It said baseline "requires font metrics that arrive with the text system in
+/// M2". Those metrics exist — `MetalUIText`'s `FontMetrics` carries ascent,
+/// descent and leading, pinned against `CTFontGetAscent`/`Descent`/`Leading` by
+/// `metricsMatchCoreText` — so nothing is waiting on a milestone. What is
+/// missing is engine work here, and naming it is the point of this paragraph
+/// (taxonomy shape 10: name a mechanism, never a milestone):
+///
+/// 1. **The engine cannot see a baseline at all.** A `MeasureFunction` returns
+///    a `SizeD`, so an item's first baseline never reaches `collectItems`; the
+///    measure protocol has to carry it before `crossAxisOffset` can align on
+///    it.
+/// 2. **This function's signature is the wrong shape.** Baseline alignment is
+///    not an offset computed per item from `(itemCross, lineCross)` — a line's
+///    items have to agree on a common baseline first, which is a per-*line*
+///    quantity this function is never given.
+/// 3. **AL-6's `wrap-reverse` clause.** CSS Flexbox §8.3 swaps first- and
+///    last-baseline alignment in a `wrap-reverse` container. `positionItems`'
+///    flip inverts an offset, and baseline alignment is not an offset, so
+///    nothing there expresses it today.
+///
+/// Recorded in CLAUDE.md's inert-API table — do not remove that row without
+/// implementing this.
 ///
 /// **`itemCross` is the item's OUTER cross size since item margins landed** —
 /// `marginCross.leading + crossSize + marginCross.trailing` — because

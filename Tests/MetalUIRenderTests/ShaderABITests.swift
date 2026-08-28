@@ -33,18 +33,33 @@ import MetalUIShaderTypes
                             bottom: ScaledPixels(7), left: ScaledPixels(8)),
         order: 9)
 
-    let slots = 16
+    // The probe reads a `MUIGlyph` too, and an unbound buffer aborts the
+    // process under Metal API validation rather than returning a wrong number.
+    // Its fields are asserted by `metalAndSwiftAgreeOnTheGlyphStructLayout` in
+    // `GlyphABITests.swift`; this one stays about `MUIRect`.
+    var glyph = MUIGlyph(
+        bounds: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0)),
+        atlasBounds: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0)),
+        color: MUIHsla(h: 0, s: 0, l: 0, a: 0),
+        order: 0,
+        _reserved: 0)
+
+    let slots = 32
     let outBuffer = try #require(device.makeBuffer(length: slots * MemoryLayout<UInt32>.stride,
                                                    options: .storageModeShared))
     let inBuffer = try #require(device.makeBuffer(bytes: &rect,
                                                   length: MemoryLayout<MUIRect>.stride,
                                                   options: .storageModeShared))
+    let glyphBuffer = try #require(device.makeBuffer(bytes: &glyph,
+                                                     length: MemoryLayout<MUIGlyph>.stride,
+                                                     options: .storageModeShared))
 
     let commandBuffer = try #require(queue.makeCommandBuffer())
     let encoder = try #require(commandBuffer.makeComputeCommandEncoder())
     encoder.setComputePipelineState(pipeline)
     encoder.setBuffer(outBuffer, offset: 0, index: Int(MUIProbeBufferOut.rawValue))
     encoder.setBuffer(inBuffer, offset: 0, index: Int(MUIProbeBufferRect.rawValue))
+    encoder.setBuffer(glyphBuffer, offset: 0, index: Int(MUIProbeBufferGlyph.rawValue))
     encoder.dispatchThreads(MTLSize(width: 1, height: 1, depth: 1),
                             threadsPerThreadgroup: MTLSize(width: 1, height: 1, depth: 1))
     encoder.endEncoding()

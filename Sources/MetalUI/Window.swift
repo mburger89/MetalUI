@@ -2,6 +2,7 @@ import Metal
 import MetalUICore
 import MetalUIRender
 import MetalUIPlatform
+import MetalUIText
 
 @MainActor
 public final class Window {
@@ -32,6 +33,60 @@ public final class Window {
     /// every frame — a running app that silently forgets, with the whole suite
     /// still green, because a single-frame test cannot tell the two apart.
     private let stateTable = StateTable()
+
+    /// The shaping cache (spec §3.2), owned here for the same reason
+    /// `stateTable` is: a `Frame` lives for one frame and a cache that died with
+    /// it would re-shape every string through CoreText on every frame, with the
+    /// whole suite green. See `Frame.shapingCache`.
+    ///
+    /// It is not swept the way `stateTable` is. Its key is *content*, not
+    /// element identity, so an entry is valid for as long as the string, font
+    /// and width recur — and nothing yet evicts. A window showing an unbounded
+    /// stream of distinct strings therefore grows unboundedly; eviction is the
+    /// atlas's problem first (spec §3.5) and this cache's next, and neither is
+    /// M2's.
+    private let shapingCache = ShapingCache()
+
+    /// The glyph atlas (spec §3.5), owned here for the same reason
+    /// `shapingCache` is — a `Frame` lives for one frame and an atlas that died
+    /// with it would re-rasterize every glyph through `CTFontDrawGlyphs` and
+    /// re-upload a whole texture on every frame, with the whole suite green.
+    /// See `Frame.glyphAtlas`.
+    ///
+    /// **Nothing evicts from it, and a caller would make things WORSE rather
+    /// than better** — which is a mechanism a reader can check, not a milestone
+    /// to wait for. `GlyphAtlas.evictUnusedSince` exists, works and is guarded;
+    /// calling it here every frame would make the atlas fill *faster*, because
+    /// the shelf packer never revisits a closed shelf: an evicted glyph's
+    /// pixels stay resident and unreachable, and the next frame that wants it
+    /// packs a **second** copy further down. Eviction is a net gain only once
+    /// something reclaims the space — a repacker, or a whole-atlas rebuild —
+    /// and that is a task, not a call site.
+    ///
+    /// **Read the consequence with it, because the two are one fact.** The
+    /// atlas is therefore **grow-only**, and when it is full `Frame.draw`
+    /// **silently drops** the glyphs that will not fit: a window showing an
+    /// unbounded stream of *distinct* glyphs loses text with no error
+    /// anywhere. CLAUDE.md's inert table carries the same story.
+    ///
+    /// **Internal rather than private**, for `lastScene`'s reason: a window that
+    /// built a *fresh* atlas per frame would produce identical pixels on every
+    /// frame the suite renders, so nothing observable from outside distinguishes
+    /// it. `currentGeneration` does, and
+    /// `aWindowKeepsOneAtlasAcrossFrames` reads it.
+    private(set) var glyphAtlas = GlyphAtlas(width: Window.atlasExtent,
+                                             height: Window.atlasExtent)
+
+    /// The atlas is square and this is its side, in **device pixels**.
+    ///
+    /// 1024 holds on the order of two thousand 13pt glyphs at 2x — every
+    /// distinct character of a UI's chrome across four subpixel variants, with
+    /// room to spare — for one megabyte of R8 on the CPU and the same on the
+    /// GPU. It is `internal` rather than private because `Frame`'s default
+    /// argument uses it: a `Frame` built without a window (every layout test)
+    /// gets an atlas of exactly the production size, so a test cannot pass
+    /// against a packer that only fits in a larger one.
+    static let atlasExtent = 1024
 
     /// The active theme (spec §7.9).
     ///
@@ -143,10 +198,39 @@ public final class Window {
         let frame = Frame(contentSize: platformWindow.contentSize,
                           scaleFactor: surfaceFrame.scaleFactor,
                           stateTable: stateTable,
+                          shapingCache: shapingCache,
+                          glyphAtlas: glyphAtlas,
                           theme: theme)
         renderRoot(frame)
         let scene = frame.finalizedScene()
         lastScene = scene
+
+        // **Before `encode`, and the ordering is the whole point.** Paint has
+        // just packed whatever glyphs this frame needed and the scene holds
+        // `AtlasSlot`s pointing at them; `encode` draws against whatever
+        // texture the renderer has. Uploading afterwards would leave the *first*
+        // frame of any new glyph sampling a texture that does not contain it —
+        // blank text that fixes itself on the next redraw, which is the
+        // intermittent failure spec §4.2 names and which no amount of staring
+        // at a second frame reveals.
+        //
+        // Unconditional rather than guarded on `scene.glyphs.isEmpty`: only the
+        // atlas knows which pixels changed, it already answers "nothing" with a
+        // `nil` dirty rect, and a guard here would couple the upload to a
+        // property of the scene that can drift from it.
+        //
+        // **This method commits and never waits, and `upload` is safe anyway —
+        // but only because of an invariant `Renderer` maintains, not because of
+        // anything here.** There is no semaphore on this path, so frame N-1's
+        // draw may still be sampling the atlas texture while this call runs.
+        // `Renderer.atlasTextureWasEncoded` is what makes that harmless: a
+        // texture is written only while it has never been bound, and a dirty
+        // upload after an encode allocates a replacement. **If you add an
+        // in-flight semaphore here, that invariant becomes redundant rather than
+        // wrong** — do not remove it in the same change, because the atlas is
+        // the only persistent CPU-mutated GPU resource in the renderer and it
+        // would be the only thing standing between a torn glyph and a frame.
+        renderer.upload(glyphAtlas)
 
         do {
             try renderer.encode(scene, view: view, in: commandBuffer)

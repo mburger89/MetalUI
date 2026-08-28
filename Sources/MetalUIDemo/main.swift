@@ -1,7 +1,21 @@
 import MetalUI
 
 /// Milestone 1's exit criterion: a nested flex layout that resizes correctly,
-/// plus a light/dark switch.
+/// plus a light/dark switch. **And milestone 2's**, which is the reason the
+/// three `Text` runs below are here rather than in a test.
+///
+/// Spec §4.2 names three failure modes that **no assertion in this repo can
+/// see**, because there is no oracle for a rendered glyph the way there is a
+/// browser for a layout: a **wrong glyph** (an atlas key collision — requesting
+/// `"SFMono-Regular"` by name returns a font whose PostScript name is
+/// `Helvetica` on the machine this was measured on, which is why nothing may be
+/// keyed on a family name), **fuzzy or wobbling text** (the subpixel variant or
+/// the scale factor missing from the atlas key), and **intermittent blank runs**
+/// (a glyph evicted while the frame that references it is still being built).
+/// All three are *key* failures: the CPU and the GPU agree on a wrong answer
+/// together, so every byte-exact test in the suite passes. A human looking at
+/// this window is the only check, and the three runs below are chosen to make
+/// each mode show itself — see the comments at each.
 ///
 /// **Nothing here names a colour literal** (spec §7.9) — every fill is a
 /// `ColorToken` the frame's theme resolves. Nothing here names a scale factor
@@ -66,6 +80,14 @@ func demoContent() -> some Element {
             // 196 - 28 into four children that would then silently disagree
             // with the padding above them.
             Column(gap: Pixels(10)) {
+                // **The single-line path, and M2's exit criterion has two
+                // halves — this is the first.** A `Text` narrower than its
+                // container never reaches `CTTypesetterSuggestLineBreak`'s
+                // wrapping branch at all, so it exercises shaping, the atlas
+                // and the glyph draw and nothing else. If this word is legible
+                // and the paragraph below is not, the fault is in wrapping; if
+                // neither is, it is in the atlas or the draw path.
+                Text("Library")
                 Box().height(Pixels(26)).background(.accent).cornerRadius(Pixels(6))
                 Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
                 Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
@@ -82,6 +104,42 @@ func demoContent() -> some Element {
                     .height(Pixels(128))
                     .background(.accent)
                     .cornerRadius(Pixels(12))
+
+                // **A second size, and it is a diagnostic rather than
+                // decoration.** The atlas key is
+                // `(resolvedFontKey, glyphID, size, subpixelVariant,
+                // scaleFactor)` (spec §3.5). Every letter of "Text renders" at
+                // 22pt also occurs in the paragraph below at 13pt, so a key
+                // that dropped `size` would serve one of the two from the
+                // other's slot and the mismatch is visible without measuring
+                // anything: a heading built from body-sized glyphs, or the
+                // reverse.
+                Text("Text renders").font(size: 22)
+
+                // **The wrapping path.** No width is declared: the column's
+                // `.alignItems(.stretch)` below gives this leaf the pane's
+                // content width as a definite cross extent, `flexBaseSize`
+                // offers that same extent when it measures the leaf's height,
+                // and `textMeasure`'s `.definite(w)` row typesets at it — so
+                // the paragraph re-wraps on every horizontal resize with no
+                // constant in this file naming a width. The string is long
+                // enough to take three or more lines at the 920pt default and
+                // to change its line count well before the window reaches its
+                // minimum size.
+                //
+                // **Two lines of it are the milestone's own record**, so that
+                // what is on screen and what is written down are the same
+                // sentence.
+                Text("""
+                     CoreText shapes this paragraph, a shelf packer places \
+                     each glyph in an R8 atlas exactly once, and the fragment \
+                     shader tints the coverage it samples with the theme's \
+                     text colour. Drag the window's edge and watch the line \
+                     breaks move: layout asks this leaf to measure itself at \
+                     the width it was offered, and paint re-shapes at the \
+                     width layout settled on.
+                     """)
+
                 // Three unequal weights: 1 / 2 / 1. Equal ones would still look
                 // right under a grow term that ignored the weight entirely.
                 Row(gap: Pixels(12)) {
@@ -119,7 +177,7 @@ func runDemo() throws {
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
-    let window = try app.openWindow(title: "MetalUI — Milestone 1",
+    let window = try app.openWindow(title: "MetalUI — Milestones 1 and 2",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: demoContent)
 

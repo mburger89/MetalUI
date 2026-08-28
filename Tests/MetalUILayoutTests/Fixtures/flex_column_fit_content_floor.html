@@ -1,0 +1,42 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* The `max(min-content, available)` half of fit-content, and the only fixture
+     in the corpus that can tell fit-content from stretch.
+
+     Where `min-content <= available <= max-content`, shrink-to-fit answers
+     exactly `available` — which is also what STRETCH answers, so a fixture in
+     that regime pins the number without naming the rule that produced it. Here
+     the container is 30 wide and one item is 50, so min-content (50) EXCEEDS
+     the available space and the floor wins: WebKit lays each wrapper out 50 wide
+     and lets it overflow. A stretch implementation gives 30.
+
+     The three `align-self` values are the second thing this file pins, and they
+     are the reason it is three boxes rather than one: fit-content is the same
+     50 for all three, and only the OFFSET differs (0 / -10 / -20). Under the
+     old max-content rule all three were 100 wide, at 0 / -35 / -70 — every
+     number in the file moves, which is what makes it a fixture rather than a
+     spot check. `.stretch` is the fourth and takes the container's 30. */
+  #root { display: flex; flex-direction: column; width: 30px; height: 400px; }
+  .wrapper { display: flex; flex-wrap: wrap; }
+  .s { align-self: flex-start; }
+  .c { align-self: center; }
+  .e { align-self: flex-end; }
+  .k { width: 50px; height: 20px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="wrapper s" data-id="s">
+      <div class="k" data-id="s1"></div><div class="k" data-id="s2"></div>
+    </div>
+    <div class="wrapper c" data-id="c">
+      <div class="k" data-id="c1"></div><div class="k" data-id="c2"></div>
+    </div>
+    <div class="wrapper e" data-id="e">
+      <div class="k" data-id="e1"></div><div class="k" data-id="e2"></div>
+    </div>
+    <div class="wrapper" data-id="stretch">
+      <div class="k" data-id="t1"></div><div class="k" data-id="t2"></div>
+    </div>
+  </div>
+</body></html>

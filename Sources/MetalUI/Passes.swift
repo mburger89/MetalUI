@@ -1,5 +1,6 @@
 import MetalUICore
 import MetalUILayout
+import MetalUIText
 
 // Spec §4.1: "`LayoutPass` / `PrepaintPass` / `PaintPass` are thin structs over
 // one `@MainActor final class Frame`, exposing only what is legal in that phase
@@ -31,6 +32,34 @@ public struct LayoutPass {
     public func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
         frame.requestNode(style: style, children: children)
     }
+
+    /// Registers a **leaf**: a node with no children that answers for its own
+    /// size through `measure` (spec §3.1, §5.5).
+    ///
+    /// `measure` is `@Sendable` and non-isolated — the engine calls it from
+    /// wherever it is running — so what it may capture is decided by the
+    /// compiler and not by convention. `Text.requestLayout` is the worked
+    /// example: a `@MainActor` cache is capturable (a global-actor class is
+    /// implicitly `Sendable`), a `CTFont` is not, and the block must reduce to
+    /// a `SizeD` before it returns.
+    ///
+    /// Public because a leaf is how *anything* that is not a box gets a size —
+    /// spec §3.1 names text, images and embedded app content — and an element
+    /// outside this module has no other way to report one.
+    public func requestLeaf(style: Style,
+                            measure: @escaping MeasureFunction) -> LayoutNodeID {
+        frame.requestLeaf(style: style, measure: measure)
+    }
+
+    /// The window's shaping cache (spec §3.2).
+    ///
+    /// **Internal, unlike everything else on this pass.** It is the one member
+    /// here that is not a phase capability: an element author outside `MetalUI`
+    /// has no `ResolvedFont` to shape with and no reason to reach a text cache,
+    /// while `Text` — which lives inside — needs the instance the window owns so
+    /// that shapes survive the frame. Making it public would also make
+    /// `ShapingCache`'s whole surface part of `MetalUI`'s API by reachability.
+    var shapingCache: ShapingCache { frame.shapingCache }
 }
 
 /// Phase 2. Layout has resolved, so absolute bounds are known — but nothing has
@@ -89,6 +118,37 @@ public struct PaintPass {
     public func fill(_ bounds: Bounds<Pixels>, color: Hsla,
                      cornerRadii: Corners<Pixels> = Corners(all: Pixels(0))) {
         frame.fill(bounds, color: color, cornerRadii: cornerRadii)
+    }
+
+    // MARK: - Text
+    //
+    // Three internal members, for `LayoutPass.shapingCache`'s reason and one
+    // more. They are not phase capabilities: an element author outside
+    // `MetalUI` has no `ResolvedFont` to shape with, no `PlacedGlyph` to draw
+    // and — the extra reason — no business seeing a scale factor at all, which
+    // is stated at `fill` above. Making any of them public would put
+    // `ShapingCache`'s and `GlyphAtlas`'s whole surface into `MetalUI`'s API by
+    // reachability, and would hand an element the double-scaling hazard `fill`
+    // exists to remove.
+    //
+    // Text is inside this module, so it needs no public seam. When an element
+    // *outside* it needs to draw glyphs, the public API is a `Text`-shaped one
+    // rather than these three.
+
+    /// The window's shaping cache (spec §3.2). See `LayoutPass.shapingCache`.
+    var shapingCache: ShapingCache { frame.shapingCache }
+
+    /// Logical points to device pixels for this frame's target.
+    ///
+    /// **The one place in the paint phase that may read it**, because a glyph
+    /// bitmap is rasterized on the device grid and its placement is therefore
+    /// stated there and not in points. `fill` applies the same factor itself
+    /// and must not be handed pre-scaled bounds.
+    var scaleFactor: Float { frame.scaleFactor }
+
+    /// Emits one glyph sprite. See `Frame.draw(_:color:)`.
+    func draw(_ glyph: PlacedGlyph, color: Hsla) {
+        frame.draw(glyph, color: color)
     }
 }
 

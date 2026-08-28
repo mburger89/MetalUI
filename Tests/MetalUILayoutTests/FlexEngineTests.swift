@@ -1025,3 +1025,132 @@ private func threeJustifiedChildren(
                         ids: [root: "root", a: "a", b: "b", c: "c"],
                         golden: golden, tolerance: 0.1)
 }
+
+// MARK: - Two `auto` cross-size rules, both found by M2's text leaf
+
+/// The tree both tests below use, and the reason they can be written without
+/// text at all: `.a` is a **wrapping** container, so — like a run of text and
+/// unlike every empty div in the corpus — its min-content width (50, one item)
+/// and its max-content width (200, four items) are different numbers, and its
+/// height depends on which of them it is laid out at.
+///
+/// `width` was hardcoded to 120 while both tests below recorded divergences.
+/// It is a parameter now because fixing divergence 6 made 120 unable to
+/// distinguish the rule it pins: where `min-content <= available <= max-content`
+/// shrink-to-fit answers exactly `available`, which is also **stretch's**
+/// answer. Only a container narrower than the item's min-content separates them.
+private func wrappingChildInANarrowContainer(
+    width: Double = 120, direction: FlexDirection, align: AlignItems?
+) -> (LayoutTree, LayoutNodeID) {
+    let tree = LayoutTree(generation: 0)
+    let kids = (0..<4).map { _ in fixedChild(tree, w: 50, h: 20) }
+    var innerStyle = Style()
+    innerStyle.flexWrap = .wrap
+    let a = tree.newNode(style: innerStyle, children: kids)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = direction
+    rootStyle.alignItems = align
+    rootStyle.size = Size(width: px(width), height: px(600))
+    let root = tree.newNode(style: rootStyle, children: [a])
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(width), height: .definite(600)))
+    return (tree, a)
+}
+
+/// **A column's `auto` cross size is shrink-to-fit, and agrees with WebKit.**
+/// Ruling TX-H. Measured against WebKit through the oracle, on the tree above:
+///
+/// | container | WebKit | this engine |
+/// |---|---|---|
+/// | `120 wide; column; align-items: center` | `120x40` at `x = 0` | agree |
+/// | `120 wide; column` (stretch) | `120x40` | agree |
+/// | `30 wide; column; align-items: center` | `50x80` at `x = -10` | agree |
+/// | `30 wide; column` (stretch) | `30x80` at `x = 0` | agree |
+///
+/// **This test asserted the opposite until divergence 6 was fixed**, and it was
+/// named `anAutoCrossSizeIsMaxContentRatherThanFitContentUnlikeWebKit`: it
+/// expected `200x40` at `x = -40` for the first row, because `collectItems`'
+/// `ownCross` measured max-content on whichever axis was the cross one. That is
+/// right in a **row**, whose cross axis is the block axis, and wrong in a
+/// **column**, whose cross axis is the inline axis — CSS sizes an `auto` inline
+/// axis by shrink-to-fit, `min(max(min-content, available), max-content)`. The
+/// numbers here are WebKit's now rather than a recorded disagreement with it.
+///
+/// **The 30-wide rows are not decoration and were added with the fix.** Where
+/// `min-content <= available <= max-content`, fit-content answers exactly
+/// `available` — which is what a stretched item gets too, so the 120-wide rows
+/// alone would pass against an implementation that stretched everything and
+/// never measured. At 30 the min-content floor binds, `.a` overflows to 50, and
+/// centre / stretch give different widths *and* different x.
+///
+/// The browser evidence is `FitContentFixtureTests` and its six fixtures; this
+/// test is the hand-written companion that carries the differential a single
+/// golden cannot.
+@Test func anAutoCrossSizeInAColumnIsFitContentLikeWebKit() {
+    let (centred, a) = wrappingChildInANarrowContainer(direction: .column, align: .center)
+    #expect(centred.layout(a).width == 120)
+    #expect(centred.layout(a).height == 40)
+    #expect(centred.layout(a).x == 0)
+
+    let (stretched, b) = wrappingChildInANarrowContainer(direction: .column, align: nil)
+    #expect(stretched.layout(b).width == 120)
+    #expect(stretched.layout(b).height == 40)
+
+    // Narrower than one 50pt item, so `max(min-content, available)` binds and
+    // the two alignments separate. A stretch-everything implementation gives
+    // `30x80` at `x = 0` for both.
+    let (floored, c) = wrappingChildInANarrowContainer(width: 30, direction: .column,
+                                                       align: .center)
+    #expect(floored.layout(c).width == 50)
+    #expect(floored.layout(c).height == 80)
+    #expect(floored.layout(c).x == -10)
+
+    let (flooredStretch, d) = wrappingChildInANarrowContainer(width: 30, direction: .column,
+                                                              align: nil)
+    #expect(flooredStretch.layout(d).width == 30)
+    #expect(flooredStretch.layout(d).height == 80)
+    #expect(flooredStretch.layout(d).x == 0)
+}
+
+/// **An item's cross size is measured from its HYPOTHETICAL main size, before
+/// §9.7 flexes it; CSS measures it from the USED main size, after.** Measured
+/// against WebKit on the same tree:
+///
+/// | container | WebKit | this engine |
+/// |---|---|---|
+/// | `row; align-items: flex-start` | `120x40` | **`120x20`** |
+/// | `row` (stretch) | `120x600` | `120x600` — agree |
+///
+/// CSS Flexbox orders this explicitly: §9.7 resolves the flexible lengths
+/// (step 6) and *then* §9.4 step 7 determines each item's hypothetical cross
+/// size "by performing layout with the **used** main size". `collectItems`
+/// computes `ownCross` in the same pass that computes the hypothetical main
+/// size, so an item that is about to shrink keeps the cross size it had at its
+/// unshrunk width: `.a` here is laid out 120 wide and 20 tall, one row of four
+/// 50pt items in a space that only fits two.
+///
+/// Invisible before M2 for the reason the helper above states — an item whose
+/// content does not reflow has the same cross size at every main size — and it
+/// is what makes `Row { Text(longLabel) }` one line tall while being narrower
+/// than one line.
+///
+/// **Still not fixed, and untouched by divergence 6's fix**, which is confined
+/// to `!isRow`: this tree is a ROW, so its cross axis is the block axis and
+/// max-content is the right rule there. What is wrong here is *when* the
+/// measurement happens, not what it measures. Fixing it is a reordering of the
+/// main algorithm and every golden in the corpus is downstream of it. No
+/// fixture and no golden encodes it, deliberately: a golden would record this
+/// engine's answer as correct and a future fix should move nothing in the
+/// corpus.
+@Test func anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit() {
+    let (flexStart, a) = wrappingChildInANarrowContainer(direction: .row, align: .flexStart)
+    #expect(flexStart.layout(a).width == 120)
+    #expect(flexStart.layout(a).height == 20)
+
+    // Stretch takes its cross size from the line rather than from the item, so
+    // it is unaffected — the differential that names `ownCross` as the site.
+    let (stretched, b) = wrappingChildInANarrowContainer(direction: .row, align: nil)
+    #expect(stretched.layout(b).width == 120)
+    #expect(stretched.layout(b).height == 600)
+}

@@ -1,0 +1,193 @@
+{
+  "fixture" : "flex_column_fit_content_floor",
+  "raw" : [
+    {
+      "height" : 400,
+      "id" : "root",
+      "width" : 30,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 40,
+      "id" : "s",
+      "width" : 50,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "s1",
+      "width" : 50,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "s2",
+      "width" : 50,
+      "x" : 0,
+      "y" : 20
+    },
+    {
+      "height" : 40,
+      "id" : "c",
+      "width" : 50,
+      "x" : -10,
+      "y" : 40
+    },
+    {
+      "height" : 20,
+      "id" : "c1",
+      "width" : 50,
+      "x" : -10,
+      "y" : 40
+    },
+    {
+      "height" : 20,
+      "id" : "c2",
+      "width" : 50,
+      "x" : -10,
+      "y" : 60
+    },
+    {
+      "height" : 40,
+      "id" : "e",
+      "width" : 50,
+      "x" : -20,
+      "y" : 80
+    },
+    {
+      "height" : 20,
+      "id" : "e1",
+      "width" : 50,
+      "x" : -20,
+      "y" : 80
+    },
+    {
+      "height" : 20,
+      "id" : "e2",
+      "width" : 50,
+      "x" : -20,
+      "y" : 100
+    },
+    {
+      "height" : 40,
+      "id" : "stretch",
+      "width" : 30,
+      "x" : 0,
+      "y" : 120
+    },
+    {
+      "height" : 20,
+      "id" : "t1",
+      "width" : 30,
+      "x" : 0,
+      "y" : 120
+    },
+    {
+      "height" : 20,
+      "id" : "t2",
+      "width" : 30,
+      "x" : 0,
+      "y" : 140
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 400,
+      "id" : "root",
+      "width" : 30,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 40,
+      "id" : "s",
+      "width" : 50,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "s1",
+      "width" : 50,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "s2",
+      "width" : 50,
+      "x" : 0,
+      "y" : 20
+    },
+    {
+      "height" : 40,
+      "id" : "c",
+      "width" : 50,
+      "x" : -10,
+      "y" : 40
+    },
+    {
+      "height" : 20,
+      "id" : "c1",
+      "width" : 50,
+      "x" : -10,
+      "y" : 40
+    },
+    {
+      "height" : 20,
+      "id" : "c2",
+      "width" : 50,
+      "x" : -10,
+      "y" : 60
+    },
+    {
+      "height" : 40,
+      "id" : "e",
+      "width" : 50,
+      "x" : -20,
+      "y" : 80
+    },
+    {
+      "height" : 20,
+      "id" : "e1",
+      "width" : 50,
+      "x" : -20,
+      "y" : 80
+    },
+    {
+      "height" : 20,
+      "id" : "e2",
+      "width" : 50,
+      "x" : -20,
+      "y" : 100
+    },
+    {
+      "height" : 40,
+      "id" : "stretch",
+      "width" : 30,
+      "x" : 0,
+      "y" : 120
+    },
+    {
+      "height" : 20,
+      "id" : "t1",
+      "width" : 30,
+      "x" : 0,
+      "y" : 120
+    },
+    {
+      "height" : 20,
+      "id" : "t2",
+      "width" : 30,
+      "x" : 0,
+      "y" : 140
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

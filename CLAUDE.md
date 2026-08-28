@@ -15,15 +15,17 @@ idiomatic Swift. macOS and iOS.
   `docs/superpowers/2026-08-25-wrapping-decisions.md`,
   `docs/superpowers/2026-08-26-element-pipeline-decisions.md`,
   `docs/superpowers/2026-08-26-content-sizing-decisions.md`,
-  `docs/superpowers/2026-08-27-structural-identity-decisions.md` — each ruling with
+  `docs/superpowers/2026-08-27-structural-identity-decisions.md`,
+  `docs/superpowers/2026-08-27-text-m2-decisions.md` — each ruling with
   its reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
   **Ruling IDs are namespaced by milestone.** `PF-3` and `C-3` belong to m1a;
   `FS-n` to flex sizing, `AL-n` to alignment, `BM-n` to the box model, `WR-n` to
-  wrapping, `EP-n` to the element pipeline, `CS-n` to content sizing and `SI-n`
-  to structural identity (the last two are **lettered** — `CS-A`…`CS-O` and
-  `SI-A`…`SI-H` — so a bare `CS-3` or `SI-3` is a typo rather
+  wrapping, `EP-n` to the element pipeline, `CS-n` to content sizing, `SI-n`
+  to structural identity and `TX-n` to text (M2) (the last three are
+  **lettered** — `CS-A`…`CS-O`, `SI-A`…`SI-H` and `TX-A`…`TX-J` — so a bare
+  `CS-3`, `SI-3` or `TX-3` is a typo rather
   than a citation) (**`EP-2` and `EP-4` were never
   assigned** and must not be reused — a new ruling taking one would silently
   rebind any citation written against the gap). Sweep for stray citations **case-insensitively** — a `Ruling F-3` survived two branches' greps for lowercase `ruling`. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
@@ -85,10 +87,46 @@ idiomatic Swift. macOS and iOS.
   remedy is a declared cross size, or `.alignItems(.stretch)` on the container
   where "these fill their parent" is what the code means;
   `Sources/MetalUIDemo/main.swift` pays it in **five** places (root column, body
-  row, sidebar, main pane, the row of weights) and says so at each. Note also
-  that a **leaf** still has no production `MeasureFunction`, so "content" means
-  "a subtree of nodes" until M2, not text — a `Column` of text-shaped leaves
-  will measure 0 on the cross axis for that reason and not this one.
+  row, sidebar, main pane, the row of weights) and says so at each.
+
+  **Two sentences have now expired here in two commits, and the second was
+  written by the commit that retired the first.** The original — "a leaf still
+  has no production `MeasureFunction`, so a `Column` of text-shaped leaves will
+  measure 0 on the cross axis" — expired with M2 Task 4. Its replacement said a
+  centred `Text` took its **max-content** width and was laid out 270 wide in a
+  120-wide `Column`; that was divergence 6, and **it is fixed** (ruling TX-H): a
+  column's cross axis is the inline axis, so an `auto` cross size shrink-wraps
+  and the label is 120 wide at `x = 0`, agreeing with WebKit. **`Column { Text }`
+  now needs no remedy at all.** What the bullet above still costs is the
+  *childless* `Box`, which measures 0 because it has no content to wrap — the
+  demo's five `.alignItems(.stretch)` are paying for that and not for text.
+
+- **`Text` measures and draws, and three things about it are load-bearing.**
+  M2 landed `MetalUIText` (CoreText, no Metal), a shaping cache and a glyph
+  atlas on the `Window`, and a `Text` element that attaches a
+  `MeasureFunction` through `newLeaf` — the framework's first production leaf.
+
+  - **Nothing may be keyed on a font family or PostScript name** (spec §6.1 and
+    §3.2 — a design decision, not a ruling): requesting `"SFMono-Regular"` by name on the
+    machine this was measured on returns a font whose PostScript name is
+    `Helvetica`. `FontKey` identifies the *resolved* `CTFont`, variation
+    coordinates and matrix included, and the atlas key adds `size`,
+    `subpixelVariant` and `scaleFactor`. A key collision is one of three
+    failure modes **no assertion in this repo can see** (spec §4.2) — the
+    others being a missing subpixel variant and eviction mid-frame — because
+    the CPU and the GPU agree on a wrong answer together.
+  - **Min-content is the longest WORD, and it does not come from the
+    typesetter** (ruling TX-F). `CTTypesetterSuggestLineBreak` breaks *inside*
+    a word it cannot fit, so "typeset narrow and take the widest line" answers
+    the widest **character** — 11.489 against CSS's 110.348 on the sample in
+    `Shaper.unbreakableRuns`. `CFStringTokenizer(kCFStringTokenizerUnitLineBreak)`
+    is the width-independent API that gives the right answer, and ruling TX-G
+    records that it also removes M6's reason for a hand-rolled UAX #14 subset.
+  - **The corpus has no text fixture and must not gain one** (ruling TX-B).
+    WebKit shapes with its own font stack, so a text golden would pin the
+    browser's typography rather than this engine's rule. A moved golden on a
+    text change therefore means something reached the engine's *container*
+    path — stop and report, do not regenerate.
 
 ## Practices
 
@@ -107,8 +145,10 @@ The flex-sizing milestone alone produced nineteen findings, four of them the sam
 shape: a fixture too uniform to distinguish the thing it claimed to pin. Before
 committing a fixture, change the declaration it is named for — a percentage to a
 pixel, an inset to 0 — regenerate, and confirm the numbers move. That document
-catalogues eleven shapes of test that cannot fail, all observed in this repo, plus
-the method for finding them and the cases where adding a test is the wrong answer.
+catalogues **thirteen** shapes of test that cannot fail, all observed in this repo,
+plus the method for finding them and the cases where adding a test is the wrong
+answer. Count the `### <n>.` headings rather than trusting that number — a bare
+`grep -c "^### "` reads 15, because two sections in that document are unnumbered.
 
 The recurring lesson of the last two tasks has a sharper form: **a feature that
 works alone and a feature that works alone can be wrong together.** All three
@@ -136,6 +176,25 @@ sensitive to the same line, and each under-counted by exactly those two. The two
 that survived re-measurement were the two that **named** the tests they reddened
 instead of only counting them — which is CS-N's rule with a reason attached.
 
+**The text milestone added two shapes and sharpened the method itself.**
+**Shape 12, "the oracle is the code under test"** — four instances on one
+branch, the sharpest of them inside a *byte-exact per-pixel* comparison of a
+real drawable that indexed into the atlas through the sprite's own
+`atlasBounds`, so a one-texel source shift left it green. It reads as the
+strongest assertion in its file. The generalisation is the part to carry: **a
+hand-built fixture escapes this and production-built input does not** — the
+earlier version of that same test built its sprites by hand and had no problem,
+and the hazard arrived exactly when the test was made more end-to-end.
+**Shape 13, a test whose own structure truncates the suite**: `#expect` records
+and continues, so a wrong implementation returning fewer elements sent the next
+loop past the end of its own array — `Index out of range`, **no summary line,
+~200 tests never run.** A wrong implementation truncated the run instead of
+reddening it. The rule is one word wide: **any count a later loop indexes on
+must be `try #require`, not `#expect`.** And **a mutation that reddens nothing
+is a broken instrument or it is the finding** — three of each on that branch,
+so the discriminator (prove the mutant behaves differently before banking a
+coverage gap) is now written into the method section.
+
 **And its fix round produced the branch's only taxonomy-shape-9 pair**, found by
 mutating every line of new code rather than by reading any of it: `EitherGroup`'s
 `cursor += 2` and `AnyElement`'s `cursor += 1` each reddened **nothing** on a
@@ -153,6 +212,27 @@ comment claimed was not the property the line bought.
 `swift run MetalUIDemo` was run and inspected on a Retina display: the window
 shows the centred rounded rect with its antialiased border, and the close button
 quits the process.
+
+**Text verified on 2026-08-28 — M2's exit criterion, and the only check no test
+here can perform.** A human ran `swift run MetalUIDemo` and reported it looks
+right: the sidebar label, the 22pt heading and the wrapping paragraph all render
+legibly, and the paragraph re-wraps at word boundaries when the window is
+resized.
+
+**The look was directed rather than general**, because §4.2 of the M2 spec names
+three failure modes no test in this repo can see — a wrong glyph from an atlas
+key collision, fuzzy or wobbling text from a missing subpixel variant, and
+intermittent blank runs from eviction during a frame. **Two of the three remain
+unchecked and it is worth knowing which**: wobble needs sub-pixel *motion* and
+neither a static look nor a screenshot can show it, and eviction blanks are
+absent by construction in M2 rather than tested, since nothing calls
+`evictUnusedSince`. The cross-*family* key collision is also unexercised — the
+demo uses one font family.
+
+**A second look followed the line-height change** (`ceil(ascent + descent +
+leading)`, 15.3105 → 16.0 at 13pt): the leading now reads correctly against
+typical Mac apps, which is what prompted the change. Whether the pixel-alignment
+argument for rounding is *visible* was not established either way.
 
 **Re-verified on 2026-08-27 after ruling EP-8 made `Column`/`Row` centre on the
 cross axis**, because that ruling's failure mode is an *invisible rectangle* and
@@ -181,11 +261,67 @@ what the demo draws — and no test can establish it.** `MetalLayerSurface` vend
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and the whole suite still passed when that was measured, at 342 tests
-(**360 today**; the count is quoted so the measurement can be dated, not because
+(**445 today**; the count is quoted so the measurement can be dated, not because
 342 is a property of anything). If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
-## Five known divergences — expected, measured, not defects
+**What the machine established about text before that look, and it is a
+different thing from the look.** A `Text("Hi Wag")` at 22pt rendered through a
+real `Renderer` into a real `Window`'s drawable and read back produces
+**legible glyph shapes in the right order at the right advances** — the readback
+was printed as ASCII art and the word was readable. That rules out the gross
+failures (nothing drawn, every glyph stacked, the atlas sampled at the wrong
+scale) and rules out none of §4.2's three, which is why the human look above is
+the exit criterion and this is not. The assertable half of that technique is
+kept as a test — `theWindowsPixelsAreExactlyTheGlyphBitmapsItsSpritesStandFor`,
+which compares every unambiguously covered byte of the drawable against the
+glyph's own rasterized bitmap — and its doc comment names the three failures it
+still cannot see, and why each one hides from it.
+
+**A race the whole-branch review found, now closed — and the way it is closed is
+the part to know before touching the renderer.** `Window.drawFrameIfNeeded`
+commits a frame's command buffer and never waits; there is no semaphore on the
+live path (`grep -n "waitUntil" Sources/` finds one line, in
+`Renderer.renderOffscreen`, which is test support). `renderer.upload` used to
+`texture.replace` **in place** on the persistent `.shared` atlas texture, so the
+frame that packed a new glyph wrote pixels the previous frame's draw could still
+be sampling — one torn glyph, intermittently, on exactly a resize or a
+font-size change. The atlas was the only resource exposed to this: everything
+else `encode` binds is a fresh per-frame `makeBuffer`.
+
+**The fix is an invariant, not a lock**: `Renderer.atlasTextureWasEncoded` is set
+when the texture is bound, and a texture is written only while that is `false`.
+A dirty upload after an encode therefore allocates a *replacement* and fills it
+from the whole atlas; the old object stays alive as long as the in-flight command
+buffer retains it, which is Metal's job. Steady-state frames allocate nothing —
+that is what the `dirtyRect != nil` conjunct in `upload` buys, and dropping it
+churns a full atlas per frame.
+
+**What is tested is the invariant, not the race** — the race is a GPU-timing
+window and `renderOffscreen` waits, so nothing here can reach it, exactly as with
+§4.2's three. `aDirtyUploadAfterEncodingReplacesTheTextureRatherThanWritingIntoIt`
+pins both halves (the texture is replaced, *and* the replacement carries the
+whole atlas), and four mutations redden it and nothing else. **Spec §4.2 does not
+list this failure class**, which is worth knowing because that list is the basis
+on which M2's risks were accepted — it was three, and the true count of things
+that can produce a wrong glyph with no assertion able to see it was four.
+
+**A thing no test can establish, and this one is a live release trap.**
+The `MeasureFunction` a `Text` attaches (`Text.requestLayout`) reduces to
+`SizeD` inside `MainActor.assumeIsolated`, because the shaping cache is
+`@MainActor` and a `ShapedText` may not cross an isolation boundary. That is
+sound **only because `computeLayout` runs synchronously inside
+`Frame.computeRootLayout`, which is `@MainActor`** — the engine is non-isolated
+code executing on the caller's thread, not a hop. Drive layout over a tree
+holding a text leaf from **any other executor** — a background actor, a
+`Task.detached`, the 4 MB worker thread `LayoutContext`'s depth test already
+spins up — and `assumeIsolated` terminates the process. Nothing in the repo can
+notice: every existing off-main-actor layout builds its own leafless tree, and
+a test that got this wrong would crash the run rather than redden. If layout
+ever moves off the main actor, the measure closure is the first thing to
+rewrite.
+
+## Six known divergences — expected, measured, not defects
 
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
@@ -283,7 +419,7 @@ an `auto` axis differs.
 **A fixture could hold this one; the corpus deliberately has none.**
 `#root { display: flex }` with no `width` or `height` is perfectly expressible,
 and its golden would say 800×40 and fail — same footing as WebKit's flex
-sub-one clause above. That all 61 roots declare both axes explains why no
+sub-one clause above. That all 67 roots declare both axes explains why no
 *existing* fixture notices, not why one could not exist;
 `FixtureHygieneError` does not enforce it, it only checks the root lands at
 (0, 0).
@@ -333,6 +469,88 @@ clause above: a golden would record this engine's answer as correct, and a
 future fix should move nothing in the corpus. That test is the only pin, so
 implementing FS-3 must redden exactly it.
 
+**6. Ruling TX-H — an item's cross size is measured before §9.7 flexes it.**
+CSS Flexbox resolves the flexible lengths (step 6) and *then* determines each
+item's hypothetical cross size "by performing layout with the **used** main
+size" (§9.4 step 7). `collectItems` computes `ownCross` in the same pass as the
+hypothetical main size, so an item that is about to shrink keeps the cross size
+it had at its unshrunk width.
+
+Measured through the oracle on a 120x600 root holding one
+`display: flex; flex-wrap: wrap` child of four 50x20 items:
+
+| container | WebKit | this engine |
+|---|---|---|
+| `row; align-items: flex-start` | `120x40` | **`120x20`** |
+| `row` (stretch) | `120x600` | `120x600` — agree |
+
+`Row { Text(longLabel) }` is therefore **one line tall while being narrower than
+one line**: §4.5's automatic minimum shrinks it to three lines' worth of width
+and the height it keeps is the one line it had before shrinking. Pinned by
+`anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit`.
+
+**The spill was a prediction and is now a measurement.** With the glyph emitter
+landed, `Row { Text("The quick brown fox jumps over the lazy dog") }` in a
+120x600 frame gives the text a box of **120 x 16 at y = 292** — one line tall,
+centred on the row's cross axis by ruling EP-8 — while paint wraps it to the
+box's 120pt width and lays glyphs from y = 294 down to **y = 339**. So roughly
+two of the three lines hang below the box. **Do not clamp this in paint**: the
+box is what is wrong, the glyphs are where the box says, and a clamp would move
+the defect somewhere nothing can see it.
+
+**A second spill with the same symptom and an UNIDENTIFIED site, measured while
+putting text in the demo — read it as an open question, not as a second
+instance of the rule above.** Being a flex item is by itself enough to give a
+`Column`'s text child a one-line box, with no shrinking and no `auto` size
+anywhere:
+
+```
+Column(gap: 10) { Text("Library"); Box().height(26) }
+  .width(68).padding(14).alignItems(.stretch)
+```
+
+**As the root** the label's box is 40×31pt — two lines, correct, and the `Box`
+follows at y = 55. **As the only item of a `Row`** the identical column gives it
+42×**15**pt — one line — while the glyphs still occupy two (device baselines
+32/33/38 and 69 at 2x), so the second line lands inside the `Box`, which has
+moved up to y = 39. The label's height is the item's *main* size in a column,
+not its cross size, so **this is not literally §9.4 step 7**, and the site was
+not isolated. It is visible in the demo: at the 920pt default the sidebar's
+`Text("Library")` is one line and correct, and by 620pt the body row has shrunk
+the 196pt sidebar to ~70pt, the label wraps, and its second line overlaps the
+row below it. Whoever fixes divergence 6 should check this against the same
+edit before assuming one change closes both.
+
+**Not fixed, and the reason is reach — BM-4's and FS-3's reason.** It moves an
+item's stored cross size, which every ancestor consumes and 67 goldens are
+downstream of, and it reorders the main algorithm. **No fixture and no golden
+encodes it**, deliberately: a golden would record this engine's answer as
+correct, and a future fix should move nothing in the corpus.
+
+**This was divergence 7 of seven, and 6 is gone.** Divergence 6 was the other
+half of the same tree — `ownCross` measured **max-content** on whichever axis
+was the cross one, so a **column** (whose cross axis is the *inline* axis, where
+CSS shrink-wraps) laid a wrapping child out 200 wide at `x = -40` inside a
+120-wide centring column, and `Column { Text(…) }` 270 wide at `x = -75`. It is
+fixed: `ownCross` now computes CSS's fit-content —
+`min(max(min-content, available), max-content)` — on a column's cross axis and
+still max-content on a row's, which is right there because a row's cross axis is
+the block axis.
+
+**Read the caveat that came with that fix before trusting any similar one.** The
+change moved **no** existing golden, and that was weak evidence rather than
+strong: every box in the 61 fixtures preceding it is an empty div whose
+min-content and max-content widths are the **same number**, so the corpus could
+neither regress under the change nor validate it. Six fixtures with **wrapping**
+children were generated against the oracle to close that
+(`flex_column_fit_content*` plus `flex_row_block_axis_max_content`,
+`FitContentFixtureTests`), and two of the fix's
+four clauses were wrong before they were measured: the available space is the
+container's cross extent **minus the item's own cross margins** (WebKit 104, not
+120, for a 120-wide column and `margin: 0 6px 0 10px`), and the `max` with
+min-content is a real floor that overflows (four 50-wide items in a **30**-wide
+centring column measure `50x80` at `x = -10`).
+
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
@@ -362,7 +580,7 @@ are the dangerous ones.
 
 | Declared | Reality |
 |---|---|
-| `AlignItems.baseline` / `AlignSelf.baseline` | **Falls back to `flexStart`, not silently.** `crossAxisOffset` needs font metrics that arrive with the text system in M2; until then a `baseline`-aligned row lays out as a `flex-start` row. **Whoever implements it inherits a `wrap-reverse` clause**: CSS Flexbox §8.3 swaps first- and last-baseline alignment in a `wrap-reverse` container, and nothing in the flip `positionItems` does today expresses that — it flips an offset, and baseline alignment is not an offset. Ruling AL-6: the task that makes an API inert records it here; the task that makes one live deletes the row. **The element pipeline's Task 4 made it reachable from the public API**: `StyledElement.alignItems(_:)` / `alignSelf(_:)` take the whole enum, so `.baseline` can now be written by a caller who will silently get `flexStart` — this row is the only thing guarding that, unlike `margin: .auto`, which the modifier's parameter type keeps out of reach. `justifyContent`, `alignItems` and `alignSelf` left this table when the alignment work implemented them and `alignContent` when wrapping's second task did; **a whole enum leaving is not the same as its every case leaving**, and this row is the standing counter-example |
+| `AlignItems.baseline` / `AlignSelf.baseline` | **Falls back to `flexStart`, not silently — and as of M2 the blocker this row used to name is GONE while the work is not done.** The row said `crossAxisOffset` "needs font metrics that arrive with the text system in M2". Those metrics exist: `MetalUIText`'s `FontMetrics` carries ascent, descent and leading, pinned against `CTFontGetAscent`/`Descent`/`Leading` by `metricsMatchCoreText`. Nothing is waiting on a milestone, so the three things that *are* missing are named as mechanisms at `crossAxisOffset` (`Alignment.swift`) instead — taxonomy shape 10's rule, applied to the row that motivated it. **(1) The engine cannot see a baseline at all**: a `MeasureFunction` returns a `SizeD`, so an item's first baseline never reaches `collectItems`, and the measure protocol has to carry it first. **(2) `crossAxisOffset`'s signature is the wrong shape**: baseline alignment is not an offset computed per item from `(itemCross, lineCross)` — a line's items must agree on a common baseline, which is a per-*line* quantity this function is never given. **(3) The `wrap-reverse` clause**: CSS Flexbox §8.3 swaps first- and last-baseline alignment in a `wrap-reverse` container, and nothing in the flip `positionItems` does today expresses that — it flips an offset, and baseline alignment is not an offset. Ruling AL-6: the task that makes an API inert records it here; the task that makes one live deletes the row. **The element pipeline's Task 4 made it reachable from the public API**: `StyledElement.alignItems(_:)` / `alignSelf(_:)` take the whole enum, so `.baseline` can now be written by a caller who will silently get `flexStart` — this row is the only thing guarding that, unlike `margin: .auto`, which the modifier's parameter type keeps out of reach. `justifyContent`, `alignItems` and `alignSelf` left this table when the alignment work implemented them and `alignContent` when wrapping's second task did; **a whole enum leaving is not the same as its every case leaving**, and this row is the standing counter-example |
 | `aspectRatio` | **0 uses** |
 | `margin: auto` (`Style.margin`'s `.auto` case) | **Resolves to 0, not to CSS's answer.** Item margins landed in the box-model task's second step — `resolveMargin` in `Resolve.swift` shrinks the main-axis budget and offsets each item by its own margin — but `.auto` maps to 0 on the single line marked for it in that function, not to CSS's "absorb free space before `justify-content` distributes any." A `margin-left: auto` item that CSS would push to the far end of the line lays out at the line's start instead, silently. Pinned by `autoMarginsResolveToZeroForNow` in `BoxModelTests.swift`, with CSS's real answer named in its comment. **This row's scope was too narrow until the wrapping branch's final review measured it** — the third claim of that shape on this project, after ruling WR-4's and WR-5's. Auto margins are not only a main-axis/`justify-content` gap: WebKit **centres a `margin-block: auto` item within its line on the CROSS axis** and we give 0 (`b` at 90 vs our 0). That was already true under `nowrap`; `align-content: stretch` — the default this branch made reachable — grows lines and widened it (`d` at 255 vs our 225). Whoever implements auto margins owns both axes, not just the one `justify-content` sees. **Unreachable from the public modifier API since the element pipeline's Task 4**, and by a type rather than by a convention: `StyledElement.margin(_:)` takes `Length`, not `Dimension`, so `.auto` cannot be written through it at all. `Style.margin` is still public, so the case is reachable by setting `style` directly |
 | `MUIRect.borderColor` / `MUIRect.borderWidths` | **Round-trip the ABI, are drawn by `rect_fragment` — the M0 demo proved that end to end — and nothing in `MetalUI` can set either.** `Frame.fill` hard-codes `.transparent` and zero widths, and `Decoration` deliberately has no `borderColor`. The blocker is the **width**, not the colour: `Style.border` is an `Edges<Length>` whose percentage case resolves against the *containing block's* width, and the engine computes that inside `contentBox` and throws it away, so paint has no resolved width to pair a colour with. Re-resolving one at paint time against the box's own width is the exact mistake the percentage-inset constraint below records. Storing the resolved edges on `LayoutTree` is what unblocks it. Note the asymmetry this leaves: `StyledElement.borderWidth(_:)` is **live** and shrinks the content box, so a border affects sizing today and paints nothing |
@@ -370,8 +588,10 @@ are the dangerous ones.
 | A percentage `width`/`height` on the **root** | **Falls back to the offered space, not to the percentage.** `resolveRootSize` resolves the root's percentages against `nil` and then takes `available` — so `width: 50%` in an 800-wide space gives **800**. Measured in WebKit: **400**. The root's percentage *padding* does resolve against `available.width` (see `computeLayout`), so the two halves of "the root's containing block" disagree with each other today. Fixing it moves the root's stored size, which every descendant consumes; it belongs to a sizing plan, not the box model |
 | `position`, `inset`, `overflow` | **0 uses each.** No absolute positioning, no clipping. Listed only so the count above reconciles with this table; there is nothing subtle about them, they are simply never read |
 | `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** The element pipeline's Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **Re-measured, with a mutation that compiles.** The number this row used to quote came from adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder`, and that mutation **no longer compiles**: `anExplicitAnyElementIsStillAcceptedAsAChild` — added by that same commit — puts an `AnyElement` inside a builder block, so the generic overload demands `AnyElement: Element`, which it is not, and the suite fails to build with `error: static method 'buildExpression' requires that 'AnyElement' conform to 'Element'`. Pairing it with a non-generic `buildExpression(_ e: AnyElement) -> AnyElement` restores the measurement: **exactly the three type-level tests in that file redden, and no behavioural test at all — re-measured `--no-parallel` on 2026-08-27 after structural identity, out of 358 rather than the 303 first recorded, and the three are the same three.** Universal identity does not disturb it: `AnyElement`'s `requestGroupLayout` consumes one cursor index exactly as `Element`'s default does, so boxing every child moves no path and no `StateTable` entry. Delete this row when the static path demonstrably does not serve a real container |
-| `MeasureFunction` / `tree.measure()` | **A LEAF still has no production caller; a CONTAINER no longer needs one.** `newLeaf` is the only thing that attaches a measure function and nothing in `Sources/` calls it — re-measured rather than remembered: `grep -rn "newLeaf" Sources/` returns **3 lines and not one of them is a call**, the declaration in `LayoutTree.swift` plus two doc comments (`FlexEngine.swift`, `Box.swift`) that say it has no caller. So every production node's `tree.measure()` is still `nil` — that half is M2 and is the whole of what this row is now about. What changed is that `tree.measure()` stopped being the only route to a content size: `measureNode` falls through to the flex algorithm over the node's children, so `flexBaseSize`'s content branch and §4.5's automatic minimum are **live and browser-verified for containers** (`aContainerItemsBaseSizeComesFromItsChildren`, `aContainerItemIsFlooredByItsChildrensWidth`, whose WebKit numbers are named in its comment). The **leaf** halves are still exercised only by tests that build their own closures — `automaticMinimumSizeUsesContentSizeNotFlexBasis` — and still have no browser fixture, because a leaf's content is text |
-| `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` matches only the string inside its own precondition message. The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
+| **Colour glyphs** (emoji, `COLR`/`sbix`) | **Wrong rather than absent, and now visibly so.** Spec §6.1 routes them to a *polychrome* atlas that skips tinting; there is no polychrome atlas in M2 and `GlyphRaster.rasterize` does not detect one either. So `CTFontDrawGlyphs` renders an emoji into the `DeviceGray` context as a **luminance silhouette**, it packs into the R8 atlas like any other glyph, and `glyph_fragment` multiplies it by the text colour — `Text("hi 🎉")` paints a flat blob in the text's colour where the emoji should be. It does not trap and it is not blank, which is exactly why it is written down: **nothing in this repo can see it**, there being no oracle for a rendered glyph at all (spec §4.2). The fix is a second atlas and a second draw path, not a branch in the rasterizer. Note that it was *invisible* rather than *wrong* until the glyph emitter landed — this row's status changed without its text changing, which is the shape ruling CS-E names |
+| `GlyphAtlas.evictUnusedSince(_:)`, and the grow-only atlas it leaves | **Zero production callers — and a caller would make things WORSE, not better, until the packer can reclaim.** That is the mechanism, and it is checkable rather than a milestone to wait for: the shelf packer never revisits a closed shelf, so evicting a key frees a dictionary entry and **strands its pixels**; the next frame that wants that glyph packs a *second* copy further down. Calling eviction every frame therefore makes the atlas fill **faster**. `grep -rn "evictUnusedSince" Sources/` returns **nine** lines and **not one of them is a call**: the declaration, the string inside its own precondition message, and seven doc comments — the same shape as `LayoutTree.reset(generation:)` below. Re-count rather than trusting the nine; two of the doc comments were added by the emitter task, so this number moves with the prose and the "no call" half is the claim. The frame brackets it depends on *are* live: `Frame.render` calls `beginFrame`/`endFrame` around the paint phase, so the ordering guard is enforceable; what is absent is only the call. **These three facts are one story, so read them together:** eviction is unwired, the atlas is therefore **grow-only**, and when it is full `Frame.draw` **silently drops** the glyphs that will not fit — a window showing an unbounded stream of distinct glyphs loses text with no error anywhere. What unblocks it is a repacker or a whole-atlas rebuild, not a call site. Its guards (`evictingDuringFrameConstructionTraps`, `aGlyphUnusedSinceAnOlderGenerationIsEvicted`) stay for `LayoutTree.reset`'s reason: they pin the contract for whoever does call it |
+| `Style.padding` / `Style.border` / `Style.margin` on a **leaf** | **Ignored entirely — for a `Text`, not "resolved wrongly".** `measureNode` returns a leaf's measure result unchanged where it adds a container's `edges` back on, and `contentBox` only ever runs on a node with children, so a leaf's border box *is* its content box. `Text(…).padding(Pixels(8))` therefore changes no size and moves no glyph, and `Text.paint` lays its glyphs from `bounds.origin` on exactly that basis. Consistent, and consistently wrong against CSS. **Reachable from the public API**, unlike the `Style` properties above: `StyledElement.padding(_:)`/`.borderWidth(_:)`/`.margin(_:)` are live modifiers that do the right thing on a `Box` and nothing on a `Text` — which is the shape this table exists for, an API that is implemented for one receiver and inert for another. Whoever implements a leaf's box model owns the paint half too: the glyph origin becomes the content box and must come from the engine rather than be re-resolved at paint time, for the percentage-inset reason recorded at `Frame.fill` |
+| `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` returns **two** lines and neither is a call: the string inside its own precondition message, and a doc comment on the method that quotes this very grep. (It matched one line when this row was written; the doc comment came later, so re-run it rather than counting — the claim is "no call", not "two".) The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
 | CSS Sizing §4.5's **specified size suggestion** | **Still not implemented** (ruling FS-3), and it **left this table's premise behind**: content sizing made the *content* half live for containers, so the missing half is no longer inert-and-invisible but a measured disagreement with WebKit — **divergence 5 above** carries the repro, the numbers and the pin, and is the one place to update. Two claims expired here in one milestone, and the second was written by the commit that retired the first (ruling CS-E's shape, third occurrence on this project): "indistinguishable until M2", then "not yet a wrong answer anywhere". Kept as a row because the *declaration* half is what this table is for — the rule is half-implemented at `collectItems`' automatic minimum, and silence there would read as complete. `aContainerItemIsFlooredByItsChildrensWidth` cannot see it: its `.a` has no specified width to be floored by |
 
 Re-check any row rather than trusting this table:
@@ -386,24 +606,33 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **360 tests** and 61 browser fixtures, warning-free
-(measured 2026-08-27; read the summary line, never the exit status — shape 11).
-**Seven** non-test targets with strictly one-way dependencies: `MetalUICore`,
-`MetalUILayout`, `MetalUIShaderTypes`, `MetalUIRender`, `MetalUIPlatform`,
-`MetalUI`, `MetalUIDemo`. **`MetalUITestSupport` is an eighth `.target` in
-`Package.swift` and is not one of them** — it lives under `Tests/`, ships in no
-product, and holds the single copy of the `swiftc -typecheck` machinery the
-negative type-system guards shell out to (ruling EP-1). Count with
-`grep -cE "^ +\.(target|executableTarget)\(" Package.swift`, which returns 8
+`swift build` · `swift test` — **445 tests** and 67 browser fixtures, warning-free
+(re-measured 2026-08-27 `--no-parallel` at the **end** of M2, on `feat/text-m2`
+after `swift package clean`, per rulings CS-M/CS-N/SI-H: a count is stale the
+moment a test is added, so it is taken at the milestone's last commit rather
+than at the commit that first quoted it. Task 8 added no test — it is docs and
+the demo — so the emitter's 444 reproduced exactly, and the whole-branch
+review's atlas-race fix took it to 445. Read the
+summary line, never the exit status — shape 11. It was 429 before the emitter,
+396 after the divergence-6 task, 365 after Task 1 and 360
+before the branch, and that 360 measured 361 on the same checkout — so treat a
+±1 as a stale doc rather than a missing test, and re-measure).
+**Eight** non-test targets with strictly one-way dependencies: `MetalUICore`,
+`MetalUILayout`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
+`MetalUIPlatform`, `MetalUI`, `MetalUIDemo`. **`MetalUITestSupport` is a ninth
+`.target` in `Package.swift` and is not one of them** — it lives under `Tests/`,
+ships in no product, and holds the single copy of the `swiftc -typecheck`
+machinery the negative type-system guards shell out to (ruling EP-1). Count with
+`grep -cE "^ +\.(target|executableTarget)\(" Package.swift`, which returns 9
 (`.testTarget(` does not match), and subtract `MetalUITestSupport`.
 
-**Spec §3.1 also says "seven targets", and it is a different seven.** Its list is
+**Spec §3.1 says "seven targets", and it is a different seven.** Its list is
 the module *layering* — `MetalUI`, `MetalUILayout`, **`MetalUIText`**,
 `MetalUIRender`, `MetalUIPlatform`, `MetalUICore`, `MetalUIShaderTypes` — which
-includes the text target that does not exist yet and excludes `MetalUIDemo`,
-which is an executable rather than a layer. The two counts agreeing today is a
-coincidence and it expires: when Text lands the package has eight non-test
-targets against the spec's seven. Do not "reconcile" one list to the other.
+excludes `MetalUIDemo`, an executable rather than a layer. **The two counts used
+to agree and no longer do**: M2 Task 1 landed `MetalUIText`, which this section
+had already named as the coincidence's expiry date. Eight here against §3.1's
+seven is the expected state. Do not "reconcile" one list to the other.
 
 Four constraints that are easy to violate silently:
 
@@ -563,11 +792,15 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
 
    **Taxonomy shape 11's count heuristic does not catch this one.** Measured, by
    forcing `canTypecheck` to `false`: exactly 25 tests report as skipped, the
-   total does not move, and the run passes. Re-measured 2026-08-27 at
-   `Test run with 358 tests` (it read 304 when first taken, and the guard count
-   is still 25 — 15 + 7 + 1 + 2 across the four files; the suite is 360 after
-   the fix round added two). A falling count is
-   the signal shape 11 tells you to watch, and the count does not fall.
+   total does not move, and the run passes. The 25 was first taken at
+   `Test run with 304 tests`, re-measured at 358 on the structural-identity
+   branch, and **re-counted at the end of M2 (suite 444): still 25 — 15 + 7 + 1
+   + 2 across the four files**, where `grep -c canTypecheck` reads 3 in
+   `UnitSafetyTests` because one is a comment. The suite is 445 today and the 25
+   is unchanged, the extra test being an ordinary runtime one — which is this
+   paragraph's own point arriving as an example. **The guard count does not track
+   the suite count and neither number implies the other.** A falling suite count
+   is the signal shape 11 tells you to watch, and this failure does not move it.
 
    **Not converted to a hard failure, and the reason is a configuration rather
    than a preference.** The obvious rule — fail rather than skip when `.build`

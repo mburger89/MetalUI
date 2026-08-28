@@ -98,10 +98,15 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
 }
 
 extension Box where Content == EmptyGroup {
-    /// A childless box — a sized leaf. It stays childless until an element that
-    /// measures its own content exists; the framework has no leaf that reports a
-    /// content size, because `newLeaf` (the only way to attach a
-    /// `MeasureFunction`) has no production caller.
+    /// A childless box — a sized leaf, and a **0x0** one unless its style says
+    /// otherwise: it reports no content size of its own, because it registers
+    /// through `requestNode` rather than `requestLeaf`.
+    ///
+    /// That sentence used to end "…the framework has no leaf that reports a
+    /// content size, because `newLeaf` has no production caller". `Text`
+    /// (M2 Task 4) is that caller, so the framework does have one now — it is
+    /// simply not this type. A `Box` that should size to something must be
+    /// given a size or given children.
     public init(style: Style = Style(), decoration: Decoration = Decoration()) {
         self.init(style: style, decoration: decoration, content: EmptyGroup())
     }

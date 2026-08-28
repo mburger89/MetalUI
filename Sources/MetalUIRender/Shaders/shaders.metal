@@ -118,6 +118,106 @@ fragment float4 rect_fragment(
 }
 
 // ---------------------------------------------------------------------------
+// Glyph pipeline
+//
+// `monochromeSprite` (spec 7.1): an R8 coverage bitmap from the glyph atlas,
+// multiplied by a tint. The atlas carries no colour at all, which is what makes
+// one bitmap serve every colour the same run is ever drawn in.
+// ---------------------------------------------------------------------------
+
+struct GlyphVertexOut {
+    float4 position [[position]];
+    /// Source position in ATLAS TEXELS, not normalised — the sampler below is
+    /// declared `coord::pixel`. Interpolating this rather than recomputing it
+    /// per fragment is what makes the blit exact: at a fragment centre it is
+    /// `atlasBounds.origin + k + 0.5`, which is texel `k`'s centre.
+    float2 atlasPosition;
+    uint   glyphID [[flat]];
+};
+
+vertex GlyphVertexOut glyph_vertex(
+    uint vertexID   [[vertex_id]],
+    uint instanceID [[instance_id]],
+    constant float2   *unitVertices [[buffer(MUIGlyphBufferVertices)]],
+    constant MUIGlyph *glyphs       [[buffer(MUIGlyphBufferGlyphs)]],
+    constant MUISize  &viewport     [[buffer(MUIGlyphBufferViewport)]],
+    constant float4x4 &projection   [[buffer(MUIGlyphBufferProjection)]]
+) {
+    float2 unit = unitVertices[vertexID];
+    MUIGlyph g = glyphs[instanceID];
+
+    float2 pos = float2(g.bounds.origin.x, g.bounds.origin.y)
+               + unit * float2(g.bounds.size.width, g.bounds.size.height);
+
+    // Pixel space (y down) to normalised device coordinates (y up). Identical
+    // to `rect_vertex`'s mapping, and it must stay identical: a glyph and the
+    // rect behind it are placed in one coordinate system by the paint pass.
+    float2 ndc = pos / float2(viewport.width, viewport.height) * float2(2.0, -2.0)
+               + float2(-1.0, 1.0);
+
+    GlyphVertexOut out;
+    // Same POST-NDC projection contract as `rect_vertex` — see the note there.
+    out.position = projection * float4(ndc, 0.0, 1.0);
+    out.atlasPosition = float2(g.atlasBounds.origin.x, g.atlasBounds.origin.y)
+                      + unit * float2(g.atlasBounds.size.width, g.atlasBounds.size.height);
+    out.glyphID = instanceID;
+    return out;
+}
+
+fragment float4 glyph_fragment(
+    GlyphVertexOut in [[stage_in]],
+    constant MUIGlyph *glyphs   [[buffer(MUIGlyphBufferGlyphs)]],
+    texture2d<float>   atlas    [[texture(MUIGlyphTextureAtlas)]]
+) {
+    // `coord::pixel` so the sampler takes atlas texels directly: the alternative
+    // is dividing by the atlas dimensions, which means carrying them across the
+    // ABI and resolving the same quantity twice. `clamp_to_edge` so a coordinate
+    // exactly on the atlas's far edge — which a slot flush against it produces —
+    // reads the last texel rather than 0.
+    //
+    // `filter::linear` matches gpui's `monochrome_sprite_fragment`. **It is
+    // exact at the 1:1 scale this renderer emits, and that is measured rather
+    // than argued**: swapping it for `filter::nearest` leaves all 429 tests
+    // green, including a per-pixel comparison of two rendered sprites against
+    // the CPU atlas bytes. So the two filters are indistinguishable today and
+    // the choice is unpinned on purpose — no input this renderer can build
+    // distinguishes them, and a test manufacturing one would be testing the
+    // test. It becomes load-bearing the moment a sprite is drawn at a scale
+    // other than 1:1 (a zoomed canvas, spec 7.5), which is why linear is the
+    // one written.
+    //
+    // The exactness is the interpolated coordinate landing on texel centres:
+    // at destination pixel k the fragment centre carries
+    // `atlasBounds.origin + k + 0.5`. Shifting `atlasPosition` by a single
+    // texel (`origin.x + 1.0` in `glyph_vertex`) reddens
+    // `aGlyphSpriteBlitsExactlyTheAtlasPixelsItPointsAt`,
+    // `glyphsAreTintedByTheirColorAndScaledByCoverage`,
+    // `aGlyphPackedAfterTheFirstUploadStillReachesTheGPU`,
+    // `anAtlasWithNoDirtyRectStillUploadsInFullToANewTexture`,
+    // `aRectAndAGlyphBothDrawInOneScene` and
+    // `theWindowsPixelsAreExactlyTheGlyphBitmapsItsSpritesStandFor` — so the
+    // alignment is guarded rather than assumed. **Named rather than counted
+    // (ruling SI-H)**: this comment said "four tests" when it was written in
+    // Task 7, two tests sensitive to the same line landed after it, and a count
+    // is stale the moment one does. Re-measured `--no-parallel` on 2026-08-28,
+    // 9 issues across those six, suite 444.
+    constexpr sampler atlas_sampler(coord::pixel,
+                                    address::clamp_to_edge,
+                                    filter::linear);
+
+    // R8: coverage in .r, and .gba are the format's defaults (0, 0, 1), so
+    // reading anything but .r here would silently paint a constant.
+    float coverage = atlas.sample(atlas_sampler, in.atlasPosition).r;
+
+    float4 tint = hsla_to_srgba(glyphs[in.glyphID].color);
+    // Spec 7.8: coverage is a blend weight applied to alpha, used unmodified
+    // and with no linearization anywhere. gpui's `color.a *= sample.a`.
+    float alpha = tint.a * coverage;
+    // Premultiplied output, to pair with a (one, oneMinusSourceAlpha) blend.
+    return float4(tint.rgb * alpha, alpha);
+}
+
+// ---------------------------------------------------------------------------
 // ABI probe
 //
 // Reports Metal's view of the shared structs so a host test can compare it with
@@ -126,8 +226,9 @@ fragment float4 rect_fragment(
 // ---------------------------------------------------------------------------
 
 kernel void abi_probe(
-    device MUIUInt   *out [[buffer(MUIProbeBufferOut)]],
-    constant MUIRect &r   [[buffer(MUIProbeBufferRect)]]
+    device MUIUInt    *out [[buffer(MUIProbeBufferOut)]],
+    constant MUIRect  &r   [[buffer(MUIProbeBufferRect)]],
+    constant MUIGlyph &g   [[buffer(MUIProbeBufferGlyph)]]
 ) {
     out[0]  = (MUIUInt)sizeof(MUIRect);
     out[1]  = (MUIUInt)sizeof(MUIBounds);
@@ -143,4 +244,23 @@ kernel void abi_probe(
     out[10] = (MUIUInt)r.cornerRadii.bottomLeft;
     out[11] = (MUIUInt)r.borderWidths.left;
     out[12] = r.order;
+
+    // MUIGlyph. Every field is read back, and `bounds` and `atlasBounds` are the
+    // pair that most needs it: they are the same type, adjacent, and a shader
+    // that swapped them would still compile and would sample the destination
+    // rectangle out of the atlas.
+    out[13] = (MUIUInt)sizeof(MUIGlyph);
+    out[14] = (MUIUInt)g.bounds.origin.x;
+    out[15] = (MUIUInt)g.bounds.origin.y;
+    out[16] = (MUIUInt)g.bounds.size.width;
+    out[17] = (MUIUInt)g.bounds.size.height;
+    out[18] = (MUIUInt)g.atlasBounds.origin.x;
+    out[19] = (MUIUInt)g.atlasBounds.origin.y;
+    out[20] = (MUIUInt)g.atlasBounds.size.width;
+    out[21] = (MUIUInt)g.atlasBounds.size.height;
+    out[22] = (MUIUInt)(g.color.h * 1000.0);
+    out[23] = (MUIUInt)(g.color.s * 1000.0);
+    out[24] = (MUIUInt)(g.color.l * 1000.0);
+    out[25] = (MUIUInt)(g.color.a * 1000.0);
+    out[26] = g.order;
 }
