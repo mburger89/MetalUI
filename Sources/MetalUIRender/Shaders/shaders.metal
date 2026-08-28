@@ -228,10 +228,15 @@ fragment float4 glyph_fragment(
     // reading anything but .r here would silently paint a constant.
     float coverage = atlas.sample(atlas_sampler, in.atlasPosition).r;
 
-    float4 tint = hsla_to_srgba(glyphs[in.glyphID].color);
+    MUIGlyph g = glyphs[in.glyphID];
+    float4 tint = hsla_to_srgba(g.color);
     // Spec 7.8: coverage is a blend weight applied to alpha, used unmodified
     // and with no linearization anywhere. gpui's `color.a *= sample.a`.
-    float alpha = tint.a * coverage;
+    // Same clip as `rect_fragment`, same helper, so a glyph and a rect under
+    // one clip stack cut on exactly the same boundary. `in.position.xy` is the
+    // fragment centre in render-target pixels, which is `contentMask`'s space.
+    float clip = mask_coverage(in.position.xy, g.contentMask);
+    float alpha = tint.a * coverage * clip;
     // Premultiplied output, to pair with a (one, oneMinusSourceAlpha) blend.
     return float4(tint.rgb * alpha, alpha);
 }
@@ -281,5 +286,7 @@ kernel void abi_probe(
     out[23] = (MUIUInt)(g.color.s * 1000.0);
     out[24] = (MUIUInt)(g.color.l * 1000.0);
     out[25] = (MUIUInt)(g.color.a * 1000.0);
-    out[26] = g.order;
+    out[26] = (MUIUInt)g.contentMask.origin.x;
+    out[27] = (MUIUInt)g.contentMask.size.width;
+    out[28] = g.order;
 }

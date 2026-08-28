@@ -255,6 +255,11 @@ public final class Frame {
     ///   commonest glyph in a paragraph). Emitting it would add an instance
     ///   whose quad is degenerate and whose sampler reads nothing; the atlas
     ///   still records it so `rasterize` is not re-run for every space.
+    ///
+    /// `contentMask` is the whole surface, exactly as `fill` above passes it:
+    /// `glyph_fragment` reads and applies the field, but every production call
+    /// site here still passes the whole surface, so nothing clips yet. Task 5
+    /// (the clip stack) is what gives this a real mask to pass.
     func draw(_ placed: PlacedGlyph, color: Hsla) {
         guard let packed = glyphAtlas.packed(for: placed.key, rasterize: {
             GlyphRaster.rasterize(glyph: placed.key.glyph, font: placed.font,
@@ -268,7 +273,11 @@ public final class Frame {
                           y: ScaledPixels(Float(placed.baselineY - packed.top))),
             size: Size(width: ScaledPixels(Float(packed.slot.width)),
                        height: ScaledPixels(Float(packed.slot.height))))
-        scene.insert(MUIGlyph(bounds: bounds, slot: packed.slot, color: color, order: 0))
+        let surface = Bounds(
+            origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
+            size: contentSize.scaled(by: scaleFactor))
+        scene.insert(MUIGlyph(bounds: bounds, slot: packed.slot,
+                              contentMask: surface, color: color, order: 0))
     }
 
     /// This frame's primitives, in paint order. Call after `render`.

@@ -19,6 +19,8 @@ private func makeGlyph(order: MUIUInt, x: Float = 0) -> MUIGlyph {
                           size: MUISize(width: 8, height: 12)),
         atlasBounds: MUIBounds(origin: MUIPoint(x: 0, y: 0),
                                size: MUISize(width: 8, height: 12)),
+        contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                               size: MUISize(width: 1000, height: 1000)),
         color: MUIHsla(h: 0, s: 0, l: 1, a: 1),
         order: order,
         _reserved: 0)
@@ -116,6 +118,8 @@ private func makeRect() -> MUIRect {
                           size: MUISize(width: 33, height: 34)),
         atlasBounds: MUIBounds(origin: MUIPoint(x: 41, y: 42),
                                size: MUISize(width: 43, height: 44)),
+        contentMask: MUIBounds(origin: MUIPoint(x: 51, y: 52),
+                               size: MUISize(width: 53, height: 54)),
         color: MUIHsla(h: 0.125, s: 0.25, l: 0.375, a: 0.5),
         order: 7,
         _reserved: 0)
@@ -159,7 +163,9 @@ private func makeRect() -> MUIRect {
     #expect(out[23] == 250)  // color.s * 1000
     #expect(out[24] == 375)  // color.l * 1000
     #expect(out[25] == 500)  // color.a * 1000
-    #expect(out[26] == 7)    // order
+    #expect(out[26] == 51)   // contentMask.origin.x
+    #expect(out[27] == 53)   // contentMask.size.width
+    #expect(out[28] == 7)    // order
 }
 
 // MARK: - The draw path, against the CPU atlas as its oracle
@@ -202,6 +208,10 @@ private func sprite(_ slot: AtlasSlot, at origin: (x: Float, y: Float),
                           size: MUISize(width: Float(slot.width), height: Float(slot.height))),
         atlasBounds: MUIBounds(origin: MUIPoint(x: Float(slot.x), y: Float(slot.y)),
                                size: MUISize(width: Float(slot.width), height: Float(slot.height))),
+        // Whole surface: these tests are not about clipping, so nothing here
+        // should cut the sprite.
+        contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                               size: MUISize(width: 10000, height: 10000)),
         color: MUIHsla(color),
         order: order,
         _reserved: 0)

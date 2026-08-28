@@ -47,13 +47,13 @@ typedef struct {
 // does (a zoomed canvas, spec 7.5), and because a source and a destination that
 // share a field cannot be told apart when one of them is wrong.
 //
-// There is deliberately NO `contentMask` here. `MUIRect` carries one that
-// `rect_fragment` reads and applies; `glyph_fragment` does not yet clip
-// glyphs the same way, so a masked `MUIGlyph` here would be a second thing
-// that looks implemented from the outside and is not.
 typedef struct {
     MUIBounds bounds;        // destination, ScaledPixels
     MUIBounds atlasBounds;   // source, atlas texels
+    // Axis-aligned clip, same space as `bounds`, read by `glyph_fragment`. This
+    // struct deliberately had no such field while `MUIRect`'s was inert; it
+    // gained one in the same commit that made both live.
+    MUIBounds contentMask;
     MUIHsla   color;         // tint; the R8 atlas carries coverage only
     MUIUInt   order;
     MUIUInt   _reserved;

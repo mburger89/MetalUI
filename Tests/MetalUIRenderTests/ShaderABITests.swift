@@ -40,6 +40,7 @@ import MetalUIShaderTypes
     var glyph = MUIGlyph(
         bounds: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0)),
         atlasBounds: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0)),
+        contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0), size: MUISize(width: 0, height: 0)),
         color: MUIHsla(h: 0, s: 0, l: 0, a: 0),
         order: 0,
         _reserved: 0)

@@ -67,12 +67,14 @@ extension MUIGlyph {
     /// the slot by construction could not express it.
     public init(bounds: Bounds<ScaledPixels>,
                 slot: AtlasSlot,
+                contentMask: Bounds<ScaledPixels>,
                 color: Hsla,
                 order: UInt32) {
         self.init(bounds: MUIBounds(bounds),
                   atlasBounds: MUIBounds(
                       origin: MUIPoint(x: Float(slot.x), y: Float(slot.y)),
                       size: MUISize(width: Float(slot.width), height: Float(slot.height))),
+                  contentMask: MUIBounds(contentMask),
                   color: MUIHsla(color),
                   order: order,
                   _reserved: 0)

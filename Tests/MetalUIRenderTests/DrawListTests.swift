@@ -19,6 +19,8 @@ private func glyph(order: MUIUInt) -> MUIGlyph {
                                size: MUISize(width: 8, height: 12)),
              atlasBounds: MUIBounds(origin: MUIPoint(x: 0, y: 0),
                                     size: MUISize(width: 8, height: 12)),
+             contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                                    size: MUISize(width: 1000, height: 1000)),
              color: MUIHsla(h: 0, s: 0, l: 1, a: 1),
              order: order, _reserved: 0)
 }
