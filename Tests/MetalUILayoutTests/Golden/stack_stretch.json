@@ -1,0 +1,39 @@
+{
+  "fixture" : "stack_stretch",
+  "raw" : [
+    {
+      "height" : 200,
+      "id" : "root",
+      "width" : 300,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 200,
+      "id" : "child",
+      "width" : 300,
+      "x" : 0,
+      "y" : 0
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 200,
+      "id" : "root",
+      "width" : 300,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 200,
+      "id" : "child",
+      "width" : 300,
+      "x" : 0,
+      "y" : 0
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

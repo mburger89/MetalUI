@@ -1,0 +1,81 @@
+{
+  "fixture" : "stack_sizes_to_largest",
+  "raw" : [
+    {
+      "height" : 300,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 70,
+      "id" : "stack",
+      "width" : 90,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 10,
+      "id" : "wide",
+      "width" : 90,
+      "x" : 0,
+      "y" : 30
+    },
+    {
+      "height" : 70,
+      "id" : "tall",
+      "width" : 20,
+      "x" : 35,
+      "y" : 0
+    },
+    {
+      "height" : 40,
+      "id" : "mid",
+      "width" : 50,
+      "x" : 20,
+      "y" : 15
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 300,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 70,
+      "id" : "stack",
+      "width" : 90,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 10,
+      "id" : "wide",
+      "width" : 90,
+      "x" : 0,
+      "y" : 30
+    },
+    {
+      "height" : 70,
+      "id" : "tall",
+      "width" : 20,
+      "x" : 35,
+      "y" : 0
+    },
+    {
+      "height" : 40,
+      "id" : "mid",
+      "width" : 50,
+      "x" : 20,
+      "y" : 15
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

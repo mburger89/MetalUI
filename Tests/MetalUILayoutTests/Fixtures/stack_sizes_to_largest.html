@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* The one that proves max-over-children, with a different winner per axis:
+     `.wide` is widest and shortest, `.tall` is narrowest and tallest, `.mid`
+     wins NEITHER axis -- so a "return the first/last child" bug cannot pass
+     by coincidence (same shape as StackLayoutTests's own unit test).
+
+     Deliberately NOT sized on `#stack` itself. A declared size asserts
+     nothing about max-over-children sizing -- every candidate implementation
+     gives the declared size back. `#stack` is instead a child of a
+     fixed-size flex `#root`, with `align-items: flex-start` so it is not
+     stretched on the cross axis -- its main axis (width) already shrinks to
+     content by default, since a flex item with no `flex-grow` does not grow.
+     That makes `#stack`'s own box a MEASUREMENT rather than a declaration.
+
+     A stack, not a flex root, would also disagree with WebKit for a reason
+     unrelated to stacking: this engine's `auto` root axis takes the space it
+     is offered rather than shrink-wrapping (CLAUDE.md divergence 4). The flex
+     `#root` wrapper is what keeps that divergence out of this fixture.
+
+     `justify-items`/`align-items` on `#stack` are stated explicitly because
+     grid defaults both to stretch and this framework's Stack does not
+     (spec §2). */
+  #root { display: flex; align-items: flex-start; width: 400px; height: 300px; }
+  #stack { display: grid; justify-items: center; align-items: center; }
+  #stack > div { grid-area: 1 / 1; }
+  .wide { width: 90px; height: 10px; }
+  .tall { width: 20px; height: 70px; }
+  .mid  { width: 50px; height: 40px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div id="stack" data-id="stack">
+      <div class="wide" data-id="wide"></div>
+      <div class="tall" data-id="tall"></div>
+      <div class="mid" data-id="mid"></div>
+    </div>
+  </div>
+</body></html>

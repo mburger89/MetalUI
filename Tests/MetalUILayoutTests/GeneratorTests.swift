@@ -140,6 +140,23 @@ let allFixtures: [(String, CGSize)] = [
     // content-sizes. Added because extending the fit-content branch to rows
     // reddened **nothing** out of 395.
     ("flex_row_block_axis_max_content",      CGSize(width: 800, height: 600)),
+    // The stack-container milestone's Task 4 — the first browser evidence for
+    // `Display.stack`. CSS has no stack, so the oracle is a one-cell grid
+    // (`display: grid` + `grid-area: 1/1` on every child); see
+    // `StackFixtureTests.swift`'s header comment for the full mapping. The
+    // three alignment fixtures share geometry deliberately (same root, same
+    // child, three alignments) so they read as a differential rather than
+    // three unrelated numbers. `stack_sizes_to_largest` makes the stack a
+    // MEASURED child of a fixed-size flex root rather than the declared-size
+    // document root the milestone's own brief first proposed — a declared
+    // size asserts nothing about max-over-children, and an `auto`-sized root
+    // would hit this engine's own divergence 4 (an `auto` root axis takes the
+    // offered space rather than shrink-wrapping), unrelated to stacking.
+    ("stack_alignment_center",         CGSize(width: 800, height: 600)),
+    ("stack_alignment_topleading",     CGSize(width: 800, height: 600)),
+    ("stack_alignment_bottomtrailing", CGSize(width: 800, height: 600)),
+    ("stack_stretch",                  CGSize(width: 800, height: 600)),
+    ("stack_sizes_to_largest",         CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.
