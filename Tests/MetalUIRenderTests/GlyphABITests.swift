@@ -663,24 +663,33 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
     try #require(inkY >= 0, "the glyph must have a near-opaque pixel for this test to mean anything")
 
     // Rect ABOVE the glyph: the covered pixel is the rect's colour.
+    //
+    // The glyph is RED, not white — `aRectAndAGlyphBothDrawInOneScene`'s
+    // convention, kept for the same reason: white is 255 on every channel,
+    // so it cannot be told apart from a blue rect's own maxed blue channel.
+    // Red and blue are complementary (blue channel 255/~0, red channel
+    // ~0/255 for rect/glyph respectively), so every assertion below actually
+    // discriminates which primitive is on top. Practices doc shape 1 records
+    // this exact trap: "white and black are symmetric under a red<->blue
+    // channel transposition."
     var above = Scene()
-    above.insert(sprite(slot, at: (x: 4, y: 4), color: .white, order: 0))
+    above.insert(sprite(slot, at: (x: 4, y: 4), color: .rgb(0xFF0000), order: 0))
     above.insert(cover(order: 1))
     above.finalize()
     #expect(above.drawList.count == 2)
     let coveredPixels = try renderer.renderOffscreen(above, size: size)
 
-    // Rect BELOW the glyph: the same pixel is the glyph's white.
+    // Rect BELOW the glyph: the same pixel is the glyph's red.
     var below = Scene()
     below.insert(cover(order: 0))
-    below.insert(sprite(slot, at: (x: 4, y: 4), color: .white, order: 1))
+    below.insert(sprite(slot, at: (x: 4, y: 4), color: .rgb(0xFF0000), order: 1))
     below.finalize()
     #expect(below.drawList.count == 2)
     let textPixels = try renderer.renderOffscreen(below, size: size)
 
     // BGRA8: index 0 is blue, index 2 is red.
     let hit = (((4 + inkY) * side) + 4 + inkX) * 4
-    #expect(coveredPixels[hit] > 200, "the rect's blue must win where it is on top")
-    #expect(coveredPixels[hit + 2] < 80, "no white text may show through an opaque rect")
-    #expect(textPixels[hit + 2] > 200, "with the orders swapped, the white glyph must win")
+    #expect(coveredPixels[hit] > 200, "the rect's blue channel must be maxed where it is on top")
+    #expect(coveredPixels[hit + 2] < 80, "no red text may show through an opaque rect (red channel)")
+    #expect(textPixels[hit + 2] > 200, "with the orders swapped, the red glyph's red channel must win")
 }
