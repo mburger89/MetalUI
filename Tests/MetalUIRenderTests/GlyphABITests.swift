@@ -403,6 +403,55 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
     #expect(mismatches == 0, "\(mismatches) pixels of the second glyph differ from the atlas")
 }
 
+/// A renderer with no texture for this atlas must upload the WHOLE of it, dirty
+/// rect or not.
+///
+/// **Found by a mutation that reddened nothing.** Replacing `upload`'s
+/// texture-creation branch with the dirty-rect one left all 428 tests green,
+/// because every other test here packs its glyphs and uploads them in that
+/// order — dirty and live are the same region, so the two branches agree. They
+/// diverge exactly when a renderer meets an atlas whose pixels are already
+/// clean: a second window on the same atlas, or the atlas-replaced-wholesale
+/// path `GlyphAtlas.evictUnusedSince` names, where a fresh texture's undefined
+/// contents would be filled from a region covering none of the resident glyphs.
+/// The symptom is every earlier glyph blank — spec §4.2's third failure mode,
+/// arriving from the renderer rather than from eviction.
+@Test @MainActor func anAtlasWithNoDirtyRectStillUploadsInFullToANewTexture() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let (atlas, slots) = try packedAtlas(["H"])
+    let slot = slots[0]
+
+    // The first renderer takes the dirty rect and clears it, exactly as a
+    // frame loop would. The second has never seen this atlas.
+    let first = try Renderer(device: device)
+    first.upload(atlas)
+    #expect(atlas.dirtyRect == nil)
+
+    let second = try Renderer(device: device)
+    second.upload(atlas)
+
+    let side = 64
+    var scene = Scene()
+    scene.insert(sprite(slot, at: (x: 4, y: 4), color: .white))
+    scene.finalize()
+    let pixels = try second.renderOffscreen(
+        scene, size: Size(width: DevicePixels(Int32(side)), height: DevicePixels(Int32(side))))
+
+    var mismatches = 0
+    var ink = 0
+    for row in 0..<slot.height {
+        for column in 0..<slot.width {
+            let expected = atlas.pixels[(slot.y + row) * atlas.width + slot.x + column]
+            if expected > 0 { ink += 1 }
+            if expected != alpha(pixels, 4 + column, 4 + row, width: side) { mismatches += 1 }
+        }
+    }
+    #expect(ink > 0, "the glyph must have ink for a blank to be distinguishable")
+    #expect(mismatches == 0,
+            "\(mismatches) pixels differ — the second renderer uploaded less than the whole atlas")
+}
+
 /// A rect and a glyph in one scene, in one render pass, through two pipelines.
 /// The pipelines share an encoder, so binding state set by one leaking into the
 /// other is a real failure mode — and it is asymmetric: the glyph pipeline binds

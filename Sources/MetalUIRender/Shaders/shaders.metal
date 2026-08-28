@@ -171,11 +171,25 @@ fragment float4 glyph_fragment(
 ) {
     // `coord::pixel` so the sampler takes atlas texels directly: the alternative
     // is dividing by the atlas dimensions, which means carrying them across the
-    // ABI and resolving the same quantity twice. `filter::linear` matches gpui's
-    // `monochrome_sprite_fragment` and is exact at the 1:1 scale this renderer
-    // emits, because the interpolated coordinate lands on texel centres.
-    // `clamp_to_edge` so a coordinate exactly on the atlas's far edge — which a
-    // slot flush against it produces — reads the last texel rather than 0.
+    // ABI and resolving the same quantity twice. `clamp_to_edge` so a coordinate
+    // exactly on the atlas's far edge — which a slot flush against it produces —
+    // reads the last texel rather than 0.
+    //
+    // `filter::linear` matches gpui's `monochrome_sprite_fragment`. **It is
+    // exact at the 1:1 scale this renderer emits, and that is measured rather
+    // than argued**: swapping it for `filter::nearest` leaves all 429 tests
+    // green, including a per-pixel comparison of two rendered sprites against
+    // the CPU atlas bytes. So the two filters are indistinguishable today and
+    // the choice is unpinned on purpose — no input this renderer can build
+    // distinguishes them, and a test manufacturing one would be testing the
+    // test. It becomes load-bearing the moment a sprite is drawn at a scale
+    // other than 1:1 (a zoomed canvas, spec 7.5), which is why linear is the
+    // one written.
+    //
+    // The exactness is the interpolated coordinate landing on texel centres:
+    // at destination pixel k the fragment centre carries
+    // `atlasBounds.origin + k + 0.5`. Shifting it by a single texel reddens
+    // four tests, so the alignment is guarded rather than assumed.
     constexpr sampler atlas_sampler(coord::pixel,
                                     address::clamp_to_edge,
                                     filter::linear);
