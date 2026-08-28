@@ -7,15 +7,18 @@ import MetalUIShaderTypes
 import MetalUIText
 @testable import MetalUIRender
 
-/// A rect clipped to the left half of its own box.
+/// A white rect spanning x 10..<50, y 10..<50, carrying `mask` as its
+/// `contentMask`.
 ///
 /// **The expected values are built from the CLIP, not from the primitive.**
 /// Reading the mask back off the `MUIRect` to decide what to assert would be
 /// taxonomy shape 12 — the oracle being the code under test — which produced
-/// four defects in M2. The x boundary here is a literal.
-private func clippedRect(mask: MUIBounds) -> MUIRect {
-    MUIRect(bounds: MUIBounds(origin: MUIPoint(x: 10, y: 10),
-                              size: MUISize(width: 40, height: 40)),
+/// four defects in M2. Every boundary asserted below is a literal.
+private func clippedRect(mask: MUIBounds,
+                         bounds: MUIBounds = MUIBounds(origin: MUIPoint(x: 10, y: 10),
+                                                       size: MUISize(width: 40, height: 40)))
+    -> MUIRect {
+    MUIRect(bounds: bounds,
             contentMask: mask,
             background: MUIHsla(h: 0, s: 0, l: 1, a: 1),   // white
             borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
@@ -24,6 +27,21 @@ private func clippedRect(mask: MUIBounds) -> MUIRect {
             order: 0, _reserved: 0)
 }
 
+/// The clip box every rect test below cuts against: **x 14..<31, y 18..<39**.
+///
+/// Four distinct edge coordinates, none of them zero and no two of them equal,
+/// all four strictly inside the rect's own 10..<50 box on both axes. That is
+/// the whole point of the numbers: an origin of `(0, 0)` (which every
+/// rasterized `contentMask` in this repo happens to have) makes
+/// `mask.origin` unreadable, a full-surface height makes the entire vertical
+/// axis unreadable, and two coincident edges make it impossible to say WHICH
+/// edge a failure came from. Both mutations this fixture exists for —
+/// `float2 lo = float2(0.0, 0.0)` and `return inside.x` in
+/// `mask_coverage` — passed the whole suite against the previous
+/// `(0, 0, 30, 64)` mask.
+private let clipBox = MUIBounds(origin: MUIPoint(x: 14, y: 18),
+                                size: MUISize(width: 17, height: 21))
+
 @Test @MainActor func aRectIsPaintedOnlyInsideItsContentMask() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
@@ -31,28 +49,35 @@ private func clippedRect(mask: MUIBounds) -> MUIRect {
     let side = 64
     let size = Size(width: DevicePixels(Int32(side)), height: DevicePixels(Int32(side)))
 
-    // The rect spans x 10..<50. Clip it to x 10..<30.
+    // The rect spans 10..<50 on both axes. `clipBox` cuts it to x 14..<31,
+    // y 18..<39 — inside the rect on all four sides.
     var scene = Scene()
-    scene.insert(clippedRect(mask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
-                                             size: MUISize(width: 30, height: 64))))
+    scene.insert(clippedRect(mask: clipBox))
     scene.finalize()
     let pixels = try renderer.renderOffscreen(scene, size: size)
 
     func alphaAt(_ x: Int, _ y: Int) -> UInt8 { pixels[((y * side) + x) * 4 + 3] }
 
-    // Well inside the clip: painted.
-    #expect(alphaAt(15, 25) > 200, "x=15 is inside both the rect and the clip")
-    #expect(alphaAt(25, 25) > 200, "x=25 is inside both")
-    // Well outside the clip but inside the rect: not painted.
-    #expect(alphaAt(35, 25) < 20, "x=35 is inside the rect and outside the clip")
-    #expect(alphaAt(45, 25) < 20, "x=45 is inside the rect and outside the clip")
+    // Well inside the clip on both axes: painted.
+    #expect(alphaAt(20, 25) > 200, "(20, 25) is inside both the rect and the clip")
+    #expect(alphaAt(28, 35) > 200, "(28, 35) is inside both, near the far corner of the clip")
+    // Outside the clip on exactly one axis at a time, inside the rect in all
+    // four cases. Each names the term of `mask_coverage` it reads.
+    #expect(alphaAt(11, 25) < 20,
+            "x=11 is left of mask.origin.x=14 — reads `lo.x`, which a `float2 lo = float2(0, 0)` drops")
+    #expect(alphaAt(20, 14) < 20,
+            "y=14 is above mask.origin.y=18 — reads `lo.y`, which the same mutation drops")
+    #expect(alphaAt(40, 25) < 20, "x=40 is right of the clip's far edge at 31 — reads `hi.x`")
+    #expect(alphaAt(20, 45) < 20,
+            "y=45 is below the clip's far edge at 39 — reads `hi.y`, the whole factor a `return inside.x` drops")
     // Outside the rect entirely: not painted, clip or no clip.
     #expect(alphaAt(5, 25) < 20)
 }
 
-/// The differential: the identical rect with a full-surface mask paints all the
-/// way across. Without this, the test above passes on a shader that paints
-/// nothing beyond x=30 for an unrelated reason.
+/// The differential: the identical rect with a full-surface mask paints every
+/// one of the four points the clipped version suppresses. Without this, the
+/// test above passes on a shader that paints nothing outside `clipBox` for an
+/// unrelated reason — or on one that paints nothing at all beyond a corner.
 @Test @MainActor func theSameRectWithAFullMaskPaintsItsWholeWidth() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
                               "no Metal device; run on macOS hardware")
@@ -67,8 +92,10 @@ private func clippedRect(mask: MUIBounds) -> MUIRect {
     let pixels = try renderer.renderOffscreen(scene, size: size)
     func alphaAt(_ x: Int, _ y: Int) -> UInt8 { pixels[((y * side) + x) * 4 + 3] }
 
-    #expect(alphaAt(35, 25) > 200, "unclipped, x=35 must be painted")
-    #expect(alphaAt(45, 25) > 200, "unclipped, x=45 must be painted")
+    #expect(alphaAt(11, 25) > 200, "unclipped, the point left of the clip must be painted")
+    #expect(alphaAt(20, 14) > 200, "unclipped, the point above the clip must be painted")
+    #expect(alphaAt(40, 25) > 200, "unclipped, the point right of the clip must be painted")
+    #expect(alphaAt(20, 45) > 200, "unclipped, the point below the clip must be painted")
 }
 
 /// The clip edge is antialiased rather than a hard step. A half-pixel boundary
@@ -91,6 +118,63 @@ private func clippedRect(mask: MUIBounds) -> MUIRect {
     let edge = alphaAt(30, 25)
     #expect(edge > 20 && edge < 235,
             "the pixel straddling a 30.5 boundary must be partially covered, got \(edge)")
+}
+
+/// `MUIRect.contentMask` lives in the same **pre-projection** ScaledPixels
+/// space as `MUIRect.bounds` — `rect_fragment` clips against
+/// `RectVertexOut.pixelPosition`, not against the built-in `[[position]]`,
+/// which is post-projection. `RectVertexOut`'s own doc comment states that,
+/// and so does `aGlyphsContentMaskIsEvaluatedInPreProjectionSpace` below —
+/// **in prose, about the rect path, while nothing checked it.** Mutating
+/// `mask_coverage(in.pixelPosition, …)` to `mask_coverage(in.position.xy, …)`
+/// reddened the whole suite nowhere until this test existed.
+///
+/// The geometry: a 32pt-wide rect at x 20..<52, clipped to its own left half
+/// (mask far edge at x 36), shifted **16 device pixels left** on screen by a
+/// translation in the projection matrix. Pre-projection, the surviving half is
+/// x 20..<36, which lands on screen at x 4..<20. Post-projection — the mutant —
+/// the mask is compared against screen x instead, so the whole shifted rect
+/// (screen x 4..<36) is under 36 and nothing is clipped at all.
+///
+/// Sized to fail loudly rather than by a sliver: the mutant paints 16 device
+/// pixels that must be blank, across the rect's full height.
+@Test @MainActor func aRectsContentMaskIsEvaluatedInPreProjectionSpace() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let renderer = try Renderer(device: device)
+    let side = 64
+    let size = Size(width: DevicePixels(Int32(side)), height: DevicePixels(Int32(side)))
+
+    // NDC spans [-1, 1] across `side` pixels, so a delta of `d` in NDC.x moves
+    // the rendered geometry by `d / 2 * side` device pixels — the same
+    // derivation `RendererTests.projectionMatrixMovesTheRenderedRect` uses,
+    // negated here for a leftward shift.
+    let shift = 16
+    let deltaNDC = -2 * Float(shift) / Float(side)
+    let projection = simd_float4x4(columns: (SIMD4<Float>(1, 0, 0, 0),
+                                             SIMD4<Float>(0, 1, 0, 0),
+                                             SIMD4<Float>(0, 0, 1, 0),
+                                             SIMD4<Float>(deltaNDC, 0, 0, 1)))
+
+    var scene = Scene()
+    scene.insert(clippedRect(mask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
+                                             size: MUISize(width: 36, height: Float(side))),
+                             bounds: MUIBounds(origin: MUIPoint(x: 20, y: 8),
+                                               size: MUISize(width: 32, height: 32))))
+    scene.finalize()
+    let pixels = try renderer.renderOffscreen(scene, size: size, projection: projection)
+    func alphaAt(_ x: Int, _ y: Int) -> UInt8 { pixels[((y * side) + x) * 4 + 3] }
+
+    // Screen x 4..<20 — the surviving pre-projection half, after the shift.
+    for x in 5..<19 {
+        #expect(alphaAt(x, 20) > 200,
+                "screen x=\(x) is the shifted image of pre-projection x=\(x + shift), inside the mask")
+    }
+    // Screen x 20..<36 — the clipped half, which the mutant paints.
+    var spilled = 0
+    for x in 21..<35 where alphaAt(x, 20) > 20 { spilled += 1 }
+    #expect(spilled == 0,
+            "\(spilled) device pixels painted right of the clip — the clip moved with the projection instead of staying in the rect's own pre-projection space")
 }
 
 private func packedAtlasForClipping(_ characters: [Character]) throws -> (GlyphAtlas, [AtlasSlot]) {
@@ -173,10 +257,11 @@ private func clippedSprite(_ slot: AtlasSlot, atX x: Float, y: Float,
 }
 
 /// `contentMask` lives in the same pre-projection ScaledPixels space as
-/// `bounds`, for both `MUIRect` and `MUIGlyph` (`rect_fragment` already clips
-/// against `RectVertexOut.pixelPosition`, the pre-projection field, precisely
-/// because the built-in `[[position]]` is post-projection — see that struct's
-/// doc comment). A glyph shifted left on screen by exactly half its own width,
+/// `bounds`, for both `MUIRect` and `MUIGlyph`. The rect half of that claim
+/// used to be asserted here in prose and nowhere in code;
+/// `aRectsContentMaskIsEvaluatedInPreProjectionSpace` above is now the test
+/// for it, and this one covers the glyph pipeline only.
+/// A glyph shifted left on screen by exactly half its own width,
 /// under a clip that keeps only its left half, must still show only its
 /// (now-shifted) left half: the clip boundary is a property of the glyph and
 /// its own mask, not of where the projection happens to put it on screen.
