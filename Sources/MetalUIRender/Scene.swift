@@ -101,8 +101,16 @@ public struct Scene: Sendable {
 
         let sortedRects = merged.filter { $0.2 == .rect }
         let sortedGlyphs = merged.filter { $0.2 == .glyph }
-        rects = sortedRects.map { rects[$0.3] }
-        glyphs = sortedGlyphs.map { glyphs[$0.3] }
+        // Bound to locals rather than read from `self.rects`/`self.glyphs`
+        // inside the closure that reassigns them: reading and reassigning the
+        // same stored property in one statement is correct here — the RHS
+        // fully evaluates against the OLD array before the assignment commits
+        // — but it is exactly the shape a memory-crash investigation stops on
+        // first, so it is spelled out rather than left implicit.
+        let oldRects = rects
+        let oldGlyphs = glyphs
+        rects = sortedRects.map { oldRects[$0.3] }
+        glyphs = sortedGlyphs.map { oldGlyphs[$0.3] }
         // Rebuild sequence in the SAME merged order as the primitive arrays
         // above, so it stays aligned with them across repeated `finalize()`
         // calls (ruling PF-1) — a version that left the old sequence arrays in
