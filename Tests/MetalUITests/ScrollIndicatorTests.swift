@@ -1,0 +1,290 @@
+import Testing
+import Metal
+import MetalUICore
+import MetalUILayout
+import MetalUIRender
+@testable import MetalUI
+
+// Task 9: the fading overlay scroll indicator. Five tests, matching the
+// task-9 brief's stubs one for one.
+//
+// **This file is why Task 1 exists.** Before the draw list, `Renderer.encode`
+// drew every rect and then every glyph regardless of emission order, so an
+// overlay indicator over a list of text was not expressible at all —
+// `theIndicatorIsTheLastPrimitiveInTheScene` is the payoff, and it asserts the
+// indicator is genuinely last in the DRAW LIST (`Scene.drawList`, built by
+// `finalize()`), not merely that a rect exists somewhere in the scene.
+
+private func columnStyle() -> Style {
+    var s = Style()
+    s.flexDirection = .column
+    return s
+}
+
+private func fixedHeight(_ h: Float) -> Style {
+    var s = columnStyle()
+    s.size = Size(width: .auto, height: .length(.pixels(Pixels(h))))
+    return s
+}
+
+private let listID = ElementID("list")
+private let rootID = GlobalElementID.child(of: nil, at: 0, name: listID)
+
+/// Runs `element` through all three phases by hand — `requestLayout`,
+/// `computeRootLayout`, `prepaint`, `paint` — exactly what `Frame.render`
+/// does, except it hands back the element's own `LayoutState` afterward.
+/// `Frame.render` discards it, so a caller outside the element has no way
+/// back to `ScrollView.Layout.contentNode` — the one node several tests below
+/// need to compute the SAME geometry the implementation is pinned to,
+/// independently of it.
+@MainActor
+private func fullyRendered<E: Element>(_ element: inout E, width: Float, height: Float,
+                                       stateTable: StateTable = StateTable(),
+                                       timestamp: Double = 0) -> (Frame, E.LayoutState) {
+    let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)),
+                      scaleFactor: 1, stateTable: stateTable, timestamp: timestamp)
+    let id = GlobalElementID.child(of: nil, at: 0, name: element.elementID)
+    var layoutPass = LayoutPass(frame: frame)
+    let (root, layoutState) = element.requestLayout(id, pass: &layoutPass)
+    var state = layoutState
+    frame.computeRootLayout(root: root)
+    let rootBounds = frame.bounds(of: root)
+    var prepaintPass = PrepaintPass(frame: frame)
+    var prepaintState = element.prepaint(id, bounds: rootBounds, layout: &state, pass: &prepaintPass)
+    var paintPass = PaintPass(frame: frame)
+    element.paint(id, bounds: rootBounds, layout: &state, prepaint: &prepaintState, pass: &paintPass)
+    return (frame, state)
+}
+
+/// A `StateTable` with `rootID`'s `ScrollState` pre-populated, so a test can
+/// pin the offset and the last-scroll instant before painting rather than
+/// only reaching them through a simulated wheel event.
+@MainActor
+private func scrolledState(offset: Double, lastScrollTime: Double) -> StateTable {
+    let table = StateTable()
+    table.withState(rootID, initial: ScrollState()) {
+        $0.offset = offset
+        $0.lastScrollTime = lastScrollTime
+    }
+    return table
+}
+
+// MARK: - 1. The composition Task 1 was built for
+
+/// The indicator is emitted after the content, so the draw list puts it last.
+///
+/// **This is the composition the draw list was built for.** Before it, a rect
+/// emitted after glyphs still drew beneath them, so an overlay indicator over a
+/// list of text was not expressible at all.
+///
+/// Two claims, because either alone is satisfiable by a wrong implementation:
+/// the ORDER (last run in the draw list is `.rect`) and the POSITION (the
+/// indicator's bounds are the viewport-space thumb formula, not shifted by the
+/// content's scroll offset). The second is what actually distinguishes
+/// "painted after the clipped block" from "painted as the last statement
+/// INSIDE it" — both emit the rect last in sequence, since nothing about the
+/// clip stack reorders emission, but only the wrong placement inherits the
+/// block's `-offset` translation and moves the thumb by exactly the scrolled
+/// amount, which is required mutation 1 (see the task report).
+@Test @MainActor func theIndicatorIsTheLastPrimitiveInTheScene() throws {
+    let table = scrolledState(offset: 20, lastScrollTime: 0)
+    var view = ScrollView(.vertical, elementID: listID) {
+        Column {
+            Text("Row one"); Text("Row two"); Text("Row three"); Text("Row four")
+            Text("Row five"); Text("Row six"); Text("Row seven"); Text("Row eight")
+        }
+    }
+    let (frame, layout) = fullyRendered(&view, width: 120, height: 100, stateTable: table)
+    let scene = frame.finalizedScene()
+
+    try #require(!scene.glyphs.isEmpty,
+                "the text must actually overflow and emit glyphs, or this proves nothing about rects over glyphs")
+    let runs = scene.drawList
+    try #require(runs.count == 2, "expected one glyph run then one rect run for the indicator, got \(runs.count)")
+    #expect(runs[0].kind == .glyph, "the content paints first")
+    #expect(runs[1].kind == .rect, "the indicator must be the LAST primitive in the draw list")
+    #expect(runs[1].count == 1)
+
+    let viewportHeight = Double(frame.bounds(of: layout.node).size.height.value)
+    let contentHeight = Double(frame.bounds(of: layout.contentNode).size.height.value)
+    let scrollable = max(0, contentHeight - viewportHeight)
+    try #require(scrollable > 20, "the fixture must overflow by more than the pinned offset")
+    let thumb = max(20, viewportHeight * (viewportHeight / contentHeight))
+    let expectedTravel = (20 / scrollable) * (viewportHeight - thumb)
+    let expectedY = Double(frame.bounds(of: layout.node).origin.y.value) + expectedTravel
+
+    let rect = try #require(scene.rects.last)
+    #expect(abs(Double(rect.bounds.origin.y) - expectedY) < 0.05,
+            "the indicator's y must be the viewport-space thumb position; painting it inside the clipped block would additionally shift it by the scroll offset (-20), which this would catch")
+}
+
+// MARK: - 2. Nothing to scroll, nothing drawn
+
+/// No indicator when there is nothing to scroll.
+///
+/// What a wrong implementation this catches: dropping (or inverting) the
+/// `guard scrollable > 0 else { return }` — with content no taller than the
+/// viewport, `scrollable` is 0 and `travel`'s division by it would produce a
+/// NaN rect that still gets inserted into the scene rather than nothing at
+/// all.
+@Test @MainActor func contentThatFitsDrawsNoIndicator() throws {
+    var view = ScrollView(.vertical, elementID: listID) {
+        Box(style: fixedHeight(40))
+    }
+    let (frame, _) = fullyRendered(&view, width: 120, height: 100)
+    #expect(frame.scene.rects.isEmpty,
+            "content shorter than the viewport has nothing to scroll, so no thumb and no draw call for one")
+}
+
+// MARK: - 3. Proportional, floored — at ratios where the two differ
+
+/// The thumb is proportional to the viewport/content ratio and floored so it
+/// never becomes an invisible sliver on a very long list.
+///
+/// Two fixtures, chosen so the proportional answer and the 20pt floor give
+/// DIFFERENT numbers in each — a fixture where they coincide could not tell a
+/// working floor from a working proportion (or the reverse).
+@Test @MainActor func theThumbIsProportionalAndFlooredAtTwentyPoints() throws {
+    // viewport 100, content 200 → 100 * (100/200) = 50, well clear of the
+    // floor: this isolates the PROPORTION formula.
+    do {
+        var view = ScrollView(.vertical, elementID: listID) {
+            Box(style: fixedHeight(200))
+        }
+        let (frame, _) = fullyRendered(&view, width: 120, height: 100)
+        let rect = try #require(frame.scene.rects.first)
+        #expect(abs(Double(rect.bounds.size.height) - 50) < 0.05,
+                "100 * (100/200) = 50 — a bare proportional size, not the floor")
+    }
+
+    // viewport 100, content 1000 → 100 * (100/1000) = 10, an invisible sliver:
+    // this isolates the FLOOR, which must win over the smaller proportion.
+    do {
+        var view = ScrollView(.vertical, elementID: listID) {
+            Box(style: fixedHeight(1000))
+        }
+        let (frame, _) = fullyRendered(&view, width: 120, height: 100)
+        let rect = try #require(frame.scene.rects.first)
+        #expect(abs(Double(rect.bounds.size.height) - 20) < 0.05,
+                "100 * (100/1000) = 10 must be floored to 20, not left as a 10pt sliver")
+    }
+}
+
+// MARK: - 4. Exactly at the end of the track
+
+/// The thumb reaches the bottom of its track exactly at the maximum offset —
+/// an off-by-one here leaves a gap that looks like the list has more content.
+///
+/// Asserted at both ends, exactly rather than "close": at offset 0 the thumb
+/// starts flush with the top of the track, and at the maximum offset (100,
+/// for this fixture's 100pt of scrollable range) its FAR edge lands flush
+/// with the bottom — not merely "large" or "near the end".
+@Test @MainActor func theThumbReachesTheEndOfItsTrackAtMaximumOffset() throws {
+    // viewport 100, content 200 → scrollable 100, thumb 50: clear of the
+    // 20pt floor, so this isolates the position formula from it.
+    do {
+        var view = ScrollView(.vertical, elementID: listID) {
+            Box(style: fixedHeight(200))
+        }
+        let (frame, layout) = fullyRendered(&view, width: 120, height: 100,
+                                            stateTable: scrolledState(offset: 100, lastScrollTime: 0))
+        let rect = try #require(frame.scene.rects.first)
+        let trackBottom = Double(frame.bounds(of: layout.node).origin.y.value)
+                         + Double(frame.bounds(of: layout.node).size.height.value)
+        let thumbBottom = Double(rect.bounds.origin.y) + Double(rect.bounds.size.height)
+        #expect(abs(thumbBottom - trackBottom) < 0.01,
+                "at the maximum offset the thumb's far edge must land EXACTLY at the end of the track")
+    }
+
+    do {
+        var view = ScrollView(.vertical, elementID: listID) {
+            Box(style: fixedHeight(200))
+        }
+        let (frame, layout) = fullyRendered(&view, width: 120, height: 100,
+                                            stateTable: scrolledState(offset: 0, lastScrollTime: 0))
+        let rect = try #require(frame.scene.rects.first)
+        #expect(abs(Double(rect.bounds.origin.y) - Double(frame.bounds(of: layout.node).origin.y.value)) < 0.01,
+                "at zero offset the thumb starts EXACTLY at the top of the track")
+    }
+}
+
+// MARK: - 5. Fades, and stops asking for frames once it has
+
+private func pt(_ x: Float, _ y: Float) -> Point<Pixels> { Point(x: Pixels(x), y: Pixels(y)) }
+
+private func wheel(at position: Point<Pixels>, deltaY: Float) -> InputEvent {
+    .scrollWheel(ScrollEvent(position: position, delta: Point(x: Pixels(0), y: Pixels(deltaY)),
+                             isMomentum: false))
+}
+
+/// While fading, the ScrollView asks for another frame; once faded, it stops.
+///
+/// The second half is what keeps an idle window idle — spec §4.4's "no frames
+/// built and display link paused while idle" is an M4 exit criterion and this
+/// must not break it early.
+///
+/// Driven through a real `Window`, not a bare `Frame`, because the idle
+/// guarantee is a property of `Window.drawFrameIfNeeded` honouring
+/// `frame.wantsAnotherFrame` (Task 8) — a bare `Frame` has no "stays idle"
+/// concept to fail.
+@Test @MainActor func theIndicatorRequestsFramesWhileFadingAndStopsWhenDone() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true) {
+        ScrollView(.vertical, elementID: listID) {
+            Box(style: columnStyle()) {
+                Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
+                Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
+                Box(style: fixedHeight(40))
+            }
+        }
+    }
+
+    // A baseline tick far from zero. Nothing has scrolled yet — ScrollState's
+    // default `lastScrollTime` is 0 — so `age` here is enormous and the
+    // window must already be clean: a never-scrolled but scrollABLE list
+    // must not paint an indicator or request anything, either.
+    platformWindow.simulateTick(timestamp: 100)
+    #expect(!window.needsRedraw, "an idle, never-scrolled ScrollView must not keep the window dirty")
+
+    // This stamps lastScrollTime from the window's CURRENT lastTick (100).
+    platformWindow.simulateInput(wheel(at: pt(60, 60), deltaY: -20))
+    #expect(window.needsRedraw, "the scroll itself must dirty the window")
+
+    // age 0.2 < 0.6: fully opaque, must keep requesting.
+    platformWindow.simulateTick(timestamp: 100.2)
+    #expect(window.needsRedraw, "age 0.2 is inside the fully-opaque window and must request another frame")
+
+    // age 0.8: inside the 0.6...1.0 ramp, still visible (alpha > 0), must
+    // still be requesting.
+    platformWindow.simulateTick(timestamp: 100.8)
+    #expect(window.needsRedraw, "age 0.8 is inside the fade ramp and must still request another frame")
+
+    // age 1.1: fully faded. This render must be the LAST one this scroll
+    // causes — the idle-guarantee half.
+    let framesBeforeFadeCompletes = window.framesDrawn
+    platformWindow.simulateTick(timestamp: 101.1)
+    #expect(window.framesDrawn == framesBeforeFadeCompletes + 1,
+            "this tick was still dirty going in (from the 100.8 request) and must have drawn once")
+    #expect(!window.needsRedraw,
+            "age 1.1 > 1.0: fully faded, and this render must not have asked for another frame")
+    // Not just invisible — ABSENT. A fully transparent thumb that still
+    // reached `pass.fill` would still cost a draw call every idle frame
+    // thereafter, the same waste `anElementWithNoBackgroundEmitsNoPrimitiveAtAll`
+    // (ThemeTests) guards for a `Box`. Found by an exploratory mutation that
+    // deleted `guard alpha > 0 else { return }` (not one of the three required
+    // mutations): the `if age < 1.0` line alone still happens to suppress the
+    // *frame request* at this timestamp, so neither `needsRedraw` assertion
+    // above would have caught a fully faded indicator that kept drawing an
+    // invisible rect — only this one does.
+    #expect(window.lastScene.rects.isEmpty,
+            "a fully faded indicator must emit no primitive at all, not merely a transparent one")
+
+    // And it actually STAYS idle — a further tick with nothing else going on
+    // draws nothing more, which is the only way to tell "stopped requesting"
+    // from "requested once more and happened to go quiet after".
+    let framesAfterFade = window.framesDrawn
+    platformWindow.simulateTick(timestamp: 105)
+    #expect(window.framesDrawn == framesAfterFade,
+            "idle stays idle: nothing dirtied the window, so no further frame may draw")
+}

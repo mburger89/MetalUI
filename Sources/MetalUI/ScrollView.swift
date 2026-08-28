@@ -6,7 +6,19 @@ public enum ScrollAxis: Sendable, Equatable { case vertical, horizontal }
 /// Cross-frame scroll position, in logical points along the scroll axis.
 public struct ScrollState: Sendable {
     public var offset: Double = 0
-    public init(offset: Double = 0) { self.offset = offset }
+
+    /// `PaintPass.timestamp` of the most recent scroll — the display link's
+    /// tick, not a wall clock read independently. Drives the overlay
+    /// indicator's fade in `ScrollView.paint`: opaque while
+    /// `timestamp - lastScrollTime` is small, ramping to invisible after.
+    /// `Window.applyScroll` is the sole writer, stamping it from `lastTick`
+    /// at the moment a wheel event lands.
+    public var lastScrollTime: Double = 0
+
+    public init(offset: Double = 0, lastScrollTime: Double = 0) {
+        self.offset = offset
+        self.lastScrollTime = lastScrollTime
+    }
 }
 
 /// A clipped, scrollable viewport over content taller (or wider) than itself.
@@ -144,6 +156,73 @@ public struct ScrollView<Content: ElementGroup>: Element {
         let offset = resolvedOffset(id, bounds: bounds, layout: layout, pass: pass)
         pass.clipped(to: bounds, offsetBy: delta(-offset)) {
             content.paintGroup(layout: &layout.inner, prepaint: &prepaint, pass: &pass)
+        }
+        // Deliberately OUTSIDE the block above and emitted AFTER it — the one
+        // composition Task 1's draw list exists for. Inside the block, this
+        // fill would inherit the same `-offset` translation as the content
+        // above it and scroll away with it; before the draw list existed, a
+        // rect emitted here would still have drawn BENEATH any glyphs the
+        // content just emitted regardless of order, so an overlay indicator
+        // over a list of text was not expressible at all.
+        paintIndicator(id, bounds: bounds, offset: offset, layout: layout, pass: &pass)
+    }
+
+    /// The fading overlay scroll indicator: a thumb sized and positioned to
+    /// the viewport/content ratio, opaque for 0.6s after a scroll and then
+    /// ramped linearly to invisible over the next 0.4s.
+    ///
+    /// **A hand-rolled ramp, not an easing curve.** `PaintPass.timestamp` and
+    /// `requestAnotherFrame()` are borrowed M4 primitives — inputs to
+    /// animation, not an animation system — so this is the one place in the
+    /// element that computes a value that changes over time, and it does so
+    /// with a `let` and an `if`.
+    private func paintIndicator(_ id: GlobalElementID, bounds: Bounds<Pixels>, offset: Double,
+                                layout: Layout, pass: inout PaintPass) {
+        let content = extent(pass.bounds(of: layout.contentNode).size)
+        let viewport = extent(bounds.size)
+        let scrollable = max(0, content - viewport)
+        // Nothing to scroll: no thumb, and — just as important for spec
+        // §4.4 — no `requestAnotherFrame()` either. A `ScrollView` whose
+        // content fits must cost exactly as little as a `Box`.
+        guard scrollable > 0 else { return }
+
+        var lastScroll: Double = 0
+        pass.withState(id, initial: ScrollState()) { lastScroll = $0.lastScrollTime }
+        let age = pass.timestamp - lastScroll
+        let alpha = age < 0.6 ? 1.0 : max(0, 1.0 - (age - 0.6) / 0.4)
+        guard alpha > 0 else { return }
+        // Only while still fading. Once `alpha` above has reached zero this
+        // point is unreachable — the guard just above already returned — so
+        // an idle window that was scrolled once and left alone stops asking
+        // for frames on its own, rather than spinning the display link
+        // forever on a thumb nobody can see any more.
+        if age < 1.0 { pass.requestAnotherFrame() }
+
+        let thumb = max(20, viewport * (viewport / content))
+        let travel = (offset / scrollable) * (viewport - thumb)
+
+        var color = pass.theme[.scrollIndicator]
+        color.a *= Float(alpha)
+        pass.fill(indicatorBounds(bounds: bounds, thumb: thumb, travel: travel),
+                 color: color, cornerRadii: Corners(all: Pixels(3)))
+    }
+
+    /// The thumb's rect: 3pt wide (or tall, for `.horizontal`), inset 2pt from
+    /// the viewport's trailing edge, `thumb` long and `travel` from the start
+    /// along the scroll axis.
+    private func indicatorBounds(bounds: Bounds<Pixels>, thumb: Double,
+                                 travel: Double) -> Bounds<Pixels> {
+        switch axis {
+        case .vertical:
+            return Bounds(
+                origin: Point(x: Pixels(bounds.origin.x.value + bounds.size.width.value - 5),
+                             y: Pixels(bounds.origin.y.value + Float(travel))),
+                size: Size(width: Pixels(3), height: Pixels(Float(thumb))))
+        case .horizontal:
+            return Bounds(
+                origin: Point(x: Pixels(bounds.origin.x.value + Float(travel)),
+                             y: Pixels(bounds.origin.y.value + bounds.size.height.value - 5)),
+                size: Size(width: Pixels(Float(thumb)), height: Pixels(3)))
         }
     }
 

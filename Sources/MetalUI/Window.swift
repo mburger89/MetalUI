@@ -340,6 +340,10 @@ public final class Window {
             // so the offset — how far the content has scrolled away from its
             // start — decreases.
             $0.offset -= Double(componentDelta.value)
+            // Stamped from `lastTick`, the same display-link instant every
+            // element in the next frame will see as `PaintPass.timestamp` —
+            // not a wall clock read here, which would disagree with it.
+            $0.lastScrollTime = lastTick
         }
         return true
     }

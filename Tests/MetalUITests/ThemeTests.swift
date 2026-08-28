@@ -61,7 +61,8 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
         surfaceSecondary: Hsla(h: 0.30, s: 0.31, l: 0.32, a: 0.33),
         accent:           Hsla(h: 0.40, s: 0.41, l: 0.42, a: 0.43),
         separator:        Hsla(h: 0.50, s: 0.51, l: 0.52, a: 0.53),
-        textPrimary:      Hsla(h: 0.60, s: 0.61, l: 0.62, a: 0.63))
+        textPrimary:      Hsla(h: 0.60, s: 0.61, l: 0.62, a: 0.63),
+        scrollIndicator:  Hsla(h: 0.70, s: 0.71, l: 0.72, a: 0.73))
 
     #expect(theme[.background] == theme.background)
     #expect(theme[.surface] == theme.surface)
@@ -69,6 +70,7 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
     #expect(theme[.accent] == theme.accent)
     #expect(theme[.separator] == theme.separator)
     #expect(theme[.textPrimary] == theme.textPrimary)
+    #expect(theme[.scrollIndicator] == theme.scrollIndicator)
 
     // …and pinned to literals too, because the five expectations above all pass
     // against a subscript that returns `background` for every token *if* the
@@ -80,6 +82,7 @@ private func hsla(_ c: MUIHsla) -> Hsla { Hsla(h: c.h, s: c.s, l: c.l, a: c.a) }
     #expect(theme[.separator].h == 0.50)
     #expect(theme[.separator].a == 0.53)
     #expect(theme[.textPrimary].h == 0.60)
+    #expect(theme[.scrollIndicator].h == 0.70)
 }
 
 /// The single place the two variants are chosen between. Returning `light`
