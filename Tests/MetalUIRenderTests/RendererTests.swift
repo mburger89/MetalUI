@@ -296,6 +296,7 @@ private func whiteRect() -> MUIRect {
                               size: MUISize(width: 8, height: 8)),
             contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
                                    size: MUISize(width: 32, height: 32)),
+            maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
             background: MUIHsla(h: 0, s: 0, l: 1, a: 1),
             borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
             cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),

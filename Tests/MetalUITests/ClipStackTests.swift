@@ -189,3 +189,117 @@ import MetalUIText
     #expect(clipped.contentMask.origin.x == 0)
     #expect(clipped.contentMask.size.width == 60, "30pt clip at scaleFactor 2 is 60 device pixels")
 }
+
+// MARK: - Rounded clip radii (ruling CL-A's follow-on)
+
+/// A fill inside a ROUNDED clip carries the radii through to the scene,
+/// scaled exactly as the clip's bounds already are — the radii counterpart to
+/// `aFillInsideAClipIsTranslatedAndMasked`'s coverage of `contentMask` itself.
+@Test @MainActor func aFillInsideARoundedClipCarriesTheScaledRadii() throws {
+    let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)),
+                      scaleFactor: 2, stateTable: StateTable(),
+                      shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
+                      theme: Theme.forAppearance(.light))
+    let pass = PaintPass(frame: frame)
+    pass.clipped(to: Bounds(origin: Point(x: Pixels(10), y: Pixels(10)),
+                            size: Size(width: Pixels(50), height: Pixels(50))),
+                offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                cornerRadii: Corners(topLeft: Pixels(3), topRight: Pixels(4),
+                                     bottomRight: Pixels(5), bottomLeft: Pixels(6))) {
+        pass.fill(Bounds(origin: Point(x: Pixels(10), y: Pixels(10)),
+                         size: Size(width: Pixels(50), height: Pixels(50))),
+                  color: Hsla(h: 0, s: 0, l: 1, a: 1))
+    }
+    let scene = frame.finalizedScene()
+    let r = try #require(scene.rects.first)
+    #expect(r.maskCornerRadii.topLeft == 6, "3pt at scaleFactor 2 is 6 device pixels")
+    #expect(r.maskCornerRadii.topRight == 8)
+    #expect(r.maskCornerRadii.bottomRight == 10)
+    #expect(r.maskCornerRadii.bottomLeft == 12)
+}
+
+/// `Frame.intersect(_:radii:_:radii:)` case 2: a clip strictly inside a
+/// ROUNDED outer keeps its OWN radii, not the outer's — the outer's curve
+/// never reaches an inner box that never touches its bounding box.
+@Test @MainActor func aClipStrictlyInsideARoundedOuterKeepsItsOwnRadii() throws {
+    let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)),
+                      scaleFactor: 1, stateTable: StateTable(),
+                      shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
+                      theme: Theme.forAppearance(.light))
+    let pass = PaintPass(frame: frame)
+    let outer = Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                       size: Size(width: Pixels(100), height: Pixels(100)))
+    let inner = Bounds(origin: Point(x: Pixels(10), y: Pixels(10)),
+                       size: Size(width: Pixels(50), height: Pixels(50)))
+    pass.clipped(to: outer, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                cornerRadii: Corners(all: Pixels(20))) {
+        pass.clipped(to: inner, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                    cornerRadii: Corners(all: Pixels(5))) {
+            pass.fill(inner, color: Hsla(h: 0, s: 0, l: 1, a: 1))
+        }
+    }
+    let scene = frame.finalizedScene()
+    let r = try #require(scene.rects.first)
+    #expect(r.maskCornerRadii.topLeft == 5,
+            "inner sits strictly inside outer, so its own radii carry over unchanged")
+}
+
+/// `Frame.intersect(_:radii:_:radii:)` case 1: a clip merely TOUCHING a
+/// SQUARE (zero-radius) outer's edge still keeps its own radii — a square
+/// outer contributes no curve for the touching edge to interact with. This is
+/// the shape a single top-level `ScrollView` hits: its first clip is pushed
+/// against the frame's whole-surface default, and a full-bleed viewport is
+/// routinely flush with it on every side.
+@Test @MainActor func aClipFlushWithASquareOutersEdgeKeepsItsOwnRadii() throws {
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(100)),
+                      scaleFactor: 1, stateTable: StateTable(),
+                      shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
+                      theme: Theme.forAppearance(.light))
+    let pass = PaintPass(frame: frame)
+    // No outer `clipped(...)` pushed at all: the active clip is the frame's
+    // whole-surface, zero-radius default — exactly `outerIsSquare`'s case —
+    // and this clip's bounds are the identical full surface, flush on every
+    // edge.
+    pass.clipped(to: Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                            size: Size(width: Pixels(100), height: Pixels(100))),
+                offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                cornerRadii: Corners(all: Pixels(8))) {
+        pass.fill(Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                         size: Size(width: Pixels(100), height: Pixels(100))),
+                  color: Hsla(h: 0, s: 0, l: 1, a: 1))
+    }
+    let scene = frame.finalizedScene()
+    let r = try #require(scene.rects.first)
+    #expect(r.maskCornerRadii.topLeft == 8,
+            "the default outer clip has no rounding, so touching its edge costs nothing")
+}
+
+/// The documented fallback: a clip that TOUCHES (rather than sits strictly
+/// inside) a ROUNDED outer's edge falls back to SQUARE corners, because
+/// neither of `intersect(_:radii:_:radii:)`'s two exact cases applies —
+/// `outer` is rounded, and `inner` is not strictly inside it. Proves the
+/// approximation actually engages rather than only existing in the doc
+/// comment.
+@Test @MainActor func aClipTouchingARoundedOutersEdgeFallsBackToSquareCorners() throws {
+    let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(200)),
+                      scaleFactor: 1, stateTable: StateTable(),
+                      shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
+                      theme: Theme.forAppearance(.light))
+    let pass = PaintPass(frame: frame)
+    let outer = Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                       size: Size(width: Pixels(100), height: Pixels(100)))
+    // Shares outer's top-left corner exactly — touching, not strictly inside.
+    let inner = Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                       size: Size(width: Pixels(50), height: Pixels(50)))
+    pass.clipped(to: outer, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                cornerRadii: Corners(all: Pixels(20))) {
+        pass.clipped(to: inner, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                    cornerRadii: Corners(all: Pixels(5))) {
+            pass.fill(inner, color: Hsla(h: 0, s: 0, l: 1, a: 1))
+        }
+    }
+    let scene = frame.finalizedScene()
+    let r = try #require(scene.rects.first)
+    #expect(r.maskCornerRadii.topLeft == 0,
+            "neither exact case applies, so this falls back to the tighter box with square corners")
+}

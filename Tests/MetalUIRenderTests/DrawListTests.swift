@@ -7,6 +7,7 @@ private func rect(order: MUIUInt) -> MUIRect {
                               size: MUISize(width: 10, height: 10)),
             contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
                                    size: MUISize(width: 1000, height: 1000)),
+            maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
             background: MUIHsla(h: 0, s: 0, l: 0.5, a: 1),
             borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
             cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
@@ -21,6 +22,7 @@ private func glyph(order: MUIUInt) -> MUIGlyph {
                                     size: MUISize(width: 8, height: 12)),
              contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
                                     size: MUISize(width: 1000, height: 1000)),
+             maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
              color: MUIHsla(h: 0, s: 0, l: 1, a: 1),
              order: order, _reserved: 0)
 }

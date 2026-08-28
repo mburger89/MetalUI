@@ -29,6 +29,12 @@ typedef struct {
     // rect's own edge. The whole surface means "no clip" and is what
     // `Frame.fill` passes when no clip stack is active.
     MUIBounds contentMask;
+    // Corner radii for `contentMask`, in the same space as `bounds` and
+    // interpreted by `pick_corner_radius`/`rect_sdf` exactly as `cornerRadii`
+    // below is for the rect's own edge. All-zero — the zero value every call
+    // site written before this field existed gets by default — is a square
+    // clip, identical to `contentMask` alone.
+    MUICorners maskCornerRadii;
     MUIHsla background;
     MUIHsla borderColor;
     MUICorners cornerRadii;
@@ -54,6 +60,10 @@ typedef struct {
     // struct deliberately had no such field while `MUIRect`'s was inert; it
     // gained one in the same commit that made both live.
     MUIBounds contentMask;
+    // Corner radii for `contentMask` — see `MUIRect.maskCornerRadii`. A glyph
+    // has no corner radii of its own (a sprite is always a plain rect), so
+    // this is the only `MUICorners` field on this struct.
+    MUICorners maskCornerRadii;
     MUIHsla   color;         // tint; the R8 atlas carries coverage only
     MUIUInt   order;
     MUIUInt   _reserved;

@@ -15,11 +15,14 @@ import MetalUIText
 /// taxonomy shape 12 — the oracle being the code under test — which produced
 /// four defects in M2. Every boundary asserted below is a literal.
 private func clippedRect(mask: MUIBounds,
+                         maskRadii: MUICorners = MUICorners(topLeft: 0, topRight: 0,
+                                                            bottomRight: 0, bottomLeft: 0),
                          bounds: MUIBounds = MUIBounds(origin: MUIPoint(x: 10, y: 10),
                                                        size: MUISize(width: 40, height: 40)))
     -> MUIRect {
     MUIRect(bounds: bounds,
             contentMask: mask,
+            maskCornerRadii: maskRadii,
             background: MUIHsla(h: 0, s: 0, l: 1, a: 1),   // white
             borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
             cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
@@ -198,7 +201,10 @@ private func packedAtlasForClipping(_ characters: [Character]) throws -> (GlyphA
 }
 
 private func clippedSprite(_ slot: AtlasSlot, atX x: Float, y: Float,
-                           mask: MUIBounds) -> MUIGlyph {
+                           mask: MUIBounds,
+                           maskRadii: MUICorners = MUICorners(topLeft: 0, topRight: 0,
+                                                              bottomRight: 0, bottomLeft: 0)
+) -> MUIGlyph {
     MUIGlyph(bounds: MUIBounds(origin: MUIPoint(x: x, y: y),
                                size: MUISize(width: Float(slot.width),
                                              height: Float(slot.height))),
@@ -206,6 +212,7 @@ private func clippedSprite(_ slot: AtlasSlot, atX x: Float, y: Float,
                                     size: MUISize(width: Float(slot.width),
                                                   height: Float(slot.height))),
              contentMask: mask,
+             maskCornerRadii: maskRadii,
              color: MUIHsla(h: 0, s: 0, l: 1, a: 1),
              order: 0, _reserved: 0)
 }
@@ -327,4 +334,111 @@ private func clippedSprite(_ slot: AtlasSlot, atX x: Float, y: Float,
     #expect(inkLeft > 0, "the shifted glyph must still paint left of its own cut")
     #expect(spilledRight == 0,
             "\(spilledRight) glyph pixels painted right of the clip — the clip moved with the projection instead of staying in the glyph's own pre-projection space")
+}
+
+// MARK: - Rounded clip corners
+
+/// A rounded clip's CORNER differs from a square clip's — the whole reason
+/// `maskCornerRadii` exists. `clipBox` (x 14..<31, y 18..<39, all four edges
+/// non-zero and distinct — see its own doc comment) with a 6pt radius on every
+/// corner excludes device pixel (14, 18) — `clipBox`'s own top-left corner
+/// texel, pixel-centre (14.5, 18.5), 7.8pt from the rounding centre at
+/// (22.5, 28.5) and outside a 6pt radius (SDF +1.78) — while the square clip
+/// of the identical bounds includes it (SDF -0.5, well inside). A square clip
+/// of the identical bounds paints it; the rounded one must cut it. That
+/// differential, not either image alone, is the test — asserting only the
+/// rounded render's low alpha would pass just as well on a mask that clips
+/// everything.
+@Test @MainActor func aRoundedClipCutsTheRectsCornerASquareClipWouldPaint() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let renderer = try Renderer(device: device)
+    let side = 64
+    let size = Size(width: DevicePixels(Int32(side)), height: DevicePixels(Int32(side)))
+    let radii = MUICorners(topLeft: 6, topRight: 6, bottomRight: 6, bottomLeft: 6)
+
+    func alphaAt(_ pixels: [UInt8], _ x: Int, _ y: Int) -> UInt8 { pixels[((y * side) + x) * 4 + 3] }
+
+    var square = Scene()
+    square.insert(clippedRect(mask: clipBox))
+    square.finalize()
+    let squarePixels = try renderer.renderOffscreen(square, size: size)
+
+    var rounded = Scene()
+    rounded.insert(clippedRect(mask: clipBox, maskRadii: radii))
+    rounded.finalize()
+    let roundedPixels = try renderer.renderOffscreen(rounded, size: size)
+
+    #expect(alphaAt(squarePixels, 14, 18) > 200,
+            "a square clip of clipBox's own bounds paints this corner pixel")
+    #expect(alphaAt(roundedPixels, 14, 18) < 20,
+            "a 6pt radius on the same bounds must cut it")
+
+    // Sanity: deep inside the rounded region (near the mask's centre), both
+    // still paint — the radius removes only the corners, not the box.
+    #expect(alphaAt(roundedPixels, 22, 28) > 200)
+    #expect(alphaAt(squarePixels, 22, 28) > 200)
+}
+
+/// The glyph half of the same differential — a glyph clipped square inside a
+/// rounded container is the same defect one layer down `glyph_fragment`.
+///
+/// The corner pixel is found by scanning the rasterized 'M' for real ink
+/// rather than assumed, matching this file's rule of building expectations
+/// from the atlas, not from the primitive under test. The glyph is then
+/// positioned so that inked pixel lands exactly on `clipBox`'s validated
+/// corner differential — device pixel (14, 18), 6pt-radius-excluded,
+/// square-clip-included — reusing the identical geometry
+/// `aRoundedClipCutsTheRectsCornerASquareClipWouldPaint` proves above, so both
+/// pipelines are checked against the same numbers.
+@Test @MainActor func aRoundedClipCutsTheGlyphsCornerASquareClipWouldPaint() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let renderer = try Renderer(device: device)
+    let (atlas, slots) = try packedAtlasForClipping(["M"])
+    let slot = slots[0]
+    renderer.upload(atlas)
+
+    // The first inked texel scanning from the glyph's own top-left corner —
+    // 'M's left stroke reaches the cap height, so this is expected to be
+    // within a few rows/columns of (0, 0), and the search window traps
+    // loudly rather than silently mis-positioning the glyph if it is not.
+    var inkRow = -1, inkCol = -1
+    search: for row in 0..<min(6, slot.height) {
+        for column in 0..<min(6, slot.width) {
+            if atlas.pixels[(slot.y + row) * atlas.width + slot.x + column] > 200 {
+                inkRow = row
+                inkCol = column
+                break search
+            }
+        }
+    }
+    try #require(inkRow >= 0 && inkCol >= 0,
+                "need ink within the glyph's own top-left 6x6 to build the corner differential")
+
+    // Position the glyph so its inked pixel lands on device pixel (14, 18).
+    let originX = 14 - inkCol
+    let originY = 18 - inkRow
+    try #require(originX >= 0 && originY >= 0)
+
+    let side = 64
+    let size = Size(width: DevicePixels(Int32(side)), height: DevicePixels(Int32(side)))
+    let radii = MUICorners(topLeft: 6, topRight: 6, bottomRight: 6, bottomLeft: 6)
+    func alphaAt(_ pixels: [UInt8], _ x: Int, _ y: Int) -> UInt8 { pixels[((y * side) + x) * 4 + 3] }
+
+    var square = Scene()
+    square.insert(clippedSprite(slot, atX: Float(originX), y: Float(originY), mask: clipBox))
+    square.finalize()
+    let squarePixels = try renderer.renderOffscreen(square, size: size)
+
+    var rounded = Scene()
+    rounded.insert(clippedSprite(slot, atX: Float(originX), y: Float(originY),
+                                 mask: clipBox, maskRadii: radii))
+    rounded.finalize()
+    let roundedPixels = try renderer.renderOffscreen(rounded, size: size)
+
+    #expect(alphaAt(squarePixels, 14, 18) > 100,
+            "a square clip of clipBox's own bounds paints this inked corner pixel")
+    #expect(alphaAt(roundedPixels, 14, 18) < 20,
+            "a 6pt radius on the same bounds must cut it")
 }

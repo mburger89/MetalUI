@@ -144,10 +144,9 @@ func demoContent() -> some Element {
                 // Replaces the three-weights filler row (M1's flexGrow demo,
                 // now covered by the sidebar rows and the header bar above) with
                 // a `ScrollView` over 40 rows — the one element in this file
-                // that exercises rectangular clipping, wheel routing with
-                // trackpad momentum, an indicator painted over text, and the
-                // corner-radius gap between what this box asks for and what it
-                // gets.
+                // that exercises clipping (rectangular AND, since ruling CL-A's
+                // follow-on, rounded), wheel routing with trackpad momentum,
+                // and an indicator painted over text.
                 //
                 // **`ScrollView` has no modifier surface** — it conforms to
                 // `Element`, not `StyledElement` — so nothing here can call
@@ -186,17 +185,17 @@ func demoContent() -> some Element {
                     ScrollView(.vertical) {
                         for i in 0..<40 {
                             // Alternating row backgrounds, deliberately painted
-                            // edge-to-edge with the viewport: `cornerRadius`
-                            // below only rounds THIS box's own background —
-                            // the clip stack `ScrollView` pushes is a
-                            // rectangular `Bounds` (`Frame.activeClip`), so a
-                            // row scrolled to the very top or bottom paints
-                            // square into the corner its rounded container
-                            // left transparent, and the rounding never shows
-                            // through. `Box.cornerRadius`'s doc comment names
-                            // the same limitation; ruling CL-A in
-                            // `docs/superpowers/2026-08-28-clipping-scroll-decisions.md`
-                            // names this exact demo as where it is visible.
+                            // edge-to-edge with the viewport: `ScrollView`'s
+                            // own `.cornerRadius(_:)` below (ruling CL-A) cuts
+                            // the clip to the SAME 14pt curve the wrapping
+                            // `Box`'s background paints, so a row scrolled to
+                            // the very top or bottom is cut by that curve too
+                            // instead of painting square into the corner the
+                            // background left transparent. The two radii are
+                            // two separate literals that must agree — nothing
+                            // enforces that they do, see `ScrollView.cornerRadius`'s
+                            // doc comment — and this demo is where a mismatch
+                            // would show.
                             Box(decoration: Decoration(
                                 background: i.isMultiple(of: 2) ? .surface : .surfaceSecondary)) {
                                 Text("Row \(i + 1) of 40 — a scrollable list item")
@@ -211,6 +210,7 @@ func demoContent() -> some Element {
                             .alignItems(.center)
                         }
                     }
+                    .cornerRadius(Pixels(14))
                 }
                 .width(Pixels(420))
                 .flexGrow(1)

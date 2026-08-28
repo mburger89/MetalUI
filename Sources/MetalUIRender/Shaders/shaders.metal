@@ -42,20 +42,27 @@ static float4 hsla_to_srgba(MUIHsla hsla) {
     return float4(rgb + m, hsla.a);
 }
 
-// Antialiased coverage of `p` inside an axis-aligned mask, in the same pixel
-// space as `[[position]]`.
+// Antialiased coverage of `p` inside an axis-aligned, optionally rounded mask,
+// in the same pixel space as `[[position]]`.
+//
+// Reuses `rect_sdf`/`pick_corner_radius` — the same machinery `rect_fragment`
+// already uses for its own `outerAlpha` — rather than a second rounded-rect
+// implementation, and on the same half-pixel threshold, so a clip edge and a
+// rect edge antialias identically. `maskRadii` all zero degenerates to a plain
+// axis-aligned box, which is every call site written before this parameter
+// existed.
 //
 // **Not `discard_fragment()`.** There is no depth buffer, so discarding buys
 // nothing, and on some GPUs it disables early-Z for the whole shader. Returning
 // coverage keeps this composable with the SDF coverage the callers already
-// compute, which is also what antialiases the clip edge: a hard step jags on a
-// fractional boundary exactly as an unantialiased rect edge would.
-static inline float mask_coverage(float2 p, MUIBounds mask) {
-    float2 lo = float2(mask.origin.x, mask.origin.y);
-    float2 hi = lo + float2(mask.size.width, mask.size.height);
+// compute.
+static inline float mask_coverage(float2 p, MUIBounds mask, MUICorners maskRadii) {
+    float2 halfSize = float2(mask.size.width, mask.size.height) * 0.5;
+    float2 center   = float2(mask.origin.x, mask.origin.y) + halfSize;
+    float2 rel      = p - center;
+    float radius = pick_corner_radius(rel, maskRadii);
     // 0.5 is half a pixel: the same antialiasing threshold `rect_sdf` uses.
-    float2 inside = saturate(p - lo + 0.5) * saturate(hi - p + 0.5);
-    return inside.x * inside.y;
+    return saturate(0.5 - rect_sdf(rel, halfSize, radius));
 }
 
 // ---------------------------------------------------------------------------
@@ -132,7 +139,7 @@ fragment float4 rect_fragment(
     // Premultiplied output, to pair with a (one, oneMinusSourceAlpha) blend.
     // Clip last, so it composes with the rounded-rect coverage above rather
     // than replacing it. A primitive is drawn where it intersects its mask.
-    float clip = mask_coverage(in.pixelPosition, r.contentMask);
+    float clip = mask_coverage(in.pixelPosition, r.contentMask, r.maskCornerRadii);
     return float4(color.rgb * color.a, color.a) * outerAlpha * clip;
 }
 
@@ -245,7 +252,7 @@ fragment float4 glyph_fragment(
     // comment). That is what makes a glyph and a rect under one clip stack cut
     // on exactly the same boundary under ANY projection, not only the identity
     // one every existing test used before this was fixed.
-    float clip = mask_coverage(in.pixelPosition, g.contentMask);
+    float clip = mask_coverage(in.pixelPosition, g.contentMask, g.maskCornerRadii);
     float alpha = tint.a * coverage * clip;
     // Premultiplied output, to pair with a (one, oneMinusSourceAlpha) blend.
     return float4(tint.rgb * alpha, alpha);
@@ -299,4 +306,12 @@ kernel void abi_probe(
     out[26] = (MUIUInt)g.contentMask.origin.x;
     out[27] = (MUIUInt)g.contentMask.size.width;
     out[28] = g.order;
+
+    // `maskCornerRadii` on both structs — two corners each (not one), so a
+    // transposition with the existing `cornerRadii` field (same type,
+    // adjacent on `MUIRect`) shows up as a wrong number rather than a
+    // coincidental match.
+    out[29] = (MUIUInt)r.maskCornerRadii.topLeft;
+    out[30] = (MUIUInt)r.maskCornerRadii.bottomRight;
+    out[31] = (MUIUInt)g.maskCornerRadii.topLeft;
 }

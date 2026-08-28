@@ -32,8 +32,17 @@ the rest and because it ends in something runnable.
 - Dragging the indicator's thumb; the indicator widening on hover (both need
   hit testing); keyboard scrolling (needs focus); scroll-into-view;
   programmatic or animated scrolling.
-- Rounded *clip* corners on anything but the container's own painted
-  background — see §4.
+
+**In, and not scoped out despite an earlier draft of this line saying
+otherwise:** rounded clip corners. §3.1 below chose a fragment mask over
+`[[clip_distance]]` *because* "rounded clipping comes nearly free" — a
+capability this line used to exclude in the same spec that justified the
+mechanism on having it. `MUICorners` on `contentMask` (§3.1, §4), and
+`ScrollView.cornerRadius(_:)` (§6) are that capability, landed in the same
+milestone. See ruling CL-A's follow-on in
+`docs/superpowers/2026-08-28-clipping-scroll-decisions.md` for what shipped
+and its one documented approximation (nested clips with two independently
+rounded corners near the same point).
 
 ---
 

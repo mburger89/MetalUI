@@ -118,7 +118,7 @@ public final class Frame {
     /// about scrolling. It is the same division `fill` already makes for the
     /// scale factor, and for the same reason: a caller who could see the value
     /// would apply it a second time.
-    private var clipStack: [(clip: Bounds<Pixels>, offset: Point<Pixels>)] = []
+    private var clipStack: [(clip: Bounds<Pixels>, offset: Point<Pixels>, radii: Corners<Pixels>)] = []
 
     /// The clip currently in effect, in logical points. The whole surface when
     /// no `clipped(to:offsetBy:)` block is active — the same "no clip" answer
@@ -128,23 +128,34 @@ public final class Frame {
                                        size: contentSize)
     }
 
+    /// The corner radii of the clip currently in effect, in logical points.
+    /// All zero — a square clip — when no `clipped(to:offsetBy:)` block is
+    /// active, or when one is active but was pushed with no radii (every call
+    /// site written before this existed).
+    var activeClipRadii: Corners<Pixels> {
+        clipStack.last?.radii ?? Corners(all: Pixels(0))
+    }
+
     /// The translation currently in effect, in logical points. Zero when no
     /// `clipped(to:offsetBy:)` block is active.
     var activeOffset: Point<Pixels> {
         clipStack.last?.offset ?? Point(x: Pixels(0), y: Pixels(0))
     }
 
-    /// Pushes an **intersected** clip and an **accumulated** offset.
+    /// Pushes an **intersected** clip (radii included, see `intersect(_:radii:_:radii:)`)
+    /// and an **accumulated** offset.
     ///
     /// Intersection rather than replacement is what makes nesting correct: an
     /// inner clip wider than its outer must not widen it, or a nested scroller
     /// paints over its parent's chrome. Pinned by
     /// `nestedClipsIntersectRatherThanReplace`.
-    func pushClip(_ bounds: Bounds<Pixels>, offset: Point<Pixels>) {
-        let clip = Self.intersect(activeClip, bounds)
+    func pushClip(_ bounds: Bounds<Pixels>, offset: Point<Pixels>,
+                 radii: Corners<Pixels> = Corners(all: Pixels(0))) {
+        let (clip, clipRadii) = Self.intersect(activeClip, radii: activeClipRadii,
+                                               bounds, radii: radii)
         let composed = Point(x: Pixels(activeOffset.x.value + offset.x.value),
                              y: Pixels(activeOffset.y.value + offset.y.value))
-        clipStack.append((clip, composed))
+        clipStack.append((clip, composed, clipRadii))
     }
 
     /// Pops one level pushed by `pushClip`. Callers reach this only through
@@ -165,6 +176,74 @@ public final class Frame {
         return Bounds(origin: Point(x: Pixels(x0), y: Pixels(y0)),
                       size: Size(width: Pixels(max(0, x1 - x0)),
                                  height: Pixels(max(0, y1 - y0))))
+    }
+
+    /// The axis-aligned intersection of two clips, **carrying radii** — the
+    /// half of ruling CL-A's follow-on this milestone closes.
+    ///
+    /// **Two rounded rects do not intersect into a rounded rect in general**:
+    /// the true shape can need a distinct curve at each corner where the two
+    /// rounded regions overlap. This function does not attempt that shape. It
+    /// uses two cases where a rounded intersection collapses exactly, and
+    /// falls back to a square-cornered box otherwise:
+    ///
+    /// 1. **`outer` has NO rounding at all**, and `inner`'s bounding box sits
+    ///    inside `outer`'s (touching an edge is fine — a straight edge has no
+    ///    curve to interact with). `outer` then contributes nothing to the
+    ///    shape at all, so the intersection is exactly `inner`, radii and all.
+    ///    This is the common case: a single top-level `ScrollView` pushes its
+    ///    first clip against the frame's whole-surface (zero-radius) default,
+    ///    and its own bounds are routinely FLUSH with that default — a
+    ///    full-bleed list has no padding to keep it "strictly" inside.
+    /// 2. **`inner`'s bounding box sits STRICTLY inside `outer`'s** — not
+    ///    touching or crossing any of its four edges — regardless of
+    ///    `outer`'s own rounding. The intersection of the two REGIONS still
+    ///    reduces to `inner` alone here: `outer`'s curve only removes area
+    ///    outside its own bounding box, which `inner` never reaches. This is
+    ///    what a NESTED `ScrollView` gets — one rounded clip strictly inside
+    ///    another — once ordinary padding is in play.
+    ///
+    /// **What this gets wrong, on purpose, and why nothing in this corpus
+    /// notices.** Case 2's containment check is against `outer`'s bounding
+    /// BOX, not its rounded shape: an `inner` clip that sits inside `outer`'s
+    /// box but reaches into the disk `outer`'s OWN corner rounds away — a
+    /// small `inner` clip tucked into `outer`'s corner — is still accepted as
+    /// "strictly inside" and keeps `inner`'s radii un-clipped by `outer`'s
+    /// curve there, so a corner of `inner` can paint past where the true
+    /// intersection would stop. Not reachable today: `ScrollView` is the only
+    /// production caller and nests at most one clip inside another, so no
+    /// fixture or test in this corpus nests two DIFFERENTLY-rounded clips
+    /// close enough to a shared corner to see it. Whenever neither case
+    /// applies — `outer` is itself rounded AND `inner` merely touches or
+    /// crosses its bounding box, or is larger than it — this falls back to
+    /// the plain intersected box (`intersect(_:_:)` above) with SQUARE
+    /// corners: the tighter box, rounding dropped rather than guessed at.
+    static func intersect(_ outer: Bounds<Pixels>, radii outerRadii: Corners<Pixels>,
+                          _ inner: Bounds<Pixels>, radii innerRadii: Corners<Pixels>)
+        -> (bounds: Bounds<Pixels>, radii: Corners<Pixels>) {
+        let bounds = intersect(outer, inner)
+
+        let containedNonStrict =
+            inner.origin.x.value >= outer.origin.x.value &&
+            inner.origin.y.value >= outer.origin.y.value &&
+            inner.origin.x.value + inner.size.width.value
+                <= outer.origin.x.value + outer.size.width.value &&
+            inner.origin.y.value + inner.size.height.value
+                <= outer.origin.y.value + outer.size.height.value
+        let outerIsSquare = outerRadii.topLeft == Pixels(0) && outerRadii.topRight == Pixels(0) &&
+            outerRadii.bottomRight == Pixels(0) && outerRadii.bottomLeft == Pixels(0)
+        if outerIsSquare && containedNonStrict {
+            return (bounds, innerRadii)
+        }
+
+        let strictlyInside =
+            inner.origin.x.value > outer.origin.x.value &&
+            inner.origin.y.value > outer.origin.y.value &&
+            inner.origin.x.value + inner.size.width.value
+                < outer.origin.x.value + outer.size.width.value &&
+            inner.origin.y.value + inner.size.height.value
+                < outer.origin.y.value + outer.size.height.value
+        return strictlyInside ? (bounds, innerRadii) : (bounds, Corners(all: Pixels(0)))
     }
 
     /// Scroll regions registered this frame, in prepaint order.
@@ -335,6 +414,7 @@ public final class Frame {
         scene.insert(MUIRect(
             bounds: translated.scaled(by: scaleFactor),
             contentMask: activeClip.scaled(by: scaleFactor),
+            maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
             background: color,
             borderColor: .transparent,
             cornerRadii: cornerRadii.scaled(by: scaleFactor),
@@ -400,6 +480,7 @@ public final class Frame {
             size: bounds.size)
         scene.insert(MUIGlyph(bounds: placedBounds, slot: packed.slot,
                               contentMask: activeClip.scaled(by: scaleFactor),
+                              maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
                               color: color, order: 0))
     }
 

@@ -15,6 +15,10 @@ import MetalUIShaderTypes
                        size: Size(width: ScaledPixels(30), height: ScaledPixels(40))),
         contentMask: Bounds(origin: Point(x: ScaledPixels(1), y: ScaledPixels(2)),
                             size: Size(width: ScaledPixels(100), height: ScaledPixels(200))),
+        // Distinct from `cornerRadii` below, so a converter that passed
+        // `cornerRadii` for both would still redden this.
+        maskCornerRadii: Corners(topLeft: ScaledPixels(12), topRight: ScaledPixels(13),
+                                 bottomRight: ScaledPixels(14), bottomLeft: ScaledPixels(15)),
         background: Hsla(h: 0.5, s: 0.4, l: 0.3, a: 0.2),
         borderColor: .white,
         cornerRadii: Corners(topLeft: ScaledPixels(3), topRight: ScaledPixels(4),
@@ -43,6 +47,11 @@ import MetalUIShaderTypes
     #expect(r.borderColor.s == 0)
     #expect(r.borderColor.l == 1)
     #expect(r.borderColor.a == 1)
+
+    #expect(r.maskCornerRadii.topLeft == 12)
+    #expect(r.maskCornerRadii.topRight == 13)
+    #expect(r.maskCornerRadii.bottomRight == 14)
+    #expect(r.maskCornerRadii.bottomLeft == 15)
 
     #expect(r.cornerRadii.topLeft == 3)
     #expect(r.cornerRadii.topRight == 4)
@@ -80,6 +89,8 @@ import MetalUIShaderTypes
         slot: slot,
         contentMask: Bounds(origin: Point(x: ScaledPixels(1), y: ScaledPixels(2)),
                             size: Size(width: ScaledPixels(100), height: ScaledPixels(200))),
+        maskCornerRadii: Corners(topLeft: ScaledPixels(12), topRight: ScaledPixels(13),
+                                 bottomRight: ScaledPixels(14), bottomLeft: ScaledPixels(15)),
         color: Hsla(h: 0.5, s: 0.4, l: 0.3, a: 0.2),
         order: 3)
 
@@ -98,6 +109,11 @@ import MetalUIShaderTypes
     #expect(g.contentMask.origin.y == 2)
     #expect(g.contentMask.size.width == 100)
     #expect(g.contentMask.size.height == 200)
+
+    #expect(g.maskCornerRadii.topLeft == 12)
+    #expect(g.maskCornerRadii.topRight == 13)
+    #expect(g.maskCornerRadii.bottomRight == 14)
+    #expect(g.maskCornerRadii.bottomLeft == 15)
 
     #expect(g.color.h == 0.5)
     #expect(g.color.s == 0.4)

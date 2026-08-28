@@ -86,11 +86,31 @@ public struct ScrollView<Content: ElementGroup>: Element {
     public var elementID: ElementID?
     public var content: Content
 
+    /// The radius the clip this element pushes is rounded to, in points.
+    /// Zero — a square clip — unless `cornerRadius(_:)` sets it.
+    ///
+    /// **`ScrollView` has no `Decoration` and paints no background of its
+    /// own** — the caller supplies one, typically a wrapping
+    /// `Box(decoration:)`, exactly as `Sources/MetalUIDemo/main.swift` does.
+    /// This property is what lets the caller give this element's CLIP the
+    /// same curve as that background: ruling CL-A. Nothing enforces that the
+    /// two values agree — this element cannot see its container's
+    /// `Decoration` — so a caller that changes one radius owns changing both.
+    public var cornerRadius: Pixels = Pixels(0)
+
     public init(_ axis: ScrollAxis = .vertical, elementID: ElementID? = nil,
                 @ElementBuilder content: () -> Content) {
         self.axis = axis
         self.elementID = elementID
         self.content = content()
+    }
+
+    /// Rounds the corners of the clip this element pushes around its content
+    /// — see `cornerRadius`'s doc comment for what this does and does not do.
+    public func cornerRadius(_ points: Pixels) -> Self {
+        var copy = self
+        copy.cornerRadius = points
+        return copy
     }
 
     public struct Layout {
@@ -155,7 +175,8 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // see `Frame.registerScrollRegion`.
         pass.registerScrollRegion(bounds, id: id, axis: axis)
         var result: Content.GroupPrepaint!
-        pass.clipped(to: bounds, offsetBy: delta(-offset)) {
+        pass.clipped(to: bounds, offsetBy: delta(-offset),
+                    cornerRadii: Corners(all: cornerRadius)) {
             result = content.prepaintGroup(layout: &layout.inner, pass: &pass)
         }
         return result
@@ -165,7 +186,13 @@ public struct ScrollView<Content: ElementGroup>: Element {
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
         let offset = resolvedOffset(id, bounds: bounds, layout: layout, pass: pass)
-        pass.clipped(to: bounds, offsetBy: delta(-offset)) {
+        // The clip is rounded to `cornerRadius` — the same curve the caller's
+        // wrapping background (typically a `Box(decoration:)`) paints, so a
+        // row scrolled to the very top or bottom is cut by the same curve
+        // rather than painting square into a corner the background left
+        // transparent. Ruling CL-A.
+        pass.clipped(to: bounds, offsetBy: delta(-offset),
+                    cornerRadii: Corners(all: cornerRadius)) {
             content.paintGroup(layout: &layout.inner, prepaint: &prepaint, pass: &pass)
         }
         // Deliberately OUTSIDE the block above and emitted AFTER it — the one

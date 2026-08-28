@@ -28,15 +28,43 @@ cannot express that shape at all, while a mask is just another quantity `rect_fr
 SDF machinery multiplies into. `mask_coverage` (`shaders.metal`) is a few lines beside code that
 predates this milestone, not a new subsystem.
 
-**What it costs if wrong — and this is a real, currently-paid cost, not a hypothetical one.** The
-built mechanism is still rectangular: `Frame.activeClip` is a `Bounds`, with no radius of its own, so
-a `ScrollView` wrapped in a rounded `Box` clips its content to a rectangle while its own background
-paints a rounded one underneath. A row scrolled to the very top or bottom of the demo's list paints
-square into the corner the container's rounded background left transparent — visible in
-`Sources/MetalUIDemo/main.swift`'s scroll list, and recorded there and at `Box.cornerRadius`'s own
-doc comment. That gap is orthogonal to the fragment-mask-vs-`clip_distance` choice: `[[clip_distance]]`
-would not have closed it either, since it cannot express a rounded clip at all. Closing it needs a
-masked *shape*, not a masked *rect* — a follow-on, not a reason to revisit this ruling.
+**This row used to record a limitation. It is now what shipped, in the same milestone, because the
+design spec asserted the capability it did not build.** §1 of the design spec scoped rounded clip
+corners *out* while §3.1 — two sections later, in the same document — justified choosing a fragment
+mask over `[[clip_distance]]` because "clip_distance cannot clip to a rounded container … rounded
+clipping comes nearly free." Those two sentences contradict each other, and the contradiction sat in
+the spec while `Frame.activeClip` stayed a plain `Bounds` with no radius of its own: a `ScrollView`
+wrapped in a rounded `Box` clipped its content to a rectangle while its own background painted a
+rounded one underneath, and a row scrolled to the very top or bottom of the demo's list painted
+square into the corner the rounded background left transparent.
+
+**Closed by giving the mask itself a shape, exactly as this ruling's own justification predicted it
+would be nearly free.** Both ABI structs gained `MUICorners maskCornerRadii` alongside `contentMask`
+(`MetalUIShaderTypes.h`, third ABI change this branch — `104 → 120` bytes on `MUIRect`, `72 → 88` on
+`MUIGlyph`, both read back from `abi_probe` rather than hardcoded); `mask_coverage` (`shaders.metal`)
+now computes the clip's own coverage through `rect_sdf`/`pick_corner_radius` — the identical machinery
+`rect_fragment` already used for `outerAlpha` — instead of the old four-`saturate` product, on the
+same half-pixel antialiasing threshold. `Frame`'s clip stack carries radii alongside bounds and
+offset; `pushClip` and `clipped(to:offsetBy:)` both default the new parameter to zero, so every call
+site written before this existed keeps compiling and painting bit-identically — verified rather than
+assumed: the whole pre-existing suite passed unchanged, and a required mutation confirmed the shader
+half actually reddens the two new corner-differential tests (`ClipTests.swift`) when it is bypassed.
+`ScrollView.cornerRadius(_:)` is the one production caller — the element still paints no background of
+its own, so the caller (typically a wrapping `Box(decoration:)`, as in
+`Sources/MetalUIDemo/main.swift`) owns keeping the two radii equal; nothing in the type system
+enforces that they agree.
+
+**What is still an approximation, on purpose, and documented at the source rather than discovered
+later.** Two rounded rects do not intersect into a rounded rect in general. `Frame.intersect(_:radii:_:radii:)`
+handles two cases exactly — an unrounded outer clip regardless of touching (the common case: a
+top-level `ScrollView`'s first clip against the frame's zero-radius default) and an inner clip
+strictly inside a rounded outer (nested `ScrollView`s once padding separates them) — and falls back to
+a square-cornered intersection otherwise. The gap it leaves is a nested clip that merely *touches* a
+rounded outer's edge, or one that sits inside the outer's bounding box but reaches into the disk the
+outer's own corner rounds away: neither is reachable through `ScrollView`, the only production caller,
+which nests at most one clip inside another today, so no fixture in this corpus can see it. A future
+caller that nests two independently-rounded clips close to a shared corner is the one who needs the
+real two-shape intersection this function deliberately does not attempt.
 
 ## CL-B — `Style.overflow` is written for the model's sake, and the engine reads it nowhere
 

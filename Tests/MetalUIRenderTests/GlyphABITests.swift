@@ -21,6 +21,7 @@ private func makeGlyph(order: MUIUInt, x: Float = 0) -> MUIGlyph {
                                size: MUISize(width: 8, height: 12)),
         contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
                                size: MUISize(width: 1000, height: 1000)),
+        maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
         color: MUIHsla(h: 0, s: 0, l: 1, a: 1),
         order: order,
         _reserved: 0)
@@ -32,6 +33,7 @@ private func makeRect() -> MUIRect {
                           size: MUISize(width: 10, height: 10)),
         contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
                                size: MUISize(width: 100, height: 100)),
+        maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
         background: MUIHsla(h: 0, s: 0, l: 0, a: 1),
         borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
         cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
@@ -120,6 +122,11 @@ private func makeRect() -> MUIRect {
                                size: MUISize(width: 43, height: 44)),
         contentMask: MUIBounds(origin: MUIPoint(x: 51, y: 52),
                                size: MUISize(width: 53, height: 54)),
+        // Distinct from `contentMask`'s own numbers and from `MUIRect`'s
+        // `cornerRadii`, so a transposition with either shows up as a wrong
+        // number.
+        maskCornerRadii: MUICorners(topLeft: 61, topRight: 62,
+                                    bottomRight: 63, bottomLeft: 64),
         color: MUIHsla(h: 0.125, s: 0.25, l: 0.375, a: 0.5),
         order: 7,
         _reserved: 0)
@@ -166,6 +173,7 @@ private func makeRect() -> MUIRect {
     #expect(out[26] == 51)   // contentMask.origin.x
     #expect(out[27] == 53)   // contentMask.size.width
     #expect(out[28] == 7)    // order
+    #expect(out[31] == 61)   // maskCornerRadii.topLeft
 }
 
 // MARK: - The draw path, against the CPU atlas as its oracle
@@ -212,6 +220,7 @@ private func sprite(_ slot: AtlasSlot, at origin: (x: Float, y: Float),
         // should cut the sprite.
         contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
                                size: MUISize(width: 10000, height: 10000)),
+        maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
         color: MUIHsla(color),
         order: order,
         _reserved: 0)
@@ -654,6 +663,7 @@ private func alpha(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> UInt8 {
                                                 height: Float(slot.height))),
                 contentMask: MUIBounds(origin: MUIPoint(x: 0, y: 0),
                                        size: MUISize(width: Float(side), height: Float(side))),
+                maskCornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),
                 background: MUIHsla(h: 0.6, s: 1, l: 0.5, a: 1),
                 borderColor: MUIHsla(h: 0, s: 0, l: 0, a: 0),
                 cornerRadii: MUICorners(topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0),

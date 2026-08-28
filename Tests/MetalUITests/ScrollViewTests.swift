@@ -3,6 +3,7 @@ import Foundation
 import Testing
 import MetalUICore
 import MetalUILayout
+import MetalUIRender
 @testable import MetalUIText
 @testable import MetalUI
 
@@ -138,4 +139,75 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
             "the content node must overflow its 200pt viewport; \(contentWidth) == the viewport means the freeze loop shrank it and there is nothing left to scroll")
     #expect(abs(contentWidth - expected) < 0.5,
             "two unshrunk labels side by side must measure CoreText's summed advance \(expected), got \(contentWidth)")
+}
+
+// MARK: - Rounded clip corners (ruling CL-A's follow-on)
+
+/// **Integration guard, not a shader guard.** `ClipTests.swift` proves
+/// `mask_coverage` cuts a rounded corner correctly given a `MUIRect`/`MUIGlyph`
+/// that already carries non-zero `maskCornerRadii` — it says nothing about
+/// whether `ScrollView.cornerRadius(_:)` actually REACHES that field through
+/// `Frame`'s clip stack. A mutation that drops the radius anywhere on that
+/// path — `ScrollView.paint` forwarding a literal zero to `clipped(...)`
+/// instead of `cornerRadius`, or `Frame.fill`/`draw` not reading
+/// `activeClipRadii` — would leave every GPU corner test green (they build
+/// their `MUIRect`/`MUIGlyph` by hand) while this element silently painted a
+/// square clip in production. So this reads the radius back off the SCENE a
+/// full `Frame.render` produces, with no GPU involved.
+///
+/// Three rows, each its own `Box` with a background, so each emits its own
+/// `MUIRect` inside the clipped block — proving the radius reaches every
+/// primitive the clip covers, not just the first.
+@Test @MainActor func aScrollViewsCornerRadiusReachesEveryPrimitiveItClips() throws {
+    var view = ScrollView(.vertical) {
+        Box(decoration: Decoration(background: .surface)).height(Pixels(20))
+        Box(decoration: Decoration(background: .surface)).height(Pixels(20))
+        Box(decoration: Decoration(background: .surface)).height(Pixels(20))
+    }
+    .cornerRadius(Pixels(14))
+
+    let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1)
+    frame.render(&view)
+    let scene = frame.finalizedScene()
+
+    // Four rects: the three rows, painted INSIDE the clipped block, plus the
+    // scroll indicator — content overflows a 30pt viewport with three 20pt
+    // rows, so the indicator draws too. Spec §6/`ScrollView.paint`: the
+    // indicator paints OUTSIDE the clipped block, in viewport space, so it
+    // must NOT inherit `cornerRadius` — it is excluded from the loop below on
+    // that basis, not to dodge an inconvenient count.
+    try #require(scene.rects.count == 4,
+                "three rows plus the scroll indicator must all paint")
+    for rect in scene.rects.dropLast() {
+        #expect(rect.maskCornerRadii.topLeft == 14)
+        #expect(rect.maskCornerRadii.topRight == 14)
+        #expect(rect.maskCornerRadii.bottomRight == 14)
+        #expect(rect.maskCornerRadii.bottomLeft == 14)
+    }
+}
+
+/// The zero-default half of the same guard: a `ScrollView` with no
+/// `cornerRadius(_:)` call must still emit a SQUARE clip — every call site
+/// written before this milestone, which is the overwhelming majority of them.
+/// Without this, a mutation that hardcoded a NON-zero radius regardless of
+/// `cornerRadius` would pass the test above and every existing clip test
+/// (none of which reads `maskCornerRadii` back) while rounding every
+/// `ScrollView` in the corpus that never asked for it.
+@Test @MainActor func aScrollViewWithNoCornerRadiusClipsSquare() throws {
+    var view = ScrollView(.vertical) {
+        Box(decoration: Decoration(background: .surface)).height(Pixels(20))
+        Box(decoration: Decoration(background: .surface)).height(Pixels(20))
+    }
+
+    let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1)
+    frame.render(&view)
+    let scene = frame.finalizedScene()
+
+    try #require(!scene.rects.isEmpty)
+    for rect in scene.rects {
+        #expect(rect.maskCornerRadii.topLeft == 0)
+        #expect(rect.maskCornerRadii.topRight == 0)
+        #expect(rect.maskCornerRadii.bottomRight == 0)
+        #expect(rect.maskCornerRadii.bottomLeft == 0)
+    }
 }

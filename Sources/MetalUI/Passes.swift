@@ -100,10 +100,18 @@ public struct PrepaintPass {
     /// returning the engine's untranslated geometry, same as `PaintPass`'s.
     /// Translation and clipping are properties of what a pass *does* with
     /// geometry, not of the geometry itself.
+    ///
+    /// `cornerRadii` defaults to a square clip, so every call site written
+    /// before this parameter existed keeps compiling and clipping exactly as
+    /// before. It has no direct reader on THIS pass — prepaint emits nothing —
+    /// but it keeps the clip stack's radii correct for anything pushed deeper
+    /// during prepaint, which matters the moment a `ScrollView` nests inside
+    /// a rounded one.
     public func clipped(to bounds: Bounds<Pixels>,
                         offsetBy offset: Point<Pixels>,
+                        cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
                         _ body: () -> Void) {
-        frame.pushClip(bounds, offset: offset)
+        frame.pushClip(bounds, offset: offset, radii: cornerRadii)
         defer { frame.popClip() }
         body()
     }
@@ -191,10 +199,16 @@ public struct PaintPass {
     /// — a child inside this block that fills its own `bounds(of:)` result
     /// scrolls correctly while knowing nothing about scrolling, exactly as
     /// `fill`'s doc above says it needs no `scaleFactor`.
+    ///
+    /// `cornerRadii` rounds the mask every `fill`/`draw` inside `body` is cut
+    /// to — the mechanism ruling CL-A records. Defaults to a square clip, so
+    /// every call site written before this parameter existed keeps compiling
+    /// and painting identically.
     public func clipped(to bounds: Bounds<Pixels>,
                         offsetBy offset: Point<Pixels>,
+                        cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
                         _ body: () -> Void) {
-        frame.pushClip(bounds, offset: offset)
+        frame.pushClip(bounds, offset: offset, radii: cornerRadii)
         defer { frame.popClip() }
         body()
     }
