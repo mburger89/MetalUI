@@ -206,6 +206,19 @@ public struct Text: Element, StyledElement {
         // The assumption itself is sound because `computeLayout` runs
         // synchronously inside `Frame.computeRootLayout`, which is `@MainActor`;
         // the engine is non-isolated code on the caller's thread, not a hop.
+        //
+        // **It is also a latent release trap that no test can guard, which is
+        // why it is stated here and in CLAUDE.md rather than only implied.**
+        // `assumeIsolated` terminates the process when the assumption is false,
+        // so laying out a tree containing a text leaf from any other executor —
+        // a background actor, a `Task.detached`, the 4 MB worker thread
+        // `LayoutContext`'s depth test spins up — kills the app. Nothing in the
+        // repo can notice: every off-main-actor layout here builds a leafless
+        // tree, and a test that got it wrong would crash the run rather than
+        // redden. If layout ever moves off the main actor, this closure is the
+        // first thing to rewrite — the cache would have to become an actor, or
+        // the shaped size would have to be computed before the closure is
+        // built.
         let node = pass.requestLeaf(style: style) { known, available in
             MainActor.assumeIsolated {
                 // **Cannot fire: same instance, and the cache has no removal

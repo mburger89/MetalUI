@@ -187,9 +187,24 @@ what the demo draws — and no test can establish it.** `MetalLayerSurface` vend
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and the whole suite still passed when that was measured, at 342 tests
-(**360 today**; the count is quoted so the measurement can be dated, not because
+(**389 today**; the count is quoted so the measurement can be dated, not because
 342 is a property of anything). If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
+
+**A second thing no test can establish, and this one is a live release trap.**
+The `MeasureFunction` a `Text` attaches (`Text.requestLayout`) reduces to
+`SizeD` inside `MainActor.assumeIsolated`, because the shaping cache is
+`@MainActor` and a `ShapedText` may not cross an isolation boundary. That is
+sound **only because `computeLayout` runs synchronously inside
+`Frame.computeRootLayout`, which is `@MainActor`** — the engine is non-isolated
+code executing on the caller's thread, not a hop. Drive layout over a tree
+holding a text leaf from **any other executor** — a background actor, a
+`Task.detached`, the 4 MB worker thread `LayoutContext`'s depth test already
+spins up — and `assumeIsolated` terminates the process. Nothing in the repo can
+notice: every existing off-main-actor layout builds its own leafless tree, and
+a test that got this wrong would crash the run rather than redden. If layout
+ever moves off the main actor, the measure closure is the first thing to
+rewrite.
 
 ## Seven known divergences — expected, measured, not defects
 

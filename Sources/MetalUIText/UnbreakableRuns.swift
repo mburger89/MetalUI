@@ -28,6 +28,18 @@ extension Shaper {
     /// | 20 | 10 (`"su"`, `"per"`, `"cal"`, …) | 19.894 |
     /// | 120 | 3 (`"a bb "`, `"supercalifragilistic "`, `"dd"`) | 113.928 |
     ///
+    /// Every "widest" above is a **line's** advance as the typesetter produced
+    /// it inside the paragraph, which is not the same number as shaping those
+    /// characters on their own: the width-20 row's widest line is `"per"` at
+    /// 19.894, while `"per"` shaped standalone measures **20.084** — 0.19 of
+    /// kerning context, since in the paragraph that `r` is followed by a `c`.
+    /// Worth knowing here of all places, because the min-content answer
+    /// (`textMeasure`'s `.minContent` branch, in `MetalUI`) is built by shaping
+    /// each of these runs **standalone**: min-content is therefore the width a
+    /// run needs on a line of its own, which is exactly the question §4.5 asks,
+    /// and it may differ in the second decimal from the same characters
+    /// measured mid-paragraph.
+    ///
     /// The longest word alone measures **110.348**. So the tiny-width spelling
     /// of min-content is off by a factor of ten here, and it is off in the
     /// direction that matters: §4.5's automatic minimum would floor a text item
@@ -46,11 +58,14 @@ extension Shaper {
     ///
     /// ## What this uses instead
     ///
-    /// `CFStringTokenizer` with `kCFStringTokenizerUnitLineBreak`, which is the
-    /// width-independent UAX #14 enumerator the design spec's §6.4 says CoreText
-    /// does not expose — it is CoreFoundation's, not CoreText's, which is why
-    /// §6.4's complaint stands and this is still available. Measured on the same
-    /// machine, `nil` locale and current locale identical on every sample:
+    /// `CFStringTokenizer` with `kCFStringTokenizerUnitLineBreak`, the
+    /// width-independent UAX #14 enumerator. The parent design spec's §6.4 said
+    /// "CoreText exposes no width-independent line-break-opportunity API",
+    /// which is literally true and materially misleading — the API is
+    /// CoreFoundation's, not CoreText's — and §6.4 now carries the revision,
+    /// with a nine-row table over the very line-break classes it enumerates.
+    /// Measured here independently, `nil` locale and current locale identical
+    /// on every sample:
     ///
     /// | string | runs |
     /// |---|---|
@@ -59,10 +74,21 @@ extension Shaper {
     /// | `"hello\nworld"` | `hello`, `world` |
     /// | `"日本語"` | `日`, `本`, `語` |
     ///
-    /// All four are UAX #14's answers rather than word boundaries': a word
-    /// enumerator (`String.enumerateSubstrings(options: .byWords)`, measured for
-    /// comparison) keeps `well-known` whole and drops the hyphen, and CJK has no
-    /// spaces to enumerate at all.
+    /// All four are UAX #14's answers rather than word boundaries'. Measured
+    /// side by side, a word enumerator
+    /// (`String.enumerateSubstrings(options: .byWords)`) answers
+    /// `["well", "known", "thing"]` — it **splits at the hyphen and throws it
+    /// away**, where a line breaker keeps it with the text it will sit beside —
+    /// and `["日本", "語"]` for `"日本語"`, which is dictionary segmentation
+    /// rather than the per-character break CSS wraps CJK at.
+    ///
+    /// **This sentence claimed the opposite for one commit** ("keeps
+    /// `well-known` whole … CJK has no spaces to enumerate at all"), and the
+    /// correction landed in `UnbreakableRunsTests` while this copy went on
+    /// saying the wrong thing. Both numbers were **already written down** in the
+    /// parent spec's §6.4 revision when it was written. The rule that earns:
+    /// when you correct a claim, grep for its other copies — and for the copy
+    /// that was right all along — before committing.
     ///
     /// The locale is deliberately `nil`. A locale would make this answer depend
     /// on the machine's region for the scripts that break by dictionary (Thai),

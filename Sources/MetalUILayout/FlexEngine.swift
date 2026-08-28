@@ -1406,8 +1406,25 @@ private func collectItems(
             //    resolve against it — WebKit resolves them against nothing
             //    (see 1). It also does not clamp to the container: an item
             //    whose content is 150 tall in an 80-tall row measures **150**
-            //    in WebKit and overflows, which is max-content, not
-            //    fit-content.
+            //    in WebKit and overflows.
+            //
+            //    **That measurement is sound and the inference drawn from it —
+            //    "which is max-content, not fit-content" — is not, which M2's
+            //    text leaf exposed.** The probe used a *rigid* box, where
+            //    min-content == max-content, so fit-content
+            //    (`min(max(min-content, available), max-content)`) and
+            //    max-content give the same 150 and the probe cannot tell them
+            //    apart. Re-measured on the mirror case, a column 80 wide
+            //    holding an auto-width item whose content is a rigid 150x30:
+            //    WebKit **150x30** and this engine **150x30** — agreeing, and
+            //    for the same reason. What separates the two rules is content
+            //    whose two intrinsic widths differ, i.e. text or a wrapping
+            //    container, and there the answers diverge: CSS shrink-wraps an
+            //    `auto` **inline** axis and content-sizes an `auto` **block**
+            //    one, while this line is axis-agnostic. In a row the cross axis
+            //    is the block axis and this is right; in a column it is the
+            //    inline axis and it is wrong. See CLAUDE.md's divergence 6 and
+            //    `anAutoCrossSizeIsMaxContentRatherThanFitContentUnlikeWebKit`.
             //
             // `.maxContent` here is hardcoded rather than taken from
             // `intrinsic`, for the same reason §4.5's probe above is: the
