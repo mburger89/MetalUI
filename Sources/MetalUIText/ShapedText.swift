@@ -31,8 +31,10 @@ public struct ShapedLine {
 
     // **The memberwise initialiser is internal on purpose, and the decision is
     // taken here rather than left to the first task that trips over it.** Both
-    // fields are `public` so `MetalUIRender` can walk a line's runs and place it
-    // (Task 7), but no module outside `MetalUIText` can synthesise one: a
+    // fields are `public` so a consumer can walk a line's runs and place it —
+    // in the event, ``ShapedText/placedGlyphs(at:font:scaleFactor:)`` one file
+    // over, rather than `MetalUIRender` as first expected — but no module
+    // outside `MetalUIText` can synthesise one: a
     // `ShapedLine` whose `advance` disagrees with its `line` is a lie the type
     // exists to prevent, and only ``Shaper`` can make the two agree. A renderer
     // test that needs one calls ``Shaper/shape(_:font:wrappingAt:)``, which is

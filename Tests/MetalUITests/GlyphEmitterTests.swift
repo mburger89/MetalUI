@@ -27,6 +27,16 @@ import MetalUILayout
 // `spriteDestinationsAreThePenPositionPlusTheRasterizersBearings` are the
 // discriminators; the counting tests exist for the whitespace and wrapping
 // rules, which those two cannot see.
+//
+// **Every count that a later loop indexes on is a `try #require`, not an
+// `#expect`, and that was measured rather than styled.** `#expect` records and
+// continues, so a mutation that made the emitter produce *one* glyph per run
+// left the first loop below indexing past the end of its own array: `Fatal
+// error: Index out of range`, the process dead, **no summary line, and 200 tests
+// never run**. That is taxonomy shape 11 arriving through a test rather than
+// through a cleanup path — a wrong implementation that truncates the run instead
+// of reddening. `#require` throws out of the one test and leaves the suite
+// reporting.
 
 /// A fresh resolve per access, for `TextMeasureTests`' reason: `ResolvedFont`
 /// holds a `CTFont` and is deliberately not `Sendable`, so a file-scope `let`
@@ -101,7 +111,7 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
 /// against an emitter that stacks every glyph at the line's origin; this names
 /// each glyph's pen position independently and does not.
 @MainActor
-@Test func everyGlyphLandsAtCoreTextsOwnPenPosition() {
+@Test func everyGlyphLandsAtCoreTextsOwnPenPosition() throws {
     let font = font
     let scale = 2.0
     let originX = 7.0
@@ -125,7 +135,7 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
     let tolerance = 0.4
     let placed = Shaper.shape(word, font: font, wrappingAt: nil)
         .placedGlyphs(at: (x: originX, y: 0), font: font, scaleFactor: 2)
-    #expect(placed.count == word.count)
+    try #require(placed.count == word.count)
 
     let line = ctLine(word, font.ctFont)
     for i in 0..<word.count {
@@ -264,7 +274,7 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
 /// 9 × the scale factor on both axes — which is what an emitter that ignored
 /// `bounds.origin` and drew at the window's corner would fail.
 @MainActor
-@Test func spriteDestinationsAreThePenPositionPlusTheRasterizersBearings() {
+@Test func spriteDestinationsAreThePenPositionPlusTheRasterizersBearings() throws {
     let font = font
     let scale = 2.0
     let pad = 9.0
@@ -272,7 +282,7 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
 
     var padded = Column { Text(word) }.padding(Pixels(Float(pad))).alignItems(.stretch)
     let (_, scene) = painted(&padded, width: 400)
-    #expect(scene.glyphs.count == word.count)
+    try #require(scene.glyphs.count == word.count)
 
     // The `Text` sits at the container's content origin, which is the padding on
     // both axes: the root fills the offered 400 (CLAUDE.md divergence 4) and is
@@ -285,7 +295,7 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
     // code it checks as its own expectation.
     let placed = Shaper.shape(word, font: font, wrappingAt: boxWidth)
         .placedGlyphs(at: (x: pad, y: pad), font: font, scaleFactor: 2)
-    #expect(placed.count == scene.glyphs.count)
+    try #require(placed.count == scene.glyphs.count)
 
     for i in 0..<placed.count {
         let image = GlyphRaster.rasterize(glyph: placed[i].key.glyph, font: placed[i].font,
@@ -320,7 +330,7 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
     // own origin to the oracle.
     var unpadded = Column { Text(word) }.alignItems(.stretch)
     let (_, flush) = painted(&unpadded, width: 400)
-    #expect(flush.glyphs.count == scene.glyphs.count)
+    try #require(flush.glyphs.count == scene.glyphs.count)
     for i in 0..<flush.glyphs.count {
         #expect(scene.glyphs[i].bounds.origin.x - flush.glyphs[i].bounds.origin.x
                 == Float(pad * scale))
@@ -333,7 +343,7 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
 /// the two appearances — and `nil` means `.textPrimary` rather than an
 /// unthemed literal, which is the failure this token exists to prevent.
 @MainActor
-@Test func glyphsAreTintedByTheThemeAndDefaultToTextPrimary() {
+@Test func glyphsAreTintedByTheThemeAndDefaultToTextPrimary() throws {
     // `MUIHsla` is a C struct with no `Equatable`, so the four components are
     // compared by hand rather than the struct — and all four, because two
     // theme colours can share three of them.
@@ -342,7 +352,9 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
                           scaleFactor: 2, theme: theme)
         var root = text
         frame.render(&root)
-        let c = frame.finalizedScene().glyphs[0].color
+        // `first` rather than `[0]`: an emitter that produced nothing would
+        // otherwise kill the process here rather than redden this test.
+        guard let c = frame.finalizedScene().glyphs.first?.color else { return [] }
         return [c.h, c.s, c.l, c.a]
     }
     func components(_ c: Hsla) -> [Float] { [c.h, c.s, c.l, c.a] }
@@ -383,6 +395,44 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
     var third = Text("Zwitschermaschine")
     _ = painted(&third, width: 400, atlas: atlas, cache: cache)
     #expect(atlas.dirtyRect != nil, "new glyphs must still reach the atlas")
+}
+
+/// The second frame of the same text places its sprites exactly where the first
+/// did — which is the entire reason `GlyphAtlas.packed(for:rasterize:)` stores
+/// `GlyphImage.left`/`.top` beside the slot instead of letting the caller read
+/// them off the `rasterize` closure's return value.
+///
+/// **Found by a mutation that reddened nothing, and it was the finding rather
+/// than a broken instrument.** Storing `left: 0, top: 0` while still *returning*
+/// the real bearings from the miss path left all 442 tests green: every other
+/// test in the repo draws each glyph exactly once against a fresh atlas, so the
+/// cache-hit path had no coverage at all. On screen it is text that is correct
+/// on the frame it appears and jumps by a pixel or two on the next one.
+///
+/// Both frames share one atlas *and* one shaping cache, so the second frame hits
+/// every cache this milestone built.
+@MainActor
+@Test func theSecondFrameOfTheSameTextPlacesItsSpritesIdentically() throws {
+    let atlas = GlyphAtlas(width: 512, height: 512)
+    let cache = ShapingCache()
+    func geometry(_ scene: Scene) -> [Float] {
+        scene.glyphs.flatMap {
+            [$0.bounds.origin.x, $0.bounds.origin.y, $0.bounds.size.width, $0.bounds.size.height,
+             $0.atlasBounds.origin.x, $0.atlasBounds.origin.y]
+        }
+    }
+
+    var first = Text(word)
+    let (_, firstScene) = painted(&first, width: 400, atlas: atlas, cache: cache)
+    try #require(firstScene.glyphs.count == word.count)
+
+    var second = Text(word)
+    let (_, secondScene) = painted(&second, width: 400, atlas: atlas, cache: cache)
+
+    #expect(geometry(secondScene) == geometry(firstScene))
+    // The second frame really did hit the atlas rather than repacking, which is
+    // what makes this a statement about the cache-hit path.
+    #expect(atlas.currentGeneration == 2)
 }
 
 /// `beginFrame` / `endFrame` bracket the paint phase, which is what makes

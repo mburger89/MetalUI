@@ -21,11 +21,13 @@ public struct GlyphImage: Sendable {
     /// edge. Negative for a glyph whose ink starts left of the pen, which is
     /// ordinary rather than exotic (an italic `f`, a combining mark).
     ///
-    /// **This field and ``top`` are the only way to place the bitmap**, and
-    /// nothing in `Sources/` reads them yet — the consumer is the
-    /// `monochromeSprite` draw path. They are computed and stored here rather
-    /// than left for the renderer to recompute because the rounding that
-    /// produced ``width``/``height`` is the same rounding that produces these:
+    /// **This field and ``top`` are the only way to place the bitmap.** Their
+    /// consumer is the glyph emitter: ``GlyphAtlas/packed(for:rasterize:)``
+    /// copies both out of here and stores them beside the slot, and
+    /// `MetalUI`'s `Frame.draw` builds an `MUIGlyph`'s destination origin from
+    /// them. They are computed and stored here rather than left for the
+    /// renderer to recompute because the rounding that produced
+    /// ``width``/``height`` is the same rounding that produces these:
     /// re-deriving them from `CTFontGetBoundingRectsForGlyphs` at paint time is
     /// the exact mistake CLAUDE.md records for percentage insets — a second
     /// resolution of one quantity, free to disagree with the first.
@@ -86,9 +88,9 @@ public enum GlyphRaster {
     /// equal to ``subpixelVariants``, which would index a bitmap that is not
     /// rasterized.
     ///
-    /// **No production caller yet** — the consumer is the `monochromeSprite`
-    /// draw path, which is a later task. It lives here rather than there
-    /// because it is the other half of ``rasterize(glyph:font:subpixelVariant:scaleFactor:)``'s
+    /// Called by ``ShapedText/placedGlyphs(at:font:scaleFactor:)``, once per
+    /// glyph. It lives here rather than there because it is the other half of
+    /// ``rasterize(glyph:font:subpixelVariant:scaleFactor:)``'s
     /// `subpixelVariant` argument: without it that argument has no defined
     /// meaning, and a renderer would be free to invent a different one.
     public static func subpixelPlacement(forDeviceX x: Double) -> (pixelX: Int, variant: Int) {
