@@ -21,13 +21,32 @@ private func items(_ n: Int) -> [Item] {
 /// needs no scrolling of its own.
 private struct Row: Element {
     let item: Item
-    init(_ item: Item) { self.item = item }
+    /// When set, this row's own node asks for a fixed height — the "content
+    /// taller than `rowHeight`" case the row-flooring tests need. `nil` keeps
+    /// the original childless, zero-height node every other test in this file
+    /// relies on.
+    var contentHeight: Pixels?
+
+    init(_ item: Item, contentHeight: Pixels? = nil) {
+        self.item = item
+        self.contentHeight = contentHeight
+    }
 
     var elementID: ElementID? { nil }
 
     mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Void) {
-        (pass.requestNode(style: Style(), children: []), ())
+        guard let contentHeight else {
+            return (pass.requestNode(style: Style(), children: []), ())
+        }
+        // A LEAF whose measured content size is `contentHeight`, not a node
+        // whose declared STYLE is — a declared `size.height` would set this
+        // row's OWN box outright and bypass the automatic-minimum mechanism
+        // the flooring tests exist to exercise. A leaf's reported content
+        // size is what feeds `Box<Row>`'s content size suggestion instead.
+        let h = Double(contentHeight.value)
+        let node = pass.requestLeaf(style: Style()) { _, _ in SizeD(width: 0, height: h) }
+        return (node, ())
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -96,4 +115,80 @@ private func idOfRow(named name: String, in data: [Item], rowHeight: Pixels,
     let idA = try idOfRow(named: "item-0", in: dataA, rowHeight: px(28), frame: frameA)
     let idB = try idOfRow(named: "item-0", in: dataB, rowHeight: px(28), frame: frameB)
     #expect(idA == idB)
+}
+
+/// The automatic minimum's content half floors a row `Box` at its own
+/// content's size (CLAUDE.md divergence 5) — measured at `contentHeight: 60`
+/// against `rowHeight: 28` — UNLESS `minSize.height` is overridden to 0. Every
+/// row still lands at `index * rowHeight` and keeps `rowHeight`'s own height,
+/// with the taller content simply overflowing its row.
+@Test @MainActor func aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent() throws {
+    let data = items(3)
+    var list = List(data, rowHeight: px(28)) { Row($0, contentHeight: px(60)) }
+    let frame = Frame(contentSize: Size(width: px(400), height: px(600)), scaleFactor: 1)
+    frame.render(&list)
+
+    let regions = frame.scrollRegions
+    try #require(regions.count == 3)
+    let ys = regions.map(\.bounds.origin.y.value).sorted()
+    #expect(ys == [0, 28, 56])
+    for region in regions {
+        #expect(region.bounds.size.height == px(28))
+    }
+}
+
+/// A row's default `flexShrink: 1` would let padding on `List` itself shrink
+/// its content box below `data.count * rowHeight` and pull every row down
+/// with it — measured, that gives rows of 21/22/21 rather than three rows of
+/// 28. `flexShrink = 0` on the row style is what this test guards: rows keep
+/// `rowHeight` and overflow the padded content box instead of shrinking to
+/// fit it.
+@Test @MainActor func paddingOnAListDoesNotShrinkItsRowsBelowRowHeight() throws {
+    let data = items(3)
+    var list = List(data, rowHeight: px(28)) { Row($0) }.padding(px(10))
+    let frame = Frame(contentSize: Size(width: px(400), height: px(600)), scaleFactor: 1)
+    frame.render(&list)
+
+    let regions = frame.scrollRegions
+    try #require(regions.count == 3)
+    let ys = regions.map(\.bounds.origin.y.value).sorted()
+    #expect(ys == [10, 38, 66])
+    for region in regions {
+        #expect(region.bounds.size.height == px(28))
+    }
+}
+
+/// Distinctness, not only stability — `aRowKeepsItsIdentityWhenItsPositionChanges`
+/// only asserts that ONE row's id survives a reorder, which a mutation naming
+/// every row the SAME constant string would also satisfy (every row would
+/// then share one id, so any two "matches" trivially). This is the other
+/// half: two DIFFERENT rows in the SAME list must get DIFFERENT ids.
+@Test @MainActor func distinctRowsGetDistinctIdentities() throws {
+    let data = items(3)
+    var list = List(data, rowHeight: px(28)) { Row($0) }
+    let frame = Frame(contentSize: Size(width: px(400), height: px(600)), scaleFactor: 1)
+    frame.render(&list)
+
+    let idA = try idOfRow(named: "item-0", in: data, rowHeight: px(28), frame: frame)
+    let idB = try idOfRow(named: "item-1", in: data, rowHeight: px(28), frame: frame)
+    #expect(idA != idB)
+}
+
+// `List([])` — no rows, no trap, zero height. `data.count == 0` reaches
+// `rowHeight * Float(0)` in `List.init` and an empty `data.map` in
+// `requestLayout`; neither has a special case to fall through.
+@Test @MainActor func anEmptyListHasZeroHeightAndTrapsNothing() throws {
+    var list = List([Item](), rowHeight: px(28)) { Row($0) }
+    let (frame, root) = laidOut(&list)
+    #expect(frame.bounds(of: root).size.height == px(0))
+    #expect(frame.scrollRegions.isEmpty)
+}
+
+/// `List` conforms to `StyledElement` for more than the type checker — a
+/// modifier applied to it must reach the layout node `requestLayout` builds,
+/// not sit inert the way CLAUDE.md's declared-but-inert table catalogues.
+@Test @MainActor func aWidthModifierOnAListReachesItsLayoutNode() throws {
+    var list = List(items(3), rowHeight: px(28)) { Row($0) }.width(px(123))
+    let (frame, root) = laidOut(&list)
+    #expect(frame.bounds(of: root).size.width == px(123))
 }
