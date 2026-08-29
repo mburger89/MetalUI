@@ -348,6 +348,32 @@ and a naive window bounds almost nothing around it — measured with the guard
 removed, a real first frame built exactly the two rows overscan allows. One slow
 frame beats a visible flash.
 
+**That trade was re-examined when the demo went from 40 rows to 500, and it is
+still taken — but its cost is 12.5x what the sentence above was written
+against, so the number is recorded rather than left implied.** The carve-out
+means frame 0 builds *every* row: on the demo's own tree that frame emits 516
+rects and 15,703 glyphs at 500 rows, against 23 and 514 once the window is
+known. Measured, 25 cold trials, median:
+
+| build | 40 rows | 500 rows |
+|---|---|---|
+| release | 7.87 ms | **76.26 ms** |
+| debug | 19.32 ms | **188.30 ms** |
+
+Kept, for three reasons. The hitch is one frame **at launch**, not during
+interaction, so it costs a moment of startup rather than a stutter under the
+hand. Demonstrating windowing in the artifact humans actually look at is the
+point of shipping 500. And the alternative — windowing the first frame against
+a *guessed* viewport — is new mechanism, and a guess wrong in the other
+direction is the flash this carve-out exists to prevent.
+
+**What it costs if wrong, restated at 500 rows**: ~188 ms in debug is roughly
+eleven dropped frames at launch, and nothing in the suite can tell whether that
+reads as a slow start or as a broken one. That is now item 4 of the human
+report list in CLAUDE.md's own open-criterion entry — the only instrument there
+is. A `List` whose data is larger again (5,000 rows, say) scales this linearly
+and would need the first frame windowed for real.
+
 **What it costs if wrong.** Two rows of overscan is a guess: nothing in this
 suite can observe scroll jank, so the number was picked to satisfy "a row or two"
 and never tuned. Too small shows a gap at a partially-scrolled edge while a frame

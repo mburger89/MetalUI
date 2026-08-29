@@ -146,7 +146,11 @@ idiomatic Swift. macOS and iOS.
   takes a `RandomAccessCollection` plus a per-datum builder closure, and on
   every frame it constructs elements only for the rows intersecting the
   enclosing `ScrollView`'s viewport, plus two rows of overscan on each side. A
-  500-row `List` and a 40-row one cost the same frame.
+  500-row `List` and a 40-row one cost the same frame **in steady state — and
+  not on frame 0**, which builds every row because a `ScrollView`'s viewport
+  extent is not measured until its own `prepaint` has run once (ruling MP-I).
+  Measured on the demo's tree, that first frame is 7.87 ms at 40 rows and
+  **76.26 ms at 500** in release, 19.32 and **188.30 ms** in debug.
 
   **Three requirements, and each is load-bearing rather than stylistic.**
   `Data.Element: Identifiable`, because a row not built this frame would
@@ -306,10 +310,15 @@ comment claimed was not the property the line bought.
 **The measure-performance milestone added one shape and one method, both about
 performance work specifically.** The method: **write the counting assertions
 first and require them to be RED on arrival.** Two of that milestone's three
-harness assertions failed the day they were committed and stayed red through
-four tasks, which is the only reason anyone can say the windowing task did
-anything — a performance test written after the optimisation cannot distinguish
-"fast" from "measuring the wrong thing". They count work (tokenizer calls, cache
+harness assertions failed the day they were committed — and **they did not go
+green together, which is the part to state precisely**: the tokenizer-count one
+went green at the memo task, and only the "a 160-row list costs what a 40-row
+one costs" assertion stayed red through four tasks, until windowing. That one
+is the only reason anyone can say the windowing task did anything — a
+performance test written after the optimisation cannot distinguish "fast" from
+"measuring the wrong thing". Crediting both to the last task is the same shape
+of error this milestone started from: a true sentence about one half, read as a
+claim about both. They count work (tokenizer calls, cache
 entries) rather than timing it, so they fail identically on a loaded CI box
 where a committed millisecond baseline would flake. The shape: **a test can be
 inert because the FIXTURE cannot express the defect, not because the assertion
@@ -640,11 +649,23 @@ that a launch works. Nobody has said how it looks or how it feels, and nothing
 below should be read as if they had.
 
 **What the machine established instead, and it is a different thing.** The demo
-tree's release frame, measured through a real `Frame.render` on
+tree's **steady-state** release frame, measured through a real `Frame.render` on
 MacBookPro18,2 / Apple M1 Max, is **1.279 ms at 40 rows and 1.273 ms at 500** —
 against **5.366 ms and 50.498 ms** for the same tree at this milestone's base
-commit. That closes exit criterion 4 (under 8.33 ms) and criterion 5 (a long
-list costs what a short one costs) by measurement. It says nothing about
+commit. That closes exit criterion 4 (under 8.33 ms) on the **warm** frame, and
+criterion 5 (a long list costs what a short one costs) by measurement. The
+**cold** first frame is a different number and is recorded at ruling MP-I: 76.26
+ms at 500 rows in release, 188.30 in debug, because that frame builds every row.
+
+**The tail was checked, not just the best**, which is the statistic a stutter
+milestone actually needs — a best-of-N hides exactly the frames a human sees as
+a hitch. Over the full distribution the flatness holds at every percentile: 40
+rows median 1.305 / p99 1.423 / worst 1.427 ms, 500 rows median 1.294 / p99
+1.314 / **worst 1.330** ms. The 500-row tail is *tighter* than the 40-row one,
+and the worst frame measured at either count is under a sixth of the 8.33 ms
+budget.
+
+It all says nothing about
 criterion 6: a frame budget met in a harness is not a window that feels smooth
 under a drag, exactly as §9 item 6 says.
 
@@ -665,8 +686,13 @@ and scroll the list hard in both directions. Report: (1) whether resizing
 stutters, in each build separately, since debug is ~4x the frame cost of release
 and the two can disagree; (2) whether any row is ever missing, blank or
 late-arriving at the bottom edge while resizing or flinging; (3) whether the
-list still reaches its end correctly at 500 rows. A positive report closes §9
-item 6 and closes none of the looks this file already lists as permanently open.
+list still reaches its end correctly at 500 rows; and **(4) whether the window
+takes a visible moment to appear at launch, in debug especially** — the first
+frame builds all 500 rows (ruling MP-I) and measures **188 ms** in debug,
+roughly eleven dropped frames, so this converts a known number into an
+observation about whether it is actually perceptible. A positive report closes
+§9 item 6 and closes none of the looks this file already lists as permanently
+open.
 
 ## Twelve known divergences, numbered 1-6 and 8-13 — expected, measured, not defects
 
@@ -1367,7 +1393,10 @@ memo), 581 after Task 3 (docs and the `MP-A`/`MP-B` rulings; it adds no test),
 flooring, identity distinctness, an empty list and a modifier reaching the
 layout node), 590 then **592** after Task 5's review round (the ambient scroll
 context), 595 then **600** after Task 6's review round (windowing — this is the
-task that turns the harness's two red assertions green), 603 then **604** after
+task that turns the LAST of the harness's red assertions green — the other one,
+`aWarmFrameTokenizesEachDistinctStringAtMostOnce`, went green at Task 2 when the
+memo landed, so only `aListsWorkIsTheSameFor160RowsAsFor40` survived to here),
+603 then **604** after
 Task 7's review round (both shaping caches bounded by a generation sweep). Task
 8 is the demo and the documentation and adds no test, so 604 reproduced exactly.
 **Goldens did not move at any point in this milestone: 81 before, 81 after, and
@@ -1752,7 +1781,7 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    which is the weaker of the two methods and is said so rather than implied.**
    The suite has
    moved 304 → 358 → 444 → 488 → 538 → 577 → 604 and the guard count has not moved at
-   all, which is the paragraph's point arriving as six data points rather than as
+   all, which is the paragraph's point arriving as seven data points rather than as
    one delta — the argument is that the two numbers are independent, so do not
    restate it as "the suite grew by N and the 25 held", which rots the moment N
    changes. **The guard count does not track the suite count and neither number
