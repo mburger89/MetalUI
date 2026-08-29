@@ -71,24 +71,32 @@ public struct LayoutPass {
     /// landed before this frame (`Window.applyScroll` writes it, then dirties
     /// the window) is visible; the viewport is pure layout output and cannot
     /// exist until layout runs, so the only way to have one during layout is
-    /// to have stored last frame's. `List` (Task 6) is the reader: it knows
-    /// its own content extent as `count × rowHeight` and clamps against that
-    /// itself, so this value is deliberately unclamped raw state, not a
-    /// resolved offset.
+    /// to have stored last frame's. `List` is the reader: it knows its own
+    /// content extent as `count × rowHeight` and clamps against that itself,
+    /// so this value is deliberately unclamped raw state, not a resolved
+    /// offset.
     ///
     /// **A `ScrollView`'s very first frame publishes `ScrollContext(offset: 0,
     /// viewportExtent: 0, axis:)`**, because `ScrollState.viewportExtent` has
-    /// no writer until `prepaint` has run once. A reader dividing by it is
-    /// dividing by zero: `Double / 0` is `+.infinity` and does not trap, but
-    /// `Int(ceil(viewportExtent / rowHeight))` on that infinity **does**
-    /// trap — measured, not hypothetical. A reader that instead special-cases
-    /// zero and returns an empty visible range gets a **different**, non-
-    /// crashing symptom on the same frame: a list with a nonzero row count
-    /// computes zero visible rows on frame 1, so it paints only whatever
-    /// overscan it always renders and the rest fills in on frame 2 — a
-    /// one-frame flash on first appearance. Neither is this pass's defect;
-    /// both are inputs a consumer (`List`, Task 6) must design against, and
-    /// this is the doc a reader of THIS property will actually open.
+    /// no writer until `prepaint` has run once. **This is NOT a divide-by-zero
+    /// hazard for a reader like `List`**, and an earlier version of this
+    /// paragraph wrongly said it was — corrected after `List`'s own arithmetic
+    /// was measured. `viewportExtent` only ever appears as a NUMERATOR in that
+    /// arithmetic (e.g. `(offset + viewportExtent) / rowHeight`); dividing IT
+    /// by zero would need `viewportExtent` to be a divisor somewhere, and it
+    /// never is. `0` as a numerator just gives `0`. The real zero-divisor
+    /// hazard is a reader's own `rowHeight`, a value this pass knows nothing
+    /// about.
+    ///
+    /// What zero viewport extent DOES cause, for a reader that does not
+    /// special-case it: `offset` on that first frame is whatever was last
+    /// scrolled to, so a naive window bounds almost nothing around it — a
+    /// list with a nonzero row count computes only a couple of rows near
+    /// `offset` (measured directly: exactly `overscan`'s worth on each side of
+    /// zero), and the rest fills in only once frame two has a real viewport —
+    /// a one-frame flash on first appearance. Neither is this pass's defect;
+    /// it is an input a consumer (`List`) must design against, and this is the
+    /// doc a reader of THIS property will actually open.
     public var scrollContext: ScrollContext? {
         frame.activeScrollContext
     }

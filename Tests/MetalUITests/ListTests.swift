@@ -225,8 +225,8 @@ private func renderWindowed<E: Element>(_ element: inout E, context: ScrollConte
 
 /// The window is exact, not merely "at least the viewport": rows both inside
 /// AND outside the widened window are checked, so a mutation that builds too
-/// FEW rows (overscan dropped) and one that builds too MANY (e.g. everything)
-/// would each redden this differently — see the overscan mutation below.
+/// FEW rows (overscan removed) and one that builds too MANY (e.g. every row,
+/// unconditionally) would each redden this test differently.
 ///
 /// 40 rows at 28pt: offset 140 (row 5's top) and viewport 84 (3 rows) bound
 /// rows 5..<8 exactly; widened by `overscan == 2` on each side that is
@@ -264,8 +264,103 @@ private func renderWindowed<E: Element>(_ element: inout E, context: ScrollConte
     let context = ScrollContext(offset: 1400, viewportExtent: 100, axis: .vertical)
     let (frame, _) = renderWindowed(&list, context: context, frameHeight: 2000)
 
-    let region = try #require(frame.scrollRegions.first { $0.bounds.origin.y == px(1400) },
-                              "row 50 must be registered at y == 1400, its absolute offset")
-    #expect(region.bounds.origin.y != px(0),
-            "a windowed row must not fall back to the window's own top")
+    // `try #require` above already establishes the position directly — a
+    // separate `!= px(0)` check here could never fail once that has matched,
+    // since 1400 and 0 cannot both be true of the same value.
+    _ = try #require(frame.scrollRegions.first { $0.bounds.origin.y == px(1400) },
+                     "row 50 must be registered at y == 1400, its absolute offset")
+}
+
+/// A zero `rowHeight` was legal, quiet input before windowing existed —
+/// every row (and the list itself) simply measured zero. `rowExtent` is the
+/// divisor in `visibleRange`'s arithmetic, so once a real scroll context is
+/// present (this reproduces what a second frame looks like: the viewport has
+/// already been measured), an unguarded `0 / 0` is `NaN` and `Int(NaN)`
+/// traps — measured directly before the guard existed, with no summary line
+/// from the surrounding suite. Declining to window at all is what keeps a
+/// zero `rowHeight` as quiet as it always was.
+@Test @MainActor func aZeroRowHeightDoesNotTrapOnceAScrollContextIsPresent() throws {
+    let data = items(5)
+    var list = List(data, rowHeight: px(0)) { Row($0) }
+    let context = ScrollContext(offset: 0, viewportExtent: 100, axis: .vertical)
+    let (frame, _) = renderWindowed(&list, context: context)
+
+    #expect(frame.scrollRegions.count == 5, "a rowHeight nothing can be windowed against builds every row")
+}
+
+/// A present context whose `viewportExtent == 0` is exactly what a
+/// `ScrollView`'s very first frame publishes (before its own `prepaint` has
+/// measured a real viewport), and `List` must build every row on it rather
+/// than windowing around whatever `offset` happens to be — the alternative is
+/// a one-frame flash of only the rows near `offset` that survive overscan.
+/// Removing the `viewportExtent > 0` guard leaves this arithmetic-correct but
+/// wrong for that first frame: `offset == 0` and `viewportExtent == 0` bound
+/// almost nothing, so only a handful of rows near the top would be built.
+@Test @MainActor func aPresentContextWithZeroViewportExtentBuildsEveryRow() throws {
+    let data = items(40)
+    var list = List(data, rowHeight: px(28)) { Row($0) }
+    let context = ScrollContext(offset: 0, viewportExtent: 0, axis: .vertical)
+    let (frame, _) = renderWindowed(&list, context: context)
+
+    #expect(frame.scrollRegions.count == 40)
+}
+
+/// `ScrollContext.offset` is raw and unclamped by design (its own doc
+/// comment) — events can accumulate between frames with no ceiling until a
+/// `ScrollView`'s own `prepaint` next writes one back. `List` owns clamping
+/// it against its own exact content extent before deriving a window; without
+/// that clamp, an offset far past the end computes `first == last == count`
+/// and the list renders NOTHING — the same shape as the clipping milestone's
+/// dead-band defect, just at the opposite end of the same missing clamp.
+@Test @MainActor func anOffsetPastTheEndClampsToTheTailInsteadOfRenderingNothing() throws {
+    let data = items(40)
+    var list = List(data, rowHeight: px(28)) { Row($0) }
+    // 5000 is nowhere near 40 x 28 = 1120; clamped against `extent -
+    // viewportExtent` = 1120 - 84 = 1036, which lands exactly on row 37's top.
+    let context = ScrollContext(offset: 5000, viewportExtent: 84, axis: .vertical)
+    let (frame, _) = renderWindowed(&list, context: context)
+
+    let ys = Set(frame.scrollRegions.map(\.bounds.origin.y.value))
+    let expected = Set((35...39).map { Float($0) * 28 })
+    #expect(ys == expected, "expected the clamped tail, rows 35 through 39, got \(ys.sorted())")
+}
+
+/// `paddingOnAListDoesNotShrinkItsRowsBelowRowHeight` pins the ROW pin but
+/// cannot pin the SPACER's: with no scroll context its spacer is always
+/// 0-height, and shrinking a 0-height item changes nothing observable. This
+/// gives the spacer real height (a scrolled window) AND padding large enough
+/// to force real negative free space, so an unpinned spacer would absorb the
+/// deficit and pull every windowed row up from its true absolute offset.
+@Test @MainActor func aScrolledListsSpacerDoesNotShrinkUnderPadding() throws {
+    let data = items(10)
+    var list = List(data, rowHeight: px(28)) { Row($0) }.padding(px(60))
+    // window = 3..<9 (offset 140 / 28 = row 5, minus overscan 2 = row 3;
+    // (140 + 56) / 28 = row 7, plus overscan 2 = row 9): spacer height is
+    // exactly 3 x 28 = 84, and the padded content box (10 x 28 - 2 x 60 =
+    // 160) is smaller than the spacer plus the six windowed rows
+    // (84 + 6 x 28 = 252) — real negative free space, not a vacuous check.
+    let context = ScrollContext(offset: 140, viewportExtent: 56, axis: .vertical)
+    let (frame, _) = renderWindowed(&list, context: context)
+
+    let ys = Set(frame.scrollRegions.map(\.bounds.origin.y.value))
+    let expected = Set((3...8).map { 60 + Float($0) * 28 })
+    #expect(ys == expected,
+            "padding must not let the spacer shrink and pull windowed rows up; got \(ys.sorted())")
+}
+
+/// Every other windowing test uses an offset and a viewport extent that are
+/// exact multiples of `rowHeight`, so `.rounded(.down)`/`.rounded(.up)` are
+/// each a no-op there and swapping the two directions passes unnoticed. A
+/// fractional offset forces both to matter: 150 / 28 = 5.357 must floor to
+/// 5, and (150 + 90) / 28 = 8.571 must ceil to 9 — swapping either rounding
+/// direction reads a different window under this fixture.
+@Test @MainActor func aFractionalOffsetRoundsFirstDownAndLastUp() throws {
+    let data = items(40)
+    var list = List(data, rowHeight: px(28)) { Row($0) }
+    let context = ScrollContext(offset: 150, viewportExtent: 90, axis: .vertical)
+    let (frame, _) = renderWindowed(&list, context: context)
+
+    let ys = Set(frame.scrollRegions.map(\.bounds.origin.y.value))
+    let expected = Set((3...10).map { Float($0) * 28 })
+    #expect(ys == expected, "expected rows 3 through 10, got \(ys.sorted())")
 }

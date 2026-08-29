@@ -17,6 +17,15 @@ import MetalUILayout
 /// (that position varies frame to frame as the window slides) — only on its
 /// name.
 ///
+/// **That is about the NAME staying stable, not about the STATE surviving —
+/// spec §7.5 is explicit that it does not.** A row outside the window is not
+/// merely un-painted; it is not produced at all, so nothing marks its
+/// `GlobalElementID` in the `StateTable` that frame, and `StateTable.sweep()`
+/// reaps it exactly as it would an element removed from the tree for good
+/// (§4.3). A row's own state — anything it keeps in the table, not the
+/// framework's structural identity — is therefore reset, not preserved, the
+/// next time that row scrolls back into the window.
+///
 /// **`String(describing:)` is not injective, and this is a real, unguarded
 /// gap.** Two distinct ids that happen to describe to the same string — e.g.
 /// `AnyHashable("1")` and `AnyHashable(1)`, both `"1"` — collide into the SAME
@@ -50,8 +59,8 @@ import MetalUILayout
 /// unconditionally — a fixed style property, not a sum over what is actually
 /// built — so the scrollbar and the offset clamp see the full extent even
 /// though only a slice of rows exists in the tree for any given frame. See
-/// `visibleRange(count:pass:)` for the arithmetic and its two escape
-/// hatches (no context; a first-frame zero viewport).
+/// `visibleRange(count:pass:)` for the arithmetic and its escape hatches (no
+/// context; a first-frame zero viewport; a zero or negative `rowHeight`).
 ///
 /// **A leading spacer places the window, rather than an absolute inset per
 /// row — chosen by reasoning about the two, not by measuring both; no
@@ -127,18 +136,32 @@ where Data.Element: Identifiable {
     /// intersecting the viewport, widened by `overscan` on each side and
     /// clamped into `0..<count`.
     ///
-    /// **Two escape hatches, both building everything, per the ruling this
-    /// type's author carried forward from `LayoutPass.scrollContext`'s own
-    /// doc.** No ambient context at all means this `List` is not inside a
-    /// `ScrollView` — a list nobody scrolls must still render every row. A
-    /// present context with `viewportExtent == 0` is a `ScrollView`'s first
-    /// frame, before its own `prepaint` has ever run to measure one — dividing
-    /// by that zero gives `+.infinity`, and converting that to `Int` traps.
-    /// Guarded naively instead, it yields an empty range and a one-frame flash
-    /// while the rest fills in on frame two. Building everything on that frame
-    /// costs one slow frame instead.
+    /// **Three escape hatches, all building everything.** No ambient context
+    /// at all means this `List` is not inside a `ScrollView` — a list nobody
+    /// scrolls must still render every row. A zero or negative `rowHeight` is
+    /// otherwise legal, quiet input (`List` accepted it before windowing
+    /// existed, sizing every row and the whole list to zero) and is the one
+    /// value that can actually divide by zero below — `rowExtent` is the
+    /// DIVISOR in both `offset / rowExtent` and `(offset + viewportExtent) /
+    /// rowExtent`, so `rowExtent == 0` gives `.infinity` (or, at `offset ==
+    /// 0`, `NaN`) and converting either to `Int` traps. Declining to window
+    /// at all — rather than trying to divide by a height nothing can be
+    /// windowed against — is what keeps that input as quiet as it always was.
+    ///
+    /// **A present context with `viewportExtent == 0` is a `ScrollView`'s
+    /// first frame**, before its own `prepaint` has ever run to measure one.
+    /// `viewportExtent` is only ever a NUMERATOR below, never a divisor, so
+    /// this case does not risk dividing by zero at all — `0 / rowExtent` is
+    /// simply `0`. What it risks instead: `offset` on that first frame is
+    /// whatever was last scrolled to, so a naive window bounds almost nothing
+    /// around it (a real first frame, measured with the guard removed, built
+    /// exactly the two rows `overscan` allows around `offset == 0`) and the
+    /// rest of the list fills in only once frame two has a real viewport —
+    /// a visible one-frame flash. Building everything on that first frame
+    /// costs one slow frame instead of a flash.
     private func visibleRange(count: Int, pass: LayoutPass) -> Range<Int> {
-        guard let context = pass.scrollContext, context.viewportExtent > 0 else {
+        guard let context = pass.scrollContext, context.viewportExtent > 0,
+              rowHeight.value > 0 else {
             return 0..<count
         }
         let extent = Double(rowHeight.value) * Double(count)
@@ -183,13 +206,18 @@ where Data.Element: Identifiable {
         // Places the window: a plain `Box` sized to exactly the rows skipped,
         // so the first built row lands at `window.lowerBound * rowHeight` —
         // its true absolute offset — rather than at the top of whatever the
-        // window happens to be. `minSize.height`/`flexShrink` mirror the row
-        // pin above for the same reason: this height must hold exactly, not
-        // be squeezed by padding on `List` itself.
+        // window happens to be. `flexShrink = 0` is load-bearing here for the
+        // same reason it is on a row: padding on `List` can shrink its
+        // content box below the built children's combined height, and
+        // without this the SPACER — not a row, since rows carry their own
+        // pin — would absorb that deficit and pull every windowed row up by
+        // however much it lost. (No `minSize.height` override: this `Box` is
+        // childless, so its automatic minimum is already 0 — nothing to
+        // remove, unlike a row, whose content can be taller than
+        // `rowHeight`.)
         var spacerStyle = Style()
         let spacerHeight = Pixels(rowHeight.value * Float(window.lowerBound))
         spacerStyle.size.height = .length(.pixels(spacerHeight))
-        spacerStyle.minSize.height = .length(.pixels(Pixels(0)))
         spacerStyle.flexShrink = 0
         let spacer = Box(style: spacerStyle)
 
