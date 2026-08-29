@@ -967,7 +967,8 @@ private func layOutStack(
     var maxWidth = 0.0
     var maxHeight = 0.0
 
-    for kid in tree.children(container) where tree.style(kid).display != .none {
+    for kid in tree.children(container)
+    where tree.style(kid).display != .none && tree.style(kid).position != .absolute {
         let ks = tree.style(kid)
         // Resolved against `box.size` — the stack's own content box, the same
         // basis the size itself resolves against — exactly as `collectItems`
@@ -1400,7 +1401,12 @@ private func collectItems(
     let parent = containerSize
 
     return tree.children(container)
-        .filter { tree.style($0).display != .none }
+        // **Two exclusions, and they are different kinds.** `display: none`
+        // removes a box entirely; `position: absolute` removes it from *flow*
+        // while leaving it in the tree for `placeNode` to position against its
+        // containing block. An absolute box contributes nothing to this
+        // container's size and occupies no space on either axis.
+        .filter { tree.style($0).display != .none && tree.style($0).position != .absolute }
         .map { kid in
             let base = flexBaseSize(ctx, tree, item: kid, isRow: isRow,
                                     containerMain: containerMain,
