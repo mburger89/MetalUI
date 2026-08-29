@@ -168,3 +168,117 @@ private func sized(_ tree: LayoutTree, _ w: Double, _ h: Double,
     #expect(tree.layout(abs).x == 7)
     #expect(tree.layout(abs).y == 7)
 }
+
+private func inset(_ t: Double?, _ r: Double?, _ b: Double?, _ l: Double?) -> Edges<MetalUICore.Dimension> {
+    Edges(top: t.map(px) ?? .auto, right: r.map(px) ?? .auto,
+          bottom: b.map(px) ?? .auto, left: l.map(px) ?? .auto)
+}
+
+/// A single inset positions from that edge.
+@Test func aSingleInsetPositionsFromThatEdge() {
+    let tree = LayoutTree(generation: 0)
+    var s = Style()
+    s.size = Size(width: px(20), height: px(10))
+    s.position = .absolute
+    s.inset = inset(15, nil, nil, 25)
+    let abs = tree.newNode(style: s, children: [])
+    var cb = Style()
+    cb.position = .relative
+    let node = tree.newNode(style: cb, children: [abs])
+
+    computeLayout(tree, root: node,
+                  available: AvailableSpaceSize(width: .definite(200),
+                                                height: .definite(100)))
+    #expect(tree.layout(abs).x == 25)
+    #expect(tree.layout(abs).y == 15)
+    #expect(tree.layout(abs).width == 20)
+}
+
+/// Opposite insets with an `auto` size stretch the box between them.
+@Test func oppositeInsetsWithAnAutoSizeStretchTheBox() {
+    let tree = LayoutTree(generation: 0)
+    var s = Style()
+    s.position = .absolute
+    s.inset = inset(10, 30, 20, 40)     // size stays .auto
+    let abs = tree.newNode(style: s, children: [])
+    var cb = Style()
+    cb.position = .relative
+    let node = tree.newNode(style: cb, children: [abs])
+
+    computeLayout(tree, root: node,
+                  available: AvailableSpaceSize(width: .definite(200),
+                                                height: .definite(100)))
+    #expect(tree.layout(abs).x == 40)
+    #expect(tree.layout(abs).width == 130, "200 - 40 left - 30 right")
+    #expect(tree.layout(abs).y == 10)
+    #expect(tree.layout(abs).height == 70, "100 - 10 top - 20 bottom")
+}
+
+/// Over-constrained: both insets AND a size. CSS drops `right`.
+@Test func anOverConstrainedBoxIgnoresItsRightInset() {
+    let tree = LayoutTree(generation: 0)
+    var s = Style()
+    s.size = Size(width: px(50), height: .auto)
+    s.position = .absolute
+    s.inset = inset(0, 30, 0, 40)
+    let abs = tree.newNode(style: s, children: [])
+    var cb = Style()
+    cb.position = .relative
+    let node = tree.newNode(style: cb, children: [abs])
+
+    computeLayout(tree, root: node,
+                  available: AvailableSpaceSize(width: .definite(200),
+                                                height: .definite(100)))
+    #expect(tree.layout(abs).x == 40, "left wins")
+    #expect(tree.layout(abs).width == 50, "the declared width wins; right is dropped")
+}
+
+/// **Percentage insets resolve per axis, and this is the test that catches
+/// following CLAUDE.md's padding constraint by mistake.**
+///
+/// The containing block is deliberately NON-SQUARE — 200 wide, 100 tall. On a
+/// square containing block `top: 10%` and `left: 10%` give the same number and
+/// a width-only implementation passes. Here they differ: 10 vs 20.
+@Test func percentageInsetsResolveAgainstWidthForXAndHeightForY() {
+    let tree = LayoutTree(generation: 0)
+    var s = Style()
+    s.size = Size(width: px(20), height: px(10))
+    s.position = .absolute
+    s.inset = Edges(top: .length(.percent(0.10)), right: .auto,
+                    bottom: .auto, left: .length(.percent(0.10)))
+    let abs = tree.newNode(style: s, children: [])
+    var cb = Style()
+    cb.position = .relative
+    let node = tree.newNode(style: cb, children: [abs])
+
+    computeLayout(tree, root: node,
+                  available: AvailableSpaceSize(width: .definite(200),
+                                                height: .definite(100)))
+    #expect(tree.layout(abs).x == 20, "10% of the 200 WIDTH")
+    #expect(tree.layout(abs).y == 10, "10% of the 100 HEIGHT — not the width")
+}
+
+/// **The 0×0 sizing bug, pinned directly.** Task 3's `placeAbsolute` sized
+/// every absolute child by calling `measureNode(known: .unspecified, …)`
+/// unconditionally, which for a childless node with no `MeasureFunction`
+/// falls into the container branch and returns `contentSize + edges` — zero
+/// for an empty container, never consulting `Style.size`. All insets stay
+/// `.auto` here, so this isolates the sizing bug from the (already-tested)
+/// inset arithmetic: with no insets to stretch or position from, the ONLY
+/// source the resolved size can come from is the declared `Style.size`.
+@Test func anAbsoluteChildWithNoChildrenResolvesToItsDeclaredSize() {
+    let tree = LayoutTree(generation: 0)
+    var s = Style()
+    s.size = Size(width: px(20), height: px(10))
+    s.position = .absolute
+    let abs = tree.newNode(style: s, children: [])
+    var cb = Style()
+    cb.position = .relative
+    let node = tree.newNode(style: cb, children: [abs])
+
+    computeLayout(tree, root: node,
+                  available: AvailableSpaceSize(width: .definite(200),
+                                                height: .definite(100)))
+    #expect(tree.layout(abs).width == 20, "not 0 — the declared size, not the empty content size")
+    #expect(tree.layout(abs).height == 10)
+}

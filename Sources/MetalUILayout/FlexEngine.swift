@@ -1154,21 +1154,95 @@ func placeNode(
     }
 }
 
-/// Places one absolutely-positioned box against its containing block.
+/// Places one absolutely-positioned box against its containing block, reading
+/// `Style.inset` to size and position it.
 ///
-/// **Insets are Task 4's.** This task places at the containing block's origin,
-/// which is also the final behaviour for all-`auto` insets — spec §3.5 records
-/// that as a deliberate divergence from CSS's static position.
+/// **Per-axis bases, and this is NOT CLAUDE.md:997's rule.** That constraint is
+/// about `padding` and `border`, where CSS resolves every percentage against
+/// the containing block's width. An inset does not: `left`/`right` resolve
+/// against width, `top`/`bottom` against height.
+///
+/// Each axis is independent and follows the same three-way branch `resolveNodeSize`
+/// uses for a flex item's cross axis, plus one case that function has no
+/// occasion for (both insets given): a declared, non-`auto` size always wins —
+/// which is also this function's fix for a bug Task 3 left, below — an `auto`
+/// size with both insets given stretches to fill the gap between them, and an
+/// `auto` size with fewer than two insets falls back to `measureNode`, exactly
+/// as an item's `auto` cross size does in `collectItems`.
+///
+/// Position, per axis: the leading inset (`left`/`top`) wins when given,
+/// regardless of the trailing one — which is CSS's over-constrained rule
+/// (drop `right`/`bottom`) applied uniformly rather than as a special case,
+/// since a declared size already ignores the trailing inset for sizing and
+/// this reuses the same "leading wins" read for position. Only the trailing
+/// inset given positions from the far edge. Neither given places at the
+/// containing block's origin — the box's all-`auto` behaviour, and Task 3's
+/// existing one; spec §3.5 records it as a deliberate divergence from CSS's
+/// static position.
+///
+/// **The 0×0 sizing bug this task's brief named.** Task 3 sized every absolute
+/// child by calling `measureNode(known: .unspecified, …)` unconditionally —
+/// for a childless node with no `MeasureFunction`, that falls into
+/// `measureNode`'s container branch and returns `contentSize + edges`, zero
+/// for an empty container, never consulting `Style.size`. `declaredAxis`
+/// below is what fixes it: a declared size is resolved from the node's own
+/// style FIRST, the same way `resolveNodeSize` resolves a flex item's cross
+/// axis, and `measureNode` is reached only when the axis is genuinely `auto`
+/// and not fully bounded by its two insets.
 private func placeAbsolute(_ ctx: LayoutContext, _ tree: LayoutTree,
                            _ node: LayoutNodeID, in cb: ContainingBlock) {
-    let size = measureNode(ctx, tree, node,
-                           known: .unspecified,
-                           available: AvailableSpaceSize(width: .definite(cb.size.width),
-                                                         height: .definite(cb.size.height)),
-                           containingBlockWidth: cb.size.width)
-    tree.setLayout(node, LayoutRect(x: cb.origin.0, y: cb.origin.1,
-                                    width: size.width, height: size.height))
-    placeNode(ctx, tree, node, origin: (cb.origin.0, cb.origin.1), size: size,
+    let s = tree.style(node)
+
+    let left = resolveDimension(s.inset.left, against: cb.size.width, rootFontSize: ctx.rootFontSize)
+    let right = resolveDimension(s.inset.right, against: cb.size.width, rootFontSize: ctx.rootFontSize)
+    let top = resolveDimension(s.inset.top, against: cb.size.height, rootFontSize: ctx.rootFontSize)
+    let bottom = resolveDimension(s.inset.bottom, against: cb.size.height, rootFontSize: ctx.rootFontSize)
+
+    // A declared, non-`auto` size, clamped by its own min/max — `nil` when the
+    // property IS `auto`, which is how "not given" is told from "given as 0"
+    // (`resolveDimension`'s existing convention, reused here for `Style.size`).
+    func declaredAxis(_ dim: Dimension, _ minDim: Dimension, _ maxDim: Dimension,
+                      against parent: Double) -> Double? {
+        guard let resolved = resolveDimension(dim, against: parent, rootFontSize: ctx.rootFontSize) else {
+            return nil
+        }
+        let lower = resolveDimension(minDim, against: parent, rootFontSize: ctx.rootFontSize)
+        let upper = resolveDimension(maxDim, against: parent, rootFontSize: ctx.rootFontSize)
+        return clamp(resolved, min: lower, max: upper)
+    }
+
+    let declaredWidth = declaredAxis(s.size.width, s.minSize.width, s.maxSize.width, against: cb.size.width)
+    let declaredHeight = declaredAxis(s.size.height, s.minSize.height, s.maxSize.height, against: cb.size.height)
+
+    // `auto` size, both insets given on that axis: stretch to fill the gap.
+    let stretchWidth = (declaredWidth == nil && left != nil && right != nil)
+        ? cb.size.width - left! - right! : nil
+    let stretchHeight = (declaredHeight == nil && top != nil && bottom != nil)
+        ? cb.size.height - top! - bottom! : nil
+
+    let known = OptionalSizeD(width: declaredWidth ?? stretchWidth, height: declaredHeight ?? stretchHeight)
+    let size: SizeD
+    if let w = known.width, let h = known.height {
+        size = SizeD(width: w, height: h)
+    } else {
+        // Neither declared nor stretched by two insets: the box's own
+        // content size, exactly the call every other constant-substituting
+        // site in this file makes (`measureNode`'s doc comment).
+        let measured = measureNode(ctx, tree, node, known: known,
+                                   available: AvailableSpaceSize(width: .definite(cb.size.width),
+                                                                 height: .definite(cb.size.height)),
+                                   containingBlockWidth: cb.size.width)
+        size = SizeD(width: known.width ?? measured.width, height: known.height ?? measured.height)
+    }
+
+    // Leading wins over trailing when both are given — CSS's over-constrained
+    // rule (drop `right`/`bottom`) falls out of this uniformly, since sizing
+    // above already ignored the trailing inset once a size was declared.
+    let x = cb.origin.0 + (left ?? (right.map { cb.size.width - $0 - size.width } ?? 0))
+    let y = cb.origin.1 + (top ?? (bottom.map { cb.size.height - $0 - size.height } ?? 0))
+
+    tree.setLayout(node, LayoutRect(x: x, y: y, width: size.width, height: size.height))
+    placeNode(ctx, tree, node, origin: (x, y), size: size,
               containingBlockWidth: cb.size.width, containingBlock: cb)
 }
 
