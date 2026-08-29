@@ -315,3 +315,187 @@ private func inset(_ t: Double?, _ r: Double?, _ b: Double?, _ l: Double?) -> Ed
     #expect(tree.layout(abs).width == 20, "not 0 — the declared size, not the empty content size")
     #expect(tree.layout(abs).height == 10)
 }
+
+/// A declared size on an absolute box is clamped by that box's own
+/// `minSize`/`maxSize`, the same way `resolveNodeSize` clamps a flex item's
+/// cross axis and `layOutStack`'s `resolvedAxis` clamps a stack child's.
+///
+/// **Both terms, on separate axes, because each is separately removable.**
+/// `maxWidth: 40` binds a declared `width: 100` downward and `minHeight: 60`
+/// binds a declared `height: 10` upward; a clamp that dropped only its `max`
+/// argument would still pass an assertion that tested only the min, and the
+/// reverse. Without the clamp entirely the box measures its raw declared
+/// 100x10 — the mutation this pins, and the wrong answer is silent: the box
+/// paints at the right place at the wrong size, and `.minWidth(_:)` on an
+/// absolutely-positioned box would be one more member of CLAUDE.md's
+/// declared-but-inert table.
+@Test func anAbsoluteBoxesDeclaredSizeIsClampedByItsOwnMinAndMax() {
+    let tree = LayoutTree(generation: 0)
+    var s = Style()
+    s.size = Size(width: px(100), height: px(10))
+    s.maxSize = Size(width: px(40), height: .auto)
+    s.minSize = Size(width: .auto, height: px(60))
+    s.position = .absolute
+    let abs = tree.newNode(style: s, children: [])
+    var cb = Style()
+    cb.position = .relative
+    let root = tree.newNode(style: cb, children: [abs])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(200),
+                                                height: .definite(100)))
+    #expect(tree.layout(abs).width == 40, "maxWidth binds the declared 100 downward")
+    #expect(tree.layout(abs).height == 60, "minHeight binds the declared 10 upward")
+}
+
+/// With no positioned ancestor at all, the containing block is the **root's own
+/// padding box** — the root's border box backed in by its border and no
+/// further.
+///
+/// **The root is `.static`, which is what makes this a different code path from
+/// every other test and fixture here.** A positioned ancestor's padding box is
+/// computed by `placeNode`'s `childCB`; the root's is computed once by
+/// `computeLayout`'s seed, which has to back the padding back out of the
+/// content box `contentBox` hands it. Every `abs_*` fixture puts its padding on
+/// a `.relative` node and therefore exercises `childCB` instead, so the seed's
+/// arithmetic was reachable and unreached.
+///
+/// **Padding and border differ (10 and 4) on purpose.** The three candidate
+/// boxes then give three different answers on every edge: border box (0, 0)
+/// 200x100, padding box (4, 4) 192x92, content box (14, 14) 172x72. With
+/// padding alone, or border alone, two of the three coincide and a wrong seed
+/// reads as correct. The absolute child's four insets are all 0, so it
+/// stretches to the containing block's full extent and the assertion sees the
+/// box's *size* as well as its origin.
+@Test func withNoPositionedAncestorTheContainingBlockIsTheRootsPaddingBox() {
+    let tree = LayoutTree(generation: 0)
+    var s = Style()
+    s.position = .absolute
+    s.inset = Edges(top: px(0), right: px(0), bottom: px(0), left: px(0))
+    let abs = tree.newNode(style: s, children: [])
+    var r = Style()
+    r.padding = Edges(all: .pixels(Pixels(10)))
+    r.border = Edges(all: .pixels(Pixels(4)))
+    let root = tree.newNode(style: r, children: [abs])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(200),
+                                                height: .definite(100)))
+    let laid = tree.layout(abs)
+    #expect(laid.x == 4 && laid.y == 4,
+            "the padding box's origin is inside the border only — not (0, 0) and not the content box's (14, 14)")
+    #expect(laid.width == 192 && laid.height == 92,
+            "and its extent excludes the border only — not 200x100 and not the content box's 172x72")
+}
+
+/// A `display: .none` box stays unplaced even when it is also `.absolute`.
+///
+/// The absolute pass is a third enumeration of a container's children, beside
+/// `collectItems` and `layOutStack`'s loop, and it carries its own copy of the
+/// `display != .none` filter. Dropping that conjunct places and sizes a box the
+/// two in-flow sites both refuse to touch — so `display: .none` would mean "out
+/// of flow" for an absolute box rather than "not there", and the box would
+/// paint.
+///
+/// **The declared size and both insets are non-zero**, so an unfiltered
+/// implementation writes a rect that differs from the untouched default on all
+/// four fields rather than only on the two a zero inset would move.
+@Test func aDisplayNoneAbsoluteChildIsNotPlaced() {
+    let tree = LayoutTree(generation: 0)
+    var s = Style()
+    s.size = Size(width: px(50), height: px(40))
+    s.position = .absolute
+    s.display = .none
+    s.inset = Edges(top: px(30), right: .auto, bottom: .auto, left: px(20))
+    let abs = tree.newNode(style: s, children: [])
+    var cb = Style()
+    cb.position = .relative
+    let root = tree.newNode(style: cb, children: [abs])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(200),
+                                                height: .definite(100)))
+    let laid = tree.layout(abs)
+    #expect(laid.x == 0 && laid.y == 0,
+            "never placed — an unfiltered absolute pass puts it at its insets, (20, 30)")
+    #expect(laid.width == 0 && laid.height == 0,
+            "and never sized — an unfiltered pass gives it its declared 50x40")
+}
+
+/// An `auto`-sized absolute box is measured against its **containing block's**
+/// extent, not at max-content.
+///
+/// `placeAbsolute` reaches `measureNode` only for an axis that is genuinely
+/// `auto` and not bounded by two insets, and the `available:` it passes is the
+/// containing block on both axes. Passing `.maxContent` instead is the
+/// difference between "as wide as it may be" and "as wide as it wants", and it
+/// is invisible on content that cannot reflow.
+///
+/// **The content therefore wraps.** Four 50x20 items in a `flexWrap: .wrap` row
+/// inside a 120-wide containing block fit two per line: 100x40. At max-content
+/// the same four items form one 200x20 line, which also overflows the
+/// containing block. A non-wrapping child would measure the same either way and
+/// this test could not tell the two apart — the uniformity hazard AP-D and
+/// divergence 6 were both produced by.
+@Test func anAutoSizedAbsoluteBoxIsMeasuredAgainstItsContainingBlockNotMaxContent() {
+    let tree = LayoutTree(generation: 0)
+    var kid = Style()
+    kid.size = Size(width: px(50), height: px(20))
+    let kids = (0..<4).map { _ in tree.newNode(style: kid, children: []) }
+    var s = Style()
+    s.position = .absolute
+    s.flexDirection = .row
+    s.flexWrap = .wrap
+    let abs = tree.newNode(style: s, children: kids)
+    var cb = Style()
+    cb.position = .relative
+    cb.size = Size(width: px(120), height: px(300))
+    let root = tree.newNode(style: cb, children: [abs])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(400),
+                                                height: .definite(400)))
+    #expect(tree.layout(abs).width == 100,
+            "two 50-wide items per 120-wide line — not the 200 one max-content line would give")
+    #expect(tree.layout(abs).height == 40, "two lines of 20, not one")
+}
+
+/// A percentage `padding` or `border` on an absolute box resolves against its
+/// **containing block's width**, which `placeAbsolute` has to hand to the
+/// recursive `placeNode` explicitly.
+///
+/// Every other `placeNode` call inherits a containing-block width from a parent
+/// that already had one; this one is the entry point into a subtree whose
+/// position came from somewhere else in the tree, so the width has to be
+/// re-stated. Passing `nil` instead makes every percentage edge inside an
+/// absolutely-positioned subtree resolve to 0 — silently, and only for
+/// percentages, so a subtree using pixel padding looks fine.
+///
+/// The containing block is deliberately **non-square** (200x60) and the padding
+/// is uniform, so resolving the vertical edges against the height would give 6
+/// rather than 20 and the child's y would separate from its x. The child's
+/// origin is what is asserted, since padding is not visible in the absolute
+/// box's own rect: it moves where in-flow content starts.
+@Test func percentagePaddingInsideAnAbsoluteBoxResolvesAgainstItsContainingBlocksWidth() {
+    let tree = LayoutTree(generation: 0)
+    var kidStyle = Style()
+    kidStyle.size = Size(width: px(10), height: px(10))
+    let kid = tree.newNode(style: kidStyle, children: [])
+    var s = Style()
+    s.position = .absolute
+    s.size = Size(width: px(100), height: px(100))
+    s.padding = Edges(all: .percent(0.10))
+    let abs = tree.newNode(style: s, children: [kid])
+    var cb = Style()
+    cb.position = .relative
+    cb.size = Size(width: px(200), height: px(60))
+    let root = tree.newNode(style: cb, children: [abs])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(400),
+                                                height: .definite(400)))
+    #expect(tree.layout(kid).x == 20,
+            "10% of the containing block's 200 width — 0 if the width is not threaded through")
+    #expect(tree.layout(kid).y == 20,
+            "the vertical edge takes the same WIDTH basis: 20, not 6 and not 0")
+}
