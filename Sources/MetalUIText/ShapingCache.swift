@@ -159,15 +159,28 @@ public final class ShapingCache {
     /// number — they hold different things and there is no reason one's
     /// growth should starve the other's budget.
     ///
-    /// **Measured against the demo's own 40-row `List`, which is the
-    /// closest thing this repo has to a realistic workload.** Every
-    /// steady-state frame re-touches ~88 `storage` entries and ~40
-    /// `minContent` ones — comfortably under this threshold on their own.
-    /// But the *resident* `storage` set (what actually sits in the
-    /// dictionary, including one-time warm-up entries from the first frame
-    /// that are never touched again) measures 207 — 81% of 256, roughly
-    /// 1.24x headroom, not the 2-3x a smaller per-frame figure would
-    /// suggest. 256 was still chosen over a value closer to 207: spec §6
+    /// **Measured against `demoLikeRows(40)`, the test harness modelled on
+    /// the demo's scroller — not against the demo itself, whose own list is
+    /// longer and whose visible window is smaller.**
+    ///
+    /// Two different quantities, and confusing them is what this paragraph
+    /// exists to stop. **Touched per steady-state frame: 64 `storage`
+    /// entries and 16 `minContent` ones** — 16 being the windowed row count,
+    /// not the data's 40. **Resident** (what actually sits in the
+    /// dictionaries) is **207 and 40**, because the first frame builds every
+    /// row — a `ScrollView`'s viewport extent is not known until its own
+    /// `prepaint` has run once — and nothing ever evicts those entries at
+    /// this threshold. 207 is 81% of 256, roughly 1.24x headroom, not the
+    /// 3x the touched-per-frame figure alone would suggest.
+    ///
+    /// The touched figure is measured rather than counted, and the method is
+    /// worth knowing because it is the only instrument here: set this
+    /// constant to **1** so the sweep fires every frame, and read what the
+    /// dictionaries settle to. An entry touched this frame can never be
+    /// stale, so the resident set collapses to exactly what the last
+    /// `staleAfterGenerations` frames touched — 64 and 16.
+    ///
+    /// 256 was still chosen over a value closer to 207: spec §6
     /// measured no cost difference between a 276-entry and a 733-entry
     /// cache, so there is room to be generous without chasing a speed
     /// target, and a threshold barely above one measurement is the kind of

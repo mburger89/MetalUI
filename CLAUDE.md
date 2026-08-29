@@ -19,7 +19,8 @@ idiomatic Swift. macOS and iOS.
   `docs/superpowers/2026-08-27-text-m2-decisions.md`,
   `docs/superpowers/2026-08-28-clipping-scroll-decisions.md`,
   `docs/superpowers/2026-08-28-stack-decisions.md`,
-  `docs/superpowers/2026-08-28-absolute-positioning-decisions.md` — each ruling with
+  `docs/superpowers/2026-08-28-absolute-positioning-decisions.md`,
+  `docs/superpowers/2026-08-28-measure-performance-decisions.md` — each ruling with
   its reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
@@ -27,10 +28,11 @@ idiomatic Swift. macOS and iOS.
   `FS-n` to flex sizing, `AL-n` to alignment, `BM-n` to the box model, `WR-n` to
   wrapping, `EP-n` to the element pipeline, `CS-n` to content sizing, `SI-n`
   to structural identity, `TX-n` to text (M2), `CL-n` to clipping and scroll,
-  `ST-n` to the stack container and `AP-n` to absolute positioning (the last six are
+  `ST-n` to the stack container, `AP-n` to absolute positioning and `MP-n` to
+  measure-path performance (the last seven are
   **lettered** — `CS-A`…`CS-O`, `SI-A`…`SI-H`, `TX-A`…`TX-J`, `CL-A`…`CL-F`,
-  `ST-A`…`ST-G` and `AP-A`…`AP-M` — so a bare `CS-3`, `SI-3`, `TX-3`, `CL-3`, `ST-3`
-  or `AP-3` is a typo rather
+  `ST-A`…`ST-G`, `AP-A`…`AP-M` and `MP-A`…`MP-K` — so a bare `CS-3`, `SI-3`,
+  `TX-3`, `CL-3`, `ST-3`, `AP-3` or `MP-3` is a typo rather
   than a citation) (**`EP-2` and `EP-4` were never
   assigned** and must not be reused — a new ruling taking one would silently
   rebind any citation written against the gap). Sweep for stray citations **case-insensitively** — a `Ruling F-3` survived two branches' greps for lowercase `ruling`. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
@@ -133,6 +135,36 @@ idiomatic Swift. macOS and iOS.
   the new `Stack.swift` (the type), so the filename that used to hold
   `Column`/`Row` is not the one that holds `Stack` today. Decisions doc:
   `docs/superpowers/2026-08-28-stack-decisions.md`, rulings prefixed `ST-`.
+
+- **`List` is NOT the framework's fourth container. It is a windowed sequence
+  built from data, and it is a `Box` underneath.** `Row`, `Column` and `Stack`
+  are containers: they take an `@ElementBuilder` block of statically-known
+  children and answer a layout question about them (sequence on the main axis,
+  layer on both). `List` answers no new layout question at all — it composes
+  `display: .flex` with `flexDirection: .column`, the same thing `Column`
+  spells — and its whole reason to exist is *which* children get built. It
+  takes a `RandomAccessCollection` plus a per-datum builder closure, and on
+  every frame it constructs elements only for the rows intersecting the
+  enclosing `ScrollView`'s viewport, plus two rows of overscan on each side. A
+  500-row `List` and a 40-row one cost the same frame.
+
+  **Three requirements, and each is load-bearing rather than stylistic.**
+  `Data.Element: Identifiable`, because a row not built this frame would
+  otherwise take a different `.positional(_:)` component when it returns —
+  the vanishing-`if` hazard, made routine (ruling MP-D). A uniform declared
+  `rowHeight`, because that is what lets the window be found by division
+  rather than by laying rows out; variable heights need a prefix-sum index
+  and have no spelling here. And an enclosing `ScrollView`, which is what
+  publishes the ambient `LayoutPass.scrollContext` the window is computed
+  from — a `List` with no context above it builds every row, which is correct
+  for a list nobody scrolls.
+
+  **What it costs is two divergences, 12 and 13 below**: a row's own
+  `StateTable` state is reaped while it is off screen (its *identity* is what
+  survives, not its state), and the window is computed against a
+  one-frame-stale viewport extent. `Sources/MetalUI/List.swift`; decisions doc
+  `docs/superpowers/2026-08-28-measure-performance-decisions.md`, rulings
+  prefixed `MP-`.
 
 - **`Deferred` is a portal, and it is the framework's first element that is not
   a container.** It takes **exactly one** child (ruling AP-J: it is a paint
@@ -271,6 +303,23 @@ sibling that lands on the *untaken* slot and then goes one level deeper breaks,
 which took three candidate compositions and a probe to find. The property the
 comment claimed was not the property the line bought.
 
+**The measure-performance milestone added one shape and one method, both about
+performance work specifically.** The method: **write the counting assertions
+first and require them to be RED on arrival.** Two of that milestone's three
+harness assertions failed the day they were committed and stayed red through
+four tasks, which is the only reason anyone can say the windowing task did
+anything — a performance test written after the optimisation cannot distinguish
+"fast" from "measuring the wrong thing". They count work (tokenizer calls, cache
+entries) rather than timing it, so they fail identically on a loaded CI box
+where a committed millisecond baseline would flake. The shape: **a test can be
+inert because the FIXTURE cannot express the defect, not because the assertion
+is weak.** That milestone's drafted cache-growth test swept the outer frame's
+width over a fixture whose every internal width is pinned, so the cache reached
+a warm-up value and then read byte-identically forever — measured
+`distinct=[207]` across 120 frames **with no bound and no sweep implemented at
+all**. It passed against a stub. The assertion was fine; the fixture could not
+move the key the assertion read. Ruling `MP-J` carries it.
+
 ## Verified on real hardware
 
 `swift run MetalUIDemo` was run and inspected on a Retina display: the window
@@ -325,7 +374,7 @@ what the demo draws — and no test can establish it.** `MetalLayerSurface` vend
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and the whole suite still passed when that was measured, at 342 tests
-(**489 today**; the count is quoted so the measurement can be dated, not because
+(**604 today**; the count is quoted so the measurement can be dated, not because
 342 is a property of anything). If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
@@ -479,7 +528,7 @@ behind the **M** key for that reason; see `showModal` in
 **Z-order is why that criterion exists, and it is worth restating precisely.**
 A `Stack`'s children are placed independently of paint order —
 `positionStackItems` never reads which child was declared first — so a
-regression reversing paint order would move not one number any of the 577 tests
+regression reversing paint order would move not one number any of the 604 tests
 or 81 goldens check: every rect's `(x, y, width, height)` is identical whichever
 child painted first. **Two artifacts have ever observed the property and both are
 outside the suite**: the offscreen readback, once, by hand, and the human look
@@ -508,6 +557,14 @@ dimmed too, so the scrim reaches the window's edges rather than the scroller's
 420pt strip, and the panel sits visibly over rows 6-9, which are declared after
 it.
 
+**The build in that recording is no longer the build a human would run**, and
+the four failures below are unchanged by it. The measure-performance milestone
+replaced the demo's `for` loop over 40 rows with a `List` of **500**, windowed
+to the visible slice. The rows are still declared *after* the modal, so failure
+2 reads exactly as written; failure 3 (does the modal move when the list
+scrolls) is if anything easier to judge with 500 rows of travel underneath it.
+Nothing about `Deferred`, the scrim or the panel changed.
+
 **What that leaves genuinely unobserved is failures 3 and 4**, because the
 recording contains no scrolling — nobody has seen whether the modal stays put
 while the list moves, or what a wheel over the scrim does. Those still need the
@@ -517,7 +574,7 @@ concluded the scrim was **missing**, and only measurement corrected it. A human
 report of "I see no scrim" should be measured before it is believed.
 
 **Where it is, and the key that shows it.** Inside the demo's `ScrollView`,
-declared **before** the 40 rows: a `Deferred` wrapping a `Stack` that is
+declared **before** the `List` that builds the rows: a `Deferred` wrapping a `Stack` that is
 `.position(.absolute).inset(Pixels(0)).background(.scrim)`, holding a 360pt
 centred panel. Absolute with all four insets given and an `auto` size makes it
 stretch across its containing block, which — nothing between it and the root
@@ -558,7 +615,7 @@ scrim's alpha.
 **Nothing in the suite can see any of the first three, and the reason is the same one
 `Stack`'s entry gives.** A `Deferred` contributes no layout node, so its
 subtree's `(x, y, width, height)` are byte-identical whether or not it hoists
-and whether or not it escapes; the 577 tests and 81 goldens would all stay green
+and whether or not it escapes; the 604 tests and 81 goldens would all stay green
 under a regression in either half. The scene-level tests in `DeferredTests.swift`
 assert the layer and the mask on synthetic frames, which is real evidence and is
 not the same as the composed window.
@@ -573,16 +630,54 @@ light and 0.42 in dark): an opaque one makes "covers" and "replaced"
 indistinguishable in a still frame. Gating it behind M is what keeps that choice
 from taxing every other look in this file.
 
-## Ten known divergences, numbered 1-6 and 8-11 — expected, measured, not defects
+**Measure-path performance — the exit criterion is OPEN, and nothing here has
+been looked at.** Design spec §9 item 6 asks for a human to run the demo **in
+both debug and release**, drag the window edge, and report whether the resize
+stutter is gone. **That has not happened.** The demo builds warning-free and was
+launched to confirm it starts and exits cleanly, which is a smoke check and not
+a look — this file distinguishes those sharply, and a launch establishes only
+that a launch works. Nobody has said how it looks or how it feels, and nothing
+below should be read as if they had.
+
+**What the machine established instead, and it is a different thing.** The demo
+tree's release frame, measured through a real `Frame.render` on
+MacBookPro18,2 / Apple M1 Max, is **1.279 ms at 40 rows and 1.273 ms at 500** —
+against **5.366 ms and 50.498 ms** for the same tree at this milestone's base
+commit. That closes exit criterion 4 (under 8.33 ms) and criterion 5 (a long
+list costs what a short one costs) by measurement. It says nothing about
+criterion 6: a frame budget met in a harness is not a window that feels smooth
+under a drag, exactly as §9 item 6 says.
+
+**Why only a human can close it, stated as a mechanism rather than as
+deference.** Resize stutter is produced by the *whole* loop — AppKit's
+live-resize run loop mode, the display link, drawable acquisition and GPU
+submission — and every number above excludes all four; `renderOffscreen` and a
+timed `Frame.render` both stop at the CPU boundary (divergence 3 of design §10
+records that exclusion up front). And the demo now carries a second thing worth
+a directed look for the same reason `Stack`'s z-order needed one: with a
+`List`, rows appear and disappear as the window moves, and a window whose
+overscan is too small shows a strip of unbuilt rows for a frame (divergence 13).
+No assertion in the 604 can see either.
+
+**What a human must do, and what to report.** Run `swift run MetalUIDemo`, then
+`swift run -c release MetalUIDemo`. Drag the window's edge — slowly, then fast —
+and scroll the list hard in both directions. Report: (1) whether resizing
+stutters, in each build separately, since debug is ~4x the frame cost of release
+and the two can disagree; (2) whether any row is ever missing, blank or
+late-arriving at the bottom edge while resizing or flinging; (3) whether the
+list still reaches its end correctly at 500 rows. A positive report closes §9
+item 6 and closes none of the looks this file already lists as permanently open.
+
+## Twelve known divergences, numbered 1-6 and 8-13 — expected, measured, not defects
 
 **The labels are stable ids, not a running count, and the gap is deliberate.**
-There are **ten** entries and the highest label is **11**: the original
+There are **twelve** entries and the highest label is **13**: the original
 divergence 6 was fixed, the original 7 was renumbered *into* 6 (see the "This
 was divergence 7 of seven, and 6 is gone" paragraph inside entry 6), and every
 entry added since has taken the next free label rather than re-using the freed
 7 — the same rule `EP-2`/`EP-4` follow, so a citation written against
 "divergence 8" never silently rebinds. A reader who counts to the highest label
-gets eleven and a reader who counts entries gets ten; both are answering a
+gets thirteen and a reader who counts entries gets twelve; both are answering a
 different question from the one this heading used to leave open, which is why
 it says both numbers.
 
@@ -591,7 +686,11 @@ was one.** 1-6 and 8 are places this engine answers differently from an oracle
 (WebKit for all but 8, which is layout against paint inside this engine). 9 is
 of that kind too. **10 and 11 are design choices recorded here because a reader
 comparing this framework to CSS will otherwise read them as bugs** — they are
-the two directions of one seam, and each entry names the other.
+the two directions of one seam, and each entry names the other. **12 and 13 are
+a third kind again: neither a disagreement nor a design preference, but two
+accepted limitations of `List`'s windowing**, each with a named mechanism that
+would remove it and a reason that mechanism is larger than this framework has
+built.
 
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
@@ -923,15 +1022,26 @@ spacer=126.5  boxW=209  paint draws 2 lines
 spacer=127.0  boxW=209  paint draws 2 lines
 ```
 
-Layout height is 16.0 on every row of that table. In a 40-row demo list this
+Layout height is 16.0 on every row of that table. In a list of such strings this
 shows up as a handful of rows that look identical to their neighbours but wrap
-differently and get clipped by the row's fixed height: at windows
-860/800/700/620 the wrapping rows are `[2, 12, 20, 21, 23, 24, 25, 32]` — row
-12's max-content 217.0898 rounds down to 217 and wraps, while rows 11
-(215.2744 → 216) and 13 (217.3945 → 218) round up and do not. The direction is
+differently and get clipped by the row's fixed height: measured on the demo as
+it then was — a `for` loop over **40** rows whose text read `"Row i of 40 — …"` —
+at windows 860/800/700/620 the wrapping rows were `[2, 12, 20, 21, 23, 24, 25,
+32]`, row 12's max-content 217.0898 rounding down to 217 and wrapping while rows
+11 (215.2744 → 216) and 13 (217.3945 → 218) round up and do not. The direction is
 **not monotone in window width** — 1200pt is the worst case measured, not the
 best — because what moves the outcome is the pane's fractional origin, not
 anything about the window getting narrower.
+
+**That index list is a historical measurement and must not be checked against
+today's demo**, whose rows read `"Row i of 500 — …"` — one character longer, so
+every max-content in the sweep shifts and a different set of rows lands on the
+down side of the rounding. The *mechanism* is untouched by this: the strings are
+still shrink-wrapped, still fractional, and still re-asked at the rounded width
+by `Text.paint`. Windowing does not touch it either — a built row rounds exactly
+as it did when all 40 were built. Nobody has re-run the sweep against the
+500-row text, and the numbers to trust are the spacer table above, which is
+independent of the demo entirely.
 
 **Pre-existing, and not introduced by the clipping-and-scroll branch.**
 Measured byte-identical at that branch's base commit `ba22e4a`, before a
@@ -944,8 +1054,8 @@ causal one.
 **Not fixed here, and the reason is reach — BM-4's, FS-3's and TX-H's
 reason.** A paint-side epsilon is not the fix, and that was measured rather
 than argued: giving paint back half a point of slack
-(`wrappingAt: bounds.width + 0.5`) still leaves 19 of 40 rows wrapping at
-window 1200, because the error is the **sum** of two independent roundings and
+(`wrappingAt: bounds.width + 0.5`) still left 19 of 40 rows wrapping at
+window 1200 on the same 40-row build the index list above was taken from, because the error is the **sum** of two independent roundings and
 can reach a full point; a full point of slack is what would let a glyph paint
 outside its own box, which is a wider hole, not a fix. Divergence 6's rule
 applies again — the box is what is wrong, the glyphs are where the box says,
@@ -966,8 +1076,8 @@ of; it belongs in a sizing/text milestone.
 Ruling TX-B also forbids a text fixture outright, independently of that
 reason. Pinned instead by
 `roundingCanMakePaintWrapAShrinkWrappedTextThatLayoutMeasuredAsOneLine` in
-`GlyphEmitterTests.swift`, which is the only assertion in the 488-test suite
-that reaches this composition at all: every glyph-emitter test before it
+`GlyphEmitterTests.swift`, which was, when this was measured at a suite of 488,
+the only assertion in it that reaches this composition at all: every glyph-emitter test before it
 paints a **root** `Text`, whose `auto` inline axis takes the whole offered
 extent (divergence 4) rather than shrink-wrapping to a fractional max-content,
 so nothing else in the suite can land on the down side of this rounding —
@@ -1089,6 +1199,67 @@ should move nothing in the corpus. Pinned by
 `AbsoluteOverlayTests.swift`, which asserts the disjoint rect and mask, the
 scroll translation, and the `Deferred` escape as the differential.
 
+**12. A `List` row loses its element state when it scrolls out of the window.**
+Its *identity* survives and its state does not, and the two are easy to read as
+one thing. A row outside the window is not merely un-painted — it is not
+produced at all, so nothing marks its `GlobalElementID` during that frame's
+element walk, and `StateTable.sweep()` reaps its entry exactly as it would for
+an element deleted from the tree for good (design spec §4.3). Scroll it back
+into view and it comes back under the same id, holding nothing.
+
+The identity half is real and is what `Data.Element: Identifiable` buys (ruling
+MP-D): a row is named after its datum, a name replaces a position, so the row
+lands on the same `GlobalElementID` however the window has slid in the
+meantime. Nothing about that keeps the *table entry* alive across a frame in
+which the row was never built.
+
+**Not fixed, and the blocker is a mechanism this framework has not built.**
+Surviving the sweep needs the tombstones design spec §4.3 already names as the
+prerequisite for exit transitions — entries that outlive a sweep as
+invalid-reporting placeholders rather than being reaped. Until that exists, a
+`List` row's state must live in the **data**, which is where a windowed list
+wants it anyway: `List` re-reads `data` every frame, so a value the row derives
+from its datum is stable by construction and a value the row stores privately
+is not.
+
+**No test can see it today and none should be written to pin the current
+behaviour**, because the desired behaviour is the opposite one — a test
+asserting "state is reset" would have to be deleted by the change that fixes
+it. Recorded at `List`'s own type doc as well, which is where a caller
+wondering why a checkbox forgot itself will look. Spec §7.5 required this be
+written down; that is what this entry is.
+
+**13. A `List`'s window is computed against a one-frame-stale viewport
+extent.** Scrolling is exact; only resizing is briefly wrong.
+
+`List` decides what to build in `requestLayout`, and a `ScrollView`'s viewport
+extent is not known until its own `prepaint` has measured one — the phase after.
+So the ambient `ScrollContext` a `ScrollView` publishes carries a **current**
+offset (which `Window.applyScroll` has already written by then) and the
+viewport extent measured **last** frame (ruling MP-F). The offset being current
+is what makes scrolling exact: however fast the list moves, the window is
+computed from the offset the frame is actually about to be drawn at.
+
+A resize is the case that goes wrong, for one frame. Drag the window edge so
+the viewport grows, and that frame's window is sized for the old, smaller
+viewport — the two rows of overscan absorb a viewport that grew by up to two
+rows, and a bigger jump than that shows a strip of unbuilt rows at the bottom
+for a single frame before the next frame corrects it.
+
+**Not fixed, and the mechanism is a two-pass layout**: resolving the viewport
+before the children that window against it are built means either laying the
+`ScrollView` out twice or giving `requestLayout` a resolved size it does not
+have. Both are larger than this milestone, and the failure they would remove
+lasts one frame and is bounded by overscan.
+
+**The contract is pinned; its consequence is not.** That a `ScrollView`
+publishes last frame's extent is asserted directly, by
+`scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout`
+(`Tests/MetalUITests/ScrollRoutingTests.swift`) — so a change that made it
+current would redden a test. What no test reaches is the *effect*: every
+windowing test pushes a `ScrollContext` by hand with an extent it chose, so
+none of them renders the resize frame on which the window is briefly wrong.
+
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
@@ -1180,11 +1351,31 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **577 tests** and 81 browser fixtures, warning-free
-(re-measured 2026-08-28 `--no-parallel` after `swift package clean`, at the
-absolute-positioning milestone's own last commit, per rulings CS-M/CS-N/SI-H: a
+`swift build` · `swift test` — **604 tests** and 81 browser fixtures, warning-free
+(re-measured 2026-08-29 `--no-parallel`, at the measure-performance milestone's
+own last commit, per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
 rather than at the commit that first quoted it.
+
+**The measure-performance milestone's own climb, task by task** (baseline 577,
+the absolute-positioning milestone's own end-of-milestone count, which
+reproduced exactly): 579 after Task 1 (the counting harness, two of whose three
+assertions were **red on arrival by design** — a performance harness that passes
+before the work is done is measuring nothing), 581 after Task 2 (the min-content
+memo), 581 after Task 3 (docs and the `MP-A`/`MP-B` rulings; it adds no test),
+583 then **588** after Task 4's review round (`List` itself, plus five for row
+flooring, identity distinctness, an empty list and a modifier reaching the
+layout node), 590 then **592** after Task 5's review round (the ambient scroll
+context), 595 then **600** after Task 6's review round (windowing — this is the
+task that turns the harness's two red assertions green), 603 then **604** after
+Task 7's review round (both shaping caches bounded by a generation sweep). Task
+8 is the demo and the documentation and adds no test, so 604 reproduced exactly.
+**Goldens did not move at any point in this milestone: 81 before, 81 after, and
+no existing golden file modified** — which is the milestone's own second exit
+criterion, since it touches the measure path and a moved golden would mean
+something reached the engine that should not have.
+
+**The absolute-positioning milestone's climb is kept below as its own record.**
 
 **The absolute-positioning milestone's own climb, task by task** (baseline 538,
 the Stack milestone's own end-of-milestone count, which reproduced exactly):
@@ -1408,10 +1599,12 @@ logic bug.
 
 ## Layout cost — measured, and content sizing multiplied it by ~4.9x
 
-`computeLayout` costs **~40 us per node in debug and ~5.3 us in release**, flat
+`computeLayout` costs **~40 us per node in debug and ~5 us in release**, flat
 from 8 k to 88 k nodes. The same trees cost ~8 us and ~1.2 us per node before
 content sizing, so **the complexity is unchanged and the constant factor is
-~4.9x**:
+~4.9x**. Both figures were re-measured 2026-08-29 after the measure-performance
+milestone and still hold — see the re-measurement below for why a milestone
+that made the measure path faster moved neither of them:
 
 **Measured during the content-sizing milestone's Task 6 (2026-08-26), on that
 machine; debug build unless a column says release.** A performance figure drifts
@@ -1429,6 +1622,42 @@ corroboration rather than a re-run: a whole `Frame.render` — element walk,
 and **3,540 ms** in debug, **51.6 ms** and **520.7 ms** in release. Those bracket
 the `computeLayout`-only figures above from the correct side, so the table has
 not rotted on this machine; it has not been re-taken with the same harness.
+
+**RE-MEASURED 2026-08-29** with the table's own harness rebuilt (same shapes,
+same `available:`, best of 5 and 3 runs; MacBookPro18,2 / Apple M1 Max, macOS
+26.6.2, Swift 6.3.3), after the measure-performance milestone changed the
+measure path:
+
+| tree | nodes | debug | release |
+|---|---|---|---|
+| depth 12, branch 2 | 8,191 | **362.8 ms** (44.3 us/node) | **41.6 ms** (5.08 us/node) |
+| depth 10, branch 3 | 88,573 | **3,467.6 ms** (39.2 us/node) | **414.5 ms** (4.68 us/node) |
+
+**The table above is confirmed, not corrected — and the reason it did not move
+is the thing to carry.** This milestone memoized the min-content width of a
+**string**, in `ShapingCache`; these trees contain no `Text` at all (interior
+nodes are auto-sized flex containers, leaves are 10x10 boxes), so not one call
+in them reaches the memo. A tree of boxes costs today what it cost before, and
+anyone reading "the measure path got faster" as "these numbers got smaller"
+would be reading a text optimisation into a tree with no text in it.
+
+**Where the milestone's change actually shows is a tree with `Text` in it, and
+the demo is the one to quote.** The whole `Frame.render` over
+`Sources/MetalUIDemo/main.swift`'s real element tree at 920x560, release, best
+of 200 warm renders on the machine above:
+
+| demo list | base commit `adaab87` (a `for` loop over every row) | today (`List`, windowed) |
+|---|---|---|
+| 40 rows | 5.366 ms | **1.279 ms** |
+| 500 rows | 50.498 ms | **1.273 ms** |
+
+Debug, same tree: 15.295 / 145.463 ms before, **5.069 / 5.060 ms** today. Two
+independent effects are stacked in that table and it is worth keeping them
+apart. **The 40-row column is the memo** — the same rows, ~4.2x cheaper, because
+each `Text`'s min-content width is now a dictionary hit instead of a tokenizer
+walk. **The 500-row row is the window** — flat in row count, because `List`
+builds only the rows the viewport intersects. Neither number says anything
+about the box-tree table above, and vice versa.
 
 **The cause is §4.5's automatic minimum, which now probes EVERY item** —
 `min-width: auto` is CSS's default — and an `auto`-cross item probes again, so a
@@ -1517,8 +1746,12 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    `UnitSafetyTests` because one is a comment. **Re-counted again at the end of
    the clipping-and-scroll milestone (suite 488), again at the end of the
    stack milestone's review round (suite 538), and again at the end of absolute
-   positioning (suite 577): still 25.** The suite has
-   moved 304 → 358 → 444 → 488 → 538 → 577 and the guard count has not moved at
+   positioning (suite 577): still 25. Re-counted again at the end of
+   measure-performance (suite 604): still 25 — by grep this time (15 + 7 + 1 +
+   2 across the four files) rather than by forcing `canTypecheck` to `false`,
+   which is the weaker of the two methods and is said so rather than implied.**
+   The suite has
+   moved 304 → 358 → 444 → 488 → 538 → 577 → 604 and the guard count has not moved at
    all, which is the paragraph's point arriving as six data points rather than as
    one delta — the argument is that the two numbers are independent, so do not
    restate it as "the suite grew by N and the 25 held", which rots the moment N

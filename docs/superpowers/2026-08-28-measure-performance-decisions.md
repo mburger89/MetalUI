@@ -169,7 +169,9 @@ Without a declared width, a row is an auto-cross item of its own container, so
 site `MP-B` shows is otherwise dead on the pinned tree) recurses into §4.5's
 automatic minimum a third time. `demoLikeRows`'s own comment already carries
 this as the reason its rows are pinned to `.width(Pixels(420))` rather than
-left `auto`, matching the real demo (`Sources/MetalUIDemo/main.swift:391-397`).
+left `auto`, matching the real demo (the row closure inside `List` in
+`Sources/MetalUIDemo/main.swift`; the line numbers this once cited moved when
+that loop became a `List`, so it is quoted by construct rather than by line).
 
 **Why this belongs here rather than only in CLAUDE.md.** It is the one concrete,
 generally-applicable optimisation this milestone found: **declaring a width
@@ -184,3 +186,248 @@ ruling — it is a record, not an implementation. The risk is a stale citation i
 restructured: re-verify the three-row table above against the oracle before
 citing it in a design that depends on the exact 3.0/2.0 split, the same
 caution `MP-B` gives for its own counts.
+
+---
+
+## MP-D — a `List` row takes identity from its datum, and `String(describing:)`'s non-injectivity is accepted rather than fixed
+
+**The choice.** `List` requires `Data.Element: Identifiable` and wraps each row
+under `.id(String(describing: datum.id))`. Two distinct ids that describe to the
+same string — `AnyHashable("1")` and `AnyHashable(1)`, both `"1"` — land on the
+same `GlobalElementID` and silently share one `StateTable` entry. That collision
+is recorded (in `List`'s type doc and at the call site) and not fixed.
+
+**Reasoning.** Identity in this framework is structural: a `.positional(Int)`
+component is assigned by the cursor walking the *built* children, and a windowed
+row's position among its built siblings changes every time the window slides. A
+name replaces a position rather than joining it, so a data-derived name is the
+only thing that makes a row that scrolls away and back land on the same id —
+`Identifiable` is a load-bearing requirement, not a convenience. The bridge to a
+name has to be a `String` because `ElementID` is `String`-backed; changing that
+is a framework-wide job with nothing to do with windowing.
+
+**What it costs if wrong.** A caller whose `Data.Element.ID` is not string-shaped
+(an `AnyHashable`, an enum with duplicate descriptions) gets two rows sharing one
+state entry, with no trap and no failing test — the same silent-sharing failure
+the `cachedHash`/`==` bullet in CLAUDE.md exists to prevent, arriving through a
+different door. Pinned in the *other* direction only:
+`distinctRowsGetDistinctIdentities` (`Tests/MetalUITests/ListTests.swift`) shows
+distinct ids stay distinct, which is exactly the case `String(describing:)` gets
+right. Nothing guards the collision itself.
+
+---
+
+## MP-E — a row's height is pinned by REMOVING the automatic minimum, not by declaring a height
+
+**The choice.** `List.requestLayout` sets three things on every row's wrapping
+`Box`, not one: `size.height = rowHeight`, `minSize.height = 0` and
+`flexShrink = 0`.
+
+**Reasoning.** A declared height alone does not hold. CSS Sizing §4.5's automatic
+minimum — the *content* half, the half this engine implements (CLAUDE.md
+divergence 5) — floors a flex item at its content's size, so a row whose text is
+taller than `rowHeight` grows past it and every later row's `index * rowHeight`
+position is wrong. And a default `flexShrink: 1` lets negative free space
+(padding on `List` shrinking its own content box) pull every row back below it.
+These are the identical two lines `ScrollView.requestLayout` sets on its content
+node for the same mechanism (ruling CL-C). Uniform row height is what makes the
+window computable by division, so anything that lets a row differ from
+`rowHeight` breaks windowing itself, not just that row's appearance.
+
+**What it costs if wrong.** Measured with each line removed, on a three-row list:
+without `minSize.height` a row whose leaf measures 60 lays out at 60 and the rows
+land at `[0, 60, 120]` instead of `[0, 28, 56]`; without `flexShrink` a
+`.padding(10)` list lands them at `[10, 31, 53]` with heights `21, 22, 21`.
+Either way `List`'s own window arithmetic — which never lays a row out to find
+where it is — points at rows that are not there. Pinned by
+`aRowTallerThanRowHeightIsFlooredAtRowHeightNotContent` and
+`paddingOnAListDoesNotShrinkItsRowsBelowRowHeight`.
+
+---
+
+## MP-F — the ambient scroll context publishes the RAW offset and LAST frame's viewport extent
+
+**The choice.** `ScrollView.requestLayout` pushes a `ScrollContext` carrying the
+*unclamped* stored offset and the viewport extent its own **previous** frame's
+`prepaint` measured. `List` clamps the offset itself, against its own exact
+content extent.
+
+**Reasoning.** The offset is resolved and clamped in `prepaint` today, and
+`requestLayout` — where a windowed child must decide what to build — runs before
+it. Publishing a clamped offset from `requestLayout` would mean clamping against
+a viewport the layout has not produced yet, i.e. inventing a bound. Publishing
+the raw value keeps the one number that is *current* current, and hands the clamp
+to the one participant that knows its own content extent without waiting for a
+layout: `List` knows it is `count * rowHeight` by construction. The viewport
+extent has no such escape — it genuinely is last frame's — and that is
+CLAUDE.md's **divergence 13**.
+
+**What it costs if wrong.** Scrolling stays exact either way, because the offset
+is current; only a *resize* can make the window briefly wrong, by one frame, and
+the two-row overscan absorbs a viewport that grew by up to two rows. A resize
+that grows the viewport by more than the overscan shows a strip of missing rows
+for one frame. Making it exact needs a two-pass layout, which is larger than this
+milestone; the alternative of clamping in `requestLayout` is *worse* than
+one-frame staleness, because a wrong clamp is wrong every frame rather than on
+the frame after a resize. Pinned by
+`rawOffsetPublishedDuringRequestLayoutCanExceedTheClampedRange` and
+`scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout`
+(`Tests/MetalUITests/ScrollRoutingTests.swift`).
+
+---
+
+## MP-G — a zero `rowHeight` falls back to building every row rather than trapping
+
+**The choice.** `visibleRange`'s guard reads `rowHeight.value > 0` alongside its
+two context checks; a zero or negative row height declines to window and builds
+everything. It is not a `precondition`.
+
+**Reasoning.** `rowHeight` is the divisor in both `offset / rowExtent` and
+`(offset + viewportExtent) / rowExtent`, so zero gives `.infinity` (or `NaN` at
+`offset == 0`) and converting either to `Int` traps — reproduced before the fix:
+signal 5, **no summary line**, which is taxonomy shape 11's own failure mode. But
+`Pixels(0)` was legal, silently-accepted input before windowing existed: a
+zero-height list sized every row and itself to zero and drew nothing. Adding a
+`precondition` would make previously-valid usage a process abort, which is a new
+trap on old code rather than a fix to new code. Building every row is what
+`List` did before windowing, so declining to window keeps that input exactly as
+quiet as it always was.
+
+**What it costs if wrong.** An accidental `Pixels(0)` costs O(n) per frame,
+quietly — the very cost this milestone exists to remove, restored with no
+diagnostic. That is the deliberate trade: a silent slow frame over a crash on
+input the type used to accept. If a future reader decides the trap is the better
+signal, note that they are changing the contract for callers who never opted in,
+and that the failure mode they are choosing has no summary line. Pinned by
+`aZeroRowHeightDoesNotTrapOnceAScrollContextIsPresent`.
+
+---
+
+## MP-H — a leading spacer places the window, not an absolute inset per row — and this was reasoned, not measured
+
+**The choice.** The rows that are not built are replaced by one childless `Box`
+of height `window.lowerBound * rowHeight`, so the first built row lands at its
+true absolute offset through ordinary flex placement. The alternative —
+`.position(.absolute).inset(top:)` on every row — was not built and not
+benchmarked.
+
+**Reasoning.** Absolute positioning would pull every row out of flow, so each
+row's position would resolve against `List`'s own containing block instead of
+falling out of the column it is already in; the spacer buys not having to reason
+about containing blocks inside a list, for the cost of one extra `Box` per frame.
+CLAUDE.md's divergence 11 does name the absolute composition as viable (an
+absolute box inside a `ScrollView` stays clipped and translated by it, which is
+what a windowed row wants), so this is a preference between two workable designs
+and not a correctness argument.
+
+**What it costs if wrong.** One `Box` per frame is not a measured cost, and the
+comparison this ruling declines to run is the only thing that would say whether
+the spacer's flex participation costs more than absolute placement. If a profile
+ever says it does, nothing about `List`'s public interface changes — this is an
+internal placement mechanism. The spacer *does* carry one non-obvious
+requirement: `flexShrink = 0`, without which padding on `List` makes the spacer
+absorb the deficit and pull every built row up by however much it lost (measured:
+a full 84pt shift). Pinned by `aScrolledListsSpacerDoesNotShrinkUnderPadding`.
+
+---
+
+## MP-I — overscan is a private constant of 2, and the first frame builds everything
+
+**The choice.** Two rows are built beyond the window on each side. `overscan` is
+`private static var overscan: Int { 2 }` — not an `init` parameter — and a
+present context whose `viewportExtent == 0` (a `ScrollView`'s first frame, before
+its `prepaint` has ever measured one) builds every row instead of windowing.
+
+**Reasoning.** A public knob nothing reads back is the exact shape CLAUDE.md's
+declared-but-inert table exists to keep out of this API, and no caller has a case
+for a different value yet; `init`'s signature stays unchanged, so nothing using
+`List` today needs an edit when a case appears. The first-frame carve-out is
+about a *flash*, not a trap: `viewportExtent` is only ever a numerator, so zero
+divides nothing, but the offset on that frame is whatever was last scrolled to
+and a naive window bounds almost nothing around it — measured with the guard
+removed, a real first frame built exactly the two rows overscan allows. One slow
+frame beats a visible flash.
+
+**What it costs if wrong.** Two rows of overscan is a guess: nothing in this
+suite can observe scroll jank, so the number was picked to satisfy "a row or two"
+and never tuned. Too small shows a gap at a partially-scrolled edge while a frame
+is in flight (and shortens the resize grace MP-F depends on); too large costs
+rows nobody sees. A `List` inside a viewport that grows by more than two rows
+between frames is the case to re-measure against. Pinned by
+`aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan` (asserting the exact
+built set, both that the overscan rows are present and that the next ones are
+not) and `aPresentContextWithZeroViewportExtentBuildsEveryRow`.
+
+---
+
+## MP-J — `sweepThreshold` is a sweep TRIGGER, not a ceiling
+
+**The choice.** `ShapingCache.sweepThreshold` (256) gates whether `endFrame()`
+sweeps a dictionary at all; the sweep then drops only entries stamped older than
+`staleAfterGenerations` (2). `count <= sweepThreshold` is **not** an enforced
+invariant, and the constant was renamed from `entryBound` because that name
+asserted one.
+
+**Reasoning.** A ceiling would have to evict something a live frame is using the
+moment the working set exceeds it. This one cannot: an entry touched this frame
+carries `generation == currentGeneration`, which can never be stale, so the sweep
+structurally cannot drop it — and a live working set larger than the threshold
+simply settles above it and stays there, correctly. Measured: with this constant
+set to **1**, so the sweep fires every frame, `demoLikeRows(40)` settles at **64
+`storage` and 16 `minContent`** resident entries from frame 3 onward rather than
+thrashing — that is the live working set, and no threshold can push it lower.
+That is what makes a small threshold safe and a ceiling unnecessary. (At the
+shipped 256 the same workload sits at **207 and 40** forever, because the first
+frame builds every row and nothing is ever over the threshold to sweep.)
+The true invariant is narrower and is what the doc comment now states: *nothing
+older than `staleAfterGenerations` survives a frame in which the dictionary was
+over this threshold.*
+
+**What it costs if wrong.** Read as a ceiling, the number invites two mistakes.
+Lowering it "to save memory" does nothing below the live working set and only
+adds sweep frequency; and a test asserting `count <= sweepThreshold` as a general
+property would be pinning a workload rather than the type — which is why
+`theShapingCacheStaysNearTheSweepThresholdAcrossAWidthSweep` says in its own doc
+comment that its `<=` assertion holds for *that* workload's small per-frame
+footprint. The test that guards the real invariant is
+`aSweepNeverDropsAnEntryTheCurrentFrameTouched`.
+
+**One correction worth carrying, on the same footing as `MP-B`.** The held-back
+assertion this milestone's plan drafted for the sweep could not fail: it swept
+the outer `Frame`'s width over `demoLikeRows(40)`, whose every internal width is
+pinned, so the cache reached a one-time warm-up value and then read
+byte-identically on every later iteration — measured `distinct=[207]` across all
+120 frames, with no bound and no sweep implemented. A test that passes against a
+stub is not evidence about the stub. The shipped test sweeps a *row* width and a
+per-frame-unique row string instead, which moves both dictionaries' keys the way
+a real drag and a real scroll do.
+
+---
+
+## MP-K — a `Dictionary` may be swept where the glyph atlas may not
+
+**The choice.** `ShapingCache` evicts on a generation sweep wired into
+`Frame.render`'s per-frame brackets, mirroring `GlyphAtlas`'s `beginFrame`/
+`endFrame` contract — while `GlyphAtlas.evictUnusedSince` itself still has zero
+production callers.
+
+**Reasoning, stated because the neighbouring type's rule looks like it should
+apply.** The atlas's hazard is structural: its shelf packer never revisits a
+closed shelf, so freeing a `GlyphKey` strands its pixels and the next request for
+that glyph packs a second copy further down — eviction there makes the atlas fill
+*faster*, which is why CLAUDE.md's declared-but-inert table says a caller would
+make things worse. A `Dictionary` has no such structure to violate:
+`removeValue(forKey:)` frees the slot outright and a later re-touch is an
+ordinary miss followed by an ordinary insert. There is nothing to strand, so
+there is nothing to trap on. The bracket is wider than the atlas's for a
+different reason: a `Text` shapes during `requestLayout` and re-shapes in
+`paint`, so `ShapingCache`'s frame spans layout *and* paint where the atlas's
+spans paint only.
+
+**What it costs if wrong.** If the sweep ever dropped an entry the current frame
+was still using, the cost is a re-shape — a slow frame, not a wrong pixel, which
+is the other half of why this is safe where the atlas's is not (a stranded atlas
+region is a wrong pixel or a dropped glyph). The failure that *is* worth watching
+is the reverse: a future cache whose values are handed out by reference rather
+than by value would make eviction a lifetime question rather than a cost
+question, and this ruling would not cover it.

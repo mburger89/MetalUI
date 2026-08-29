@@ -35,6 +35,43 @@ import MetalUI
 /// isolates them to the main actor for you.
 var showModal = false
 
+/// One row of the scrollable list.
+///
+/// **A wrapper around an `Int` exists because `List` requires
+/// `Data.Element: Identifiable`, and that requirement is load-bearing rather
+/// than stylistic.** A windowed row is not produced at all while it is off
+/// screen, so the positional component structural identity would otherwise
+/// give it moves every time the window slides. A name replaces a position, so
+/// keying on the datum's own `id` is what makes a row that scrolls away and
+/// back land on the same `GlobalElementID` — see `List`'s type doc, including
+/// what that still does *not* buy (its `StateTable` entry is reaped while it
+/// is unbuilt).
+struct DemoListRow: Identifiable {
+    let id: Int
+}
+
+/// How many rows the list holds.
+///
+/// **500 rather than the 40 this demo used before `List` existed, and the
+/// number is the point.** A `for` loop over the rows builds, measures and
+/// shapes every one of them every frame, on screen or not. `List` builds only
+/// the rows intersecting the viewport, so a frame costs what the viewport's
+/// height says and not what this constant says.
+///
+/// Measured on this exact tree, release, best of 200 warm renders at
+/// 920x560: **1.279 ms at 40 rows and 1.273 ms at 500** — flat. The same tree
+/// with the `for` loop, at this milestone's base commit, cost **5.366 ms at
+/// 40 and 50.498 ms at 500**. The list is the reason the second pair of
+/// numbers is not what a human sees.
+let demoRowCount = 500
+
+/// The list's data. Built once here rather than inside `demoContent`, which
+/// `Window` re-invokes every frame: `List` slices this with
+/// `RandomAccessCollection.index(_:offsetBy:)` and touches only the elements
+/// it builds, so the array's own construction is the one per-frame cost that
+/// would still be O(`demoRowCount`) if it were rebuilt each time.
+let demoRows = (0..<demoRowCount).map(DemoListRow.init)
+
 /// Milestone 1's exit criterion: a nested flex layout that resizes correctly,
 /// plus a light/dark switch. **And milestone 2's**, which is the reason the
 /// three `Text` runs below are here rather than in a test.
@@ -233,7 +270,7 @@ func demoContent() -> some Element {
                 // **The clipping-and-scroll milestone's exit criterion.**
                 // Replaces the three-weights filler row (M1's flexGrow demo,
                 // now covered by the sidebar rows and the header bar above) with
-                // a `ScrollView` over 40 rows — the one element in this file
+                // a `ScrollView` over the row list below — the one element in this file
                 // that exercises clipping (rectangular AND, since ruling CL-A's
                 // follow-on, rounded), wheel routing with trackpad momentum,
                 // and an indicator painted over text.
@@ -281,7 +318,7 @@ func demoContent() -> some Element {
                         //
                         // `Deferred` does two things and each one has a
                         // plainly-wrong failure: it hoists its subtree to the
-                        // root layer, so the 40 rows declared *after* it would
+                        // root layer, so the rows declared *after* it would
                         // paint over the panel if the hoist were lost, and it
                         // resets the clip stack to the whole surface with no
                         // accumulated offset, so the scrim would be cropped to
@@ -322,7 +359,7 @@ func demoContent() -> some Element {
                         // identity — it makes them ADOPT the vanished
                         // element's slot, because the cursor that assigns
                         // `.positional(_:)` components advances one place
-                        // differently on the two frames. The 40 rows below
+                        // differently on the two frames. The `List` below
                         // hold no cross-frame state, so today this is
                         // invisible; the `ScrollView`'s own offset is keyed on
                         // the `ScrollView` node, which sits OUTSIDE this
@@ -369,7 +406,25 @@ func demoContent() -> some Element {
                             }
                         }
 
-                        for i in 0..<40 {
+                        // **`List`, not a `for` loop over every row.** A loop
+                        // builds an element, measures a `Text` and shapes a
+                        // string for every row in the data, whether or not it
+                        // is on screen; `List` builds only the rows
+                        // intersecting the viewport plus a two-row overscan,
+                        // so the cost of a frame is set by the viewport's
+                        // height and not by `demoRowCount`. That is why the
+                        // count below can be 500 without the frame growing.
+                        //
+                        // **`rowHeight` is the authority for a row's height
+                        // and this builder deliberately declares none.** The
+                        // wrapper `Box` `List` puts around each row pins that
+                        // height (and removes the automatic minimum that would
+                        // otherwise let a tall string grow past it), and the
+                        // row below reaches it by ordinary cross-axis stretch.
+                        // Writing `.height(Pixels(28))` here as well would be
+                        // a second literal that must agree with `rowHeight`
+                        // and that nothing checks.
+                        List(demoRows, rowHeight: Pixels(28)) { row in
                             // Alternating row backgrounds, deliberately painted
                             // edge-to-edge with the viewport: `ScrollView`'s
                             // own `.cornerRadius(_:)` below (ruling CL-A) cuts
@@ -383,13 +438,12 @@ func demoContent() -> some Element {
                             // doc comment — and this demo is where a mismatch
                             // would show.
                             Box(decoration: Decoration(
-                                background: i.isMultiple(of: 2) ? .surface : .surfaceSecondary)
+                                background: row.id.isMultiple(of: 2) ? .surface : .surfaceSecondary)
                             ) {
-                                Text("Row \(i + 1) of 40 — a scrollable list item")
+                                Text("Row \(row.id + 1) of \(demoRowCount) — a scrollable list item")
                             }
                             .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
                                           bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
-                            .height(Pixels(28))
                             .width(Pixels(420))
                             // Vertical centring within the row; horizontal
                             // stays flex-start, the ordinary reading direction
