@@ -73,19 +73,11 @@ func textMeasure(_ string: String, font: ResolvedFont, cache: ShapingCache,
         case .maxContent:
             wrapWidth = nil
         case .minContent:
-            // The widest unbreakable run, shaped one run at a time **through
-            // the cache** — so the runs a min-content probe measures are shared
-            // between frames exactly as whole strings are, and a second frame
-            // adds no misses. `Shaper.unbreakableRuns` carries the measurement
-            // of why this is not `shape(wrappingAt: someTinyWidth)`: the
-            // typesetter character-breaks a word it cannot fit, so a tiny width
+            // The widest unbreakable run, memoized per (string, font). `Shaper`
+            // character-breaks a word it cannot fit, so `shape(wrappingAt: tiny)`
             // answers "the widest character" (11.489) where §4.5 needs "the
-            // longest word" (110.348).
-            var minContent = 0.0
-            for run in Shaper.unbreakableRuns(of: string) {
-                minContent = max(minContent,
-                                 cache.shaped(run, font: font, wrappingAt: nil).widestLine)
-            }
+            // longest word" (110.348) — hence runs rather than a narrow typeset.
+            let minContent = cache.minContentWidth(string, font: font)
             wrapWidth = max(minContent, smallestWrapWidth)
             reportedWidth = minContent
         case .definite(let offered):

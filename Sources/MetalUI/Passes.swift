@@ -60,6 +60,84 @@ public struct LayoutPass {
     /// that shapes survive the frame. Making it public would also make
     /// `ShapingCache`'s whole surface part of `MetalUI`'s API by reachability.
     var shapingCache: ShapingCache { frame.shapingCache }
+
+    /// The innermost active `ScrollView`'s ambient context, or `nil` outside
+    /// one — `ScrollView.requestLayout` is the sole publisher, via
+    /// `withScrollContext` below.
+    ///
+    /// **The offset is CURRENT; the viewport extent is ONE FRAME STALE**, and
+    /// that split is the whole reason this exists rather than `ScrollView`
+    /// simply resolving and clamping the offset itself here. A scroll that
+    /// landed before this frame (`Window.applyScroll` writes it, then dirties
+    /// the window) is visible; the viewport is pure layout output and cannot
+    /// exist until layout runs, so the only way to have one during layout is
+    /// to have stored last frame's. `List` is the reader: it knows its own
+    /// content extent as `count × rowHeight` and clamps against that itself,
+    /// so this value is deliberately unclamped raw state, not a resolved
+    /// offset.
+    ///
+    /// **A `ScrollView`'s very first frame publishes `ScrollContext(offset: 0,
+    /// viewportExtent: 0, axis:)`**, because `ScrollState.viewportExtent` has
+    /// no writer until `prepaint` has run once. **This is NOT a divide-by-zero
+    /// hazard for a reader like `List`**, and an earlier version of this
+    /// paragraph wrongly said it was — corrected after `List`'s own arithmetic
+    /// was measured. `viewportExtent` only ever appears as a NUMERATOR in that
+    /// arithmetic (e.g. `(offset + viewportExtent) / rowHeight`); dividing IT
+    /// by zero would need `viewportExtent` to be a divisor somewhere, and it
+    /// never is. `0` as a numerator just gives `0`. The real zero-divisor
+    /// hazard is a reader's own `rowHeight`, a value this pass knows nothing
+    /// about.
+    ///
+    /// What zero viewport extent DOES cause, for a reader that does not
+    /// special-case it: `offset` on that first frame is whatever was last
+    /// scrolled to, so a naive window bounds almost nothing around it — a
+    /// list with a nonzero row count computes only a couple of rows near
+    /// `offset` (measured directly: exactly `overscan`'s worth on each side of
+    /// zero), and the rest fills in only once frame two has a real viewport —
+    /// a one-frame flash on first appearance. Neither is this pass's defect;
+    /// it is an input a consumer (`List`) must design against, and this is the
+    /// doc a reader of THIS property will actually open.
+    public var scrollContext: ScrollContext? {
+        frame.activeScrollContext
+    }
+
+    /// Runs `body` with `context` as the innermost active scroll context and
+    /// returns whatever `body` returns.
+    ///
+    /// **Closure form, exactly as `PrepaintPass.clipped(to:offsetBy:_:)`, and
+    /// for the same reason**: a push with no matching pop is not expressible,
+    /// so a sibling declared after a `ScrollView` (rather than inside it)
+    /// cannot inherit a context it was never meant to see. Generic over `R`
+    /// so `ScrollView.requestLayout` can thread its subtree's return value
+    /// straight out, with no local `!`-typed variable to hoist it through.
+    public func withScrollContext<R>(_ context: ScrollContext, _ body: () -> R) -> R {
+        frame.pushScrollContext(context)
+        defer { frame.popScrollContext() }
+        return body()
+    }
+
+    /// Runs `body` with **no** active scroll context, whatever was active
+    /// outside it — `Deferred`'s layout-phase half of the portal.
+    ///
+    /// `Deferred` resets the clip stack and the accumulated scroll translation
+    /// in `prepaint` and `paint` (`PaintPass.deferred`), so its subtree does
+    /// not move with the `ScrollView` it was declared inside. Layout had no
+    /// equivalent until this existed, and the mismatch was measurable rather
+    /// than theoretical: a `List` inside `Deferred { … }` inside a scroller
+    /// windowed against that scroller's offset while paint placed the rows it
+    /// chose at their unscrolled positions, so the portal's list emptied out
+    /// as the list behind it was scrolled. Building everything is the same
+    /// answer a `List` with no enclosing `ScrollView` at all gets, which is
+    /// what a subtree that has escaped every scroller is.
+    ///
+    /// Pushing an absent level rather than popping the enclosing one is
+    /// deliberate: popping would expose the *next* `ScrollView` out in a
+    /// nested pair, and a portal escapes all of them.
+    public func withoutScrollContext<R>(_ body: () -> R) -> R {
+        frame.pushAbsentScrollContext()
+        defer { frame.popScrollContext() }
+        return body()
+    }
 }
 
 /// Phase 2. Layout has resolved, so absolute bounds are known — but nothing has

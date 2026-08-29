@@ -105,6 +105,10 @@ extension Shaper {
     /// An empty string yields **no runs**, so a caller's `max` must start at 0
     /// rather than at the first run.
     public static func unbreakableRuns(of string: String) -> [String] {
+        // Counted only from the main thread; see `unbreakableRunCalls`.
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { Self.unbreakableRunCalls += 1 }
+        }
         let cf = string as CFString
         let length = CFStringGetLength(cf)
         guard length > 0,
@@ -125,4 +129,43 @@ extension Shaper {
         }
         return runs
     }
+
+    /// Counts calls to ``unbreakableRuns(of:)`` **made on the main thread**.
+    /// Internal and always on, at the cost of one branch and one increment: the
+    /// function is the single largest line item in a frame, and a count is the
+    /// only assertion that survives a change of machine. `ShapingCache`'s own
+    /// `hits`/`misses` are the precedent.
+    ///
+    /// **Main-thread-only is what makes it safe, and it was a real data race
+    /// before it was.** As a bare `nonisolated(unsafe) static var` this was
+    /// written from every executor that ever tokenizes: every test that resets it
+    /// and asserts a count is `@MainActor`, while `UnbreakableRunsTests` calls the
+    /// function from ordinary nonisolated tests the runner may schedule
+    /// concurrently. Two consequences, and only the first is a race in the
+    /// sanitizer's sense — the second is what actually breaks a suite.
+    /// Unsynchronised concurrent `+= 1` is undefined behaviour outright; and even
+    /// with an atomic it would still be *wrong*, because a foreign increment
+    /// landing inside a reset-and-assert window makes the count describe two
+    /// callers instead of one. Reproduced deterministically in 3 of 3 runs by
+    /// adding one slow nonisolated test that tokenizes in a loop:
+    /// `aMinContentHitReStampsSoItSurvivesASweepingLoad`, which opens 512 such
+    /// windows, fails with `(Shaper.unbreakableRunCalls -> 1) == 0`. The suite is
+    /// green without that added test only because the real nonisolated callers
+    /// (`UnbreakableRunsTests`, whose every case is one) run in microseconds.
+    ///
+    /// **So the fix is isolation rather than atomicity**, which is also the
+    /// cheaper of the two: every frame this counter exists to measure runs on the
+    /// main actor (`Frame.computeRootLayout` is `@MainActor`, and `Text`'s measure
+    /// closure re-enters it through `MainActor.assumeIsolated`), so counting main-
+    /// thread calls loses nothing a reader wants and makes every write and every
+    /// read happen on one thread. `@MainActor` on the property is what enforces
+    /// the read half at compile time; the `Thread.isMainThread` guard at the call
+    /// site is what enforces the write half, and `assumeIsolated` under that guard
+    /// is a check that cannot fail rather than an assumption. Measured: delete the
+    /// guard and `theRunCounterIgnoresCallsMadeOffTheMainThread` does not merely
+    /// fail, it takes the process down with signal 5 as `assumeIsolated` trips on
+    /// a cooperative thread. A call from any other executor is simply not counted.
+    @MainActor static var unbreakableRunCalls = 0
+
+    @MainActor static func resetUnbreakableRunCalls() { unbreakableRunCalls = 0 }
 }

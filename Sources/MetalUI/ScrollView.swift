@@ -38,9 +38,54 @@ public struct ScrollState: Sendable {
     /// idle (spec §4.4).
     public var lastScrollTime: Double = 0
 
-    public init(offset: Double = 0, lastScrollTime: Double = 0) {
+    /// The viewport's extent along the scroll axis, as of the last `prepaint`
+    /// — written by `resolvedOffset`'s `PrepaintPass` overload from the same
+    /// `bounds` it clamps against. `requestLayout` reads this back **next**
+    /// frame to publish `LayoutPass.scrollContext`: it is pure layout output,
+    /// so the only way to have it during layout is to have stored it a frame
+    /// earlier. Zero until the first `prepaint` ever runs for this element.
+    public var viewportExtent: Double = 0
+
+    public init(offset: Double = 0, lastScrollTime: Double = 0, viewportExtent: Double = 0) {
         self.offset = offset
         self.lastScrollTime = lastScrollTime
+        self.viewportExtent = viewportExtent
+    }
+}
+
+/// The ambient value a `ScrollView` publishes to its descendants during
+/// `requestLayout`, read back through `LayoutPass.scrollContext`. Named
+/// rather than left as the bare tuple it started as — the same shape
+/// `clipStack`'s entries have on `Frame`, except that tuple is `private` and
+/// never crosses `MetalUI`'s own boundary, where this one is `public` and
+/// was showing up spelled out at five call sites across `Frame` and
+/// `LayoutPass`.
+///
+/// **Both fields answer a different question than `ScrollState`'s own.**
+/// `offset` here is the CURRENT raw stored value — unclamped, because
+/// clamping needs the content node's laid-out size, which does not exist
+/// during layout (see `ScrollView.requestLayout`). `viewportExtent` is ONE
+/// FRAME STALE, copied from `ScrollState.viewportExtent`, which only
+/// `resolvedOffset`'s `PrepaintPass` overload ever writes.
+public struct ScrollContext: Sendable, Equatable {
+    public var offset: Double
+    public var viewportExtent: Double
+
+    /// Which axis the two numbers above are measured along — so a reader can
+    /// tell an offset it can use from one it cannot.
+    ///
+    /// **Carried from the start and read by nothing until the whole-branch
+    /// review** (ruling MP-M), which is how `List` came to window a column of
+    /// rows against a horizontal distance and a viewport *width*. `List` now
+    /// declines to window at all unless this is `.vertical`; a publisher must
+    /// therefore set it truthfully rather than defaulting it, and there is no
+    /// default for exactly that reason.
+    public var axis: ScrollAxis
+
+    public init(offset: Double, viewportExtent: Double, axis: ScrollAxis) {
+        self.offset = offset
+        self.viewportExtent = viewportExtent
+        self.axis = axis
     }
 }
 
@@ -183,8 +228,32 @@ public struct ScrollView<Content: ElementGroup>: Element {
 
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        // The raw stored offset, unclamped — a scroll that landed before this
+        // frame (`Window.applyScroll` writes it, then dirties the window) is
+        // visible here, exactly as it will be to prepaint's own read a few
+        // lines later in the frame. `viewportExtent` is last frame's, because
+        // this frame's viewport does not exist until layout runs. See
+        // `ScrollState.viewportExtent`'s doc for why neither is resolved or
+        // clamped here — that is `resolvedOffset`'s job, once bounds exist.
+        var rawOffset: Double = 0
+        var lastViewportExtent: Double = 0
+        pass.withState(id, initial: ScrollState()) {
+            rawOffset = $0.offset
+            lastViewportExtent = $0.viewportExtent
+        }
+
         var cursor = 0
-        let (children, inner) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        // Pushed before the subtree is built and popped after, via `defer`
+        // inside `withScrollContext` — the same shape as `clipped(to:offsetBy:)`,
+        // so a sibling declared after this `ScrollView` (rather than inside
+        // it) sees none of it. `withScrollContext` is generic over its
+        // closure's result, so the subtree's own return value threads
+        // straight out with no local IUO to hoist it through.
+        let (children, inner) = pass.withScrollContext(
+            ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)
+        ) {
+            content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        }
 
         var contentStyle = Style()
         contentStyle.flexDirection = axis == .vertical ? .column : .row
@@ -383,6 +452,10 @@ public struct ScrollView<Content: ElementGroup>: Element {
         pass.withState(id, initial: ScrollState()) {
             $0.offset = Self.clamp(offset: $0.offset, content: content, viewport: viewport)
             resolved = $0.offset
+            // The half `viewportExtent`'s own doc names: this is the only
+            // writer, and it is what lets NEXT frame's `requestLayout` read a
+            // viewport extent at all.
+            $0.viewportExtent = viewport
         }
         return resolved
     }
