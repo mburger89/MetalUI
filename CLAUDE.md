@@ -485,13 +485,36 @@ child painted first. **Two artifacts have ever observed the property and both ar
 outside the suite**: the offscreen readback, once, by hand, and the human look
 that closed the criterion. Nothing automated has seen it or can.
 
-**Absolute positioning and `Deferred` — the demo is built, NOBODY HAS LOOKED AT
-IT, and the criterion is OPEN.** `docs/superpowers/specs/2026-08-28-absolute-positioning-design.md`
-§6 item 7 asks for a modal in `MetalUIDemo` that is positioned against the
-window, painted over everything, and escaping a `ScrollView`'s clip — **and a
-human to run it and report**. The modal exists as of this milestone's Task 8;
-the look has not happened. A launch-and-don't-crash smoke check was run and it
-is not a look, exactly as the `Stack` entry above says of its own.
+**Absolute positioning and `Deferred` — failures 1 and 2 are CLOSED by
+measurement of a human's screen recording; 3 and 4 are still OPEN.**
+`docs/superpowers/specs/2026-08-28-absolute-positioning-design.md` §6 item 7
+asks for a modal in `MetalUIDemo` that is positioned against the window,
+painted over everything, and escaping a `ScrollView`'s clip — **and a human to
+run it and report**.
+
+**Read how this was closed before trusting it, because it is a weaker
+instrument than the `Stack` entry above and was obtained by accident.** The
+human ran the demo with the modal up and recorded the screen — *for an
+unrelated reason*, to show resize stutter — and never reported on the modal at
+all. Failures 1 and 2 were then settled by sampling pixels out of that
+recording, not by anyone looking and saying it was right. What makes it real
+evidence rather than an assumption is that one token appears at two
+brightnesses in the same frame: the modal panel measures `#141A28` against
+`.surface`'s undimmed `#161C2E`, while the main pane *behind* the scrim
+measures `#0D1118` against the `#0D101B` that `.surface` blended with a 42%
+black scrim predicts. The ratio between them is 0.60-0.65 where the scrim's
+alpha predicts 0.58, the excess being the recording's own gamma. The top bar is
+dimmed too, so the scrim reaches the window's edges rather than the scroller's
+420pt strip, and the panel sits visibly over rows 6-9, which are declared after
+it.
+
+**What that leaves genuinely unobserved is failures 3 and 4**, because the
+recording contains no scrolling — nobody has seen whether the modal stays put
+while the list moves, or what a wheel over the scrim does. Those still need the
+run below. Note also that dark-on-dark dimming is very hard to judge by eye
+with no undimmed reference in frame: a first pass over these same frames
+concluded the scrim was **missing**, and only measurement corrected it. A human
+report of "I see no scrim" should be measured before it is believed.
 
 **Where it is, and the key that shows it.** Inside the demo's `ScrollView`,
 declared **before** the 40 rows: a `Deferred` wrapping a `Stack` that is

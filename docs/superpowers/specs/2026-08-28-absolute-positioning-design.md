@@ -261,7 +261,26 @@ testable; the design choice is a look.
    list moves underneath. The fourth is a report rather than a pass/fail: a
    non-scrolling scrim registers no scroll region, `Frame.scrollRegions` is
    the only hitbox list that exists, so the list is expected to scroll under
-   the modal until §8.1 lands. **Still OPEN** as of commit `ef7f899`.
+   the modal until §8.1 lands.
+
+   **PARTIALLY CLOSED, 2026-08-28, by measurement rather than by report.** The
+   human ran the demo with the modal up and screen-recorded it for an unrelated
+   reason (resize stutter) without commenting on the modal. Sampling that
+   recording settles the first two: the modal panel measures `#141A28` against
+   `.surface`'s undimmed `#161C2E` while the main pane behind the scrim
+   measures `#0D1118` against the `#0D101B` predicted for `.surface` under a
+   42% black scrim — the same token at two brightnesses in one frame, ratio
+   0.60-0.65 against the alpha's predicted 0.58. The top bar is dimmed too, so
+   the scrim reaches the window edges and not the 420pt strip, and the panel
+   paints over rows 6-9. **Items 3 and 4 remain OPEN**: the recording contains
+   no scrolling, so nothing has observed whether the modal holds still while
+   the list moves, or what a wheel over the scrim does.
+
+   **A caveat worth carrying to any future look.** A first pass over those same
+   frames concluded by eye that the scrim was *missing*; only pixel measurement
+   corrected it. Dark-on-dark dimming has no undimmed reference in frame, so a
+   human report of "there is no scrim" should be measured before it is
+   believed.
 
 ---
 
