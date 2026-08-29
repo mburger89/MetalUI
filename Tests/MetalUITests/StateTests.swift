@@ -1,5 +1,8 @@
 import Testing
+import Metal
 import MetalUICore
+import MetalUIPlatform
+import MetalUIRender
 @testable import MetalUI
 
 /// The storage contract for `@State`, ahead of Task 2's reflection-driven
@@ -265,4 +268,104 @@ private struct TwoOrdinalElement: Element {
     #expect(table.peek(secondSlot, as: Int.self) == 22)
     #expect(element.first == 11)
     #expect(element.second == 22)
+}
+
+// MARK: - Task 3: writing marks the window dirty (design §2.6)
+
+/// Task 3's exit test, required by the brief: writing marks the table dirty,
+/// reading does not.
+///
+/// **Writes the `@State` DIRECTLY, never through `Window.onInput`.**
+/// `Window.init` calls `setNeedsRedraw()` unconditionally after every input
+/// event, regardless of whether a handler wrote anything — a test that drove
+/// this through an input event would pass whether or not this task did
+/// anything at all (taxonomy shape 1, `docs/practices/verifying-tests-can-fail.md`).
+@MainActor
+@Test func writingStateMarksTheTableDirtyAndReadingDoesNot() throws {
+    let table = StateTable()
+    let owner = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let s = State(wrappedValue: 0)
+    s.bind(to: table, id: owner, slot: 0)
+    #expect(!table.isDirty, "binding and seeding alone must not dirty the table")
+
+    _ = s.wrappedValue
+    #expect(!table.isDirty, "a read must not dirty the table")
+
+    s.wrappedValue = 5
+    #expect(table.isDirty, "a write must dirty the table")
+}
+
+/// `ScrollView`'s per-frame offset bookkeeping (`resolvedOffset`, called from
+/// both `requestLayout` and `prepaint`) writes back through `withState` on
+/// EVERY render, scrolled or not — `prepaint`'s overload always stores a
+/// fresh `viewportExtent`. If `withState` raised `isDirty` the way `write`
+/// does, this alone would keep the table dirty forever and the display link
+/// would never pause (ruling 3 / milestone 4's exit criterion). Required by
+/// this task's mutation (b): a mutation moving the raise into `withState`
+/// must redden this.
+@MainActor
+@Test func aScrollViewsPerFrameOffsetBookkeepingDoesNotDirtyTheTable() throws {
+    let table = StateTable()
+    let size = Size<Pixels>(width: px(100), height: px(100))
+    var tree = ScrollView(.vertical) { Box().width(px(50)).height(px(200)) }
+
+    Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
+
+    #expect(!table.isDirty,
+            "ScrollView's own per-frame state bookkeeping goes through withState, not write, and must not dirty the table")
+}
+
+/// `isDirty` alone is unreachable while the window is idle, because
+/// `drawFrameIfNeeded` only consults it once a frame is already being built
+/// — and an idle window has its display link PAUSED, so nothing is about to
+/// build one. `onWrite` is the hook that closes that gap: `Window.init`
+/// installs it to call `setNeedsRedraw()`, which is what actually unpauses
+/// the link. Required by this task's mutation (c): deleting the `onWrite`
+/// invocation (keeping the flag) must redden this.
+@MainActor
+@Test func aStateWriteWakesAPausedDisplayLinkThroughTheOnWriteHook() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let (window, platformWindow) = try makeFakeWindow(device: device) { Box() }
+
+    // First call renders (the window starts dirty); the second finds it
+    // clean and pauses the link — the same two-call idiom
+    // `windowDrawsOnlyWhenDirty` uses in `FrameLoopTests.swift`.
+    window.drawFrameIfNeeded()
+    window.drawFrameIfNeeded()
+    #expect(platformWindow.pauseCalls.last == true, "set up: the link is paused before the write")
+
+    let id = GlobalElementID.child(of: nil, at: 0, name: ElementID("external-write"))
+    window.stateTable.write(id, 1)
+
+    #expect(platformWindow.pauseCalls.last == false,
+            "a write while the display link is paused must wake it")
+    #expect(window.needsRedraw)
+}
+
+/// A leaf whose `@State` it writes to unconditionally, every `requestLayout`
+/// — the same idiom `CounterElement` above uses, reused here so this test's
+/// intent (a write made DURING a frame) reads as the whole point rather than
+/// as a side effect of a helper defined elsewhere.
+///
+/// Required by this task's mutation (d): clearing `isDirty` AFTER the frame
+/// instead of before would let this element's write raise the flag during
+/// `renderRoot` and then immediately swallow it on the next line, leaving
+/// `window.stateTable.isDirty` false when this test reads it back. Clearing
+/// before (this task's ruling 2) is what lets the write survive.
+@MainActor
+@Test func aStateWriteDuringTheFramesOwnRenderIsNotSwallowedByClearingAfterward() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let (window, _) = try makeFakeWindow(device: device) {
+        CounterElement(elementID: ElementID("counter"))
+    }
+
+    // The window's first frame: `needsRedraw` starts true, so this renders
+    // immediately and `CounterElement.requestLayout` writes `count` as part
+    // of it.
+    window.drawFrameIfNeeded()
+
+    #expect(window.stateTable.isDirty,
+            "a @State write made during the frame's own render must not be swallowed by the flag's own clear")
 }

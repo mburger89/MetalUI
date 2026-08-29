@@ -40,6 +40,29 @@ final class StateTable {
     private var storage: [GlobalElementID: Any] = [:]
     private var marked: Set<GlobalElementID> = []
 
+    /// Set by `write` and consulted by `Window`, which is the "observable a
+    /// test can read without a window" half of §2.6's invalidation.
+    ///
+    /// **Deliberately NOT raised by `withState`.** `ScrollView`'s per-frame
+    /// offset bookkeeping (`resolvedOffset`, `ScrollView.swift`) goes through
+    /// `withState` on every render, scrolled or not — if that raised this
+    /// flag, every frame would mark the window dirty and the display link
+    /// would never pause, which is milestone 4's exit criterion. `write` is
+    /// the only path in, and it exists specifically because `@State`'s setter
+    /// needs a distinct one.
+    private(set) var isDirty: Bool = false
+
+    /// Fired by `write`, in addition to raising `isDirty` — this is the half
+    /// `isDirty` alone cannot cover. `Window.drawFrameIfNeeded` pauses the
+    /// display link whenever the window is clean, so a flag only `drawFrame-
+    /// IfNeeded` consults is unreachable while the window sits idle — exactly
+    /// the state a `@State` write from outside the render loop (a click
+    /// handler, a completion callback) needs to escape. `Window.init`
+    /// installs this pointing at its own `setNeedsRedraw()`, captured weakly:
+    /// `Window` owns this table, so a strong capture here would be a retain
+    /// cycle.
+    var onWrite: (@MainActor () -> Void)?
+
     init() {}
 
     /// How many entries survive. Test observability; not part of the contract.
@@ -84,6 +107,35 @@ final class StateTable {
     /// to keep it, so `StateBinder` calls this for every slot, every frame,
     /// independent of whether that frame ever reads `wrappedValue`.
     func mark(_ id: GlobalElementID) { marked.insert(id) }
+
+    /// Write `value` at `id`, marking it live for this frame's sweep exactly
+    /// as `withState` does, and — the difference from `withState` — raising
+    /// `isDirty` and firing `onWrite`.
+    ///
+    /// This is `@State`'s `wrappedValue` setter's path and is meant to have
+    /// no other caller: anything that reads-then-maybe-writes on its own
+    /// schedule (`ScrollView`'s offset, `withState`'s other callers) must not
+    /// dirty the window on every frame it happens to run on. A `@State`
+    /// write, by contrast, is exactly the SwiftUI-authority signal that
+    /// something changed and a redraw is owed (ruling: SwiftUI is the design
+    /// authority where it and CSS differ; CSS has no opinion on invalidation
+    /// at all).
+    func write<S>(_ id: GlobalElementID, _ value: S) {
+        marked.insert(id)
+        storage[id] = value
+        isDirty = true
+        onWrite?()
+    }
+
+    /// Clear `isDirty`. `Window.drawFrameIfNeeded` calls this at the same
+    /// point it sets `needsRedraw = false` — BEFORE `renderRoot` runs, not
+    /// after. Clearing after would swallow a write made during the frame
+    /// itself: the flag would go true during `renderRoot` and then false
+    /// again on the very next line, with nothing left to observe it. Clearing
+    /// before means a write during the frame re-raises the flag, and the next
+    /// `drawFrameIfNeeded` sees it — the same shape `frame.wantsAnotherFrame`
+    /// already uses for exactly this reason.
+    func clearDirty() { isDirty = false }
 
     /// Read the state at `id` without marking it. Test observability: a reader
     /// that marked would make `stateIsSweptWhenTheElementStopsBeingProduced`

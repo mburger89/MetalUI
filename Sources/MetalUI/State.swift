@@ -58,7 +58,10 @@ public struct State<Value> {
         }
         nonmutating set {
             guard let table = box.table, let slotID = box.slotID else { return }
-            table.withState(slotID, initial: initialValue) { $0 = newValue }
+            // `write`, not `withState` — §2.6: a `@State` write must mark the
+            // window dirty, and `withState` is also `ScrollView`'s per-frame
+            // offset path, which must NOT (see `StateTable.write`'s doc).
+            table.write(slotID, newValue)
         }
     }
 }

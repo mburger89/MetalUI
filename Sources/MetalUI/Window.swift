@@ -158,6 +158,13 @@ public final class Window {
             frame.render(&root)
         }
 
+        // §2.6: a `@State` write must reach a window even while its display
+        // link is paused (idle, then click) — `isDirty` alone is invisible
+        // there, since `drawFrameIfNeeded` only consults it once a frame is
+        // already being built. Captured weakly: `self` owns `stateTable`, so
+        // a strong capture here would be a retain cycle.
+        stateTable.onWrite = { [weak self] in self?.setNeedsRedraw() }
+
         platformWindow.onResize = { [weak self] _, _ in self?.setNeedsRedraw() }
         platformWindow.onAppearanceChange = { [weak self] appearance in
             // Assigning drives `theme`'s `didSet`, which is what marks the
@@ -201,6 +208,13 @@ public final class Window {
             return
         }
         needsRedraw = false
+        // Cleared HERE, before `renderRoot` runs below — not after the frame
+        // is built. Ruling (§2.6): clearing after would swallow a `@State`
+        // write made during this very frame's render, silently, until some
+        // unrelated event happened to mark the window dirty again. Clearing
+        // first means such a write re-raises `isDirty`, exactly as
+        // `frame.wantsAnotherFrame` re-raises `needsRedraw` a few lines down.
+        stateTable.clearDirty()
 
         let surfaceFrame: SurfaceFrame
         do {
