@@ -378,3 +378,120 @@ private func fixedWidth(_ w: Float) -> Style {
     #expect(stored() == 37,
             "one -37 from a floored 0 must move the full 37; from a banked -94 it would read -57 and paint as 0")
 }
+
+/// A `Box` whose children all occupy the same cell and stretch to its extent —
+/// `display: .stack` with the engine's own `nil` alignment on both axes, which
+/// reads as CSS's `stretch`. The public `Stack` element centres instead
+/// (`Alignment.center`), which leaves an `auto`-sized `ScrollView` viewport at
+/// zero width and gives these fixtures nothing to overlap.
+private func stackStyle() -> Style {
+    var s = Style()
+    s.display = .stack
+    return s
+}
+
+/// **A `Deferred` scroller takes the wheel from an overlapping sibling it
+/// paints over, even though the sibling registered later.**
+///
+/// This is the composition `PrepaintPass.deferred`'s own doc comment names as
+/// the thing that pass exists to prevent: "a tooltip that paints above its
+/// siblings while receiving wheel events as though it were beneath them is
+/// worse than one that does neither." The hoist was dead code until the
+/// registration carried its layer — deleting `pushLayer`/`popLayer` from
+/// `PrepaintPass.deferred` passed the whole suite.
+///
+/// **The deferred scroller is declared FIRST, which is what makes the two
+/// orderings disagree.** Prepaint registers in declaration order, so the
+/// modal's region is index 0 and the background's is index 1; a walk that
+/// picks the last match — the rule for regions within one layer, and the only
+/// rule there used to be — hands the event to the background, which is
+/// underneath. Measured before the fix, on exactly this fixture: the
+/// background's offset moved to 37 and the modal's stayed at 0. Declaring the
+/// deferred one second would put registration order and paint order in
+/// agreement and the test could not tell the two rules apart.
+///
+/// The layers are asserted as well as the offsets, because they are the
+/// premise: layer 1 over layer 0 is what `Scene.finalize()` sorts by, so
+/// asserting them is what says the modal really is the one on top rather than
+/// merely the one this test expects to win.
+@Test @MainActor func aDeferredScrollViewTakesTheWheelFromAnOverlappingSiblingBeneathIt() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 200) {
+        Box(style: stackStyle()) {
+            Deferred {
+                ScrollView(.vertical, elementID: ElementID("modal")) {
+                    Box(style: columnStyle()) {
+                        Box(style: fixedHeight(150)); Box(style: fixedHeight(150))
+                    }
+                }
+            }
+            ScrollView(.vertical, elementID: ElementID("background")) {
+                Box(style: columnStyle()) {
+                    Box(style: fixedHeight(150)); Box(style: fixedHeight(150))
+                }
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    try #require(window.lastScrollRegions.count == 2,
+                 "the modal and the background must each register exactly one region")
+    let modal = window.lastScrollRegions[0]
+    let background = window.lastScrollRegions[1]
+    #expect(modal.layer == Frame.rootLayer,
+            "the deferred subtree registers at the hoisted layer")
+    #expect(background.layer == 0, "its sibling registers at the ordinary one")
+    #expect(modal.bounds.size.width == 200 && modal.bounds.size.height == 200
+                && background.bounds.size == modal.bounds.size,
+            "the two regions genuinely overlap — they are the same 200x200 rect")
+
+    platformWindow.simulateInput(wheel(at: pt(100, 100), deltaY: -37))
+
+    #expect(window.stateTable.peek(modal.id, as: ScrollState.self)?.offset == 37,
+            "the hoisted region wins on layer despite having registered FIRST")
+    #expect(window.stateTable.peek(background.id, as: ScrollState.self)?.offset == 0,
+            "the region it paints over must not also move")
+}
+
+/// **Within one layer the last-registered region still wins** — the tie rule
+/// `theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove` pins at layer 0,
+/// asserted again at the hoisted layer so that adding the layer key did not
+/// quietly become the *only* key.
+///
+/// Both scrollers are wrapped in their own `Deferred`, so both register at
+/// `Frame.rootLayer` and the layer comparison cannot separate them; the
+/// registration index is all that is left, and the second-declared one must
+/// win. An implementation that ordered by layer alone, or that returned the
+/// first maximal candidate instead of the last, would scroll `first` here.
+@Test @MainActor func withinOneLayerTheLastRegisteredRegionStillWins() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 200) {
+        Box(style: stackStyle()) {
+            Deferred {
+                ScrollView(.vertical, elementID: ElementID("first")) {
+                    Box(style: columnStyle()) {
+                        Box(style: fixedHeight(150)); Box(style: fixedHeight(150))
+                    }
+                }
+            }
+            Deferred {
+                ScrollView(.vertical, elementID: ElementID("second")) {
+                    Box(style: columnStyle()) {
+                        Box(style: fixedHeight(150)); Box(style: fixedHeight(150))
+                    }
+                }
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    try #require(window.lastScrollRegions.count == 2)
+    let first = window.lastScrollRegions[0]
+    let second = window.lastScrollRegions[1]
+    #expect(first.layer == second.layer && first.layer == Frame.rootLayer,
+            "both are hoisted, so the layer key cannot separate them")
+
+    platformWindow.simulateInput(wheel(at: pt(100, 100), deltaY: -37))
+
+    #expect(window.stateTable.peek(second.id, as: ScrollState.self)?.offset == 37,
+            "the later registration wins the tie, exactly as at layer 0")
+    #expect(window.stateTable.peek(first.id, as: ScrollState.self)?.offset == 0)
+}

@@ -254,10 +254,14 @@ testable; the design choice is a look.
    **The modal is off by default; press M to toggle it.** Gated so that the
    demo's other four milestones' criteria are not looked at through a
    translucent scrim forever, and because toggling separates "covers the
-   window" from "replaced the window" by observation. The three things to
+   window" from "replaced the window" by observation. The four things to
    report: the scrim covers the whole window rather than the 420pt scroll
-   viewport, the modal paints over rows declared after it, and it does not
-   move when the list scrolls. **Still OPEN** as of commit `ef7f899`.
+   viewport, the modal paints over rows declared after it, it does not
+   move when the list scrolls, and — wheeling over the scrim — whether the
+   list moves underneath. The fourth is a report rather than a pass/fail: a
+   non-scrolling scrim registers no scroll region, `Frame.scrollRegions` is
+   the only hitbox list that exists, so the list is expected to scroll under
+   the modal until §8.1 lands. **Still OPEN** as of commit `ef7f899`.
 
 ---
 

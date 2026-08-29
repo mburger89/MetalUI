@@ -138,12 +138,19 @@ public struct PrepaintPass {
     /// **On this pass, and not only `PaintPass`, because of hit-testing.**
     /// The scroll-region registry is built here, in prepaint — a tooltip that
     /// paints above its siblings while receiving wheel events as if it were
-    /// still beneath them is worse than one that does neither. Hoisting the
-    /// layer changes nothing this pass reads back, but the clip reset does:
-    /// `registerScrollRegion` records a region intersected against whatever
-    /// clip is active at registration time, so a region registered inside
-    /// `deferred` is recorded against the whole surface rather than an
-    /// ancestor `ScrollView`'s viewport.
+    /// still beneath them is worse than one that does neither. Both halves of
+    /// the portal have a reader on this pass, and they close different holes:
+    ///
+    /// - the **clip reset**, because `registerScrollRegion` records a region
+    ///   intersected against whatever clip is active at registration time, so
+    ///   a region registered inside `deferred` is recorded against the whole
+    ///   surface rather than an ancestor `ScrollView`'s viewport;
+    /// - the **layer hoist**, because the registration carries `activeLayer`
+    ///   and `Window.applyScroll` orders candidates by it. A hoisted subtree is
+    ///   still *emitted* where it was declared, so it can register before a
+    ///   region it paints on top of; registration order alone would then hand
+    ///   the wheel to the covered scroller. `Frame.scrollRegions` carries the
+    ///   reasoning.
     ///
     /// Closure form rather than push/pop, for the reason `clipped(to:offsetBy:)`
     /// above already gives: an unbalanced stack is not expressible.

@@ -300,8 +300,17 @@ public final class Frame {
     /// scalar offset through it (`ScrollView.delta(_:)`), so `ScrollState`
     /// stays a bare `Double`. `Window.applyScroll` is the reader: it has no
     /// other way to know whether a region wants `delta.x` or `delta.y`.
+    ///
+    /// **`layer` rides along for the same reason `axis` does: routing is what
+    /// needs it, and nothing else can recover it.** A `Deferred` subtree paints
+    /// above everything through `Frame.pushLayer`, and a scroller inside one
+    /// has to *receive* wheel events above everything too — a tooltip that
+    /// paints over its siblings while they take its events is worse than one
+    /// that does neither (`PrepaintPass.deferred`). Registration order alone
+    /// cannot express that: a hoisted subtree is emitted wherever it was
+    /// declared, so it can register before a sibling it paints on top of.
     private(set) var scrollRegions:
-        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis)] = []
+        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis, layer: Int)] = []
 
     /// Records a scroll region at its **clipped** bounds — the intersection of
     /// its own rect with whatever ancestor clip is active when it registers.
@@ -313,7 +322,7 @@ public final class Frame {
     /// show. Storing the raw, un-intersected bounds instead would let a wheel
     /// event land on a region the user cannot see.
     func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis) {
-        scrollRegions.append((Self.intersect(activeClip, bounds), id, axis))
+        scrollRegions.append((Self.intersect(activeClip, bounds), id, axis, activeLayer))
     }
 
     /// The cross-frame state table (§4.3).

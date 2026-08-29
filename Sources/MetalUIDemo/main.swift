@@ -17,6 +17,18 @@ import MetalUI
 /// replaced the window" by watching the transition, rather than inferring it
 /// from the scrim's alpha.
 ///
+/// **Four things to report, and the fourth is a report rather than a
+/// pass/fail.** The scrim covers the whole window rather than the 420pt scroll
+/// viewport; the panel and scrim paint over rows declared after them; the modal
+/// does not move when the list scrolls; and — **wheeling over the scrim** —
+/// whether the list moves underneath it. Expect that it **does**: this scrim is
+/// not a `ScrollView`, so it registers no scroll region, and `Frame.scrollRegions`
+/// is the only hitbox list the framework has. An overlay that does not itself
+/// scroll cannot block input until §8.1's general hitbox list exists. What a
+/// hoisted subtree *does* now win is the neighbouring case — a `ScrollView`
+/// inside a `Deferred` outranks one it paints over, because the registration
+/// carries its layer (`Frame.scrollRegions`, ruling AP-N).
+///
 /// **No `@MainActor` attribute, deliberately** — this is top-level code in
 /// `main.swift`, where the compiler rejects an explicit global actor
 /// ("top-level code variables cannot have a global actor") because it already

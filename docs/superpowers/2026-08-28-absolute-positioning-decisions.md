@@ -12,7 +12,9 @@ review — 11, the other direction of 10's seam).
 Two halves that ship together and share no code: **absolute positioning** decides where
 a box sits, **layer hoisting** decides what it paints above. The design keeps them
 separate and so does this document — `AP-A`…`AP-F` are the engine, `AP-G`…`AP-K` are
-paint, `AP-L` is the public surface both reach through.
+paint, `AP-L` is the public surface both reach through, `AP-M` is the declared-but-inert
+row `Position.relative` takes as `position` leaves that table, and `AP-N` was added by
+the whole-branch review — the scroll-routing layer key that made the prepaint hoist live.
 
 ---
 
@@ -332,3 +334,56 @@ counter-example this one now joins.
 CSS's relative offset and gets no movement at all, with the box's containing-block role
 silently changed underneath them — two surprises where the table would have given one
 sentence.
+
+## AP-N — the scroll registration carries its layer, and routing orders by it
+
+**The choice.** `Frame.scrollRegions` gained a fourth field, `layer`, stamped from
+`activeLayer` at registration; `Window.applyScroll` picks the candidate with the
+greatest `(layer, registration index)` instead of the last one that contains the point.
+
+**Why it is a ruling and not a scope choice.** `PrepaintPass.deferred` already called
+`frame.pushLayer()`/`popLayer()`, and its own doc comment justified existing on that
+pass by hit-testing — "a tooltip that paints above its siblings while receiving wheel
+events as though it were beneath them is worse than one that does neither." Nothing
+read the result. **Measured at the whole-branch review: deleting both lines passed all
+569 tests**, while the same mutation shape on the paint side is caught immediately
+(`pushLayer()` → `activeLayer + rootLayer` reddens `nestedDeferredsAllLandOnTheSameRootLayer`).
+Two dead lines behind a stated rationale are the "declared but inert" shape CLAUDE.md's
+whole table exists to prevent, and design spec §4.2 puts `deferred` on `PrepaintPass`
+*for* this, so the gap was spec non-compliance rather than a deferred decision.
+
+**The failure it closes, reproduced before the fix.** Two overlapping full-window
+`ScrollView`s in a stack, the `Deferred` one declared first:
+
+```
+PROBE-REGION[0] (0,0) 200x200  id=named("modal")       <- hoisted, paints last
+PROBE-REGION[1] (0,0) 200x200  id=named("background")
+wheel at (100,100): background offset 37, modal 0
+```
+
+The modal painted on top and the scroller beneath took the wheel. Registration order
+alone cannot express the fix: a hoisted subtree is still *emitted* where it was
+declared, so it can register before something it paints over.
+
+**Ties stay exactly as they were, and that is checked rather than asserted.** The index
+is unique, so no two candidates compare equal and `max(by:)`'s tie behaviour is never
+reached; within one layer the greatest index is the last registration, which is the rule
+`theTopmostOverlappingRegionWinsAndTheOtherDoesNotMove` already pinned at layer 0.
+Ordering by layer **alone** reddens that test and the new
+`withinOneLayerTheLastRegisteredRegionStillWins` (which repeats the tie at the hoisted
+layer, so the layer key did not quietly become the only key); reverting to plain
+last-registered-wins reddens `aDeferredScrollViewTakesTheWheelFromAnOverlappingSiblingBeneathIt`
+alone; deleting the prepaint hoist again reddens both new tests.
+
+**What it does NOT buy, measured because a reader will assume otherwise.** A `Deferred`
+subtree that does not itself scroll registers **no region**, so it cannot block a wheel
+event: a scrim over a list leaves the list scrolling underneath it (probed — one region,
+layer 0, offset 37). `Frame.scrollRegions` is the only hitbox list this framework has,
+and blocking needs §8.1's general one. The layer key orders scrollers against each other;
+it does not make an overlay opaque to input. The demo's exit-criterion instructions now
+ask the human to wheel over the scrim and report this, so the limitation is on the record
+from the look and not only from a probe.
+
+**What it costs if wrong.** A modal's own list scrolls the page behind it — the exact
+symptom `PrepaintPass.deferred`'s doc comment describes, and one that no rect assertion
+can see, since layer moves no geometry.

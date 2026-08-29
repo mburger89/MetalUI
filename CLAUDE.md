@@ -510,7 +510,7 @@ paragraph renders legibly". And toggling makes **this** criterion stronger:
 observation across the transition, rather than by inferring one from the
 scrim's alpha.
 
-**What a human has to look at, stated as three separable failures.**
+**What a human has to look at, stated as four separable failures.**
 
 1. **The scrim covers the whole window**, not a 420pt-wide strip. Cropped to the
    scroller's viewport means the portal did not reset the clip.
@@ -519,6 +519,18 @@ scrim's alpha.
 3. **The modal does not move when the list scrolls.** Sliding with the content
    means `pushRootClip` reset the clip bounds but inherited the accumulated
    offset (ruling AP-I) — half a portal.
+4. **Wheel over the scrim with the modal up, and report whether the list moves
+   underneath it.** Read this one as a report rather than as a pass/fail: the
+   expected answer today is that **the list DOES move**, and the reason is
+   measured rather than argued — a non-scrolling `Deferred` scrim registers no
+   scroll region at all, and `Frame.scrollRegions` is the only hitbox list this
+   framework has. An overlay that does not itself scroll therefore cannot block
+   a wheel event, and nothing short of §8.1's general hitbox list will change
+   that. What the whole-branch review *did* fix is the neighbouring case — a
+   scroller *inside* a `Deferred` now outranks one it paints over, because the
+   registration carries its layer. A human reporting "the list scrolls under
+   the modal" is confirming a known limitation; a human reporting that it does
+   **not** means something unexplained is happening and is worth chasing.
 
 **Nothing in the suite can see any of the three, and the reason is the same one
 `Stack`'s entry gives.** A `Deferred` contributes no layout node, so its
@@ -1145,7 +1157,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **569 tests** and 81 browser fixtures, warning-free
+`swift build` · `swift test` — **577 tests** and 81 browser fixtures, warning-free
 (re-measured 2026-08-28 `--no-parallel` after `swift package clean`, at the
 absolute-positioning milestone's own last commit, per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
@@ -1162,7 +1174,12 @@ fixtures plus divergence 9's pin), 561 after Task 6 (`DrawListTests`) and then
 565 after Task 7 (`DeferredTests`) and **569** after Task 7's second review
 round (a `Deferred` identity differential, nested-layer idempotence, and the
 prepaint and paint halves of a real `ScrollView` escape). Task 8 is the demo
-and the documentation and adds no test, so 569 reproduced exactly. **Goldens
+and the documentation and adds no test, so 569 reproduced exactly. **The
+whole-branch review's fix round then added eight, reaching 577**: five in
+`AbsolutePositioningTests` for live clauses of the absolute pass that no test
+reached (each found by a mutation the 569-test suite passed under), one in the
+new `AbsoluteOverlayTests` pinning divergence 11, and two in
+`ScrollRoutingTests` for the scroll-region layer key. **Goldens
 climbed 76 → 81 in Task 5 and moved nowhere else in the milestone** — five new
 `abs_*` fixtures, and **no golden that existed before this branch was
 modified**, verified at every task. Stated that precisely because one of the
