@@ -133,3 +133,88 @@ private func glyph(order: MUIUInt) -> MUIGlyph {
     #expect(scene.rects.map(\.order) == rectsAfterFirst.map(\.order))
     #expect(scene.glyphs.map(\.order) == glyphsAfterFirst.map(\.order))
 }
+
+/// A higher layer draws later regardless of `order`.
+@Test func aHigherLayerDrawsAfterALowerOneWhateverTheOrder() throws {
+    var scene = Scene()
+    scene.insert(rect(order: 99), layer: 0)
+    scene.insert(rect(order: 0), layer: 1)
+    scene.finalize()
+    #expect(scene.rects.map(\.order) == [99, 0],
+            "layer 1 draws last even though its order is lower")
+}
+
+/// Within one layer, `order` still decides — layering does not replace ordering.
+@Test func withinOneLayerOrderStillDecides() throws {
+    var scene = Scene()
+    scene.insert(rect(order: 5), layer: 0)
+    scene.insert(rect(order: 1), layer: 0)
+    scene.finalize()
+    #expect(scene.rects.map(\.order) == [1, 5])
+}
+
+/// Equal layer AND equal order still fall back to emission sequence — the
+/// tiebreak `finalize` already depends on must survive the new key.
+@Test func equalLayerAndOrderKeepEmissionSequenceAcrossTypes() throws {
+    var scene = Scene()
+    scene.insert(glyph(order: 5), layer: 0)
+    scene.insert(rect(order: 5), layer: 0)
+    scene.finalize()
+    let runs = scene.drawList
+    try #require(runs.count == 2)
+    #expect(runs[0].kind == .glyph, "emitted first, so drawn first")
+}
+
+/// A deferred primitive crosses type boundaries: a layer-1 RECT draws after a
+/// layer-0 GLYPH, which the draw list must express as two runs in that order.
+@Test func aHigherLayerRectDrawsAfterALowerLayerGlyph() throws {
+    var scene = Scene()
+    scene.insert(glyph(order: 0), layer: 0)
+    scene.insert(rect(order: 0), layer: 1)
+    scene.finalize()
+    let runs = scene.drawList
+    try #require(runs.count == 2)
+    #expect(runs[0].kind == .glyph)
+    #expect(runs[1].kind == .rect)
+}
+
+/// The test above inserts the glyph before the rect, so its expected order
+/// (glyph, then rect) is also what emission sequence alone would produce —
+/// dropping layer from the sort key entirely leaves it green. This is that
+/// same crossing with insertion order reversed, so only the layer field (not
+/// sequence) can explain the expected result: the layer-1 rect is emitted
+/// FIRST but must still draw AFTER the layer-0 glyph emitted second.
+@Test func layerOutranksEmissionSequenceAcrossTypes() throws {
+    var scene = Scene()
+    scene.insert(rect(order: 0), layer: 1)
+    scene.insert(glyph(order: 0), layer: 0)
+    scene.finalize()
+    let runs = scene.drawList
+    try #require(runs.count == 2)
+    #expect(runs[0].kind == .glyph, "layer 0 draws first despite being emitted second")
+    #expect(runs[1].kind == .rect)
+}
+
+/// **The layer array is a THIRD parallel array subject to ruling PF-1**,
+/// exactly like `sequence`: `finalize()` must permute it alongside the
+/// primitives it describes, not just sort by it once. None of the tests
+/// above can see a version that sorts by layer but forgets to permute the
+/// layer array itself — every one of them calls `finalize()` only once, and
+/// a stale-but-still-correct-on-the-first-pass layer array is indistinguishable
+/// from a correctly permuted one until a second call reads it back. This
+/// mirrors `finalizingTwiceGivesTheSameDrawList`, but with distinct layers so
+/// only the layer array's own permutation is exercised.
+@Test func finalizingTwiceWithDistinctLayersStaysStable() throws {
+    var scene = Scene()
+    scene.insert(rect(order: 5), layer: 1)
+    scene.insert(rect(order: 1), layer: 0)
+
+    scene.finalize()
+    let ordersAfterFirst = scene.rects.map(\.order)
+    #expect(ordersAfterFirst == [1, 5], "layer 0 draws first after the first finalize")
+
+    scene.finalize()
+    let ordersAfterSecond = scene.rects.map(\.order)
+    #expect(ordersAfterSecond == [1, 5],
+            "layer 0 must still draw first on a second finalize -- a layer array left unpermuted after the first pass would tiebreak this the other way")
+}
