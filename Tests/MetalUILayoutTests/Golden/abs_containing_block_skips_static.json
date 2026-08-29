@@ -1,0 +1,39 @@
+{
+  "fixture" : "abs_containing_block_skips_static",
+  "raw" : [
+    {
+      "height" : 100,
+      "id" : "root",
+      "width" : 200,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 10,
+      "id" : "abs",
+      "width" : 20,
+      "x" : 0,
+      "y" : 0
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 100,
+      "id" : "root",
+      "width" : 200,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 10,
+      "id" : "abs",
+      "width" : 20,
+      "x" : 0,
+      "y" : 0
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

@@ -38,8 +38,10 @@ public enum Alignment: Sendable, Equatable {
 /// **Not absolute positioning.** A `Stack`'s children participate in its sizing.
 /// Absolutely-positioned children are removed from flow and contribute nothing
 /// to their parent's size; that is a different feature, the one modals and
-/// popovers need, and `Style.position`/`Style.inset` are still read by no
-/// production code (CLAUDE.md's declared-but-inert table).
+/// popovers need, and it is live — `.position(.absolute)` is filtered out of a
+/// `Stack`'s item list by `layOutStack` exactly as it is out of a flex
+/// container's, and placed afterwards against its containing block. A `Stack`
+/// child that is absolute is therefore not layered by `alignment` at all.
 ///
 /// **Children paint in declaration order, first at the back.** That ordering is
 /// only real because `Scene.finalize`'s draw list orders primitives across types

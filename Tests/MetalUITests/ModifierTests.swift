@@ -3,9 +3,9 @@ import MetalUICore
 import MetalUILayout
 @testable import MetalUI
 
-// The public modifier surface: `StyledElement`'s twenty-nine and `Box`'s one.
+// The public modifier surface: `StyledElement`'s thirty-two and `Box`'s one.
 //
-// **Nothing else in the repo can see a modifier write the wrong field.** The 76
+// **Nothing else in the repo can see a modifier write the wrong field.** The 81
 // browser fixtures build a `Style` directly and never call a modifier; the
 // element tests call a handful of them and assert on the *rect* that comes out,
 // so they cover the few they use and say nothing about the rest. Measured before
@@ -55,7 +55,7 @@ private struct ModifierCase {
 ///
 /// The count check is a tripwire on **this table**, not on `Box.swift`: nothing
 /// here can see a modifier added there without a case. Reconcile with
-/// `grep -c "public func" Sources/MetalUI/Box.swift`, which is 30 — the 29 on
+/// `grep -c "public func" Sources/MetalUI/Box.swift`, which is 33 — the 32 on
 /// `extension StyledElement` plus `flexDirection` on `extension Box`.
 @MainActor
 @Test func everyPublicModifierWritesItsOwnFieldAndOnlyThatField() {
@@ -168,6 +168,23 @@ private struct ModifierCase {
                      apply: { $0.alignSelf(.flexEnd) },
                      effect: { s, _, _ in s.alignSelf = .flexEnd }),
 
+        // MARK: Out of flow
+        ModifierCase(name: "position(_:)",
+                     apply: { $0.position(.absolute) },
+                     effect: { s, _, _ in s.position = .absolute }),
+        ModifierCase(name: "inset(_ edges:)",
+                     apply: { $0.inset(Edges(top: .length(.pixels(px(45))),
+                                             right: .length(.pixels(px(46))),
+                                             bottom: .length(.pixels(px(47))),
+                                             left: .length(.pixels(px(48))))) },
+                     effect: { s, _, _ in
+                         s.inset = Edges(top: .length(.pixels(px(45))), right: .length(.pixels(px(46))),
+                                         bottom: .length(.pixels(px(47))), left: .length(.pixels(px(48))))
+                     }),
+        ModifierCase(name: "inset(_ points:)",
+                     apply: { $0.inset(px(49)) },
+                     effect: { s, _, _ in s.inset = Edges(all: .length(.pixels(px(49)))) }),
+
         // MARK: Participation
         ModifierCase(name: "hidden()",
                      apply: { $0.hidden() },
@@ -180,7 +197,7 @@ private struct ModifierCase {
                      effect: { s, _, _ in s.flexDirection = .columnReverse }),
     ]
 
-    #expect(cases.count == 30)
+    #expect(cases.count == 33)
 
     for c in cases {
         var expectedStyle = Style()

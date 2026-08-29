@@ -42,6 +42,14 @@ public enum ColorToken: Sendable, Hashable, CaseIterable {
     /// this token's own alpha by the fade's `alpha` on top, so the base value
     /// here is what a freshly-scrolled thumb looks like at full opacity.
     case scrollIndicator
+    /// The dimming wash a modal lays over the window behind it.
+    ///
+    /// Translucent, like `scrollIndicator` and unlike every other token here,
+    /// for the same structural reason: it is authored to be seen *through*. An
+    /// opaque scrim would make "the modal covers the window" and "the modal
+    /// replaced the window" indistinguishable to the only check that can see
+    /// either — a human looking at the demo.
+    case scrim
 }
 
 /// The mapping from `ColorToken` to colour, for one appearance (spec §7.9).
@@ -69,9 +77,11 @@ public struct Theme: Sendable, Hashable {
     public var separator: Hsla
     public var textPrimary: Hsla
     public var scrollIndicator: Hsla
+    public var scrim: Hsla
 
     public init(background: Hsla, surface: Hsla, surfaceSecondary: Hsla,
-                accent: Hsla, separator: Hsla, textPrimary: Hsla, scrollIndicator: Hsla) {
+                accent: Hsla, separator: Hsla, textPrimary: Hsla, scrollIndicator: Hsla,
+                scrim: Hsla) {
         self.background = background
         self.surface = surface
         self.surfaceSecondary = surfaceSecondary
@@ -79,6 +89,7 @@ public struct Theme: Sendable, Hashable {
         self.separator = separator
         self.textPrimary = textPrimary
         self.scrollIndicator = scrollIndicator
+        self.scrim = scrim
     }
 
     public subscript(token: ColorToken) -> Hsla {
@@ -90,6 +101,7 @@ public struct Theme: Sendable, Hashable {
         case .separator:        separator
         case .textPrimary:      textPrimary
         case .scrollIndicator:  scrollIndicator
+        case .scrim:            scrim
         }
     }
 
@@ -107,7 +119,8 @@ public struct Theme: Sendable, Hashable {
         accent:           .rgb(0x2563EB),
         separator:        .rgb(0xC8CDD6),
         textPrimary:      .rgb(0x14181F),
-        scrollIndicator:  .rgb(0x000000, alpha: 0.35))
+        scrollIndicator:  .rgb(0x000000, alpha: 0.35),
+        scrim:            .rgb(0x0B1020, alpha: 0.32))
 
     /// See `light` for why every value here differs from its counterpart.
     public static let dark = Theme(
@@ -117,7 +130,8 @@ public struct Theme: Sendable, Hashable {
         accent:           .rgb(0x60A5FA),
         separator:        .rgb(0x3A4260),
         textPrimary:      .rgb(0xE9EDF5),
-        scrollIndicator:  .rgb(0xFFFFFF, alpha: 0.35))
+        scrollIndicator:  .rgb(0xFFFFFF, alpha: 0.35),
+        scrim:            .rgb(0x000000, alpha: 0.42))
 
     /// The theme the host's current appearance calls for.
     ///

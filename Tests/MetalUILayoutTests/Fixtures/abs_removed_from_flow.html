@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* #root gives #container a fixed-size flex context to auto-size within,
+     sidestepping this engine's own root-sizing divergence (an auto ROOT axis
+     takes the offered space rather than shrink-wrapping to content) — unrelated
+     to absolute positioning, and every #root in this corpus has an explicit
+     size for the same reason. `align-items: flex-start` keeps #container from
+     being stretched to #root's full height. */
+  #root { width: 400px; height: 300px; display: flex; flex-direction: column;
+          align-items: flex-start; }
+  /* #container auto-sizes to its IN-FLOW content only — that is the assertion.
+     The absolute child is larger than the in-flow content on BOTH axes, so
+     "removed from flow" (40x20) and "included but not the maximum" (which an
+     implementation that only excludes the absolute child from the SUM, or
+     only from the MAX, could still get half right by accident if the
+     absolute child were smaller) are forced to disagree. */
+  .container { display: flex; flex-direction: row; }
+  .inflow { width: 40px; height: 20px; }
+  .abs { position: absolute; width: 500px; height: 300px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="container" data-id="container">
+      <div class="inflow" data-id="inflow"></div>
+      <div class="abs" data-id="abs"></div>
+    </div>
+  </div>
+</body></html>

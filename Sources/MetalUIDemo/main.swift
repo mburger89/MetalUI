@@ -1,5 +1,40 @@
 import MetalUI
 
+/// Whether the modal is on screen. Toggled by the **M** key (`runDemo` below)
+/// and read by `demoContent`, which `Window` re-invokes every frame — so
+/// flipping this and marking the window dirty is the whole mechanism.
+///
+/// **Default `false`, and that is the load-bearing half.** An always-on modal
+/// lays a translucent scrim over the entire window, and this one file carries
+/// the exit criteria of four milestones: M1's nested reflow, M2's "the
+/// paragraph renders legibly" — a *contrast* judgement — and the
+/// clipping-and-scroll looks that chased an indicator against a rounded corner.
+/// Every one of those would have paid a third of a stop of dimming forever to
+/// buy this milestone's criterion once.
+///
+/// **And gating it makes this milestone's own criterion stronger, not weaker.**
+/// A human toggling M separates "the modal covers the window" from "the modal
+/// replaced the window" by watching the transition, rather than inferring it
+/// from the scrim's alpha.
+///
+/// **Four things to report, and the fourth is a report rather than a
+/// pass/fail.** The scrim covers the whole window rather than the 420pt scroll
+/// viewport; the panel and scrim paint over rows declared after them; the modal
+/// does not move when the list scrolls; and — **wheeling over the scrim** —
+/// whether the list moves underneath it. Expect that it **does**: this scrim is
+/// not a `ScrollView`, so it registers no scroll region, and `Frame.scrollRegions`
+/// is the only hitbox list the framework has. An overlay that does not itself
+/// scroll cannot block input until §8.1's general hitbox list exists. What a
+/// hoisted subtree *does* now win is the neighbouring case — a `ScrollView`
+/// inside a `Deferred` outranks one it paints over, because the registration
+/// carries its layer (`Frame.scrollRegions`, ruling AP-N).
+///
+/// **No `@MainActor` attribute, deliberately** — this is top-level code in
+/// `main.swift`, where the compiler rejects an explicit global actor
+/// ("top-level code variables cannot have a global actor") because it already
+/// isolates them to the main actor for you.
+var showModal = false
+
 /// Milestone 1's exit criterion: a nested flex layout that resizes correctly,
 /// plus a light/dark switch. **And milestone 2's**, which is the reason the
 /// three `Text` runs below are here rather than in a test.
@@ -238,6 +273,102 @@ func demoContent() -> some Element {
                 // the same trade-off the 196pt sidebar above already makes.
                 Box {
                     ScrollView(.vertical) {
+                        // **The absolute-positioning milestone's exit
+                        // criterion**, and it is deliberately declared HERE —
+                        // inside the scroller, above the rows — because both
+                        // properties it exists to show are invisible anywhere
+                        // else in this file.
+                        //
+                        // `Deferred` does two things and each one has a
+                        // plainly-wrong failure: it hoists its subtree to the
+                        // root layer, so the 40 rows declared *after* it would
+                        // paint over the panel if the hoist were lost, and it
+                        // resets the clip stack to the whole surface with no
+                        // accumulated offset, so the scrim would be cropped to
+                        // the 420pt viewport — and would slide away as the
+                        // list scrolled — if the portal were lost.
+                        //
+                        // **Neither is checkable by any assertion over rects.**
+                        // A `Deferred` contributes no layout node: its child's
+                        // `(x, y, width, height)` are identical whether or not
+                        // the hoist and the clip reset happen, exactly as a
+                        // `Stack`'s children are identical under a reversed
+                        // paint order. That is why this is a look and not a
+                        // test, and why CLAUDE.md records the look as the
+                        // milestone's open criterion.
+                        //
+                        // **`.position(.absolute)` is what "against the window"
+                        // means**, mechanically: an absolute box is placed
+                        // against the nearest ancestor whose position is not
+                        // `.static`, and nothing between here and the root
+                        // declares one — so its containing block is the root's
+                        // padding box, the whole window. `inset(Pixels(0))`
+                        // then gives both insets on both axes with an `auto`
+                        // size, which stretches the scrim across all of it.
+                        // Being absolute also takes it out of the scroll
+                        // content's flow, so it adds no row and no height.
+                        //
+                        // **The scrim is translucent rather than opaque**, so
+                        // that "the modal covers the window" and "the modal
+                        // replaced the window" are distinguishable at a glance
+                        // — an opaque one makes them identical to the only
+                        // check that can see either. It is *gated* rather than
+                        // dimmed further: see `showModal`'s own comment for why
+                        // the demo must be un-scrimmed by default.
+                        //
+                        // **Gated on `showModal`, and the `if` has a caveat
+                        // worth reading before adding state below it.** A
+                        // vanishing `if` does not reset its trailing siblings'
+                        // identity — it makes them ADOPT the vanished
+                        // element's slot, because the cursor that assigns
+                        // `.positional(_:)` components advances one place
+                        // differently on the two frames. The 40 rows below
+                        // hold no cross-frame state, so today this is
+                        // invisible; the `ScrollView`'s own offset is keyed on
+                        // the `ScrollView` node, which sits OUTSIDE this
+                        // builder and does not move. If a stateful element
+                        // ever lands after this `if`, the remedy is to name
+                        // the *trailing sibling* with `.id(_:)` — naming the
+                        // conditional content is the half that does not work
+                        // (CLAUDE.md's identity bullet).
+                        if showModal {
+                            Deferred {
+                                Stack(alignment: .center) {
+                                    Column(gap: Pixels(8)) {
+                                        Text("Modal").font(size: 22)
+                                        Text("""
+                                             Declared inside the list, painted \
+                                             over it, and clipped by the window \
+                                             rather than by the scroller.
+                                             """)
+                                    }
+                                    .width(Pixels(360))
+                                    .padding(Pixels(20))
+                                    // The fifth `.alignItems(.stretch)` in this
+                                    // file, and the only one not paying for a
+                                    // childless `Box` measuring 0 (ruling
+                                    // EP-8): both children here are `Text`,
+                                    // which shrink-wraps correctly on a
+                                    // column's cross axis since ruling TX-H. It
+                                    // buys two other things. The labels read
+                                    // left-aligned rather than centred, and —
+                                    // the load-bearing half — each `Text` takes
+                                    // the panel's whole 320pt content width, an
+                                    // integer, instead of shrink-wrapping to
+                                    // its own fractional max-content, which is
+                                    // the input divergence 8 needs to make
+                                    // paint wrap a line layout measured as
+                                    // fitting.
+                                    .alignItems(.stretch)
+                                    .background(.surface)
+                                    .cornerRadius(Pixels(16))
+                                }
+                                .position(.absolute)
+                                .inset(Pixels(0))
+                                .background(.scrim)
+                            }
+                        }
+
                         for i in 0..<40 {
                             // Alternating row backgrounds, deliberately painted
                             // edge-to-edge with the viewport: `ScrollView`'s
@@ -319,12 +450,24 @@ func runDemo() throws {
     // to the renderer. What the demo adds, and no test can, is that the frame
     // reaches a drawable someone is looking at — `MetalLayerSurface` vends
     // drawables just as happily into an orphaned layer.
+    //
+    // **M toggles the modal**, and the key was chosen for not colliding with
+    // the space bar above. `Window` re-invokes the content closure every frame
+    // and marks itself dirty after every input event either way, so flipping
+    // `showModal` here is the whole mechanism — there is no hit-testing in the
+    // framework yet and this needs none.
     window.onInput = { [weak window] event in
-        guard let window,
-              case .keyDown(let key) = event,
-              key.charactersIgnoringModifiers == " " else { return false }
-        window.theme = window.theme == .dark ? .light : .dark
-        return true
+        guard let window, case .keyDown(let key) = event else { return false }
+        switch key.charactersIgnoringModifiers {
+        case " ":
+            window.theme = window.theme == .dark ? .light : .dark
+            return true
+        case "m", "M":
+            showModal.toggle()
+            return true
+        default:
+            return false
+        }
     }
 
     app.run()

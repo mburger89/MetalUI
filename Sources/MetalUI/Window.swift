@@ -137,7 +137,7 @@ public final class Window {
     /// `Frame` dies at the end of `drawFrameIfNeeded`, and a wheel event may
     /// arrive at any point afterward.
     private(set) var lastScrollRegions:
-        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis)] = []
+        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis, layer: Int)] = []
 
     /// The most recent display-link tick, in seconds — `0` until the first
     /// tick arrives. Carried into every `Frame` as its `timestamp` (spec §8 of
@@ -284,13 +284,26 @@ public final class Window {
 
     /// Applies a wheel delta to the topmost scroll region under the pointer.
     ///
-    /// **Reverse order**, the same rule §8.1 states for the general hit-test
-    /// registry this one is scoped down from: "dispatch walks them in reverse
-    /// so the topmost opaque hit wins." `lastScrollRegions` is in prepaint
-    /// order — outermost first, since a `ScrollView` registers itself before
-    /// descending into its content — so the last match in a reverse walk is
-    /// the most deeply nested region containing the point, which is the
-    /// visually topmost one.
+    /// **Highest layer first, then reverse registration order.** The second
+    /// half is the rule §8.1 states for the general hit-test registry this one
+    /// is scoped down from: "dispatch walks them in reverse so the topmost
+    /// opaque hit wins." `lastScrollRegions` is in prepaint order — outermost
+    /// first, since a `ScrollView` registers itself before descending into its
+    /// content — so the last match among equals is the most deeply nested
+    /// region containing the point, which is the visually topmost one.
+    ///
+    /// **The layer is what registration order cannot express, and it is the
+    /// whole reason `PrepaintPass.deferred` hoists at all.** A `Deferred`
+    /// subtree paints above every sibling regardless of where it was declared,
+    /// so a scroller inside one can register *before* a scroller it paints on
+    /// top of; under registration order alone the covered scroller would take
+    /// the wheel while the visible one sat inert. Measured before this was
+    /// fixed, on two overlapping full-window scrollers with the deferred one
+    /// declared first: the modal painted on top and the background took every
+    /// event. Ordering by `(layer, registration index)` puts the two rules in
+    /// the order that makes the visible thing win, and leaves ties — every
+    /// region within one layer — decided exactly as before, since the index is
+    /// unique and no two candidates can compare equal.
     ///
     /// Momentum deltas are applied identically to direct ones — `isMomentum` is
     /// read by nothing here, on purpose. AppKit already ran the physics; a
@@ -349,8 +362,10 @@ public final class Window {
     /// UX decision with real trade-offs, and it is deliberately left to
     /// whoever owns that decision rather than made here by default.
     private func applyScroll(_ event: ScrollEvent) -> Bool {
-        guard let region = lastScrollRegions.last(where: { contains($0.bounds, event.position) })
-        else { return false }
+        let hit = lastScrollRegions.enumerated()
+            .filter { contains($0.element.bounds, event.position) }
+            .max { ($0.element.layer, $0.offset) < ($1.element.layer, $1.offset) }
+        guard let region = hit?.element else { return false }
         let componentDelta = region.axis == .horizontal ? event.delta.x : event.delta.y
         stateTable.withState(region.id, initial: ScrollState()) {
             // Natural scrolling: a positive scrollingDelta means content moves

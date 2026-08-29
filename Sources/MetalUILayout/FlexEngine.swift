@@ -105,8 +105,27 @@ public func computeLayout(
     let rootSize = resolveRootSize(ctx, tree, root, available: available,
                                    containingBlockWidth: rootContainingBlockWidth)
     tree.setLayout(root, LayoutRect(x: 0, y: 0, width: rootSize.width, height: rootSize.height))
+
+    // The initial containing block: the root's own padding box, regardless of
+    // the root's `position` — there is no ancestor to fall back to. If the
+    // root's `position` happens to be `.static` (the default), `placeNode`
+    // threads this straight through to the whole subtree unchanged; if it is
+    // positioned, `placeNode` recomputes the identical box from `laid` and
+    // this seed is never consulted. Calling `contentBox` here (the same
+    // function `layOutChildren` calls internally) reuses its percentage
+    // resolution rather than re-deriving it — the mistake the containing-block
+    // width note above already warns about.
+    let rootBox = contentBox(tree, root,
+                             borderBox: OptionalSizeD(width: rootSize.width, height: rootSize.height),
+                             containingBlockWidth: rootContainingBlockWidth,
+                             rootFontSize: rootFontSize)
+    let rootPaddingBox = ContainingBlock(
+        origin: (rootBox.origin.0 - rootBox.padding.left, rootBox.origin.1 - rootBox.padding.top),
+        size: SizeD(width: (rootBox.size.width ?? rootSize.width) + rootBox.padding.horizontal,
+                    height: (rootBox.size.height ?? rootSize.height) + rootBox.padding.vertical))
+
     placeNode(ctx, tree, root, origin: (0, 0), size: rootSize,
-              containingBlockWidth: rootContainingBlockWidth)
+              containingBlockWidth: rootContainingBlockWidth, containingBlock: rootPaddingBox)
 
     // Round last, over the finished absolute rects. Spec §5.7 designates the
     // rounded layout as the comparison space, so the engine must apply the same
@@ -360,7 +379,7 @@ private func resolveRootSize(
     // **A fixture could hold the divergence** — `#root { display: flex }` with
     // no `width` or `height` is perfectly expressible and its golden would say
     // 800x40 — so the corpus deliberately contains none, on the same footing
-    // as WebKit's flex sub-one clause. That all 76 fixture roots declare both axes
+    // as WebKit's flex sub-one clause. That all 81 fixture roots declare both axes
     // explains why no *existing* fixture notices; it is not a reason one
     // could not exist.
     //
@@ -497,7 +516,7 @@ private func contentBox(
     borderBox: OptionalSizeD,
     containingBlockWidth: Double?,
     rootFontSize: Double
-) -> (origin: (Double, Double), size: OptionalSizeD, edges: SizeD) {
+) -> (origin: (Double, Double), size: OptionalSizeD, edges: SizeD, padding: ResolvedEdges) {
     let s = tree.style(container)
     let padding = resolveEdges(s.padding, against: containingBlockWidth, rootFontSize: rootFontSize)
     let border = resolveEdges(s.border, against: containingBlockWidth, rootFontSize: rootFontSize)
@@ -521,7 +540,27 @@ private func contentBox(
         height: borderBox.height.map { max(0, $0 - padding.vertical - border.vertical) })
     let edges = SizeD(width: padding.horizontal + border.horizontal,
                       height: padding.vertical + border.vertical)
-    return (leading, size, edges)
+    return (leading, size, edges, padding)
+}
+
+/// The rect an absolutely-positioned descendant is placed against.
+///
+/// Threaded **downward** through `placeNode` rather than resolved by walking up:
+/// `LayoutTree` has no parent accessor, and adding one would be redundant state
+/// to keep in sync. A node whose `position` is not `.static` replaces this for
+/// its own descendants.
+///
+/// The rect is the containing block's **padding box** — inside its border, per
+/// CSS (spec §3.3). `origin` is absolute to the root, the same space `placeNode`
+/// positions in. Derived as the content box (`ContainerLayout.box`) expanded
+/// back out by the container's own resolved padding (`ContainerLayout.padding`)
+/// — NOT the border box, and not the content box unchanged. Using the content
+/// box would shift every absolute child inward by its containing block's
+/// padding: a small, uniform error that reads as rounding rather than a wrong
+/// box. `theContainingBlockIsThePaddingBoxNotTheBorderBox` pins it.
+struct ContainingBlock {
+    var origin: (Double, Double)
+    var size: SizeD
 }
 
 /// One child of a `.stack` container, at its own size.
@@ -570,6 +609,15 @@ private struct ContainerLayout {
     /// Each field is honest about what it holds rather than one field carrying
     /// two meanings.
     var stackItems: [StackItem]
+    /// This container's own resolved padding, from `contentBox` — kept
+    /// separate from `edges` (which is padding + border combined) because
+    /// `placeNode` needs padding alone to derive an absolutely-positioned
+    /// descendant's containing block, which CSS defines as the PADDING box
+    /// (inside the border, outside the content). Reusing this rather than
+    /// re-resolving `Style.padding` in `placeNode` avoids a second percentage
+    /// resolution against a basis that would be easy to get wrong (see the
+    /// containing-block width note on `contentBox` above).
+    var padding: ResolvedEdges
 }
 
 /// Phases 1–2 — collect a container's items, break them into lines, and resolve
@@ -586,7 +634,7 @@ private struct ContainerLayout {
 /// `placeNode` positions all the lines afterwards. Nothing the loop computes
 /// reads anything `positionItems` writes — it writes only stored rects and
 /// recurses — and nothing `positionItems` reads changes after its own line has
-/// been stretched and flexed. The 76 browser goldens are the check.
+/// been stretched and flexed. The 81 browser goldens are the check.
 ///
 /// **An axis of `containerSize` may be `nil`, and that is not the same as 0**
 /// (ruling CS-D). It means the container has no given extent there — the shape
@@ -649,7 +697,7 @@ private func layOutChildren(
             lines: [], contentSize: .zero, edges: box.edges,
             box: (box.origin, SizeD(width: box.size.width ?? 0,
                                     height: box.size.height ?? 0)),
-            stackItems: [])
+            stackItems: [], padding: box.padding)
     }
 
     let s = tree.style(container)
@@ -892,7 +940,7 @@ private func layOutChildren(
         // An axis with no given extent shrinks to fit — see `box`'s own comment.
         box: (box.origin, SizeD(width: box.size.width ?? contentSize.width,
                                 height: box.size.height ?? contentSize.height)),
-        stackItems: [])
+        stackItems: [], padding: box.padding)
 }
 
 /// A `.stack` container: every child at its own size, the container at the
@@ -921,7 +969,7 @@ private func layOutStack(
     _ ctx: LayoutContext,
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
-    box: (origin: (Double, Double), size: OptionalSizeD, edges: SizeD)
+    box: (origin: (Double, Double), size: OptionalSizeD, edges: SizeD, padding: ResolvedEdges)
 ) -> ContainerLayout {
     let rootFontSize = ctx.rootFontSize
 
@@ -967,7 +1015,8 @@ private func layOutStack(
     var maxWidth = 0.0
     var maxHeight = 0.0
 
-    for kid in tree.children(container) where tree.style(kid).display != .none {
+    for kid in tree.children(container)
+    where tree.style(kid).display != .none && tree.style(kid).position != .absolute {
         let ks = tree.style(kid)
         // Resolved against `box.size` — the stack's own content box, the same
         // basis the size itself resolves against — exactly as `collectItems`
@@ -1021,7 +1070,7 @@ private func layOutStack(
         // does the same thing for the same reason.
         box: (box.origin, SizeD(width: box.size.width ?? contentSize.width,
                                 height: box.size.height ?? contentSize.height)),
-        stackItems: items)
+        stackItems: items, padding: box.padding)
 }
 
 /// Lay out one container: collect its items, resolve flexible lengths, position
@@ -1036,7 +1085,8 @@ func placeNode(
     _ node: LayoutNodeID,
     origin: (Double, Double),
     size: SizeD,
-    containingBlockWidth: Double?
+    containingBlockWidth: Double?,
+    containingBlock: ContainingBlock
 ) {
     ctx.enter(node)
     defer { ctx.leave() }
@@ -1057,11 +1107,32 @@ func placeNode(
     // position is placement data and `layOutChildren` never sees it.
     let childOrigin = (origin.0 + laid.box.origin.0, origin.1 + laid.box.origin.1)
 
+    // The containing block for THIS node's descendants: itself if it is
+    // positioned, otherwise whatever was threaded in from above. Computed once
+    // here, ahead of the in-flow positioning below, so both the in-flow
+    // recursion and the absolute-child loop after it see the same value —
+    // `childCB` does not depend on anything either positioning pass produces.
+    //
+    // The PADDING box, not the border box: `childOrigin` is the content box's
+    // origin (leading padding + border, per the comment above) and
+    // `laid.box.size` its size, so backing out only the padding — not the
+    // border — lands on the padding box CSS requires. `laid.padding` is the
+    // same resolved padding `layOutChildren` already computed, reused rather
+    // than re-resolved.
+    let s = tree.style(node)
+    let childCB: ContainingBlock = s.position == .static
+        ? containingBlock
+        : ContainingBlock(
+            origin: (childOrigin.0 - laid.padding.left, childOrigin.1 - laid.padding.top),
+            size: SizeD(width: laid.box.size.width + laid.padding.horizontal,
+                       height: laid.box.size.height + laid.padding.vertical))
+
     for line in laid.lines {
         positionItems(ctx, tree, node, items: line.items,
                       lineCross: line.crossSize, lineCrossStart: line.crossStart,
                       containerOrigin: childOrigin,
-                      containerSize: laid.box.size)
+                      containerSize: laid.box.size,
+                      containingBlock: childCB)
     }
     // `laid.lines` is empty for a stack and `laid.stackItems` is empty for a
     // flex container (each is honest about what it holds — see
@@ -1070,8 +1141,109 @@ func placeNode(
     if !laid.stackItems.isEmpty {
         positionStackItems(ctx, tree, node, items: laid.stackItems,
                            containerOrigin: childOrigin,
-                           containerSize: laid.box.size)
+                           containerSize: laid.box.size,
+                           containingBlock: childCB)
     }
+
+    // Absolute children, placed against `childCB` rather than in flow. They
+    // were filtered out of `laid.lines`/`laid.stackItems` by Task 2, so this
+    // is the only thing that positions them.
+    for kid in tree.children(node)
+    where tree.style(kid).display != .none && tree.style(kid).position == .absolute {
+        placeAbsolute(ctx, tree, kid, in: childCB)
+    }
+}
+
+/// Places one absolutely-positioned box against its containing block, reading
+/// `Style.inset` to size and position it.
+///
+/// **Per-axis bases, and this is NOT CLAUDE.md:997's rule.** That constraint is
+/// about `padding` and `border`, where CSS resolves every percentage against
+/// the containing block's width. An inset does not: `left`/`right` resolve
+/// against width, `top`/`bottom` against height.
+///
+/// Each axis is independent and follows the same three-way branch `resolveNodeSize`
+/// uses for a flex item's cross axis, plus one case that function has no
+/// occasion for (both insets given): a declared, non-`auto` size always wins —
+/// which is also this function's fix for a bug Task 3 left, below — an `auto`
+/// size with both insets given stretches to fill the gap between them, and an
+/// `auto` size with fewer than two insets falls back to `measureNode`, exactly
+/// as an item's `auto` cross size does in `collectItems`.
+///
+/// Position, per axis: the leading inset (`left`/`top`) wins when given,
+/// regardless of the trailing one — which is CSS's over-constrained rule
+/// (drop `right`/`bottom`) applied uniformly rather than as a special case,
+/// since a declared size already ignores the trailing inset for sizing and
+/// this reuses the same "leading wins" read for position. Only the trailing
+/// inset given positions from the far edge. Neither given places at the
+/// containing block's origin — the box's all-`auto` behaviour, and Task 3's
+/// existing one; spec §3.5 records it as a deliberate divergence from CSS's
+/// static position.
+///
+/// **The 0×0 sizing bug this task's brief named.** Task 3 sized every absolute
+/// child by calling `measureNode(known: .unspecified, …)` unconditionally —
+/// for a childless node with no `MeasureFunction`, that falls into
+/// `measureNode`'s container branch and returns `contentSize + edges`, zero
+/// for an empty container, never consulting `Style.size`. `declaredAxis`
+/// below is what fixes it: a declared size is resolved from the node's own
+/// style FIRST, the same way `resolveNodeSize` resolves a flex item's cross
+/// axis, and `measureNode` is reached only when the axis is genuinely `auto`
+/// and not fully bounded by its two insets.
+private func placeAbsolute(_ ctx: LayoutContext, _ tree: LayoutTree,
+                           _ node: LayoutNodeID, in cb: ContainingBlock) {
+    let s = tree.style(node)
+
+    let left = resolveDimension(s.inset.left, against: cb.size.width, rootFontSize: ctx.rootFontSize)
+    let right = resolveDimension(s.inset.right, against: cb.size.width, rootFontSize: ctx.rootFontSize)
+    let top = resolveDimension(s.inset.top, against: cb.size.height, rootFontSize: ctx.rootFontSize)
+    let bottom = resolveDimension(s.inset.bottom, against: cb.size.height, rootFontSize: ctx.rootFontSize)
+
+    // A declared, non-`auto` size, clamped by its own min/max — `nil` when the
+    // property IS `auto`, which is how "not given" is told from "given as 0"
+    // (`resolveDimension`'s existing convention, reused here for `Style.size`).
+    func declaredAxis(_ dim: Dimension, _ minDim: Dimension, _ maxDim: Dimension,
+                      against parent: Double) -> Double? {
+        guard let resolved = resolveDimension(dim, against: parent, rootFontSize: ctx.rootFontSize) else {
+            return nil
+        }
+        let lower = resolveDimension(minDim, against: parent, rootFontSize: ctx.rootFontSize)
+        let upper = resolveDimension(maxDim, against: parent, rootFontSize: ctx.rootFontSize)
+        return clamp(resolved, min: lower, max: upper)
+    }
+
+    let declaredWidth = declaredAxis(s.size.width, s.minSize.width, s.maxSize.width, against: cb.size.width)
+    let declaredHeight = declaredAxis(s.size.height, s.minSize.height, s.maxSize.height, against: cb.size.height)
+
+    // `auto` size, both insets given on that axis: stretch to fill the gap.
+    let stretchWidth = (declaredWidth == nil && left != nil && right != nil)
+        ? cb.size.width - left! - right! : nil
+    let stretchHeight = (declaredHeight == nil && top != nil && bottom != nil)
+        ? cb.size.height - top! - bottom! : nil
+
+    let known = OptionalSizeD(width: declaredWidth ?? stretchWidth, height: declaredHeight ?? stretchHeight)
+    let size: SizeD
+    if let w = known.width, let h = known.height {
+        size = SizeD(width: w, height: h)
+    } else {
+        // Neither declared nor stretched by two insets: the box's own
+        // content size, exactly the call every other constant-substituting
+        // site in this file makes (`measureNode`'s doc comment).
+        let measured = measureNode(ctx, tree, node, known: known,
+                                   available: AvailableSpaceSize(width: .definite(cb.size.width),
+                                                                 height: .definite(cb.size.height)),
+                                   containingBlockWidth: cb.size.width)
+        size = SizeD(width: known.width ?? measured.width, height: known.height ?? measured.height)
+    }
+
+    // Leading wins over trailing when both are given — CSS's over-constrained
+    // rule (drop `right`/`bottom`) falls out of this uniformly, since sizing
+    // above already ignored the trailing inset once a size was declared.
+    let x = cb.origin.0 + (left ?? (right.map { cb.size.width - $0 - size.width } ?? 0))
+    let y = cb.origin.1 + (top ?? (bottom.map { cb.size.height - $0 - size.height } ?? 0))
+
+    tree.setLayout(node, LayoutRect(x: x, y: y, width: size.width, height: size.height))
+    placeNode(ctx, tree, node, origin: (x, y), size: size,
+              containingBlockWidth: cb.size.width, containingBlock: cb)
 }
 
 /// Places a `.stack` container's children, each aligned independently on both
@@ -1092,7 +1264,8 @@ private func positionStackItems(
     _ container: LayoutNodeID,
     items: [StackItem],
     containerOrigin: (Double, Double),
-    containerSize: SizeD
+    containerSize: SizeD,
+    containingBlock: ContainingBlock
 ) {
     // `nil` reads as CSS's `stretch` on both axes, matching `alignItems`'s
     // existing convention. `Stack.init` always writes an explicit value; a
@@ -1145,8 +1318,15 @@ private func positionStackItems(
         // containing block — exactly as `positionItems` passes it for a flex
         // item, and for the same reason (percentage padding/border resolve
         // against it).
+        //
+        // `containingBlock` threads through unchanged: it is what `container`
+        // established for its own children (its own padding box if
+        // positioned, otherwise whatever it inherited), and every one of
+        // `container`'s in-flow children shares it, subject to `item.node`
+        // overriding it for its own descendants inside the recursive
+        // `placeNode` call if `item.node` is itself positioned.
         placeNode(ctx, tree, item.node, origin: origin, size: size,
-                  containingBlockWidth: containerSize.width)
+                  containingBlockWidth: containerSize.width, containingBlock: containingBlock)
     }
 }
 
@@ -1400,7 +1580,12 @@ private func collectItems(
     let parent = containerSize
 
     return tree.children(container)
-        .filter { tree.style($0).display != .none }
+        // **Two exclusions, and they are different kinds.** `display: none`
+        // removes a box entirely; `position: absolute` removes it from *flow*
+        // while leaving it in the tree for `placeNode` to position against its
+        // containing block. An absolute box contributes nothing to this
+        // container's size and occupies no space on either axis.
+        .filter { tree.style($0).display != .none && tree.style($0).position != .absolute }
         .map { kid in
             let base = flexBaseSize(ctx, tree, item: kid, isRow: isRow,
                                     containerMain: containerMain,
@@ -1772,7 +1957,8 @@ private func positionItems(
     lineCross: Double,
     lineCrossStart: Double,
     containerOrigin: (Double, Double),
-    containerSize: SizeD
+    containerSize: SizeD,
+    containingBlock: ContainingBlock
 ) {
     let s = tree.style(container)
     let isRow = s.flexDirection.isRow
@@ -1960,8 +2146,13 @@ private func positionItems(
         // bug the BOX MODEL milestone's third task found: correct only when an
         // item happens to be as wide as
         // its parent's content box.
+        // `containingBlock` threads through unchanged, for the same reason
+        // `positionStackItems` passes it unchanged: it is what `container`
+        // established for its children, and `item.node` only replaces it for
+        // ITS OWN descendants — inside the recursive call — if `item.node` is
+        // itself positioned.
         placeNode(ctx, tree, item.node, origin: (x, y), size: size,
-                  containingBlockWidth: containerSize.width)
+                  containingBlockWidth: containerSize.width, containingBlock: containingBlock)
 
         cursor += outerMain(item)
     }

@@ -129,6 +129,40 @@ public struct PrepaintPass {
                                      axis: ScrollAxis) {
         frame.registerScrollRegion(bounds, id: id, axis: axis)
     }
+
+    /// Runs `body` with the layer hoisted to the root layer and the clip
+    /// stack reset to the whole surface — `Deferred`'s portal (design spec
+    /// §4.2). See `PaintPass.deferred(_:)` for the full account of why a
+    /// portal resets both.
+    ///
+    /// **On this pass, and not only `PaintPass`, because of hit-testing.**
+    /// The scroll-region registry is built here, in prepaint — a tooltip that
+    /// paints above its siblings while receiving wheel events as if it were
+    /// still beneath them is worse than one that does neither. Both halves of
+    /// the portal have a reader on this pass, and they close different holes:
+    ///
+    /// - the **clip reset**, because `registerScrollRegion` records a region
+    ///   intersected against whatever clip is active at registration time, so
+    ///   a region registered inside `deferred` is recorded against the whole
+    ///   surface rather than an ancestor `ScrollView`'s viewport;
+    /// - the **layer hoist**, because the registration carries `activeLayer`
+    ///   and `Window.applyScroll` orders candidates by it. A hoisted subtree is
+    ///   still *emitted* where it was declared, so it can register before a
+    ///   region it paints on top of; registration order alone would then hand
+    ///   the wheel to the covered scroller. `Frame.scrollRegions` carries the
+    ///   reasoning.
+    ///
+    /// Closure form rather than push/pop, for the reason `clipped(to:offsetBy:)`
+    /// above already gives: an unbalanced stack is not expressible.
+    public func deferred(_ body: () -> Void) {
+        frame.pushLayer()
+        frame.pushRootClip()
+        defer {
+            frame.popClip()
+            frame.popLayer()
+        }
+        body()
+    }
 }
 
 /// Phase 3. Primitives are emitted here and nowhere else.
@@ -210,6 +244,37 @@ public struct PaintPass {
                         _ body: () -> Void) {
         frame.pushClip(bounds, offset: offset, radii: cornerRadii)
         defer { frame.popClip() }
+        body()
+    }
+
+    /// Runs `body` with the layer hoisted to the root layer and the clip
+    /// stack reset to the whole surface — `Deferred`'s portal (design spec
+    /// §4.2).
+    ///
+    /// **Two things, and the second is the surprising one.** The layer hoist
+    /// is what makes `fill`/`draw` inside `body` stamp `Frame.rootLayer`, so
+    /// `Scene.finalize()`'s `(layer, order, sequence)` sort draws the whole
+    /// subtree after every ordinary-layer sibling, whatever their own
+    /// `order`. The clip reset is what makes it a **portal** rather than a
+    /// plain layer hoist: `body` runs with `activeClip` at the whole surface
+    /// and `activeOffset` at zero, not with whatever an ancestor
+    /// `clipped(to:offsetBy:)` left active. A modal inside a `ScrollView`
+    /// therefore covers the window instead of being clipped to the scroll
+    /// viewport and sliding with its content — the resulting divergence from
+    /// CSS (which clips an absolutely-positioned descendant unless its
+    /// containing block sits outside the clipper) is recorded in the design
+    /// spec §2 and §7.2, and is deliberate: do not "fix" it toward CSS.
+    ///
+    /// Closure form, exactly as `clipped(to:offsetBy:)` above, so an
+    /// unbalanced stack — one that hoists without ever restoring — is not
+    /// expressible.
+    public func deferred(_ body: () -> Void) {
+        frame.pushLayer()
+        frame.pushRootClip()
+        defer {
+            frame.popClip()
+            frame.popLayer()
+        }
         body()
     }
 

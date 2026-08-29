@@ -182,6 +182,22 @@ let allFixtures: [(String, CGSize)] = [
     // until `layOutStack`'s `resolvedAxis` stopped folding an unresolvable
     // percentage to 0.
     ("stack_percent_child_with_content", CGSize(width: 800, height: 600)),
+    // The absolute-positioning milestone's Task 5 — the first browser evidence
+    // for `position: absolute`, which is directly expressible in CSS and needs
+    // no oracle translation the way `Display.stack` did. Each fixture's
+    // geometry IS its assertion; see `AbsoluteFixtureTests.swift`'s per-test
+    // doc comments for what wrong implementation each one catches.
+    ("abs_containing_block_skips_static", CGSize(width: 800, height: 600)),
+    ("abs_percent_insets_nonsquare",       CGSize(width: 800, height: 600)),
+    ("abs_removed_from_flow",              CGSize(width: 800, height: 600)),
+    ("abs_over_constrained",               CGSize(width: 800, height: 600)),
+    // A fifth fixture, alongside the four above: an insufficiently-specified
+    // sizing case Task 4 left unverified. `placeAbsolute`'s fallback to
+    // content measurement for "one inset only, with an auto size" was a
+    // plausible generalisation of its documented cases, but no oracle had
+    // checked it — exactly the shape that hid the Stack milestone's stretch
+    // bug.
+    ("abs_single_inset_auto_size",         CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

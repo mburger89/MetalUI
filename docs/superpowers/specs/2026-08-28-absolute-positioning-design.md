@@ -232,8 +232,11 @@ testable; the design choice is a look.
 
 1. `swift package clean`, warning-free build, full `swift test` **summary line**
    read — never the exit status.
-2. **No existing golden moved.** 76 today. `Position`'s default changing from
-   `.relative` to `.static` must move none — verify, do not assume.
+2. **No existing golden moved.** 76 when this was written; **81 today**, the
+   five `abs_*` fixtures having been added by Task 5 — re-count rather than
+   quoting either number, since this criterion is one a future reader may act
+   on. `Position`'s default changing from `.relative` to `.static` must move
+   none — verify, do not assume.
 3. New fixtures generated against live WebKit, matching on first generation, or
    any disagreement investigated rather than regenerated.
 4. `Style.position` and `Style.inset` **leave** CLAUDE.md's declared-but-inert
@@ -248,13 +251,54 @@ testable; the design choice is a look.
    reports**. Layering and clip-escape are both properties that produce
    identical rects under inversion.
 
+   **The modal is off by default; press M to toggle it.** Gated so that the
+   demo's other four milestones' criteria are not looked at through a
+   translucent scrim forever, and because toggling separates "covers the
+   window" from "replaced the window" by observation. The four things to
+   report: the scrim covers the whole window rather than the 420pt scroll
+   viewport, the modal paints over rows declared after it, it does not
+   move when the list scrolls, and — wheeling over the scrim — whether the
+   list moves underneath. The fourth is a report rather than a pass/fail: a
+   non-scrolling scrim registers no scroll region, `Frame.scrollRegions` is
+   the only hitbox list that exists, so the list is expected to scroll under
+   the modal until §8.1 lands.
+
+   **PARTIALLY CLOSED, 2026-08-28, by measurement rather than by report.** The
+   human ran the demo with the modal up and screen-recorded it for an unrelated
+   reason (resize stutter) without commenting on the modal. Sampling that
+   recording settles the first two: the modal panel measures `#141A28` against
+   `.surface`'s undimmed `#161C2E` while the main pane behind the scrim
+   measures `#0D1118` against the `#0D101B` predicted for `.surface` under a
+   42% black scrim — the same token at two brightnesses in one frame, ratio
+   0.60-0.65 against the alpha's predicted 0.58. The top bar is dimmed too, so
+   the scrim reaches the window edges and not the 420pt strip, and the panel
+   paints over rows 6-9. **Items 3 and 4 remain OPEN**: the recording contains
+   no scrolling, so nothing has observed whether the modal holds still while
+   the list moves, or what a wheel over the scrim does.
+
+   **A caveat worth carrying to any future look.** A first pass over those same
+   frames concluded by eye that the scrim was *missing*; only pixel measurement
+   corrected it. Dark-on-dark dimming has no undimmed reference in frame, so a
+   human report of "there is no scrim" should be measured before it is
+   believed.
+
 ---
 
 ## 7. Divergences this design creates, recorded up front
 
 1. **All-`auto` insets place at the containing block's origin, not the static
-   position** (§3.5). To be measured against WebKit during implementation and
-   recorded with real numbers.
+   position** (§3.5). **Measured against WebKit in Task 5**, with a throwaway
+   probe (a 40x20 in-flow `.before` sibling, then an absolute box with no
+   insets at all — `width: 20px; height: 10px` — inside a 200x100
+   `position: relative` root): **WebKit places the absolute box at (0, 20)**,
+   below `.before` — its static position. **This engine places it at (0,
+   0)**, ignoring `.before` entirely and using the containing block's
+   padding-box origin instead. Pinned by
+   `allAutoInsetsPlaceAtTheContainingBlockOriginNotTheStaticPosition` in
+   `AbsolutePositioningTests.swift`, on the same footing as this project's
+   other named divergences (BM-4, FS-3, TX-H in `CLAUDE.md`): no fixture or
+   golden encodes it, since a golden would record this engine's answer as
+   correct and a future fix should move nothing in the corpus.
 2. **A `Deferred` subtree is not clipped by an ancestor CSS would clip it with**
    (§2, §4.2). Deliberate: `Deferred` is a portal, and the alternative entangles
    layer with containing-block resolution.

@@ -176,11 +176,13 @@ public struct Decoration: Sendable, Hashable {
 /// — see `Display.stack`'s own doc comment for the mechanism in each case.
 ///
 /// **Every modifier below maps to a `Style` property the engine reads.** There
-/// are deliberately none for `position`, `inset`, `overflow` or `aspectRatio`:
-/// those four are CLAUDE.md's remaining inert rows, and a modifier for an inert
-/// property is worse than no modifier, because from outside it is
-/// indistinguishable from an implemented one. Two live properties are also
-/// unreachable from here on purpose:
+/// are deliberately none for `overflow` or `aspectRatio`: those two are
+/// CLAUDE.md's remaining inert rows, and a modifier for an inert property is
+/// worse than no modifier, because from outside it is indistinguishable from an
+/// implemented one. `position` and `inset` were on that list until the engine
+/// read them; they gained `position(_:)`/`inset(_:)` in the same change that
+/// deleted their rows, which is ruling AL-6's rule running in the other
+/// direction. Two live properties are also unreachable from here on purpose:
 ///
 /// - **`margin`'s `.auto` case.** `margin(_:)` takes `Length`, not `Dimension`,
 ///   so `.auto` cannot be spelled through a modifier at all. It resolves to 0
@@ -385,6 +387,69 @@ extension StyledElement {
         modifying { $0.alignSelf = value }
     }
 
+    // MARK: Out of flow
+
+    /// Whether this box participates in its container's flow, and whether it is
+    /// the containing block its absolutely-positioned descendants are placed
+    /// against.
+    ///
+    /// `.absolute` removes the box from both collection sites, so it contributes
+    /// nothing to its container's measured size, and places it by `inset(_:)`
+    /// against the nearest ancestor whose position is not `.static` — the root
+    /// when there is none.
+    ///
+    /// **That does NOT by itself make "positioned against the window" spellable
+    /// from anywhere in the tree, and the exception is a whole clipper.** This
+    /// modifier decides where layout *places* the box; it says nothing about
+    /// what paint then *does* with the emission. A clip and a scroll offset are
+    /// carried on `Frame`'s clip stack, which is structural — every ancestor's
+    /// `clipped(to:offsetBy:)` applies to everything emitted beneath it,
+    /// containing block or not. So an `.absolute` box inside a `ScrollView`
+    /// lands at its window-space coordinates and is then masked to the
+    /// viewport and translated by the scroll, which for a box positioned
+    /// against the window generally means it draws nothing and slides away.
+    /// CSS couples the two — a descendant whose containing block sits outside
+    /// an `overflow` clipper escapes that clipper — and design spec §2 declines
+    /// to reproduce the coupling, because it would entangle layer resolution
+    /// with containing-block resolution. CLAUDE.md's divergence 11.
+    ///
+    /// **`Deferred` is the escape**, and it is a separate decision from this
+    /// one for that reason: it resets the clip stack to the whole surface and
+    /// the offset to zero, so `Deferred { Box().position(.absolute)… }` is the
+    /// spelling that does cover the window from anywhere in the tree.
+    ///
+    /// **`.relative` is half-implemented and this modifier is what makes that
+    /// reachable.** It does make a box a containing block, which is its whole
+    /// purpose here; it does *not* shift the box by its own inset the way CSS
+    /// does. CLAUDE.md carries the row, on the same footing as `.baseline` on
+    /// `alignItems(_:)`.
+    public func position(_ value: Position) -> Self {
+        modifying { $0.position = value }
+    }
+
+    /// The four offsets an `.absolute` box is placed by, against its containing
+    /// block. Inert on a `.static` or `.relative` box, exactly as in CSS.
+    ///
+    /// Takes `Dimension` rather than `Length`, unlike `margin(_:)`, because
+    /// `.auto` is this property's default and its meaning is defined: an axis
+    /// with neither inset given sizes to its own content and sits at the
+    /// containing block's origin. **That last part diverges from CSS**, which
+    /// uses the box's static position instead — CLAUDE.md's divergence 9.
+    ///
+    /// Percentages resolve **per axis**: `left`/`right` against the containing
+    /// block's width, `top`/`bottom` against its height. This is not the
+    /// padding/border rule, where CSS resolves every percentage against width.
+    public func inset(_ edges: Edges<Dimension>) -> Self {
+        modifying { $0.inset = edges }
+    }
+
+    /// The same offset on all four edges. `inset(Pixels(0))` on an `auto`-sized
+    /// box fills its containing block, since each axis then stretches between
+    /// its two given insets.
+    public func inset(_ points: Pixels) -> Self {
+        modifying { $0.inset = Edges(all: .length(.pixels(points))) }
+    }
+
     // MARK: Participation
 
     /// `display: none` — the element and its subtree contribute no box.
@@ -392,6 +457,31 @@ extension StyledElement {
     /// It still runs all three phases and still registers its nodes; the engine
     /// filters it out of its parent's item list, so its rect stays at the zero
     /// `LayoutTree` initialised it with.
+    ///
+    /// **This is a LAYOUT modifier and paint does not honour it. A hidden
+    /// subtree containing a `Text` still emits glyphs, at the surface's own
+    /// origin.** Nothing in `Sources/MetalUI` reads `Style.display` during
+    /// paint: `Box.paint` fills its bounds and recurses into
+    /// `content.paintGroup` unconditionally, so a hidden `Box`'s own fill is
+    /// harmlessly degenerate (a zero-size rect) while its children paint from
+    /// the zero rect's origin — which, a hidden node never having been placed,
+    /// is `(0, 0)` in surface coordinates rather than anywhere near where the
+    /// element was written. `Text.paint` then re-shapes at
+    /// `max(bounds.width, smallestWrapWidth)`, and `smallestWrapWidth` is 0.5,
+    /// so the string wraps after **every character** and stacks one glyph per
+    /// line down the window's left edge.
+    ///
+    /// Measured, not read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); … }`
+    /// in a 400×300 frame emits the expected zero rect **and two glyphs**, at
+    /// `(0, 2)` and `(−1, 18)` — the second negative in x, its left side
+    /// bearing carrying it outside the surface entirely.
+    ///
+    /// So `hidden()` is safe on a subtree of `Box`es and wrong on anything that
+    /// draws its own content. Use a conditional in the `@ElementBuilder` block
+    /// instead — `if showIt { … }` — which removes the element from the tree
+    /// rather than from the item list; `Sources/MetalUIDemo/main.swift`'s modal
+    /// does exactly that, and carries the vanishing-`if` identity caveat at its
+    /// call site. CLAUDE.md's declared-but-inert table has the row.
     public func hidden() -> Self {
         modifying { $0.display = .none }
     }
