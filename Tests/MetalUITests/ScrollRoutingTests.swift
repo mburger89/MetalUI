@@ -495,3 +495,112 @@ private func stackStyle() -> Style {
             "the later registration wins the tie, exactly as at layer 0")
     #expect(window.stateTable.peek(first.id, as: ScrollState.self)?.offset == 0)
 }
+
+/// A leaf element that records `pass.scrollContext` during `requestLayout`
+/// into a shared box, exactly the pattern `FrameClockTests.TimestampRecorder`
+/// uses for `pass.timestamp` — a side channel out of a phase that returns
+/// nothing else a test could read.
+private struct ScrollContextRecorder: Element, StyledElement {
+    @MainActor final class Seen {
+        var values: [(offset: Double, viewportExtent: Double, axis: ScrollAxis)?] = []
+    }
+
+    var style = Style()
+    var decoration = Decoration()
+    var elementID: ElementID?
+    let seen: Seen
+
+    func requestLayout(_ id: GlobalElementID,
+                       pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
+        seen.values.append(pass.scrollContext)
+        let node = pass.requestNode(style: style, children: [])
+        return (node, node)
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                  layout: inout LayoutNodeID, pass: inout PrepaintPass) {}
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+               layout: inout LayoutNodeID, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// The offset a `ScrollView`'s content sees during `requestLayout` is the
+/// CURRENT raw stored offset; the viewport extent it sees is LAST frame's.
+///
+/// **Frame 1** runs before any scroll and before any `prepaint` has ever
+/// stored a `viewportExtent`, so the recorder sees `(0, 0, .vertical)` —
+/// asserted so the second frame's `120` is legible as "prepaint wrote this",
+/// not as some unrelated default the recorder happened to read.
+///
+/// **Frame 2** follows one wheel event of `-37` (natural scrolling adds `37`
+/// to the stored offset — see `aWheelEventInsideARegionScrollsIt`) with no
+/// intervening render. `Window.applyScroll` writes the raw offset and dirties
+/// the window; it does not run layout. So this frame's `requestLayout` reads
+/// `37` — the scroll from *before* this frame, visible with no lag — paired
+/// with `120`, the viewport extent frame 1's `prepaint` stored, which is the
+/// only viewport extent that has ever existed to read.
+///
+/// What a wrong implementation this catches: publishing the CLAMPED offset
+/// instead of the raw one would still read `37` here (content is 200pt tall,
+/// so the clamp is inert at this offset) — a weaker fixture than it looks,
+/// which is why `scrollingPastTheEndDoesNotBankAnOffsetTheUserMustUnwind`
+/// above is what actually distinguishes raw from clamped, not this test.
+/// This test's own job is narrower: that the two published fields are wired
+/// to the right sources at all (a swapped `offset`/`viewportExtent`, or a
+/// `nil` reaching a nested recorder that IS inside the `ScrollView`).
+@Test @MainActor func scrollViewPublishesTheCurrentOffsetAndLastFramesViewportDuringRequestLayout() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let seen = ScrollContextRecorder.Seen()
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120) {
+        ScrollView(.vertical, elementID: ElementID("list")) {
+            ScrollContextRecorder(style: fixedHeight(200), seen: seen)
+        }
+    }
+
+    window.drawFrameIfNeeded()
+    try #require(seen.values.count == 1, "requestLayout must run exactly once per frame")
+    let first = try #require(seen.values[0], "the recorder is inside the ScrollView and must see a context")
+    #expect(first.offset == 0 && first.viewportExtent == 0 && first.axis == .vertical,
+            "before any scroll or any prepaint, both published fields are their ScrollState defaults")
+
+    platformWindow.simulateInput(wheel(at: pt(60, 60), deltaY: -37))
+    window.drawFrameIfNeeded()
+
+    try #require(seen.values.count == 2, "one requestLayout per frame, across two frames")
+    let second = try #require(seen.values[1])
+    #expect(second.offset == 37,
+            "the raw offset is CURRENT — the scroll that happened before this frame is visible with no lag")
+    #expect(second.viewportExtent == 120,
+            "the viewport extent is ONE FRAME STALE — 120 is what frame 1's prepaint stored, the only value that has ever existed")
+    #expect(second.axis == .vertical)
+}
+
+/// A sibling declared AFTER a `ScrollView`, not inside it, must see no scroll
+/// context at all — the push in `ScrollView.requestLayout` is popped via
+/// `defer` before that sibling's own `requestLayout` runs, exactly as a
+/// `clipped(to:offsetBy:)` block does not leak its clip past its closing
+/// brace.
+///
+/// **This is Step 7's mutation, made permanent as a test rather than left as
+/// a one-off deletion of the `defer`.** Dropping the pop by hand (replacing
+/// `withScrollContext` with a bare, unbalanced `frame.pushScrollContext`
+/// call) reddens exactly this test: the trailing recorder's context reads the
+/// `ScrollView`'s own `(0, 0, .vertical)` instead of `nil`.
+@Test @MainActor func aSiblingAfterAScrollViewSeesNoScrollContext() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let seen = ScrollContextRecorder.Seen()
+    let (window, _) = try makeFakeWindow(device: device, size: 120) {
+        Box(style: columnStyle()) {
+            ScrollView(.vertical, elementID: ElementID("list")) {
+                Box(style: fixedHeight(200))
+            }
+            ScrollContextRecorder(style: fixedHeight(20), seen: seen)
+        }
+    }
+
+    window.drawFrameIfNeeded()
+
+    try #require(seen.values.count == 1)
+    #expect(seen.values[0] == nil,
+            "a sibling after the ScrollView, not inside it, must not inherit its scroll context")
+}

@@ -201,6 +201,31 @@ public final class Frame {
                           Corners(all: Pixels(0))))
     }
 
+    /// The innermost active `ScrollView`'s ambient context, shaped exactly
+    /// like `clipStack` above and for the same reason: `LayoutPass
+    /// .withScrollContext` pushes one before descending into a `ScrollView`'s
+    /// content and pops it after, via `defer`, so nesting and an unbalanced
+    /// push are handled the same way clipping already is.
+    private var scrollContextStack: [(offset: Double, viewportExtent: Double, axis: ScrollAxis)] = []
+
+    /// The scroll context currently in effect, or `nil` outside every
+    /// `ScrollView`'s subtree — the same "nothing special" answer `activeClip`
+    /// gives an empty `clipStack`.
+    var activeScrollContext: (offset: Double, viewportExtent: Double, axis: ScrollAxis)? {
+        scrollContextStack.last
+    }
+
+    /// Pushes a scroll context. Balanced by `popScrollContext`, reached only
+    /// through `LayoutPass.withScrollContext`'s `defer`.
+    func pushScrollContext(_ context: (offset: Double, viewportExtent: Double, axis: ScrollAxis)) {
+        scrollContextStack.append(context)
+    }
+
+    /// Pops one level pushed by `pushScrollContext`.
+    func popScrollContext() {
+        scrollContextStack.removeLast()
+    }
+
     /// The axis-aligned intersection of two bounds. Either dimension can go to
     /// zero (or below, clamped to zero) when the two do not overlap; it never
     /// goes negative.

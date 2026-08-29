@@ -60,6 +60,37 @@ public struct LayoutPass {
     /// that shapes survive the frame. Making it public would also make
     /// `ShapingCache`'s whole surface part of `MetalUI`'s API by reachability.
     var shapingCache: ShapingCache { frame.shapingCache }
+
+    /// The innermost active `ScrollView`'s ambient context, or `nil` outside
+    /// one — `ScrollView.requestLayout` is the sole publisher, via
+    /// `withScrollContext` below.
+    ///
+    /// **The offset is CURRENT; the viewport extent is ONE FRAME STALE**, and
+    /// that split is the whole reason this exists rather than `ScrollView`
+    /// simply resolving and clamping the offset itself here. A scroll that
+    /// landed before this frame (`Window.applyScroll` writes it, then dirties
+    /// the window) is visible; the viewport is pure layout output and cannot
+    /// exist until layout runs, so the only way to have one during layout is
+    /// to have stored last frame's. `List` (Task 6) is the reader: it knows
+    /// its own content extent as `count × rowHeight` and clamps against that
+    /// itself, so this value is deliberately unclamped raw state, not a
+    /// resolved offset.
+    public var scrollContext: (offset: Double, viewportExtent: Double, axis: ScrollAxis)? {
+        frame.activeScrollContext
+    }
+
+    /// Runs `body` with `context` as the innermost active scroll context.
+    ///
+    /// **Closure form, exactly as `PrepaintPass.clipped(to:offsetBy:_:)`, and
+    /// for the same reason**: a push with no matching pop is not expressible,
+    /// so a sibling declared after a `ScrollView` (rather than inside it)
+    /// cannot inherit a context it was never meant to see.
+    public func withScrollContext(_ context: (offset: Double, viewportExtent: Double, axis: ScrollAxis),
+                                  _ body: () -> Void) {
+        frame.pushScrollContext(context)
+        defer { frame.popScrollContext() }
+        body()
+    }
 }
 
 /// Phase 2. Layout has resolved, so absolute bounds are known — but nothing has
