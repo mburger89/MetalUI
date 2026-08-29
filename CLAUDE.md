@@ -479,7 +479,7 @@ behind the **M** key for that reason; see `showModal` in
 **Z-order is why that criterion exists, and it is worth restating precisely.**
 A `Stack`'s children are placed independently of paint order —
 `positionStackItems` never reads which child was declared first — so a
-regression reversing paint order would move not one number any of the 569 tests
+regression reversing paint order would move not one number any of the 577 tests
 or 81 goldens check: every rect's `(x, y, width, height)` is identical whichever
 child painted first. **Two artifacts have ever observed the property and both are
 outside the suite**: the offscreen readback, once, by hand, and the human look
@@ -532,10 +532,10 @@ scrim's alpha.
    the modal" is confirming a known limitation; a human reporting that it does
    **not** means something unexplained is happening and is worth chasing.
 
-**Nothing in the suite can see any of the three, and the reason is the same one
+**Nothing in the suite can see any of the first three, and the reason is the same one
 `Stack`'s entry gives.** A `Deferred` contributes no layout node, so its
 subtree's `(x, y, width, height)` are byte-identical whether or not it hoists
-and whether or not it escapes; the 569 tests and 81 goldens would all stay green
+and whether or not it escapes; the 577 tests and 81 goldens would all stay green
 under a regression in either half. The scene-level tests in `DeferredTests.swift`
 assert the layer and the mask on synthetic frames, which is real evidence and is
 not the same as the composed window.
@@ -1494,8 +1494,8 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    `UnitSafetyTests` because one is a comment. **Re-counted again at the end of
    the clipping-and-scroll milestone (suite 488), again at the end of the
    stack milestone's review round (suite 538), and again at the end of absolute
-   positioning (suite 569): still 25.** The suite has
-   moved 304 → 358 → 444 → 488 → 538 → 569 and the guard count has not moved at
+   positioning (suite 577): still 25.** The suite has
+   moved 304 → 358 → 444 → 488 → 538 → 577 and the guard count has not moved at
    all, which is the paragraph's point arriving as six data points rather than as
    one delta — the argument is that the two numbers are independent, so do not
    restate it as "the suite grew by N and the 25 held", which rots the moment N
