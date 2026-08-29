@@ -62,7 +62,18 @@ public final class ShapingCache {
         }
     }
 
-    private var storage: [Key: ShapedText] = [:]
+    /// A cached value stamped with the generation it was last touched in —
+    /// hit or inserted — so ``endFrame()`` can tell "used this frame, or
+    /// recently enough" from "stale" without a second, parallel dictionary to
+    /// keep in sync. Generic over both `storage`'s `ShapedText` and
+    /// `minContent`'s `Double` so the sweep in ``endFrame()`` is one function
+    /// rather than two copies that could drift.
+    private struct Entry<Value> {
+        var value: Value
+        var generation: Int
+    }
+
+    private var storage: [Key: Entry<ShapedText>] = [:]
     private var fonts: [FontKey: ResolvedFont] = [:]
 
     /// **Keyed on the string and the resolved font, and deliberately NOT on any
@@ -74,13 +85,14 @@ public final class ShapingCache {
         var font: FontKey
     }
 
-    /// **Unbounded, like `storage`, and nothing evicts it.** Task 7 is
-    /// planned to bound the cache, but as drafted its held-back assertion
-    /// reads only `storageCount` — i.e. `storage`'s count — so a bound
-    /// enforced only there would leave this dictionary growing with nothing
-    /// able to see it. Whoever implements Task 7's bound must cover both
-    /// dictionaries, not just `storage`.
-    private var minContent: [MinContentKey: Double] = [:]
+    /// **Bounded exactly as `storage` is, by the same sweep — see
+    /// ``endFrame()``.** Before Task 7 this was unbounded like `storage`, and
+    /// the held-back assertion this milestone added
+    /// (`theShapingCacheStaysUnderItsBoundAcrossAWidthSweep`) reads this
+    /// dictionary's count as well as `storage`'s for exactly that reason: a
+    /// bound enforced on only one of the two would leave the other growing
+    /// with nothing able to see it.
+    private var minContent: [MinContentKey: Entry<Double>] = [:]
 
     /// Cache observability, and the only way anything outside this file can
     /// see whether the cache is a cache — a ``shaped(_:font:wrappingAt:)``
@@ -97,6 +109,51 @@ public final class ShapingCache {
 
     /// Entry count, for the bound assertion. `storage` stays private.
     var storageCount: Int { storage.count }
+
+    /// Entry count for `minContent`, on the same footing as ``storageCount``
+    /// and for the same reason — see `minContent`'s own doc comment.
+    var minContentCount: Int { minContent.count }
+
+    /// True for the duration of one frame's layout-and-paint construction —
+    /// the same shape as `GlyphAtlas.isBuildingFrame` and
+    /// `LayoutTree.isLayingOut`. Unlike the atlas, nothing here traps while
+    /// this is true: a dictionary reclaims a removed entry's storage on the
+    /// spot, so there is no "stranded pixels" hazard to guard against (see
+    /// ``endFrame()``'s doc comment). The flag exists so `beginFrame()` can
+    /// catch re-entrant calls the same way the atlas's does.
+    public private(set) var isBuildingFrame = false
+
+    /// Advances by one on every ``beginFrame()``, starting at 1 for the first
+    /// frame — the same convention as `GlyphAtlas.currentGeneration`, so 0
+    /// stays a generation nothing was ever stamped with.
+    public private(set) var currentGeneration = 0
+
+    /// An entry survives being untouched for this many generations before
+    /// ``endFrame()`` will consider it for eviction. A caller who resolves an
+    /// entry's key from a slightly different frame than the one right before
+    /// it — a windowed `List` re-touching a row it dropped one frame and
+    /// picked back up the next, say — should not pay a re-shape for that
+    /// alone; this grace is what keeps the sweep from being trigger-happy
+    /// about it. `endFrame()`'s own comment records what it costs when this
+    /// is too small: an entry evicted while still live re-shapes every frame
+    /// forever, which is slower than never evicting at all.
+    private static let staleAfterGenerations = 2
+
+    /// The per-dictionary cap `endFrame()` sweeps against. `storage` and
+    /// `minContent` are bounded independently against this same number —
+    /// they hold different things and there is no reason one's growth should
+    /// starve the other's budget.
+    ///
+    /// **Sized well above a realistic single frame's live working set, on
+    /// purpose.** A 40-row `List` like the demo's touches on the order of 90
+    /// `storage` entries and 40 `minContent` ones on every steady-state
+    /// frame — every one of them re-touched every frame, so none of them may
+    /// ever be evicted (see ``endFrame()``). This bound leaves that working
+    /// set roughly 2-3x of headroom for a real app's greater string variety,
+    /// while still being a bound rather than "large enough that nobody will
+    /// notice" — spec §6 measured no cost difference between a 276-entry and
+    /// a 733-entry cache, so this number is not chasing a speed target.
+    public static let entryBound = 256
 
     public init() {}
 
@@ -129,12 +186,13 @@ public final class ShapingCache {
         let key = Key(string: string, font: font.key, width: width)
         if let cached = storage[key] {
             hits += 1
-            return cached
+            storage[key] = Entry(value: cached.value, generation: currentGeneration)
+            return cached.value
         }
 
         misses += 1
         let result = Shaper.shape(string, font: font, wrappingAt: width)
-        storage[key] = result
+        storage[key] = Entry(value: result, generation: currentGeneration)
         return result
     }
 
@@ -147,12 +205,72 @@ public final class ShapingCache {
     /// and the whole loop into one dictionary hit.
     public func minContentWidth(_ string: String, font: ResolvedFont) -> Double {
         let key = MinContentKey(string: string, font: font.key)
-        if let cached = minContent[key] { return cached }
+        if let cached = minContent[key] {
+            minContent[key] = Entry(value: cached.value, generation: currentGeneration)
+            return cached.value
+        }
         var width = 0.0
         for run in Shaper.unbreakableRuns(of: string) {
             width = max(width, shaped(run, font: font, wrappingAt: nil).widestLine)
         }
-        minContent[key] = width
+        minContent[key] = Entry(value: width, generation: currentGeneration)
         return width
+    }
+
+    /// Begins one frame's worth of shaping. Every ``shaped(_:font:wrappingAt:)``
+    /// or ``minContentWidth(_:font:)`` call made before the matching
+    /// ``endFrame()`` stamps its entry with the generation this call
+    /// establishes — the same contract as `GlyphAtlas.beginFrame()`.
+    ///
+    /// Brackets **layout and paint both**, unlike the atlas's bracket, which
+    /// wraps only paint. A `Text`'s `MeasureFunction` shapes during layout
+    /// (`textMeasure`, for both the `.definite` and `.minContent` branches)
+    /// and `Text.paint` shapes again at the box's final rounded width — both
+    /// touches belong to the same frame, and `endFrame()`'s sweep must see
+    /// both as live. `Frame.render` calls this before `requestLayout` runs
+    /// and this type's `endFrame()` after `paint` returns, for that reason.
+    public func beginFrame() {
+        precondition(!isBuildingFrame, "beginFrame called while a frame is already being built")
+        isBuildingFrame = true
+        currentGeneration += 1
+    }
+
+    /// Ends the frame ``beginFrame()`` began, then sweeps both dictionaries.
+    ///
+    /// **Only evicts when a dictionary is over ``entryBound``, and only
+    /// entries untouched for ``staleAfterGenerations``.** An entry this
+    /// frame touched has `generation == currentGeneration`, which is never
+    /// stale, so this can never drop something the frame just built —
+    /// unlike `GlyphAtlas.evictUnusedSince(_:)`, which traps if called mid-
+    /// frame for exactly that hazard, nothing here needs to trap: eviction
+    /// only ever runs between frames, from this one call site.
+    ///
+    /// **A dictionary reclaims a removed entry's storage immediately.** That
+    /// is what makes this safe where the atlas's `evictUnusedSince(_:)` is
+    /// not: the atlas's shelf packer never revisits a closed shelf, so
+    /// freeing a `GlyphKey` there strands its pixels and the next request
+    /// for it packs a *second* copy further down — calling it every frame
+    /// would make the atlas fill faster, which is why it has zero
+    /// production callers. `Dictionary.removeValue` has no such reclaim
+    /// problem: the slot is simply free, and a later re-touch is an ordinary
+    /// cache miss followed by an ordinary insert.
+    public func endFrame() {
+        precondition(isBuildingFrame, "endFrame called without a matching beginFrame")
+        isBuildingFrame = false
+        sweep(&storage)
+        sweep(&minContent)
+    }
+
+    /// Drops every entry untouched for ``staleAfterGenerations``, but only
+    /// once `dict` is over ``entryBound`` — see ``endFrame()``'s doc comment
+    /// for why eviction is a bound rather than a target size, and this
+    /// type's own doc comment for why a dictionary can run it safely where
+    /// the atlas cannot.
+    private func sweep<Key: Hashable, Value>(_ dict: inout [Key: Entry<Value>]) {
+        guard dict.count > Self.entryBound else { return }
+        let cutoff = currentGeneration - Self.staleAfterGenerations
+        for (key, entry) in dict where entry.generation < cutoff {
+            dict.removeValue(forKey: key)
+        }
     }
 }

@@ -17,9 +17,9 @@ struct MeasurePerformanceTests {
     /// counters the render just moved.
     static func render(_ content: () -> some Element,
                        size: Size<Pixels> = Size(width: Pixels(920), height: Pixels(560)),
-                       states: StateTable) -> Frame {
+                       states: StateTable, shapingCache: ShapingCache = ShapingCache()) -> Frame {
         let frame = Frame(contentSize: size, scaleFactor: 2, stateTable: states,
-                          theme: .dark)
+                          shapingCache: shapingCache, theme: .dark)
         var root = content()
         frame.render(&root)
         return frame
@@ -97,22 +97,53 @@ struct MeasurePerformanceTests {
         #expect(f160.shapingCache.storageCount == f40.shapingCache.storageCount)
     }
 
-    // Task 7 adds `ShapingCache.entryBound`; until then this does not compile.
-    // Uncomment there.
-    // @Test
-    // func theShapingCacheStaysUnderItsBoundAcrossAWidthSweep() throws {
-    //     let states = StateTable()
-    //     var last = 0
-    //     for i in 0..<120 {
-    //         let w = 920.0 + Double(i) * 0.5
-    //         let frame = Self.render({ demoLikeRows(40) },
-    //                                 size: Size(width: Pixels(Float(w)), height: Pixels(560)),
-    //                                 states: states)
-    //         last = frame.shapingCache.storageCount
-    //     }
-    //     // Today: 276 -> 739 and climbing, with no eviction path in the file.
-    //     #expect(last <= ShapingCache.entryBound)
-    // }
+    /// Task 7's held-back assertion, and the reason it changed shape from
+    /// its own held-back form. That form swept the outer `Frame`'s width
+    /// while rendering `demoLikeRows(40)`, whose every internal width is
+    /// pinned (see that function's own comment) precisely so an unrelated
+    /// test's probe count stays deterministic — which makes it, measured,
+    /// invariant to the outer frame's width: sharing one `ShapingCache`
+    /// across the original 120-iteration sweep produces a one-time warm-up
+    /// value and then a byte-identical `storageCount` on every later
+    /// iteration, never exceeding it. That is not this defect — §6 describes
+    /// unbounded growth from a *drag*, i.e. new distinct content arriving
+    /// over many frames, not from a fixed 40-row list re-rendered at
+    /// different container widths.
+    ///
+    /// This sweeps a **row width and a per-frame-unique row string** instead,
+    /// which reproduces the real mechanism on both dictionaries at once:
+    /// `rowWidth` cycles so the item is genuinely re-wrapped at a changing
+    /// width — `storage`'s `(string, font, width)` key changes every frame,
+    /// the same way resizing a real window changes the fractional width
+    /// text.swift's own measure function offers (divergence 8 measures this
+    /// exact instability). The row's own text embeds the loop index, so
+    /// `minContent`'s `(string, font)` key is new every frame too — the same
+    /// way a scrolling list keeps presenting row numbers the cache has never
+    /// seen. Neither dictionary can plateau the way `demoLikeRows` did.
+    @Test
+    func theShapingCacheStaysUnderItsBoundAcrossAWidthSweep() throws {
+        let states = StateTable()
+        let cache = ShapingCache()
+        var lastStorage = 0
+        var lastMinContent = 0
+        for i in 0..<300 {
+            let w = 920.0 + Double(i) * 0.5
+            let rowWidth = 80.0 + Double(i).truncatingRemainder(dividingBy: 40) * 0.5
+            let frame = Self.render({
+                Box { Text("Row \(i) of 4000 — a scrollable list item") }
+                    .width(Pixels(Float(rowWidth)))
+                    .alignItems(.stretch)
+            }, size: Size(width: Pixels(Float(w)), height: Pixels(560)),
+               states: states, shapingCache: cache)
+            lastStorage = frame.shapingCache.storageCount
+            lastMinContent = frame.shapingCache.minContentCount
+        }
+        // Today, with no sweep: storage climbs to 1508 and minContent
+        // reaches exactly 300 — one new distinct row string per iteration,
+        // never reused, never evicted.
+        #expect(lastStorage <= ShapingCache.entryBound)
+        #expect(lastMinContent <= ShapingCache.entryBound)
+    }
 }
 
 // `ScrollView` conforms to `Element`, not `StyledElement` (CLAUDE.md's

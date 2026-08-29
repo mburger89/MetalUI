@@ -589,6 +589,14 @@ public final class Frame {
         // takes `.named` instead — the constructor decides, here as everywhere.
         let rootID = GlobalElementID.child(of: nil, at: 0, name: element.elementID)
 
+        // Unlike the atlas's bracket below, this one wraps layout as well as
+        // paint: a `Text`'s `MeasureFunction` shapes during `requestLayout`
+        // and `Text.paint` shapes again at the box's final rounded width, and
+        // `ShapingCache.endFrame()`'s sweep must see both touches as this
+        // frame's before it can tell them from stale ones. See
+        // `ShapingCache.beginFrame()`'s own doc comment.
+        shapingCache.beginFrame()
+
         var layoutPass = LayoutPass(frame: self)
         let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)
         var state = layoutState
@@ -619,6 +627,7 @@ public final class Frame {
         element.paint(rootID, bounds: rootBounds,
                       layout: &state, prepaint: &prepaintState, pass: &paintPass)
         glyphAtlas.endFrame()
+        shapingCache.endFrame()
 
         // After the frame, not before — but **not for the reason it is tempting
         // to write down.** Sweeping first does *not* discard everything the
