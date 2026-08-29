@@ -110,24 +110,48 @@ struct MeasurePerformanceTests {
 // wrapping `Box` — the same shape `Sources/MetalUIDemo/main.swift` uses for
 // its own 40-row list.
 //
+// **Task 6 switched this from a hand-rolled `for` loop to `List`, which is
+// the whole point of `aListsWorkIsTheSameFor160RowsAsFor40`**: that test was
+// failing by design (a hand-rolled loop builds and shapes every row
+// regardless of viewport) until this helper actually went through the type
+// under test.
+//
 // Each row's `.width(Pixels(420))` is pinned, matching the demo
 // (`Sources/MetalUIDemo/main.swift:391-397`) rather than left `auto`. An
 // auto-width row is an auto-cross item, so `collectItems`' fit-content probe
 // on the cross axis recurses into §4.5's automatic minimum a THIRD time —
 // three `unbreakableRuns` calls per `Text` instead of two. Measured, not
-// assumed: an A/B over exactly this one line moved the call count from 120
-// to 80 for 40 rows, with `alignItems` (`.stretch` vs `.center`) ruled out as
-// the cause first. Removing this pin would silently inflate every later
-// task's before/after ratio.
+// assumed, before this file used `List`: an A/B over exactly this one line
+// moved the call count from 120 to 80 for 40 rows, with `alignItems`
+// (`.stretch` vs `.center`) ruled out as the cause first. The pin now sits on
+// the `Box` `List`'s own row wrapper contributes rather than on a row `List`
+// itself builds — `List`'s internal row style has no width of its own, so an
+// un-pinned `Text` here would still hit the same third probe. Removing this
+// pin would silently inflate every later task's before/after ratio.
+//
+// **The row text does not embed `n`, and it did before this task — measured
+// to matter.** `"Row \(i + 1) of \(n) — …"` (the pre-`List` text) makes every
+// visible row's string one character longer at `n == 160` than at `n == 40`
+// ("of 160" against "of 40"), so `aListsWorkIsTheSameFor160RowsAsFor40`'s
+// glyph-count equality failed by exactly one glyph per visible row (471 vs
+// 455 for a ~16-row window) with windowing already working correctly —
+// nothing to do with how many rows are built, only with what they say. The
+// demo itself hardcodes `"…of 40"` regardless of the true count for the same
+// reason a literal is simpler than a parameter here; this helper drops the
+// trailing count entirely rather than hardcode a number `n` will sometimes
+// disagree with.
+private struct DemoRow: Identifiable {
+    let id: Int
+}
+
 @MainActor
 func demoLikeRows(_ n: Int) -> some Element {
     Box {
         ScrollView(.vertical) {
-            for i in 0..<n {
+            List((0..<n).map(DemoRow.init), rowHeight: Pixels(28)) { datum in
                 Box {
-                    Text("Row \(i + 1) of \(n) — a scrollable list item")
+                    Text("Row \(datum.id + 1) — a scrollable list item")
                 }
-                .height(Pixels(28))
                 .width(Pixels(420))
                 .alignItems(.stretch)
             }

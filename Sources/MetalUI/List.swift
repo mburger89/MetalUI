@@ -10,7 +10,12 @@ import MetalUILayout
 /// the vanishing-`if` hazard made routine. `Data.Element: Identifiable` is
 /// what stops that: each row is wrapped under `.named(ElementID(String(describing:
 /// datum.id)))`, which survives a reorder because a name replaces a position
-/// rather than joining it.
+/// rather than joining it. **It is also what makes windowing safe**: a row
+/// built only while its index is inside the window still lands on the same
+/// `GlobalElementID` every time it comes back into view, because its identity
+/// never depended on the position windowing gives it among ITS built siblings
+/// (that position varies frame to frame as the window slides) — only on its
+/// name.
 ///
 /// **`String(describing:)` is not injective, and this is a real, unguarded
 /// gap.** Two distinct ids that happen to describe to the same string — e.g.
@@ -24,9 +29,9 @@ import MetalUILayout
 ///
 /// **A uniform `rowHeight` is what makes windowing O(visible).** Every row's
 /// own height is pinned to `rowHeight`, so a row's position is `index *
-/// rowHeight` by construction and the eventual visible window is computed by
-/// division, with no row laid out to find it. Variable heights need a
-/// prefix-sum index and are out of scope.
+/// rowHeight` by construction and the window is computed by division, with no
+/// row laid out to find it. Variable heights need a prefix-sum index and are
+/// out of scope.
 ///
 /// **The pin is enforced by REMOVING the automatic minimum, not only by
 /// setting a height.** A row `Box`'s `min-height: auto` default floors its
@@ -40,11 +45,30 @@ import MetalUILayout
 /// `ScrollView.requestLayout` sets on its content node for the same reason
 /// (ruling CL-C), read that comment before touching either line here.
 ///
-/// **This type does not window — every row is built, every frame.** `List`
-/// sizes itself to `data.count * rowHeight` regardless of what any row
-/// measures; the offset plumbing that builds only the visible slice reads
-/// this type's own `data` and `row` builder, which is why both are stored
-/// rather than consumed once in `init`.
+/// **Windows against `LayoutPass.scrollContext`, published by the nearest
+/// enclosing `ScrollView`.** `List` sizes itself to `data.count * rowHeight`
+/// unconditionally — a fixed style property, not a sum over what is actually
+/// built — so the scrollbar and the offset clamp see the full extent even
+/// though only a slice of rows exists in the tree for any given frame. See
+/// `visibleRange(count:pass:)` for the arithmetic and its two escape
+/// hatches (no context; a first-frame zero viewport).
+///
+/// **A leading spacer places the window, rather than an absolute inset per
+/// row — chosen by reasoning about the two, not by measuring both; no
+/// absolute-positioned version of this type was built to benchmark against.**
+/// The alternative — `.position(.absolute).inset(top:)` on each row — is
+/// available since the absolute-positioning milestone, and CLAUDE.md's
+/// divergence 11 even names this exact composition (an absolute box inside a
+/// `ScrollView` stays clipped and translated by it, which is what a windowed
+/// row wants). It was set aside because it pulls every row out of flow, so
+/// each row's position would have to be resolved against `List`'s own
+/// containing block instead of falling out of ordinary flex placement — and a
+/// spacer's height plus an ordinary flex column already places every built
+/// row at exactly `index * rowHeight` with no absolute math at all. The
+/// spacer costs one extra `Box` per frame, unconditionally, and buys not
+/// having to reason about containing blocks inside a list. If a future
+/// profile shows the spacer's flex participation costing more than an
+/// absolute row would, that is the comparison this paragraph never ran.
 ///
 /// **Stretches its rows on the cross axis, where `Column` would centre them**
 /// (ruling EP-8's split): the outer container is a raw `Box`, whose `Style`
@@ -59,16 +83,28 @@ where Data.Element: Identifiable {
     public var elementID: ElementID?
 
     /// Retained rather than consumed in `init` — `requestLayout` is what
-    /// builds the row array, so a later windowed implementation can build only
-    /// the visible slice of `data` there instead of restructuring this type.
+    /// builds the row array, reading `data` fresh every frame so the window it
+    /// builds always reflects the current scroll position.
     private var data: Data
     private var rowHeight: Pixels
     private var row: (Data.Element) -> Row
 
+    /// Rows built beyond the exact window on each side, so a partially
+    /// scrolled edge — the window's boundary landing mid-row rather than on a
+    /// row edge — never shows a gap while a frame is in flight. Not exposed on
+    /// `init`: a caller who needs a different value has no case yet, and a
+    /// public knob nothing reads back would be exactly the shape CLAUDE.md's
+    /// declared-but-inert table exists to keep out of this framework's API.
+    private static var overscan: Int { 2 }
+
     /// The rows this frame actually built, threaded from `requestLayout`
     /// through `prepaint` and `paint` the same way `Column`/`Row` thread their
-    /// own `box` — `nil` only before `requestLayout` has run for this value.
-    private var box: Box<ArrayGroup<Box<Row>>>?
+    /// own `box` — seeded with an empty placeholder here rather than left
+    /// `Optional`, so a phase called out of order (a bug elsewhere) degrades
+    /// to a stale empty frame instead of a force-unwrap trap. `requestLayout`
+    /// always overwrites it before `prepaint`/`paint` read it on every
+    /// correctly-ordered frame.
+    private var box: Box<Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>>
 
     public init(_ data: Data, rowHeight: Pixels,
                 @ElementBuilder row: @escaping (Data.Element) -> Row) {
@@ -82,10 +118,44 @@ where Data.Element: Identifiable {
         style.flexDirection = .column
         style.size.height = .length(.pixels(rowHeight * Float(data.count)))
         self.style = style
+
+        self.box = Box(style: style, decoration: decoration,
+                       content: Pair(Box(style: Style()), ArrayGroup([])))
+    }
+
+    /// The half-open range of `data`'s indices to build this frame: the rows
+    /// intersecting the viewport, widened by `overscan` on each side and
+    /// clamped into `0..<count`.
+    ///
+    /// **Two escape hatches, both building everything, per the ruling this
+    /// type's author carried forward from `LayoutPass.scrollContext`'s own
+    /// doc.** No ambient context at all means this `List` is not inside a
+    /// `ScrollView` — a list nobody scrolls must still render every row. A
+    /// present context with `viewportExtent == 0` is a `ScrollView`'s first
+    /// frame, before its own `prepaint` has ever run to measure one — dividing
+    /// by that zero gives `+.infinity`, and converting that to `Int` traps.
+    /// Guarded naively instead, it yields an empty range and a one-frame flash
+    /// while the rest fills in on frame two. Building everything on that frame
+    /// costs one slow frame instead.
+    private func visibleRange(count: Int, pass: LayoutPass) -> Range<Int> {
+        guard let context = pass.scrollContext, context.viewportExtent > 0 else {
+            return 0..<count
+        }
+        let extent = Double(rowHeight.value) * Double(count)
+        // The ambient offset is raw and unclamped (`ScrollContext`'s own doc);
+        // this is the clamp `List` owns because it — unlike `LayoutPass` — knows
+        // its own exact content extent without waiting on a resolved layout.
+        let offset = min(max(0, context.offset), max(0, extent - context.viewportExtent))
+        let rowExtent = Double(rowHeight.value)
+        let rawFirst = Int((offset / rowExtent).rounded(.down)) - Self.overscan
+        let rawLast = Int(((offset + context.viewportExtent) / rowExtent).rounded(.up)) + Self.overscan
+        let first = min(max(0, rawFirst), count)
+        let last = min(max(first, rawLast), count)
+        return first..<last
     }
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
-        -> (LayoutNodeID, Box<ArrayGroup<Box<Row>>>.Layout) {
+        -> (LayoutNodeID, Box<Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>>.Layout) {
         // Every row is wrapped in its own `Box` so its height can be pinned
         // independently of `Row`'s own type — `Row` need not be `StyledElement`
         // for `List` to control its size. See the type doc for why both
@@ -96,7 +166,13 @@ where Data.Element: Identifiable {
         rowStyle.minSize.height = .length(.pixels(Pixels(0)))
         rowStyle.flexShrink = 0
 
-        let rows: [Box<Row>] = data.map { datum in
+        let count = data.count
+        let window = visibleRange(count: count, pass: pass)
+
+        let windowStart = data.index(data.startIndex, offsetBy: window.lowerBound)
+        let windowEnd = data.index(data.startIndex, offsetBy: window.upperBound)
+
+        let rows: [Box<Row>] = data[windowStart..<windowEnd].map { datum in
             // `String(describing:)` is the collision the type doc names —
             // distinct `datum.id`s that describe the same string land here as
             // the same `GlobalElementID`.
@@ -104,22 +180,37 @@ where Data.Element: Identifiable {
                 .id(String(describing: datum.id))
         }
 
-        var built = Box(style: style, decoration: decoration, content: ArrayGroup(rows))
+        // Places the window: a plain `Box` sized to exactly the rows skipped,
+        // so the first built row lands at `window.lowerBound * rowHeight` —
+        // its true absolute offset — rather than at the top of whatever the
+        // window happens to be. `minSize.height`/`flexShrink` mirror the row
+        // pin above for the same reason: this height must hold exactly, not
+        // be squeezed by padding on `List` itself.
+        var spacerStyle = Style()
+        let spacerHeight = Pixels(rowHeight.value * Float(window.lowerBound))
+        spacerStyle.size.height = .length(.pixels(spacerHeight))
+        spacerStyle.minSize.height = .length(.pixels(Pixels(0)))
+        spacerStyle.flexShrink = 0
+        let spacer = Box(style: spacerStyle)
+
+        var built = Box(style: style, decoration: decoration,
+                        content: Pair(spacer, ArrayGroup(rows)))
         let result = built.requestLayout(id, pass: &pass)
         box = built
         return result
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Box<ArrayGroup<Box<Row>>>.Layout,
-                                  pass: inout PrepaintPass) -> ArrayGroup<Box<Row>>.GroupPrepaint {
-        box!.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+                                  layout: inout Box<Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>>.Layout,
+                                  pass: inout PrepaintPass)
+        -> Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>.GroupPrepaint {
+        box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                               layout: inout Box<ArrayGroup<Box<Row>>>.Layout,
-                               prepaint: inout ArrayGroup<Box<Row>>.GroupPrepaint,
+                               layout: inout Box<Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>>.Layout,
+                               prepaint: inout Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>.GroupPrepaint,
                                pass: inout PaintPass) {
-        box!.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+        box.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
     }
 }

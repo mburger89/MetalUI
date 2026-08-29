@@ -192,3 +192,80 @@ private func idOfRow(named name: String, in data: [Item], rowHeight: Pixels,
     let (frame, root) = laidOut(&list)
     #expect(frame.bounds(of: root).size.width == px(123))
 }
+
+/// Runs the full three-phase pipeline over `list` with `context` pushed onto
+/// `frame`'s scroll-context stack before `requestLayout` runs — the same
+/// value `ScrollView.requestLayout` would publish around a real `List` child,
+/// reproduced directly so these tests do not need a real `ScrollView`,
+/// `Window` or wheel event to control it. Popped again immediately after:
+/// nothing here needs it during prepaint or paint, and leaving it pushed
+/// would be a stray mutation on a `Frame` a caller might reuse.
+@MainActor
+private func renderWindowed<E: Element>(_ element: inout E, context: ScrollContext,
+                                        frameHeight: Float = 600) -> (Frame, LayoutNodeID) {
+    let frame = Frame(contentSize: Size(width: px(400), height: px(frameHeight)), scaleFactor: 1)
+    frame.pushScrollContext(context)
+    let rootID = GlobalElementID.child(of: nil, at: 0, name: element.elementID)
+    var layoutPass = LayoutPass(frame: frame)
+    let (root, layoutState) = element.requestLayout(rootID, pass: &layoutPass)
+    frame.popScrollContext()
+    var state = layoutState
+
+    frame.computeRootLayout(root: root)
+    let rootBounds = frame.bounds(of: root)
+
+    var prepaintPass = PrepaintPass(frame: frame)
+    var prepaintState = element.prepaint(rootID, bounds: rootBounds, layout: &state,
+                                         pass: &prepaintPass)
+    var paintPass = PaintPass(frame: frame)
+    element.paint(rootID, bounds: rootBounds, layout: &state, prepaint: &prepaintState,
+                 pass: &paintPass)
+    return (frame, root)
+}
+
+/// The window is exact, not merely "at least the viewport": rows both inside
+/// AND outside the widened window are checked, so a mutation that builds too
+/// FEW rows (overscan dropped) and one that builds too MANY (e.g. everything)
+/// would each redden this differently — see the overscan mutation below.
+///
+/// 40 rows at 28pt: offset 140 (row 5's top) and viewport 84 (3 rows) bound
+/// rows 5..<8 exactly; widened by `overscan == 2` on each side that is
+/// 3..<10 — rows 3 through 9.
+@Test @MainActor func aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan() throws {
+    let data = items(40)
+    var list = List(data, rowHeight: px(28)) { Row($0) }
+    let context = ScrollContext(offset: 140, viewportExtent: 84, axis: .vertical)
+    let (frame, _) = renderWindowed(&list, context: context)
+
+    let ys = Set(frame.scrollRegions.map(\.bounds.origin.y.value))
+    let expected = Set((3...9).map { Float($0) * 28 })
+    #expect(ys == expected, "expected rows 3 through 9 built, got y-offsets \(ys.sorted())")
+}
+
+/// The list's own height must stay count x rowHeight even though only a
+/// window is built — otherwise the scrollbar and the offset clamp are wrong.
+@Test @MainActor func aWindowedListStillReportsItsFullContentHeight() throws {
+    let data = items(40)
+    var list = List(data, rowHeight: px(28)) { Row($0) }
+    let context = ScrollContext(offset: 140, viewportExtent: 84, axis: .vertical)
+    let (frame, root) = renderWindowed(&list, context: context)
+
+    #expect(frame.scrollRegions.count < data.count, "the window must be a strict subset")
+    #expect(frame.bounds(of: root).size.height == px(1120), "40 x 28, unaffected by windowing")
+}
+
+/// A row scrolled past keeps its position, so the window is placed rather
+/// than merely sized: row 50 sits at 50 x rowHeight, not at the window's top.
+@Test @MainActor func aWindowedRowSitsAtItsAbsoluteOffsetNotTheWindowsTop() throws {
+    let data = items(100)
+    var list = List(data, rowHeight: px(28)) { Row($0) }
+    // Row 50's top is 50 x 28 = 1400; a 100pt viewport starting there keeps
+    // it comfortably inside the window with room either side for overscan.
+    let context = ScrollContext(offset: 1400, viewportExtent: 100, axis: .vertical)
+    let (frame, _) = renderWindowed(&list, context: context, frameHeight: 2000)
+
+    let region = try #require(frame.scrollRegions.first { $0.bounds.origin.y == px(1400) },
+                              "row 50 must be registered at y == 1400, its absolute offset")
+    #expect(region.bounds.origin.y != px(0),
+            "a windowed row must not fall back to the window's own top")
+}
