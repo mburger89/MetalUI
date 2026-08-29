@@ -247,29 +247,47 @@ already documents, made routine.
 
 ### 7.4 The scroll offset is needed in `requestLayout`, and today it is resolved in prepaint
 
-This is the risky part of the milestone and it is a real reordering.
+This is the risky part of the milestone, and the first draft of this section
+was **wrong about a detail that changes the design**. Corrected here rather
+than silently, per this repo's own rule about false sentences.
 
 The tree is rebuilt every frame, so `List` must decide which rows to *build*
 before the phase that currently computes where anything is.
 
-**Chosen: `ScrollView` publishes its resolved offset and viewport onto the pass
-during `requestLayout`**, as an ambient value in the shape of the existing clip
-stack, and `List` reads it. Same-frame and correct.
+**What the first draft claimed:** that `ScrollView` publishes its *resolved*
+offset during `requestLayout`, "same-frame and correct." It cannot.
+`resolvedOffset` (`ScrollView.swift:378`) clamps against `extent(bounds.size)`
+and `pass.bounds(of: layout.contentNode)` — the viewport rect and the content
+node's laid-out size, **neither of which exists during `requestLayout`**. The
+clamp is the whole reason that function lives in prepaint.
 
-Rejected, with reasons:
+**What is actually available, and it splits into two halves with different
+freshness:**
 
-- **Use last frame's offset.** Trivial, and wrong exactly when it shows: fast
-  scrolling leaves blank bands at the leading edge.
-- **Make `List` the scroller.** Sidesteps the reordering, but the chosen
-  spelling is `ScrollView { List(…) }` and two scrolling elements is a worse
-  API than one ambient value.
+- **The raw stored offset is current.** `Window.applyScroll` writes it into the
+  `StateTable` before requesting the redraw, and `LayoutPass` has `withState`
+  (`Passes.swift:355`), so a scroll that happened before this frame is visible
+  to `requestLayout`. Scrolling is *not* one frame behind.
+- **The viewport extent is one frame stale.** It is pure layout output, so the
+  only way to have it during `requestLayout` is to have stored it last frame.
+  `ScrollState` gains a `viewportExtent: Double` written in prepaint.
 
-**What this touches is the subsystem with the worst track record in this repo.**
-The clipping milestone shipped two intermittent scroll defects that only a human
-found, one of them an offset clamped on read and unbounded on write. Ruling
-CL-C's `contentStyle.flexShrink = 0` and `resolvedOffset`'s clamp-and-write-back
-are both live and both easy to disturb. The plan pins current routing behaviour
-**before** touching it.
+**So `ScrollView` publishes `(rawOffset, lastViewportExtent, axis)` onto
+`LayoutPass` as an ambient value shaped like the existing clip stack, and
+`List` clamps it itself** — which it can do exactly, because `count x
+rowHeight` is its content extent by construction and needs no layout.
+
+**What the staleness costs, stated precisely.** The viewport extent changes
+only when the window resizes. During a resize the window may be off by the
+delta for one frame, which overscan absorbs. Scrolling — the case that would
+show as blank bands at the leading edge — uses the current offset and is exact.
+
+**This is the subsystem with the worst track record in this repo.** The
+clipping milestone shipped two intermittent scroll defects that only a human
+found, one an offset clamped on read and unbounded on write that banked 740 of
+invisible dead band. Ruling CL-C's `contentStyle.flexShrink = 0` and
+`resolvedOffset`'s clamp-and-write-back are both live and easy to disturb. The
+plan pins current routing behaviour **before** touching it.
 
 ### 7.5 What a windowed row loses
 
@@ -330,6 +348,10 @@ a bad trade for a saving that may already be gone.
 3. **The 8.33 ms target excludes GPU submission and AppKit**, neither measured.
    Hitting it in the harness does not prove 120 Hz on a real display, and the
    exit criterion's human check is what covers the gap.
+4. **`List`'s window uses a one-frame-stale viewport extent** (§7.4). The
+   scroll offset is current, so scrolling is exact; only a resize can make the
+   window briefly wrong, and overscan absorbs it. Making it exact needs a
+   two-pass layout, which is a larger change than this milestone.
 
 ---
 
