@@ -34,8 +34,12 @@ struct MeasurePerformanceTests {
         _ = Self.render({ demoLikeRows(40) }, states: states)
 
         // 40 rows share no strings, so 40 distinct strings is the ceiling a
-        // per-string memo allows. Today this is ~80: two min-content probes
-        // per `Text`, each tokenizing in full.
+        // per-string memo allows. Today this is 80: two min-content probes
+        // per `Text`, each tokenizing in full — two rather than three
+        // because each row's `Box` in `demoLikeRows` pins `.width(Pixels(420))`,
+        // matching the demo. Drop that pin and the count rises to 120, because
+        // an auto-width row is an auto-cross item and `collectItems`' fit-content
+        // probe recurses into §4.5's automatic minimum a third time.
         #expect(Shaper.unbreakableRunCalls <= 40)
     }
 
@@ -82,6 +86,16 @@ struct MeasurePerformanceTests {
 // declared-but-inert table), so `.width`/`.height`/`.minHeight` land on a
 // wrapping `Box` — the same shape `Sources/MetalUIDemo/main.swift` uses for
 // its own 40-row list.
+//
+// Each row's `.width(Pixels(420))` is pinned, matching the demo
+// (`Sources/MetalUIDemo/main.swift:391-397`) rather than left `auto`. An
+// auto-width row is an auto-cross item, so `collectItems`' fit-content probe
+// on the cross axis recurses into §4.5's automatic minimum a THIRD time —
+// three `unbreakableRuns` calls per `Text` instead of two. Measured, not
+// assumed: an A/B over exactly this one line moved the call count from 120
+// to 80 for 40 rows, with `alignItems` (`.stretch` vs `.center`) ruled out as
+// the cause first. Removing this pin would silently inflate every later
+// task's before/after ratio.
 @MainActor
 func demoLikeRows(_ n: Int) -> some Element {
     Box {
@@ -91,6 +105,7 @@ func demoLikeRows(_ n: Int) -> some Element {
                     Text("Row \(i + 1) of \(n) — a scrollable list item")
                 }
                 .height(Pixels(28))
+                .width(Pixels(420))
                 .alignItems(.stretch)
             }
         }
