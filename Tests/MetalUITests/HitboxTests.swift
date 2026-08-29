@@ -36,13 +36,14 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// Two overlapping opaque hitboxes: the one registered LAST is the one on top,
 /// and it is the one a point in the overlap resolves to.
 ///
-/// **Both halves are asserted, and the second is the load-bearing one.** "The
-/// later one won" alone passes under an implementation that returns every
-/// candidate's id, or the first, or a fixed one — so the test also pins that
-/// the loser is *not* the answer, by naming it. The two rects overlap only in
-/// a 20×20 square, and the probe point is inside it; each rect also has a
-/// private corner, probed below, so a mutant that returned the wrong one
-/// everywhere would redden three assertions rather than one.
+/// **The loser is pinned by the second PROBE POINT, not by `hit != lower`.**
+/// `topmostHitbox` returns one optional, so `hit == upper` already entails
+/// `hit != lower` and that line catches nothing on its own — it is kept only
+/// because it names the loser for a reader. What makes this a two-sided test
+/// is geometry: the rects overlap in a 20×20 square with the first probe
+/// inside it, and each also has a private corner probed below, so an
+/// implementation that always answered `upper` reddens at (10, 10) and one
+/// that always answered `lower` reddens at (50, 50) and (90, 90).
 @Test @MainActor func theTopmostOpaqueHitWins() throws {
     let frame = bareFrame()
     let pass = PrepaintPass(frame: frame)
@@ -51,7 +52,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 
     let hit = try #require(frame.topmostHitbox(at: pt(50, 50)))
     #expect(hit == upper, "the later registration paints on top and takes the point")
-    #expect(hit != lower, "the covered hitbox must not win in the overlap")
+    #expect(hit != lower, "named for the reader; entailed by the line above")
     #expect(frame.topmostHitbox(at: pt(10, 10)) == lower,
             "outside the overlap the lower one is the only candidate")
     #expect(frame.topmostHitbox(at: pt(90, 90)) == upper,
@@ -82,6 +83,11 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// mutant it exists to catch. It is also the larger rect, so it covers the
 /// opaque one completely and there is no point at which the two disagree for
 /// a geometric reason.
+///
+/// **The second probe point is what pins the other half.** `hit != overlay`
+/// follows from `hit == beneath` for a single-valued return and catches
+/// nothing alone; (80, 80) — over the non-opaque overlay and nothing else —
+/// is the assertion that fails if `opaque` stops being a filter.
 @Test @MainActor func aNonOpaqueHitboxDoesNotStopTheWalk() throws {
     let frame = bareFrame()
     let pass = PrepaintPass(frame: frame)
@@ -90,7 +96,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 
     let hit = try #require(frame.topmostHitbox(at: pt(20, 20)))
     #expect(hit == beneath, "the walk passes through the non-opaque overlay")
-    #expect(hit != overlay, "a non-opaque hitbox is never the answer")
+    #expect(hit != overlay, "named for the reader; entailed by the line above")
     #expect(frame.topmostHitbox(at: pt(80, 80)) == nil,
             "over the non-opaque overlay alone there is nothing to hit at all")
 }
@@ -216,9 +222,18 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// the active offset before emitting, so a row inside a `ScrollView` scrolled
 /// by 30 draws 30 points higher than `bounds(of:)` reports; a hitbox that
 /// skipped the same translation would sit 30 points below the pixels the user
-/// is clicking on. `registerScrollRegion`'s only production caller registers
-/// OUTSIDE its own `clipped(to:offsetBy:)` block, where the offset is zero, so
-/// that omission has never been reachable there.
+/// is clicking on.
+///
+/// **`registerScrollRegion` has the same omission and it is a live routing
+/// defect today, not a hypothetical this task creates.** Its only production
+/// caller registers outside its OWN `clipped(to:offsetBy:)` block, which
+/// zeroes only its own contribution — an ancestor scroller's offset is still
+/// in effect, because the inner element's whole `prepaint` runs inside the
+/// outer's block. Measured with the outer scrolled by 120, the inner scroller
+/// registers `(0, 300) 200x0` while painting at `(0, 180) 200x150`, so it
+/// receives no wheel events at all. Fixing it changes wheel routing and
+/// belongs with the task that folds the two lists together; this test pins
+/// only the hitbox half.
 ///
 /// The clip is the full viewport and the row is well inside it, so the
 /// intersection removes nothing: the only thing that can move the stored rect

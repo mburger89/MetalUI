@@ -408,12 +408,20 @@ public final class Frame {
     /// scrolled by 30 draws thirty points above where `bounds(of:)` reports it;
     /// a hitbox recorded at the untranslated rect would sit thirty points below
     /// the pixels the user is pointing at, and the error would grow with the
-    /// scroll. `registerScrollRegion` omits it and has never been wrong for it,
-    /// because its only production caller (`ScrollView.prepaint`) registers
-    /// *outside* its own `clipped(to:offsetBy:)` block where the offset is
-    /// zero — an omission that becomes reachable the moment the two lists fold
-    /// together, and is flagged here rather than fixed under a different task's
-    /// name.
+    /// scroll. **`registerScrollRegion` omits it, and that omission is a
+    /// PRE-EXISTING ROUTING DEFECT that is reachable in production today** —
+    /// not, as an earlier draft of this comment said, one that "becomes
+    /// reachable the moment the two lists fold together". `ScrollView.prepaint`
+    /// registers *outside* its OWN `clipped(to:offsetBy:)` block, which zeroes
+    /// only its own contribution; an **ancestor** scroller's is still in
+    /// effect, because the inner element's whole `prepaint` runs inside the
+    /// outer's block. Measured through a real `Frame.render` with the outer
+    /// scrolled by 120: the inner scroller registers `(0, 300) 200x0` — empty,
+    /// and 120pt away — while it paints at `(0, 180) 200x150`, so **a nested
+    /// scroller receives no wheel events at all**. Flagged here rather than
+    /// fixed under a different task's name: the fix changes wheel routing,
+    /// which design spec §3.1 wants pinned green first, and it belongs with the
+    /// task that folds the two lists.
     ///
     /// The **clipped** bounds for `registerScrollRegion`'s own reason: a box
     /// scrolled out of its ancestor's viewport must not take events for the
@@ -435,35 +443,38 @@ public final class Frame {
         return HitboxID(index: hitboxes.count - 1)
     }
 
-    /// The topmost **opaque** hitbox containing `point`, or `nil` when the walk
-    /// reaches the bottom without finding one.
+    /// The topmost **opaque** hitbox containing `point`, or `nil` when nothing
+    /// opaque is under it.
     ///
-    /// **Ranked by `(layer, registration order)` and walked in reverse**, which
-    /// is `Window.applyScroll`'s rule for scroll regions stated the other way
-    /// round: that method takes the `.max` of the same pair, this one sorts by
-    /// it and walks from the top, because it may have to keep going. The two
-    /// must agree, since one list is going to absorb the other. Layer first,
-    /// because a hoisted `Deferred` subtree is still *emitted* where it was
-    /// declared and can therefore register before something it paints over;
-    /// registration order alone would hand the point to the covered element.
-    /// Ties are impossible — the index is unique — so the sort's stability is
-    /// not relied on.
+    /// **Deliberately the same expression as `Window.applyScroll`'s** — the
+    /// `.max` of `(layer, registration index)` over the candidates — so that
+    /// parity between the two lists is structural rather than argued. Task 7
+    /// folds one into the other, and two functions that must agree should read
+    /// the same. Layer first, because a hoisted `Deferred` subtree is still
+    /// *emitted* where it was declared and can therefore register before
+    /// something it paints over; registration order alone would hand the point
+    /// to the covered element.
     ///
-    /// **A non-opaque hitbox does not stop the walk** (design spec §3.2) and is
-    /// therefore never this query's answer, even when it is the only thing
-    /// under the point. That is what `opaque: false` means: present in the
-    /// list, transparent to the point.
+    /// **A non-opaque hitbox does not stop the walk** (design spec §3.2), which
+    /// is why `opaque` is a *filter* here rather than a test applied to the
+    /// winner: an ineligible record must not be able to shadow an eligible one
+    /// beneath it. Written the other way round — take the topmost hit, then
+    /// check whether it is opaque — this would return `nil` wherever a
+    /// decorative overlay covers a real target, which is the whole failure
+    /// §3.2's sentence exists to prevent. So a non-opaque hitbox is never this
+    /// query's answer, even when it is the only thing under the point: present
+    /// in the list, transparent to the point.
+    ///
+    /// This function has **no reverse walk to get wrong** because the filter
+    /// makes every candidate eligible; "topmost" is then just the maximum.
     ///
     /// Half-open on the max edges, because `Bounds.contains` is: two hitboxes
     /// sharing an edge cannot both claim it.
     func topmostHitbox(at point: Point<Pixels>) -> HitboxID? {
-        let candidates = hitboxes.enumerated()
-            .filter { $0.element.bounds.contains(point) }
-            .sorted { ($0.element.layer, $0.offset) < ($1.element.layer, $1.offset) }
-        for candidate in candidates.reversed() where candidate.element.opaque {
-            return HitboxID(index: candidate.offset)
-        }
-        return nil
+        hitboxes.enumerated()
+            .filter { $0.element.bounds.contains(point) && $0.element.opaque }
+            .max { ($0.element.layer, $0.offset) < ($1.element.layer, $1.offset) }
+            .map { HitboxID(index: $0.offset) }
     }
 
     /// The cross-frame state table (§4.3).
