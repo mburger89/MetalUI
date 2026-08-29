@@ -36,9 +36,20 @@ struct MeasurePerformanceTests {
         // 40 rows share no strings, so 40 distinct strings is the ceiling a
         // per-string memo allows. `ShapingCache.minContentWidth` memoizes the
         // tokenizer walk, so within one frame the second of the two
-        // min-content probes per `Text` (the direct measure pass and
-        // `collectItems`' cross-axis fit-content probe) hits the memo instead
-        // of retokenizing — one call per distinct string per frame, hence 40.
+        // min-content probes per `Text` hits the memo instead of
+        // retokenizing — one call per distinct string per frame, hence 40.
+        //
+        // **Both probes reach the SAME line, not two different ones**
+        // (measure-performance milestone, ruling MP-B): `FlexEngine`'s §4.5
+        // automatic-minimum content-suggestion probe, called once from
+        // `flexBaseSize`'s content-basis pass over an ancestor and once from
+        // the real positioning pass floor-clamping the item for §9.7's freeze
+        // loop. It is NOT "the direct measure pass and `collectItems`' cross-
+        // axis fit-content probe" — that cross-axis site is dead on this tree,
+        // because the row `.width(Pixels(420))` pin below (see this file's
+        // `demoLikeRows` comment) removes the auto cross size it needs to
+        // fire at all. A call-stack capture confirmed this; do not restate
+        // the cross-axis probe as one of the two without re-measuring.
         //
         // This reads exactly 40 rather than 0 because `Self.render` above
         // hands each call a fresh `Frame` with no `shapingCache:` argument, so

@@ -80,11 +80,19 @@ gated on `isRow`) and the cross-axis fit-content probe (`collectItems`'s
 .minContent).width, available)`, gated on `!isRow` and `value > available`) —
 on a steady-state render of `demoLikeRows(40)`:
 
-- **The automatic-minimum probe (line ~1687) fired 121 times.** Not 80 and not
-  40 — more than the 80 actual leaf calls, because it fires once per
-  auto-min-width **container** it passes through on the way down to a leaf, not
-  only once per leaf. A childless `Text` firing is only the *last* firing in a
-  chain that can include ancestor containers along the way.
+- **Of the 80 `minContentWidth` calls, 40 trace through a stack containing
+  `flexBaseSize` and never `placeNode`, and the other 40 through
+  `placeNode`/`computeRootLayout` and never `flexBaseSize`** — an exact 40/40
+  split between the two callers named below, independently reproduced under
+  the reviewer's own call-stack instrumentation. **A raw firing count for the
+  automatic-minimum probe *line itself* (line ~1687) is deliberately not
+  reported here.** A first attempt at that count, using symbol-name matching
+  on `Thread.callStackSymbols` rather than a reproducible per-frame counter,
+  read 121; independent re-measurement read 485 — a 4x disagreement neither
+  side could explain, so the number is dropped rather than kept and flagged.
+  The claim this ruling actually needs is the 80/40/40 split above, which
+  reproduced exactly; nothing below depends on how many times the source line
+  fires at intermediate nesting levels on the way to a leaf.
 - **The cross-axis fit-content probe (line ~1921) fired exactly 1 time**, and a
   `Thread.callStackSymbols` capture on `ShapingCache.minContentWidth`'s two calls
   per `Text` showed neither of them originating there. This is the pinned-width
@@ -135,8 +143,11 @@ conclude (wrongly) that the milestone's own finding was fabricated rather than
 that the citation was wrong. Re-measure with the method above (call-site
 counters plus a captured call stack on `ShapingCache.minContentWidth`) before
 trusting either this correction or the original claim on a different tree
-shape, since the automatic-minimum probe's *count* (121, not 80) is itself a
-property of nesting depth and will move if the demo's structure changes.
+shape — the 80/40/40 split is specific to `demoLikeRows(40)`'s nesting, and a
+differently-shaped tree should not be assumed to keep it. Use a reproducible
+per-frame counter for any further count on this mechanism, not symbol-name
+matching on a captured stack trace: that method is what produced the 121-vs-485
+disagreement this ruling declined to resolve.
 
 ---
 
