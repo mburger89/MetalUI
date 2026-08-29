@@ -74,11 +74,19 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
     #expect(second > 0)
 }
 
-/// Width is deliberately NOT part of the key: min-content is width-independent
-/// by definition, which is exactly why §4.5 can use it as a floor. A key that
-/// included width would miss on every frame of a resize and cache nothing.
+/// What this pins: the memoized value equals a `max` over the runs' widths,
+/// each shaped independently through the (unmemoized-for-this-purpose) cache
+/// path — i.e. the memo doesn't just return *some* cached number, it returns
+/// the right one.
+///
+/// **Not a width-independence test** — `minContentWidth(_:font:)` takes no
+/// width argument at all, so nothing here varies a width or could redden
+/// under a width-related mutation. Width-independence is a type-level
+/// guarantee (the signature has no width parameter to smuggle one through),
+/// not something this test — or any test — checks. See `MinContentKey`'s doc
+/// comment in `ShapingCache.swift` for why width is excluded from the key.
 @MainActor
-@Test func minContentIsTheLongestWordAndDoesNotVaryWithAnyWidth() {
+@Test func theMemoizedWidthEqualsTheMaxOverIndependentlyShapedRuns() {
     let cache = ShapingCache()
     let s = "a bb supercalifragilistic dd"
 

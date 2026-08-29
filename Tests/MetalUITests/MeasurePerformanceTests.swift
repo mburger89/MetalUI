@@ -34,12 +34,24 @@ struct MeasurePerformanceTests {
         _ = Self.render({ demoLikeRows(40) }, states: states)
 
         // 40 rows share no strings, so 40 distinct strings is the ceiling a
-        // per-string memo allows. Today this is 80: two min-content probes
-        // per `Text`, each tokenizing in full — two rather than three
-        // because each row's `Box` in `demoLikeRows` pins `.width(Pixels(420))`,
-        // matching the demo. Drop that pin and the count rises to 120, because
-        // an auto-width row is an auto-cross item and `collectItems`' fit-content
-        // probe recurses into §4.5's automatic minimum a third time.
+        // per-string memo allows. `ShapingCache.minContentWidth` memoizes the
+        // tokenizer walk, so within one frame the second of the two
+        // min-content probes per `Text` (the direct measure pass and
+        // `collectItems`' cross-axis fit-content probe) hits the memo instead
+        // of retokenizing — one call per distinct string per frame, hence 40.
+        //
+        // This reads exactly 40 rather than 0 because `Self.render` above
+        // hands each call a fresh `Frame` with no `shapingCache:` argument, so
+        // the two renders in this test do not share a cache — only calls
+        // *within* one frame benefit from the memo here. A `Window`-threaded
+        // cache, persisted across frames the way production does it, reads 0
+        // (measured directly). Do not "fix" this by threading a shared cache
+        // into `Self.render` to make it read 0: that also makes
+        // `aListsWorkIsTheSameFor160RowsAsFor40` read `0 == 0`, which would
+        // pass today before windowing exists and forever after regardless of
+        // whether windowing works. The cold-cache-per-frame shape is
+        // load-bearing for that assertion; Task 6 owns that test and chooses
+        // both instruments together.
         #expect(Shaper.unbreakableRunCalls <= 40)
     }
 

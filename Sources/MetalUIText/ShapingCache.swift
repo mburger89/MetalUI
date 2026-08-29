@@ -1,8 +1,10 @@
 import Foundation
 
 /// A window-level cache over ``Shaper``, keyed on the CONTENT that determines
-/// a shape — `(string, font, width)` — rather than on element identity (spec
-/// §3.2).
+/// a shape rather than on element identity (spec §3.2) — `(string, font,
+/// width)` for a full shape via ``shaped(_:font:wrappingAt:)``, and
+/// `(string, font)` alone for the width-independent min-content memo via
+/// ``minContentWidth(_:font:)``.
 ///
 /// **Deliberately not the `StateTable`.** `StateTable` (spec §4.3) is for
 /// state that *cannot* be recomputed from an element's values: scroll offset,
@@ -72,6 +74,12 @@ public final class ShapingCache {
         var font: FontKey
     }
 
+    /// **Unbounded, like `storage`, and nothing evicts it.** Task 7 is
+    /// planned to bound the cache, but as drafted its held-back assertion
+    /// reads only `storageCount` — i.e. `storage`'s count — so a bound
+    /// enforced only there would leave this dictionary growing with nothing
+    /// able to see it. Whoever implements Task 7's bound must cover both
+    /// dictionaries, not just `storage`.
     private var minContent: [MinContentKey: Double] = [:]
 
     /// Cache observability, and the only way anything outside this file can
