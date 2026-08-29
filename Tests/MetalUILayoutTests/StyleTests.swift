@@ -5,7 +5,7 @@ import MetalUICore
 @Test func defaultStyleMatchesCSSInitialValues() {
     let s = Style()
     #expect(s.display == .flex)
-    #expect(s.position == .relative)
+    #expect(s.position == .static)
     #expect(s.flexDirection == .row)
     #expect(s.flexWrap == .noWrap)
     #expect(s.flexGrow == 0)

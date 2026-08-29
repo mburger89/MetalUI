@@ -27,7 +27,20 @@ import MetalUICore
 /// inline one. Implementing one without the other would make a stack's two axes
 /// disagree about whether a child may override its container.
 public enum Display: Sendable, Equatable { case flex, stack, none }
-public enum Position: Sendable, Equatable { case relative, absolute }
+/// Whether a box participates in its container's flow, and whether it acts as
+/// the containing block for absolutely-positioned descendants.
+///
+/// **`.static` is the default and is the reason this enum has three cases.**
+/// An `.absolute` box is placed against the nearest ancestor that is *not*
+/// `.static`; with only `relative`/`absolute` every ancestor would qualify and
+/// an absolute box could never reach past its immediate parent — a modal buried
+/// in the tree could not cover the window.
+///
+/// `.relative` is therefore the opt-in: it makes a box a containing block
+/// without moving it. This engine does not implement `relative`'s *offset*
+/// behaviour (CSS shifts a relative box by its own inset while leaving its
+/// in-flow space reserved); a `.relative` box lays out exactly as `.static` does.
+public enum Position: Sendable, Equatable { case `static`, relative, absolute }
 public enum FlexWrap: Sendable, Equatable { case noWrap, wrap, wrapReverse }
 public enum Overflow: Sendable, Equatable { case visible, hidden, scroll }
 
@@ -86,7 +99,7 @@ public enum JustifyContent: Sendable, Equatable {
 public struct Style: Sendable, Equatable {
     // Box
     public var display: Display = .flex
-    public var position: Position = .relative
+    public var position: Position = .static
     public var inset: Edges<Dimension> = Edges(all: .auto)
     public var size: Size<Dimension> = Size(width: .auto, height: .auto)
     public var minSize: Size<Dimension> = Size(width: .auto, height: .auto)
