@@ -206,18 +206,18 @@ public final class Frame {
     /// .withScrollContext` pushes one before descending into a `ScrollView`'s
     /// content and pops it after, via `defer`, so nesting and an unbalanced
     /// push are handled the same way clipping already is.
-    private var scrollContextStack: [(offset: Double, viewportExtent: Double, axis: ScrollAxis)] = []
+    private var scrollContextStack: [ScrollContext] = []
 
     /// The scroll context currently in effect, or `nil` outside every
     /// `ScrollView`'s subtree — the same "nothing special" answer `activeClip`
     /// gives an empty `clipStack`.
-    var activeScrollContext: (offset: Double, viewportExtent: Double, axis: ScrollAxis)? {
+    var activeScrollContext: ScrollContext? {
         scrollContextStack.last
     }
 
     /// Pushes a scroll context. Balanced by `popScrollContext`, reached only
     /// through `LayoutPass.withScrollContext`'s `defer`.
-    func pushScrollContext(_ context: (offset: Double, viewportExtent: Double, axis: ScrollAxis)) {
+    func pushScrollContext(_ context: ScrollContext) {
         scrollContextStack.append(context)
     }
 

@@ -75,21 +75,37 @@ public struct LayoutPass {
     /// its own content extent as `count × rowHeight` and clamps against that
     /// itself, so this value is deliberately unclamped raw state, not a
     /// resolved offset.
-    public var scrollContext: (offset: Double, viewportExtent: Double, axis: ScrollAxis)? {
+    ///
+    /// **A `ScrollView`'s very first frame publishes `ScrollContext(offset: 0,
+    /// viewportExtent: 0, axis:)`**, because `ScrollState.viewportExtent` has
+    /// no writer until `prepaint` has run once. A reader dividing by it is
+    /// dividing by zero: `Double / 0` is `+.infinity` and does not trap, but
+    /// `Int(ceil(viewportExtent / rowHeight))` on that infinity **does**
+    /// trap — measured, not hypothetical. A reader that instead special-cases
+    /// zero and returns an empty visible range gets a **different**, non-
+    /// crashing symptom on the same frame: a list with a nonzero row count
+    /// computes zero visible rows on frame 1, so it paints only whatever
+    /// overscan it always renders and the rest fills in on frame 2 — a
+    /// one-frame flash on first appearance. Neither is this pass's defect;
+    /// both are inputs a consumer (`List`, Task 6) must design against, and
+    /// this is the doc a reader of THIS property will actually open.
+    public var scrollContext: ScrollContext? {
         frame.activeScrollContext
     }
 
-    /// Runs `body` with `context` as the innermost active scroll context.
+    /// Runs `body` with `context` as the innermost active scroll context and
+    /// returns whatever `body` returns.
     ///
     /// **Closure form, exactly as `PrepaintPass.clipped(to:offsetBy:_:)`, and
     /// for the same reason**: a push with no matching pop is not expressible,
     /// so a sibling declared after a `ScrollView` (rather than inside it)
-    /// cannot inherit a context it was never meant to see.
-    public func withScrollContext(_ context: (offset: Double, viewportExtent: Double, axis: ScrollAxis),
-                                  _ body: () -> Void) {
+    /// cannot inherit a context it was never meant to see. Generic over `R`
+    /// so `ScrollView.requestLayout` can thread its subtree's return value
+    /// straight out, with no local `!`-typed variable to hoist it through.
+    public func withScrollContext<R>(_ context: ScrollContext, _ body: () -> R) -> R {
         frame.pushScrollContext(context)
         defer { frame.popScrollContext() }
-        body()
+        return body()
     }
 }
 

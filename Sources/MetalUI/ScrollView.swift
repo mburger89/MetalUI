@@ -53,6 +53,32 @@ public struct ScrollState: Sendable {
     }
 }
 
+/// The ambient value a `ScrollView` publishes to its descendants during
+/// `requestLayout`, read back through `LayoutPass.scrollContext`. Named
+/// rather than left as the bare tuple it started as — the same shape
+/// `clipStack`'s entries have on `Frame`, except that tuple is `private` and
+/// never crosses `MetalUI`'s own boundary, where this one is `public` and
+/// was showing up spelled out at five call sites across `Frame` and
+/// `LayoutPass`.
+///
+/// **Both fields answer a different question than `ScrollState`'s own.**
+/// `offset` here is the CURRENT raw stored value — unclamped, because
+/// clamping needs the content node's laid-out size, which does not exist
+/// during layout (see `ScrollView.requestLayout`). `viewportExtent` is ONE
+/// FRAME STALE, copied from `ScrollState.viewportExtent`, which only
+/// `resolvedOffset`'s `PrepaintPass` overload ever writes.
+public struct ScrollContext: Sendable, Equatable {
+    public var offset: Double
+    public var viewportExtent: Double
+    public var axis: ScrollAxis
+
+    public init(offset: Double, viewportExtent: Double, axis: ScrollAxis) {
+        self.offset = offset
+        self.viewportExtent = viewportExtent
+        self.axis = axis
+    }
+}
+
 /// A clipped, scrollable viewport over content taller (or wider) than itself.
 ///
 /// **SwiftUI's shape, not CSS's** (ruling EP-5): `ScrollView { … }` rather than
@@ -207,14 +233,16 @@ public struct ScrollView<Content: ElementGroup>: Element {
         }
 
         var cursor = 0
-        var children: [LayoutNodeID] = []
-        var inner: Content.GroupLayout!
         // Pushed before the subtree is built and popped after, via `defer`
         // inside `withScrollContext` — the same shape as `clipped(to:offsetBy:)`,
         // so a sibling declared after this `ScrollView` (rather than inside
-        // it) sees none of it.
-        pass.withScrollContext((offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)) {
-            (children, inner) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        // it) sees none of it. `withScrollContext` is generic over its
+        // closure's result, so the subtree's own return value threads
+        // straight out with no local IUO to hoist it through.
+        let (children, inner) = pass.withScrollContext(
+            ScrollContext(offset: rawOffset, viewportExtent: lastViewportExtent, axis: axis)
+        ) {
+            content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
         }
 
         var contentStyle = Style()
