@@ -70,6 +70,15 @@ public final class ShapingCache {
     private(set) var hits = 0
     private(set) var misses = 0
 
+    /// Every call to ``shaped(_:font:wrappingAt:)``, hit or miss. `hits + misses`
+    /// already gives this; it is named separately because the assertion that
+    /// matters is the *lookup* count — the per-run loop in `Text`'s min-content
+    /// branch drives it, and a hit is not free at 604 ns.
+    var lookups: Int { hits + misses }
+
+    /// Entry count, for the bound assertion. `storage` stays private.
+    var storageCount: Int { storage.count }
+
     public init() {}
 
     /// Makes `font` reachable by its ``FontKey`` from inside a later

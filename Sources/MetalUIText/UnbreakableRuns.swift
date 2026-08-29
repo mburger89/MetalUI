@@ -102,9 +102,18 @@ extension Shaper {
     /// string above becomes 113.928 rather than 110.348 — a floor carrying a
     /// space nobody sees.
     ///
+    /// Counts calls to ``unbreakableRuns(of:)``. Internal and always on, at the
+    /// cost of one increment: the function is the single largest line item in a
+    /// frame, and a count is the only assertion that survives a change of
+    /// machine. `ShapingCache`'s own `hits`/`misses` are the precedent.
+    nonisolated(unsafe) static var unbreakableRunCalls = 0
+
+    static func resetUnbreakableRunCalls() { unbreakableRunCalls = 0 }
+
     /// An empty string yields **no runs**, so a caller's `max` must start at 0
     /// rather than at the first run.
     public static func unbreakableRuns(of string: String) -> [String] {
+        Self.unbreakableRunCalls += 1
         let cf = string as CFString
         let length = CFStringGetLength(cf)
         guard length > 0,
