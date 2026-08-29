@@ -396,8 +396,27 @@ extension StyledElement {
     /// `.absolute` removes the box from both collection sites, so it contributes
     /// nothing to its container's measured size, and places it by `inset(_:)`
     /// against the nearest ancestor whose position is not `.static` — the root
-    /// when there is none, which is what makes "positioned against the window"
-    /// spellable from anywhere in the tree.
+    /// when there is none.
+    ///
+    /// **That does NOT by itself make "positioned against the window" spellable
+    /// from anywhere in the tree, and the exception is a whole clipper.** This
+    /// modifier decides where layout *places* the box; it says nothing about
+    /// what paint then *does* with the emission. A clip and a scroll offset are
+    /// carried on `Frame`'s clip stack, which is structural — every ancestor's
+    /// `clipped(to:offsetBy:)` applies to everything emitted beneath it,
+    /// containing block or not. So an `.absolute` box inside a `ScrollView`
+    /// lands at its window-space coordinates and is then masked to the
+    /// viewport and translated by the scroll, which for a box positioned
+    /// against the window generally means it draws nothing and slides away.
+    /// CSS couples the two — a descendant whose containing block sits outside
+    /// an `overflow` clipper escapes that clipper — and design spec §2 declines
+    /// to reproduce the coupling, because it would entangle layer resolution
+    /// with containing-block resolution. CLAUDE.md's divergence 11.
+    ///
+    /// **`Deferred` is the escape**, and it is a separate decision from this
+    /// one for that reason: it resets the clip stack to the whole surface and
+    /// the offset to zero, so `Deferred { Box().position(.absolute)… }` is the
+    /// spelling that does cover the window from anywhere in the tree.
     ///
     /// **`.relative` is half-implemented and this modifier is what makes that
     /// reachable.** It does make a box a containing block, which is its whole

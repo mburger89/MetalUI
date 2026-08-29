@@ -6,7 +6,8 @@ the framework its first portal, `Deferred`. Prefixed **`AP-`** and **lettered**
 bare `AP-3` is a typo, not a citation. Read alongside
 `docs/superpowers/specs/2026-08-28-absolute-positioning-design.md` (the design this
 milestone built), CLAUDE.md's declared-but-inert table (which loses two rows here and
-gains one) and its divergence list (which gains 9 and 10).
+gains one) and its divergence list (which gains 9, 10 and — from the whole-branch
+review — 11, the other direction of 10's seam).
 
 Two halves that ship together and share no code: **absolute positioning** decides where
 a box sits, **layer hoisting** decides what it paints above. The design keeps them
@@ -90,8 +91,18 @@ percentage-inset constraint applied at the one site where it does hold.
 
 **What it costs if wrong.** Every absolute child shifts by the ancestor's border width
 — a small, uniform error that reads as a rounding problem rather than as a rule
-mistake. Using the content box instead reddens exactly
-`theContainingBlockIsThePaddingBoxNotTheBorderBox`, by 3 on each axis.
+mistake. Using the content box instead reddens **two** tests and four
+expectations: `theContainingBlockIsThePaddingBoxNotTheBorderBox` (by 3 on each
+axis) and `absContainingBlockSkipsStaticMatchesWebKit` (by 5 on each axis),
+whose fixture Task 5 added after this ruling was first written.
+
+**This paragraph said "exactly `theContainingBlockIsThePaddingBoxNotTheBorderBox`"
+until the whole-branch review re-measured it**, and the under-count is the
+CS-N/SI-H staleness shape rather than a new fact: the number was taken before a
+later task added a second test sensitive to the same line, so it was true when
+written and stale by the end of the milestone. Both tests are named here rather
+than only counted, which is the half of CS-N that survives a re-measurement —
+a name still identifies the pin after the count moves.
 
 **A brief's own fixture was impossible under this rule, which is worth carrying.**
 Task 3's brief expected `abs.x == 5` from a containing block with `padding: 5px` and no

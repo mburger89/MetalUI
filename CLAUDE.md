@@ -538,25 +538,25 @@ light and 0.42 in dark): an opaque one makes "covers" and "replaced"
 indistinguishable in a still frame. Gating it behind M is what keeps that choice
 from taxing every other look in this file.
 
-## Nine known divergences, numbered 1-6 and 8-10 — expected, measured, not defects
+## Ten known divergences, numbered 1-6 and 8-11 — expected, measured, not defects
 
 **The labels are stable ids, not a running count, and the gap is deliberate.**
-There are **nine** entries and the highest label is **10**: the original
+There are **ten** entries and the highest label is **11**: the original
 divergence 6 was fixed, the original 7 was renumbered *into* 6 (see the "This
 was divergence 7 of seven, and 6 is gone" paragraph inside entry 6), and every
 entry added since has taken the next free label rather than re-using the freed
 7 — the same rule `EP-2`/`EP-4` follow, so a citation written against
 "divergence 8" never silently rebinds. A reader who counts to the highest label
-gets ten and a reader who counts entries gets nine; both are answering a
+gets eleven and a reader who counts entries gets ten; both are answering a
 different question from the one this heading used to leave open, which is why
 it says both numbers.
 
-**Not every entry is a disagreement with WebKit, and 10 is the first that never
+**Not every entry is a disagreement with WebKit, and 10 was the first that never
 was one.** 1-6 and 8 are places this engine answers differently from an oracle
 (WebKit for all but 8, which is layout against paint inside this engine). 9 is
-of that kind too. **10 is a design choice recorded here because a reader
-comparing this framework to CSS will otherwise read it as a bug** — `Deferred`'s
-whole purpose is to do what CSS would not.
+of that kind too. **10 and 11 are design choices recorded here because a reader
+comparing this framework to CSS will otherwise read them as bugs** — they are
+the two directions of one seam, and each entry names the other.
 
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
@@ -1008,6 +1008,52 @@ compare against. Pinned at the scene level instead, by
 `aDeferredBoxInsideARealScrolledScrollViewDoesNotSlideWithTheScroll` in
 `DeferredTests.swift`.
 
+**Divergence 11 is the OTHER direction of this same seam** — a subtree escaping
+a clip CSS would apply is this entry; a subtree being clipped where CSS would
+not is that one. A reader who finds one of the two has found half the picture.
+
+**11. An absolute box is still clipped and translated by an ancestor
+`ScrollView`, even when its containing block sits outside that scroller.** The
+mirror image of 10, and the one that bites: 10 is a portal escaping a clip CSS
+would apply, and this is an ordinary box *not* escaping a clip CSS would lift.
+Both fall out of the same decoupling — layer decides paint order, the
+containing block decides position, `Deferred` escapes both — so neither is
+fixable without the coupling design spec §2 rejects.
+
+Layout places an `.absolute` box against its containing block. Paint knows
+nothing about containing blocks: a clip and a scroll offset live on `Frame`'s
+clip stack, which is **structural**, so every ancestor's
+`clipped(to:offsetBy:)` applies to everything emitted beneath it. Put an
+absolute box inside a `ScrollView` and the two disagree.
+
+Measured — a 41×60 viewport at `(60, 30)` inside a 200×200 frame, holding an
+absolute child with `inset(top: 5, left: 5)` and no `Deferred`:
+
+```
+absolute bounds = (5, 5) 22×20        // window space, per the containing block
+absolute mask   = (60, 30) 41×60      // the viewport, per the tree
+```
+
+The rect lies entirely outside its own mask, so it **draws nothing at all**.
+Scroll the list 12pt and it also moves to `y = −7`, off the top of the window,
+tracking a scroll it is not in flow for. CSS clips neither: the box's containing
+block is the root, which is outside the clipper, so a browser would paint it
+over the whole page.
+
+**The escape is `Deferred`**, and it is a separate spelling on purpose:
+`Deferred { Box().position(.absolute)… }` resets the clip stack to the whole
+surface and the offset to zero, and the identical box then paints at `(5, 5)`
+with the full 200×200 mask. Recorded at `Box.position(_:)`'s own doc comment as
+well, since that is where a caller writing `.position(.absolute)` will be
+looking.
+
+**No fixture and no golden encode it**, on the footing of 9 and 10 — a golden
+would record this engine's answer as correct, and a coupling implemented later
+should move nothing in the corpus. Pinned by
+`anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt` in
+`AbsoluteOverlayTests.swift`, which asserts the disjoint rect and mask, the
+scroll translation, and the `Deferred` escape as the differential.
+
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
@@ -1083,7 +1129,7 @@ are the dangerous ones.
 | `GlyphAtlas.evictUnusedSince(_:)`, and the grow-only atlas it leaves | **Zero production callers — and a caller would make things WORSE, not better, until the packer can reclaim.** That is the mechanism, and it is checkable rather than a milestone to wait for: the shelf packer never revisits a closed shelf, so evicting a key frees a dictionary entry and **strands its pixels**; the next frame that wants that glyph packs a *second* copy further down. Calling eviction every frame therefore makes the atlas fill **faster**. `grep -rn "evictUnusedSince" Sources/` returns **nine** lines and **not one of them is a call**: the declaration, the string inside its own precondition message, and seven doc comments — the same shape as `LayoutTree.reset(generation:)` below. Re-count rather than trusting the nine; two of the doc comments were added by the emitter task, so this number moves with the prose and the "no call" half is the claim. The frame brackets it depends on *are* live: `Frame.render` calls `beginFrame`/`endFrame` around the paint phase, so the ordering guard is enforceable; what is absent is only the call. **These three facts are one story, so read them together:** eviction is unwired, the atlas is therefore **grow-only**, and when it is full `Frame.draw` **silently drops** the glyphs that will not fit — a window showing an unbounded stream of distinct glyphs loses text with no error anywhere. What unblocks it is a repacker or a whole-atlas rebuild, not a call site. Its guards (`evictingDuringFrameConstructionTraps`, `aGlyphUnusedSinceAnOlderGenerationIsEvicted`) stay for `LayoutTree.reset`'s reason: they pin the contract for whoever does call it |
 | `Style.alignSelf` on a **stack child** | **Ignored entirely, and it is the most misleading inert API this table holds** — an *alignment* property, public and live for flex, silently doing nothing on an *alignment* container. `Stack { Box().alignSelf(.flexEnd) }` compiles today: `StyledElement.alignSelf(_:)` is a live modifier and `Stack` conforms to `StyledElement` as of the stack milestone. Measured at that milestone's final review: a 20x10 child with `alignSelf = .flexEnd` in a 100x60 stack lays out at **`y = 0`**; WebKit's grid puts the same child at **`y = 50`**. The mechanism, not a milestone: `positionStackItems` reads the *container's* `alignItems`/`justifyItems` once before its item loop and never consults `tree.style(item.node)` for an override — the only per-item style it reads is `size`, for the `stretch` carve-out. Per-child alignment was out of the milestone's scope, and closing it needs **two** things rather than one: `alignSelf` for the block axis and a `justifySelf` that does not exist in this `Style` at all for the inline one, since implementing one alone would make a stack's two axes disagree about whether a child may override its container. Recorded at `Display.stack`'s own doc comment (`Style.swift`) as well as here |
 | `Style.padding` / `Style.border` / `Style.margin` on a **leaf** | **Ignored entirely — for a `Text`, not "resolved wrongly".** `measureNode` returns a leaf's measure result unchanged where it adds a container's `edges` back on, and `contentBox` only ever runs on a node with children, so a leaf's border box *is* its content box. `Text(…).padding(Pixels(8))` therefore changes no size and moves no glyph, and `Text.paint` lays its glyphs from `bounds.origin` on exactly that basis. Consistent, and consistently wrong against CSS. **Reachable from the public API**, unlike the `Style` properties above: `StyledElement.padding(_:)`/`.borderWidth(_:)`/`.margin(_:)` are live modifiers that do the right thing on a `Box` and nothing on a `Text` — which is the shape this table exists for, an API that is implemented for one receiver and inert for another. Whoever implements a leaf's box model owns the paint half too: the glyph origin becomes the content box and must come from the engine rather than be re-resolved at paint time, for the percentage-inset reason recorded at `Frame.fill` |
-| `StyledElement.hidden()` / `Style.display = .none` on a subtree that **draws** | **Live for layout, ignored by paint, and the failure is glyphs at the window's top-left corner.** The engine really does filter a `.none` node out of its parent's item list, so its rect stays at `LayoutTree`'s zero — that half works and is what the modifier's doc comment used to describe in full, which is exactly why the comment misled: it explained the layout half completely and said nothing about paint, so it read as "paints nothing". Nothing in `Sources/MetalUI` reads `Style.display` during paint at all. `Box.paint` fills its bounds and recurses into `content.paintGroup` unconditionally; the fill is a harmless zero-size rect, but the children paint from that zero rect's **origin**, and a node that was never placed has origin `(0, 0)` in *surface* coordinates. `Text.paint` then re-shapes at `max(bounds.width, smallestWrapWidth)` with `smallestWrapWidth == 0.5`, so the string wraps after every character and stacks one glyph per line down the window's left edge. **Measured** with a throwaway probe rather than read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); Box().width(40).height(10) }` in a 400×300 frame emits the expected zero rect **and two glyphs**, at `(0, 2)` and `(−1, 18)` — the second negative in x. **Nothing in the suite can see it**: every existing `hidden()` test asserts a rect, and a zero rect is exactly what a correct implementation produces, so the glyphs are invisible to every assertion that exists. Found while evaluating a key-toggled modal for the demo and rejected on this basis — the demo uses an `@ElementBuilder` `if` instead, which removes the element from the *tree* rather than from the item list. The fix is a `display` check in paint (probably in `Element`'s group walk, so it costs one test per phase rather than one per element); until then `hidden()` is safe on `Box`es and wrong on anything that draws |
+| `StyledElement.hidden()` / `Style.display = .none` on a subtree that **draws** | **Live for layout, ignored by paint, and the failure is glyphs at the window's top-left corner.** The engine really does filter a `.none` node out of its parent's item list, so its rect stays at `LayoutTree`'s zero — that half works and is what the modifier's doc comment used to describe in full, which is exactly why the comment misled: it explained the layout half completely and said nothing about paint, so it read as "paints nothing". Nothing in `Sources/MetalUI` reads `Style.display` during paint at all. `Box.paint` recurses into `content.paintGroup` unconditionally, and fills its own bounds whenever it carries a `.background`; that fill is a harmless zero-size rect, but the children paint from the node's **origin**, and a node that was never placed has origin `(0, 0)` in *surface* coordinates. `Text.paint` then re-shapes at `max(bounds.width, smallestWrapWidth)` with `smallestWrapWidth == 0.5`, so the string wraps after every character and stacks one glyph per line down the window's left edge. **Measured** with a throwaway probe rather than read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); Box().width(40).height(10) }` in a 400×300 frame emits **0 rects and 2 glyphs**, at `(0, 2)` and `(−1, 18)` — the second negative in x. **0 rects, not one zero-size rect**: neither `Box` in that probe carries a `.background`, so nothing fills at all and the glyphs are the entire output. Re-measured 2026-08-28; this row said "the expected zero rect and two glyphs" until then. **Nothing in the suite can see it**: every existing `hidden()` test asserts a rect, and a zero rect is exactly what a correct implementation produces, so the glyphs are invisible to every assertion that exists. Found while evaluating a key-toggled modal for the demo and rejected on this basis — the demo uses an `@ElementBuilder` `if` instead, which removes the element from the *tree* rather than from the item list. The fix is a `display` check in paint (probably in `Element`'s group walk, so it costs one test per phase rather than one per element); until then `hidden()` is safe on `Box`es and wrong on anything that draws |
 | `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` returns **two** lines and neither is a call: the string inside its own precondition message, and a doc comment on the method that quotes this very grep. (It matched one line when this row was written; the doc comment came later, so re-run it rather than counting — the claim is "no call", not "two".) The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
 | CSS Sizing §4.5's **specified size suggestion** | **Still not implemented** (ruling FS-3), and it **left this table's premise behind**: content sizing made the *content* half live for containers, so the missing half is no longer inert-and-invisible but a measured disagreement with WebKit — **divergence 5 above** carries the repro, the numbers and the pin, and is the one place to update. Two claims expired here in one milestone, and the second was written by the commit that retired the first (ruling CS-E's shape, third occurrence on this project): "indistinguishable until M2", then "not yet a wrong answer anywhere". Kept as a row because the *declaration* half is what this table is for — the rule is half-implemented at `collectItems`' automatic minimum, and silence there would read as complete. `aContainerItemIsFlooredByItsChildrensWidth` cannot see it: its `.a` has no specified width to be floored by |
 
