@@ -167,10 +167,21 @@ private func glyph(order: MUIUInt) -> MUIGlyph {
 
 /// A deferred primitive crosses type boundaries: a layer-1 RECT draws after a
 /// layer-0 GLYPH, which the draw list must express as two runs in that order.
+///
+/// **Insertion order is deliberately the OPPOSITE of the expected paint
+/// order** — the rect (layer 1) is emitted first, the glyph (layer 0) second
+/// — so plain emission-sequence tiebreak would give glyph-then-rect only by
+/// accident if it happened to agree with layer, and instead gives
+/// rect-then-glyph here, the wrong answer. That is what makes this test able
+/// to detect `layer` being dropped from the sort key entirely; an earlier
+/// version inserted the glyph first, which let the sequence tiebreak alone
+/// reproduce the expected result and made the test unable to fail on that
+/// mutation. Do NOT "tidy" the insertion order back to glyph-then-rect — that
+/// silently restores the blind spot.
 @Test func aHigherLayerRectDrawsAfterALowerLayerGlyph() throws {
     var scene = Scene()
-    scene.insert(glyph(order: 0), layer: 0)
     scene.insert(rect(order: 0), layer: 1)
+    scene.insert(glyph(order: 0), layer: 0)
     scene.finalize()
     let runs = scene.drawList
     try #require(runs.count == 2)
@@ -178,12 +189,12 @@ private func glyph(order: MUIUInt) -> MUIGlyph {
     #expect(runs[1].kind == .rect)
 }
 
-/// The test above inserts the glyph before the rect, so its expected order
-/// (glyph, then rect) is also what emission sequence alone would produce —
-/// dropping layer from the sort key entirely leaves it green. This is that
-/// same crossing with insertion order reversed, so only the layer field (not
-/// sequence) can explain the expected result: the layer-1 rect is emitted
-/// FIRST but must still draw AFTER the layer-0 glyph emitted second.
+/// A second, explicitly named pin for the same property as the test above —
+/// layer must outrank emission sequence across a type boundary — kept
+/// alongside it rather than folded in, so a reader searching for this
+/// property by name finds a test whose own construction (rather than a
+/// doc-comment warning) is the guarantee against reintroducing the blind
+/// spot.
 @Test func layerOutranksEmissionSequenceAcrossTypes() throws {
     var scene = Scene()
     scene.insert(rect(order: 0), layer: 1)
