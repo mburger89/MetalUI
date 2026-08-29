@@ -4,14 +4,16 @@ import MetalUILayout
 /// A portal: hoists its one child above every sibling's paint order and
 /// escapes clipping, without introducing a layout node of its own.
 ///
-/// **`Deferred` contributes no `Style` and no node.** `requestLayout` forwards
-/// `id` straight to `content.requestLayout(id, pass:)` and returns exactly
-/// `content`'s own `(LayoutNodeID, LayoutState)` — `Deferred`'s own
-/// `elementID` decides the *identity* `content` is laid out under (as with
-/// `Box`/`ScrollView` wrapping their children), but nothing here asks the
-/// engine for a node of its own. That is why this task touches no layout and
-/// moves no golden: the mechanism lives entirely in `prepaint` and `paint`,
-/// where both phases wrap `content`'s own call in `pass.deferred { … }`.
+/// **`Deferred` contributes no `Style` and no node of its own** — its own
+/// resolved node is exactly `content`'s. But it DOES derive a proper child
+/// identity for `content`, the same way `Box`/`ScrollView` derive one for
+/// each of their children: `requestLayout` calls
+/// `content.requestGroupLayout(under: id, at: &cursor, pass:)` rather than
+/// forwarding `id` straight through, so `content`'s own `.id()` is honoured
+/// and `content` is one level deeper than `Deferred` in the identity path,
+/// not sharing `Deferred`'s own id outright. `prepaint`/`paint` read back the
+/// id and node `requestLayout` stored, via `content.prepaintGroup`/
+/// `paintGroup`, and wrap each in `pass.deferred { … }`.
 ///
 /// **On both phases, and the reason is hit-testing, not symmetry.** The
 /// scroll-region registry is built in `prepaint`; a tooltip that paints above
@@ -35,27 +37,37 @@ public struct Deferred<Content: Element>: Element {
         self.content = content()
     }
 
+    public struct LayoutState {
+        var content: Content.GroupLayout
+    }
+
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
-        -> (LayoutNodeID, Content.LayoutState) {
-        content.requestLayout(id, pass: &pass)
+        -> (LayoutNodeID, LayoutState) {
+        var cursor = 0
+        let (nodes, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        // `content` is a single `Element`, so `requestGroupLayout`'s default
+        // (`SingleElementLayout`) always hands back exactly one node — this
+        // becomes `Deferred`'s own node, reached through `content`'s own
+        // derived child identity rather than `Deferred`'s.
+        return (nodes[0], LayoutState(content: contentLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Content.LayoutState,
-                                  pass: inout PrepaintPass) -> Content.PrepaintState {
-        var result: Content.PrepaintState!
+                                  layout: inout LayoutState,
+                                  pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        var result: Content.GroupPrepaint!
         pass.deferred {
-            result = content.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+            result = content.prepaintGroup(layout: &layout.content, pass: &pass)
         }
         return result
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                               layout: inout Content.LayoutState,
-                               prepaint: inout Content.PrepaintState,
+                               layout: inout LayoutState,
+                               prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
         pass.deferred {
-            content.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+            content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
         }
     }
 }

@@ -242,7 +242,7 @@ public struct PaintPass {
 
     /// Runs `body` with the layer hoisted to the root layer and the clip
     /// stack reset to the whole surface — `Deferred`'s portal (design spec
-    /// §4.2, ruling from the absolute-positioning milestone).
+    /// §4.2).
     ///
     /// **Two things, and the second is the surprising one.** The layer hoist
     /// is what makes `fill`/`draw` inside `body` stamp `Frame.rootLayer`, so
