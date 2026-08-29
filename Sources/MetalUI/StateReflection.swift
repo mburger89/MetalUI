@@ -6,20 +6,23 @@ import MetalUICore
 /// **`State<Value>` is generic, so a `Mirror` child typed `Any` cannot be cast
 /// to `State<Int>` without already knowing `Int`.** Casting to this
 /// existential instead lets `StateBinder` call `bind` on any `State<Value>`
-/// with no `Value` in sight. `boundID` exposes the same slot id `bind` just
-/// computed and stored in the wrapper's box, so `StateBinder` can mark it
-/// without recomputing the `"$state\(slot)"` name a second time — the marked
-/// id and the id `wrappedValue` reads later are then, structurally, the exact
-/// same object rather than two calls that happen to agree.
+/// with no `Value` in sight.
+///
+/// **Marking is not this protocol's job.** An earlier version of this file
+/// exposed a second requirement, `boundID`, so `StateBinder` could read the
+/// id `bind` had just computed and mark it from the caller's side. That
+/// bought nothing over marking directly inside `State.bind` — both read the
+/// same `box.slotID` — while costing a second existential dispatch per slot
+/// per frame, and an `if let` around `boundID` whose `nil` branch could not
+/// actually happen but was not trapped, so a future `bind` that somehow
+/// failed to set the id would silently skip the mark rather than fail loudly.
+/// `State.bind` marks itself now; see its own doc comment.
 @MainActor
 protocol BindableState {
     func bind(to table: StateTable, id: GlobalElementID, slot: Int)
-    var boundID: GlobalElementID? { get }
 }
 
-extension State: BindableState {
-    var boundID: GlobalElementID? { box.slotID }
-}
+extension State: BindableState {}
 
 /// Seeds every `@State` an element declares with this frame's `StateTable`
 /// and the element's own identity — the thing that makes `@State` work at
@@ -32,7 +35,28 @@ extension State: BindableState {
 /// children are computed once, keyed by `ObjectIdentifier`, and reused for
 /// every instance of that type forever. The common case — an element with no
 /// `@State` at all — is a dictionary hit against an empty array and nothing
-/// else: no second `Mirror` is ever built for it.
+/// else: no `Mirror` is built for it at all past the type's first sighting.
+///
+/// **What is NOT eliminated, and is not this file's job to eliminate:** a
+/// `Mirror` walk over the CHILDREN, once per element per frame, for every
+/// element that does have `@State`. `Mirror` hands back copies, so there is
+/// no way to reach a specific stored property without asking it for its
+/// children again; the per-type cache only removes the cost of working out
+/// WHICH children matter, not the cost of touching the ones that do.
+/// Measured: 200 sibling leaves with one `@State` each cost measurably more
+/// per frame than 200 stateless ones (see the input-and-state task 2 review
+/// for the numbers) — real and unavoidable given this design, distinct from
+/// the per-type cost this cache exists to remove.
+///
+/// **What WAS avoidable, and is fixed here:** two wasted `Mirror` passes.
+/// `Array(Mirror(reflecting:).children)` used to materialize every child into
+/// a new array on every bind call, when only the recorded ordinals were ever
+/// read out of it; `bindOrdinals` below walks the `Mirror`'s children once,
+/// consuming the sorted `ordinals` array in step and stopping as soon as the
+/// last one is bound, with no intermediate collection. And a cache MISS used
+/// to call `Mirror(reflecting:)` twice — once to find the ordinals, once
+/// again to bind them — where one pass can do both, since the ordinals are
+/// only ever used against the exact same `Mirror` that found them.
 ///
 /// `@MainActor` because `StateTable`, `State` and `Element` all are — the
 /// cache is main-actor state read and written from main-actor call sites
@@ -40,7 +64,8 @@ extension State: BindableState {
 @MainActor
 enum StateBinder {
     /// Ordinals of the `State` wrappers a type declares among its `Mirror`
-    /// children, computed once per type.
+    /// children, in ASCENDING order — `bindOrdinals` relies on that order to
+    /// consume them in one forward pass over the children.
     private static var shapes: [ObjectIdentifier: [Int]] = [:]
 
     /// Test observability for the per-type cache. Not part of any contract.
@@ -48,45 +73,54 @@ enum StateBinder {
 
     static func resetReflectionCount() { reflectionCount = 0 }
 
-    /// Seeds every `@State` `element` declares with `id`, and marks each slot
-    /// live for this frame's sweep.
-    ///
-    /// Marking here rather than leaving it to `wrappedValue`'s own access is
-    /// deliberate (see `StateTable.mark`'s doc comment): declaring `@State` is
-    /// itself sufficient intent to keep the slot, whether or not this frame
-    /// happens to read it.
+    /// Seeds every `@State` `element` declares with `id`. Marking is
+    /// `State.bind`'s own job, done unconditionally as part of computing the
+    /// slot id — see its doc comment.
     static func bind<E>(_ element: E, table: StateTable, id: GlobalElementID) {
         let key = ObjectIdentifier(E.self)
-        let ordinals: [Int]
-        if let cached = shapes[key] {
-            ordinals = cached
-        } else {
-            ordinals = reflect(element)
-            shapes[key] = ordinals
-            reflectionCount += 1
+        if let ordinals = shapes[key] {
+            guard !ordinals.isEmpty else { return }
+            bindOrdinals(ordinals, in: element, table: table, id: id)
+            return
         }
-        guard !ordinals.isEmpty else { return }
 
-        let children = Array(Mirror(reflecting: element).children)
-        for slot in ordinals {
-            guard let bindable = children[slot].value as? BindableState else { continue }
-            bindable.bind(to: table, id: id, slot: slot)
-            if let slotID = bindable.boundID {
-                table.mark(slotID)
-            }
-        }
-    }
-
-    /// One `Mirror` pass over `element`'s stored properties, recording the
-    /// index of every child that is a `State` wrapper (bridged through
-    /// `BindableState`, since `Value` is unknown here).
-    private static func reflect<E>(_ element: E) -> [Int] {
+        // Cache miss: one Mirror pass finds the ordinals AND binds them,
+        // rather than a `reflect` pass followed by a separate `bindOrdinals`
+        // pass over the same value.
         var ordinals: [Int] = []
         for (index, child) in Mirror(reflecting: element).children.enumerated() {
-            if child.value is BindableState {
-                ordinals.append(index)
-            }
+            guard let bindable = child.value as? BindableState else { continue }
+            ordinals.append(index)
+            bindable.bind(to: table, id: id, slot: index)
         }
-        return ordinals
+        shapes[key] = ordinals
+        reflectionCount += 1
+    }
+
+    /// Binds exactly the children at `ordinals`, in one forward walk of the
+    /// `Mirror`'s children — no `Array` of every child, and no work past the
+    /// last ordinal.
+    ///
+    /// `ordinals` is never empty here: the one caller already guards that.
+    ///
+    /// **Never subscripts `children` by ordinal, and that is what keeps this
+    /// safe against a shorter Mirror than the type produced when it was first
+    /// reflected.** A struct's stored properties cannot change count between
+    /// instances, but nothing enforces that for a `CustomReflectable`
+    /// conformance — a walk that compared `index == ordinals[next]` while
+    /// iterating simply runs out of children and stops without touching any
+    /// of the remaining ordinals, rather than trapping on an out-of-range
+    /// index the way `Array(mirror.children)[ordinal]` would.
+    private static func bindOrdinals<E>(_ ordinals: [Int], in element: E,
+                                        table: StateTable, id: GlobalElementID) {
+        var next = ordinals.startIndex
+        for (index, child) in Mirror(reflecting: element).children.enumerated() {
+            guard index == ordinals[next] else { continue }
+            if let bindable = child.value as? BindableState {
+                bindable.bind(to: table, id: id, slot: index)
+            }
+            next += 1
+            if next == ordinals.endIndex { break }
+        }
     }
 }

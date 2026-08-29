@@ -213,3 +213,56 @@ private struct ReflectOnceElement: Element {
     #expect(quiet2.count == 42,
             "declaring @State is sufficient intent to keep it, whether or not a frame reads it")
 }
+
+/// Two `@State`s at non-adjacent ordinals (0 and 2), with an ORDINARY stored
+/// property (`spacer`, no `@State`) sitting between them at 1 — a gap
+/// `Mirror` still reports, so it separates "the child's true Mirror index"
+/// from "its position among only the `State` children," which a slot of `0`
+/// and `1` would satisfy just as well as the real `0` and `2`.
+private struct TwoOrdinalElement: Element {
+    @State var first = 0
+    var spacer: Int = 0
+    @State var second = 0
+    var elementID: ElementID?
+    init(elementID: ElementID? = nil) { self.elementID = elementID }
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Int) {
+        first = 11
+        second = 22
+        return (pass.requestNode(style: leafStyle(), children: []), 0)
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                  layout: inout Int, pass: inout PrepaintPass) -> Int { 0 }
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+               layout: inout Int, prepaint: inout Int, pass: inout PaintPass) {}
+}
+
+/// The ordinal `bind` receives is the child's actual `Mirror` index, not its
+/// position among `ordinals` — unguarded before this test (a constant
+/// `slot: 0` mutation left all 617 tests green).
+///
+/// **Checks the table directly by the ordinal-derived name, not only that
+/// `first` and `second` differ.** A slot of 0/1 (position among the two
+/// `State` children) would still give `first` and `second` two DISTINCT
+/// entries and two correct values — the gap alone does not force a
+/// collision. Reading `table.peek` against the name a slot of 2 must produce
+/// (`"$state2"`) is what actually distinguishes "true ordinal" from
+/// "position among ordinals," since only the former produces that name.
+@MainActor
+@Test func stateOrdinalsAreTheMirrorIndexNotThePositionAmongStateChildren() throws {
+    let table = StateTable()
+    let size = Size<Pixels>(width: px(100), height: px(100))
+    var element = TwoOrdinalElement(elementID: ElementID("two-state"))
+    Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&element)
+
+    let rootID = GlobalElementID.child(of: nil, at: 0, name: ElementID("two-state"))
+    let firstSlot = GlobalElementID.child(of: rootID, at: 0, name: ElementID("$state0"))
+    let secondSlot = GlobalElementID.child(of: rootID, at: 2, name: ElementID("$state2"))
+
+    #expect(table.peek(firstSlot, as: Int.self) == 11)
+    #expect(table.peek(secondSlot, as: Int.self) == 22)
+    #expect(element.first == 11)
+    #expect(element.second == 22)
+}
