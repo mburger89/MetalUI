@@ -142,6 +142,29 @@ public final class Frame {
         clipStack.last?.offset ?? Point(x: Pixels(0), y: Pixels(0))
     }
 
+    /// Layers, shaped exactly like `clipStack` above and for the same reason:
+    /// `deferred` pushes one, `fill`/`draw` stamp whichever is active, and the
+    /// closure form that pushes it keeps the stack balanced.
+    private var layerStack: [Int] = []
+
+    /// The layer currently in effect. `0` — ordinary paint order — when no
+    /// `deferred` block is active, the same "nothing special" answer
+    /// `activeClip` gives an empty `clipStack`.
+    var activeLayer: Int { layerStack.last ?? 0 }
+
+    /// `deferred`'s hoist target. One constant, not a counter: design spec §1
+    /// rules out an arbitrary stacking-context system, so `Deferred` is a
+    /// single hoist and every instance — nested or not — lands on the same
+    /// layer.
+    static let rootLayer = 1
+
+    /// Pushes the root layer. Balanced by `popLayer`, reached only through
+    /// `deferred`'s `defer`.
+    func pushLayer() { layerStack.append(Self.rootLayer) }
+
+    /// Pops one level pushed by `pushLayer`.
+    func popLayer() { layerStack.removeLast() }
+
     /// Pushes an **intersected** clip (radii included, see `intersect(_:radii:_:radii:)`)
     /// and an **accumulated** offset.
     ///
@@ -158,10 +181,25 @@ public final class Frame {
         clipStack.append((clip, composed, clipRadii))
     }
 
-    /// Pops one level pushed by `pushClip`. Callers reach this only through
-    /// `clipped(to:offsetBy:)`'s `defer`, which is what keeps the stack
-    /// balanced — see that method's doc comment.
+    /// Pops one level pushed by `pushClip` (or `pushRootClip` below —
+    /// `clipStack` does not distinguish how a level was pushed, only how it is
+    /// popped). Callers reach this only through `clipped(to:offsetBy:)`'s or
+    /// `deferred`'s `defer`, which is what keeps the stack balanced — see
+    /// those methods' doc comments.
     func popClip() { clipStack.removeLast() }
+
+    /// Pushes a clip covering the whole surface with **no accumulated
+    /// offset** — `Deferred`'s escape, as opposed to `pushClip`'s intersect-
+    /// and-accumulate. `Deferred` is a portal (spec §4.2): a modal painted
+    /// from inside a scrolled `ScrollView` must not inherit that scroll's
+    /// translation any more than it inherits the viewport's clip, or it would
+    /// slide with the content it is meant to cover. Popped exactly like an
+    /// ordinary level, by `popClip`.
+    func pushRootClip() {
+        clipStack.append((Bounds(origin: Point(x: Pixels(0), y: Pixels(0)), size: contentSize),
+                          Point(x: Pixels(0), y: Pixels(0)),
+                          Corners(all: Pixels(0))))
+    }
 
     /// The axis-aligned intersection of two bounds. Either dimension can go to
     /// zero (or below, clamped to zero) when the two do not overlap; it never
@@ -419,7 +457,7 @@ public final class Frame {
             borderColor: .transparent,
             cornerRadii: cornerRadii.scaled(by: scaleFactor),
             borderWidths: Edges(all: ScaledPixels(0)),
-            order: 0))
+            order: 0), layer: activeLayer)
     }
 
     /// Emits one glyph sprite, taking its bitmap from the atlas and rasterizing
@@ -481,7 +519,7 @@ public final class Frame {
         scene.insert(MUIGlyph(bounds: placedBounds, slot: packed.slot,
                               contentMask: activeClip.scaled(by: scaleFactor),
                               maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
-                              color: color, order: 0))
+                              color: color, order: 0), layer: activeLayer)
     }
 
     /// This frame's primitives, in paint order. Call after `render`.
