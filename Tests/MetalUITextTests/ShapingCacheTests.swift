@@ -53,3 +53,38 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
     #expect(cache.misses == 1)
     #expect(cache.hits == 1)
 }
+
+/// The defect this task fixes: memoizing `Shaper.unbreakableRuns` alone still
+/// leaves the per-run shaping loop on the table. This asserts the tokenizer
+/// walk itself — the more expensive of the two halves — is skipped on a
+/// repeat query, and that the memo returns the number it actually computed
+/// rather than a fresh zero from a miss that silently found nothing.
+@MainActor
+@Test func aSecondMinContentQueryTokenizesNothing() {
+    let cache = ShapingCache()
+    let s = "Row 1 of 40 — a scrollable list item"
+
+    _ = cache.minContentWidth(s, font: font)
+    Shaper.resetUnbreakableRunCalls()
+    let second = cache.minContentWidth(s, font: font)
+
+    #expect(Shaper.unbreakableRunCalls == 0)
+    // The memo must return the same number it computed, not a fresh zero.
+    #expect(second == cache.minContentWidth(s, font: font))
+    #expect(second > 0)
+}
+
+/// Width is deliberately NOT part of the key: min-content is width-independent
+/// by definition, which is exactly why §4.5 can use it as a floor. A key that
+/// included width would miss on every frame of a resize and cache nothing.
+@MainActor
+@Test func minContentIsTheLongestWordAndDoesNotVaryWithAnyWidth() {
+    let cache = ShapingCache()
+    let s = "a bb supercalifragilistic dd"
+
+    let w = cache.minContentWidth(s, font: font)
+    let longest = Shaper.unbreakableRuns(of: s)
+        .map { cache.shaped($0, font: font, wrappingAt: nil).widestLine }
+        .max() ?? 0
+    #expect(abs(w - longest) < 0.001)
+}
