@@ -17,11 +17,9 @@ import MetalUICore
 /// re-drives the browser and catches a fixture edited without regenerating.
 private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(Float(v)))) }
 
-private func sized(_ tree: LayoutTree, _ w: Double, _ h: Double,
-                   position: Position = .static) -> LayoutNodeID {
+private func sized(_ tree: LayoutTree, _ w: Double, _ h: Double) -> LayoutNodeID {
     var s = Style()
     s.size = Size(width: px(w), height: px(h))
-    s.position = position
     return tree.newNode(style: s, children: [])
 }
 
@@ -122,6 +120,12 @@ private func inset(_ t: Double?, _ r: Double?, _ b: Double?, _ l: Double?) -> Ed
 /// (an `auto` ROOT axis takes the offered space rather than shrink-wrapping),
 /// which is unrelated to absolute positioning and would otherwise swallow the
 /// very shrink-to-content behavior this fixture exists to check.
+///
+/// `abs` itself is also compared, not only the in-flow nodes: neither
+/// `#container` nor `#root` is `position: relative`, so `abs`'s containing
+/// block falls back to the tree's own root — the same fallback
+/// `withNoPositionedAncestorTheRootIsTheContainingBlock` pins at the unit
+/// level, checked here against the browser instead.
 @Test func absRemovedFromFlowMatchesWebKit() throws {
     let golden = try loadGolden("abs_removed_from_flow")
     let tree = LayoutTree(generation: 0)
@@ -145,26 +149,37 @@ private func inset(_ t: Double?, _ r: Double?, _ b: Double?, _ l: Double?) -> Ed
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
     assertMatchesGolden(tree,
-                        ids: [root: "root", container: "container", inflow: "inflow"],
+                        ids: [root: "root", container: "container", inflow: "inflow", abs: "abs"],
                         golden: golden, tolerance: 0.1)
 }
 
 /// Both `left` AND `right` given, plus a declared `width` — CSS's
 /// over-constrained rule drops `right` (LTR). `top` and `bottom` are also
-/// both given with `height: auto`, so the same box exercises the auto-size
-/// stretch case on its other axis.
+/// both given, DIFFERENT values (10 and 20), with `height: auto`, so the
+/// same box exercises the auto-size stretch case on its other axis too.
+///
+/// **The vertical insets must differ, and must not both be 0.** A mutation
+/// that deletes the stretch rule entirely (`cb.size.height - top! - bottom!`
+/// replaced by `cb.size.height`) reddens nothing against `top: 0; bottom: 0`
+/// — "fill the containing block" and "stretch between two zero insets" give
+/// the same 100, and `y = 0` is also what the all-auto fallback would have
+/// produced. With `top: 10; bottom: 20`, the stretch answer (70, at y = 10)
+/// is a different number from both the unstretched containing-block height
+/// (100) and the all-auto fallback's position (0), so a wrong or missing
+/// stretch rule is now visible.
 ///
 /// **What this catches:** dropping `left` instead of `right` (positioning
-/// from the trailing edge when a size is declared), or failing to drop
-/// either — e.g. clamping the declared width down to fit both insets instead
-/// of ignoring one of them.
+/// from the trailing edge when a size is declared); failing to drop either
+/// (e.g. clamping the declared width down to fit both horizontal insets);
+/// or — the vertical axis — stretching to the wrong extent, not stretching
+/// at all, or positioning from the wrong edge.
 @Test func absOverConstrainedMatchesWebKit() throws {
     let golden = try loadGolden("abs_over_constrained")
     let tree = LayoutTree(generation: 0)
 
     var absStyle = Style()
     absStyle.position = .absolute
-    absStyle.inset = inset(0, 30, 0, 40)
+    absStyle.inset = inset(10, 30, 20, 40)
     absStyle.size = Size(width: px(50), height: .auto)
     let abs = tree.newNode(style: absStyle, children: [])
 
@@ -178,13 +193,13 @@ private func inset(_ t: Double?, _ r: Double?, _ b: Double?, _ l: Double?) -> Ed
     assertMatchesGolden(tree, ids: [root: "root", abs: "abs"], golden: golden, tolerance: 0.1)
 }
 
-/// **The fifth fixture, beyond the task's original four (controller
-/// ruling).** Task 4 flagged "one inset only, with an `auto` size" as a case
-/// no oracle had checked: `placeAbsolute` falls back to `measureNode` for the
-/// size and positions from the given edge, which is a plausible
-/// generalisation of the four documented cases but was never verified
-/// against WebKit. Only `left` is given on the horizontal axis (no `right`,
-/// no declared `width`); `.content` gives the box something to measure.
+/// **A fifth fixture, for a sizing case left unverified.** Task 4 flagged
+/// "one inset only, with an `auto` size" as a case no oracle had checked:
+/// `placeAbsolute` falls back to `measureNode` for the size and positions
+/// from the given edge, which is a plausible generalisation of the four
+/// documented cases but was never verified against WebKit. Only `left` is
+/// given on the horizontal axis (no `right`, no declared `width`); `.content`
+/// gives the box something to measure.
 ///
 /// `top` is pinned explicitly (not left `auto` too) so the VERTICAL axis
 /// stays outside this fixture's question — leaving it all-`auto` would also

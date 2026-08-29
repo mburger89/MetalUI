@@ -191,10 +191,12 @@ let allFixtures: [(String, CGSize)] = [
     ("abs_percent_insets_nonsquare",       CGSize(width: 800, height: 600)),
     ("abs_removed_from_flow",              CGSize(width: 800, height: 600)),
     ("abs_over_constrained",               CGSize(width: 800, height: 600)),
-    // A fifth fixture beyond the task's original four (controller ruling):
-    // Task 4 flagged "one inset only, with an auto size" as a plausible
-    // generalisation of its sizing rule that no oracle had checked — exactly
-    // the shape that hid the Stack milestone's stretch bug.
+    // A fifth fixture, alongside the four above: an insufficiently-specified
+    // sizing case Task 4 left unverified. `placeAbsolute`'s fallback to
+    // content measurement for "one inset only, with an auto size" was a
+    // plausible generalisation of its documented cases, but no oracle had
+    // checked it — exactly the shape that hid the Stack milestone's stretch
+    // bug.
     ("abs_single_inset_auto_size",         CGSize(width: 800, height: 600)),
 ]
 
