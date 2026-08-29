@@ -543,13 +543,6 @@ private func contentBox(
     return (leading, size, edges, padding)
 }
 
-/// One child of a `.stack` container, at its own size.
-///
-/// Deliberately NOT a `FlexItem`: eight of that type's eleven fields —
-/// `baseSize`, `hypotheticalMainSize`, `minMain`, `maxMain`, `targetMainSize`,
-/// `frozen` among them — are meaningless here, because a stack has no main axis
-/// and never runs §9.7. Reusing it would need a convention ("width goes in
-/// `targetMainSize`") that reads as flex semantics to anyone who did not write it.
 /// The rect an absolutely-positioned descendant is placed against.
 ///
 /// Threaded **downward** through `placeNode` rather than resolved by walking up:
