@@ -292,6 +292,15 @@ z-order, and the clipping-and-scroll milestone's draw list made that assertable.
    assertion reads as correct while looking wrong: a z-order inversion is
    invisible to every test that checks positions.
 
+   **CLOSED, 2026-08-28.** A human ran `swift run MetalUIDemo`, was asked to
+   look at the `Stack` hero's z-order — the badge on the panel, the panel on
+   the backdrop — and reported it looks good. That is the first observation of
+   this property through the real window rather than through
+   `Renderer.renderOffscreen`: composited against the rest of the app, at a
+   real display's scale factor, in the layer's own P3 colorspace. The build
+   looked at predates the absolute-positioning milestone's modal
+   (commit `ef7f899`) and closes nothing for it.
+
 ---
 
 ## 8. Decomposition

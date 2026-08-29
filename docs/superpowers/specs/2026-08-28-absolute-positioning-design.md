@@ -232,8 +232,11 @@ testable; the design choice is a look.
 
 1. `swift package clean`, warning-free build, full `swift test` **summary line**
    read — never the exit status.
-2. **No existing golden moved.** 76 today. `Position`'s default changing from
-   `.relative` to `.static` must move none — verify, do not assume.
+2. **No existing golden moved.** 76 when this was written; **81 today**, the
+   five `abs_*` fixtures having been added by Task 5 — re-count rather than
+   quoting either number, since this criterion is one a future reader may act
+   on. `Position`'s default changing from `.relative` to `.static` must move
+   none — verify, do not assume.
 3. New fixtures generated against live WebKit, matching on first generation, or
    any disagreement investigated rather than regenerated.
 4. `Style.position` and `Style.inset` **leave** CLAUDE.md's declared-but-inert
@@ -247,6 +250,14 @@ testable; the design choice is a look.
    everything, escaping a `ScrollView`'s clip — and **a human runs it and
    reports**. Layering and clip-escape are both properties that produce
    identical rects under inversion.
+
+   **The modal is off by default; press M to toggle it.** Gated so that the
+   demo's other four milestones' criteria are not looked at through a
+   translucent scrim forever, and because toggling separates "covers the
+   window" from "replaced the window" by observation. The three things to
+   report: the scrim covers the whole window rather than the 420pt scroll
+   viewport, the modal paints over rows declared after it, and it does not
+   move when the list scrolls. **Still OPEN** as of commit `ef7f899`.
 
 ---
 

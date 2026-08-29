@@ -441,27 +441,49 @@ expectation. The geometry it produced, at scale 2: backdrop `(100, 72) 720×256`
 panel `(300, 128) 320×144`, badge `(432, 172) 56×56` — all three concentric on
 `(460, 200)` — in two draw runs, the glyph last.
 
-**That is real evidence about z-order and it is NOT the exit criterion.** It goes
-through the production `Scene`, draw list and shaders, so an inversion would have
-shown. But `renderOffscreen` is the same instrument M2's ASCII-art glyph readback
-used, and this file already records that such a readback "rules out the gross
-failures and rules out none of §4.2's three". **Nobody has run
-`swift run MetalUIDemo` for this milestone** beyond a launch-and-don't-crash
-smoke check, so
-`docs/superpowers/specs/2026-08-28-stack-container-design.md` §7 item 8 stays
-**open**. What the readback cannot see: compositing against the rest of the
-window, the layer's Display P3 colorspace (divergence 1 — colours render more
-saturated than the hex implies), and the appearance at a real display's scale
-factor.
+**That readback was real evidence about z-order and it was NOT the exit
+criterion.** It goes through the production `Scene`, draw list and shaders, so an
+inversion would have shown. But `renderOffscreen` is the same instrument M2's
+ASCII-art glyph readback used, and this file already records that such a readback
+"rules out the gross failures and rules out none of §4.2's three". What it could
+not see: compositing against the rest of the window, the layer's Display P3
+colorspace (divergence 1 — colours render more saturated than the hex implies),
+and the appearance at a real display's scale factor.
+
+**The exit criterion is now CLOSED, by a look on 2026-08-28.** A human ran
+`swift run MetalUIDemo`, was asked to look at one specific thing — the `Stack`
+hero's z-order, the badge on the panel and the panel on the backdrop — and
+reported it looks good.
+`docs/superpowers/specs/2026-08-28-stack-container-design.md` §7 item 8 is
+**closed**.
+
+**What that look established, and it is the three things the readback could
+not.** Z-order observed **through the real window** rather than through an
+offscreen texture: composited against the rest of the app, at a real display's
+scale factor, in the layer's own P3 colorspace. It is the first and only
+observation of `Stack`'s paint order outside `renderOffscreen`.
+
+**What it did NOT establish, and this is the part to be precise about.** The
+build the human ran **predates commit `ef7f899` and contained no modal** — no
+`Deferred`, no absolutely-positioned box, no scrim. It closes **nothing** for the
+absolute-positioning milestone, whose own entry below stands unchanged and open.
+A look at one build is evidence about that build.
+
+**It was also, very nearly, the last un-scrimmed look this demo would ever get.**
+The modal as first written was always on, laying a translucent wash over the
+whole window — and this one file carries four milestones' exit criteria,
+including M2's, which is literally a contrast judgement. The modal is gated
+behind the **M** key for that reason; see `showModal` in
+`Sources/MetalUIDemo/main.swift`.
 
 **Z-order is why that criterion exists, and it is worth restating precisely.**
 A `Stack`'s children are placed independently of paint order —
 `positionStackItems` never reads which child was declared first — so a
 regression reversing paint order would move not one number any of the 569 tests
 or 81 goldens check: every rect's `(x, y, width, height)` is identical whichever
-child painted first. The readback above is the only artifact in this repo that
-has ever observed the property, and it observed it once, by hand, outside the
-suite.
+child painted first. **Two artifacts have ever observed the property and both are
+outside the suite**: the offscreen readback, once, by hand, and the human look
+that closed the criterion. Nothing automated has seen it or can.
 
 **Absolute positioning and `Deferred` — the demo is built, NOBODY HAS LOOKED AT
 IT, and the criterion is OPEN.** `docs/superpowers/specs/2026-08-28-absolute-positioning-design.md`
@@ -471,12 +493,22 @@ human to run it and report**. The modal exists as of this milestone's Task 8;
 the look has not happened. A launch-and-don't-crash smoke check was run and it
 is not a look, exactly as the `Stack` entry above says of its own.
 
-**Where it is and why it is there.** Inside the demo's `ScrollView`, declared
-**before** the 40 rows: a `Deferred` wrapping a `Stack` that is
+**Where it is, and the key that shows it.** Inside the demo's `ScrollView`,
+declared **before** the 40 rows: a `Deferred` wrapping a `Stack` that is
 `.position(.absolute).inset(Pixels(0)).background(.scrim)`, holding a 360pt
 centred panel. Absolute with all four insets given and an `auto` size makes it
 stretch across its containing block, which — nothing between it and the root
 being positioned — is the whole window.
+
+**It is off by default and the M key toggles it.** The look therefore has an
+instruction: run the demo, press **M**, and watch the transition in both
+directions. Two reasons, and the second is the better one. This file carries
+four milestones' exit criteria and an always-on translucent scrim would make
+every future look pay for this one — M2's is a *contrast* judgement, "the
+paragraph renders legibly". And toggling makes **this** criterion stronger:
+"the modal covers the window" and "the modal replaced the window" separate by
+observation across the transition, rather than by inferring one from the
+scrim's alpha.
 
 **What a human has to look at, stated as three separable failures.**
 
@@ -501,13 +533,10 @@ is what a *user* wants in a given case is a design question, not a mechanism —
 design spec §5 names it as untestable up front, and a positive report does not
 close it.
 
-**A cost this demo now carries for every other criterion.** The scrim is
-translucent (`ColorToken.scrim`, 0.32 in light and 0.42 in dark) but it covers
-the whole window, so M1's nested reflow, M2's legible text and the
-clipping-and-scroll criteria are all now re-verified *through* it. That was
-preferred to an opaque scrim, which would make "the modal covers the window"
-and "the modal replaced the window" look the same to the only check that can
-see either.
+**Why the scrim is translucent rather than opaque** (`ColorToken.scrim`, 0.32 in
+light and 0.42 in dark): an opaque one makes "covers" and "replaced"
+indistinguishable in a still frame. Gating it behind M is what keeps that choice
+from taxing every other look in this file.
 
 ## Nine known divergences, numbered 1-6 and 8-10 — expected, measured, not defects
 
@@ -1054,6 +1083,7 @@ are the dangerous ones.
 | `GlyphAtlas.evictUnusedSince(_:)`, and the grow-only atlas it leaves | **Zero production callers — and a caller would make things WORSE, not better, until the packer can reclaim.** That is the mechanism, and it is checkable rather than a milestone to wait for: the shelf packer never revisits a closed shelf, so evicting a key frees a dictionary entry and **strands its pixels**; the next frame that wants that glyph packs a *second* copy further down. Calling eviction every frame therefore makes the atlas fill **faster**. `grep -rn "evictUnusedSince" Sources/` returns **nine** lines and **not one of them is a call**: the declaration, the string inside its own precondition message, and seven doc comments — the same shape as `LayoutTree.reset(generation:)` below. Re-count rather than trusting the nine; two of the doc comments were added by the emitter task, so this number moves with the prose and the "no call" half is the claim. The frame brackets it depends on *are* live: `Frame.render` calls `beginFrame`/`endFrame` around the paint phase, so the ordering guard is enforceable; what is absent is only the call. **These three facts are one story, so read them together:** eviction is unwired, the atlas is therefore **grow-only**, and when it is full `Frame.draw` **silently drops** the glyphs that will not fit — a window showing an unbounded stream of distinct glyphs loses text with no error anywhere. What unblocks it is a repacker or a whole-atlas rebuild, not a call site. Its guards (`evictingDuringFrameConstructionTraps`, `aGlyphUnusedSinceAnOlderGenerationIsEvicted`) stay for `LayoutTree.reset`'s reason: they pin the contract for whoever does call it |
 | `Style.alignSelf` on a **stack child** | **Ignored entirely, and it is the most misleading inert API this table holds** — an *alignment* property, public and live for flex, silently doing nothing on an *alignment* container. `Stack { Box().alignSelf(.flexEnd) }` compiles today: `StyledElement.alignSelf(_:)` is a live modifier and `Stack` conforms to `StyledElement` as of the stack milestone. Measured at that milestone's final review: a 20x10 child with `alignSelf = .flexEnd` in a 100x60 stack lays out at **`y = 0`**; WebKit's grid puts the same child at **`y = 50`**. The mechanism, not a milestone: `positionStackItems` reads the *container's* `alignItems`/`justifyItems` once before its item loop and never consults `tree.style(item.node)` for an override — the only per-item style it reads is `size`, for the `stretch` carve-out. Per-child alignment was out of the milestone's scope, and closing it needs **two** things rather than one: `alignSelf` for the block axis and a `justifySelf` that does not exist in this `Style` at all for the inline one, since implementing one alone would make a stack's two axes disagree about whether a child may override its container. Recorded at `Display.stack`'s own doc comment (`Style.swift`) as well as here |
 | `Style.padding` / `Style.border` / `Style.margin` on a **leaf** | **Ignored entirely — for a `Text`, not "resolved wrongly".** `measureNode` returns a leaf's measure result unchanged where it adds a container's `edges` back on, and `contentBox` only ever runs on a node with children, so a leaf's border box *is* its content box. `Text(…).padding(Pixels(8))` therefore changes no size and moves no glyph, and `Text.paint` lays its glyphs from `bounds.origin` on exactly that basis. Consistent, and consistently wrong against CSS. **Reachable from the public API**, unlike the `Style` properties above: `StyledElement.padding(_:)`/`.borderWidth(_:)`/`.margin(_:)` are live modifiers that do the right thing on a `Box` and nothing on a `Text` — which is the shape this table exists for, an API that is implemented for one receiver and inert for another. Whoever implements a leaf's box model owns the paint half too: the glyph origin becomes the content box and must come from the engine rather than be re-resolved at paint time, for the percentage-inset reason recorded at `Frame.fill` |
+| `StyledElement.hidden()` / `Style.display = .none` on a subtree that **draws** | **Live for layout, ignored by paint, and the failure is glyphs at the window's top-left corner.** The engine really does filter a `.none` node out of its parent's item list, so its rect stays at `LayoutTree`'s zero — that half works and is what the modifier's doc comment used to describe in full, which is exactly why the comment misled: it explained the layout half completely and said nothing about paint, so it read as "paints nothing". Nothing in `Sources/MetalUI` reads `Style.display` during paint at all. `Box.paint` fills its bounds and recurses into `content.paintGroup` unconditionally; the fill is a harmless zero-size rect, but the children paint from that zero rect's **origin**, and a node that was never placed has origin `(0, 0)` in *surface* coordinates. `Text.paint` then re-shapes at `max(bounds.width, smallestWrapWidth)` with `smallestWrapWidth == 0.5`, so the string wraps after every character and stacks one glyph per line down the window's left edge. **Measured** with a throwaway probe rather than read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); Box().width(40).height(10) }` in a 400×300 frame emits the expected zero rect **and two glyphs**, at `(0, 2)` and `(−1, 18)` — the second negative in x. **Nothing in the suite can see it**: every existing `hidden()` test asserts a rect, and a zero rect is exactly what a correct implementation produces, so the glyphs are invisible to every assertion that exists. Found while evaluating a key-toggled modal for the demo and rejected on this basis — the demo uses an `@ElementBuilder` `if` instead, which removes the element from the *tree* rather than from the item list. The fix is a `display` check in paint (probably in `Element`'s group walk, so it costs one test per phase rather than one per element); until then `hidden()` is safe on `Box`es and wrong on anything that draws |
 | `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` returns **two** lines and neither is a call: the string inside its own precondition message, and a doc comment on the method that quotes this very grep. (It matched one line when this row was written; the doc comment came later, so re-run it rather than counting — the claim is "no call", not "two".) The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
 | CSS Sizing §4.5's **specified size suggestion** | **Still not implemented** (ruling FS-3), and it **left this table's premise behind**: content sizing made the *content* half live for containers, so the missing half is no longer inert-and-invisible but a measured disagreement with WebKit — **divergence 5 above** carries the repro, the numbers and the pin, and is the one place to update. Two claims expired here in one milestone, and the second was written by the commit that retired the first (ruling CS-E's shape, third occurrence on this project): "indistinguishable until M2", then "not yet a wrong answer anywhere". Kept as a row because the *declaration* half is what this table is for — the rule is half-implemented at `collectItems`' automatic minimum, and silence there would read as complete. `aContainerItemIsFlooredByItsChildrensWidth` cannot see it: its `.a` has no specified width to be floored by |
 
@@ -1088,7 +1118,15 @@ round (a `Deferred` identity differential, nested-layer idempotence, and the
 prepaint and paint halves of a real `ScrollView` escape). Task 8 is the demo
 and the documentation and adds no test, so 569 reproduced exactly. **Goldens
 climbed 76 → 81 in Task 5 and moved nowhere else in the milestone** — five new
-`abs_*` fixtures, no existing golden modified, verified at every task.
+`abs_*` fixtures, and **no golden that existed before this branch was
+modified**, verified at every task. Stated that precisely because one of the
+five *was* regenerated within the milestone: `abs_over_constrained.json` landed
+in `385c035` and was regenerated in `ee06f84` after its own HTML was reordered
+(its `top: 0; bottom: 0` made "stretch between two insets" and "fill the
+containing block" the same number, so the fixture pinned nothing on its
+vertical axis until it became `top: 10px; bottom: 20px`). Same shape as the
+Stack milestone's "two of the 75 were also regenerated after their HTML was
+reordered".
 
 **One count in that list goes DOWN, and it is the interesting one.** Task 6's
 review found two tests in `DrawListTests` with byte-identical fixtures, so they

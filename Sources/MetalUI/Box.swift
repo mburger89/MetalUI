@@ -438,6 +438,31 @@ extension StyledElement {
     /// It still runs all three phases and still registers its nodes; the engine
     /// filters it out of its parent's item list, so its rect stays at the zero
     /// `LayoutTree` initialised it with.
+    ///
+    /// **This is a LAYOUT modifier and paint does not honour it. A hidden
+    /// subtree containing a `Text` still emits glyphs, at the surface's own
+    /// origin.** Nothing in `Sources/MetalUI` reads `Style.display` during
+    /// paint: `Box.paint` fills its bounds and recurses into
+    /// `content.paintGroup` unconditionally, so a hidden `Box`'s own fill is
+    /// harmlessly degenerate (a zero-size rect) while its children paint from
+    /// the zero rect's origin — which, a hidden node never having been placed,
+    /// is `(0, 0)` in surface coordinates rather than anywhere near where the
+    /// element was written. `Text.paint` then re-shapes at
+    /// `max(bounds.width, smallestWrapWidth)`, and `smallestWrapWidth` is 0.5,
+    /// so the string wraps after **every character** and stacks one glyph per
+    /// line down the window's left edge.
+    ///
+    /// Measured, not read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); … }`
+    /// in a 400×300 frame emits the expected zero rect **and two glyphs**, at
+    /// `(0, 2)` and `(−1, 18)` — the second negative in x, its left side
+    /// bearing carrying it outside the surface entirely.
+    ///
+    /// So `hidden()` is safe on a subtree of `Box`es and wrong on anything that
+    /// draws its own content. Use a conditional in the `@ElementBuilder` block
+    /// instead — `if showIt { … }` — which removes the element from the tree
+    /// rather than from the item list; `Sources/MetalUIDemo/main.swift`'s modal
+    /// does exactly that, and carries the vanishing-`if` identity caveat at its
+    /// call site. CLAUDE.md's declared-but-inert table has the row.
     public func hidden() -> Self {
         modifying { $0.display = .none }
     }
