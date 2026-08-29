@@ -618,6 +618,13 @@ public final class Frame {
         // takes `.named` instead — the constructor decides, here as everywhere.
         let rootID = GlobalElementID.child(of: nil, at: 0, name: element.elementID)
 
+        // `Frame.render` calls the root's `requestLayout` directly rather than
+        // through `ElementGroup`'s default `requestGroupLayout` — that method
+        // never runs for the root at all — so this is a second, independent
+        // seeding site. A root element with `@State` would otherwise never be
+        // bound to a table or an id.
+        StateBinder.bind(element, table: stateTable, id: rootID)
+
         // Unlike the atlas's bracket below, this one wraps layout as well as
         // paint: a `Text`'s `MeasureFunction` shapes during `requestLayout`
         // and `Text.paint` shapes again at the box's final rounded width, and

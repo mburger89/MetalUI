@@ -109,6 +109,7 @@ extension Element {
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], SingleElementLayout<Self>) {
         let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
+        StateBinder.bind(self, table: pass.frame.stateTable, id: id)
         cursor += 1
         let (node, state) = requestLayout(id, pass: &pass)
         return ([node], SingleElementLayout(id: id, node: node, state: state))

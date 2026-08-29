@@ -73,6 +73,18 @@ final class StateTable {
         storage[id] = value
     }
 
+    /// Mark `id` live for this frame's sweep, without reading or creating an
+    /// entry for it.
+    ///
+    /// `withState` marks on access because an element that never touches its
+    /// state has nothing worth keeping. That rule is wrong for `@State`: a
+    /// value read only inside an `if` would go unmarked on frames where the
+    /// branch is not taken, and the next `sweep()` would discard it — a
+    /// counter that silently resets. Declaring `@State` is sufficient intent
+    /// to keep it, so `StateBinder` calls this for every slot, every frame,
+    /// independent of whether that frame ever reads `wrappedValue`.
+    func mark(_ id: GlobalElementID) { marked.insert(id) }
+
     /// Read the state at `id` without marking it. Test observability: a reader
     /// that marked would make `stateIsSweptWhenTheElementStopsBeingProduced`
     /// pass by the act of checking it.
