@@ -115,6 +115,29 @@ public struct LayoutPass {
         defer { frame.popScrollContext() }
         return body()
     }
+
+    /// Runs `body` with **no** active scroll context, whatever was active
+    /// outside it — `Deferred`'s layout-phase half of the portal.
+    ///
+    /// `Deferred` resets the clip stack and the accumulated scroll translation
+    /// in `prepaint` and `paint` (`PaintPass.deferred`), so its subtree does
+    /// not move with the `ScrollView` it was declared inside. Layout had no
+    /// equivalent until this existed, and the mismatch was measurable rather
+    /// than theoretical: a `List` inside `Deferred { … }` inside a scroller
+    /// windowed against that scroller's offset while paint placed the rows it
+    /// chose at their unscrolled positions, so the portal's list emptied out
+    /// as the list behind it was scrolled. Building everything is the same
+    /// answer a `List` with no enclosing `ScrollView` at all gets, which is
+    /// what a subtree that has escaped every scroller is.
+    ///
+    /// Pushing an absent level rather than popping the enclosing one is
+    /// deliberate: popping would expose the *next* `ScrollView` out in a
+    /// nested pair, and a portal escapes all of them.
+    public func withoutScrollContext<R>(_ body: () -> R) -> R {
+        frame.pushAbsentScrollContext()
+        defer { frame.popScrollContext() }
+        return body()
+    }
 }
 
 /// Phase 2. Layout has resolved, so absolute bounds are known — but nothing has

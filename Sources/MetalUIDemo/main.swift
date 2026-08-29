@@ -285,8 +285,16 @@ func demoContent() -> some Element {
                 // whichever axis is its MAIN axis relative to ITS OWN parent —
                 // here, height — and this engine implements only the content
                 // half of that floor (ruling FS-3), so an explicit height is
-                // silently overridden back up to the full 1120pt of stacked
-                // rows. Two things fix it, both on the wrapping `Box` alone:
+                // silently overridden back up to the full height of the stacked
+                // rows: **14000pt**, which is `demoRowCount * rowHeight` and so
+                // moves with the count above rather than being a constant of
+                // this tree. (Re-measured after the list became a 500-row
+                // `List`; the figure here read 1120 — 40 x 28 — until then,
+                // which was this tree's answer when the list was a `for` loop
+                // over 40 rows. `List` declares `count * rowHeight` as a fixed
+                // style property whether or not those rows are built, so
+                // windowing does not lower it.) Two things fix it, both on the
+                // wrapping `Box` alone:
                 // `.minHeight(Pixels(0))` replaces the automatic (content-based)
                 // floor with a literal zero, and `.flexGrow(1).flexBasis(Pixels(0))`
                 // makes the box's HEIGHT grow-derived rather than content-derived,

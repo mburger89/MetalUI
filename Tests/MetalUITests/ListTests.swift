@@ -364,3 +364,104 @@ private func renderWindowed<E: Element>(_ element: inout E, context: ScrollConte
     let expected = Set((3...10).map { Float($0) * 28 })
     #expect(ys == expected, "expected rows 3 through 10, got \(ys.sorted())")
 }
+
+/// **The axis clause in `visibleRange`'s guard**, which was missing until the
+/// whole-branch review measured it: `ScrollContext.axis` had no production
+/// reader at all, so a vertical `List` inside a horizontal `ScrollView`
+/// windowed itself against a HORIZONTAL offset and a viewport WIDTH.
+///
+/// Measured before the clause existed, on exactly this input: rows 6 through
+/// 21 were built while rows 0 onward were the ones on screen. The right answer
+/// is the one a `List` outside every scroller gets — a horizontal offset
+/// selects no subset of a column of rows, so there is no window to compute.
+///
+/// **The differential is the second half**, without which this test would also
+/// pass under a mutation that stopped windowing altogether: the identical list
+/// under a `.vertical` context of the same numbers builds a strict subset.
+@Test @MainActor func aVerticalListInsideAHorizontalScrollViewBuildsEveryRow() throws {
+    let data = items(40)
+
+    var horizontal = List(data, rowHeight: px(28)) { Row($0) }
+    let (across, _) = renderWindowed(&horizontal,
+                                     context: ScrollContext(offset: 240, viewportExtent: 300,
+                                                            axis: .horizontal))
+    #expect(across.scrollRegions.count == data.count,
+            "a horizontal scroller says nothing about which rows of a vertical list are on screen")
+
+    var vertical = List(data, rowHeight: px(28)) { Row($0) }
+    let (down, _) = renderWindowed(&vertical,
+                                   context: ScrollContext(offset: 240, viewportExtent: 300,
+                                                          axis: .vertical))
+    #expect(down.scrollRegions.count < data.count,
+            "the same numbers on the axis this List stacks on DO window it")
+}
+
+/// **CLAUDE.md divergence 14, pinned so its fix arrives as a red test.**
+///
+/// `ScrollContext` describes the SCROLLER — how far the scroller's content has
+/// moved under its viewport — and `visibleRange` reads it as though it
+/// described this `List`, i.e. as though row 0 sat at the scroller's content
+/// origin. A 300pt header above the list makes the two differ by exactly 300,
+/// and the window slides off the rows actually on screen: at offset 300 with a
+/// 112pt viewport the visible list-local band is 0...112, rows 0 through 3,
+/// while the rows built are 8 through 16.
+///
+/// **This test asserts the WRONG answer on purpose**, which is why it names it
+/// in its own message. Whoever gives `requestLayout` a position (or lays the
+/// scroller out twice) must delete or invert it; a `List` that starts building
+/// rows 0 through 5 here is correct, not regressed.
+///
+/// The consequence, measured through a real `ScrollView` rather than this
+/// hand-pushed context: every one of those nine rows paints at y 224 through
+/// 448 under a content mask of (0, 0) 100x112, so the list renders **blank**.
+@Test @MainActor func aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows() throws {
+    let data = items(40)
+    var headerStyle = Style()
+    headerStyle.size.height = .length(.pixels(px(300)))
+    headerStyle.flexShrink = 0
+    var columnStyle = Style()
+    columnStyle.flexDirection = .column
+
+    var tree = Box(style: columnStyle) {
+        Box(style: headerStyle)
+        List(data, rowHeight: px(28)) { Row($0) }
+    }
+    let (frame, _) = renderWindowed(&tree,
+                                    context: ScrollContext(offset: 300, viewportExtent: 112,
+                                                           axis: .vertical),
+                                    frameHeight: 2000)
+
+    // Row indices, recovered by subtracting the header the list sits below.
+    let built = Set(frame.scrollRegions.map { Int(($0.bounds.origin.y.value - 300) / 28) })
+    #expect(built == Set(8...16),
+            "today's answer, and it is the wrong one: the rows visible at this offset are 0 through 3")
+    #expect(built.isDisjoint(with: Set(0...5)),
+            "not one visible row (0 through 3, plus overscan) is among them")
+}
+
+/// **`Deferred`'s layout-phase escape**, the half `pass.deferred` does not
+/// cover: it resets the clip stack and the accumulated scroll translation for
+/// prepaint and paint, and until the whole-branch review nothing reset the
+/// ambient `LayoutPass.scrollContext`. A `List` inside a portal therefore
+/// windowed against a scroller it does not move with — measured at offset 280:
+/// the window slid to rows 8 through 15 while paint placed those rows at their
+/// unscrolled positions, below the viewport, so the portal's list emptied out
+/// as the list behind it scrolled.
+///
+/// **The differential is what makes this about `Deferred` rather than about
+/// windowing**: the identical `List` under the identical context, unwrapped,
+/// still windows.
+@Test @MainActor func aListInsideADeferredIgnoresTheEscapedScrollersOffset() throws {
+    let data = items(40)
+    let context = ScrollContext(offset: 280, viewportExtent: 112, axis: .vertical)
+
+    var portal = Deferred { List(data, rowHeight: px(28)) { Row($0) } }
+    let (escaped, _) = renderWindowed(&portal, context: context)
+    #expect(escaped.scrollRegions.count == data.count,
+            "a subtree that escapes a scroller's clip and translation has escaped its windowing too")
+
+    var plain = List(data, rowHeight: px(28)) { Row($0) }
+    let (windowed, _) = renderWindowed(&plain, context: context)
+    #expect(windowed.scrollRegions.count < data.count,
+            "the same list and the same context, not wrapped, still windows")
+}

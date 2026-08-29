@@ -457,3 +457,122 @@ region is a wrong pixel or a dropped glyph). The failure that *is* worth watchin
 is the reverse: a future cache whose values are handed out by reference rather
 than by value would make eviction a lifetime question rather than a cost
 question, and this ruling would not cover it.
+
+---
+
+## MP-L — a `List` must be its scroller's only layout-contributing child; the wrong-origin window is RECORDED, not fixed
+
+**The choice.** `List.visibleRange` reads the ambient `ScrollContext.offset` as
+"how far this `List` has scrolled" when what it actually is is "how far the
+enclosing `ScrollView`'s content has moved under its viewport". The two are the
+same number only when the `List` begins exactly at the scroller's content
+origin. Rather than approximate the difference, this milestone makes "the only
+layout-contributing child of its `ScrollView`" a stated requirement of `List`,
+of the same rank as `Data.Element: Identifiable` and a uniform `rowHeight`, and
+records the violation as CLAUDE.md **divergence 14**.
+
+**Reasoning, and it is a phase contract rather than an oversight.** Correcting
+the window needs the `List`'s own y-offset within the scroller's content, and
+`requestLayout` has no position at all — that is what makes the phase
+composable, and the same fact that makes `ScrollContext.viewportExtent` one
+frame stale (MP-F). Supplying a position means one of two things, both larger
+than a performance milestone: lay the `ScrollView` out once to resolve its
+children's positions and again to build the windows, or thread resolved
+geometry into a phase defined to run before geometry exists. The second is not
+a bigger version of this milestone's work; it is a different layout
+architecture.
+
+**The failure is silent and total, which is why the note is loud.** Measured: a
+300pt header above a 40-row list at `rowHeight` 28, viewport 112, scrolled to
+300 — the rows on screen are 0 through 3 and the rows built are 8 through 16.
+Through a real `ScrollView` those nine rows paint at y 224 through 448 under a
+content mask of (0, 0) 100x112, so **nothing is drawn where the list is**. Two
+`List`s in one `ScrollView` fail the same way by construction, since at most
+one of them can start at the content origin. An absolutely-positioned `List`
+fails it too — measured: at `.position(.absolute)` with `inset(top: 300)` it
+builds the identical rows 8 through 16, since the ambient offset is what drives
+the window either way.
+
+**"Layout-contributing" rather than "only child", and the demo is the reason.**
+`Sources/MetalUIDemo/main.swift` declares a `Deferred` modal before its `List`
+inside the same `ScrollView` and is not in violation: the modal's box is
+`.position(.absolute)`, the flow filter removes it from the content node's item
+list, and the list's rows still start at y = 0 (measured). A sibling that
+occupies flow is what shifts the origin; one that does not is free.
+
+**What it costs if wrong.** If the requirement is quietly violated the list
+renders blank, and no assertion in this repo would notice — every windowing
+test builds the `List` as the scroller's only child. The pin is
+`aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`
+(`Tests/MetalUITests/ListTests.swift`), which asserts today's **wrong** answer
+on purpose and says so in its own failure message: whoever gives `requestLayout`
+a position must delete or invert it. If instead this ruling is wrong in the
+other direction — if a cheap correction exists that nobody found — the cost is a
+requirement documented on a type that did not need one, which is recoverable by
+deleting three paragraphs. The asymmetry is why it was written down rather than
+left open.
+
+---
+
+## MP-M — a scroll context on an axis `List` does not stack on falls back to building everything
+
+**The choice.** `visibleRange` windows only when `ScrollContext.axis ==
+.vertical`; a horizontal context takes the same escape hatch as no context at
+all.
+
+**Reasoning.** `ScrollContext.axis` had **zero production readers** before this,
+found by mutation during the whole-branch review, and the consequence was not a
+rounding error: `ScrollView(.horizontal) { List { … } }` windowed a column of
+rows against a horizontal distance and a viewport *width*. Measured on a 40-row
+list at `rowHeight` 28 under `ScrollContext(offset: 240, viewportExtent: 300,
+axis: .horizontal)`: rows 6 through 21 were built while rows 0 onward were on
+screen. There is no better answer available, either — a `List` stacks on the
+block axis by construction, so a horizontal offset selects no subset of its
+rows and there is nothing to window *with*. Building everything is what a `List`
+outside every `ScrollView` already does (MP-G's hatch), and a vertical list
+inside a horizontal scroller — a row of columns — is a real composition rather
+than a mistake to be punished.
+
+**What it costs if wrong.** A vertical `List` of many rows inside a horizontal
+`ScrollView` builds every row, every frame — the pre-windowing cost, which is
+this milestone's whole subject. That is a slow frame rather than a wrong one,
+and it is the same trade MP-G already took for a zero `rowHeight`. Pinned by
+`aVerticalListInsideAHorizontalScrollViewBuildsEveryRow`, whose second half
+asserts the identical numbers on the vertical axis DO window — without that
+differential the test would also pass under a mutation that stopped windowing
+altogether.
+
+---
+
+## MP-N — `Deferred` escapes the ambient scroll context too, by pushing an ABSENT one
+
+**The choice.** `Deferred.requestLayout` runs its subtree inside
+`LayoutPass.withoutScrollContext`, which pushes `nil` onto `Frame`'s scroll-
+context stack. A `List` inside a portal therefore builds every row.
+
+**Reasoning, and ruling AP-I already contains it.** AP-I says escaping an
+ancestor's clip without escaping its scroll translation "is a half-portal"; the
+same sentence applies one phase earlier. `pass.deferred` resets the clip and the
+accumulated offset for `prepaint` and `paint`, so a `Deferred` subtree does not
+move with the content around it — but nothing reset the layout phase's ambient
+context, so a `List` inside the portal was still told how far a scroller it does
+not move with had scrolled. Measured at offset 280: the window slid to rows 8
+through 15 while paint placed them at 224…420, below a viewport ending at 112 —
+the portal's list empties out as the list behind it is scrolled. The layout half
+is the counterpart of resetting the *translation*, not of resetting the clip.
+
+**Absent rather than popped, and the distinction is load-bearing.** Popping the
+enclosing entry would expose the *next* `ScrollView` out in a nested pair, which
+is a different wrong answer; a portal escapes all of them. That is why
+`Frame.scrollContextStack` became `[ScrollContext?]` rather than gaining a
+pop-and-restore spelling — `pushAbsentScrollContext` is the exact counterpart of
+`pushRootClip`, one level pushed and one level popped.
+
+**What it costs if wrong.** A `Deferred { List }` builds every row, which is the
+pre-windowing cost again and the right answer for a portal — a portal is not
+scrolled, so there is no window to compute. If the reverse were shipped (a
+portal inheriting the context) the list silently empties as the page scrolls,
+and **nothing in the suite would see it**: `Deferred` contributes no layout node,
+so the rects of whatever it does build are byte-identical either way. Pinned by
+`aListInsideADeferredIgnoresTheEscapedScrollersOffset`, with the unwrapped list
+under the identical context as its differential.

@@ -60,7 +60,41 @@ import MetalUILayout
 /// built — so the scrollbar and the offset clamp see the full extent even
 /// though only a slice of rows exists in the tree for any given frame. See
 /// `visibleRange(count:pass:)` for the arithmetic and its escape hatches (no
-/// context; a first-frame zero viewport; a zero or negative `rowHeight`).
+/// context; a non-vertical one; a first-frame zero viewport; a zero or negative
+/// `rowHeight`).
+///
+/// **A `List` must be its enclosing `ScrollView`'s only layout-contributing
+/// child, and violating that renders it BLANK rather than merely imprecise.**
+/// This is a requirement of the same rank as `Identifiable` and a uniform
+/// `rowHeight`, and unlike those two nothing enforces it: `ScrollView { Text(...);
+/// List(...) }` compiles, lays out, and paints nothing where the list should be.
+/// The ambient `ScrollContext` describes the SCROLLER — how far the scroller's
+/// content has moved under its viewport — and `visibleRange` reads it as though
+/// it described this `List`, i.e. as though row 0 sat exactly at the scroller's
+/// content origin. Put anything that occupies FLOW above the list — a header, a
+/// spacer, a second `List` — and the two differ by that thing's height, so the
+/// window slides off the rows actually on screen. Measured, with a 300pt header
+/// above a 40-row list at `rowHeight` 28, viewport 112, scrolled to 300: the
+/// rows visible are 0 through 3 and the rows built are **8 through 16**, every
+/// one of them painted below the viewport under a mask that shows none of them.
+///
+/// **Two measured refinements of that rule, in opposite directions.** An
+/// out-of-flow sibling costs nothing — a `.position(.absolute)` box declared
+/// before the list, which is what the demo's own `Deferred` modal is, leaves the
+/// rows at y = 0 — so the requirement is about flow rather than about sibling
+/// count. And making the `List` itself absolute does not save it: at
+/// `.position(.absolute)` with `inset(top: 300)` it builds the identical wrong
+/// rows, because the window comes from the ambient offset either way.
+///
+/// **Not fixable from inside this type, which is why it is a documented
+/// requirement rather than a bug with a fix pending** (ruling MP-L, CLAUDE.md
+/// divergence 14). Correcting the window needs this `List`'s own offset within
+/// the scroller's content, and `requestLayout` has no position — that is the
+/// phase's contract, not an oversight. Supplying one means either laying the
+/// scroller out twice or threading resolved geometry into a phase defined to run
+/// before geometry exists. Pinned by
+/// `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`, so the fix,
+/// when it comes, arrives as a red test rather than as a surprise.
 ///
 /// **A leading spacer places the window, rather than an absolute inset per
 /// row — chosen by reasoning about the two, not by measuring both; no
@@ -136,9 +170,22 @@ where Data.Element: Identifiable {
     /// intersecting the viewport, widened by `overscan` on each side and
     /// clamped into `0..<count`.
     ///
-    /// **Three escape hatches, all building everything.** No ambient context
+    /// **Four escape hatches, all building everything.** No ambient context
     /// at all means this `List` is not inside a `ScrollView` — a list nobody
-    /// scrolls must still render every row. A zero or negative `rowHeight` is
+    /// scrolls must still render every row. A context whose `axis` is
+    /// `.horizontal` describes a scroller moving across an axis this `List`
+    /// does not stack on: its `offset` is a horizontal distance and its
+    /// `viewportExtent` is a WIDTH, and windowing a column of rows against
+    /// either is not an approximation but a category error. Measured before
+    /// this clause existed, on a 40-row list at `rowHeight` 28 under
+    /// `ScrollContext(offset: 240, viewportExtent: 300, axis: .horizontal)`:
+    /// rows 6 through 21 were built while rows 0 onward were the ones on
+    /// screen. A vertical `List` inside a horizontal `ScrollView` is a real
+    /// composition — a row of columns — and the honest answer for it is the
+    /// one a `List` outside every scroller gets. (There is no windowing
+    /// *for* a horizontal scroller to be had here either way: `List` stacks
+    /// on the block axis by construction, so a horizontal offset selects no
+    /// subset of its rows.) A zero or negative `rowHeight` is
     /// otherwise legal, quiet input (`List` accepted it before windowing
     /// existed, sizing every row and the whole list to zero) and is the one
     /// value that can actually divide by zero below — `rowExtent` is the
@@ -160,8 +207,8 @@ where Data.Element: Identifiable {
     /// a visible one-frame flash. Building everything on that first frame
     /// costs one slow frame instead of a flash.
     private func visibleRange(count: Int, pass: LayoutPass) -> Range<Int> {
-        guard let context = pass.scrollContext, context.viewportExtent > 0,
-              rowHeight.value > 0 else {
+        guard let context = pass.scrollContext, context.axis == .vertical,
+              context.viewportExtent > 0, rowHeight.value > 0 else {
             return 0..<count
         }
         let extent = Double(rowHeight.value) * Double(count)

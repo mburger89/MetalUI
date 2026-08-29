@@ -152,21 +152,37 @@ idiomatic Swift. macOS and iOS.
   Measured on the demo's tree, that first frame is 7.87 ms at 40 rows and
   **76.26 ms at 500** in release, 19.32 and **188.30 ms** in debug.
 
-  **Three requirements, and each is load-bearing rather than stylistic.**
+  **Four requirements, and each is load-bearing rather than stylistic.**
   `Data.Element: Identifiable`, because a row not built this frame would
   otherwise take a different `.positional(_:)` component when it returns —
   the vanishing-`if` hazard, made routine (ruling MP-D). A uniform declared
   `rowHeight`, because that is what lets the window be found by division
   rather than by laying rows out; variable heights need a prefix-sum index
-  and have no spelling here. And an enclosing `ScrollView`, which is what
+  and have no spelling here. An enclosing `ScrollView`, which is what
   publishes the ambient `LayoutPass.scrollContext` the window is computed
   from — a `List` with no context above it builds every row, which is correct
   for a list nobody scrolls.
 
-  **What it costs is two divergences, 12 and 13 below**: a row's own
+  **And a silent fourth the first three do not prepare you for: the `List`
+  must be that `ScrollView`'s ONLY layout-contributing child.** The first
+  three announce themselves — two are type constraints and the third
+  degrades to "builds everything". This one degrades to **blank**. The
+  ambient context describes the *scroller*, and `visibleRange` reads it as
+  though it described the `List`, so anything above the list that occupies
+  flow — a header, a spacer, a second `List` — shifts the window off the rows
+  actually on screen by that thing's height. (An out-of-flow sibling is free,
+  which is measured and is why the demo's absolutely-positioned `Deferred`
+  modal, declared before its `List` in the same `ScrollView`, is not in
+  violation.) Measured with a 300pt header:
+  rows 0 through 3 are visible and rows **8 through 16** are built, every one
+  of them masked away. Nothing enforces it and nothing can — see divergence
+  14 and ruling MP-L for why `requestLayout` cannot know where it sits.
+
+  **What it costs is three divergences, 12, 13 and 14 below**: a row's own
   `StateTable` state is reaped while it is off screen (its *identity* is what
-  survives, not its state), and the window is computed against a
-  one-frame-stale viewport extent. `Sources/MetalUI/List.swift`; decisions doc
+  survives, not its state), the window is computed against a one-frame-stale
+  viewport extent, and the window is placed against the scroller's origin
+  rather than the list's own. `Sources/MetalUI/List.swift`; decisions doc
   `docs/superpowers/2026-08-28-measure-performance-decisions.md`, rulings
   prefixed `MP-`.
 
@@ -383,7 +399,7 @@ what the demo draws — and no test can establish it.** `MetalLayerSurface` vend
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and the whole suite still passed when that was measured, at 342 tests
-(**604 today**; the count is quoted so the measurement can be dated, not because
+(**609 today**; the count is quoted so the measurement can be dated, not because
 342 is a property of anything). If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
@@ -537,7 +553,7 @@ behind the **M** key for that reason; see `showModal` in
 **Z-order is why that criterion exists, and it is worth restating precisely.**
 A `Stack`'s children are placed independently of paint order —
 `positionStackItems` never reads which child was declared first — so a
-regression reversing paint order would move not one number any of the 604 tests
+regression reversing paint order would move not one number any of the 609 tests
 or 81 goldens check: every rect's `(x, y, width, height)` is identical whichever
 child painted first. **Two artifacts have ever observed the property and both are
 outside the suite**: the offscreen readback, once, by hand, and the human look
@@ -624,7 +640,7 @@ scrim's alpha.
 **Nothing in the suite can see any of the first three, and the reason is the same one
 `Stack`'s entry gives.** A `Deferred` contributes no layout node, so its
 subtree's `(x, y, width, height)` are byte-identical whether or not it hoists
-and whether or not it escapes; the 604 tests and 81 goldens would all stay green
+and whether or not it escapes; the 609 tests and 81 goldens would all stay green
 under a regression in either half. The scene-level tests in `DeferredTests.swift`
 assert the layer and the mask on synthetic frames, which is real evidence and is
 not the same as the composed window.
@@ -665,9 +681,39 @@ rows median 1.305 / p99 1.423 / worst 1.427 ms, 500 rows median 1.294 / p99
 and the worst frame measured at either count is under a sixth of the 8.33 ms
 budget.
 
-It all says nothing about
-criterion 6: a frame budget met in a harness is not a window that feels smooth
-under a drag, exactly as §9 item 6 says.
+**And the cost WHILE SCROLLING was finally measured, which is the interaction
+this milestone is actually about — every figure above is a static tree.** Same
+machine, release, `demoLikeRows(500)` through a real `Frame.render` with the
+`StateTable` and `ShapingCache` threaded across frames the way `Window` threads
+them, 294 timed frames after ten warm ones, the scroller's stored offset
+advanced by a fixed step each frame:
+
+| run | median | p99 | worst | frames the sweep fired on |
+|---|---|---|---|---|
+| static (offset never moves) | 1.073 | 1.147 | 1.370 ms | 0 |
+| scrolling 4pt/frame | 1.171 | 1.381 | 1.498 ms | 1 |
+| scrolling 45pt/frame (a fling) | 1.385 | 1.562 | 1.569 ms | 15 |
+
+**That is stronger evidence for criterion 4 than the static figure**, and it
+closes a deferred question about whether the generation sweep costs anything in
+practice: the run that swept fifteen times has a *tighter* tail than the run
+that swept none — a second static run on the same instrument produced a 2.611 ms
+outlier, larger than any frame in either scrolling run. Scrolling costs about
+0.1-0.3 ms more than sitting still, entirely from cache misses as new rows enter
+the window, and the worst frame measured anywhere is under a fifth of the 8.33
+ms budget. Resident cache entries move with scroll speed as expected (64/16
+static, 110/58 at 4pt, 186/253 at 45pt) and stay under `sweepThreshold`.
+
+**These are this machine's numbers taken with this harness, and one earlier set
+did not reproduce.** The whole-branch review reported a median of 0.826 ms over
+294 scrolled frames with the sweep firing on 3; re-measured here the medians
+came out 0.2-0.6 ms higher and the sweep count is a function of the scroll step
+rather than a constant. Nothing about the conclusion changes — every figure in
+both sets is far inside budget — but the table above is the one that was
+measured by the method it describes, and a re-run should reproduce *it*.
+
+**None of it says anything about criterion 6**: a frame budget met in a harness
+is not a window that feels smooth under a drag, exactly as §9 item 6 says.
 
 **Why only a human can close it, stated as a mechanism rather than as
 deference.** Resize stutter is produced by the *whole* loop — AppKit's
@@ -678,7 +724,7 @@ records that exclusion up front). And the demo now carries a second thing worth
 a directed look for the same reason `Stack`'s z-order needed one: with a
 `List`, rows appear and disappear as the window moves, and a window whose
 overscan is too small shows a strip of unbuilt rows for a frame (divergence 13).
-No assertion in the 604 can see either.
+No assertion in the 609 can see either.
 
 **What a human must do, and what to report.** Run `swift run MetalUIDemo`, then
 `swift run -c release MetalUIDemo`. Drag the window's edge — slowly, then fast —
@@ -694,16 +740,16 @@ observation about whether it is actually perceptible. A positive report closes
 §9 item 6 and closes none of the looks this file already lists as permanently
 open.
 
-## Twelve known divergences, numbered 1-6 and 8-13 — expected, measured, not defects
+## Thirteen known divergences, numbered 1-6 and 8-14 — expected, measured, not defects
 
 **The labels are stable ids, not a running count, and the gap is deliberate.**
-There are **twelve** entries and the highest label is **13**: the original
+There are **thirteen** entries and the highest label is **14**: the original
 divergence 6 was fixed, the original 7 was renumbered *into* 6 (see the "This
 was divergence 7 of seven, and 6 is gone" paragraph inside entry 6), and every
 entry added since has taken the next free label rather than re-using the freed
 7 — the same rule `EP-2`/`EP-4` follow, so a citation written against
 "divergence 8" never silently rebinds. A reader who counts to the highest label
-gets thirteen and a reader who counts entries gets twelve; both are answering a
+gets fourteen and a reader who counts entries gets thirteen; both are answering a
 different question from the one this heading used to leave open, which is why
 it says both numbers.
 
@@ -712,11 +758,13 @@ was one.** 1-6 and 8 are places this engine answers differently from an oracle
 (WebKit for all but 8, which is layout against paint inside this engine). 9 is
 of that kind too. **10 and 11 are design choices recorded here because a reader
 comparing this framework to CSS will otherwise read them as bugs** — they are
-the two directions of one seam, and each entry names the other. **12 and 13 are
-a third kind again: neither a disagreement nor a design preference, but two
-accepted limitations of `List`'s windowing**, each with a named mechanism that
-would remove it and a reason that mechanism is larger than this framework has
-built.
+the two directions of one seam, and each entry names the other. **12, 13 and 14
+are a third kind again: neither a disagreement nor a design preference, but
+three accepted limitations of `List`'s windowing**, each with a named mechanism
+that would remove it and a reason that mechanism is larger than this framework
+has built. 14 is the one of the three that can make a list render **blank**
+rather than merely stale or forgetful, so read it before putting a `List` in a
+scroller that holds anything else.
 
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
@@ -905,9 +953,16 @@ wrapper (shipped) bounds the height via cross-axis stretch and strands the
 width, because the viewport's width is its *main* axis relative to a row and
 nothing can grow it there. A `Column` wrapper does the exact reverse: it gives
 the viewport the full width via cross-axis stretch (measured: 1200/920/700),
-but its height goes unbounded to **1120** — the whole content — because height
+but its height goes unbounded to **14000** — the whole content — because height
 is now the viewport's main axis and no `.minHeight(0)` is spellable on
-`ScrollView` either. With today's API you get one axis or the other, never
+`ScrollView` either. (That figure read **1120** until the measure-performance
+milestone's whole-branch review re-measured it. 1120 is 40 x 28, this tree's
+answer while the list was a `for` loop over 40 rows; the demo ships a 500-row
+`List` at `rowHeight` 28, and `List` declares `count * rowHeight` as a fixed
+style property whether or not those rows are built, so windowing does not lower
+it. Re-measured on the shipped structure — a `Box` wrapping
+`ScrollView { List }` inside a stretching `Column` — which gives 14000 at 500
+rows and reproduces 1120 exactly at 40.) With today's API you get one axis or the other, never
 both. Task 10's **conclusion** — a literal width is the only option today —
 was right; its **stated reason** was wrong twice over (`.minWidth` exists;
 the actual blocker is `flexGrow`, not the automatic minimum). The real fix is
@@ -1286,6 +1341,67 @@ current would redden a test. What no test reaches is the *effect*: every
 windowing test pushes a `ScrollContext` by hand with an extent it chose, so
 none of them renders the resize frame on which the window is briefly wrong.
 
+**14. A `List` windows against its SCROLLER's origin, not its own — so a
+`List` that is not its `ScrollView`'s only layout-contributing child renders
+blank.** The sharpest of the three `List` limitations, and the only one whose
+failure is total rather than gradual.
+
+`ScrollContext.offset` says how far the enclosing `ScrollView`'s content has
+moved under its viewport. `List.visibleRange` reads it as how far *this list*
+has scrolled. Those are the same number only when the `List` begins exactly at
+the scroller's content origin — which it does in the demo, and in every test
+written before this entry, and in nothing else.
+
+Reproduce with a header above the list:
+
+```swift
+ScrollView(.vertical) {
+    Box(style: .init()).height(Pixels(300))       // anything with a height
+    List(rows, rowHeight: Pixels(28)) { … }       // 40 rows
+}
+```
+
+Scrolled to 300 with a 112pt viewport, the rows on screen are **0 through 3**
+and the rows built are **8 through 16** — measured, and through a real
+`ScrollView` those nine rows paint at y 224 through 448 under a content mask of
+(0, 0) 100x112, so **nothing is drawn where the list is**. Two `List`s in one
+`ScrollView` fail the same way by construction, since at most one of them can
+start at the content origin. An absolutely-positioned `List` fails it too, and
+that was measured rather than reasoned: the same list at `.position(.absolute)`
+with `inset(top: 300)` builds the identical rows 8 through 16.
+
+**"Layout-contributing" is the load-bearing word, and the demo is why.**
+`Sources/MetalUIDemo/main.swift` declares a `Deferred` modal *before* its
+`List`, inside the same `ScrollView`, and is **not** in violation — measured:
+the list's rows still start at y = 0. The modal's box is
+`.position(.absolute)`, so the flow filter removes it from the content node's
+item list and it adds no height for the list to be offset by. An out-of-flow
+sibling, or a `.hidden()` one, is free; anything that occupies flow is not.
+
+**Not fixed, and the blocker is a phase contract rather than reach** (ruling
+MP-L). Correcting the window needs the `List`'s own offset within the scroller's
+content, and `requestLayout` has no position at all — the same fact that makes
+`ScrollContext.viewportExtent` one frame stale (divergence 13). Supplying one
+means laying the `ScrollView` out twice, or threading resolved geometry into a
+phase defined to run before geometry exists; the second is a different layout
+architecture, not a bigger version of this milestone.
+
+**So it is a stated requirement of the type instead**: a `List` must be its
+`ScrollView`'s only layout-contributing child. That is recorded at `List`'s own
+type doc, where a caller will look, and in the `List` bullet at the top of this
+file as the fourth load-bearing requirement beside `Identifiable`, a uniform
+`rowHeight` and an enclosing `ScrollView`.
+
+**Pinned, and the pin asserts the WRONG answer on purpose** —
+`aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`
+(`Tests/MetalUITests/ListTests.swift`) says so in its own failure message, so
+whoever fixes this gets a red test rather than a surprise and knows to delete or
+invert it. **Two neighbouring defects found by the same review WERE fixed and
+are not divergences**: a horizontal `ScrollContext` used to window a vertical
+`List` against a viewport *width* (ruling MP-M), and a `Deferred` subtree used
+to inherit the scroll context of the scroller it had escaped (ruling MP-N). Both
+were one condition each; this one is not.
+
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
@@ -1377,7 +1493,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **604 tests** and 81 browser fixtures, warning-free
+`swift build` · `swift test` — **609 tests** and 81 browser fixtures, warning-free
 (re-measured 2026-08-29 `--no-parallel`, at the measure-performance milestone's
 own last commit, per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
@@ -1399,8 +1515,15 @@ memo landed, so only `aListsWorkIsTheSameFor160RowsAsFor40` survived to here),
 603 then **604** after
 Task 7's review round (both shaping caches bounded by a generation sweep). Task
 8 is the demo and the documentation and adds no test, so 604 reproduced exactly.
-**Goldens did not move at any point in this milestone: 81 before, 81 after, and
-no existing golden file modified** — which is the milestone's own second exit
+**The whole-branch review's fix round then added five, reaching 609**: three in
+`ListTests` — one per half of the scroll-context defect the review found, being
+the axis clause (MP-M), `Deferred`'s layout-phase escape (MP-N) and divergence
+14's deliberately-wrong pin (MP-L) — and two in `ShapingCacheTests`, one pinning
+`staleAfterGenerations` at exactly 2 from both sides and one pinning that
+`Shaper.unbreakableRunCalls` ignores calls made off the main thread, which is
+what makes it safe to be a plain counter at all. **Goldens did not move at any
+point in this milestone: 81 before, 81 after, and no existing golden file
+modified** — which is the milestone's own second exit
 criterion, since it touches the measure path and a moved golden would mean
 something reached the engine that should not have.
 
@@ -1776,12 +1899,13 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    the clipping-and-scroll milestone (suite 488), again at the end of the
    stack milestone's review round (suite 538), and again at the end of absolute
    positioning (suite 577): still 25. Re-counted again at the end of
-   measure-performance (suite 604): still 25 — by grep this time (15 + 7 + 1 +
-   2 across the four files) rather than by forcing `canTypecheck` to `false`,
+   measure-performance (suite 604), and once more after that milestone's
+   whole-branch fix round (suite 609): still 25 — by grep both times (15 + 7 + 1
+   + 2 across the four files) rather than by forcing `canTypecheck` to `false`,
    which is the weaker of the two methods and is said so rather than implied.**
    The suite has
-   moved 304 → 358 → 444 → 488 → 538 → 577 → 604 and the guard count has not moved at
-   all, which is the paragraph's point arriving as seven data points rather than as
+   moved 304 → 358 → 444 → 488 → 538 → 577 → 604 → 609 and the guard count has not moved at
+   all, which is the paragraph's point arriving as eight data points rather than as
    one delta — the argument is that the two numbers are independent, so do not
    restate it as "the suite grew by N and the 25 held", which rots the moment N
    changes. **The guard count does not track the suite count and neither number

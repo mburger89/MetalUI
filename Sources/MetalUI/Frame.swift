@@ -201,18 +201,34 @@ public final class Frame {
                           Corners(all: Pixels(0))))
     }
 
-    /// The innermost active `ScrollView`'s ambient context, shaped exactly
-    /// like `clipStack` above and for the same reason: `LayoutPass
-    /// .withScrollContext` pushes one before descending into a `ScrollView`'s
-    /// content and pops it after, via `defer`, so nesting and an unbalanced
-    /// push are handled the same way clipping already is.
-    private var scrollContextStack: [ScrollContext] = []
+    /// The innermost active `ScrollView`'s ambient context.
+    ///
+    /// **What it shares with `clipStack` above is the nesting discipline, and
+    /// nothing else.** Both are pushed before descending into a subtree and
+    /// popped after via `defer` — through `LayoutPass.withScrollContext` here,
+    /// `PrepaintPass`/`PaintPass.clipped(to:offsetBy:)` there — so nesting and
+    /// an unbalanced push behave the same way in both. They do **not** share a
+    /// phase, a payload or an escape rule: this one exists only during
+    /// `requestLayout`, carries a scroll offset rather than a rectangle, and
+    /// `Deferred`'s portal reaches it by `pushAbsentScrollContext` below rather
+    /// than by `pushRootClip`. An earlier version of this comment said the two
+    /// were shaped "exactly alike and for the same reason", which read as
+    /// "`Deferred` resets this too" at a time when nothing reset it at all.
+    ///
+    /// **The element is `ScrollContext?`, not `ScrollContext`, because
+    /// `Deferred` must be able to push the ABSENCE of one.** A subtree that has
+    /// escaped a scroller's clip and translation has escaped its windowing too,
+    /// so it needs the answer a subtree outside every `ScrollView` gets — and
+    /// popping the enclosing entry instead would expose the *next* scroller
+    /// out, which is a different wrong answer.
+    private var scrollContextStack: [ScrollContext?] = []
 
     /// The scroll context currently in effect, or `nil` outside every
     /// `ScrollView`'s subtree — the same "nothing special" answer `activeClip`
-    /// gives an empty `clipStack`.
+    /// gives an empty `clipStack`. A `nil` pushed by
+    /// `pushAbsentScrollContext` reads back identically, by design.
     var activeScrollContext: ScrollContext? {
-        scrollContextStack.last
+        scrollContextStack.last ?? nil
     }
 
     /// Pushes a scroll context. Balanced by `popScrollContext`, reached only
@@ -221,7 +237,20 @@ public final class Frame {
         scrollContextStack.append(context)
     }
 
-    /// Pops one level pushed by `pushScrollContext`.
+    /// Pushes the ABSENCE of a scroll context — `Deferred`'s layout-phase
+    /// escape, the counterpart to `pushRootClip` on the clip stack.
+    ///
+    /// A `Deferred` subtree paints against the whole surface at zero offset
+    /// (ruling AP-I: escaping the clip without the offset is half a portal),
+    /// so a `List` inside one is not being scrolled by the `ScrollView` it was
+    /// declared in and must not window against that scroller's offset. Popped
+    /// exactly like an ordinary level, by `popScrollContext`.
+    func pushAbsentScrollContext() {
+        scrollContextStack.append(nil)
+    }
+
+    /// Pops one level pushed by `pushScrollContext` or
+    /// `pushAbsentScrollContext`.
     func popScrollContext() {
         scrollContextStack.removeLast()
     }

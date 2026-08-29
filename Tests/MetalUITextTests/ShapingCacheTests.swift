@@ -167,7 +167,8 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
 /// re-stamp would let it go stale and fall out, and the next lookup would
 /// retokenize.
 ///
-/// **The tokenizer-call counter is global, and a filler `minContentWidth`
+/// **The tokenizer-call counter is one global across every main-thread caller
+/// (see `Shaper.unbreakableRunCalls`), and a filler `minContentWidth`
 /// call is a genuine miss on every iteration**, so it moves the same
 /// counter `target`'s own re-tokenization would. Isolating `target`'s
 /// contribution means resetting the counter immediately before touching
@@ -191,4 +192,103 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
         _ = cache.minContentWidth("filler \(i) of 4000 — a scrollable list item", font: font)
         cache.endFrame()
     }
+}
+
+/// Touches `count` distinct strings that are never reused across tests, so the
+/// dictionary they fill stays over ``ShapingCache/sweepThreshold`` on every
+/// frame they are touched — the condition ``ShapingCache/endFrame()``'s sweep
+/// guards on. **They are touched EVERY frame on purpose**: an entry the current
+/// frame touched is never stale, so a live filler set keeps the sweep firing,
+/// where a set left to age would itself be evicted, drop the count back under
+/// the threshold and silently stop the sweep partway through the test.
+@MainActor
+private func touchLiveFillers(_ cache: ShapingCache, count: Int, tag: String) {
+    for i in 0..<count {
+        _ = cache.minContentWidth("\(tag) filler \(i)", font: font)
+    }
+}
+
+/// **What pins `ShapingCache.staleAfterGenerations` at exactly 2**, in both
+/// directions, because either half alone leaves the constant free to move.
+///
+/// The constant was unpinned until this existed: setting it to **1** passed the
+/// whole 604-test suite, and its own doc comment claims a concrete purpose — a
+/// windowed `List` re-touching a row it dropped for one frame and picked back
+/// up the next must not pay a re-shape for that alone. That claim is exactly
+/// this arithmetic, so it is assertable.
+///
+/// `sweep` drops an entry whose `generation < currentGeneration -
+/// staleAfterGenerations`. An entry stamped on frame `G` therefore survives the
+/// sweeps ending frames `G+1` and `G+2`, and falls out of the one ending
+/// `G+3`. The two halves below straddle that boundary from opposite sides:
+///
+/// - **survives two skipped frames** — reddens at `staleAfterGenerations == 1`,
+///   where the sweep ending `G+2` already has cutoff `G+1` and evicts it;
+/// - **evicted after three** — reddens at `3` or anything larger, where the
+///   sweep ending `G+3` has cutoff `G` or lower and keeps it.
+///
+/// Both halves read the tokenizer counter rather than `hits`/`misses`, since a
+/// re-shape after eviction is precisely a re-tokenization; the counter is reset
+/// immediately before the probed lookup so the live fillers' own genuine misses
+/// on the same frame cannot be mistaken for the target's.
+@MainActor
+@Test func anEntrySurvivesExactlyTwoUntouchedSweptFrames() {
+    let fillers = ShapingCache.sweepThreshold + 4
+
+    // Half one: touched on frame 1, skipped on frames 2 and 3, looked up on 4.
+    let survives = ShapingCache()
+    for frame in 1...4 {
+        survives.beginFrame()
+        if frame == 1 { _ = survives.minContentWidth("target one", font: font) }
+        touchLiveFillers(survives, count: fillers, tag: "a")
+        if frame == 4 {
+            Shaper.resetUnbreakableRunCalls()
+            _ = survives.minContentWidth("target one", font: font)
+            #expect(Shaper.unbreakableRunCalls == 0,
+                    "an entry untouched for two swept frames must still be cached")
+        }
+        survives.endFrame()
+    }
+
+    // Half two: the same shape with one more skipped frame, which crosses it.
+    let evicted = ShapingCache()
+    for frame in 1...5 {
+        evicted.beginFrame()
+        if frame == 1 { _ = evicted.minContentWidth("target two", font: font) }
+        touchLiveFillers(evicted, count: fillers, tag: "b")
+        if frame == 5 {
+            Shaper.resetUnbreakableRunCalls()
+            _ = evicted.minContentWidth("target two", font: font)
+            #expect(Shaper.unbreakableRunCalls == 1,
+                    "an entry untouched for three swept frames must have been evicted")
+        }
+        evicted.endFrame()
+    }
+}
+
+/// **What makes `Shaper.unbreakableRunCalls` safe to be a plain `var` at all**,
+/// and it is not the `@MainActor` annotation by itself: that stops a foreign
+/// *read*, and the write is inside a `nonisolated public` function any executor
+/// may call. The `Thread.isMainThread` guard at the increment is the half that
+/// closes it, and this is what would notice its removal — without the guard,
+/// `MainActor.assumeIsolated` on a cooperative thread traps outright, so this
+/// test fails loudly rather than silently counting.
+///
+/// See `unbreakableRunCalls`' doc comment for the data race this replaced: a
+/// count that moved under a `@MainActor` test's reset-and-assert window because
+/// an unrelated nonisolated test was tokenizing at the same moment.
+@MainActor
+@Test func theRunCounterIgnoresCallsMadeOffTheMainThread() async {
+    Shaper.resetUnbreakableRunCalls()
+    await Task.detached {
+        for _ in 0..<50 { _ = Shaper.unbreakableRuns(of: "off the main thread entirely") }
+    }.value
+    #expect(Shaper.unbreakableRunCalls == 0,
+            "a call from another executor must not move the counter a @MainActor reader owns")
+
+    // The positive control: the same call ON the main thread does count, so
+    // this is a test about isolation rather than about a counter that stopped
+    // counting.
+    _ = Shaper.unbreakableRuns(of: "on the main thread")
+    #expect(Shaper.unbreakableRunCalls == 1)
 }

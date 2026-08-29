@@ -28,6 +28,16 @@ import MetalUILayout
 /// scrolling with) the viewport. CSS would clip such a descendant unless its
 /// containing block sat outside the clipper; this framework does not
 /// reproduce that coupling (design spec §2, §7.2).
+///
+/// **The escape has a layout-phase half too, and it is not symmetric with the
+/// other two.** `requestLayout` runs its subtree inside
+/// `LayoutPass.withoutScrollContext`, so an element that windows against the
+/// ambient `ScrollContext` — `List` is the only one today — sees no scroller
+/// above it and builds everything, exactly as it would outside every
+/// `ScrollView`. That is the layout counterpart of resetting the translation,
+/// not of resetting the clip: a portal does not move with the content it
+/// covers, so windowing against that content's offset is wrong in the same way
+/// sliding with it would be.
 public struct Deferred<Content: Element>: Element {
     public var elementID: ElementID?
     public var content: Content
@@ -44,7 +54,17 @@ public struct Deferred<Content: Element>: Element {
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, LayoutState) {
         var cursor = 0
-        let (nodes, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        // The portal's third half, and it runs in THIS phase rather than in
+        // the two below. `pass.deferred` resets the clip stack and the
+        // accumulated scroll translation for prepaint and paint; nothing reset
+        // the ambient `LayoutPass.scrollContext`, so a subtree that had escaped
+        // a `ScrollView`'s clip was still told how far that `ScrollView` had
+        // scrolled — and a `List` inside a portal duly windowed against an
+        // offset it does not move by, emptying itself as the list behind it
+        // scrolled. See `LayoutPass.withoutScrollContext`.
+        let (nodes, contentLayout) = pass.withoutScrollContext {
+            content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        }
         // `content` is a single `Element`, so `requestGroupLayout`'s default
         // (`SingleElementLayout`) always hands back exactly one node — this
         // becomes `Deferred`'s own node, reached through `content`'s own

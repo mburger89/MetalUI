@@ -70,6 +70,16 @@ public struct ScrollState: Sendable {
 public struct ScrollContext: Sendable, Equatable {
     public var offset: Double
     public var viewportExtent: Double
+
+    /// Which axis the two numbers above are measured along — so a reader can
+    /// tell an offset it can use from one it cannot.
+    ///
+    /// **Carried from the start and read by nothing until the whole-branch
+    /// review** (ruling MP-M), which is how `List` came to window a column of
+    /// rows against a horizontal distance and a viewport *width*. `List` now
+    /// declines to window at all unless this is `.vertical`; a publisher must
+    /// therefore set it truthfully rather than defaulting it, and there is no
+    /// default for exactly that reason.
     public var axis: ScrollAxis
 
     public init(offset: Double, viewportExtent: Double, axis: ScrollAxis) {
