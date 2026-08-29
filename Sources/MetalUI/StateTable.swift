@@ -40,27 +40,38 @@ final class StateTable {
     private var storage: [GlobalElementID: Any] = [:]
     private var marked: Set<GlobalElementID> = []
 
-    /// Set by `write` and consulted by `Window`, which is the "observable a
-    /// test can read without a window" half of §2.6's invalidation.
+    /// Set by `write`. **A pure test observable with no production reader —
+    /// `grep -rn "isDirty" Sources/` finds the declaration, the set in
+    /// `write`, the clear in `clearDirty`, and doc comments; there is no
+    /// `if stateTable.isDirty` anywhere.** `Window`'s entire production
+    /// mechanism is `onWrite` below, which fires unconditionally on every
+    /// write and cannot be reached through this flag: `onWrite` already
+    /// calls `setNeedsRedraw()` whenever `isDirty` goes true, so a
+    /// hypothetical `if stateTable.isDirty { setNeedsRedraw() }` in `Window`
+    /// would be unreachable dead code, not a fix. Kept anyway — this is what
+    /// this task's own tests read, two of which construct no `Window` at
+    /// all — and listed in CLAUDE.md's declared-but-inert table under the
+    /// `Style.overflow` shape: a production write with no production read.
     ///
     /// **Deliberately NOT raised by `withState`.** `ScrollView`'s per-frame
     /// offset bookkeeping (`resolvedOffset`, `ScrollView.swift`) goes through
     /// `withState` on every render, scrolled or not — if that raised this
-    /// flag, every frame would mark the window dirty and the display link
-    /// would never pause, which is milestone 4's exit criterion. `write` is
-    /// the only path in, and it exists specifically because `@State`'s setter
-    /// needs a distinct one.
+    /// flag, every frame would mark it dirty, which would defeat the point
+    /// of an observable meant to distinguish a `@State` write from routine
+    /// per-frame bookkeeping. `write` is the only path in, and it exists
+    /// specifically because `@State`'s setter needs a distinct one.
     private(set) var isDirty: Bool = false
 
-    /// Fired by `write`, in addition to raising `isDirty` — this is the half
-    /// `isDirty` alone cannot cover. `Window.drawFrameIfNeeded` pauses the
-    /// display link whenever the window is clean, so a flag only `drawFrame-
-    /// IfNeeded` consults is unreachable while the window sits idle — exactly
-    /// the state a `@State` write from outside the render loop (a click
-    /// handler, a completion callback) needs to escape. `Window.init`
-    /// installs this pointing at its own `setNeedsRedraw()`, captured weakly:
-    /// `Window` owns this table, so a strong capture here would be a retain
-    /// cycle.
+    /// Fired by `write`. This is the ENTIRE production mechanism — see
+    /// `isDirty`'s doc above for why a flag alone cannot be one:
+    /// `Window.drawFrameIfNeeded` pauses the display link whenever the
+    /// window is clean and has no reason to poll anything while paused, so a
+    /// flag it merely *could* consult would stay unread for as long as the
+    /// window sits idle — exactly the state a `@State` write from outside
+    /// the render loop (a click handler, a completion callback) needs to
+    /// escape. `Window.init` installs this pointing at its own
+    /// `setNeedsRedraw()`, captured weakly: `Window` owns this table, so a
+    /// strong capture here would be a retain cycle.
     var onWrite: (@MainActor () -> Void)?
 
     init() {}
@@ -119,7 +130,21 @@ final class StateTable {
     /// write, by contrast, is exactly the SwiftUI-authority signal that
     /// something changed and a redraw is owed (ruling: SwiftUI is the design
     /// authority where it and CSS differ; CSS has no opinion on invalidation
-    /// at all).
+    /// at all). **"Meant to" is a comment, not an enforced constraint**:
+    /// `S` is unconstrained and unconnected to any prior value at `id`, so
+    /// nothing here stops a second, differently-typed caller from reaching
+    /// this method at all.
+    ///
+    /// **Measured, unconstrained-type behaviour, not a regression:** writing
+    /// to a slot that does not yet exist creates it — an ordinary first
+    /// write. Writing a value of a DIFFERENT type than what is already
+    /// stored at `id` silently clobbers it: `storage[id]` becomes the new
+    /// value under the new type, `peek(id, as: OldType.self)` then returns
+    /// `nil`, and a `State<OldType>` bound to that slot reads back its own
+    /// `initialValue` with no trap and no diagnostic. This is identical to
+    /// `withState(id, initial:)`'s own long-standing clobber semantics — `S`
+    /// was never anchored to the slot's stored type there either — so this
+    /// is not a new hazard `write` introduces, only one it inherits.
     func write<S>(_ id: GlobalElementID, _ value: S) {
         marked.insert(id)
         storage[id] = value

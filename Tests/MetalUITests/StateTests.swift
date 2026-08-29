@@ -368,4 +368,36 @@ private struct TwoOrdinalElement: Element {
 
     #expect(window.stateTable.isDirty,
             "a @State write made during the frame's own render must not be swallowed by the flag's own clear")
+    // The production-visible half, pinned alongside the ordering above: the
+    // hook (`onWrite` → `setNeedsRedraw()`) is what actually keeps the window
+    // scheduled, and nothing clears `needsRedraw` after this point in the
+    // same frame — so it stays green whether `clearDirty()` runs before or
+    // after `renderRoot`, which `isDirty` alone does not.
+    #expect(window.needsRedraw)
+}
+
+/// `write` must mark the slot live for THIS frame's sweep, exactly as
+/// `withState` does — the mark is redundant on every path this task's other
+/// tests exercise, because `StateBinder.bind` already marks every `@State`
+/// slot every frame. It becomes load-bearing on a write made on a frame
+/// where the element is NOT produced at all: the out-of-band write `onWrite`
+/// exists to serve (a click handler, a completion callback), and what
+/// Tasks 4+ make routine. Without the mark, `sweep()` would drop the entry
+/// on the very frame it was written, and the write would be silently lost.
+@MainActor
+@Test func writeMarksTheSlotLiveSoItSurvivesTheNextSweep() throws {
+    let table = StateTable()
+    let owner = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let s = State(wrappedValue: 0)
+    s.bind(to: table, id: owner, slot: 0)
+
+    let slotID = GlobalElementID.child(of: owner, at: 0, name: ElementID("$state0"))
+    table.sweep() // drop the mark `bind` made; only `write`'s own mark can save it now
+
+    s.wrappedValue = 7
+    table.sweep()
+
+    #expect(table.peek(slotID, as: Int.self) == 7,
+            "a write must survive the sweep that follows it, on a frame where nothing else marked the slot")
+    #expect(s.wrappedValue == 7)
 }

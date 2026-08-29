@@ -159,10 +159,11 @@ public final class Window {
         }
 
         // §2.6: a `@State` write must reach a window even while its display
-        // link is paused (idle, then click) — `isDirty` alone is invisible
-        // there, since `drawFrameIfNeeded` only consults it once a frame is
-        // already being built. Captured weakly: `self` owns `stateTable`, so
-        // a strong capture here would be a retain cycle.
+        // link is paused (idle, then click). This hook is the ENTIRE
+        // production mechanism — `stateTable.isDirty` has no reader anywhere
+        // in this file or in `StateTable` itself; see its own doc comment.
+        // Captured weakly: `self` owns `stateTable`, so a strong capture here
+        // would be a retain cycle.
         stateTable.onWrite = { [weak self] in self?.setNeedsRedraw() }
 
         platformWindow.onResize = { [weak self] _, _ in self?.setNeedsRedraw() }
@@ -209,11 +210,18 @@ public final class Window {
         }
         needsRedraw = false
         // Cleared HERE, before `renderRoot` runs below — not after the frame
-        // is built. Ruling (§2.6): clearing after would swallow a `@State`
-        // write made during this very frame's render, silently, until some
-        // unrelated event happened to mark the window dirty again. Clearing
-        // first means such a write re-raises `isDirty`, exactly as
-        // `frame.wantsAnotherFrame` re-raises `needsRedraw` a few lines down.
+        // is built. **This ordering has no production consequence**: a
+        // `@State` write made during `renderRoot` fires `onWrite` →
+        // `setNeedsRedraw()` regardless of where this call sits, nothing
+        // clears `needsRedraw` again before this function returns, so the
+        // write is unswallowable either way. What the ordering actually
+        // protects is `isDirty` itself, which is otherwise-inert test
+        // observability (see `StateTable.isDirty`'s doc): clearing it AFTER
+        // `renderRoot` would raise it during the render and immediately
+        // clear it again on the next line, so a test reading it back would
+        // never see a write made during that frame. Clearing first keeps
+        // that observable coherent with the "a write during a frame is not
+        // lost" claim it exists to let a test check.
         stateTable.clearDirty()
 
         let surfaceFrame: SurfaceFrame
