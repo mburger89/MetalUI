@@ -165,44 +165,37 @@ private func glyph(order: MUIUInt) -> MUIGlyph {
     #expect(runs[0].kind == .glyph, "emitted first, so drawn first")
 }
 
-/// A deferred primitive crosses type boundaries: a layer-1 RECT draws after a
-/// layer-0 GLYPH, which the draw list must express as two runs in that order.
+/// A deferred primitive crosses type boundaries: a layer-1 RECT must draw
+/// after a layer-0 GLYPH. The two primitives also carry CONFLICTING orders
+/// (rect 0, glyph 99), so order alone would rank the rect first — only layer
+/// can produce the required glyph-then-rect result. That conflict is what
+/// lets this test catch both `layer` being dropped from the sort key
+/// entirely, and `layer` being outranked by `order` (compared before it
+/// instead of after).
 ///
-/// **Insertion order is deliberately the OPPOSITE of the expected paint
-/// order** — the rect (layer 1) is emitted first, the glyph (layer 0) second
-/// — so plain emission-sequence tiebreak would give glyph-then-rect only by
-/// accident if it happened to agree with layer, and instead gives
-/// rect-then-glyph here, the wrong answer. That is what makes this test able
-/// to detect `layer` being dropped from the sort key entirely; an earlier
-/// version inserted the glyph first, which let the sequence tiebreak alone
-/// reproduce the expected result and made the test unable to fail on that
-/// mutation. Do NOT "tidy" the insertion order back to glyph-then-rect — that
-/// silently restores the blind spot.
+/// `aHigherLayerDrawsAfterALowerOneWhateverTheOrder` proves the same "layer
+/// beats order" property within one primitive type; this is the cross-type
+/// case, which alone exercises `finalize()`'s per-kind run-splitting
+/// (`rectCursor`/`glyphCursor`, `merged.filter` by kind) that a same-kind
+/// fixture never reaches.
+///
+/// **An earlier version of this test gave both primitives the SAME order
+/// (0)** and relied on reversed insertion order to make its point instead.
+/// Measured: that fixture caught nothing this one does not also catch — both
+/// go red when `layer` is dropped from the sort key, and only a fixture
+/// where order actually differs can additionally catch `layer` losing its
+/// priority over `order`. So it was retired as duplication rather than kept
+/// as distinct coverage, and `layerOutranksEmissionSequenceAcrossTypes`, its
+/// explicitly-named twin, is deleted for the same reason: no mutation to
+/// `finalize()`'s sort key told the two apart.
 @Test func aHigherLayerRectDrawsAfterALowerLayerGlyph() throws {
     var scene = Scene()
+    scene.insert(glyph(order: 99), layer: 0)
     scene.insert(rect(order: 0), layer: 1)
-    scene.insert(glyph(order: 0), layer: 0)
     scene.finalize()
     let runs = scene.drawList
     try #require(runs.count == 2)
-    #expect(runs[0].kind == .glyph)
-    #expect(runs[1].kind == .rect)
-}
-
-/// A second, explicitly named pin for the same property as the test above —
-/// layer must outrank emission sequence across a type boundary — kept
-/// alongside it rather than folded in, so a reader searching for this
-/// property by name finds a test whose own construction (rather than a
-/// doc-comment warning) is the guarantee against reintroducing the blind
-/// spot.
-@Test func layerOutranksEmissionSequenceAcrossTypes() throws {
-    var scene = Scene()
-    scene.insert(rect(order: 0), layer: 1)
-    scene.insert(glyph(order: 0), layer: 0)
-    scene.finalize()
-    let runs = scene.drawList
-    try #require(runs.count == 2)
-    #expect(runs[0].kind == .glyph, "layer 0 draws first despite being emitted second")
+    #expect(runs[0].kind == .glyph, "layer 0 draws first even though its order (99) exceeds the rect's (0)")
     #expect(runs[1].kind == .rect)
 }
 
