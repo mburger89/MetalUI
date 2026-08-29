@@ -144,13 +144,14 @@ public struct LayoutPass {
 /// been painted yet, which is what makes this the only correct place to register
 /// hit-test, focus, scroll and accessibility structure.
 ///
-/// **Scroll registers now; general hit-test, focus and accessibility still do
-/// not.** `registerScrollRegion` below is the first `register…` method this
-/// pass gained, and it is deliberately scoped to scroll rather than general —
-/// see its doc comment. `Frame` still owns no hitbox, focus or accessibility
-/// store, so there is nothing for a broader `register…` method to write into
-/// and none is declared; input and focus bring theirs (M3), accessibility
-/// brings its own (§9).
+/// **Scroll and general hit-test both register now; focus and accessibility
+/// still do not.** `registerScrollRegion` was the first `register…` method this
+/// pass gained and `insertHitbox` is the second, and they write to two separate
+/// registries on `Frame` — see `Frame.scrollRegions` for why the general one
+/// did not simply absorb the scoped one. `Frame` still owns no focus or
+/// accessibility store, so there is nothing for a `registerFocusHandle` to
+/// write into and none is declared; focus brings its own later in M3,
+/// accessibility its own (§9).
 @MainActor
 public struct PrepaintPass {
     let frame: Frame
@@ -196,9 +197,9 @@ public struct PrepaintPass {
 
     /// Records a region that consumes scroll wheel events.
     ///
-    /// **A hitbox list scoped to scroll, not the general hit-test system** —
-    /// see `Frame.scrollRegions`'s doc comment for the split and what §8.1
-    /// widens later.
+    /// **A hitbox list scoped to scroll, and a different list from the general
+    /// one `insertHitbox` below writes to** — see `Frame.scrollRegions`'s doc
+    /// comment for why the two have not merged yet.
     ///
     /// Registration happens here rather than in `paint` because §8.1 requires
     /// it after positions resolve and before the first primitive is emitted —
@@ -208,27 +209,57 @@ public struct PrepaintPass {
         frame.registerScrollRegion(bounds, id: id, axis: axis)
     }
 
+    /// Registers a hitbox for `id` at `bounds`, returning a handle to it.
+    ///
+    /// Design spec §3.2, and §8.1 of the framework spec before it: registration
+    /// belongs here because prepaint is the only phase where positions have
+    /// resolved and nothing has been emitted yet.
+    ///
+    /// The content mask and the layer come from the active stacks rather than
+    /// from parameters — §8.1 sketched `insertHitbox(bounds, contentMask,
+    /// opaque:)`, and by the time this landed the clip stack already carried
+    /// the mask, so passing one would be a second source for a quantity the
+    /// frame already knows. `bounds` is translated and clipped on the way in;
+    /// see `Frame.insertHitbox`.
+    ///
+    /// **`opaque: false` is not "invisible"** — the hitbox is registered and
+    /// listed, and `Frame.topmostHitbox(at:)` walks straight through it to
+    /// whatever is beneath.
+    ///
+    /// The returned handle is valid for **this frame only**: the list is
+    /// rebuilt each frame. Anything that has to survive a frame keys on the
+    /// `GlobalElementID` passed in here instead.
+    @discardableResult
+    public func insertHitbox(_ bounds: Bounds<Pixels>, id: GlobalElementID,
+                             opaque: Bool) -> HitboxID {
+        frame.insertHitbox(bounds, id: id, opaque: opaque)
+    }
+
     /// Runs `body` with the layer hoisted to the root layer and the clip
     /// stack reset to the whole surface — `Deferred`'s portal (design spec
     /// §4.2). See `PaintPass.deferred(_:)` for the full account of why a
     /// portal resets both.
     ///
     /// **On this pass, and not only `PaintPass`, because of hit-testing.**
-    /// The scroll-region registry is built here, in prepaint — a tooltip that
-    /// paints above its siblings while receiving wheel events as if it were
-    /// still beneath them is worse than one that does neither. Both halves of
-    /// the portal have a reader on this pass, and they close different holes:
+    /// Both registries — scroll regions and hitboxes — are built here, in
+    /// prepaint: a tooltip that paints above its siblings while receiving
+    /// events as if it were still beneath them is worse than one that does
+    /// neither. Both halves of the portal have a reader on this pass, and they
+    /// close different holes:
     ///
-    /// - the **clip reset**, because `registerScrollRegion` records a region
-    ///   intersected against whatever clip is active at registration time, so
-    ///   a region registered inside `deferred` is recorded against the whole
-    ///   surface rather than an ancestor `ScrollView`'s viewport;
-    /// - the **layer hoist**, because the registration carries `activeLayer`
-    ///   and `Window.applyScroll` orders candidates by it. A hoisted subtree is
-    ///   still *emitted* where it was declared, so it can register before a
-    ///   region it paints on top of; registration order alone would then hand
-    ///   the wheel to the covered scroller. `Frame.scrollRegions` carries the
-    ///   reasoning.
+    /// - the **clip reset**, because both `registerScrollRegion` and
+    ///   `insertHitbox` record against whatever clip is active at registration
+    ///   time, so something registered inside `deferred` is recorded against
+    ///   the whole surface rather than an ancestor `ScrollView`'s viewport.
+    ///   `insertHitbox` also takes the reset *offset*, which is what stops a
+    ///   modal's scrim from tracking a scroll it is not in flow for
+    ///   (ruling AP-I);
+    /// - the **layer hoist**, because both registrations carry `activeLayer`
+    ///   and both `Window.applyScroll` and `Frame.topmostHitbox(at:)` rank by
+    ///   it. A hoisted subtree is still *emitted* where it was declared, so it
+    ///   can register before something it paints on top of; registration order
+    ///   alone would then hand the event to the covered element.
+    ///   `Frame.scrollRegions` carries the reasoning.
     ///
     /// Closure form rather than push/pop, for the reason `clipped(to:offsetBy:)`
     /// above already gives: an unbalanced stack is not expressible.
