@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html><head><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* The containing block: `relative`, so an absolute descendant resolves here. */
+  #root { position: relative; width: 200px; height: 100px; padding: 5px; }
+  /* A STATIC wrapper, pushed right by a spacer. The absolute box inside it must
+     ignore this and resolve against #root — that is the whole fixture. */
+  .wrapper { display: flex; flex-direction: row; }
+  .spacer { width: 60px; height: 10px; }
+  .abs { position: absolute; left: 0; top: 0; width: 20px; height: 10px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="wrapper"><div class="spacer"></div><div class="abs" data-id="abs"></div></div>
+  </div>
+</body></html>

@@ -1,0 +1,67 @@
+{
+  "fixture" : "abs_removed_from_flow",
+  "raw" : [
+    {
+      "height" : 300,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "container",
+      "width" : 40,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "inflow",
+      "width" : 40,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 300,
+      "id" : "abs",
+      "width" : 500,
+      "x" : 0,
+      "y" : 0
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 300,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "container",
+      "width" : 40,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "inflow",
+      "width" : 40,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 300,
+      "id" : "abs",
+      "width" : 500,
+      "x" : 0,
+      "y" : 0
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

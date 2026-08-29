@@ -253,8 +253,18 @@ testable; the design choice is a look.
 ## 7. Divergences this design creates, recorded up front
 
 1. **All-`auto` insets place at the containing block's origin, not the static
-   position** (§3.5). To be measured against WebKit during implementation and
-   recorded with real numbers.
+   position** (§3.5). **Measured against WebKit in Task 5**, with a throwaway
+   probe (a 40x20 in-flow `.before` sibling, then an absolute box with no
+   insets at all — `width: 20px; height: 10px` — inside a 200x100
+   `position: relative` root): **WebKit places the absolute box at (0, 20)**,
+   below `.before` — its static position. **This engine places it at (0,
+   0)**, ignoring `.before` entirely and using the containing block's
+   padding-box origin instead. Pinned by
+   `allAutoInsetsPlaceAtTheContainingBlockOriginNotTheStaticPosition` in
+   `AbsolutePositioningTests.swift`, on the same footing as this project's
+   other named divergences (BM-4, FS-3, TX-H in `CLAUDE.md`): no fixture or
+   golden encodes it, since a golden would record this engine's answer as
+   correct and a future fix should move nothing in the corpus.
 2. **A `Deferred` subtree is not clipped by an ancestor CSS would clip it with**
    (§2, §4.2). Deliberate: `Deferred` is a portal, and the alternative entangles
    layer with containing-block resolution.

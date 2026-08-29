@@ -258,6 +258,39 @@ private func inset(_ t: Double?, _ r: Double?, _ b: Double?, _ l: Double?) -> Ed
     #expect(tree.layout(abs).y == 10, "10% of the 100 HEIGHT — not the width")
 }
 
+/// **Divergence — spec §7, deliberate.** CSS uses the box's STATIC position
+/// (where it would have sat in flow) when every inset is `auto`. This engine
+/// places it at the containing block's padding-box origin instead.
+///
+/// Measured directly against WebKit with a throwaway probe (deleted after
+/// this pin was written): `.before`, a 40x20 in-flow sibling, followed by an
+/// absolute box with no insets at all, inside a 200x100 `position: relative`
+/// root. **WebKit places the absolute box at (0, 20)** — below `.before`, its
+/// static position. **This engine places it at (0, 0)**, ignoring `.before`
+/// entirely.
+///
+/// Implementing static position means laying the box out in flow, recording
+/// its position, then removing it — a second pass the motivating features
+/// (modals, popovers, tooltips) do not need, since they always set insets
+/// (spec §3.5). **No fixture or golden encodes this**, on the same footing as
+/// this project's other named divergences (BM-4, FS-3, TX-H): a golden would
+/// record this engine's answer as correct, and a future fix should move
+/// nothing in the corpus.
+@Test func allAutoInsetsPlaceAtTheContainingBlockOriginNotTheStaticPosition() {
+    let tree = LayoutTree(generation: 0)
+    let before = sized(tree, 40, 20)
+    let abs = sized(tree, 20, 10, position: .absolute)
+    var cb = Style()
+    cb.position = .relative
+    cb.size = Size(width: px(200), height: px(100))
+    let root = tree.newNode(style: cb, children: [before, abs])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    #expect(tree.layout(abs).x == 0)
+    #expect(tree.layout(abs).y == 0, "not 20 — WebKit's static position puts it below `.before`")
+}
+
 /// **The 0×0 sizing bug, pinned directly.** Task 3's `placeAbsolute` sized
 /// every absolute child by calling `measureNode(known: .unspecified, …)`
 /// unconditionally, which for a childless node with no `MeasureFunction`

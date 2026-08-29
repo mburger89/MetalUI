@@ -1,0 +1,39 @@
+{
+  "fixture" : "abs_over_constrained",
+  "raw" : [
+    {
+      "height" : 100,
+      "id" : "root",
+      "width" : 200,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 100,
+      "id" : "abs",
+      "width" : 50,
+      "x" : 40,
+      "y" : 0
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 100,
+      "id" : "root",
+      "width" : 200,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 100,
+      "id" : "abs",
+      "width" : 50,
+      "x" : 40,
+      "y" : 0
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

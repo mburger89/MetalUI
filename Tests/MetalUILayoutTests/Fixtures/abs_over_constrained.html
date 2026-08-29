@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html><head><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Both `left` and `right` set, plus an explicit width: CSS drops `right`
+     (LTR) and positions from `left`. `top`/`bottom` are both explicit too, so
+     height is genuinely `auto` and stretches between them — this box
+     exercises "declared main-axis size, auto cross-axis stretch" at once. */
+  #root { position: relative; width: 200px; height: 100px; }
+  .abs { position: absolute; top: 0; right: 30px; bottom: 0; left: 40px; width: 50px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="abs" data-id="abs"></div>
+  </div>
+</body></html>
