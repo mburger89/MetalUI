@@ -115,13 +115,25 @@ struct MeasurePerformanceTests {
     /// `rowWidth` cycles so the item is genuinely re-wrapped at a changing
     /// width — `storage`'s `(string, font, width)` key changes every frame,
     /// the same way resizing a real window changes the fractional width
-    /// text.swift's own measure function offers (divergence 8 measures this
+    /// `Text.swift`'s own measure function offers (divergence 8 measures this
     /// exact instability). The row's own text embeds the loop index, so
     /// `minContent`'s `(string, font)` key is new every frame too — the same
     /// way a scrolling list keeps presenting row numbers the cache has never
     /// seen. Neither dictionary can plateau the way `demoLikeRows` did.
+    ///
+    /// **The assertion is `<= sweepThreshold`, which this workload happens to
+    /// satisfy — it is not a general ceiling the type enforces.**
+    /// `ShapingCache.sweepThreshold` is a sweep trigger, not a bound (see its
+    /// own doc comment): the sweep can only remove entries the current frame
+    /// did not touch, so a workload whose live per-frame set itself exceeded
+    /// the threshold would settle above it forever, correctly. This
+    /// workload's per-frame set stays small (one new width and one new
+    /// string, plus a handful of shared words), so the two dictionaries
+    /// settle near the recent-generation window rather than at the
+    /// threshold — this test is evidence the sweep runs and keeps pace with
+    /// unbounded input, not evidence of a hard cap.
     @Test
-    func theShapingCacheStaysUnderItsBoundAcrossAWidthSweep() throws {
+    func theShapingCacheStaysNearTheSweepThresholdAcrossAWidthSweep() {
         let states = StateTable()
         let cache = ShapingCache()
         var lastStorage = 0
@@ -141,8 +153,8 @@ struct MeasurePerformanceTests {
         // Today, with no sweep: storage climbs to 1508 and minContent
         // reaches exactly 300 — one new distinct row string per iteration,
         // never reused, never evicted.
-        #expect(lastStorage <= ShapingCache.entryBound)
-        #expect(lastMinContent <= ShapingCache.entryBound)
+        #expect(lastStorage <= ShapingCache.sweepThreshold)
+        #expect(lastMinContent <= ShapingCache.sweepThreshold)
     }
 }
 

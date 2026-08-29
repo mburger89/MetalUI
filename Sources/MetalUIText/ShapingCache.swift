@@ -85,13 +85,12 @@ public final class ShapingCache {
         var font: FontKey
     }
 
-    /// **Bounded exactly as `storage` is, by the same sweep — see
-    /// ``endFrame()``.** Before Task 7 this was unbounded like `storage`, and
-    /// the held-back assertion this milestone added
-    /// (`theShapingCacheStaysUnderItsBoundAcrossAWidthSweep`) reads this
-    /// dictionary's count as well as `storage`'s for exactly that reason: a
-    /// bound enforced on only one of the two would leave the other growing
-    /// with nothing able to see it.
+    /// Swept exactly as `storage` is, by the same ``endFrame()`` call. A
+    /// caller who bounds only `storage` and forgets this dictionary has
+    /// fixed nothing — it grows exactly the same way, unbounded, with
+    /// nothing able to see it. (The first test written against this bound
+    /// read only `storage`'s count for exactly that reason, and passed
+    /// while this dictionary kept growing; the test now reads both.)
     private var minContent: [MinContentKey: Entry<Double>] = [:]
 
     /// Cache observability, and the only way anything outside this file can
@@ -107,7 +106,7 @@ public final class ShapingCache {
     /// branch drives it, and a hit is not free at 604 ns.
     var lookups: Int { hits + misses }
 
-    /// Entry count, for the bound assertion. `storage` stays private.
+    /// Entry count, for tests. `storage` stays private.
     var storageCount: Int { storage.count }
 
     /// Entry count for `minContent`, on the same footing as ``storageCount``
@@ -120,13 +119,15 @@ public final class ShapingCache {
     /// this is true: a dictionary reclaims a removed entry's storage on the
     /// spot, so there is no "stranded pixels" hazard to guard against (see
     /// ``endFrame()``'s doc comment). The flag exists so `beginFrame()` can
-    /// catch re-entrant calls the same way the atlas's does.
-    public private(set) var isBuildingFrame = false
+    /// catch re-entrant calls the same way the atlas's does. Internal rather
+    /// than `public`, unlike the atlas's: nothing outside this file reads it.
+    private(set) var isBuildingFrame = false
 
     /// Advances by one on every ``beginFrame()``, starting at 1 for the first
     /// frame — the same convention as `GlyphAtlas.currentGeneration`, so 0
-    /// stays a generation nothing was ever stamped with.
-    public private(set) var currentGeneration = 0
+    /// stays a generation nothing was ever stamped with. Internal for the
+    /// same reason as ``isBuildingFrame``.
+    private(set) var currentGeneration = 0
 
     /// An entry survives being untouched for this many generations before
     /// ``endFrame()`` will consider it for eviction. A caller who resolves an
@@ -139,21 +140,39 @@ public final class ShapingCache {
     /// forever, which is slower than never evicting at all.
     private static let staleAfterGenerations = 2
 
-    /// The per-dictionary cap `endFrame()` sweeps against. `storage` and
-    /// `minContent` are bounded independently against this same number —
-    /// they hold different things and there is no reason one's growth should
-    /// starve the other's budget.
+    /// The per-dictionary size `endFrame()`'s sweep triggers on — **a
+    /// trigger, not a ceiling.** `sweep(_:)` guards on `dict.count >
+    /// sweepThreshold` and then removes only *stale* entries, so
+    /// `count <= sweepThreshold` is not an invariant this type enforces: a
+    /// workload whose live, every-frame-touched working set is itself over
+    /// this number will settle above it and stay there, by design — the
+    /// sweep can never remove something the current frame just touched (see
+    /// ``endFrame()``), so it structurally cannot shrink a resident set that
+    /// large. That is correct, not a bug: it is what keeps a small threshold
+    /// from thrashing a workload whose real working set exceeds it, at the
+    /// cost of re-shaping forever instead of caching. The actual invariant
+    /// is narrower than "stays under N": *nothing older than
+    /// `staleAfterGenerations` survives a frame in which the dictionary was
+    /// over this threshold.*
     ///
-    /// **Sized well above a realistic single frame's live working set, on
-    /// purpose.** A 40-row `List` like the demo's touches on the order of 90
-    /// `storage` entries and 40 `minContent` ones on every steady-state
-    /// frame — every one of them re-touched every frame, so none of them may
-    /// ever be evicted (see ``endFrame()``). This bound leaves that working
-    /// set roughly 2-3x of headroom for a real app's greater string variety,
-    /// while still being a bound rather than "large enough that nobody will
-    /// notice" — spec §6 measured no cost difference between a 276-entry and
-    /// a 733-entry cache, so this number is not chasing a speed target.
-    public static let entryBound = 256
+    /// `storage` and `minContent` are swept independently against this same
+    /// number — they hold different things and there is no reason one's
+    /// growth should starve the other's budget.
+    ///
+    /// **Measured against the demo's own 40-row `List`, which is the
+    /// closest thing this repo has to a realistic workload.** Every
+    /// steady-state frame re-touches ~88 `storage` entries and ~40
+    /// `minContent` ones — comfortably under this threshold on their own.
+    /// But the *resident* `storage` set (what actually sits in the
+    /// dictionary, including one-time warm-up entries from the first frame
+    /// that are never touched again) measures 207 — 81% of 256, roughly
+    /// 1.24x headroom, not the 2-3x a smaller per-frame figure would
+    /// suggest. 256 was still chosen over a value closer to 207: spec §6
+    /// measured no cost difference between a 276-entry and a 733-entry
+    /// cache, so there is room to be generous without chasing a speed
+    /// target, and a threshold barely above one measurement is the kind of
+    /// number that turns into thrashing the next time the demo changes.
+    static let sweepThreshold = 256
 
     public init() {}
 
@@ -184,10 +203,16 @@ public final class ShapingCache {
         registerFont(font)
 
         let key = Key(string: string, font: font.key, width: width)
-        if let cached = storage[key] {
+        // `index(forKey:)` plus an in-place `values[idx]` edit, rather than
+        // reading the entry out and writing a whole new one back — measured,
+        // the read-then-reassign form costs an extra ~0.11ms of a 4.5ms
+        // frame from the second hash lookup and the copy. `index(forKey:)`
+        // hashes once; `values[idx]` addresses the bucket directly for both
+        // the re-stamp and the read below.
+        if let idx = storage.index(forKey: key) {
             hits += 1
-            storage[key] = Entry(value: cached.value, generation: currentGeneration)
-            return cached.value
+            storage.values[idx].generation = currentGeneration
+            return storage.values[idx].value
         }
 
         misses += 1
@@ -205,9 +230,10 @@ public final class ShapingCache {
     /// and the whole loop into one dictionary hit.
     public func minContentWidth(_ string: String, font: ResolvedFont) -> Double {
         let key = MinContentKey(string: string, font: font.key)
-        if let cached = minContent[key] {
-            minContent[key] = Entry(value: cached.value, generation: currentGeneration)
-            return cached.value
+        // See `shaped(_:font:wrappingAt:)`'s comment on the same pattern.
+        if let idx = minContent.index(forKey: key) {
+            minContent.values[idx].generation = currentGeneration
+            return minContent.values[idx].value
         }
         var width = 0.0
         for run in Shaper.unbreakableRuns(of: string) {
@@ -237,7 +263,7 @@ public final class ShapingCache {
 
     /// Ends the frame ``beginFrame()`` began, then sweeps both dictionaries.
     ///
-    /// **Only evicts when a dictionary is over ``entryBound``, and only
+    /// **Only evicts when a dictionary is over ``sweepThreshold``, and only
     /// entries untouched for ``staleAfterGenerations``.** An entry this
     /// frame touched has `generation == currentGeneration`, which is never
     /// stale, so this can never drop something the frame just built —
@@ -262,12 +288,12 @@ public final class ShapingCache {
     }
 
     /// Drops every entry untouched for ``staleAfterGenerations``, but only
-    /// once `dict` is over ``entryBound`` — see ``endFrame()``'s doc comment
-    /// for why eviction is a bound rather than a target size, and this
-    /// type's own doc comment for why a dictionary can run it safely where
-    /// the atlas cannot.
+    /// once `dict` is over ``sweepThreshold`` — see ``sweepThreshold``'s own
+    /// doc comment for why that makes this a trigger rather than a target
+    /// size, and ``endFrame()``'s for why a dictionary can run it safely
+    /// where the atlas cannot.
     private func sweep<Key: Hashable, Value>(_ dict: inout [Key: Entry<Value>]) {
-        guard dict.count > Self.entryBound else { return }
+        guard dict.count > Self.sweepThreshold else { return }
         let cutoff = currentGeneration - Self.staleAfterGenerations
         for (key, entry) in dict where entry.generation < cutoff {
             dict.removeValue(forKey: key)
