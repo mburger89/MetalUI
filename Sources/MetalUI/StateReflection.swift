@@ -110,7 +110,25 @@ enum StateBinder {
     /// conformance — a walk that compared `index == ordinals[next]` while
     /// iterating simply runs out of children and stops without touching any
     /// of the remaining ordinals, rather than trapping on an out-of-range
-    /// index the way `Array(mirror.children)[ordinal]` would.
+    /// index the way `Array(mirror.children)[ordinal]` would. Measured rather
+    /// than argued: a probe that seeds the cache from a three-child instance
+    /// and then binds a one-child one survives here and dies with `Index out
+    /// of range` under the old indexed body.
+    ///
+    /// **"Does not trap" is not "binds everything", and the difference is
+    /// silent.** An ordinal past the end of a shorter `Mirror` is never bound
+    /// at all, so that `@State` returns its initial value forever with no
+    /// diagnostic.
+    ///
+    /// **And the MIRROR IMAGE of that case is the one to watch, because the
+    /// cache makes it stick.** The hazard above needs the *first* instance of
+    /// a type to be the longer one. If the first sighting is the SHORTER one,
+    /// `shapes` records too few ordinals, and every later instance — however
+    /// many children it reports — is bound against that truncated list for the
+    /// life of the process. Nothing re-reflects a type once it is cached.
+    /// Pre-existing rather than introduced here (the per-type cache has always
+    /// worked this way), reachable only through a `CustomReflectable` element
+    /// whose children vary by instance, and unpinned by any test.
     private static func bindOrdinals<E>(_ ordinals: [Int], in element: E,
                                         table: StateTable, id: GlobalElementID) {
         var next = ordinals.startIndex
