@@ -655,14 +655,34 @@ light and 0.42 in dark): an opaque one makes "covers" and "replaced"
 indistinguishable in a still frame. Gating it behind M is what keeps that choice
 from taxing every other look in this file.
 
-**Measure-path performance — the exit criterion is OPEN, and nothing here has
-been looked at.** Design spec §9 item 6 asks for a human to run the demo **in
-both debug and release**, drag the window edge, and report whether the resize
-stutter is gone. **That has not happened.** The demo builds warning-free and was
-launched to confirm it starts and exits cleanly, which is a smoke check and not
-a look — this file distinguishes those sharply, and a launch establishes only
-that a launch works. Nobody has said how it looks or how it feels, and nothing
-below should be read as if they had.
+**Measure-path performance — the exit criterion is CLOSED for release, by a
+human on 2026-08-29, and the report came with a boundary attached.** Design
+spec §9 item 6 asks for a human to run the demo **in both debug and release**,
+drag the window edge, and report whether the resize stutter is gone.
+
+**What they said, quoted rather than paraphrased**: release "works much
+better", and the residual is "almost imperceptible — it takes me trying to
+stretch it across my whole screen to see a tiny bit of stutter."
+
+**That last clause is the useful half, because it names the remaining cost's
+shape.** Stretching the window to full screen makes the viewport TALLER, so
+more rows intersect it, so `List` builds more of them per frame — roughly 13
+rows at the demo's default height against ~50 at full screen on a large
+display. Windowing makes a frame cost O(visible), not O(1): a residual that
+scales with window HEIGHT is exactly what the design predicts and is the
+boundary of what this milestone bought. A residual that scaled with the
+**row count** would have been a defect, and 500 rows is what the demo ships
+precisely so that would have shown.
+
+**What this does NOT close, and the distinction is the usual one.** The human
+reported on release. **Debug was not separately reported**, and the machine says
+debug carries a flat ~3.2x constant factor — 5.060 ms against release's 1.273 at
+500 rows — so a debug run is expected to be worse and nobody has said by how
+much. The other three report items — a missing, blank or late row at the bottom
+edge while scrolling; reaching row 500 cleanly; and the cold-frame launch hitch
+(~188 ms debug, ~76 ms release, ruling MP-I) — **were not reported on either
+way**. Read the criterion as closed for the question it was written to answer
+and open on those four points.
 
 **What the machine established instead, and it is a different thing.** The demo
 tree's **steady-state** release frame, measured through a real `Frame.render` on
