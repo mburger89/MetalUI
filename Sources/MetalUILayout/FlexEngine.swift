@@ -379,7 +379,7 @@ private func resolveRootSize(
     // **A fixture could hold the divergence** — `#root { display: flex }` with
     // no `width` or `height` is perfectly expressible and its golden would say
     // 800x40 — so the corpus deliberately contains none, on the same footing
-    // as WebKit's flex sub-one clause. That all 76 fixture roots declare both axes
+    // as WebKit's flex sub-one clause. That all 81 fixture roots declare both axes
     // explains why no *existing* fixture notices; it is not a reason one
     // could not exist.
     //
@@ -634,7 +634,7 @@ private struct ContainerLayout {
 /// `placeNode` positions all the lines afterwards. Nothing the loop computes
 /// reads anything `positionItems` writes — it writes only stored rects and
 /// recurses — and nothing `positionItems` reads changes after its own line has
-/// been stretched and flexed. The 76 browser goldens are the check.
+/// been stretched and flexed. The 81 browser goldens are the check.
 ///
 /// **An axis of `containerSize` may be `nil`, and that is not the same as 0**
 /// (ruling CS-D). It means the container has no given extent there — the shape

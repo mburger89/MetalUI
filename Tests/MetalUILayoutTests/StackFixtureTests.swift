@@ -9,7 +9,7 @@ import MetalUICore
 /// `Display.stack` must do.
 ///
 /// **Nothing checks that the HTML and the Swift tree describe the same layout.**
-/// That is true of all 76 fixtures here, but flex-HTML against flex-`Style` is a
+/// That is true of all 81 fixtures here, but flex-HTML against flex-`Style` is a
 /// small conceptual gap and grid-HTML against stack-`Style` is a larger one: a
 /// reader has to know the two are *intended* to be equivalent. They are, and the
 /// mapping is: `display: grid` + `grid-area: 1/1` on every child ⇒

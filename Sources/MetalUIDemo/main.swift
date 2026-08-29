@@ -238,6 +238,85 @@ func demoContent() -> some Element {
                 // the same trade-off the 196pt sidebar above already makes.
                 Box {
                     ScrollView(.vertical) {
+                        // **The absolute-positioning milestone's exit
+                        // criterion**, and it is deliberately declared HERE —
+                        // inside the scroller, above the rows — because both
+                        // properties it exists to show are invisible anywhere
+                        // else in this file.
+                        //
+                        // `Deferred` does two things and each one has a
+                        // plainly-wrong failure: it hoists its subtree to the
+                        // root layer, so the 40 rows declared *after* it would
+                        // paint over the panel if the hoist were lost, and it
+                        // resets the clip stack to the whole surface with no
+                        // accumulated offset, so the scrim would be cropped to
+                        // the 420pt viewport — and would slide away as the
+                        // list scrolled — if the portal were lost.
+                        //
+                        // **Neither is checkable by any assertion over rects.**
+                        // A `Deferred` contributes no layout node: its child's
+                        // `(x, y, width, height)` are identical whether or not
+                        // the hoist and the clip reset happen, exactly as a
+                        // `Stack`'s children are identical under a reversed
+                        // paint order. That is why this is a look and not a
+                        // test, and why CLAUDE.md records the look as the
+                        // milestone's open criterion.
+                        //
+                        // **`.position(.absolute)` is what "against the window"
+                        // means**, mechanically: an absolute box is placed
+                        // against the nearest ancestor whose position is not
+                        // `.static`, and nothing between here and the root
+                        // declares one — so its containing block is the root's
+                        // padding box, the whole window. `inset(Pixels(0))`
+                        // then gives both insets on both axes with an `auto`
+                        // size, which stretches the scrim across all of it.
+                        // Being absolute also takes it out of the scroll
+                        // content's flow, so it adds no row and no height.
+                        //
+                        // **The scrim is translucent and it costs something.**
+                        // Every other criterion this demo carries — M1's nested
+                        // reflow, M2's legible text, clipping-and-scroll — is
+                        // now looked at through a 0.32/0.42 wash. That was
+                        // preferred to an opaque scrim, which would make "the
+                        // modal covers the window" and "the modal replaced the
+                        // window" look the same, but a future milestone that
+                        // needs an undimmed window should say so rather than
+                        // quietly re-tune the token.
+                        Deferred {
+                            Stack(alignment: .center) {
+                                Column(gap: Pixels(8)) {
+                                    Text("Modal").font(size: 22)
+                                    Text("""
+                                         Declared inside the list, painted over \
+                                         it, and clipped by the window rather \
+                                         than by the scroller.
+                                         """)
+                                }
+                                .width(Pixels(360))
+                                .padding(Pixels(20))
+                                // The fifth `.alignItems(.stretch)` in this
+                                // file, and the only one not paying for a
+                                // childless `Box` measuring 0 (ruling EP-8):
+                                // both children here are `Text`, which
+                                // shrink-wraps correctly on a column's cross
+                                // axis since ruling TX-H. It buys two other
+                                // things. The labels read left-aligned rather
+                                // than centred, and — the load-bearing half —
+                                // each `Text` takes the panel's whole 320pt
+                                // content width, an integer, instead of
+                                // shrink-wrapping to its own fractional
+                                // max-content, which is the input divergence 8
+                                // needs to make paint wrap a line layout
+                                // measured as fitting.
+                                .alignItems(.stretch)
+                                .background(.surface)
+                                .cornerRadius(Pixels(16))
+                            }
+                            .position(.absolute)
+                            .inset(Pixels(0))
+                            .background(.scrim)
+                        }
+
                         for i in 0..<40 {
                             // Alternating row backgrounds, deliberately painted
                             // edge-to-edge with the viewport: `ScrollView`'s
