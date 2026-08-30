@@ -255,13 +255,19 @@ func readingTheThemeDuringPrepaintDoesNotCompile() throws {
 // there is nothing in `Style` for one to come from, so no implementation
 // could make it silently wrong.
 //
-// **The three below do NOT all rest on the same footing, and reading them as
+// **The FOUR below do NOT all rest on the same footing, and reading them as
 // though they did is the specific mistake this paragraph exists to prevent.**
-// Two are measured lies and one is placement insurance. Anyone adding a fourth
+// Three are measured lies and one is placement insurance. Anyone adding a fifth
 // `PaintPass` query should work out which category it falls into rather than
 // adding a guard by symmetry with these — a guard for an API that would answer
 // correctly is cargo cult, and the brief for the `isFocused` work said so
 // explicitly.
+//
+// (This block said "the three below" and "a fourth" until the input-and-state
+// milestone's last task added the element-keyed `isHovered` guard *inside* its
+// scope — leaving an enumeration that silently omitted the newest guard and an
+// instruction addressed to whoever adds a fourth that read as still unfilled.
+// A guard added below must gain a bullet here in the same change.)
 //
 // - **`isHovered` — a measured lie, returning a silently wrong `false`**, for
 //   two independent reasons. `Frame.hoveredHitbox` is still `nil` during
@@ -283,6 +289,16 @@ func readingTheThemeDuringPrepaintDoesNotCompile() throws {
 //   hitbox list, say), and on that day the guard would become load-bearing with
 //   nobody having to notice. Cheap insurance is a different justification from
 //   a measured lie, and stating it as one was wrong.
+//
+// - **`isHovered(_ id: GlobalElementID)` — the same measured lie as the first
+//   bullet, in a second SPELLING.** `Frame.hoveredElement` is a derived view of
+//   `hoveredHitbox`, so it inherits both of that bullet's mechanisms exactly.
+//   It gets its own guard rather than being folded into the first because the
+//   two probes are not interchangeable: with the hazard added, the `HitboxID`
+//   probe fails on its *message* assertion only (its diagnostic becomes a
+//   type-conversion error) while this one fails on both. The differential is
+//   measured at that guard, and it corrects a claim this file made before it
+//   was run.
 //
 // - **`isFocused` — a measured lie in the opposite direction**, returning a
 //   wrong `true`. The numbers are at its own guard below, because the
@@ -309,17 +325,44 @@ func queryingHoverDuringPrepaintDoesNotCompile() throws {
 /// is not symmetry with the one above.
 ///
 /// `queryingHoverDuringPrepaintDoesNotCompile` probes `isHovered(_:)` with a
-/// `HitboxID`. Adding *only* the `GlobalElementID` overload to `PrepaintPass`
-/// — the plausible mistake, since that is the spelling every `StyledElement`
-/// conformer reaches for — would leave that guard green while shipping the
-/// hazard, because the `HitboxID` spelling would still be absent. Two spellings
-/// need two probes.
+/// `HitboxID`. This one probes the `GlobalElementID` spelling, which is the one
+/// every `StyledElement` conformer reaches for and therefore the plausible
+/// place to add the hazard.
+///
+/// **What the differential actually is, MEASURED — and the first version of
+/// this comment got it wrong.** It said adding only the `GlobalElementID`
+/// overload to `PrepaintPass` "would leave that guard green". Running that
+/// mutation shows otherwise, and the true picture is narrower:
+///
+/// - the older guard **fails, on one assertion of two**. Its primary
+///   `#expect(!result.succeeded)` still *passes* — the `HitboxID` probe still
+///   does not compile — and it is the message assertion that breaks, because
+///   the diagnostic changes from "no member `isHovered`" to `cannot convert
+///   value of type 'HitboxID' to expected argument type 'GlobalElementID'`. So
+///   it reports the hazard as **its own probe having become ill-typed**, which
+///   is its "rejected, but not for the reason this test is about" message doing
+///   its job — a tripwire, not a detection.
+/// - this guard **fails on both assertions**, which is the detection.
+///
+/// The suite is therefore not silently green under the hazard, and the reason
+/// to keep two probes is sharper than "one would miss it": without this one,
+/// nothing in the repo *says* what went wrong, and the only red is a test
+/// complaining that its own fixture no longer type-checks.
 ///
 /// The hazard is the same one, measured the same way: `Frame.hoveredElement`
 /// reads `hoveredHitbox`, which `resolveHover(at:)` does not write until
 /// `prepaint` has returned, so a prepaint-time call answers `nil` — a silently
 /// wrong `false` for every element, including the one under the pointer — and
 /// would rank against a half-built list even if it did not.
+///
+/// **Delete this guard, and its `HitboxID` sibling, if hover stops resolving at
+/// the prepaint/paint boundary** — that is, if `Frame.resolveHover(at:)` ever
+/// runs before `prepaint` *and* the hitbox list is complete before `prepaint`
+/// begins. Both halves are needed: the first makes `hoveredHitbox` non-`nil`,
+/// the second makes ranking against it meaningful. That is the same shape of
+/// contingent justification `queryingFocusDuringPrepaintDoesNotCompile` carries
+/// for `resolveFocus()`, and stating it is what keeps this from becoming a
+/// guard nobody can evaluate.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func queryingElementKeyedHoverDuringPrepaintDoesNotCompile() throws {
     let result = try typecheck("""

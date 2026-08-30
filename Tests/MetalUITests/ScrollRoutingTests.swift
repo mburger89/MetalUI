@@ -875,8 +875,16 @@ private func boundedHeight(_ h: Float) -> Style {
 }
 
 /// **A nested `ScrollView` inside an ALREADY-SCROLLED one receives wheel
-/// events where it PAINTS, not where the engine stored it** — ruling C1, the
+/// events where it PAINTS, not where the engine stored it** — ruling IN-F, the
 /// live routing defect Task 5's review found and this task owns.
+///
+/// (This citation read `C1` until the end of the milestone. `C1` was a review
+/// *concern* id in the execution ledger, never a ruling — the decision it names
+/// is `IN-F` in `docs/superpowers/2026-08-29-input-decisions.md`, and a reader
+/// grepping that doc for `C1` finds nothing. Five sites carried the dangling
+/// id, and one of them wrapped `ruling` and `C1` onto separate comment lines,
+/// so a plain `grep -n "ruling C1"` finds only four — CLAUDE.md's
+/// sweep-case-insensitively rule, in a new shape.)
 ///
 /// `registerScrollRegion` recorded its bounds without the active offset while
 /// `insertHitbox` recorded them with it, and folding the two lists forces a

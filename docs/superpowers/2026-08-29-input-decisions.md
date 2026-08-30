@@ -12,9 +12,12 @@ rulings are drawn from. Where a ruling was *made before* the work and then eithe
 confirmed or contradicted by measurement, that is said rather than smoothed over —
 three of them below were settled the opposite way from how they were framed.
 
-**Eleven tasks, 729 → 736 tests, 81 goldens unmoved throughout.** No golden moved at
+**Eleven tasks, 609 → 736 tests, 81 goldens unmoved throughout.** No golden moved at
 any point in the milestone, which was exit criterion 2 and is the standing check that
-input never reached the layout engine.
+input never reached the layout engine. (609 is the branch's baseline, from the
+execution ledger's own first line; 729 → 736 is Task 11 alone, and this sentence said
+that until it was checked — the same class of error this milestone caught and
+annotated for the 577-vs-609 confusion in CLAUDE.md's Build section.)
 
 ---
 
@@ -381,13 +384,31 @@ false justification.**
 
 **Task 11 added a fourth guard on the same footing.** The element-keyed
 `isHovered(_ id: GlobalElementID)` overload is a *second spelling* of a guarded call,
-and the existing hover guard probes the `HitboxID` one — so adding only the new
-spelling to `PrepaintPass` would leave that guard green while shipping the hazard.
-Guards 28 → 29.
+and the existing hover guard probes the `HitboxID` one. Guards 28 → 29.
+
+**The differential was CLAIMED and then measured, and the claim was wrong** — which
+is this milestone's own practices mechanism 2 landing on the commit that added it.
+The claim was that adding only the `GlobalElementID` overload to `PrepaintPass`
+"would leave that guard green". Running that mutation:
+
+| guard | result under the hazard |
+|---|---|
+| `queryingHoverDuringPrepaintDoesNotCompile` (`HitboxID`) | **fails, 1 issue** — `!result.succeeded` still *passes*, and the message assertion breaks because the diagnostic becomes `cannot convert value of type 'HitboxID' to expected argument type 'GlobalElementID'` |
+| `queryingElementKeyedHoverDuringPrepaintDoesNotCompile` | **fails, 2 issues** — both assertions |
+
+So the older guard is a **tripwire** that reports the hazard as its own probe having
+become ill-typed, and the new one is the **detection**. The suite is not silently
+green under the hazard; the second probe buys a red that names the defect rather than
+a red complaining about a fixture. The narrower claim is the true one, and it is
+still a reason to keep both.
 
 **What it costs if wrong.** A guard that is symmetry rather than mechanism, which is
-what this ruling exists to prevent — and the two guards whose justification is
-*contingent* say in their own docs what would make them deletable.
+what this ruling exists to prevent. **All three guards whose justification is
+contingent now name a deletion condition in their own docs** — `isFocused`'s if
+`resolveFocus()` stops clearing at the frame boundary, and both hover guards if
+`resolveHover(at:)` ever runs before `prepaint` *and* the hitbox list is complete
+before `prepaint` begins. `isActive`'s is the fourth, and it is insurance rather than
+contingent, so it names none.
 
 ---
 

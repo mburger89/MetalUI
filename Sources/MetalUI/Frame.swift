@@ -375,7 +375,7 @@ public final class Frame {
     /// them, so a `ScrollView` nested inside an already-scrolled `ScrollView`
     /// registered in the wrong space and lost **part of its hit area** — the
     /// part the untranslated rect misses — to whatever is underneath (ruling
-    /// C1, pinned by
+    /// IN-F, pinned by
     /// `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`).
     /// **Not all of it**, and the difference matters to anyone diagnosing this:
     /// measured on that test's own fixture with the fix reverted, a wheel at
@@ -396,10 +396,21 @@ public final class Frame {
     /// saying so. `Window.applyScroll` ranks against `lastHitboxes` directly,
     /// `Window.lastScrollRegions` derives its own view from that same array
     /// rather than calling this one, and every other consumer went with them
-    /// when the two lists folded into one; check with
-    /// `grep -rn "scrollRegions" Sources/`, which finds this declaration,
-    /// `Window`'s independent accessor, two references in `Hitbox.swift`'s
-    /// prose and **no call site at all**. It reads
+    /// when the two lists folded into one.
+    ///
+    /// **Check with `grep -rn "scrollRegions" Sources/`, which returns five
+    /// lines and no call site at all**: this declaration; the line you are
+    /// reading and one in `Window.swift`, both doc comments; and two references
+    /// in `Hitbox.swift`'s prose. **The pattern is case-sensitive, so it does
+    /// NOT match `Window.lastScrollRegions`' own declaration** — it finds one
+    /// declaration, not two, and a case-INSENSITIVE sweep
+    /// (`grep -rni "scrollregions" Sources/`) is what sees both. No count is
+    /// quoted for that one on purpose: it also matches every prose mention,
+    /// including this paragraph, so it moves whenever the comments move — the
+    /// trap the `evictUnusedSince` row in CLAUDE.md has now been caught by
+    /// twice. The load-bearing half is "no call site", which
+    /// holds under either pattern; the counting half did not survive being run,
+    /// and this paragraph is its second draft. It reads
     /// like a live API and is not one — `LayoutTree.reset(generation:)`'s exact
     /// shape, and CLAUDE.md's declared-but-inert table carries the row.
     ///
@@ -457,7 +468,7 @@ public final class Frame {
     /// would grow with the scroll.
     ///
     /// **`registerScrollRegion` used to omit it, and that was a live routing
-    /// defect** — ruling C1, fixed by folding it through here. `ScrollView.prepaint`
+    /// defect** — ruling IN-F, fixed by folding it through here. `ScrollView.prepaint`
     /// registers *outside* its OWN `clipped(to:offsetBy:)` block, which zeroes
     /// only its own contribution; an **ancestor** scroller's is still in
     /// effect, because the inner element's whole `prepaint` runs inside the

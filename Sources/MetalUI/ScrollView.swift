@@ -296,7 +296,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // because this element's whole `prepaint` runs inside it. That is
         // exactly right, and it is what `Frame.insertHitbox` translates by —
         // a nested `ScrollView` receives wheel events where it paints. It was
-        // wrong until scroll regions folded into the hitbox list (ruling C1):
+        // wrong until scroll regions folded into the hitbox list (ruling IN-F):
         // the old `registerScrollRegion` dropped the translation, so a nested
         // scroller inside a scrolled one was registered at a rect that has
         // moved out from under it — it kept whatever part of its hit area the

@@ -62,7 +62,7 @@ private func wheel(at position: Point<Pixels>, deltaY: Float) -> InputEvent {
 /// y = 300 and paints at window y = 100 after the outer scrolls 200; the clip
 /// intersects (0, 0) 200x200 with (0, 300) 200x100 and gets nothing.
 ///
-/// **Routing was the same defect and was fixed** — ruling C1 of the
+/// **Routing was the same defect and was fixed** — ruling IN-F of the
 /// input-and-state milestone, pinned by
 /// `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`. This is
 /// its sibling on the paint side, found by the same probe and deliberately left
