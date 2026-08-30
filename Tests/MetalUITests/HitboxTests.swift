@@ -351,6 +351,12 @@ private struct HitboxProbe: Element {
     /// a stored `HitboxID?` field would not be readable from the caller's copy.
     var idBox: HitboxIDBox? = nil
 
+    /// Where `paint` writes back whether `pass.isHovered(_:)` said yes, so a
+    /// caller driving a real `Window` — which owns the only `PaintPass` in
+    /// play and exposes no hover query of its own — can still read the
+    /// answer back out. Same reference-type reasoning as `idBox` above.
+    var hoverBox: HoverBox? = nil
+
     struct Empty {}
 
     mutating func requestLayout(_ id: GlobalElementID,
@@ -361,8 +367,12 @@ private struct HitboxProbe: Element {
         return (pass.requestNode(style: style, children: []), Empty())
     }
 
+    /// Returns the registered `HitboxID` itself as `PrepaintState`, threaded
+    /// straight into `paint` below — the ordinary `Element` pipeline shape,
+    /// and simpler than `idBox` for a value `paint` needs but nothing outside
+    /// this one element does.
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                           layout: inout Empty, pass: inout PrepaintPass) -> Empty {
+                           layout: inout Empty, pass: inout PrepaintPass) -> HitboxID {
         // NOT `idBox?.id = pass.insertHitbox(...)` — Swift does not evaluate
         // the right-hand side of an optional-chained assignment when the
         // chain is nil, so that spelling would silently register NO hitbox
@@ -373,12 +383,18 @@ private struct HitboxProbe: Element {
         // otherwise correct.
         let hitbox = pass.insertHitbox(bounds, id: id, opaque: true)
         idBox?.id = hitbox
-        return Empty()
+        return hitbox
     }
 
     mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                        layout: inout Empty, prepaint: inout Empty,
-                        pass: inout PaintPass) {}
+                        layout: inout Empty, prepaint: inout HitboxID,
+                        pass: inout PaintPass) {
+        hoverBox?.isHovered = pass.isHovered(prepaint)
+    }
+}
+
+private final class HoverBox {
+    var isHovered = false
 }
 
 private final class HitboxIDBox {
@@ -443,19 +459,6 @@ private func mouseMoved(to position: Point<Pixels>) -> InputEvent {
     #expect(window.active == nil, "released at last, wherever the pointer ends up")
 }
 
-/// Active survives a frame boundary: the element is rebuilt between
-/// `mouseDown` and `mouseUp`, and `active` still names it.
-///
-/// **This is what keying by `GlobalElementID` rather than `HitboxID` buys, and
-/// nothing else in the suite can see it.** `Window.renderRoot` calls
-/// `content()` fresh on every `drawFrameIfNeeded` (§4.1: "the tree is rebuilt
-/// from scratch each frame"), so the second frame's `HitboxProbe` is a
-/// genuinely different value with a genuinely different, differently-indexed
-/// `HitboxID` — `first`'s registration this frame is index 0 whatever it was
-/// last frame, purely by accident of being the only hitbox in the tree. What
-/// makes `active` still resolve to the right element across that rebuild is
-/// its *structural* identity — the same `.positional(0)` root path both
-/// frames compute — which `GlobalElementID` carries and `HitboxID` cannot.
 /// A mutable flag a test can flip between two `drawFrameIfNeeded()` calls, to
 /// make the SECOND frame's tree shaped differently from the first — a class,
 /// so the content closure (which runs fresh every frame) reads the current
@@ -529,4 +532,48 @@ private final class ToggleBox {
 
     platformWindow.simulateInput(mouseUp(at: pt(20, 50)))
     #expect(window.active == nil)
+}
+
+// MARK: - Hover through a real Window (production wiring, not hand-driven)
+
+/// A `mouseMoved` event at a point makes the box under it hovered on the
+/// **next** frame — the one production path from a real mouse move to a
+/// resolved hover, with nothing hand-driven in between.
+///
+/// **This is the test the fix-round review asked for, and every hover test
+/// above it in this file is blind to what it catches.** Both
+/// `theTopmostHitboxUnderThePointerIsHoveredInTheSameFrameItRegistered` and
+/// `aHitboxBeneathAnOpaqueOneIsNotHovered` drive `resolveHover(at:)` by hand,
+/// and `hoverResolvedThroughARealRenderHasNoLag` builds a `Frame` with a
+/// literal `mousePosition:` — none of the three goes through a `Window` at
+/// all. The review confirmed this by mutating `Window.drawFrameIfNeeded` to
+/// pass `mousePosition: nil` regardless of `lastMousePosition`: the whole
+/// 637-test suite stayed green, because nothing exercised the one line that
+/// threads a real mouse position from an input event into a `Frame`. This
+/// test does, through `FakePlatformWindow.simulateInput` and a real
+/// `Window.drawFrameIfNeeded()` — see the report for that mutation's redden
+/// after this test was added.
+@Test @MainActor func aMouseMovedEventMakesTheBoxUnderItHoveredOnTheNextFrame() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let hoverBox = HoverBox()
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+        Row {
+            HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)),
+                       hoverBox: hoverBox)
+        }
+    }
+    window.drawFrameIfNeeded()
+    #expect(!hoverBox.isHovered, "no mouse event has ever reached the window")
+
+    // (20, 50), not (20, 20): `Row` centres on the cross axis (ruling EP-8),
+    // the same geometry `activeSurvivesAFrameBoundary` above already relies
+    // on — btn's 40pt-tall hitbox sits at y = 30…70 in a 100pt-tall root.
+    // `simulateInput` alone only updates `Window.lastMousePosition`; hover
+    // resolves inside the NEXT `render`, at the prepaint/paint boundary — so
+    // nothing is asserted between this call and the next `drawFrameIfNeeded`.
+    platformWindow.simulateInput(mouseMoved(to: pt(20, 50)))
+
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    #expect(hoverBox.isHovered, "the frame after mouseMoved hovers the box under it")
 }

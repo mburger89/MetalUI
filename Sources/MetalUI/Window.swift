@@ -152,6 +152,31 @@ public final class Window {
     /// is what `resolveHover(at:)` resolves hover against — see
     /// `Frame.mousePosition`'s own doc comment for why this lives here rather
     /// than on `Frame`.
+    ///
+    /// **Deliberately STICKY: nothing clears it when the pointer leaves the
+    /// window.** `InputEvent` has no `mouseExited` case — only
+    /// `.mouseDown`/`.mouseUp`/`.mouseMoved` update this — so an element under
+    /// the cursor's last in-window position stays hovered after the cursor
+    /// leaves the window entirely, until the next event arrives from inside it.
+    ///
+    /// **A decision, not an oversight, and the reasoning is the cost of the
+    /// alternative.** Closing it means a new `InputEvent.mouseExited` case,
+    /// which crosses the `MetalUIPlatform` → `MetalUI` module boundary — the
+    /// exact shape that has produced a SIGSEGV or a truncated run with no
+    /// summary line four times on this project (CLAUDE.md's "Adding a case to
+    /// a public enum … crossing module boundaries" section) — for a case whose
+    /// only production reader would be one line clearing this property. Task 6
+    /// (hover/active infrastructure) is not the task that should widen
+    /// `InputEvent`'s surface for a single caller; a future task adding a real
+    /// `mouseExited`-driven feature (a tooltip dismissal, say) can add the case
+    /// and wire this in the same change, with a reason beyond "tidiness" to
+    /// justify the risk.
+    ///
+    /// **What this costs, stated plainly**: `Task-11`'s human verification of
+    /// hover should report on this specifically — move the pointer over an
+    /// interactive element, then off the window entirely, and check whether
+    /// the element still reads as hovered. Expected today: yes, until the next
+    /// in-window mouse event.
     private var lastMousePosition: Point<Pixels>?
 
     /// The element holding "active" state — the hitbox that received

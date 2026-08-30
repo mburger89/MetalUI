@@ -501,6 +501,12 @@ public final class Frame {
             .map { HitboxID(index: $0.offset) }
     }
 
+    /// This frame's answer to "what is the pointer over", written once by
+    /// `resolveHover(at:)` and read by `PaintPass.isHovered(_:)`. `nil` until
+    /// `resolveHover` runs, and `nil` again if it runs with nothing under the
+    /// pointer.
+    private(set) var hoveredHitbox: HitboxID?
+
     /// The topmost hitbox under the pointer, resolved **once**, against every
     /// hitbox registered so far — design spec §3.3.
     ///
@@ -521,12 +527,6 @@ public final class Frame {
     func resolveHover(at point: Point<Pixels>?) {
         hoveredHitbox = point.flatMap { topmostHitbox(at: $0) }
     }
-
-    /// This frame's answer to "what is the pointer over", written once by
-    /// `resolveHover(at:)` and read by `PaintPass.isHovered(_:)`. `nil` until
-    /// `resolveHover` runs, and `nil` again if it runs with nothing under the
-    /// pointer.
-    private(set) var hoveredHitbox: HitboxID?
 
     /// The cross-frame state table (§4.3).
     ///

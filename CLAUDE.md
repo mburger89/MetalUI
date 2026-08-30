@@ -1898,14 +1898,14 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
 
 1. The ABI probe **skips** without a Metal device.
 2. `committedGoldensMatchTheBrowser` is the only live-WebKit consumer.
-3. **The 25 `swiftc -typecheck` guards skip whenever `.build` is not where
+3. **The 27 `swiftc -typecheck` guards skip whenever `.build` is not where
    `#filePath`-relative resolution expects it.** `canTypecheck`
    (`Tests/MetalUITestSupport/Typecheck.swift`) walks three directories up from
    its own `#filePath` and looks for `.build/<triple>/debug/Modules` holding the
    module; a `--scratch-path`, a CI that builds elsewhere, a moved checkout, or
    `swift test -c release` all make that miss and every guard becomes a skip.
    **That set is this milestone's headline deliverable and both of its
-   compile-time exit criteria** — `PhaseSeparationTests` (15),
+   compile-time exit criteria** — `PhaseSeparationTests` (17),
    `ErasureCompileGuards` (7), `ElementGroupTrapTests` (1), `UnitSafetyTests` (2)
    — and none of them has a runtime equivalent, by construction: each asserts
    that something must *not* compile, so a regression makes the offending code
@@ -1933,6 +1933,24 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    changes. **The guard count does not track the suite count and neither number
    implies the other.** A falling suite count
    is the signal shape 11 tells you to watch, and this failure does not move it.
+
+   **It finally DID move, at the input-and-state milestone's Task 6 fix round
+   (suite 640): 27 — 17 + 7 + 1 + 2, by grep.** `PhaseSeparationTests` gained
+   two, `queryingHoverDuringPrepaintDoesNotCompile` and
+   `queryingActiveDuringPrepaintDoesNotCompile`, for `theme`'s own reason
+   stated sharper: a colour read during prepaint simply fails to compile, but
+   `isHovered`/`isActive` would **compile and lie** if reachable there —
+   every hitbox has already registered by the time `PrepaintPass` runs, so
+   only `Frame.hoveredHitbox` still being `nil` (`resolveHover(at:)` has not
+   run yet) stands between a syntactically fine call and a silently wrong
+   `false`. **This does not contradict "the guard count does not track the
+   suite count" above — it is the other half of the same claim, not an
+   exception to it.** Every prior re-count held 25 steady while unrelated
+   tests were added elsewhere; this one moved because a guard was
+   *deliberately written* in the same change that could have introduced the
+   hazard it guards against, which is what a compile-time guard is for. The
+   two numbers still do not imply one another: 640 does not say 27, and nothing
+   here claims it does.
 
    **Not converted to a hard failure, and the reason is a configuration rather
    than a preference.** The obvious rule — fail rather than skip when `.build`

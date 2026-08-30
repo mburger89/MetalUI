@@ -247,6 +247,46 @@ func readingTheThemeDuringPrepaintDoesNotCompile() throws {
             "rejected, but not for the reason this test is about:\n\(result.output)")
 }
 
+// MARK: - Hover and active are queryable only in paint (§3.3, §3.4)
+//
+// **Worse to get wrong than `theme` above, and that is why these two exist as
+// their own guards rather than being folded into "read-only state" in
+// general.** A colour read during prepaint would simply fail to compile —
+// there is nothing in `Style` for one to come from, so no implementation
+// could make it silently wrong. `isHovered`/`isActive` are different: every
+// hitbox has already registered by the time `PrepaintPass` runs, so an
+// `isHovered`/`isActive` reachable there would COMPILE and then LIE, always
+// returning `false` — `Frame.hoveredHitbox` is still `nil` at that point in
+// `render`, because `resolveHover(at:)` has not run yet (it runs at the
+// prepaint/paint boundary, after `prepaint` returns). These two guards make
+// "queryable only during paint" (design spec §3.3) a compiler fact rather
+// than a placement convention nothing enforces if someone later moves or
+// duplicates the method onto `PrepaintPass`.
+
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func queryingHoverDuringPrepaintDoesNotCompile() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout PrepaintPass, id: HitboxID) -> Bool {
+            pass.isHovered(id)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded)
+    #expect(result.messages.contains("isHovered"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
+
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func queryingActiveDuringPrepaintDoesNotCompile() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout PrepaintPass, id: GlobalElementID) -> Bool {
+            pass.isActive(id)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded)
+    #expect(result.messages.contains("isActive"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
+
 // MARK: - A background is a token, never a literal (§7.9)
 
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
