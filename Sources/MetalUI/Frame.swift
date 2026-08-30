@@ -373,9 +373,17 @@ public final class Frame {
     /// tracked no opacity, so nothing could swallow a wheel event, and it
     /// recorded its bounds **untranslated** while `insertHitbox` translated
     /// them, so a `ScrollView` nested inside an already-scrolled `ScrollView`
-    /// registered in the wrong space and received no wheel events at all
-    /// (ruling C1, pinned by
+    /// registered in the wrong space and lost **part of its hit area** — the
+    /// part the untranslated rect misses — to whatever is underneath (ruling
+    /// C1, pinned by
     /// `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`).
+    /// **Not all of it**, and the difference matters to anyone diagnosing this:
+    /// measured on that test's own fixture with the fix reverted, a wheel at
+    /// `(100, 120)` went to the OUTER scroller while one at `(100, 170)` still
+    /// reached the inner one. "No events at all" was true only of Task 5's
+    /// degenerate probe, whose ancestor clip happened to cut the misplaced rect
+    /// to zero height; generalising from it would send someone who tests the
+    /// lower half of a nested scroller away satisfied.
     ///
     /// Kept as an accessor because a scroller is the one kind of hitbox with a
     /// payload, and "the scrolling ones" is a question several tests ask. The

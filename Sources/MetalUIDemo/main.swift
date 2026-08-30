@@ -24,10 +24,15 @@ import MetalUI
 /// whether the list moves underneath it. Expect that it **does**, and the
 /// reason has changed even though the answer has not. §8.1's general hitbox
 /// list now exists and wheel routing walks it, so an opaque hitbox over the
-/// list WOULD swallow the wheel — but this scrim registers none. Nothing in
-/// `Sources/MetalUI` registers a hitbox yet: `Deferred` and `Box` contribute
-/// no `insertHitbox` call, and `onClick` is the first thing that will. Until
-/// this scrim asks for one, it cannot block an event. What a hoisted subtree
+/// list WOULD swallow the wheel — but this scrim registers none. `Deferred`
+/// and `Box` contribute no `insertHitbox` call, and `onClick` is the first
+/// thing that will. Until this scrim asks for one, it cannot block an event.
+///
+/// **The list is NOT empty at runtime, and do not read the sentence above as
+/// saying so**: `ScrollView` registers a hitbox on every frame, because
+/// `Frame.registerScrollRegion` IS `insertHitbox` with a scroll axis attached
+/// (design spec §3.1). What this scrim lacks is a record of its own, not a
+/// registry to put one in. What a hoisted subtree
 /// *does* win is the neighbouring case — a `ScrollView` inside a `Deferred`
 /// outranks one it paints over, because the registration carries its layer
 /// (`Hitbox.layer`, ruling AP-N).

@@ -95,10 +95,11 @@ struct Hitbox {
 /// nothing opaque is under it.
 ///
 /// **The single copy of the `(layer, registration index)` ranking.** There were
-/// three — `Frame.topmostHitbox(at:)`, `Window.applyScroll` and the scroll-
-/// region picker — and two lists for them to disagree about. There is now one
-/// of each: this function, over a `[Hitbox]` that either a live `Frame` or the
-/// `Window`'s captured copy of the last one can supply. A free function rather
+/// three — `Frame.topmostHitbox(at:)`, `Window.topmostHitboxOwner(at:)` and
+/// `Window.applyScroll`, which was itself the scroll-region picker — and two
+/// lists for them to disagree about. There is now one of each: this function,
+/// over a `[Hitbox]` that either a live `Frame` or the `Window`'s captured copy
+/// of the last one can supply. A free function rather
 /// than a method on `Frame` because the window's copy outlives the frame that
 /// built it, and rather than a method on `Array` because it is not general —
 /// it is this framework's dispatch rule.

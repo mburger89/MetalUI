@@ -744,9 +744,12 @@ private struct HitboxProbe: Element, StyledElement {
                layout: inout LayoutNodeID, prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-/// A `Box` whose declared height is `h` and whose width fills its parent —
-/// `fixedHeight` above, but reaching the scrim probe's `StyledElement` style
-/// rather than a `Box`'s.
+/// **Both** axes declared in pixels, and no `flexDirection` — deliberately not
+/// `fixedHeight`, whose width is `.auto`.
+///
+/// The scrim fixture depends on the width being literal: a scrim that
+/// shrink-wrapped instead of measuring 200 would not cover the `(100, 100)`
+/// the wheel event is sent to, and the test would pass for the wrong reason.
 private func fixedSize(_ w: Float, _ h: Float) -> Style {
     var s = Style()
     s.size = Size(width: .length(.pixels(Pixels(w))), height: .length(.pixels(Pixels(h))))
@@ -922,7 +925,15 @@ private func boundedHeight(_ h: Float) -> Style {
     }
     try #require(stored(outerID) == 50, "outer must be parked at its 50pt ceiling")
 
-    #expect(window.lastScrollRegions[1].bounds
+    // Re-derived, and re-`require`d rather than re-indexed: `lastScrollRegions`
+    // is a computed view of the list the two renders above rebuilt from
+    // scratch, so the count asserted before them says nothing about this one.
+    // This repo's rule is one word wide — any count a later line indexes on is
+    // `try #require`, after a wrong implementation once truncated ~200 tests
+    // with `Index out of range` and no summary line (taxonomy shape 13).
+    let scrolled = window.lastScrollRegions
+    try #require(scrolled.count == 2, "both regions must survive the two renders")
+    #expect(scrolled[1].bounds
                 == Bounds(origin: pt(0, 100),
                           size: Size(width: Pixels(200), height: Pixels(100))),
             "inner's region is recorded where it PAINTS, translated by the ancestor scroll")

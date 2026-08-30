@@ -298,7 +298,13 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // a nested `ScrollView` receives wheel events where it paints. It was
         // wrong until scroll regions folded into the hitbox list (ruling C1):
         // the old `registerScrollRegion` dropped the translation, so a nested
-        // scroller inside a scrolled one got no events at all.
+        // scroller inside a scrolled one was registered at a rect that has
+        // moved out from under it — it kept whatever part of its hit area the
+        // stale rect still overlaps and lost the rest to whatever is beneath.
+        // NOT all of it: measured on
+        // `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`
+        // with the fix reverted, a wheel at (100, 120) reached the OUTER
+        // scroller and one at (100, 170) still reached the inner one.
         pass.registerScrollRegion(bounds, id: id, axis: axis)
         var result: Content.GroupPrepaint!
         pass.clipped(to: bounds, offsetBy: delta(-offset),
