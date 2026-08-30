@@ -40,6 +40,48 @@ final class MetalHostView: NSView {
         onGeometryChange?()
     }
 
+    /// The tracking area `mouseMoved` needs to fire at all — M3's hit-testing
+    /// milestone (design spec §3.3) is what finally reads a hover position, so
+    /// this is that milestone's half of the wire the `mouseMoved` override
+    /// below has carried since M0 with nothing driving it.
+    private var trackingArea: NSTrackingArea?
+
+    /// Removes and re-adds `trackingArea` on every geometry change AppKit
+    /// reports through this override — resize, the view moving to a new
+    /// window, becoming key — rather than installing one once in `init`
+    /// against whatever rect existed then.
+    ///
+    /// **`.inVisibleRect` still needs this override, and that is easy to get
+    /// backwards.** The option keeps the *tracked rect* pinned to the view's
+    /// current visible rect automatically, without a new `NSTrackingArea`
+    /// being constructed on every frame — but `updateTrackingAreas()` is the
+    /// hook AppKit already calls after each geometry change is settled, and
+    /// the existing area has to be removed first or `addTrackingArea` grows
+    /// the view's tracking-area list by one on every call instead of
+    /// replacing it.
+    ///
+    /// Options: `.mouseMoved` is what makes `mouseMoved(with:)` below fire at
+    /// all (its own doc comment used to say M3 would add exactly this — see
+    /// there for the standing NOTE this closes). `.mouseEnteredAndExited` is
+    /// declared for §8.1's future use (a `mouseExited` hook) even though
+    /// nothing consumes `NSTrackingArea`'s entered/exited callbacks yet — this
+    /// view is not their delegate, so declaring the option alone costs
+    /// nothing and having it already in place is one less thing to get wrong
+    /// when something does consume it. `.activeInKeyWindow` is what keeps a
+    /// background window's tracking area from firing hover into a window the
+    /// user is not interacting with. `.inVisibleRect` is the mechanism this
+    /// whole override exists to pair with.
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea { removeTrackingArea(trackingArea) }
+        let area = NSTrackingArea(
+            rect: .zero, // ignored: `.inVisibleRect` tracks the view's own bounds
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self, userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
     // Spec §7.9. AppKit calls this after `effectiveAppearance` has already
     // changed, so the callback's reader sees the new value — this is not an
     // "about to change" hook.
@@ -83,9 +125,19 @@ final class MetalHostView: NSView {
                                          clickCount: event.clickCount)))
     }
 
-    // NOTE: mouseMoved only fires once a tracking area exists. M0 does not add
-    // one, because nothing depends on hover yet; M3 adds it with hit testing.
-    // Do not debug "mouseMoved never fires" here — it is expected until then.
+    // This fires because `updateTrackingAreas()` above installs a tracking
+    // area with `.mouseMoved` — M3's hit-testing milestone (design spec
+    // §3.3), closing the standing NOTE this comment used to carry: "mouseMoved
+    // only fires once a tracking area exists; M0 does not add one, because
+    // nothing depends on hover yet; M3 adds it with hit testing." If
+    // `mouseMoved` ever appears not to fire again, suspect the tracking area
+    // (a removed/never-added one, or a window that lost key status under
+    // `.activeInKeyWindow`) before suspecting this method.
+    //
+    // **Nothing in this repo can drive real AppKit mouse tracking**, so
+    // nothing here is asserted by a test — `updateTrackingAreas()`'s own doc
+    // comment says the same. A human running the app is what closes this;
+    // see Task 11's human-verification list.
     override func mouseMoved(with event: NSEvent) {
         _ = onInput?(.mouseMoved(MouseEvent(position: point(event),
                                             modifiers: modifiers(event))))
@@ -107,14 +159,16 @@ final class MetalHostView: NSView {
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
             characters: event.characters ?? "",
             modifiers: modifiers(event),
-            isRepeat: event.isARepeat)))
+            isRepeat: event.isARepeat,
+            timestamp: event.timestamp)))
     }
 
     override func keyUp(with event: NSEvent) {
         _ = onInput?(.keyUp(KeyEvent(
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
             characters: event.characters ?? "",
-            modifiers: modifiers(event))))
+            modifiers: modifiers(event),
+            timestamp: event.timestamp)))
     }
 
     override func flagsChanged(with event: NSEvent) {

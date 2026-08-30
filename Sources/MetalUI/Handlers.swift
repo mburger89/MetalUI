@@ -1,0 +1,139 @@
+/// The input callbacks an element has asked to receive — `StyledElement`'s
+/// fourth stored requirement, alongside `style`, `decoration` and `elementID`.
+///
+/// **A type of its own rather than a field on either of the other two, and both
+/// exclusions are mechanical.** `Style` lives in `MetalUILayout`, which may
+/// import only `MetalUICore` (CLAUDE.md's build constraint), and it is compared
+/// field-by-field on whole-value equality by
+/// `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` — a closure field
+/// makes `Style` unequatable and takes that test with it. `Decoration` is paint
+/// data: `Box.paint` reads it and nothing else does, while a handler is read in
+/// `prepaint` by the frame and afterwards by the window.
+///
+/// **Empty is the default and it means "not a hit target".** A `Handlers` with
+/// no callback set registers no hitbox at all — see
+/// `PrepaintPass.registerHandlers(_:at:id:)` — which is what keeps an ordinary
+/// `Box` transparent to the pointer and, more sharply, keeps every box inside a
+/// `ScrollView` from swallowing that scroller's wheel.
+///
+/// **The pointer gate and the keyboard gate are SEPARATE, and conflating them
+/// would be a live defect rather than an untidiness.** `isPointerTarget` gates
+/// the hitbox and `isKeyTarget` gates the focus registry. A single "asked for
+/// something" gate would make every focusable element an *opaque* hitbox — and
+/// an opaque hitbox swallows the wheel of any `ScrollView` it sits inside
+/// (`Window.applyScroll`), so a list of focusable rows would stop scrolling.
+/// Pinned by `focusabilityAndKeyHandlingRegisterNoPointerHitbox`.
+///
+/// **Bubble-only, and today that means "the topmost opaque handler wins".**
+/// Design spec §3.5 cuts the capture phase, because an opaque hitbox already
+/// swallows, which is the case framework spec §8.2 names capture for. What is
+/// also absent — and is worth knowing before writing a nested pair — is
+/// *chaining*: a click resolves to one hitbox and stops, so an `onClick` on a
+/// container whose child also has one never sees a click that landed on the
+/// child. There is no ancestry on a `Hitbox` to walk, exactly as there is no
+/// scroll chaining in `Window.applyScroll` and for the same reason. Adding it
+/// means putting a parent link on the registration, not changing dispatch.
+public struct Handlers {
+    /// Run when this element is clicked: pressed and released on **this same
+    /// element**, with the pointer free to leave and return in between.
+    ///
+    /// `@MainActor` because everything that could reach it is: `Window`'s input
+    /// path, the `StateTable` a handler will almost always write, and
+    /// `StyledElement` itself. Typing it here rather than relying on the
+    /// closure's context means a handler that captures a non-`Sendable` value
+    /// is a compile error at the call site rather than a data race later.
+    ///
+    /// **One handler, and a second `onClick(_:)` REPLACES the first rather than
+    /// adding to it.** `.onClick { a }.onClick { b }` runs only `b`, and still
+    /// registers one hitbox. That is what every other modifier on
+    /// `StyledElement` does — each writes one field — and it is written down
+    /// because the name sounds additive in a way `background(_:)` does not, so
+    /// "attach a second handler" is a plausible misreading with no diagnostic
+    /// behind it.
+    public var onClick: (@MainActor () -> Void)?
+
+    /// Run when a key event reaches this element — either because it holds
+    /// focus, or because it is an ancestor of whatever does.
+    ///
+    /// **Returns whether it claimed the event**, unlike `onClick` above, and
+    /// that is the whole bubbling contract: `true` stops the walk, `false`
+    /// passes the keystroke to the next ancestor outward. An element can
+    /// therefore look at a key and decline it without knowing what else is
+    /// bound anywhere above it.
+    ///
+    /// **`keyDown` only.** `KeyEvent` carries no down/up discriminator, so a
+    /// handler receiving both could not tell them apart and would fire twice
+    /// per keystroke with no way to opt out; a `keyUp` falls through to
+    /// `Window.onInput` instead. Pinned by
+    /// `aKeyUpIsNotDispatchedToTheFocusChain`.
+    public var onKey: KeyHandler?
+
+    /// Whether this element may **hold** focus.
+    ///
+    /// **Separate from `onKey` on purpose, and neither implies the other.** A
+    /// container binding a shortcut for its whole subtree handles keys without
+    /// ever being the focused thing; a text field is focusable before anything
+    /// is bound to it. One combined flag could express neither, and the pair is
+    /// asserted rather than argued by
+    /// `aFocusableElementNeedsNoHandlerAndAHandlerNeedsNoFocusability`.
+    ///
+    /// **It is also what keeps focus from dangling.** `Frame.resolveFocus()`
+    /// clears the window's focus when the focused id is not in this frame's
+    /// focus registry, and this flag is what puts an id there — so an element
+    /// that stops being produced, *or* stops being focusable, loses focus at
+    /// the prepaint/paint boundary.
+    public var isFocusable: Bool = false
+
+    /// Handlers for **bound actions**, keyed by `ObjectIdentifier` of the
+    /// action type (design spec §4.1).
+    ///
+    /// **A dictionary rather than a single closure, because unlike `onClick`
+    /// and `onKey` these do not conflict**: an element handling `Copy` and an
+    /// element handling `Paste` are the same element, and each
+    /// `onAction(_:_:)` writes its own key. A second `onAction` for the *same*
+    /// type does replace the first, which is the field-per-modifier rule one
+    /// level down.
+    ///
+    /// **Keyed on the type rather than carried by the closure** so dispatch can
+    /// ask "does this element handle this action" without running anything —
+    /// which is what lets an action bubble *past* an element that registered
+    /// for a different type.
+    public var actions: [ObjectIdentifier: ActionHandler] = [:]
+
+    /// The key context this element contributes, or `nil` — framework spec
+    /// §8.3's `.keyContext("Editor", ["mode": "code"])`.
+    ///
+    /// **Contributed by any element, focusable or not** (design spec §4.3, and
+    /// a ruling): an ancestor pane names the context while the focused thing
+    /// inside it is a leaf that knows nothing about contexts, which is the
+    /// whole reason matching runs innermost-first *from the chain* rather than
+    /// asking the focused element alone.
+    ///
+    /// **It is not a pointer target either.** Like `isFocusable`, this goes
+    /// through `isKeyTarget` and never through `isPointerTarget`, so a pane
+    /// that names a context stays transparent to the pointer and does not
+    /// swallow the wheel of a `ScrollView` it sits inside.
+    public var keyContext: KeyContext?
+
+    public init() {}
+
+    /// Whether this element is a **pointer** hit target — the hitbox gate.
+    ///
+    /// `onClick` alone, deliberately: see the type's own doc comment for why
+    /// folding focus in here would stop a list of focusable rows scrolling.
+    var isPointerTarget: Bool { onClick != nil }
+
+    /// Whether this element has anything to say about the **keyboard** — the
+    /// focus-registry gate (`FocusRegistry.register(_:id:)`).
+    ///
+    /// **Four things now, not two**, and the last two arrived with Task 10: an
+    /// action handler and a key context are both keyboard-side asks and both
+    /// must reach the registry. `keyContext` in particular *must* be here and
+    /// not behind focusability — a pane contributing `Editor` is usually
+    /// neither focusable nor a key handler, and gating it on either would make
+    /// `.keyContext(_:_:)` an API that compiles and does nothing on exactly the
+    /// elements that use it.
+    var isKeyTarget: Bool {
+        onKey != nil || isFocusable || !actions.isEmpty || keyContext != nil
+    }
+}

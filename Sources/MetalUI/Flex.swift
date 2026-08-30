@@ -72,6 +72,14 @@ public struct Column<Content: ElementGroup>: Element, StyledElement {
         set { box.elementID = newValue }
     }
 
+    /// Forwarded to the wrapped `Box`, exactly as the three above are — so
+    /// `Box.prepaint`'s registration is the one that runs and there is still a
+    /// single implementation of the three phases in this module.
+    public var handlers: Handlers {
+        get { box.handlers }
+        set { box.handlers = newValue }
+    }
+
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
         -> (LayoutNodeID, Box<Content>.Layout) {
         box.requestLayout(id, pass: &pass)
@@ -118,6 +126,14 @@ public struct Row<Content: ElementGroup>: Element, StyledElement {
     public var elementID: ElementID? {
         get { box.elementID }
         set { box.elementID = newValue }
+    }
+
+    /// Forwarded to the wrapped `Box`, exactly as the three above are — so
+    /// `Box.prepaint`'s registration is the one that runs and there is still a
+    /// single implementation of the three phases in this module.
+    public var handlers: Handlers {
+        get { box.handlers }
+        set { box.handlers = newValue }
     }
 
     public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)

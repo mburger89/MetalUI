@@ -49,12 +49,32 @@ public struct KeyEvent: Sendable {
     public var characters: String
     public var modifiers: Modifiers
     public var isRepeat: Bool
+    /// When the keystroke occurred, on the same clock as `ScrollEvent.timestamp`
+    /// (`NSEvent.timestamp` on AppKit).
+    ///
+    /// **This exists for §8.3's two-stroke timeout, and it has NO default
+    /// value on purpose.** The timeout asks how old a pending prefix is, and
+    /// the obvious other sources are both wrong: a display-link tick freezes
+    /// while the link is paused — the bug the clipping milestone shipped, and
+    /// which `ScrollEvent.timestamp` above exists to avoid — and a wall clock
+    /// read at dispatch time measures the *handler's* schedule rather than the
+    /// user's typing.
+    ///
+    /// **The missing default is what makes the timeout testable at all.** A
+    /// defaulted `timestamp` would let two events be constructed at the same
+    /// instant, giving a prefix an age of zero that never expires, so a
+    /// two-stroke timeout test would pass against a timeout that was never
+    /// implemented (taxonomy shape 1). Every construction site states one; that
+    /// churn is the point.
+    public var timestamp: Double
     public init(charactersIgnoringModifiers: String, characters: String,
-                modifiers: Modifiers = [], isRepeat: Bool = false) {
+                modifiers: Modifiers = [], isRepeat: Bool = false,
+                timestamp: Double) {
         self.charactersIgnoringModifiers = charactersIgnoringModifiers
         self.characters = characters
         self.modifiers = modifiers
         self.isRepeat = isRepeat
+        self.timestamp = timestamp
     }
 }
 

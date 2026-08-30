@@ -287,11 +287,24 @@ public struct ScrollView<Content: ElementGroup>: Element {
         let offset = resolvedOffset(id, bounds: bounds, layout: layout, pass: pass)
         // Registered OUTSIDE `clipped(to:offsetBy:)`, using the bounds handed
         // in rather than anything computed inside the block: `bounds` here is
-        // this viewport's rect in its PARENT's space, which is what a wheel
-        // event's window-space position needs to be compared against. Inside
-        // the block, `pass`'s active clip has already absorbed this rect, so a
-        // nested `ScrollView` registers ITS rect intersected with this one —
-        // see `Frame.registerScrollRegion`.
+        // this viewport's rect in its PARENT's space, and being outside the
+        // block is what keeps this scroller's OWN offset out of its own
+        // registered rect — a viewport does not scroll away from itself.
+        //
+        // Being outside its own block does NOT zero the ambient offset: an
+        // ANCESTOR scroller's `clipped(to:offsetBy:)` is still in effect here,
+        // because this element's whole `prepaint` runs inside it. That is
+        // exactly right, and it is what `Frame.insertHitbox` translates by —
+        // a nested `ScrollView` receives wheel events where it paints. It was
+        // wrong until scroll regions folded into the hitbox list (ruling IN-F):
+        // the old `registerScrollRegion` dropped the translation, so a nested
+        // scroller inside a scrolled one was registered at a rect that has
+        // moved out from under it — it kept whatever part of its hit area the
+        // stale rect still overlaps and lost the rest to whatever is beneath.
+        // NOT all of it: measured on
+        // `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`
+        // with the fix reverted, a wheel at (100, 120) reached the OUTER
+        // scroller and one at (100, 170) still reached the inner one.
         pass.registerScrollRegion(bounds, id: id, axis: axis)
         var result: Content.GroupPrepaint!
         pass.clipped(to: bounds, offsetBy: delta(-offset),

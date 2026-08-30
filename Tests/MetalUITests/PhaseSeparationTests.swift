@@ -247,6 +247,184 @@ func readingTheThemeDuringPrepaintDoesNotCompile() throws {
             "rejected, but not for the reason this test is about:\n\(result.output)")
 }
 
+// MARK: - Hover, active and focus are queryable only in paint (§3.3, §3.4, §4.2)
+//
+// **Worse to get wrong than `theme` above, and that is why these three exist as
+// their own guards rather than being folded into "read-only state" in
+// general.** A colour read during prepaint would simply fail to compile —
+// there is nothing in `Style` for one to come from, so no implementation
+// could make it silently wrong.
+//
+// **The FOUR below do NOT all rest on the same footing, and reading them as
+// though they did is the specific mistake this paragraph exists to prevent.**
+// Three are measured lies and one is placement insurance. Anyone adding a fifth
+// `PaintPass` query should work out which category it falls into rather than
+// adding a guard by symmetry with these — a guard for an API that would answer
+// correctly is cargo cult, and the brief for the `isFocused` work said so
+// explicitly.
+//
+// (This block said "the three below" and "a fourth" until the input-and-state
+// milestone's last task added the element-keyed `isHovered` guard *inside* its
+// scope — leaving an enumeration that silently omitted the newest guard and an
+// instruction addressed to whoever adds a fourth that read as still unfilled.
+// A guard added below must gain a bullet here in the same change.)
+//
+// - **`isHovered` — a measured lie, returning a silently wrong `false`**, for
+//   two independent reasons. `Frame.hoveredHitbox` is still `nil` during
+//   prepaint, because `resolveHover(at:)` runs at the prepaint/paint boundary,
+//   *after* `prepaint` returns. And the hitbox list is still being **built** at
+//   that point — `PrepaintPass.insertHitbox` is what fills it — so even a hover
+//   that had somehow already resolved would have ranked against a partial list,
+//   which is §3.3's own reason for resolving once at the boundary rather than
+//   during registration: "topmost wins" is not knowable until every hitbox has
+//   registered.
+//
+// - **`isActive` — NOT a lie today, and this comment claimed it was.**
+//   `PaintPass.isActive` is `frame.activeElement == id`, and
+//   `Frame.activeElement` is a `let` assigned once in `init` and never mutated;
+//   it consults neither of hover's two mechanisms. A prepaint-time `isActive`
+//   would answer **correctly**. Its guard is kept anyway, as *placement
+//   insurance*: `active` is the one of the three that could plausibly acquire a
+//   boundary-resolution step later (a press that must rank against the finished
+//   hitbox list, say), and on that day the guard would become load-bearing with
+//   nobody having to notice. Cheap insurance is a different justification from
+//   a measured lie, and stating it as one was wrong.
+//
+// - **`isHovered(_ id: GlobalElementID)` — the same measured lie as the first
+//   bullet, in a second SPELLING.** `Frame.hoveredElement` is a derived view of
+//   `hoveredHitbox`, so it inherits both of that bullet's mechanisms exactly.
+//   It gets its own guard rather than being folded into the first because the
+//   two probes are not interchangeable: with the hazard added, the `HitboxID`
+//   probe fails on its *message* assertion only (its diagnostic becomes a
+//   type-conversion error) while this one fails on both. The differential is
+//   measured at that guard, and it corrects a claim this file made before it
+//   was run.
+//
+// - **`isFocused` — a measured lie in the opposite direction**, returning a
+//   wrong `true`. The numbers are at its own guard below, because the
+//   measurement is what makes that guard non-cargo-cult and it should not be
+//   findable only from here.
+//
+// Together these make "queryable only during paint" a compiler fact rather
+// than a placement convention nothing enforces if someone later moves or
+// duplicates one of the methods onto `PrepaintPass`.
+
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func queryingHoverDuringPrepaintDoesNotCompile() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout PrepaintPass, id: HitboxID) -> Bool {
+            pass.isHovered(id)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded)
+    #expect(result.messages.contains("isHovered"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
+
+/// The **element-keyed** `isHovered` overload is paint-only too, and this guard
+/// is not symmetry with the one above.
+///
+/// `queryingHoverDuringPrepaintDoesNotCompile` probes `isHovered(_:)` with a
+/// `HitboxID`. This one probes the `GlobalElementID` spelling, which is the one
+/// every `StyledElement` conformer reaches for and therefore the plausible
+/// place to add the hazard.
+///
+/// **What the differential actually is, MEASURED — and the first version of
+/// this comment got it wrong.** It said adding only the `GlobalElementID`
+/// overload to `PrepaintPass` "would leave that guard green". Running that
+/// mutation shows otherwise, and the true picture is narrower:
+///
+/// - the older guard **fails, on one assertion of two**. Its primary
+///   `#expect(!result.succeeded)` still *passes* — the `HitboxID` probe still
+///   does not compile — and it is the message assertion that breaks, because
+///   the diagnostic changes from "no member `isHovered`" to `cannot convert
+///   value of type 'HitboxID' to expected argument type 'GlobalElementID'`. So
+///   it reports the hazard as **its own probe having become ill-typed**, which
+///   is its "rejected, but not for the reason this test is about" message doing
+///   its job — a tripwire, not a detection.
+/// - this guard **fails on both assertions**, which is the detection.
+///
+/// The suite is therefore not silently green under the hazard, and the reason
+/// to keep two probes is sharper than "one would miss it": without this one,
+/// nothing in the repo *says* what went wrong, and the only red is a test
+/// complaining that its own fixture no longer type-checks.
+///
+/// The hazard is the same one, measured the same way: `Frame.hoveredElement`
+/// reads `hoveredHitbox`, which `resolveHover(at:)` does not write until
+/// `prepaint` has returned, so a prepaint-time call answers `nil` — a silently
+/// wrong `false` for every element, including the one under the pointer — and
+/// would rank against a half-built list even if it did not.
+///
+/// **Delete this guard, and its `HitboxID` sibling, if hover stops resolving at
+/// the prepaint/paint boundary** — that is, if `Frame.resolveHover(at:)` ever
+/// runs before `prepaint` *and* the hitbox list is complete before `prepaint`
+/// begins. Both halves are needed: the first makes `hoveredHitbox` non-`nil`,
+/// the second makes ranking against it meaningful. That is the same shape of
+/// contingent justification `queryingFocusDuringPrepaintDoesNotCompile` carries
+/// for `resolveFocus()`, and stating it is what keeps this from becoming a
+/// guard nobody can evaluate.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func queryingElementKeyedHoverDuringPrepaintDoesNotCompile() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout PrepaintPass, id: GlobalElementID) -> Bool {
+            pass.isHovered(id)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded)
+    #expect(result.messages.contains("isHovered"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
+
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func queryingActiveDuringPrepaintDoesNotCompile() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout PrepaintPass, id: GlobalElementID) -> Bool {
+            pass.isActive(id)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded)
+    #expect(result.messages.contains("isActive"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
+
+/// `isFocused` is paint-only too — and this guard was added on a
+/// **measurement**, not on symmetry with the two above.
+///
+/// The question worth asking of any new guard here is whether the phase it
+/// excludes would actually give a wrong answer, since focus is window state
+/// that is fully known before the frame starts and might therefore have been
+/// safe to read at any point. It is not. `Frame.resolveFocus()` runs at the
+/// prepaint/paint boundary, after every element's `prepaint` has contributed to
+/// the focus registry, and *clears* a focused id this frame did not produce —
+/// so during `prepaint` the frame still holds the pre-clearing value.
+///
+/// Measured with a throwaway element that read `pass.frame.focusedElement`
+/// during its own `prepaint` (exactly what a `PrepaintPass.isFocused(_:)` would
+/// return) and `pass.isFocused` during its own `paint`, over three frames of one
+/// window — unfocused, focused, then still produced but no longer `.focusable()`:
+///
+/// ```
+/// ["prepaint=false", "paint=false",
+///  "prepaint=true",  "paint=true",
+///  "prepaint=true",  "paint=false"]   // <- the frame that drops focus
+/// ```
+///
+/// The third pair is the finding: a prepaint-time query returns a silently
+/// wrong `true` for an element the same frame has already decided is not
+/// focused. That is `isHovered`'s failure with the sign flipped, and it is what
+/// this guard exists for rather than tidiness.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func queryingFocusDuringPrepaintDoesNotCompile() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout PrepaintPass, id: GlobalElementID) -> Bool {
+            pass.isFocused(id)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded)
+    #expect(result.messages.contains("isFocused"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
+
 // MARK: - A background is a token, never a literal (§7.9)
 
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))

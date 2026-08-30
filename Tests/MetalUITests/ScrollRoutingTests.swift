@@ -508,6 +508,9 @@ private struct ScrollContextRecorder: Element, StyledElement {
     var style = Style()
     var decoration = Decoration()
     var elementID: ElementID?
+    // `StyledElement`'s fourth requirement. This probe registers no click
+    // target — nothing calls `registerHandlers` — so it stays at the empty set.
+    var handlers: Handlers = Handlers()
     let seen: Seen
 
     func requestLayout(_ id: GlobalElementID,
@@ -711,4 +714,261 @@ private struct ScrollContextRecorder: Element, StyledElement {
     try #require(seen.values.count == 1)
     #expect(seen.values[0] == nil,
             "a sibling after the ScrollView, not inside it, must not inherit its scroll context")
+}
+
+// MARK: - Task 7: one list
+
+/// A leaf that registers exactly one hitbox at its own bounds and nothing
+/// else — the shape a modal scrim has.
+///
+/// **This said "a shape no PRODUCTION element has yet (Task 8's `onClick` is
+/// the first that will register one)", and both halves are false now.**
+/// `StyledElement.onClick(_:)` shipped, so `Box`, `Column`, `Row`, `Stack`,
+/// `Text` and `List` each register exactly this shape — one opaque,
+/// non-scrolling hitbox at their own bounds — whenever they were given a
+/// handler, and nothing at all when they were not. A reader auditing which
+/// production elements register non-scrolling hitboxes should look at
+/// `Frame.registerHandlers`' call sites, not here.
+///
+/// The probe stays anyway, and not out of inertia: it registers a hitbox with
+/// **no handler attached**, which no production element does, so the wheel
+/// tests below stay about routing and cannot be reddened by a change to click
+/// dispatch.
+///
+/// `opaque` is a stored property rather than a constant `true` so Step 5's
+/// mutation is expressible as a fixture change rather than as an edit to the
+/// implementation: flipping it to `false` must make the wheel fall through to
+/// the scroller underneath again.
+private struct HitboxProbe: Element, StyledElement {
+    var style = Style()
+    var decoration = Decoration()
+    var elementID: ElementID?
+    // `StyledElement`'s fourth requirement. This probe registers no click
+    // target — nothing calls `registerHandlers` — so it stays at the empty set.
+    var handlers: Handlers = Handlers()
+    var opaque: Bool = true
+
+    func requestLayout(_ id: GlobalElementID,
+                       pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
+        let node = pass.requestNode(style: style, children: [])
+        return (node, node)
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                  layout: inout LayoutNodeID, pass: inout PrepaintPass) {
+        pass.insertHitbox(bounds, id: id, opaque: opaque)
+    }
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+               layout: inout LayoutNodeID, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **Both** axes declared in pixels, and no `flexDirection` — deliberately not
+/// `fixedHeight`, whose width is `.auto`.
+///
+/// The scrim fixture depends on the width being literal: a scrim that
+/// shrink-wrapped instead of measuring 200 would not cover the `(100, 100)`
+/// the wheel event is sent to, and the test would pass for the wrong reason.
+private func fixedSize(_ w: Float, _ h: Float) -> Style {
+    var s = Style()
+    s.size = Size(width: .length(.pixels(Pixels(w))), height: .length(.pixels(Pixels(h))))
+    return s
+}
+
+/// **A `Deferred` scrim swallows a wheel event that reaches it, instead of
+/// letting it scroll the list beneath.**
+///
+/// This is the limitation three milestones recorded and this task closes.
+/// Before the fold, `Frame.scrollRegions` was the only hitbox list this
+/// framework had, so a non-scrolling `Deferred` registered nothing at all and
+/// could not be seen by wheel routing: CLAUDE.md's failure 4 of the
+/// absolute-positioning entry says in as many words that the list DOES move
+/// under the modal and that "nothing short of §8.1's general hitbox list will
+/// change that". This is that list.
+///
+/// **The scrim is declared FIRST, which is what makes the two orderings
+/// disagree** — the same construction
+/// `aDeferredScrollViewTakesTheWheelFromAnOverlappingSiblingBeneathIt` uses.
+/// Prepaint registers in declaration order, so the scrim is index 0 and the
+/// scroller index 1; only the layer key can put the scrim on top.
+///
+/// **Both halves are asserted, and they fail differently.** The list's offset
+/// is the half that was reported from a running demo. The claimed return value
+/// is the other half of "swallow": an event that landed on an opaque element
+/// and produced no scroll must not then be re-offered to the window's fallback
+/// handler as an unhandled one.
+@Test @MainActor func anOpaqueDeferredScrimSwallowsAWheelEventInsteadOfScrollingTheListBeneath() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 200) {
+        Box(style: stackStyle()) {
+            Deferred {
+                HitboxProbe(style: fixedSize(200, 200), elementID: ElementID("scrim"))
+            }
+            ScrollView(.vertical, elementID: ElementID("list")) {
+                Box(style: columnStyle()) {
+                    Box(style: fixedHeight(150)); Box(style: fixedHeight(150))
+                }
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    let list = try #require(window.lastScrollRegions.first,
+                            "the ScrollView must still register a scrolling region")
+
+    let claimed = platformWindow.simulateInput(wheel(at: pt(100, 100), deltaY: -37))
+
+    #expect(window.stateTable.peek(list.id, as: ScrollState.self)?.offset == 0,
+            "the scrim is opaque and on top: the list underneath must not move")
+    #expect(claimed, "and the event is consumed rather than offered on to the window's own handler")
+}
+
+/// **The differential for the test above**: the identical fixture with a
+/// NON-opaque scrim lets the wheel through, and the list scrolls exactly as
+/// it did before this task.
+///
+/// Without this, `anOpaqueDeferredScrimSwallows…` would also pass under an
+/// implementation that had simply stopped routing wheel events altogether —
+/// "the list did not move" is what a broken `applyScroll` produces too. It is
+/// also Step 5's mutation, kept as a test rather than run once and reported:
+/// `opaque` is the single field that decides between the two, and design spec
+/// §3.2's "a non-opaque hitbox does not stop the walk" is exactly the rule
+/// being checked.
+@Test @MainActor func aNonOpaqueDeferredScrimLetsTheWheelReachTheListBeneath() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 200) {
+        Box(style: stackStyle()) {
+            Deferred {
+                HitboxProbe(style: fixedSize(200, 200), elementID: ElementID("scrim"),
+                            opaque: false)
+            }
+            ScrollView(.vertical, elementID: ElementID("list")) {
+                Box(style: columnStyle()) {
+                    Box(style: fixedHeight(150)); Box(style: fixedHeight(150))
+                }
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    let list = try #require(window.lastScrollRegions.first)
+
+    let claimed = platformWindow.simulateInput(wheel(at: pt(100, 100), deltaY: -37))
+
+    #expect(window.stateTable.peek(list.id, as: ScrollState.self)?.offset == 37,
+            "a transparent hitbox does not stop the walk — the list takes the wheel")
+    #expect(claimed, "and the scroller claims it, exactly as it did before the fold")
+}
+
+/// `fixedHeight`, plus the `min-height: 0` that keeps CSS Sizing §4.5's
+/// automatic minimum from floating the box back up to its content's
+/// min-content height.
+///
+/// **Measured, not decorative.** Without it this fixture's 100pt box is
+/// floored at the 150pt its nested `ScrollView`'s content node reports — the
+/// half of §4.5 this engine DOES implement (CLAUDE.md divergence 5), and the
+/// same reason `Sources/MetalUIDemo/main.swift` writes `.minHeight(Pixels(0))`
+/// around its own scroll list. The first draft of the test below had `outer`
+/// parked at 74 instead of its intended 50pt ceiling for exactly this reason.
+private func boundedHeight(_ h: Float) -> Style {
+    var s = fixedHeight(h)
+    s.minSize.height = .length(.pixels(Pixels(0)))
+    return s
+}
+
+/// **A nested `ScrollView` inside an ALREADY-SCROLLED one receives wheel
+/// events where it PAINTS, not where the engine stored it** — ruling IN-F, the
+/// live routing defect Task 5's review found and this task owns.
+///
+/// (This citation read `C1` until the end of the milestone. `C1` was a review
+/// *concern* id in the execution ledger, never a ruling — the decision it names
+/// is `IN-F` in `docs/superpowers/2026-08-29-input-decisions.md`, and a reader
+/// grepping that doc for `C1` finds nothing. Five sites carried the dangling
+/// id, and one of them wrapped `ruling` and `C1` onto separate comment lines,
+/// so a plain `grep -n "ruling C1"` finds only four — CLAUDE.md's
+/// sweep-case-insensitively rule, in a new shape.)
+///
+/// `registerScrollRegion` recorded its bounds without the active offset while
+/// `insertHitbox` recorded them with it, and folding the two lists forces a
+/// choice. `insertHitbox`'s translating convention is the correct one, and the
+/// only production configuration it moves is the one that is wrong today.
+///
+/// **This fixture is the reason the choice is not a coin flip.** Task 5's
+/// reviewer measured that adding `+ activeOffset` to `registerScrollRegion`
+/// reddened NOTHING in a 631-test suite — every routing fixture in this file
+/// either has no ancestor scroller or has one sitting at offset 0, so the
+/// translation is provably inert in all of them. That is ruling MP-J's shape:
+/// the fixture cannot express the defect, so the assertion never gets a
+/// chance.
+///
+/// The geometry, hand-derived and then confirmed by the registered rect this
+/// test asserts directly: a 200pt viewport over 250pt of content (a 150pt
+/// filler above a 100pt box holding `inner`) leaves 50pt of travel. Two -37
+/// events with a render after each drive `outer` to the 50pt ceiling, so
+/// `inner` — stored at y 150 by the engine — PAINTS at y 100. Its registered
+/// region must therefore be (0, 100) 200x100. Under the untranslated
+/// convention it is recorded at (0, 150) 200x50 instead: 50pt low and half the
+/// height, because the ancestor clip then cuts it rather than the offset
+/// moving it.
+///
+/// **(100, 120) is the point that tells the two apart** — inside the painted
+/// rect, outside the untranslated one. The seeding events fire at (100, 20)
+/// instead, which is above `inner` under either convention and at every offset
+/// the seeding passes through, so they can only reach `outer`.
+///
+/// Asserted on both offsets, not just `inner`'s: under the defect the event
+/// does not vanish, it goes to `outer`, and "outer did not also move" is what
+/// says the event was routed rather than dropped.
+@Test @MainActor func aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 200) {
+        ScrollView(.vertical, elementID: ElementID("outer")) {
+            Box(style: columnStyle()) {
+                Box(style: fixedHeight(150))
+                Box(style: boundedHeight(100)) {
+                    ScrollView(.vertical, elementID: ElementID("inner")) {
+                        Box(style: columnStyle()) {
+                            Box(style: fixedHeight(50)); Box(style: fixedHeight(50))
+                            Box(style: fixedHeight(50))
+                        }
+                    }
+                }
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    try #require(window.lastScrollRegions.count == 2,
+                 "outer and inner must each register exactly one region")
+    let outerID = window.lastScrollRegions[0].id
+    let innerID = window.lastScrollRegions[1].id
+
+    func stored(_ id: GlobalElementID) -> Double? {
+        window.stateTable.peek(id, as: ScrollState.self)?.offset
+    }
+
+    // Drive `outer` to its 50pt ceiling. (100, 20) is above `inner` at every
+    // offset this passes through, under either convention.
+    for _ in 0..<2 {
+        platformWindow.simulateInput(wheel(at: pt(100, 20), deltaY: -37))
+        window.drawFrameIfNeeded()
+    }
+    try #require(stored(outerID) == 50, "outer must be parked at its 50pt ceiling")
+
+    // Re-derived, and re-`require`d rather than re-indexed: `lastScrollRegions`
+    // is a computed view of the list the two renders above rebuilt from
+    // scratch, so the count asserted before them says nothing about this one.
+    // This repo's rule is one word wide — any count a later line indexes on is
+    // `try #require`, after a wrong implementation once truncated ~200 tests
+    // with `Index out of range` and no summary line (taxonomy shape 13).
+    let scrolled = window.lastScrollRegions
+    try #require(scrolled.count == 2, "both regions must survive the two renders")
+    #expect(scrolled[1].bounds
+                == Bounds(origin: pt(0, 100),
+                          size: Size(width: Pixels(200), height: Pixels(100))),
+            "inner's region is recorded where it PAINTS, translated by the ancestor scroll")
+
+    platformWindow.simulateInput(wheel(at: pt(100, 120), deltaY: -37))
+
+    #expect(stored(innerID) == 37,
+            "a point inside inner's PAINTED rect must scroll inner")
+    #expect(stored(outerID) == 50,
+            "and outer must not also move — under the untranslated convention it takes this event instead")
 }

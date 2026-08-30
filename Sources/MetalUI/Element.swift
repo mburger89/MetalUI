@@ -15,14 +15,17 @@ import MetalUILayout
 /// and overlay hoisting all have to happen before the first primitive is
 /// emitted.
 ///
-/// **None of those four exist yet, and this is the phase's whole justification,
-/// so read the list as a design rationale rather than a description.** `Frame`
-/// holds no hitbox registry, no cull state, no AX node store and no overlay
-/// list, and `PrepaintPass` declares no `register…` method — check by grepping
-/// `PrepaintPass` for members, not by re-reading this paragraph. Hit-testing and
-/// focus arrive in M3, accessibility nodes with §9, overlay hoisting with §4.5.
-/// The phase is built now because retrofitting a middle pass later would change
-/// every `Element` signature.
+/// **Two of those four exist now and two do not**, and the paragraph here said
+/// *none* of them did — true when it was written, false since the input-and-state
+/// milestone. `Frame` owns a hitbox registry (hit-test registration, hover,
+/// active, wheel routing and click dispatch all read it) and `PrepaintPass`
+/// declares `insertHitbox`, `registerScrollRegion` and `registerHandlers`;
+/// overlay hoisting exists too, as `PrepaintPass.deferred`/`PaintPass.deferred`.
+/// What is still absent is **cull state** and an **AX node store** — check by
+/// grepping `PrepaintPass` for members, not by re-reading this paragraph.
+/// Accessibility nodes arrive with §9. The phase was built before any of it,
+/// because retrofitting a middle pass later would change every `Element`
+/// signature.
 ///
 /// The `pass` parameter of each phase is a different type, and each exposes only
 /// what that phase may do. Emitting a primitive during `requestLayout` is a
@@ -64,14 +67,20 @@ public protocol Element: ElementGroup {
     /// Layout has resolved, so absolute bounds are known — this is the first
     /// phase that may ask for them. Emitting a primitive here does not compile.
     ///
-    /// **Nothing can be registered here yet.** The phase exists so that
-    /// hitboxes, focus handles, scroll regions and accessibility nodes are
+    /// **Three of the four registries this phase exists for are live now, and
+    /// this paragraph said none of them were.** It was written before any
+    /// existed and read "nothing can be registered here yet"; that expired at
+    /// the input-and-state milestone and is corrected rather than quietly
+    /// deleted, per this repo's rule about false claims. The phase exists so
+    /// that hitboxes, focus handles, scroll regions and accessibility nodes are
     /// recorded after positions resolve and before the first primitive is
-    /// emitted — but `Frame` holds no registry for any of them and
-    /// `PrepaintPass` therefore exposes no way to add one. Reading resolved
-    /// bounds is the whole of what this phase can currently do. Each registry is
-    /// a store on `Frame` plus one method on `PrepaintPass`; input and focus
-    /// bring theirs (M3), accessibility brings its own (§9).
+    /// emitted. **Hitboxes and scroll regions** share one registry on `Frame`
+    /// (`insertHitbox`, `registerScrollRegion`, `registerHandlers`);
+    /// **focus** has its own, written by that same `registerHandlers` call
+    /// rather than by a method of its own. **Accessibility** is still absent —
+    /// `Frame` holds no store for it and `PrepaintPass` exposes no way to add
+    /// one; it arrives with §9. Check by grepping `PrepaintPass` for members,
+    /// not by re-reading this paragraph.
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                            layout: inout LayoutState, pass: inout PrepaintPass) -> PrepaintState
 

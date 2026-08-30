@@ -17,17 +17,25 @@ import MetalUI
 /// replaced the window" by watching the transition, rather than inferring it
 /// from the scrim's alpha.
 ///
-/// **Four things to report, and the fourth is a report rather than a
-/// pass/fail.** The scrim covers the whole window rather than the 420pt scroll
-/// viewport; the panel and scrim paint over rows declared after them; the modal
-/// does not move when the list scrolls; and — **wheeling over the scrim** —
-/// whether the list moves underneath it. Expect that it **does**: this scrim is
-/// not a `ScrollView`, so it registers no scroll region, and `Frame.scrollRegions`
-/// is the only hitbox list the framework has. An overlay that does not itself
-/// scroll cannot block input until §8.1's general hitbox list exists. What a
-/// hoisted subtree *does* now win is the neighbouring case — a `ScrollView`
+/// **Four things to report, and the fourth's expected answer INVERTED with the
+/// input-and-state milestone.** The scrim covers the whole window rather than
+/// the 420pt scroll viewport; the panel and scrim paint over rows declared
+/// after them; the modal does not move when the list scrolls; and — **wheeling
+/// over the scrim** — whether the list moves underneath it. It must now
+/// **not**, where three milestones of this comment said it would.
+///
+/// **What changed is the scrim, not only the framework.** §8.1's general hitbox
+/// list exists and wheel routing walks it, so an opaque hitbox over the list
+/// swallows the wheel; this scrim used to register none, because `Deferred` and
+/// `Box` contribute no `insertHitbox` call on their own. It now carries
+/// `.onClick { showModal = false }`, and `onClick` is exactly what makes an
+/// element an opaque hit target — so the wheel stops there and the list does
+/// not move. A human who reports it still scrolling under the modal is
+/// reporting a regression now rather than a known limitation.
+///
+/// **A hoisted subtree also wins the neighbouring case** — a `ScrollView`
 /// inside a `Deferred` outranks one it paints over, because the registration
-/// carries its layer (`Frame.scrollRegions`, ruling AP-N).
+/// carries its layer (`Hitbox.layer`, ruling AP-N).
 ///
 /// **No `@MainActor` attribute, deliberately** — this is top-level code in
 /// `main.swift`, where the compiler rejects an explicit global actor
@@ -71,6 +79,236 @@ let demoRowCount = 500
 /// it builds, so the array's own construction is the one per-frame cost that
 /// would still be O(`demoRowCount`) if it were rebuilt each time.
 let demoRows = (0..<demoRowCount).map(DemoListRow.init)
+
+// MARK: - The counter (milestone 3's exit criterion)
+
+/// The three actions this window binds keystrokes to.
+///
+/// **An `Action` is a type, not a string** (design spec §4.1), which is what
+/// lets `onAction(_:_:)` be keyed by `ObjectIdentifier` and lets an action
+/// bubble *past* an element that handles a different one. They are empty
+/// structs here because none of them carries a payload; one that did would
+/// declare stored properties and nothing else would change.
+struct Increment: Action {}
+struct Decrement: Action {}
+/// Moves keyboard focus to the counter. Handled by `Window.onAction` rather
+/// than by any element, because the element that would handle it is the one
+/// that is not focused yet — with nothing focused the chain is empty and the
+/// window's fallback is the only thing left to run (`Window.onAction`).
+struct FocusCounter: Action {}
+struct ClearFocus: Action {}
+struct ToggleTheme: Action {}
+struct ToggleModal: Action {}
+
+/// The window, for the two handlers that must reach it — the focus actions.
+///
+/// **`weak`, and the reason is written at `Window.onAction`'s own doc**: that
+/// closure is stored *on* the window, so `window.onAction = { window.… }`
+/// closes a retain cycle with no frame drawn and nothing that ever clears it.
+/// The keymap handlers below capture this global instead of capturing `window`,
+/// and this holding it weakly is what keeps the cycle from re-forming one step
+/// further out.
+///
+/// **No `@MainActor` attribute** for `showModal`'s reason: top-level code in
+/// `main.swift` is already main-actor isolated and the compiler rejects an
+/// explicit global actor here.
+weak var demoWindow: Window?
+
+/// The counter's own `GlobalElementID`, recorded by `CounterPanel` each frame.
+///
+/// **Focus is moved by id and nothing else can supply one.** `Window.focus(_:)`
+/// takes a `GlobalElementID`, an element's identity is *structural* — its path
+/// of `.positional(_:)`/`.named(_:)` components — so it is not something a
+/// caller outside the tree can construct correctly by hand. The element that
+/// has one is the element itself, in its own `requestLayout`, and publishing it
+/// here is the demo's way of getting it to the key handler. A framework that
+/// wanted focus-by-name would put this behind an API; this file is not that
+/// framework.
+var counterID: GlobalElementID?
+
+/// Whether the counter has been focused once, at startup.
+///
+/// **Once, not every frame**, and the distinction is the whole of why this flag
+/// exists rather than an unconditional `focus(_:)` call: `Window.focus(_:)`
+/// marks the window dirty, so calling it on every frame would keep the display
+/// link awake forever — which is milestone 4's exit criterion, sabotaged from
+/// this file. (`focus(_:)` does guard on `focusedElement != id` and would be a
+/// no-op after the first call anyway; the flag says so at the call site rather
+/// than relying on a guard one module away.)
+var didFocusCounter = false
+
+/// **A `@State` counter with a `+`, a `-`, hover feedback, a visible focus
+/// state and a keymap binding — design spec §12's milestone-3 exit criterion,
+/// in one element.**
+///
+/// **Where it is matters: this is in the main pane and NOT inside the
+/// `ScrollView`.** An `onClick` hitbox registers *opaque*, and a wheel event
+/// stops at the topmost opaque hitbox and scrolls only if that hitbox is itself
+/// a scroller — so a button inside the list would silently stop the list
+/// scrolling over its own rect. That is CLAUDE.md's divergence 16, and putting
+/// the counter here is the milestone's own mitigation for it rather than a
+/// layout preference.
+///
+/// **`@State` is written on INPUT only.** The two closures below run from
+/// `Window`'s input path, between frames; nothing in `requestLayout` writes
+/// `count`. A `@State` write marks the window dirty (`StateTable.onWrite`), so
+/// an element that wrote its own state every frame would pin the display link
+/// awake — the same trap `didFocusCounter` above exists for.
+///
+/// **The element owns its own id and its own chrome.** Like `List`, this is an
+/// `Element` that builds a `Box` in `requestLayout` and forwards the other two
+/// phases to it: there is no `body` in this framework, and a composite element
+/// is spelled by delegation.
+@MainActor
+struct CounterPanel: Element {
+    @State var count = 0
+
+    /// Named rather than positional, so the counter keeps its count if
+    /// anything is ever inserted above it in the main pane. A name replaces a
+    /// position (CLAUDE.md's identity bullet) — which also makes `counterID`
+    /// above stable across a rebuild of the surrounding tree.
+    var elementID: ElementID? { ElementID("counter") }
+
+    /// The panel's chrome: minus, the readout, plus. Left-nested exactly as
+    /// `@ElementBuilder`'s `buildPartialBlock` would nest it, because the three
+    /// children are assembled by hand below — a builder block cannot close over
+    /// the two handlers *and* be written at the point the handlers exist.
+    typealias Chrome = Pair<Pair<Box<Text>, Box<Text>>, Box<Text>>
+
+    private var built: Box<Chrome> = CounterPanel.chrome(count: 0, minus: {}, plus: {})
+
+    /// One 36x36 square button.
+    ///
+    /// `hoverBackground(.accent)` is the hover affordance and `onClick` is what
+    /// makes it reachable at all — a `hoverBackground` with no click handler
+    /// registers no hitbox and therefore never resolves as hovered
+    /// (`StyledElement.hoverBackground(_:)`). The two belong together here even
+    /// though the framework keeps them separate.
+    static func button(_ label: String,
+                       _ handler: @escaping @MainActor () -> Void) -> Box<Text> {
+        Box(decoration: Decoration(background: .surfaceSecondary,
+                                   cornerRadius: Pixels(8))) {
+            Text(label).font(size: 22)
+        }
+        .width(Pixels(36))
+        .height(Pixels(36))
+        .alignItems(.center)
+        .justifyContent(.center)
+        .hoverBackground(.accent)
+        .onClick(handler)
+    }
+
+    static func chrome(count: Int,
+                       minus: @escaping @MainActor () -> Void,
+                       plus: @escaping @MainActor () -> Void) -> Box<Chrome> {
+        // **The declared width is sidestepping divergence 8, and without it
+        // this label wraps on most counts.** A shrink-wrapped `Text` measures
+        // to a fractional max-content; `roundLayout` rounds the cumulative
+        // edges and subtracts, so the stored box can come out up to a point
+        // narrower than the width the string was measured at; and `Text.paint`
+        // then re-asks CoreText at that *rounded* width, where the last word no
+        // longer fits. Layout says one line, paint draws two, and the second
+        // hangs below a box that is one line tall.
+        //
+        // Measured on this readout at 22pt, sweeping the count: counts 0, 1, 3,
+        // 4, 5, 6, 8, 9, 10 and 11 wrapped and 2, 7 and 12 did not — a coin
+        // flip on `frac(x + maxContent)`, which is why it tracks the digit
+        // rather than the value. A human found it in the running demo, which is
+        // the only place it had ever been visible on a single short string.
+        //
+        // **104 is measured rather than chosen**: it is the smallest declared
+        // width at which nothing wraps through `"Count 888"` (96 wraps at 137
+        // and 888, 100 wraps at 888, 104 and above wrap at nothing). Smallest
+        // is what is wanted, because `Text` has no alignment of its own — the
+        // string is left-aligned inside whatever box it is given, so a wider
+        // box pushes the label further left of the panel's centre. At 104 a
+        // one-digit count sits ~14pt left of true centre and converges to
+        // centred as digits are added.
+        //
+        // This is a demo spelling, not a fix. The engine defect is divergence 8
+        // in CLAUDE.md, it is pre-existing, and its two honest fixes both live
+        // above this file.
+        let readout = Box {
+            Text("Count \(count)").font(size: 22).width(Pixels(104))
+        }
+        .width(Pixels(140))
+        .height(Pixels(36))
+        .alignItems(.center)
+        .justifyContent(.center)
+
+        var row = Style()
+        row.flexDirection = .row
+        row.gap = Axes(both: .pixels(Pixels(12)))
+        row.padding = Edges(all: .pixels(Pixels(12)))
+        row.alignItems = .center
+
+        return Box(style: row,
+                   decoration: Decoration(background: .surface, cornerRadius: Pixels(12)),
+                   content: Pair(Pair(button("-", minus), readout), button("+", plus)))
+            // **The focus affordance, and the only one this framework has.**
+            // `Frame.fill` hard-codes zero border widths, so nothing above the
+            // renderer can draw a ring; a token swap is what is reachable.
+            // See `StyledElement.focusBackground(_:)`.
+            .focusBackground(.surfaceSecondary)
+            .focusable()
+            // Contributed by this element and read by the keymap's `Counter`
+            // predicate below. A context is contributed by any element in the
+            // focus chain, focusable or not — this one happens to be both.
+            .keyContext("Counter")
+            .alignSelf(.flexStart)
+    }
+
+    public mutating func requestLayout(_ id: GlobalElementID,
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Box<Chrome>.Layout) {
+        // Published for the `F` binding, which cannot construct this id itself.
+        counterID = id
+        // **In `requestLayout` rather than anywhere else, and that is forced
+        // rather than chosen**: `id` is a parameter of the phase, an element's
+        // identity is structural, and nothing outside the tree can construct
+        // one correctly (see `counterID`'s own doc). Calling `focus(_:)` from
+        // inside a frame's render is supported — `Window.drawFrameIfNeeded`'s
+        // read-back applies the frame's *decision* rather than its value — and
+        // it was silently discarded until that guard existed.
+        if !didFocusCounter {
+            didFocusCounter = true
+            demoWindow?.focus(id)
+        }
+
+        // `state`, not `self`: `self` is `inout` here and cannot be captured by
+        // an escaping closure, and capturing the *wrapper* is what makes the
+        // write land in the right place anyway — `State` holds a class box, so
+        // a copy of the wrapper writes the same `StateTable` slot the element
+        // in the tree was bound to.
+        let state = _count
+        var box = CounterPanel.chrome(count: state.wrappedValue,
+                                      minus: { state.wrappedValue -= 1 },
+                                      plus: { state.wrappedValue += 1 })
+        // The two keymap actions land here rather than on the buttons: a
+        // binding fires against the *focus chain*, and the panel is the
+        // focusable thing. Written after `chrome` rather than inside it so the
+        // same `state` capture serves the pointer and the keyboard, and the two
+        // provably increment the same slot.
+        box = box
+            .onAction(Increment.self) { _ in state.wrappedValue += 1 }
+            .onAction(Decrement.self) { _ in state.wrappedValue -= 1 }
+        let result = box.requestLayout(id, pass: &pass)
+        built = box
+        return result
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout Box<Chrome>.Layout,
+                                  pass: inout PrepaintPass) -> Chrome.GroupPrepaint {
+        built.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout Box<Chrome>.Layout,
+                               prepaint: inout Chrome.GroupPrepaint,
+                               pass: inout PaintPass) {
+        built.paint(id, bounds: bounds, layout: &layout, prepaint: &prepaint, pass: &pass)
+    }
+}
 
 /// Milestone 1's exit criterion: a nested flex layout that resizes correctly,
 /// plus a light/dark switch. **And milestone 2's**, which is the reason the
@@ -231,6 +469,20 @@ func demoContent() -> some Element {
                     .justifyContent(.center)
                 }
                 .alignSelf(.flexStart)
+
+                // **Milestone 3's exit criterion**, and it is in the main pane
+                // rather than in the `ScrollView` below on purpose — an
+                // `onClick` hitbox is opaque and would swallow that scroller's
+                // wheel over its own rect (divergence 16). See `CounterPanel`.
+                //
+                // Four things a human has to look at here, and no assertion in
+                // this repo can see any of them: whether clicking feels
+                // responsive, whether the hover highlight tracks the pointer,
+                // whether the focused panel is visibly distinguishable, and
+                // whether **+** / **-** move the count once **F** has focused
+                // it. CLAUDE.md records the criterion as open until somebody
+                // reports.
+                CounterPanel()
 
                 // **A second size, and it is a diagnostic rather than
                 // decoration.** The atlas key is
@@ -407,10 +659,35 @@ func demoContent() -> some Element {
                                     .alignItems(.stretch)
                                     .background(.surface)
                                     .cornerRadius(Pixels(16))
+                                    // Absorbs its own clicks so the scrim's
+                                    // dismiss handler does not fire through
+                                    // the panel. It registers AFTER the scrim
+                                    // — a container registers before
+                                    // descending — and both sit on the same
+                                    // hoisted layer, so a registration-index
+                                    // tie-break puts this one on top
+                                    // (`topmostOpaqueHitbox`). There is no
+                                    // chaining, so the scrim never sees a
+                                    // click that landed here.
+                                    .onClick {}
                                 }
                                 .position(.absolute)
                                 .inset(Pixels(0))
                                 .background(.scrim)
+                                // **This is what makes the scrim a modal
+                                // rather than a wash**, and it is spec exit
+                                // criterion 4 made visible: an `onClick`
+                                // registers an OPAQUE hitbox, a wheel event
+                                // stops at the topmost opaque hitbox and
+                                // scrolls only if that hitbox is itself a
+                                // scroller, and `Deferred` has hoisted this one
+                                // to the root layer over the whole window. So
+                                // with the modal up, a wheel over the scrim
+                                // moves nothing — the limitation three
+                                // milestones recorded, closed. Clicking
+                                // dismisses, which is also how a human tells
+                                // the hitbox is really there.
+                                .onClick { showModal = false }
                             }
                         }
 
@@ -496,41 +773,103 @@ func runDemo() throws {
 
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
-    let window = try app.openWindow(title: "MetalUI — Milestones 1 and 2",
+    let window = try app.openWindow(title: "MetalUI — Milestones 1 to 3",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: demoContent)
 
-    // Two independent ways to see the theme switch, because they fail
+    // **Every key this demo binds goes through the window's keymap**, and the
+    // ad-hoc `onInput` switch that used to hold space and M is gone. That is
+    // milestone 3's own dogfooding: a keystroke resolves to an `Action` type,
+    // the action bubbles the focus chain, and anything nothing in the chain
+    // handles arrives at `Window.onAction` below. The old switch on
+    // `charactersIgnoringModifiers` still worked and said nothing about the
+    // subsystem this milestone built.
+    //
+    // **The comment this replaces claimed "there is no hit-testing in the
+    // framework yet", and that is now false in three separate ways**: the frame
+    // owns one hitbox list, wheel routing and click dispatch both rank against
+    // it, and the counter above registers a click target on it.
+    //
+    // Two independent ways to see the theme switch remain, because they fail
     // separately. The system path (§7.9) is the real one — toggle Appearance in
     // System Settings or Control Center and the window follows
-    // `NSApp.effectiveAppearance`. The space bar below sets `window.theme`
-    // directly, so a human can compare the two variants without leaving the app;
-    // a later system change overwrites it, which is the correct precedence and
-    // not a bug to chase.
+    // `NSApp.effectiveAppearance`. **Space** below sets `window.theme` directly,
+    // so a human can compare the two variants without leaving the app; a later
+    // system change overwrites it, which is the correct precedence and not a bug
+    // to chase.
     //
     // Both paths are covered by tests up to the point where the scene is handed
     // to the renderer. What the demo adds, and no test can, is that the frame
     // reaches a drawable someone is looking at — `MetalLayerSurface` vends
     // drawables just as happily into an orphaned layer.
     //
-    // **M toggles the modal**, and the key was chosen for not colliding with
-    // the space bar above. `Window` re-invokes the content closure every frame
-    // and marks itself dirty after every input event either way, so flipping
-    // `showModal` here is the whole mechanism — there is no hit-testing in the
-    // framework yet and this needs none.
-    window.onInput = { [weak window] event in
-        guard let window, case .keyDown(let key) = event else { return false }
-        switch key.charactersIgnoringModifiers {
-        case " ":
+    // **`=` and `-` carry `context: "Counter"`, and that is design spec §4.3
+    // rather than decoration.** The predicate is matched against the contexts
+    // contributed by the *focus chain*, and `CounterPanel` is the only element
+    // contributing `Counter` — so the two counter bindings exist only while the
+    // counter is focused, and the same keys are free for anything else the rest
+    // of the time. Unfocus with **Escape** and press `=`: nothing happens, and
+    // nothing swallows the keystroke either (an action nobody handles falls
+    // through to `onKey` and then to `onInput`).
+    //
+    // `shift-+` is bound alongside `=` because `charactersIgnoringModifiers`
+    // folds shift in: the same physical key reports `"="` with no modifiers and
+    // `"+"` with shift, and `Keystroke.matches` compares the modifier set
+    // exactly rather than by containment, so one spelling cannot cover both.
+    window.keymap = Keymap {
+        Binding("=", Increment(), context: "Counter")
+        Binding("shift-+", Increment(), context: "Counter")
+        Binding("-", Decrement(), context: "Counter")
+        Binding("f", FocusCounter())
+        Binding("escape", ClearFocus())
+        Binding("space", ToggleTheme())
+        Binding("m", ToggleModal())
+    }
+
+    // **The window's fallback, which is what makes a binding work with nothing
+    // focused.** `Increment` and `Decrement` never reach here — `CounterPanel`
+    // registers handlers for both and the chain runs first — so the four cases
+    // below are exactly the actions no element owns.
+    //
+    // `[weak window]`, because this closure is stored **on** the window:
+    // `window.onAction = { window.… }` closes a retain cycle immediately, with
+    // no frame drawn and nothing that ever clears it (`Window.onAction`'s own
+    // doc comment).
+    window.onAction = { [weak window] action in
+        guard let window else { return false }
+        switch action {
+        case is ToggleTheme:
             window.theme = window.theme == .dark ? .light : .dark
             return true
-        case "m", "M":
+        case is ToggleModal:
             showModal.toggle()
+            return true
+        case is FocusCounter:
+            // `counterID` is `nil` only before the first frame has been laid
+            // out, and `focus(nil)` is the correct answer then rather than an
+            // error: there is nothing to focus yet.
+            window.focus(counterID)
+            return true
+        case is ClearFocus:
+            window.focus(nil)
             return true
         default:
             return false
         }
     }
+
+    // Published for `CounterPanel`, which focuses itself once on its first
+    // layout so `=` and `-` work without a human having to press **F** first.
+    // Assigned before `app.run()` for that reason — the first frame is drawn by
+    // the display link, which does not start until then.
+    //
+    // **That sentence was false for the whole milestone**, and the fix is in
+    // `Window`, not here: `drawFrameIfNeeded` read `focusedElement` back from
+    // the frame unconditionally, overwriting a `focus(_:)` call made *during*
+    // that render with the value the frame had been handed. The counter was
+    // never focused at launch. The read-back is guarded now — see its comment,
+    // and `focusingFromInsideAFrameSurvivesThatFrame`.
+    demoWindow = window
 
     app.run()
 }

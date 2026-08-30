@@ -173,6 +173,9 @@ private struct FrameCounter: Element, StyledElement {
     var style = Style()
     var decoration = Decoration()
     var elementID: ElementID? = ElementID("counter")
+    // `StyledElement`'s fourth requirement. This probe registers no click
+    // target — nothing calls `registerHandlers` — so it stays at the empty set.
+    var handlers: Handlers = Handlers()
     let seen: Counts
 
     @MainActor final class Counts { var values: [Int] = [] }
@@ -294,7 +297,8 @@ private struct FrameCounter: Element, StyledElement {
     }
 
     let handled = platformWindow.simulateInput(
-        .keyDown(KeyEvent(charactersIgnoringModifiers: " ", characters: " ")))
+        .keyDown(KeyEvent(charactersIgnoringModifiers: " ", characters: " ",
+                          timestamp: 0)))
     #expect(seen == [" "], "the event never reached the handler")
     #expect(handled, "the handler's answer did not reach the host, so AppKit would keep propagating a consumed event")
     #expect(window.needsRedraw)
@@ -305,7 +309,8 @@ private struct FrameCounter: Element, StyledElement {
     #expect(!window.needsRedraw)
 
     let unhandled = platformWindow.simulateInput(
-        .keyDown(KeyEvent(charactersIgnoringModifiers: "x", characters: "x")))
+        .keyDown(KeyEvent(charactersIgnoringModifiers: "x", characters: "x",
+                          timestamp: 0)))
     #expect(seen == [" ", "x"])
     #expect(!unhandled, "an unhandled event was reported as handled")
     #expect(window.needsRedraw)
@@ -322,7 +327,8 @@ private struct FrameCounter: Element, StyledElement {
     #expect(window.onInput == nil)
 
     let handled = platformWindow.simulateInput(
-        .keyDown(KeyEvent(charactersIgnoringModifiers: "q", characters: "q")))
+        .keyDown(KeyEvent(charactersIgnoringModifiers: "q", characters: "q",
+                          timestamp: 0)))
     #expect(!handled)
     #expect(window.needsRedraw, "input must dirty the window even with no handler — that is how M0's redraw-on-input behaviour survives")
 }

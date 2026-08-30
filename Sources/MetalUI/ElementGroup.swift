@@ -109,6 +109,7 @@ extension Element {
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], SingleElementLayout<Self>) {
         let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
+        StateBinder.bind(self, table: pass.frame.stateTable, id: id)
         cursor += 1
         let (node, state) = requestLayout(id, pass: &pass)
         return ([node], SingleElementLayout(id: id, node: node, state: state))
@@ -531,15 +532,34 @@ extension AnyElement: ElementGroup {
         var node: LayoutNodeID
     }
 
-    /// Identical to `Element`'s default: an erased element is still one element
-    /// and therefore one index.
+    /// Identical to `Element`'s default for the CURSOR: an erased element is
+    /// still one element and therefore one index.
+    ///
+    /// **No longer identical for `@State`, and this paragraph used to claim
+    /// it was.** `Element`'s default `requestGroupLayout` (`ElementGroup.swift`
+    /// above) seeds every `@State` the element declares through
+    /// `StateBinder.bind`, right after computing `id`. This one never gained
+    /// that line: `Mirror(reflecting: anyElement)` sees only the boxed `any
+    /// ElementObject`, not the erased element's own stored properties, so
+    /// there is nothing here `StateBinder` could reflect even if the call
+    /// were added. `@State` inside an `AnyElement` therefore returns its
+    /// initial value forever, silently — see the declared-but-inert table in
+    /// `CLAUDE.md`. Closing this needs a hook on `ElementObject` or
+    /// reflection inside `AnyElementBox` itself, which is a design decision
+    /// and not this comment's job; `AnyElement`'s own callers are all in the
+    /// test suite today (nothing in `ElementBuilder` produces one), which is
+    /// the only reason nothing in production has hit it yet.
     ///
     /// **A second copy of the cursor advance, and it was unguarded until
     /// `twoErasedSiblingsDoNotShareOneStateEntry`.** "Identical to `Element`'s
-    /// default" is a claim about two separate lines, and `Element`'s tests
+    /// default" was a claim about two separate lines, and `Element`'s tests
     /// cannot reach this one — nothing in the suite put two `AnyElement`s with
     /// cross-frame state in one container, so deleting the `cursor += 1` below
-    /// left all 358 green. It now reddens exactly that test.
+    /// left all 358 green. It now reddens exactly that test. The same
+    /// duplication is why this file's seeding line went missing in the first
+    /// place: the two `requestGroupLayout`s are hand-kept in sync rather than
+    /// sharing an implementation, and this is the second thing to go missing
+    /// from the copy, not the first.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)

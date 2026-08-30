@@ -144,13 +144,17 @@ public struct LayoutPass {
 /// been painted yet, which is what makes this the only correct place to register
 /// hit-test, focus, scroll and accessibility structure.
 ///
-/// **Scroll registers now; general hit-test, focus and accessibility still do
-/// not.** `registerScrollRegion` below is the first `register…` method this
-/// pass gained, and it is deliberately scoped to scroll rather than general —
-/// see its doc comment. `Frame` still owns no hitbox, focus or accessibility
-/// store, so there is nothing for a broader `register…` method to write into
-/// and none is declared; input and focus bring theirs (M3), accessibility
-/// brings its own (§9).
+/// **Scroll, general hit-test and focus all register now; accessibility still
+/// does not.** `registerScrollRegion` was the first `register…` method this
+/// pass gained and `insertHitbox` is the second, and they write to the same
+/// hitbox registry on `Frame` — the first is the second with a scroll axis
+/// attached (design spec §3.1). Focus is the third, and it has **no method of
+/// its own**: `registerHandlers` writes both the hitbox and `Frame`'s focus
+/// registry, because an element that binds a click and an element that binds a
+/// key are the same element asking through the same `Handlers` value, and two
+/// calls would be two chances for a conformer to forget one. `Frame` still owns
+/// no accessibility store, so there is nothing for a `registerAXNode` to write
+/// into and none is declared; accessibility brings its own (§9).
 @MainActor
 public struct PrepaintPass {
     let frame: Frame
@@ -196,9 +200,11 @@ public struct PrepaintPass {
 
     /// Records a region that consumes scroll wheel events.
     ///
-    /// **A hitbox list scoped to scroll, not the general hit-test system** —
-    /// see `Frame.scrollRegions`'s doc comment for the split and what §8.1
-    /// widens later.
+    /// **`insertHitbox` with a scroll axis attached, into the same list** —
+    /// design spec §3.1's fold. Kept as its own spelling because a scroller is
+    /// the one kind of hitbox with a payload, and because the two decisions it
+    /// makes for its caller (`opaque: true`, and which axis) are the whole of
+    /// what distinguishes it.
     ///
     /// Registration happens here rather than in `paint` because §8.1 requires
     /// it after positions resolve and before the first primitive is emitted —
@@ -208,27 +214,96 @@ public struct PrepaintPass {
         frame.registerScrollRegion(bounds, id: id, axis: axis)
     }
 
+    /// Registers a hitbox for `id` at `bounds`, returning a handle to it.
+    ///
+    /// Design spec §3.2, and §8.1 of the framework spec before it: registration
+    /// belongs here because prepaint is the only phase where positions have
+    /// resolved and nothing has been emitted yet.
+    ///
+    /// The content mask and the layer come from the active stacks rather than
+    /// from parameters — §8.1 sketched `insertHitbox(bounds, contentMask,
+    /// opaque:)`, and by the time this landed the clip stack already carried
+    /// the mask, so passing one would be a second source for a quantity the
+    /// frame already knows. `bounds` is translated and clipped on the way in;
+    /// see `Frame.insertHitbox`.
+    ///
+    /// **`opaque: false` is not "invisible"** — the hitbox is registered and
+    /// listed, and `Frame.topmostHitbox(at:)` walks straight through it to
+    /// whatever is beneath.
+    ///
+    /// The returned handle is valid for **this frame only**: the list is
+    /// rebuilt each frame. Anything that has to survive a frame keys on the
+    /// `GlobalElementID` passed in here instead.
+    @discardableResult
+    public func insertHitbox(_ bounds: Bounds<Pixels>, id: GlobalElementID,
+                             opaque: Bool) -> HitboxID {
+        frame.insertHitbox(bounds, id: id, opaque: opaque)
+    }
+
+    /// Registers `handlers`: an **opaque** hitbox at `bounds` when it carries a
+    /// pointer callback, an entry in this frame's focus registry when it
+    /// carries a keyboard one, and nothing at all when it carries neither.
+    ///
+    /// **Two gates, not one, and the separation is load-bearing.** A hitbox is
+    /// opaque, and an opaque hitbox swallows the wheel of any `ScrollView` it
+    /// sits inside (`Window.applyScroll`) — so registering one for every
+    /// *focusable* element would stop a list of focusable rows scrolling. See
+    /// `Handlers` for both gates and `focusabilityAndKeyHandlingRegisterNoPointerHitbox`
+    /// for the pin.
+    ///
+    /// **Focus registration needs no geometry and rides here anyway.** Nothing
+    /// on the keyboard side reads `bounds`; the registration is folded into
+    /// this call so a conformer writes one line rather than two and cannot
+    /// implement half of `StyledElement`'s `handlers` requirement.
+    ///
+    /// **`insertHitbox` with a handler set attached, into the same list** —
+    /// the click half of design spec §3.1's fold, and `registerScrollRegion`'s
+    /// exact shape one field over. Kept as its own spelling for
+    /// `registerScrollRegion`'s reason: the two decisions it makes for its
+    /// caller (`opaque: true`, and *whether to register at all*) are the whole
+    /// of what distinguishes it from the general call above.
+    ///
+    /// **The empty-set gate is the load-bearing half.** An element with no
+    /// handlers must not register: an opaque hitbox for every `Box` would
+    /// shadow whatever it covers and would swallow the wheel of any
+    /// `ScrollView` it sits inside, since Task 7 made a wheel event stop at the
+    /// topmost opaque hitbox whatever that hitbox is. So `onClick` is what
+    /// makes a box a hit target, and a box without one stays transparent.
+    ///
+    /// Public rather than internal because `StyledElement` and its `handlers`
+    /// requirement are public: an element type outside this module can store a
+    /// `Handlers` and would otherwise have no way to make it do anything —
+    /// which is precisely CLAUDE.md's declared-and-inert shape, arrived at by
+    /// access control instead of by omission.
+    public func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
+                                 id: GlobalElementID) {
+        frame.registerHandlers(handlers, at: bounds, id: id)
+    }
+
     /// Runs `body` with the layer hoisted to the root layer and the clip
     /// stack reset to the whole surface — `Deferred`'s portal (design spec
     /// §4.2). See `PaintPass.deferred(_:)` for the full account of why a
     /// portal resets both.
     ///
     /// **On this pass, and not only `PaintPass`, because of hit-testing.**
-    /// The scroll-region registry is built here, in prepaint — a tooltip that
-    /// paints above its siblings while receiving wheel events as if it were
-    /// still beneath them is worse than one that does neither. Both halves of
-    /// the portal have a reader on this pass, and they close different holes:
+    /// Both registries — scroll regions and hitboxes — are built here, in
+    /// prepaint: a tooltip that paints above its siblings while receiving
+    /// events as if it were still beneath them is worse than one that does
+    /// neither. Both halves of the portal have a reader on this pass, and they
+    /// close different holes:
     ///
-    /// - the **clip reset**, because `registerScrollRegion` records a region
-    ///   intersected against whatever clip is active at registration time, so
-    ///   a region registered inside `deferred` is recorded against the whole
-    ///   surface rather than an ancestor `ScrollView`'s viewport;
-    /// - the **layer hoist**, because the registration carries `activeLayer`
-    ///   and `Window.applyScroll` orders candidates by it. A hoisted subtree is
-    ///   still *emitted* where it was declared, so it can register before a
-    ///   region it paints on top of; registration order alone would then hand
-    ///   the wheel to the covered scroller. `Frame.scrollRegions` carries the
-    ///   reasoning.
+    /// - the **clip reset**, because a hitbox is recorded against whatever clip
+    ///   is active at registration time, so something registered inside
+    ///   `deferred` is recorded against the whole surface rather than an
+    ///   ancestor `ScrollView`'s viewport. It also takes the reset *offset*,
+    ///   which is what stops a modal's scrim from tracking a scroll it is not
+    ///   in flow for (ruling AP-I) — and since scroll regions fold into the
+    ///   same list, that now holds for a scroller inside a portal too;
+    /// - the **layer hoist**, because every registration carries `activeLayer`
+    ///   and `topmostOpaqueHitbox(in:at:)` ranks by it. A hoisted subtree is
+    ///   still *emitted* where it was declared, so it can register before
+    ///   something it paints on top of; registration order alone would then
+    ///   hand the event to the covered element.
     ///
     /// Closure form rather than push/pop, for the reason `clipped(to:offsetBy:)`
     /// above already gives: an unbalanced stack is not expressible.
@@ -385,6 +460,85 @@ public struct PaintPass {
     /// Emits one glyph sprite. See `Frame.draw(_:color:)`.
     func draw(_ glyph: PlacedGlyph, color: Hsla) {
         frame.draw(glyph, color: color)
+    }
+
+    // MARK: - Hover and active (design spec §3.3, §3.4)
+
+    /// Whether `id` — a handle returned from **this frame's** `insertHitbox`
+    /// call, in `prepaint` — is the topmost hitbox under the pointer.
+    ///
+    /// Resolved once, at the prepaint/paint boundary (`Frame.resolveHover(at:)`),
+    /// against every hitbox the frame registered — not computed here and not
+    /// per-call, so two elements asking in the same frame see the same answer
+    /// regardless of which asks first, and there is no one-frame lag between a
+    /// hitbox registering and this returning the right thing for it.
+    ///
+    /// A `HitboxID` is the right key here, not `GlobalElementID`: hover is
+    /// per-frame state resolved from a position, the opposite of `isActive`
+    /// below, which must survive frames `HitboxID` cannot (see `HitboxID`'s own
+    /// doc comment).
+    public func isHovered(_ id: HitboxID) -> Bool {
+        frame.hoveredHitbox == id
+    }
+
+    /// Whether the pointer is over the hitbox `id` registered — the same
+    /// question as the overload above, asked with the key an element actually
+    /// has.
+    ///
+    /// **Not a second mechanism.** It reads the one resolution
+    /// `Frame.resolveHover(at:)` performed, through `Frame.hoveredElement`, so
+    /// the two overloads cannot disagree about a frame.
+    ///
+    /// **It exists because `registerHandlers` returns nothing.** The
+    /// `HitboxID`-keyed overload is the precise one and is what
+    /// `PrepaintPass.insertHitbox`'s callers should use, a `HitboxID` naming
+    /// one registration; but `PrepaintPass.registerHandlers(_:at:id:)` — the
+    /// path every `StyledElement` takes — hands back no index, so `Box` and
+    /// every other conformer has only its `GlobalElementID` when `paint` runs.
+    /// Adding a return value there instead would change `Box.PrepaintState`,
+    /// which is `Content.GroupPrepaint`, and ripple through every container's
+    /// associated types; this overload is the same answer for one line.
+    ///
+    /// The two keys coincide only because an element registers at most one
+    /// hitbox — see `Frame.hoveredElement` for the whole of that argument.
+    public func isHovered(_ id: GlobalElementID) -> Bool {
+        frame.hoveredElement == id
+    }
+
+    /// Whether `id` is holding "active" state — the element whose hitbox
+    /// received `mouseDown` and has not yet seen `mouseUp` (design spec §3.4).
+    ///
+    /// Keyed by `GlobalElementID`, unlike `isHovered(_:)` above, because active
+    /// state is cross-frame by definition: it must survive every frame between
+    /// the two events, including one in which the element holding it was
+    /// rebuilt. `Window` is the sole writer — see `Frame.activeElement`'s doc
+    /// comment for why a `Frame` cannot own it.
+    public func isActive(_ id: GlobalElementID) -> Bool {
+        frame.activeElement == id
+    }
+
+    /// Whether `id` holds keyboard focus — what a focus ring is drawn from
+    /// (design spec §4.2).
+    ///
+    /// Keyed by `GlobalElementID` for `isActive`'s reason: focus is window
+    /// state that survives every frame between the two events that move it, and
+    /// a per-frame index cannot key anything that outlives its frame.
+    ///
+    /// **This is the frame's RESOLVED answer, not the value `Window` handed
+    /// in.** `Frame.resolveFocus()` runs at the prepaint/paint boundary and
+    /// clears a focused id this frame did not produce, so an element that
+    /// vanished — or stopped being `.focusable()` — reads as unfocused on the
+    /// very frame that drops it rather than one frame late.
+    ///
+    /// **Paint only, and unlike `isActive` that is a measured restriction
+    /// rather than symmetry.** During `prepaint` the focus registry is still
+    /// being built, so the clearing above has not happened yet and this would
+    /// answer from the pre-clearing value: measured, a focused element that has
+    /// stopped registering as focusable reads `true` in its own `prepaint` and
+    /// `false` in its own `paint` in the same frame.
+    /// `queryingFocusDuringPrepaintDoesNotCompile` is the guard.
+    public func isFocused(_ id: GlobalElementID) -> Bool {
+        frame.focusedElement == id
     }
 }
 

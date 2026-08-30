@@ -38,6 +38,30 @@ public final class Frame {
     /// that passes a real one.
     public let timestamp: Double
 
+    /// The last known mouse position, or `nil` before any mouse event has ever
+    /// reached the window. `Window` is the only owner of "last known" — it
+    /// survives across frames the way `timestamp`'s underlying clock does not —
+    /// and hands the current value in here on construction, the same way it
+    /// hands in `theme` and `timestamp`.
+    ///
+    /// This is the input `resolveHover(at:)` reads at the prepaint/paint
+    /// boundary (design spec §3.3). Defaulted to `nil` for the same reason
+    /// `timestamp` defaults to `0`: every existing `Frame(...)` call site keeps
+    /// compiling, and a frame built with no position registers no hover at all
+    /// — there is nothing to resolve against.
+    let mousePosition: Point<Pixels>?
+
+    /// The element holding "active" state this frame — the hitbox that
+    /// received `mouseDown` and has not yet seen `mouseUp` (design spec §3.4).
+    ///
+    /// **Handed in from `Window`, not computed here**, because active state
+    /// must survive the frames between `mouseDown` and `mouseUp` and a `Frame`
+    /// does not: it is discarded at the end of `drawFrameIfNeeded`
+    /// (`Window.swift`). Keyed by `GlobalElementID` rather than `HitboxID` for
+    /// `HitboxID`'s own reason — a per-frame index cannot key anything that
+    /// outlives the frame that issued it.
+    let activeElement: GlobalElementID?
+
     /// Set by an element that needs another frame — an in-progress animation.
     ///
     /// **A borrowed M4 primitive** (spec §8 of the clipping/scroll design): the
@@ -338,16 +362,57 @@ public final class Frame {
         return strictlyInside ? (bounds, innerRadii) : (bounds, Corners(all: Pixels(0)))
     }
 
-    /// Scroll regions registered this frame, in prepaint order.
+    /// Scroll regions registered this frame, in prepaint order — a **derived
+    /// view** of `hitboxes` below, not a list of its own.
     ///
-    /// **A hitbox list scoped to scroll, and named as such rather than
-    /// generalised.** §8.1's eventual signature is `insertHitbox(bounds,
-    /// contentMask, opaque:)` and takes exactly this stack's product — the
-    /// active clip at registration time, paired with an id — so the hit-test
-    /// sub-project widens this list rather than replacing it. This is *not*
-    /// the general hit-test system: it exists only to answer "which region did
-    /// this wheel event land in", nothing else consumes it, and nothing here
-    /// tracks opacity or z-order beyond registration sequence.
+    /// **This used to be a second registry and is not one any more** (design
+    /// spec §3.1). It was a hitbox list in miniature — bounds intersected with
+    /// the active clip, carrying a layer, registered in prepaint, picked by
+    /// `(layer, registration order)` — and it differed from the general list in
+    /// exactly two ways, both of which were defects rather than features: it
+    /// tracked no opacity, so nothing could swallow a wheel event, and it
+    /// recorded its bounds **untranslated** while `insertHitbox` translated
+    /// them, so a `ScrollView` nested inside an already-scrolled `ScrollView`
+    /// registered in the wrong space and lost **part of its hit area** — the
+    /// part the untranslated rect misses — to whatever is underneath (ruling
+    /// IN-F, pinned by
+    /// `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`).
+    /// **Not all of it**, and the difference matters to anyone diagnosing this:
+    /// measured on that test's own fixture with the fix reverted, a wheel at
+    /// `(100, 120)` went to the OUTER scroller while one at `(100, 170)` still
+    /// reached the inner one. "No events at all" was true only of Task 5's
+    /// degenerate probe, whose ancestor clip happened to cut the misplaced rect
+    /// to zero height; generalising from it would send someone who tests the
+    /// lower half of a nested scroller away satisfied.
+    ///
+    /// Kept as an accessor because a scroller is the one kind of hitbox with a
+    /// payload, and "the scrolling ones" is a question several tests ask. The
+    /// tuple shape is preserved so every assertion written against the old
+    /// registry keeps reading the same fields.
+    ///
+    /// **Test observability, and it has ZERO production readers** — the same
+    /// status `Window.lastScrollRegions` states in its own first line, and the
+    /// reason this sentence exists is that the two used to disagree about
+    /// saying so. `Window.applyScroll` ranks against `lastHitboxes` directly,
+    /// `Window.lastScrollRegions` derives its own view from that same array
+    /// rather than calling this one, and every other consumer went with them
+    /// when the two lists folded into one.
+    ///
+    /// **Check with `grep -rn "scrollRegions" Sources/`, which returns five
+    /// lines and no call site at all**: this declaration; the line you are
+    /// reading and one in `Window.swift`, both doc comments; and two references
+    /// in `Hitbox.swift`'s prose. **The pattern is case-sensitive, so it does
+    /// NOT match `Window.lastScrollRegions`' own declaration** — it finds one
+    /// declaration, not two, and a case-INSENSITIVE sweep
+    /// (`grep -rni "scrollregions" Sources/`) is what sees both. No count is
+    /// quoted for that one on purpose: it also matches every prose mention,
+    /// including this paragraph, so it moves whenever the comments move — the
+    /// trap the `evictUnusedSince` row in CLAUDE.md has now been caught by
+    /// twice. The load-bearing half is "no call site", which
+    /// holds under either pattern; the counting half did not survive being run,
+    /// and this paragraph is its second draft. It reads
+    /// like a live API and is not one — `LayoutTree.reset(generation:)`'s exact
+    /// shape, and CLAUDE.md's declared-but-inert table carries the row.
     ///
     /// **`axis` rides along because routing, not `ScrollState`, is what needs
     /// it.** A `ScrollView` already knows its own axis and maps the stored
@@ -363,20 +428,219 @@ public final class Frame {
     /// that does neither (`PrepaintPass.deferred`). Registration order alone
     /// cannot express that: a hoisted subtree is emitted wherever it was
     /// declared, so it can register before a sibling it paints on top of.
-    private(set) var scrollRegions:
-        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis, layer: Int)] = []
+    var scrollRegions:
+        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis, layer: Int)] {
+        hitboxes.compactMap { box in
+            box.scroll.map { (box.bounds, box.id, $0, box.layer) }
+        }
+    }
 
-    /// Records a scroll region at its **clipped** bounds — the intersection of
-    /// its own rect with whatever ancestor clip is active when it registers.
+    /// Records a scroll region — an **opaque hitbox carrying a scroll axis**.
     ///
-    /// The CLIPPED bounds, not the raw ones: a nested scroller positioned
-    /// outside its ancestor's viewport window (whether because the ancestor's
-    /// content overflows past that scroller, or because the ancestor itself is
-    /// scrolled) must not receive wheel events for the area it cannot actually
-    /// show. Storing the raw, un-intersected bounds instead would let a wheel
-    /// event land on a region the user cannot see.
+    /// `opaque: true` because a scroller consumes the point it is under: a
+    /// non-opaque record is skipped by `topmostOpaqueHitbox(in:at:)` and could
+    /// never receive a wheel event at all.
+    ///
+    /// Everything about *where* the record lands is `insertHitbox`'s, and that
+    /// is the whole point of routing through it — the translating convention
+    /// used to be `insertHitbox`'s alone and this function's omission of it was
+    /// a live routing defect. See `insertHitbox`.
     func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis) {
-        scrollRegions.append((Self.intersect(activeClip, bounds), id, axis, activeLayer))
+        _ = insertHitbox(bounds, id: id, opaque: true, scroll: axis)
+    }
+
+    /// Hitboxes registered this frame, in prepaint order — **the one list**.
+    ///
+    /// Rebuilt from scratch every frame, exactly like the `LayoutTree` — which
+    /// is why a `HitboxID` is a per-frame handle and every record carries a
+    /// `GlobalElementID` for anything that must outlive one.
+    private(set) var hitboxes: [Hitbox] = []
+
+    /// Records a hitbox at the rect it actually **paints** at: translated by
+    /// the active offset, then intersected with the active clip, carrying the
+    /// active layer.
+    ///
+    /// **The translation is what makes a hit land on the pixels the user is
+    /// pointing at.** `PaintPass.fill` adds `activeOffset` before emitting, so
+    /// a row inside a `ScrollView` scrolled by 30 draws thirty points above
+    /// where `bounds(of:)` reports it; a hitbox recorded at the untranslated
+    /// rect would sit thirty points below what is on screen, and the error
+    /// would grow with the scroll.
+    ///
+    /// **`registerScrollRegion` used to omit it, and that was a live routing
+    /// defect** — ruling IN-F, fixed by folding it through here. `ScrollView.prepaint`
+    /// registers *outside* its OWN `clipped(to:offsetBy:)` block, which zeroes
+    /// only its own contribution; an **ancestor** scroller's is still in
+    /// effect, because the inner element's whole `prepaint` runs inside the
+    /// outer's block. Measured through a real `Frame.render` with the outer
+    /// scrolled by 50: the inner scroller registered `(0, 150) 200x50` — 50pt
+    /// low and cut in half by the ancestor clip — while painting at
+    /// `(0, 100) 200x100`, so a wheel over its visible top half went to the
+    /// OUTER scroller instead.
+    ///
+    /// The **clipped** bounds, not the raw ones: a nested scroller positioned
+    /// outside its ancestor's viewport window must not receive events for the
+    /// area it cannot actually show. Storing the raw, un-intersected bounds
+    /// instead would let an event land on a region the user cannot see.
+    ///
+    /// `id` is a parameter rather than something derived here because the
+    /// returned `HitboxID` is a per-frame index and cannot key anything that
+    /// survives a frame — hover, active state and a scroller's offset all need
+    /// the element's own id. Every prepaint site has one in hand already.
+    ///
+    /// `scroll` and `handlers` both default to empty — an ordinary hitbox is
+    /// neither a scroller nor a click target — so the public
+    /// `PrepaintPass.insertHitbox` needs no payload parameter, and
+    /// `registerScrollRegion` and `registerHandlers` stay the two spellings
+    /// that supply one each.
+    func insertHitbox(_ bounds: Bounds<Pixels>, id: GlobalElementID,
+                      opaque: Bool, scroll: ScrollAxis? = nil,
+                      handlers: Handlers = Handlers()) -> HitboxID {
+        let translated = Bounds(
+            origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                          y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+            size: bounds.size)
+        hitboxes.append(Hitbox(bounds: Self.intersect(activeClip, translated),
+                               id: id, layer: activeLayer, opaque: opaque, scroll: scroll,
+                               handlers: handlers))
+        return HitboxID(index: hitboxes.count - 1)
+    }
+
+    /// Records a click target — an **opaque hitbox carrying a handler set** —
+    /// and does nothing at all when `handlers` is empty.
+    ///
+    /// **The empty case is the interesting one**, and it is why this exists
+    /// rather than every element calling `insertHitbox` behind its own `guard`.
+    /// A hitbox registered for an element that asked for nothing would be
+    /// opaque, would shadow whatever it covers, and — since Task 7 folded
+    /// scroll regions into this list — would swallow the wheel of any
+    /// `ScrollView` it sits inside. Every `Box` in this framework is a
+    /// potential caller, so that gate has to be in one place and not in six.
+    ///
+    /// `opaque: true` for the same reason a scroller is: a click target
+    /// consumes the point. Non-opaque would mean a modal scrim could not
+    /// swallow clicks aimed at what it covers, which is the sibling property of
+    /// the wheel swallow this milestone's exit criterion 4 is about.
+    func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
+                          id: GlobalElementID) {
+        // The keyboard side first, and unconditionally: focus registration is
+        // not gated on the pointer gate below, and an element can ask for one
+        // without the other. `register` gates itself on `isKeyTarget`.
+        focusRegistry.register(handlers, id: id)
+        guard handlers.isPointerTarget else { return }
+        _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
+    }
+
+    // MARK: - Focus (design spec §4.2)
+
+    /// What each element asked for on the keyboard side this frame, built
+    /// during `prepaint` by `registerHandlers` above.
+    ///
+    /// **Registered in prepaint, alongside hitboxes and for the same reason**
+    /// (§4.2, and §8.1 before it): it is the one phase where positions have
+    /// resolved and nothing has been emitted yet. Focus itself needs no
+    /// geometry — nothing here reads `bounds` — but the registration rides on
+    /// the call that does, so a conformer that registers its click target
+    /// registers its focusability in the same line and cannot forget one.
+    ///
+    /// `Window` captures this after the frame the way it captures `hitboxes`,
+    /// because the frame is gone by the time a key event arrives.
+    private(set) var focusRegistry = FocusRegistry()
+
+    /// The focused element for this frame — handed in from `Window`, then
+    /// **cleared here** by `resolveFocus()` if this frame did not produce it.
+    ///
+    /// A `var` rather than a `let`, unlike `activeElement`, and that difference
+    /// is the whole of §4.2's dangling rule: `Window` reads this back after
+    /// `render` returns, so the clearing decision is made against the registry
+    /// the frame actually built rather than against the previous frame's.
+    private(set) var focusedElement: GlobalElementID?
+
+    /// Drops focus when the focused element was not produced this frame
+    /// (design spec §4.2).
+    ///
+    /// **Called once per frame, from `render`, at the prepaint/paint boundary
+    /// — beside `resolveHover(at:)` and for its reason.** "Was it produced" is
+    /// not knowable until every element's `prepaint` has run, so asking earlier
+    /// would answer from a half-built registry; asking later, after `paint`,
+    /// would let this frame paint a focus ring for an element it has already
+    /// decided is not focused.
+    ///
+    /// **There are no tombstones**, and this is why the answer is "clear it"
+    /// rather than "remember it for later". Design spec §4.3 records that
+    /// `StateTable` entries are reaped rather than kept as invalid-reporting
+    /// placeholders, and that exit transitions wait on that mechanism; focus
+    /// sits on the same footing. The consequence — a focused row scrolled out
+    /// of a `List`'s window loses focus, and scrolling back does not restore it
+    /// — is recorded as a candidate divergence rather than fixed here.
+    ///
+    /// A free method rather than a step inlined into `render`, so a test can
+    /// drive `PrepaintPass` directly and resolve focus explicitly, exactly as
+    /// `resolveHover(at:)` allows.
+    func resolveFocus() {
+        guard let focused = focusedElement else { return }
+        if !focusRegistry.isFocusable(focused) { focusedElement = nil }
+    }
+
+    /// The topmost **opaque** hitbox containing `point`, or `nil` when nothing
+    /// opaque is under it.
+    ///
+    /// A thin wrapper over `topmostOpaqueHitbox(in:at:)`, which is the single
+    /// copy of the ranking and carries its reasoning. `Window` calls the same
+    /// function against its own captured copy of the last frame's list, because
+    /// the frame that built it is gone by the time an input event arrives.
+    func topmostHitbox(at point: Point<Pixels>) -> HitboxID? {
+        topmostOpaqueHitbox(in: hitboxes, at: point).map { HitboxID(index: $0) }
+    }
+
+    /// This frame's answer to "what is the pointer over", written once by
+    /// `resolveHover(at:)` and read by `PaintPass.isHovered(_:)`. `nil` until
+    /// `resolveHover` runs, and `nil` again if it runs with nothing under the
+    /// pointer.
+    private(set) var hoveredHitbox: HitboxID?
+
+    /// The topmost hitbox under the pointer, resolved **once**, against every
+    /// hitbox registered so far — design spec §3.3.
+    ///
+    /// **Called exactly once per frame, from `render`, at the prepaint/paint
+    /// boundary — after `prepaint` has returned and before `glyphAtlas.beginFrame()`.**
+    /// "Topmost wins" is not knowable until every hitbox has registered, so
+    /// resolving during registration (or before it) would give an answer that
+    /// depends on declaration order rather than on the finished list. Resolving
+    /// here, rather than lazily on first query during `paint`, is what makes
+    /// `PaintPass.isHovered(_:)` a plain equality check with no one-frame lag:
+    /// every element's `paint` sees the same answer regardless of which of them
+    /// asks first.
+    ///
+    /// A free function rather than folded into `render` itself so a test can
+    /// drive `PrepaintPass` directly — the idiom the rest of `HitboxTests.swift`
+    /// already uses — and resolve hover explicitly, with no element and no
+    /// `Frame.render` call in the way.
+    func resolveHover(at point: Point<Pixels>?) {
+        hoveredHitbox = point.flatMap { topmostHitbox(at: $0) }
+    }
+
+    /// Which **element** owns `hoveredHitbox`, or `nil` when nothing is
+    /// hovered.
+    ///
+    /// **A derived view of `hoveredHitbox`, not a second piece of state** —
+    /// there is one resolution per frame and this reads its answer, so the two
+    /// cannot disagree. It exists because an element in `paint` has its own
+    /// `GlobalElementID` and *not* its `HitboxID`:
+    /// `PrepaintPass.registerHandlers(_:at:id:)` returns nothing, so a
+    /// conformer has nowhere to keep the index even if it wanted one. See
+    /// `PaintPass.isHovered(_ id: GlobalElementID)`.
+    ///
+    /// **The two keys coincide today and the reason is worth stating**, since
+    /// it is what makes this lookup exact rather than approximate: an element
+    /// registers at most one hitbox — `registerHandlers` is the only production
+    /// path into the list for a handler set and it is called once per element
+    /// per frame — so "this element's hitbox is hovered" and "the hovered
+    /// hitbox belongs to this element" are the same question. An element that
+    /// registered two would make this answer `true` for both, where the
+    /// `HitboxID`-keyed query would still separate them.
+    var hoveredElement: GlobalElementID? {
+        hoveredHitbox.map { hitboxes[$0.index].id }
     }
 
     /// The cross-frame state table (§4.3).
@@ -429,7 +693,10 @@ public final class Frame {
          glyphAtlas: GlyphAtlas = GlyphAtlas(width: Window.atlasExtent,
                                              height: Window.atlasExtent),
          theme: Theme = .light,
-         timestamp: Double = 0) {
+         timestamp: Double = 0,
+         mousePosition: Point<Pixels>? = nil,
+         activeElement: GlobalElementID? = nil,
+         focusedElement: GlobalElementID? = nil) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
@@ -440,6 +707,9 @@ public final class Frame {
         self.glyphAtlas = glyphAtlas
         self.theme = theme
         self.timestamp = timestamp
+        self.mousePosition = mousePosition
+        self.activeElement = activeElement
+        self.focusedElement = focusedElement
     }
 
     // MARK: - Layout phase
@@ -618,6 +888,13 @@ public final class Frame {
         // takes `.named` instead — the constructor decides, here as everywhere.
         let rootID = GlobalElementID.child(of: nil, at: 0, name: element.elementID)
 
+        // `Frame.render` calls the root's `requestLayout` directly rather than
+        // through `ElementGroup`'s default `requestGroupLayout` — that method
+        // never runs for the root at all — so this is a second, independent
+        // seeding site. A root element with `@State` would otherwise never be
+        // bound to a table or an id.
+        StateBinder.bind(element, table: stateTable, id: rootID)
+
         // Unlike the atlas's bracket below, this one wraps layout as well as
         // paint: a `Text`'s `MeasureFunction` shapes during `requestLayout`
         // and `Text.paint` shapes again at the box's final rounded width, and
@@ -636,6 +913,18 @@ public final class Frame {
         var prepaintPass = PrepaintPass(frame: self)
         var prepaintState = element.prepaint(rootID, bounds: rootBounds,
                                              layout: &state, pass: &prepaintPass)
+
+        // Hover resolves HERE — after `prepaint` has returned, so every
+        // hitbox the frame will ever have is already registered, and before
+        // `paint` runs, so `PaintPass.isHovered(_:)` has no one-frame lag
+        // (design spec §3.3). See `resolveHover(at:)`'s own doc for why this
+        // must not move to either side of this call.
+        resolveHover(at: mousePosition)
+
+        // Focus resolves HERE too, and for the same reason one phase later
+        // would be wrong: `paint` must not draw a focus ring for an element
+        // this frame has already decided is not focused. See `resolveFocus()`.
+        resolveFocus()
 
         // The atlas's frame brackets go around the paint phase and nothing
         // else, because scene construction is the whole of what they protect:
