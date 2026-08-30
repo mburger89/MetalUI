@@ -237,6 +237,33 @@ public struct PrepaintPass {
         frame.insertHitbox(bounds, id: id, opaque: opaque)
     }
 
+    /// Registers `handlers` as an **opaque** hitbox at `bounds`, or does
+    /// nothing when the set is empty.
+    ///
+    /// **`insertHitbox` with a handler set attached, into the same list** —
+    /// the click half of design spec §3.1's fold, and `registerScrollRegion`'s
+    /// exact shape one field over. Kept as its own spelling for
+    /// `registerScrollRegion`'s reason: the two decisions it makes for its
+    /// caller (`opaque: true`, and *whether to register at all*) are the whole
+    /// of what distinguishes it from the general call above.
+    ///
+    /// **The empty-set gate is the load-bearing half.** An element with no
+    /// handlers must not register: an opaque hitbox for every `Box` would
+    /// shadow whatever it covers and would swallow the wheel of any
+    /// `ScrollView` it sits inside, since Task 7 made a wheel event stop at the
+    /// topmost opaque hitbox whatever that hitbox is. So `onClick` is what
+    /// makes a box a hit target, and a box without one stays transparent.
+    ///
+    /// Public rather than internal because `StyledElement` and its `handlers`
+    /// requirement are public: an element type outside this module can store a
+    /// `Handlers` and would otherwise have no way to make it do anything —
+    /// which is precisely CLAUDE.md's declared-and-inert shape, arrived at by
+    /// access control instead of by omission.
+    public func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
+                                 id: GlobalElementID) {
+        frame.registerHandlers(handlers, at: bounds, id: id)
+    }
+
     /// Runs `body` with the layer hoisted to the root layer and the clip
     /// stack reset to the whole surface — `Deferred`'s portal (design spec
     /// §4.2). See `PaintPass.deferred(_:)` for the full account of why a

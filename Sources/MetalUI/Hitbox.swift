@@ -31,11 +31,13 @@ public struct HitboxID: Hashable, Sendable {
 }
 
 /// One registered hitbox: where it is, who owns it, how it sorts, whether it
-/// consumes the point, and — if it is a scroller — which axis it scrolls on.
+/// consumes the point, which axis it scrolls on if it is a scroller, and what
+/// it should run if it is clicked.
 ///
 /// **A struct rather than the tuple `Frame.scrollRegions` used to be.** That
-/// list had four fields and one reader; this one has five and four consumers
-/// (hover, active, wheel routing, and click dispatch to come), at which point
+/// list had four fields and one reader; this one has six and four consumers
+/// (hover, active, wheel routing and click dispatch — the last of which arrived
+/// with `onClick`), at which point
 /// positional access stops being readable at the call site. The tuple was the
 /// right shape for a list scoped to scroll; this one is not scoped — scroll
 /// regions folded into it in the task that made wheel routing walk this list
@@ -89,6 +91,28 @@ struct Hitbox {
     /// `topmostOpaqueHitbox(in:at:)` and so could never receive a wheel event
     /// however it were flagged here.
     let scroll: ScrollAxis?
+
+    /// The callbacks the owning element asked for, or an empty set when this
+    /// record is a scroller or a bare hit target.
+    ///
+    /// **On the record, exactly as `scroll` is, and for the reason `scroll`'s
+    /// own doc gives**: `Window` has to carry this list across a frame boundary
+    /// (`lastHitboxes`) so that a `mouseUp` arriving with no frame in flight
+    /// still finds the handler the button was *drawn* with. A side table keyed
+    /// by `GlobalElementID` would be a second list to rebuild in lockstep with
+    /// this one — "two lists that must be rebuilt together is precisely what
+    /// this task removed", says the paragraph above, and a handler dictionary
+    /// would have put one back under a different name. It also means there is
+    /// no `Window.lastHandlers`: capturing `lastHitboxes` captures the handler
+    /// set with it, and the two cannot disagree about which frame they are
+    /// from.
+    ///
+    /// The consequence for identity is worth stating: dispatch compares
+    /// `Hitbox.id` against the pressed `GlobalElementID` and then calls
+    /// **this** record's closure, so a click always runs the handler belonging
+    /// to the hitbox that was hit, not one looked up by name from somewhere
+    /// else.
+    let handlers: Handlers
 }
 
 /// The index of the topmost **opaque** hitbox containing `point`, or `nil` when

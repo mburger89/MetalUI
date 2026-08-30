@@ -508,6 +508,9 @@ private struct ScrollContextRecorder: Element, StyledElement {
     var style = Style()
     var decoration = Decoration()
     var elementID: ElementID?
+    // `StyledElement`'s fourth requirement. This probe registers no click
+    // target — nothing calls `registerHandlers` — so it stays at the empty set.
+    var handlers: Handlers = Handlers()
     let seen: Seen
 
     func requestLayout(_ id: GlobalElementID,
@@ -727,6 +730,9 @@ private struct HitboxProbe: Element, StyledElement {
     var style = Style()
     var decoration = Decoration()
     var elementID: ElementID?
+    // `StyledElement`'s fourth requirement. This probe registers no click
+    // target — nothing calls `registerHandlers` — so it stays at the empty set.
+    var handlers: Handlers = Handlers()
     var opaque: Bool = true
 
     func requestLayout(_ id: GlobalElementID,

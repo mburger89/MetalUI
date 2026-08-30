@@ -122,6 +122,7 @@ public struct Text: Element, StyledElement {
     public var style: Style
     public var decoration: Decoration
     public var elementID: ElementID?
+    public var handlers: Handlers = Handlers()
 
     /// The string to lay out. `let`-like in practice — the measure closure
     /// captures a copy at `requestLayout`, so mutating this afterwards affects
@@ -239,8 +240,14 @@ public struct Text: Element, StyledElement {
         return (node, Layout(node: node))
     }
 
+    /// Registers a click target when — and only when — `onClick(_:)` was
+    /// called. A `Text` with no handler registers nothing, exactly as a `Box`
+    /// with none does; `prepaint` was empty before this and is still empty for
+    /// every `Text` in the demo.
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
-                                  layout: inout Layout, pass: inout PrepaintPass) {}
+                                  layout: inout Layout, pass: inout PrepaintPass) {
+        pass.registerHandlers(handlers, at: bounds, id: id)
+    }
 
     /// Emits the background, then one sprite per inked glyph.
     ///

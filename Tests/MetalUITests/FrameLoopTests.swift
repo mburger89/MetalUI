@@ -173,6 +173,9 @@ private struct FrameCounter: Element, StyledElement {
     var style = Style()
     var decoration = Decoration()
     var elementID: ElementID? = ElementID("counter")
+    // `StyledElement`'s fourth requirement. This probe registers no click
+    // target — nothing calls `registerHandlers` — so it stays at the empty set.
+    var handlers: Handlers = Handlers()
     let seen: Counts
 
     @MainActor final class Counts { var values: [Int] = [] }

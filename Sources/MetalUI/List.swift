@@ -125,6 +125,12 @@ where Data.Element: Identifiable {
     public var decoration: Decoration
     public var elementID: ElementID?
 
+    /// Stored here and copied onto the `Box` `requestLayout` builds, because
+    /// that box is rebuilt from scratch on every frame — a `handlers` computed
+    /// through to `box` would be written before the box it wrote to was
+    /// replaced.
+    public var handlers: Handlers = Handlers()
+
     /// Retained rather than consumed in `init` — `requestLayout` is what
     /// builds the row array, reading `data` fresh every frame so the window it
     /// builds always reflects the current scroll position.
@@ -270,6 +276,9 @@ where Data.Element: Identifiable {
 
         var built = Box(style: style, decoration: decoration,
                         content: Pair(spacer, ArrayGroup(rows)))
+        // Carried onto the freshly-built box so `Box.prepaint` registers the
+        // click target — this type has no `prepaint` of its own to do it in.
+        built.handlers = handlers
         let result = built.requestLayout(id, pass: &pass)
         box = built
         return result

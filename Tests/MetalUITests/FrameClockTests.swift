@@ -10,6 +10,9 @@ private struct RequestingBox: Element, StyledElement {
     var style = Style()
     var decoration = Decoration()
     var elementID: ElementID? = ElementID("requesting")
+    // `StyledElement`'s fourth requirement. This probe registers no click
+    // target — nothing calls `registerHandlers` — so it stays at the empty set.
+    var handlers: Handlers = Handlers()
 
     func requestLayout(_ id: GlobalElementID,
                        pass: inout LayoutPass) -> (LayoutNodeID, LayoutNodeID) {
@@ -35,6 +38,9 @@ private struct TimestampRecorder: Element, StyledElement {
     var style = Style()
     var decoration = Decoration()
     var elementID: ElementID?
+    // `StyledElement`'s fourth requirement. This probe registers no click
+    // target — nothing calls `registerHandlers` — so it stays at the empty set.
+    var handlers: Handlers = Handlers()
     let seen: Seen
 
     func requestLayout(_ id: GlobalElementID,

@@ -107,11 +107,22 @@ public final class Window {
         }
     }
 
-    /// Raw input, before any dispatch.
+    /// Raw input, for whatever no element claimed.
     ///
-    /// **Not M3's hit-testing.** `Frame` holds no hitbox registry and
-    /// `PrepaintPass` exposes no way to add one, so nothing routes an event to
-    /// an element; this hands the whole event to whoever opened the window.
+    /// **The window's fallback, not its first look — and that sentence is the
+    /// correction.** This read "raw input, before any dispatch" and went on to
+    /// say `Frame` held no hitbox registry, which was true when it was written
+    /// and has not been since scroll regions, hover, active and now `onClick`
+    /// landed. Two mechanisms run ahead of it and **claim** the events they
+    /// consume: `applyScroll` takes a wheel event that lands on a scroller, and
+    /// `dispatchClick` takes a `mouseUp` that completes a click on an element
+    /// with a handler. Neither reaches here. Everything else still does —
+    /// every key event, every `mouseMoved`, and every press or release that
+    /// landed on nothing interactive.
+    ///
+    /// `updatePointerState` runs ahead of both and claims nothing: hover and
+    /// active are side-channel state a later frame reads back, not a delivery.
+    ///
     /// Returning `true` means handled. The window marks itself dirty either
     /// way, because it cannot know whether the handler changed anything.
     public var onInput: ((InputEvent) -> Bool)?
@@ -238,15 +249,40 @@ public final class Window {
             // Hover and active tracking run first and unconditionally, and
             // never claim the event: they are side-channel state a later
             // frame's `paint` reads back (§3.3, §3.4), not a form of dispatch.
-            // Click dispatch is a separate, later mechanism (§3.5/design spec
-            // §8.2's "cut, deliberately" list) built on top of this state, not
-            // part of it.
+            // Click dispatch, below, is a separate mechanism built *on top of*
+            // that state rather than part of it — which is exactly why the
+            // next line exists.
+            //
+            // **`active` is read HERE, before `updatePointerState`, and this
+            // one line is the difference between clicks working and clicks
+            // silently never firing.** That method's `.mouseUp` case clears
+            // `active` unconditionally, and it runs first and unconditionally
+            // — so a dispatcher that asked `self.active` at release time would
+            // read `nil` every time, with every hitbox correct, every handler
+            // registered and nothing anywhere to indicate a fault. Measured on
+            // exactly that spelling before this line existed: all eight click
+            // tests in `InputDispatchTests` at the time stayed red, while
+            // `onlyABoxWithAHandlerRegistersAHitbox` — the one that checks
+            // registration rather than dispatch — stayed green.
+            //
+            // Handing the pressed id forward, rather than moving dispatch
+            // above `updatePointerState`, is deliberate: the handler then runs
+            // in the world the release has already produced — `active` is
+            // `nil`, `lastMousePosition` is the release point — which is what
+            // a handler that reads either would expect.
+            let pressed = self.active
             self.updatePointerState(event)
             // Scroll routing runs before the window's general `onInput`, and
             // claims the event outright when it hits a region — there is no
             // scroll chaining (see `applyScroll`'s doc comment), so a claimed
             // wheel event does not also reach whoever opened the window.
             if case .scrollWheel(let scroll) = event, self.applyScroll(scroll) {
+                self.setNeedsRedraw()
+                return true
+            }
+            // After scroll routing and before the raw handler, on the same
+            // footing: an element that consumed the point consumed the event.
+            if self.dispatchClick(event, pressedBefore: pressed) {
                 self.setNeedsRedraw()
                 return true
             }
@@ -398,17 +434,32 @@ public final class Window {
     /// ruling AP-I warns about for the portal's two halves. So the answer is
     /// "this was consumed", and nothing scrolled.
     ///
-    /// **What it costs, said plainly because nothing in production pays it
-    /// yet.** No production element registers a non-scrolling hitbox today
-    /// (`onClick` is the first that will), so this changes no shipping
-    /// behaviour. It does mean that once ordinary elements register opaque
-    /// hitboxes, one of them **inside** a `ScrollView` will swallow the wheel
-    /// rather than letting its own scroller move — a browser scrolls in that
-    /// case, because a wheel event bubbles up the DOM to the first scrollable
-    /// ancestor. Closing that needs either ancestry-aware scroll chaining (see
-    /// below, deliberately absent) or a hitbox that blocks clicks without
-    /// blocking wheels. Neither is this task's, and whoever registers the first
-    /// non-scrolling production hitbox owns the choice.
+    /// **What it costs, and something in production pays it now.** That
+    /// sentence read "nothing in production pays it yet" until `onClick`
+    /// landed: `StyledElement.onClick(_:)` registers this framework's first
+    /// non-scrolling production hitbox, opaque, so **a click target inside a
+    /// `ScrollView` swallows that scroller's wheel over its own rect** where a
+    /// browser would scroll (a wheel event bubbles up the DOM to the first
+    /// scrollable ancestor). Accepted, not fixed here, and pinned by
+    /// `aClickTargetInsideAScrollViewSwallowsTheWheel` so the cost is a
+    /// decision a reader can find. Opaque was not optional: a non-opaque click
+    /// target would stop a `Deferred` scrim swallowing clicks aimed at what it
+    /// covers, which is the sibling property of the wheel swallow this
+    /// milestone's exit criterion 4 is about.
+    ///
+    /// **The named fix, so whoever needs it is not starting from a mystery.**
+    /// A wheel should stop at an opaque hitbox only when that hitbox is on a
+    /// **higher layer** than the topmost *scroller* under the same point. That
+    /// distinguishes the two cases with no ancestor walk and no new field:
+    /// `Deferred` hoists a scrim to the root layer, so it outranks the scroller
+    /// it covers and rightly swallows; a button inside a `ScrollView` shares
+    /// its scroller's layer, so it would not. Concretely: find the topmost
+    /// opaque record as now, and — when it is not itself a scroller — look for
+    /// the topmost scroller under the same point and prefer it whenever its
+    /// layer is not lower. It is deliberately NOT implemented here, because
+    /// this method is the site of two shipped intermittent defects that only a
+    /// human found, and it does not get an unreviewed refinement bolted on in a
+    /// task about click handlers. Whoever makes the change inverts that test.
     ///
     /// **The layer is what registration order cannot express, and it is the
     /// whole reason `PrepaintPass.deferred` hoists at all.** A `Deferred`
@@ -522,6 +573,13 @@ public final class Window {
     /// event can be delivered to. Click dispatch is separate (§3.5) and is not
     /// this method's concern.
     ///
+    /// **But the clear below is click dispatch's whole hazard**, so read this
+    /// before reordering anything at the call site: `dispatchClick` needs the
+    /// id `active` held *before* this method ran, and gets it as a parameter
+    /// captured at the `onInput` hook. Moving that capture after this call, or
+    /// making `dispatchClick` read `self.active` itself, makes every click
+    /// silently do nothing.
+    ///
     /// **`mouseUp` clears `active` unconditionally**, whatever is under the
     /// pointer at that instant — not only when the release lands back on the
     /// element that was pressed. That is what "held until `mouseUp`" (§3.4)
@@ -545,6 +603,53 @@ public final class Window {
         default:
             break
         }
+    }
+
+    /// Runs the `onClick` of the element that was **pressed and released on**,
+    /// and reports whether it did (design spec §3.5, framework spec §8.2).
+    ///
+    /// **A click is press-in-then-release-on-the-same-element, not "a `mouseUp`
+    /// landed somewhere".** So this resolves the hitbox under the release point
+    /// and requires it to own the same `GlobalElementID` that `mouseDown` made
+    /// active. A press that leaves the element and returns still fires, which
+    /// is §3.4's stated reason for keying `active` by `GlobalElementID` rather
+    /// than by a per-frame index: nothing about the excursion is recorded, so
+    /// there is nothing for the return to undo.
+    ///
+    /// **`pressed` is a parameter and not `self.active`, and that is the one
+    /// thing to get right here** — see the capture at the `onInput` hook, where
+    /// the ordering that makes it necessary lives.
+    ///
+    /// **Against `lastHitboxes`, exactly as `mouseDown` resolves** — there is
+    /// no frame in flight when an input event arrives, only the record of the
+    /// one most recently drawn, and the handler set rides on that same record
+    /// (`Hitbox.handlers`) rather than in a second list captured beside it. So
+    /// a handler registered on frame N runs for an event arriving before frame
+    /// N+1, and it is that frame's closure rather than an older one.
+    ///
+    /// **One handler, no chaining.** Dispatch stops at the topmost opaque
+    /// hitbox: a container's `onClick` never sees a click that landed on a
+    /// child with its own, because a `Hitbox` carries no parent link to bubble
+    /// through. Design spec §3.5 cuts the *capture* phase and says why; the
+    /// absence of bubbling past the first hit is the same shape as
+    /// `applyScroll`'s absent scroll chaining, and closing it means putting
+    /// ancestry on the registration rather than changing this function.
+    ///
+    /// **It CLAIMS the event**, for `applyScroll`'s reason: re-offering a
+    /// release that an element consumed to the window's own fallback handler
+    /// would be half a swallow. A release that ran no handler is not claimed
+    /// and falls through unchanged, which is every event in every window that
+    /// has no `onClick` in it.
+    private func dispatchClick(_ event: InputEvent,
+                               pressedBefore pressed: GlobalElementID?) -> Bool {
+        guard case .mouseUp(let mouse) = event, let pressed else { return false }
+        guard let index = topmostOpaqueHitbox(in: lastHitboxes, at: mouse.position) else {
+            return false
+        }
+        let hit = lastHitboxes[index]
+        guard hit.id == pressed, let handler = hit.handlers.onClick else { return false }
+        handler()
+        return true
     }
 
     /// The `GlobalElementID` owning the topmost opaque hitbox under `point`,

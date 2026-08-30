@@ -207,6 +207,9 @@ struct StateProbe: Element, StyledElement {
     var style = Style()
     var decoration = Decoration()
     var elementID: ElementID?
+    // `StyledElement`'s fourth requirement. This probe registers no click
+    // target — nothing calls `registerHandlers` — so it stays at the empty set.
+    var handlers: Handlers = Handlers()
     let name: String
     let log: ElementLog
 

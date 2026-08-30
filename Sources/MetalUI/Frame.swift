@@ -464,18 +464,43 @@ public final class Frame {
     /// survives a frame — hover, active state and a scroller's offset all need
     /// the element's own id. Every prepaint site has one in hand already.
     ///
-    /// `scroll` defaults to `nil` — an ordinary hitbox is not a scroller — so
-    /// the public `PrepaintPass.insertHitbox` needs no payload parameter and
-    /// `registerScrollRegion` stays the one spelling that supplies one.
+    /// `scroll` and `handlers` both default to empty — an ordinary hitbox is
+    /// neither a scroller nor a click target — so the public
+    /// `PrepaintPass.insertHitbox` needs no payload parameter, and
+    /// `registerScrollRegion` and `registerHandlers` stay the two spellings
+    /// that supply one each.
     func insertHitbox(_ bounds: Bounds<Pixels>, id: GlobalElementID,
-                      opaque: Bool, scroll: ScrollAxis? = nil) -> HitboxID {
+                      opaque: Bool, scroll: ScrollAxis? = nil,
+                      handlers: Handlers = Handlers()) -> HitboxID {
         let translated = Bounds(
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
             size: bounds.size)
         hitboxes.append(Hitbox(bounds: Self.intersect(activeClip, translated),
-                               id: id, layer: activeLayer, opaque: opaque, scroll: scroll))
+                               id: id, layer: activeLayer, opaque: opaque, scroll: scroll,
+                               handlers: handlers))
         return HitboxID(index: hitboxes.count - 1)
+    }
+
+    /// Records a click target — an **opaque hitbox carrying a handler set** —
+    /// and does nothing at all when `handlers` is empty.
+    ///
+    /// **The empty case is the interesting one**, and it is why this exists
+    /// rather than every element calling `insertHitbox` behind its own `guard`.
+    /// A hitbox registered for an element that asked for nothing would be
+    /// opaque, would shadow whatever it covers, and — since Task 7 folded
+    /// scroll regions into this list — would swallow the wheel of any
+    /// `ScrollView` it sits inside. Every `Box` in this framework is a
+    /// potential caller, so that gate has to be in one place and not in six.
+    ///
+    /// `opaque: true` for the same reason a scroller is: a click target
+    /// consumes the point. Non-opaque would mean a modal scrim could not
+    /// swallow clicks aimed at what it covers, which is the sibling property of
+    /// the wheel swallow this milestone's exit criterion 4 is about.
+    func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
+                          id: GlobalElementID) {
+        guard !handlers.isEmpty else { return }
+        _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
     }
 
     /// The topmost **opaque** hitbox containing `point`, or `nil` when nothing

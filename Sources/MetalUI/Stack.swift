@@ -61,6 +61,7 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
     public var style: Style
     public var decoration: Decoration
     public var elementID: ElementID?
+    public var handlers: Handlers
     public var content: Content
 
     public init(alignment: Alignment = .center,
@@ -73,6 +74,7 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
         self.style = style
         self.decoration = Decoration()
         self.elementID = elementID
+        self.handlers = Handlers()
         self.content = content()
     }
 
@@ -104,11 +106,14 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        // Before the children, so a child's click target ranks above this one
+        // — see `Box.prepaint`, whose body this mirrors line for line.
+        pass.registerHandlers(handlers, at: bounds, id: id)
         // `bounds` is this stack's own rect and is deliberately not passed
         // down: the engine stores rects **absolute to the root**, so each
         // child looks its own up rather than being offset by its parent.
         // Adding `bounds` here would double-count every ancestor's origin.
-        content.prepaintGroup(layout: &layout.content, pass: &pass)
+        return content.prepaintGroup(layout: &layout.content, pass: &pass)
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

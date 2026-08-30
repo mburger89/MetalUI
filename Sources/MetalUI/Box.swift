@@ -30,13 +30,20 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
     public var style: Style
     public var decoration: Decoration
     public var elementID: ElementID?
+    public var handlers: Handlers
     public var content: Content
 
     /// The children as a value, for callers that already have a group.
+    ///
+    /// `handlers` is deliberately **not** an `init` parameter, on
+    /// `elementID`'s footing: `onClick(_:)` is the one spelling, so there is a
+    /// single place a handler can be attached and a single place to look for
+    /// one.
     public init(style: Style = Style(), decoration: Decoration = Decoration(),
                 content: Content) {
         self.style = style
         self.decoration = decoration
+        self.handlers = Handlers()
         self.content = content
     }
 
@@ -75,11 +82,16 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        // Before the children, so a child's own click target registers LATER
+        // and therefore ranks above this one — `topmostOpaqueHitbox` breaks a
+        // layer tie by registration index, and a child paints over its parent.
+        // No-op unless `onClick(_:)` was called; see `registerHandlers`.
+        pass.registerHandlers(handlers, at: bounds, id: id)
         // `bounds` is this box's own rect and is deliberately not passed down:
         // the engine stores rects **absolute to the root**, so each child looks
         // its own up rather than being offset by its parent. Adding `bounds`
         // here would double-count every ancestor's origin.
-        content.prepaintGroup(layout: &layout.content, pass: &pass)
+        return content.prepaintGroup(layout: &layout.content, pass: &pass)
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -196,6 +208,22 @@ public protocol StyledElement: Element {
     var style: Style { get set }
     var decoration: Decoration { get set }
     var elementID: ElementID? { get set }
+
+    /// The input callbacks this element asked for — see `Handlers`.
+    ///
+    /// **A requirement rather than a defaulted extension property, and the
+    /// difference is a silent bug.** A default of `{ get { Handlers() } set {} }`
+    /// would let a conformer that stores nothing compile, and `.onClick { … }`
+    /// on it would then return an element with the handler thrown away: an API
+    /// that exists, compiles and does nothing, which is the exact shape
+    /// CLAUDE.md's declared-and-inert table exists to keep out of this
+    /// framework. Requiring it makes a forgetful conformer a compile error.
+    ///
+    /// Storing it is still only half the job — a conformer must also call
+    /// `PrepaintPass.registerHandlers(_:at:id:)` in its own `prepaint`, and
+    /// nothing can enforce *that*. `onClickIsLiveOnEveryConformerThatCanRegisterOne`
+    /// is the guard, one case per conformer.
+    var handlers: Handlers { get set }
 }
 
 extension StyledElement {
@@ -209,6 +237,40 @@ extension StyledElement {
         var copy = self
         change(&copy.decoration)
         return copy
+    }
+
+    func handling(_ change: (inout Handlers) -> Void) -> Self {
+        var copy = self
+        change(&copy.handlers)
+        return copy
+    }
+
+    // MARK: Input (design spec §3.5)
+
+    /// Runs `handler` when this element is clicked — pressed **and** released
+    /// on this same element, with the pointer free to leave and return in
+    /// between.
+    ///
+    /// **This is what makes an element a hit target.** A `Box` with no handler
+    /// registers no hitbox at all, so it is transparent to the pointer and,
+    /// more sharply, does not swallow the wheel of a `ScrollView` it sits
+    /// inside. Adding a handler flips both: the element registers an **opaque**
+    /// hitbox at its own bounds, so it also shadows whatever it covers.
+    ///
+    /// **The one cost that will surprise a reader who knows a browser**: an
+    /// `onClick` inside a `ScrollView` swallows that scroller's wheel over its
+    /// own rect, because a wheel event stops at the topmost opaque hitbox and
+    /// scrolls only if that hitbox is itself a scroller. Accepted deliberately
+    /// — non-opaque would stop a modal scrim swallowing clicks aimed at what is
+    /// under it, which is worse — and pinned by
+    /// `aClickTargetInsideAScrollViewSwallowsTheWheel`. The named fix is at
+    /// `Window.applyScroll`.
+    ///
+    /// **Bubble-only, and there is no chaining**: a click resolves to one
+    /// hitbox and stops, so an `onClick` on a container never sees a click that
+    /// landed on a child with its own. See `Handlers`.
+    public func onClick(_ handler: @escaping @MainActor () -> Void) -> Self {
+        handling { $0.onClick = handler }
     }
 
     // MARK: Identity

@@ -18,7 +18,8 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 
 /// A bare `Frame` with no element tree — every test here drives `PrepaintPass`
 /// directly, because a hitbox is registered in prepaint and read back off the
-/// frame, and no element registers one yet (Task 8's `onClick` is what will).
+/// frame, and a production element registers one only when it was given an
+/// `onClick` (see `InputDispatchTests`).
 @MainActor private func bareFrame(_ side: Float = 300) -> Frame {
     Frame(contentSize: Size(width: px(side), height: px(side)),
           scaleFactor: 1, stateTable: StateTable(),
@@ -334,11 +335,13 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// through a real `Window`: it registers exactly one opaque hitbox, sized and
 /// positioned by its own `Style`, at its own resolved bounds.
 ///
-/// **No production element inserts a hitbox yet** — `Box`, `Column`, `Row`
-/// etc. carry no interactive surface until Task 8's `onClick` lands — so
-/// `active`'s cross-frame behaviour can only be exercised today with a
-/// purpose-built `Element`, the same way `aNamedChildUnderDeferredResolvesTheSameAsUnderABox`
-/// in `DeferredTests.swift` builds its own fixtures rather than reusing one.
+/// **A production element inserts a hitbox only when it has a handler** —
+/// `Box().onClick { … }` does, a bare `Box` does not — and these tests are
+/// about `active` alone, which is set and cleared with no handler in sight. A
+/// purpose-built `Element` keeps that separation: it registers a hitbox and
+/// nothing else, so a change to `onClick`'s dispatch cannot redden a test about
+/// press tracking. `aNamedChildUnderDeferredResolvesTheSameAsUnderABox` in
+/// `DeferredTests.swift` builds its own fixtures for the same reason.
 private struct HitboxProbe: Element {
     var elementID: ElementID?
     var size: Size<Pixels>
