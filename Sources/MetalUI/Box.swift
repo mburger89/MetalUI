@@ -269,6 +269,24 @@ extension StyledElement {
     /// **Bubble-only, and there is no chaining**: a click resolves to one
     /// hitbox and stops, so an `onClick` on a container never sees a click that
     /// landed on a child with its own. See `Handlers`.
+    ///
+    /// **A second `onClick` REPLACES the first**, exactly as a second
+    /// `background(_:)` does — `.onClick { a }.onClick { b }` runs only `b` and
+    /// registers one hitbox. Said out loud because the name sounds additive in
+    /// a way the other modifiers do not, and nothing diagnoses the misreading.
+    ///
+    /// **What `handler` captures outlives the frame that built it, so do not
+    /// close over the `Window`.** The handler is stored on the `Hitbox` this
+    /// element registers, and `Window.lastHitboxes` keeps the most recent
+    /// frame's records for as long as the window lives — nothing clears it. So
+    /// `.onClick { window.doThing() }` is a retain cycle: `Window` →
+    /// `lastHitboxes` → the closure → `Window`. Nothing inside the framework
+    /// closes one (`lastHitboxes = frame.hitboxes` copies an array of structs
+    /// and retains no `Frame`), and only a *caller* can create one. The remedy
+    /// is the ordinary one — capture `[weak window]`, or capture the piece of
+    /// state the handler actually writes rather than the window that owns it,
+    /// which is what `@State` is for and what a handler should almost always
+    /// be doing instead.
     public func onClick(_ handler: @escaping @MainActor () -> Void) -> Self {
         handling { $0.onClick = handler }
     }

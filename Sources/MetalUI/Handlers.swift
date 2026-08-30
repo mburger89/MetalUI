@@ -1,6 +1,3 @@
-import MetalUICore
-import MetalUILayout
-
 /// The input callbacks an element has asked to receive — `StyledElement`'s
 /// fourth stored requirement, alongside `style`, `decoration` and `elementID`.
 ///
@@ -14,10 +11,10 @@ import MetalUILayout
 /// `prepaint` by the frame and afterwards by the window.
 ///
 /// **Empty is the default and it means "not a hit target".** A `Handlers` with
-/// no callback set registers no hitbox at all — see `PrepaintPass.register(_:at:id:)`
-/// — which is what keeps an ordinary `Box` transparent to the pointer and, more
-/// sharply, keeps every box inside a `ScrollView` from swallowing that
-/// scroller's wheel.
+/// no callback set registers no hitbox at all — see
+/// `PrepaintPass.registerHandlers(_:at:id:)` — which is what keeps an ordinary
+/// `Box` transparent to the pointer and, more sharply, keeps every box inside a
+/// `ScrollView` from swallowing that scroller's wheel.
 ///
 /// **Bubble-only, and today that means "the topmost opaque handler wins".**
 /// Design spec §3.5 cuts the capture phase, because an opaque hitbox already
@@ -37,6 +34,14 @@ public struct Handlers {
     /// `StyledElement` itself. Typing it here rather than relying on the
     /// closure's context means a handler that captures a non-`Sendable` value
     /// is a compile error at the call site rather than a data race later.
+    ///
+    /// **One handler, and a second `onClick(_:)` REPLACES the first rather than
+    /// adding to it.** `.onClick { a }.onClick { b }` runs only `b`, and still
+    /// registers one hitbox. That is what every other modifier on
+    /// `StyledElement` does — each writes one field — and it is written down
+    /// because the name sounds additive in a way `background(_:)` does not, so
+    /// "attach a second handler" is a plausible misreading with no diagnostic
+    /// behind it.
     public var onClick: (@MainActor () -> Void)?
 
     public init() {}

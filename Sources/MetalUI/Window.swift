@@ -149,6 +149,13 @@ public final class Window {
     /// afterward — a wheel event with no frame in flight to route it, or a
     /// `mouseUp` that must still resolve against the hitboxes the button was
     /// drawn with rather than against whatever the next frame will register.
+    ///
+    /// **It retains the last frame's `onClick` closures, and nothing clears
+    /// it** — a record carries its `Handlers` (see `Hitbox.handlers`), so
+    /// whatever a caller's handler captured stays alive for as long as this
+    /// window does. That is not a cycle by itself: this is an array of structs
+    /// and holds no `Frame`. It becomes one if a *caller* closes over the
+    /// window, which is the hazard named at `StyledElement.onClick(_:)`.
     private(set) var lastHitboxes: [Hitbox] = []
 
     /// The scrolling subset of `lastHitboxes`, in registration order — test

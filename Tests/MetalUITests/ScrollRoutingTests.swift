@@ -719,8 +719,21 @@ private struct ScrollContextRecorder: Element, StyledElement {
 // MARK: - Task 7: one list
 
 /// A leaf that registers exactly one hitbox at its own bounds and nothing
-/// else — the shape a modal scrim has, and a shape no PRODUCTION element has
-/// yet (Task 8's `onClick` is the first that will register one).
+/// else — the shape a modal scrim has.
+///
+/// **This said "a shape no PRODUCTION element has yet (Task 8's `onClick` is
+/// the first that will register one)", and both halves are false now.**
+/// `StyledElement.onClick(_:)` shipped, so `Box`, `Column`, `Row`, `Stack`,
+/// `Text` and `List` each register exactly this shape — one opaque,
+/// non-scrolling hitbox at their own bounds — whenever they were given a
+/// handler, and nothing at all when they were not. A reader auditing which
+/// production elements register non-scrolling hitboxes should look at
+/// `Frame.registerHandlers`' call sites, not here.
+///
+/// The probe stays anyway, and not out of inertia: it registers a hitbox with
+/// **no handler attached**, which no production element does, so the wheel
+/// tests below stay about routing and cannot be reddened by a change to click
+/// dispatch.
 ///
 /// `opaque` is a stored property rather than a constant `true` so Step 5's
 /// mutation is expressible as a fixture change rather than as an edit to the
