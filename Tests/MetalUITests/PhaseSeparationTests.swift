@@ -253,21 +253,41 @@ func readingTheThemeDuringPrepaintDoesNotCompile() throws {
 // their own guards rather than being folded into "read-only state" in
 // general.** A colour read during prepaint would simply fail to compile —
 // there is nothing in `Style` for one to come from, so no implementation
-// could make it silently wrong. The three below are different: each would
-// COMPILE and then LIE.
+// could make it silently wrong.
 //
-// `isHovered`/`isActive` lie by returning a silently wrong `false`, for two
-// independent reasons. `Frame.hoveredHitbox` is still `nil` during prepaint,
-// because `resolveHover(at:)` runs at the prepaint/paint boundary, *after*
-// `prepaint` returns. And the hitbox list is still being **built** at that
-// point — `PrepaintPass.insertHitbox` is what fills it — so even a hover that
-// had somehow already resolved would have ranked against a partial list, which
-// is §3.3's own reason for resolving once at the boundary rather than during
-// registration: "topmost wins" is not knowable until every hitbox has
-// registered.
+// **The three below do NOT all rest on the same footing, and reading them as
+// though they did is the specific mistake this paragraph exists to prevent.**
+// Two are measured lies and one is placement insurance. Anyone adding a fourth
+// `PaintPass` query should work out which category it falls into rather than
+// adding a guard by symmetry with these — a guard for an API that would answer
+// correctly is cargo cult, and the brief for the `isFocused` work said so
+// explicitly.
 //
-// `isFocused` lies in the opposite direction, by returning a wrong `true`, and
-// the measurement is at its own guard below.
+// - **`isHovered` — a measured lie, returning a silently wrong `false`**, for
+//   two independent reasons. `Frame.hoveredHitbox` is still `nil` during
+//   prepaint, because `resolveHover(at:)` runs at the prepaint/paint boundary,
+//   *after* `prepaint` returns. And the hitbox list is still being **built** at
+//   that point — `PrepaintPass.insertHitbox` is what fills it — so even a hover
+//   that had somehow already resolved would have ranked against a partial list,
+//   which is §3.3's own reason for resolving once at the boundary rather than
+//   during registration: "topmost wins" is not knowable until every hitbox has
+//   registered.
+//
+// - **`isActive` — NOT a lie today, and this comment claimed it was.**
+//   `PaintPass.isActive` is `frame.activeElement == id`, and
+//   `Frame.activeElement` is a `let` assigned once in `init` and never mutated;
+//   it consults neither of hover's two mechanisms. A prepaint-time `isActive`
+//   would answer **correctly**. Its guard is kept anyway, as *placement
+//   insurance*: `active` is the one of the three that could plausibly acquire a
+//   boundary-resolution step later (a press that must rank against the finished
+//   hitbox list, say), and on that day the guard would become load-bearing with
+//   nobody having to notice. Cheap insurance is a different justification from
+//   a measured lie, and stating it as one was wrong.
+//
+// - **`isFocused` — a measured lie in the opposite direction**, returning a
+//   wrong `true`. The numbers are at its own guard below, because the
+//   measurement is what makes that guard non-cargo-cult and it should not be
+//   findable only from here.
 //
 // Together these make "queryable only during paint" a compiler fact rather
 // than a placement convention nothing enforces if someone later moves or

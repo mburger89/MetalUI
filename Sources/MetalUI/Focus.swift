@@ -45,11 +45,25 @@ struct FocusRegistry {
     /// Records whatever `handlers` asked for on the keyboard side, and nothing
     /// at all when it asked for neither.
     ///
-    /// **The early return is not an optimisation.** Every element in the tree
-    /// reaches this through its `prepaint`, so without it the set and the
-    /// dictionary would grow one entry per element per frame — a whole second
-    /// copy of the tree, rebuilt every frame, to answer a question about the
-    /// handful of elements that asked for something.
+    /// **The early return IS purely an optimisation, and it is worth saying so
+    /// rather than dressing it up.** An earlier version of this comment claimed
+    /// the opposite — that without it the registry would grow an entry per
+    /// element per frame — and that is false: `isKeyTarget` is
+    /// `onKey != nil || isFocusable`, so when it is false both `if`s below are
+    /// false too and nothing is added either way. Measured: delete the guard and
+    /// the registry is **byte-identical** and the suite stays green.
+    ///
+    /// What it buys is **cost**, and the cost is not small in aggregate: every
+    /// element in the tree reaches this through its `prepaint`, and the
+    /// overwhelming majority of them want nothing on the keyboard side, so this
+    /// is one comparison instead of two on every node of every frame.
+    ///
+    /// **That also explains why no test guards it, which is the useful half.**
+    /// A behaviourally inert line cannot be pinned by a behavioural assertion —
+    /// mutating it away reddens nothing, correctly (a broken instrument rather
+    /// than a coverage gap, in `docs/practices/verifying-tests-can-fail.md`'s
+    /// terms). Do not "close" that with a test; there is nothing for one to
+    /// see.
     mutating func register(_ handlers: Handlers, id: GlobalElementID) {
         guard handlers.isKeyTarget else { return }
         if handlers.isFocusable { focusable.insert(id) }

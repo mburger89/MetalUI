@@ -392,6 +392,112 @@ private func rootID2() -> GlobalElementID {
     #expect(!window.needsRedraw, "re-focusing the focused element is not a change")
 }
 
+// MARK: - The compositions the two-gate design rests on
+
+/// **A focusable, key-handling row inside a `ScrollView` does NOT swallow that
+/// scroller's wheel** — and the key still reaches it.
+///
+/// **The property, not the proxy.** `focusabilityAndKeyHandlingRegisterNoPointerHitbox`
+/// above asserts `lastHitboxes.isEmpty`, which is the *mechanism*; this asserts
+/// the thing that mechanism exists for, through a real `ScrollView` and a real
+/// wheel event. `Handlers`' type doc, `focusable()`'s doc and the two-gate split
+/// itself all rest on this composition, and the failure it guards against is
+/// silent — a list that quietly stops scrolling the day its rows become
+/// focusable, with every other test in the suite still green.
+///
+/// **The differential is the neighbouring file's test.** Swap `focusable()` and
+/// `onKey` for `onClick` and this fixture becomes
+/// `aClickTargetInsideAScrollViewSwallowsTheWheel` in `InputDispatchTests`,
+/// which asserts the opposite outcome (offset 0) — deliberately, because an
+/// `onClick` registers an opaque hitbox and this does not. Two fixtures one
+/// modifier apart, disagreeing, is what pins that the gate is the thing making
+/// the difference.
+@Test @MainActor func aFocusableRowInsideAScrollViewDoesNotSwallowTheWheel() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let log = KeyLog()
+    var rowStyle = Style()
+    rowStyle.size = Size(width: .auto, height: .length(.pixels(px(40))))
+    // A `Box(style:)` column rather than the public `Column`, so the rows keep
+    // the engine's `stretch` default and fill the viewport's width — the idiom
+    // `ScrollRoutingTests` and `InputDispatchTests` both use.
+    var column = Style()
+    column.flexDirection = .column
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+        ScrollView(.vertical, elementID: ElementID("list")) {
+            Box(style: column) {
+                Box(style: rowStyle).id("row0")
+                    .focusable().onKey { _ in log.names.append("row0"); return true }
+                Box(style: rowStyle); Box(style: rowStyle); Box(style: rowStyle)
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    let scroller = GlobalElementID.child(of: nil, at: 0, name: ElementID("list"))
+
+    // Over the focusable row: the wheel reaches the scroller anyway.
+    platformWindow.simulateInput(
+        .scrollWheel(ScrollEvent(position: pt(20, 20),
+                                 delta: Point(x: px(0), y: px(-37)))))
+    var offset = 0.0
+    window.stateTable.withState(scroller, initial: ScrollState()) { offset = $0.offset }
+    #expect(offset == 37,
+            "a focusable key handler registers no hitbox, so it swallows nothing")
+
+    // And the row is genuinely focusable and genuinely bound — otherwise the
+    // line above would pass against a fixture whose modifiers did nothing.
+    let content = GlobalElementID.child(of: scroller, at: 0, name: nil)
+    let row0 = GlobalElementID.child(of: content, at: 0, name: ElementID("row0"))
+    window.focus(row0)
+    #expect(window.lastFocusRegistry.isFocusable(row0), "the row did register for focus")
+    platformWindow.simulateInput(keyDown("x"))
+    #expect(log.names == ["row0"], "and the key reaches it")
+}
+
+/// Focus works inside a `Deferred` subtree — registration, holding focus across
+/// a frame, and dispatch.
+///
+/// **Cheap to add and worth having because the mechanism *predicts* it works
+/// and nothing checked.** `Deferred` hoists its subtree's layer and resets the
+/// clip stack (ruling AP-I), and both of those act on registrations that carry
+/// geometry — a hitbox is translated and clipped on the way in. Focus
+/// registration reads no geometry at all, so a portal should be invisible to
+/// it. That is a prediction from the design, and this is the assertion.
+///
+/// The `ScrollView` around it is not decoration: it is what makes the portal
+/// have something to escape, so a `Deferred` that had somehow dropped its
+/// subtree's focus registrations would have a reason to.
+@Test @MainActor func focusSurvivesAndDispatchesInsideADeferredSubtree() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let log = KeyLog()
+    var column = Style()
+    column.flexDirection = .column
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+        ScrollView(.vertical, elementID: ElementID("list")) {
+            Box(style: column) {
+                Deferred(elementID: ElementID("portal")) {
+                    Box().width(px(20)).height(px(20)).id("leaf")
+                        .focusable().onKey { _ in log.names.append("leaf"); return true }
+                }
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+
+    let scroller = GlobalElementID.child(of: nil, at: 0, name: ElementID("list"))
+    let content = GlobalElementID.child(of: scroller, at: 0, name: nil)
+    let portal = GlobalElementID.child(of: content, at: 0, name: ElementID("portal"))
+    let leaf = GlobalElementID.child(of: portal, at: 0, name: ElementID("leaf"))
+
+    #expect(window.lastFocusRegistry.isFocusable(leaf),
+            "a portal does not swallow its subtree's focus registration")
+    window.focus(leaf)
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    #expect(window.focusedElement == leaf, "and the registration survives the next frame")
+    platformWindow.simulateInput(keyDown("x"))
+    #expect(log.names == ["leaf"], "and a key event reaches through the portal")
+}
+
 // MARK: - What Task 10 consumes
 
 /// `Window.focusChain` is the focused id and every ancestor, **innermost
