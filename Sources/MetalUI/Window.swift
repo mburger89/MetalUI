@@ -242,6 +242,43 @@ public final class Window {
     /// the same walk. See `focusChain(from:)`.
     var focusChain: [GlobalElementID] { MetalUI.focusChain(from: focusedElement) }
 
+    /// This window's key bindings (framework spec §8.3).
+    ///
+    /// **Window-level rather than per-element, because a keymap is a
+    /// declaration about the whole window** — a binding predicated on `Editor`
+    /// is *scoped* by its context predicate, not by where the keymap was
+    /// written. That is what lets a binding fire with nothing focused at all,
+    /// which is what the counter demo relies on.
+    ///
+    /// Assigning **clears any pending two-stroke prefix**: a prefix recorded
+    /// against the old bindings means nothing under the new ones.
+    public var keymap: Keymap = Keymap() {
+        didSet { pendingStroke = nil }
+    }
+
+    /// The first stroke of a two-stroke sequence, once one has been seen and
+    /// while it is still fresh — framework spec §8.3's pending prefix.
+    ///
+    /// **Window state rather than keymap state**, because it is a property of
+    /// this window's typing history and not of the bindings; a `Keymap` is a
+    /// value a caller may share between windows.
+    ///
+    /// Its age is measured against the *arriving event's* `timestamp`, never
+    /// against a clock read here — see `KeyEvent.timestamp` for the bug that
+    /// rule exists to avoid.
+    private var pendingStroke: PendingStroke?
+
+    /// An action nothing along the focus chain handled.
+    ///
+    /// **The keyboard's counterpart to `onInput`**, and the reason a keymap
+    /// works with nothing focused: the chain is empty, no element handler
+    /// exists to run, and the action arrives here. Returning `true` claims the
+    /// keystroke; returning `false` (or leaving this `nil`) lets it fall
+    /// through to the raw `onKey` bubble and then to `onInput`, so a binding
+    /// nobody handles behaves as if it were not bound rather than silently
+    /// eating a keypress.
+    public var onAction: ((any Action) -> Bool)?
+
     /// Moves keyboard focus, or clears it with `nil`.
     ///
     /// **A plain setter with no validation, and the frame is what validates.**
@@ -345,6 +382,19 @@ public final class Window {
             // re-offering it to the window's fallback would be half a swallow.
             // It inherits none of the `active` hazard above — a key event falls
             // through `updatePointerState`'s `default: break`.
+            //
+            // **The keymap goes FIRST, ahead of the raw `onKey` bubble, and
+            // the two must not collapse into each other.** A keymap is the
+            // declaration of intent and a raw handler is the escape hatch, so a
+            // bound keystroke reaches its action and never reaches `onKey`,
+            // while an unbound one reaches `onKey` and never troubles the
+            // keymap. Swapping these two lines makes every raw handler shadow
+            // every binding on the same keystroke; pinned by
+            // `aBoundActionRunsBeforeARawOnKeyHandler`.
+            if self.dispatchAction(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             if self.dispatchKey(event) {
                 self.setNeedsRedraw()
                 return true
@@ -751,6 +801,50 @@ public final class Window {
     private func dispatchKey(_ event: InputEvent) -> Bool {
         guard case .keyDown(let key) = event else { return false }
         return MetalUI.dispatchKey(key, along: focusChain, in: lastFocusRegistry)
+    }
+
+    /// Resolves a keystroke against this window's `keymap` and dispatches the
+    /// resulting action along the focus chain — the first of the two keyboard
+    /// bubbles (design spec §4.1-§4.3).
+    ///
+    /// **Four steps, and each is a separate mechanism**: the focus chain
+    /// supplies the ancestry, the focus registry supplies each level's key
+    /// context, `matchKeymap` resolves keystroke plus contexts to an action
+    /// (or holds a two-stroke prefix), and `dispatchAction` walks the same
+    /// chain looking for a handler registered for that action's type.
+    ///
+    /// **`keyDown` only**, exactly as `dispatchKey` is, and for the same
+    /// reason: a `KeyEvent` carries no down/up discriminator. A `keyUp` also
+    /// must not disturb `pendingStroke` — a two-stroke sequence would
+    /// otherwise be broken by the release of its own first stroke.
+    ///
+    /// **Three outcomes, and the middle one is the interesting one.** A
+    /// completed binding whose action *someone* handled claims the event. A
+    /// pending prefix claims it too, because `ctrl-k` in flight must not also
+    /// reach a raw handler. And a binding whose action nobody handled does
+    /// **not** claim it: the keystroke falls through to the raw bubble and then
+    /// to `onInput`, so a binding to an unhandled action behaves as if unbound
+    /// rather than eating the keypress in silence.
+    ///
+    /// **Against `lastFocusRegistry`**, exactly as `dispatchKey` and
+    /// `dispatchClick` resolve against the last frame's records: there is no
+    /// frame in flight when an input event arrives.
+    private func dispatchAction(_ event: InputEvent) -> Bool {
+        guard case .keyDown(let key) = event else { return false }
+        let chain = focusChain
+        let contexts = chain.map { lastFocusRegistry.context(for: $0) }
+        switch matchKeymap(key, in: keymap, contextsByLevel: contexts,
+                           pending: &pendingStroke) {
+        case .none:
+            return false
+        case .pending:
+            return true
+        case .action(let action):
+            if MetalUI.dispatchAction(action, along: chain, in: lastFocusRegistry) {
+                return true
+            }
+            return onAction?(action) ?? false
+        }
     }
 
     /// The `GlobalElementID` owning the topmost opaque hitbox under `point`,

@@ -159,14 +159,16 @@ final class MetalHostView: NSView {
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
             characters: event.characters ?? "",
             modifiers: modifiers(event),
-            isRepeat: event.isARepeat)))
+            isRepeat: event.isARepeat,
+            timestamp: event.timestamp)))
     }
 
     override func keyUp(with event: NSEvent) {
         _ = onInput?(.keyUp(KeyEvent(
             charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
             characters: event.characters ?? "",
-            modifiers: modifiers(event))))
+            modifiers: modifiers(event),
+            timestamp: event.timestamp)))
     }
 
     override func flagsChanged(with event: NSEvent) {

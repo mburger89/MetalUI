@@ -84,6 +84,37 @@ public struct Handlers {
     /// the prepaint/paint boundary.
     public var isFocusable: Bool = false
 
+    /// Handlers for **bound actions**, keyed by `ObjectIdentifier` of the
+    /// action type (design spec §4.1).
+    ///
+    /// **A dictionary rather than a single closure, because unlike `onClick`
+    /// and `onKey` these do not conflict**: an element handling `Copy` and an
+    /// element handling `Paste` are the same element, and each
+    /// `onAction(_:_:)` writes its own key. A second `onAction` for the *same*
+    /// type does replace the first, which is the field-per-modifier rule one
+    /// level down.
+    ///
+    /// **Keyed on the type rather than carried by the closure** so dispatch can
+    /// ask "does this element handle this action" without running anything —
+    /// which is what lets an action bubble *past* an element that registered
+    /// for a different type.
+    public var actions: [ObjectIdentifier: ActionHandler] = [:]
+
+    /// The key context this element contributes, or `nil` — framework spec
+    /// §8.3's `.keyContext("Editor", ["mode": "code"])`.
+    ///
+    /// **Contributed by any element, focusable or not** (design spec §4.3, and
+    /// a ruling): an ancestor pane names the context while the focused thing
+    /// inside it is a leaf that knows nothing about contexts, which is the
+    /// whole reason matching runs innermost-first *from the chain* rather than
+    /// asking the focused element alone.
+    ///
+    /// **It is not a pointer target either.** Like `isFocusable`, this goes
+    /// through `isKeyTarget` and never through `isPointerTarget`, so a pane
+    /// that names a context stays transparent to the pointer and does not
+    /// swallow the wheel of a `ScrollView` it sits inside.
+    public var keyContext: KeyContext?
+
     public init() {}
 
     /// Whether this element is a **pointer** hit target — the hitbox gate.
@@ -94,5 +125,15 @@ public struct Handlers {
 
     /// Whether this element has anything to say about the **keyboard** — the
     /// focus-registry gate (`FocusRegistry.register(_:id:)`).
-    var isKeyTarget: Bool { onKey != nil || isFocusable }
+    ///
+    /// **Four things now, not two**, and the last two arrived with Task 10: an
+    /// action handler and a key context are both keyboard-side asks and both
+    /// must reach the registry. `keyContext` in particular *must* be here and
+    /// not behind focusability — a pane contributing `Editor` is usually
+    /// neither focusable nor a key handler, and gating it on either would make
+    /// `.keyContext(_:_:)` an API that compiles and does nothing on exactly the
+    /// elements that use it.
+    var isKeyTarget: Bool {
+        onKey != nil || isFocusable || !actions.isEmpty || keyContext != nil
+    }
 }

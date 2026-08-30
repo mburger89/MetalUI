@@ -42,6 +42,24 @@ struct FocusRegistry {
     /// is "does *this* id have one", once per level of the focus chain.
     private var keyHandlers: [GlobalElementID: KeyHandler] = [:]
 
+    /// Every id that registered an action handler this frame, and for which
+    /// action types — design spec §4.1's dispatch by type identity.
+    ///
+    /// Nested dictionaries rather than a flat `[Pair: Handler]`, because the
+    /// question dispatch asks is "does *this* id handle *this* type", once per
+    /// chain level, and the outer lookup is the one that usually misses.
+    private var actionHandlers: [GlobalElementID: [ObjectIdentifier: ActionHandler]] = [:]
+
+    /// The key context each id contributed this frame — framework spec §8.3's
+    /// context stack, recorded flat and given its shape by the focus chain.
+    ///
+    /// **Keyed by id and not accumulated here**, for `focusChain(from:)`'s
+    /// reason: the nesting is already encoded in `GlobalElementID`'s parent
+    /// chain, so a stack assembled at registration time would be a second copy
+    /// of a structure that already exists — and a wrong one, since prepaint
+    /// order is not the focus chain.
+    private var contexts: [GlobalElementID: KeyContext] = [:]
+
     /// Records whatever `handlers` asked for on the keyboard side, and nothing
     /// at all when it asked for neither.
     ///
@@ -68,6 +86,8 @@ struct FocusRegistry {
         guard handlers.isKeyTarget else { return }
         if handlers.isFocusable { focusable.insert(id) }
         if let onKey = handlers.onKey { keyHandlers[id] = onKey }
+        if !handlers.actions.isEmpty { actionHandlers[id] = handlers.actions }
+        if let context = handlers.keyContext { contexts[id] = context }
     }
 
     /// Whether `id` declared itself focusable this frame.
@@ -76,6 +96,16 @@ struct FocusRegistry {
     /// `id`'s key handler this frame, or `nil` — the lookup `dispatchKey` makes
     /// at each level of the chain.
     func handler(for id: GlobalElementID) -> KeyHandler? { keyHandlers[id] }
+
+    /// `id`'s handler for one action type this frame, or `nil` — the lookup
+    /// `dispatchAction` makes at each level of the chain.
+    func actionHandler(for id: GlobalElementID,
+                       type: ObjectIdentifier) -> ActionHandler? {
+        actionHandlers[id]?[type]
+    }
+
+    /// The key context `id` contributed this frame, or `nil`.
+    func context(for id: GlobalElementID) -> KeyContext? { contexts[id] }
 
     /// How many ids declared themselves focusable — test observability, and the
     /// only way to assert that registration happened for an element that binds

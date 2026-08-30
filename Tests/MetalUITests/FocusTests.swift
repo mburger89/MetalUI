@@ -14,11 +14,13 @@ private func pt(_ x: Float, _ y: Float) -> Point<Pixels> {
 private func keyDown(_ characters: String, _ modifiers: Modifiers = []) -> InputEvent {
     .keyDown(KeyEvent(charactersIgnoringModifiers: characters,
                       characters: characters,
-                      modifiers: modifiers))
+                      modifiers: modifiers,
+                      timestamp: 0))
 }
 
 private func keyUp(_ characters: String) -> InputEvent {
-    .keyUp(KeyEvent(charactersIgnoringModifiers: characters, characters: characters))
+    .keyUp(KeyEvent(charactersIgnoringModifiers: characters, characters: characters,
+                    timestamp: 0))
 }
 
 /// What the handlers wrote down, in the order they ran.

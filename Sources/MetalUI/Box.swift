@@ -369,6 +369,91 @@ extension StyledElement {
         handling { $0.onKey = handler }
     }
 
+    // MARK: Actions and key contexts (design spec §4.1, §4.3)
+
+    /// Runs `handler` when an action of type `type` reaches this element —
+    /// because it holds focus, or because it is an **ancestor** of whatever
+    /// does.
+    ///
+    /// **Registration is the claim, so there is no `Bool` to return.** An
+    /// action stops at the first element along the focus chain registered for
+    /// its type; unlike `onKey(_:)`, which sees every keystroke and must be
+    /// able to decline one, this sees only the type it asked for. An action
+    /// nobody registers for reaches `Window.onAction` and, failing that, is not
+    /// claimed at all — the keystroke then falls through to the raw key bubble
+    /// rather than vanishing.
+    ///
+    /// **It runs BEFORE `onKey(_:)`, and that ordering is the design.** A
+    /// keymap is a declaration of intent and a raw key handler is the escape
+    /// hatch, so a bound keystroke never reaches `onKey` and an unbound one
+    /// always does. The two bubbles walk the same chain and are otherwise
+    /// independent.
+    ///
+    /// **This does not make the element focusable** — see `focusable()` — and
+    /// it registers no pointer hitbox, exactly as `onKey(_:)` does not.
+    ///
+    /// **A second `onAction` for the SAME type replaces the first**; one for a
+    /// different type is added alongside it. That is the one place this
+    /// framework's "each modifier writes one field" rule reads as additive, and
+    /// it is because the field is a dictionary keyed by the type.
+    ///
+    /// **What `handler` captures outlives the frame that built it** — the
+    /// retain-cycle hazard `onClick(_:)` states in full, arriving here through
+    /// `Window.lastFocusRegistry`.
+    public func onAction<A: Action>(_ type: A.Type,
+                                    _ handler: @escaping @MainActor (A) -> Void) -> Self {
+        handling { handlers in
+            handlers.actions[ObjectIdentifier(type)] = { action in
+                // Force-cast rather than a conditional one, and deliberately.
+                // The key written here is `ObjectIdentifier(A.self)` and
+                // `dispatchAction` looks up by
+                // `ObjectIdentifier(type(of: action))`, so the two agree by
+                // construction. A `guard … else { return }` would turn any
+                // future break in that agreement into a handler that silently
+                // never runs — this repo's most-recorded failure shape.
+                //
+                // **It is NOT unreachable, and this comment said it was until
+                // a mutation proved otherwise.** Making
+                // `FocusRegistry.actionHandler(for:type:)` ignore its `type`
+                // argument reaches this cast immediately: the suite dies with
+                // signal 6 and **no summary line**, which is a crash rather
+                // than a red test (taxonomy shape 11) and is the cost of
+                // choosing the loud spelling. The pin for the type-keying
+                // itself is a *behavioural* test —
+                // `anActionBubblesPastAnElementThatDoesNotHandleIt` — and the
+                // measurement is that it reddens alone when the same mutation
+                // is paired with a conditional cast here.
+                handler(action as! A)
+            }
+        }
+    }
+
+    /// Contributes a **key context** for this element and its whole subtree —
+    /// framework spec §8.3's `.keyContext("Editor", ["mode": "code"])`.
+    ///
+    /// A `Keymap` binding may name a context predicate (`"Editor"`,
+    /// `"Editor && mode == code"`), and it fires only where that predicate is
+    /// satisfied by the contexts along the focused element's ancestor chain.
+    ///
+    /// **Any element may contribute one, focusable or not** — that is the
+    /// point. The pane names `Editor`; the focused leaf inside it knows nothing
+    /// about contexts and still gets the pane's bindings, because matching runs
+    /// over the chain rather than over the focused element alone.
+    ///
+    /// **The innermost contributor wins** when two bindings for one keystroke
+    /// are both satisfied: a binding predicated on a context contributed deeper
+    /// in the chain beats one predicated on a shallower context, and a binding
+    /// with no context at all is the outermost of all. See `matchKeymap`.
+    ///
+    /// **It registers no pointer hitbox and does not make the element
+    /// focusable.** Contributing a context is a keyboard-side ask only.
+    ///
+    /// **A second `keyContext` REPLACES the first**, as every other modifier
+    /// here does — one element contributes one context.
+    public func keyContext(_ name: String, _ values: [String: String] = [:]) -> Self {
+        handling { $0.keyContext = KeyContext(name, values) }
+    }
+
     // MARK: Identity
 
     /// Names this element among its siblings, **replacing** the position it
