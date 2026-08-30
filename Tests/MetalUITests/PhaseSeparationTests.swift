@@ -305,6 +305,33 @@ func queryingHoverDuringPrepaintDoesNotCompile() throws {
             "rejected, but not for the reason this test is about:\n\(result.output)")
 }
 
+/// The **element-keyed** `isHovered` overload is paint-only too, and this guard
+/// is not symmetry with the one above.
+///
+/// `queryingHoverDuringPrepaintDoesNotCompile` probes `isHovered(_:)` with a
+/// `HitboxID`. Adding *only* the `GlobalElementID` overload to `PrepaintPass`
+/// — the plausible mistake, since that is the spelling every `StyledElement`
+/// conformer reaches for — would leave that guard green while shipping the
+/// hazard, because the `HitboxID` spelling would still be absent. Two spellings
+/// need two probes.
+///
+/// The hazard is the same one, measured the same way: `Frame.hoveredElement`
+/// reads `hoveredHitbox`, which `resolveHover(at:)` does not write until
+/// `prepaint` has returned, so a prepaint-time call answers `nil` — a silently
+/// wrong `false` for every element, including the one under the pointer — and
+/// would rank against a half-built list even if it did not.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func queryingElementKeyedHoverDuringPrepaintDoesNotCompile() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout PrepaintPass, id: GlobalElementID) -> Bool {
+            pass.isHovered(id)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded)
+    #expect(result.messages.contains("isHovered"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
+
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func queryingActiveDuringPrepaintDoesNotCompile() throws {
     let result = try typecheck("""

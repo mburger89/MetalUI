@@ -101,7 +101,7 @@ private struct ModifierCase {
 ///
 /// The count check is a tripwire on **this table**, not on `Box.swift`: nothing
 /// here can see a modifier added there without a case. Reconcile with
-/// `grep -c "public func" Sources/MetalUI/Box.swift`, which is 38 — the 37 on
+/// `grep -c "public func" Sources/MetalUI/Box.swift`, which is 40 — the 39 on
 /// `extension StyledElement` plus `flexDirection` on `extension Box`.
 @MainActor
 @Test func everyPublicModifierWritesItsOwnFieldAndOnlyThatField() {
@@ -116,6 +116,16 @@ private struct ModifierCase {
         ModifierCase(name: "cornerRadius(_:)",
                      apply: { $0.cornerRadius(px(3)) },
                      effect: { _, d, _, _ in d.cornerRadius = px(3) }),
+        // A token distinct from `background(_:)`'s and from each other's, so a
+        // `hoverBackground(_:)` that wrote `background` — or wrote the focus
+        // field — is a mismatch rather than a coincidence. `Theme` asserts no
+        // two tokens share a value, which is the same rule one level down.
+        ModifierCase(name: "hoverBackground(_:)",
+                     apply: { $0.hoverBackground(.separator) },
+                     effect: { _, d, _, _ in d.hoverBackground = .separator }),
+        ModifierCase(name: "focusBackground(_:)",
+                     apply: { $0.focusBackground(.scrim) },
+                     effect: { _, d, _, _ in d.focusBackground = .scrim }),
 
         // MARK: Size
         ModifierCase(name: "width(_:)",
@@ -266,7 +276,7 @@ private struct ModifierCase {
                      effect: { s, _, _, _ in s.flexDirection = .columnReverse }),
     ]
 
-    #expect(cases.count == 38)
+    #expect(cases.count == 40)
 
     for c in cases {
         var expectedStyle = Style()

@@ -481,6 +481,30 @@ public struct PaintPass {
         frame.hoveredHitbox == id
     }
 
+    /// Whether the pointer is over the hitbox `id` registered — the same
+    /// question as the overload above, asked with the key an element actually
+    /// has.
+    ///
+    /// **Not a second mechanism.** It reads the one resolution
+    /// `Frame.resolveHover(at:)` performed, through `Frame.hoveredElement`, so
+    /// the two overloads cannot disagree about a frame.
+    ///
+    /// **It exists because `registerHandlers` returns nothing.** The
+    /// `HitboxID`-keyed overload is the precise one and is what
+    /// `PrepaintPass.insertHitbox`'s callers should use, a `HitboxID` naming
+    /// one registration; but `PrepaintPass.registerHandlers(_:at:id:)` — the
+    /// path every `StyledElement` takes — hands back no index, so `Box` and
+    /// every other conformer has only its `GlobalElementID` when `paint` runs.
+    /// Adding a return value there instead would change `Box.PrepaintState`,
+    /// which is `Content.GroupPrepaint`, and ripple through every container's
+    /// associated types; this overload is the same answer for one line.
+    ///
+    /// The two keys coincide only because an element registers at most one
+    /// hitbox — see `Frame.hoveredElement` for the whole of that argument.
+    public func isHovered(_ id: GlobalElementID) -> Bool {
+        frame.hoveredElement == id
+    }
+
     /// Whether `id` is holding "active" state — the element whose hitbox
     /// received `mouseDown` and has not yet seen `mouseUp` (design spec §3.4).
     ///

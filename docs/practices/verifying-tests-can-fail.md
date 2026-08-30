@@ -80,7 +80,50 @@ coverage gap, prove the mutant *behaves* differently — print the two values, o
 mutate one step further out. A mutation you cannot show changed an observable
 quantity has told you nothing about the tests.
 
-## The taxonomy — thirteen shapes, all found in this repo
+### Three ways a *record* goes wrong, all paid for in rework
+
+These are not shapes of untestable test — they are ways the written record stops
+matching what was measured, and every one of them was found the expensive way on
+the input-and-state milestone.
+
+**1. A measurement recorded in the report is not a measurement applied to the
+source.** Three consecutive tasks shipped a comment their *own report*
+contradicted, in the same commit. A register guard's comment said the early
+return was "not an optimisation" while the same report's mutation table recorded
+that deleting it changes nothing; a phase-guard comment said `isActive` would
+"lie by returning a wrong `false`" while the same report's item 3 said it would
+answer correctly; a test helper's comment said `Handlers` has three members while
+the report that added the fourth and fifth counted five. In each case the report
+became where true things went, and the comment kept its draft-time belief.
+
+> **The rule is one sentence wide: anything a mutation teaches must be walked
+> back to the mutated LINE in the same pass.** Not to the report, not to the
+> ledger — to the line. A comment is read by the next person to touch the code;
+> a report is read by nobody.
+
+**2. A fix round is exactly as capable of producing an unmeasured claim as the
+round it fixes.** A review found a timeout that was bracketed rather than pinned
+(`= 2` and `= 0.4` reddened, `= 0.5` and `= 1.49` passed). The first attempt at
+the fix shipped a test whose doc said it pinned the `>` comparison — and it did
+not, because `>` and `>=` agree at 0.999 and at 1.001. Only a gap of *exactly*
+the timeout separates them.
+
+> Re-reading the fix did not catch it. **Running the mutation the claim implied**
+> did. A fix round gets the same discipline as the work it is fixing: state what
+> the new test pins, then mutate exactly that and watch it go red.
+
+**3. Staleness is systematic, not local — re-take the whole table.** An amendment
+to ruling SI-H. A review flagged two mutation-table rows as measured before the
+last tests landed; re-taking *everything* found a third the reviewer had not
+sampled, and then a fourth that had moved for a different and better reason (one
+new test turned out to catch two distinct mutants).
+
+> A review **samples**. A count taken before the last test landed is stale across
+> *everything* measured in that window, not at the two places somebody happened to
+> check. **Re-take the whole table, do not patch the flagged rows** — and name the
+> tests each row reddens, which is what makes a stale row visible at all.
+
+## The taxonomy — fourteen shapes, all found in this repo
 
 Use this as a checklist when writing tests, and as a hit list when mutating.
 
@@ -439,6 +482,35 @@ rest of the test body operating on invalid state — an index, a force-unwrap
 guard, a precondition on a count, a loop bound — belongs in a `#require`. Assert
 with `#expect` where a failure is *survivable*, with `#require` where the next
 line depends on it.
+
+### 14. A confident wrong reason closes the question before it is asked
+
+Shape 9 is a composition that exists in the code and in no test. This is the
+*cause* of one, and it is worth its own entry because the failure happens in
+prose, before any test is written or not written.
+
+A task report's out-of-scope section asserted that two new modifiers "cannot" be
+covered by `everyPublicModifierWritesItsOwnFieldAndOnlyThatField`, because
+`Handlers` holds closures and is therefore not `Equatable`. **The premise is
+true.** The conclusion is false: that file already carries `HandlerShape`, a
+hand-built `Equatable` *projection* invented two tasks earlier for exactly this
+problem. Nobody looked, because the reason sounded finished. Both modifiers then
+shipped with no coverage, and both mutants — a `keyContext(_:_:)` that also set
+`isFocusable`, an `onAction(_:_:)` that also registered a pointer hitbox — stayed
+green.
+
+**The precedent this repeats is in CLAUDE.md**, and it is worth reading as the
+canonical instance: divergence 5's paragraph records a task concluding the demo's
+`ScrollView` wrapper needed a literal width because "width has no equivalent
+escape" to `.minHeight(_:)`. `.minWidth(_:)` exists, one line below it in the same
+file. The conclusion happened to be right and the stated reason was wrong in two
+directions at once, which is why nobody caught it for a milestone.
+
+> **The tell is a "cannot" that was not measured.** A true observation is being
+> used to close a question rather than to answer it. When a report says a test is
+> impossible, the cheap check is to grep the test file for the problem's name
+> before believing it — the machinery that solves it is usually already there,
+> written by whoever hit it first.
 
 ### A fixture hazard worth knowing before you write goldens
 

@@ -20,7 +20,8 @@ idiomatic Swift. macOS and iOS.
   `docs/superpowers/2026-08-28-clipping-scroll-decisions.md`,
   `docs/superpowers/2026-08-28-stack-decisions.md`,
   `docs/superpowers/2026-08-28-absolute-positioning-decisions.md`,
-  `docs/superpowers/2026-08-28-measure-performance-decisions.md` — each ruling with
+  `docs/superpowers/2026-08-28-measure-performance-decisions.md`,
+  `docs/superpowers/2026-08-29-input-decisions.md` — each ruling with
   its reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
@@ -28,12 +29,17 @@ idiomatic Swift. macOS and iOS.
   `FS-n` to flex sizing, `AL-n` to alignment, `BM-n` to the box model, `WR-n` to
   wrapping, `EP-n` to the element pipeline, `CS-n` to content sizing, `SI-n`
   to structural identity, `TX-n` to text (M2), `CL-n` to clipping and scroll,
-  `ST-n` to the stack container, `AP-n` to absolute positioning and `MP-n` to
-  measure-path performance (the last seven are
+  `ST-n` to the stack container, `AP-n` to absolute positioning, `MP-n` to
+  measure-path performance and `IN-n` to `@State`/hit testing/input dispatch
+  (the last eight are
   **lettered** — `CS-A`…`CS-O`, `SI-A`…`SI-H`, `TX-A`…`TX-J`, `CL-A`…`CL-F`,
-  `ST-A`…`ST-G`, `AP-A`…`AP-M` and `MP-A`…`MP-K` — so a bare `CS-3`, `SI-3`,
-  `TX-3`, `CL-3`, `ST-3`, `AP-3` or `MP-3` is a typo rather
-  than a citation) (**`EP-2` and `EP-4` were never
+  `ST-A`…`ST-G`, `AP-A`…`AP-M`, `MP-A`…`MP-N` and `IN-A`…`IN-W` — so a bare
+  `CS-3`, `SI-3`, `TX-3`, `CL-3`, `ST-3`, `AP-3`, `MP-3` or `IN-3` is a typo
+  rather than a citation; **`MP-A`…`MP-K` is what this line said until the
+  input-and-state milestone re-read the file — the measure-performance
+  milestone's whole-branch review added `MP-L`, `MP-M` and `MP-N` and did not
+  update the range here, so a citation of `MP-L` is real and this sentence
+  denied it**) (**`EP-2` and `EP-4` were never
   assigned** and must not be reused — a new ruling taking one would silently
   rebind any citation written against the gap). Sweep for stray citations **case-insensitively** — a `Ruling F-3` survived two branches' greps for lowercase `ruling`. A bare `F-1` is ambiguous — m0, m1a and flex sizing each
   had one, and three code comments on the flex-sizing branch cited the wrong
@@ -178,13 +184,17 @@ idiomatic Swift. macOS and iOS.
   of them masked away. Nothing enforces it and nothing can — see divergence
   14 and ruling MP-L for why `requestLayout` cannot know where it sits.
 
-  **What it costs is three divergences, 12, 13 and 14 below**: a row's own
-  `StateTable` state is reaped while it is off screen (its *identity* is what
-  survives, not its state), the window is computed against a one-frame-stale
-  viewport extent, and the window is placed against the scroller's origin
-  rather than the list's own. `Sources/MetalUI/List.swift`; decisions doc
-  `docs/superpowers/2026-08-28-measure-performance-decisions.md`, rulings
-  prefixed `MP-`.
+  **What it costs is FOUR divergences, 12, 13, 14 and 17 below** (it was three
+  until focus existed): a row's own `StateTable` state is reaped while it is off
+  screen (its *identity* is what survives, not its state), the window is
+  computed against a one-frame-stale viewport extent, the window is placed
+  against the scroller's origin rather than the list's own, and — 17, added by
+  the input-and-state milestone — a **focused** row scrolled out of the window
+  loses focus and does not get it back. 17 is the worst of the four for one
+  reason: `@State` is recoverable from the datum and focus is not.
+  `Sources/MetalUI/List.swift`; decisions docs
+  `docs/superpowers/2026-08-28-measure-performance-decisions.md` (`MP-`) and
+  `docs/superpowers/2026-08-29-input-decisions.md` (`IN-M`).
 
 - **`Deferred` is a portal, and it is the framework's first element that is not
   a container.** It takes **exactly one** child (ruling AP-J: it is a paint
@@ -216,6 +226,143 @@ idiomatic Swift. macOS and iOS.
   the portal; a modal needs both. Decisions doc:
   `docs/superpowers/2026-08-28-absolute-positioning-decisions.md`, rulings
   prefixed `AP-`.
+
+- **`@State` exists, and it is a box seeded by reflection — not a stored value
+  in the element struct.** `@State var count = 0` on any `Element` conformer
+  holds a `final class Box` with a `StateTable` reference and a slot id; the
+  framework seeds both, once per element per frame, in `StateBinder.bind`. That
+  indirection is what makes the wrapper possible in public Swift at all —
+  `Mirror` hands back *copies* of a struct's stored properties, so it cannot
+  write into them, but a copy shares the same box. Reflection is cached **per
+  type**, so an element with no `@State` costs a dictionary hit against an
+  empty array and no `Mirror` at all past its type's first sighting; an element
+  that *does* have one pays a per-instance `Mirror` walk over its children,
+  measured at ~2.3 us per stateful element per frame and unavoidable given this
+  design.
+
+  **The slot id is `.named("$state\(ordinal)")` under the element's own id, and
+  the ordinal is the MIRROR index** — not the position among `@State` children.
+  Three consequences a reader will otherwise get wrong:
+
+  - **A hand-written `.id("$state0")` collides with slot 0** (spec §8 risk 1).
+    Unlikely, not prevented, and there is no diagnostic.
+  - **Seeding MARKS, so a `@State` that is declared and never read is never
+    swept** (spec §8 risk 3). Deliberate: the alternative silently resets a
+    counter whose value a frame happened not to look at. It does mean `@State`
+    keeps entries `withState`'s own rule would drop.
+  - **The vanishing-`if` hazard reaches ordinary code for the first time**
+    (spec §8 risk 2). A `@State` after a conditional sibling adopts the
+    vanished element's *value*, because identity is positional and the cursor
+    advances one place differently on the two frames. This is a property of
+    structural identity, not of `@State` — see the identity bullet above, whose
+    remedy (name the **trailing sibling**, not the conditional content) is the
+    one intuition gets backwards.
+
+  **A write marks the window dirty and a read does not**, through
+  `StateTable.onWrite` → `Window.setNeedsRedraw()`. That hook is the entire
+  production mechanism; `StateTable.isDirty` is a test observable with no
+  production reader and has a row in the inert table. **Write `@State` from
+  input, never from `requestLayout`** — an element that writes its own state
+  every frame keeps the window permanently dirty, so the display link never
+  pauses, which is milestone 4's exit criterion sabotaged from an element.
+
+  **`@State` inside an `AnyElement` is silently inert** and has its own row in
+  the inert table. Decisions doc:
+  `docs/superpowers/2026-08-29-input-decisions.md`, rulings prefixed `IN-`
+  (**lettered**, `IN-A`…`IN-W`, so a bare `IN-3` is a typo).
+
+- **There is ONE hitbox list, and a scroll region is a hitbox with an axis
+  attached.** `Frame.hitboxes` is the only stored registry: wheel routing,
+  hover, active and click dispatch all rank against it with **one** copy of the
+  ordering — `topmostOpaqueHitbox(in:at:)` in `Hitbox.swift`, a filter to the
+  opaque records containing the point plus a `.max` by `(layer, registration
+  index)`. There were three copies and two lists before this milestone folded
+  them. **Do not add a fourth.** `Frame.scrollRegions` and
+  `Window.lastScrollRegions` survive as get-only derived views with **zero**
+  production readers, which is why they have a row in the inert table.
+
+  **`onClick(_:)` is what makes an element a hit target, and the gate is the
+  load-bearing half.** A `Box` with no handler registers nothing, so it is
+  transparent to the pointer *and* does not swallow the wheel of a `ScrollView`
+  it sits inside. Removing that gate reddens 17 tests, fourteen of them
+  scroll-routing suites — an always-registered container hitbox outranks the
+  scroller beneath it and stops every `ScrollView` in the framework scrolling.
+
+  **The pointer gate and the keyboard gate are SEPARATE and must stay so.**
+  `Handlers.isPointerTarget` is `onClick` alone; `Handlers.isKeyTarget` is
+  `onKey || isFocusable || !actions.isEmpty || keyContext != nil`. One combined
+  gate would make every focusable element an opaque hitbox — and a list of
+  focusable rows would stop scrolling. Pinned by
+  `focusabilityAndKeyHandlingRegisterNoPointerHitbox`.
+
+  **Hover resolves once, at the prepaint/paint boundary**, so
+  `PaintPass.isHovered` has no one-frame lag and every element in a frame sees
+  the same answer whichever asks first. Two spellings: `isHovered(HitboxID)` is
+  the precise one, `isHovered(GlobalElementID)` is what a `StyledElement` can
+  actually reach, because `registerHandlers` returns no index. `isActive` and
+  `isFocused` are `GlobalElementID`-keyed because both outlive a frame. **All
+  four are paint-only and each has a `swiftc -typecheck` guard** — and two of
+  those guards' justifications are *contingent* rather than measured; each says
+  so in its own doc and names what would make it deletable.
+
+- **`StyledElement` has a FOURTH requirement: `var handlers: Handlers`.**
+  `style`, `decoration`, `elementID`, `handlers` (ruling IN-H). It is a
+  requirement rather than a defaulted extension property on purpose — a default
+  of `{ get { Handlers() } set {} }` lets a conformer that stores nothing
+  compile, and `.onClick { … }` on it would return an element with the handler
+  thrown away. Storing it is still only half the job: a conformer must also
+  call `PrepaintPass.registerHandlers(_:at:id:)` in its own `prepaint`, which
+  nothing can enforce; `onClickIsLiveOnEveryConformerThatCanRegisterOne` is the
+  guard, one case per conformer.
+
+  **`Handlers` holds escaping closures, so it is NOT `Equatable`, and that has
+  already cost one coverage gap.** `everyPublicModifierWritesItsOwnFieldAndOnlyThatField`
+  compares the other three stored values by whole-value equality and projects
+  this one through a hand-built `HandlerShape` in `ModifierTests.swift`.
+  **That projection must gain a field in the same change `Handlers` gains a
+  member** — it did not, once, and `onAction(_:_:)` and `keyContext(_:_:)`
+  escaped the table entirely for a whole task while its own comment still said
+  "three members". Both mutants (a `keyContext` that also set `isFocusable`, an
+  `onAction` that also registered a pointer hitbox) were green.
+
+  **A handler outlives the frame that built it.** `Window.lastHitboxes` retains
+  the most recent frame's closures for the window's lifetime and nothing clears
+  it, so `.onClick { window.doThing() }` is a retain cycle the API surface
+  cannot diagnose. `Window.onAction` is the sharper form — that closure is
+  stored *on* the window, so a cycle closes with no frame drawn at all. Capture
+  `[weak window]`, or capture the state the handler writes, which is what
+  `@State` is for.
+
+- **Focus is a tree registered in prepaint, and NOTHING focuses anything on its
+  own.** `Window.focus(_:)` is the only mover — clicking does not focus (ruling
+  IN-N), which is what lets a keymap binding work with nothing focused at all.
+  A key event bubbles the focused id's **own parent chain** outward, with no
+  second tree to keep in sync: structural identity already bought a persistent
+  parent link. `Frame.resolveFocus()` clears a focused id this frame did not
+  produce, at the prepaint/paint boundary — so an element that vanishes, *or*
+  stops being `.focusable()`, reads as unfocused on the very frame that drops
+  it rather than one frame late.
+
+  **A keystroke resolves against the window's `Keymap` FIRST and reaches a raw
+  `onKey` only if no binding matched.** Keymap as declaration of intent, raw
+  handler as escape hatch; swapping them makes every raw handler shadow every
+  binding on the same keystroke. A bound keystroke becomes an `Action` **type**
+  that bubbles the same chain to the first element handling *that* type — and
+  **an action nobody handles does not claim the keystroke**, so binding a key
+  and forgetting the handler falls through to `onKey` and `onInput` rather than
+  silently eating it. Context predicates (`context: "Editor"`, `"!Modal"`) are
+  matched innermost-first against the contexts the *chain* contributes, and a
+  context is contributed by **any** element, focusable or not. A malformed
+  predicate is a visible parse failure (`nil`), never a trap and never an
+  indistinguishable `false`.
+
+  **Focus is drawn with `focusBackground(_:)`, a token swap, and there is no
+  ring** — `Frame.fill` hard-codes zero border widths, so nothing above the
+  renderer can draw a border at all. `hoverBackground(_:)` is its pointer-side
+  twin, and **focus outranks hover** where both apply (ruling IN-V). Both are
+  inert on their own: a `hoverBackground` with no `onClick` registers no hitbox
+  and never resolves as hovered; a `focusBackground` with no `focusable()` and
+  nothing moving focus never paints.
 
 - **`Text` measures and draws, and three things about it are load-bearing.**
   M2 landed `MetalUIText` (CoreText, no Metal), a shaping cache and a glyph
@@ -261,10 +408,14 @@ The flex-sizing milestone alone produced nineteen findings, four of them the sam
 shape: a fixture too uniform to distinguish the thing it claimed to pin. Before
 committing a fixture, change the declaration it is named for — a percentage to a
 pixel, an inset to 0 — regenerate, and confirm the numbers move. That document
-catalogues **thirteen** shapes of test that cannot fail, all observed in this repo,
+catalogues **fourteen** shapes of test that cannot fail, all observed in this repo,
 plus the method for finding them and the cases where adding a test is the wrong
-answer. Count the `### <n>.` headings rather than trusting that number — a bare
-`grep -c "^### "` reads 15, because two sections in that document are unnumbered.
+answer. Count the `### <n>.` headings rather than trusting that number
+(`grep -cE "^### [0-9]+\." docs/practices/verifying-tests-can-fail.md` reads 14) —
+a bare `grep -c "^### "` reads **17**, because **three** sections in that document
+are unnumbered. Both numbers moved in the input-and-state milestone, which added
+shape 14 and one unnumbered section; this sentence recorded 13 and 15 before it,
+and the unnumbered count was 2.
 
 The recurring lesson of the last two tasks has a sharper form: **a feature that
 works alone and a feature that works alone can be wrong together.** All three
@@ -345,6 +496,48 @@ a warm-up value and then read byte-identically forever — measured
 all**. It passed against a stub. The assertion was fine; the fixture could not
 move the key the assertion read. Ruling `MP-J` carries it.
 
+**The input-and-state milestone added one shape and three mechanisms, and every
+one of the four is about the RECORD rather than about a test.** The shape is
+**14, "a confident wrong reason closes the question before it is asked"**: a
+report asserted two new modifiers "cannot" be covered by
+`everyPublicModifierWritesItsOwnFieldAndOnlyThatField` because `Handlers` is not
+`Equatable` — true — and concluded no test was possible, which is false, since
+`HandlerShape` in that same file had solved exactly that two tasks earlier.
+Nobody looked, because the reason sounded finished. Both modifiers shipped
+uncovered and both mutants stayed green. **The precedent it repeats is already
+in this file**: divergence 5's FS-3/`.minWidth` correction, where a task's
+stated reason was wrong in two directions at once while its conclusion happened
+to be right. The tell is a **"cannot" that was not measured**.
+
+The three mechanisms are new sections under "The method" in the practices doc,
+and each cost a round of rework:
+
+1. **A measurement recorded in the report is not a measurement applied to the
+   source.** Three consecutive tasks shipped a comment their own report
+   contradicted *in the same commit* — the report became where true things went
+   while the comment kept its draft-time belief. The rule is one sentence wide:
+   **anything a mutation teaches must be walked back to the mutated LINE in the
+   same pass.**
+2. **A fix round is exactly as capable of producing an unmeasured claim as the
+   round it fixes.** The first attempt at pinning a one-second timeout shipped a
+   test whose doc said it pinned the `>` comparison and did not — `>` and `>=`
+   agree at 0.999 and 1.001. Re-reading the code did not catch it; running the
+   mutation the claim implied did.
+3. **Staleness is systematic, not local — re-take the whole table.** An
+   amendment to `SI-H`. A reviewer flagged two stale mutation rows; re-taking
+   *everything* found a third they had not sampled, and a fourth that had moved
+   for a better reason. A review samples; a count taken before the last test
+   landed is stale across everything measured in that window.
+
+**And the milestone's own best evidence for the method is a ruling that was
+answered the OPPOSITE way from how it was framed.** A brief deliberately left
+open whether `isFocused` needed a phase guard and *forbade* adding one by
+symmetry with `isActive`'s. Measuring it found that a prepaint-time `isFocused`
+really does lie — and, incidentally, that `isActive`'s guard is **not** the
+measured lie its shared comment claimed, since `Frame.activeElement` is a `let`.
+A prohibition aimed at preventing a bad addition surfaced a pre-existing false
+justification. Forbid the reasoning shortcut, not only the outcome.
+
 ## Verified on real hardware
 
 `swift run MetalUIDemo` was run and inspected on a Retina display: the window
@@ -399,7 +592,7 @@ what the demo draws — and no test can establish it.** `MetalLayerSurface` vend
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and the whole suite still passed when that was measured, at 342 tests
-(**609 today**; the count is quoted so the measurement can be dated, not because
+(**736 today**; the count is quoted so the measurement can be dated, not because
 342 is a property of anything). If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
@@ -553,7 +746,7 @@ behind the **M** key for that reason; see `showModal` in
 **Z-order is why that criterion exists, and it is worth restating precisely.**
 A `Stack`'s children are placed independently of paint order —
 `positionStackItems` never reads which child was declared first — so a
-regression reversing paint order would move not one number any of the 609 tests
+regression reversing paint order would move not one number any of the 736 tests
 or 81 goldens check: every rect's `(x, y, width, height)` is identical whichever
 child painted first. **Two artifacts have ever observed the property and both are
 outside the suite**: the offscreen readback, once, by hand, and the human look
@@ -583,17 +776,21 @@ dimmed too, so the scrim reaches the window's edges rather than the scroller's
 it.
 
 **The build in that recording is no longer the build a human would run**, and
-the four failures below are unchanged by it. The measure-performance milestone
-replaced the demo's `for` loop over 40 rows with a `List` of **500**, windowed
-to the visible slice. The rows are still declared *after* the modal, so failure
-2 reads exactly as written; failure 3 (does the modal move when the list
+one of the four failures below has changed since. The measure-performance
+milestone replaced the demo's `for` loop over 40 rows with a `List` of **500**,
+windowed to the visible slice. The rows are still declared *after* the modal, so
+failure 2 reads exactly as written; failure 3 (does the modal move when the list
 scrolls) is if anything easier to judge with 500 rows of travel underneath it.
-Nothing about `Deferred`, the scrim or the panel changed.
+**Failure 4's expected answer INVERTED in the input-and-state milestone** — the
+scrim now registers a click target, so the list must no longer scroll under it;
+see that item for both halves of the change. Nothing about `Deferred`, the
+hoist or the clip reset changed.
 
 **What that leaves genuinely unobserved is failures 3 and 4**, because the
 recording contains no scrolling — nobody has seen whether the modal stays put
 while the list moves, or what a wheel over the scrim does. Those still need the
-run below. Note also that dark-on-dark dimming is very hard to judge by eye
+run below, and failure 4 is now a sharper question than it was: it has a right
+answer rather than an expected report. Note also that dark-on-dark dimming is very hard to judge by eye
 with no undimmed reference in frame: a first pass over these same frames
 concluded the scrim was **missing**, and only measurement corrected it. A human
 report of "I see no scrim" should be measured before it is believed.
@@ -605,6 +802,14 @@ centred panel. Absolute with all four insets given and an `auto` size makes it
 stretch across its containing block, which — nothing between it and the root
 being positioned — is the whole window.
 
+**It also carries `.onClick { showModal = false }` as of the input-and-state
+milestone**, which is what makes it an *opaque hit target* and therefore what
+inverts failure 4 below. Clicking the scrim dismisses the modal; the panel
+inside it carries a no-op `.onClick {}` so that clicking the panel does not.
+That absorber is not decoration — a container registers before descending, both
+sit on the same hoisted layer, and there is no click chaining, so the panel's
+later registration wins the tie-break and the scrim never sees it.
+
 **It is off by default and the M key toggles it.** The look therefore has an
 instruction: run the demo, press **M**, and watch the transition in both
 directions. Two reasons, and the second is the better one. This file carries
@@ -614,6 +819,14 @@ paragraph renders legibly". And toggling makes **this** criterion stronger:
 "the modal covers the window" and "the modal replaced the window" separate by
 observation across the transition, rather than by inferring one from the
 scrim's alpha.
+
+**The key still works and the mechanism underneath it changed.** M is now a
+`Binding("m", ToggleModal())` on the window's `Keymap`, handled by
+`Window.onAction`, rather than a `switch` on `charactersIgnoringModifiers` in an
+ad-hoc `onInput` — which is gone from the demo entirely, along with the false
+sentence it carried ("there is no hit-testing in the framework yet"). Space
+moved the same way. Clicking the scrim also dismisses now, so a human has two
+ways to close it.
 
 **What a human has to look at, stated as four separable failures.**
 
@@ -625,22 +838,41 @@ scrim's alpha.
    means `pushRootClip` reset the clip bounds but inherited the accumulated
    offset (ruling AP-I) — half a portal.
 4. **Wheel over the scrim with the modal up, and report whether the list moves
-   underneath it.** Read this one as a report rather than as a pass/fail: the
-   expected answer today is that **the list DOES move**, and the reason is
-   measured rather than argued — a non-scrolling `Deferred` scrim registers no
-   scroll region at all, and `Frame.scrollRegions` is the only hitbox list this
-   framework has. An overlay that does not itself scroll therefore cannot block
-   a wheel event, and nothing short of §8.1's general hitbox list will change
-   that. What the whole-branch review *did* fix is the neighbouring case — a
-   scroller *inside* a `Deferred` now outranks one it paints over, because the
-   registration carries its layer. A human reporting "the list scrolls under
-   the modal" is confirming a known limitation; a human reporting that it does
-   **not** means something unexplained is happening and is worth chasing.
+   underneath it. THE EXPECTED ANSWER INVERTED with the input-and-state
+   milestone, and this item is now a pass/fail rather than a report.** The list
+   must **not** move. A human reporting that it still scrolls under the modal is
+   reporting a regression, not confirming a limitation — which is the opposite
+   of what this item said for three milestones.
+
+   **Two things changed and both were needed.** The framework grew the general
+   hitbox list this item used to say nothing short of would change the answer
+   (design spec §8.1's, folded so that a scroll region *is* a hitbox with an
+   axis attached), so a wheel event now stops at the topmost opaque hitbox and
+   scrolls only if that record is itself a scroller. And the demo's scrim, which
+   registered no hitbox at all — `Deferred` and `Box` contribute no
+   `insertHitbox` call on their own — gained `.onClick { showModal = false }`,
+   which is exactly what makes an element an opaque hit target (ruling IN-W).
+   `Deferred` has hoisted it to the root layer over the whole window, so it
+   outranks everything beneath it.
+
+   **The old sentence was wrong in one further way worth keeping**: it said
+   `Frame.scrollRegions` "is the only hitbox list this framework has". That
+   accessor is now a derived view with **zero** production readers and has a row
+   in the inert table; `Frame.hitboxes` is the list.
+
+   The neighbouring case an earlier review fixed still holds — a scroller
+   *inside* a `Deferred` outranks one it paints over, because the registration
+   carries its layer.
+
+   **The cost of the same rule, and it is divergence 16**: a button inside a
+   `ScrollView` swallows that scroller's wheel over its own rect, where a browser
+   scrolls. The demo's counter is in the main pane and not in the list for
+   exactly that reason.
 
 **Nothing in the suite can see any of the first three, and the reason is the same one
 `Stack`'s entry gives.** A `Deferred` contributes no layout node, so its
 subtree's `(x, y, width, height)` are byte-identical whether or not it hoists
-and whether or not it escapes; the 609 tests and 81 goldens would all stay green
+and whether or not it escapes; the 736 tests and 81 goldens would all stay green
 under a regression in either half. The scene-level tests in `DeferredTests.swift`
 assert the layer and the mask on synthetic frames, which is real evidence and is
 not the same as the composed window.
@@ -744,7 +976,7 @@ records that exclusion up front). And the demo now carries a second thing worth
 a directed look for the same reason `Stack`'s z-order needed one: with a
 `List`, rows appear and disappear as the window moves, and a window whose
 overscan is too small shows a strip of unbuilt rows for a frame (divergence 13).
-No assertion in the 609 can see either.
+No assertion in the 736 can see either.
 
 **What a human must do, and what to report.** Run `swift run MetalUIDemo`, then
 `swift run -c release MetalUIDemo`. Drag the window's edge — slowly, then fast —
@@ -760,31 +992,102 @@ observation about whether it is actually perceptible. A positive report closes
 §9 item 6 and closes none of the looks this file already lists as permanently
 open.
 
-## Thirteen known divergences, numbered 1-6 and 8-14 — expected, measured, not defects
+**`@State`, hit testing and input dispatch — exit criterion 7 is OPEN. Nobody
+has run this build and looked at it, and nothing below should be read as saying
+otherwise.** Design spec §7 item 7 asks a human to run the demo and report
+whether clicking feels responsive, whether hover reads correctly and whether
+focus is visible. **What has been established is only that the demo builds
+warning-free and launches**: the binary was started, stayed alive, and wrote
+nothing to stderr. That is a process fact, not an observation of a window, and
+it rules out exactly one failure — a crash on startup.
+
+**Why this criterion cannot be closed by anything in the suite, stated as a
+mechanism rather than as deference.** All three questions are about a rendered
+window under a live pointer. The framework's own §6 named them in advance as
+untestable — "whether a click *feels* responsive, whether hover highlighting
+reads correctly, and whether focus is visible" — and two further things join
+them from execution. The `NSTrackingArea` that makes `mouseMoved` fire at all
+(ruling IN-K) has **no harness in this repo**: nothing here can drive real
+AppKit mouse tracking, so whether hover updates on a plain move — rather than
+only on a click — is a human observation and nothing else. And the demo's
+**focus affordance is a token swap between `.surface` and `.surfaceSecondary`**
+(ruling IN-V), because `Frame.fill` can draw no border; whether that reads as
+"this thing has the keyboard" is a judgement about two dark greys, which is the
+same kind of judgement the scrim entry above records a first pass getting
+backwards until it was measured.
+
+**What a human must do, and what to report.** Run `swift run MetalUIDemo`. The
+counter is in the main pane, below the layered hero and above the "Text
+renders" heading, and it is **focused at launch**.
+
+1. **Click `+` and `-` and report whether it feels responsive** — the count
+   should move on *release*, not on press, and there should be no perceptible
+   lag. (Dispatch runs on `mouseUp` and only when press and release landed on
+   the same element; a click that starts on `+`, wanders off and comes back
+   still counts.)
+2. **Move the pointer slowly across the two buttons and report whether the
+   highlight tracks it** — each should take the accent colour under the pointer
+   and lose it when the pointer leaves. **And say what happens when the pointer
+   leaves the WINDOW**: `lastMousePosition` is deliberately sticky (ruling
+   IN-K), so the expected answer is that the last-hovered button *stays* lit.
+   That is a known limitation, not a bug to chase, and nobody has seen it.
+3. **Report whether the focused counter panel is visibly distinguishable from
+   the surrounding pane.** Press **Escape** to drop focus and **F** to take it
+   back, and judge across the transition rather than from a still — the same
+   argument that gates the modal behind **M**. If the two states are hard to
+   tell apart, say so: the affordance is a token swap and the honest answer may
+   be that a fill is not enough, which is a finding about `IN-V` rather than
+   about the focus system.
+4. **With the counter focused, press `=` (or `shift-+`) and `-`, and report
+   whether the count moves.** Then press **Escape** and press them again: the
+   expected answer is that **nothing happens**, because both bindings carry
+   `context: "Counter"` and that context is contributed only by the focused
+   panel. A human who finds them still working with nothing focused has found a
+   real defect in context matching.
+5. **Space still toggles the theme and M still toggles the modal**, both now
+   through the keymap rather than an ad-hoc `onInput`. Report if either
+   regressed — that is the check that moving them onto the new subsystem cost
+   nothing.
+
+**Two of the absolute-positioning entry's four failures also become answerable
+in this build and one of them has INVERTED.** Failure 4 — wheel over the scrim
+with the modal up — must now leave the list still, because the scrim registers a
+click target (ruling IN-W). And clicking the scrim should dismiss the modal
+while clicking the *panel* should not.
+
+**A positive report closes §7 item 7 and closes none of the looks this file
+already lists as permanently open**, including every one of the three the M2
+entry names.
+
+## Sixteen known divergences, numbered 1-6 and 8-17 — expected, measured, not defects
 
 **The labels are stable ids, not a running count, and the gap is deliberate.**
-There are **thirteen** entries and the highest label is **14**: the original
+There are **sixteen** entries and the highest label is **17**: the original
 divergence 6 was fixed, the original 7 was renumbered *into* 6 (see the "This
 was divergence 7 of seven, and 6 is gone" paragraph inside entry 6), and every
 entry added since has taken the next free label rather than re-using the freed
 7 — the same rule `EP-2`/`EP-4` follow, so a citation written against
 "divergence 8" never silently rebinds. A reader who counts to the highest label
-gets fourteen and a reader who counts entries gets thirteen; both are answering a
+gets seventeen and a reader who counts entries gets sixteen; both are answering a
 different question from the one this heading used to leave open, which is why
 it says both numbers.
 
 **Not every entry is a disagreement with WebKit, and 10 was the first that never
 was one.** 1-6 and 8 are places this engine answers differently from an oracle
 (WebKit for all but 8, which is layout against paint inside this engine). 9 is
-of that kind too. **10 and 11 are design choices recorded here because a reader
-comparing this framework to CSS will otherwise read them as bugs** — they are
-the two directions of one seam, and each entry names the other. **12, 13 and 14
-are a third kind again: neither a disagreement nor a design preference, but
-three accepted limitations of `List`'s windowing**, each with a named mechanism
-that would remove it and a reason that mechanism is larger than this framework
-has built. 14 is the one of the three that can make a list render **blank**
-rather than merely stale or forgetful, so read it before putting a `List` in a
-scroller that holds anything else.
+of that kind too. **10, 11 and 16 are design choices recorded here because a
+reader comparing this framework to CSS will otherwise read them as bugs** — 10
+and 11 are the two directions of one seam and each entry names the other, and 16
+is the price of the rule that closes the modal-scrim case. **12, 13, 14 and 17
+are a third kind again: neither a disagreement nor a design preference, but four
+accepted limitations of `List`'s windowing**, each with a named mechanism that
+would remove it and a reason that mechanism is larger than this framework has
+built. 14 is the one of the four that can make a list render **blank** rather
+than merely stale or forgetful, so read it before putting a `List` in a scroller
+that holds anything else. **15 is a fourth kind and the only one of its own: a
+defect this framework has and has deliberately not fixed yet**, recorded here
+rather than left latent because its symptom — a subtree that draws nothing at
+all — reads as anything but a clipping bug.
 
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
@@ -1422,11 +1725,130 @@ are not divergences**: a horizontal `ScrollContext` used to window a vertical
 to inherit the scroll context of the scroller it had escaped (ruling MP-N). Both
 were one condition each; this one is not.
 
+**15. A `ScrollView` nested inside a SCROLLED `ScrollView` gets an empty content
+mask, so nothing inside it draws.** Not a disagreement with any oracle and not a
+design choice — a defect this framework has, found by measurement and
+deliberately left for a milestone that owns paint.
+
+`Frame.pushClip` intersects the incoming rect into `activeClip` **without
+translating it by `activeOffset` first**, where `Frame.insertHitbox` — the
+routing side — does translate. So the inner viewport's clip is computed in the
+engine's untranslated space while `activeClip` is already in surface space, and
+the two are compared as though they were the same thing.
+
+Measured through a real `Window`, a 200x200 frame holding a vertical
+`ScrollView` over 400pt of content (a 300pt filler above a 100pt box holding a
+second `ScrollView`), the outer driven to its 200pt ceiling:
+
+```
+inner's three rows paint at y = 100, 150, 200      // correct
+inner's registered scroll region = (0, 100) 200x100 // correct
+inner's content mask             = (0, 300) 200x0   // EMPTY
+```
+
+So the inner scroller is laid out correctly, painted at the right window
+positions and routes wheel events exactly right — and draws nothing.
+
+**Its routing twin WAS fixed and is not a divergence** (ruling IN-F):
+`registerScrollRegion` had the identical missing term, and unifying it on
+`insertHitbox`'s translating convention is pinned by
+`aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`.
+
+**Not fixed, and the reason is blast radius rather than difficulty** (ruling
+IN-G). The fix is one line, and applying it at the end of the milestone reddens
+the pin below and **nothing else across 736 tests** — but that is the weakest
+possible evidence here, for the reason ruling IN-F records: no other fixture in
+the repo puts a scroller inside a scrolled scroller and reads its mask back.
+`pushClip` is the clip stack every clipped subtree in the framework goes
+through, and it was found inside a milestone whose entire test surface is input
+rather than paint.
+
+**Pinned, and the pin asserts the WRONG answer on purpose** —
+`aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask`
+(`Tests/MetalUITests/NestedClipTests.swift`), which says so in each of its own
+failure messages, exactly as divergence 14's does. Delete or invert it; do not
+repair it.
+
+**16. An `onClick` inside a `ScrollView` swallows that scroller's wheel, where a
+browser scrolls.** A design choice, on 10 and 11's footing — recorded because a
+reader who knows a browser will file it as a bug.
+
+A wheel event stops at the **topmost opaque hitbox** under the pointer and
+scrolls only if that record is itself a scroller. Every `onClick` registers an
+opaque hitbox. So a button inside a list blocks the list over its own rect:
+
+```swift
+ScrollView(.vertical) {
+    List(rows, rowHeight: …) { row in
+        Box { … }.onClick { … }          // the wheel stops here
+    }
+}
+```
+
+**Non-opaque was rejected and the reason is the case this rule exists to
+close.** A modal scrim must swallow *clicks* aimed at what is under it, and a
+non-opaque hitbox is skipped by `topmostOpaqueHitbox(in:at:)` entirely — so
+making click targets non-opaque would undo the scrim property in order to fix
+the button one. Design spec exit criterion 4 is the scrim half, and it is met.
+
+**The fix is named rather than left as a mystery, and it needs no new state.** A
+wheel should stop at an opaque hitbox only when that hitbox is on a **higher
+layer** than the topmost scroller under the same point. `Deferred` hoists a
+scrim to the root layer; a button inside a `ScrollView` shares its scroller's
+layer — so the `layer` key already on every `Hitbox` separates the two cases
+with no ancestor walk. It is written into `Window.applyScroll`'s own doc.
+Deliberately not implemented in the milestone that introduced click handling:
+`applyScroll` is the site of two shipped intermittent scroll defects that only a
+human found, and does not get an unreviewed refinement during a task about
+clicks.
+
+**The mitigation in use today is placement.** `Sources/MetalUIDemo/main.swift`
+puts its counter in the main pane and not in the `ScrollView`, and says so at
+the call site.
+
+**Pinned by `aClickTargetInsideAScrollViewSwallowsTheWheel`**, which asserts the
+wrong answer on purpose and says so in its own message. No fixture or golden
+encodes it and none could — CSS's wheel routing is not what this implements.
+
+**17. A focused `List` row scrolled out of the window loses focus and does not
+get it back.** The fourth `List`-windowing limitation, beside 12, 13 and 14, and
+**worse than 12 for a reason worth stating.**
+
+The mechanism is 12's exactly: a row outside the window is not produced, so it
+registers nothing in `Frame.focusRegistry`, and `Frame.resolveFocus()` clears a
+focused id this frame did not produce (ruling IN-M). Its *identity* survives —
+that is what `Data.Element: Identifiable` buys — and its focus does not.
+
+**Why it is worse than 12.** Divergence 12 loses a row's `@State`, and the
+remedy there is real: a windowed list wants its state in the data anyway, and a
+value derived from the datum is stable by construction. **Focus is not
+recoverable from the datum.** Losing a counter is annoying; losing focus
+mid-interaction moves the user's keyboard somewhere they did not put it, and
+nothing in the data can put it back.
+
+**Not fixed, and there are two named mechanisms rather than one.** The general
+one is the tombstones design spec §4.3 already names as absent — entries that
+outlive a sweep as invalid-reporting placeholders. The cheaper, focus-specific
+one is a grace period: keep a focused id alive for N frames after the element
+stops being produced, on the argument that focus is a single value rather than a
+table. Neither exists.
+
+**No test pins it and none should pin the current behaviour**, on divergence
+12's footing: the desired behaviour is the opposite one, so a test asserting
+"focus is lost" would have to be deleted by the change that fixes it.
+
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
 exists, compiles, and does nothing. `Style` has 22 stored properties; **two of
 them are read by no production code** — `overflow`, `aspectRatio`.
+(**`Style` is untouched by the input-and-state milestone and both rows were
+re-checked rather than assumed**: `git diff --name-only 994a4a7..HEAD --
+Sources/MetalUILayout/` is empty for the whole branch, `grep -rn "\.overflow\b"
+Sources/` still finds one write and no read, and `grep -rn "aspectRatio"
+Sources/ | grep -v "var aspectRatio"` finds one doc comment and no use at all.
+That is what ruling IN-H's fourth `StyledElement` requirement bought instead of
+a `Style` field — see `Handlers`.)
 **`StyledElement` deliberately exposes no modifier for either** (`Box.swift`): a
 modifier for an inert property is worse than none, because from outside it is
 indistinguishable from an implemented one. When one becomes live, add its
@@ -1479,6 +1901,32 @@ missing was §8.3's cross-axis flip. Both halves are implemented now — the
 `align-content` leading offset and each item's `crossAxisOffset` — in
 `positionItems`, with three browser fixtures (`flex_wrap_reverse*`).
 
+**Three things the input-and-state milestone left NOT in this table, each with
+its reason — because silence at any of them would read as either "inert" or
+"fine", and none of the three is quite either.**
+
+- **`PaintPass.isActive(_:)` and `PaintPass.isHovered(_ id: HitboxID)` have no
+  production caller inside `MetalUI`.** That is not inertness: both are public
+  members of a pass, which exist precisely so an element author *outside* this
+  module can use them, and both are correct and pinned. What it does mean is
+  that **no built-in element paints a pressed state** — `Box.paint` consults
+  `isFocused` and the element-keyed `isHovered`, and nothing at all consults
+  `isActive` — so a caller who expects `.onClick { … }` to give a button a
+  pressed appearance gets none, and there is no modifier to ask for one the way
+  `hoverBackground(_:)`/`focusBackground(_:)` exist for the other two states.
+  Adding one is a `Decoration` field and a line in `Box.paint`, on those two
+  modifiers' exact footing.
+- **A `ScrollView` is now a hover and active target**, because a scroll region
+  *is* a hitbox. Benign, and measured rather than assumed: a `ScrollView`
+  registers itself **before** descending into its content, so children and
+  `Deferred` subtrees register later, outrank it on the registration-index
+  tie-break, and nothing is shadowed. Recorded here because "the scroller is
+  now in the hover list" sounds like it should shadow its own rows, and it does
+  not.
+- **`Frame.scrollRegions` and `Window.lastScrollRegions` DID get a row**, below
+  — a get-only view with no production reader is exactly the shape this table
+  is for, and the two used to disagree about admitting it.
+
 The table is wider than that count, because a property can be read and still
 not do what its name promises — a stand-in value, or half a rule. Those rows
 are the dangerous ones.
@@ -1497,7 +1945,8 @@ are the dangerous ones.
 | `GlyphAtlas.evictUnusedSince(_:)`, and the grow-only atlas it leaves | **Zero production callers — and a caller would make things WORSE, not better, until the packer can reclaim.** That is the mechanism, and it is checkable rather than a milestone to wait for: the shelf packer never revisits a closed shelf, so evicting a key frees a dictionary entry and **strands its pixels**; the next frame that wants that glyph packs a *second* copy further down. Calling eviction every frame therefore makes the atlas fill **faster**. `grep -rn "evictUnusedSince" Sources/` returns **nine** lines and **not one of them is a call**: the declaration, the string inside its own precondition message, and seven doc comments — the same shape as `LayoutTree.reset(generation:)` below. Re-count rather than trusting the nine; two of the doc comments were added by the emitter task, so this number moves with the prose and the "no call" half is the claim. The frame brackets it depends on *are* live: `Frame.render` calls `beginFrame`/`endFrame` around the paint phase, so the ordering guard is enforceable; what is absent is only the call. **These three facts are one story, so read them together:** eviction is unwired, the atlas is therefore **grow-only**, and when it is full `Frame.draw` **silently drops** the glyphs that will not fit — a window showing an unbounded stream of distinct glyphs loses text with no error anywhere. What unblocks it is a repacker or a whole-atlas rebuild, not a call site. Its guards (`evictingDuringFrameConstructionTraps`, `aGlyphUnusedSinceAnOlderGenerationIsEvicted`) stay for `LayoutTree.reset`'s reason: they pin the contract for whoever does call it |
 | `Style.alignSelf` on a **stack child** | **Ignored entirely, and it is the most misleading inert API this table holds** — an *alignment* property, public and live for flex, silently doing nothing on an *alignment* container. `Stack { Box().alignSelf(.flexEnd) }` compiles today: `StyledElement.alignSelf(_:)` is a live modifier and `Stack` conforms to `StyledElement` as of the stack milestone. Measured at that milestone's final review: a 20x10 child with `alignSelf = .flexEnd` in a 100x60 stack lays out at **`y = 0`**; WebKit's grid puts the same child at **`y = 50`**. The mechanism, not a milestone: `positionStackItems` reads the *container's* `alignItems`/`justifyItems` once before its item loop and never consults `tree.style(item.node)` for an override — the only per-item style it reads is `size`, for the `stretch` carve-out. Per-child alignment was out of the milestone's scope, and closing it needs **two** things rather than one: `alignSelf` for the block axis and a `justifySelf` that does not exist in this `Style` at all for the inline one, since implementing one alone would make a stack's two axes disagree about whether a child may override its container. Recorded at `Display.stack`'s own doc comment (`Style.swift`) as well as here |
 | `Style.padding` / `Style.border` / `Style.margin` on a **leaf** | **Ignored entirely — for a `Text`, not "resolved wrongly".** `measureNode` returns a leaf's measure result unchanged where it adds a container's `edges` back on, and `contentBox` only ever runs on a node with children, so a leaf's border box *is* its content box. `Text(…).padding(Pixels(8))` therefore changes no size and moves no glyph, and `Text.paint` lays its glyphs from `bounds.origin` on exactly that basis. Consistent, and consistently wrong against CSS. **Reachable from the public API**, unlike the `Style` properties above: `StyledElement.padding(_:)`/`.borderWidth(_:)`/`.margin(_:)` are live modifiers that do the right thing on a `Box` and nothing on a `Text` — which is the shape this table exists for, an API that is implemented for one receiver and inert for another. Whoever implements a leaf's box model owns the paint half too: the glyph origin becomes the content box and must come from the engine rather than be re-resolved at paint time, for the percentage-inset reason recorded at `Frame.fill` |
-| `StyledElement.hidden()` / `Style.display = .none` on a subtree that **draws** | **Live for layout, ignored by paint, and the failure is glyphs at the window's top-left corner.** The engine really does filter a `.none` node out of its parent's item list, so its rect stays at `LayoutTree`'s zero — that half works and is what the modifier's doc comment used to describe in full, which is exactly why the comment misled: it explained the layout half completely and said nothing about paint, so it read as "paints nothing". Nothing in `Sources/MetalUI` reads `Style.display` during paint at all. `Box.paint` recurses into `content.paintGroup` unconditionally, and fills its own bounds whenever it carries a `.background`; that fill is a harmless zero-size rect, but the children paint from the node's **origin**, and a node that was never placed has origin `(0, 0)` in *surface* coordinates. `Text.paint` then re-shapes at `max(bounds.width, smallestWrapWidth)` with `smallestWrapWidth == 0.5`, so the string wraps after every character and stacks one glyph per line down the window's left edge. **Measured** with a throwaway probe rather than read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); Box().width(40).height(10) }` in a 400×300 frame emits **0 rects and 2 glyphs**, at `(0, 2)` and `(−1, 18)` — the second negative in x. **0 rects, not one zero-size rect**: neither `Box` in that probe carries a `.background`, so nothing fills at all and the glyphs are the entire output. Re-measured 2026-08-28; this row said "the expected zero rect and two glyphs" until then. **Nothing in the suite can see it**: every existing `hidden()` test asserts a rect, and a zero rect is exactly what a correct implementation produces, so the glyphs are invisible to every assertion that exists. Found while evaluating a key-toggled modal for the demo and rejected on this basis — the demo uses an `@ElementBuilder` `if` instead, which removes the element from the *tree* rather than from the item list. The fix is a `display` check in paint (probably in `Element`'s group walk, so it costs one test per phase rather than one per element); until then `hidden()` is safe on `Box`es and wrong on anything that draws |
+| `StyledElement.hidden()` / `Style.display = .none` on a subtree that **draws** | **Live for layout, ignored by paint, and the failure is glyphs at the window's top-left corner.** The engine really does filter a `.none` node out of its parent's item list, so its rect stays at `LayoutTree`'s zero — that half works and is what the modifier's doc comment used to describe in full, which is exactly why the comment misled: it explained the layout half completely and said nothing about paint, so it read as "paints nothing". Nothing in `Sources/MetalUI` reads `Style.display` during paint at all. `Box.paint` recurses into `content.paintGroup` unconditionally, and fills its own bounds whenever it carries a `.background`; that fill is a harmless zero-size rect, but the children paint from the node's **origin**, and a node that was never placed has origin `(0, 0)` in *surface* coordinates. `Text.paint` then re-shapes at `max(bounds.width, smallestWrapWidth)` with `smallestWrapWidth == 0.5`, so the string wraps after every character and stacks one glyph per line down the window's left edge. **Measured** with a throwaway probe rather than read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); Box().width(40).height(10) }` in a 400×300 frame emits **0 rects and 2 glyphs**, at `(0, 2)` and `(−1, 18)` — the second negative in x. **0 rects, not one zero-size rect**: neither `Box` in that probe carries a `.background`, so nothing fills at all and the glyphs are the entire output. Re-measured 2026-08-28; this row said "the expected zero rect and two glyphs" until then. **Nothing in the suite can see it**: every existing `hidden()` test asserts a rect, and a zero rect is exactly what a correct implementation produces, so the glyphs are invisible to every assertion that exists. Found while evaluating a key-toggled modal for the demo and rejected on this basis — the demo uses an `@ElementBuilder` `if` instead, which removes the element from the *tree* rather than from the item list. The fix is a `display` check in paint (probably in `Element`'s group walk, so it costs one test per phase rather than one per element); until then `hidden()` is safe on `Box`es, wrong on anything that draws, and — as of the input-and-state milestone — **wrong on anything FOCUSABLE, which is a new failure mode rather than an instance of the paint one**. Measured through a real `Window`: a `.focusable().onKey { … }.hidden()` box registers as focusable, `focus(_:)` sticks, it **claims the keystroke**, the window's `onInput` fallback sees nothing, and focus is **retained** across the next frame — `Frame.resolveFocus()` cannot clear it, because the element's `prepaint` genuinely ran. **The differential is what makes it new**: the same box with `onClick` registers a `(0,0) 0x0` hitbox, so the *pointer* side is protected by geometry (`Bounds.contains` is half-open), while focus registration reads no geometry at all — deliberately, that being the design's own argument for riding on `registerHandlers`. `display: .none` is invisible to it, and the consequence is keystrokes vanishing into an element nobody can see. **No deliberately-wrong pin, and that judgement is carried rather than hidden**: the paint half of this row has no pin either, one `display` check in the group walk closes both halves, and a single pin covering both is the better artifact — but nothing enforces that, so the next person to touch `hidden()` owns all three failures |
+| `Frame.scrollRegions` / `Window.lastScrollRegions` | **Get-only derived views with ZERO production readers — `LayoutTree.reset`'s exact shape, arrived at by a refactor rather than by never being wired.** They were the framework's scroll registry until the input-and-state milestone folded scroll regions into the one hitbox list (design spec §3.1); keeping the names as accessors is what let every routing assertion written against the old registry pass **unedited**, which was that task's whole safety argument and is why this is the right call rather than dead weight. But `Window.applyScroll` ranks against `lastHitboxes` directly, `Window.lastScrollRegions` derives its own view from that same array rather than calling `Frame.scrollRegions`, and nothing else reads either. Verify with `grep -rn "scrollRegions" Sources/`, which finds the two declarations, two references in `Hitbox.swift`'s prose and **no call site at all**. `Window`'s one already said "test observability" in its first line; `Frame`'s did not and read as a live API — it says so now. **Keep both**: they are what several routing tests read, and deleting them churns green tests to prove nothing |
 | `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` returns **two** lines and neither is a call: the string inside its own precondition message, and a doc comment on the method that quotes this very grep. (It matched one line when this row was written; the doc comment came later, so re-run it rather than counting — the claim is "no call", not "two".) The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
 | CSS Sizing §4.5's **specified size suggestion** | **Still not implemented** (ruling FS-3), and it **left this table's premise behind**: content sizing made the *content* half live for containers, so the missing half is no longer inert-and-invisible but a measured disagreement with WebKit — **divergence 5 above** carries the repro, the numbers and the pin, and is the one place to update. Two claims expired here in one milestone, and the second was written by the commit that retired the first (ruling CS-E's shape, third occurrence on this project): "indistinguishable until M2", then "not yet a wrong answer anywhere". Kept as a row because the *declaration* half is what this table is for — the rule is half-implemented at `collectItems`' automatic minimum, and silence there would read as complete. `aContainerItemIsFlooredByItsChildrensWidth` cannot see it: its `.a` has no specified width to be floored by |
 | `@State` inside an `AnyElement` | **Silently inert — returns its initial value forever, with no diagnostic.** The input-and-state milestone's Task 2 seeds every `@State` an element declares from two sites: `Element`'s default `requestGroupLayout` (`ElementGroup.swift`) and `Frame.render`'s own root path. `AnyElement.requestGroupLayout` (`ElementGroup.swift`, the `extension AnyElement: ElementGroup` block) is a hand-kept duplicate of the first of those two — written before `@State` existed, and never updated — so it never calls `StateBinder.bind`. Measured with a throwaway probe: `Box(content: AnyElement(Counter(...)))` rendered for three frames leaves the shared `StateTable` with **no entry at all** for the counter's slot, where the identical `Counter` unboxed in a plain `Box` leaves it holding the accumulated **3** — one increment per frame. (Re-measured during Task 2's re-review, which read `nil` against `Optional(3)`. This row said `count == 1` when first written, which contradicted its own "accumulated" in the same sentence: 1 is the entry *count* after one frame, not the value after three.) **Not a one-line fix**: `Mirror(reflecting: anyElement)` sees only the boxed `any ElementObject`, not the erased element's own stored properties, so there is nothing for `StateBinder` to reflect even with the call added — closing this needs a hook on `ElementObject` or reflection inside `AnyElementBox` itself, a design decision rather than a patch. **Nothing in production reaches it today**: the `AnyElement` / `ElementObject` / `AnyElementBox` row above already records that `ElementBuilder` produces no `AnyElement` — every one in the tree today was written by hand, and today that is tests alone |
@@ -1515,11 +1964,57 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **609 tests** and 81 browser fixtures, warning-free
-(re-measured 2026-08-29 `--no-parallel`, at the measure-performance milestone's
+`swift build` · `swift test` — **736 tests** and 81 browser fixtures, warning-free
+(re-measured 2026-08-29 `--no-parallel`, at the input-and-state milestone's
 own last commit, per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
 rather than at the commit that first quoted it.
+
+**The input-and-state milestone's own climb, task by task** (baseline **609**,
+the measure-performance milestone's own end-of-milestone count, which reproduced
+exactly — **not 577**, which is that milestone's *own* baseline and is the
+number this milestone's task-11 brief carried forward by mistake): 613 after
+Task 1 (`@State`'s storage and slot ids), 617 then **618** after Task 2's fix
+round (reflection-driven seeding, plus a pin for the ordinal being the `Mirror`
+index rather than the position among `@State` children), 622 then **623** after
+Task 3's fix round (the dirty flag and the `onWrite` hook, plus the unguarded
+`marked.insert` a review found by mutation), **623** after Task 4 — which added
+**no test and no commit**, and is a real result rather than a skipped task:
+`ScrollRoutingTests` already pinned all four properties the brief named, and the
+implementer verified that *by mutation* rather than by reading test names. 631
+after Task 5 (the hitbox list) and 631 again after its fix round (a
+sort → `.max` rewrite that added no test), 637 then **640** after Task 6's fix
+round (hover and active, the `NSTrackingArea`, and two phase guards — the first
+time the typecheck-guard count had moved in eight milestones), 644 both before
+and after Task 7 (folding scroll regions into the one list; its fix round is
+entirely comments), 658 both before and after Task 8 (click dispatch and
+`Handlers`), 674 then **676** after Task 9's fix round (the focus tree), 725
+then **729** after Task 10's fix round (actions, keymaps, context predicates and
+two-stroke — the milestone's largest task at 49 tests). Task 11 is the counter
+demo, the documentation and the human-verification record; it adds **seven** —
+five in the new `PointerStatePaintTests` for the hover/focus token swaps, one
+`swiftc -typecheck` guard for the element-keyed `isHovered` overload, and
+divergence 15's deliberately-wrong pin in the new `NestedClipTests` — reaching
+**736**. Goldens: **81 before, 81 after, and no existing golden file modified at
+any point in the milestone**, which is exit criterion 2 and the standing check
+that input never reached the layout engine.
+
+**Three of those steps are worth reading rather than counting.** Task 4's zero
+is the strongest: "already covered" was proved by mutating the ranking walk, the
+layer key and the offset clamp and watching named tests redden, one of which
+(`aDeferredScrollViewTakesTheWheelFromAnOverlappingSiblingBeneathIt`) reddened
+*alone* under the layer mutation while both same-layer tests stayed green — a
+discriminating result, which is the hard one to fake. Task 6's +3 includes a
+test written because a mutation reddened **nothing**: `mousePosition:
+lastMousePosition → nil` in `drawFrameIfNeeded` left 637 tests green, because
+every hover test either built a `Frame` with a literal `mousePosition:` or drove
+`resolveHover` by hand, so the one line connecting a real mouse event to a
+resolved hover was uncovered. And Task 8's whole worth rests on one check:
+swapping the two lines that read `active` before `updatePointerState` clears it
+reddens **23 issues across 11 test functions**, which is what says `onClick` is
+wired through the real input path rather than driven by a test helper.
+
+**The measure-performance milestone's climb is kept below as its own record.**
 
 **The measure-performance milestone's own climb, task by task** (baseline 577,
 the absolute-positioning milestone's own end-of-milestone count, which
@@ -1833,6 +2328,35 @@ walk. **The 500-row row is the window** — flat in row count, because `List`
 builds only the rows the viewport intersects. Neither number says anything
 about the box-tree table above, and vice versa.
 
+**Re-measured 2026-08-29 after the input-and-state milestone put a counter in
+that tree, and the question it answers is whether hitbox registration undid any
+of the above.** Same machine, same 920x560, release, best of 200 warm renders
+after 10 warm-ups, both arms in one process so the comparison is not across
+runs. "OLD" is this branch's base commit `76a878a` — the demo *without* the
+counter — rebuilt beside the current tree rather than quoted from the row above:
+
+| demo tree | 40 rows | 500 rows |
+|---|---|---|
+| OLD, no counter (base `76a878a`) | 1.340 ms | 1.347 ms |
+| NEW, counter with **no handlers at all** | 1.562 ms | 1.564 ms |
+| NEW, counter as shipped | **1.571 ms** | **1.570 ms** |
+
+**Registration is ~0.01 ms — about 0.6% of what the panel costs and ~0.5% of a
+frame.** The third row differs from the second only by an `onClick` on each
+button, `.focusable()`, `.keyContext(_:)` and two `.onAction(_:_:)` handlers, so
+the gap between them is the whole cost of putting an element into the hitbox
+list, the focus registry and the action registry. The 0.22 ms between the first
+two rows is the panel *itself* — three more `Text` leaves, each measured by the
+tokenizer, plus four boxes — and has nothing to do with input.
+
+**The flatness in row count is untouched, which is the property that mattered:**
+1.571 ms at 40 rows against 1.570 at 500.
+
+**The OLD arm reads 1.340/1.347 where the row above records 1.279/1.273 for the
+same tree.** ~5%, one milestone and one harness apart, on the same machine. The
+conclusion is unaffected either way, but the numbers to reproduce are the ones
+in *this* table, taken by the method it describes.
+
 **The cause is §4.5's automatic minimum, which now probes EVERY item** —
 `min-width: auto` is CSS's default — and an `auto`-cross item probes again, so a
 container's children are each measured up to three times per layout. Whoever
@@ -1960,6 +2484,41 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    hazard it guards against, which is what a compile-time guard is for. The
    two numbers still do not imply one another: 640 does not say 27, and nothing
    here claims it does.
+
+   **It then moved twice more in the same milestone, to 28 and to 29 — and
+   both times for that same reason, which is the pattern to recognise rather
+   than a count to memorise.** Task 9 added
+   `queryingFocusDuringPrepaintDoesNotCompile` (**28** = 18 + 7 + 1 + 2) and
+   Task 11 added `queryingElementKeyedHoverDuringPrepaintDoesNotCompile`
+   (**29** = 19 + 7 + 1 + 2). Both are guards written in the same change that
+   could have introduced the hazard.
+
+   **The focus one is the case worth reading, because its brief FORBADE adding
+   it by symmetry and the measurement went the other way from how the question
+   was framed.** The framing was "focus is window state fully known before the
+   frame starts, so `isActive`'s justification may not apply". Measured: an
+   element that stops being focusable reads `prepaint=true / paint=false` in
+   the **same frame**, because `Frame.resolveFocus()` clears at the boundary —
+   so a prepaint-time `isFocused` returns a wrong `true`. And answering that
+   honestly for the new guard answered it for an old one **in the opposite
+   direction**: `isActive`'s guard is *not* a measured lie, because
+   `Frame.activeElement` is a `let` assigned once in `init` and a prepaint-time
+   `isActive` would answer correctly. Its guard is kept as placement insurance,
+   and the shared comment says so instead of implying one measurement covers
+   all three. The paragraph above still describes `isHovered` correctly; it
+   described `isActive` wrongly until this was measured.
+
+   **Task 11's is a second SPELLING rather than a second member.** The
+   element-keyed `isHovered(_ id: GlobalElementID)` overload landed for
+   `Box.paint` to reach (ruling IN-V), and the existing hover guard probes the
+   `HitboxID` spelling — so adding *only* the new one to `PrepaintPass` would
+   leave that guard green while shipping the identical hazard. Two spellings
+   need two probes.
+
+   **Re-count by grep, and note the DIRECTORY**: `Tests/MetalUICoreTests/UnitSafetyTests.swift`,
+   not `MetalUITests`. A recheck that greps the wrong directory silently reads
+   26 instead of 29, and the file itself reads 3 by a bare `grep -c` because
+   one occurrence is a comment.
 
    **Not converted to a hard failure, and the reason is a configuration rather
    than a preference.** The obvious rule — fail rather than skip when `.build`

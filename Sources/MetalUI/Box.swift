@@ -103,7 +103,21 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // *is* paint order — a container that emitted after its children would
         // paint over them. Reversing these two lines is caught by
         // `aContainerPaintsItsBackgroundBeneathItsChildren`.
-        if let token = decoration.background {
+        //
+        // **The pointer and keyboard states are consulted here and nowhere
+        // else.** `??` chains left to right, so a declared `focusBackground`
+        // wins over a declared `hoverBackground` and both win over the plain
+        // one; an element that declares neither takes the same single branch it
+        // always did, and an element that declares one but is neither hovered
+        // nor focused falls through to `background` rather than painting
+        // nothing. Both queries are keyed on this element's own
+        // `GlobalElementID` — `registerHandlers` returns no `HitboxID` for a
+        // conformer to keep, so the element-keyed `isHovered` overload is the
+        // only one `Box` can reach. See `PaintPass.isHovered(_:)`'s two
+        // overloads and `Frame.hoveredElement`.
+        if let token = (pass.isFocused(id) ? decoration.focusBackground : nil)
+            ?? (pass.isHovered(id) ? decoration.hoverBackground : nil)
+            ?? decoration.background {
             pass.fill(bounds, color: pass.theme[token],
                       cornerRadii: Corners(all: decoration.cornerRadius))
         }
@@ -169,9 +183,43 @@ public struct Decoration: Sendable, Hashable {
     public var background: ColorToken?
     public var cornerRadius: Pixels
 
-    public init(background: ColorToken? = nil, cornerRadius: Pixels = Pixels(0)) {
+    /// The background to paint instead of `background` while the pointer is
+    /// over this element, or `nil` to paint `background` either way.
+    ///
+    /// **A token swap is the whole of what this framework can express for a
+    /// pointer state today, and that is a property of `Frame.fill` rather than
+    /// a preference.** A border is the obvious spelling for a hover or focus
+    /// affordance and it is unreachable: `Frame.fill` hard-codes
+    /// `borderColor: .transparent` and zero widths, because the engine resolves
+    /// a border width inside `contentBox` and throws it away, so paint has no
+    /// width to pair a colour with (CLAUDE.md's declared-but-inert table). A
+    /// caller who wants a ring today nests two filled boxes.
+    ///
+    /// **`nil` is not "no hover", it is "no hover *paint*".** Hover is resolved
+    /// for every element that registers a hitbox whether or not it declares one
+    /// of these; this field only says whether the resolved answer changes what
+    /// is drawn.
+    public var hoverBackground: ColorToken?
+
+    /// The background to paint instead of `background` — and instead of
+    /// `hoverBackground` — while this element holds keyboard focus.
+    ///
+    /// **Focus outranks hover when both are declared and both are true**, and
+    /// it is a decision rather than an ordering accident: hover follows the
+    /// pointer and a user recovers it by moving, focus is where the keyboard is
+    /// pointing and has no other indication. Reversing the two makes a focused
+    /// element lose its only affordance whenever the pointer happens to rest on
+    /// it — which is exactly when a user is about to type. `Box.paint` is the
+    /// one site, and `focusOutranksHoverWhenAnElementIsBoth` is the pin.
+    public var focusBackground: ColorToken?
+
+    public init(background: ColorToken? = nil, cornerRadius: Pixels = Pixels(0),
+                hoverBackground: ColorToken? = nil,
+                focusBackground: ColorToken? = nil) {
         self.background = background
         self.cornerRadius = cornerRadius
+        self.hoverBackground = hoverBackground
+        self.focusBackground = focusBackground
     }
 }
 
@@ -483,6 +531,41 @@ extension StyledElement {
     /// site, which is §7.9's whole objection to literals.
     public func background(_ token: ColorToken) -> Self {
         decorating { $0.background = token }
+    }
+
+    /// Fills with `token` instead of `background(_:)` while the pointer is over
+    /// this element.
+    ///
+    /// **It does not make the element a hit target, and on its own it does
+    /// nothing at all.** Hover resolves against the frame's hitbox list, and
+    /// `onClick(_:)` is the only thing that puts an element into that list
+    /// (`PrepaintPass.registerHandlers`) — so `.hoverBackground(.accent)` with
+    /// no `.onClick { … }` compiles, paints the plain background forever and
+    /// has no diagnostic. Pairing it with a click handler is what makes it
+    /// live; pinned by `hoverBackgroundWithoutAClickHandlerNeverPaints`.
+    ///
+    /// Deliberately not folded into `onClick(_:)`: an element may want the hit
+    /// target without the affordance — a whole row that is clickable while the
+    /// highlight lives on a child — and one modifier writes one field.
+    public func hoverBackground(_ token: ColorToken) -> Self {
+        decorating { $0.hoverBackground = token }
+    }
+
+    /// Fills with `token` instead of `background(_:)` — and instead of
+    /// `hoverBackground(_:)` — while this element holds keyboard focus.
+    ///
+    /// **This is the framework's only focus affordance, and it is a fill rather
+    /// than a ring for a mechanical reason**: nothing above the renderer can
+    /// ask for a border at all (`Frame.fill`, and CLAUDE.md's declared-but-inert
+    /// table). Two nested filled boxes are the spelling for a ring today.
+    ///
+    /// **It needs `focusable()` AND something to move focus.** Focus never
+    /// moves on its own here — clicking does not focus, see `Window.focus(_:)`
+    /// — so an element declaring this and nothing else paints its plain
+    /// background forever, exactly as `hoverBackground(_:)` does without a
+    /// click handler.
+    public func focusBackground(_ token: ColorToken) -> Self {
+        decorating { $0.focusBackground = token }
     }
 
     /// Rounds all four corners of the background by the same radius.

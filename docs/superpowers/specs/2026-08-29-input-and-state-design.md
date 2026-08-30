@@ -170,6 +170,18 @@ as scroll regions already do.
 Dispatch walks **in reverse** so the topmost opaque hit wins. A non-opaque hitbox
 does not stop the walk.
 
+> **Wording note, added at the end of the milestone.** "Walks in reverse" is no
+> longer literally what the implementation does, and the difference is not drift.
+> `topmostOpaqueHitbox(in:at:)` (`Sources/MetalUI/Hitbox.swift`) filters to the
+> eligible records and takes the `.max` by `(layer, registration index)` — one
+> expression, and there is exactly **one copy of it** where there were three
+> before the scroll-region fold. The specified *behaviour* is unchanged: the
+> record that would have won a reverse walk is the maximum of the same
+> ordering, and it is now also the record with the highest layer, which a plain
+> reverse walk over the registration order never expressed. A fourth copy of
+> this rule must not be added; a reader comparing this paragraph to the code
+> should read the code.
+
 ### 3.3 Hover resolves at the end of prepaint
 
 §8.1 promises `hitbox.isHovered` is queryable during `paint` with no one-frame

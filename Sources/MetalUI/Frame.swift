@@ -390,6 +390,19 @@ public final class Frame {
     /// tuple shape is preserved so every assertion written against the old
     /// registry keeps reading the same fields.
     ///
+    /// **Test observability, and it has ZERO production readers** — the same
+    /// status `Window.lastScrollRegions` states in its own first line, and the
+    /// reason this sentence exists is that the two used to disagree about
+    /// saying so. `Window.applyScroll` ranks against `lastHitboxes` directly,
+    /// `Window.lastScrollRegions` derives its own view from that same array
+    /// rather than calling this one, and every other consumer went with them
+    /// when the two lists folded into one; check with
+    /// `grep -rn "scrollRegions" Sources/`, which finds this declaration,
+    /// `Window`'s independent accessor, two references in `Hitbox.swift`'s
+    /// prose and **no call site at all**. It reads
+    /// like a live API and is not one — `LayoutTree.reset(generation:)`'s exact
+    /// shape, and CLAUDE.md's declared-but-inert table carries the row.
+    ///
     /// **`axis` rides along because routing, not `ScrollState`, is what needs
     /// it.** A `ScrollView` already knows its own axis and maps the stored
     /// scalar offset through it (`ScrollView.delta(_:)`), so `ScrollState`
@@ -594,6 +607,29 @@ public final class Frame {
     /// `Frame.render` call in the way.
     func resolveHover(at point: Point<Pixels>?) {
         hoveredHitbox = point.flatMap { topmostHitbox(at: $0) }
+    }
+
+    /// Which **element** owns `hoveredHitbox`, or `nil` when nothing is
+    /// hovered.
+    ///
+    /// **A derived view of `hoveredHitbox`, not a second piece of state** —
+    /// there is one resolution per frame and this reads its answer, so the two
+    /// cannot disagree. It exists because an element in `paint` has its own
+    /// `GlobalElementID` and *not* its `HitboxID`:
+    /// `PrepaintPass.registerHandlers(_:at:id:)` returns nothing, so a
+    /// conformer has nowhere to keep the index even if it wanted one. See
+    /// `PaintPass.isHovered(_ id: GlobalElementID)`.
+    ///
+    /// **The two keys coincide today and the reason is worth stating**, since
+    /// it is what makes this lookup exact rather than approximate: an element
+    /// registers at most one hitbox — `registerHandlers` is the only production
+    /// path into the list for a handler set and it is called once per element
+    /// per frame — so "this element's hitbox is hovered" and "the hovered
+    /// hitbox belongs to this element" are the same question. An element that
+    /// registered two would make this answer `true` for both, where the
+    /// `HitboxID`-keyed query would still separate them.
+    var hoveredElement: GlobalElementID? {
+        hoveredHitbox.map { hitboxes[$0.index].id }
     }
 
     /// The cross-frame state table (§4.3).

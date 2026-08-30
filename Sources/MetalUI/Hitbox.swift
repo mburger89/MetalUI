@@ -143,6 +143,14 @@ struct Hitbox {
 /// every candidate eligible; "topmost" is then just the maximum. The index is
 /// unique, so no two candidates can compare equal.
 ///
+/// **Design spec §3.2 says dispatch "walks in reverse", and this is what that
+/// sentence became.** The behaviour it specifies is unchanged — the record a
+/// reverse walk would have stopped at is the maximum of the same ordering — but
+/// the wording no longer describes the code, and it also predates the `layer`
+/// term, which a reverse walk over registration order cannot express at all.
+/// The spec carries a note pointing back here. Do not "restore" a reverse walk
+/// to match the prose, and do not add a fourth copy of this rule.
+///
 /// Half-open on the max edges, because `Bounds.contains` is: two hitboxes
 /// sharing an edge cannot both claim it.
 func topmostOpaqueHitbox(in hitboxes: [Hitbox], at point: Point<Pixels>) -> Int? {
