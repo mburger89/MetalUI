@@ -235,6 +235,13 @@ struct CounterPanel: Element {
                                        pass: inout LayoutPass) -> (LayoutNodeID, Box<Chrome>.Layout) {
         // Published for the `F` binding, which cannot construct this id itself.
         counterID = id
+        // **In `requestLayout` rather than anywhere else, and that is forced
+        // rather than chosen**: `id` is a parameter of the phase, an element's
+        // identity is structural, and nothing outside the tree can construct
+        // one correctly (see `counterID`'s own doc). Calling `focus(_:)` from
+        // inside a frame's render is supported — `Window.drawFrameIfNeeded`'s
+        // read-back applies the frame's *decision* rather than its value — and
+        // it was silently discarded until that guard existed.
         if !didFocusCounter {
             didFocusCounter = true
             demoWindow?.focus(id)
@@ -828,6 +835,13 @@ func runDemo() throws {
     // layout so `=` and `-` work without a human having to press **F** first.
     // Assigned before `app.run()` for that reason — the first frame is drawn by
     // the display link, which does not start until then.
+    //
+    // **That sentence was false for the whole milestone**, and the fix is in
+    // `Window`, not here: `drawFrameIfNeeded` read `focusedElement` back from
+    // the frame unconditionally, overwriting a `focus(_:)` call made *during*
+    // that render with the value the frame had been handed. The counter was
+    // never focused at launch. The read-back is guarded now — see its comment,
+    // and `focusingFromInsideAFrameSurvivesThatFrame`.
     demoWindow = window
 
     app.run()

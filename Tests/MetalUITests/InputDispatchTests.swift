@@ -471,3 +471,95 @@ private struct Datum: Identifiable { let id: Int }
     #expect(log.names == ["btn"], "nothing under the pointer, so no handler ran")
     #expect(raw == ["up"], "and the unclaimed release fell through to the raw handler")
 }
+
+// MARK: - Click dispatch inherits universal identity's vanishing-`if` adoption
+
+/// A conditional sibling that vanishes **between the press and the release**
+/// makes the release fire the **trailing** sibling's `onClick`.
+///
+/// **Not a defect in `dispatchClick` — an emergent property of universal
+/// identity plus click dispatch, and it belongs to neither alone.** Dispatch
+/// compares `hit.id == pressed` by `GlobalElementID`, which is exactly the
+/// comparison `aPressOnOneElementReleasedOnAnotherIsNotAClick` above proves
+/// works. What moves here is the *id*: the vanished `if` frees
+/// `.positional(0)` and the trailing box takes it (CLAUDE.md's identity
+/// bullet — "a vanishing `if` makes the trailing sibling ADOPT the vanished
+/// element's state"), so the two elements really are one identity as far as
+/// anything downstream of identity can tell, and click dispatch is downstream
+/// of identity.
+///
+/// **Measured rather than argued**: the press records
+/// `positional(0)/positional(0)`; frame 2 registers exactly one hitbox and its
+/// id is `positional(0)/positional(0)` too. It is the *trailing* box's own
+/// closure that runs, not a stale one — the handler rides on
+/// `Hitbox.handlers`, which frame 2 rebuilt.
+///
+/// **It is also the only test in the suite that straddles a frame with a press,
+/// and a mutation found that.** Every other click test presses and releases
+/// inside one `click(_:at:)` with no redraw between, so the id `mouseDown`
+/// recorded and the id `mouseUp` resolves are the *same object*. Replacing
+/// `dispatchClick`'s `hit.id == pressed` with `hit.id === pressed` therefore
+/// reddens **this test alone** out of 739 (`--no-parallel`) — nothing else in
+/// the repo distinguishes structural equality from reference identity at that
+/// line, and `GlobalElementID`'s `==` walking the chain (see its own doc) is
+/// what makes a click survive a rebuild at all.
+///
+/// The second half is the differential **and the remedy in one**: naming the
+/// trailing sibling replaces its position, nothing is adopted, and the release
+/// correctly fires nothing. That asymmetry is what makes this identity's
+/// behaviour rather than dispatch's — `dispatchClick` is byte-identical across
+/// the two halves.
+@Test @MainActor func aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let log = ClickLog()
+    let present = PresenceFlag()
+
+    func run(nameTheSibling: Bool) throws -> [String] {
+        log.names = []
+        present.on = true
+        let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+            Row {
+                if present.on {
+                    Box().width(px(40)).height(px(40)).onClick { log.names.append("A") }
+                }
+                {
+                    let b = Box().width(px(40)).height(px(40))
+                        .onClick { log.names.append("B") }
+                    return nameTheSibling ? b.id("b") : b
+                }()
+            }
+        }
+        window.drawFrameIfNeeded()
+        // A `Row` in a 100x100 window: the two 40-wide boxes at x 0..40 and
+        // 40..80, centred vertically at y 30..70. The press lands on `A`.
+        platformWindow.simulateInput(mouseDown(at: pt(20, 50)))
+        #expect(window.active != nil, "the press landed on the conditional box")
+
+        present.on = false
+        window.setNeedsRedraw()
+        window.drawFrameIfNeeded()
+        #expect(window.lastHitboxes.count == 1, "`A` is gone; only `B` registers now")
+
+        // `B` has slid into `A`'s place, so the SAME point is now over `B`.
+        platformWindow.simulateInput(mouseUp(at: pt(20, 50)))
+        return log.names
+    }
+
+    #expect(try run(nameTheSibling: false) == ["B"],
+            """
+            the unnamed trailing sibling adopted the pressed element's \
+            `.positional(0)`, so the release fired the wrong element's `onClick`
+            """)
+    #expect(try run(nameTheSibling: true) == [],
+            """
+            naming the trailing sibling replaces its position, so nothing is \
+            adopted and the release correctly clicks nothing
+            """)
+}
+
+/// Whether the conditional sibling is in the tree this frame — a class for
+/// `ClickLog`'s reason: the content closure runs fresh every frame and must
+/// read the current value, not one captured when the window was made.
+private final class PresenceFlag {
+    var on = true
+}

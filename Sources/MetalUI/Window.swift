@@ -225,6 +225,15 @@ public final class Window {
     /// a `Frame` is discarded at the end of every `drawFrameIfNeeded`. It is
     /// handed into each frame and **read back** afterwards, because the frame
     /// is what discovers that the focused element was not produced.
+    ///
+    /// **The read-back is guarded, and that is what keeps a concurrent write
+    /// from being discarded.** The hand-in and the read-back straddle the whole
+    /// of `renderRoot`, so together they are a read-modify-write over a value
+    /// `focus(_:)` — public, and called from `MetalUIDemo`'s `CounterPanel`
+    /// during its own `requestLayout` — can change in between. The frame's
+    /// answer is applied only while this property is still what the frame was
+    /// handed; see `drawFrameIfNeeded` for why that condition is exactly "the
+    /// frame's decision is still about the current focus".
     public private(set) var focusedElement: GlobalElementID?
 
     /// The focus registry the most recent frame's prepaint built, captured
@@ -297,6 +306,16 @@ public final class Window {
     /// simply clear it. That is the same mechanism that drops focus when a
     /// focused element vanishes, and having one rule rather than two is the
     /// point.
+    ///
+    /// **Safe to call from inside a frame's own render**, which is what
+    /// `MetalUIDemo`'s `CounterPanel` does from its `requestLayout` — and the
+    /// sentence above is true of an in-frame call as well: the *next* frame
+    /// validates it, not this one. That is a property of the guarded read-back
+    /// in `drawFrameIfNeeded`, not of this method, and it did not hold until
+    /// that guard existed: an unconditional read-back overwrote a concurrent
+    /// call with the value the frame had been handed, so an in-frame `focus()`
+    /// could never stick at all. See the read-back for the mechanism, and
+    /// `focusingFromInsideAFrameSurvivesThatFrame` for the pin.
     ///
     /// **Nothing here focuses anything on its own.** Focus-by-click is a policy
     /// decision this framework has not made: a `mouseDown` on an element with
@@ -472,6 +491,11 @@ public final class Window {
         // extent into an infinity, which the flex engine propagates silently
         // rather than trapping. `contentSize` is the number the windowing system
         // already reports in the unit layout wants.
+        // Recorded **before** the frame is built, and read again after
+        // `renderRoot` returns, because the read-back below applies the frame's
+        // *decision* rather than its value — see there for why a plain copy
+        // loses a `focus(_:)` call made from inside the render.
+        let focusHandedIn = focusedElement
         let frame = Frame(contentSize: platformWindow.contentSize,
                           scaleFactor: surfaceFrame.scaleFactor,
                           stateTable: stateTable,
@@ -481,7 +505,7 @@ public final class Window {
                           timestamp: lastTick,
                           mousePosition: lastMousePosition,
                           activeElement: active,
-                          focusedElement: focusedElement)
+                          focusedElement: focusHandedIn)
         renderRoot(frame)
         let scene = frame.finalizedScene()
         lastScene = scene
@@ -493,7 +517,30 @@ public final class Window {
         // because this is not a focus *move* — marking the window dirty for a
         // clearing the frame has already painted would wake the display link
         // for nothing.
-        focusedElement = frame.focusedElement
+        //
+        // **Guarded, and the guard is what makes this apply the frame's
+        // DECISION rather than its value.** The hand-in above and this line
+        // straddle the whole of `renderRoot`, so they are a read-modify-write
+        // over a value anything in the tree can change in between: `focus(_:)`
+        // is public and `MetalUIDemo`'s `CounterPanel` calls it from its own
+        // `requestLayout`. An unconditional copy would write back the id the
+        // frame was *handed*, silently discarding that call — and discarding it
+        // on every subsequent frame too, since set-during-render and
+        // clobber-at-end alternate forever, so an in-frame `focus()` could
+        // never stick at all. `frame.focusedElement` is only ever
+        // `focusHandedIn` or `nil` (`resolveFocus()` clears, and nothing else
+        // writes it), so "unchanged since the hand-in" is exactly the condition
+        // under which the frame's answer is still about the current focus.
+        //
+        // A concurrent write is left alone rather than validated here, and that
+        // is `focus(_:)`'s stated contract rather than a gap: this frame's
+        // registry cannot speak for an id set part-way through building it, and
+        // the *next* frame's `resolveFocus()` drops it if it was bogus. Pinned
+        // from both sides by `focusingFromInsideAFrameSurvivesThatFrame` and
+        // `focusingFromInsideAFrameIsStillValidatedByTheNextFrame`.
+        if focusedElement == focusHandedIn {
+            focusedElement = frame.focusedElement
+        }
         // An element asked for another frame — an animation in progress. Marking
         // dirty here (rather than leaving the window to go clean) is what keeps
         // the display link running: without it, a fade stops the instant the
@@ -771,6 +818,26 @@ public final class Window {
     /// would be half a swallow. A release that ran no handler is not claimed
     /// and falls through unchanged, which is every event in every window that
     /// has no `onClick` in it.
+    ///
+    /// **Comparing by `GlobalElementID` inherits the vanishing-`if` adoption,
+    /// so a click here can run the WRONG element's handler.** Identity is
+    /// structural (CLAUDE.md's identity bullet): drop a conditional sibling
+    /// between the `mouseDown` and the `mouseUp` and the **trailing** sibling
+    /// takes over the vacated `.positional(_:)` — and slides into the vacated
+    /// screen position with it, so the same release point is now over it. The
+    /// guard above then passes on two different elements and runs the trailing
+    /// one's `onClick`. Measured, not reasoned; and it is that element's own
+    /// closure, because the handler rides on `Hitbox.handlers`, which the
+    /// rebuild replaced.
+    ///
+    /// **Emergent rather than a defect in this function, and the differential
+    /// is what says so**: naming the trailing sibling replaces its position,
+    /// nothing is adopted, and the identical release correctly clicks nothing —
+    /// with not one line here behaving differently. Fixing it would mean giving
+    /// dispatch a second notion of sameness that disagrees with the one
+    /// `StateTable`, focus and hover all share, which is a change to identity
+    /// and not to clicks. Both halves pinned by
+    /// `aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling`.
     private func dispatchClick(_ event: InputEvent,
                                pressedBefore pressed: GlobalElementID?) -> Bool {
         guard case .mouseUp(let mouse) = event, let pressed else { return false }

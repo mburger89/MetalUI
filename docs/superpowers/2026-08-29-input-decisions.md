@@ -530,6 +530,12 @@ only from handlers, and focuses itself exactly once on its first layout.
   place one exists: identity is structural, so a caller outside the tree cannot
   construct it correctly by hand.
 
+**This bullet shipped INERT and was fixed in the fix wave — see `IN-X`.** The
+`focus(_:)` call is made from inside a frame's render, and `Window`'s read-back
+overwrote it every frame, so the counter was never focused at launch and the two
+`context: "Counter"` bindings were dead until a human pressed **F**. The demo is
+unchanged; the mechanism was wrong, not this ruling.
+
 **The space and M keys moved onto the keymap** and the ad-hoc `onInput` switch is
 gone, which is the milestone dogfooding its own subsystem; `=`/`-` carry
 `context: "Counter"` so the two counter bindings exist only while the counter is
@@ -603,3 +609,57 @@ click that landed on the panel.
 
 **What it costs if wrong.** A modal that dismisses when a user clicks inside it. That
 is the failure the absorber prevents, and it is loud rather than silent.
+
+---
+
+## IN-X — the focus read-back applies the frame's DECISION, not its value
+
+**Made in the whole-branch fix wave, on a bug the per-task reviews could not see.**
+
+**The choice.** `Window.drawFrameIfNeeded` records `focusedElement` before building
+the `Frame` and assigns the frame's answer back **only if the property is still that
+same value**. A `focus(_:)` call made during `renderRoot` is left alone; the next
+frame validates it, exactly as it validates a call made between frames.
+
+**Reasoning.** `focusedElement` is the only window-owned input state handed into a
+`Frame` and read back out, which makes the pair a read-modify-write spanning the whole
+render. `Window.focus(_:)` is **public** and `MetalUIDemo`'s `CounterPanel` calls it
+from its own `requestLayout` (`IN-U`), so a concurrent write is a supported thing to
+do rather than a hypothetical. An unconditional read-back discarded it — and discarded
+it forever, since set-during-render and clobber-at-end alternate: measured `nil` after
+frames 1, 2 and 3, with and without the demo's once-flag.
+
+`frame.focusedElement` is only ever the value handed in or `nil` (`resolveFocus()`
+clears and nothing else writes it), so "unchanged since the hand-in" is exactly the
+condition under which the frame's answer is still about the current focus. That is why
+the guard is a decision test and not merely "never clear".
+
+**Why the mechanism and not the demo.** Moving the demo's call out of `requestLayout`
+would fix the demo and leave the next caller of a public API to rediscover the trap —
+and there is nowhere else to move it to, since the id is a parameter of that phase and
+identity is structural (`IN-U`'s own third bullet).
+
+**Why no per-task review caught it.** Task 9 built the read-back; Task 11 wrote the
+only in-frame caller. Neither diff contained both halves, and every focus test written
+before the fix wave calls `window.focus(…)` *after* a `drawFrameIfNeeded()` — the
+composition existed in the code and in no test, taxonomy shape 9.
+
+**What it costs if wrong.** Either direction is silent. Too-permissive (never applying
+the frame's answer) leaves a dangling focus id that key events dispatch into nothing —
+reddens `anElementThatStopsBeingFocusableLosesFocus`,
+`focusOnAnElementThatStopsBeingProducedIsCleared`,
+`isFocusedDuringPaintTracksTheWindowsFocus` and
+`focusingFromInsideAFrameIsStillValidatedByTheNextFrame`. Too-strict (the
+unconditional copy) makes an in-frame `focus()` impossible — reddens
+`focusingFromInsideAFrameSurvivesThatFrame` and
+`focusingFromInsideAFrameIsStillValidatedByTheNextFrame`. Both guarded.
+
+**The neighbouring question, answered.** `active` and `lastMousePosition` are handed
+in and never read back, and that is **correct for both** — checked rather than
+assumed. `Frame.activeElement` and `Frame.mousePosition` are `let`, so no in-frame
+decision about either exists to be discarded; the compiler is the guarantee. On the
+window's side both are written only by `updatePointerState`, which runs from the input
+path between frames, and neither has a public mutator (`active` is `private(set)`
+internal, `lastMousePosition` is `private`), so nothing in a tree can write them
+mid-render either. The asymmetry is real and load-bearing: focus is the only one of
+the three the *frame* discovers something about.

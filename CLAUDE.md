@@ -51,7 +51,7 @@ idiomatic Swift. macOS and iOS.
   container's **flat** child list) or `.named(ElementID)`. **A name replaces a
   position; it never joins it**, so a named item keeps its state through a
   reorder. `nil` is gone from the identity a phase receives, so "every element
-  has identity" is a compile-time fact rather than a rule to remember. Two
+  has identity" is a compile-time fact rather than a rule to remember. Three
   consequences a reader will otherwise get wrong:
 
   - **A vanishing `if` makes the trailing sibling ADOPT the vanished element's
@@ -60,6 +60,26 @@ idiomatic Swift. macOS and iOS.
     naming the **conditional content** removes the inheritance and still leaves
     the reset. Both pinned (`anElementAfterAVanishingIfAdoptsTheVanishedElementsState`,
     `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`).
+  - **The adoption reaches CLICK DISPATCH, and a click can therefore fire the
+    WRONG element's handler** — the same rule as the bullet above, arriving in
+    a place nobody designed it into. `Window.dispatchClick` requires the hitbox
+    under the release to own the `GlobalElementID` the press made active; if a
+    conditional sibling vanishes *between* the `mouseDown` and the `mouseUp`,
+    the trailing sibling adopts that id, slides into the vacated position, and
+    the release runs **its** `onClick`. Measured, not reasoned: press at
+    `positional(0)/positional(0)`, drop the `if`, release at the same point, and
+    the trailing box's own closure runs. **Naming the trailing sibling is the
+    remedy here too** — with `.id("b")` on it nothing is adopted and the release
+    correctly clicks nothing, and `dispatchClick` is byte-identical across the
+    two halves, which is what makes this identity's behaviour rather than
+    dispatch's. Pinned by
+    `aVanishingIfBetweenPressAndReleaseClicksTheTrailingSibling`
+    (`Tests/MetalUITests/InputDispatchTests.swift`), which asserts both halves;
+    recorded at `dispatchClick`'s own doc as well. **Not filed as a divergence
+    and not fixed**: it is this framework's identity rule applied consistently,
+    and "fixing" it means giving dispatch a second notion of sameness that
+    disagrees with the one `StateTable`, focus and hover all use.
+
   - **`cachedHash` and `==` are safe individually and unsafe only together.**
     Dropping the parent from the hash reddens exactly one test; a hash-shortcut
     `==` reddens nothing; do both and two unrelated elements silently share a
@@ -615,7 +635,7 @@ what the demo draws — and no test can establish it.** `MetalLayerSurface` vend
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and the whole suite still passed when that was measured, at 342 tests
-(**736 today**; the count is quoted so the measurement can be dated, not because
+(**739 today**; the count is quoted so the measurement can be dated, not because
 342 is a property of anything). If you touch that ordering, re-run the demo
 and look at it; the suite will not tell you.
 
@@ -769,7 +789,7 @@ behind the **M** key for that reason; see `showModal` in
 **Z-order is why that criterion exists, and it is worth restating precisely.**
 A `Stack`'s children are placed independently of paint order —
 `positionStackItems` never reads which child was declared first — so a
-regression reversing paint order would move not one number any of the 736 tests
+regression reversing paint order would move not one number any of the 739 tests
 or 81 goldens check: every rect's `(x, y, width, height)` is identical whichever
 child painted first. **Two artifacts have ever observed the property and both are
 outside the suite**: the offscreen readback, once, by hand, and the human look
@@ -895,7 +915,7 @@ ways to close it.
 **Nothing in the suite can see any of the first three, and the reason is the same one
 `Stack`'s entry gives.** A `Deferred` contributes no layout node, so its
 subtree's `(x, y, width, height)` are byte-identical whether or not it hoists
-and whether or not it escapes; the 736 tests and 81 goldens would all stay green
+and whether or not it escapes; the 739 tests and 81 goldens would all stay green
 under a regression in either half. The scene-level tests in `DeferredTests.swift`
 assert the layer and the mask on synthetic frames, which is real evidence and is
 not the same as the composed window.
@@ -999,7 +1019,7 @@ records that exclusion up front). And the demo now carries a second thing worth
 a directed look for the same reason `Stack`'s z-order needed one: with a
 `List`, rows appear and disappear as the window moves, and a window whose
 overscan is too small shows a strip of unbuilt rows for a frame (divergence 13).
-No assertion in the 736 can see either.
+No assertion in the 739 can see either.
 
 **What a human must do, and what to report.** Run `swift run MetalUIDemo`, then
 `swift run -c release MetalUIDemo`. Drag the window's edge — slowly, then fast —
@@ -1042,6 +1062,23 @@ backwards until it was measured.
 **What a human must do, and what to report.** Run `swift run MetalUIDemo`. The
 counter is in the main pane, below the layered hero and above the "Text
 renders" heading, and it is **focused at launch**.
+
+**That last clause was FALSE for the whole milestone and became true in the
+fix wave** — say so rather than quietly correcting it, because a human who ran
+an earlier build would have reported items 3 and 4 as broken and been right.
+`CounterPanel` focuses itself from its own `requestLayout`, and
+`drawFrameIfNeeded`'s read-back of `focusedElement` used to overwrite that call
+with the value the frame had been handed *before* it happened — on that frame
+and every frame after, since set-during-render and clobber-at-end alternate
+forever. So the counter was never focused at launch, `=`/`shift-+`/`-` were
+inert until a human pressed **F** (all three carry `context: "Counter"`, which
+only the focused panel contributes), and the focus affordance never painted.
+The read-back is now guarded to apply the frame's *decision* rather than its
+value; `focusingFromInsideAFrameSurvivesThatFrame` and
+`focusingFromInsideAFrameIsStillValidatedByTheNextFrame` pin both directions.
+**Nothing in the demo changed** — the bug was in the mechanism and so is the
+fix, which is what keeps the next caller of the public `Window.focus(_:)` from
+rediscovering it.
 
 1. **Click `+` and `-` and report whether it feels responsive** — the count
    should move on *release*, not on press, and there should be no perceptible
@@ -1778,13 +1815,43 @@ positions and routes wheel events exactly right — and draws nothing.
 `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`.
 
 **Not fixed, and the reason is blast radius rather than difficulty** (ruling
-IN-G). The fix is one line, and applying it at the end of the milestone reddens
-the pin below and **nothing else across 736 tests** — but that is the weakest
-possible evidence here, for the reason ruling IN-F records: no other fixture in
-the repo puts a scroller inside a scrolled scroller and reads its mask back.
-`pushClip` is the clip stack every clipped subtree in the framework goes
-through, and it was found inside a milestone whose entire test surface is input
-rather than paint.
+IN-G). The fix is one line — translate the incoming bounds by `activeOffset`
+before intersecting — and applying it reddens the pin below and **nothing else**:
+re-measured during the whole-branch fix wave at 739 tests, 6 issues, all of them
+that one test, with the inner content mask moving `(0, 300) 200x0` →
+`(0, 100) 200x100`, which is where its rows actually paint. (The same
+measurement was taken at 736 before the fix wave added three tests; both
+counts are recorded so the figure can be dated.)
+
+**Read that as weak evidence and the structural argument as strong, and the
+entry carried only the first for a milestone.** The suite half is weak for the
+reason ruling IN-F records: no other fixture in the repo puts a scroller inside a
+scrolled scroller and reads its mask back, so "nothing else reddens" is a
+statement about the corpus rather than about the fix. What was missing is the
+bound on the fix's *reach*, which is checkable and narrow:
+
+- `pushClip` is reached in `Sources/` only through
+  `PrepaintPass`/`PaintPass.clipped(to:offsetBy:)` — the two calls at
+  `Passes.swift`, one per pass, each the single line of its own `clipped`.
+  `Deferred` does not come through here at all; it uses `pushRootClip`.
+- `grep -rn "\.clipped(to:" Sources/` returns **seven** lines, of which
+  **three are calls** — all in `ScrollView.swift` (310, 326, 403) — and four are
+  doc comments naming the method (`Box.swift`, `Passes.swift` twice,
+  `Frame.swift`). Run it and read all seven; the count and the "three call
+  sites" claim are two assertions and only the second was checked when this
+  paragraph was first drafted.
+- The added term is `+ activeOffset`, so the fix is a **no-op wherever
+  `activeOffset == 0`** — which is every non-nested `ScrollView` in existence
+  and everything under a `Deferred`. Its behavioural reach is *exactly* the
+  nested-inside-a-scrolled-scroller case, which is the defect.
+
+So "the clip stack every clipped subtree goes through" — what this entry used
+to say — overstates it: every clipped subtree goes through the *function*, and
+almost none of them through the *changed behaviour*. **The ship decision stands
+anyway**: it was found inside a milestone whose entire test surface is input
+rather than paint, and a paint change belongs to a milestone that can look at
+pixels. Whoever picks it up should have the bound above rather than rediscover
+it.
 
 **Pinned, and the pin asserts the WRONG answer on purpose** —
 `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask`
@@ -1965,11 +2032,11 @@ are the dangerous ones.
 | `overflow` | **Written for the first time, still read nowhere.** `ScrollView.requestLayout` sets `viewportStyle.overflow = Axes(both: .scroll)` (ruling CL-B) — a production write, which is more than `aspectRatio` has ever had — but the engine consults it in no code path: `grep -rn "\.overflow\b" Sources/` outside `Style.swift`'s own declaration returns **three lines: one write** (`ScrollView.swift`) **and two doc mentions** (`ScrollView.swift`, `StateTable.swift`), **and nothing that reads it back** — re-run at the end of the input-and-state milestone. The "no read" half is the claim; the line count moves with the prose, as the `evictUnusedSince` row below has now been caught by twice. Clipping and scrolling both work, but through `ScrollView` pushing an explicit `pass.clipped(to:offsetBy:)` and registering a scroll region directly — mechanisms independent of this property. Kept as its own row rather than folded into `aspectRatio`'s, because a write with no read is a sharper trap than a property nobody touches at all: a reader who sees `ScrollView` set `overflow: .scroll` and then finds clipping working would reasonably conclude the two are connected |
 | `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** The element pipeline's Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **Re-measured, with a mutation that compiles.** The number this row used to quote came from adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder`, and that mutation **no longer compiles**: `anExplicitAnyElementIsStillAcceptedAsAChild` — added by that same commit — puts an `AnyElement` inside a builder block, so the generic overload demands `AnyElement: Element`, which it is not, and the suite fails to build with `error: static method 'buildExpression' requires that 'AnyElement' conform to 'Element'`. Pairing it with a non-generic `buildExpression(_ e: AnyElement) -> AnyElement` restores the measurement: **exactly the three type-level tests in that file redden, and no behavioural test at all — re-measured `--no-parallel` on 2026-08-27 after structural identity, out of 358 rather than the 303 first recorded, and the three are the same three.** Universal identity does not disturb it: `AnyElement`'s `requestGroupLayout` consumes one cursor index exactly as `Element`'s default does, so boxing every child moves no path and no `StateTable` entry. Delete this row when the static path demonstrably does not serve a real container |
 | **Colour glyphs** (emoji, `COLR`/`sbix`) | **Wrong rather than absent, and now visibly so.** Spec §6.1 routes them to a *polychrome* atlas that skips tinting; there is no polychrome atlas in M2 and `GlyphRaster.rasterize` does not detect one either. So `CTFontDrawGlyphs` renders an emoji into the `DeviceGray` context as a **luminance silhouette**, it packs into the R8 atlas like any other glyph, and `glyph_fragment` multiplies it by the text colour — `Text("hi 🎉")` paints a flat blob in the text's colour where the emoji should be. It does not trap and it is not blank, which is exactly why it is written down: **nothing in this repo can see it**, there being no oracle for a rendered glyph at all (spec §4.2). The fix is a second atlas and a second draw path, not a branch in the rasterizer. Note that it was *invisible* rather than *wrong* until the glyph emitter landed — this row's status changed without its text changing, which is the shape ruling CS-E names |
-| `GlyphAtlas.evictUnusedSince(_:)`, and the grow-only atlas it leaves | **Zero production callers — and a caller would make things WORSE, not better, until the packer can reclaim.** That is the mechanism, and it is checkable rather than a milestone to wait for: the shelf packer never revisits a closed shelf, so evicting a key frees a dictionary entry and **strands its pixels**; the next frame that wants that glyph packs a *second* copy further down. Calling eviction every frame therefore makes the atlas fill **faster**. `grep -rn "evictUnusedSince" Sources/` returns **eleven** lines and **not one of them is a call**: the declaration (`Atlas.swift:247`), the string inside its own precondition message, and nine doc comments — 7 in `Atlas.swift`, 2 in `ShapingCache.swift`, 1 each in `Frame.swift` and `Window.swift` — the same shape as `LayoutTree.reset(generation:)` below. **Re-count rather than trusting the eleven**; this row read "nine" through two milestones and was re-measured at the end of the input-and-state one without a single line of eviction code changing, because the number tracks the PROSE. The "no call" half is the claim. The frame brackets it depends on *are* live: `Frame.render` calls `beginFrame`/`endFrame` around the paint phase, so the ordering guard is enforceable; what is absent is only the call. **These three facts are one story, so read them together:** eviction is unwired, the atlas is therefore **grow-only**, and when it is full `Frame.draw` **silently drops** the glyphs that will not fit — a window showing an unbounded stream of distinct glyphs loses text with no error anywhere. What unblocks it is a repacker or a whole-atlas rebuild, not a call site. Its guards (`evictingDuringFrameConstructionTraps`, `aGlyphUnusedSinceAnOlderGenerationIsEvicted`) stay for `LayoutTree.reset`'s reason: they pin the contract for whoever does call it |
+| `GlyphAtlas.evictUnusedSince(_:)`, and the grow-only atlas it leaves | **Zero production callers — and a caller would make things WORSE, not better, until the packer can reclaim.** That is the mechanism, and it is checkable rather than a milestone to wait for: the shelf packer never revisits a closed shelf, so evicting a key frees a dictionary entry and **strands its pixels**; the next frame that wants that glyph packs a *second* copy further down. Calling eviction every frame therefore makes the atlas fill **faster**. `grep -rn "evictUnusedSince" Sources/` finds **no call at all** — only the declaration in `Atlas.swift`, the string inside its own precondition message, and doc comments in `Atlas.swift`, `ShapingCache.swift`, `Frame.swift` and `Window.swift` — the same shape as `LayoutTree.reset(generation:)` below. **No count is quoted, deliberately, and this row is the reason the rule exists**: it read "nine" through two milestones, was corrected to "eleven" at the end of the input-and-state milestone, and was already **12** by that milestone's own last commit, without one line of eviction code changing — the number tracks the PROSE, and the "eleven" breakdown was additionally self-inconsistent as written ("2 + nine doc comments" is 11, but its per-file list summed to 11 *doc comments*, which is 13). Run the grep and read the lines; "no call" is the claim, and it is the only half that stays true while the comments move. The two neighbouring rows dropped their counts for this reason one fix round earlier. The frame brackets it depends on *are* live: `Frame.render` calls `beginFrame`/`endFrame` around the paint phase, so the ordering guard is enforceable; what is absent is only the call. **These three facts are one story, so read them together:** eviction is unwired, the atlas is therefore **grow-only**, and when it is full `Frame.draw` **silently drops** the glyphs that will not fit — a window showing an unbounded stream of distinct glyphs loses text with no error anywhere. What unblocks it is a repacker or a whole-atlas rebuild, not a call site. Its guards (`evictingDuringFrameConstructionTraps`, `aGlyphUnusedSinceAnOlderGenerationIsEvicted`) stay for `LayoutTree.reset`'s reason: they pin the contract for whoever does call it |
 | `Style.alignSelf` on a **stack child** | **Ignored entirely, and it is the most misleading inert API this table holds** — an *alignment* property, public and live for flex, silently doing nothing on an *alignment* container. `Stack { Box().alignSelf(.flexEnd) }` compiles today: `StyledElement.alignSelf(_:)` is a live modifier and `Stack` conforms to `StyledElement` as of the stack milestone. Measured at that milestone's final review: a 20x10 child with `alignSelf = .flexEnd` in a 100x60 stack lays out at **`y = 0`**; WebKit's grid puts the same child at **`y = 50`**. The mechanism, not a milestone: `positionStackItems` reads the *container's* `alignItems`/`justifyItems` once before its item loop and never consults `tree.style(item.node)` for an override — the only per-item style it reads is `size`, for the `stretch` carve-out. Per-child alignment was out of the milestone's scope, and closing it needs **two** things rather than one: `alignSelf` for the block axis and a `justifySelf` that does not exist in this `Style` at all for the inline one, since implementing one alone would make a stack's two axes disagree about whether a child may override its container. Recorded at `Display.stack`'s own doc comment (`Style.swift`) as well as here |
 | `Style.padding` / `Style.border` / `Style.margin` on a **leaf** | **Ignored entirely — for a `Text`, not "resolved wrongly".** `measureNode` returns a leaf's measure result unchanged where it adds a container's `edges` back on, and `contentBox` only ever runs on a node with children, so a leaf's border box *is* its content box. `Text(…).padding(Pixels(8))` therefore changes no size and moves no glyph, and `Text.paint` lays its glyphs from `bounds.origin` on exactly that basis. Consistent, and consistently wrong against CSS. **Reachable from the public API**, unlike the `Style` properties above: `StyledElement.padding(_:)`/`.borderWidth(_:)`/`.margin(_:)` are live modifiers that do the right thing on a `Box` and nothing on a `Text` — which is the shape this table exists for, an API that is implemented for one receiver and inert for another. Whoever implements a leaf's box model owns the paint half too: the glyph origin becomes the content box and must come from the engine rather than be re-resolved at paint time, for the percentage-inset reason recorded at `Frame.fill` |
 | `StyledElement.hidden()` / `Style.display = .none` on a subtree that **draws** | **Live for layout, ignored by paint, and the failure is glyphs at the window's top-left corner.** The engine really does filter a `.none` node out of its parent's item list, so its rect stays at `LayoutTree`'s zero — that half works and is what the modifier's doc comment used to describe in full, which is exactly why the comment misled: it explained the layout half completely and said nothing about paint, so it read as "paints nothing". Nothing in `Sources/MetalUI` reads `Style.display` during paint at all. `Box.paint` recurses into `content.paintGroup` unconditionally, and fills its own bounds whenever it carries a `.background`; that fill is a harmless zero-size rect, but the children paint from the node's **origin**, and a node that was never placed has origin `(0, 0)` in *surface* coordinates. `Text.paint` then re-shapes at `max(bounds.width, smallestWrapWidth)` with `smallestWrapWidth == 0.5`, so the string wraps after every character and stacks one glyph per line down the window's left edge. **Measured** with a throwaway probe rather than read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); Box().width(40).height(10) }` in a 400×300 frame emits **0 rects and 2 glyphs**, at `(0, 2)` and `(−1, 18)` — the second negative in x. **0 rects, not one zero-size rect**: neither `Box` in that probe carries a `.background`, so nothing fills at all and the glyphs are the entire output. Re-measured 2026-08-28; this row said "the expected zero rect and two glyphs" until then. **Nothing in the suite can see it**: every existing `hidden()` test asserts a rect, and a zero rect is exactly what a correct implementation produces, so the glyphs are invisible to every assertion that exists. Found while evaluating a key-toggled modal for the demo and rejected on this basis — the demo uses an `@ElementBuilder` `if` instead, which removes the element from the *tree* rather than from the item list. The fix is a `display` check in paint (probably in `Element`'s group walk, so it costs one test per phase rather than one per element); until then `hidden()` is safe on `Box`es, wrong on anything that draws, and — as of the input-and-state milestone — **wrong on anything FOCUSABLE, which is a new failure mode rather than an instance of the paint one**. Measured through a real `Window`: a `.focusable().onKey { … }.hidden()` box registers as focusable, `focus(_:)` sticks, it **claims the keystroke**, the window's `onInput` fallback sees nothing, and focus is **retained** across the next frame — `Frame.resolveFocus()` cannot clear it, because the element's `prepaint` genuinely ran. **The differential is what makes it new**: the same box with `onClick` registers a `(0,0) 0x0` hitbox, so the *pointer* side is protected by geometry (`Bounds.contains` is half-open), while focus registration reads no geometry at all — deliberately, that being the design's own argument for riding on `registerHandlers`. `display: .none` is invisible to it, and the consequence is keystrokes vanishing into an element nobody can see. **No deliberately-wrong pin, and that judgement is carried rather than hidden**: the paint half of this row has no pin either, one `display` check in the group walk closes both halves, and a single pin covering both is the better artifact — but nothing enforces that, so the next person to touch `hidden()` owns all three failures |
-| `Frame.scrollRegions` / `Window.lastScrollRegions` | **Get-only derived views with ZERO production readers — `LayoutTree.reset`'s exact shape, arrived at by a refactor rather than by never being wired.** They were the framework's scroll registry until the input-and-state milestone folded scroll regions into the one hitbox list (design spec §3.1); keeping the names as accessors is what let every routing assertion written against the old registry pass **unedited**, which was that task's whole safety argument and is why this is the right call rather than dead weight. But `Window.applyScroll` ranks against `lastHitboxes` directly, `Window.lastScrollRegions` derives its own view from that same array rather than calling `Frame.scrollRegions`, and nothing else reads either. Verify with `grep -rn "scrollRegions" Sources/`, which returns **five lines and no call site at all**: `Frame.swift:420`, the one declaration this pattern matches; `Frame.swift:400` and `Window.swift:168`, two doc lines (one of them the sentence you are reading quoted back); and `Hitbox.swift:37` and `:71`, two references in prose. **The pattern is case-sensitive and therefore misses `Window.lastScrollRegions`' own declaration** — so it finds one declaration, not two, and a case-INSENSITIVE sweep (`grep -rni "scrollregions" Sources/`) is what sees both. No count is quoted for that one deliberately: it matches every prose mention including this row, so it moves whenever the prose does. The load-bearing half is "no call site", which holds under either pattern. (This sentence said "the two declarations" and named no doc lines until the counts were actually run — a correction written from reasoning rather than from the grep it prescribes, which is the exact failure the practices doc's first record-mechanism names.) `Window`'s one already said "test observability" in its first line; `Frame`'s did not and read as a live API — it says so now. **Keep both**: they are what several routing tests read, and deleting them churns green tests to prove nothing |
+| `Frame.scrollRegions` / `Window.lastScrollRegions` | **Get-only derived views with ZERO production readers — `LayoutTree.reset`'s exact shape, arrived at by a refactor rather than by never being wired.** They were the framework's scroll registry until the input-and-state milestone folded scroll regions into the one hitbox list (design spec §3.1); keeping the names as accessors is what let every routing assertion written against the old registry pass **unedited**, which was that task's whole safety argument and is why this is the right call rather than dead weight. But `Window.applyScroll` ranks against `lastHitboxes` directly, `Window.lastScrollRegions` derives its own view from that same array rather than calling `Frame.scrollRegions`, and nothing else reads either. Verify with `grep -rn "scrollRegions" Sources/`, which returns **five lines and no call site at all**: the one declaration this pattern matches, in `Frame.swift`; two doc lines, one in `Frame.swift` and one in `Window.swift` (the latter the sentence you are reading, quoted back); and two references in `Hitbox.swift`'s prose. **No line numbers, on purpose** — this row cited `Frame.swift:420` and `:400` when it was written and both were wrong by the end of the same milestone (**431** and **401**), the second time line numbers in this table have moved inside one milestone. Read the five lines the grep prints; the count and the "no call site" claim are two separate assertions and both were re-run here. **The pattern is case-sensitive and therefore misses `Window.lastScrollRegions`' own declaration** — so it finds one declaration, not two, and a case-INSENSITIVE sweep (`grep -rni "scrollregions" Sources/`) is what sees both. No count is quoted for that one deliberately: it matches every prose mention including this row, so it moves whenever the prose does. The load-bearing half is "no call site", which holds under either pattern. (This sentence said "the two declarations" and named no doc lines until the counts were actually run — a correction written from reasoning rather than from the grep it prescribes, which is the exact failure the practices doc's first record-mechanism names.) `Window`'s one already said "test observability" in its first line; `Frame`'s did not and read as a live API — it says so now. **Keep both**: they are what several routing tests read, and deleting them churns green tests to prove nothing |
 | `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` returns **three** lines and none is a call: the string inside its own precondition message (`LayoutTree.swift:135`), a doc comment on the method that quotes this very grep (`:116`), and — added by the input-and-state milestone — a doc line in `Frame.swift`, where the `Frame.scrollRegions` row below cites this one as the same shape. (Line numbers are deliberately not given for the prose lines: they moved twice inside this one fix round.) (It matched one line when this row was written and two after the method's own doc comment landed, so re-run it rather than counting — the claim is "no call", not any particular number, and this row has now been made stale twice by prose that merely mentions the symbol.) The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
 | CSS Sizing §4.5's **specified size suggestion** | **Still not implemented** (ruling FS-3), and it **left this table's premise behind**: content sizing made the *content* half live for containers, so the missing half is no longer inert-and-invisible but a measured disagreement with WebKit — **divergence 5 above** carries the repro, the numbers and the pin, and is the one place to update. Two claims expired here in one milestone, and the second was written by the commit that retired the first (ruling CS-E's shape, third occurrence on this project): "indistinguishable until M2", then "not yet a wrong answer anywhere". Kept as a row because the *declaration* half is what this table is for — the rule is half-implemented at `collectItems`' automatic minimum, and silence there would read as complete. `aContainerItemIsFlooredByItsChildrensWidth` cannot see it: its `.a` has no specified width to be floored by |
 | `@State` inside an `AnyElement` | **Silently inert — returns its initial value forever, with no diagnostic.** The input-and-state milestone's Task 2 seeds every `@State` an element declares from two sites: `Element`'s default `requestGroupLayout` (`ElementGroup.swift`) and `Frame.render`'s own root path. `AnyElement.requestGroupLayout` (`ElementGroup.swift`, the `extension AnyElement: ElementGroup` block) is a hand-kept duplicate of the first of those two — written before `@State` existed, and never updated — so it never calls `StateBinder.bind`. Measured with a throwaway probe: `Box(content: AnyElement(Counter(...)))` rendered for three frames leaves the shared `StateTable` with **no entry at all** for the counter's slot, where the identical `Counter` unboxed in a plain `Box` leaves it holding the accumulated **3** — one increment per frame. (Re-measured during Task 2's re-review, which read `nil` against `Optional(3)`. This row said `count == 1` when first written, which contradicted its own "accumulated" in the same sentence: 1 is the entry *count* after one frame, not the value after three.) **Not a one-line fix**: `Mirror(reflecting: anyElement)` sees only the boxed `any ElementObject`, not the erased element's own stored properties, so there is nothing for `StateBinder` to reflect even with the call added — closing this needs a hook on `ElementObject` or reflection inside `AnyElementBox` itself, a design decision rather than a patch. **Nothing in production reaches it today**: the `AnyElement` / `ElementObject` / `AnyElementBox` row above already records that `ElementBuilder` produces no `AnyElement` — every one in the tree today was written by hand, and today that is tests alone |
@@ -1987,7 +2054,7 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **736 tests** and 81 browser fixtures, warning-free
+`swift build` · `swift test` — **739 tests** and 81 browser fixtures, warning-free
 (re-measured 2026-08-29 `--no-parallel`, at the input-and-state milestone's
 own last commit, per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
@@ -2018,7 +2085,13 @@ demo, the documentation and the human-verification record; it adds **seven** —
 five in the new `PointerStatePaintTests` for the hover/focus token swaps, one
 `swiftc -typecheck` guard for the element-keyed `isHovered` overload, and
 divergence 15's deliberately-wrong pin in the new `NestedClipTests` — reaching
-**736**. Goldens: **81 before, 81 after, and no existing golden file modified at
+**736**. **The whole-branch fix wave then added three, reaching 739**: two in
+`FocusTests` for the guarded focus read-back (ruling `IN-X`) — one that focuses
+from *inside* a frame and one that pins the in-frame call still being validated
+by the next frame — and one in `InputDispatchTests` for click dispatch
+inheriting the vanishing-`if` identity adoption, which asserts both the wrong
+answer and the naming that removes it. Goldens: **81 before, 81 after, and no
+existing golden file modified at
 any point in the milestone**, which is exit criterion 2 and the standing check
 that input never reached the layout engine.
 
@@ -2518,7 +2591,11 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    `queryingFocusDuringPrepaintDoesNotCompile` (**28** = 18 + 7 + 1 + 2) and
    Task 11 added `queryingElementKeyedHoverDuringPrepaintDoesNotCompile`
    (**29** = 19 + 7 + 1 + 2). Both are guards written in the same change that
-   could have introduced the hazard.
+   could have introduced the hazard. **Re-counted by grep at the whole-branch
+   fix wave (suite 739): still 29** — 19 + 7 + 1 + 2 across the four files,
+   where `grep -c canTypecheck Tests/MetalUICoreTests/UnitSafetyTests.swift`
+   reads 3 because one of them is a comment. The fix wave added three tests and
+   no guard, which is the paragraph's own claim arriving once more.
 
    **The focus one is the case worth reading, because its brief FORBADE adding
    it by symmetry and the measurement went the other way from how the question

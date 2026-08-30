@@ -706,3 +706,127 @@ private struct FocusReader: Element {
         probe.answers.append(pass.isFocused(id))
     }
 }
+
+// MARK: - Focus moved from INSIDE the frame that is rendering
+
+/// `window.focus(_:)` called **during** a frame's own render survives that
+/// frame — the read-back applies the frame's *decision*, not its stale value.
+///
+/// **Every other `window.focus(…)` in this file follows a
+/// `drawFrameIfNeeded()`** — check with `grep -n "window.focus"
+/// Tests/MetalUITests/FocusTests.swift` and read the line above each hit — so
+/// this is the only test that reaches the composition where the hand-in and the
+/// read-back straddle a concurrent write. `Window` hands `focusedElement` into
+/// `Frame` before `renderRoot` and assigns it back afterwards; a read-back that
+/// copied `frame.focusedElement` unconditionally would overwrite the id this
+/// element just asked for with the `nil` the frame was handed, on this and
+/// every subsequent frame, so an in-frame `focus()` could never stick. The
+/// demo's `CounterPanel` is exactly this shape, which is what makes the
+/// mechanism rather than the composition the thing under test.
+///
+/// **The element focuses itself unconditionally rather than behind a
+/// once-flag**, because "set during render, clobbered at the end" alternates
+/// forever: a once-flag would leave a reader unsure whether frame 2 recovered
+/// what frame 1 lost. Frames 2 and 3 are asserted for the other half — that
+/// `resolveFocus()` finds the id in the registry the element registered itself
+/// into and does *not* clear it.
+@Test @MainActor func focusingFromInsideAFrameSurvivesThatFrame() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let probe = SelfFocusProbe()
+    let (window, _) = try makeFakeWindow(device: device, size: 100) {
+        Box { SelfFocuser(probe: probe) }.id("root")
+    }
+    probe.window = window
+
+    let focuser = GlobalElementID.child(of: rootID("root"), at: 0,
+                                        name: ElementID("focuser"))
+    window.drawFrameIfNeeded()
+    #expect(probe.focusCalls == 1, "the element ran its own `requestLayout` once")
+    #expect(window.focusedElement == focuser,
+            "focus asked for during the render survives the end of that frame")
+
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    #expect(window.focusedElement == focuser,
+            "and the next frame, which validates it against its own registry, keeps it")
+
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    #expect(window.focusedElement == focuser, "and stays put")
+    #expect(probe.paintedFocused == [false, true, true],
+            """
+            the frame that set it paints unfocused, `resolveFocus()` having \
+            early-returned on the `nil` it was handed; every frame after it \
+            paints focused
+            """)
+}
+
+/// A frame that focuses an element which does **not** register as focusable
+/// still loses it on the next frame.
+///
+/// The differential for the test above, and the reason the read-back applies a
+/// decision rather than simply never clearing: `Window.focus(_:)`'s contract is
+/// that a bogus id is not an error because the *next* frame drops it. An
+/// in-frame call must be no more privileged than a between-frames one.
+@Test @MainActor func focusingFromInsideAFrameIsStillValidatedByTheNextFrame() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let probe = SelfFocusProbe()
+    probe.registersFocusable = false
+    let (window, _) = try makeFakeWindow(device: device, size: 100) {
+        Box { SelfFocuser(probe: probe) }.id("root")
+    }
+    probe.window = window
+
+    let focuser = GlobalElementID.child(of: rootID("root"), at: 0,
+                                        name: ElementID("focuser"))
+    window.drawFrameIfNeeded()
+    #expect(window.focusedElement == focuser, "the in-frame call still lands")
+
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    #expect(window.focusedElement == nil,
+            "and the next frame clears it, because it registered nothing focusable")
+}
+
+private final class SelfFocusProbe {
+    /// Weak for `MetalUIDemo`'s `demoWindow` reason: the content closure the
+    /// window retains builds an element holding this probe, so a strong window
+    /// here would close the cycle.
+    weak var window: Window?
+    var registersFocusable = true
+    var focusCalls = 0
+    var paintedFocused: [Bool] = []
+}
+
+/// An element that focuses **itself** from its own `requestLayout`, the way
+/// `MetalUIDemo`'s `CounterPanel` does.
+///
+/// Hand-written rather than a `Box` for `FocusReader`'s reason: only the
+/// element knows its own `GlobalElementID`, and only a bespoke element can
+/// carry a reference to the window out to the phase that has one.
+private struct SelfFocuser: Element {
+    let probe: SelfFocusProbe
+    var elementID: ElementID? { ElementID("focuser") }
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Void) {
+        probe.focusCalls += 1
+        probe.window?.focus(id)
+        var style = Style()
+        style.size = Size(width: .length(.pixels(Pixels(20))),
+                          height: .length(.pixels(Pixels(20))))
+        return (pass.requestNode(style: style, children: []), ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                  layout: inout Void, pass: inout PrepaintPass) {
+        var handlers = Handlers()
+        handlers.isFocusable = probe.registersFocusable
+        pass.registerHandlers(handlers, at: bounds, id: id)
+    }
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+               layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {
+        probe.paintedFocused.append(pass.isFocused(id))
+    }
+}
