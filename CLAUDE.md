@@ -1940,10 +1940,19 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    `queryingActiveDuringPrepaintDoesNotCompile`, for `theme`'s own reason
    stated sharper: a colour read during prepaint simply fails to compile, but
    `isHovered`/`isActive` would **compile and lie** if reachable there —
-   every hitbox has already registered by the time `PrepaintPass` runs, so
-   only `Frame.hoveredHitbox` still being `nil` (`resolveHover(at:)` has not
-   run yet) stands between a syntactically fine call and a silently wrong
-   `false`. **This does not contradict "the guard count does not track the
+   returning a silently wrong `false` from a syntactically fine call. Two
+   independent things make it wrong, and the guard is worth having for the
+   second even more than the first: `Frame.hoveredHitbox` is still `nil`
+   because `resolveHover(at:)` runs *after* prepaint returns, **and** the
+   hitbox list is still being built, since `PrepaintPass.insertHitbox` is
+   what fills it. So a prepaint-time answer would be wrong even if hover
+   had somehow already resolved — it would rank against a partial list,
+   which is exactly §3.3's reason for resolving once at the boundary
+   rather than during registration: "topmost wins" is not knowable until
+   every hitbox is registered. (This sentence said the opposite when first
+   written — "every hitbox has already registered by the time
+   `PrepaintPass` runs" — which inverts the mechanism the guard exists
+   for.) **This does not contradict "the guard count does not track the
    suite count" above — it is the other half of the same claim, not an
    exception to it.** Every prior re-count held 25 steady while unrelated
    tests were added elsewhere; this one moved because a guard was
