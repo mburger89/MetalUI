@@ -1,5 +1,6 @@
 import MetalUICore
 import MetalUILayout
+import MetalUIPlatform
 
 /// A flex container: one `Style`, one layout node, and its children.
 ///
@@ -289,6 +290,62 @@ extension StyledElement {
     /// be doing instead.
     public func onClick(_ handler: @escaping @MainActor () -> Void) -> Self {
         handling { $0.onClick = handler }
+    }
+
+    // MARK: Focus (design spec §4.2)
+
+    /// Lets this element **hold** keyboard focus.
+    ///
+    /// **It does not take focus, and nothing in this framework takes it for
+    /// you.** Focus moves only through `Window.focus(_:)`; clicking a focusable
+    /// element does *not* focus it, because focus-by-click is a policy decision
+    /// this framework has not made. What this modifier buys is eligibility: a
+    /// focused id that is not registered as focusable on a given frame is
+    /// **cleared** at that frame's prepaint/paint boundary
+    /// (`Frame.resolveFocus()`), so without this, focus set on an element
+    /// evaporates on the next frame.
+    ///
+    /// **It is NOT a pointer hit target**, unlike `onClick(_:)`: a focusable
+    /// element registers no hitbox, so it stays transparent to the pointer and
+    /// does not swallow the wheel of a `ScrollView` it sits inside. That
+    /// separation is the reason `Handlers` carries two gates rather than one.
+    ///
+    /// **A focus ring is yours to draw.** Nothing here paints one — read
+    /// `PaintPass.isFocused(_:)` from an element's own `paint`. There is no
+    /// focus ring in the framework at all today, which is why the milestone's
+    /// human look asks specifically whether focus is *visible*.
+    public func focusable() -> Self {
+        handling { $0.isFocusable = true }
+    }
+
+    /// Runs `handler` when a key event reaches this element — because it holds
+    /// focus, or because it is an **ancestor** of whatever does.
+    ///
+    /// **Return `true` to claim the keystroke and `false` to pass it on.** The
+    /// event walks the focused element's id chain outward, innermost first, and
+    /// stops at the first handler that returns `true`; a `false` sends it to
+    /// the next ancestor, and past the root to `Window.onInput`. So a container
+    /// can bind a shortcut for its whole subtree, and a child can decline a key
+    /// it does not recognise without knowing what is bound above it.
+    ///
+    /// **This does not make the element focusable** — see `focusable()`. The
+    /// two are separate because an ancestor handling keys is not a place the
+    /// user's keyboard should land, and a text field is focusable before
+    /// anything is bound to it.
+    ///
+    /// **`keyDown` only.** `KeyEvent` carries no down/up discriminator, so a
+    /// handler receiving both could not tell them apart; a `keyUp` falls
+    /// through to `Window.onInput` instead.
+    ///
+    /// **What `handler` captures outlives the frame that built it** — the same
+    /// retain-cycle hazard `onClick(_:)` above states in full, arriving here
+    /// through `Window.lastFocusRegistry` rather than through `lastHitboxes`.
+    /// Capture `[weak window]`, or capture the state the handler writes.
+    ///
+    /// **A second `onKey` REPLACES the first**, exactly as a second `onClick`
+    /// does.
+    public func onKey(_ handler: @escaping @MainActor (KeyEvent) -> Bool) -> Self {
+        handling { $0.onKey = handler }
     }
 
     // MARK: Identity

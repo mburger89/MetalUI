@@ -217,6 +217,53 @@ public final class Window {
     /// `@testable import MetalUI`.
     private(set) var active: GlobalElementID?
 
+    /// The element holding keyboard focus, or `nil` — **window state, because
+    /// focus is singular per window** (design spec §4.2).
+    ///
+    /// Owned here rather than by `Frame` for `active`'s reason and one more:
+    /// focus must survive every frame between the two events that move it, and
+    /// a `Frame` is discarded at the end of every `drawFrameIfNeeded`. It is
+    /// handed into each frame and **read back** afterwards, because the frame
+    /// is what discovers that the focused element was not produced.
+    public private(set) var focusedElement: GlobalElementID?
+
+    /// The focus registry the most recent frame's prepaint built, captured
+    /// alongside `lastHitboxes` and for its reason: the frame that built it is
+    /// gone by the time a key event arrives, and there is no frame in flight to
+    /// ask instead.
+    private(set) var lastFocusRegistry = FocusRegistry()
+
+    /// The focused element and every ancestor of it, **innermost first** —
+    /// empty when nothing is focused.
+    ///
+    /// **Exposed rather than buried inside `dispatchKey`, because Task 10 needs
+    /// it and calls no handler.** Design spec §4.3 matches context predicates
+    /// innermost-first from the focus chain, which is a different consumer of
+    /// the same walk. See `focusChain(from:)`.
+    var focusChain: [GlobalElementID] { MetalUI.focusChain(from: focusedElement) }
+
+    /// Moves keyboard focus, or clears it with `nil`.
+    ///
+    /// **A plain setter with no validation, and the frame is what validates.**
+    /// Nothing here checks that `id` names a produced, focusable element —
+    /// `Window` has no tree — so focusing something that is not `.focusable()`
+    /// this frame is not an error; the next frame's `Frame.resolveFocus()` will
+    /// simply clear it. That is the same mechanism that drops focus when a
+    /// focused element vanishes, and having one rule rather than two is the
+    /// point.
+    ///
+    /// **Nothing here focuses anything on its own.** Focus-by-click is a policy
+    /// decision this framework has not made: a `mouseDown` on an element with
+    /// an `onClick` moves `active` and does *not* move focus. A caller who
+    /// wants that behaviour writes it in a handler.
+    ///
+    /// Marks the window dirty, because focus is visible.
+    public func focus(_ id: GlobalElementID?) {
+        guard focusedElement != id else { return }
+        focusedElement = id
+        setNeedsRedraw()
+    }
+
     /// The most recent display-link tick, in seconds — `0` until the first
     /// tick arrives. Carried into every `Frame` as its `timestamp` (spec §8 of
     /// the clipping/scroll design): a borrowed M4 primitive, read once here so
@@ -293,6 +340,15 @@ public final class Window {
                 self.setNeedsRedraw()
                 return true
             }
+            // The keyboard's turn, on the same footing as the two above: an
+            // element that claimed the keystroke consumed the event, and
+            // re-offering it to the window's fallback would be half a swallow.
+            // It inherits none of the `active` hazard above — a key event falls
+            // through `updatePointerState`'s `default: break`.
+            if self.dispatchKey(event) {
+                self.setNeedsRedraw()
+                return true
+            }
             let handled = self.onInput?(event) ?? false
             self.setNeedsRedraw()
             return handled
@@ -365,11 +421,20 @@ public final class Window {
                           theme: theme,
                           timestamp: lastTick,
                           mousePosition: lastMousePosition,
-                          activeElement: active)
+                          activeElement: active,
+                          focusedElement: focusedElement)
         renderRoot(frame)
         let scene = frame.finalizedScene()
         lastScene = scene
         lastHitboxes = frame.hitboxes
+        lastFocusRegistry = frame.focusRegistry
+        // Read BACK, not merely handed in: `Frame.resolveFocus()` cleared it if
+        // this frame did not produce the focused element (design spec §4.2).
+        // Assigning the property directly rather than through `focus(_:)`,
+        // because this is not a focus *move* — marking the window dirty for a
+        // clearing the frame has already painted would wake the display link
+        // for nothing.
+        focusedElement = frame.focusedElement
         // An element asked for another frame — an animation in progress. Marking
         // dirty here (rather than leaving the window to go clean) is what keeps
         // the display link running: without it, a fade stops the instant the
@@ -657,6 +722,35 @@ public final class Window {
         guard hit.id == pressed, let handler = hit.handlers.onClick else { return false }
         handler()
         return true
+    }
+
+    /// Dispatches a key event from the focused element **outward through its
+    /// ancestors**, and reports whether anything claimed it (design spec §4.2).
+    ///
+    /// **`keyDown` only.** A `KeyEvent` carries no down/up discriminator, so an
+    /// `onKey` handed both could not tell them apart and would fire twice per
+    /// keystroke with no way to opt out. A `keyUp` falls through to
+    /// `Window.onInput` unchanged; widening this means giving the handler the
+    /// phase, which is a change to `KeyEvent`'s own surface.
+    ///
+    /// **With nothing focused the chain is empty and this returns `false`**, so
+    /// the event reaches `onInput`. That is not a degenerate case — it is what
+    /// lets a window-level keymap work with no focused element at all, which is
+    /// the case the counter demo relies on.
+    ///
+    /// **Against `lastFocusRegistry`, exactly as clicks resolve against
+    /// `lastHitboxes`**: there is no frame in flight when an input event
+    /// arrives, only the record of the one most recently drawn. So a handler
+    /// bound on frame N runs for an event arriving before frame N+1, and it is
+    /// that frame's closure rather than an older one.
+    ///
+    /// **The chain comes from the id itself, not from a registered tree.** See
+    /// `focusChain(from:)`: `GlobalElementID` already carries a parent pointer,
+    /// so ancestry is derivable with nothing to keep in sync. An ancestor that
+    /// bound no key handler is simply skipped.
+    private func dispatchKey(_ event: InputEvent) -> Bool {
+        guard case .keyDown(let key) = event else { return false }
+        return MetalUI.dispatchKey(key, along: focusChain, in: lastFocusRegistry)
     }
 
     /// The `GlobalElementID` owning the topmost opaque hitbox under `point`,

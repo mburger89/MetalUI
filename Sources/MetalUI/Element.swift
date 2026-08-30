@@ -67,14 +67,20 @@ public protocol Element: ElementGroup {
     /// Layout has resolved, so absolute bounds are known — this is the first
     /// phase that may ask for them. Emitting a primitive here does not compile.
     ///
-    /// **Nothing can be registered here yet.** The phase exists so that
-    /// hitboxes, focus handles, scroll regions and accessibility nodes are
+    /// **Three of the four registries this phase exists for are live now, and
+    /// this paragraph said none of them were.** It was written before any
+    /// existed and read "nothing can be registered here yet"; that expired at
+    /// the input-and-state milestone and is corrected rather than quietly
+    /// deleted, per this repo's rule about false claims. The phase exists so
+    /// that hitboxes, focus handles, scroll regions and accessibility nodes are
     /// recorded after positions resolve and before the first primitive is
-    /// emitted — but `Frame` holds no registry for any of them and
-    /// `PrepaintPass` therefore exposes no way to add one. Reading resolved
-    /// bounds is the whole of what this phase can currently do. Each registry is
-    /// a store on `Frame` plus one method on `PrepaintPass`; input and focus
-    /// bring theirs (M3), accessibility brings its own (§9).
+    /// emitted. **Hitboxes and scroll regions** share one registry on `Frame`
+    /// (`insertHitbox`, `registerScrollRegion`, `registerHandlers`);
+    /// **focus** has its own, written by that same `registerHandlers` call
+    /// rather than by a method of its own. **Accessibility** is still absent —
+    /// `Frame` holds no store for it and `PrepaintPass` exposes no way to add
+    /// one; it arrives with §9. Check by grepping `PrepaintPass` for members,
+    /// not by re-reading this paragraph.
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                            layout: inout LayoutState, pass: inout PrepaintPass) -> PrepaintState
 

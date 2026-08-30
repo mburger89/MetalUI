@@ -16,6 +16,14 @@
 /// `Box` transparent to the pointer and, more sharply, keeps every box inside a
 /// `ScrollView` from swallowing that scroller's wheel.
 ///
+/// **The pointer gate and the keyboard gate are SEPARATE, and conflating them
+/// would be a live defect rather than an untidiness.** `isPointerTarget` gates
+/// the hitbox and `isKeyTarget` gates the focus registry. A single "asked for
+/// something" gate would make every focusable element an *opaque* hitbox — and
+/// an opaque hitbox swallows the wheel of any `ScrollView` it sits inside
+/// (`Window.applyScroll`), so a list of focusable rows would stop scrolling.
+/// Pinned by `focusabilityAndKeyHandlingRegisterNoPointerHitbox`.
+///
 /// **Bubble-only, and today that means "the topmost opaque handler wins".**
 /// Design spec §3.5 cuts the capture phase, because an opaque hitbox already
 /// swallows, which is the case framework spec §8.2 names capture for. What is
@@ -44,9 +52,47 @@ public struct Handlers {
     /// behind it.
     public var onClick: (@MainActor () -> Void)?
 
+    /// Run when a key event reaches this element — either because it holds
+    /// focus, or because it is an ancestor of whatever does.
+    ///
+    /// **Returns whether it claimed the event**, unlike `onClick` above, and
+    /// that is the whole bubbling contract: `true` stops the walk, `false`
+    /// passes the keystroke to the next ancestor outward. An element can
+    /// therefore look at a key and decline it without knowing what else is
+    /// bound anywhere above it.
+    ///
+    /// **`keyDown` only.** `KeyEvent` carries no down/up discriminator, so a
+    /// handler receiving both could not tell them apart and would fire twice
+    /// per keystroke with no way to opt out; a `keyUp` falls through to
+    /// `Window.onInput` instead. Pinned by
+    /// `aKeyUpIsNotDispatchedToTheFocusChain`.
+    public var onKey: KeyHandler?
+
+    /// Whether this element may **hold** focus.
+    ///
+    /// **Separate from `onKey` on purpose, and neither implies the other.** A
+    /// container binding a shortcut for its whole subtree handles keys without
+    /// ever being the focused thing; a text field is focusable before anything
+    /// is bound to it. One combined flag could express neither, and the pair is
+    /// asserted rather than argued by
+    /// `aFocusableElementNeedsNoHandlerAndAHandlerNeedsNoFocusability`.
+    ///
+    /// **It is also what keeps focus from dangling.** `Frame.resolveFocus()`
+    /// clears the window's focus when the focused id is not in this frame's
+    /// focus registry, and this flag is what puts an id there — so an element
+    /// that stops being produced, *or* stops being focusable, loses focus at
+    /// the prepaint/paint boundary.
+    public var isFocusable: Bool = false
+
     public init() {}
 
-    /// Whether this element asked for anything at all. The registration gate:
-    /// an element with an empty set contributes no hitbox.
-    var isEmpty: Bool { onClick == nil }
+    /// Whether this element is a **pointer** hit target — the hitbox gate.
+    ///
+    /// `onClick` alone, deliberately: see the type's own doc comment for why
+    /// folding focus in here would stop a list of focusable rows scrolling.
+    var isPointerTarget: Bool { onClick != nil }
+
+    /// Whether this element has anything to say about the **keyboard** — the
+    /// focus-registry gate (`FocusRegistry.register(_:id:)`).
+    var isKeyTarget: Bool { onKey != nil || isFocusable }
 }

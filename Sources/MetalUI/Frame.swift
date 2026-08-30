@@ -499,8 +499,63 @@ public final class Frame {
     /// the wheel swallow this milestone's exit criterion 4 is about.
     func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
                           id: GlobalElementID) {
-        guard !handlers.isEmpty else { return }
+        // The keyboard side first, and unconditionally: focus registration is
+        // not gated on the pointer gate below, and an element can ask for one
+        // without the other. `register` gates itself on `isKeyTarget`.
+        focusRegistry.register(handlers, id: id)
+        guard handlers.isPointerTarget else { return }
         _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
+    }
+
+    // MARK: - Focus (design spec §4.2)
+
+    /// What each element asked for on the keyboard side this frame, built
+    /// during `prepaint` by `registerHandlers` above.
+    ///
+    /// **Registered in prepaint, alongside hitboxes and for the same reason**
+    /// (§4.2, and §8.1 before it): it is the one phase where positions have
+    /// resolved and nothing has been emitted yet. Focus itself needs no
+    /// geometry — nothing here reads `bounds` — but the registration rides on
+    /// the call that does, so a conformer that registers its click target
+    /// registers its focusability in the same line and cannot forget one.
+    ///
+    /// `Window` captures this after the frame the way it captures `hitboxes`,
+    /// because the frame is gone by the time a key event arrives.
+    private(set) var focusRegistry = FocusRegistry()
+
+    /// The focused element for this frame — handed in from `Window`, then
+    /// **cleared here** by `resolveFocus()` if this frame did not produce it.
+    ///
+    /// A `var` rather than a `let`, unlike `activeElement`, and that difference
+    /// is the whole of §4.2's dangling rule: `Window` reads this back after
+    /// `render` returns, so the clearing decision is made against the registry
+    /// the frame actually built rather than against the previous frame's.
+    private(set) var focusedElement: GlobalElementID?
+
+    /// Drops focus when the focused element was not produced this frame
+    /// (design spec §4.2).
+    ///
+    /// **Called once per frame, from `render`, at the prepaint/paint boundary
+    /// — beside `resolveHover(at:)` and for its reason.** "Was it produced" is
+    /// not knowable until every element's `prepaint` has run, so asking earlier
+    /// would answer from a half-built registry; asking later, after `paint`,
+    /// would let this frame paint a focus ring for an element it has already
+    /// decided is not focused.
+    ///
+    /// **There are no tombstones**, and this is why the answer is "clear it"
+    /// rather than "remember it for later". Design spec §4.3 records that
+    /// `StateTable` entries are reaped rather than kept as invalid-reporting
+    /// placeholders, and that exit transitions wait on that mechanism; focus
+    /// sits on the same footing. The consequence — a focused row scrolled out
+    /// of a `List`'s window loses focus, and scrolling back does not restore it
+    /// — is recorded as a candidate divergence rather than fixed here.
+    ///
+    /// A free method rather than a step inlined into `render`, so a test can
+    /// drive `PrepaintPass` directly and resolve focus explicitly, exactly as
+    /// `resolveHover(at:)` allows.
+    func resolveFocus() {
+        guard let focused = focusedElement else { return }
+        if !focusRegistry.isFocusable(focused) { focusedElement = nil }
     }
 
     /// The topmost **opaque** hitbox containing `point`, or `nil` when nothing
@@ -593,7 +648,8 @@ public final class Frame {
          theme: Theme = .light,
          timestamp: Double = 0,
          mousePosition: Point<Pixels>? = nil,
-         activeElement: GlobalElementID? = nil) {
+         activeElement: GlobalElementID? = nil,
+         focusedElement: GlobalElementID? = nil) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
@@ -606,6 +662,7 @@ public final class Frame {
         self.timestamp = timestamp
         self.mousePosition = mousePosition
         self.activeElement = activeElement
+        self.focusedElement = focusedElement
     }
 
     // MARK: - Layout phase
@@ -816,6 +873,11 @@ public final class Frame {
         // (design spec §3.3). See `resolveHover(at:)`'s own doc for why this
         // must not move to either side of this call.
         resolveHover(at: mousePosition)
+
+        // Focus resolves HERE too, and for the same reason one phase later
+        // would be wrong: `paint` must not draw a focus ring for an element
+        // this frame has already decided is not focused. See `resolveFocus()`.
+        resolveFocus()
 
         // The atlas's frame brackets go around the paint phase and nothing
         // else, because scene construction is the whole of what they protect:

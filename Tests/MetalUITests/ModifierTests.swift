@@ -31,21 +31,34 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// fields it should not have touched" free rather than a second list to
 /// maintain.
 ///
-/// **`handlers` is the fourth and it is carried as a `Bool`, not as a value.**
-/// `Handlers` holds a closure, so it is not `Equatable` and cannot be compared
-/// the way the other three are; what a case declares instead is whether a
-/// handler should be *present* afterwards. That is weaker than whole-value
-/// equality on exactly one axis — two different closures compare equal here —
-/// and it is strong enough for what this table exists to catch: a modifier
-/// writing `handlers` when it should not, or `onClick(_:)` writing nothing.
-/// `InputDispatchTests` is what checks that the closure stored is the one that
-/// runs.
+/// **`handlers` is the fourth and it is carried as PRESENCE FLAGS, not as a
+/// value.** `Handlers` holds closures, so it is not `Equatable` and cannot be
+/// compared the way the other three are; what a case declares instead is which
+/// of its three members should be *set* afterwards. That is weaker than
+/// whole-value equality on exactly one axis — two different closures compare
+/// equal here — and it is strong enough for what this table exists to catch: a
+/// modifier writing `handlers` when it should not, or `onClick(_:)` writing
+/// nothing. `InputDispatchTests` and `FocusTests` are what check that the
+/// closure stored is the one that runs.
+///
+/// **Three flags rather than one, because `Handlers` has three members and a
+/// single flag could not tell them apart.** `focusable()` and `onKey(_:)` are
+/// deliberately separate modifiers writing separate fields (see `Handlers`), so
+/// a `focusable()` that wrote `onKey` — or an `onKey(_:)` that also set
+/// `isFocusable`, which is the plausible mistake — has to be a mismatch here
+/// rather than a coincidence.
+private struct HandlerShape: Equatable {
+    var click = false
+    var key = false
+    var focusable = false
+}
+
 @MainActor
 private struct ModifierCase {
     let name: String
     let apply: @MainActor (Box<EmptyGroup>) -> Box<EmptyGroup>
     let effect: @MainActor (inout Style, inout Decoration, inout ElementID?,
-                            inout Bool) -> Void
+                            inout HandlerShape) -> Void
 }
 
 /// Every public modifier writes its own field, and only its own field.
@@ -67,7 +80,7 @@ private struct ModifierCase {
 ///
 /// The count check is a tripwire on **this table**, not on `Box.swift`: nothing
 /// here can see a modifier added there without a case. Reconcile with
-/// `grep -c "public func" Sources/MetalUI/Box.swift`, which is 34 — the 33 on
+/// `grep -c "public func" Sources/MetalUI/Box.swift`, which is 36 — the 35 on
 /// `extension StyledElement` plus `flexDirection` on `extension Box`.
 @MainActor
 @Test func everyPublicModifierWritesItsOwnFieldAndOnlyThatField() {
@@ -205,7 +218,15 @@ private struct ModifierCase {
         // MARK: Input
         ModifierCase(name: "onClick(_:)",
                      apply: { $0.onClick {} },
-                     effect: { _, _, _, click in click = true }),
+                     effect: { _, _, _, h in h.click = true }),
+        ModifierCase(name: "onKey(_:)",
+                     apply: { $0.onKey { _ in true } },
+                     effect: { _, _, _, h in h.key = true }),
+
+        // MARK: Focus
+        ModifierCase(name: "focusable()",
+                     apply: { $0.focusable() },
+                     effect: { _, _, _, h in h.focusable = true }),
 
         // MARK: `Box`'s own — deliberately not on `StyledElement`, so that
         // `Column { … }.flexDirection(.row)` cannot compile.
@@ -214,26 +235,28 @@ private struct ModifierCase {
                      effect: { s, _, _, _ in s.flexDirection = .columnReverse }),
     ]
 
-    #expect(cases.count == 34)
+    #expect(cases.count == 36)
 
     for c in cases {
         var expectedStyle = Style()
         var expectedDecoration = Decoration()
         var expectedID: ElementID?
-        var expectedClick = false
-        c.effect(&expectedStyle, &expectedDecoration, &expectedID, &expectedClick)
+        var expectedHandlers = HandlerShape()
+        c.effect(&expectedStyle, &expectedDecoration, &expectedID, &expectedHandlers)
 
         // Sanity on the table itself: a case whose value equals the default
         // cannot fail against a modifier that writes nothing.
         #expect(expectedStyle != Style() || expectedDecoration != Decoration()
-                    || expectedID != nil || expectedClick,
+                    || expectedID != nil || expectedHandlers != HandlerShape(),
                 "\(c.name) expects no change at all — it cannot catch a no-op")
 
         let got = c.apply(Box())
         #expect(got.style == expectedStyle, "\(c.name) wrote the wrong `Style` field")
         #expect(got.decoration == expectedDecoration, "\(c.name) wrote the wrong `Decoration` field")
         #expect(got.elementID == expectedID, "\(c.name) wrote the wrong `elementID`")
-        #expect((got.handlers.onClick != nil) == expectedClick,
-                "\(c.name) wrote `handlers` when it should not have, or wrote nothing")
+        #expect(HandlerShape(click: got.handlers.onClick != nil,
+                             key: got.handlers.onKey != nil,
+                             focusable: got.handlers.isFocusable) == expectedHandlers,
+                "\(c.name) wrote the wrong `Handlers` member, or wrote nothing")
     }
 }

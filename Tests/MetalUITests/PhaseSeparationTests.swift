@@ -247,21 +247,31 @@ func readingTheThemeDuringPrepaintDoesNotCompile() throws {
             "rejected, but not for the reason this test is about:\n\(result.output)")
 }
 
-// MARK: - Hover and active are queryable only in paint (§3.3, §3.4)
+// MARK: - Hover, active and focus are queryable only in paint (§3.3, §3.4, §4.2)
 //
-// **Worse to get wrong than `theme` above, and that is why these two exist as
+// **Worse to get wrong than `theme` above, and that is why these three exist as
 // their own guards rather than being folded into "read-only state" in
 // general.** A colour read during prepaint would simply fail to compile —
 // there is nothing in `Style` for one to come from, so no implementation
-// could make it silently wrong. `isHovered`/`isActive` are different: every
-// hitbox has already registered by the time `PrepaintPass` runs, so an
-// `isHovered`/`isActive` reachable there would COMPILE and then LIE, always
-// returning `false` — `Frame.hoveredHitbox` is still `nil` at that point in
-// `render`, because `resolveHover(at:)` has not run yet (it runs at the
-// prepaint/paint boundary, after `prepaint` returns). These two guards make
-// "queryable only during paint" (design spec §3.3) a compiler fact rather
+// could make it silently wrong. The three below are different: each would
+// COMPILE and then LIE.
+//
+// `isHovered`/`isActive` lie by returning a silently wrong `false`, for two
+// independent reasons. `Frame.hoveredHitbox` is still `nil` during prepaint,
+// because `resolveHover(at:)` runs at the prepaint/paint boundary, *after*
+// `prepaint` returns. And the hitbox list is still being **built** at that
+// point — `PrepaintPass.insertHitbox` is what fills it — so even a hover that
+// had somehow already resolved would have ranked against a partial list, which
+// is §3.3's own reason for resolving once at the boundary rather than during
+// registration: "topmost wins" is not knowable until every hitbox has
+// registered.
+//
+// `isFocused` lies in the opposite direction, by returning a wrong `true`, and
+// the measurement is at its own guard below.
+//
+// Together these make "queryable only during paint" a compiler fact rather
 // than a placement convention nothing enforces if someone later moves or
-// duplicates the method onto `PrepaintPass`.
+// duplicates one of the methods onto `PrepaintPass`.
 
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func queryingHoverDuringPrepaintDoesNotCompile() throws {
@@ -284,6 +294,44 @@ func queryingActiveDuringPrepaintDoesNotCompile() throws {
         """, importing: "MetalUI")
     #expect(!result.succeeded)
     #expect(result.messages.contains("isActive"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
+
+/// `isFocused` is paint-only too — and this guard was added on a
+/// **measurement**, not on symmetry with the two above.
+///
+/// The question worth asking of any new guard here is whether the phase it
+/// excludes would actually give a wrong answer, since focus is window state
+/// that is fully known before the frame starts and might therefore have been
+/// safe to read at any point. It is not. `Frame.resolveFocus()` runs at the
+/// prepaint/paint boundary, after every element's `prepaint` has contributed to
+/// the focus registry, and *clears* a focused id this frame did not produce —
+/// so during `prepaint` the frame still holds the pre-clearing value.
+///
+/// Measured with a throwaway element that read `pass.frame.focusedElement`
+/// during its own `prepaint` (exactly what a `PrepaintPass.isFocused(_:)` would
+/// return) and `pass.isFocused` during its own `paint`, over three frames of one
+/// window — unfocused, focused, then still produced but no longer `.focusable()`:
+///
+/// ```
+/// ["prepaint=false", "paint=false",
+///  "prepaint=true",  "paint=true",
+///  "prepaint=true",  "paint=false"]   // <- the frame that drops focus
+/// ```
+///
+/// The third pair is the finding: a prepaint-time query returns a silently
+/// wrong `true` for an element the same frame has already decided is not
+/// focused. That is `isHovered`'s failure with the sign flipped, and it is what
+/// this guard exists for rather than tidiness.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func queryingFocusDuringPrepaintDoesNotCompile() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout PrepaintPass, id: GlobalElementID) -> Bool {
+            pass.isFocused(id)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded)
+    #expect(result.messages.contains("isFocused"),
             "rejected, but not for the reason this test is about:\n\(result.output)")
 }
 

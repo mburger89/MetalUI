@@ -144,14 +144,17 @@ public struct LayoutPass {
 /// been painted yet, which is what makes this the only correct place to register
 /// hit-test, focus, scroll and accessibility structure.
 ///
-/// **Scroll and general hit-test both register now, into ONE list; focus and
-/// accessibility still do not.** `registerScrollRegion` was the first
-/// `register…` method this pass gained and `insertHitbox` is the second, and
-/// they write to the same registry on `Frame` — the first is the second with a
-/// scroll axis attached (design spec §3.1). `Frame` still owns no focus or
-/// accessibility store, so there is nothing for a `registerFocusHandle` to
-/// write into and none is declared; focus brings its own later in M3,
-/// accessibility its own (§9).
+/// **Scroll, general hit-test and focus all register now; accessibility still
+/// does not.** `registerScrollRegion` was the first `register…` method this
+/// pass gained and `insertHitbox` is the second, and they write to the same
+/// hitbox registry on `Frame` — the first is the second with a scroll axis
+/// attached (design spec §3.1). Focus is the third, and it has **no method of
+/// its own**: `registerHandlers` writes both the hitbox and `Frame`'s focus
+/// registry, because an element that binds a click and an element that binds a
+/// key are the same element asking through the same `Handlers` value, and two
+/// calls would be two chances for a conformer to forget one. `Frame` still owns
+/// no accessibility store, so there is nothing for a `registerAXNode` to write
+/// into and none is declared; accessibility brings its own (§9).
 @MainActor
 public struct PrepaintPass {
     let frame: Frame
@@ -237,8 +240,21 @@ public struct PrepaintPass {
         frame.insertHitbox(bounds, id: id, opaque: opaque)
     }
 
-    /// Registers `handlers` as an **opaque** hitbox at `bounds`, or does
-    /// nothing when the set is empty.
+    /// Registers `handlers`: an **opaque** hitbox at `bounds` when it carries a
+    /// pointer callback, an entry in this frame's focus registry when it
+    /// carries a keyboard one, and nothing at all when it carries neither.
+    ///
+    /// **Two gates, not one, and the separation is load-bearing.** A hitbox is
+    /// opaque, and an opaque hitbox swallows the wheel of any `ScrollView` it
+    /// sits inside (`Window.applyScroll`) — so registering one for every
+    /// *focusable* element would stop a list of focusable rows scrolling. See
+    /// `Handlers` for both gates and `focusabilityAndKeyHandlingRegisterNoPointerHitbox`
+    /// for the pin.
+    ///
+    /// **Focus registration needs no geometry and rides here anyway.** Nothing
+    /// on the keyboard side reads `bounds`; the registration is folded into
+    /// this call so a conformer writes one line rather than two and cannot
+    /// implement half of `StyledElement`'s `handlers` requirement.
     ///
     /// **`insertHitbox` with a handler set attached, into the same list** —
     /// the click half of design spec §3.1's fold, and `registerScrollRegion`'s
@@ -475,6 +491,30 @@ public struct PaintPass {
     /// comment for why a `Frame` cannot own it.
     public func isActive(_ id: GlobalElementID) -> Bool {
         frame.activeElement == id
+    }
+
+    /// Whether `id` holds keyboard focus — what a focus ring is drawn from
+    /// (design spec §4.2).
+    ///
+    /// Keyed by `GlobalElementID` for `isActive`'s reason: focus is window
+    /// state that survives every frame between the two events that move it, and
+    /// a per-frame index cannot key anything that outlives its frame.
+    ///
+    /// **This is the frame's RESOLVED answer, not the value `Window` handed
+    /// in.** `Frame.resolveFocus()` runs at the prepaint/paint boundary and
+    /// clears a focused id this frame did not produce, so an element that
+    /// vanished — or stopped being `.focusable()` — reads as unfocused on the
+    /// very frame that drops it rather than one frame late.
+    ///
+    /// **Paint only, and unlike `isActive` that is a measured restriction
+    /// rather than symmetry.** During `prepaint` the focus registry is still
+    /// being built, so the clearing above has not happened yet and this would
+    /// answer from the pre-clearing value: measured, a focused element that has
+    /// stopped registering as focusable reads `true` in its own `prepaint` and
+    /// `false` in its own `paint` in the same frame.
+    /// `queryingFocusDuringPrepaintDoesNotCompile` is the guard.
+    public func isFocused(_ id: GlobalElementID) -> Bool {
+        frame.focusedElement == id
     }
 }
 
