@@ -38,6 +38,30 @@ public final class Frame {
     /// that passes a real one.
     public let timestamp: Double
 
+    /// The last known mouse position, or `nil` before any mouse event has ever
+    /// reached the window. `Window` is the only owner of "last known" — it
+    /// survives across frames the way `timestamp`'s underlying clock does not —
+    /// and hands the current value in here on construction, the same way it
+    /// hands in `theme` and `timestamp`.
+    ///
+    /// This is the input `resolveHover(at:)` reads at the prepaint/paint
+    /// boundary (design spec §3.3). Defaulted to `nil` for the same reason
+    /// `timestamp` defaults to `0`: every existing `Frame(...)` call site keeps
+    /// compiling, and a frame built with no position registers no hover at all
+    /// — there is nothing to resolve against.
+    let mousePosition: Point<Pixels>?
+
+    /// The element holding "active" state this frame — the hitbox that
+    /// received `mouseDown` and has not yet seen `mouseUp` (design spec §3.4).
+    ///
+    /// **Handed in from `Window`, not computed here**, because active state
+    /// must survive the frames between `mouseDown` and `mouseUp` and a `Frame`
+    /// does not: it is discarded at the end of `drawFrameIfNeeded`
+    /// (`Window.swift`). Keyed by `GlobalElementID` rather than `HitboxID` for
+    /// `HitboxID`'s own reason — a per-frame index cannot key anything that
+    /// outlives the frame that issued it.
+    let activeElement: GlobalElementID?
+
     /// Set by an element that needs another frame — an in-progress animation.
     ///
     /// **A borrowed M4 primitive** (spec §8 of the clipping/scroll design): the
@@ -477,6 +501,33 @@ public final class Frame {
             .map { HitboxID(index: $0.offset) }
     }
 
+    /// The topmost hitbox under the pointer, resolved **once**, against every
+    /// hitbox registered so far — design spec §3.3.
+    ///
+    /// **Called exactly once per frame, from `render`, at the prepaint/paint
+    /// boundary — after `prepaint` has returned and before `glyphAtlas.beginFrame()`.**
+    /// "Topmost wins" is not knowable until every hitbox has registered, so
+    /// resolving during registration (or before it) would give an answer that
+    /// depends on declaration order rather than on the finished list. Resolving
+    /// here, rather than lazily on first query during `paint`, is what makes
+    /// `PaintPass.isHovered(_:)` a plain equality check with no one-frame lag:
+    /// every element's `paint` sees the same answer regardless of which of them
+    /// asks first.
+    ///
+    /// A free function rather than folded into `render` itself so a test can
+    /// drive `PrepaintPass` directly — the idiom the rest of `HitboxTests.swift`
+    /// already uses — and resolve hover explicitly, with no element and no
+    /// `Frame.render` call in the way.
+    func resolveHover(at point: Point<Pixels>?) {
+        hoveredHitbox = point.flatMap { topmostHitbox(at: $0) }
+    }
+
+    /// This frame's answer to "what is the pointer over", written once by
+    /// `resolveHover(at:)` and read by `PaintPass.isHovered(_:)`. `nil` until
+    /// `resolveHover` runs, and `nil` again if it runs with nothing under the
+    /// pointer.
+    private(set) var hoveredHitbox: HitboxID?
+
     /// The cross-frame state table (§4.3).
     ///
     /// **Not owned here — `Frame` is per-frame and this outlives it.** The
@@ -527,7 +578,9 @@ public final class Frame {
          glyphAtlas: GlyphAtlas = GlyphAtlas(width: Window.atlasExtent,
                                              height: Window.atlasExtent),
          theme: Theme = .light,
-         timestamp: Double = 0) {
+         timestamp: Double = 0,
+         mousePosition: Point<Pixels>? = nil,
+         activeElement: GlobalElementID? = nil) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
@@ -538,6 +591,8 @@ public final class Frame {
         self.glyphAtlas = glyphAtlas
         self.theme = theme
         self.timestamp = timestamp
+        self.mousePosition = mousePosition
+        self.activeElement = activeElement
     }
 
     // MARK: - Layout phase
@@ -741,6 +796,13 @@ public final class Frame {
         var prepaintPass = PrepaintPass(frame: self)
         var prepaintState = element.prepaint(rootID, bounds: rootBounds,
                                              layout: &state, pass: &prepaintPass)
+
+        // Hover resolves HERE — after `prepaint` has returned, so every
+        // hitbox the frame will ever have is already registered, and before
+        // `paint` runs, so `PaintPass.isHovered(_:)` has no one-frame lag
+        // (design spec §3.3). See `resolveHover(at:)`'s own doc for why this
+        // must not move to either side of this call.
+        resolveHover(at: mousePosition)
 
         // The atlas's frame brackets go around the paint phase and nothing
         // else, because scene construction is the whole of what they protect:

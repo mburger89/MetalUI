@@ -417,6 +417,37 @@ public struct PaintPass {
     func draw(_ glyph: PlacedGlyph, color: Hsla) {
         frame.draw(glyph, color: color)
     }
+
+    // MARK: - Hover and active (design spec §3.3, §3.4)
+
+    /// Whether `id` — a handle returned from **this frame's** `insertHitbox`
+    /// call, in `prepaint` — is the topmost hitbox under the pointer.
+    ///
+    /// Resolved once, at the prepaint/paint boundary (`Frame.resolveHover(at:)`),
+    /// against every hitbox the frame registered — not computed here and not
+    /// per-call, so two elements asking in the same frame see the same answer
+    /// regardless of which asks first, and there is no one-frame lag between a
+    /// hitbox registering and this returning the right thing for it.
+    ///
+    /// A `HitboxID` is the right key here, not `GlobalElementID`: hover is
+    /// per-frame state resolved from a position, the opposite of `isActive`
+    /// below, which must survive frames `HitboxID` cannot (see `HitboxID`'s own
+    /// doc comment).
+    public func isHovered(_ id: HitboxID) -> Bool {
+        frame.hoveredHitbox == id
+    }
+
+    /// Whether `id` is holding "active" state — the element whose hitbox
+    /// received `mouseDown` and has not yet seen `mouseUp` (design spec §3.4).
+    ///
+    /// Keyed by `GlobalElementID`, unlike `isHovered(_:)` above, because active
+    /// state is cross-frame by definition: it must survive every frame between
+    /// the two events, including one in which the element holding it was
+    /// rebuilt. `Window` is the sole writer — see `Frame.activeElement`'s doc
+    /// comment for why a `Frame` cannot own it.
+    public func isActive(_ id: GlobalElementID) -> Bool {
+        frame.activeElement == id
+    }
 }
 
 // MARK: - Cross-frame state (§4.3)

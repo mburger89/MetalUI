@@ -139,6 +139,33 @@ public final class Window {
     private(set) var lastScrollRegions:
         [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis, layer: Int)] = []
 
+    /// The hitboxes the most recent frame's prepaint registered, captured
+    /// alongside `lastScrollRegions` for the same reason: `Frame` dies at the
+    /// end of `drawFrameIfNeeded` and a mouse event may arrive at any point
+    /// afterward — in particular `mouseUp`, which must still resolve against
+    /// the hitboxes the button was drawn with, not against whatever the next
+    /// frame will register.
+    private(set) var lastHitboxes: [Hitbox] = []
+
+    /// The last known mouse position, `nil` before any mouse event has ever
+    /// reached the window. Handed into every `Frame` as `mousePosition`, which
+    /// is what `resolveHover(at:)` resolves hover against — see
+    /// `Frame.mousePosition`'s own doc comment for why this lives here rather
+    /// than on `Frame`.
+    private var lastMousePosition: Point<Pixels>?
+
+    /// The element holding "active" state — the hitbox that received
+    /// `mouseDown` and has not yet seen `mouseUp` (design spec §3.4).
+    ///
+    /// **Keyed by `GlobalElementID`, not `HitboxID`, and owned here rather than
+    /// by `Frame`, for the same reason.** Active must survive the frames
+    /// between the two events — including one in which the element holding it
+    /// is rebuilt with a fresh, differently-indexed hitbox list — and a `Frame`
+    /// is discarded at the end of every `drawFrameIfNeeded`. `internal` rather
+    /// than `private`, on `lastScene`'s footing: a test reads it back through
+    /// `@testable import MetalUI`.
+    private(set) var active: GlobalElementID?
+
     /// The most recent display-link tick, in seconds — `0` until the first
     /// tick arrives. Carried into every `Frame` as its `timestamp` (spec §8 of
     /// the clipping/scroll design): a borrowed M4 primitive, read once here so
@@ -175,6 +202,13 @@ public final class Window {
         }
         platformWindow.onInput = { [weak self] event in
             guard let self else { return false }
+            // Hover and active tracking run first and unconditionally, and
+            // never claim the event: they are side-channel state a later
+            // frame's `paint` reads back (§3.3, §3.4), not a form of dispatch.
+            // Click dispatch is a separate, later mechanism (§3.5/design spec
+            // §8.2's "cut, deliberately" list) built on top of this state, not
+            // part of it.
+            self.updatePointerState(event)
             // Scroll routing runs before the window's general `onInput`, and
             // claims the event outright when it hits a region — there is no
             // scroll chaining (see `applyScroll`'s doc comment), so a claimed
@@ -253,11 +287,14 @@ public final class Window {
                           shapingCache: shapingCache,
                           glyphAtlas: glyphAtlas,
                           theme: theme,
-                          timestamp: lastTick)
+                          timestamp: lastTick,
+                          mousePosition: lastMousePosition,
+                          activeElement: active)
         renderRoot(frame)
         let scene = frame.finalizedScene()
         lastScene = scene
         lastScrollRegions = frame.scrollRegions
+        lastHitboxes = frame.hitboxes
         // An element asked for another frame — an animation in progress. Marking
         // dirty here (rather than leaving the window to go clean) is what keeps
         // the display link running: without it, a fade stops the instant the
@@ -410,6 +447,59 @@ public final class Window {
             $0.lastScrollTime = event.timestamp
         }
         return true
+    }
+
+    /// Updates `lastMousePosition` and `active` from a raw input event —
+    /// design spec §3.3 (the position hover resolves against next frame) and
+    /// §3.4 (active).
+    ///
+    /// **Side-effect only: never claims the event.** Unlike `applyScroll`,
+    /// which returns whether it routed the wheel delta somewhere, this runs
+    /// unconditionally for every event and always lets dispatch continue —
+    /// hover and active are state a later `paint` reads back, not a target an
+    /// event can be delivered to. Click dispatch is separate (§3.5) and is not
+    /// this method's concern.
+    ///
+    /// **`mouseUp` clears `active` unconditionally**, whatever is under the
+    /// pointer at that instant — not only when the release lands back on the
+    /// element that was pressed. That is what "held until `mouseUp`" (§3.4)
+    /// means: a press that leaves the hitbox and returns stays active for
+    /// every mouse-moved event along the way, and is released by the up event
+    /// alone, regardless of where the pointer is when it fires.
+    ///
+    /// `mouseDown` resolves against `lastHitboxes`, **not** against a fresh
+    /// `Frame` — there is no frame in flight when an input event arrives, only
+    /// the record of the one most recently drawn. See `topmostHitboxOwner(at:)`.
+    private func updatePointerState(_ event: InputEvent) {
+        switch event {
+        case .mouseDown(let mouse):
+            lastMousePosition = mouse.position
+            active = topmostHitboxOwner(at: mouse.position)
+        case .mouseUp(let mouse):
+            lastMousePosition = mouse.position
+            active = nil
+        case .mouseMoved(let mouse):
+            lastMousePosition = mouse.position
+        default:
+            break
+        }
+    }
+
+    /// The `GlobalElementID` owning the topmost opaque hitbox under `point`,
+    /// from the most recently drawn frame's registrations.
+    ///
+    /// **Deliberately the same ranking as `Frame.topmostHitbox(at:)` and
+    /// `applyScroll`'s own walk**: `(layer, registration index)` over the
+    /// containing opaque candidates. `Frame.topmostHitbox(at:)` itself cannot
+    /// answer this for `mouseDown` — the frame that built `lastHitboxes` is
+    /// long gone by the time an input event arrives — so the same closure is
+    /// restated here against the window's own copy of the list, exactly as
+    /// `applyScroll` restates it against `lastScrollRegions`.
+    private func topmostHitboxOwner(at point: Point<Pixels>) -> GlobalElementID? {
+        lastHitboxes.enumerated()
+            .filter { $0.element.bounds.contains(point) && $0.element.opaque }
+            .max { ($0.element.layer, $0.offset) < ($1.element.layer, $1.offset) }
+            .map { $0.element.id }
     }
 
     /// Whether `point` falls within `bounds`, half-open on the max edges. A

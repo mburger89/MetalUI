@@ -1,7 +1,9 @@
 import Testing
+import Metal
 import MetalUICore
 import MetalUILayout
 import MetalUIText
+import MetalUIPlatform
 @testable import MetalUI
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }
@@ -251,4 +253,280 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
             "translated up by the scroll offset, exactly as PaintPass.fill translates it")
     #expect(frame.topmostHitbox(at: pt(50, 15)) != nil, "hits where it paints")
     #expect(frame.topmostHitbox(at: pt(50, 45)) == nil, "misses where the engine stored it")
+}
+
+// MARK: - Hover (design spec §3.3)
+
+/// The topmost hitbox under the pointer is hovered **in the same frame it was
+/// registered** — §8.1/§3.3's no-lag promise.
+///
+/// **A test that checked this on the NEXT frame would pass under a lagging
+/// implementation** — one that resolved hover from the PREVIOUS frame's
+/// hitboxes, say, or that only ever caught up a frame late. Everything here
+/// happens against one `Frame`: `insertHitbox` registers, `resolveHover(at:)`
+/// resolves — the same call `Frame.render` makes at the prepaint/paint
+/// boundary — and `PaintPass.isHovered(_:)` is asked in the same breath, with
+/// no second frame anywhere in the test.
+@Test @MainActor func theTopmostHitboxUnderThePointerIsHoveredInTheSameFrameItRegistered() throws {
+    let frame = bareFrame()
+    let prepaintPass = PrepaintPass(frame: frame)
+    let box = prepaintPass.insertHitbox(rect(0, 0, 100, 100), id: eid("box"), opaque: true)
+
+    frame.resolveHover(at: pt(50, 50))
+
+    let paintPass = PaintPass(frame: frame)
+    #expect(paintPass.isHovered(box),
+            "resolved against this frame's own hitboxes before paint ever runs")
+}
+
+/// A hitbox beneath an opaque one is NOT hovered — the loser half.
+///
+/// **Asserting only the winner passes under an implementation that hovers
+/// everything under the pointer** rather than only the topmost — `isHovered`
+/// returning `true` for both `lower` and `upper` would satisfy a test that
+/// checked `upper` alone. Modelled on `theTopmostOpaqueHitWins` above, with
+/// the same overlap geometry, so the loser really is under the pointer and
+/// not merely absent from it.
+@Test @MainActor func aHitboxBeneathAnOpaqueOneIsNotHovered() throws {
+    let frame = bareFrame()
+    let prepaintPass = PrepaintPass(frame: frame)
+    let lower = prepaintPass.insertHitbox(rect(0, 0, 60, 60), id: eid("lower"), opaque: true)
+    let upper = prepaintPass.insertHitbox(rect(40, 40, 60, 60), id: eid("upper"), opaque: true)
+
+    frame.resolveHover(at: pt(50, 50))
+
+    let paintPass = PaintPass(frame: frame)
+    #expect(paintPass.isHovered(upper), "the later registration paints on top and is hovered")
+    #expect(!paintPass.isHovered(lower),
+            "under the same point but beneath the opaque winner — not hovered")
+}
+
+/// The same no-lag claim, but through a REAL `Frame.render` rather than
+/// `PrepaintPass` driven directly by hand.
+///
+/// **This is the test that is actually sensitive to WHERE inside `render`
+/// hover resolves** — the two tests above drive `insertHitbox` and
+/// `resolveHover(at:)` by hand and never call `render` at all, so they cannot
+/// tell "resolved after prepaint" from "resolved before it"; both would pass
+/// either way. `render` is called here, once, and the hitbox is registered by
+/// the element's own `prepaint`, from inside it — so if `resolveHover` moved
+/// to run before `prepaint`, this is what would catch it.
+@Test @MainActor func hoverResolvedThroughARealRenderHasNoLag() throws {
+    let idBox = HitboxIDBox()
+    var probe = HitboxProbe(elementID: ElementID("btn"),
+                            size: Size(width: px(40), height: px(40)), idBox: idBox)
+    let frame = Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1,
+                      stateTable: StateTable(), shapingCache: ShapingCache(),
+                      glyphAtlas: GlyphAtlas(width: 64, height: 64),
+                      theme: Theme.forAppearance(.light), mousePosition: pt(20, 20))
+
+    frame.render(&probe)
+
+    let hitbox = try #require(idBox.id, "prepaint must have registered a hitbox")
+    let paintPass = PaintPass(frame: frame)
+    #expect(paintPass.isHovered(hitbox),
+            "resolved before paint ran, inside the same render() call — no one-frame lag")
+}
+
+// MARK: - Active (design spec §3.4) — driven through a real `Window`
+
+/// The smallest element that can drive the active-tracking tests below
+/// through a real `Window`: it registers exactly one opaque hitbox, sized and
+/// positioned by its own `Style`, at its own resolved bounds.
+///
+/// **No production element inserts a hitbox yet** — `Box`, `Column`, `Row`
+/// etc. carry no interactive surface until Task 8's `onClick` lands — so
+/// `active`'s cross-frame behaviour can only be exercised today with a
+/// purpose-built `Element`, the same way `aNamedChildUnderDeferredResolvesTheSameAsUnderABox`
+/// in `DeferredTests.swift` builds its own fixtures rather than reusing one.
+private struct HitboxProbe: Element {
+    var elementID: ElementID?
+    var size: Size<Pixels>
+
+    /// Where `prepaint` writes back the `HitboxID` it registered, so a caller
+    /// driving a real `Frame.render` — which owns the only `PrepaintPass` in
+    /// play and returns nothing from `prepaint` but `Empty` — can still get the
+    /// id back out to query `PaintPass.isHovered(_:)` with. A reference type
+    /// because `HitboxProbe` itself is copied into `render`'s local `var root`;
+    /// a stored `HitboxID?` field would not be readable from the caller's copy.
+    var idBox: HitboxIDBox? = nil
+
+    struct Empty {}
+
+    mutating func requestLayout(_ id: GlobalElementID,
+                                pass: inout LayoutPass) -> (LayoutNodeID, Empty) {
+        var style = Style()
+        style.size = Size(width: .length(.pixels(size.width)),
+                          height: .length(.pixels(size.height)))
+        return (pass.requestNode(style: style, children: []), Empty())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Empty, pass: inout PrepaintPass) -> Empty {
+        // NOT `idBox?.id = pass.insertHitbox(...)` — Swift does not evaluate
+        // the right-hand side of an optional-chained assignment when the
+        // chain is nil, so that spelling would silently register NO hitbox
+        // at all for every test below that leaves `idBox` at its default
+        // `nil` (every "Active" test). Measured, not assumed: the three
+        // `active` tests all failed with `window.active == nil` under that
+        // spelling, even though the hitbox's bounds and opaqueness were
+        // otherwise correct.
+        let hitbox = pass.insertHitbox(bounds, id: id, opaque: true)
+        idBox?.id = hitbox
+        return Empty()
+    }
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Empty, prepaint: inout Empty,
+                        pass: inout PaintPass) {}
+}
+
+private final class HitboxIDBox {
+    var id: HitboxID?
+}
+
+private func mouseDown(at position: Point<Pixels>) -> InputEvent {
+    .mouseDown(MouseEvent(position: position))
+}
+
+private func mouseUp(at position: Point<Pixels>) -> InputEvent {
+    .mouseUp(MouseEvent(position: position))
+}
+
+private func mouseMoved(to position: Point<Pixels>) -> InputEvent {
+    .mouseMoved(MouseEvent(position: position))
+}
+
+/// `active` is set on `mouseDown` over a hitbox and cleared on `mouseUp` —
+/// nothing before the first event, the pressed element's id after `mouseDown`,
+/// `nil` again after `mouseUp`.
+@Test @MainActor func activeIsSetOnMouseDownAndHeldUntilMouseUp() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+        HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)))
+    }
+    window.drawFrameIfNeeded()
+    let expected = GlobalElementID.child(of: nil, at: 0, name: ElementID("btn"))
+
+    #expect(window.active == nil, "nothing is active before any mouse event")
+
+    platformWindow.simulateInput(mouseDown(at: pt(20, 20)))
+    #expect(window.active == expected, "mouseDown over the hitbox makes it active")
+
+    platformWindow.simulateInput(mouseUp(at: pt(20, 20)))
+    #expect(window.active == nil, "mouseUp clears it")
+}
+
+/// A press that leaves the hitbox and returns stays active — §3.4's "what
+/// makes a button feel like a button". Moving off the hitbox while the button
+/// is held must not clear `active`, and moving back onto it must not need to
+/// re-set it (it was never cleared).
+@Test @MainActor func aPressThatLeavesTheHitboxAndReturnsStaysActive() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+        HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)))
+    }
+    window.drawFrameIfNeeded()
+    let expected = GlobalElementID.child(of: nil, at: 0, name: ElementID("btn"))
+
+    platformWindow.simulateInput(mouseDown(at: pt(20, 20)))
+    #expect(window.active == expected)
+
+    platformWindow.simulateInput(mouseMoved(to: pt(90, 90)))
+    #expect(window.active == expected,
+            "moving off the hitbox while the button is held does not clear active")
+
+    platformWindow.simulateInput(mouseMoved(to: pt(20, 20)))
+    #expect(window.active == expected, "and it is still active back on the hitbox")
+
+    platformWindow.simulateInput(mouseUp(at: pt(20, 20)))
+    #expect(window.active == nil, "released at last, wherever the pointer ends up")
+}
+
+/// Active survives a frame boundary: the element is rebuilt between
+/// `mouseDown` and `mouseUp`, and `active` still names it.
+///
+/// **This is what keying by `GlobalElementID` rather than `HitboxID` buys, and
+/// nothing else in the suite can see it.** `Window.renderRoot` calls
+/// `content()` fresh on every `drawFrameIfNeeded` (§4.1: "the tree is rebuilt
+/// from scratch each frame"), so the second frame's `HitboxProbe` is a
+/// genuinely different value with a genuinely different, differently-indexed
+/// `HitboxID` — `first`'s registration this frame is index 0 whatever it was
+/// last frame, purely by accident of being the only hitbox in the tree. What
+/// makes `active` still resolve to the right element across that rebuild is
+/// its *structural* identity — the same `.positional(0)` root path both
+/// frames compute — which `GlobalElementID` carries and `HitboxID` cannot.
+/// A mutable flag a test can flip between two `drawFrameIfNeeded()` calls, to
+/// make the SECOND frame's tree shaped differently from the first — a class,
+/// so the content closure (which runs fresh every frame) reads the current
+/// value rather than one captured at `makeFakeWindow` time.
+private final class ToggleBox {
+    var extraSiblingFirst = false
+}
+
+/// Active survives a frame boundary: the element is rebuilt between
+/// `mouseDown` and `mouseUp`, and `active` still names it — **even though its
+/// `HitboxID` changes**, which is the part a single-hitbox tree cannot prove.
+///
+/// **This is what keying by `GlobalElementID` rather than `HitboxID` buys, and
+/// nothing else in the suite can see it.** A tree with only ever one hitbox in
+/// it is not sensitive to this at all: that hitbox is index 0 on every frame
+/// purely by being alone, so an implementation that (wrongly) keyed active by
+/// `HitboxID` would still happen to agree with one that keys it correctly —
+/// the exact trap the brief's "prove the mutant behaves differently before
+/// banking a coverage gap" warns about, caught here by first shipping this
+/// test with a single hitbox and mutating Step 5's implementation against it:
+/// nothing reddened.
+///
+/// So the second frame inserts a NAMED sibling — `ElementID("extra")` —
+/// **before** `btn` in the same `Row`. `btn` keeps its own `GlobalElementID`
+/// across that (`.named` replaces position rather than joining it — the
+/// vanishing-`if` rule this project already relies on elsewhere), but its
+/// `HitboxID` shifts from index 0 to index 1, because `extra`'s `prepaint` now
+/// registers first. An implementation keyed on the raw index would either
+/// point at `extra` or fall off the end; one keyed on `GlobalElementID` is
+/// unaffected either way.
+@Test @MainActor func activeSurvivesAFrameBoundary() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let toggle = ToggleBox()
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+        Row {
+            if toggle.extraSiblingFirst {
+                HitboxProbe(elementID: ElementID("extra"),
+                           size: Size(width: px(10), height: px(10)))
+            }
+            HitboxProbe(elementID: ElementID("btn"), size: Size(width: px(40), height: px(40)))
+        }
+    }
+    window.drawFrameIfNeeded()
+    let rootID = GlobalElementID.child(of: nil, at: 0, name: nil)
+    // The index passed here is inert for a NAMED child — `GlobalElementID
+    // .child(of:at:name:)` takes `.named(_)` whenever `name` is non-nil and
+    // never consults `at:` in that case — so this is `btn`'s id whichever
+    // position it occupies in the row.
+    let expected = GlobalElementID.child(of: rootID, at: 0, name: ElementID("btn"))
+    try #require(window.lastHitboxes.count == 1, "only btn is in the tree on frame 1")
+    #expect(window.lastHitboxes[0].id == expected, "and it is HitboxID index 0")
+
+    // (20, 50), not (20, 20): `Row` centres on the cross axis (ruling EP-8),
+    // so `btn`'s 40pt-tall hitbox sits at y = 30…70 in a 100pt-tall root, not
+    // at y = 0…40. Stays inside `btn`'s hitbox in both frames below, whether
+    // or not `extra` (10pt tall, also centred) shares the row with it.
+    platformWindow.simulateInput(mouseDown(at: pt(20, 50)))
+    #expect(window.active == expected)
+
+    // A second, independent frame — `extra` now precedes `btn`, so `btn`'s
+    // hitbox is registered SECOND — with no mouse event in between.
+    toggle.extraSiblingFirst = true
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    try #require(window.lastHitboxes.count == 2, "extra's hitbox now precedes btn's")
+    #expect(window.lastHitboxes[1].id == expected,
+            "btn's OWN id is unchanged, but it is now HitboxID index 1, not 0")
+
+    #expect(window.active == expected,
+            "the element was rebuilt, its hitbox reindexed, and active still names it")
+
+    platformWindow.simulateInput(mouseUp(at: pt(20, 50)))
+    #expect(window.active == nil)
 }
