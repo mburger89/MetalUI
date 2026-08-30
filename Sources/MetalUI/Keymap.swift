@@ -202,6 +202,18 @@ enum KeymapMatch {
 }
 
 /// Framework spec §8.3's pending-prefix timeout, in seconds.
+///
+/// **Pinned on both sides of the boundary and ON it**, by
+/// `theTimeoutIsExactlyOneSecondOnBothSidesOfTheBoundary` — a gap of 0.999
+/// completes, one of 1.001 does not, and one of exactly 1.0 completes. The two
+/// ordinary two-stroke tests bracket this only to `[0.5, 1.49]`, measured, so
+/// without that test a build shipping a half-second chord window would have
+/// been green.
+///
+/// **The comparison below is `>` rather than `>=`, and only the exactly-1.0
+/// assertion can see the difference** — measured: `>=` leaves 729 tests green
+/// when the boundary case is absent. §8.3 drops a prefix "older than" one
+/// second, and a gap of exactly one second is not older than one second.
 let twoStrokeTimeout: Double = 1
 
 /// Resolves `event` against `keymap`, given the key contexts along the focus
@@ -232,6 +244,22 @@ let twoStrokeTimeout: Double = 1
 /// `aPrefixOlderThanOneSecondIsDroppedNotDispatched` says the prefix is gone,
 /// and `aStalePrefixLetsTheArrivingKeystrokeActAsAFreshFirstStroke` says the
 /// keystroke still works.
+///
+/// **A context that vanishes between the two strokes drops the sequence**, and
+/// clears the prefix — measured, correct, and deliberately not pinned by a test
+/// of its own: it is `bestBinding` finding no in-scope completion, which is the
+/// same path `aSecondStrokeThatCompletesNothingIsProcessedAsAFreshFirstStroke`
+/// already covers with a different reason for the miss. Recorded here so the
+/// composition is written down somewhere.
+///
+/// **A pending prefix survives a mouse click**, and that is a decision rather
+/// than an oversight. Nothing outside this function touches `pending`, so
+/// `ctrl-k`, a click, then `ctrl-f` within the second still completes the
+/// sequence — measured. Most editors cancel a chord on a click; this one does
+/// not, because the only thing that would make that possible is `Window`
+/// reaching into the prefix from its pointer path, and the 1-second timeout
+/// already bounds how long a forgotten prefix can surprise anybody. Revisit it
+/// when there is a text field to lose focus from, not before.
 ///
 /// A free function over explicit state, on `dispatchKey(_:along:in:)`'s
 /// footing: every test above drives this without a window or a device.
@@ -316,11 +344,20 @@ private func bestBinding(_ keymap: Keymap, stacks: [[KeyContext]],
 ///
 /// **Two questions, and separating them is the whole of "innermost wins".**
 /// Whether the binding is *in scope* is asked once, against the full stack the
-/// focused element sees (`stacks[0]`) — so `!Modal` correctly fails when a
-/// `Modal` context is anywhere in the chain. Its *depth* is then the outermost
-/// level at which it still holds: a predicate naming `Editor` stops holding as
-/// soon as the walk passes the element that contributed `Editor`, so the level
-/// where it last held is that element's own.
+/// focused element sees (`stacks[0]`). Its *depth* is then the outermost level
+/// at which it still holds: a predicate naming `Editor` stops holding as soon
+/// as the walk passes the element that contributed `Editor`, so the level where
+/// it last held is that element's own.
+///
+/// **The scope question is redundant for every predicate WITHOUT a `!`, and
+/// that is why it is easy to delete.** A monotone predicate that holds anywhere
+/// holds on the full stack, so "the outermost level at which it holds" already
+/// implies "it is in scope". A negated one is the reverse: `!Modal` is true at
+/// the empty outermost level precisely *because* the stack is empty there, so
+/// dropping the guard makes a `!Modal` binding fire with a `Modal` in the
+/// chain. Measured — deleting it leaves 725 tests green — which is why
+/// `aNegatedPredicateDoesNotFireWhileItsExcludedContextIsInTheChain` exists and
+/// is the only test that reaches this line.
 ///
 /// A binding with no context has depth `stacks.count - 1`, the empty outermost
 /// level — outside everything, so any contextual binding beats it.

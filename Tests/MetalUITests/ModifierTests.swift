@@ -3,7 +3,12 @@ import MetalUICore
 import MetalUILayout
 @testable import MetalUI
 
-// The public modifier surface: `StyledElement`'s thirty-three and `Box`'s one.
+// The public modifier surface: `StyledElement`'s thirty-seven and `Box`'s one.
+
+/// An `Action` for the `onAction(_:_:)` row below. Its identity is all that
+/// matters — the row asserts that exactly one entry landed in
+/// `Handlers.actions`, not which closure it holds.
+private struct TableAction: Action {}
 //
 // **Nothing else in the repo can see a modifier write the wrong field.** The 81
 // browser fixtures build a `Style` directly and never call a modifier; the
@@ -31,26 +36,42 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// fields it should not have touched" free rather than a second list to
 /// maintain.
 ///
-/// **`handlers` is the fourth and it is carried as PRESENCE FLAGS, not as a
+/// **`handlers` is the fourth and it is carried as a PROJECTION, not as a
 /// value.** `Handlers` holds closures, so it is not `Equatable` and cannot be
-/// compared the way the other three are; what a case declares instead is which
-/// of its three members should be *set* afterwards. That is weaker than
-/// whole-value equality on exactly one axis — two different closures compare
-/// equal here — and it is strong enough for what this table exists to catch: a
-/// modifier writing `handlers` when it should not, or `onClick(_:)` writing
-/// nothing. `InputDispatchTests` and `FocusTests` are what check that the
-/// closure stored is the one that runs.
+/// compared the way the other three are; what a case declares instead is what
+/// each of its members should look like afterwards — present or absent for the
+/// closures, the whole value for the ones that are comparable. That is weaker
+/// than whole-value equality on exactly one axis — two different closures
+/// compare equal here — and it is strong enough for what this table exists to
+/// catch: a modifier writing `handlers` when it should not, or `onClick(_:)`
+/// writing nothing. `InputDispatchTests`, `FocusTests` and `KeymapTests` are
+/// what check that the closure stored is the one that runs.
 ///
-/// **Three flags rather than one, because `Handlers` has three members and a
-/// single flag could not tell them apart.** `focusable()` and `onKey(_:)` are
-/// deliberately separate modifiers writing separate fields (see `Handlers`), so
-/// a `focusable()` that wrote `onKey` — or an `onKey(_:)` that also set
-/// `isFocusable`, which is the plausible mistake — has to be a mismatch here
-/// rather than a coincidence.
+/// **One member per `Handlers` member, because a single flag could not tell
+/// them apart.** `focusable()`, `onKey(_:)`, `onAction(_:_:)` and
+/// `keyContext(_:_:)` are deliberately separate modifiers writing separate
+/// fields (see `Handlers`), and each pair has a plausible mistake this
+/// separation catches: an `onKey(_:)` that also set `isFocusable`, a
+/// `keyContext(_:_:)` that made its element focusable, an `onAction(_:_:)` that
+/// also registered a pointer hitbox by writing `onClick`.
+///
+/// **`Handlers` has FIVE members as of the keymap task, and this comment said
+/// three until then.** The projection stopped tracking the struct and the
+/// comment stopped saying so, in one commit — the reason the two new modifiers
+/// escaped this table entirely. When `Handlers` gains a member, it gains a
+/// field here in the same change.
 private struct HandlerShape: Equatable {
     var click = false
     var key = false
     var focusable = false
+    /// A count rather than a flag: `onAction(_:_:)` writes into a dictionary
+    /// keyed by action type, so "wrote one entry" and "wrote two" are different
+    /// answers a flag would collapse.
+    var actionCount = 0
+    /// The whole value, not a flag — `KeyContext` is `Equatable`, so a
+    /// `keyContext(_:_:)` that dropped its `values` argument is a mismatch here
+    /// rather than a coincidence.
+    var context: KeyContext?
 }
 
 @MainActor
@@ -80,7 +101,7 @@ private struct ModifierCase {
 ///
 /// The count check is a tripwire on **this table**, not on `Box.swift`: nothing
 /// here can see a modifier added there without a case. Reconcile with
-/// `grep -c "public func" Sources/MetalUI/Box.swift`, which is 36 — the 35 on
+/// `grep -c "public func" Sources/MetalUI/Box.swift`, which is 38 — the 37 on
 /// `extension StyledElement` plus `flexDirection` on `extension Box`.
 @MainActor
 @Test func everyPublicModifierWritesItsOwnFieldAndOnlyThatField() {
@@ -228,6 +249,16 @@ private struct ModifierCase {
                      apply: { $0.focusable() },
                      effect: { _, _, _, h in h.focusable = true }),
 
+        // MARK: Actions and key contexts
+        ModifierCase(name: "onAction(_:_:)",
+                     apply: { $0.onAction(TableAction.self) { _ in } },
+                     effect: { _, _, _, h in h.actionCount = 1 }),
+        ModifierCase(name: "keyContext(_:_:)",
+                     apply: { $0.keyContext("Editor", ["mode": "code"]) },
+                     effect: { _, _, _, h in
+                         h.context = KeyContext("Editor", ["mode": "code"])
+                     }),
+
         // MARK: `Box`'s own — deliberately not on `StyledElement`, so that
         // `Column { … }.flexDirection(.row)` cannot compile.
         ModifierCase(name: "flexDirection(_:)",
@@ -235,7 +266,7 @@ private struct ModifierCase {
                      effect: { s, _, _, _ in s.flexDirection = .columnReverse }),
     ]
 
-    #expect(cases.count == 36)
+    #expect(cases.count == 38)
 
     for c in cases {
         var expectedStyle = Style()
@@ -256,7 +287,9 @@ private struct ModifierCase {
         #expect(got.elementID == expectedID, "\(c.name) wrote the wrong `elementID`")
         #expect(HandlerShape(click: got.handlers.onClick != nil,
                              key: got.handlers.onKey != nil,
-                             focusable: got.handlers.isFocusable) == expectedHandlers,
+                             focusable: got.handlers.isFocusable,
+                             actionCount: got.handlers.actions.count,
+                             context: got.handlers.keyContext) == expectedHandlers,
                 "\(c.name) wrote the wrong `Handlers` member, or wrote nothing")
     }
 }

@@ -277,6 +277,15 @@ public final class Window {
     /// through to the raw `onKey` bubble and then to `onInput`, so a binding
     /// nobody handles behaves as if it were not bound rather than silently
     /// eating a keypress.
+    ///
+    /// **What this closure captures is retained by the window, so do not
+    /// capture the window** — `StyledElement.onClick(_:)` states the hazard in
+    /// full and this is its sharpest form: the closure is stored *on* `Window`,
+    /// so `window.onAction = { window.… }` closes the cycle immediately, with
+    /// no frame drawn and nothing that ever clears it. Capture `[weak window]`,
+    /// or capture the state the handler writes — which is what `@State` is for.
+    /// `onInput` above has the identical shape; `MetalUIDemo` writes
+    /// `[weak window]` for it.
     public var onAction: ((any Action) -> Bool)?
 
     /// Moves keyboard focus, or clears it with `nil`.
@@ -813,10 +822,17 @@ public final class Window {
     /// (or holds a two-stroke prefix), and `dispatchAction` walks the same
     /// chain looking for a handler registered for that action's type.
     ///
-    /// **`keyDown` only**, exactly as `dispatchKey` is, and for the same
-    /// reason: a `KeyEvent` carries no down/up discriminator. A `keyUp` also
-    /// must not disturb `pendingStroke` — a two-stroke sequence would
-    /// otherwise be broken by the release of its own first stroke.
+    /// **`keyDown` only, and the guard is load-bearing for TWO reasons, not
+    /// one.** A `keyUp` that reached here would dispatch the same binding a
+    /// second time — measured: one press-and-release of a bound `cmd-i` fires
+    /// the action **twice** without this line — and it would consume
+    /// `pendingStroke`, so no two-stroke sequence could survive the release of
+    /// its own first stroke. `dispatchKey`'s guard exists for a third,
+    /// unrelated reason (a `KeyEvent` carries no down/up discriminator, so an
+    /// `onKey` handed both could not tell them apart); the two guards look
+    /// identical and are not the same argument. Pinned by
+    /// `aKeyUpDispatchesNoActionAndLeavesAPendingPrefixAlone`, which asserts
+    /// both halves.
     ///
     /// **Three outcomes, and the middle one is the interesting one.** A
     /// completed binding whose action *someone* handled claims the event. A

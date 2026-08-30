@@ -197,7 +197,13 @@ private func evaluate(_ source: String, _ stack: [KeyContext]) throws -> Bool {
         Binding("cmd-i", Increment())
         Binding("cmd-d", Decrement(), context: "Editor")
     }
-    #expect(keymap.bindings.count == 2)
+    // `try #require`, not `#expect` — taxonomy shape 13. `#expect` records and
+    // continues, so a `buildBlock` that dropped a binding would send the two
+    // subscripts below past the end of the array and kill the whole run with
+    // `Index out of range` and no summary line. Measured: `buildBlock`
+    // returning `Array(bindings.prefix(1))` truncated the suite at 519 of 725
+    // tests started.
+    try #require(keymap.bindings.count == 2)
     #expect(keymap.bindings[0].spelling == "cmd-i")
     #expect(keymap.bindings[1].context == "Editor")
 }
@@ -362,6 +368,34 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
     #expect(a is Inner)
 }
 
+/// **A negated predicate does not fire while the context it excludes is on
+/// screen — and this is the only shape that reaches `contextDepth`'s scope
+/// guard.**
+///
+/// Every other binding in this file has a *monotone* predicate: it holds on the
+/// full stack and stops holding as the walk moves outward, so "the outermost
+/// level at which it holds" already implies "it holds at all". A `!` predicate
+/// is the reverse — `!Modal` is true at the empty outermost level *because* the
+/// stack is empty there — so without the separate `evaluate(against: stacks[0])`
+/// check a `!Modal` binding fires with a `Modal` in the chain. Measured:
+/// deleting that guard leaves all 725 tests green, and this is the test that
+/// stopped being true.
+@Test func aNegatedPredicateDoesNotFireWhileItsExcludedContextIsInTheChain() throws {
+    let keymap = Keymap([Binding("cmd-i", Increment(), context: "!Modal")])
+    var pending: PendingStroke?
+
+    guard case .none = try match(keymap, "cmd-i", at: 0,
+                                 contexts: [nil, ctx("Modal")], pending: &pending) else {
+        Issue.record("`!Modal` must not fire while a Modal context is in the chain"); return
+    }
+    // The differential: the identical binding and keystroke against a chain
+    // with no `Modal` in it.
+    guard case .action = try match(keymap, "cmd-i", at: 0,
+                                   contexts: [nil, ctx("Editor")], pending: &pending) else {
+        Issue.record("and fires once the excluded context is gone"); return
+    }
+}
+
 /// A malformed predicate never matches and never traps — and the binding it
 /// sits on is simply inert, while its neighbours keep working.
 @Test func aBindingWithAMalformedPredicateIsInertRatherThanFatal() throws {
@@ -424,6 +458,45 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
         Issue.record("the stale prefix was dispatched; §8.3 says it is dropped")
     }
     #expect(pending == nil, "the stale prefix is gone either way")
+}
+
+/// **The timeout is ONE second, and this sits on the boundary.**
+///
+/// The two tests above bracket it only loosely: they pass for any timeout in
+/// `[0.5, 1.49]`, measured — `twoStrokeTimeout = 0.5` and `= 1.49` both leave
+/// the suite green, so a build shipping a half-second chord window would have
+/// shipped. These two gaps are a thousandth of a second either side of the
+/// figure §8.3 names, so only a one-second timeout satisfies both.
+///
+/// **The third assertion pins the COMPARISON, and the first two do not** — that
+/// claim was in this comment before it was measured, and was false: `>` and
+/// `>=` agree at 0.999 and at 1.001, so changing the operator left all 729
+/// green. Only a gap of *exactly* the timeout separates them. §8.3's rule is
+/// that a prefix "older than one second" is dropped, and a gap of exactly one
+/// second is not older than one second, so the sequence completes. `1.0 - 0.0`
+/// is exact in binary floating point, so the boundary case is deterministic
+/// rather than a near-miss.
+@Test func theTimeoutIsExactlyOneSecondOnBothSidesOfTheBoundary() throws {
+    let keymap = Keymap([Binding("ctrl-k ctrl-f", Increment())])
+    var pending: PendingStroke?
+
+    _ = try match(keymap, "ctrl-k", at: 0, pending: &pending)
+    guard case .action = try match(keymap, "ctrl-f", at: 0.999, pending: &pending) else {
+        Issue.record("a gap under one second must still complete the sequence"); return
+    }
+
+    pending = nil
+    _ = try match(keymap, "ctrl-k", at: 0, pending: &pending)
+    if case .action = try match(keymap, "ctrl-f", at: 1.001, pending: &pending) {
+        Issue.record("a gap over one second must not complete the sequence")
+    }
+
+    pending = nil
+    _ = try match(keymap, "ctrl-k", at: 0, pending: &pending)
+    guard case .action = try match(keymap, "ctrl-f", at: 1, pending: &pending) else {
+        Issue.record("exactly one second is not yet 'older than' one second: `>`, not `>=`")
+        return
+    }
 }
 
 /// **And the arriving keystroke is processed as a fresh first stroke.** Two
@@ -512,6 +585,34 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
     #expect(pending == nil, "and the three-stroke binding recorded no prefix")
 }
 
+/// **A live prefix's completion beats a single-stroke binding on the second
+/// stroke** — the exact inverse of `anExactOneStrokeMatchWinsOverAPrefix`, and
+/// the assertion that pins step 2 ahead of step 3 in `matchKeymap`.
+///
+/// Without it, swapping those two steps is a plausible refactor that no test
+/// notices: `"ctrl-f"` alone would fire and the sequence the user was halfway
+/// through would be unreachable.
+@Test func aCompletionBeatsASingleStrokeBindingOnTheSecondStroke() throws {
+    let keymap = Keymap([Binding("ctrl-k ctrl-f", Increment()),
+                         Binding("ctrl-f", Decrement())])
+    var pending: PendingStroke?
+    _ = try match(keymap, "ctrl-k", at: 0, pending: &pending)
+    guard case .action(let action) = try match(keymap, "ctrl-f", at: 0.1,
+                                               pending: &pending) else {
+        Issue.record("expected an action"); return
+    }
+    #expect(action is Increment, "the sequence completes rather than `ctrl-f` firing alone")
+
+    // The differential: the same `ctrl-f` with no prefix in flight fires the
+    // single-stroke binding, so this is about the prefix and not about
+    // `"ctrl-f"` being unreachable.
+    guard case .action(let alone) = try match(keymap, "ctrl-f", at: 5,
+                                              pending: &pending) else {
+        Issue.record("expected an action"); return
+    }
+    #expect(alone is Decrement)
+}
+
 /// A two-stroke binding's context is evaluated on the **second** stroke, and a
 /// sequence whose context is absent completes into nothing.
 @Test func aTwoStrokeBindingHonoursItsContext() throws {
@@ -548,6 +649,12 @@ private func keyDown(_ characters: String, _ modifiers: Modifiers = [],
                      at timestamp: Double = 0) -> InputEvent {
     .keyDown(KeyEvent(charactersIgnoringModifiers: characters, characters: characters,
                       modifiers: modifiers, timestamp: timestamp))
+}
+
+private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
+                   at timestamp: Double = 0) -> InputEvent {
+    .keyUp(KeyEvent(charactersIgnoringModifiers: characters, characters: characters,
+                    modifiers: modifiers, timestamp: timestamp))
 }
 
 @Test @MainActor func aBoundActionReachesAnElementHandlerAlongTheFocusChain() throws {
@@ -710,6 +817,44 @@ private func keyDown(_ characters: String, _ modifiers: Modifiers = [],
     // above is about the *pointer* gate rather than about `.keyContext(_:_:)`
     // being inert.
     #expect(window.lastFocusRegistry.context(for: rootID("a")) == KeyContext("Editor"))
+}
+
+/// **A `keyUp` dispatches no action, and does not disturb a pending prefix.**
+///
+/// Two assertions and both were unpinned. Without the first, every bound action
+/// fires **twice per keypress** — measured, `fired == 2` for one press-and-release
+/// of `cmd-i`. Without the second, the release of a sequence's own first stroke
+/// would consume the prefix and no two-stroke binding could ever complete.
+///
+/// `dispatchKey` is `keyDown`-only for its own reason (a `KeyEvent` carries no
+/// down/up discriminator, so an `onKey` handed both could not tell them apart);
+/// this is a second, independent reason for the same guard on the same event.
+@Test @MainActor func aKeyUpDispatchesNoActionAndLeavesAPendingPrefixAlone() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let log = ActionLog()
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+        Box().width(px(40)).height(px(40)).id("a")
+    }
+    window.onAction = { action in
+        log.names.append(action is Increment ? "increment" : "decrement")
+        return true
+    }
+    window.keymap = Keymap([Binding("cmd-i", Decrement()),
+                            Binding("ctrl-k ctrl-f", Increment())])
+    window.drawFrameIfNeeded()
+
+    // One press and one release of a bound keystroke is ONE action.
+    platformWindow.simulateInput(keyDown("i", .command, at: 0))
+    platformWindow.simulateInput(keyUp("i", .command, at: 0.05))
+    #expect(log.names == ["decrement"], "the release must not fire the binding a second time")
+
+    // And a release between the two strokes of a sequence does not eat the
+    // prefix.
+    platformWindow.simulateInput(keyDown("k", .control, at: 1))
+    platformWindow.simulateInput(keyUp("k", .control, at: 1.05))
+    platformWindow.simulateInput(keyDown("f", .control, at: 1.1))
+    #expect(log.names == ["decrement", "increment"],
+            "the sequence completed across its own key releases")
 }
 
 /// Assigning a new keymap drops a pending prefix: a `ctrl-k` recorded against
