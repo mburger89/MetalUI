@@ -577,3 +577,48 @@ private final class ToggleBox {
     window.drawFrameIfNeeded()
     #expect(hoverBox.isHovered, "the frame after mouseMoved hovers the box under it")
 }
+
+// MARK: - One list, two kinds (design spec §3.1)
+
+/// **A scroll region IS a hitbox — one list — and `scrollRegions` is a derived
+/// view of it that reports only the records carrying a scroll axis.**
+///
+/// `Frame.scrollRegions` was a second registry until scroll regions folded into
+/// this one; keeping the name as an accessor is what lets every assertion
+/// written against the old list keep reading the same fields. This pins that it
+/// is genuinely derived (the scroller appears in `hitboxes` too, at the index
+/// its `HitboxID` names) and genuinely filtered (the plain hitbox does not
+/// appear in `scrollRegions`).
+///
+/// **Written because dropping the filter reddened NOTHING**, on the full
+/// 643-test suite: replacing `compactMap { box.scroll.map { … } }` with
+/// `map { … box.scroll ?? .vertical … }` passed everywhere. Not because the
+/// assertion was weak — because no fixture in the suite put both kinds of
+/// record in one frame and then read `Frame.scrollRegions` back, so the filter
+/// had nothing to filter (ruling MP-J's shape). `Window.lastScrollRegions`'
+/// own filter IS covered, by the two scrim tests in `ScrollRoutingTests`; this
+/// is `Frame`'s.
+///
+/// The two are registered in this order deliberately: the plain hitbox FIRST,
+/// so a `scrollRegions` that forgot to filter would report it at index 0 and
+/// the scroller's own index in the derived list would shift.
+@Test @MainActor func scrollRegionsAreTheScrollingSubsetOfTheOneHitboxList() throws {
+    let frame = bareFrame()
+    let pass = PrepaintPass(frame: frame)
+    let plain = pass.insertHitbox(rect(0, 0, 40, 40), id: eid("plain"), opaque: true)
+    pass.registerScrollRegion(rect(0, 0, 80, 80), id: eid("scroller"), axis: .horizontal)
+
+    try #require(frame.hitboxes.count == 2, "both kinds live in the ONE list")
+    #expect(frame.hitboxes[plain.index].scroll == nil, "a plain hitbox carries no axis")
+    #expect(frame.hitboxes[1].scroll == .horizontal,
+            "and the scroller carries the axis its ScrollView declared")
+    #expect(frame.hitboxes[1].opaque,
+            "a scroller is opaque: a transparent record could never take a wheel event")
+
+    let regions = frame.scrollRegions
+    try #require(regions.count == 1, "the derived view reports only the scrolling record")
+    #expect(regions[0].id == eid("scroller"))
+    #expect(regions[0].axis == .horizontal)
+    #expect(regions[0].bounds == rect(0, 0, 80, 80))
+    #expect(regions[0].layer == 0)
+}

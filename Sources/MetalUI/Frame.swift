@@ -362,19 +362,25 @@ public final class Frame {
         return strictlyInside ? (bounds, innerRadii) : (bounds, Corners(all: Pixels(0)))
     }
 
-    /// Scroll regions registered this frame, in prepaint order.
+    /// Scroll regions registered this frame, in prepaint order — a **derived
+    /// view** of `hitboxes` below, not a list of its own.
     ///
-    /// **A hitbox list scoped to scroll, and STILL a separate list from
-    /// `hitboxes` below.** This comment used to predict that "the hit-test
-    /// sub-project widens this list rather than replacing it"; that is not what
-    /// happened. `insertHitbox` landed as its own registry, because the two
-    /// differ in more than a field — a hitbox carries `opaque`, and is recorded
-    /// translated by the active offset where this is not (see
-    /// `insertHitbox`) — and because folding them changes wheel routing, which
-    /// has shipped two intermittent defects that only a human found. The fold
-    /// is a task of its own with this behaviour pinned green first (design spec
-    /// §3.1). Until it happens, this list is what `Window.applyScroll` reads
-    /// and nothing else consumes it, and it tracks no opacity.
+    /// **This used to be a second registry and is not one any more** (design
+    /// spec §3.1). It was a hitbox list in miniature — bounds intersected with
+    /// the active clip, carrying a layer, registered in prepaint, picked by
+    /// `(layer, registration order)` — and it differed from the general list in
+    /// exactly two ways, both of which were defects rather than features: it
+    /// tracked no opacity, so nothing could swallow a wheel event, and it
+    /// recorded its bounds **untranslated** while `insertHitbox` translated
+    /// them, so a `ScrollView` nested inside an already-scrolled `ScrollView`
+    /// registered in the wrong space and received no wheel events at all
+    /// (ruling C1, pinned by
+    /// `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`).
+    ///
+    /// Kept as an accessor because a scroller is the one kind of hitbox with a
+    /// payload, and "the scrolling ones" is a question several tests ask. The
+    /// tuple shape is preserved so every assertion written against the old
+    /// registry keeps reading the same fields.
     ///
     /// **`axis` rides along because routing, not `ScrollState`, is what needs
     /// it.** A `ScrollView` already knows its own axis and maps the stored
@@ -390,115 +396,89 @@ public final class Frame {
     /// that does neither (`PrepaintPass.deferred`). Registration order alone
     /// cannot express that: a hoisted subtree is emitted wherever it was
     /// declared, so it can register before a sibling it paints on top of.
-    private(set) var scrollRegions:
-        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis, layer: Int)] = []
-
-    /// Records a scroll region at its **clipped** bounds — the intersection of
-    /// its own rect with whatever ancestor clip is active when it registers.
-    ///
-    /// The CLIPPED bounds, not the raw ones: a nested scroller positioned
-    /// outside its ancestor's viewport window (whether because the ancestor's
-    /// content overflows past that scroller, or because the ancestor itself is
-    /// scrolled) must not receive wheel events for the area it cannot actually
-    /// show. Storing the raw, un-intersected bounds instead would let a wheel
-    /// event land on a region the user cannot see.
-    func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis) {
-        scrollRegions.append((Self.intersect(activeClip, bounds), id, axis, activeLayer))
+    var scrollRegions:
+        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis, layer: Int)] {
+        hitboxes.compactMap { box in
+            box.scroll.map { (box.bounds, box.id, $0, box.layer) }
+        }
     }
 
-    /// Hitboxes registered this frame, in prepaint order.
+    /// Records a scroll region — an **opaque hitbox carrying a scroll axis**.
     ///
-    /// **The general list `Frame.scrollRegions` above is a scoped miniature
-    /// of.** Same stacks, same registration phase, same `(layer, registration
-    /// order)` ranking — and one more field, `opaque`, which is what lets a
-    /// modal's scrim swallow an event rather than merely being drawn over one.
-    /// The two lists are still separate: folding scroll regions into this one
-    /// changes routing, and routing has shipped two intermittent defects that
-    /// only a human found (design spec §3.1), so it is its own task with the
-    /// existing behaviour pinned green first.
+    /// `opaque: true` because a scroller consumes the point it is under: a
+    /// non-opaque record is skipped by `topmostOpaqueHitbox(in:at:)` and could
+    /// never receive a wheel event at all.
     ///
-    /// Rebuilt from scratch every frame, exactly like `scrollRegions` and the
-    /// `LayoutTree` — which is why a `HitboxID` is a per-frame handle and every
-    /// record carries a `GlobalElementID` for anything that must outlive one.
+    /// Everything about *where* the record lands is `insertHitbox`'s, and that
+    /// is the whole point of routing through it — the translating convention
+    /// used to be `insertHitbox`'s alone and this function's omission of it was
+    /// a live routing defect. See `insertHitbox`.
+    func registerScrollRegion(_ bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis) {
+        _ = insertHitbox(bounds, id: id, opaque: true, scroll: axis)
+    }
+
+    /// Hitboxes registered this frame, in prepaint order — **the one list**.
+    ///
+    /// Rebuilt from scratch every frame, exactly like the `LayoutTree` — which
+    /// is why a `HitboxID` is a per-frame handle and every record carries a
+    /// `GlobalElementID` for anything that must outlive one.
     private(set) var hitboxes: [Hitbox] = []
 
     /// Records a hitbox at the rect it actually **paints** at: translated by
     /// the active offset, then intersected with the active clip, carrying the
     /// active layer.
     ///
-    /// **The translation is the one place this is not a copy of
-    /// `registerScrollRegion`, and the difference is deliberate.** `PaintPass.fill`
-    /// adds `activeOffset` before emitting, so a row inside a `ScrollView`
-    /// scrolled by 30 draws thirty points above where `bounds(of:)` reports it;
-    /// a hitbox recorded at the untranslated rect would sit thirty points below
-    /// the pixels the user is pointing at, and the error would grow with the
-    /// scroll. **`registerScrollRegion` omits it, and that omission is a
-    /// PRE-EXISTING ROUTING DEFECT that is reachable in production today** —
-    /// not, as an earlier draft of this comment said, one that "becomes
-    /// reachable the moment the two lists fold together". `ScrollView.prepaint`
+    /// **The translation is what makes a hit land on the pixels the user is
+    /// pointing at.** `PaintPass.fill` adds `activeOffset` before emitting, so
+    /// a row inside a `ScrollView` scrolled by 30 draws thirty points above
+    /// where `bounds(of:)` reports it; a hitbox recorded at the untranslated
+    /// rect would sit thirty points below what is on screen, and the error
+    /// would grow with the scroll.
+    ///
+    /// **`registerScrollRegion` used to omit it, and that was a live routing
+    /// defect** — ruling C1, fixed by folding it through here. `ScrollView.prepaint`
     /// registers *outside* its OWN `clipped(to:offsetBy:)` block, which zeroes
     /// only its own contribution; an **ancestor** scroller's is still in
     /// effect, because the inner element's whole `prepaint` runs inside the
     /// outer's block. Measured through a real `Frame.render` with the outer
-    /// scrolled by 120: the inner scroller registers `(0, 300) 200x0` — empty,
-    /// and 120pt away — while it paints at `(0, 180) 200x150`, so **a nested
-    /// scroller receives no wheel events at all**. Flagged here rather than
-    /// fixed under a different task's name: the fix changes wheel routing,
-    /// which design spec §3.1 wants pinned green first, and it belongs with the
-    /// task that folds the two lists.
+    /// scrolled by 50: the inner scroller registered `(0, 150) 200x50` — 50pt
+    /// low and cut in half by the ancestor clip — while painting at
+    /// `(0, 100) 200x100`, so a wheel over its visible top half went to the
+    /// OUTER scroller instead.
     ///
-    /// The **clipped** bounds for `registerScrollRegion`'s own reason: a box
-    /// scrolled out of its ancestor's viewport must not take events for the
-    /// area the user cannot see.
+    /// The **clipped** bounds, not the raw ones: a nested scroller positioned
+    /// outside its ancestor's viewport window must not receive events for the
+    /// area it cannot actually show. Storing the raw, un-intersected bounds
+    /// instead would let an event land on a region the user cannot see.
     ///
     /// `id` is a parameter rather than something derived here because the
     /// returned `HitboxID` is a per-frame index and cannot key anything that
     /// survives a frame — hover, active state and a scroller's offset all need
-    /// the element's own id. Every prepaint site has one in hand already; that
-    /// is how `registerScrollRegion` is called today.
+    /// the element's own id. Every prepaint site has one in hand already.
+    ///
+    /// `scroll` defaults to `nil` — an ordinary hitbox is not a scroller — so
+    /// the public `PrepaintPass.insertHitbox` needs no payload parameter and
+    /// `registerScrollRegion` stays the one spelling that supplies one.
     func insertHitbox(_ bounds: Bounds<Pixels>, id: GlobalElementID,
-                      opaque: Bool) -> HitboxID {
+                      opaque: Bool, scroll: ScrollAxis? = nil) -> HitboxID {
         let translated = Bounds(
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
             size: bounds.size)
         hitboxes.append(Hitbox(bounds: Self.intersect(activeClip, translated),
-                               id: id, layer: activeLayer, opaque: opaque))
+                               id: id, layer: activeLayer, opaque: opaque, scroll: scroll))
         return HitboxID(index: hitboxes.count - 1)
     }
 
     /// The topmost **opaque** hitbox containing `point`, or `nil` when nothing
     /// opaque is under it.
     ///
-    /// **Deliberately the same expression as `Window.applyScroll`'s** — the
-    /// `.max` of `(layer, registration index)` over the candidates — so that
-    /// parity between the two lists is structural rather than argued. Task 7
-    /// folds one into the other, and two functions that must agree should read
-    /// the same. Layer first, because a hoisted `Deferred` subtree is still
-    /// *emitted* where it was declared and can therefore register before
-    /// something it paints over; registration order alone would hand the point
-    /// to the covered element.
-    ///
-    /// **A non-opaque hitbox does not stop the walk** (design spec §3.2), which
-    /// is why `opaque` is a *filter* here rather than a test applied to the
-    /// winner: an ineligible record must not be able to shadow an eligible one
-    /// beneath it. Written the other way round — take the topmost hit, then
-    /// check whether it is opaque — this would return `nil` wherever a
-    /// decorative overlay covers a real target, which is the whole failure
-    /// §3.2's sentence exists to prevent. So a non-opaque hitbox is never this
-    /// query's answer, even when it is the only thing under the point: present
-    /// in the list, transparent to the point.
-    ///
-    /// This function has **no reverse walk to get wrong** because the filter
-    /// makes every candidate eligible; "topmost" is then just the maximum.
-    ///
-    /// Half-open on the max edges, because `Bounds.contains` is: two hitboxes
-    /// sharing an edge cannot both claim it.
+    /// A thin wrapper over `topmostOpaqueHitbox(in:at:)`, which is the single
+    /// copy of the ranking and carries its reasoning. `Window` calls the same
+    /// function against its own captured copy of the last frame's list, because
+    /// the frame that built it is gone by the time an input event arrives.
     func topmostHitbox(at point: Point<Pixels>) -> HitboxID? {
-        hitboxes.enumerated()
-            .filter { $0.element.bounds.contains(point) && $0.element.opaque }
-            .max { ($0.element.layer, $0.offset) < ($1.element.layer, $1.offset) }
-            .map { HitboxID(index: $0.offset) }
+        topmostOpaqueHitbox(in: hitboxes, at: point).map { HitboxID(index: $0) }
     }
 
     /// This frame's answer to "what is the pointer over", written once by

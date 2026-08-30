@@ -132,20 +132,28 @@ public final class Window {
     /// happened". `@testable import MetalUI` reaches it.
     private(set) var lastScene = Scene()
 
-    /// The scroll regions the most recent frame's prepaint registered, in
-    /// registration order, captured alongside `lastScene` for the same reason:
-    /// `Frame` dies at the end of `drawFrameIfNeeded`, and a wheel event may
-    /// arrive at any point afterward.
-    private(set) var lastScrollRegions:
-        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis, layer: Int)] = []
-
     /// The hitboxes the most recent frame's prepaint registered, captured
-    /// alongside `lastScrollRegions` for the same reason: `Frame` dies at the
-    /// end of `drawFrameIfNeeded` and a mouse event may arrive at any point
-    /// afterward — in particular `mouseUp`, which must still resolve against
-    /// the hitboxes the button was drawn with, not against whatever the next
-    /// frame will register.
+    /// alongside `lastScene` for the same reason: `Frame` dies at the end of
+    /// `drawFrameIfNeeded` and an input event may arrive at any point
+    /// afterward — a wheel event with no frame in flight to route it, or a
+    /// `mouseUp` that must still resolve against the hitboxes the button was
+    /// drawn with rather than against whatever the next frame will register.
     private(set) var lastHitboxes: [Hitbox] = []
+
+    /// The scrolling subset of `lastHitboxes`, in registration order — test
+    /// observability, and a **derived view** rather than a second capture.
+    ///
+    /// There were two lists and two captures; there is now one of each (design
+    /// spec §3.1). This accessor exists because "the scrolling ones" is a
+    /// question several routing tests ask, and because keeping the tuple shape
+    /// lets every assertion written against the old registry keep reading the
+    /// same fields. See `Frame.scrollRegions`.
+    var lastScrollRegions:
+        [(bounds: Bounds<Pixels>, id: GlobalElementID, axis: ScrollAxis, layer: Int)] {
+        lastHitboxes.compactMap { box in
+            box.scroll.map { (box.bounds, box.id, $0, box.layer) }
+        }
+    }
 
     /// The last known mouse position, `nil` before any mouse event has ever
     /// reached the window. Handed into every `Frame` as `mousePosition`, which
@@ -318,7 +326,6 @@ public final class Window {
         renderRoot(frame)
         let scene = frame.finalizedScene()
         lastScene = scene
-        lastScrollRegions = frame.scrollRegions
         lastHitboxes = frame.hitboxes
         // An element asked for another frame — an animation in progress. Marking
         // dirty here (rather than leaving the window to go clean) is what keeps
@@ -366,15 +373,42 @@ public final class Window {
         framesDrawn += 1
     }
 
-    /// Applies a wheel delta to the topmost scroll region under the pointer.
+    /// Applies a wheel delta to the topmost **opaque hitbox** under the
+    /// pointer, if that hitbox is a scroller.
     ///
-    /// **Highest layer first, then reverse registration order.** The second
-    /// half is the rule §8.1 states for the general hit-test registry this one
-    /// is scoped down from: "dispatch walks them in reverse so the topmost
-    /// opaque hit wins." `lastScrollRegions` is in prepaint order — outermost
-    /// first, since a `ScrollView` registers itself before descending into its
-    /// content — so the last match among equals is the most deeply nested
-    /// region containing the point, which is the visually topmost one.
+    /// **One list, one ranking** (design spec §3.1). This used to walk a
+    /// separate `lastScrollRegions` with its own copy of the ranking closure;
+    /// it now calls `topmostOpaqueHitbox(in:at:)` — the single copy — against
+    /// the same list `mouseDown` resolves against. `lastHitboxes` is in
+    /// prepaint order, outermost first, so the last match among equal layers is
+    /// the most deeply nested hitbox containing the point, which is the
+    /// visually topmost one.
+    ///
+    /// **An opaque hitbox that is NOT a scroller swallows the event**, which is
+    /// the entire point of the fold and the limitation three milestones
+    /// recorded: before it, a non-scrolling `Deferred` scrim registered nothing
+    /// a wheel event could see, so the list underneath a modal scrolled through
+    /// it. The walk stops at the topmost opaque record whatever that record is;
+    /// it does not keep descending looking for something scrollable.
+    ///
+    /// **It is CLAIMED rather than merely dropped**, and the two are different.
+    /// Returning `false` here would leave an event that landed on an element
+    /// which consumed the point being re-offered to the window's own fallback
+    /// handler as though nothing had taken it — half a swallow, the shape
+    /// ruling AP-I warns about for the portal's two halves. So the answer is
+    /// "this was consumed", and nothing scrolled.
+    ///
+    /// **What it costs, said plainly because nothing in production pays it
+    /// yet.** No production element registers a non-scrolling hitbox today
+    /// (`onClick` is the first that will), so this changes no shipping
+    /// behaviour. It does mean that once ordinary elements register opaque
+    /// hitboxes, one of them **inside** a `ScrollView` will swallow the wheel
+    /// rather than letting its own scroller move — a browser scrolls in that
+    /// case, because a wheel event bubbles up the DOM to the first scrollable
+    /// ancestor. Closing that needs either ancestry-aware scroll chaining (see
+    /// below, deliberately absent) or a hitbox that blocks clicks without
+    /// blocking wheels. Neither is this task's, and whoever registers the first
+    /// non-scrolling production hitbox owns the choice.
     ///
     /// **The layer is what registration order cannot express, and it is the
     /// whole reason `PrepaintPass.deferred` hoists at all.** A `Deferred`
@@ -386,7 +420,7 @@ public final class Window {
     /// declared first: the modal painted on top and the background took every
     /// event. Ordering by `(layer, registration index)` puts the two rules in
     /// the order that makes the visible thing win, and leaves ties — every
-    /// region within one layer — decided exactly as before, since the index is
+    /// record within one layer — decided exactly as before, since the index is
     /// unique and no two candidates can compare equal.
     ///
     /// Momentum deltas are applied identically to direct ones — `isMomentum` is
@@ -404,7 +438,7 @@ public final class Window {
     /// through; its absence is a decision recorded here, not an oversight
     /// waiting to be found as a bug.
     ///
-    /// **A wheel event arriving before the first frame finds `lastScrollRegions`
+    /// **A wheel event arriving before the first frame finds `lastHitboxes`
     /// empty and returns `false`.** That is correct, not a startup race to
     /// close: there is no layout yet for a region to have been registered
     /// against, so there is nothing to route the event to.
@@ -433,7 +467,7 @@ public final class Window {
     /// one by `delta.y`. This was wrong for one commit — every region read
     /// `delta.y` regardless of axis, so a horizontal `ScrollView` responded to
     /// vertical wheel motion and ignored horizontal motion entirely — fixed by
-    /// carrying `axis` on the registration (`Frame.scrollRegions`) rather than
+    /// carrying `axis` on the registration (`Hitbox.scroll`) rather than
     /// guessing it here.
     ///
     /// **Semantics are narrow on purpose: one axis, no borrowing the other's
@@ -446,11 +480,14 @@ public final class Window {
     /// UX decision with real trade-offs, and it is deliberately left to
     /// whoever owns that decision rather than made here by default.
     private func applyScroll(_ event: ScrollEvent) -> Bool {
-        let hit = lastScrollRegions.enumerated()
-            .filter { contains($0.element.bounds, event.position) }
-            .max { ($0.element.layer, $0.offset) < ($1.element.layer, $1.offset) }
-        guard let region = hit?.element else { return false }
-        let componentDelta = region.axis == .horizontal ? event.delta.x : event.delta.y
+        guard let index = topmostOpaqueHitbox(in: lastHitboxes, at: event.position) else {
+            return false
+        }
+        let region = lastHitboxes[index]
+        // Opaque, and not a scroller: it consumed the point, so the event stops
+        // here rather than falling through to whatever it covers.
+        guard let axis = region.scroll else { return true }
+        let componentDelta = axis == .horizontal ? event.delta.x : event.delta.y
         stateTable.withState(region.id, initial: ScrollState()) {
             // Natural scrolling: a positive scrollingDelta means content moves
             // in the positive direction (the user's fingers moved that way),
@@ -513,25 +550,13 @@ public final class Window {
     /// The `GlobalElementID` owning the topmost opaque hitbox under `point`,
     /// from the most recently drawn frame's registrations.
     ///
-    /// **Deliberately the same ranking as `Frame.topmostHitbox(at:)` and
-    /// `applyScroll`'s own walk**: `(layer, registration index)` over the
-    /// containing opaque candidates. `Frame.topmostHitbox(at:)` itself cannot
-    /// answer this for `mouseDown` — the frame that built `lastHitboxes` is
-    /// long gone by the time an input event arrives — so the same closure is
-    /// restated here against the window's own copy of the list, exactly as
-    /// `applyScroll` restates it against `lastScrollRegions`.
+    /// **`topmostOpaqueHitbox(in:at:)`, the one ranking, against the window's
+    /// own copy of the list.** `Frame.topmostHitbox(at:)` cannot answer this
+    /// for `mouseDown` — the frame that built `lastHitboxes` is long gone by
+    /// the time an input event arrives — so the list, not the closure, is what
+    /// differs between the two call sites. There were three copies of that
+    /// closure before this task and there is one now.
     private func topmostHitboxOwner(at point: Point<Pixels>) -> GlobalElementID? {
-        lastHitboxes.enumerated()
-            .filter { $0.element.bounds.contains(point) && $0.element.opaque }
-            .max { ($0.element.layer, $0.offset) < ($1.element.layer, $1.offset) }
-            .map { $0.element.id }
-    }
-
-    /// Whether `point` falls within `bounds`, half-open on the max edges. A
-    /// small free function rather than reaching for `Bounds.contains(_:)`
-    /// inline in `applyScroll` above, purely so that closure reads as
-    /// "does this region contain the point" at a glance.
-    private func contains(_ bounds: Bounds<Pixels>, _ point: Point<Pixels>) -> Bool {
-        bounds.contains(point)
+        topmostOpaqueHitbox(in: lastHitboxes, at: point).map { lastHitboxes[$0].id }
     }
 }

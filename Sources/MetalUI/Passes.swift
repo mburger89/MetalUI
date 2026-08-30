@@ -144,11 +144,11 @@ public struct LayoutPass {
 /// been painted yet, which is what makes this the only correct place to register
 /// hit-test, focus, scroll and accessibility structure.
 ///
-/// **Scroll and general hit-test both register now; focus and accessibility
-/// still do not.** `registerScrollRegion` was the first `register…` method this
-/// pass gained and `insertHitbox` is the second, and they write to two separate
-/// registries on `Frame` — see `Frame.scrollRegions` for why the general one
-/// did not simply absorb the scoped one. `Frame` still owns no focus or
+/// **Scroll and general hit-test both register now, into ONE list; focus and
+/// accessibility still do not.** `registerScrollRegion` was the first
+/// `register…` method this pass gained and `insertHitbox` is the second, and
+/// they write to the same registry on `Frame` — the first is the second with a
+/// scroll axis attached (design spec §3.1). `Frame` still owns no focus or
 /// accessibility store, so there is nothing for a `registerFocusHandle` to
 /// write into and none is declared; focus brings its own later in M3,
 /// accessibility its own (§9).
@@ -197,9 +197,11 @@ public struct PrepaintPass {
 
     /// Records a region that consumes scroll wheel events.
     ///
-    /// **A hitbox list scoped to scroll, and a different list from the general
-    /// one `insertHitbox` below writes to** — see `Frame.scrollRegions`'s doc
-    /// comment for why the two have not merged yet.
+    /// **`insertHitbox` with a scroll axis attached, into the same list** —
+    /// design spec §3.1's fold. Kept as its own spelling because a scroller is
+    /// the one kind of hitbox with a payload, and because the two decisions it
+    /// makes for its caller (`opaque: true`, and which axis) are the whole of
+    /// what distinguishes it.
     ///
     /// Registration happens here rather than in `paint` because §8.1 requires
     /// it after positions resolve and before the first primitive is emitted —
@@ -247,19 +249,18 @@ public struct PrepaintPass {
     /// neither. Both halves of the portal have a reader on this pass, and they
     /// close different holes:
     ///
-    /// - the **clip reset**, because both `registerScrollRegion` and
-    ///   `insertHitbox` record against whatever clip is active at registration
-    ///   time, so something registered inside `deferred` is recorded against
-    ///   the whole surface rather than an ancestor `ScrollView`'s viewport.
-    ///   `insertHitbox` also takes the reset *offset*, which is what stops a
-    ///   modal's scrim from tracking a scroll it is not in flow for
-    ///   (ruling AP-I);
-    /// - the **layer hoist**, because both registrations carry `activeLayer`
-    ///   and both `Window.applyScroll` and `Frame.topmostHitbox(at:)` rank by
-    ///   it. A hoisted subtree is still *emitted* where it was declared, so it
-    ///   can register before something it paints on top of; registration order
-    ///   alone would then hand the event to the covered element.
-    ///   `Frame.scrollRegions` carries the reasoning.
+    /// - the **clip reset**, because a hitbox is recorded against whatever clip
+    ///   is active at registration time, so something registered inside
+    ///   `deferred` is recorded against the whole surface rather than an
+    ///   ancestor `ScrollView`'s viewport. It also takes the reset *offset*,
+    ///   which is what stops a modal's scrim from tracking a scroll it is not
+    ///   in flow for (ruling AP-I) — and since scroll regions fold into the
+    ///   same list, that now holds for a scroller inside a portal too;
+    /// - the **layer hoist**, because every registration carries `activeLayer`
+    ///   and `topmostOpaqueHitbox(in:at:)` ranks by it. A hoisted subtree is
+    ///   still *emitted* where it was declared, so it can register before
+    ///   something it paints on top of; registration order alone would then
+    ///   hand the event to the covered element.
     ///
     /// Closure form rather than push/pop, for the reason `clipped(to:offsetBy:)`
     /// above already gives: an unbalanced stack is not expressible.
