@@ -201,8 +201,35 @@ struct CounterPanel: Element {
     static func chrome(count: Int,
                        minus: @escaping @MainActor () -> Void,
                        plus: @escaping @MainActor () -> Void) -> Box<Chrome> {
+        // **The declared width is sidestepping divergence 8, and without it
+        // this label wraps on most counts.** A shrink-wrapped `Text` measures
+        // to a fractional max-content; `roundLayout` rounds the cumulative
+        // edges and subtracts, so the stored box can come out up to a point
+        // narrower than the width the string was measured at; and `Text.paint`
+        // then re-asks CoreText at that *rounded* width, where the last word no
+        // longer fits. Layout says one line, paint draws two, and the second
+        // hangs below a box that is one line tall.
+        //
+        // Measured on this readout at 22pt, sweeping the count: counts 0, 1, 3,
+        // 4, 5, 6, 8, 9, 10 and 11 wrapped and 2, 7 and 12 did not — a coin
+        // flip on `frac(x + maxContent)`, which is why it tracks the digit
+        // rather than the value. A human found it in the running demo, which is
+        // the only place it had ever been visible on a single short string.
+        //
+        // **104 is measured rather than chosen**: it is the smallest declared
+        // width at which nothing wraps through `"Count 888"` (96 wraps at 137
+        // and 888, 100 wraps at 888, 104 and above wrap at nothing). Smallest
+        // is what is wanted, because `Text` has no alignment of its own — the
+        // string is left-aligned inside whatever box it is given, so a wider
+        // box pushes the label further left of the panel's centre. At 104 a
+        // one-digit count sits ~14pt left of true centre and converges to
+        // centred as digits are added.
+        //
+        // This is a demo spelling, not a fix. The engine defect is divergence 8
+        // in CLAUDE.md, it is pre-existing, and its two honest fixes both live
+        // above this file.
         let readout = Box {
-            Text("Count \(count)").font(size: 22)
+            Text("Count \(count)").font(size: 22).width(Pixels(104))
         }
         .width(Pixels(140))
         .height(Pixels(36))

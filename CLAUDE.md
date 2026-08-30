@@ -1035,14 +1035,38 @@ observation about whether it is actually perceptible. A positive report closes
 §9 item 6 and closes none of the looks this file already lists as permanently
 open.
 
-**`@State`, hit testing and input dispatch — exit criterion 7 is OPEN. Nobody
-has run this build and looked at it, and nothing below should be read as saying
-otherwise.** Design spec §7 item 7 asks a human to run the demo and report
-whether clicking feels responsive, whether hover reads correctly and whether
-focus is visible. **What has been established is only that the demo builds
-warning-free and launches**: the binary was started, stayed alive, and wrote
-nothing to stderr. That is a process fact, not an observation of a window, and
-it rules out exactly one failure — a crash on startup.
+**`@State`, hit testing and input dispatch — exit criterion 7 is CLOSED by a
+human on 2026-08-30, and the same run found one real defect.** Design spec §7
+item 7 asks a human to run the demo and report whether clicking feels
+responsive, whether hover reads correctly and whether focus is visible.
+
+**What they said, quoted rather than paraphrased**: "Everything works as
+expected for the most part, I only saw one anomaly" — the anomaly being the
+counter's readout, screenshotted at two counts, wrapping `"Count 3"` onto two
+lines while `"Count 2"` stayed on one.
+
+**Read the closure at exactly its strength, which is a general report and not
+an itemised one.** The list below has five numbered items and the human did not
+answer them one by one, so "works as expected" covers the whole of what they
+exercised and pins none of the five individually. In particular the two
+counter-intuitive expected answers — that hover is deliberately *sticky* when
+the pointer leaves the window (ruling IN-K), and that `=`/`-` must do
+**nothing** once Escape has dropped focus (both bindings carry
+`context: "Counter"`) — were not separately confirmed, and a later reader should
+not cite this entry as evidence for either. What is closed is the criterion as
+written: clicking, hover and focus were seen in a real window under a live
+pointer and nothing about them was reported as wrong.
+
+**The anomaly is divergence 8 and it is pre-existing, not a defect of this
+milestone.** It is the first time anyone has seen that divergence on a single
+short string rather than across forty list rows; the sweep, the demo's
+sidestep, and a candidate sidestep that turned out worse are all recorded in
+divergence 8's own entry. The counter demo now declares the label's width and
+the readout no longer wraps; **the engine defect is untouched and still open.**
+
+Before that run, what had been established was only that the demo builds
+warning-free and launches — the binary started, stayed alive, and wrote nothing
+to stderr, which is a process fact rather than an observation of a window.
 
 **Why this criterion cannot be closed by anything in the suite, stated as a
 mechanism rather than as deference.** All three questions are about a rendered
@@ -1058,6 +1082,11 @@ only on a click — is a human observation and nothing else. And the demo's
 "this thing has the keyboard" is a judgement about two dark greys, which is the
 same kind of judgement the scrim entry above records a first pass getting
 backwards until it was measured.
+
+**The five items below are kept as written, as the standing script for the next
+run rather than as an open request.** They were answered in the general once
+(see the closure above); re-running them individually is what would pin the two
+counter-intuitive ones.
 
 **What a human must do, and what to report.** Run `swift run MetalUIDemo`. The
 counter is in the main pane, below the layered hero and above the "Text
@@ -1514,6 +1543,43 @@ in the probed tree. The branch's only contribution was putting 40
 shrink-wrapped strings on screen at once, which turned a roughly one-in-three
 per-string coin flip into something visible — a reporting contribution, not a
 causal one.
+
+**A HUMAN FOUND IT IN THE RUNNING DEMO on 2026-08-30, on a single short
+string, and that is the first time anyone has.** The input milestone's counter
+readout was `Text("Count \(count)")` at 22pt, shrink-wrapped and centred in a
+140pt box, and it wrapped `"Count 3"` onto two lines while `"Count 2"` stayed
+on one. Swept through the engine over counts 0-12: **0, 1, 3, 4, 5, 6, 8, 9,
+10 and 11 wrapped; 2, 7 and 12 did not.** That is this entry's own mechanism
+with no list, no scroller and no forty strings — the coin flip is on
+`frac(x + maxContent)`, so it tracks the *digit* rather than the value, and one
+label changing one character is enough to flip it.
+
+**Read this as the strongest evidence the entry has**, and as a correction to
+how the entry reads. Everything above describes it as a thing you notice
+*across* forty rows, which invites the reading that a single label is safe. It
+is not: a lone centred label is exactly as exposed, and centring is what
+supplies the fractional origin.
+
+**The demo sidesteps it with a declared width and does NOT fix it.**
+`Sources/MetalUIDemo/main.swift` now writes
+`Text("Count \(count)").font(size: 22).width(Pixels(104))`, with the reasoning
+at the call site. **104 is measured, not chosen**: it is the smallest declared
+width at which nothing wraps through `"Count 888"` (96 wraps at 137 and 888,
+100 wraps at 888, 104 upward wrap at nothing). Smallest is what is wanted
+because `Text` has no alignment of its own — a string is left-aligned inside
+whatever box it is given, so a wider box pushes the label further off the
+panel's centre; at 104 a one-digit count sits ~14pt left of true centre and
+converges to centred as digits are added. **That off-centring is the sidestep's
+whole cost, and it is a cost the fix would remove.**
+
+**One candidate sidestep was tried and is WORSE — record it so nobody retries
+it.** Splitting the readout into two `Text`s, `"Count"` and `"\(count)"`, looks
+like it should be immune: neither string contains a space, and this entry's
+mechanism is the last *word* moving to line two. Measured, it wraps on **every**
+count rather than some — because `CTTypesetterSuggestLineBreak` breaks *inside*
+a word it cannot fit (ruling TX-F, recorded above for min-content), so the
+constant `"Count"` losing its own fraction breaks mid-word every frame. A
+string with no break opportunity is not protected; it fails harder.
 
 **Not fixed here, and the reason is reach — BM-4's, FS-3's and TX-H's
 reason.** A paint-side epsilon is not the fix, and that was measured rather
