@@ -1072,9 +1072,15 @@ centring being what supplies the fractional origin.
 **The demo carried a declared-width sidestep for one commit and no longer
 does.** `Text.paint` now wraps at the width layout measured at, so
 `Text("Count \(count)")` shrink-wraps and renders on one line at every value;
-removing the sidestep is what demonstrates the fix. **A human has not re-run the
-demo since**, so the closure above stands on the build that had the anomaly —
-which is the honest reading, since nothing else about input changed.
+removing the sidestep is what demonstrates the fix.
+
+**A human ran the fixed build on 2026-08-30 and reported "everything seems to
+be fixed."** That is a second look, on a different build from the one that
+closed the criterion, and it is the only observation anyone has of the fix in a
+real window — every other figure for it is a glyph count out of a headless
+`Frame`. Read it at its strength: it is a general report, so it says the
+anomaly is gone and re-confirms nothing about the five report items
+individually.
 
 **One candidate sidestep is worth remembering even though neither it nor the
 other is in the tree any more**: splitting the readout into two space-free
@@ -1187,7 +1193,11 @@ entry:
   label wrapped on ten of the first thirteen counts and now wraps on none.
   Pinned by `paintWrapsAtTheWidthLayoutMeasuredAtNotTheRoundedBox`,
   `aCentredShrinkWrappedLabelNeverWrapsAtAnyValue` and
-  `aTextShrunkByFlexStillWrapsAtItsShrunkWidth` in `GlyphEmitterTests.swift`.
+  `aTextShrunkByFlexStillWrapsAtItsShrunkWidth` in `GlyphEmitterTests.swift`,
+  and **confirmed in a real window by a human on 2026-08-30** — which matters
+  because every other figure for this fix is a glyph count out of a headless
+  `Frame`, and the defect was originally *reported* by eye rather than found by
+  a test.
 
 **Neither freed label is ever reused** — the same rule `EP-2`/`EP-4` follow —
 so a citation written against "divergence 8" in an older commit message or
