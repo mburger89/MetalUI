@@ -1,0 +1,53 @@
+{
+  "fixture" : "sizing_over_constrained_grows",
+  "raw" : [
+    {
+      "height" : 300,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 140,
+      "id" : "box",
+      "width" : 120,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 10,
+      "id" : "kid",
+      "width" : 10,
+      "x" : 60,
+      "y" : 70
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 300,
+      "id" : "root",
+      "width" : 400,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 140,
+      "id" : "box",
+      "width" : 120,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 10,
+      "id" : "kid",
+      "width" : 10,
+      "x" : 60,
+      "y" : 70
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

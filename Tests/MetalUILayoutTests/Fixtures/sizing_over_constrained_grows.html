@@ -1,0 +1,35 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; }
+  body { margin: 0; }
+  /* Ruling BM-4. `box-sizing: border-box` defines the used size as
+     max(specified, padding + border): when padding and border together exceed
+     the specified size, the BORDER BOX GROWS. This engine clamps the content
+     box to zero instead and leaves the border box at the specified size.
+
+     Horizontal: 50 + 50 padding + 10 + 10 border = 120 against a declared 100.
+     Vertical:   60 + 60 padding + 10 + 10 border = 140 against a declared 80.
+     WebKit: 120 x 140. This engine: 100 x 80.
+
+     `border-style: solid` IS NOT OPTIONAL. Without it `border-width` is inert
+     and the same snippet measures 100x120 — which is how CLAUDE.md's own
+     paragraph for this divergence was wrong when first written.
+
+     The two axes overflow by different amounts (20 and 60) so that an engine
+     growing by the wrong edge, or growing one axis only, is visible.
+
+     `#root` is not the over-constrained box: it is a plain container, so this
+     fixture tests an ITEM's used size rather than the root's, which is the
+     path `resolveNodeSize` serves. `.kid` exists so `.box` is not empty. */
+  #root { display: flex; width: 400px; height: 300px; }
+  .box {
+    width: 100px; height: 80px;
+    padding: 60px 50px;
+    border-style: solid; border-width: 10px; border-color: transparent;
+  }
+  .kid { width: 10px; height: 10px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="box" data-id="box"><div class="kid" data-id="kid"></div></div>
+  </div>
+</body></html>

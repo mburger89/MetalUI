@@ -34,3 +34,37 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
 
     assertMatchesGolden(tree, ids: [root: "root", kid: "kid"], golden: golden, tolerance: 0.5)
 }
+
+/// Ruling BM-4 — an over-constrained box grows its border box to fit its
+/// padding and border, rather than clamping its content box to zero.
+///
+/// The two axes overflow by different amounts (20 horizontally, 60 vertically)
+/// so an engine that grows one axis only, or grows by the wrong edge, cannot
+/// pass by coincidence.
+@Test func overConstrainedBoxGrowsLikeWebKit() throws {
+    let golden = try loadGolden("sizing_over_constrained_grows")
+    let tree = LayoutTree(generation: 0)
+
+    var kidStyle = Style()
+    kidStyle.size = Size(width: px(10), height: px(10))
+    let kid = tree.newNode(style: kidStyle, children: [])
+
+    var boxStyle = Style()
+    boxStyle.size = Size(width: px(100), height: px(80))
+    boxStyle.padding = Edges(top: .pixels(Pixels(60)), right: .pixels(Pixels(50)),
+                             bottom: .pixels(Pixels(60)), left: .pixels(Pixels(50)))
+    boxStyle.border = Edges(all: .pixels(Pixels(10)))
+    let box = tree.newNode(style: boxStyle, children: [kid])
+
+    var rootStyle = Style()
+    rootStyle.display = .flex
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [box])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree, ids: [root: "root", box: "box", kid: "kid"],
+                        golden: golden, tolerance: 0.5)
+}
