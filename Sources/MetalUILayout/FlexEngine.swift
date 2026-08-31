@@ -452,9 +452,82 @@ private func resolveRootSize(
             containingBlockWidth: containingBlockWidth)
     }
 
+    // Ruling BM-4 — the root grows to fit its own padding and border like any
+    // other box, after its min/max clamp. Its containing block is the space it
+    // was offered (`containingBlockWidth`), which is the same basis
+    // `computeLayout` resolves the root's percentage padding against a few
+    // lines below this call; resolving it against the root's own resolved
+    // width instead is the mistake `contentBox`'s containing-block note
+    // records.
+    let floor = borderBoxFloor(tree, root, containingBlockWidth: containingBlockWidth,
+                               rootFontSize: rootFontSize)
     return SizeD(
-        width: clamp(base.width, min: declared(s.minSize.width), max: declared(s.maxSize.width)),
-        height: clamp(base.height, min: declared(s.minSize.height), max: declared(s.maxSize.height)))
+        width: max(clamp(base.width, min: declared(s.minSize.width), max: declared(s.maxSize.width)),
+                   floor.width),
+        height: max(clamp(base.height, min: declared(s.minSize.height), max: declared(s.maxSize.height)),
+                    floor.height))
+}
+
+/// A box's own padding + border per axis — the floor its **border box** may
+/// never go below. Ruling **BM-4**.
+///
+/// `box-sizing: border-box` defines a box's used size on an axis as
+/// `max(specified, padding + border)`: when the two edges together exceed the
+/// specified size, the browser grows the BORDER BOX rather than letting the
+/// content box invert. Every site that turns a node's declared `width`/`height`
+/// into a used border-box size takes this floor — `resolveRootSize`,
+/// `resolveNodeSize`, `flexBaseSize`'s size-property branch, `layOutStack` and
+/// `placeAbsolute`. Each was measured against WebKit rather than reasoned:
+/// `width: 100px; height: 80px; padding: 60px 50px; border-width: 10px` gives
+/// **120x140** as a root, as a flex item, as an absolutely-positioned box and
+/// as a grid item (the closest CSS analogue to `display: .stack`).
+///
+/// **The floor applies AFTER the min/max clamp, and that ordering is measured,
+/// not chosen.** A `max-height: 40px` box with 140 of vertical padding+border
+/// measures **140** in WebKit, not 40; `max-width: 40px` with 120 horizontal
+/// measures **120**. So a `max-*` smaller than the floor does not win — which
+/// is the one case the two orderings disagree on, and the reason this is a
+/// `max(clamp(…), floor)` everywhere rather than a `clamp(max(…), …)`.
+///
+/// **It is the SIZE PROPERTY that is floored, not `flex-basis`** — also
+/// measured, and the differential is sharp: `flex: 0 0 100px; min-width: 0`
+/// with the same 120 of horizontal padding+border measures **100** in WebKit,
+/// where `width: 100px; min-width: 0` measures 120. That is why
+/// `flexBaseSize`'s first branch is deliberately left unfloored.
+///
+/// Percentage `padding` and `border` resolve against the containing block's
+/// **width on every edge**, vertical ones included — CSS's rule, and the same
+/// one `contentBox` implements; `edges` there is this same quantity, computed
+/// for a box whose border box is already known. This function exists because
+/// the floor is needed *before* that, while the border box is still being
+/// decided.
+///
+/// **Two compositions this floor deliberately does not reach**, both measured
+/// through the oracle and both needing a floor on a flex item's *used main*
+/// size rather than on its declared one:
+///
+/// 1. `width: 100px; min-width: 0; max-width: 40px` with 120 of padding+border
+///    is **120** in WebKit and **40** here — the size property is floored by
+///    this function, and `collectItems`' `hypothetical` then clamps it back
+///    down to the max.
+/// 2. Two `width: 500px; min-width: 0` items with 120 of padding+border each,
+///    shrinking into a 200-wide row, are **120** each in WebKit (overflowing)
+///    and 100 each here — §9.7 shrinks below the floor.
+///
+/// Both need an explicit `min-width: 0` to be reachable at all: §4.5's
+/// automatic minimum is the item's min-content size, which already includes
+/// padding and border, so the default floor is never below this one.
+func borderBoxFloor(
+    _ tree: LayoutTree,
+    _ node: LayoutNodeID,
+    containingBlockWidth: Double?,
+    rootFontSize: Double
+) -> SizeD {
+    let s = tree.style(node)
+    let padding = resolveEdges(s.padding, against: containingBlockWidth, rootFontSize: rootFontSize)
+    let border = resolveEdges(s.border, against: containingBlockWidth, rootFontSize: rootFontSize)
+    return SizeD(width: padding.horizontal + border.horizontal,
+                 height: padding.vertical + border.vertical)
 }
 
 /// Resolve a node's own border-box size from its style.
@@ -480,6 +553,13 @@ private func resolveRootSize(
 /// `auto`; an `auto` one is measured through `measureNode` instead. The 0 above
 /// still describes what happens to an unresolvable **percentage**, which WebKit
 /// also leaves at 0 rather than content-sizing — see `ownCross` there.
+///
+/// **Ruling BM-4 — the result is floored at the node's own padding + border**
+/// (`borderBoxFloor`, above), after the min/max clamp. The 0 for an
+/// unresolvable axis is therefore a 0 only for a node with no padding and no
+/// border; a `height: 50%` child of an auto-height container with 20px of
+/// vertical padding is 20 tall, not 0, which is the border box CSS's own
+/// `box-sizing: border-box` guarantees it.
 private func resolveNodeSize(
     _ tree: LayoutTree,
     _ node: LayoutNodeID,
@@ -487,21 +567,33 @@ private func resolveNodeSize(
     rootFontSize: Double
 ) -> SizeD {
     let s = tree.style(node)
+    // The containing block of the node this is called for is its flex
+    // container's CONTENT box, which is exactly what `collectItems` passes as
+    // `parent` — so `parent.width` is the basis every percentage padding and
+    // border edge resolves against, vertical edges included.
+    let floor = borderBoxFloor(tree, node, containingBlockWidth: parent.width,
+                               rootFontSize: rootFontSize)
 
     func axis(_ dim: Dimension, _ minDim: Dimension, _ maxDim: Dimension,
-              parentExtent: Double?) -> Double {
+              parentExtent: Double?, floor: Double) -> Double {
         let resolved = resolveDimension(dim, against: parentExtent, rootFontSize: rootFontSize)
         let lower = resolveDimension(minDim, against: parentExtent, rootFontSize: rootFontSize)
         let upper = resolveDimension(maxDim, against: parentExtent, rootFontSize: rootFontSize)
-        // An unresolvable size is 0 here. On a flex item's main axis this
-        // result is computed but discarded — §9.2's flex base size supplies
-        // that axis instead.
-        return clamp(resolved ?? 0, min: lower, max: upper)
+        // An unresolvable size is 0 here, before the floor. On a flex item's
+        // main axis this result is computed but discarded — §9.2's flex base
+        // size supplies that axis instead.
+        //
+        // Ruling BM-4: the floor is applied LAST, outside the clamp, because
+        // WebKit does not let a `max-*` cap a border box below its own padding
+        // and border — measured, see `borderBoxFloor`.
+        return max(clamp(resolved ?? 0, min: lower, max: upper), floor)
     }
 
     return SizeD(
-        width: axis(s.size.width, s.minSize.width, s.maxSize.width, parentExtent: parent.width),
-        height: axis(s.size.height, s.minSize.height, s.maxSize.height, parentExtent: parent.height))
+        width: axis(s.size.width, s.minSize.width, s.maxSize.width,
+                    parentExtent: parent.width, floor: floor.width),
+        height: axis(s.size.height, s.minSize.height, s.maxSize.height,
+                     parentExtent: parent.height, floor: floor.height))
 }
 
 /// A container's content box: where its children start, and how much room they get.
@@ -538,9 +630,12 @@ private func resolveNodeSize(
 /// `edges` is the total this box spends on padding and border per axis — the
 /// term that turns a content box back into a border box. It is returned rather
 /// than recovered as `borderBox - size` by the caller because that subtraction
-/// is not invertible: `size` is clamped at 0 (ruling BM-4, below), and an axis
-/// of `borderBox` may be **indefinite**, where there is nothing to subtract
-/// from.
+/// is not invertible: `size` is clamped at 0 (the `max(0, …)` below, which
+/// ruling BM-4 narrowed rather than removed), and an axis of `borderBox` may be
+/// **indefinite**, where there is nothing to subtract from. `edges` is also the
+/// same quantity `borderBoxFloor` computes — that function answers it for a box
+/// whose border box is not decided yet, which is where the floor has to be
+/// applied.
 ///
 /// `borderBox` is an `OptionalSizeD` because `measureNode` asks about a node
 /// whose size is exactly what it is trying to find out: `nil` on an axis means
@@ -561,19 +656,35 @@ private func contentBox(
     let border = resolveEdges(s.border, against: containingBlockWidth, rootFontSize: rootFontSize)
 
     let leading = (padding.left + border.left, padding.top + border.top)
-    // Ruling BM-4 (CLAUDE.md's known divergences) — this is a deliberate stand-in,
-    // not a faithful CSS clamp. CSS's actual answer when padding + border
-    // exceeds the specified size on an axis is to GROW the border box itself
+    // Ruling BM-4 — the growing is done UPSTREAM of this function now, and
+    // `max(0, …)` is what is left of it. CSS's answer when padding + border
+    // exceeds the specified size on an axis is to grow the border box itself
     // (`box-sizing: border-box` defines the used size as
     // `max(specified, padding + border)`), never to let the content box go
-    // negative. This function does not grow the border box — `borderBox` here
-    // is exactly the node's already-stored size, and changing it is a sizing
-    // change (`resolveNodeSize`/`flexBaseSize`) with reach well beyond this
-    // function: the freeze loop and every ancestor consume a node's stored
-    // size. `max(0, …)` is the narrower, local stand-in: it leaves the border
-    // box exactly as specified and only prevents the content box from
-    // inverting. See `containerDoesNotGrowToFitOverconstrainedPaddingUnlikeWebKit`
-    // in BoxModelTests.swift for the pinned divergence and WebKit's real numbers.
+    // negative — and the SIZING milestone implemented exactly that, at every
+    // site that turns a declared size into a used one (`borderBoxFloor`). So a
+    // `borderBox` arriving here from any of them is already at or above
+    // `padding + border`, and this subtraction cannot go negative for it.
+    //
+    // The guard stays because a declared size is not the only way an axis
+    // reaches this function. §9.7 can still shrink a flexed main size below the
+    // floor when an explicit `min-width: 0` switches §4.5's automatic minimum
+    // off — one of the two compositions `borderBoxFloor`'s doc records as
+    // deliberately out of reach, WebKit's answer for it being the grown box.
+    // A stretched child then inherits the container's cross extent directly,
+    // so without `max(0, …)` its *stored* height goes negative: measured at
+    // **−80** for a 500-tall row with 140 of vertical padding+border shrunk
+    // into a 60-tall column.
+    //
+    // **Deleting this line reddened NOTHING on the 746-test suite the sizing
+    // milestone's Task 4 left behind**, and that is why the test above exists.
+    // It was reachable through the old
+    // `containerDoesNotGrowToFitOverconstrainedPadding…` pin, whose unfloored
+    // 100×80 root really did have a −20 × −60 content box; flooring the border
+    // box everywhere a declared size becomes a used one took that away and left
+    // the guard live in the engine and dead to the suite.
+    // `aShrunkContainerNeverHandsItsChildANegativeContentBox`
+    // (BoxModelTests.swift) is the pin, and it reddens on exactly this line.
     let size = OptionalSizeD(
         width: borderBox.width.map { max(0, $0 - padding.horizontal - border.horizontal) },
         height: borderBox.height.map { max(0, $0 - padding.vertical - border.vertical) })
@@ -1069,7 +1180,7 @@ private func layOutStack(
         let knownWidth = resolvedAxis(ks.size.width, basis: box.size.width, lower: minWidth, upper: maxWidthBound)
         let knownHeight = resolvedAxis(ks.size.height, basis: box.size.height, lower: minHeight, upper: maxHeightBound)
 
-        let size: SizeD
+        var size: SizeD
         if let knownWidth, let knownHeight {
             // Both axes resolved from the child's own style — no need to run
             // the child's own layout to size it; `positionStackItems` (Task 3)
@@ -1093,6 +1204,19 @@ private func layOutStack(
             size = SizeD(width: knownWidth ?? clamp(measured.width, min: minWidth, max: maxWidthBound),
                          height: knownHeight ?? clamp(measured.height, min: minHeight, max: maxHeightBound))
         }
+
+        // Ruling BM-4 — a stack child grows to fit its own padding and border
+        // exactly as a flex item does, after its min/max clamp
+        // (`borderBoxFloor`). Applied to both branches above rather than inside
+        // `resolvedAxis`, so the declared and measured paths cannot drift; on
+        // the measured path it is a no-op, `measureNode` already reporting a
+        // border box that includes `edges`. Measured against WebKit's closest
+        // analogue to `display: .stack`, a grid item: `width: 100px;
+        // height: 80px; padding: 60px 50px; border-width: 10px` is 120x140.
+        let floor = borderBoxFloor(tree, kid, containingBlockWidth: box.size.width,
+                                   rootFontSize: rootFontSize)
+        size = SizeD(width: max(size.width, floor.width),
+                     height: max(size.height, floor.height))
 
         items.append(StackItem(node: kid, size: size))
         maxWidth = max(maxWidth, size.width)
@@ -1260,7 +1384,7 @@ private func placeAbsolute(_ ctx: LayoutContext, _ tree: LayoutTree,
         ? cb.size.height - top! - bottom! : nil
 
     let known = OptionalSizeD(width: declaredWidth ?? stretchWidth, height: declaredHeight ?? stretchHeight)
-    let size: SizeD
+    var size: SizeD
     if let w = known.width, let h = known.height {
         size = SizeD(width: w, height: h)
     } else {
@@ -1273,6 +1397,21 @@ private func placeAbsolute(_ ctx: LayoutContext, _ tree: LayoutTree,
                                    containingBlockWidth: cb.size.width)
         size = SizeD(width: known.width ?? measured.width, height: known.height ?? measured.height)
     }
+
+    // Ruling BM-4 — an absolutely-positioned box grows to fit its own padding
+    // and border like any other box (`borderBoxFloor`). Applied to the final
+    // size rather than inside `declaredAxis`, so all three branches above take
+    // it: the declared one, the stretched-between-two-insets one (which can
+    // otherwise land below the floor when the insets leave less room than the
+    // edges need) and the measured one (where it is a no-op, `measureNode`
+    // already reporting a border box that includes `edges`). Measured against
+    // WebKit: `position: absolute; width: 100px; height: 80px;
+    // padding: 60px 50px; border-width: 10px` is 120x140. Percentage edges
+    // resolve against the containing block's WIDTH on every edge, which is
+    // `cb.size.width` — the same basis `placeNode` hands this subtree.
+    let floor = borderBoxFloor(tree, node, containingBlockWidth: cb.size.width,
+                               rootFontSize: ctx.rootFontSize)
+    size = SizeD(width: max(size.width, floor.width), height: max(size.height, floor.height))
 
     // Leading wins over trailing when both are given — CSS's over-constrained
     // rule (drop `right`/`bottom`) falls out of this uniformly, since sizing
@@ -1693,7 +1832,20 @@ private func collectItems(
             // corpus (the same footing as WebKit's flex sub-one clause). Adding
             // the specified suggestion here changes an item's floor, which
             // §9.7's freeze loop consumes and every ancestor then sees as a
-            // different stored size: sizing-plan reach, like ruling BM-4's.
+            // different stored size: sizing-plan reach, like ruling BM-4's was.
+            //
+            // **BM-4 has since landed, and it changes what the specified size
+            // suggestion IS here — read this before implementing the missing
+            // half.** Under `box-sizing: border-box` the suggestion is the
+            // item's USED preferred size, not its declared one, and
+            // `borderBoxFloor` now makes those differ: an over-constrained
+            // `width: 100px` item whose padding and border come to 120 has a
+            // specified size suggestion of **120**. Taking the declared 100
+            // instead gives `min(100, 130) = 100` for
+            // `sizing_over_constrained_grows`, which is neither WebKit's answer
+            // (120) nor this engine's current one (130) — see that fixture's
+            // own HTML comment and `overConstrainedBoxGrowsLikeWebKit`, which
+            // is red on its width until exactly this half lands.
             let minDim = isRow ? ks.minSize.width : ks.minSize.height
             let minMain: Double? = {
                 if case .auto = minDim {

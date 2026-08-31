@@ -41,6 +41,30 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
 /// The two axes overflow by different amounts (20 horizontally, 60 vertically)
 /// so an engine that grows one axis only, or grows by the wrong edge, cannot
 /// pass by coincidence.
+///
+/// **STILL RED after Task 4 implemented BM-4, on the WIDTH only, and that is
+/// measured rather than a defect in the fix.** The engine now answers
+/// **130 × 140**: the height is BM-4's grown 140, and the width is §4.5's
+/// automatic minimum — the item's own min-content, `padding 100 + border 20 +
+/// the 10pt child = 130` — which is a *higher* floor than BM-4's 120 and wins.
+/// The plan's Ruling G worked the arithmetic as `max(100, 120) = 120` and did
+/// not carry the automatic minimum through it; the two floors compose as
+/// `max(130, 120)`.
+///
+/// **Task 6 is what turns it green**, and the differential says so exactly:
+/// setting `min-width: 0` on `.box` — which replaces the automatic minimum
+/// outright — makes this same tree measure **120 × 140** today, WebKit's
+/// answer. What is missing is only §4.5's *specified* size suggestion, whose
+/// value under `box-sizing: border-box` is the item's USED size, which BM-4
+/// has just made 120: `min(120, 130) = 120`.
+///
+/// **One forward hazard Ruling G also did not carry, for whoever implements
+/// Task 6.** At a box width of 120 the content box is 0, and `.kid` — a flex
+/// item with `width: 10px`, `flex-shrink: 1` and an automatic minimum of 0 —
+/// shrinks to **0** here, where this golden records WebKit's **10**. Measured:
+/// forcing the 120 today (via `min-width: 0`) gives `kid` width 0. So Task 6
+/// may turn this fixture green on `box` and red on `kid`; that is a §9.7
+/// question, not a BM-4 one.
 @Test func overConstrainedBoxGrowsLikeWebKit() throws {
     let golden = try loadGolden("sizing_over_constrained_grows")
     let tree = LayoutTree(generation: 0)

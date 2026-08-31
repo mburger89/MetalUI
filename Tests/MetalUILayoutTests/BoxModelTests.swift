@@ -104,34 +104,44 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
     #expect(tree.layout(kid).x == 23)
 }
 
-/// **Ruling BM-4** (see CLAUDE.md's "known divergences") — pins a deliberate
-/// divergence from CSS, not a bug, and closes the mutation that deletes
-/// `contentBox`'s `max(0, …)` guard.
+/// **Ruling BM-4** — an over-constrained box grows its border box to fit its
+/// own padding and border, matching CSS: `box-sizing: border-box` defines the
+/// used size on an axis as `max(specified, padding + border)`.
 ///
-/// CSS's real answer when padding + border exceeds the container's specified
-/// size on an axis is to **grow the border box itself**, never to let the
-/// content box go negative: `box-sizing: border-box` defines the used size as
-/// `max(specified, padding + border)`. Measured against live WebKit for
+/// Measured against live WebKit for
 /// `width: 100px; height: 80px; padding: 60px 50px; border-width: 10px` with
 /// one auto-sized child: **WebKit renders the root at 120×140**, not 100×80.
 /// Horizontal padding+border is 50 + 50 + 10 + 10 = 120, exceeding the
 /// specified width of 100; vertical is 60 + 60 + 10 + 10 = 140, exceeding the
-/// specified height of 80 — so WebKit grows the border box to fit them
-/// exactly: 120 wide, 140 tall.
+/// specified height of 80 — so the border box grows to fit them exactly: 120
+/// wide, 140 tall. The two axes overflow by different amounts (20 and 60), so
+/// growing one axis only, or growing by the wrong edge, cannot pass here by
+/// coincidence.
 ///
-/// This engine does not grow the border box — implementing that belongs in
-/// sizing (`resolveNodeSize`/`flexBaseSize`), which moves a node's *stored*
-/// size and has reach far beyond `contentBox` (the freeze loop, every
-/// ancestor). Out of scope for the box-model task. Instead `contentBox`
-/// clamps the *content* box to zero and leaves the border box exactly as
-/// specified, so the root here stays 100×80 — this test pins that choice.
+/// **This test asserted the OPPOSITE, deliberately, for three milestones**, as
+/// `containerDoesNotGrowToFitOverconstrainedPaddingUnlikeWebKit`: the box model
+/// scoped the growing out (it moves a node's *stored* size, which the freeze
+/// loop and every ancestor consume) and pinned 100×80 with WebKit's real
+/// numbers named in this comment, so that closing it later would be a decision
+/// rather than a surprise. The SIZING milestone closed it, in `borderBoxFloor`
+/// and its five call sites, and this test was inverted rather than deleted —
+/// the numbers it names are the same ones, now on the other side of the
+/// assertion.
 ///
-/// Without `max(0, …)`, the content box's height goes negative (80 - 120 -
-/// 20 = -60) and the stretched child inherits it *unclamped* — a negative
-/// stored height — which is what actually reddens this test if the guard is
-/// removed; the root's own rect does not move under that particular mutation,
-/// since the guard lives downstream of it.
-@Test func containerDoesNotGrowToFitOverconstrainedPaddingUnlikeWebKit() {
+/// **The root is the site this test reaches**, and it is a different one from
+/// the fixture that drives the same rule: `resolveRootSize`, not
+/// `resolveNodeSize`. `overConstrainedBoxGrowsLikeWebKit`
+/// (`SizingFixtureTests.swift`) puts the identical declaration on a flex ITEM,
+/// where the width is the item's main axis and goes through `flexBaseSize` and
+/// §4.5's automatic minimum instead. The two are not duplicates: deleting
+/// either site's floor leaves the other test green.
+///
+/// The child is the pin for `contentBox`'s surviving `max(0, …)`: the content
+/// box here is exactly 0 on both axes (120 − 120, 140 − 140), and without the
+/// guard a rounding or ordering regression that put the border box back below
+/// its edges would hand the stretched child a *negative* stored size rather
+/// than a zero one.
+@Test func anOverConstrainedBoxGrowsToFitItsPaddingAndBorder() {
     let tree = LayoutTree(generation: 0)
     let a = tree.newNode(style: Style(), children: [])   // auto/auto: stretches on the cross
 
@@ -145,13 +155,275 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
 
-    // WebKit: 120x140. We keep the specified border box, 100x80 — the pinned
-    // divergence.
-    #expect(tree.layout(root) == LayoutRect(x: 0, y: 0, width: 100, height: 80))
-    // The child matches WebKit exactly (60, 70, 0, 0) even though the root
-    // does not: its origin comes only from padding+border offsets, and its
-    // clamped-to-zero content box happens to agree with WebKit's own here.
+    // WebKit: 120x140, and so do we since ruling BM-4 was implemented.
+    #expect(tree.layout(root) == LayoutRect(x: 0, y: 0, width: 120, height: 140))
+    // The child matched WebKit even while the root did not, and still does:
+    // its origin is the leading padding + border, and the content box it
+    // stretches into is 0 on both axes.
     #expect(tree.layout(a) == LayoutRect(x: 60, y: 70, width: 0, height: 0))
+}
+
+/// `contentBox`'s `max(0, …)` — the guard that keeps a container from handing
+/// its child a NEGATIVE stored size — reached through the one composition
+/// ruling BM-4's floor does not cover.
+///
+/// **Written because the mutation that deletes that guard reddened nothing
+/// once BM-4 landed.** It used to be reachable through
+/// `anOverConstrainedBoxGrowsToFitItsPaddingAndBorder` (then asserting the
+/// unfloored 100×80, whose content box really was −20 × −60); with the border
+/// box floored at its edges everywhere a *declared* size becomes a used one,
+/// every test in the suite now arrives at `contentBox` with a border box at or
+/// above its padding and border, and the guard went quietly dead to the whole
+/// 746-test suite. It is not dead in the engine — this is the path that still
+/// reaches it.
+///
+/// §9.7 can shrink a flex item below its own padding and border when an
+/// explicit `min-height: 0` replaces §4.5's automatic minimum (which is the
+/// item's min-content size, and so never below its edges). Here a 500-tall row
+/// with 140 of vertical padding+border is the only item of a 60-tall column, so
+/// it shrinks to 60 and its content box is **−80** tall. Its `auto`-height
+/// child stretches into that: with the guard the child is 0 tall, and without
+/// it the child's *stored* height is **−80**.
+///
+/// **WebKit disagrees about the row and agrees about the child**, measured:
+/// the row is **140** tall there — the flexed used size is floored at
+/// padding+border too, which `borderBoxFloor`'s doc records as one of the two
+/// compositions deliberately left open — while the child is 0×0 at (0, 70) in
+/// both engines. So this test pins the guard, not the divergence; when the
+/// §9.7 floor is implemented the row here becomes 140 and this composition
+/// stops reaching `contentBox` at all.
+@Test func aShrunkContainerNeverHandsItsChildANegativeContentBox() {
+    let tree = LayoutTree(generation: 0)
+    let kid = tree.newNode(style: Style(), children: [])   // auto/auto: stretches on the cross
+
+    var rowStyle = Style()
+    rowStyle.flexDirection = .row
+    rowStyle.size = Size(width: px(200), height: px(500))
+    rowStyle.minSize = Size(width: .auto, height: px(0))
+    rowStyle.padding = Edges(top: pxL(60), right: pxL(0), bottom: pxL(60), left: pxL(0))
+    rowStyle.border = Edges(top: pxL(10), right: pxL(0), bottom: pxL(10), left: pxL(0))
+    let row = tree.newNode(style: rowStyle, children: [kid])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .column
+    rootStyle.size = Size(width: px(200), height: px(60))
+    let root = tree.newNode(style: rootStyle, children: [row])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    // The row shrinks past its own edges (WebKit: 140 — the open §9.7 half of
+    // BM-4), and the child it stretches must still not go negative.
+    #expect(tree.layout(row) == LayoutRect(x: 0, y: 0, width: 200, height: 60))
+    #expect(tree.layout(kid) == LayoutRect(x: 0, y: 70, width: 0, height: 0))
+}
+
+/// Ruling BM-4 at `resolveNodeSize`, plus the ordering decision the whole rule
+/// turns on: **the padding+border floor applies AFTER the min/max clamp**.
+///
+/// A row item's declared CROSS size (height) is the axis `resolveNodeSize`
+/// serves — the fixture `overConstrainedBoxGrowsLikeWebKit` reaches it too, but
+/// only through its height half, and that test is red on its width until §4.5's
+/// specified size suggestion lands. This is the green pin for the same site.
+///
+/// **`max-height: 40px` is what makes the ordering observable, and WebKit was
+/// driven for it rather than reasoned about.** The two orders give different
+/// answers and only one matches:
+///
+///     floor then clamp:  max(80, 140) = 140, clamped to 40  ->  40
+///     clamp then floor:  min(80, 40)  =  40, floored at 140 -> 140
+///
+/// Measured through the oracle — a row item with `height: 80px;
+/// max-height: 40px; padding: 60px 0; border-width: 10px 0` — WebKit renders it
+/// **140** tall. So a `max-*` below a box's own padding and border does not cap
+/// it, and the floor is the last thing applied. The same probe on the main axis
+/// (`width: 100px; min-width: 0; max-width: 40px` with 120 of horizontal
+/// padding+border) also measures 120, not 40.
+///
+/// The horizontal axis is deliberately unpadded, so this cannot pass on
+/// `flexBaseSize`'s floor by accident.
+@Test func anItemsCrossSizeGrowsToFitItsPaddingAndBorderEvenPastItsMax() {
+    let tree = LayoutTree(generation: 0)
+    var boxStyle = Style()
+    boxStyle.size = Size(width: px(30), height: px(80))
+    boxStyle.maxSize = Size(width: .auto, height: px(40))
+    boxStyle.padding = Edges(top: pxL(60), right: pxL(0), bottom: pxL(60), left: pxL(0))
+    boxStyle.border = Edges(top: pxL(10), right: pxL(0), bottom: pxL(10), left: pxL(0))
+    let box = tree.newNode(style: boxStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.alignItems = .flexStart
+    rootStyle.size = Size(width: px(900), height: px(600))
+    let root = tree.newNode(style: rootStyle, children: [box])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(900), height: .definite(600)))
+
+    #expect(tree.layout(box) == LayoutRect(x: 0, y: 0, width: 30, height: 140))
+}
+
+/// Ruling BM-4 at `flexBaseSize` — a flex item's declared MAIN size grows to
+/// fit its padding and border, and an explicit `min-width: 0` is what makes
+/// that observable.
+///
+/// **The automatic minimum hides this site, which is why the test has to turn
+/// it off.** §4.5's content size suggestion is the item's min-content size,
+/// which already includes its own padding and border, so a `min-width: auto`
+/// item is floored at or above `borderBoxFloor` before this branch is ever
+/// consulted — `overConstrainedBoxGrowsLikeWebKit`'s box is floored at 130 by
+/// its content, not at 120 by its edges. Writing `min-width: 0` replaces the
+/// automatic minimum outright and leaves the flex base size as the only floor.
+///
+/// Measured through the oracle: a row item with
+/// `width: 100px; min-width: 0; padding: 0 50px; border-width: 0 10px` is
+/// **120** wide in WebKit. Without the floor in `flexBaseSize` this engine
+/// gives the declared 100.
+///
+/// The vertical axis is deliberately unpadded: this is about the MAIN axis
+/// alone, and `resolveNodeSize`'s floor (the cross axis) must not be able to
+/// make it pass.
+@Test func anItemWithMinZeroStillGrowsToFitItsPaddingAndBorder() {
+    let tree = LayoutTree(generation: 0)
+    var boxStyle = Style()
+    boxStyle.size = Size(width: px(100), height: px(40))
+    boxStyle.minSize = Size(width: px(0), height: .auto)
+    boxStyle.padding = Edges(top: pxL(0), right: pxL(50), bottom: pxL(0), left: pxL(50))
+    boxStyle.border = Edges(top: pxL(0), right: pxL(10), bottom: pxL(0), left: pxL(10))
+    let box = tree.newNode(style: boxStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(900), height: px(60))
+    let root = tree.newNode(style: rootStyle, children: [box])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(900), height: .definite(600)))
+
+    #expect(tree.layout(box) == LayoutRect(x: 0, y: 0, width: 120, height: 40))
+}
+
+/// Ruling BM-4 stops at the size PROPERTY — a definite `flex-basis` is NOT
+/// floored at the item's padding and border.
+///
+/// **The differential is the whole test, and it was measured rather than
+/// reasoned.** Two items with the identical 120 of horizontal padding + border
+/// and the identical `min-width: 0`, differing only in how their 100 is
+/// spelled:
+///
+///     width: 100px       -> WebKit 120   (floored; `anItemWithMinZero…`)
+///     flex-basis: 100px  -> WebKit 100   (not floored; this test)
+///
+/// So `flexBaseSize`'s first branch is deliberately left unfloored, and this is
+/// the pin for that — **added because the mutation that floors it too reddened
+/// nothing at all** on a 746-test suite, which is exactly the shape this repo
+/// treats as a finding rather than as reassurance. Whoever "completes" BM-4 by
+/// flooring step 1 gets a red test and this comment's numbers.
+@Test func aDefiniteFlexBasisIsNotFlooredByPaddingAndBorder() {
+    let tree = LayoutTree(generation: 0)
+    var boxStyle = Style()
+    boxStyle.flexBasis = px(100)
+    boxStyle.size = Size(width: .auto, height: px(40))
+    boxStyle.minSize = Size(width: px(0), height: .auto)
+    boxStyle.padding = Edges(top: pxL(0), right: pxL(50), bottom: pxL(0), left: pxL(50))
+    boxStyle.border = Edges(top: pxL(0), right: pxL(10), bottom: pxL(0), left: pxL(10))
+    let box = tree.newNode(style: boxStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(900), height: px(60))
+    let root = tree.newNode(style: rootStyle, children: [box])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(900), height: .definite(600)))
+
+    #expect(tree.layout(box) == LayoutRect(x: 0, y: 0, width: 100, height: 40))
+}
+
+/// Ruling BM-4 at `layOutStack` — a stack child grows to fit its own padding
+/// and border, and the stack then sizes itself to the grown child.
+///
+/// **A `Stack` is not CSS, so the oracle is its closest analogue**: a grid item
+/// with `width: 100px; height: 80px; padding: 60px 50px; border-width: 10px`
+/// measures **120×140** in WebKit inside `display: grid`, the same answer the
+/// same declaration gets as a flex item, as an absolute box and as the root.
+///
+/// The stack itself is `auto` on both axes, so its own size is the max over its
+/// children — which makes the grown child observable twice: in the child's rect
+/// and in the container's. A floor applied to only one of `layOutStack`'s two
+/// branches would still pass on one of those, so both are asserted.
+@Test func aStackChildGrowsToFitItsPaddingAndBorder() {
+    let tree = LayoutTree(generation: 0)
+    var kidStyle = Style()
+    kidStyle.size = Size(width: px(100), height: px(80))
+    kidStyle.padding = Edges(top: pxL(60), right: pxL(50), bottom: pxL(60), left: pxL(50))
+    kidStyle.border = Edges(all: pxL(10))
+    let kid = tree.newNode(style: kidStyle, children: [])
+
+    var stackStyle = Style()
+    stackStyle.display = .stack
+    stackStyle.alignItems = .flexStart
+    stackStyle.justifyItems = .start
+    let stack = tree.newNode(style: stackStyle, children: [kid])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.alignItems = .flexStart
+    rootStyle.size = Size(width: px(400), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [stack])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(kid) == LayoutRect(x: 0, y: 0, width: 120, height: 140))
+    #expect(tree.layout(stack) == LayoutRect(x: 0, y: 0, width: 120, height: 140))
+}
+
+/// Ruling BM-4 at `placeAbsolute` — an absolutely-positioned box grows to fit
+/// its own padding and border, and it does so from the branch that STRETCHES
+/// between two insets as well as from the declared one.
+///
+/// Measured: `position: absolute; left: 0; top: 300px; width: 100px;
+/// height: 80px; padding: 60px 50px; border-width: 10px` is **120×140** in
+/// WebKit.
+///
+/// The second box is the one the floor is placed at the end of the function
+/// for: its size comes from neither its style nor a measure but from the gap
+/// between `left` and `right`, which here is 40 — narrower than the 120 of
+/// horizontal padding and border it must contain. Its position still comes
+/// from the leading inset, so the grown box overflows to the right rather than
+/// moving.
+@Test func anAbsoluteBoxGrowsToFitItsPaddingAndBorder() {
+    let tree = LayoutTree(generation: 0)
+
+    var declaredStyle = Style()
+    declaredStyle.position = .absolute
+    declaredStyle.inset = Edges(top: px(0), right: .auto, bottom: .auto, left: px(0))
+    declaredStyle.size = Size(width: px(100), height: px(80))
+    declaredStyle.padding = Edges(top: pxL(60), right: pxL(50), bottom: pxL(60), left: pxL(50))
+    declaredStyle.border = Edges(all: pxL(10))
+    let declared = tree.newNode(style: declaredStyle, children: [])
+
+    var stretchedStyle = Style()
+    stretchedStyle.position = .absolute
+    // `auto` size with both horizontal insets given: 400 - 180 - 180 = 40 wide,
+    // which is less than its own 120 of horizontal padding and border.
+    stretchedStyle.inset = Edges(top: px(200), right: px(180), bottom: .auto, left: px(180))
+    stretchedStyle.size = Size(width: .auto, height: px(30))
+    stretchedStyle.padding = Edges(top: pxL(0), right: pxL(50), bottom: pxL(0), left: pxL(50))
+    stretchedStyle.border = Edges(top: pxL(0), right: pxL(10), bottom: pxL(0), left: pxL(10))
+    let stretched = tree.newNode(style: stretchedStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(400))
+    let root = tree.newNode(style: rootStyle, children: [declared, stretched])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(declared) == LayoutRect(x: 0, y: 0, width: 120, height: 140))
+    #expect(tree.layout(stretched) == LayoutRect(x: 180, y: 200, width: 120, height: 30))
 }
 
 /// Margins consume main-axis space and offset the item's own rect.
