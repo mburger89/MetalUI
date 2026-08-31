@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* html/body need an explicit height for #root's percentage height to
+     resolve against anything other than `auto`. CSS 2.1 10.5: a percentage
+     height computes to `auto` unless its containing block's own height is
+     "specified explicitly" rather than depending on content. Without this,
+     body's height is auto (content-shrunk), so `#root { height: 25% }` would
+     resolve to auto and WebKit would answer 40 (the kid's height) instead of
+     150 — measured directly: the first draft of this fixture omitted this
+     rule and its golden's root.height came back 40, not 150. html's own
+     `height: 100%` resolves against the initial containing block (always
+     definite, equal to the viewport), and only then does body's `height: 100%`
+     have a definite basis to resolve against in turn.
+  */
+  html, body { height: 100%; }
+  /* A percentage size on the ROOT. This engine resolves the root's percentages
+     against `nil` and falls back to the offered extent, so it answers the
+     viewport's 800x600 where WebKit answers 400x150.
+
+     Why this fixture can see the defect: the percentages are NOT 100%, so the
+     right answer and the fallback are different numbers. A `width: 100%` root
+     would give 800 either way and pin nothing.
+
+     Why the two axes differ (50% vs 25%): a single percentage cannot tell
+     "resolved against the offered extent" from "resolved against the offered
+     WIDTH on both axes". 50% of 800 is 400 and 25% of 600 is 150; a
+     width-basis bug would give 200 for the height.
+
+     `#root` is `display: flex` because that is what the engine's root always
+     is, and the child exists so the root is not empty — its 100x40 is
+     irrelevant to the assertion and is there to keep the root from being a
+     degenerate case. */
+  #root { display: flex; width: 50%; height: 25%; }
+  .kid { width: 100px; height: 40px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="kid" data-id="kid"></div>
+  </div>
+</body></html>

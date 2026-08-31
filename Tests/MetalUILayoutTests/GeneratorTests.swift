@@ -198,6 +198,7 @@ let allFixtures: [(String, CGSize)] = [
     // checked it — exactly the shape that hid the Stack milestone's stretch
     // bug.
     ("abs_single_inset_auto_size",         CGSize(width: 800, height: 600)),
+    ("sizing_root_percent",                CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.
