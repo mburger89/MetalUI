@@ -337,6 +337,24 @@ public struct PaintPass {
     /// exactly the hazard this pass avoids by exposing no `scaleFactor`.
     public func bounds(of node: LayoutNodeID) -> Bounds<Pixels> { frame.bounds(of: node) }
 
+    /// The width layout **measured** this node at, before `roundStoredRects`
+    /// rounded it — for an element that must re-derive its own content and
+    /// needs to ask the question layout asked.
+    ///
+    /// **`bounds(of:)` above is the width to LAY OUT against; this is the width
+    /// to MEASURE against, and confusing them is what divergence 8 was.** The
+    /// rounded box is what the node occupies and what its siblings closed
+    /// against; the unrounded width is what its own measure function was given.
+    /// They differ by under a point and that is enough: `Text.paint` re-asking
+    /// `CTTypesetter` at the rounded width put a whole extra line in a box one
+    /// line tall, about half the time, as a function of `frac(x + width)`.
+    ///
+    /// **Width only, and no origin** — see `LayoutTree.measuredWidth(_:)`.
+    /// Painting at a fractional origin is the thing rounding exists to prevent.
+    public func measuredWidth(of node: LayoutNodeID) -> Double {
+        frame.tree.measuredWidth(node)
+    }
+
     /// The active theme (spec §7.9).
     ///
     /// This is the whole of "propagated through the frame context": an element

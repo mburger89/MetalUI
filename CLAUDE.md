@@ -124,8 +124,10 @@ idiomatic Swift. macOS and iOS.
   each. **Only the first four are paying EP-8's cost** — the fifth, added by the
   absolute-positioning milestone, is on a column of `Text`, which shrink-wraps
   correctly on a column's cross axis since ruling TX-H and would paint fine
-  without it; it is there so each label takes the panel's integer content width
-  instead of its own fractional max-content, which is divergence 8's input.
+  without it. It was written so each label took the panel's integer content
+  width rather than its own fractional max-content — **divergence 8's input,
+  and that reason has expired now that the divergence is fixed**. It is kept
+  for the look (the labels share one left edge), not as a workaround.
   Re-count with an **anchored** pattern, `grep -cE "^ +\.alignItems\(\.stretch\)"
   Sources/MetalUIDemo/main.swift`, which returns 5. An unanchored `grep -c`
   returns **10**: five of the demo's comments name the modifier while
@@ -703,13 +705,16 @@ and the scroll indicator is correctly clipped by the container's rounded corner.
 **The first two looks each found a defect nothing in the 501 tests could see,
 which is the entire argument for this section.**
 
-1. **Odd text wrapping in the list rows.** Chased to a mechanism now recorded as
-   **divergence 8**, and it is PRE-EXISTING — measured byte-identical at this
+1. **Odd text wrapping in the list rows.** Chased to a mechanism recorded as
+   **divergence 8**, and it was PRE-EXISTING — measured byte-identical at this
    branch's base `ba22e4a` with no `ScrollView` in the probed tree. The branch's
    only contribution was putting 40 shrink-wrapped strings on screen at once,
-   turning a per-string coin flip into something unmissable. **Still visible in
-   the demo, by decision**: the honest fixes move a node's stored size and belong
-   in a sizing/text milestone, and a paint-side clamp was measured and rejected.
+   turning a per-string coin flip into something unmissable. **FIXED on
+   2026-08-30 and divergence 8 is retired** — `Text.paint` wraps at the width
+   layout measured at rather than re-deriving one from the rounded box.
+   Re-measured on this exact shape: **31 of these 40 rows wrapped before the fix
+   and 0 after.** The entry is gone from the divergence list; label 8 is retired
+   and never reused, and the retirement is recorded in that section's header.
 2. **"The ScrollView is not rounded, it has hard edges"**, then **"the scroll bar
    is painted outside the corner"** — both real, both fixed here (`f081b9d`,
    `55ed142`). The first exposed a contradiction in this milestone's own spec:
@@ -1057,12 +1062,32 @@ not cite this entry as evidence for either. What is closed is the criterion as
 written: clicking, hover and focus were seen in a real window under a live
 pointer and nothing about them was reported as wrong.
 
-**The anomaly is divergence 8 and it is pre-existing, not a defect of this
-milestone.** It is the first time anyone has seen that divergence on a single
-short string rather than across forty list rows; the sweep, the demo's
-sidestep, and a candidate sidestep that turned out worse are all recorded in
-divergence 8's own entry. The counter demo now declares the label's width and
-the readout no longer wraps; **the engine defect is untouched and still open.**
+**The anomaly was divergence 8 — pre-existing, not a defect of this
+milestone — and it is now FIXED.** It was the first time anyone had seen that
+divergence on a single short string rather than across forty list rows, and
+that is what made it worth chasing: the entry read as though it took a wall of
+rows to notice, and a lone *centred* label turned out to be exactly as exposed,
+centring being what supplies the fractional origin.
+
+**The demo carried a declared-width sidestep for one commit and no longer
+does.** `Text.paint` now wraps at the width layout measured at, so
+`Text("Count \(count)")` shrink-wraps and renders on one line at every value;
+removing the sidestep is what demonstrates the fix.
+
+**A human ran the fixed build on 2026-08-30 and reported "everything seems to
+be fixed."** That is a second look, on a different build from the one that
+closed the criterion, and it is the only observation anyone has of the fix in a
+real window — every other figure for it is a glyph count out of a headless
+`Frame`. Read it at its strength: it is a general report, so it says the
+anomaly is gone and re-confirms nothing about the five report items
+individually.
+
+**One candidate sidestep is worth remembering even though neither it nor the
+other is in the tree any more**: splitting the readout into two space-free
+`Text`s looks immune, because the mechanism is the last *word* moving down.
+Measured, it wrapped on **every** count instead of some, because
+`CTTypesetterSuggestLineBreak` breaks *inside* a word it cannot fit (ruling
+TX-F). A string with no break opportunity is not protected; it fails harder.
 
 Before that run, what had been established was only that the demo builds
 warning-free and launches — the binary started, stayed alive, and wrote nothing
@@ -1148,23 +1173,44 @@ while clicking the *panel* should not.
 already lists as permanently open**, including every one of the three the M2
 entry names.
 
-## Sixteen known divergences, numbered 1-6 and 8-17 — expected, measured, not defects
+## Fifteen known divergences, numbered 1-6 and 9-17 — expected, measured, not defects
 
-**The labels are stable ids, not a running count, and the gap is deliberate.**
-There are **sixteen** entries and the highest label is **17**: the original
-divergence 6 was fixed, the original 7 was renumbered *into* 6 (see the "This
-was divergence 7 of seven, and 6 is gone" paragraph inside entry 6), and every
-entry added since has taken the next free label rather than re-using the freed
-7 — the same rule `EP-2`/`EP-4` follow, so a citation written against
-"divergence 8" never silently rebinds. A reader who counts to the highest label
-gets seventeen and a reader who counts entries gets sixteen; both are answering a
-different question from the one this heading used to leave open, which is why
-it says both numbers.
+**The labels are stable ids, not a running count, and BOTH gaps are
+deliberate.** There are **fifteen** entries and the highest label is **17**.
+Two labels are permanently retired and they were retired for different
+reasons, which is worth knowing before assuming a third gap means a lost
+entry:
+
+- **7** was freed by a *renumbering*. The original divergence 6 was fixed and
+  the original 7 was moved into its slot — see the "This was divergence 7 of
+  seven, and 6 is gone" paragraph inside entry 6.
+- **8** was freed by a *fix*, on 2026-08-30, and its entry was deleted rather
+  than renumbered. `Text.paint` now wraps at the width layout measured at
+  (`LayoutTree.measuredWidth(_:)`) instead of re-deriving one from the rounded
+  box, so paint and layout no longer disagree about how many lines a
+  shrink-wrapped string has. Measured on the shape it was reported in: **31 of
+  40 list rows wrapped before the fix and 0 after**, and a centred `"Count N"`
+  label wrapped on ten of the first thirteen counts and now wraps on none.
+  Pinned by `paintWrapsAtTheWidthLayoutMeasuredAtNotTheRoundedBox`,
+  `aCentredShrinkWrappedLabelNeverWrapsAtAnyValue` and
+  `aTextShrunkByFlexStillWrapsAtItsShrunkWidth` in `GlyphEmitterTests.swift`,
+  and **confirmed in a real window by a human on 2026-08-30** — which matters
+  because every other figure for this fix is a glyph count out of a headless
+  `Frame`, and the defect was originally *reported* by eye rather than found by
+  a test.
+
+**Neither freed label is ever reused** — the same rule `EP-2`/`EP-4` follow —
+so a citation written against "divergence 8" in an older commit message or
+document points at a retired entry rather than silently rebinding to a
+different one. A reader who counts to the highest label gets seventeen and a
+reader who counts entries gets fifteen; the heading says both numbers because
+they answer different questions.
 
 **Not every entry is a disagreement with WebKit, and 10 was the first that never
-was one.** 1-6 and 8 are places this engine answers differently from an oracle
-(WebKit for all but 8, which is layout against paint inside this engine). 9 is
-of that kind too. **10, 11 and 16 are design choices recorded here because a
+was one.** 1-6 are places this engine answers differently from an oracle, and 9
+is of that kind too. (The retired 8 was the one entry where the disagreement was
+not with WebKit at all but between this engine's own layout and its own paint —
+which is also why it was the one that could simply be fixed.) **10, 11 and 16 are design choices recorded here because a
 reader comparing this framework to CSS will otherwise read them as bugs** — 10
 and 11 are the two directions of one seam and each entry names the other, and 16
 is the price of the rule that closes the modal-scrim case. **12, 13, 14 and 17
@@ -1467,152 +1513,6 @@ container's cross extent **minus the item's own cross margins** (WebKit 104, not
 120, for a 120-wide column and `margin: 0 6px 0 10px`), and the `max` with
 min-content is a real floor that overflows (four 50-wide items in a **30**-wide
 centring column measure `50x80` at `x = -10`).
-
-**8. A shrink-wrapped `Text`'s rounded box can be narrower than the max-content
-it was measured at, and paint disagrees with layout about how many lines there
-are.** Every divergence above, and TX-H, is this engine disagreeing with
-WebKit. This one is not — WebKit is not the oracle here at all, and it is the
-first divergence where **layout is right and paint is wrong**, entirely within
-this engine.
-
-A `Text` that is a flex item shrink-wraps to its own max-content, which is a
-fractional number: `"Row 1 of 40 — a scrollable list item"` at 13pt measures
-**209.3203**pt wide. `roundLayout` (`Sources/MetalUILayout/Rounding.swift`)
-rounds the *cumulative* edges and subtracts — `width = round(x + w) −
-round(x)` — which is correct for keeping a row's boundary closed on its
-parent, but it can round a node's own stored width down by as much as a whole
-point (up to 0.5 from each of two independent roundings; here `x == 0`, so the
-entire 0.3203pt loss is the box's own). `Text.paint` then re-shapes the string
-at that **rounded** width (`Sources/MetalUI/Text.swift`'s `let width =
-max(Double(bounds.size.width.value), smallestWrapWidth)`), and when rounding
-went down the string no longer fits the box it was measured into — CoreText
-breaks the last word onto a second line.
-
-Reproduce with:
-
-```swift
-Row { Text("Row 1 of 40 — a scrollable list item") }   // in a 900pt frame
-```
-
-Layout measures this correctly: a 209×16 box, one line, exactly the
-rounded-down max-content width. Paint, rendered through a real `Frame`, emits
-glyphs on **two** distinct baselines inside that same 16pt-tall box. Nothing is
-flexed and nothing shrinks here — this is not TX-H — the box is the right
-height for the one-line layout the engine itself computed, and the whole
-defect lives in the seam between the width layout stored and the width paint
-re-asked CoreText about.
-
-The outcome is not tied to any particular string or window size: a sweep
-varying only a spacer's width by a tenth of a point
-(`Row { Box().width(spacer); Text(s) }`, holding the text's max-content fixed
-at 209.3203) shows the wrap flipping with `frac(x + maxContent)`:
-
-```
-spacer=126.0  boxW=209  paint draws 2 lines
-spacer=126.2  boxW=210  paint draws 1 line
-spacer=126.4  boxW=210  paint draws 1 line
-spacer=126.5  boxW=209  paint draws 2 lines
-spacer=127.0  boxW=209  paint draws 2 lines
-```
-
-Layout height is 16.0 on every row of that table. In a list of such strings this
-shows up as a handful of rows that look identical to their neighbours but wrap
-differently and get clipped by the row's fixed height: measured on the demo as
-it then was — a `for` loop over **40** rows whose text read `"Row i of 40 — …"` —
-at windows 860/800/700/620 the wrapping rows were `[2, 12, 20, 21, 23, 24, 25,
-32]`, row 12's max-content 217.0898 rounding down to 217 and wrapping while rows
-11 (215.2744 → 216) and 13 (217.3945 → 218) round up and do not. The direction is
-**not monotone in window width** — 1200pt is the worst case measured, not the
-best — because what moves the outcome is the pane's fractional origin, not
-anything about the window getting narrower.
-
-**That index list is a historical measurement and must not be checked against
-today's demo**, whose rows read `"Row i of 500 — …"` — one character longer, so
-every max-content in the sweep shifts and a different set of rows lands on the
-down side of the rounding. The *mechanism* is untouched by this: the strings are
-still shrink-wrapped, still fractional, and still re-asked at the rounded width
-by `Text.paint`. Windowing does not touch it either — a built row rounds exactly
-as it did when all 40 were built. Nobody has re-run the sweep against the
-500-row text, and the numbers to trust are the spacer table above, which is
-independent of the demo entirely.
-
-**Pre-existing, and not introduced by the clipping-and-scroll branch.**
-Measured byte-identical at that branch's base commit `ba22e4a`, before a
-single line of clipping or scroll code existed, with no `ScrollView` anywhere
-in the probed tree. The branch's only contribution was putting 40
-shrink-wrapped strings on screen at once, which turned a roughly one-in-three
-per-string coin flip into something visible — a reporting contribution, not a
-causal one.
-
-**A HUMAN FOUND IT IN THE RUNNING DEMO on 2026-08-30, on a single short
-string, and that is the first time anyone has.** The input milestone's counter
-readout was `Text("Count \(count)")` at 22pt, shrink-wrapped and centred in a
-140pt box, and it wrapped `"Count 3"` onto two lines while `"Count 2"` stayed
-on one. Swept through the engine over counts 0-12: **0, 1, 3, 4, 5, 6, 8, 9,
-10 and 11 wrapped; 2, 7 and 12 did not.** That is this entry's own mechanism
-with no list, no scroller and no forty strings — the coin flip is on
-`frac(x + maxContent)`, so it tracks the *digit* rather than the value, and one
-label changing one character is enough to flip it.
-
-**Read this as the strongest evidence the entry has**, and as a correction to
-how the entry reads. Everything above describes it as a thing you notice
-*across* forty rows, which invites the reading that a single label is safe. It
-is not: a lone centred label is exactly as exposed, and centring is what
-supplies the fractional origin.
-
-**The demo sidesteps it with a declared width and does NOT fix it.**
-`Sources/MetalUIDemo/main.swift` now writes
-`Text("Count \(count)").font(size: 22).width(Pixels(104))`, with the reasoning
-at the call site. **104 is measured, not chosen**: it is the smallest declared
-width at which nothing wraps through `"Count 888"` (96 wraps at 137 and 888,
-100 wraps at 888, 104 upward wrap at nothing). Smallest is what is wanted
-because `Text` has no alignment of its own — a string is left-aligned inside
-whatever box it is given, so a wider box pushes the label further off the
-panel's centre; at 104 a one-digit count sits ~14pt left of true centre and
-converges to centred as digits are added. **That off-centring is the sidestep's
-whole cost, and it is a cost the fix would remove.**
-
-**One candidate sidestep was tried and is WORSE — record it so nobody retries
-it.** Splitting the readout into two `Text`s, `"Count"` and `"\(count)"`, looks
-like it should be immune: neither string contains a space, and this entry's
-mechanism is the last *word* moving to line two. Measured, it wraps on **every**
-count rather than some — because `CTTypesetterSuggestLineBreak` breaks *inside*
-a word it cannot fit (ruling TX-F, recorded above for min-content), so the
-constant `"Count"` losing its own fraction breaks mid-word every frame. A
-string with no break opportunity is not protected; it fails harder.
-
-**Not fixed here, and the reason is reach — BM-4's, FS-3's and TX-H's
-reason.** A paint-side epsilon is not the fix, and that was measured rather
-than argued: giving paint back half a point of slack
-(`wrappingAt: bounds.width + 0.5`) still left 19 of 40 rows wrapping at
-window 1200 on the same 40-row build the index list above was taken from, because the error is the **sum** of two independent roundings and
-can reach a full point; a full point of slack is what would let a glyph paint
-outside its own box, which is a wider hole, not a fix. Divergence 6's rule
-applies again — the box is what is wrong, the glyphs are where the box says,
-and a clamp in paint would move the defect somewhere nothing can see it. The
-two honest fixes are both larger than this branch: **(1)** carry the wrap
-*width* forward from layout onto `LayoutTree`, so paint asks the same question
-layout already answered instead of re-deriving a rounded one — `Text.paint`'s
-own doc comment currently argues against carrying the shape forward because it
-would be "one rounding step stale", and that argument needs revisiting against
-this measurement: the rounded width is not a staler version of the right
-question, it is a *different* question, and today's code answers the wrong
-one. **(2)** make `roundStoredRects` never round a measured leaf's box below
-the content size its own measure function reported. Either one moves a node's
-stored size, which every ancestor then consumes and the corpus is downstream
-of; it belongs in a sizing/text milestone.
-
-**No fixture and no golden encode it, on the same footing as BM-4 and FS-3.**
-Ruling TX-B also forbids a text fixture outright, independently of that
-reason. Pinned instead by
-`roundingCanMakePaintWrapAShrinkWrappedTextThatLayoutMeasuredAsOneLine` in
-`GlyphEmitterTests.swift`, which was, when this was measured at a suite of 488,
-the only assertion in it that reaches this composition at all: every glyph-emitter test before it
-paints a **root** `Text`, whose `auto` inline axis takes the whole offered
-extent (divergence 4) rather than shrink-wrapping to a fractional max-content,
-so nothing else in the suite can land on the down side of this rounding —
-taxonomy shape 9, a composition that existed in the code and in no test.
-Implementing either fix above must redden exactly that test.
 
 **9. Ruling AP-F — an absolute box with no insets at all sits at its containing
 block's origin, where CSS uses its static position.** CSS places an
@@ -2120,9 +2020,11 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **739 tests** and 81 browser fixtures, warning-free
-(re-measured 2026-08-29 `--no-parallel`, at the input-and-state milestone's
-own last commit, per rulings CS-M/CS-N/SI-H: a
+`swift build` · `swift test` — **741 tests** and 81 browser fixtures, warning-free
+(re-measured 2026-08-30 `--no-parallel`, after the divergence-8 fix — which is
++2 net: three pins added and the one deliberately-wrong pin they replace deleted,
+and **moved no golden**, since it changes the question paint asks and not one
+stored size. Per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
 rather than at the commit that first quoted it.
 
@@ -2292,7 +2194,12 @@ assertion and a horizontal-indicator geometry one — reaching 488 at the
 milestone's own last commit. The wrap-investigation record-and-pin work that
 followed added **one** —
 `roundingCanMakePaintWrapAShrinkWrappedTextThatLayoutMeasuredAsOneLine`,
-divergence 8's pin — bringing it to 489. Read the summary line, never
+divergence 8's pin — bringing it to 489. (**That test no longer exists**: it
+asserted the wrong answer on purpose, the divergence was fixed on 2026-08-30,
+and it was replaced by
+`paintWrapsAtTheWidthLayoutMeasuredAtNotTheRoundedBox`. The sentence is kept
+as the history it is — do not grep for the old name and conclude a test was
+lost.) Read the summary line, never
 the exit status — shape 11.
 The milestone started at **445** (M2's own end-of-milestone count) and climbed
 task by task: 451 after Task 1 (`DrawListTests`), 452 after Task 2, 455 after

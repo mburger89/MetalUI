@@ -47,6 +47,7 @@ public final class LayoutTree {
     private var childLists: [[LayoutNodeID]] = []
     private var measures: [MeasureFunction?] = []
     private var layouts: [LayoutRect] = []
+    private var measuredWidths: [Double] = []
 
     /// The stamp carried by every id this tree issues. Changed only by
     /// `reset(generation:)`, which is what makes the ids from before a reset
@@ -88,6 +89,7 @@ public final class LayoutTree {
         childLists.append(children)
         measures.append(nil)
         layouts.append(LayoutRect(x: 0, y: 0, width: 0, height: 0))
+        measuredWidths.append(0)
         return LayoutNodeID(generation: generation, index: styles.count - 1)
     }
 
@@ -109,6 +111,34 @@ public final class LayoutTree {
     public func measure(_ id: LayoutNodeID) -> MeasureFunction? { measures[slot(id)] }
     public func layout(_ id: LayoutNodeID) -> LayoutRect { layouts[slot(id)] }
     public func setLayout(_ id: LayoutNodeID, _ r: LayoutRect) { layouts[slot(id)] = r }
+
+    /// The node's width **before `roundStoredRects` rounded it**, and the only
+    /// number a phase after layout can use to ask the question layout asked.
+    ///
+    /// **This is the fix for what CLAUDE.md carried as divergence 8**, and the
+    /// distinction it turns on is narrow enough to lose. `roundLayout` stores
+    /// `round(x + w) - round(x)`, which keeps every boundary closed on its
+    /// parent — that is the property the corpus depends on and it is not in
+    /// question. But the number it stores lands *below* `w` about half the
+    /// time, and a measured leaf that re-derives its own content from the
+    /// stored width is then answering a **different** question from the one its
+    /// measure function was given. Measured on `"Count N"` at 22pt: at the
+    /// unrounded width every count typesets to one line, and at `floor` of it
+    /// every count typesets to two.
+    ///
+    /// **Written for every node and read by exactly one**, `Text.paint`. It is
+    /// not `private` to the text path because `roundStoredRects` is the only
+    /// place the pre-rounding value still exists, and that is a tree-wide walk;
+    /// a leaf-only store would have to be special-cased there for no gain.
+    ///
+    /// **Do not paint at this width's ORIGIN.** Only the width is recorded, and
+    /// deliberately: a fractional origin is what `roundLayout` exists to
+    /// eliminate, and reintroducing one would put glyphs on half-pixels. What
+    /// this buys back is the sub-point the *width* lost, which is the whole
+    /// defect.
+    public func measuredWidth(_ id: LayoutNodeID) -> Double { measuredWidths[slot(id)] }
+
+    func setMeasuredWidth(_ id: LayoutNodeID, _ w: Double) { measuredWidths[slot(id)] = w }
 
     /// Drop every node but keep the allocated capacity, under a **new**
     /// generation.
@@ -141,6 +171,7 @@ public final class LayoutTree {
         childLists.removeAll(keepingCapacity: true)
         measures.removeAll(keepingCapacity: true)
         layouts.removeAll(keepingCapacity: true)
+        measuredWidths.removeAll(keepingCapacity: true)
     }
 
     /// The storage index for `id`, after checking it belongs to this tree.
