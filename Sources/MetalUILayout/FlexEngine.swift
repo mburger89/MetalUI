@@ -317,37 +317,60 @@ private func resolveRootSize(
     let s = tree.style(root)
     let rootFontSize = ctx.rootFontSize
 
-    // The root has no parent, so percentages resolve against nil (CSS
-    // treats that as auto) — same as the `.unspecified` parent this
-    // function used before the split.
+    // A root percentage now resolves against the extent the root was offered
+    // on that SAME axis — matching WebKit, and matching how `computeLayout`
+    // already resolves the root's percentage PADDING against
+    // `available.width`. Measured through the oracle: a root with
+    // `width: 50%; height: 25%` inside an 800x600 offered space is
+    // `400 x 150` (`rootPercentageMatchesWebKit`,
+    // `Tests/MetalUILayoutTests/SizingFixtureTests.swift`). Before this
+    // change `declared` always resolved against `nil`, so a percentage was
+    // unresolvable here and this function silently fell back to the offered
+    // extent untouched (800 x 600 for the fixture above) — the divergence
+    // CLAUDE.md's "Declared but inert" table used to record as "A percentage
+    // `width`/`height` on the root: falls back to the offered space, not to
+    // the percentage." That row is now stale and should be deleted the next
+    // time CLAUDE.md is swept.
     //
-    // **This is knowingly asymmetric with `computeLayout`, which resolves
-    // the root's percentage PADDING against `available.width`.** Both
-    // cannot be right, and this one is the divergence: measured in WebKit,
-    // a root with `width: 50%` in an 800-wide body is **400**, while this
-    // returns nil and falls back to the offered 800. Changing it means
-    // deciding whether `available` is the initial containing block (ruling
-    // FS-1 says it is) for *sizing* as well as for insets, and moves the
-    // root's stored size, which every descendant consumes — a sizing
-    // change, not a box-model one. Recorded in CLAUDE.md's inert table, and
-    // deliberately NOT touched by the content-sizing milestone (spec §2):
-    // only the `auto` branch below changes, and a percentage still lands in
-    // the `offered` branch exactly as it did.
-    func declared(_ dim: Dimension) -> Double? {
-        resolveDimension(dim, against: nil, rootFontSize: rootFontSize)
+    // **The basis is per axis, not per box.** `withoutMeasuring` is called
+    // once for `width` with `available.width` and once for `height` with
+    // `available.height`, so `basis` below is always the offered extent on
+    // the SAME axis as the dimension being resolved — the ordinary CSS rule
+    // for a box's own width/height percentage, which is not the same rule
+    // that governs percentage padding and border (those always resolve
+    // against the containing block's WIDTH, on both axes — see the
+    // padding/border bullet in CLAUDE.md's Build section).
+    //
+    // **The two-arity form exists for exactly this call; the `min`/`max`
+    // clamps at the end of this function deliberately keep calling the
+    // one-arity, no-basis form below.** Whether a percentage `minSize`/
+    // `maxSize` on the root should also take a basis is a separate,
+    // unresolved question with no fixture behind it — do not extend the
+    // basis to those callers here.
+    func declared(_ dim: Dimension, axis basis: Double?) -> Double? {
+        resolveDimension(dim, against: basis, rootFontSize: rootFontSize)
     }
+    func declared(_ dim: Dimension) -> Double? { declared(dim, axis: nil) }
 
-    /// What an axis resolves to without measuring anything: its declared size,
-    /// or the extent the root was offered. `nil` — "measure it" — only when
-    /// there is no declared size and no offered extent either.
+    /// What an axis resolves to without measuring anything: its declared
+    /// size — now resolved against the extent this same axis was offered —
+    /// or that offered extent itself. `nil` — "measure it" — only when there
+    /// is neither a declared size nor an offered extent.
     ///
-    /// **The `auto` test is on the DECLARATION, not on `declared(dim) == nil`.**
-    /// A percentage against the root's absent parent is also unresolvable, and
-    /// routing it through the measuring branch would silently fix the
-    /// divergence described above from the wrong end. A percentage keeps
-    /// today's answer exactly: the offered extent, or 0.
+    /// **The `auto` test is on the DECLARATION, not on `declared(dim) ==
+    /// nil`, and that is still true after the basis change above.**
+    /// `declared` returns `nil` for a literal `.auto` whatever basis it is
+    /// given, so the `auto` branch below is byte-identical to what it was
+    /// before this change, and ruling CS-I — an `auto` root axis taking a
+    /// definite offered extent rather than shrink-wrapping it — is
+    /// untouched. A percentage now resolves through `declared` whenever
+    /// there IS an offered extent on this axis to serve as its basis; only
+    /// when there is none (the offered extent is indefinite) does a
+    /// percentage still fall through to the old fallback below — unchanged,
+    /// because `definiteExtent(offered)` is `nil` in that case, so the basis
+    /// is `nil` too and `declared` behaves exactly as it always did.
     func withoutMeasuring(_ dim: Dimension, _ offered: AvailableSpace) -> Double? {
-        if let d = declared(dim) { return d }
+        if let d = declared(dim, axis: definiteExtent(offered)) { return d }
         guard case .auto = dim else { return definiteExtent(offered) ?? 0 }
         return definiteExtent(offered)
     }
