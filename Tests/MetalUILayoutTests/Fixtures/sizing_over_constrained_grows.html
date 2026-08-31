@@ -9,7 +9,30 @@
 
      Horizontal: 50 + 50 padding + 10 + 10 border = 120 against a declared 100.
      Vertical:   60 + 60 padding + 10 + 10 border = 140 against a declared 80.
-     WebKit: 120 x 140. This engine: 100 x 80.
+     WebKit: 120 x 140. This engine: 130 x 80 — NOT 100 x 80, and the reason
+     is a second, already-implemented rule composing with this one.
+
+     `.box`'s width is a ROW ITEM'S MAIN AXIS, so it is not resolved by the
+     simple content-clamps-to-zero path this divergence is named for; it goes
+     through `flexBaseSize` and then `collectItems`' CSS Sizing §4.5
+     automatic-minimum floor (ruling FS-3, the content half of which this
+     engine already implements). That floor is the item's own min-content —
+     padding 100 + border 20 + the `.kid` child's 10 = 130 — and it wins over
+     the specified 100 before this fixture's own defect (the content box
+     clamping to zero) ever gets a say. Height is the cross axis here, is
+     resolved by `resolveNodeSize` directly with no such floor, and lands
+     exactly on the specified 80.
+
+     **This composition is why the fixture survives Task 6, not just Task
+     4.** Task 6 completes §4.5's automatic minimum to
+     `min(specified size suggestion, content size suggestion)`. Read naively
+     that is `min(100, 130) = 100`, which would re-break this fixture back to
+     its pre-fix number. The correct reading is CSS's: under
+     `box-sizing: border-box` the specified size suggestion is the item's
+     USED size, which Task 4 makes 120 — so post-Task-4-and-6 the floor is
+     `min(120, 130) = 120`, matching WebKit. A reader hitting a red result
+     here after Task 6 should find that explanation in this comment rather
+     than re-deriving it.
 
      `border-style: solid` IS NOT OPTIONAL. Without it `border-width` is inert
      and the same snippet measures 100x120 — which is how CLAUDE.md's own
@@ -19,8 +42,12 @@
      growing by the wrong edge, or growing one axis only, is visible.
 
      `#root` is not the over-constrained box: it is a plain container, so this
-     fixture tests an ITEM's used size rather than the root's, which is the
-     path `resolveNodeSize` serves. `.kid` exists so `.box` is not empty. */
+     fixture tests an ITEM's used size rather than the root's. Per
+     `resolveNodeSize`'s own doc (`FlexEngine.swift`), that function serves
+     only a flex item's CROSS axis (height, here) — a row item's main axis
+     (width, the axis this fixture actually discriminates) is resolved by
+     `flexBaseSize` and `collectItems` instead, never by `resolveNodeSize`.
+     `.kid` exists so `.box` is not empty. */
   #root { display: flex; width: 400px; height: 300px; }
   .box {
     width: 100px; height: 80px;
