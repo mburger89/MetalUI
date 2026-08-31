@@ -92,3 +92,42 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
     assertMatchesGolden(tree, ids: [root: "root", box: "box", kid: "kid"],
                         golden: golden, tolerance: 0.5)
 }
+
+/// Ruling FS-3 — §4.5's automatic minimum is
+/// `min(specified size suggestion, content size suggestion)`, and this engine
+/// implemented the content half only.
+///
+/// 130 is the discriminating declared width: flooring at the content 200 gives
+/// 200/0, not flooring at all lets `.a` shrink to 75, and only the `min` gives
+/// WebKit's 130/20. `.b` is empty and must NOT be floored — its content
+/// suggestion is 0.
+@Test func specifiedSizeSuggestionMatchesWebKit() throws {
+    let golden = try loadGolden("sizing_specified_suggestion")
+    let tree = LayoutTree(generation: 0)
+
+    var gStyle = Style()
+    gStyle.size = Size(width: px(200), height: px(20))
+    let g1 = tree.newNode(style: gStyle, children: [])
+
+    var aStyle = Style()
+    aStyle.display = .flex
+    aStyle.flexDirection = .row
+    aStyle.size = Size(width: px(130), height: .auto)
+    let a = tree.newNode(style: aStyle, children: [g1])
+
+    var bStyle = Style()
+    bStyle.size = Size(width: px(100), height: px(20))
+    let b = tree.newNode(style: bStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.display = .flex
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(150), height: px(60))
+    let root = tree.newNode(style: rootStyle, children: [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree, ids: [root: "root", a: "a", b: "b", g1: "g1"],
+                        golden: golden, tolerance: 0.5)
+}
