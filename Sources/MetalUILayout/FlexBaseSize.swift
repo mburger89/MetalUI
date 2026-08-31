@@ -53,40 +53,63 @@ func flexBaseSize(
     // the two axis-resolved extents this function already takes rather than
     // added as a fifth parameter that would have to be kept agreeing with them.
     //
-    // Hoisted above step 1 because ruling BM-4's floor in step 2 needs it as
-    // the basis for this item's own percentage padding and border; step 3's
+    // Hoisted above step 1 because ruling BM-4's floor needs it as the basis
+    // for this item's own percentage padding and border; step 3's
     // `measureNode` call is the other consumer.
     let containingBlockWidth = isRow ? containerMain : containerCross
 
-    // 1. Definite flex-basis.
+    // Ruling BM-4's floor on this item's main axis: `box-sizing: border-box`
+    // defines a used size as `max(specified, padding + border)`, so neither of
+    // the two declared branches below may return less than the item's own
+    // edges. A function rather than a `let` because step 3 does not need it
+    // and would otherwise pay for two `resolveEdges` walks on the commonest
+    // path (an auto-sized item), which is where this function spends its time.
     //
-    // **Deliberately NOT floored at the item's padding + border**, unlike step
-    // 2 below — ruling BM-4 is about the size PROPERTY, and the differential
-    // was measured rather than assumed: `flex: 0 0 100px; min-width: 0` with
-    // 120 of horizontal padding+border measures **100** in WebKit, where the
-    // same box spelled `width: 100px; min-width: 0` measures **120**.
+    // **Both declared branches take it, and an earlier version of this file
+    // floored only step 2 on the strength of a bad measurement.** That probe
+    // put its box ALONE in its flex container, which is a shape where WebKit
+    // answers incoherently — it reports a border box NARROWER than the padding
+    // and border it contains (100 against 120, and 0 against 120 for
+    // `flex-basis: 0`), which is geometrically impossible, padding being inside
+    // the border box by definition. Add any in-flow sibling and the same four
+    // spellings all measure **120**:
+    //
+    //     flex: 0 0 100px; min-width: 0                              -> 120
+    //     flex-basis: 100px; flex-grow:0; flex-shrink:0; min-width:0 -> 120
+    //     flex-basis: 100px; flex-grow:0; flex-shrink:0              -> 120
+    //     width: 100px; flex: 0 0 auto; min-width: 0                 -> 120
+    //     the same with box-sizing: content-box                      -> 220
+    //
+    // Alone in its container, the first three of those measure 100 and the
+    // fourth still measures 120. So there is no `flex-basis`-versus-`width`
+    // rule to encode — there is a WebKit inconsistency, and the spec settles
+    // it: CSS Flexbox §7.2.3 says `flex-basis` is "interpreted the same as
+    // `width`", which makes `box-sizing` apply to it. The engine floors both.
+    func mainFloor() -> Double {
+        let floor = borderBoxFloor(tree, item, containingBlockWidth: containingBlockWidth,
+                                   rootFontSize: rootFontSize)
+        return isRow ? floor.width : floor.height
+    }
+
+    // 1. Definite flex-basis.
     if let basis = resolveDimension(s.flexBasis, against: containerMain,
                                     rootFontSize: rootFontSize) {
-        return basis
+        return max(basis, mainFloor())
     }
 
     // 2. flex-basis: auto -> the main size property, if definite.
     //
-    // Ruling BM-4 — a declared size is floored at the item's own padding +
-    // border (`borderBoxFloor`), because `box-sizing: border-box` defines the
-    // used size as `max(specified, padding + border)`. Reachable on the main
-    // axis only when the item carries an explicit `min-width`/`min-height`
-    // below that floor: §4.5's automatic minimum is the item's min-content
-    // size, which already includes its padding and border, so the default
-    // floor is never lower. Measured: `width: 100px; min-width: 0` with
-    // `padding: 0 50px; border-width: 0 10px` is **120** in WebKit and was
-    // 100 here. Pinned by `anItemWithMinZeroStillGrowsToFitItsPaddingAndBorder`.
+    // Reachable on the main axis only when the item carries an explicit
+    // `min-width`/`min-height` below the floor: §4.5's automatic minimum is the
+    // item's min-content size, which already includes its padding and border,
+    // so the default floor is never lower. Measured: `width: 100px;
+    // min-width: 0` with `padding: 0 50px; border-width: 0 10px` is **120** in
+    // WebKit and was 100 here. Pinned by
+    // `anItemWithMinZeroStillGrowsToFitItsPaddingAndBorder`.
     let mainDim = isRow ? s.size.width : s.size.height
     if let main = resolveDimension(mainDim, against: containerMain,
                                    rootFontSize: rootFontSize) {
-        let floor = borderBoxFloor(tree, item, containingBlockWidth: containingBlockWidth,
-                                   rootFontSize: rootFontSize)
-        return max(main, isRow ? floor.width : floor.height)
+        return max(main, mainFloor())
     }
 
     // 3. Content size, under the CONTAINER's own question in the main axis.

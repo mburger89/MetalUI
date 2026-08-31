@@ -303,41 +303,62 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
     #expect(tree.layout(box) == LayoutRect(x: 0, y: 0, width: 120, height: 40))
 }
 
-/// Ruling BM-4 stops at the size PROPERTY — a definite `flex-basis` is NOT
-/// floored at the item's padding and border.
+/// Ruling BM-4 reaches a definite `flex-basis` too, not only the size
+/// property — `flexBaseSize`'s FIRST branch.
 ///
-/// **The differential is the whole test, and it was measured rather than
-/// reasoned.** Two items with the identical 120 of horizontal padding + border
-/// and the identical `min-width: 0`, differing only in how their 100 is
-/// spelled:
+/// **This test replaces one that asserted the exact opposite, and the reason is
+/// a fixture defect in the measurement behind it.** Task 4 first shipped
+/// `aDefiniteFlexBasisIsNotFlooredByPaddingAndBorder`, on a probe that put the
+/// box ALONE in its flex container and measured 100. That is a shape where
+/// WebKit reports a border box NARROWER than the padding and border inside it
+/// — geometrically impossible, padding being within the border box by
+/// definition — and it is not stable: add any in-flow sibling and the same four
+/// spellings all measure **120**.
 ///
-///     width: 100px       -> WebKit 120   (floored; `anItemWithMinZero…`)
-///     flex-basis: 100px  -> WebKit 100   (not floored; this test)
+///     spelling (120 of horizontal padding + border)     alone   + a sibling
+///     flex: 0 0 100px; min-width: 0                       100       120
+///     flex-basis: 100px; flex-grow:0; flex-shrink:0;
+///                        min-width: 0                     100       120
+///     flex-basis: 100px; flex-grow:0; flex-shrink:0       100       120
+///     width: 100px; flex: 0 0 auto; min-width: 0          120       120
+///     the same with box-sizing: content-box               220       220
 ///
-/// So `flexBaseSize`'s first branch is deliberately left unfloored, and this is
-/// the pin for that — **added because the mutation that floors it too reddened
-/// nothing at all** on a 746-test suite, which is exactly the shape this repo
-/// treats as a finding rather than as reassurance. Whoever "completes" BM-4 by
-/// flooring step 1 gets a red test and this comment's numbers.
-@Test func aDefiniteFlexBasisIsNotFlooredByPaddingAndBorder() {
+/// The last row is the control: the edges really are live in the fixture. So
+/// there is no `flex-basis`-versus-`width` rule — there is a WebKit
+/// inconsistency, and CSS Flexbox §7.2.3 settles it by defining `flex-basis` as
+/// "interpreted the same as `width`", which makes `box-sizing` apply. The
+/// engine floors both, and answers 120 in both shapes.
+///
+/// `min-width: 0` is what makes the site observable at all: §4.5's automatic
+/// minimum is the item's min-content size, which already includes its padding
+/// and border, so the default floor is never below this one.
+@Test func aDefiniteFlexBasisIsFlooredByPaddingAndBorderToo() {
     let tree = LayoutTree(generation: 0)
     var boxStyle = Style()
     boxStyle.flexBasis = px(100)
+    boxStyle.flexGrow = 0
+    boxStyle.flexShrink = 0
     boxStyle.size = Size(width: .auto, height: px(40))
     boxStyle.minSize = Size(width: px(0), height: .auto)
     boxStyle.padding = Edges(top: pxL(0), right: pxL(50), bottom: pxL(0), left: pxL(50))
     boxStyle.border = Edges(top: pxL(0), right: pxL(10), bottom: pxL(0), left: pxL(10))
     let box = tree.newNode(style: boxStyle, children: [])
 
+    // The sibling is the shape WebKit answers coherently in, kept here so the
+    // test's tree matches the tree its numbers were measured on.
+    let sib = fixedChild(tree, w: 30, h: 20)
+
     var rootStyle = Style()
     rootStyle.flexDirection = .row
+    rootStyle.alignItems = .flexStart
     rootStyle.size = Size(width: px(900), height: px(60))
-    let root = tree.newNode(style: rootStyle, children: [box])
+    let root = tree.newNode(style: rootStyle, children: [box, sib])
 
     computeLayout(tree, root: root,
                   available: AvailableSpaceSize(width: .definite(900), height: .definite(600)))
 
-    #expect(tree.layout(box) == LayoutRect(x: 0, y: 0, width: 100, height: 40))
+    #expect(tree.layout(box) == LayoutRect(x: 0, y: 0, width: 120, height: 40))
+    #expect(tree.layout(sib) == LayoutRect(x: 120, y: 0, width: 30, height: 20))
 }
 
 /// Ruling BM-4 at `layOutStack` — a stack child grows to fit its own padding

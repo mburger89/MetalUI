@@ -489,11 +489,11 @@ private func resolveRootSize(
 /// is the one case the two orderings disagree on, and the reason this is a
 /// `max(clamp(…), floor)` everywhere rather than a `clamp(max(…), …)`.
 ///
-/// **It is the SIZE PROPERTY that is floored, not `flex-basis`** — also
-/// measured, and the differential is sharp: `flex: 0 0 100px; min-width: 0`
-/// with the same 120 of horizontal padding+border measures **100** in WebKit,
-/// where `width: 100px; min-width: 0` measures 120. That is why
-/// `flexBaseSize`'s first branch is deliberately left unfloored.
+/// **A definite `flex-basis` is floored too, and the claim that it was not cost
+/// this milestone a review round.** The measurement behind that claim put its
+/// box alone in its flex container, where WebKit answers incoherently; with any
+/// in-flow sibling present, all four spellings measure 120. `flexBaseSize`'s
+/// own doc carries the table and CSS Flexbox §7.2.3, which settles it.
 ///
 /// Percentage `padding` and `border` resolve against the containing block's
 /// **width on every edge**, vertical ones included — CSS's rule, and the same
@@ -502,21 +502,33 @@ private func resolveRootSize(
 /// the floor is needed *before* that, while the border box is still being
 /// decided.
 ///
-/// **Two compositions this floor deliberately does not reach**, both measured
-/// through the oracle and both needing a floor on a flex item's *used main*
-/// size rather than on its declared one:
+/// **Three compositions this floor does not reach.** The list is exhaustive as
+/// of the sizing milestone's Task 4 and every entry was measured through the
+/// oracle; it read as two until a reviewer found the third, so treat it as a
+/// list that has been wrong once. Each entry names the site that would have to
+/// change, because none of them is reachable from this function.
 ///
 /// 1. `width: 100px; min-width: 0; max-width: 40px` with 120 of padding+border
 ///    is **120** in WebKit and **40** here — the size property is floored by
 ///    this function, and `collectItems`' `hypothetical` then clamps it back
-///    down to the max.
+///    down to the max. Needs the floor on the item's *used* main size.
 /// 2. Two `width: 500px; min-width: 0` items with 120 of padding+border each,
 ///    shrinking into a 200-wide row, are **120** each in WebKit (overflowing)
-///    and 100 each here — §9.7 shrinks below the floor.
+///    and 100 each here — §9.7 shrinks below the floor. Same site as 1.
+/// 3. An **`auto`** cross size clamped by a `max-*` below the floor:
+///    `height: auto; max-height: 40px; padding: 60px 0; border-width: 10px 0`
+///    is **140** in WebKit and **40** here. This one is not about the used main
+///    size — it is `collectItems`' `ownCross`, whose measured branch ends in a
+///    `clamp` this floor never sees, so it takes exactly the `max-*` win the
+///    ordering ruling above says must not happen. **Deliberately left to this
+///    milestone's TX-H task**, which is the task that owns `ownCross`; fixing
+///    it here would put two rule changes behind one review.
 ///
-/// Both need an explicit `min-width: 0` to be reachable at all: §4.5's
+/// 1 and 2 need an explicit `min-width: 0` to be reachable at all: §4.5's
 /// automatic minimum is the item's min-content size, which already includes
-/// padding and border, so the default floor is never below this one.
+/// padding and border, so the default floor is never below this one. 3 needs no
+/// such switch — an `auto` cross size never consults §4.5 in the first place,
+/// which is what makes it the easiest of the three to hit by accident.
 func borderBoxFloor(
     _ tree: LayoutTree,
     _ node: LayoutNodeID,

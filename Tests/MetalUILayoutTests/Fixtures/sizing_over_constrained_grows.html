@@ -4,35 +4,50 @@
   body { margin: 0; }
   /* Ruling BM-4. `box-sizing: border-box` defines the used size as
      max(specified, padding + border): when padding and border together exceed
-     the specified size, the BORDER BOX GROWS. This engine clamps the content
-     box to zero instead and leaves the border box at the specified size.
+     the specified size, the BORDER BOX GROWS.
 
      Horizontal: 50 + 50 padding + 10 + 10 border = 120 against a declared 100.
      Vertical:   60 + 60 padding + 10 + 10 border = 140 against a declared 80.
-     WebKit: 120 x 140. This engine: 130 x 80 — NOT 100 x 80, and the reason
-     is a second, already-implemented rule composing with this one.
+     WebKit: 120 x 140.
 
-     `.box`'s width is a ROW ITEM'S MAIN AXIS, so it is not resolved by the
-     simple content-clamps-to-zero path this divergence is named for; it goes
-     through `flexBaseSize` and then `collectItems`' CSS Sizing §4.5
+     **This engine: 130 x 140 since BM-4 was implemented** (it was 130 x 80
+     when this fixture was committed red, and this paragraph described that
+     engine in the present tense for one commit longer than it was true). The
+     HEIGHT is fixed and is BM-4's grown 140. The WIDTH is still 130, not
+     WebKit's 120 and never the 100 a reader expects, and the reason is a
+     second, already-implemented rule composing with this one.
+
+     `.box`'s width is a ROW ITEM'S MAIN AXIS, so it does not reach its final
+     value through BM-4's floor alone; it goes through `flexBaseSize` — which
+     floors it at 120 — and then `collectItems`' CSS Sizing §4.5
      automatic-minimum floor (ruling FS-3, the content half of which this
      engine already implements). That floor is the item's own min-content —
-     padding 100 + border 20 + the `.kid` child's 10 = 130 — and it wins over
-     the specified 100 before this fixture's own defect (the content box
-     clamping to zero) ever gets a say. Height is the cross axis here, is
-     resolved by `resolveNodeSize` directly with no such floor, and lands
-     exactly on the specified 80.
+     padding 100 + border 20 + the `.kid` child's 10 = 130 — and 130 beats
+     BM-4's 120, because a floor can only raise. Height is the CROSS axis
+     here, is resolved by `resolveNodeSize`, has no automatic minimum to
+     compose with, and so lands on BM-4's 140 exactly.
+
+     Measured differential, on this very tree: adding `min-width: 0` to `.box`
+     (which replaces the automatic minimum outright) gives 120 x 140 today —
+     WebKit's answer. So what is missing is only §4.5's specified size
+     suggestion, which is Task 6.
 
      **This composition is why the fixture survives Task 6, not just Task
      4.** Task 6 completes §4.5's automatic minimum to
      `min(specified size suggestion, content size suggestion)`. Read naively
-     that is `min(100, 130) = 100`, which would re-break this fixture back to
-     its pre-fix number. The correct reading is CSS's: under
+     that is `min(100, 130) = 100`, which would take the width FURTHER from
+     WebKit than the 130 it has now. The correct reading is CSS's: under
      `box-sizing: border-box` the specified size suggestion is the item's
      USED size, which Task 4 makes 120 — so post-Task-4-and-6 the floor is
      `min(120, 130) = 120`, matching WebKit. A reader hitting a red result
      here after Task 6 should find that explanation in this comment rather
      than re-deriving it.
+
+     One more thing Task 6 inherits, measured rather than predicted: at a box
+     width of 120 the content box is 0, and `.kid` — width 10, flex-shrink 1,
+     automatic minimum 0 — shrinks to 0 here, where this fixture's golden
+     records WebKit's 10. So Task 6 may turn `box` green and `kid` red; that
+     is a §9.7 question, not a BM-4 one.
 
      `border-style: solid` IS NOT OPTIONAL. Without it `border-width` is inert
      and the same snippet measures 100x120 — which is how CLAUDE.md's own
