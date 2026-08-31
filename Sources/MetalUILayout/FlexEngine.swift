@@ -89,10 +89,16 @@ public func computeLayout(
     // viewport has `padding: 10%` of 800. Indefinite offered width means an
     // indefinite containing block, and percentage edges then resolve to 0.
     //
-    // `resolveRootSize` below still resolves the root's own `width: 50%`
-    // against nil rather than against this same extent — a separate, narrower
-    // divergence, recorded in CLAUDE.md; do not "fix" one by reaching into the
-    // other, they are different rules with different reach.
+    // `resolveRootSize` below now resolves the root's own `width: 50%`
+    // against this same offered extent too — but per axis, not per box: its
+    // `width` resolves against `available.width` and its `height` against
+    // `available.height`. The two bases are no longer different in KIND, but
+    // they are still different in RULE: percentage padding and border above
+    // resolve against `available.width` on every edge, vertical edges
+    // included, where a box's own size percentage resolves each axis against
+    // the matching axis of its containing block. A square containing block
+    // cannot tell the two rules apart, which is why `flex_percent_padding_nonsquare`
+    // is deliberately non-square.
     //
     // Hoisted above `resolveRootSize` because that function may now measure the
     // root, and a measure needs the same containing-block width a placement
