@@ -288,14 +288,30 @@ public struct Text: Element, StyledElement {
         }
 
         let font = FontResolver.resolve(family: fontFamily, size: fontSize)
-        // The **rounded** box width, which is what the reader can see — see the
-        // doc comment. Usually the same number layout measured at, and so a
-        // cache hit; when `roundLayout` moved it, this is a second
-        // `CTTypesetter` pass in the same frame. **That cost is observable in
-        // exactly one place, `ShapingCache.misses`**, and in no rendered pixel:
-        // the output is right either way, only the work is not. If a frame's
-        // miss count is ever surprising, this line is the first suspect.
-        let width = max(Double(bounds.size.width.value), smallestWrapWidth)
+        // **The width layout MEASURED at, not the rounded box it stored** —
+        // the fix for what CLAUDE.md carried as divergence 8, and the reason
+        // this reads `pass.measuredWidth(of:)` rather than `bounds`.
+        //
+        // `roundLayout` stores `round(x + w) - round(x)`, which keeps a row
+        // closed on its parent and is not in question here. But that number
+        // lands *below* `w` about half the time, and re-asking `CTTypesetter`
+        // at it is asking a different question from the one the measure
+        // function answered: the last word no longer fits, so layout said one
+        // line and this drew two, into a box one line tall. Measured on
+        // `"Count N"` at 22pt — at the unrounded width every count is one line,
+        // at `floor` of it every count is two.
+        //
+        // **It is now the same number layout used, so this is a cache HIT
+        // rather than a second typeset pass.** That is a side benefit and not
+        // the reason: the reason is that the two phases now agree by
+        // construction. `ShapingCache.misses` is where a regression would show.
+        //
+        // The cost, stated because it is real: a glyph may extend up to a point
+        // past the rounded box, recovering exactly what rounding removed. That
+        // is not the paint-side epsilon this repo measured and rejected — an
+        // epsilon is a blind additive fudge and could not be bounded, this is
+        // the width the box was measured at.
+        let width = max(pass.measuredWidth(of: layout.node), smallestWrapWidth)
         let shaped = pass.shapingCache.shaped(string, font: font, wrappingAt: width)
         let color = pass.theme[foregroundColor ?? .textPrimary]
 

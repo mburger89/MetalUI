@@ -134,12 +134,22 @@ public func computeLayout(
     roundStoredRects(tree, root)
 }
 
-/// Apply `roundLayout` to every node's stored rect, depth-first.
+/// Apply `roundLayout` to every node's stored rect, depth-first, recording each
+/// node's pre-rounding width on the way.
 ///
 /// `roundLayout` is stateless per rect — it rounds each rect's own cumulative
 /// edges — so applying it node-by-node is equivalent to applying it to the whole
 /// tree at once, and requires no traversal order.
+///
+/// **This is the only place the unrounded width still exists**, which is why the
+/// recording happens here rather than at the site that wants it. `roundLayout`
+/// stores `round(x + w) - round(x)`; that keeps every boundary closed on its
+/// parent and is not in question, but it lands below `w` about half the time,
+/// and a phase after layout that re-derives content from the stored width is
+/// then asking a different question from the one the measure function answered.
+/// See `LayoutTree.measuredWidth(_:)`, whose sole reader is `Text.paint`.
 private func roundStoredRects(_ tree: LayoutTree, _ node: LayoutNodeID) {
+    tree.setMeasuredWidth(node, tree.layout(node).width)
     tree.setLayout(node, roundLayout([tree.layout(node)])[0])
     for kid in tree.children(node) {
         roundStoredRects(tree, kid)

@@ -666,7 +666,7 @@ private func painted<E: Element>(_ element: inout E, width: Double, height: Doub
             "\(mismatches.count) of \(compared) pixels differ — \(mismatches.prefix(6).joined(separator: ", "))")
 }
 
-// MARK: - CLAUDE.md's divergence 8: paint disagrees with layout about line count
+// MARK: - Paint and layout agree about line count (was divergence 8)
 
 /// The four-token repro from
 /// `.superpowers/sdd/2026-08-28-clipping-and-scroll/wrap-investigation.md`.
@@ -731,56 +731,115 @@ private func lineClusterCount(_ scene: Scene, font: ResolvedFont, scaleFactor: D
     return clusters
 }
 
-/// **Pins CLAUDE.md's divergence 8** — pre-existing, not introduced by the
-/// clipping-and-scroll branch (measured byte-identical at the branch's base
-/// commit `ba22e4a`, before a line of clipping or scroll code existed, with
-/// no `ScrollView` anywhere in the probed tree), and the first of the
-/// engine's recorded divergences where the disagreement is not with WebKit at
-/// all — it is between this engine's own layout and this engine's own paint.
+
+// MARK: - Paint asks the width layout measured at
+
+/// **Paint wraps at the width layout MEASURED at, not the width rounding
+/// stored** — and this test replaces the deliberately-wrong pin that stood
+/// here for CLAUDE.md's divergence 8, which is now fixed and retired.
 ///
-/// **What correct behaviour looks like, so a future fix reddens this
-/// deliberately rather than by surprise.** The layout box would still measure
-/// one line tall — nothing here is flexed and nothing shrinks below its
-/// content, so this is not TX-H — but the scene would hold glyphs on exactly
-/// ONE baseline, not two, because paint would either wrap at the width layout
-/// actually measured (not the rounded-down stored width) or layout would
-/// never round a measured leaf's box below the content size its own measure
-/// function reported. CLAUDE.md's divergence 8 entry names both real fixes
-/// and why neither belongs on this branch — a paint-side epsilon was measured
-/// and rejected there, not merely argued against.
+/// A shrink-wrapped `Text` measures to a fractional max-content; `roundLayout`
+/// stores `round(x + w) - round(x)`, which lands below that number about half
+/// the time; and `Text.paint` used to re-ask `CTTypesetter` at the stored
+/// width, where the last word no longer fit. Layout said one line, paint drew
+/// two, and the second hung below a box one line tall. `Text.paint` now reads
+/// `pass.measuredWidth(of:)`, so the two phases ask the same question.
 ///
-/// **This is the only pin.** Taxonomy shape 9
-/// (`wrap-investigation.md`, "The five questions", Q5): every glyph-emitter
-/// test elsewhere in this file paints a ROOT `Text`, whose `auto` inline axis
-/// takes the whole offered extent (CLAUDE.md divergence 4) rather than
-/// shrink-wrapping to a fractional max-content, so nothing else in the suite
-/// this branch started from (488 tests) can land on the down side of this
-/// rounding. Implementing either of CLAUDE.md's two named fixes must redden
-/// exactly this test.
+/// **The sample is the string the divergence was reported on**, chosen because
+/// its max-content (209.3203 at 13pt) rounds **down** to 209 in a 900pt frame.
+/// Nothing here is flexed and nothing shrinks below its content, so this was
+/// never TX-H: the box was always the right height for the one line layout
+/// computed, and the whole defect lived in the seam.
+///
+/// **The three assertions catch different regressions and none is redundant.**
+/// The stored width pins that this fix moves no stored size — which is what
+/// keeps all 81 goldens still, and a fix that rounded the box UP instead would
+/// fail here while passing the cluster count. The height pins that layout still
+/// agrees with itself. The cluster count is the defect proper.
+///
+/// **`"Hello"` is the positive control**: its max-content is nowhere near a
+/// rounding boundary, so it was one line before the fix too, and it is what
+/// makes the cluster assertion non-vacuous rather than an artefact of
+/// `lineClusterCount`.
 @MainActor
-@Test func roundingCanMakePaintWrapAShrinkWrappedTextThatLayoutMeasuredAsOneLine() {
+@Test func paintWrapsAtTheWidthLayoutMeasuredAtNotTheRoundedBox() {
     var row = Row { Text(wrapDivergenceSample) }
     let (frame, root, scene) = renderedWithRoot(&row, width: 900)
     let child = frame.tree.children(root)[0]
     let box = frame.tree.layout(child)
 
-    // Layout is right: one line, and the stored width is the max-content
-    // 209.3203 rounded DOWN to 209 — not up to 210, which is the whole defect.
+    #expect(box.width == 209,
+            "the fix must not move a stored size — 209 is the rounded box and stays it")
     #expect(box.height == 16, "layout's own line-count disagrees with itself")
-    #expect(box.width == 209)
-
-    // Paint is wrong: what it actually emitted lands on two baselines, not
-    // the one the box it was handed says there should be.
-    #expect(lineClusterCount(scene, font: font, scaleFactor: 2) == 2, """
-            expected the paint-side wrap defect (two baselines in a one-line box) — if this \
-            reads 1, the roundLayout/Text.paint seam has been fixed and CLAUDE.md's \
-            divergence 8 should be retired
+    #expect(lineClusterCount(scene, font: font, scaleFactor: 2) == 1, """
+            paint wrapped a string layout measured as one line: it is asking \
+            CTTypesetter about the rounded box rather than the width the measure \
+            function was given — CLAUDE.md's divergence 8, which this pins as FIXED
             """)
 
-    // Positive control: a string whose max-content is nowhere near a rounding
-    // boundary stays on one baseline, so the assertion above is not vacuous.
     var control = Row { Text("Hello") }
-    let (_, controlRoot, controlScene) = renderedWithRoot(&control, width: 900)
-    _ = controlRoot
+    let (_, _, controlScene) = renderedWithRoot(&control, width: 900)
     #expect(lineClusterCount(controlScene, font: font, scaleFactor: 2) == 1)
+}
+
+/// **The shape a human actually found the divergence in**, swept rather than
+/// sampled — a short label, shrink-wrapped and centred in a fixed box, where
+/// changing one character flips the outcome.
+///
+/// The demo's counter read `"Count \(count)"` at 22pt centred in a 140pt box,
+/// and it wrapped on ten of the first thirteen counts. The arithmetic, for
+/// count 3: max-content is 76.221, `x` is `(140 - 76.221)/2 = 31.89`, so the
+/// stored width is `round(108.11) - round(31.89) = 108 - 32 = 76`, which is
+/// **below** 76.221 and no longer fits. Count 2's max-content is 75.677 and 76
+/// clears it, so the identical layout renders correctly — which is why the
+/// defect tracked the *digit* rather than the count.
+///
+/// **Sweeping is what makes this test able to fail.** Any single count is a
+/// coin flip on `frac(x + maxContent)`; a fixture pinning one string would
+/// have passed against the unfixed engine three times in thirteen. The sweep
+/// is the fixture that can express the defect — this repo's ruling MP-J, in
+/// the direction that bites.
+@MainActor
+@Test func aCentredShrinkWrappedLabelNeverWrapsAtAnyValue() {
+    for n in 0...12 {
+        var readout = Box {
+            Text("Count \(n)").font(size: 22)
+        }
+        .width(Pixels(140))
+        .height(Pixels(36))
+        .alignItems(.center)
+        .justifyContent(.center)
+
+        let (_, _, scene) = renderedWithRoot(&readout, width: 900)
+        let font22 = FontResolver.resolve(family: nil, size: 22)
+        #expect(lineClusterCount(scene, font: font22, scaleFactor: 2) == 1,
+                "'Count \(n)' wrapped — the rounded box fell below its max-content")
+    }
+}
+
+/// **A `Text` the flex algorithm SHRANK still wraps at the width it was
+/// shrunk to**, which is the regression a careless fix for the test above
+/// would introduce.
+///
+/// `measuredWidth` is the node's *resolved* width before rounding, not its
+/// max-content. A fix that reached for max-content instead — the obvious wrong
+/// move, since that is what a shrink-wrapped label's width happens to equal —
+/// would make a shrunk text lay its glyphs out on one long line running clear
+/// out of its own box, and the test above would not notice.
+///
+/// Pinned as "more than one line" rather than an exact count: the point is that
+/// paint respects the shrunk width, and the exact line count is a property of
+/// the font stack rather than of this rule.
+@MainActor
+@Test func aTextShrunkByFlexStillWrapsAtItsShrunkWidth() {
+    var row = Row { Text(wrapDivergenceSample) }
+    let (frame, root, scene) = renderedWithRoot(&row, width: 120)
+    let child = frame.tree.children(root)[0]
+
+    let stored = frame.tree.layout(child).width
+    #expect(stored < 209, "the fixture did not shrink the text; it cannot see the defect")
+    #expect(lineClusterCount(scene, font: font, scaleFactor: 2) > 1, """
+            paint laid a shrunk string out on one line — it is wrapping at max-content \
+            rather than at the width the engine resolved
+            """)
 }
