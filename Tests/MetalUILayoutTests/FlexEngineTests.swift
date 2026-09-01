@@ -1144,43 +1144,47 @@ private func wrappingChildInANarrowContainer(
     #expect(flooredStretch.layout(d).x == 0)
 }
 
-/// **An item's cross size is measured from its HYPOTHETICAL main size, before
-/// §9.7 flexes it; CSS measures it from the USED main size, after.** Measured
-/// against WebKit on the same tree:
+/// **An item's cross size is measured from its USED main size, after §9.7 has
+/// flexed it — ruling TX-H, fixed.** Measured against WebKit on the same
+/// tree, and now agreeing on both:
 ///
 /// | container | WebKit | this engine |
 /// |---|---|---|
-/// | `row; align-items: flex-start` | `120x40` | **`120x20`** |
-/// | `row` (stretch) | `120x600` | `120x600` — agree |
+/// | `row; align-items: flex-start` | `120x40` | agree |
+/// | `row` (stretch) | `120x600` | agree |
 ///
 /// CSS Flexbox orders this explicitly: §9.7 resolves the flexible lengths
 /// (step 6) and *then* §9.4 step 7 determines each item's hypothetical cross
 /// size "by performing layout with the **used** main size". `collectItems`
-/// computes `ownCross` in the same pass that computes the hypothetical main
-/// size, so an item that is about to shrink keeps the cross size it had at its
-/// unshrunk width: `.a` here is laid out 120 wide and 20 tall, one row of four
-/// 50pt items in a space that only fits two.
+/// still measures `ownCross` from the item's HYPOTHETICAL main size — a line's
+/// own cross extent has to be measured from something before §9.7 can even
+/// run — but `layOutChildren` now re-measures every non-stretched auto-cross
+/// item a second time, per line, once `resolveFlexibleLengths` has resolved
+/// its USED main size (`itemFitContentCrossSize`, shared by both call sites).
+/// `.a` here shrinks from 200 (max-content, one row of four) to the root's
+/// 120 by ordinary main-axis flexing, which wraps it to two rows, so the
+/// second measurement gives 40 where the first gave 20.
 ///
 /// Invisible before M2 for the reason the helper above states — an item whose
 /// content does not reflow has the same cross size at every main size — and it
-/// is what makes `Row { Text(longLabel) }` one line tall while being narrower
-/// than one line.
+/// is what used to make `Row { Text(longLabel) }` one line tall while being
+/// narrower than one line.
 ///
-/// **Still not fixed, and untouched by divergence 6's fix**, which is confined
-/// to `!isRow`: this tree is a ROW, so its cross axis is the block axis and
-/// max-content is the right rule there. What is wrong here is *when* the
-/// measurement happens, not what it measures. Fixing it is a reordering of the
-/// main algorithm and every golden in the corpus is downstream of it. No
-/// fixture and no golden encodes it, deliberately: a golden would record this
-/// engine's answer as correct and a future fix should move nothing in the
-/// corpus.
-@Test func anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit() {
+/// **Renamed from `anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit`,
+/// which asserted the wrong answer on purpose and said so in its own
+/// message** — this is the same differential inverted, not a new test:
+/// `ownCross` is what named the site before the fix (the `stretch` half was
+/// always an agreement, which is what pointed at this function rather than at
+/// the line calling it), so the new name keeps naming it now that the
+/// hypothetical-vs-used distinction it names is resolved rather than open.
+@Test func anItemsCrossSizeIsMeasuredFromItsUsedMainSizeMatchingWebKit() {
     let (flexStart, a) = wrappingChildInANarrowContainer(direction: .row, align: .flexStart)
     #expect(flexStart.layout(a).width == 120)
-    #expect(flexStart.layout(a).height == 20)
+    #expect(flexStart.layout(a).height == 40)
 
     // Stretch takes its cross size from the line rather than from the item, so
-    // it is unaffected — the differential that names `ownCross` as the site.
+    // it is unaffected — the differential that names `ownCross` as the site,
+    // kept unchanged from before the fix.
     let (stretched, b) = wrappingChildInANarrowContainer(direction: .row, align: nil)
     #expect(stretched.layout(b).width == 120)
     #expect(stretched.layout(b).height == 600)
