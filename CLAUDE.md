@@ -1184,6 +1184,87 @@ while clicking the *panel* should not.
 already lists as permanently open**, including every one of the three the M2
 entry names.
 
+**The sizing milestone — exit criterion 8
+(`docs/superpowers/specs/2026-08-30-sizing-design.md` §8 item 8) is OPEN.
+Nobody has run the demo for this milestone, and this entry is written so that
+gap stays visible rather than reading as closed.**
+
+**What was established, and it is a process fact, not a look.** `swift build
+--target MetalUIDemo` is warning-free — confirmed 2026-09-01 after touching
+`Sources/MetalUIDemo/main.swift` and forcing a rebuild, so the check is
+against a real recompile rather than a cached no-op. `swift run MetalUIDemo`
+was started, reached a running process, stayed alive under `ps` for several
+seconds with no crash, and was terminated deliberately by this task rather
+than exiting on its own; stderr carried nothing beyond SwiftPM's own build
+banner (`Building for debugging...`, `Build of product 'MetalUIDemo'
+complete!`) the whole time. That rules out exactly one failure — a crash on
+startup — and establishes nothing about what is on screen. `swift test
+--no-parallel` reports `Test run with 752 tests in 1 suite passed after
+13.007 seconds`, this milestone's own expected count, and the fixtures
+directory holds 86 goldens with `git status` showing none touched.
+
+**Exit criterion 8's own wording asks the wrong question, and this record
+does not ask it.** The spec's §8 item 8 says a human should report "whether
+the sidebar reads at its declared width." Task 9 measured, and the decisions
+doc records as ruling `SZ-L`
+(`docs/superpowers/2026-08-30-sizing-decisions.md`), that the sidebar's
+97 / 73 / 70 rendering (windows 1200 / 920 / 700, against a 196pt
+declaration) is **identical before and after all three of this milestone's
+fixes** — `min(196, content) == content` whichever half of CSS Sizing §4.5's
+automatic minimum is implemented, so no fix this milestone could ship was
+ever capable of moving that number. Asking a human whether the sidebar "reads
+at 196" sends them looking for a change that was never going to be there and
+invites a false regression report. The divergence-5 entry above used to
+attribute the squeeze to ruling FS-3; that attribution was wrong and has
+since been corrected there. Nobody has measured whether a real browser would
+size the same declaration the same way — an unverified hypothesis (an unset
+`flexShrink` on the sidebar column) is recorded at the call site
+(`Sources/MetalUIDemo/main.swift`, ruling `SZ-L`) and is not fact.
+
+**What a human must do, and what to report.** Run `swift run MetalUIDemo`.
+Look at the whole window, not only the four points below — point 4 exists
+because the first three are not the only things four sizing rules changed on
+one shared code path could have broken.
+
+1. **Does any text anywhere in the window spill out of its box** — a line of
+   glyphs drawn below, above or outside the coloured background it's supposed
+   to sit inside, or overlapping the element after it? This is ruling TX-H's
+   user-visible form: before the fix, an item's cross size was measured
+   *before* CSS Flexbox §9.7 flexed its main size, so a shrunk item could
+   keep the box height it had before shrinking while paint still drew every
+   line the shrunk width now demands. The demo has text in several shapes —
+   a single-line sidebar label, a multi-line paragraph, a counter readout,
+   list rows — and the fix changes the general mechanism rather than one
+   site, so this is a whole-window check.
+2. **Does the scroll list still behave** — same visible extent, same
+   scrolling motion, still reaching row 500 cleanly at the bottom? Four
+   sizing rules changed on the path this list's `ScrollView` viewport is
+   sized from, and `Sources/MetalUIDemo/main.swift` keeps a
+   `.minHeight(Pixels(0))` on the box wrapping it: Task 9 measured that
+   removing it grows the viewport to 14000pt (the full, unclipped content
+   height) at every window width tested, so the modifier stays. Nobody has
+   looked at whether the running list matches that measurement.
+3. **The sidebar.** Ask only whether it *looks* wrong — too narrow for
+   "Library" and the four rows beneath it, cramped in a way that reads as a
+   bug — not whether it matches its 196pt declaration. It doesn't, it didn't
+   before this milestone either, and per the reframing above that is a known,
+   unexplained and unchanged fact rather than something this milestone's
+   fixes were ever going to move.
+4. **Anything different that this milestone did not predict.** BM-4, FS-3 and
+   TX-H all changed rules on the sizing path every flex item in the tree
+   takes, at once; this question is deliberately aimed at nothing in
+   particular, on the same footing as every other milestone's "did anything
+   else look wrong" question in this file.
+
+**A positive report on all four closes design spec §8 item 8 as revised
+above — item 8's literal "declared width" wording is superseded by point 3 —
+and closes none of the looks this file already lists as permanently open.**
+No claim about appearance, wrapping, scrolling or the sidebar's look is made
+anywhere in this entry; everything above the numbered list is either a
+process fact (build, launch, stderr, test count, goldens) or a measurement
+taken through a headless probe (`Task9Probe.swift`, deleted before Task 9's
+own commit), never through a rendered window.
+
 ## Twelve known divergences, numbered 1, 2, 4 and 9-17 — expected, measured, not defects
 
 **The labels are stable ids, not a running count, and there are now FIVE
