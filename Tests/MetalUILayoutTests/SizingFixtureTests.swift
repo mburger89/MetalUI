@@ -197,3 +197,41 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
     assertMatchesGolden(tree, ids: [root: "root", a: "a", b: "b", g1: "g1"],
                         golden: golden, tolerance: 0.5)
 }
+
+/// Ruling TX-H — §9.4 step 7 measures an item's cross size from its USED main
+/// size, after §9.7 has flexed it.
+///
+/// `.a` is a wrapping container of four 50x20 items, so its height depends on
+/// the width it is laid out at: 200 wide is one line (20 tall), 120 wide is two
+/// (40 tall). `align-items: flex-start` is load-bearing — under `stretch` an
+/// item takes its cross size from the line and the two engines already agree.
+@Test func crossSizeAfterFlexingMatchesWebKit() throws {
+    let golden = try loadGolden("sizing_cross_after_flex")
+    let tree = LayoutTree(generation: 0)
+
+    let items = (0..<4).map { _ -> LayoutNodeID in
+        var s = Style()
+        s.size = Size(width: px(50), height: px(20))
+        return tree.newNode(style: s, children: [])
+    }
+
+    var aStyle = Style()
+    aStyle.display = .flex
+    aStyle.flexDirection = .row
+    aStyle.flexWrap = .wrap
+    let a = tree.newNode(style: aStyle, children: items)
+
+    var rootStyle = Style()
+    rootStyle.display = .flex
+    rootStyle.flexDirection = .row
+    rootStyle.alignItems = .flexStart
+    rootStyle.size = Size(width: px(120), height: px(600))
+    let root = tree.newNode(style: rootStyle, children: [a])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    var ids: [LayoutNodeID: String] = [root: "root", a: "a"]
+    for (n, node) in items.enumerated() { ids[node] = "i\(n + 1)" }
+    assertMatchesGolden(tree, ids: ids, golden: golden, tolerance: 0.5)
+}
