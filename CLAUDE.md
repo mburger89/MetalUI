@@ -21,7 +21,8 @@ idiomatic Swift. macOS and iOS.
   `docs/superpowers/2026-08-28-stack-decisions.md`,
   `docs/superpowers/2026-08-28-absolute-positioning-decisions.md`,
   `docs/superpowers/2026-08-28-measure-performance-decisions.md`,
-  `docs/superpowers/2026-08-29-input-decisions.md` — each ruling with
+  `docs/superpowers/2026-08-29-input-decisions.md`,
+  `docs/superpowers/2026-08-30-sizing-decisions.md` — each ruling with
   its reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
@@ -30,12 +31,14 @@ idiomatic Swift. macOS and iOS.
   wrapping, `EP-n` to the element pipeline, `CS-n` to content sizing, `SI-n`
   to structural identity, `TX-n` to text (M2), `CL-n` to clipping and scroll,
   `ST-n` to the stack container, `AP-n` to absolute positioning, `MP-n` to
-  measure-path performance and `IN-n` to `@State`/hit testing/input dispatch
-  (the last eight are
+  measure-path performance, `IN-n` to `@State`/hit testing/input dispatch and
+  `SZ-n` to the sizing milestone that closed BM-4, FS-3 and TX-H (the last
+  nine are
   **lettered** — `CS-A`…`CS-O`, `SI-A`…`SI-H`, `TX-A`…`TX-J`, `CL-A`…`CL-F`,
-  `ST-A`…`ST-G`, `AP-A`…`AP-M`, `MP-A`…`MP-N` and `IN-A`…`IN-W` — so a bare
-  `CS-3`, `SI-3`, `TX-3`, `CL-3`, `ST-3`, `AP-3`, `MP-3` or `IN-3` is a typo
-  rather than a citation; **`MP-A`…`MP-K` is what this line said until the
+  `ST-A`…`ST-G`, `AP-A`…`AP-M`, `MP-A`…`MP-N`, `IN-A`…`IN-W` and `SZ-A`…`SZ-N`
+  — so a bare
+  `CS-3`, `SI-3`, `TX-3`, `CL-3`, `ST-3`, `AP-3`, `MP-3`, `IN-3` or `SZ-3` is a
+  typo rather than a citation; **`MP-A`…`MP-K` is what this line said until the
   input-and-state milestone re-read the file — the measure-performance
   milestone's whole-branch review added `MP-L`, `MP-M` and `MP-N` and did not
   update the range here, so a citation of `MP-L` is real and this sentence
@@ -453,14 +456,17 @@ The flex-sizing milestone alone produced nineteen findings, four of them the sam
 shape: a fixture too uniform to distinguish the thing it claimed to pin. Before
 committing a fixture, change the declaration it is named for — a percentage to a
 pixel, an inset to 0 — regenerate, and confirm the numbers move. That document
-catalogues **fourteen** shapes of test that cannot fail, all observed in this repo,
+catalogues **fifteen** shapes of test that cannot fail, all observed in this repo,
 plus the method for finding them and the cases where adding a test is the wrong
 answer. Count the `### <n>.` headings rather than trusting that number
-(`grep -cE "^### [0-9]+\." docs/practices/verifying-tests-can-fail.md` reads 14) —
-a bare `grep -c "^### "` reads **17**, because **three** sections in that document
-are unnumbered. Both numbers moved in the input-and-state milestone, which added
-shape 14 and one unnumbered section; this sentence recorded 13 and 15 before it,
-and the unnumbered count was 2.
+(`grep -cE "^### [0-9]+\." docs/practices/verifying-tests-can-fail.md` reads 15) —
+a bare `grep -c "^### "` reads **18**, because **three** sections in that document
+are unnumbered. Both numbers have now moved twice: the input-and-state milestone
+added shape 14 and one unnumbered section (13 and 15 before it, unnumbered count
+2 before that), and the sizing milestone added shape 15 — "a benchmark of a
+configuration in which the code under test is unreachable", found while
+measuring TX-H's own cost (ruling `SZ-N`) — with no change to the unnumbered
+count.
 
 The recurring lesson of the last two tasks has a sharper form: **a feature that
 works alone and a feature that works alone can be wrong together.** All three
@@ -549,10 +555,15 @@ report asserted two new modifiers "cannot" be covered by
 `Equatable` — true — and concluded no test was possible, which is false, since
 `HandlerShape` in that same file had solved exactly that two tasks earlier.
 Nobody looked, because the reason sounded finished. Both modifiers shipped
-uncovered and both mutants stayed green. **The precedent it repeats is already
-in this file**: divergence 5's FS-3/`.minWidth` correction, where a task's
-stated reason was wrong in two directions at once while its conclusion happened
-to be right. The tell is a **"cannot" that was not measured**.
+uncovered and both mutants stayed green. **The precedent it repeats already
+existed in this file, in the now-retired divergence 5 (ruling FS-3)**: a
+task's report claimed `.minWidth(_:)` "has no equivalent escape" for a demo
+`ScrollView` wrapper, when `.minWidth(_:)` existed and the real blocker was
+`ScrollView` having no modifier surface at all — a stated reason wrong in two
+directions at once while its conclusion happened to be right. (The correction
+now lives at `Sources/MetalUIDemo/main.swift`, where the wrapper is declared,
+since divergence 5's own entry is gone.) The tell is a **"cannot" that was not
+measured**.
 
 The three mechanisms are new sections under "The method" in the practices doc,
 and each cost a round of rework:
@@ -1173,17 +1184,63 @@ while clicking the *panel* should not.
 already lists as permanently open**, including every one of the three the M2
 entry names.
 
-## Fifteen known divergences, numbered 1-6 and 9-17 — expected, measured, not defects
+## Twelve known divergences, numbered 1, 2, 4 and 9-17 — expected, measured, not defects
 
-**The labels are stable ids, not a running count, and BOTH gaps are
-deliberate.** There are **fifteen** entries and the highest label is **17**.
-Two labels are permanently retired and they were retired for different
-reasons, which is worth knowing before assuming a third gap means a lost
-entry:
+**The labels are stable ids, not a running count, and there are now FIVE
+retired labels.** There are **twelve** entries and the highest label is still
+**17**. Five labels are permanently retired, for three different reasons,
+which is worth knowing before assuming a sixth gap means a lost entry:
 
-- **7** was freed by a *renumbering*. The original divergence 6 was fixed and
-  the original 7 was moved into its slot — see the "This was divergence 7 of
-  seven, and 6 is gone" paragraph inside entry 6.
+- **3, 5 and 6 were freed by the sizing milestone (2026-08-31), which closed
+  all three of this framework's remaining sizing divergences at once.**
+  **3** was ruling BM-4, an over-constrained box refusing to grow its border
+  box; fixed by flooring every used-size call site at
+  `max(clamp(resolved, min:, max:), floor)` — the floor applied *after* the
+  clamp, settled against the oracle rather than chosen (a `max-*` smaller than
+  a box's own padding+border does not win in either axis) — and pinned by
+  `anOverConstrainedBoxGrowsToFitItsPaddingAndBorder` (`BoxModelTests.swift`).
+  **5** was ruling FS-3, an item's automatic minimum ignoring its own
+  specified size; fixed by reading the specified size suggestion from the
+  node's **used**, post-BM-4 size rather than its raw declaration — floors
+  compose by `max` and BM-4's floor cannot be undone by FS-3's — and pinned by
+  `anItemsAutomaticMinimumIsTheSmallerOfItsSpecifiedAndContentSizes`
+  (`FlexEngineTests.swift`) plus two browser fixtures,
+  `sizing_specified_suggestion` and `sizing_specified_suggestion_is_used_value`.
+  The second of those two exists because the first does not discriminate the
+  specified-vs-declared reading on its own tree: a floor BM-4 has already
+  raised to 120 is untouched by either a 100 or a 130 automatic minimum, and
+  only a fixture with a shrinking sibling can tell the two rules apart —
+  measured, not assumed, after the plan's own claim that the first fixture
+  guarded this choice turned out false. **6** was ruling TX-H, an item's cross
+  size measured before §9.7 flexes it; fixed by re-running the fit-content
+  cross measurement for any non-stretched item whose used main size differs
+  from its hypothetical one, and pinned by
+  `anItemsCrossSizeIsMeasuredFromItsUsedMainSizeMatchingWebKit`
+  (`FlexEngineTests.swift`). All three fixes, and the findings along the way,
+  are recorded in `docs/superpowers/2026-08-30-sizing-decisions.md`: BM-4 is
+  rulings `SZ-D`, `SZ-E`, `SZ-F` and `SZ-J`; FS-3 is `SZ-G`, `SZ-H` and `SZ-I`;
+  TX-H is `SZ-M`.
+- **7** was freed by a *renumbering*, before this milestone. The *original*
+  divergence 6 — an unrelated, already-fixed bug, not the TX-H one just
+  retired above — was `ownCross` measuring **max-content** on whichever axis
+  was the cross one, so a **column** (whose cross axis is the *inline* axis,
+  where CSS shrink-wraps) laid a wrapping child out 200 wide at `x = -40`
+  inside a 120-wide centring column, and `Column { Text(…) }` 270 wide at
+  `x = -75`. It was fixed by computing CSS's fit-content —
+  `min(max(min-content, available), max-content)` — on a column's cross axis
+  (still max-content on a row's, correctly, since a row's cross axis is the
+  block axis), and the original divergence 7 moved down into the slot that
+  fix emptied — which is why "divergence 6" in an old document could mean
+  either this bug or the TX-H one, depending on date, and why both are
+  retired labels now rather than one. The fix's own first evidence was weak:
+  every box in the 61-fixture corpus at the time was an empty div whose
+  min-content and max-content widths were the same number, so nothing could
+  regress or validate it. Six fixtures with wrapping children
+  (`flex_column_fit_content*`, `flex_row_block_axis_max_content`,
+  `FitContentFixtureTests`) were added afterward to close that gap, and found
+  two of the fix's four clauses wrong before they were measured — the
+  available space is the container's cross extent minus the item's own cross
+  margins, and the `max` with min-content is a real floor that overflows.
 - **8** was freed by a *fix*, on 2026-08-30, and its entry was deleted rather
   than renumbered. `Text.paint` now wraps at the width layout measured at
   (`LayoutTree.measuredWidth(_:)`) instead of re-deriving one from the rounded
@@ -1197,29 +1254,40 @@ entry:
   and **confirmed in a real window by a human on 2026-08-30** — which matters
   because every other figure for this fix is a glyph count out of a headless
   `Frame`, and the defect was originally *reported* by eye rather than found by
-  a test.
+  a test. **The retired TX-H entry (label 6, above) used to carry a paragraph
+  calling a second spill "a second spill with the same symptom and an
+  UNIDENTIFIED site" — a sidebar label breaking mid-word inside a `Column`
+  that is itself a flex item. The sizing milestone identified it: that site
+  is this one, not a third bug.** `"Library"`'s max-content width is
+  **42.2436**; the sidebar column floors it to 70.24, rounds to 70; the
+  text's own box rounds down to 42; and before this fix, paint character-broke
+  there (ruling TX-F). Re-measured with the fix landed: it renders as 7 glyphs
+  on one baseline, ink 13.5pt. There is no unidentified spill site left.
 
-**Neither freed label is ever reused** — the same rule `EP-2`/`EP-4` follow —
-so a citation written against "divergence 8" in an older commit message or
-document points at a retired entry rather than silently rebinding to a
-different one. A reader who counts to the highest label gets seventeen and a
-reader who counts entries gets fifteen; the heading says both numbers because
-they answer different questions.
+**Neither of the two labels retired before this milestone is ever reused, and
+neither are the three retired by it** — the same rule `EP-2`/`EP-4` follow —
+so a citation written against "divergence 3", "5" or "6" (the TX-H one; see
+the label-7 bullet above for the *other* thing "divergence 6" used to mean) in
+an older commit message or document points at a retired entry rather than
+silently rebinding to a different one. A reader who counts to the highest
+label gets seventeen and a reader who counts entries gets twelve; the heading
+says both numbers because they answer different questions.
 
-**Not every entry is a disagreement with WebKit, and 10 was the first that never
-was one.** 1-6 are places this engine answers differently from an oracle, and 9
-is of that kind too. (The retired 8 was the one entry where the disagreement was
-not with WebKit at all but between this engine's own layout and its own paint —
-which is also why it was the one that could simply be fixed.) **10, 11 and 16 are design choices recorded here because a
-reader comparing this framework to CSS will otherwise read them as bugs** — 10
-and 11 are the two directions of one seam and each entry names the other, and 16
-is the price of the rule that closes the modal-scrim case. **12, 13, 14 and 17
-are a third kind again: neither a disagreement nor a design preference, but four
-accepted limitations of `List`'s windowing**, each with a named mechanism that
-would remove it and a reason that mechanism is larger than this framework has
-built. 14 is the one of the four that can make a list render **blank** rather
-than merely stale or forgetful, so read it before putting a `List` in a scroller
-that holds anything else. **15 is a fourth kind and the only one of its own: a
+**Not every entry is a disagreement with WebKit, and 10 was the first that
+never was one.** 1, 2, 4 and 9 are places this engine answers differently
+from an oracle. (The retired 8 was the one entry where the disagreement was
+not with WebKit at all but between this engine's own layout and its own paint
+— which is also why it was the one that could simply be fixed.) **10, 11 and
+16 are design choices recorded here because a reader comparing this framework
+to CSS will otherwise read them as bugs** — 10 and 11 are the two directions
+of one seam and each entry names the other, and 16 is the price of the rule
+that closes the modal-scrim case. **12, 13, 14 and 17 are a third kind again:
+neither a disagreement nor a design preference, but four accepted limitations
+of `List`'s windowing**, each with a named mechanism that would remove it and
+a reason that mechanism is larger than this framework has built. 14 is the
+one of the four that can make a list render **blank** rather than merely
+stale or forgetful, so read it before putting a `List` in a scroller that
+holds anything else. **15 is a fourth kind and the only one of its own: a
 defect this framework has and has deliberately not fixed yet**, recorded here
 rather than left latent because its symptom — a subtree that draws nothing at
 all — reads as anything but a clipping bug.
@@ -1257,40 +1325,6 @@ future WebKit fix moves nothing in the corpus and changes no test. Do not add
 one, and do not "correct" `subOneScalingNeverExceedsTheRemainingFreeSpace`
 towards WebKit — it is pinning the settled answer, not a provisional guess.
 
-**3. Ruling BM-4 — an over-constrained box does not grow to fit its padding
-and border.** CSS's `box-sizing: border-box` defines a box's used size as
-`max(specified, padding + border)`: when padding and border together exceed
-the specified width or height on an axis, the browser **grows the border box**
-to fit them rather than letting the content box go negative. This engine does
-not do that. `contentBox` (`FlexEngine.swift`) only clamps the *content* box
-to zero with `max(0, …)`; the border box stays exactly what the style
-specified.
-
-Reproduce with `width: 100px; height: 80px; padding: 60px 50px;
-border-style: solid; border-width: 10px` and one auto-sized child: **WebKit
-renders the root at 120×140**. `border-style` is not optional here — without it
-`border-width` is inert and the same snippet measures 100×120 instead, which is
-how this paragraph was wrong when first written
-(120 = 50+50+10+10 horizontal, 140 = 60+60+10+10 vertical, both exceeding the
-100×80 specified). This engine keeps the root at the specified **100×80**.
-
-Implementing WebKit's answer belongs in sizing (`resolveNodeSize`/
-`flexBaseSize`), not in `contentBox`: it would change a node's *stored* size,
-which the freeze loop and every ancestor then consume — too much reach for a
-style (padding/border larger than the box) that is already a mistake. Pinned
-by `containerDoesNotGrowToFitOverconstrainedPaddingUnlikeWebKit` in
-`BoxModelTests.swift`, with WebKit's numbers named in its comment so a future
-change here is a decision, not a surprise.
-
-**It is easier to hit by accident than "padding larger than the box" sounds**,
-because percentage padding resolves against the *containing block*, which is
-usually wider than the box. `flex_percent_padding_nonsquare`'s first draft used
-`padding: 10% 5% 4% 15%` on a 400×100 root inside an 800-wide body: that is 80
-+ 32 = 112 of vertical padding against a 100px height, and WebKit duly grew the
-root to 112 tall. If a new fixture's golden shows a root taller or wider than
-its declared size, this is why — shrink the percentages rather than encoding
-the divergence into the corpus.
-
 **4. Ruling CS-I — an `auto` root axis takes the space it was offered, where
 CSS shrink-wraps the block one.** The root is a block-level box in the initial
 containing block, so a browser fills its inline axis and shrink-wraps its block
@@ -1320,7 +1354,7 @@ an `auto` axis differs.
 **A fixture could hold this one; the corpus deliberately has none.**
 `#root { display: flex }` with no `width` or `height` is perfectly expressible,
 and its golden would say 800×40 and fail — same footing as WebKit's flex
-sub-one clause above. That all 81 fixture roots declare both axes explains why no
+sub-one clause above. That all 86 fixture roots declare both axes explains why no
 *existing* fixture notices, not why one could not exist;
 `FixtureHygieneError` does not enforce it, it only checks the root lands at
 (0, 0).
@@ -1329,190 +1363,6 @@ What content sizing *did* change here is the other constant in the same branch
 — an `auto` axis with **no offered extent at all** was a hardcoded 0 and is now
 the subtree's own size, pinned by
 `anAutoRootWithNoOfferedExtentMeasuresItsContent`.
-
-**5. Ruling FS-3 — an item is floored by its content even when its own
-`width` says it may be smaller.** CSS Sizing §4.5's automatic minimum (what
-`min-width: auto`, the default on every flex item, resolves to) is
-`min(specified size suggestion, content size suggestion)`. This engine
-implements the **content** half only. That was dormant while nothing measured
-content; content sizing made the content half live for containers, and the
-missing half became measurable in the same stroke.
-
-Reproduce with:
-
-```html
-#root { display: flex; width: 150px; height: 60px; }
-.a { display: flex; width: 100px; }   /* holds a 200px child */
-.b { width: 100px; height: 20px; }
-```
-
-|`.a`'s style | WebKit | this engine |
-|---|---|---|
-| `width: 100px` | `a` **100**, `b` **50** | `a` **200**, `b` **0** (overflows) |
-| `width: 130px` | `a` **130**, `b` **20** | `a` **200**, `b` **0** |
-| `width: 100px; min-width: 0` | `a` 75, `b` 75 | `a` 75, `b` 75 — agree |
-
-The middle row is the sharp one: **WebKit's floor tracks the specified width and
-this engine's does not move**, because it is the child's 200 in both cases. The
-third row is the differential that names the cause — an explicit `min-width: 0`
-replaces the automatic minimum and the two engines agree exactly.
-
-**Not implemented here, and the reason is reach rather than effort** — the same
-one that kept BM-4 out of the box model. The specified size suggestion changes
-an item's floor, which §9.7's freeze loop consumes and every ancestor then sees
-as a different stored size; it belongs in a sizing plan with the corpus
-regenerated behind it. Pinned by
-`aContainerIsNotFlooredByItsSpecifiedSizeUnlikeWebKit` in `FlexEngineTests.swift`,
-with WebKit's numbers and both differentials in its comment.
-
-**No fixture and no golden encode it**, on the same footing as the sub-one
-clause above: a golden would record this engine's answer as correct, and a
-future fix should move nothing in the corpus. That test is the only pin, so
-implementing FS-3 must redden exactly it.
-
-**That last sentence was measured before `ScrollView` existed, and a shipped
-feature now sits downstream of the half that DOES work.** The *content* half of
-§4.5's automatic minimum — the half this engine implements — is the sole reason
-a `ScrollView`'s content node overflows its viewport at all, and
-`Sources/MetalUIDemo/main.swift` relies on the missing *specified* half in the
-opposite direction: it must set `.minHeight(Pixels(0))` on the box wrapping the
-demo's scroll list, because an explicit height alone is silently overridden back
-up to the content height. So whoever implements FS-3 owns three things this
-sentence did not anticipate. **(1)** "must redden exactly it" is still the
-claim to check, but re-measure it rather than trusting it — the pin was counted
-against a suite with no `ScrollView` in it. **(2)** The demo's
-`.minHeight(Pixels(0))` and the paragraph explaining it become wrong the moment
-the specified-size suggestion lands, since an explicit height would then bind on
-its own. **(3)** `ScrollView.requestLayout`'s `contentStyle.flexShrink = 0`
-interacts with the change: the automatic minimum is what floors the content node
-at min-content and `flexShrink: 0` is what stops the freeze loop shrinking it
-from max-content down to that floor (ruling CL-C). A specified-size suggestion
-that lowers the floor changes what the freeze loop would do, not what it is
-allowed to do — `aScrollViewOfTextDoesNotShrinkItsContentToTheViewport` is the
-test to watch. **(4)** Task 10's own report gave a wrong reason for the demo's
-`ScrollView` wrapper needing a literal `.width(Pixels(420))` instead of
-reflowing, and it was wrong in **two directions at once** — corrected here
-rather than silently fixed, per this repo's own rule about false claims.
-`.minWidth(_:)` **does** exist (`Box.swift:269`, beside `.minHeight(_:)`), so
-"width has no equivalent escape" is wrong as literally stated. But measured on
-the full demo tree at windows 1200/920/700, `.minWidth(Pixels(0))` on the
-wrapping `Box` is **bit-identical** to writing no width spelling at all —
-wrapper 1027/771/554, viewport (and every row) still 243/244/244 either way —
-so the escape that does exist does not work, and the fixed 420 is not "a
-problem with an available fix that went unused." The real blocker, found by
-mutation: adding `viewportStyle.flexGrow = 1` inside
-`ScrollView.requestLayout` makes the viewport fill at every width
-(1027/771/554, matching the wrapper) — an ordinary flex fact about the
-viewport's own **main** axis, unconnected to §4.5's automatic minimum, and
-unreachable from any caller because `ScrollView` conforms to `Element`, not
-`StyledElement`, and has no modifier surface at all. **There is a genuine
-symmetry underneath both wrong and right halves of Task 10's claim.** A `Row`
-wrapper (shipped) bounds the height via cross-axis stretch and strands the
-width, because the viewport's width is its *main* axis relative to a row and
-nothing can grow it there. A `Column` wrapper does the exact reverse: it gives
-the viewport the full width via cross-axis stretch (measured: 1200/920/700),
-but its height goes unbounded to **14000** — the whole content — because height
-is now the viewport's main axis and no `.minHeight(0)` is spellable on
-`ScrollView` either. (That figure read **1120** until the measure-performance
-milestone's whole-branch review re-measured it. 1120 is 40 x 28, this tree's
-answer while the list was a `for` loop over 40 rows; the demo ships a 500-row
-`List` at `rowHeight` 28, and `List` declares `count * rowHeight` as a fixed
-style property whether or not those rows are built, so windowing does not lower
-it. Re-measured on the shipped structure — a `Box` wrapping
-`ScrollView { List }` inside a stretching `Column` — which gives 14000 at 500
-rows and reproduces 1120 exactly at 40.) With today's API you get one axis or the other, never
-both. Task 10's **conclusion** — a literal width is the only option today —
-was right; its **stated reason** was wrong twice over (`.minWidth` exists;
-the actual blocker is `flexGrow`, not the automatic minimum). The real fix is
-a modifier surface on `ScrollView` (or a reachable `flexGrow`/`minSize`), not
-a demo spelling change.
-
-**6. Ruling TX-H — an item's cross size is measured before §9.7 flexes it.**
-CSS Flexbox resolves the flexible lengths (step 6) and *then* determines each
-item's hypothetical cross size "by performing layout with the **used** main
-size" (§9.4 step 7). `collectItems` computes `ownCross` in the same pass as the
-hypothetical main size, so an item that is about to shrink keeps the cross size
-it had at its unshrunk width.
-
-Measured through the oracle on a 120x600 root holding one
-`display: flex; flex-wrap: wrap` child of four 50x20 items:
-
-| container | WebKit | this engine |
-|---|---|---|
-| `row; align-items: flex-start` | `120x40` | **`120x20`** |
-| `row` (stretch) | `120x600` | `120x600` — agree |
-
-`Row { Text(longLabel) }` is therefore **one line tall while being narrower than
-one line**: §4.5's automatic minimum shrinks it to three lines' worth of width
-and the height it keeps is the one line it had before shrinking. Pinned by
-`anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit`.
-
-**The spill was a prediction and is now a measurement.** With the glyph emitter
-landed, `Row { Text("The quick brown fox jumps over the lazy dog") }` in a
-120x600 frame gives the text a box of **120 x 16 at y = 292** — one line tall,
-centred on the row's cross axis by ruling EP-8 — while paint wraps it to the
-box's 120pt width and lays glyphs from y = 294 down to **y = 339**. So roughly
-two of the three lines hang below the box. **Do not clamp this in paint**: the
-box is what is wrong, the glyphs are where the box says, and a clamp would move
-the defect somewhere nothing can see it.
-
-**A second spill with the same symptom and an UNIDENTIFIED site, measured while
-putting text in the demo — read it as an open question, not as a second
-instance of the rule above.** Being a flex item is by itself enough to give a
-`Column`'s text child a one-line box, with no shrinking and no `auto` size
-anywhere:
-
-```
-Column(gap: 10) { Text("Library"); Box().height(26) }
-  .width(68).padding(14).alignItems(.stretch)
-```
-
-**As the root** the label's box is 40×31pt — two lines, correct, and the `Box`
-follows at y = 55. **As the only item of a `Row`** the identical column gives it
-42×**15**pt — one line — while the glyphs still occupy two (device baselines
-32/33/38 and 69 at 2x), so the second line lands inside the `Box`, which has
-moved up to y = 39. The label's height is the item's *main* size in a column,
-not its cross size, so **this is not literally §9.4 step 7**, and the site was
-not isolated. It is visible in the demo: the 196pt-declared sidebar is
-squeezed below its declaration at **every** window width measured, not only a
-narrow one — **97 / 73 / 70** at windows 1200 / 920 / 700 (ruling FS-3; this
-file previously said the squeeze was visible "at 620pt", which understated
-it — the sidebar is already at 97pt on the *widest* window measured). What
-does change with width is whether the squeeze is narrow enough to force a
-wrap: at 920pt the sidebar's 73pt is still wide enough for `Text("Library")`
-to sit on one line, and by 620pt (sidebar ~70pt) the label wraps and its
-second line overlaps the row below it. Whoever fixes divergence 6 should
-check this against the same edit before assuming one change closes both.
-
-**Not fixed, and the reason is reach — BM-4's and FS-3's reason.** It moves an
-item's stored cross size, which every ancestor consumes and 81 goldens are
-downstream of, and it reorders the main algorithm. **No fixture and no golden
-encodes it**, deliberately: a golden would record this engine's answer as
-correct, and a future fix should move nothing in the corpus.
-
-**This was divergence 7 of seven, and 6 is gone.** Divergence 6 was the other
-half of the same tree — `ownCross` measured **max-content** on whichever axis
-was the cross one, so a **column** (whose cross axis is the *inline* axis, where
-CSS shrink-wraps) laid a wrapping child out 200 wide at `x = -40` inside a
-120-wide centring column, and `Column { Text(…) }` 270 wide at `x = -75`. It is
-fixed: `ownCross` now computes CSS's fit-content —
-`min(max(min-content, available), max-content)` — on a column's cross axis and
-still max-content on a row's, which is right there because a row's cross axis is
-the block axis.
-
-**Read the caveat that came with that fix before trusting any similar one.** The
-change moved **no** existing golden, and that was weak evidence rather than
-strong: every box in the 61 fixtures preceding it is an empty div whose
-min-content and max-content widths are the **same number**, so the corpus could
-neither regress under the change nor validate it. Six fixtures with **wrapping**
-children were generated against the oracle to close that
-(`flex_column_fit_content*` plus `flex_row_block_axis_max_content`,
-`FitContentFixtureTests`), and two of the fix's
-four clauses were wrong before they were measured: the available space is the
-container's cross extent **minus the item's own cross margins** (WebKit 104, not
-120, for a 120-wide column and `margin: 0 6px 0 10px`), and the `max` with
-min-content is a real floor that overflows (four 50-wide items in a **30**-wide
-centring column measure `50x80` at `x = -10`).
 
 **9. Ruling AP-F — an absolute box with no insets at all sits at its containing
 block's origin, where CSS uses its static position.** CSS places an
@@ -1542,9 +1392,9 @@ removing it — over exactly the children the flow filter (`collectItems`,
 popover and a tooltip each name at least one edge, and an inset-less absolute
 box is closer to a mistake than to a case.
 
-**No fixture and no golden encode it**, on the same footing as BM-4, FS-3 and
-TX-H: a golden would record this engine's answer as correct, and a future fix
-should move nothing in the corpus. Pinned by
+**No fixture and no golden encode it**, on the same footing as divergence 2's
+WebKit sub-one clause above: a golden would record this engine's answer as
+correct, and a future fix should move nothing in the corpus. Pinned by
 `allAutoInsetsPlaceAtTheContainingBlockOriginNotTheStaticPosition` in
 `AbsolutePositioningTests.swift`, which is the only pin — implementing static
 position must redden exactly it.
@@ -1993,7 +1843,6 @@ are the dangerous ones.
 | `aspectRatio` | **0 uses** |
 | `margin: auto` (`Style.margin`'s `.auto` case) | **Resolves to 0, not to CSS's answer.** Item margins landed in the box-model task's second step — `resolveMargin` in `Resolve.swift` shrinks the main-axis budget and offsets each item by its own margin — but `.auto` maps to 0 on the single line marked for it in that function, not to CSS's "absorb free space before `justify-content` distributes any." A `margin-left: auto` item that CSS would push to the far end of the line lays out at the line's start instead, silently. Pinned by `autoMarginsResolveToZeroForNow` in `BoxModelTests.swift`, with CSS's real answer named in its comment. **This row's scope was too narrow until the wrapping branch's final review measured it** — the third claim of that shape on this project, after ruling WR-4's and WR-5's. Auto margins are not only a main-axis/`justify-content` gap: WebKit **centres a `margin-block: auto` item within its line on the CROSS axis** and we give 0 (`b` at 90 vs our 0). That was already true under `nowrap`; `align-content: stretch` — the default this branch made reachable — grows lines and widened it (`d` at 255 vs our 225). Whoever implements auto margins owns both axes, not just the one `justify-content` sees. **Unreachable from the public modifier API since the element pipeline's Task 4**, and by a type rather than by a convention: `StyledElement.margin(_:)` takes `Length`, not `Dimension`, so `.auto` cannot be written through it at all. `Style.margin` is still public, so the case is reachable by setting `style` directly |
 | `MUIRect.borderColor` / `MUIRect.borderWidths` | **Round-trip the ABI, are drawn by `rect_fragment` — the M0 demo proved that end to end — and nothing in `MetalUI` can set either.** `Frame.fill` hard-codes `.transparent` and zero widths, and `Decoration` deliberately has no `borderColor`. The blocker is the **width**, not the colour: `Style.border` is an `Edges<Length>` whose percentage case resolves against the *containing block's* width, and the engine computes that inside `contentBox` and throws it away, so paint has no resolved width to pair a colour with. Re-resolving one at paint time against the box's own width is the exact mistake the percentage-inset constraint below records. Storing the resolved edges on `LayoutTree` is what unblocks it. Note the asymmetry this leaves: `StyledElement.borderWidth(_:)` is **live** and shrinks the content box, so a border affects sizing today and paints nothing |
-| A percentage `width`/`height` on the **root** | **Falls back to the offered space, not to the percentage.** `resolveRootSize` resolves the root's percentages against `nil` and then takes `available` — so `width: 50%` in an 800-wide space gives **800**. Measured in WebKit: **400**. The root's percentage *padding* does resolve against `available.width` (see `computeLayout`), so the two halves of "the root's containing block" disagree with each other today. Fixing it moves the root's stored size, which every descendant consumes; it belongs to a sizing plan, not the box model |
 | `Position.relative`'s **offset** | **Half-implemented, and the half that is missing is the half CSS is named for.** `.relative` does make a box the containing block its absolute descendants are placed against — live, load-bearing, read by `placeNode`'s `childCB` — and it does **not** shift the box by its own `inset` while reserving its in-flow space, which is what `position: relative` means in CSS. A `.relative` box lays out exactly where a `.static` one would. **Reachable from the public API since ruling AP-L**: `StyledElement.position(_:)` takes the whole enum, so `.position(.relative).inset(...)` compiles today and moves nothing, exactly as `.alignItems(.baseline)` does — and this row is the only thing guarding it, since the modifier's parameter type cannot keep one case of an enum out the way `margin(_:)`'s `Length` keeps `.auto` out. The mechanism, not a milestone: `placeAbsolute` is the only reader of `Style.inset`, and it is reached only from `placeNode`'s `position == .absolute` loop — nothing consults a `.relative` box's own inset at all. Implementing it means offsetting a box after in-flow placement without disturbing the space it reserved, which touches `positionItems`/`positionStackItems` rather than the absolute path. `position` and `inset` as *properties* left this table when absolute positioning wired them; **a whole enum leaving is not the same as its every case leaving** — see the `AlignItems.baseline` row, which is the standing counter-example this one joins |
 | `overflow` | **Written for the first time, still read nowhere.** `ScrollView.requestLayout` sets `viewportStyle.overflow = Axes(both: .scroll)` (ruling CL-B) — a production write, which is more than `aspectRatio` has ever had — but the engine consults it in no code path: `grep -rn "\.overflow\b" Sources/` outside `Style.swift`'s own declaration returns **three lines: one write** (`ScrollView.swift`) **and two doc mentions** (`ScrollView.swift`, `StateTable.swift`), **and nothing that reads it back** — re-run at the end of the input-and-state milestone. The "no read" half is the claim; the line count moves with the prose, as the `evictUnusedSince` row below has now been caught by twice. Clipping and scrolling both work, but through `ScrollView` pushing an explicit `pass.clipped(to:offsetBy:)` and registering a scroll region directly — mechanisms independent of this property. Kept as its own row rather than folded into `aspectRatio`'s, because a write with no read is a sharper trap than a property nobody touches at all: a reader who sees `ScrollView` set `overflow: .scroll` and then finds clipping working would reasonably conclude the two are connected |
 | `AnyElement` / `ElementObject` / `AnyElementBox` | **Fully implemented; reachable from a container, produced by nothing.** The element pipeline's Task 4 gave it `extension AnyElement: ElementGroup`, so `Row { AnyElement(x); y }` compiles and lays out — that is §4.6's escape hatch, and it is the only conformance in `Sources/MetalUI` that boxes. **What still has zero callers is the *production of* an `AnyElement`**: nothing in `ElementBuilder` returns one, so a box exists only where an author wrote `AnyElement(…)` by hand, and today that is tests alone. **It must not become the default path** (§4.6 allocation mitigation 1): the builder preserves concrete types, so `Column { Label(…); Button(…) }` builds `Column<Pair<Label, Button>>`. The guard is `theBuilderPreservesConcreteTypesRatherThanBoxing` in `ElementLayoutTests.swift`, and it is **type-level on purpose** — no layout or paint assertion in the repo can see boxing. **Re-measured, with a mutation that compiles.** The number this row used to quote came from adding `buildExpression<E: Element>(_:) -> AnyElement` to `ElementBuilder`, and that mutation **no longer compiles**: `anExplicitAnyElementIsStillAcceptedAsAChild` — added by that same commit — puts an `AnyElement` inside a builder block, so the generic overload demands `AnyElement: Element`, which it is not, and the suite fails to build with `error: static method 'buildExpression' requires that 'AnyElement' conform to 'Element'`. Pairing it with a non-generic `buildExpression(_ e: AnyElement) -> AnyElement` restores the measurement: **exactly the three type-level tests in that file redden, and no behavioural test at all — re-measured `--no-parallel` on 2026-08-27 after structural identity, out of 358 rather than the 303 first recorded, and the three are the same three.** Universal identity does not disturb it: `AnyElement`'s `requestGroupLayout` consumes one cursor index exactly as `Element`'s default does, so boxing every child moves no path and no `StateTable` entry. Delete this row when the static path demonstrably does not serve a real container |
@@ -2004,7 +1853,6 @@ are the dangerous ones.
 | `StyledElement.hidden()` / `Style.display = .none` on a subtree that **draws** | **Live for layout, ignored by paint, and the failure is glyphs at the window's top-left corner.** The engine really does filter a `.none` node out of its parent's item list, so its rect stays at `LayoutTree`'s zero — that half works and is what the modifier's doc comment used to describe in full, which is exactly why the comment misled: it explained the layout half completely and said nothing about paint, so it read as "paints nothing". Nothing in `Sources/MetalUI` reads `Style.display` during paint at all. `Box.paint` recurses into `content.paintGroup` unconditionally, and fills its own bounds whenever it carries a `.background`; that fill is a harmless zero-size rect, but the children paint from the node's **origin**, and a node that was never placed has origin `(0, 0)` in *surface* coordinates. `Text.paint` then re-shapes at `max(bounds.width, smallestWrapWidth)` with `smallestWrapWidth == 0.5`, so the string wraps after every character and stacks one glyph per line down the window's left edge. **Measured** with a throwaway probe rather than read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); Box().width(40).height(10) }` in a 400×300 frame emits **0 rects and 2 glyphs**, at `(0, 2)` and `(−1, 18)` — the second negative in x. **0 rects, not one zero-size rect**: neither `Box` in that probe carries a `.background`, so nothing fills at all and the glyphs are the entire output. Re-measured 2026-08-28; this row said "the expected zero rect and two glyphs" until then. **Nothing in the suite can see it**: every existing `hidden()` test asserts a rect, and a zero rect is exactly what a correct implementation produces, so the glyphs are invisible to every assertion that exists. Found while evaluating a key-toggled modal for the demo and rejected on this basis — the demo uses an `@ElementBuilder` `if` instead, which removes the element from the *tree* rather than from the item list. The fix is a `display` check in paint (probably in `Element`'s group walk, so it costs one test per phase rather than one per element); until then `hidden()` is safe on `Box`es, wrong on anything that draws, and — as of the input-and-state milestone — **wrong on anything FOCUSABLE, which is a new failure mode rather than an instance of the paint one**. Measured through a real `Window`: a `.focusable().onKey { … }.hidden()` box registers as focusable, `focus(_:)` sticks, it **claims the keystroke**, the window's `onInput` fallback sees nothing, and focus is **retained** across the next frame — `Frame.resolveFocus()` cannot clear it, because the element's `prepaint` genuinely ran. **The differential is what makes it new**: the same box with `onClick` registers a `(0,0) 0x0` hitbox, so the *pointer* side is protected by geometry (`Bounds.contains` is half-open), while focus registration reads no geometry at all — deliberately, that being the design's own argument for riding on `registerHandlers`. `display: .none` is invisible to it, and the consequence is keystrokes vanishing into an element nobody can see. **No deliberately-wrong pin, and that judgement is carried rather than hidden**: the paint half of this row has no pin either, one `display` check in the group walk closes both halves, and a single pin covering both is the better artifact — but nothing enforces that, so the next person to touch `hidden()` owns all three failures |
 | `Frame.scrollRegions` / `Window.lastScrollRegions` | **Get-only derived views with ZERO production readers — `LayoutTree.reset`'s exact shape, arrived at by a refactor rather than by never being wired.** They were the framework's scroll registry until the input-and-state milestone folded scroll regions into the one hitbox list (design spec §3.1); keeping the names as accessors is what let every routing assertion written against the old registry pass **unedited**, which was that task's whole safety argument and is why this is the right call rather than dead weight. But `Window.applyScroll` ranks against `lastHitboxes` directly, `Window.lastScrollRegions` derives its own view from that same array rather than calling `Frame.scrollRegions`, and nothing else reads either. Verify with `grep -rn "scrollRegions" Sources/`, which returns **five lines and no call site at all**: the one declaration this pattern matches, in `Frame.swift`; two doc lines, one in `Frame.swift` and one in `Window.swift` (the latter the sentence you are reading, quoted back); and two references in `Hitbox.swift`'s prose. **No line numbers, on purpose** — this row cited `Frame.swift:420` and `:400` when it was written and both were wrong by the end of the same milestone (**431** and **401**), the second time line numbers in this table have moved inside one milestone. Read the five lines the grep prints; the count and the "no call site" claim are two separate assertions and both were re-run here. **The pattern is case-sensitive and therefore misses `Window.lastScrollRegions`' own declaration** — so it finds one declaration, not two, and a case-INSENSITIVE sweep (`grep -rni "scrollregions" Sources/`) is what sees both. No count is quoted for that one deliberately: it matches every prose mention including this row, so it moves whenever the prose does. The load-bearing half is "no call site", which holds under either pattern. (This sentence said "the two declarations" and named no doc lines until the counts were actually run — a correction written from reasoning rather than from the grep it prescribes, which is the exact failure the practices doc's first record-mechanism names.) `Window`'s one already said "test observability" in its first line; `Frame`'s did not and read as a live API — it says so now. **Keep both**: they are what several routing tests read, and deleting them churns green tests to prove nothing |
 | `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` returns **three** lines and none is a call: the string inside its own precondition message (`LayoutTree.swift:135`), a doc comment on the method that quotes this very grep (`:116`), and — added by the input-and-state milestone — a doc line in `Frame.swift`, where the `Frame.scrollRegions` row below cites this one as the same shape. (Line numbers are deliberately not given for the prose lines: they moved twice inside this one fix round.) (It matched one line when this row was written and two after the method's own doc comment landed, so re-run it rather than counting — the claim is "no call", not any particular number, and this row has now been made stale twice by prose that merely mentions the symbol.) The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
-| CSS Sizing §4.5's **specified size suggestion** | **Still not implemented** (ruling FS-3), and it **left this table's premise behind**: content sizing made the *content* half live for containers, so the missing half is no longer inert-and-invisible but a measured disagreement with WebKit — **divergence 5 above** carries the repro, the numbers and the pin, and is the one place to update. Two claims expired here in one milestone, and the second was written by the commit that retired the first (ruling CS-E's shape, third occurrence on this project): "indistinguishable until M2", then "not yet a wrong answer anywhere". Kept as a row because the *declaration* half is what this table is for — the rule is half-implemented at `collectItems`' automatic minimum, and silence there would read as complete. `aContainerItemIsFlooredByItsChildrensWidth` cannot see it: its `.a` has no specified width to be floored by |
 | `@State` inside an `AnyElement` | **Silently inert — returns its initial value forever, with no diagnostic.** The input-and-state milestone's Task 2 seeds every `@State` an element declares from two sites: `Element`'s default `requestGroupLayout` (`ElementGroup.swift`) and `Frame.render`'s own root path. `AnyElement.requestGroupLayout` (`ElementGroup.swift`, the `extension AnyElement: ElementGroup` block) is a hand-kept duplicate of the first of those two — written before `@State` existed, and never updated — so it never calls `StateBinder.bind`. Measured with a throwaway probe: `Box(content: AnyElement(Counter(...)))` rendered for three frames leaves the shared `StateTable` with **no entry at all** for the counter's slot, where the identical `Counter` unboxed in a plain `Box` leaves it holding the accumulated **3** — one increment per frame. (Re-measured during Task 2's re-review, which read `nil` against `Optional(3)`. This row said `count == 1` when first written, which contradicted its own "accumulated" in the same sentence: 1 is the entry *count* after one frame, not the value after three.) **Not a one-line fix**: `Mirror(reflecting: anyElement)` sees only the boxed `any ElementObject`, not the erased element's own stored properties, so there is nothing for `StateBinder` to reflect even with the call added — closing this needs a hook on `ElementObject` or reflection inside `AnyElementBox` itself, a design decision rather than a patch. **Nothing in production reaches it today**: the `AnyElement` / `ElementObject` / `AnyElementBox` row above already records that `ElementBuilder` produces no `AnyElement` — every one in the tree today was written by hand, and today that is tests alone |
 | `StateTable.isDirty` | **A production write with no production read — the `Style.overflow` shape, narrower.** Task 3 of the input-and-state milestone (§2.6) added it alongside `write(_:_:)`, which sets it on every `@State` mutation. Nothing reads it back: `grep -rn "isDirty" Sources/` finds the declaration, the set inside `write`, the clear inside `clearDirty`, and doc comments — no `if stateTable.isDirty` anywhere, in `Window` or elsewhere. **Narrower than `Style.overflow`'s row**, because `StateTable` is `internal` (unreachable from outside `MetalUI`, unlike `Style`, which is public API a caller can read and be misled by) — the risk here is a future contributor inside this module, not an external one. The entire production mechanism is the sibling `onWrite` hook: `write` fires it unconditionally on every call, so a hypothetical `if stateTable.isDirty { window.setNeedsRedraw() }` would be dead code, not a fix — `onWrite` already called `setNeedsRedraw()` by the time such a read could happen. **Kept anyway, not deleted**: it is the observable this task's own tests read (`writingStateMarksTheTableDirtyAndReadingDoesNot` and others in `StateTests.swift`), two of which construct no `Window` at all, so removing it would mean rewriting green tests to chase a hook-invocation counter instead. `Window.drawFrameIfNeeded` clears it *before* `renderRoot` runs rather than after — but that ordering has no production consequence either, since a write during render reaches `needsRedraw` (which nothing clears again before the function returns) through `onWrite` regardless of where the clear sits. The ordering exists only to keep `isDirty` itself coherent for whatever next reads it back, which today is only a test |
 
@@ -2020,13 +1868,61 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **741 tests** and 81 browser fixtures, warning-free
-(re-measured 2026-08-30 `--no-parallel`, after the divergence-8 fix — which is
-+2 net: three pins added and the one deliberately-wrong pin they replace deleted,
-and **moved no golden**, since it changes the question paint asks and not one
-stored size. Per rulings CS-M/CS-N/SI-H: a
+`swift build` · `swift test` — **752 tests** and 86 browser fixtures, warning-free
+(re-measured 2026-08-31 `--no-parallel`, after the sizing milestone closed
+BM-4, FS-3 and TX-H — the last three of this framework's four sizing
+divergences to close, `SZ-A` having closed the root-percentage one earlier in
+the same milestone). Per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
 rather than at the commit that first quoted it.
+
+**Typecheck guards: still 29** — 19 `PhaseSeparationTests` + 7
+`ErasureCompileGuards` + 1 `ElementGroupTrapTests` + 2
+`Tests/MetalUICoreTests/UnitSafetyTests.swift` (a bare `grep -c` there reads 3;
+one is a comment). The sizing milestone touches only `FlexEngine.swift` and
+its own test files, none of which holds a `canTypecheck` guard, so this count
+was never expected to move and re-measuring it (by grep, both counting
+methods agreeing) confirms it did not.
+
+**The sizing milestone's own climb, task by task** (baseline **741** tests, 81
+goldens, 29 guards, warning-free — this milestone's own ledger's first line).
+**Fixture-first means the suite was deliberately RED for most of it**: a
+fixture-writing task commits a comparison test that fails against today's
+engine on arrival, and a later fix task is what turns it green — a red count
+below is the method working, not a broken tree. 742 tests, 2 issues after
+Task 1 (the root-percentage fixture, intentionally red) and 742 passing after
+Task 2 (the root-percentage fix, ruling `SZ-A`) — goldens 81 → 82 at Task 1,
+unmoved since. 743 tests, 2 issues after Task 3 (the BM-4 fixture; its own
+fixture task discovered that BM-4 and FS-3 compose on the same tree, `SZ-G`'s
+ancestor) and 749 tests, 1 issue after Task 4 (the BM-4 fix, five call sites
+rather than the one its brief named, `SZ-D`/`SZ-E`/`SZ-F`/`SZ-J`) — goldens
+83. **Task 4's own fixture could not go green at Task 4**: BM-4 alone raises
+the item's floor to 120, but the pre-existing content-only automatic minimum
+still floors it higher, at 130, so the fixture stayed red on its width axis
+(130 vs WebKit's 120) until Task 6 implemented FS-3's used-value reading —
+the one residual issue is carried, named, through Tasks 5 and 9 below. 750
+tests, 5 issues after Task 5 (the FS-3 fixture; both of its numeric
+predictions held) — goldens 84. 751 tests, 0 issues after Task 6 (the FS-3
+fix, closing both its own fixture and Task 4's carried residual in the same
+commit — `SZ-G`/`SZ-H`/`SZ-I`, plus a second fixture,
+`sizing_specified_suggestion_is_used_value`, because the first did not
+actually discriminate the used-vs-declared reading) and its own fix round
+(`ad30a3c`, dropping a stray `FlexEngine.swift.orig` a `git add -A` had swept
+in) — goldens 85, one of which (`sizing_over_constrained_grows.json`) is a
+legitimate move: the fixture's own HTML was corrected to declare
+`display: flex` so the Swift tree and the browser tree describe the same
+thing (`SZ-I`), and the golden was regenerated against the corrected HTML,
+not against the engine's prior answer. 751 tests, still passing, after Task 9
+(demo fallout, run in an isolated worktree in parallel with Task 6's review —
+`SZ-K`, `SZ-L`; no test added). 752 tests, 1 issue (ruled) after Task 7 (the
+TX-H fixture) and **752 tests, 0 issues** after Task 8 (the TX-H fix, run in
+a second worktree in parallel with Task 10 writing the decisions doc —
+`SZ-M`, `SZ-N`) — goldens 86. Task 10 (the decisions doc) and this task, Task
+11 (CLAUDE.md), touch no `Sources/`/`Tests/` code beyond a two-word ruling-id
+rename and reproduce 752/0 exactly. **All four sizing divergences are now
+closed**, and divergence 3, 5 and 6's entries are retired above.
+
+**The input-and-state milestone's climb is kept below as its own record.**
 
 **The input-and-state milestone's own climb, task by task** (baseline **609**,
 the measure-performance milestone's own end-of-milestone count, which reproduced
@@ -2342,7 +2238,10 @@ from 8 k to 88 k nodes. The same trees cost ~8 us and ~1.2 us per node before
 content sizing, so **the complexity is unchanged and the constant factor is
 ~4.9x**. Both figures were re-measured 2026-08-29 after the measure-performance
 milestone and still hold — see the re-measurement below for why a milestone
-that made the measure path faster moved neither of them:
+that made the measure path faster moved neither of them. **They also still
+hold after the sizing milestone's TX-H fix, on these exact trees — and the
+reason needs its own paragraph, immediately below the table, because the
+straightforward re-measurement is a false negative (ruling `SZ-N`).**
 
 **Measured during the content-sizing milestone's Task 6 (2026-08-26), on that
 machine; debug build unless a column says release.** A performance figure drifts
@@ -2370,6 +2269,49 @@ measure path:
 |---|---|---|---|
 | depth 12, branch 2 | 8,191 | **362.8 ms** (44.3 us/node) | **41.6 ms** (5.08 us/node) |
 | depth 10, branch 3 | 88,573 | **3,467.6 ms** (39.2 us/node) | **414.5 ms** (4.68 us/node) |
+
+**RE-MEASURED a third time, 2026-08-31, after the sizing milestone's TX-H fix
+(ruling `SZ-M`) — and on these SAME two trees under their default style, the
+before/after is noise, not a finding.** `Style.alignItems == nil` resolves to
+CSS's initial `stretch`, and a stretch-eligible item is excluded outright by
+TX-H's new recompute guard (`SZ-M`) — its cross size comes from the line, not
+from content, so the fix's whole code path never fires for a tree built with
+no `alignItems` set. Measured anyway, before/after, best of 5: debug 8,191n
+440.05→430.65 ms (**-2.1%**), 88,573n 3961.00→4007.64 ms (**+1.2%**); release
+8,191n 46.23→50.69 ms (**+9.6%**, noisy at this small an absolute time),
+88,573n 443.40→448.48 ms (**+1.2%**) — a benchmark of a configuration in which
+the new code is unreachable, the measure-performance milestone's "measure on
+a branching tree, never a chain" lesson arriving one level up (ruling `SZ-N`,
+`docs/superpowers/2026-08-30-sizing-decisions.md`; also carried into
+`docs/practices/verifying-tests-can-fail.md`). **The two tables above this
+paragraph — CLAUDE.md's own canonical "~40 us/~5 us, flat 8k-88k" figures —
+are therefore still accurate for exactly the tree shape they were taken on**:
+a container tree with no `alignItems` declared pays nothing for TX-H, because
+it never reaches the branch.
+
+**TX-H's real cost was measured on the same two trees with `alignItems:
+.flexStart` on every interior node instead**, so every auto-cross item is a
+recompute candidate whenever its main size actually moves — which is
+pervasive in a wide, deep, row-branching tree shrinking under an 800x600
+offer. That is a DIFFERENT tree from the two tables above (styled, not
+styleless) and its numbers are not comparable to them line-for-line; they
+answer "what does TX-H cost when its code path actually runs" rather than
+"did this milestone change the flat per-node figure":
+
+| tree | nodes | debug before → after | release before → after |
+|---|---|---|---|
+| depth 12, branch 2 | 8,191 | 463.724 → 459.048 ms (56.62 → 56.05 us/node, **-1.0%**) | 51.133 → 51.712 ms (6.24 → 6.31 us/node, **+1.1%**) |
+| depth 10, branch 3 | 88,573 | 4173.606 → 4272.613 ms (47.13 → 48.24 us/node, **+2.4%**) | 476.815 → 492.135 ms (5.38 → 5.56 us/node, **+3.2%**) |
+
+The larger, more stable sample (88,573 nodes) shows a consistent **+2.4%
+(debug) / +3.2% (release)** cost when TX-H's recompute path is exercised on
+essentially every eligible item — a worse case than most real trees hit,
+since most flex layouts are not universally `flexStart` with universal
+shrinking. The 8,191-node debug delta (-1.0%) is within run-to-run noise at
+that tree's absolute cost (~460 ms). **Nothing here moves the ~40 us/node
+debug / ~5 us/node release order of magnitude the canonical tables above
+record** — that figure describes the default-style tree, which TX-H does not
+touch at all.
 
 **The table above is confirmed, not corrected — and the reason it did not move
 is the thing to carry.** This milestone memoized the min-content width of a

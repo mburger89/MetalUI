@@ -376,6 +376,26 @@ func demoContent() -> some Element {
                 Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
                 Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
             }
+            // **OPEN QUESTION, not a divergence — nobody has measured whether
+            // WebKit agrees.** This column declares 196 and renders at
+            // 97 / 73 / 70pt at windows 1200 / 920 / 700, squeezed below its
+            // declaration at every width measured, not only a narrow one.
+            // CLAUDE.md used to attribute this to ruling FS-3; that
+            // attribution is wrong and was corrected during the sizing
+            // milestone (ruling `SZ-L`,
+            // `docs/superpowers/2026-08-30-sizing-decisions.md`): the sidebar
+            // declares 196, its content floor is well under 196, and
+            // `min(196, content) == content` whichever half of CSS Sizing
+            // §4.5's automatic minimum is implemented — FS-3 mathematically
+            // cannot move this number, before or after. Re-measured post-FS-3
+            // at the same three widths: 97 / 73 / 70, identical to the pixel.
+            // An unverified candidate: this `Column` is a flex item with an
+            // unset `flexShrink`, so it shrinks to its content floor by
+            // ordinary flex arithmetic regardless of §4.5 — in which case a
+            // real browser would do the same and this is not an engine
+            // divergence at all, only a gap between this declaration and the
+            // author's expectation. Do not treat that as fact; it was not
+            // measured.
             .width(Pixels(196))
             .padding(Pixels(14))
             .alignItems(.stretch)
@@ -545,9 +565,11 @@ func demoContent() -> some Element {
                 //
                 // **Width takes the opposite route, and is a real cost — but
                 // NOT the same automatic-minimum gap, and this paragraph used
-                // to say it was (CLAUDE.md's own divergence 5 already
-                // corrected the same mistake in a report, and it never made
-                // it back to this comment).** The viewport's WIDTH is
+                // to say it was.** (CLAUDE.md used to record the same
+                // correction under divergence 5; that entry is retired now
+                // that ruling FS-3 is implemented — see
+                // `docs/superpowers/2026-08-30-sizing-decisions.md`.) The
+                // viewport's WIDTH is
                 // `ScrollView`'s own MAIN axis relative to this wrapping
                 // `Box`, and there is no modifier to grow it — but the real
                 // blocker, found by mutation, is that `ScrollView` conforms

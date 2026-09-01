@@ -499,11 +499,13 @@ shipped with no coverage, and both mutants — a `keyContext(_:_:)` that also se
 `isFocusable`, an `onAction(_:_:)` that also registered a pointer hitbox — stayed
 green.
 
-**The precedent this repeats is in CLAUDE.md**, and it is worth reading as the
-canonical instance: divergence 5's paragraph records a task concluding the demo's
+**The precedent this repeats is in CLAUDE.md's history**, and it is worth
+reading as the canonical instance, even though the entry that once carried it
+(divergence 5, ruling FS-3) is now retired: a task concluded the demo's
 `ScrollView` wrapper needed a literal width because "width has no equivalent
-escape" to `.minHeight(_:)`. `.minWidth(_:)` exists, one line below it in the same
-file. The conclusion happened to be right and the stated reason was wrong in two
+escape" to `.minHeight(_:)`. `.minWidth(_:)` exists, one line below it in the
+same file (`Sources/MetalUIDemo/main.swift`, where the correction now lives).
+The conclusion happened to be right and the stated reason was wrong in two
 directions at once, which is why nobody caught it for a milestone.
 
 > **The tell is a "cannot" that was not measured.** A true observation is being
@@ -511,6 +513,61 @@ directions at once, which is why nobody caught it for a milestone.
 > impossible, the cheap check is to grep the test file for the problem's name
 > before believing it — the machinery that solves it is usually already there,
 > written by whoever hit it first.
+
+### 15. A benchmark of a configuration in which the code under test is unreachable
+
+This is shape 2's own lesson — "fixtures too shallow to distinguish two
+models" — one level up, applied to a *performance* measurement instead of a
+correctness one, and it is worth its own entry because the failure looks
+identical to a clean result: the benchmark runs, produces numbers, and the
+numbers are flat. Nothing about the run itself signals that the code under
+test never executed.
+
+The sizing milestone's TX-H fix re-runs an item's fit-content cross-size
+measurement only for items whose used main size differs from their
+hypothetical one, after `resolveFlexibleLengths` has run. Its first cost
+measurement drove two branching trees under their **default** style — no
+`alignItems` set. `Style.alignItems == nil` resolves to CSS's initial
+`stretch`, and a stretch-eligible item is excluded from the new recompute
+guard outright, by construction: its cross size comes from the line it was
+stretched to, never from its own content, so the new code path is a no-op for
+every item in a default-style tree. The numbers came back essentially flat —
+some negative, one +9.6% at too small an absolute time to trust — which reads
+exactly like "the fix is nearly free" and is actually "the fix never ran".
+
+The implementer caught it themselves, before it reached the report as a
+finding: the deltas were suspiciously close to zero given the change touches
+every non-frozen auto-cross item on every line, and re-deriving what
+configuration the new code actually requires (a non-`stretch` `alignItems`,
+so at least one item both keeps an `auto` cross size and has its main size
+change under flexing) is what explained why. Re-measured with `alignItems:
+.flexStart` on every interior node — so the recompute guard is a live
+candidate wherever an item's main size actually moves, which is pervasive in
+a wide, deep, shrinking tree — the same two trees showed a consistent
+**+2.4% (debug) / +3.2% (release)** cost on the larger sample. Recorded as
+ruling `SZ-N`, `docs/superpowers/2026-08-30-sizing-decisions.md`, and in
+CLAUDE.md's layout-cost section, which keeps both tables: the default-style
+one (confirming the canonical flat per-node figures are unmoved, because that
+tree shape genuinely never reaches TX-H's code) and the `flexStart` one
+(measuring the fix's actual cost where it fires).
+
+**This is the measure-performance milestone's "measure on a BRANCHING tree,
+never a chain" lesson (CLAUDE.md's layout-cost section) arriving in a new
+costume, and the parallel is exact enough to name.** A chain hides a cost by
+collapsing every probe onto the same few cache keys, so the measurement looks
+linear and cheap while never exercising the case that matters. `stretch`
+hides a cost by skipping the changed branch entirely, so the measurement
+looks free while never exercising the changed code at all. Different
+mechanism, same shape: a tree or a style chosen for convenience turns out to
+be the one configuration that cannot see the thing being measured, and a
+confident number comes back about nothing.
+
+> **Before trusting a flat or near-zero delta, ask what property of the input
+> would make the changed code a no-op — then check the benchmark doesn't have
+> that property.** A tree shape can collapse a cache; a container style can
+> skip a branch; a fixture value can equal its own default. Each is invisible
+> from the number alone, and each is cheap to rule out once named: change the
+> one input the diff actually reads and confirm the number moves.
 
 ### A fixture hazard worth knowing before you write goldens
 

@@ -332,19 +332,19 @@ private func resolveRootSize(
     let rootFontSize = ctx.rootFontSize
 
     // A root percentage now resolves against the extent the root was offered
-    // on that SAME axis — matching WebKit, and matching how `computeLayout`
-    // already resolves the root's percentage PADDING against
-    // `available.width`. Measured through the oracle: a root with
-    // `width: 50%; height: 25%` inside an 800x600 offered space is
-    // `400 x 150` (`rootPercentageMatchesWebKit`,
+    // on that SAME axis (ruling SZ-A,
+    // `docs/superpowers/2026-08-30-sizing-decisions.md`) — matching WebKit,
+    // and matching how `computeLayout` already resolves the root's
+    // percentage PADDING against `available.width`. Measured through the
+    // oracle: a root with `width: 50%; height: 25%` inside an 800x600
+    // offered space is `400 x 150` (`rootPercentageMatchesWebKit`,
     // `Tests/MetalUILayoutTests/SizingFixtureTests.swift`). Before this
     // change `declared` always resolved against `nil`, so a percentage was
     // unresolvable here and this function silently fell back to the offered
     // extent untouched (800 x 600 for the fixture above) — the divergence
     // CLAUDE.md's "Declared but inert" table used to record as "A percentage
     // `width`/`height` on the root: falls back to the offered space, not to
-    // the percentage." That row is now stale and should be deleted the next
-    // time CLAUDE.md is swept.
+    // the percentage." That row has been deleted from CLAUDE.md.
     //
     // **The basis is per axis, not per box.** `withoutMeasuring` is called
     // once for `width` with `available.width` and once for `height` with
@@ -1104,7 +1104,7 @@ private func layOutChildren(
         // (`ResolveFlexibleLengths.swift`'s freeze loop is a no-op the moment
         // nothing violates a min/max), and for those the first measurement
         // already is the answer CSS wants, so this only re-measures the ones
-        // that changed (ruling SZ-B — "re-run", not "move": the alternative
+        // that changed (ruling SZ-M — "re-run", not "move": the alternative
         // shape recomputes every auto-cross item unconditionally here and is
         // strictly more work for the same answer, since a frozen item's
         // hypothetical and used main sizes are numerically equal and the

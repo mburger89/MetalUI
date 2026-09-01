@@ -18,12 +18,23 @@ measurement, that is said rather than smoothed over — three rulings below
 correct a plan claim that a prior ruling in this same milestone had already
 gotten wrong once.
 
-**This document is written while the milestone is still in flight.** Tasks 1
-through 7 and 9 are landed as of this writing; Task 8 (the TX-H fix itself,
-`ownCross`) has not started. `SZ-A` through `SZ-L` below are settled. `SZ-M`
-and `SZ-N` are placeholders for Task 8's own rulings — do not fill them in
-without measuring; that is the whole point of leaving them as placeholders
-rather than guessing ahead of the work.
+**This document was written while the milestone was still in flight, and
+Tasks 8 and 11 have both landed since.** `SZ-A` through `SZ-L` were settled
+first, from Tasks 1 through 7 and 9. `SZ-M` and `SZ-N` were placeholders for
+Task 8's own rulings and are now filled in below, from Task 8's landed
+report — not guessed ahead of the work.
+
+**`SZ-M` carries a second identity worth recording, because two tasks
+collided on it.** Task 8 ran in a worktree, in parallel with Task 10 writing
+this very document, and neither could see the other; Task 8 labelled its own
+ruling `SZ-B`, which Task 10 had already assigned (below) to "a fixture's
+declared numbers are verified against the live oracle". Task 11 renumbered
+Task 8's citation — in both `Sources/MetalUILayout/FlexEngine.swift` and this
+document — to `SZ-M`, the letter actually reserved for it. If a citation of
+`SZ-B` is ever found describing the `ownCross`/`itemFitContentCrossSize`
+re-run choice rather than the fixture-verification rule, it is the collision,
+not a third ruling — this is the hazard CLAUDE.md's own `EP-2`/`EP-4` note
+exists to prevent.
 
 ---
 
@@ -504,31 +515,103 @@ mechanism and declare the divergence closed when it is not.
 
 ---
 
-## SZ-M — [pending Task 8] the `ownCross` computation: move after `resolveFlexibleLengths`, or re-run only for items the freeze loop changed
+## SZ-M — `ownCross` (now `itemFitContentCrossSize`) is RE-RUN only for the item the freeze loop actually moved, not moved wholesale after `resolveFlexibleLengths`
 
-Placeholder. The spec (§2.4) requires Task 8 to choose explicitly between
-**moving** `ownCross`'s computation to after `resolveFlexibleLengths` (every
-item's cross size recomputed from its `targetMainSize`) and **re-running** it
-there only for items whose `targetMainSize` differs from their
-`hypotheticalMainSize` (cheaper, but needs a "did this item move" comparison
-the freeze loop does not expose today) — and to record the choice and its
-reasoning as a `SZ-` ruling. Not yet made as of this document; do not infer an
-answer from the surrounding rulings. The controller fills this in when Task 8
-lands.
+**The choice.** Task 8 extracted `collectItems`' `ownCross` closure into a
+standalone `itemFitContentCrossSize(...)`, parameterized on `mainSize` rather
+than closing over `hypothetical`. `collectItems` still calls it once, with
+the item's *hypothetical* main size, exactly as before — a line's own
+pre-flex cross extent has to be measured from something before §9.7 can even
+run. `layOutChildren`'s per-line loop then calls it a **second** time, after
+`resolveFlexibleLengths` has run, but only for items where
+`!item.stretchEligible && item.targetMainSize != item.hypotheticalMainSize` —
+re-deriving whether the item's cross size is even `auto` from
+`tree.style(item.node)`, since a definite cross size was never measured by
+`collectItems` in the first place and must not be measured here either.
 
-## SZ-N — [pending Task 8] whatever Task 8's own execution turns up
+**Reasoning.** This is choice (2) of the two the spec (§2.4) required be
+decided explicitly and recorded: **re-run**, not **move**. The alternative —
+recomputing every auto-cross item's fit-content cross size unconditionally
+after `resolveFlexibleLengths`, for every item on every line — is strictly
+more work for the same answer. Most items freeze at their hypothetical main
+size (`ResolveFlexibleLengths.swift`'s freeze loop is a no-op the moment
+nothing violates a min/max), and for those the first measurement, from
+`collectItems`, already **is** the answer CSS wants: a frozen item's
+hypothetical and used main sizes are numerically equal, and the fit-content
+formula is a pure function of that one number. Only an item whose target
+actually *moved* needs re-measuring. The "did this item move" comparison the
+spec flagged as needing new machinery turned out to need none: `FlexItem`
+already stores both `hypotheticalMainSize` and `targetMainSize` as separate
+fields, so the comparison is free.
 
-Placeholder, in the same spirit as `SZ-M`. Task 8 measures TX-H's cost on a
-branching tree (per-node µs before/after, debug and release — CLAUDE.md's
-layout-cost table is the one to update if the figures move) and mutates the
-fix to confirm both the new fixture and the inverted pin
-(`anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit`,
-`FlexEngineTests.swift:1146`) redden. Every milestone so far in this
-repository has produced at least one finding during its implementation task
-that no brief anticipated (see `SZ-G` through `SZ-I` for this milestone's
-own). Whatever Task 8 finds belongs here, lettered, with its reasoning and its
-cost if wrong — not folded into a `SZ-M` that was reserved for the ordering
-choice alone.
+A stretch-eligible item is excluded from the recompute guard entirely, for a
+different reason than "it didn't move": its cross size was just set, two
+blocks up in `layOutChildren`, to the line's own extent minus its cross
+margins — that is what "stretch" means, and it does not depend on the item's
+main size or its content at all. Recomputing it from content would be wrong,
+not merely wasteful.
+
+**What it costs if wrong.** Confirmed by two mutations, both reverted after
+verification. Disabling the recompute loop entirely reddens exactly
+**2 tests** — `anItemsCrossSizeIsMeasuredFromItsUsedMainSizeMatchingWebKit`
+and `crossSizeAfterFlexingMatchesWebKit` — confirming the fix's blast radius
+is exactly the one item class its fixture was built to isolate. Dropping the
+`!item.stretchEligible` guard alone (recomputing every non-frozen auto-cross
+item regardless of whether it was just stretched) reddens **16 distinct
+tests / 36 issues** across `FreezeLoopTests.swift`,
+`ContentSizingFixtureTests.swift`, `ElementLayoutTests.swift` and
+`FlexEngineTests.swift` — the ordinary "an item takes its cross size from the
+LINE it was stretched to, not from its content" fact the whole
+stretch/default-`align-items` corpus depends on. Choosing "move" over
+"re-run" would not have failed either mutation, but would cost real work on
+every layout for items that were always going to answer the same number.
+
+---
+
+## SZ-N — a benchmark of TX-H's cost is only meaningful under a NON-default `alignItems`, because CSS's `stretch` default makes the new code path unreachable
+
+**The choice.** Task 8's committed cost measurement
+(CLAUDE.md's layout-cost section) uses `alignItems: .flexStart` on every
+interior node of the two branching trees CLAUDE.md's own cost table already
+uses, not the trees' default style.
+
+**Reasoning.** The first attempt measured the trees with no `alignItems` set
+at all. `Style.alignItems == nil` resolves to CSS's initial `stretch`
+(`resolvedAlignment`, `Alignment.swift:119`), and a stretch-eligible item is
+excluded outright by the new recompute guard (`SZ-M`) — its cross size comes
+from the line, never from content, so TX-H's whole recompute path never fires
+for it. Under the default-stretch tree the "cost" measured was just the price
+of one skipped `Bool`/`Double` comparison per item, and the numbers showed it:
+noise-level deltas in both directions (debug 8,191-node tree **-2.1%**,
+88,573-node **+1.2%**; release 8,191-node **+9.6%** — noisy at that small an
+absolute time — 88,573-node **+1.2%**). Re-measured with `alignItems:
+.flexStart` on every interior node, so every auto-cross item is a recompute
+candidate whenever its main size actually moves (pervasive in this tree
+shape, which shrinks heavily at nearly every level under an 800x600 offer),
+the 88,573-node tree — the larger, more stable sample — shows a consistent
+**+2.4% (debug) / +3.2% (release)** cost, a worse case than most real trees
+will hit since most flex layouts are not universally `flexStart` with
+universal shrinking. Full figures are in CLAUDE.md's layout-cost section.
+
+**This is the measure-performance milestone's "measure on a BRANCHING tree,
+never a chain" lesson arriving one level up, in a new costume.** That
+lesson was about tree *shape* hiding a cost by collapsing cache keys; this
+one is about container *style* hiding a cost by never entering the branch
+under test at all. Both produce a confident number about nothing, and both
+were caught the same way — by noticing the number was suspiciously flat and
+re-deriving what configuration the code path actually requires, rather than
+trusting the first measurement because it ran without error.
+
+**What it costs if wrong.** Reporting the first attempt's numbers as TX-H's
+cost — as the task's own draft nearly did — would have banked a "TX-H is
+essentially free" finding that is true of exactly one container style and
+silently false of every other. A later reader sizing a tree with
+`align-items: flex-start` (or any non-`stretch` value; `Row`/`Column`'s own
+default is `center`, per ruling EP-8, which is also stretch-ineligible for a
+declared cross size) would hit the un-measured +2.4%/+3.2% cost with no
+warning it existed. Carried into
+`docs/practices/verifying-tests-can-fail.md` as its own mechanism — see
+that document's newest numbered section.
 
 ---
 
@@ -547,7 +630,8 @@ own first line): **741 tests, 81 goldens, 29 typecheck guards, warning-free.**
 | 6 (FS-3 fix) | 751 tests, 0 issues | 85 | `SZ-G`, `SZ-H`, `SZ-I` |
 | 9 (demo fallout, parallel with Task 6's review) | 751 passing | 85 | `SZ-K`, `SZ-L` |
 | 7 (TX-H fixture, RED) | 752 tests, 1 issue (ruled) | 86 | landed as this doc was being written; see `SZ-B`'s fourth instance |
-| 8 (TX-H fix) | not started | pending | `SZ-M`, `SZ-N` |
+| 8 (TX-H fix) | 752 tests, 0 issues | 86 | `SZ-M`, `SZ-N`; all four sizing divergences closed |
 
-Re-derive rather than trust this table once Tasks 7 and 8 land — it is a
-snapshot taken mid-milestone, and this document's own header says so.
+Both rows above were filled in after the fact rather than re-derived from a
+fresh run; re-derive rather than trust either one — that is this document's
+own standing rule, restated by `SZ-B` above, not suspended for its own table.
