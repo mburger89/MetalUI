@@ -746,7 +746,7 @@ before it, which is CSS's order and is required anyway: stretch reads the line's
 cross size, which now depends on §9.7.
 
 **The evidence that nothing else moved.** The whole suite passed unchanged
-(752 pre-existing tests, 0 issues), and **all 86 goldens were regenerated
+(752 pre-existing tests, 0 issues), and **all 87 goldens were regenerated
 against live WebKit and produced a zero `git diff`** — so every committed
 golden, `flex_wrap_*` included, is exactly what the browser says with the
 reorder in place. No golden moved and none needed to.
@@ -773,7 +773,7 @@ half.
 wave and it moves a phase boundary in the function every flex item in the tree
 passes through. If some ordering *not* named above turns out to matter, the
 symptom is a wrong cross size somewhere in a wrapped or auto-cross container —
-and the corpus is the instrument: 86 goldens covering wrapping, `align-content`,
+and the corpus is the instrument: 87 goldens covering wrapping, `align-content`,
 `wrap-reverse`, margins and nested percentage padding all still agree with a
 live browser, which is a stronger statement than "the suite is green". The
 alternative considered and rejected was recording the overlap as a numbered

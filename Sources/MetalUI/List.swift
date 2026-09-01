@@ -54,7 +54,7 @@ import MetalUILayout
 /// the sizing milestone never touched, which is why nothing prompted a
 /// re-read. Divergence 5 is retired and its label is never reused; both halves
 /// of §4.5 are implemented as of that milestone's Task 6 (ruling FS-3, pinned
-/// by `SizingFixtureTests`' three `sizing_specified_suggestion*` cases); and
+/// by `SizingFixtureTests`' two `sizing_specified_suggestion*` cases); and
 /// the automatic minimum is therefore `min(specified suggestion, content
 /// suggestion)`. A row declares `height: rowHeight` two lines below, so its
 /// specified suggestion **is** `rowHeight`, the `min` can never exceed
