@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Ruling FS-3's second guard clause — an item declaring a PERCENTAGE main
+     size inside a container that has no definite main size to resolve it
+     against contributes NO specified size suggestion.
+
+     CSS Sizing §4.5's automatic minimum is
+       min(specified size suggestion, content size suggestion)
+     and the specified suggestion exists only when the item's preferred main
+     size is DEFINITE. CSS's "definite" excludes two things, not one: `auto`,
+     and a percentage whose containing block is itself indefinite. The engine's
+     guard is therefore on the percentage failing to RESOLVE, not on the
+     declaration failing to be `auto`.
+
+     WHY THIS FIXTURE IS SHAPED THE WAY IT IS. Reaching the clause needs an
+     item whose percentage main size is unresolvable *and* whose automatic
+     minimum actually binds, which takes three things at once:
+
+       - `.mid` declares no width, so as a flex item of `#root` it is sized at
+         its own max-content and its children are measured against an
+         INDEFINITE main size. That is what makes `.p`'s `50%` unresolvable.
+       - `.p` declares `flex-basis: 0`, so its base size is 0 and the automatic
+         minimum is the only thing that can raise it. With an `auto` basis the
+         base would already be the content size and the floor would never bind.
+       - `.p`'s child is 60 wide, so the content size suggestion is 60 and the
+         floor is visible as a number rather than as a 0.
+
+     THE DISCRIMINANT. `own` maps an unresolvable axis to 0, so an engine that
+     read the declaration instead of the resolution would take a specified
+     suggestion of 0, giving `min(0, 60) = 0` — `.p` floors at nothing, `.mid`
+     measures 100 rather than 160, and `.q` is then squeezed to 50 as well.
+     Measured, by mutating the guard to `if case .auto = mainDim`:
+       shipped   -> mid 160, p 60, q 100   (WebKit's answer, below)
+       mutated   -> mid 100, p 50, q  50
+     so all three ids separate and the fixture cannot pass by coincidence.
+
+     `align-items: flex-start` keeps the heights shrink-wrapped, so a stretch
+     would be visible rather than absorbed.
+
+     Every container declares `display: flex` because this engine has no block
+     layout and `Style.display` defaults to flex; an HTML block container would
+     describe a different tree from the Swift one (ruling SZ-I). */
+  #root { display: flex; width: 400px; height: 200px; align-items: flex-start; }
+  .mid { display: flex; }
+  .p { display: flex; width: 50%; flex-basis: 0; flex-grow: 0; }
+  .p > div { width: 60px; height: 10px; }
+  .q { width: 100px; height: 10px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="mid" data-id="mid">
+      <div class="p" data-id="p"><div data-id="g1"></div></div>
+      <div class="q" data-id="q"></div>
+    </div>
+  </div>
+</body></html>

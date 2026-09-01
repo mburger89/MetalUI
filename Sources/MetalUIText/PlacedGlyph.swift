@@ -75,10 +75,16 @@ extension ShapedText {
     /// width.
     ///
     /// **No clipping to the box.** A caller that hands in a box narrower or
-    /// shorter than the shape gets glyphs outside it — which is exactly what
-    /// CLAUDE.md's divergence 6 produces for `Row { Text(long) }`, and it is
-    /// left visible on purpose: clamping here would hide a layout defect inside
-    /// paint, where nothing could see it.
+    /// shorter than the shape gets glyphs outside it, on purpose: clamping
+    /// here would hide a layout defect inside paint, where nothing could see
+    /// it. **This is what used to make CLAUDE.md's divergence 6 (ruling
+    /// TX-H) visible for `Row { Text(long) }`** — an item's cross size was
+    /// measured from its hypothetical main size rather than its used one, so
+    /// a row shrunk narrower than one line still reported a one-line-tall
+    /// box while its glyphs wrapped to three. The sizing milestone's Task 8
+    /// fixed TX-H, so that particular composition no longer spills; the lack
+    /// of clipping itself is unchanged and any other box narrower than its
+    /// content still shows glyphs outside it.
     public func placedGlyphs(at origin: (x: Double, y: Double),
                              font: ResolvedFont,
                              scaleFactor: Float) -> [PlacedGlyph] {

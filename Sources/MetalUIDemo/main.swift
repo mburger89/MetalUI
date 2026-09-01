@@ -376,6 +376,33 @@ func demoContent() -> some Element {
                 Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
                 Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
             }
+            // **CLOSED, and it is NOT a divergence — measured against WebKit,
+            // which does the identical thing.** This column declares 196 and
+            // renders below that (97 / 73 / 70pt at windows 1200 / 920 / 700).
+            // It reads like a bug and is ordinary flex arithmetic: a `Column`
+            // is a flex item with an unset `flexShrink`, i.e. CSS's default of
+            // 1, so when its row cannot give every item its base size this one
+            // shrinks to its content floor like any other.
+            //
+            // Measured on this body row's shape through both engines, at a
+            // width where the main pane's demand forces a shrink (ruling
+            // `SZ-L`, `docs/superpowers/2026-08-30-sizing-decisions.md`):
+            //
+            //     sidebar flex-shrink: 1  ->  engine 69, WebKit 69
+            //     sidebar flex-shrink: 0  ->  engine 196, WebKit 196
+            //
+            // Exact agreement in both arms; 69 is the content floor to the
+            // pixel (41 + 14 + 14). **The remedy is `.flexShrink(0)` here, or
+            // a `minWidth` — a declaration that does not say what its author
+            // meant, not an engine defect.** It is deliberately not applied:
+            // this width feeds the whole layout, and the change was out of
+            // scope for the commit that measured it.
+            //
+            // CLAUDE.md used to attribute the squeeze to ruling FS-3. That was
+            // wrong twice over and `SZ-L` carries both halves: FS-3 cannot
+            // move this number in principle (`min(196, content) == content`
+            // whichever half of §4.5 is implemented), and there is no engine
+            // divergence here to attribute to anything.
             .width(Pixels(196))
             .padding(Pixels(14))
             .alignItems(.stretch)
@@ -508,18 +535,31 @@ func demoContent() -> some Element {
                 // does NOT bound the viewport, because CSS Sizing §4.5's
                 // automatic minimum floors a container at its CONTENT height on
                 // whichever axis is its MAIN axis relative to ITS OWN parent —
-                // here, height — and this engine implements only the content
-                // half of that floor (ruling FS-3), so an explicit height is
-                // silently overridden back up to the full height of the stacked
-                // rows: **14000pt**, which is `demoRowCount * rowHeight` and so
-                // moves with the count above rather than being a constant of
-                // this tree. (Re-measured after the list became a 500-row
-                // `List`; the figure here read 1120 — 40 x 28 — until then,
-                // which was this tree's answer when the list was a `for` loop
-                // over 40 rows. `List` declares `count * rowHeight` as a fixed
-                // style property whether or not those rows are built, so
-                // windowing does not lower it.) Two things fix it, both on the
-                // wrapping `Box` alone:
+                // here, height.
+                //
+                // **Ruling FS-3 has since landed — both halves of that floor
+                // are implemented — and this box is STILL unaffected by it,
+                // re-measured for the sizing milestone's own Task 9 rather
+                // than assumed.** FS-3's fix is `min(specified size
+                // suggestion, content size suggestion)`, and the specified
+                // half is read from the item's own `Style.size` (an explicit
+                // `.height(_:)`), which `FlexEngine` resolves only when
+                // `resolveDimension` finds a definite value there. This box
+                // declares no `.height(_:)` at all — only `.flexGrow(1)` and
+                // `.flexBasis(Pixels(0))` below, and a flex basis is not a
+                // specified size suggestion in `FlexEngine`'s reading of
+                // §4.5. So the `min` still reduces to `content` here exactly
+                // as it did before FS-3, and removing `.minHeight(Pixels(0))`
+                // still silently overrides the box back up to the full height
+                // of the stacked rows: **14000pt**, which is `demoRowCount *
+                // rowHeight` and so moves with the count above rather than
+                // being a constant of this tree. (Re-measured after the list
+                // became a 500-row `List`; the figure here read 1120 — 40 x
+                // 28 — until then, which was this tree's answer when the list
+                // was a `for` loop over 40 rows. `List` declares
+                // `count * rowHeight` as a fixed style property whether or
+                // not those rows are built, so windowing does not lower it.)
+                // Two things fix it, both on the wrapping `Box` alone:
                 // `.minHeight(Pixels(0))` replaces the automatic (content-based)
                 // floor with a literal zero, and `.flexGrow(1).flexBasis(Pixels(0))`
                 // makes the box's HEIGHT grow-derived rather than content-derived,
@@ -530,11 +570,24 @@ func demoContent() -> some Element {
                 // direction — reaches it cleanly through ordinary
                 // `align-items: stretch`, with no override needed there.
                 //
-                // **Width takes the opposite route, and is a real cost.** The
-                // same automatic-minimum gap means nothing here can make the
-                // viewport's WIDTH responsive either — it is `ScrollView`'s own
-                // MAIN axis relative to this wrapping `Box`, and there is no
-                // modifier to grow it. Each row below is pinned to a literal
+                // **Width takes the opposite route, and is a real cost — but
+                // NOT the same automatic-minimum gap, and this paragraph used
+                // to say it was.** (CLAUDE.md used to record the same
+                // correction under divergence 5; that entry is retired now
+                // that ruling FS-3 is implemented — see
+                // `docs/superpowers/2026-08-30-sizing-decisions.md`.) The
+                // viewport's WIDTH is
+                // `ScrollView`'s own MAIN axis relative to this wrapping
+                // `Box`, and there is no modifier to grow it — but the real
+                // blocker, found by mutation, is that `ScrollView` conforms
+                // to `Element`, not `StyledElement`, and has no modifier
+                // surface at all, so nothing can reach
+                // `viewportStyle.flexGrow`: setting `flexGrow = 1` there
+                // (inside `ScrollView.requestLayout`) makes the viewport fill
+                // at every width, an ordinary main-axis flex fact unconnected
+                // to §4.5. `.minWidth(_:)` does exist on `Box` and is not an
+                // unused escape either — measured bit-identical to no width
+                // spelling at all. Each row below is pinned to a literal
                 // 420pt instead, which is what fixes the viewport's own
                 // content-based width at exactly 420 regardless of the pane's
                 // available space; the wrapping `Box` repeats the same literal

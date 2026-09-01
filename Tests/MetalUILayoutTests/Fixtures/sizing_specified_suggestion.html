@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Ruling FS-3. CSS Sizing §4.5's automatic minimum — what `min-width: auto`
+     resolves to, the default on every flex item — is
+       min(specified size suggestion, content size suggestion)
+     and this engine implements the CONTENT half only.
+
+     `.a` is a container declaring 130px and holding a 200px child, so its
+     content suggestion is 200 and its specified suggestion is 130. WebKit
+     floors it at min(130, 200) = 130. This engine floors it at 200, cannot
+     shrink `.a` at all, and squeezes `.b` to 0.
+
+     WHY 130 AND NOT 100: this is the discriminating width. At `width: 100px`
+     WebKit gives a=100 b=50 and this engine a=200 b=0 — a difference, but one
+     that a "floor at the declared width" bug also produces. At 130 the answers
+     are a=130 b=20, and only min(specified, content) gives them: flooring at
+     the content 200 gives 200/0, and NOT flooring at all lets `.a` shrink
+     below 130 to 75.
+
+     `.b` IS AN EMPTY DIV and must shrink to 20. Its content suggestion is 0,
+     so 0 wins its own `min` and it is not floored at all. That asymmetry is
+     what stops a "floor every item at its specified size" bug passing.
+
+     Geometry: 150 = 130 + 20 exactly, so no edge lands on WebKit's 1/64 grid. */
+  #root { display: flex; width: 150px; height: 60px; }
+  .a { display: flex; width: 130px; }
+  .a > div { width: 200px; height: 20px; }
+  .b { width: 100px; height: 20px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"><div data-id="g1"></div></div>
+    <div class="b" data-id="b"></div>
+  </div>
+</body></html>

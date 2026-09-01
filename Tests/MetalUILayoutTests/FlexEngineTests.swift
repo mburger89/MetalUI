@@ -532,7 +532,31 @@ func assertMatchesGolden(
     assertMatchesGolden(tree, ids: ids, golden: golden, tolerance: 0.1)
 }
 
-@Test func aContainerIsNotFlooredByItsSpecifiedSizeUnlikeWebKit() {
+/// Ruling FS-3 — an item's automatic minimum is the SMALLER of its specified
+/// and content size suggestions, and both halves are live.
+///
+/// **This test was `aContainerIsNotFlooredByItsSpecifiedSizeUnlikeWebKit` and
+/// asserted the divergence rather than the agreement.** It was CLAUDE.md
+/// divergence 5's only pin, written so that implementing FS-3 would produce a
+/// red test rather than a surprise; the sizing milestone's Task 6 implemented
+/// it, this test reddened on exactly the five expectations below, and every
+/// one of the five now holds WebKit's number instead of the engine's old one.
+/// Divergence 5 is closed.
+///
+/// **All three cases are kept and the third has changed job.** It used to be
+/// the differential that named the cause — an explicit `min-width: 0` making
+/// the two engines agree where the automatic minimum made them disagree. With
+/// the rule implemented there is nothing left to differentiate, so it is now
+/// the **control**: it shows that an explicit `min-width` still *replaces* the
+/// automatic minimum outright rather than combining with it, which is the one
+/// thing a "floor at min(specified, content, explicit)" misreading would break
+/// while leaving cases 1 and 2 green.
+///
+/// The three cases are not redundant with `specifiedSizeSuggestionMatchesWebKit`
+/// (the browser fixture): that one pins the 130 case end to end against a
+/// golden, and this one pins all three side by side with the `min-width: 0`
+/// control the fixture cannot carry — a fixture holds one tree.
+@Test func anItemsAutomaticMinimumIsTheSmallerOfItsSpecifiedAndContentSizes() {
     /// The same tree three ways: `.a` is a container 200 wide on the inside and
     /// `aWidth` wide by declaration, `.b` is a leaf, and the root is too small
     /// for both.
@@ -555,21 +579,28 @@ func assertMatchesGolden(
         return (tree, a, b)
     }
 
-    // WebKit: a=100, b=50. Here the floor is the child's 200, so `.a` cannot
-    // shrink at all and `.b` is squeezed out of the root entirely.
+    // `.a` floors at `min(100, 200)` — its own specified width — and `.b`
+    // takes the 50 that is left. WebKit: a=100, b=50, and `.b` starts at 100.
+    // Flooring at the content 200 instead squeezes `.b` out of the root
+    // entirely (b=0 at x=200), which is what this engine did before FS-3.
     let (t1, a1, b1) = build(aWidth: 100, aMin: autoDim)
-    #expect(t1.layout(a1).width == 200)
-    #expect(t1.layout(b1).width == 0)
-    #expect(t1.layout(b1).x == 200)
+    #expect(t1.layout(a1).width == 100)
+    #expect(t1.layout(b1).width == 50)
+    #expect(t1.layout(b1).x == 100)
 
-    // WebKit: a=130, b=20 — its floor moved with the specified width. Ours did
-    // not move at all, which is the divergence stated as a differential.
+    // The floor MOVES WITH the specified width: 130 in, 130 out, and `.b` gets
+    // the remaining 20. This is the discriminating case — a floor stuck at the
+    // content 200 does not move between it and the case above, and a rule that
+    // ignored the content suggestion would let `.a` shrink to 75 in both.
     let (t2, a2, b2) = build(aWidth: 130, aMin: autoDim)
-    #expect(t2.layout(a2).width == 200)
-    #expect(t2.layout(b2).width == 0)
+    #expect(t2.layout(a2).width == 130)
+    #expect(t2.layout(b2).width == 20)
 
-    // `min-width: 0` replaces the automatic minimum, so no suggestion of either
-    // kind applies and the two engines agree: 100 and 100 shrink into 150.
+    // The CONTROL. An explicit `min-width: 0` REPLACES the automatic minimum
+    // rather than combining with it, so neither suggestion applies and both
+    // items shrink freely: 100 and 100 into 150 gives 75 and 75. Unchanged by
+    // FS-3, and it is what a "combine the explicit minimum with the automatic
+    // one" misreading would break while leaving both cases above green.
     let (t3, a3, b3) = build(aWidth: 100, aMin: px(0))
     #expect(t3.layout(a3).width == 75)
     #expect(t3.layout(b3).width == 75)
@@ -1113,44 +1144,170 @@ private func wrappingChildInANarrowContainer(
     #expect(flooredStretch.layout(d).x == 0)
 }
 
-/// **An item's cross size is measured from its HYPOTHETICAL main size, before
-/// §9.7 flexes it; CSS measures it from the USED main size, after.** Measured
-/// against WebKit on the same tree:
+/// **An item's cross size is measured from its USED main size, after §9.7 has
+/// flexed it — ruling TX-H, fixed.** Measured against WebKit on the same
+/// tree, and now agreeing on both:
 ///
 /// | container | WebKit | this engine |
 /// |---|---|---|
-/// | `row; align-items: flex-start` | `120x40` | **`120x20`** |
-/// | `row` (stretch) | `120x600` | `120x600` — agree |
+/// | `row; align-items: flex-start` | `120x40` | agree |
+/// | `row` (stretch) | `120x600` | agree |
 ///
 /// CSS Flexbox orders this explicitly: §9.7 resolves the flexible lengths
 /// (step 6) and *then* §9.4 step 7 determines each item's hypothetical cross
 /// size "by performing layout with the **used** main size". `collectItems`
-/// computes `ownCross` in the same pass that computes the hypothetical main
-/// size, so an item that is about to shrink keeps the cross size it had at its
-/// unshrunk width: `.a` here is laid out 120 wide and 20 tall, one row of four
-/// 50pt items in a space that only fits two.
+/// still measures `ownCross` from the item's HYPOTHETICAL main size — a line's
+/// own cross extent has to be measured from something before §9.7 can even
+/// run — but `layOutChildren` now re-measures every non-stretched auto-cross
+/// item a second time, per line, once `resolveFlexibleLengths` has resolved
+/// its USED main size (`itemFitContentCrossSize`, shared by both call sites).
+/// `.a` here shrinks from 200 (max-content, one row of four) to the root's
+/// 120 by ordinary main-axis flexing, which wraps it to two rows, so the
+/// second measurement gives 40 where the first gave 20.
 ///
 /// Invisible before M2 for the reason the helper above states — an item whose
 /// content does not reflow has the same cross size at every main size — and it
-/// is what makes `Row { Text(longLabel) }` one line tall while being narrower
-/// than one line.
+/// is what used to make `Row { Text(longLabel) }` one line tall while being
+/// narrower than one line.
 ///
-/// **Still not fixed, and untouched by divergence 6's fix**, which is confined
-/// to `!isRow`: this tree is a ROW, so its cross axis is the block axis and
-/// max-content is the right rule there. What is wrong here is *when* the
-/// measurement happens, not what it measures. Fixing it is a reordering of the
-/// main algorithm and every golden in the corpus is downstream of it. No
-/// fixture and no golden encodes it, deliberately: a golden would record this
-/// engine's answer as correct and a future fix should move nothing in the
-/// corpus.
-@Test func anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit() {
+/// **Renamed from `anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit`,
+/// which asserted the wrong answer on purpose and said so in its own
+/// message** — this is the same differential inverted, not a new test:
+/// `ownCross` is what named the site before the fix (the `stretch` half was
+/// always an agreement, which is what pointed at this function rather than at
+/// the line calling it), so the new name keeps naming it now that the
+/// hypothetical-vs-used distinction it names is resolved rather than open.
+@Test func anItemsCrossSizeIsMeasuredFromItsUsedMainSizeMatchingWebKit() {
     let (flexStart, a) = wrappingChildInANarrowContainer(direction: .row, align: .flexStart)
     #expect(flexStart.layout(a).width == 120)
-    #expect(flexStart.layout(a).height == 20)
+    #expect(flexStart.layout(a).height == 40)
 
     // Stretch takes its cross size from the line rather than from the item, so
-    // it is unaffected — the differential that names `ownCross` as the site.
+    // it is unaffected — the differential that names `ownCross` as the site,
+    // kept unchanged from before the fix.
     let (stretched, b) = wrappingChildInANarrowContainer(direction: .row, align: nil)
     #expect(stretched.layout(b).width == 120)
     #expect(stretched.layout(b).height == 600)
+}
+
+// MARK: - Ruling SZ-O — TX-H's re-measure must reach the LINE and the CONTAINER
+
+/// **An `auto`-cross container reports the height its flexed child actually
+/// occupies.** Ruling SZ-O, and the first of two pins on the same defect.
+///
+/// The test above establishes that the *item* is 40 tall. This one asks what
+/// its **parent** says, and the two answers disagreed for the whole of the
+/// milestone that introduced TX-H: the re-measure wrote `item.crossSize` and
+/// nothing recomputed `contentCross`, which had already been summed from the
+/// pre-flex item cross sizes. So an `auto`-height row containing a 40-tall
+/// child measured **20** — a child painting 20pt outside a parent that is not
+/// clipping it, and a number no assertion in the 752-test suite could see,
+/// because every existing cross-size pin reads the ITEM.
+///
+/// Measured against live WebKit through the oracle on this exact tree
+/// (`#outer { display: flex; width: 120px; align-items: flex-start }` wrapping
+/// `.a { display: flex; flex-wrap: wrap }` of four 50x20, `html, body
+/// { height: 100% }`, viewport 800x600):
+///
+/// | | before SZ-O | after SZ-O | WebKit |
+/// |---|---|---|---|
+/// | `outer` | **120x20** | 120x40 | **120x40** |
+/// | `.a` | 120x40 | 120x40 | 120x40 |
+///
+/// **`align-items: flex-start` is load-bearing and so is the `auto` height.**
+/// Under `stretch` the item takes the line's extent and never enters
+/// `itemFitContentCrossSize` at all (this milestone's Task 8 measured a whole
+/// performance benchmark against that dead configuration — practices doc shape
+/// 15), and with a declared height on `outer` the container reports the
+/// declaration rather than `contentCross` and the defect is invisible.
+///
+/// No fixture holds this: it is expressible in HTML, but the corpus's job is
+/// the browser comparison and `crossSizeAfterFlexPropagatesToTheLine` below
+/// carries the wrapping half. This pair is the hand-written companion, on
+/// `anItemsCrossSizeIsMeasuredFromItsUsedMainSizeMatchingWebKit`'s footing.
+@Test func crossSizeAfterFlexPropagatesToAnAutoContainer() {
+    let tree = LayoutTree(generation: 0)
+    let kids = (0..<4).map { _ in fixedChild(tree, w: 50, h: 20) }
+    var innerStyle = Style()
+    innerStyle.flexWrap = .wrap
+    let a = tree.newNode(style: innerStyle, children: kids)
+
+    var outerStyle = Style()
+    outerStyle.flexDirection = .row
+    outerStyle.alignItems = .flexStart
+    outerStyle.size = Size(width: px(120), height: .auto)
+    let outer = tree.newNode(style: outerStyle, children: [a])
+
+    computeLayout(tree, root: outer,
+                  available: AvailableSpaceSize(width: .definite(800), height: .maxContent))
+
+    // The item, which TX-H alone already got right.
+    #expect(tree.layout(a).height == 40)
+    // The container, which it did not. 20 here is the pre-flex extent.
+    #expect(tree.layout(outer).height == 40)
+    #expect(tree.layout(outer).width == 120)
+}
+
+/// **A wrapping container's second line starts below a first line that grew
+/// after flexing, rather than overlapping it.** Ruling SZ-O, second pin, and
+/// the sharper of the two: this one is a visible rendering defect rather than
+/// a wrong number, because the two siblings are drawn on top of one another.
+///
+/// A wrapping row 120 wide. `.a` is declared 200, so it exceeds the line budget
+/// and lines alone; §9.7 then shrinks it to 120, which wraps its own four
+/// 50x20 children onto two rows and makes it 40 tall. `.b` is 120 wide and
+/// takes the second line, whose `y` is line one's cross extent. `FlexLine`'s
+/// `crossSize` was fixed before §9.7 ran, so line one measured **20** and `.b`
+/// was drawn 20pt up, inside `.a`.
+///
+/// Measured against live WebKit through the oracle on this exact tree
+/// (`#root { display: flex; flex-wrap: wrap; width: 120px; height: 600px;
+/// align-items: flex-start; align-content: flex-start }`, viewport 800x600):
+///
+/// | | before SZ-O | after SZ-O | WebKit |
+/// |---|---|---|---|
+/// | `.a` | (0,0) 120x40 | (0,0) 120x40 | (0,0) 120x40 |
+/// | `.b` | (0,**20**) 120x30 | (0,40) 120x30 | (0,**40**) 120x30 |
+///
+/// **`align-content: flex-start` is load-bearing, and NOT in the way the first
+/// draft of this comment claimed — the claim was measured and was wrong.** It
+/// said that removing the declaration leaves the test green under the pre-SZ-O
+/// engine. Measured, with the reorder reverted: `.b` lands at **295**, not at
+/// 20 and not at 40, so the test still reddens. Under the default `stretch`
+/// the two lines absorb the container's leftover cross space between them
+/// (pre-fix `(600 - (20 + 30)) / 2 = 275`, so line one is `20 + 275 = 295`;
+/// post-fix `(600 - (40 + 30)) / 2 = 265`, so line one is `40 + 265 = 305`),
+/// which means the two engines still differ — by the same 10pt the line grew,
+/// halved. What `flex-start` buys is that `.b`'s `y` **is** line one's cross
+/// extent, so the assertion reads `40` against `20` rather than `305` against
+/// `295`: the numbers name the defect instead of encoding a distribution on
+/// top of it. That is a legibility property, not a discrimination one, and
+/// saying so is the difference between a comment a reader can rely on and one
+/// that sounds finished.
+@Test func crossSizeAfterFlexPropagatesToTheLine() {
+    let tree = LayoutTree(generation: 0)
+    let kids = (0..<4).map { _ in fixedChild(tree, w: 50, h: 20) }
+    var aStyle = Style()
+    aStyle.flexWrap = .wrap
+    aStyle.size = Size(width: px(200), height: .auto)
+    let a = tree.newNode(style: aStyle, children: kids)
+
+    let b = fixedChild(tree, w: 120, h: 30)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrap
+    rootStyle.alignItems = .flexStart
+    rootStyle.alignContent = .flexStart
+    rootStyle.size = Size(width: px(120), height: px(600))
+    let root = tree.newNode(style: rootStyle, children: [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).y == 0)
+    #expect(tree.layout(a).height == 40)
+    // 20 here is the overlap: `.b` drawn on top of the bottom half of `.a`.
+    #expect(tree.layout(b).y == 40)
+    #expect(tree.layout(b).height == 30)
 }

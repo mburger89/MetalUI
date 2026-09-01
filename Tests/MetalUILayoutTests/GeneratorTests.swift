@@ -198,6 +198,16 @@ let allFixtures: [(String, CGSize)] = [
     // checked it — exactly the shape that hid the Stack milestone's stretch
     // bug.
     ("abs_single_inset_auto_size",         CGSize(width: 800, height: 600)),
+    ("sizing_root_percent",                CGSize(width: 800, height: 600)),
+    ("sizing_over_constrained_grows",      CGSize(width: 800, height: 600)),
+    ("sizing_specified_suggestion",        CGSize(width: 800, height: 600)),
+    ("sizing_specified_suggestion_is_used_value", CGSize(width: 800, height: 600)),
+    ("sizing_cross_after_flex",            CGSize(width: 800, height: 600)),
+    // Added by the milestone's fix wave, not by a task: the *second* clause of
+    // FS-3's guard — a percentage main size against an indefinite container —
+    // was live, reachable and browser-correct, and no test in the 752 could
+    // see it. Mutating the guard moved geometry and reddened nothing.
+    ("sizing_percent_main_against_indefinite", CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

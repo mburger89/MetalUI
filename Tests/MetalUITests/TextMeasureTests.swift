@@ -321,11 +321,21 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
 /// floor, and `roundLayout`'s own rule — round both edges, subtract — applied to
 /// numbers computed here.
 ///
-/// **This does not mean text renders correctly.** Divergence 7 is untouched: a
-/// `Row { Text(…) }` still takes its cross size from the item's *hypothetical*
-/// main size rather than its used one, so a shrunk row of text is one line tall
-/// while §4.5 narrows it to three lines' worth of width. See
-/// `anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit`.
+/// **This used to not mean text renders correctly, and now it is closer.**
+/// What was divergence 6/7 (ruling TX-H — the renumbering that retired the
+/// old 6 and moved the old 7 into its slot is recorded at CLAUDE.md's own
+/// divergence 6 entry) is fixed by the sizing milestone's Task 8: a
+/// `Row { Text(…) }` used to take its cross size from the item's
+/// *hypothetical* main size rather than its used one, so a shrunk row of text
+/// was one line tall while §4.5 narrowed it to three lines' worth of width.
+/// `layOutChildren` now re-measures a non-stretched auto-cross item's
+/// fit-content cross size from its used main size, once
+/// `resolveFlexibleLengths` has resolved it, and the two agree. See
+/// `anItemsCrossSizeIsMeasuredFromItsUsedMainSizeMatchingWebKit`
+/// (`FlexEngineTests.swift`, renamed from
+/// `anItemsCrossSizeIsMeasuredBeforeFlexingUnlikeWebKit` — it asserted the
+/// wrong answer on purpose and said so in its own message, so the fix inverts
+/// it rather than deleting it).
 @MainActor
 @Test func aCentringColumnShrinkWrapsItsTextLikeWebKit() {
     var column = Column { Text(label) }
