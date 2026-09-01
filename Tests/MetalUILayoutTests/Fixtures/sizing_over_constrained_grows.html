@@ -49,6 +49,30 @@
      records WebKit's 10. So Task 6 may turn `box` green and `kid` red; that
      is a §9.7 question, not a BM-4 one.
 
+     **IT DID, AND IT IS NOT A §9.7 QUESTION EITHER — IT IS THIS FILE.** Task 6
+     landed and `box` is 120 x 140, matching. `kid` is 0 and this golden says
+     10, and the reason is that this HTML and the Swift tree in
+     `overConstrainedBoxGrowsLikeWebKit` are not the same tree. `.box` below
+     declares no `display`, so it is a BLOCK container and `.kid` is a
+     block-level box that keeps its 10 and overflows. `Style.display` defaults
+     to `.flex` in this engine, so the tree the test builds makes `.kid` a FLEX
+     ITEM in a 0-wide content box, with an automatic minimum of
+     min(10, 0) = 0, which shrinks to 0. This engine has no block layout, so it
+     cannot produce this golden's 10 for any spelling.
+
+     Measured through the oracle (throwaway probe, Task 6, deleted): this exact
+     HTML with `display: flex` added to `.box` gives root 400x300, box 120x140
+     and KID 0x10 AT (60, 70) — the engine's answer to the pixel; adding
+     `min-width: 0` to that flex `.box` changes nothing. So the engine is right
+     for the tree it is given.
+
+     THE FIX IS TO ADD `display: flex` TO `.box` BELOW AND REGENERATE THIS
+     FIXTURE'S GOLDEN — `kid`'s width moves 10 -> 0 and nothing else moves.
+     That is correcting the fixture against the browser, not regenerating to
+     match the engine. Task 6 deliberately did not do it: its brief forbade
+     adjusting a golden, and a moving golden is a finding to report rather than
+     a step to take. Re-run the probe rather than trusting this paragraph.
+
      `border-style: solid` IS NOT OPTIONAL. Without it `border-width` is inert
      and the same snippet measures 100x120 — which is how CLAUDE.md's own
      paragraph for this divergence was wrong when first written.
@@ -65,6 +89,7 @@
      `.kid` exists so `.box` is not empty. */
   #root { display: flex; width: 400px; height: 300px; }
   .box {
+    display: flex;
     width: 100px; height: 80px;
     padding: 60px 50px;
     border-style: solid; border-width: 10px; border-color: transparent;

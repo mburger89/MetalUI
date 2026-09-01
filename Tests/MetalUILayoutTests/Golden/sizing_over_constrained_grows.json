@@ -18,7 +18,7 @@
     {
       "height" : 10,
       "id" : "kid",
-      "width" : 10,
+      "width" : 0,
       "x" : 60,
       "y" : 70
     }
@@ -41,7 +41,7 @@
     {
       "height" : 10,
       "id" : "kid",
-      "width" : 10,
+      "width" : 0,
       "x" : 60,
       "y" : 70
     }

@@ -201,6 +201,7 @@ let allFixtures: [(String, CGSize)] = [
     ("sizing_root_percent",                CGSize(width: 800, height: 600)),
     ("sizing_over_constrained_grows",      CGSize(width: 800, height: 600)),
     ("sizing_specified_suggestion",        CGSize(width: 800, height: 600)),
+    ("sizing_specified_suggestion_is_used_value", CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

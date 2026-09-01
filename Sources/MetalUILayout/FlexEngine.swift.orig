@@ -1855,18 +1855,11 @@ private func collectItems(
             // `width: 100px` item whose padding and border come to 120 has a
             // specified size suggestion of **120** — which is why this reads
             // `own`, whose `resolveNodeSize` applies `borderBoxFloor`, rather
-            // than resolving `ks.size` itself.
-            //
-            // **`sizing_over_constrained_grows` does NOT guard this reading,
-            // and the plan's ruling said it did — measured false.** Taking the
-            // declared 100 there leaves that fixture GREEN, because an
-            // automatic minimum can only RAISE and `borderBoxFloor` has
-            // already put the item's flex base size at 120: `min(100, 130)`
-            // is below the base and never binds. The fixture that does guard
-            // it is `sizing_specified_suggestion_is_used_value`, which adds a
-            // **shrinking sibling** so the floor actually binds — WebKit 120/30
-            // against the declared reading's 100/50. Its HTML comment carries
-            // the arithmetic and the reason a sibling is required.
+            // than resolving `ks.size` itself. Taking the declared 100 would
+            // give `min(100, 130) = 100` for `sizing_over_constrained_grows`,
+            // which is neither WebKit's answer (120) nor the engine's
+            // pre-FS-3 one (130); that fixture is green on exactly this
+            // reading and its HTML comment carries the arithmetic.
             //
             // **It exists only when the declared main size is DEFINITE.** An
             // `auto` main size has no preferred size to suggest, and neither

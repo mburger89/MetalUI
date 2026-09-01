@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* Ruling FS-3, second fixture — WHICH value is the "specified size
+     suggestion" when `box-sizing: border-box` has already grown the box.
+
+     CSS Sizing §4.5's automatic minimum is
+       min(specified size suggestion, content size suggestion)
+     and under border-box the specified size suggestion is the box's USED
+     preferred size, not the number in the stylesheet.
+
+     `.a` declares 100 with 50+50 padding and 10+10 border, so ruling BM-4
+     makes its used size 120. It holds a 200-wide child, so its content
+     suggestion is 200 + 120 = 320. The two readings therefore differ:
+       used     -> min(120, 320) = 120
+       declared -> min(100, 320) = 100
+     and `.b` absorbs the difference (30 against 50) because the root is only
+     150 wide and both items must shrink.
+
+     WHY THE SIBLING IS REQUIRED. Without `.b` nothing forces `.a` below its
+     base size, and an automatic minimum can only RAISE. The milestone's other
+     over-constrained fixture has no shrinking sibling, so BM-4 already floors
+     its base at 120 and both readings give 120 — it cannot see this at all.
+     That was measured: the declared-value mutant leaves it green.
+
+     `border-style: solid` IS NOT OPTIONAL — without it `border-width` is inert
+     and the whole geometry collapses.
+
+     `.a` declares `display: flex` because this engine has no block layout and
+     its `Style.display` defaults to flex; a fixture whose HTML is a block
+     container describes a different tree from the Swift one, which is a defect
+     this milestone already hit once. */
+  #root { display: flex; width: 150px; height: 60px; }
+  .a {
+    display: flex; width: 100px;
+    padding: 0 50px;
+    border-style: solid; border-width: 10px; border-color: transparent;
+  }
+  .a > div { width: 200px; height: 20px; }
+  .b { width: 100px; height: 20px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="a" data-id="a"><div data-id="g1"></div></div>
+    <div class="b" data-id="b"></div>
+  </div>
+</body></html>

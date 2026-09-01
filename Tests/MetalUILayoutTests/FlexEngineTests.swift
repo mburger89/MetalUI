@@ -532,7 +532,31 @@ func assertMatchesGolden(
     assertMatchesGolden(tree, ids: ids, golden: golden, tolerance: 0.1)
 }
 
-@Test func aContainerIsNotFlooredByItsSpecifiedSizeUnlikeWebKit() {
+/// Ruling FS-3 — an item's automatic minimum is the SMALLER of its specified
+/// and content size suggestions, and both halves are live.
+///
+/// **This test was `aContainerIsNotFlooredByItsSpecifiedSizeUnlikeWebKit` and
+/// asserted the divergence rather than the agreement.** It was CLAUDE.md
+/// divergence 5's only pin, written so that implementing FS-3 would produce a
+/// red test rather than a surprise; the sizing milestone's Task 6 implemented
+/// it, this test reddened on exactly the five expectations below, and every
+/// one of the five now holds WebKit's number instead of the engine's old one.
+/// Divergence 5 is closed.
+///
+/// **All three cases are kept and the third has changed job.** It used to be
+/// the differential that named the cause — an explicit `min-width: 0` making
+/// the two engines agree where the automatic minimum made them disagree. With
+/// the rule implemented there is nothing left to differentiate, so it is now
+/// the **control**: it shows that an explicit `min-width` still *replaces* the
+/// automatic minimum outright rather than combining with it, which is the one
+/// thing a "floor at min(specified, content, explicit)" misreading would break
+/// while leaving cases 1 and 2 green.
+///
+/// The three cases are not redundant with `specifiedSizeSuggestionMatchesWebKit`
+/// (the browser fixture): that one pins the 130 case end to end against a
+/// golden, and this one pins all three side by side with the `min-width: 0`
+/// control the fixture cannot carry — a fixture holds one tree.
+@Test func anItemsAutomaticMinimumIsTheSmallerOfItsSpecifiedAndContentSizes() {
     /// The same tree three ways: `.a` is a container 200 wide on the inside and
     /// `aWidth` wide by declaration, `.b` is a leaf, and the root is too small
     /// for both.
@@ -555,21 +579,28 @@ func assertMatchesGolden(
         return (tree, a, b)
     }
 
-    // WebKit: a=100, b=50. Here the floor is the child's 200, so `.a` cannot
-    // shrink at all and `.b` is squeezed out of the root entirely.
+    // `.a` floors at `min(100, 200)` — its own specified width — and `.b`
+    // takes the 50 that is left. WebKit: a=100, b=50, and `.b` starts at 100.
+    // Flooring at the content 200 instead squeezes `.b` out of the root
+    // entirely (b=0 at x=200), which is what this engine did before FS-3.
     let (t1, a1, b1) = build(aWidth: 100, aMin: autoDim)
-    #expect(t1.layout(a1).width == 200)
-    #expect(t1.layout(b1).width == 0)
-    #expect(t1.layout(b1).x == 200)
+    #expect(t1.layout(a1).width == 100)
+    #expect(t1.layout(b1).width == 50)
+    #expect(t1.layout(b1).x == 100)
 
-    // WebKit: a=130, b=20 — its floor moved with the specified width. Ours did
-    // not move at all, which is the divergence stated as a differential.
+    // The floor MOVES WITH the specified width: 130 in, 130 out, and `.b` gets
+    // the remaining 20. This is the discriminating case — a floor stuck at the
+    // content 200 does not move between it and the case above, and a rule that
+    // ignored the content suggestion would let `.a` shrink to 75 in both.
     let (t2, a2, b2) = build(aWidth: 130, aMin: autoDim)
-    #expect(t2.layout(a2).width == 200)
-    #expect(t2.layout(b2).width == 0)
+    #expect(t2.layout(a2).width == 130)
+    #expect(t2.layout(b2).width == 20)
 
-    // `min-width: 0` replaces the automatic minimum, so no suggestion of either
-    // kind applies and the two engines agree: 100 and 100 shrink into 150.
+    // The CONTROL. An explicit `min-width: 0` REPLACES the automatic minimum
+    // rather than combining with it, so neither suggestion applies and both
+    // items shrink freely: 100 and 100 into 150 gives 75 and 75. Unchanged by
+    // FS-3, and it is what a "combine the explicit minimum with the automatic
+    // one" misreading would break while leaving both cases above green.
     let (t3, a3, b3) = build(aWidth: 100, aMin: px(0))
     #expect(t3.layout(a3).width == 75)
     #expect(t3.layout(b3).width == 75)
