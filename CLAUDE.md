@@ -1230,11 +1230,28 @@ already lists as permanently open**, including every one of the three the M2
 entry names.
 
 **The sizing milestone — exit criterion 8
-(`docs/superpowers/specs/2026-08-30-sizing-design.md` §8 item 8) is OPEN.
-Nobody has run the demo for this milestone, and this entry is written so that
-gap stays visible rather than reading as closed.**
+(`docs/superpowers/specs/2026-08-30-sizing-design.md` §8 item 8) is CLOSED by a
+human on 2026-09-01.** They ran the demo and reported, quoted rather than
+paraphrased: **"I have ran the demo things are looking good."**
 
-**What was established, and it is a process fact, not a look.** `swift build
+**Read the closure at exactly its strength, which is a general report and not an
+itemised one.** The four report items below were not answered one by one, so
+"looking good" covers the whole of what they exercised and pins none of them
+individually. In particular **item 1 — whether any text still spills out of its
+box — was describing a REAL defect until the whole-branch fix wave**
+(`SZ-O`: TX-H's re-measure was not propagated to the line or the container, so a
+wrapping item that grew after flexing overlapped its next sibling by 20pt). The
+build the human ran is the fixed one, so their report is evidence that the
+overlap is gone; it is not an itemised confirmation that it was looked for.
+
+**And item 3, the sidebar, is no longer a question about a defect at all.**
+Measured this milestone (`SZ-L`): the sidebar renders at 69/97/73/70 because its
+`flexShrink` is unset, and **a browser does the identical thing** — 69/69 and
+196/196 in the two arms. A human reporting the sidebar looks fine is agreeing
+with a design choice, not clearing a bug.
+
+**What was established before that run, and it is a process fact rather than a
+look.** `swift build
 --target MetalUIDemo` is warning-free — confirmed 2026-09-01 after touching
 `Sources/MetalUIDemo/main.swift` and forcing a rebuild, so the check is
 against a real recompile rather than a cached no-op. `swift run MetalUIDemo`
