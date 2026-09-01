@@ -59,9 +59,14 @@ basis it is given, so the `auto` branch — the one CLAUDE.md already records a
 *reverted* attempt against, because changing it reddened six element-pipeline
 and frame-loop tests — is untouched by this change. Ruling CS-I (an `auto`
 root axis takes the offered extent rather than shrink-wrapping) and divergence
-4 both **survive this milestone by decision**, not by oversight; see `SZ-B`'s
+4 both **survive this milestone by decision**, not by oversight; see `SZ-C`'s
 companion note for the other place this milestone touched the same function
-and stopped short.
+and stopped short. (This read `SZ-B` until the fix wave. `SZ-B` is the rule
+that a fixture's numbers come from the live oracle rather than an engine
+probe — nothing to do with `resolveRootSize`. `SZ-C` is the root's percentage
+`min`/`max` clamps keeping the no-basis form, which is literally the other
+place in that function this milestone touched and stopped short. Corrected
+rather than silently fixed, per this repo's rule about false claims.)
 
 **What it costs if wrong.** Reddens nothing in the existing 741/742-test
 corpus by design — the suite was blind to root percentages before Task 1 added
@@ -393,12 +398,34 @@ mismatch.
 
 ---
 
-## SZ-J — the border-box floor has two further compositions it does not reach beyond the one Task 8 owns, and only the third is this milestone's to fix
+## SZ-J — the border-box floor has three compositions it does not reach, and ALL THREE are left open by this milestone
 
 **The choice.** `borderBoxFloor`'s own doc comment in `FlexEngine.swift`
 records three compositions the floor does not reach, all measured against
-WebKit. Only the third is fixed by this milestone (as part of Task 8); the
-first two are recorded and left open.
+WebKit. **None of the three is fixed by this milestone. All three are recorded
+and left open.**
+
+**This heading and this paragraph said the opposite until the fix wave, and
+the correction is worth reading before the list.** They said "only the third is
+this milestone's to fix" and "only the third is fixed by this milestone (as
+part of Task 8)". That was written by Task 10 while Task 8 was still running
+in a parallel worktree — a *prediction* recorded as a fact, with nothing
+between the prediction and the reader. Task 8 changed *when* `ownCross`'s
+measurement is taken (ruling `SZ-M`); it did not touch the `clamp` that
+composition 3 is about, and `borderBoxFloor`'s own doc comment has said so
+explicitly the whole time ("**Still nobody's task.**"), which is the source
+this document exists to summarise and disagreed with.
+
+Re-measured in the fix wave through the live oracle, on composition 3's own
+declaration (`width: 100px; height: auto; max-height: 40px; padding: 60px 0;
+border-width: 10px 0`, `border-style: solid`, inside a 400x300
+`align-items: flex-start` row):
+
+| | engine | WebKit |
+|---|---|---|
+| `.box` | 100x**40** | 100x**140** |
+
+Unfixed, to the pixel, at this milestone's last commit.
 
 1. `width: 100px; min-width: 0; max-width: 40px` with 120 of padding+border is
    **120** in WebKit and **40** here — the size property is floored correctly,
@@ -413,29 +440,36 @@ first two are recorded and left open.
 3. An `auto` cross size clamped by a `max-*` below the floor —
    `height: auto; max-height: 40px; padding: 60px 0; border-width: 10px 0` is
    **140** in WebKit and **40** here. This is `collectItems`' `ownCross`,
-   whose measured branch ends in a `clamp` the floor never sees. **This is
-   TX-H's own site and this milestone's Task 8**; see `SZ-M`/`SZ-N` below.
+   whose measured branch ends in a `clamp` the floor never sees. **It shares a
+   FUNCTION with TX-H and not a line.** Task 8 (`SZ-M`) moved *when*
+   `ownCross`'s fit-content measurement is taken — from the item's
+   hypothetical main size to its used one — and the fix wave (`SZ-O`) moved
+   when the result is consumed. Neither goes near the `clamp` that discards
+   the floor, and neither could: this composition's failure is visible with no
+   flexing at all, on a lone item whose main size never moves. **Still open.**
 
-**Reasoning for leaving 1 and 2 open.** Both are `collectItems`' main-axis
-freeze loop (`hypothetical`/§9.7), a different site from `ownCross` and from
-every site `SZ-E` already touched, and neither has a fixture, a task, or a
-ruling anywhere in this milestone's plan. Fixing either now would be doing
-undispatched work behind no review at all — the exact thing task-scoping
-exists to prevent. They are recorded here, rather than left to be
+**Reasoning for leaving all three open.** 1 and 2 are `collectItems`'
+main-axis freeze loop (`hypothetical`/§9.7), a different site from `ownCross`
+and from every site `SZ-E` already touched; 3 is a `clamp` inside `ownCross`
+that no task in this plan was scoped to. None of the three has a fixture, a
+task, or a ruling anywhere in this milestone's plan. Fixing any of them now
+would be doing undispatched work behind no review at all — the exact thing
+task-scoping exists to prevent. They are recorded here, rather than left to be
 rediscovered as a surprise, because `borderBoxFloor`'s own doc comment already
 states them as a checked, exhaustive-as-of-Task-4 list; a decisions doc that
 did not carry them forward would be quietly worse than the source comment it
 is meant to summarize.
 
-**What it costs if wrong (i.e., if left unfixed indefinitely).** An item whose
-main-axis size is clamped by an explicit `max-*` below its own padding and
-border does not grow to fit them, in two more shapes than composition 3
-alone — a definite `max-width`/`max-height` smaller than the edges (1), and
-an item shrunk below its floor by the freeze loop (2). Both are BM-4's own
-failure mode, reappearing at a site BM-4's four fixed call sites do not cover.
-No fixture or golden encodes either, on the same footing as divergence 2 and
-`SZ-F` — a future fix should move nothing in the corpus, and a future reader
-should not "correct" either compositions toward the engine's current answer.
+**What it costs if wrong (i.e., if left unfixed indefinitely).** A box whose
+size is clamped by an explicit `max-*` below its own padding and border does
+not grow to fit them, in three shapes — a definite main-axis
+`max-width`/`max-height` smaller than the edges (1), an item shrunk below its
+floor by the freeze loop (2), and an `auto` CROSS size clamped by a `max-*`
+below the floor (3). All three are BM-4's own failure mode, reappearing at
+sites BM-4's four fixed call sites do not cover. No fixture or golden encodes
+any of them, on the same footing as divergence 2 and `SZ-F` — a future fix
+should move nothing in the corpus, and a future reader should not "correct"
+any of the three toward the engine's current answer.
 
 ---
 
@@ -471,7 +505,7 @@ modifier and its explaining comment together.
 
 ---
 
-## SZ-L — CLAUDE.md's attribution of the demo's sidebar squeeze to FS-3 is wrong, and the real cause is recorded as an unverified hypothesis rather than fact
+## SZ-L — CLAUDE.md's attribution of the demo's sidebar squeeze to FS-3 is wrong, and the real cause is now MEASURED: ordinary flex shrinking, which WebKit does identically
 
 **The choice.** CLAUDE.md's divergence 6 paragraph, which attributes the
 demo sidebar rendering at 97/73/70pt against its declared 196pt to ruling
@@ -494,24 +528,65 @@ unaffected — the whole row's shrink distribution is provably unchanged by
 FS-3, confirmed by reading `FlexEngine`'s `specifiedMain` directly rather
 than only by the black-box measurement.
 
-**The real cause is unfound, and is recorded as a hypothesis, explicitly
-unverified.** A candidate: the sidebar is a flex item with an unset
-`flexShrink`, so it shrinks to its content floor by ordinary flex arithmetic
-regardless of §4.5 — and a real browser would do the same in that case,
-meaning this may not be a divergence from WebKit at all, only from the
-demo author's expectation. **This was not measured and must not be recorded
-as fact.** If it is confirmed later, divergence 6's paragraph in CLAUDE.md
-is wrong twice over — wrong about the cause, and possibly not describing an
-engine divergence at all.
+**The real cause was recorded here as a hypothesis, explicitly unverified.
+THE FIX WAVE MEASURED IT AND IT IS CONFIRMED: it is ordinary flex arithmetic,
+a browser does the identical thing, and it is not a divergence and never
+was.** The hypothesis was that the sidebar is a flex item with an unset
+`flexShrink`, so it shrinks to its content floor regardless of §4.5.
+
+Measured on the demo's body-row shape through both engines in one pass — a
+1168-wide row, `gap: 16`, holding a `flex-direction: column;
+align-items: stretch; width: 196px; padding: 14px; gap: 12px` sidebar (a
+41-wide label stand-in above four 26-tall rows) and a `flex-grow: 1` main pane
+whose content demands more width than the row can give:
+
+| sidebar's `flex-shrink` | engine | WebKit |
+|---|---|---|
+| `1` — the unset default, what the demo has | **69** | **69** |
+| `0` | **196** | **196** |
+
+**Exact agreement in both arms**, and 69 is precisely the content floor:
+`41 + 14 + 14`. The remedy is `.flexShrink(0)` or a `minWidth` on the sidebar
+column. **This is a demo declaration that does not say what its author meant,
+not an engine defect.**
+
+**Read the measurement at its strength, which is about the MECHANISM and not
+about the demo's three numbers.** The probe is a stand-in for the body row —
+a rigid 41-wide box where the demo has a real `Text`, and a rigid wide filler
+where the demo has its actual main pane — so it establishes that the shrink is
+ordinary flex arithmetic that WebKit performs identically, and it does **not**
+re-derive 97 / 73 / 70 on the real tree. Those three numbers depend on the
+main pane's own width-dependent content demand and were not re-measured here.
+The claim being promoted is "not a divergence", not "the demo measures 69".
+
+So CLAUDE.md's original divergence-6 paragraph was wrong twice over, as this
+ruling anticipated: wrong about the cause (FS-3, which provably cannot move
+the number), and wrong that there was an engine divergence to describe.
 
 **What it costs if wrong.** Leaving the FS-3 attribution standing sends
 whoever next touches FS-3 (or the sidebar) chasing a rule that provably cannot
-move this number, and closes off the real, still-open question — what
-actually constrains the sidebar to ~97/73/70pt — because the paragraph reads
-as already explained. Recording the hypothesis as fact rather than as
-unverified would compound the error: a reader acting on "it's the unset
-`flexShrink`" without having measured it could ship a fix for the wrong
-mechanism and declare the divergence closed when it is not.
+move this number, and closes off the question — what actually constrains the
+sidebar — because the paragraph reads as already explained. And now that the
+answer is measured, the cost points the other way too: leaving it filed as an
+**open question** sends a human hunting an explained thing, which is why the
+demo's comment and CLAUDE.md's human-verification record were both re-framed
+in the same pass rather than only this ruling.
+
+**The demo's declaration is deliberately NOT changed.** The sidebar's width
+feeds the whole layout, this is the last commit before review, and the brief
+for this fix wave required that any such change be shown to move nothing
+else. Documenting the remedy costs nothing; applying it un-reviewed on the
+last commit does.
+
+**One methodological note worth carrying, because it nearly produced a wrong
+answer here.** The first version of this probe gave the main pane no content,
+so nothing forced the sidebar to shrink and **both engines answered 196 in
+both arms** — a clean, symmetric, entirely uninformative agreement that would
+have read as "confirmed" to anyone not checking that the `flex-shrink: 0` arm
+differed. It is practices-doc shape 15 again, one milestone after `SZ-N`
+found it: a measurement of a configuration in which the mechanism under test
+cannot fire. The discriminator is the same one — require the two arms to
+*disagree* before believing either.
 
 ---
 
@@ -615,6 +690,99 @@ that document's newest numbered section.
 
 ---
 
+## SZ-O — TX-H's re-measure has to run BEFORE the line and container cross extents, not after; §9.7 moves above them, and nothing else moves
+
+**The choice.** `layOutChildren`'s per-line loop is split in two. The flex step
+(§9.7) and TX-H's fit-content re-measure (§9.4 step 7) run first, in their own
+loop over the lines; then each line's cross size (§9.4.8) and the container's
+`contentCross` are computed from the item cross sizes that loop has just
+finalised; then `align-content`; then a second per-line loop does §9.4's item
+stretch and records where each line starts. That is CSS Flexbox's own step
+order — 6, 7, 8, 9, 11 — where the engine previously ran 8, 9, 11, 6, 7.
+
+**Reasoning: TX-H shipped a regression, and it is worse than the divergence it
+closed.** Task 8 wrote the re-measure into the per-line loop *after* the line
+extents had already been fixed, so it corrected `item.crossSize` and left every
+consumer of that number holding the pre-flex one. Measured against live WebKit,
+both probes reproduced from the fix wave's own harness:
+
+| probe | before `SZ-O` | after | WebKit |
+|---|---|---|---|
+| A — `#outer { display: flex; width: 120px; align-items: flex-start }` (auto height) wrapping a `flex-wrap: wrap` child of four 50x20 | `outer` 120x**20**, `.a` 120x40 | `outer` 120x**40** | `outer` 120x**40** |
+| B — a wrapping row 120 wide: `.a` declared 200 (shrinks to 120, becomes 40 tall), then `.b` 120x30 on the second line | `.b` at y=**20** | `.b` at y=**40** | `.b` at y=**40** |
+
+Probe A puts a 40-tall child inside a 20-tall parent. **Probe B overlaps `.a`
+and `.b` by 20pt — a visible rendering defect, not a wrong number.**
+
+**Both were NEW, and that is what makes this a regression rather than a
+surviving divergence.** With the re-measure disabled (`guard false, …`) the engine gives
+`.a` = 20, `outer` = 20 and `.b` at y = 20: internally consistent and uniformly
+wrong. TX-H made the item right and left everything above it stale, so the tree
+became incoherent where it had merely been divergent.
+
+**The spec anticipated this and the evidence was misread.** Spec §5 says
+"Recomputing cross sizes after the freeze loop changes each line's cross extent,
+which `align-content` consumes. The `flex_wrap_*` fixtures are the ones most
+likely to move." Task 8's report treated "no `flex_wrap_*` golden moved" as the
+risk not materialising. **The actual reason none moved is that the line extent
+was never recomputed at all** — the risk was unaddressed, and its absence was
+read as its resolution. Same shape as `SZ-N`: a green result from a
+configuration in which the thing being checked cannot happen.
+
+**Why the reorder is safe, stated as a checkable fact rather than as
+confidence.** `layOutChildren`'s header comment warns that its phase orderings
+are "circular or wrong if reversed", and that warning still stands — but every
+ordering it names is a *cross-axis* one (break before line measurement,
+`align-content` growth before item stretch), and none of them moved. §9.7 was
+never in that chain: it reads `containerMain`, each item's base and hypothetical
+main sizes and their main-axis min/max, and **no cross-axis field appears in
+`ResolveFlexibleLengths.swift` at all** — verified with
+`grep -n "crossSize\|marginCross\|minCross\|maxCross\|stretchEligible"
+Sources/MetalUILayout/ResolveFlexibleLengths.swift`, which returns nothing.
+Symmetrically, `itemFitContentCrossSize` takes the *container's* cross extent
+and never the line's, so step 7 does not depend on step 8 either. The one thing
+the split forces is that item stretch now runs after the flex step rather than
+before it, which is CSS's order and is required anyway: stretch reads the line's
+cross size, which now depends on §9.7.
+
+**The evidence that nothing else moved.** The whole suite passed unchanged
+(752 pre-existing tests, 0 issues), and **all 86 goldens were regenerated
+against live WebKit and produced a zero `git diff`** — so every committed
+golden, `flex_wrap_*` included, is exactly what the browser says with the
+reorder in place. No golden moved and none needed to.
+
+**Pinned by two tests, and they discriminate rather than merely covering.**
+`crossSizeAfterFlexPropagatesToAnAutoContainer` reads the *container's* height
+where the existing TX-H pin reads the item's;
+`crossSizeAfterFlexPropagatesToTheLine` reads the second line's `y`. Three
+mutations, all on the ordering itself:
+
+| mutation | reddens |
+|---|---|
+| both the line-size loop and `contentCross` moved back above the flex loop (a full revert) | both pins, 2 issues, nothing else |
+| `contentCross` alone moved above the flex loop | **only** `crossSizeAfterFlexPropagatesToAnAutoContainer`, 1 issue |
+| the line-size loop alone moved above the flex loop | **only** `crossSizeAfterFlexPropagatesToTheLine`, 1 issue |
+
+The second and third are the discriminating pair: each pin covers exactly one
+half, so neither is redundant with the other or with the item-level TX-H pin.
+And no pre-existing test reddens under any of the three, which is the direct
+measurement of the fix wave's premise that nothing in the 752 could see either
+half.
+
+**What it costs if wrong.** The reorder is the load-bearing change of this fix
+wave and it moves a phase boundary in the function every flex item in the tree
+passes through. If some ordering *not* named above turns out to matter, the
+symptom is a wrong cross size somewhere in a wrapped or auto-cross container —
+and the corpus is the instrument: 86 goldens covering wrapping, `align-content`,
+`wrap-reverse`, margins and nested percentage padding all still agree with a
+live browser, which is a stronger statement than "the suite is green". The
+alternative considered and rejected was recording the overlap as a numbered
+divergence with a deliberately-wrong pin, on divergences 14 and 15's footing;
+that was the fix wave's explicit fallback and it was not needed, because the
+move turned out to be an ordering change and nothing more.
+
+---
+
 ## Running task tally, for a reader orienting against the ledger
 
 Baseline (start of milestone, from `.superpowers/sdd/2026-08-30-sizing/progress.md`'s
@@ -631,7 +799,16 @@ own first line): **741 tests, 81 goldens, 29 typecheck guards, warning-free.**
 | 9 (demo fallout, parallel with Task 6's review) | 751 passing | 85 | `SZ-K`, `SZ-L` |
 | 7 (TX-H fixture, RED) | 752 tests, 1 issue (ruled) | 86 | landed as this doc was being written; see `SZ-B`'s fourth instance |
 | 8 (TX-H fix) | 752 tests, 0 issues | 86 | `SZ-M`, `SZ-N`; all four sizing divergences closed |
+| whole-branch fix wave | 755 tests, 0 issues | 87 | `SZ-O`; +2 pins for the propagation regression, +1 fixture closing FS-3's uncovered percentage branch |
 
 Both rows above were filled in after the fact rather than re-derived from a
 fresh run; re-derive rather than trust either one — that is this document's
 own standing rule, restated by `SZ-B` above, not suspended for its own table.
+
+**The fix wave's row is the exception and was taken from its own run**, not
+reconstructed: `swift test --no-parallel`, unfiltered, reading the summary
+line rather than the exit status. It also re-measured five claims made
+elsewhere in this document and in the source, and **two of them were wrong** —
+`SZ-J`'s "only the third is fixed by this milestone" (none of the three is)
+and `SZ-A`'s citation of `SZ-B` where it meant `SZ-C`. Both are corrected in
+place above, with the correction stated rather than smoothed over.

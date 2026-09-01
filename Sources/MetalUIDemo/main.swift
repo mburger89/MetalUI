@@ -376,26 +376,33 @@ func demoContent() -> some Element {
                 Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
                 Box().height(Pixels(26)).background(.surfaceSecondary).cornerRadius(Pixels(6))
             }
-            // **OPEN QUESTION, not a divergence — nobody has measured whether
-            // WebKit agrees.** This column declares 196 and renders at
-            // 97 / 73 / 70pt at windows 1200 / 920 / 700, squeezed below its
-            // declaration at every width measured, not only a narrow one.
-            // CLAUDE.md used to attribute this to ruling FS-3; that
-            // attribution is wrong and was corrected during the sizing
-            // milestone (ruling `SZ-L`,
-            // `docs/superpowers/2026-08-30-sizing-decisions.md`): the sidebar
-            // declares 196, its content floor is well under 196, and
-            // `min(196, content) == content` whichever half of CSS Sizing
-            // §4.5's automatic minimum is implemented — FS-3 mathematically
-            // cannot move this number, before or after. Re-measured post-FS-3
-            // at the same three widths: 97 / 73 / 70, identical to the pixel.
-            // An unverified candidate: this `Column` is a flex item with an
-            // unset `flexShrink`, so it shrinks to its content floor by
-            // ordinary flex arithmetic regardless of §4.5 — in which case a
-            // real browser would do the same and this is not an engine
-            // divergence at all, only a gap between this declaration and the
-            // author's expectation. Do not treat that as fact; it was not
-            // measured.
+            // **CLOSED, and it is NOT a divergence — measured against WebKit,
+            // which does the identical thing.** This column declares 196 and
+            // renders below that (97 / 73 / 70pt at windows 1200 / 920 / 700).
+            // It reads like a bug and is ordinary flex arithmetic: a `Column`
+            // is a flex item with an unset `flexShrink`, i.e. CSS's default of
+            // 1, so when its row cannot give every item its base size this one
+            // shrinks to its content floor like any other.
+            //
+            // Measured on this body row's shape through both engines, at a
+            // width where the main pane's demand forces a shrink (ruling
+            // `SZ-L`, `docs/superpowers/2026-08-30-sizing-decisions.md`):
+            //
+            //     sidebar flex-shrink: 1  ->  engine 69, WebKit 69
+            //     sidebar flex-shrink: 0  ->  engine 196, WebKit 196
+            //
+            // Exact agreement in both arms; 69 is the content floor to the
+            // pixel (41 + 14 + 14). **The remedy is `.flexShrink(0)` here, or
+            // a `minWidth` — a declaration that does not say what its author
+            // meant, not an engine defect.** It is deliberately not applied:
+            // this width feeds the whole layout, and the change was out of
+            // scope for the commit that measured it.
+            //
+            // CLAUDE.md used to attribute the squeeze to ruling FS-3. That was
+            // wrong twice over and `SZ-L` carries both halves: FS-3 cannot
+            // move this number in principle (`min(196, content) == content`
+            // whichever half of §4.5 is implemented), and there is no engine
+            // divergence here to attribute to anything.
             .width(Pixels(196))
             .padding(Pixels(14))
             .alignItems(.stretch)

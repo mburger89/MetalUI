@@ -1189,3 +1189,125 @@ private func wrappingChildInANarrowContainer(
     #expect(stretched.layout(b).width == 120)
     #expect(stretched.layout(b).height == 600)
 }
+
+// MARK: - Ruling SZ-O — TX-H's re-measure must reach the LINE and the CONTAINER
+
+/// **An `auto`-cross container reports the height its flexed child actually
+/// occupies.** Ruling SZ-O, and the first of two pins on the same defect.
+///
+/// The test above establishes that the *item* is 40 tall. This one asks what
+/// its **parent** says, and the two answers disagreed for the whole of the
+/// milestone that introduced TX-H: the re-measure wrote `item.crossSize` and
+/// nothing recomputed `contentCross`, which had already been summed from the
+/// pre-flex item cross sizes. So an `auto`-height row containing a 40-tall
+/// child measured **20** — a child painting 20pt outside a parent that is not
+/// clipping it, and a number no assertion in the 752-test suite could see,
+/// because every existing cross-size pin reads the ITEM.
+///
+/// Measured against live WebKit through the oracle on this exact tree
+/// (`#outer { display: flex; width: 120px; align-items: flex-start }` wrapping
+/// `.a { display: flex; flex-wrap: wrap }` of four 50x20, `html, body
+/// { height: 100% }`, viewport 800x600):
+///
+/// | | before SZ-O | after SZ-O | WebKit |
+/// |---|---|---|---|
+/// | `outer` | **120x20** | 120x40 | **120x40** |
+/// | `.a` | 120x40 | 120x40 | 120x40 |
+///
+/// **`align-items: flex-start` is load-bearing and so is the `auto` height.**
+/// Under `stretch` the item takes the line's extent and never enters
+/// `itemFitContentCrossSize` at all (this milestone's Task 8 measured a whole
+/// performance benchmark against that dead configuration — practices doc shape
+/// 15), and with a declared height on `outer` the container reports the
+/// declaration rather than `contentCross` and the defect is invisible.
+///
+/// No fixture holds this: it is expressible in HTML, but the corpus's job is
+/// the browser comparison and `crossSizeAfterFlexPropagatesToTheLine` below
+/// carries the wrapping half. This pair is the hand-written companion, on
+/// `anItemsCrossSizeIsMeasuredFromItsUsedMainSizeMatchingWebKit`'s footing.
+@Test func crossSizeAfterFlexPropagatesToAnAutoContainer() {
+    let tree = LayoutTree(generation: 0)
+    let kids = (0..<4).map { _ in fixedChild(tree, w: 50, h: 20) }
+    var innerStyle = Style()
+    innerStyle.flexWrap = .wrap
+    let a = tree.newNode(style: innerStyle, children: kids)
+
+    var outerStyle = Style()
+    outerStyle.flexDirection = .row
+    outerStyle.alignItems = .flexStart
+    outerStyle.size = Size(width: px(120), height: .auto)
+    let outer = tree.newNode(style: outerStyle, children: [a])
+
+    computeLayout(tree, root: outer,
+                  available: AvailableSpaceSize(width: .definite(800), height: .maxContent))
+
+    // The item, which TX-H alone already got right.
+    #expect(tree.layout(a).height == 40)
+    // The container, which it did not. 20 here is the pre-flex extent.
+    #expect(tree.layout(outer).height == 40)
+    #expect(tree.layout(outer).width == 120)
+}
+
+/// **A wrapping container's second line starts below a first line that grew
+/// after flexing, rather than overlapping it.** Ruling SZ-O, second pin, and
+/// the sharper of the two: this one is a visible rendering defect rather than
+/// a wrong number, because the two siblings are drawn on top of one another.
+///
+/// A wrapping row 120 wide. `.a` is declared 200, so it exceeds the line budget
+/// and lines alone; §9.7 then shrinks it to 120, which wraps its own four
+/// 50x20 children onto two rows and makes it 40 tall. `.b` is 120 wide and
+/// takes the second line, whose `y` is line one's cross extent. `FlexLine`'s
+/// `crossSize` was fixed before §9.7 ran, so line one measured **20** and `.b`
+/// was drawn 20pt up, inside `.a`.
+///
+/// Measured against live WebKit through the oracle on this exact tree
+/// (`#root { display: flex; flex-wrap: wrap; width: 120px; height: 600px;
+/// align-items: flex-start; align-content: flex-start }`, viewport 800x600):
+///
+/// | | before SZ-O | after SZ-O | WebKit |
+/// |---|---|---|---|
+/// | `.a` | (0,0) 120x40 | (0,0) 120x40 | (0,0) 120x40 |
+/// | `.b` | (0,**20**) 120x30 | (0,40) 120x30 | (0,**40**) 120x30 |
+///
+/// **`align-content: flex-start` is load-bearing, and NOT in the way the first
+/// draft of this comment claimed — the claim was measured and was wrong.** It
+/// said that removing the declaration leaves the test green under the pre-SZ-O
+/// engine. Measured, with the reorder reverted: `.b` lands at **295**, not at
+/// 20 and not at 40, so the test still reddens. Under the default `stretch`
+/// the two lines absorb the container's leftover cross space between them
+/// (pre-fix `(600 - (20 + 30)) / 2 = 275`, so line one is `20 + 275 = 295`;
+/// post-fix `(600 - (40 + 30)) / 2 = 265`, so line one is `40 + 265 = 305`),
+/// which means the two engines still differ — by the same 10pt the line grew,
+/// halved. What `flex-start` buys is that `.b`'s `y` **is** line one's cross
+/// extent, so the assertion reads `40` against `20` rather than `305` against
+/// `295`: the numbers name the defect instead of encoding a distribution on
+/// top of it. That is a legibility property, not a discrimination one, and
+/// saying so is the difference between a comment a reader can rely on and one
+/// that sounds finished.
+@Test func crossSizeAfterFlexPropagatesToTheLine() {
+    let tree = LayoutTree(generation: 0)
+    let kids = (0..<4).map { _ in fixedChild(tree, w: 50, h: 20) }
+    var aStyle = Style()
+    aStyle.flexWrap = .wrap
+    aStyle.size = Size(width: px(200), height: .auto)
+    let a = tree.newNode(style: aStyle, children: kids)
+
+    let b = fixedChild(tree, w: 120, h: 30)
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.flexWrap = .wrap
+    rootStyle.alignItems = .flexStart
+    rootStyle.alignContent = .flexStart
+    rootStyle.size = Size(width: px(120), height: px(600))
+    let root = tree.newNode(style: rootStyle, children: [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).y == 0)
+    #expect(tree.layout(a).height == 40)
+    // 20 here is the overlap: `.b` drawn on top of the bottom half of `.a`.
+    #expect(tree.layout(b).y == 40)
+    #expect(tree.layout(b).height == 30)
+}

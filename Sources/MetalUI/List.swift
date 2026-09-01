@@ -42,17 +42,46 @@ import MetalUILayout
 /// row laid out to find it. Variable heights need a prefix-sum index and are
 /// out of scope.
 ///
-/// **The pin is enforced by REMOVING the automatic minimum, not only by
-/// setting a height.** A row `Box`'s `min-height: auto` default floors its
-/// used height at its own content's size (CSS Sizing §4.5's content
-/// suggestion, the half this engine implements — CLAUDE.md divergence 5), so
-/// content taller than `rowHeight` would otherwise grow the row past it. And
+/// **`rowStyle.minSize.height = 0` is kept as a statement of intent, and its
+/// documented mechanism NO LONGER FIRES.** Read this before deciding either
+/// line below is load-bearing.
+///
+/// This paragraph used to say that a row `Box`'s `min-height: auto` default
+/// floors its used height at its own content's size — "CSS Sizing §4.5's
+/// content suggestion, **the half this engine implements** — CLAUDE.md
+/// divergence 5" — so that content taller than `rowHeight` would grow the row
+/// past it. **Every clause of that is now wrong**, and it went wrong in a file
+/// the sizing milestone never touched, which is why nothing prompted a
+/// re-read. Divergence 5 is retired and its label is never reused; both halves
+/// of §4.5 are implemented as of that milestone's Task 6 (ruling FS-3, pinned
+/// by `SizingFixtureTests`' three `sizing_specified_suggestion*` cases); and
+/// the automatic minimum is therefore `min(specified suggestion, content
+/// suggestion)`. A row declares `height: rowHeight` two lines below, so its
+/// specified suggestion **is** `rowHeight`, the `min` can never exceed
+/// `rowHeight`, and the floor this line removes cannot raise a row above the
+/// pin it is protecting.
+///
+/// Measured rather than argued (throwaway probe, the sizing milestone's fix
+/// wave): two 28pt rows each holding a 50pt child, in a 56pt column, with the
+/// floor removed and with it left at `auto`, crossed with `flexShrink` 0 and
+/// 1 — **all four arms give `r1.height = 28` and `r2.y = 28`.**
+///
+/// It is kept anyway, and not because it might come back: it says what this
+/// type means, it is the identical pair `ScrollView.requestLayout` sets for
+/// its own reason (below), and it is the general remover of the floor for any
+/// future row style that does *not* declare a height, where the `min` would
+/// again be the content size. Do not delete it on the strength of the
+/// measurement above; do not cite the old mechanism either.
+///
+/// **The `flexShrink` half is untouched by all of the above and was NOT
+/// re-measured**, so it is carried forward as written rather than vouched for:
 /// a row's default `flexShrink: 1` lets negative free space (padding on
 /// `List` shrinking its own content box below `data.count * rowHeight`) pull
-/// every row back down. `rowStyle.minSize.height = 0` removes the floor;
-/// `rowStyle.flexShrink = 0` removes the shrink — the identical pair
-/// `ScrollView.requestLayout` sets on its content node for the same reason
-/// (ruling CL-C), read that comment before touching either line here.
+/// every row back down, and `rowStyle.flexShrink = 0` removes the shrink. That
+/// is a §9.7 fact rather than a §4.5 one, so nothing FS-3 changed reaches it.
+/// The two lines together are the identical pair `ScrollView.requestLayout`
+/// sets on its content node (ruling CL-C) — read that comment before touching
+/// either line here.
 ///
 /// **Windows against `LayoutPass.scrollContext`, published by the nearest
 /// enclosing `ScrollView`.** `List` sizes itself to `data.count * rowHeight`

@@ -35,7 +35,10 @@ idiomatic Swift. macOS and iOS.
   `SZ-n` to the sizing milestone that closed BM-4, FS-3 and TX-H (the last
   nine are
   **lettered** — `CS-A`…`CS-O`, `SI-A`…`SI-H`, `TX-A`…`TX-J`, `CL-A`…`CL-F`,
-  `ST-A`…`ST-G`, `AP-A`…`AP-M`, `MP-A`…`MP-N`, `IN-A`…`IN-W` and `SZ-A`…`SZ-N`
+  `ST-A`…`ST-G`, `AP-A`…`AP-M`, `MP-A`…`MP-N`, `IN-A`…`IN-W` and `SZ-A`…`SZ-O`
+  (**`SZ-A`…`SZ-N` until the sizing milestone's whole-branch fix wave added
+  `SZ-O`, the propagation regression TX-H shipped** — same shape as the `MP-L`
+  note below, so a citation of `SZ-O` is real)
   — so a bare
   `CS-3`, `SI-3`, `TX-3`, `CL-3`, `ST-3`, `AP-3`, `MP-3`, `IN-3` or `SZ-3` is a
   typo rather than a citation; **`MP-A`…`MP-K` is what this line said until the
@@ -147,10 +150,30 @@ idiomatic Swift. macOS and iOS.
   has no production `MeasureFunction`, so a `Column` of text-shaped leaves will
   measure 0 on the cross axis" — expired with M2 Task 4. Its replacement said a
   centred `Text` took its **max-content** width and was laid out 270 wide in a
-  120-wide `Column`; that was divergence 6, and **it is fixed** (ruling TX-H): a
-  column's cross axis is the inline axis, so an `auto` cross size shrink-wraps
-  and the label is 120 wide at `x = 0`, agreeing with WebKit. **`Column { Text }`
-  now needs no remedy at all.** What the bullet above still costs is the
+  120-wide `Column`; that was the **ORIGINAL** divergence 6 — the one whose
+  retirement freed label **7**, not the one that freed label 6 — and **it is
+  fixed** (ruling TX-H, whose row in
+  `docs/superpowers/2026-08-27-text-m2-decisions.md` is this fix): a column's
+  cross axis is the inline axis, so an `auto` cross size shrink-wraps and the
+  label is 120 wide at `x = 0`, agreeing with WebKit. **`Column { Text }` now
+  needs no remedy at all.**
+
+  **Read "divergence 6" here with the date attached, because two retired
+  entries answer to that label and both also answer to `TX-H`.** The original
+  6 is this bug (`ownCross` measuring max-content on a column's cross axis);
+  it was fixed in M2, and the then-divergence 7 slid down into the slot,
+  making "divergence 6" mean *that* — an item's cross size measured before
+  §9.7 flexes it — until the sizing milestone fixed it too and retired the
+  label. The ruling id does not separate them: `TX-H` is the M2 decisions
+  doc's name for the fit-content change described here, and CLAUDE.md's
+  divergence list attached the same id to the flexing-order half. What
+  separates them is the *symptom*: a label laid out at its unwrapped width
+  and hanging off both sides is this one; a container reporting a stale cross
+  size after §9.7 shrank it is the other. Both labels are retired and neither
+  is ever reused — see the divergence-list header's label-6 and label-7
+  bullets, which carry the full history. Nothing on this line is new: the
+  sentence has been present verbatim since `a98bd8a`, and only became
+  ambiguous when the sizing milestone retired the second meaning. What the bullet above still costs is the
   *childless* `Box`, which measures 0 because it has no content to wrap — the
   demo's four `.alignItems(.stretch)` are paying for that and not for text.
 
@@ -467,6 +490,28 @@ added shape 14 and one unnumbered section (13 and 15 before it, unnumbered count
 configuration in which the code under test is unreachable", found while
 measuring TX-H's own cost (ruling `SZ-N`) — with no change to the unnumbered
 count.
+
+**Shape 15 then fired AGAIN inside the same milestone, in its whole-branch fix
+wave, on an unrelated question — which is the argument for it being a shape
+rather than an anecdote.** The wave set out to settle whether the demo's
+sidebar squeeze is a divergence by measuring the same declaration in both
+engines. Its first probe gave the main pane no content, so nothing forced the
+sidebar to shrink and **both engines answered 196 in both the `flex-shrink: 1`
+and `flex-shrink: 0` arms** — a clean, symmetric agreement that says nothing,
+because the mechanism under test could not fire. With a demanding sibling the
+arms separate (69/69 against 196/196) and the question is actually answered.
+The discriminator generalises past benchmarks: **require the arms of a
+comparison to DISAGREE before believing that they agree.**
+
+**And that wave produced a fresh instance of the practices doc's second
+record-mechanism — "a fix round is exactly as capable of producing an
+unmeasured claim as the round it fixes".** A doc comment written for one of
+its new pins asserted that removing `align-content: flex-start` "leaves it
+green under the pre-SZ-O engine". Running that mutation instead of re-reading
+it gave **295**, not green: under the default `stretch` the two lines absorb
+the container's leftover space and the engines still differ, by half the
+error. The claim was corrected at the mutated line in the same pass, which is
+the doc's first mechanism doing its job on top of the second.
 
 The recurring lesson of the last two tasks has a sharper form: **a feature that
 works alone and a feature that works alone can be wrong together.** All three
@@ -1199,9 +1244,17 @@ than exiting on its own; stderr carried nothing beyond SwiftPM's own build
 banner (`Building for debugging...`, `Build of product 'MetalUIDemo'
 complete!`) the whole time. That rules out exactly one failure — a crash on
 startup — and establishes nothing about what is on screen. `swift test
---no-parallel` reports `Test run with 752 tests in 1 suite passed after
-13.007 seconds`, this milestone's own expected count, and the fixtures
-directory holds 86 goldens with `git status` showing none touched.
+--no-parallel` reported `Test run with 752 tests in 1 suite passed after
+13.007 seconds` at the time, this milestone's own expected count, with 86
+goldens and `git status` showing none touched. **The whole-branch fix wave has
+since taken that to 755 and 87** (`Test run with 755 tests in 1 suite passed
+after 13.222 seconds`, still no pre-existing golden touched), and it changed
+the engine — see ruling `SZ-O` and the Build section. **So the build a human
+runs today is not the build these process facts describe, and item 1 below is
+the one to re-read before running**: the overlapping-siblings regression
+`SZ-O` fixes is exactly the "text spilling out of its box" symptom that item
+asks about, so a look at the pre-fix build would have been looking for
+something that was really there.
 
 **Exit criterion 8's own wording asks the wrong question, and this record
 does not ask it.** The spec's §8 item 8 says a human should report "whether
@@ -1216,10 +1269,30 @@ ever capable of moving that number. Asking a human whether the sidebar "reads
 at 196" sends them looking for a change that was never going to be there and
 invites a false regression report. The divergence-5 entry above used to
 attribute the squeeze to ruling FS-3; that attribution was wrong and has
-since been corrected there. Nobody has measured whether a real browser would
-size the same declaration the same way — an unverified hypothesis (an unset
-`flexShrink` on the sidebar column) is recorded at the call site
-(`Sources/MetalUIDemo/main.swift`, ruling `SZ-L`) and is not fact.
+since been corrected there.
+
+**And the remaining half of that question is now ANSWERED, by the fix wave,
+so a human is not asked it at all.** This paragraph used to end "nobody has
+measured whether a real browser would size the same declaration the same
+way", with an unset `flexShrink` recorded as an unverified hypothesis.
+Measured, on this body row's shape, through both engines in one pass, at a
+width where the main pane's demand forces a shrink:
+
+| sidebar's `flex-shrink` | engine | WebKit |
+|---|---|---|
+| `1` — the unset default, what the demo has | **69** | **69** |
+| `0` | **196** | **196** |
+
+**Exact agreement in both arms**, and 69 is the content floor to the pixel
+(`41 + 14 + 14`). The squeeze is ordinary flex arithmetic and a browser does
+the identical thing: **it is not a divergence and never was.** The remedy is
+`.flexShrink(0)` or a `minWidth` on the sidebar column — a demo declaration
+that does not say what its author meant. It is deliberately not applied (that
+width feeds the whole layout), and both the measurement and the remedy are at
+the call site (`Sources/MetalUIDemo/main.swift`) and in ruling `SZ-L`.
+**Read it at its strength:** the probe stands in for the body row — a rigid
+41-wide box for the label, a rigid filler for the main pane — so it settles
+the *mechanism* and does not re-derive 97 / 73 / 70 on the real tree.
 
 **What a human must do, and what to report.** Run `swift run MetalUIDemo`.
 Look at the whole window, not only the four points below — point 4 exists
@@ -1244,12 +1317,15 @@ one shared code path could have broken.
    removing it grows the viewport to 14000pt (the full, unclipped content
    height) at every window width tested, so the modifier stays. Nobody has
    looked at whether the running list matches that measurement.
-3. **The sidebar.** Ask only whether it *looks* wrong — too narrow for
-   "Library" and the four rows beneath it, cramped in a way that reads as a
-   bug — not whether it matches its 196pt declaration. It doesn't, it didn't
-   before this milestone either, and per the reframing above that is a known,
-   unexplained and unchanged fact rather than something this milestone's
-   fixes were ever going to move.
+3. **The sidebar — a DESIGN judgement, and there is nothing left to explain.**
+   Ask only whether it *looks* wrong: too narrow for "Library" and the four
+   rows beneath it, cramped in a way you would want changed. Do **not** ask
+   whether it matches its 196pt declaration. It does not, it did not before
+   this milestone, and the reason is now measured rather than open — ordinary
+   flex shrinking, which WebKit performs identically (the table above). A
+   report of "it's narrower than 196" is a report of correct behaviour. A
+   report of "it looks cramped" is a request to write `.flexShrink(0)` on
+   that column, which is a demo-declaration change and not an engine one.
 4. **Anything different that this milestone did not predict.** BM-4, FS-3 and
    TX-H all changed rules on the sizing path every flex item in the tree
    takes, at once; this question is deliberately aimed at nothing in
@@ -1949,11 +2025,12 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **752 tests** and 86 browser fixtures, warning-free
-(re-measured 2026-08-31 `--no-parallel`, after the sizing milestone closed
-BM-4, FS-3 and TX-H — the last three of this framework's four sizing
-divergences to close, `SZ-A` having closed the root-percentage one earlier in
-the same milestone). Per rulings CS-M/CS-N/SI-H: a
+`swift build` · `swift test` — **755 tests** and 87 browser fixtures, warning-free
+(re-measured 2026-09-01 `--no-parallel`, after the sizing milestone's
+whole-branch fix wave; 752 and 86 through the milestone's own twelve tasks,
+which closed BM-4, FS-3 and TX-H — the last three of this framework's four
+sizing divergences to close, `SZ-A` having closed the root-percentage one
+earlier in the same milestone). Per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
 rather than at the commit that first quoted it.
 
@@ -2000,8 +2077,37 @@ TX-H fixture) and **752 tests, 0 issues** after Task 8 (the TX-H fix, run in
 a second worktree in parallel with Task 10 writing the decisions doc —
 `SZ-M`, `SZ-N`) — goldens 86. Task 10 (the decisions doc) and this task, Task
 11 (CLAUDE.md), touch no `Sources/`/`Tests/` code beyond a two-word ruling-id
-rename and reproduce 752/0 exactly. **All four sizing divergences are now
-closed**, and divergence 3, 5 and 6's entries are retired above.
+rename and reproduce 752/0 exactly.
+
+**The whole-branch fix wave then added three tests and one golden, reaching
+755 and 87 — and one of the three closed a REGRESSION this branch shipped**
+(ruling `SZ-O`). TX-H's re-measure updated an item's cross size and nothing
+above it: the item's *line* extent and the container's `contentCross` were
+both computed from the pre-flex sizes and never recomputed, so an
+`auto`-height row containing a 40-tall flexed child reported **20**, and a
+wrapping container's second line stacked 20pt too high — **overlapping
+siblings, a visible rendering defect rather than a wrong number.** Both were
+new: with the re-measure disabled the engine is internally consistent and
+uniformly wrong, so TX-H made the item right and left the tree incoherent.
+The fix is CSS Flexbox's own step order — §9.7 and the re-measure move
+*above* the line and container measurement, which is safe because §9.7 reads
+no cross-axis field at all (`grep -n
+"crossSize\|marginCross\|minCross\|maxCross\|stretchEligible"
+Sources/MetalUILayout/ResolveFlexibleLengths.swift` returns nothing) — and it
+moved **no golden**: all 87 were regenerated against live WebKit for a zero
+`git diff`. Pinned by `crossSizeAfterFlexPropagatesToAnAutoContainer` and
+`crossSizeAfterFlexPropagatesToTheLine`, which discriminate rather than
+merely cover: moving `contentCross` alone back above the flex loop reddens
+only the first, moving the line-size loop alone reddens only the second.
+The third test and the golden are
+`percentageMainAgainstAnIndefiniteContainerMatchesWebKit` /
+`sizing_percent_main_against_indefinite`, closing FS-3's second guard clause
+— a percentage main size against an indefinite container, which was live,
+reachable, browser-correct and reddened **nothing** under a mutation that
+moved geometry three ways.
+
+**All four sizing divergences are closed**, and divergence 3, 5 and 6's
+entries are retired above.
 
 **The input-and-state milestone's climb is kept below as its own record.**
 

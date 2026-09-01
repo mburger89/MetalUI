@@ -235,3 +235,62 @@ private func px(_ v: Double) -> MetalUICore.Dimension { .length(.pixels(Pixels(F
     for (n, node) in items.enumerated() { ids[node] = "i\(n + 1)" }
     assertMatchesGolden(tree, ids: ids, golden: golden, tolerance: 0.5)
 }
+
+/// Ruling FS-3's **second** guard clause — a percentage main size against an
+/// indefinite container contributes no specified size suggestion.
+///
+/// **This fixture was added by the milestone's fix wave rather than by a task,
+/// and it is the only one here that was GREEN on arrival.** The other four
+/// were red against the engine that preceded their fix, which is this file's
+/// stated entry condition; this one pins a clause that was already correct,
+/// already browser-verified and reachable — and that no test in the 752 could
+/// see. Mutating the guard from resolvability to the declaration
+/// (`if case .auto = mainDim { return nil }`, the reading its own comment
+/// forbids) moved `mid` 160→100, `p` 60→50 and `q` 100→50 and reddened
+/// **nothing**. So the entry condition here is the mutation rather than the
+/// engine's history: it must redden this test and it does.
+///
+/// The fixture's HTML carries why the shape needs all three of an indefinite
+/// container, a `flex-basis: 0` and a content-bearing child; the short version
+/// is that `own` maps an unresolvable axis to 0, so reading the declaration
+/// gives a specified suggestion of 0 and floors the item at nothing.
+@Test func percentageMainAgainstAnIndefiniteContainerMatchesWebKit() throws {
+    let golden = try loadGolden("sizing_percent_main_against_indefinite")
+    let tree = LayoutTree(generation: 0)
+
+    var gStyle = Style()
+    gStyle.size = Size(width: px(60), height: px(10))
+    let g1 = tree.newNode(style: gStyle, children: [])
+
+    var pStyle = Style()
+    pStyle.display = .flex
+    pStyle.flexDirection = .row
+    pStyle.size = Size(width: .length(.percent(0.5)), height: .auto)
+    pStyle.flexBasis = px(0)
+    pStyle.flexGrow = 0
+    let p = tree.newNode(style: pStyle, children: [g1])
+
+    var qStyle = Style()
+    qStyle.size = Size(width: px(100), height: px(10))
+    let q = tree.newNode(style: qStyle, children: [])
+
+    // No declared width: `mid` is sized at its own max-content, which is what
+    // leaves `.p`'s `50%` with nothing to resolve against.
+    var midStyle = Style()
+    midStyle.display = .flex
+    midStyle.flexDirection = .row
+    let mid = tree.newNode(style: midStyle, children: [p, q])
+
+    var rootStyle = Style()
+    rootStyle.display = .flex
+    rootStyle.flexDirection = .row
+    rootStyle.alignItems = .flexStart
+    rootStyle.size = Size(width: px(400), height: px(200))
+    let root = tree.newNode(style: rootStyle, children: [mid])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    assertMatchesGolden(tree, ids: [root: "root", mid: "mid", p: "p", g1: "g1", q: "q"],
+                        golden: golden, tolerance: 0.5)
+}
