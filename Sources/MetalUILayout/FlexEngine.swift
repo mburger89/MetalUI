@@ -13,7 +13,8 @@ import MetalUICore
 /// fixtures.
 ///
 /// **The phase order is: size every item, break into lines, distribute cross
-/// space among the lines, then per line stretch → flex — and finally position
+/// space among the lines, then per line stretch → flex → re-measure a
+/// non-stretched auto-cross item's fit-content size — and finally position
 /// every line.** Positioning is the last phase and a separate pass
 /// (`layOutChildren` sizes, `placeNode` positions) so that `measureNode` can
 /// run everything up to it and write nothing. Breaking
@@ -22,7 +23,12 @@ import MetalUICore
 /// *unstretched* outer cross sizes (§9.4.8), so it must be measured after the
 /// break; `align-content: stretch` then grows those measured sizes, and only
 /// after that does §9.4's item stretch fill them. Every one of those orderings
-/// is circular or wrong if reversed.
+/// is circular or wrong if reversed. **The re-measure step is ruling TX-H**:
+/// `collectItems` has to give every auto-cross item a first cross size before
+/// any of that can run, from its hypothetical main size, but CSS Flexbox §9.4
+/// step 7 actually wants it measured from the item's USED main size, which
+/// only exists once §9.7 (the flex step) has resolved it — so the per-line
+/// loop measures it again, for exactly the items whose main size moved.
 ///
 /// **Both reversals are conversions at the point of use, not reorderings.**
 /// `row-reverse`/`column-reverse` flip the main axis and `wrap-reverse` flips
@@ -520,11 +526,20 @@ private func resolveRootSize(
 /// 3. An **`auto`** cross size clamped by a `max-*` below the floor:
 ///    `height: auto; max-height: 40px; padding: 60px 0; border-width: 10px 0`
 ///    is **140** in WebKit and **40** here. This one is not about the used main
-///    size — it is `collectItems`' `ownCross`, whose measured branch ends in a
-///    `clamp` this floor never sees, so it takes exactly the `max-*` win the
-///    ordering ruling above says must not happen. **Deliberately left to this
-///    milestone's TX-H task**, which is the task that owns `ownCross`; fixing
-///    it here would put two rule changes behind one review.
+///    size — it is `itemFitContentCrossSize` (`collectItems`' `ownCross`
+///    formerly inlined it), whose `clamp` at the end this floor never sees, so
+///    it takes exactly the `max-*` win the ordering ruling above says must not
+///    happen. **Left to the milestone's TX-H task, and TX-H's own task
+///    deliberately deferred it a second time**: TX-H's job was reordering
+///    *when* an item's fit-content cross size is measured (against the used
+///    main size instead of the hypothetical one), not composing that
+///    measurement with a floor it has never consulted — a different rule
+///    change, and folding it in here would put two behind one review, exactly
+///    as this paragraph already said. Closing it needs
+///    `itemFitContentCrossSize`'s final `clamp` to take `max(…, floor)` rather
+///    than `clamp(…)` alone, mirroring `resolveNodeSize`'s own
+///    `max(clamp(…), floor)` — plus a fixture, red on arrival, since none
+///    exists. Still nobody's task.
 ///
 /// 1 and 2 need an explicit `min-width: 0` to be reachable at all: §4.5's
 /// automatic minimum is the item's min-content size, which already includes
@@ -1076,6 +1091,47 @@ private func layOutChildren(
                 lines[i].items[j].targetMainSize = lines[i].items[j].hypotheticalMainSize
                 lines[i].items[j].frozen = true
             }
+        }
+
+        // CSS Flexbox §9.4 step 7 (ruling TX-H) — re-measure a non-stretched
+        // auto-cross item's fit-content cross size now that §9.7, just above,
+        // has resolved its USED main size. `collectItems` already measured
+        // every such item once, against its HYPOTHETICAL main size, because a
+        // line's own (pre-flex) cross extent has to be measured from
+        // something before §9.7 can even run — see `itemFitContentCrossSize`'s
+        // own doc. That first measurement is wrong only for an item whose
+        // target actually moved; most items freeze at their hypothetical size
+        // (`ResolveFlexibleLengths.swift`'s freeze loop is a no-op the moment
+        // nothing violates a min/max), and for those the first measurement
+        // already is the answer CSS wants, so this only re-measures the ones
+        // that changed (ruling SZ-B — "re-run", not "move": the alternative
+        // shape recomputes every auto-cross item unconditionally here and is
+        // strictly more work for the same answer, since a frozen item's
+        // hypothetical and used main sizes are numerically equal and the
+        // fit-content formula is a pure function of that one number).
+        //
+        // A stretch-eligible item is skipped outright: its cross size was
+        // just set, two blocks up, to the LINE's own extent (minus its cross
+        // margins) — that is what "stretch" means, and it does not depend on
+        // the item's main size or its content at all. Only a NON-stretched
+        // `auto` cross size is `itemFitContentCrossSize`'s business, which is
+        // why this re-derives `crossDim` from the item's own style rather
+        // than trusting `stretchEligible == false` alone: a definite cross
+        // size was never measured by `collectItems` in the first place (see
+        // its own `ownCross` guard) and must not be measured here either.
+        for j in lines[i].items.indices {
+            let item = lines[i].items[j]
+            guard !item.stretchEligible,
+                  item.targetMainSize != item.hypotheticalMainSize
+            else { continue }
+            let itemStyle = tree.style(item.node)
+            guard case .auto = (isRow ? itemStyle.size.height : itemStyle.size.width)
+            else { continue }
+            lines[i].items[j].crossSize = itemFitContentCrossSize(
+                ctx, tree, item.node, mainSize: item.targetMainSize, isRow: isRow,
+                containerCross: containerCross, intrinsic: intrinsic,
+                minCross: item.minCross, maxCross: item.maxCross,
+                marginCross: item.marginCross, containingBlockWidth: box.size.width)
         }
 
         // Where `positionItems` used to be called from. The line records the
@@ -1746,6 +1802,50 @@ struct IntrinsicQuery: Sendable, Hashable {
     static let unspecified = IntrinsicQuery(width: nil, height: nil)
 }
 
+/// CSS Flexbox §9.4 step 7 / §10.3.5's fit-content — an item's cross size,
+/// "treating auto as fit-content", shared by two call sites that differ only
+/// in **which** main size they pass in as `mainSize`. `collectItems` calls
+/// this with an item's HYPOTHETICAL main size, before `resolveFlexibleLengths`
+/// (§9.7) has run at all — see that call site for the full derivation of
+/// every clause here, including the three choices measured against WebKit and
+/// the fit-content formula's own three terms. `layOutChildren` calls it a
+/// second time per line, with the item's USED main size, once
+/// `resolveFlexibleLengths` has resolved it — ruling TX-H, and the correction
+/// this milestone's Task 8 owns. This function holds only the arithmetic
+/// both call sites share; neither comment is repeated here.
+private func itemFitContentCrossSize(
+    _ ctx: LayoutContext, _ tree: LayoutTree, _ kid: LayoutNodeID,
+    mainSize: Double, isRow: Bool,
+    containerCross: Double?, intrinsic: IntrinsicQuery,
+    minCross: Double?, maxCross: Double?,
+    marginCross: (leading: Double, trailing: Double),
+    containingBlockWidth: Double?
+) -> Double {
+    let crossKnown = isRow ? OptionalSizeD(width: mainSize, height: nil)
+                           : OptionalSizeD(width: nil, height: mainSize)
+    let mainSpace = AvailableSpace.definite(mainSize)
+    func measure(cross: AvailableSpace) -> SizeD {
+        measureNode(
+            ctx, tree, kid, known: crossKnown,
+            available: AvailableSpaceSize(width: isRow ? mainSpace : cross,
+                                          height: isRow ? cross : mainSpace),
+            containingBlockWidth: containingBlockWidth)
+    }
+    let maxContent = measure(cross: .maxContent)
+    var value = isRow ? maxContent.height : maxContent.width
+    if !isRow {
+        // `nil` here means "infinite", which is what max-content already
+        // answers — so the probe below is skipped.
+        let available: Double? = containerCross
+            .map { $0 - marginCross.leading - marginCross.trailing }
+            ?? (intrinsic.width == .minContent ? 0 : nil)
+        if let available, value > available {
+            value = max(measure(cross: .minContent).width, available)
+        }
+    }
+    return clamp(value, min: minCross, max: maxCross)
+}
+
 /// Phase 1 — size every item without positioning any of them.
 ///
 /// `intrinsic` is passed through **unresolved onto axes**, exactly as
@@ -2056,11 +2156,27 @@ private func collectItems(
             //    there, not its content. So the switch is on the declaration,
             //    not on whether `resolveNodeSize` came back with something.
             // 2. **The main axis is passed as `known`, at the item's
-            //    HYPOTHETICAL main size, not its flex base size.** "The used
-            //    main size" at this point in §9.4 is the base size already
-            //    clamped by the item's own main min/max, which is exactly
-            //    `hypothetical`. They differ only when a min/max binds, which
-            //    is precisely when the difference matters.
+            //    HYPOTHETICAL main size here — this call runs before §9.7 has
+            //    resolved anything, so "the used main size" does not exist
+            //    yet, and the base size clamped by the item's own main
+            //    min/max (`hypothetical`) is the nearest approximation
+            //    available at this point in the algorithm.
+            //
+            //    **This is only ever a placeholder now, per ruling TX-H — see
+            //    `layOutChildren`'s own call to `itemFitContentCrossSize`,
+            //    after `resolveFlexibleLengths` has run.** CSS Flexbox §9.4
+            //    step 7 measures a non-stretched auto-cross item from its
+            //    USED main size, i.e. after §9.7 (step 6) has flexed it, not
+            //    from its hypothetical one — and an item that shrinks or
+            //    grows can therefore report a cross size here that
+            //    `layOutChildren` immediately supersedes. This first
+            //    measurement still has to happen: `collectLines` breaks on
+            //    hypothetical main sizes and a line's own (pre-flex) cross
+            //    extent is measured from it, so an approximate value is
+            //    needed before §9.7 can even run. Only the SECOND
+            //    measurement, once the used main size exists, is what a
+            //    caller reading `FlexItem.crossSize` after layout actually
+            //    sees.
             // 3. **The cross axis is offered `.maxContent`, never
             //    `.definite(containerCross)`.** `measureNode` turns a definite
             //    available extent into the measured node's OWN extent (its
@@ -2135,29 +2251,11 @@ private func collectItems(
             // and `theCrossAxisQueryReachesAnAutoCrossItem`.
             let ownCross: Double = {
                 guard case .auto = crossDim else { return isRow ? own.height : own.width }
-                let crossKnown = isRow ? OptionalSizeD(width: hypothetical, height: nil)
-                                       : OptionalSizeD(width: nil, height: hypothetical)
-                let mainSpace = AvailableSpace.definite(hypothetical)
-                func measure(cross: AvailableSpace) -> SizeD {
-                    measureNode(
-                        ctx, tree, kid, known: crossKnown,
-                        available: AvailableSpaceSize(width: isRow ? mainSpace : cross,
-                                                      height: isRow ? cross : mainSpace),
-                        containingBlockWidth: containerSize.width)
-                }
-                let maxContent = measure(cross: .maxContent)
-                var value = isRow ? maxContent.height : maxContent.width
-                if !isRow {
-                    // `nil` here means "infinite", which is what max-content
-                    // already answers — so the probe below is skipped.
-                    let available: Double? = containerCross
-                        .map { $0 - marginCross.leading - marginCross.trailing }
-                        ?? (intrinsic.width == .minContent ? 0 : nil)
-                    if let available, value > available {
-                        value = max(measure(cross: .minContent).width, available)
-                    }
-                }
-                return clamp(value, min: minCross, max: maxCross)
+                return itemFitContentCrossSize(
+                    ctx, tree, kid, mainSize: hypothetical, isRow: isRow,
+                    containerCross: containerCross, intrinsic: intrinsic,
+                    minCross: minCross, maxCross: maxCross, marginCross: marginCross,
+                    containingBlockWidth: containerSize.width)
             }()
 
             // `targetMainSize:` here is dead — §9.7.2 overwrites it on every
