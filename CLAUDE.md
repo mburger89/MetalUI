@@ -22,7 +22,8 @@ idiomatic Swift. macOS and iOS.
   `docs/superpowers/2026-08-28-absolute-positioning-decisions.md`,
   `docs/superpowers/2026-08-28-measure-performance-decisions.md`,
   `docs/superpowers/2026-08-29-input-decisions.md`,
-  `docs/superpowers/2026-08-30-sizing-decisions.md` — each ruling with
+  `docs/superpowers/2026-08-30-sizing-decisions.md`,
+  `docs/superpowers/2026-09-01-tombstones-decisions.md` — each ruling with
   its reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
@@ -31,16 +32,23 @@ idiomatic Swift. macOS and iOS.
   wrapping, `EP-n` to the element pipeline, `CS-n` to content sizing, `SI-n`
   to structural identity, `TX-n` to text (M2), `CL-n` to clipping and scroll,
   `ST-n` to the stack container, `AP-n` to absolute positioning, `MP-n` to
-  measure-path performance, `IN-n` to `@State`/hit testing/input dispatch and
-  `SZ-n` to the sizing milestone that closed BM-4, FS-3 and TX-H (the last
-  nine are
+  measure-path performance, `IN-n` to `@State`/hit testing/input dispatch,
+  `SZ-n` to the sizing milestone that closed BM-4, FS-3 and TX-H, and `TB-n`
+  to the tombstones-and-AX milestone that closed divergences 12 and 17 (the
+  last ten are
   **lettered** — `CS-A`…`CS-O`, `SI-A`…`SI-H`, `TX-A`…`TX-J`, `CL-A`…`CL-F`,
-  `ST-A`…`ST-G`, `AP-A`…`AP-M`, `MP-A`…`MP-N`, `IN-A`…`IN-W` and `SZ-A`…`SZ-O`
+  `ST-A`…`ST-G`, `AP-A`…`AP-M`, `MP-A`…`MP-N`, `IN-A`…`IN-W`, `SZ-A`…`SZ-O`
   (**`SZ-A`…`SZ-N` until the sizing milestone's whole-branch fix wave added
   `SZ-O`, the propagation regression TX-H shipped** — same shape as the `MP-L`
-  note below, so a citation of `SZ-O` is real)
+  note below, so a citation of `SZ-O` is real) and **`TB-A`…`TB-AH`**, whose
+  **two-letter tail is deliberate and not a typo**: `TB-A`…`TB-AD` carry the
+  execution ledger's own thirty letters one for one, so a citation written
+  during that milestone still resolves, and `TB-AE`…`TB-AH` are the four
+  foundational decisions the ledger recorded as prose rather than as
+  lettered rulings — read those four first
   — so a bare
-  `CS-3`, `SI-3`, `TX-3`, `CL-3`, `ST-3`, `AP-3`, `MP-3`, `IN-3` or `SZ-3` is a
+  `CS-3`, `SI-3`, `TX-3`, `CL-3`, `ST-3`, `AP-3`, `MP-3`, `IN-3`, `SZ-3` or
+  `TB-3` is a
   typo rather than a citation; **`MP-A`…`MP-K` is what this line said until the
   input-and-state milestone re-read the file — the measure-performance
   milestone's whole-branch review added `MP-L`, `MP-M` and `MP-N` and did not
@@ -94,11 +102,22 @@ idiomatic Swift. macOS and iOS.
     per-process-seeded `Hasher` — so the mechanism is stated at `==` per
     taxonomy shape 6. Do not "simplify" it on the evidence of a green suite.
 
-  **Tombstones and exit transitions are untouched** by this: §4.3 still records
-  that AX identity needs entries surviving the sweep as invalid-reporting
-  tombstones and that exit transitions are impossible until that exists.
-  Universal identity makes tombstones *more* useful and no easier — it is a
-  change to the **sweep**, not to the key.
+  **Tombstones and exit transitions were untouched by universal identity, and
+  this sentence has since EXPIRED in its second half.** What it said, and what
+  was true when it was written: §4.3 records that AX identity needs entries
+  surviving the sweep as invalid-reporting tombstones, and that exit
+  transitions are impossible until that exists; universal identity makes
+  tombstones *more* useful and no easier, being a change to the **sweep**, not
+  to the key. **The sweep change landed on 2026-09-01.** `StateTable.sweep()`
+  retains an unmarked entry with its value and clears only its `isLive` flag,
+  a bounded reap removes it later, and `Frame.axNode(for:)` is the
+  invalid-reporting handle §4.3 asked for. So **exit transitions are now
+  POSSIBLE and UNBUILT**, which is a different claim from "impossible until
+  that mechanism exists": the prerequisite is here, and what is missing is a
+  distinction nothing yet draws between "gone, keep animating out" and "gone,
+  ordinary tombstone". The first half of the original sentence still stands
+  exactly as written — universal identity was a change to the key and this was
+  a change to the sweep, and neither disturbed the other.
 
 - **`Column` and `Row` centre on the cross axis; `Box` stretches. Ruling EP-8,
   2026-08-27, and this closes what was open.** SwiftUI's `VStack`/`HStack`
@@ -232,17 +251,39 @@ idiomatic Swift. macOS and iOS.
   of them masked away. Nothing enforces it and nothing can — see divergence
   14 and ruling MP-L for why `requestLayout` cannot know where it sits.
 
-  **What it costs is FOUR divergences, 12, 13, 14 and 17 below** (it was three
-  until focus existed): a row's own `StateTable` state is reaped while it is off
-  screen (its *identity* is what survives, not its state), the window is
-  computed against a one-frame-stale viewport extent, the window is placed
-  against the scroller's origin rather than the list's own, and — 17, added by
-  the input-and-state milestone — a **focused** row scrolled out of the window
-  loses focus and does not get it back. 17 is the worst of the four for one
-  reason: `@State` is recoverable from the datum and focus is not.
+  **What it costs is TWO divergences, 13 and 14 below, and two BOUNDED
+  guarantees.** It was three, then four when focus existed, and it is two
+  because the tombstones milestone retired 12 and 17 — **read that retirement
+  at exactly its strength, which is the point of this paragraph.** The two
+  that remain are unqualified: the window is computed against a one-frame-stale
+  viewport extent (13), and it is placed against the scroller's origin rather
+  than the list's own (14). The two that were retired are **closed for a
+  bounded window, not absolutely** (ruling `TB-AH`): a row scrolled out and back
+  within `StateTable.staleAfterGenerations` — **two** generations — keeps its
+  `@State` (was 12) and keeps its focus (was 17); an excursion of three
+  generations keeps neither, and the reap that takes them only engages once the
+  table holds more than `sweepThreshold` (**256**) entries at all. So the old
+  advice still stands for long excursions: **a value a long scroll must not
+  lose belongs in the data, not in a row's `@State`** — `List` re-reads `data`
+  every frame, so a value derived from a datum is stable by construction. Focus
+  has no such remedy, which is what made 17 the worse of the two, and its
+  closure is bounded on exactly the same terms.
   `Sources/MetalUI/List.swift`; decisions docs
-  `docs/superpowers/2026-08-28-measure-performance-decisions.md` (`MP-`) and
-  `docs/superpowers/2026-08-29-input-decisions.md` (`IN-M`).
+  `docs/superpowers/2026-08-28-measure-performance-decisions.md` (`MP-`),
+  `docs/superpowers/2026-08-29-input-decisions.md` (`IN-M`) and
+  `docs/superpowers/2026-09-01-tombstones-decisions.md` (`TB-AH`, `TB-AF`).
+
+  **One thing `List` still does not give accessibility, and it is HALF of
+  design spec §9's requirement rather than none of it (ruling `TB-W`).** Every
+  `List` emits its own `AXNode` carrying `logicalCount = data.count`, so the
+  "500" of VoiceOver's "3 of 500" is real and correct regardless of how many
+  rows the frame built. **The "3" is not**: rows emit no AX nodes and
+  `AXNode.children` is always empty. Measured through the real three-phase
+  pipeline on a production-shaped 500-row `List`: `totalAXNodes=1, rowNodes=0,
+  children=0, logicalCount=500` — and with the demo's own row shape,
+  `hitboxes=17`, so seventeen rows are realized as *hit targets* and none as AX
+  nodes. Both `AXNode.children` and `AXNode.logicalCount` have rows in the
+  declared-but-inert table.
 
 - **`Deferred` is a portal, and it is the framework's first element that is not
   a container.** It takes **exactly one** child (ruling AP-J: it is a paint
@@ -293,11 +334,28 @@ idiomatic Swift. macOS and iOS.
   Three consequences a reader will otherwise get wrong:
 
   - **A hand-written `.id("$state0")` collides with slot 0** (spec §8 risk 1).
-    Unlikely, not prevented, and there is no diagnostic.
+    Unlikely, not prevented, and there is no diagnostic. **There are now THREE
+    reserved slot names carrying this identical risk, and they are recorded
+    together on purpose (ruling `TB-Q`)**: `$state\(n)`, plus `$focus` and
+    `$ax`, the two retention slots the tombstones milestone added. All three
+    are children of an element's own `GlobalElementID`, none is guarded, and
+    guarding one alone would leave the framework with one namespace defended
+    and two open — which reads as though the other two were safe. What *is*
+    pinned is that the three cannot collide with **each other**:
+    `theThreeRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`), written
+    because renaming `"$ax"` to `"$focus"` reddened **0 of 777** while
+    silently dropping focus — the `AXNode` clobbers the `Bool`,
+    `resolveFocus`'s `peek(…, as: Bool.self)` returns `nil`, and divergence 17
+    regresses with nothing able to see it (ruling `TB-R`).
   - **Seeding MARKS, so a `@State` that is declared and never read is never
     swept** (spec §8 risk 3). Deliberate: the alternative silently resets a
     counter whose value a frame happened not to look at. It does mean `@State`
-    keeps entries `withState`'s own rule would drop.
+    keeps entries `withState`'s own rule would drop. **"Swept" no longer means
+    "deleted", as of the tombstones milestone** — `sweep()` retains an unmarked
+    entry's value and only clears its `isLive` flag, and a *reap* (bounded by
+    `staleAfterGenerations` and gated on `sweepThreshold`) is what eventually
+    removes it. The consequence of seeding is now stronger rather than
+    different: a marked slot never goes stale, so it is never reaped either.
   - **The vanishing-`if` hazard reaches ordinary code for the first time**
     (spec §8 risk 2). A `@State` after a conditional sibling adopts the
     vanished element's *value*, because identity is positional and the cursor
@@ -479,17 +537,26 @@ The flex-sizing milestone alone produced nineteen findings, four of them the sam
 shape: a fixture too uniform to distinguish the thing it claimed to pin. Before
 committing a fixture, change the declaration it is named for — a percentage to a
 pixel, an inset to 0 — regenerate, and confirm the numbers move. That document
-catalogues **fifteen** shapes of test that cannot fail, all observed in this repo,
+catalogues **sixteen** shapes of test that cannot fail, all observed in this repo,
 plus the method for finding them and the cases where adding a test is the wrong
 answer. Count the `### <n>.` headings rather than trusting that number
-(`grep -cE "^### [0-9]+\." docs/practices/verifying-tests-can-fail.md` reads 15) —
-a bare `grep -c "^### "` reads **18**, because **three** sections in that document
-are unnumbered. Both numbers have now moved twice: the input-and-state milestone
-added shape 14 and one unnumbered section (13 and 15 before it, unnumbered count
-2 before that), and the sizing milestone added shape 15 — "a benchmark of a
-configuration in which the code under test is unreachable", found while
-measuring TX-H's own cost (ruling `SZ-N`) — with no change to the unnumbered
-count.
+(`grep -cE "^### [0-9]+\." docs/practices/verifying-tests-can-fail.md` reads 16) —
+a bare `grep -c "^### "` reads **19**, because **three** sections in that document
+are unnumbered. Both numbers have now moved three times: the input-and-state
+milestone added shape 14 and one unnumbered section (13 and 15 before it,
+unnumbered count 2 before that); the sizing milestone added shape 15 — "a
+benchmark of a configuration in which the code under test is unreachable", found
+while measuring TX-H's own cost (ruling `SZ-N`); and the tombstones-and-AX
+milestone added shape 16, **"a `@testable` test file cannot prove an
+access-level narrowing"** (ruling `TB-N`) — neither of the last two changing the
+unnumbered count. **This paragraph itself said "fifteen" and "18" while the
+document held fifteen numbered and eighteen total, which was correct — but the
+document's own taxonomy HEADING said "fourteen shapes" from the moment the
+sizing milestone added the fifteenth and was still saying it when this
+milestone arrived.** Corrected to sixteen here. The lesson is the one the
+paragraph already teaches, arriving inside the document that teaches it: a
+count is written in more than one place, and updating the one you were looking
+at is not updating the count.
 
 **Shape 15 then fired AGAIN inside the same milestone, in its whole-branch fix
 wave, on an unrelated question — which is the argument for it being a shape
@@ -611,7 +678,10 @@ since divergence 5's own entry is gone.) The tell is a **"cannot" that was not
 measured**.
 
 The three mechanisms are new sections under "The method" in the practices doc,
-and each cost a round of rework:
+and each cost a round of rework. **That section is titled "FIVE ways a record
+goes wrong" today** — the tombstones-and-AX milestone added 4 and 5 below and
+amended 1 and 3 with their own converses; the numbering is stable, so a
+citation of mechanism 1, 2 or 3 still resolves:
 
 1. **A measurement recorded in the report is not a measurement applied to the
    source.** Three consecutive tasks shipped a comment their own report
@@ -629,6 +699,47 @@ and each cost a round of rework:
    *everything* found a third they had not sampled, and a fourth that had moved
    for a better reason. A review samples; a count taken before the last test
    landed is stale across everything measured in that window.
+
+**The tombstones-and-AX milestone added one shape and two mechanisms, and
+amended two more — five contributions, every one of them about the RECORD.**
+The shape is **16, "a `@testable` test file cannot prove an access-level
+narrowing"** (ruling `TB-N`): `@testable import` widens `internal`, so the test
+file whose whole subject is the type could not demonstrate that narrowing two
+properties to `internal(set)` closed anything at all. The tool that gives a test
+its reach is the tool that hides the change; the evidence has to be a
+`swiftc -typecheck` guard against a **plain** import, which is what took the
+guard count from 29 to 32. The two new mechanisms are:
+
+4. **Silence in a review is scope not covered, not coverage** (ruling `TB-E`).
+   An implementer wrote a false claim about a function's call sites and named
+   the cause exactly: *"the review had confirmed `mark`'s and `write`'s call
+   graphs and said nothing about `withState`. I read that silence as coverage
+   rather than as scope not covered."* Distinct from 1–3, which are all about a
+   claim nobody measured; this is a claim believed **because a reviewer verified
+   its neighbours**. A review returns findings, not a map of what it looked at.
+5. **Knowing a rule, quoting a rule, and having a controller record a ruling
+   about a rule are all weaker than running the mutation** (rulings `TB-G`,
+   `TB-Y`). Three instances, escalating. A controller ruling written
+   *specifically to pre-empt* a wrong comment did not stop that comment
+   shipping the converse — with the implementer's own report quoting the rule
+   two paragraphs above the violation. And `HandlerShape` (`ModifierTests.swift`)
+   fell behind `Handlers` for the **second** time, for the same reason, while
+   **this very file names that exact projection and that exact failure in
+   advance**, citing the first occurrence. The only control that fired in either
+   case was a reviewer executing something. Corollary for controllers: a ruling
+   that must survive into a source comment has to be stated in the **dispatch**,
+   because the ledger is not something the implementer reads.
+
+Mechanisms 1 and 3 also gained converses in the same milestone. **1's** (ruling
+`TB-AA`): anything a measurement did **not** establish must not appear at the
+line as though it had — a parenthetical "(measured on a scrolling 500-row and a
+100,000-row list alike)" that was true of one number got attached, unqualified,
+to a derived successor nothing had measured that way, and the fix was to say at
+the line which half was measured and which derived, not to delete the number.
+**3's** (ruling `TB-AC`): a set of stale sites handed over by a review is a
+**sample, not an inventory** — sweeping the whole file found a fifth site in a
+function's own doc comment and a sixth **twenty-six lines below a line the fix
+round had just corrected**.
 
 **And the milestone's own best evidence for the method is a ruling that was
 answered the OPPOSITE way from how it was framed.** A brief deliberately left
@@ -850,9 +961,13 @@ behind the **M** key for that reason; see `showModal` in
 **Z-order is why that criterion exists, and it is worth restating precisely.**
 A `Stack`'s children are placed independently of paint order —
 `positionStackItems` never reads which child was declared first — so a
-regression reversing paint order would move not one number any of the 739 tests
-or 81 goldens check: every rect's `(x, y, width, height)` is identical whichever
-child painted first. **Two artifacts have ever observed the property and both are
+regression reversing paint order would move not one number any test or golden
+checks: every rect's `(x, y, width, height)` is identical whichever
+child painted first. (This read "the 739 tests or 81 goldens" — the figures at
+the input-and-state milestone — and was still saying so two milestones later at
+782 and 87. The **claim** is that nothing in the suite can see paint order, and
+it does not depend on the suite's size; quoting a count here only gave the
+sentence a way to rot. Dated counts belong in the Build section.) **Two artifacts have ever observed the property and both are
 outside the suite**: the offscreen readback, once, by hand, and the human look
 that closed the criterion. Nothing automated has seen it or can.
 
@@ -976,8 +1091,10 @@ ways to close it.
 **Nothing in the suite can see any of the first three, and the reason is the same one
 `Stack`'s entry gives.** A `Deferred` contributes no layout node, so its
 subtree's `(x, y, width, height)` are byte-identical whether or not it hoists
-and whether or not it escapes; the 739 tests and 81 goldens would all stay green
-under a regression in either half. The scene-level tests in `DeferredTests.swift`
+and whether or not it escapes; every test and every golden would stay green
+under a regression in either half. (This quoted "the 739 tests and 81 goldens",
+stale by two milestones at 782 and 87 — see the `Stack` z-order paragraph above
+for why the count was dropped rather than refreshed.) The scene-level tests in `DeferredTests.swift`
 assert the layer and the mask on synthetic frames, which is real evidence and is
 not the same as the composed window.
 
@@ -1080,7 +1197,8 @@ records that exclusion up front). And the demo now carries a second thing worth
 a directed look for the same reason `Stack`'s z-order needed one: with a
 `List`, rows appear and disappear as the window moves, and a window whose
 overscan is too small shows a strip of unbuilt rows for a frame (divergence 13).
-No assertion in the 739 can see either.
+No assertion in the suite can see either. (This said "the 739", stale by two
+milestones; the claim is about coverage, not about size.)
 
 **What a human must do, and what to report.** Run `swift run MetalUIDemo`, then
 `swift run -c release MetalUIDemo`. Drag the window's edge — slowly, then fast —
@@ -1358,13 +1476,71 @@ process fact (build, launch, stderr, test count, goldens) or a measurement
 taken through a headless probe (`Task9Probe.swift`, deleted before Task 9's
 own commit), never through a rendered window.
 
-## Twelve known divergences, numbered 1, 2, 4 and 9-17 — expected, measured, not defects
+## Ten known divergences, numbered 1, 2, 4, 9-11 and 13-16 — expected, measured, not defects
 
-**The labels are stable ids, not a running count, and there are now FIVE
-retired labels.** There are **twelve** entries and the highest label is still
-**17**. Five labels are permanently retired, for three different reasons,
-which is worth knowing before assuming a sixth gap means a lost entry:
+**The labels are stable ids, not a running count, and there are now SEVEN
+retired labels.** There are **ten** entries; the highest label ever assigned is
+**17** and the highest still present is **16**. Seven labels are permanently
+retired, for **four** different reasons, which is worth knowing before assuming
+a gap means a lost entry:
 
+- **12 and 17 were retired by the tombstones-and-AX milestone (2026-09-01),
+  and they are the first two entries retired by a fix that is DELIBERATELY
+  BOUNDED rather than absolute — which is a fourth reason, not an instance of
+  the third.** Both were `List`-windowing limitations with one mechanism: a row
+  outside the window is not produced, so nothing marks its `GlobalElementID`,
+  and `StateTable.sweep()` deleted its entry outright. **12** was the row's own
+  `@State` being lost; **17** was a *focused* row losing focus, recorded as the
+  worse of the two because `@State` is recoverable from the datum and focus is
+  not. `sweep()` now retains an unmarked entry with its value and only clears
+  its `isLive` flag (`TB-AE`); focus rides the same table through a dedicated
+  `$focus` retention slot rather than a second grace period (`TB-J`, design spec
+  §5's own instruction).
+
+  **Read the closure at exactly its strength: it is "closed for two
+  generations", not "closed" (ruling `TB-AH`, spec §3 and §8 risk 2).** An entry
+  survives being unmarked for `StateTable.staleAfterGenerations` — **2** — so an
+  excursion of exactly two generations keeps its state and its focus and an
+  excursion of three keeps neither. **And the reap only engages once
+  `storage.count > sweepThreshold` (256) at all**, so below that a stale entry
+  is retained indefinitely; the bound bites on a large list and not on a small
+  one. "Fixed" and "fixed for N generations" are different claims and the second
+  is the true one — anywhere this closure is cited, it is cited with the bound
+  attached. **The old remedy therefore still stands for long excursions**: a
+  value a long scroll must not lose belongs in the **data**, which is where a
+  windowed list wants it anyway.
+
+  **Both halves are pinned, and the pins are asymmetric on purpose** —
+  `aListRowsStateSurvivesABoundedExcursionButNotALongerOne`
+  (`Tests/MetalUITests/TombstoneTests.swift`) and
+  `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`
+  (`Tests/MetalUITests/FocusTests.swift`). Each asserts a two-generation
+  excursion surviving *and* a three-generation one not surviving, and in each
+  the two halves redden under *different* mutations. For the state one:
+  reverting `sweep()` to deleting reddens **only** the short half (the row is
+  deleted the very next sweep, long before it is due back) and leaves the long
+  half alone, since both policies discard a row gone three generations. For the
+  focus one: reverting to unconditional-clear reddens **only** the short half,
+  and making `resolveFocus` a no-op reddens **only** the long half. If one
+  mutation reddened both halves of either test, the second half would be
+  proving nothing about boundedness — the asymmetry is the whole evidence. **A third test carries the part neither of those
+  can see** —
+  `aStaleEntryIsRetainedForeverWhileStorageStaysAtOrBelowSweepThreshold`, which
+  is the only thing pinning that the reap is *gated on the size at all*: both
+  excursion fixtures hold the table above 256 throughout, so the gate is always
+  true in them and whether it is consulted is unobservable (ruling `TB-H`, ruling
+  MP-J's shape a third time). **Every mutation result in this bullet was run
+  twice during the milestone — once by the implementer and once, independently,
+  by that task's reviewer — and NOT re-run by the documentation task**, which
+  verified only that the three tests exist under these names and that the suite
+  is green at 782. Rulings `TB-AE`, `TB-AF`, `TB-AH`, `TB-D`, `TB-J`
+  and `TB-H` in `docs/superpowers/2026-09-01-tombstones-decisions.md`.
+
+  **Divergences 13 and 14 did NOT go with them and are unchanged.** They are
+  `List`-windowing limitations with entirely different causes — a one-frame-stale
+  viewport extent and a window placed against the scroller's origin — and
+  neither is touched by anything the sweep does. 14 in particular can still make
+  a list render **blank**; retiring its neighbours changes nothing about it.
 - **3, 5 and 6 were freed by the sizing milestone (2026-08-31), which closed
   all three of this framework's remaining sizing divergences at once.**
   **3** was ruling BM-4, an over-constrained box refusing to grow its border
@@ -1438,14 +1614,18 @@ which is worth knowing before assuming a sixth gap means a lost entry:
   there (ruling TX-F). Re-measured with the fix landed: it renders as 7 glyphs
   on one baseline, ink 13.5pt. There is no unidentified spill site left.
 
-**Neither of the two labels retired before this milestone is ever reused, and
-neither are the three retired by it** — the same rule `EP-2`/`EP-4` follow —
-so a citation written against "divergence 3", "5" or "6" (the TX-H one; see
-the label-7 bullet above for the *other* thing "divergence 6" used to mean) in
-an older commit message or document points at a retired entry rather than
-silently rebinding to a different one. A reader who counts to the highest
-label gets seventeen and a reader who counts entries gets twelve; the heading
-says both numbers because they answer different questions.
+**None of the seven retired labels is ever reused** — the same rule `EP-2`/`EP-4`
+follow — so a citation written against "divergence 3", "5", "6" (the TX-H one;
+see the label-7 bullet above for the *other* thing "divergence 6" used to
+mean), "8", "12" or "17" in an older commit message or document points at a
+retired entry rather than silently rebinding to a different one. **12 and 17
+are the two most likely to be cited from outside this file**, because both were
+recorded at `List`'s own type doc and in several test comments before they were
+retired; a citation of either is a citation of a *bounded* closure, not of a
+live limitation. A reader who counts to the highest label ever assigned gets
+seventeen, a reader who counts to the highest label still present gets sixteen,
+and a reader who counts entries gets ten; the heading says all three because
+they answer different questions.
 
 **Not every entry is a disagreement with WebKit, and 10 was the first that
 never was one.** 1, 2, 4 and 9 are places this engine answers differently
@@ -1455,12 +1635,16 @@ not with WebKit at all but between this engine's own layout and its own paint
 16 are design choices recorded here because a reader comparing this framework
 to CSS will otherwise read them as bugs** — 10 and 11 are the two directions
 of one seam and each entry names the other, and 16 is the price of the rule
-that closes the modal-scrim case. **12, 13, 14 and 17 are a third kind again:
-neither a disagreement nor a design preference, but four accepted limitations
+that closes the modal-scrim case. **13 and 14 are a third kind again:
+neither a disagreement nor a design preference, but accepted limitations
 of `List`'s windowing**, each with a named mechanism that would remove it and
-a reason that mechanism is larger than this framework has built. 14 is the
-one of the four that can make a list render **blank** rather than merely
-stale or forgetful, so read it before putting a `List` in a scroller that
+a reason that mechanism is larger than this framework has built. (**This kind
+had four members until the tombstones milestone retired 12 and 17** by
+building one of those named mechanisms — which is the argument for naming
+them: the two that got fixed are the two whose blocker was written down as a
+mechanism rather than as a mood.) 14 is the
+one of the two that can make a list render **blank** rather than merely
+stale, so read it before putting a `List` in a scroller that
 holds anything else. **15 is a fourth kind and the only one of its own: a
 defect this framework has and has deliberately not fixed yet**, recorded here
 rather than left latent because its symptom — a subtree that draws nothing at
@@ -1652,36 +1836,6 @@ should move nothing in the corpus. Pinned by
 `anAbsoluteBoxInsideAScrollViewIsStillClippedAndScrolledByIt` in
 `AbsoluteOverlayTests.swift`, which asserts the disjoint rect and mask, the
 scroll translation, and the `Deferred` escape as the differential.
-
-**12. A `List` row loses its element state when it scrolls out of the window.**
-Its *identity* survives and its state does not, and the two are easy to read as
-one thing. A row outside the window is not merely un-painted — it is not
-produced at all, so nothing marks its `GlobalElementID` during that frame's
-element walk, and `StateTable.sweep()` reaps its entry exactly as it would for
-an element deleted from the tree for good (design spec §4.3). Scroll it back
-into view and it comes back under the same id, holding nothing.
-
-The identity half is real and is what `Data.Element: Identifiable` buys (ruling
-MP-D): a row is named after its datum, a name replaces a position, so the row
-lands on the same `GlobalElementID` however the window has slid in the
-meantime. Nothing about that keeps the *table entry* alive across a frame in
-which the row was never built.
-
-**Not fixed, and the blocker is a mechanism this framework has not built.**
-Surviving the sweep needs the tombstones design spec §4.3 already names as the
-prerequisite for exit transitions — entries that outlive a sweep as
-invalid-reporting placeholders rather than being reaped. Until that exists, a
-`List` row's state must live in the **data**, which is where a windowed list
-wants it anyway: `List` re-reads `data` every frame, so a value the row derives
-from its datum is stable by construction and a value the row stores privately
-is not.
-
-**No test can see it today and none should be written to pin the current
-behaviour**, because the desired behaviour is the opposite one — a test
-asserting "state is reset" would have to be deleted by the change that fixes
-it. Recorded at `List`'s own type doc as well, which is where a caller
-wondering why a checkbox forgot itself will look. Spec §7.5 required this be
-written down; that is what this entry is.
 
 **13. A `List`'s window is computed against a one-frame-stale viewport
 extent.** Scrolling is exact; only resizing is briefly wrong.
@@ -1890,45 +2044,25 @@ the call site.
 wrong answer on purpose and says so in its own message. No fixture or golden
 encodes it and none could — CSS's wheel routing is not what this implements.
 
-**17. A focused `List` row scrolled out of the window loses focus and does not
-get it back.** The fourth `List`-windowing limitation, beside 12, 13 and 14, and
-**worse than 12 for a reason worth stating.**
-
-The mechanism is 12's exactly: a row outside the window is not produced, so it
-registers nothing in `Frame.focusRegistry`, and `Frame.resolveFocus()` clears a
-focused id this frame did not produce (ruling IN-M). Its *identity* survives —
-that is what `Data.Element: Identifiable` buys — and its focus does not.
-
-**Why it is worse than 12.** Divergence 12 loses a row's `@State`, and the
-remedy there is real: a windowed list wants its state in the data anyway, and a
-value derived from the datum is stable by construction. **Focus is not
-recoverable from the datum.** Losing a counter is annoying; losing focus
-mid-interaction moves the user's keyboard somewhere they did not put it, and
-nothing in the data can put it back.
-
-**Not fixed, and there are two named mechanisms rather than one.** The general
-one is the tombstones design spec §4.3 already names as absent — entries that
-outlive a sweep as invalid-reporting placeholders. The cheaper, focus-specific
-one is a grace period: keep a focused id alive for N frames after the element
-stops being produced, on the argument that focus is a single value rather than a
-table. Neither exists.
-
-**No test pins it and none should pin the current behaviour**, on divergence
-12's footing: the desired behaviour is the opposite one, so a test asserting
-"focus is lost" would have to be deleted by the change that fixes it.
-
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
 exists, compiles, and does nothing. `Style` has 22 stored properties; **two of
 them are read by no production code** — `overflow`, `aspectRatio`.
-(**`Style` is untouched by the input-and-state milestone and both rows were
-re-checked rather than assumed**: `git diff --name-only 994a4a7..HEAD --
-Sources/MetalUILayout/` is empty for the whole branch, `grep -rn "\.overflow\b"
-Sources/` still finds one write and no read, and `grep -rn "aspectRatio"
-Sources/ | grep -v "var aspectRatio"` finds one doc comment and no use at all.
+(**`Style` is untouched by the input-and-state milestone and by the
+tombstones-and-AX one, and both rows were re-checked rather than assumed**:
+`git diff --name-only 2f8994b..HEAD -- Sources/MetalUILayout/` is empty for the
+whole tombstones branch — as `994a4a7..HEAD` was for the input branch —
+`grep -rn "\.overflow\b" Sources/` still finds one write and no read, and
+`grep -rn "aspectRatio" Sources/ | grep -v "var aspectRatio"` finds one doc
+comment and no use at all. The 22 is itself re-derived rather than carried:
+`grep -cE "^    public var " Sources/MetalUILayout/Style.swift` returns **24**,
+of which `FlexDirection.isRow` and `.isReverse` are computed.
 That is what ruling IN-H's fourth `StyledElement` requirement bought instead of
-a `Style` field — see `Handlers`.)
+a `Style` field — see `Handlers`. **The tombstones milestone did the same
+thing a second time**: AX data went onto `Handlers` as a sixth stored member
+rather than into `Style` or onto a fifth `StyledElement` requirement, ruling
+`TB-AG`, so the three AX rows below are `MetalUI`'s rows and not `Style`'s.)
 **`StyledElement` deliberately exposes no modifier for either** (`Box.swift`): a
 modifier for an inert property is worse than none, because from outside it is
 indistinguishable from an implemented one. When one becomes live, add its
@@ -2029,6 +2163,9 @@ are the dangerous ones.
 | `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` returns **three** lines and none is a call: the string inside its own precondition message (`LayoutTree.swift:135`), a doc comment on the method that quotes this very grep (`:116`), and — added by the input-and-state milestone — a doc line in `Frame.swift`, where the `Frame.scrollRegions` row below cites this one as the same shape. (Line numbers are deliberately not given for the prose lines: they moved twice inside this one fix round.) (It matched one line when this row was written and two after the method's own doc comment landed, so re-run it rather than counting — the claim is "no call", not any particular number, and this row has now been made stale twice by prose that merely mentions the symbol.) The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
 | `@State` inside an `AnyElement` | **Silently inert — returns its initial value forever, with no diagnostic.** The input-and-state milestone's Task 2 seeds every `@State` an element declares from two sites: `Element`'s default `requestGroupLayout` (`ElementGroup.swift`) and `Frame.render`'s own root path. `AnyElement.requestGroupLayout` (`ElementGroup.swift`, the `extension AnyElement: ElementGroup` block) is a hand-kept duplicate of the first of those two — written before `@State` existed, and never updated — so it never calls `StateBinder.bind`. Measured with a throwaway probe: `Box(content: AnyElement(Counter(...)))` rendered for three frames leaves the shared `StateTable` with **no entry at all** for the counter's slot, where the identical `Counter` unboxed in a plain `Box` leaves it holding the accumulated **3** — one increment per frame. (Re-measured during Task 2's re-review, which read `nil` against `Optional(3)`. This row said `count == 1` when first written, which contradicted its own "accumulated" in the same sentence: 1 is the entry *count* after one frame, not the value after three.) **Not a one-line fix**: `Mirror(reflecting: anyElement)` sees only the boxed `any ElementObject`, not the erased element's own stored properties, so there is nothing for `StateBinder` to reflect even with the call added — closing this needs a hook on `ElementObject` or reflection inside `AnyElementBox` itself, a design decision rather than a patch. **Nothing in production reaches it today**: the `AnyElement` / `ElementObject` / `AnyElementBox` row above already records that `ElementBuilder` produces no `AnyElement` — every one in the tree today was written by hand, and today that is tests alone |
 | `StateTable.isDirty` | **A production write with no production read — the `Style.overflow` shape, narrower.** Task 3 of the input-and-state milestone (§2.6) added it alongside `write(_:_:)`, which sets it on every `@State` mutation. Nothing reads it back: `grep -rn "isDirty" Sources/` finds the declaration, the set inside `write`, the clear inside `clearDirty`, and doc comments — no `if stateTable.isDirty` anywhere, in `Window` or elsewhere. **Narrower than `Style.overflow`'s row**, because `StateTable` is `internal` (unreachable from outside `MetalUI`, unlike `Style`, which is public API a caller can read and be misled by) — the risk here is a future contributor inside this module, not an external one. The entire production mechanism is the sibling `onWrite` hook: `write` fires it unconditionally on every call, so a hypothetical `if stateTable.isDirty { window.setNeedsRedraw() }` would be dead code, not a fix — `onWrite` already called `setNeedsRedraw()` by the time such a read could happen. **Kept anyway, not deleted**: it is the observable this task's own tests read (`writingStateMarksTheTableDirtyAndReadingDoesNot` and others in `StateTests.swift`), two of which construct no `Window` at all, so removing it would mean rewriting green tests to chase a hook-invocation counter instead. `Window.drawFrameIfNeeded` clears it *before* `renderRoot` runs rather than after — but that ordering has no production consequence either, since a write during render reaches `needsRedraw` (which nothing clears again before the function returns) through `onWrite` regardless of where the clear sits. The ordering exists only to keep `isDirty` itself coherent for whatever next reads it back, which today is only a test |
+| `AXNode.children` | **ALWAYS EMPTY in production, so design spec §9's "full logical count with realized children" is HALF met — and the half that is missing is the one a bridge needs to attach the count to** (ruling `TB-W`). Not "unfilled pending a call site": `Box.prepaint` is the sole production caller of `emitAXNode` and always passes `children: []`, verified with `grep -rn "emitAXNode" Sources/`: 15 lines, of which **four are code** — two `func` declarations (`Frame`, `PrepaintPass`), `PrepaintPass`'s one-line forward into `Frame`'s, and `Box.swift`'s single call. Everything else is a doc comment. Measured through the real three-phase pipeline on a production-shaped 500-row `List`: `totalAXNodes=1, rowNodes=0, children=0, logicalCount=500`; with the demo's own row shape, `hitboxes=17` — **seventeen rows realized as hit targets and none as AX nodes**, with or without `onClick`. (Task 7's review, through a throwaway probe that was not committed; **not re-run by the documentation task**, which verified only the greps in this row. The structural half — `Box.prepaint` always passing `children: []` — is re-verified above and is what the claim rests on.) **The blocker is a mechanism, not reach, and both halves of it were measured rather than argued.** `ElementGroup.requestGroupLayout` hands a container a flat `[LayoutNodeID]`, not a `GlobalElementID` per child, so a container has no ids to pass. And reconstructing order from `Frame.axNodes`' own keys is **provably ambiguous**: `GlobalElementID.child(of:at:name:)` is `name.map(PathComponent.named) ?? .positional(index)`, so the index is *discarded* whenever a name is given — `Row { Box(); Box().id("x"); Box().id("y"); Box() }` and the same row with `"x"` and `"y"` swapped produce an **identical set** of four ids. Structure is derivable from `GlobalElementID.parent`; order is not, in general, and a wrong AX order is invisible to every rect-based test in this repo. Closing it needs an `ElementGroup` associated-type change threading `GlobalElementID` alongside `LayoutNodeID` through `EmptyGroup`, `Pair`, `OptionalGroup`, `EitherGroup`, `ArrayGroup`, `AnyElement` and `Element`'s default — **a named follow-up outside M3, not a mystery**. The field is kept rather than deleted for exactly that reason (ruling `TB-M`): "derive it in the M4 bridge instead" is not a cost trade, it is wrong. Recorded at `AXNode.children`'s own doc and at `List`'s type doc as well |
+| `AXNode.logicalCount` | **One production writer, zero production readers.** `List.requestLayout` sets `listHandlers.axNode.logicalCount = count` — the only write in `Sources/`, confirmed by `grep -rn "logicalCount" Sources/`: 7 lines, of which **four are code**, and three of those four are `AXNode`'s own property declaration and its initializer's parameter and assignment. The fourth is `List`'s write. Nothing reads it. Its reader is M4's `NSAccessibilityElement`/`UIAccessibilityElement` bridge, which design spec §9 puts in M4 and which does not exist. **Not the `Style.overflow` shape and worth distinguishing from it**: `overflow` has a write nothing will ever read because the mechanism went elsewhere, whereas this is correct data waiting for a consumer that is scheduled. It is in this table because a reader who sees a `List` populate `logicalCount` and knows VoiceOver reports "3 of 500" will reasonably conclude the two are connected today, and they are not — see the `AXNode.children` row for the other half of why. **Deliberately unconditional and not behind a modifier**: the exit criterion is that a `List` always exposes this, not that one *can*, and there is no public `.axNode(_:)` modifier at all yet (ruling `TB-AG`) |
+| `Frame.axNodes` / `Frame.axNode(for:)` | **A per-frame registry and a durable query, both written every frame and read by nothing in production — `Frame.scrollRegions`' exact shape, arrived at by being built before its consumer rather than by a refactor.** `grep -rn "axNodes\|axNode(for" Sources/` returns 24 lines, of which exactly **three are code** — `axNodes`' declaration, the one write to it inside `emitAXNode`, and `axNode(for:)`'s own `func` line — and the other 21 are doc comments. **No production call site reads either.** (Note the pattern: `axNode(for:` with the colon matches nothing, because the declaration is `axNode(for id:`. That spelling was written into this row first and found no declaration at all, which is the kind of silent miss the `scrollRegions` row above records from the case-sensitivity direction.) That is expected rather than broken: the whole point of M3's AX work is that the node tree settles before M4 bridges it, and spec §4 puts the bridge out of scope explicitly. **Kept, and the two are not redundant**: `axNodes` answers "was `id` produced THIS frame" and is rebuilt from scratch each frame; `axNode(for:)` answers "is a handle an AX client still holds valid", by reading `StateTable.isLive` at the `$ax` retention slot, which is the durable question §9 actually asks. **One measured caveat a bridge author must know**: `axNode(for:)`'s validity has a **one-frame read lag** — `isLive` reflects the sweep at the end of the last *completed* frame, so an element that vanishes mid-frame still reads `isValid == true` while `axNodes[id]` is already `nil`, and only the next sweep corrects it. Measured on that exact shape, not reasoned. The lag is one-directional and self-correcting: it can only report valid one frame too long. **Delete this row in the same change that lands the bridge**, on the rule the top of this section states |
 
 Re-check any row rather than trusting this table:
 
@@ -2042,18 +2179,36 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **755 tests** and 87 browser fixtures, warning-free
-(re-measured 2026-09-01 `--no-parallel`, after the sizing milestone's
-whole-branch fix wave; 752 and 86 through the milestone's own twelve tasks,
-which closed BM-4, FS-3 and TX-H — the last three of this framework's four
-sizing divergences to close, `SZ-A` having closed the root-percentage one
-earlier in the same milestone). Per rulings CS-M/CS-N/SI-H: a
+`swift build` · `swift test` — **782 tests** and 87 browser fixtures, warning-free
+(re-measured 2026-09-01 `--no-parallel` at the tombstones-and-AX milestone's
+last commit: `Test run with 782 tests in 1 suite passed after 14.903 seconds.`,
+`find Tests -name "*.json" | wc -l` = 87, and a full-log `grep -ci "warning:"`
+of 0; 755 and 87 was that milestone's own baseline, and 752 and 86 the sizing
+milestone's before its whole-branch fix wave). Per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
 rather than at the commit that first quoted it.
 
+**87 goldens is this milestone's exit criterion 2, not a by-product.**
+Tombstones and AX nodes touch nothing in the layout engine —
+`git diff --name-only 2f8994b..HEAD -- Sources/MetalUILayout/` is **empty for
+the whole branch** — so a moved golden would mean something reached the engine
+that should not have. None moved and none was added: 87 before, 87 after.
+
+**Two tests are gated and DO count toward the 782 — a claim this paragraph got
+wrong for one milestone and which is corrected here rather than quietly
+edited.** It previously said the 100k test "is disabled by default and does not
+run in the count above", which conflates two things. Measured:
+`swift test --no-parallel --filter aListsWorkIsTheSameFor100kRowsAsFor500`
+reports `Test run with 1 test in 1 suite passed`, and a full-log grep for
+`skipped` finds exactly two tests — `regenerateAllGoldens` and that one. **A
+`.enabled(if:)` skip counts toward the total and is reported as skipped; what
+is disabled is what RUNS, 780 of the 782 by default.** The distinction matters
+because the reflex when the summary line moves is to look for an added or
+deleted test, and a gate changes neither number.
+
 **`aListsWorkIsTheSameFor100kRowsAsFor500`
-(`Tests/MetalUITests/MeasurePerformanceTests.swift`) is disabled by default and
-does not run in the count above.** It times M3's exit-criterion cold frame at
+(`Tests/MetalUITests/MeasurePerformanceTests.swift`) is skipped by default.**
+It times M3's exit-criterion cold frame at
 the real 100,000 rows (ruling MP-I) and alone adds ~42 s debug / ~17 s release
 to the suite's wall clock — gated the same way `regenerateAllGoldens`
 (`Tests/MetalUILayoutTests/GeneratorTests.swift`) gates an expensive
@@ -2063,13 +2218,69 @@ deliberate act rather than a per-run one. Run it deliberately:
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 ```
 
-**Typecheck guards: still 29** — 19 `PhaseSeparationTests` + 7
-`ErasureCompileGuards` + 1 `ElementGroupTrapTests` + 2
-`Tests/MetalUICoreTests/UnitSafetyTests.swift` (a bare `grep -c` there reads 3;
-one is a comment). The sizing milestone touches only `FlexEngine.swift` and
-its own test files, none of which holds a `canTypecheck` guard, so this count
-was never expected to move and re-measuring it (by grep, both counting
-methods agreeing) confirms it did not.
+**Naming that command here is the gate's precondition rather than a
+convenience (ruling `TB-L`)**: the whole objection to gating a milestone
+deliverable is that it rots unrun, and the mitigation is that the command lives
+in the one document a reader starts from. The gate itself recovered **66.833 s
+→ 14.790 s** of suite wall clock (Task 8's fix round's figures, reproduced twice
+more there at 14.837 and 14.774). **Three independent full runs at the
+documentation task read 14.903, 14.981 and 15.117 s** — the same regime, on the
+same machine, one milestone-task later; the 66.8 s figure is the one nobody has
+re-run, and it would require reverting the gate to see again.
+
+**Typecheck guards: 32, and across FIVE files rather than four** — 19
+`PhaseSeparationTests` + 7 `ErasureCompileGuards` + 1 `ElementGroupTrapTests`
++ 2 `Tests/MetalUICoreTests/UnitSafetyTests.swift` (a bare `grep -c` there
+reads 3; one is a comment) + **3 `Tests/MetalUITests/AXNodeTests.swift`**, the
+new fifth file. Re-counted by grep at this milestone's last commit, per file,
+rather than carried. **It was 29 across four files for eight milestones and
+this is the second time it has moved at all**; see "When CI lands" item 3,
+which argues at length that the guard count does *not* track the suite count —
+this is a data point for that argument, not an exception to it. The three new
+guards exist because `AXNodeTests.swift` uses `@testable import`, which widens
+`internal` and therefore **cannot** demonstrate an access-level narrowing —
+ruling `TB-N`, and taxonomy shape 16 in the practices doc.
+
+**The tombstones-and-AX milestone's own climb, task by task** (baseline
+**755** tests, 87 goldens, 29 guards, warning-free). **Each figure below is the
+summary line the task itself read at its own commit; only the final 782 was
+re-run by the documentation task.** They are corroborated rather than trusted:
+a net `@Test`-declaration delta computed over each commit's own diff — for each
+commit, `git show <c> -- 'Tests/*' | grep -c "^+.*@Test"` minus the same with
+`"^-.*@Test"`, accumulated from 755 — reproduces every intermediate figure and
+lands exactly on the re-measured 782.
+**757** after Task 1 (`b542206`, the sweep retaining unmarked entries as
+tombstones — seven pre-existing tests reddened and each was *inverted with its
+history kept*, never deleted, ruling `TB-A`) and 757 again after its
+comment-only fix round (`cabd9bd`). **758** after Task 2 (`2d1eb37`, the reap
+and its two constants — the assertion was **red on arrival by design**, first
+as a compile error, ruling `TB-C`) and 758 again after its comment-only fix
+round (`84799a9`). **760** after Task 3 (`454b374`, divergence 12's bounded
+pin — and a *second*, deliberately unrealistic single-entry test, because the
+realistic `List` fixture holds the size gate permanently true and therefore
+cannot see it, ruling `TB-H`). **762** after Task 4 (`319f362`, divergence 17
+on the same table rather than a second grace period). **764** after Task 8
+(`c5496db`, merged `fe0e0d9`, the 100k cold-frame and steady-state work — run
+early and in a worktree, ruling `TB-I`) and 764 after its fix round
+(`093be2a`, which shrank the resident-set test to 10k and gated the timing
+one; the *total* did not move because a skip still counts, which is the
+correction three paragraphs up). **771** then **773** after Task 5's fix round
+(`2f59fd8`, `abed015` — the `AXNode` type and its emission, plus the two
+plain-import compile guards `@testable` made necessary). **777** then **779**
+after Task 6's fix round (`f9d7613`, `0a10d53` — validity from
+`StateTable.isLive`, a third compile guard, and the slot-distinctness test that
+`TB-R` argues is worth more than its size). **782** after Task 7 (`47439a7`,
+a virtualized `List` reporting its full logical count) and **782** unchanged
+through both of its doc-only fix rounds (`fd62e63`, `84c0baa`). This
+documentation task adds no test, so 782 reproduces exactly.
+
+**Two steps in that list are worth reading rather than counting.** Task 3's
+`+2` is one test the task was asked for and one it was not: the brief assigned
+a mutation to a fixture that **cannot catch it**, proven by running it — the
+mutation reddens 0 tests with only the `List` fixture present. And Task 8's
+whole contribution rests on a mutation the implementer ran rather than
+reported: **disabling the reap gate and re-running**, which fails at exactly
+`count == 100001`, is what says the cold-frame spike actually falls.
 
 **The sizing milestone's own climb, task by task** (baseline **741** tests, 81
 goldens, 29 guards, warning-free — this milestone's own ledger's first line).
@@ -2602,6 +2813,56 @@ Absolute figures are this machine's; the ratio is the part that transfers.
 Release is ~8x faster in absolute terms with the same ratio. For scale, Yoga and
 Taffy are quoted in the 0.1-0.5 us/node range.
 
+### The 100k cold frame is 16.84 s in RELEASE, and M3's exit criterion is met for scrolling and not for appearing
+
+**Measured 2026-09-01 on the tombstones-and-AX branch: 41.86 s debug / 16.84 s
+release for frame 0 at 100,000 rows**, reproduced at **16.53 s** release on a
+later, independent run — the same number twice on different runs, which is what
+makes it a measurement rather than a sample. Ruling `TB-K`. **Both figures are
+Task 8's and its fix round's, not the documentation task's**: reproducing them
+means running the env-gated test named below, which nobody has done since. The
+command is in the Build section precisely so that stays cheap.
+
+**This is ruling MP-I's cost, scaled, and it is not a new mechanism.** A
+`ScrollView`'s viewport extent is not measured until its own `prepaint` has run
+once, so the first frame builds *every* row. MP-I already records that as 76 ms
+release / 188 ms debug at 500 rows; at 100,000 rows it scales roughly linearly
+to sixteen and a half seconds.
+
+**So state M3's exit criterion at exactly its strength.** "A 100k-row
+virtualized list scrolling smoothly" is met for **scrolling** — steady-state
+tokenizer calls and shaping-cache entries are *equal* at 500 rows and at
+100,000, and the resident `StateTable` set collapses from the cold frame's
+`n + 2` to well under a thousand within ten scroll frames and stays there. It is
+not met for **appearing**: the list hangs for ~17 seconds the first time it is
+shown. Both are true and only the first is what the criterion literally asks
+about, so a reader who takes "100k works" to mean "usable at 100k" is reading
+past the measurement.
+
+**The collapse is asserted at 10,000 rows rather than 100,000, and the reason
+is worth keeping** (ruling `TB-L`): the checkpoint counts depend on the *window
+size* and on `staleAfterGenerations`, not on total row count, so 10k and 100k
+give byte-identical checkpoints and the 100k version bought nothing but wall
+clock. `theResidentEntrySetStaysBoundedWhileScrolling10kRows` asserts a cold
+peak of exactly `n + 2` (10,002 — every row, plus the scroller's `ScrollState`,
+plus the `List`'s own `$ax` retention slot) and then `count < n / 10` at three
+checkpoints over 300 large-jump scroll frames. It **prints** the actual values,
+which on the run this section was re-measured from were **77 / 127 / 99** at
+frames 10 / 100 / 299 — read them out of the run rather than quoting them, since
+they are printed and not asserted. The `+ 2` rather than `+ 1` is Task 7's AX
+emission: **one extra entry per `List`, flat in row count**, verified by scaling
+(+2 at 50, 200 and 800 rows; +3 with two `List`s) rather than by reading the
+diff, which is ruling `TB-X`.
+
+**Not fixed here, and the reason is the one MP-I already gives**: the remedy is
+a two-pass layout, or a resolved viewport threaded into a phase defined to run
+before geometry exists — a different layout architecture, explicitly larger than
+this milestone. The number is in the record rather than in a test assertion,
+because `ContinuousClock` output on a shared machine is a flaky thing to
+`#expect` on; `aListsWorkIsTheSameFor100kRowsAsFor500` prints it and asserts
+only counts. **That test is env-gated** and its command is in the Build section
+— it alone costs ~42 s debug / ~17 s release, which is ruling `TB-L`.
+
 ### Identity path construction — measured 2026-08-27, and it is ~0.4% of a frame
 
 **Measured 2026-08-27 on the structural-identity branch, debug unless a column
@@ -2651,7 +2912,7 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
 
 1. The ABI probe **skips** without a Metal device.
 2. `committedGoldensMatchTheBrowser` is the only live-WebKit consumer.
-3. **The 29 `swiftc -typecheck` guards skip whenever `.build` is not where
+3. **The 32 `swiftc -typecheck` guards skip whenever `.build` is not where
    `#filePath`-relative resolution expects it.** `canTypecheck`
    (`Tests/MetalUITestSupport/Typecheck.swift`) walks three directories up from
    its own `#filePath` and looks for `.build/<triple>/debug/Modules` holding the
@@ -2661,14 +2922,22 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    compile-time exit criteria** — `PhaseSeparationTests` (**19**),
    `ErasureCompileGuards` (7), `ElementGroupTrapTests` (1), `UnitSafetyTests` (2,
    in `Tests/MetalUICoreTests/`, where a bare `grep -c` reads 3 because one is a
-   comment)
+   comment) and `AXNodeTests` (**3**, in `Tests/MetalUITests/`, added by the
+   tombstones-and-AX milestone — see the last block of this item)
    — and none of them has a runtime equivalent, by construction: each asserts
    that something must *not* compile, so a regression makes the offending code
    compile and leaves every ordinary test green.
 
    **Taxonomy shape 11's count heuristic does not catch this one.** Measured, by
    forcing `canTypecheck` to `false`: exactly 25 tests report as skipped, the
-   total does not move, and the run passes. The 25 was first taken at
+   total does not move, and the run passes. **The 25 is dated — it is the guard
+   count at the time, and the guard count is 32 today.** The load-bearing half
+   is the other two clauses, "the total does not move" and "the run passes",
+   which are properties of `.enabled(if:)` rather than of any count; that a
+   skip counts toward the total was independently re-measured at the
+   tombstones milestone (see the Build section). Nobody has re-forced
+   `canTypecheck` to `false` since, so **do not read 32 into this sentence** —
+   the number that would appear has not been run. The 25 was first taken at
    `Test run with 304 tests`, re-measured at 358 on the structural-identity
    branch, and **re-counted at the end of M2 (suite 444): still 25 — 15 + 7 + 1
    + 2 across the four files**, where `grep -c canTypecheck` reads 3 in
@@ -2750,10 +3019,41 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    leave that guard green while shipping the identical hazard. Two spellings
    need two probes.
 
-   **Re-count by grep, and note the DIRECTORY**: `Tests/MetalUICoreTests/UnitSafetyTests.swift`,
-   not `MetalUITests`. A recheck that greps the wrong directory silently reads
-   26 instead of 29, and the file itself reads 3 by a bare `grep -c` because
-   one occurrence is a comment.
+   **It moved a fourth time, at the tombstones-and-AX milestone: 32, and for
+   the FIRST time across a fifth FILE** — 19 + 7 + 1 + 2 + **3**, the three new
+   ones in `Tests/MetalUITests/AXNodeTests.swift`. Re-counted by grep per file
+   at that milestone's last commit (suite **782**), both counting methods
+   agreeing where they can. **This is the paragraph's own claim arriving a
+   fourth time, not an exception to it**: the suite has now moved 304 → 358 →
+   444 → 488 → 538 → 577 → 604 → 609 → 640 → 739 → 782 and the guard count has
+   moved four times, at commits that had nothing to do with the suite's size.
+   782 does not say 32 and nothing here claims it does.
+
+   **The reason these three exist is a new hazard rather than a new phase
+   guard, and it generalises past this repo (ruling `TB-N`).** Task 5 narrowed
+   `AXNode.frame`/`children` from `public var` to `public internal(set)`.
+   `AXNodeTests.swift` uses **`@testable import`, which widens `internal` — so
+   no test in that file could demonstrate the narrowing closed anything at
+   all.** The tool that gives a test its reach is the tool that hides the
+   change. Proving it needed guards against a **plain** import of the built
+   module, on `ErasureCompileGuards.swift`'s pattern; Task 6 added a third for
+   `isValid`, confirmed by mutation (widening `isValid` to `public var` reddens
+   exactly the new guard and nothing else in 777). **And the first draft of one
+   guard was passing on its weaker half only**: it asserted the diagnostic
+   contained `"Cannot assign"` where the real text is lowercase
+   `"cannot assign"`, so `!result.succeeded` held and the message assertion
+   never matched — caught by printing the real diagnostic before trusting it,
+   which is the same two-assertion hazard the `HitboxID`/`GlobalElementID`
+   hover probes above record from the other direction.
+
+   **Re-count by grep, and note the DIRECTORIES — there are now two of them.**
+   `Tests/MetalUICoreTests/UnitSafetyTests.swift`, not `MetalUITests`; and
+   `Tests/MetalUITests/AXNodeTests.swift`, not `MetalUICoreTests`. A recheck
+   that greps the wrong directory silently reads 26 instead of 32 — or misses
+   the AX file entirely and reads 29, which is exactly the number this
+   paragraph carried for eight milestones and would therefore look right.
+   `UnitSafetyTests` still reads 3 by a bare `grep -c` because one occurrence
+   is a comment; `AXNodeTests`' 3 are all real guards.
 
    **Not converted to a hard failure, and the reason is a configuration rather
    than a preference.** The obvious rule — fail rather than skip when `.build`

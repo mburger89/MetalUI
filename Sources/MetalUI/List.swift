@@ -17,14 +17,36 @@ import MetalUILayout
 /// (that position varies frame to frame as the window slides) — only on its
 /// name.
 ///
-/// **That is about the NAME staying stable, not about the STATE surviving —
-/// spec §7.5 is explicit that it does not.** A row outside the window is not
-/// merely un-painted; it is not produced at all, so nothing marks its
+/// **That is about the NAME staying stable. The STATE now survives too — but
+/// only for a BOUNDED window, and this paragraph said the opposite until the
+/// tombstones milestone (2026-09-01).** What it used to say, and what spec
+/// §7.5 was written against: a row outside the window is not merely
+/// un-painted, it is not produced at all, so nothing marks its
 /// `GlobalElementID` in the `StateTable` that frame, and `StateTable.sweep()`
-/// reaps it exactly as it would an element removed from the tree for good
-/// (§4.3). A row's own state — anything it keeps in the table, not the
-/// framework's structural identity — is therefore reset, not preserved, the
-/// next time that row scrolls back into the window.
+/// reaped it exactly as it would an element removed from the tree for good
+/// (§4.3) — so a row's own state was reset, not preserved, the next time it
+/// scrolled back in. That was CLAUDE.md's divergence 12, and it is retired.
+///
+/// **What is true now.** `sweep()` retains an unmarked entry *with its value*
+/// and only clears its `isLive` flag; a separate **reap** removes an entry
+/// that has been unmarked for more than `StateTable.staleAfterGenerations`
+/// (**2**) generations, and only on a sweep where `storage.count` exceeds
+/// `StateTable.sweepThreshold` (**256**). So a row scrolled out and back
+/// within two generations finds its `@State` intact; a row gone for three
+/// generations, on a table over threshold, comes back holding a fresh
+/// `initial()` under the same identity. **A focused row rides the identical
+/// bound** through a dedicated `$focus` retention slot (that was divergence
+/// 17, also retired).
+///
+/// **So the old advice survives for long excursions and only for those**: a
+/// value a long scroll must not lose belongs in the **data**, which is where
+/// a windowed list wants it anyway — `List` re-reads `data` every frame, so a
+/// value derived from a datum is stable by construction and one a row stores
+/// privately is stable only inside the window above. Pinned by
+/// `aListRowsStateSurvivesABoundedExcursionButNotALongerOne`
+/// (`TombstoneTests.swift`) and
+/// `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`
+/// (`FocusTests.swift`), each of which asserts both halves.
 ///
 /// **`String(describing:)` is not injective, and this is a real, unguarded
 /// gap.** Two distinct ids that happen to describe to the same string — e.g.

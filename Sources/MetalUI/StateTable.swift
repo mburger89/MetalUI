@@ -3,6 +3,52 @@ import MetalUICore
 /// Cross-frame state, keyed by `GlobalElementID`, marked on access and swept
 /// after each frame (spec §4.3).
 ///
+/// ## Read this first: the table is keyed by SLOT, not by element
+///
+/// **Three separate implementers on the tombstones milestone independently
+/// re-derived this fact from the source, and the design spec's own §5 was
+/// written against the wrong version of it — so it is stated here rather than
+/// left to be rediscovered a fourth time.** The key type is
+/// `GlobalElementID`, which reads as "an element's id"; what is actually
+/// stored under it is a **slot**, and every slot this framework mints is a
+/// *child* of the owning element's id:
+///
+/// - `@State` slot *n* → `.child(of: elementID, at: n, name: "$state\(n)")`
+///   (`State.swift`, `StateBinder.bind`)
+/// - focus retention → `.child(of: elementID, at: 0, name: "$focus")`
+///   (`Frame.focusRetentionSlot(for:)`)
+/// - AX retention → `.child(of: elementID, at: 0, name: "$ax")`
+///   (`Frame.axRetentionSlot(for:)`)
+///
+/// **The consequence that keeps catching people: an element with no `@State`
+/// and no retention slot has NOTHING in this table at all.** So "look up the
+/// element's own id and see whether it is still retained" — which is what
+/// design spec §5 told `resolveFocus()` to do — is unanswerable for most of
+/// the elements the rule is about, and cannot be fixed by trying harder at
+/// the lookup. It is fixed by *writing a slot*, which is what `$focus` and
+/// `$ax` are.
+///
+/// **The one exception, and it is the reason the two retention slots are
+/// children rather than the id itself.** `ScrollView` really does key on the
+/// element's own bare id — `pass.withState(id, initial: ScrollState())`, four
+/// sites in `ScrollView.swift`, plus `Window.applyScroll`. A retention slot
+/// written at `id` would land on that entry and, being a different type,
+/// silently clobber it (see `write`'s own doc on mismatched types). A child
+/// id can never equal its parent: `GlobalElementID.==` walks both parent
+/// chains to `nil` and a child has one more component, so the walk cannot
+/// terminate equal. That is structural, not a convention.
+///
+/// **All three slot names are reserved, none is guarded, and they are
+/// recorded together on purpose.** A hand-written `.id("$state0")`,
+/// `.id("$focus")` or `.id("$ax")` on the right child collides with the
+/// corresponding slot, silently and with no diagnostic — design spec §8 risk
+/// 1, which named only the first of the three. Guarding one alone would leave
+/// one namespace defended and two open, which reads as though the other two
+/// were safe. What *is* pinned is that the three cannot collide with each
+/// other: `theThreeRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`),
+/// written because renaming `"$ax"` to `"$focus"` reddened **nothing** while
+/// silently dropping focus.
+///
 /// **This dictionary plus mark-sweep IS the entire reconciliation story.** There
 /// is no diffing anywhere in this framework and there is not meant to be: §4.1
 /// rejects the retained-tree model outright, on the grounds that a reconciler —
@@ -38,12 +84,26 @@ import MetalUICore
 /// numbers are sized against the cold frame (ruling MP-I) rather than the
 /// steady state a windowed `List` leaves behind.
 ///
-/// **Exit transitions are still impossible today**, but for a narrower reason
-/// than before: the *state* now survives an element's last frame, but nothing
-/// yet distinguishes "gone, keep animating out" from "gone, ordinary
-/// tombstone" — that distinction is a future task's, not this one's. An element
-/// that stops being produced no longer loses its state on that very frame, but
-/// nothing here uses that survival for anything yet.
+/// **CLAUDE.md's divergences 12 and 17 are retired on the strength of this,
+/// and they are retired as BOUNDED closures — the wording is part of the
+/// claim** (ruling `TB-AH`, design spec §3 and §8 risk 2). A windowed `List`
+/// row scrolled out and back within `staleAfterGenerations` (**2**)
+/// generations keeps its `@State` (was 12) and keeps its focus (was 17); an
+/// excursion of three generations keeps neither, and the reap that takes them
+/// engages only once `storage.count` exceeds `sweepThreshold` (**256**), so
+/// below that a tombstone is retained indefinitely. "Fixed" and "fixed for N
+/// generations" are different claims and the second is the true one; anywhere
+/// this closure is cited it is cited with the bound attached.
+///
+/// **Exit transitions are now POSSIBLE and UNBUILT, which is a different claim
+/// from the "impossible until that mechanism exists" this doc used to carry**
+/// (spec §4.3). The blocking mechanism — state that outlives the frame that
+/// stopped producing its element — is here. What is missing is a *distinction*
+/// nothing yet draws: "gone, keep animating out" against "gone, ordinary
+/// tombstone". That is a future task's design decision, not a prerequisite
+/// this type is waiting on. An element that stops being produced no longer
+/// loses its state on that very frame; nothing here uses that survival for
+/// anything yet.
 @MainActor
 final class StateTable {
     /// One entry's storage. `isLive` and `lastSeenGeneration` are what let an
