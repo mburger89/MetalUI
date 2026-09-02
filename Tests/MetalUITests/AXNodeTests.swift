@@ -2,6 +2,7 @@ import Testing
 import MetalUICore
 import MetalUILayout
 import MetalUIText
+import MetalUITestSupport
 @testable import MetalUI
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }
@@ -62,9 +63,13 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 @Test @MainActor func anEmittedNodesFrameIsTheResolvedBoundsNotWhateverItDeclared() throws {
     let frame = bareFrame()
     let pass = PrepaintPass(frame: frame)
-    let declaredButIgnored = AXNode(role: .button,
-                                    frame: rect(999, 999, 1, 1),
-                                    children: [eid("stale")])
+    // `frame`/`children` are `internal(set)` — unreachable through the public
+    // initializer at all (see `AXNode`'s own doc) — so this file, which is
+    // `@testable import`, reaches them the only way anything can: direct
+    // property assignment from inside the module, after construction.
+    var declaredButIgnored = AXNode(role: .button)
+    declaredButIgnored.frame = rect(999, 999, 1, 1)
+    declaredButIgnored.children = [eid("stale")]
     let resolvedBounds = rect(10, 20, 30, 40)
     pass.emitAXNode(declaredButIgnored, at: resolvedBounds, id: eid("target"), children: [])
 
@@ -158,4 +163,56 @@ private func sized(_ w: Float, _ h: Float) -> Style {
     var s = Style()
     s.size = Size(width: .length(.pixels(px(w))), height: .length(.pixels(px(h))))
     return s
+}
+
+// MARK: - `AXNode.frame`/`.children` are unreachable from a REAL external caller
+//
+// Every test above imports `MetalUI` with `@testable`, which grants this whole
+// file `internal`-level access — so it could still write `n.frame = …` despite
+// `internal(set)`, and would prove nothing about the actual public surface an
+// app author sees. These two compile a fixture against the *built module*,
+// imported plainly, the way `ErasureCompileGuards.swift` and
+// `PhaseSeparationTests.swift` pin every other "this must not compile" claim
+// in this repo (ruling EP-1) — `@testable`'s access widening cannot reach in
+// here at all.
+
+private let skipReason: Comment =
+    "built module directory .build/<triple>/debug/Modules holding MetalUI not found — AXNode guard skipped"
+
+/// The load-bearing positive: a plain, non-`@testable` importer can still
+/// construct and read an `AXNode` at all. Without this, the negative below
+/// would pass just as well if `AXNode` did not exist, or `MetalUI` failed to
+/// import, or `role`/`label` were also unreachable — none of which is the
+/// claim this pair exists to isolate.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func aPlainImporterCanConstructAndReadAnAXNode() throws {
+    let result = try typecheck("""
+        let node = AXNode(role: .button, label: "Go")
+        _ = node.frame
+        _ = node.children
+        """, importing: "MetalUI")
+    #expect(result.succeeded,
+            "a plain importer must be able to construct and READ an AXNode:\n\(result.output)")
+}
+
+/// The negative: a plain importer cannot WRITE `.frame` — the public
+/// initializer takes no `frame:` parameter and the property's setter is
+/// `internal`, so this must fail exactly the way writing to any other
+/// module's `internal(set)` property would.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func aPlainImporterCannotSetAnAXNodesFrame() throws {
+    let result = try typecheck("""
+        var node = AXNode(role: .button)
+        node.frame = node.frame
+        """, importing: "MetalUI")
+    #expect(!result.succeeded,
+            "`frame` is `internal(set)` — a plain importer must not be able to assign it")
+    // Verified against the real diagnostic rather than guessed: `swiftc` says
+    // "cannot assign to property: 'frame' setter is inaccessible" — checked
+    // here so a future change that breaks the fixture for an unrelated reason
+    // (a typo, `AXNode` losing `role`) fails this assertion rather than
+    // passing for the wrong cause, `messages`-not-`output`'s own reason
+    // (`TypecheckResult.messages`'s own doc).
+    #expect(result.messages.contains("setter is inaccessible") && result.messages.contains("frame"),
+            "must fail because the setter is inaccessible, not for an unrelated reason:\n\(result.output)")
 }
