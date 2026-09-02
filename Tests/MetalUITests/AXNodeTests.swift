@@ -33,6 +33,22 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     GlobalElementID.child(of: nil, at: 0, name: ElementID(name))
 }
 
+/// A `Frame` sharing a caller-supplied `StateTable` and, optionally, a
+/// `focusedElement` — `bareFrame`'s own shape, but with the two things a
+/// single bare frame cannot vary: a table that survives across several
+/// `Frame` instances (the way `Window` really threads one across frames),
+/// and a focused id (`private(set)` on `Frame`, settable only at `init`).
+/// Exists for `theThreeRetentionSlotsAreMutuallyDistinct` below, which needs
+/// several frames sharing one table to reproduce `Frame.render`'s own
+/// two-sweep shape.
+@MainActor private func sharedFrame(_ table: StateTable, focusedElement: GlobalElementID? = nil,
+                                    side: Float = 300) -> Frame {
+    Frame(contentSize: Size(width: px(side), height: px(side)),
+          scaleFactor: 1, stateTable: table,
+          shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
+          theme: Theme.forAppearance(.light), focusedElement: focusedElement)
+}
+
 // MARK: - The API contract, driven directly against `PrepaintPass`
 
 /// The node's own step 1 test: an element emitting a node, retrievable by its
@@ -130,10 +146,10 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 ///
 /// **One half of the required two-sided assertion, and measured to redden
 /// ALONE.** A mutation that always reports `isValid = true` reddens exactly
-/// this test and nothing else in the 776-test suite; `aHandleToAProducedElementReportsValid`
-/// below is the mutation that must always report `isValid = false` catches,
-/// and it alone — verified by running both, not reasoned. See that test's
-/// own comment for its half.
+/// this test and nothing else in the 777-test suite; `aHandleToAProducedElementReportsValid`
+/// below is the test the mutation that must always report `isValid = false`
+/// catches, and it alone — verified by running both, not reasoned. See that
+/// test's own comment for its half.
 @Test @MainActor func aHandleToAnUnproducedElementReportsInvalid() throws {
     let frame = bareFrame()
     let pass = PrepaintPass(frame: frame)
@@ -201,6 +217,82 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 @Test @MainActor func aHandleThatWasNeverEmittedIsNilNotATombstone() {
     let frame = bareFrame()
     #expect(frame.axNode(for: eid("never")) == nil)
+}
+
+/// `emitAXNode` normalises `.isValid` to `true` on the way in, regardless of
+/// what the input `node` carried — the line at `Frame.swift`'s `resolved.isValid
+/// = true`. Constructed via `@testable`'s access-widening (this file's own
+/// established use of it, same as `anEmittedNodesFrameIsTheResolvedBoundsNotWhateverItDeclared`'s
+/// stale `.frame`/`.children`) to hand `emitAXNode` a node whose `isValid` is
+/// already `false` — the one shape that can tell "normalises unconditionally"
+/// apart from "the field just defaults to `true` and nothing touches it",
+/// which is what left the line itself uncovered until this test.
+@Test @MainActor func emitAXNodeNormalisesIsValidToTrueRegardlessOfInput() throws {
+    let frame = bareFrame()
+    let pass = PrepaintPass(frame: frame)
+    var stale = AXNode(role: .button)
+    stale.isValid = false
+
+    let resolved = pass.emitAXNode(stale, at: rect(0, 0, 10, 10), id: eid("c"), children: [])
+    #expect(resolved.isValid, "emitAXNode must normalise isValid to true on the way in")
+    let fromDict = try #require(frame.axNodes[eid("c")])
+    #expect(fromDict.isValid, "the same normalisation on the copy Frame.axNodes stores")
+}
+
+/// **The invariant `axRetentionSlot`/`focusRetentionSlot` are both built to
+/// preserve — pinned here because nothing else does.** The three retention
+/// slot names (`"$ax"`, `"$focus"`, `"$state\(n)"`) are mutually distinct at
+/// construction (`GlobalElementID.child(of:at:name:)` makes any two distinct
+/// `.named` strings distinct components under the same parent), but nothing
+/// enforced that until this test: renaming `axRetentionSlot`'s `"$ax"` to
+/// `"$focus"` reddened 0 of 777 before this test existed.
+///
+/// Reproduces the review's own probe: one element that is BOTH focused and
+/// AX-emitting, across the same two-sweep shape `Frame.render` uses (confirm,
+/// then vanish). `focusRetentionSlot`/`axRetentionSlot` are both `private` —
+/// unreachable even through `@testable` — so this drives the two PRODUCTION
+/// paths that read each slot back (`resolveFocus()` for `$focus`,
+/// `axNode(for:)` for `$ax`) rather than the private key constructors
+/// themselves.
+///
+/// **Measured to redden under the collision it guards against**: renaming
+/// `Frame.axRetentionSlot`'s `"$ax"` to `"$focus"` makes the `AXNode` written
+/// last (`emitAXNode` runs after `registerHandlers`, matching `Box.prepaint`'s
+/// own order) clobber the `Bool` `registerHandlers` wrote — `resolveFocus()`'s
+/// `peek(…, as: Bool.self)` then reads `nil` from the stored `AXNode` and
+/// clears focus, which reddens the assertion below. See this task's fix-round
+/// report for the exact run.
+@Test @MainActor func theThreeRetentionSlotsAreMutuallyDistinct() throws {
+    let table = StateTable()
+    let id = eid("shared")
+
+    // Frame 1: the confirming frame — `id` is both `focusedElement` and the
+    // subject of an `AXNode` emission, in `Box.prepaint`'s own order
+    // (`registerHandlers` before `emitAXNode`).
+    let frame1 = sharedFrame(table, focusedElement: id)
+    let pass1 = PrepaintPass(frame: frame1)
+    var handlers = Handlers()
+    handlers.isFocusable = true
+    pass1.registerHandlers(handlers, at: rect(0, 0, 10, 10), id: id)
+    pass1.emitAXNode(AXNode(role: .button, label: "Go"), at: rect(0, 0, 10, 10),
+                     id: id, children: [])
+    table.sweep()
+
+    // Frame 2: nothing touches `id` at all — it stopped being produced.
+    table.sweep()
+
+    // Frame 3: reads both slots back through their own production consumers.
+    let frame3 = sharedFrame(table, focusedElement: id)
+    frame3.resolveFocus()
+    #expect(frame3.focusedElement == id, """
+            the $focus retention slot must still hold its Bool — a collision with \
+            $ax would clobber it with the AXNode and clear focus here
+            """)
+
+    let tombstoned = try #require(frame3.axNode(for: id),
+        "the $ax retention slot must still hold its AXNode")
+    #expect(!tombstoned.isValid && tombstoned.role == .button && tombstoned.label == "Go",
+            "the AXNode data must be the one this test wrote, not a Bool coerced through Any")
 }
 
 // MARK: - `AXNode.isEmpty`

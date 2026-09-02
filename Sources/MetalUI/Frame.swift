@@ -634,8 +634,9 @@ public final class Frame {
     /// The durable accessibility record for `id` — design spec §9's actual
     /// requirement, and the reason `emitAXNode` above writes a second copy.
     /// `Frame.axNodes[id]` only ever answers "was this produced THIS frame";
-    /// this answers "what is the last-known node, and is it still current" —
-    /// exactly the query an AX client holding `id` across frames needs.
+    /// this answers "was `id` produced by the last COMPLETED frame" — exactly
+    /// the query an AX client holding `id` across frames needs, and see the
+    /// next paragraph for why that is not quite "is it current right now".
     ///
     /// **`.isValid` is `StateTable.isLive` at the retention slot, read fresh
     /// on every call — not a value snapshotted at emission.** A node stored
@@ -645,6 +646,25 @@ public final class Frame {
     /// use, is what keeps this one liveness notion rather than a second one
     /// that could disagree with it.
     ///
+    /// **That derivation has a one-frame read lag, and it is documented here
+    /// rather than closed.** `StateTable.isLive` reflects the sweep at the
+    /// END of the last COMPLETED frame (`Frame.render`'s `stateTable.sweep()`
+    /// call); an element that stops being produced mid-frame is not noticed
+    /// until that frame's own sweep runs, so a query made DURING the frame it
+    /// vanished in still reads `isValid == true` — even though
+    /// `Frame.axNodes[id]` for that very frame is already `nil`. Measured on
+    /// this exact shape: emit, sweep (confirms — still `true`), construct the
+    /// next frame with nothing re-emitting — `axNode(for:).isValid` is still
+    /// `true` while `axNodes[id]` is already `nil` — sweep that frame, and
+    /// only then does `isValid` become `false`. **The lag is one-directional
+    /// and self-correcting**: it can only report valid one frame too long,
+    /// never invalid too early, and it always resolves by the next sweep. A
+    /// lag-free answer needs a per-frame production signal alongside
+    /// `StateTable.isLive` — the shape `Frame.focusedElementProducedThisFrame`
+    /// gives focus — which is a second signal on top of the one liveness
+    /// notion this task's brief forbids adding; not built here for that
+    /// reason.
+    ///
     /// `nil` only once the slot is actually reaped by `sweep()`'s existing
     /// bound (`StateTable.staleAfterGenerations`/`sweepThreshold`) — the same
     /// bound divergence 12 and 17 already ride, not a new one invented here.
@@ -652,7 +672,14 @@ public final class Frame {
     /// from one reaped long ago (`nil` either way); an id whose element
     /// merely stopped being produced is not — it comes back with
     /// `.isValid == false`, the tombstone spec §9 asks for, rather than
-    /// vanishing or dangling.
+    /// vanishing or dangling. **This reaped→`nil` transition is unpinned by
+    /// any test** — the obvious fixture (a fixed set of filler keys) falls
+    /// back under `sweepThreshold` before reaching it and the slot then
+    /// survives forever reporting `isValid == false`, never `nil`; reaching
+    /// the reap needs fresh keys every frame holding the table above
+    /// `sweepThreshold`, which no test here does. Left unmeasured rather than
+    /// given a test that cannot express the defect (MP-J's shape) — see this
+    /// task's fix-round report.
     func axNode(for id: GlobalElementID) -> AXNode? {
         let slot = Self.axRetentionSlot(for: id)
         guard var node = stateTable.peek(slot, as: AXNode.self) else { return nil }

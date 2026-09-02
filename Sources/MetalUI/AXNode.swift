@@ -95,19 +95,32 @@ public struct AXNode: Equatable {
     /// records themselves. Settable only from inside this module.
     public internal(set) var children: [GlobalElementID] = []
 
-    /// Whether this node is still current — design spec §9's requirement that
-    /// a handle an AX client still holds reports itself **invalid** once its
-    /// element stops being produced, rather than vanishing or dangling.
-    /// Meaningless, and fixed at `true`, on every value this type has carried
-    /// until now: an `AXNode` fresh out of `Frame.axNodes` for the frame that
-    /// emitted it was, by construction, just produced, and a declared value
-    /// (`Handlers.axNode`, before emission) has no notion of validity yet
-    /// either. `Frame.axNode(for:)` is the one reader that can make this
-    /// `false` — a durable lookup, separate from `Frame.axNodes`, that
-    /// resolves against `StateTable.isLive` rather than a second liveness
-    /// notion of its own. See that method's own doc for the mechanism, and
-    /// `AXNodeTests.swift` for the two-sided pin (a node still being produced
-    /// reports valid; one that stopped reports invalid, without vanishing).
+    /// Whether this node was produced by the last **completed** frame —
+    /// design spec §9's requirement that a handle an AX client still holds
+    /// reports itself **invalid** once its element stops being produced,
+    /// rather than vanishing or dangling. Meaningless, and fixed at `true`,
+    /// on every value this type has carried until now: an `AXNode` fresh out
+    /// of `Frame.axNodes` for the frame that emitted it was, by construction,
+    /// just produced, and a declared value (`Handlers.axNode`, before
+    /// emission) has no notion of validity yet either. `Frame.axNode(for:)`
+    /// is the one reader that can make this `false` — a durable lookup,
+    /// separate from `Frame.axNodes`, that resolves against
+    /// `StateTable.isLive` rather than a second liveness notion of its own.
+    /// See that method's own doc for the mechanism, and `AXNodeTests.swift`
+    /// for the two-sided pin (a node still being produced reports valid; one
+    /// that stopped reports invalid, without vanishing).
+    ///
+    /// **Not the same question as "is this node current right now", and the
+    /// gap is a full frame, one-directional.** `StateTable.isLive` answers as
+    /// of the last `sweep()`, which runs at the END of a frame
+    /// (`Frame.render`) — so an element that vanishes *during* a frame (its
+    /// `prepaint` simply does not run this time) still reads `isValid == true`
+    /// for the whole of that frame, because nothing has swept yet to notice.
+    /// The next frame's sweep is what flips it. This is a **read lag, not a
+    /// wrong answer that self-corrects wrong**: it can only ever report valid
+    /// one frame too long, never invalid too early, and it converges within
+    /// one frame. See `Frame.axNode(for:)`'s own doc for the measured
+    /// timeline and why this is documented rather than fixed.
     public internal(set) var isValid: Bool = true
 
     /// No `frame:`/`children:`/`isValid:` parameters, deliberately — see this
