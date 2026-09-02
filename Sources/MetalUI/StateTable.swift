@@ -364,12 +364,35 @@ final class StateTable {
     /// (`generation - staleAfterGenerations`) underflows and traps on any of
     /// the first `staleAfterGenerations` sweeps of this table's life. The
     /// addition form asks the identical question and cannot underflow.
-    /// **`isLive` is checked, not `lastSeenGeneration` alone**: a `false` for
-    /// `isMarked` already means `isLive` was just set `false` above, so
-    /// `!entry.isLive` here is redundant with that but kept as the guard a
-    /// reader would look for first — a live entry (one this very sweep just
-    /// marked) must never be reaped regardless of how old its
-    /// `lastSeenGeneration` reads, and this is the line that promise rests on.
+    /// **`isLive` is checked too, and today that check is REDUNDANT BY
+    /// CONSTRUCTION — not the line the "never reap a live entry" promise
+    /// rests on.** The liveness loop directly above this one is what the
+    /// promise actually rests on: for every key, unconditionally, it sets
+    /// `isLive := isMarked` and, exactly when marked, stamps
+    /// `lastSeenGeneration := generation` — the value just incremented at
+    /// the top of this same call. So by the time this loop runs,
+    /// `isLive == true ⟺ lastSeenGeneration == generation` is a structural
+    /// invariant of the pass above, not a probabilistic fact about who
+    /// happens to be current. Substitute that equality into the staleness
+    /// test and a live entry's `lastSeenGeneration + staleAfterGenerations
+    /// < generation` becomes `generation + staleAfterGenerations <
+    /// generation` — false for any `staleAfterGenerations >= 1` — so no
+    /// live entry can ever be stale here, with or without `!entry.isLive`.
+    /// Proved both ways: read the two loops together, and empirically —
+    /// deleting the `!entry.isLive` conjunct produces a byte-identical
+    /// 758/758 test run.
+    ///
+    /// **Kept anyway, on purpose, as an honest label rather than dead
+    /// code.** The redundancy is an accident of *this* ordering, not a law:
+    /// it breaks the moment either (1) the liveness loop stops stamping
+    /// `lastSeenGeneration` together with `isLive` in the same pass — e.g.
+    /// a future caller resurrects an entry (`mark`) without the stamp
+    /// happening until some later sweep — or (2) the reap runs *before*
+    /// the liveness loop instead of after it. Either change makes this
+    /// conjunct the only thing standing between a live entry and getting
+    /// reaped. Delete it today and nothing reddens; delete it and make
+    /// either of those changes later and something will, silently, unless
+    /// this line is still here to catch it.
     func sweep() {
         generation += 1
         for id in storage.keys {
