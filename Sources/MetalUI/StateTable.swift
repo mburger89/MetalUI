@@ -46,8 +46,15 @@ import MetalUICore
 /// one namespace defended and two open, which reads as though the other two
 /// were safe. What *is* pinned is that the three cannot collide with each
 /// other: `theThreeRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`),
-/// written because renaming `"$ax"` to `"$focus"` reddened **nothing** while
-/// silently dropping focus.
+/// written because renaming `"$ax"` to `"$focus"` reddened **0 of 777 tests**
+/// — measured at that suite size, before the pin itself was added, so the
+/// number dates the claim rather than decorating it — while silently
+/// dropping focus. (Dated on review: a bare "reddened nothing" reads as
+/// timeless, which is ruling `TB-AA` applied to a line written by the task
+/// that carried `TB-AA` into the practices doc. What the mutation costs, and
+/// why it is invisible: the `AXNode` clobbers the `Bool` at the shared slot,
+/// `resolveFocus`'s `peek(…, as: Bool.self)` returns `nil`, and focus is
+/// dropped with nothing able to see it.)
 ///
 /// **This dictionary plus mark-sweep IS the entire reconciliation story.** There
 /// is no diffing anywhere in this framework and there is not meant to be: §4.1

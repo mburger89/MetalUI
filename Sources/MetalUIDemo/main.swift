@@ -52,8 +52,25 @@ var showModal = false
 /// give it moves every time the window slides. A name replaces a position, so
 /// keying on the datum's own `id` is what makes a row that scrolls away and
 /// back land on the same `GlobalElementID` — see `List`'s type doc, including
-/// what that still does *not* buy (its `StateTable` entry is reaped while it
-/// is unbuilt).
+/// what that buys and what it does not.
+///
+/// **What it does not buy used to be stated here unqualified — "its
+/// `StateTable` entry is reaped while it is unbuilt" — and that is no longer
+/// true as written (2026-09-01).** It was CLAUDE.md's divergence 12, and the
+/// divergence is retired. `StateTable.sweep()` now retains an unmarked entry
+/// with its value and clears only its `isLive` flag; a separate **reap**
+/// removes it, and only under **both** of two conditions — the entry has been
+/// unmarked for more than `StateTable.staleAfterGenerations` (**2**)
+/// generations, *and* the sweep it runs on finds `storage.count` above
+/// `StateTable.sweepThreshold` (**256**). So a row scrolled out and back
+/// within two generations keeps its `@State`, a row on a small table keeps it
+/// indefinitely, and a row gone three generations on a large table does not.
+/// A focused row rides the identical bound (that was divergence 17, also
+/// retired). **The old advice survives for long excursions and only for
+/// those**: a value a long scroll must not lose belongs in the data.
+/// Correcting this line rather than leaving it is not housekeeping — this
+/// comment is what sends a reader to `List`'s type doc, so a stale claim here
+/// contradicts the destination it points at.
 struct DemoListRow: Identifiable {
     let id: Int
 }

@@ -299,6 +299,32 @@ entire reconciliation story.
   (§14); the sweep is why. Adding them later means deferred-sweep tombstones, which is a change to
   this section, not a feature bolted onto the animation system.
 
+> **Corrected on 2026-09-01 by the tombstones-and-AX milestone (rulings `TB-AE`, `TB-AF`,
+> `TB-AH`; `docs/superpowers/2026-09-01-tombstones-decisions.md`). Both bullets above describe a
+> `sweep()` that no longer exists, and this document is named binding authority in `CLAUDE.md`'s
+> "Start here", so the correction is recorded here rather than only downstream.** The mechanism
+> both bullets call unbuilt is built. `StateTable.sweep()` no longer deletes an unmarked entry: it
+> retains the entry **with its value** and clears only its `isLive` flag, and a separate **reap**
+> removes an entry that is both unmarked for more than `StateTable.staleAfterGenerations` (**2**)
+> generations *and* sitting on a table whose `storage.count` exceeds `StateTable.sweepThreshold`
+> (**256**). `Frame.axNode(for:)` is the invalid-reporting handle the first bullet asks for, deriving
+> validity from `StateTable.isLive` at a dedicated `$ax` child slot.
+>
+> **So the first bullet's last clause — "it is still unbuilt" — is false, and the second bullet's
+> "impossible" is the wrong word now.** The precise replacement claim is that **exit transitions are
+> POSSIBLE and UNBUILT**, which is a different statement: the prerequisite this section named is
+> present, and what is missing is a distinction nothing yet draws between "gone, keep animating out"
+> and "gone, ordinary tombstone". That is a design decision for whoever builds them, not a blocker
+> this section imposes. The second bullet's *last* sentence survives intact and is the useful half —
+> exit transitions were always a change to **this** section rather than a feature bolted onto the
+> animation system, and that is exactly how they arrived.
+>
+> **Two things this correction does NOT say.** It does not say v1 supports exit transitions; §14
+> still lists them as out, on the corrected grounds recorded in that table's own note. And the
+> retention it describes is **bounded** — read the two conditions above as a conjunction, because
+> "the sweep retains" without them overstates it in the opposite direction. The same bound is what
+> retires `CLAUDE.md`'s divergences 12 and 17, and it is quoted there with both halves attached.
+
 ### 4.4 Redraw and scheduling
 
 ```swift
@@ -430,6 +456,31 @@ Specified behavior:
   app's `@Observable` model, not the element state table.
 - **Hitboxes and AX nodes** exist only for realized items. AX exposes the full logical count with
   realized children, so VoiceOver reports "3 of 500" correctly.
+
+> **Both bullets corrected on 2026-09-01 by the tombstones-and-AX milestone (rulings `TB-AH` and
+> `TB-W`), and each is now HALF true rather than wrong.** Taken in order:
+>
+> **"Swept normally" no longer describes what happens**, because §4.3's sweep no longer deletes —
+> see that section's own correction block. An out-of-range item's entry is retained with its value
+> and reaped only after more than `StateTable.staleAfterGenerations` (**2**) generations unmarked,
+> *and* only on a sweep finding `storage.count` above `StateTable.sweepThreshold` (**256**). So a row
+> scrolled out and back within two generations keeps its state — that is what retires `CLAUDE.md`'s
+> divergences 12 and 17. **The bullet's ADVICE survives unchanged and is the half to keep**: state
+> that must outlive visibility still does not belong in the element state table, because the
+> retention is bounded and a long excursion still loses it. What expired is the mechanism the advice
+> was justified by, not the advice.
+>
+> **"AX exposes the full logical count with realized children" is half implemented.** The logical
+> count is real: every `List` emits its own `AXNode` carrying `logicalCount = data.count` regardless
+> of how many rows a frame built, so the "500" of "3 of 500" is correct. **The realized children are
+> not.** `AXNode.children` is always `[]` in production and rows emit no AX nodes at all — measured
+> through the real three-phase pipeline on a production-shaped 500-row `List`:
+> `totalAXNodes=1, rowNodes=0, children=0, logicalCount=500`, against `hitboxes=17` for the same
+> rows. The blocker is named rather than open: `ElementGroup.requestGroupLayout` hands a container a
+> flat `[LayoutNodeID]` rather than a `GlobalElementID` per child, and order cannot be recovered from
+> the key set either, because `GlobalElementID.child(of:at:name:)` discards the index whenever a name
+> is given. Closing it is an `ElementGroup` associated-type change, deferred past M3. Recorded at
+> `AXNode.children`, at `List`'s type doc, and in `CLAUDE.md`'s declared-but-inert table.
 - **Nested virtualized scrollers are supported**; the inner container's realized range is computed
   against its own clipped bounds.
 
@@ -1253,6 +1304,41 @@ Specification:
 Ships incrementally: nodes and identity with **M3** (when interaction exists), the platform bridge in
 **M4**.
 
+> **M3's half landed on 2026-09-01 and this section's status is now mixed rather than pending —
+> recorded here because a reader of the front-door spec would otherwise take the whole list as
+> unbuilt** (rulings `TB-AE`, `TB-M`, `TB-W`;
+> `docs/superpowers/2026-09-01-tombstones-decisions.md`). Bullet by bullet:
+>
+> - **Emission — built, minus one field.** `PrepaintPass.emitAXNode(_:at:id:children:)` emits during
+>   `prepaint` as specified, carrying role, label, value, traits, actions, frame and
+>   `logicalCount`. **`children` is always `[]` in production.** The sole production caller,
+>   `Box.prepaint`, has no child ids to pass: `ElementGroup.requestGroupLayout` hands a container a
+>   flat `[LayoutNodeID]`. Deriving order from the emitted keys instead is **provably ambiguous**,
+>   because `GlobalElementID.child(of:at:name:)` discards the index whenever a name is given, so two
+>   containers with the same named children in opposite orders produce an identical id set.
+>   Structure is derivable from `GlobalElementID.parent`; order is not. Closing it is an
+>   `ElementGroup` associated-type change, deferred past M3 as a named follow-up.
+> - **Identity — built, and this is the bullet §4.3's own correction block is about.** The sweep
+>   retains; `Frame.axNode(for:)` reports `isValid` from `StateTable.isLive` at a dedicated `$ax`
+>   child slot. One measured caveat for the bridge: that read lags by one frame, and only in the
+>   safe direction — it can report valid one frame too long, never invalid too early.
+> - **Bridge — not built, correctly**, per this section's own M4 line.
+> - **Focus — not built.** M3 records focusability on the node and stops; unifying the two is the
+>   bridge's job.
+> - **Virtualized content — HALF built, and this is the one to read before relying on it.** The
+>   logical count is real: every `List` emits its own `AXNode` carrying `logicalCount = data.count`
+>   regardless of how many rows the frame built, so the "500" is correct. The realized children are
+>   not — rows emit no AX nodes at all. Measured through the real pipeline on a production-shaped
+>   500-row `List`: `totalAXNodes=1, rowNodes=0, children=0, logicalCount=500`, against
+>   `hitboxes=17` for the same rows. **So a bridge reading a `List` today gets a correct count and
+>   nothing to attach it to.** Same blocker as the emission bullet. §7.5 carries the same correction
+>   at the `List` end.
+> - **System settings — not built.**
+>
+> **No oracle exists for any of this** (this milestone's own §6): nothing arbitrates what VoiceOver
+> should say, and whether a screen reader actually navigates the tree cannot be tested here at all —
+> it needs M4's bridge and a human with a screen reader. That is permanently open, not pending.
+
 ---
 
 ## 10. Assets and images
@@ -1362,7 +1448,7 @@ Recorded so deferral is a decision rather than an oversight.
 | `content-box` sizing | `border-box` only (§5.2) |
 | Full UAX #14 | Stated subset (§6.4) |
 | MSDF glyphs | Fallback if zoom-bucket thrash appears (§6.2) |
-| Exit/removal transitions | Forbidden by §4.3's sweep; needs tombstones |
+| Exit/removal transitions | **Still out of v1, on corrected grounds since 2026-09-01.** This row read "Forbidden by §4.3's sweep; needs tombstones", and neither clause is true any more: the sweep retains rather than deletes, and the tombstones are built (§4.3's correction block, rulings `TB-AE`/`TB-AF`/`TB-AH`). What is missing is not a mechanism but a **distinction** — nothing yet separates "gone, keep animating out" from "gone, ordinary tombstone" — so this is now a scope decision rather than a prohibition, and the retention it would build on is bounded (2 generations, above a 256-entry threshold) rather than indefinite |
 | SVG | §10 |
 | Localization | The app's concern at this layer |
 | Direct-mode `MetalView` (app drawing into the UI's own pass) | Texture mode only (§7.7) |

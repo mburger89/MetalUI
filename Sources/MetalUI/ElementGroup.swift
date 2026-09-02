@@ -209,7 +209,19 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
 ///
 /// **A branch that flips between frames is a different subtree, not the same one
 /// resized.** Any state its elements held keyed on a `GlobalElementID` that is
-/// no longer produced is swept after the frame it disappears in (§4.3).
+/// no longer produced stops being **live** after the frame it disappears in
+/// (§4.3), and is eventually reaped.
+///
+/// **That sentence said "is swept" until 2026-09-01 and the word did the wrong
+/// work.** `StateTable.sweep()` no longer deletes an unmarked entry: it keeps
+/// the value and clears `isLive`. A separate reap removes the entry only when
+/// it has been unmarked for more than `StateTable.staleAfterGenerations`
+/// (**2**) generations *and* the sweep finds `storage.count` above
+/// `StateTable.sweepThreshold` (**256**). So a branch that flips off and back
+/// on within two frames finds its state intact, and a branch off for longer on
+/// a large table does not. **Nothing about the identity rule below changes** —
+/// a flipped branch is still a different subtree and the cursor still shifts
+/// every later sibling — only how long the abandoned entry survives.
 public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
     public var wrapped: Wrapped?
 
