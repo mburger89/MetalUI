@@ -208,13 +208,33 @@ private final class Label {
     var name = ""
 }
 
-/// Focus on an element that stops being produced is **cleared**, not left
-/// dangling — and the next key event reaches the window instead.
+/// Focus on an element that stops being produced is **retained**, not
+/// cleared outright — as long as the id is still retained by the state
+/// table, live or tombstoned (design spec §5, closing CLAUDE.md's
+/// divergence 17).
 ///
-/// Checked at the prepaint/paint boundary against this frame's focus registry,
-/// where hover resolves. There are no tombstones (design spec §4.3), so a
-/// focused id whose element was not produced has nothing behind it.
-@Test @MainActor func focusOnAnElementThatStopsBeingProducedIsCleared() throws {
+/// **Formerly `focusOnAnElementThatStopsBeingProducedIsCleared`, and it
+/// asserted the OPPOSITE** — `window.focusedElement == nil` the very next
+/// frame the element was missing, with the comment above (now corrected)
+/// claiming "there are no tombstones ... a focused id whose element was
+/// not produced has nothing behind it". That was true before this task and
+/// is not any more: `Frame.resolveFocus()` now falls back to the same
+/// tombstone mechanism `@State` rides (divergence 12's remedy) instead of
+/// clearing on the spot, per design §5's "one notion of 'still exists', not
+/// two" — a focus-specific grace period was explicitly rejected in favour
+/// of this. Inverted here, with this history kept, rather than deleted —
+/// this repo's rule for a reddened test that pins a decision rather than a
+/// regression.
+///
+/// **A frame must actually confirm the focus while the element is present,
+/// or there is nothing to retain — see
+/// `focusSetWithNoConfirmingFrameHasNothingToRetain` below for that as its
+/// own pinned case.** `Frame.registerHandlers` only creates the state
+/// table's `$focus` retention slot for `focusedElement` the first time it
+/// sees that id actually produced; `window.focus(a)` alone does not render
+/// a frame, so this version inserts one extra `drawFrameIfNeeded()` between
+/// focusing and toggling the element away that the original did not need.
+@Test @MainActor func focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = KeyLog()
     let toggle = Toggle()
@@ -231,14 +251,24 @@ private final class Label {
     window.drawFrameIfNeeded()
     let a = GlobalElementID.child(of: rootID("root"), at: 0, name: ElementID("a"))
     window.focus(a)
+    // The frame that CONFIRMS the focus — "a" is both produced and
+    // `window.focusedElement` this frame — is what creates the retention
+    // slot. Skip this and there is nothing for the table to retain; see
+    // `focusSetWithNoConfirmingFrameHasNothingToRetain`.
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    #expect(window.focusedElement == a, "focus takes on the frame that confirms it")
     platformWindow.simulateInput(keyDown("x"))
     #expect(log.names == ["element"], "the fixture's element does hold focus while it exists")
 
     toggle.isOn = false
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
-    #expect(window.focusedElement == nil,
-            "the focused element was not produced this frame, so focus was cleared")
+    #expect(window.focusedElement == a, """
+            the focused element was not produced this frame, but its \
+            retention slot is still within staleAfterGenerations — divergence \
+            17 closed
+            """)
 
     var raw: [String] = []
     window.onInput = { event in
@@ -246,8 +276,47 @@ private final class Label {
         return true
     }
     platformWindow.simulateInput(keyDown("x"))
-    #expect(log.names == ["element"], "the vanished element's handler did not run again")
-    #expect(raw == ["window"], "with focus cleared the event reaches the window")
+    #expect(log.names == ["element"],
+            "the vanished element has nothing left to run its own handler, retained or not")
+    #expect(raw == ["window"],
+            "with no handler along the retained-but-vanished focus chain, the event still reaches the window")
+}
+
+/// **The half `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`
+/// does NOT exercise**: `window.focus(_:)` alone renders no frame, so if the
+/// focused element vanishes before any frame ever confirms it was produced,
+/// `Frame.registerHandlers` never created a `$focus` retention slot for it —
+/// there is nothing in the state table to retain, and this is the one shape
+/// where the new contract and the old one agree: focus clears on the very
+/// next frame, exactly as the pre-task-4 code did unconditionally.
+///
+/// **Not a gap in divergence 17's closure — a different case with a
+/// different reason.** The retention window bounds an excursion for
+/// something that WAS established; it was never meant to conjure retention
+/// for a focus call nothing ever rendered.
+@Test @MainActor func focusSetWithNoConfirmingFrameHasNothingToRetain() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let toggle = Toggle()
+    toggle.isOn = true
+    let (window, _) = try makeFakeWindow(device: device, size: 100) {
+        Box {
+            if toggle.isOn {
+                Box().width(px(20)).height(px(20)).id("a").focusable()
+            }
+        }
+        .id("root")
+    }
+    window.drawFrameIfNeeded()
+    let a = GlobalElementID.child(of: rootID("root"), at: 0, name: ElementID("a"))
+    window.focus(a)
+    // No frame renders here — `a` is never confirmed as both produced and
+    // focused before it vanishes on the very next `drawFrameIfNeeded()`.
+
+    toggle.isOn = false
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    #expect(window.focusedElement == nil,
+            "no frame ever confirmed the focus, so the state table has no retention slot to fall back on")
 }
 
 /// A mutable flag the content closure reads fresh every frame.
@@ -829,4 +898,154 @@ private struct SelfFocuser: Element {
                layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {
         probe.paintedFocused.append(pass.isFocused(id))
     }
+}
+
+// MARK: - Divergence 17: focus rides the same table as `@State` (Task 4)
+
+private struct FocusListItem: Identifiable { let id: String }
+
+/// **Divergence 17, closed as BOUNDED — the focus twin of
+/// `TombstoneTests.aListRowsStateSurvivesABoundedExcursionButNotALongerOne`,
+/// on the identical mechanism per design §5: "one notion of 'still exists',
+/// not two".** A focusable `List` row, focused, scrolled out of the window
+/// and back keeps focus *within* the retention window
+/// (`StateTable.staleAfterGenerations`, 2 generations) and loses it once the
+/// excursion runs longer. Asserting only survival would pass a
+/// `resolveFocus()` that never clears at all — see the mutation named in
+/// this file's task report — so both halves are asserted, exactly as
+/// divergence 12's test does.
+///
+/// **Drives `Frame` directly, not `Window`/`makeFakeWindow`** — the same
+/// choice `TombstoneTests` makes and for the same reason: `Frame.init`
+/// takes `focusedElement:` directly, so a fresh `Frame` per rendered frame
+/// can be handed exactly what `Window.drawFrameIfNeeded` would have handed
+/// it (the previous frame's `focusedElement`, read back afterward), with no
+/// `NSWindow`/`Metal` device or real scroll-wheel simulation needed.
+///
+/// **Two independent runs, not one shared tree** — unlike the `@State`
+/// version, which tracks two rows' *independent* table entries in a single
+/// tree. Focus is single-valued (`Frame.focusedElement` is one id, not a
+/// set), so a short excursion on row 4 and a long one on row 7 cannot be
+/// observed in the same run; `runExcursion` below builds its own table, its
+/// own padding and its own tree per call.
+///
+/// **The 260-id padding ballast is `TombstoneTests`' own idiom**, needed for
+/// the identical reason: `sweep()` only reaps once `storage.count` exceeds
+/// `StateTable.sweepThreshold` (256), and this fixture's own real entries —
+/// a dozen rows' `$focus`-shaped slots plus the scroller's `ScrollState` —
+/// never come close on their own, which would make the long-excursion half
+/// pass vacuously (nothing ever gets reaped).
+@MainActor
+@Test func aFocusedListRowSurvivesABoundedExcursionButNotALongerOne() throws {
+    let rowHeight = px(20)
+    let data = (0..<12).map { FocusListItem(id: "row\($0)") }
+
+    // Focuses `data[index]`'s row, windows it out for `excursionFrames`
+    // consecutive frames, windows it back in, and reports whether focus
+    // survived. The recovery offset — `rowHeight * index` — puts `index` at
+    // `[index - 2, index + 3)` under `visibleRange`'s overscan of 2, which is
+    // `TombstoneTests`' own offsets (80 recovers row 4, 140 recovers row 7)
+    // generalised rather than copied.
+    func runExcursion(index: Int, excursionFrames: Int) -> GlobalElementID? {
+        let table = StateTable()
+        let paddingIDs = (0..<260).map {
+            GlobalElementID.child(of: nil, at: 10_000 + $0, name: ElementID("pad\($0)"))
+        }
+        for id in paddingIDs { table.write(id, 0) }
+
+        var tree = ScrollView(.vertical, elementID: ElementID("scroller")) {
+            List(data, rowHeight: rowHeight) { _ in Box().focusable() }
+        }
+        let scrollerID = GlobalElementID.child(of: nil, at: 0, name: ElementID("scroller"))
+        let contentSize = Size<Pixels>(width: px(100), height: px(20))
+        var currentFocus: GlobalElementID?
+
+        func renderFrame(offset: Double?) {
+            for id in paddingIDs { table.mark(id) }
+            if let offset {
+                let current = table.peek(scrollerID, as: ScrollState.self) ?? ScrollState()
+                table.write(scrollerID, ScrollState(offset: offset,
+                                                    lastScrollTime: current.lastScrollTime,
+                                                    viewportExtent: current.viewportExtent))
+            }
+            let frame = Frame(contentSize: contentSize, scaleFactor: 1, stateTable: table,
+                              focusedElement: currentFocus)
+            frame.render(&tree)
+            currentFocus = frame.focusedElement
+        }
+
+        // The row's own id, hand-computed from the exact chain `List` and
+        // `ScrollView` build — `TombstoneTests.rowID`'s technique, since a
+        // row painting above the viewport clips to `y == 0` and a
+        // geometry-based recovery would pick the wrong one.
+        let listID = GlobalElementID.child(of: scrollerID, at: 0, name: nil)
+        func rowID(_ i: Int) -> GlobalElementID {
+            let boxID = GlobalElementID.child(of: listID, at: 0, name: ElementID(data[i].id))
+            return GlobalElementID.child(of: boxID, at: 0, name: nil)
+        }
+
+        // Frame 1: cold — no `ScrollView.prepaint` has run yet, so `List`
+        // builds every row (ruling MP-I) rather than windowing.
+        renderFrame(offset: nil)
+
+        // `window.focus(_:)`'s real-world equivalent: hand the id in for the
+        // NEXT frame, exactly as `Window` threads `focusedElement` forward.
+        // The row is produced this frame (still the cold frame's window, or
+        // close enough — frame 2 below re-confirms it either way), so this
+        // is the frame that creates the `$focus` retention slot.
+        currentFocus = rowID(index)
+        renderFrame(offset: 100)
+        #expect(currentFocus == rowID(index),
+                "the target row is focusable and produced, so focus is confirmed")
+
+        // `excursionFrames` consecutive frames windowing the row OUT —
+        // offset 0 windows to [0, 3), excluding every index tried here (4, 7).
+        for _ in 0..<excursionFrames {
+            renderFrame(offset: 0)
+        }
+
+        // Window it back in.
+        renderFrame(offset: Double(rowHeight.value) * Double(index))
+        return currentFocus
+    }
+
+    // The row's own id, computed the same way `runExcursion`'s internal
+    // `rowID` does, so the two halves below assert the SPECIFIC row's
+    // identity survived — not merely that focus landed on *something*.
+    func rowID(_ i: Int) -> GlobalElementID {
+        let scrollerID = GlobalElementID.child(of: nil, at: 0, name: ElementID("scroller"))
+        let listID = GlobalElementID.child(of: scrollerID, at: 0, name: nil)
+        let boxID = GlobalElementID.child(of: listID, at: 0, name: ElementID(data[i].id))
+        return GlobalElementID.child(of: boxID, at: 0, name: nil)
+    }
+
+    // **Confirmed once, at generation 2 — not twice, unlike `TombstoneTests`'
+    // rows.** That test marks its rows at generations 1, 2 AND 3 before the
+    // excursion starts (three renders at the window that includes them), so
+    // their `lastSeenGeneration` is 3 when the excursion begins. Here the row
+    // is confirmed focused exactly once (generation 2), so its
+    // `$focus` slot's `lastSeenGeneration` is 2 — two generations LOWER — and
+    // every frame count below is shifted to match, not copied from that file.
+    //
+    // **A second shift, unique to focus and absent from the `@State` case:
+    // `resolveFocus()` reads the table BEFORE this frame's own `sweep()` runs
+    // (one-frame lag, `Frame.render`'s own ordering) — so observing a reap
+    // that a sweep just performed takes one MORE excluded frame than
+    // performing it does.** `lastSeenGeneration == 2` makes `sweep()` itself
+    // reap the entry at generation 5 (`2 + staleAfterGenerations(2) < 5`) —
+    // three excluded frames (generations 3, 4, 5) — but `resolveFocus` at
+    // generation 5 still reads generation 4's not-yet-reaped state, so
+    // `currentFocus` does not actually go `nil` until generation 6's
+    // `resolveFocus` — a FOURTH excluded frame — observes the reap `sweep()`
+    // already performed one generation earlier.
+    let shortIndex = 4   // recovered after 2 excluded generations — within the bound
+    let longIndex = 7    // excluded for 4 generations — past the bound, AND past the lag
+
+    let shortResult = runExcursion(index: shortIndex, excursionFrames: 2)
+    #expect(shortResult == rowID(shortIndex),
+            "row \(shortIndex)'s 2-generation excursion is WITHIN staleAfterGenerations: focus must survive")
+
+    let longResult = runExcursion(index: longIndex, excursionFrames: 4)
+    #expect(longResult == nil,
+            "row \(longIndex)'s excursion exceeded staleAfterGenerations (reaped at generation 5, observed at 6): focus must NOT survive")
 }

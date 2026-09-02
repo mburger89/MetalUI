@@ -527,8 +527,43 @@ public final class Frame {
         // not gated on the pointer gate below, and an element can ask for one
         // without the other. `register` gates itself on `isKeyTarget`.
         focusRegistry.register(handlers, id: id)
+        // **Independent of `isKeyTarget`/`isFocusable` — this is "was the
+        // currently-focused id produced this frame at all", not "did it ask
+        // to stay focused".** `Box.prepaint` calls this unconditionally for
+        // every produced `Box` (see this method's own doc), so it is the one
+        // per-frame signal that fires for `focusedElement` whether or not
+        // `handlers` asks for anything. `resolveFocus()` needs exactly that
+        // to tell "still produced, gave up `.focusable()`" (clear at once)
+        // apart from "not produced this frame" (fall back to the state
+        // table's retention window) — `focusRegistry.isFocusable(_:)` alone
+        // cannot make that distinction, since a produced-but-uninterested
+        // element and an unproduced one both read `false` there.
+        if let focused = focusedElement, id == focused {
+            focusedElementProducedThisFrame = true
+            // Rides `StateTable`'s own tombstone mechanism rather than a
+            // focus-specific grace period (design spec §5) — a distinct
+            // slot, `$focus`, so this can never collide with a `@State`
+            // slot (always a CHILD of the element's own id, named
+            // `"$state\(n)"`) or with a `ScrollView`'s own
+            // `withState(id, ...)` entry (keyed directly on its own id,
+            // typed `ScrollState` — writing `Bool` there would silently
+            // clobber it, per `StateTable.write`'s own doc on mismatched
+            // types). `resolveFocus()` reads this back with `peek`, which
+            // returns non-nil for a live OR a tombstoned entry and nil only
+            // once it is actually reaped.
+            stateTable.withState(Self.focusRetentionSlot(for: focused),
+                                 initial: true) { _ in }
+        }
         guard handlers.isPointerTarget else { return }
         _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
+    }
+
+    /// The state-table key that backs a focused id's retention window — see
+    /// `registerHandlers`'s own doc for why it must be a distinct slot rather
+    /// than `id` itself. `at: 0` is inert: `GlobalElementID.child(of:at:name:)`
+    /// always prefers `name` when one is supplied.
+    private static func focusRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
+        .child(of: id, at: 0, name: ElementID("$focus"))
     }
 
     // MARK: - Focus (design spec §4.2)
@@ -548,7 +583,10 @@ public final class Frame {
     private(set) var focusRegistry = FocusRegistry()
 
     /// The focused element for this frame — handed in from `Window`, then
-    /// **cleared here** by `resolveFocus()` if this frame did not produce it.
+    /// possibly **cleared here** by `resolveFocus()` — see that method's own
+    /// doc for the actual rule, which is no longer just "if this frame did
+    /// not produce it": an id the state table still retains, live or
+    /// tombstoned, survives a frame that did not produce it (divergence 17).
     ///
     /// A `var` rather than a `let`, unlike `activeElement`, and that difference
     /// is the whole of §4.2's dangling rule: `Window` reads this back after
@@ -556,8 +594,16 @@ public final class Frame {
     /// the frame actually built rather than against the previous frame's.
     private(set) var focusedElement: GlobalElementID?
 
-    /// Drops focus when the focused element was not produced this frame
-    /// (design spec §4.2).
+    /// Whether `registerHandlers` saw `focusedElement` produced this frame —
+    /// **independent of what it asked for**, unlike `focusRegistry.isFocusable`.
+    /// See `registerHandlers`'s own doc. Defaults `false`; nothing has to reset
+    /// it between frames because `Frame` itself is rebuilt fresh every frame
+    /// (`Window.drawFrameIfNeeded`).
+    private var focusedElementProducedThisFrame = false
+
+    /// Drops focus when the focused element was not produced this frame AND
+    /// is no longer retained by the state table (design spec §4.2, closing
+    /// CLAUDE.md's divergence 17).
     ///
     /// **Called once per frame, from `render`, at the prepaint/paint boundary
     /// — beside `resolveHover(at:)` and for its reason.** "Was it produced" is
@@ -566,20 +612,36 @@ public final class Frame {
     /// would let this frame paint a focus ring for an element it has already
     /// decided is not focused.
     ///
-    /// **There are no tombstones**, and this is why the answer is "clear it"
-    /// rather than "remember it for later". Design spec §4.3 records that
-    /// `StateTable` entries are reaped rather than kept as invalid-reporting
-    /// placeholders, and that exit transitions wait on that mechanism; focus
-    /// sits on the same footing. The consequence — a focused row scrolled out
-    /// of a `List`'s window loses focus, and scrolling back does not restore it
-    /// — is recorded as a candidate divergence rather than fixed here.
+    /// **Two separate questions, and conflating them is the trap.** "Is
+    /// `focused` still `.focusable()` right now" is `focusRegistry.isFocusable`;
+    /// an element that answers no to that but WAS produced this frame (it
+    /// simply stopped asking to be focusable) loses focus on the spot — the
+    /// existing contract, pinned by `anElementThatStopsBeingFocusableLosesFocus`,
+    /// and nothing here weakens it. "Was `focused` produced at all this frame"
+    /// is `focusedElementProducedThisFrame`, and only when that is ALSO false —
+    /// nothing at `focused`'s position in the tree ran `prepaint` — does this
+    /// fall back to the state table. **One notion of "still exists", not two**
+    /// (design spec §5): rather than a focus-specific grace period, an id that
+    /// stops being produced keeps focus for exactly as long as
+    /// `StateTable` retains its `$focus` slot — live or tombstoned, the same
+    /// `staleAfterGenerations` bound divergence 12's `@State` entries get,
+    /// because it rides the identical `sweep()`/reap. Once that slot is
+    /// actually reaped, `peek` returns `nil` and focus clears here, one frame
+    /// after the reap happened.
     ///
     /// A free method rather than a step inlined into `render`, so a test can
     /// drive `PrepaintPass` directly and resolve focus explicitly, exactly as
     /// `resolveHover(at:)` allows.
     func resolveFocus() {
         guard let focused = focusedElement else { return }
-        if !focusRegistry.isFocusable(focused) { focusedElement = nil }
+        if focusRegistry.isFocusable(focused) { return }
+        if focusedElementProducedThisFrame {
+            focusedElement = nil
+            return
+        }
+        if stateTable.peek(Self.focusRetentionSlot(for: focused), as: Bool.self) == nil {
+            focusedElement = nil
+        }
     }
 
     /// The topmost **opaque** hitbox containing `point`, or `nil` when nothing
