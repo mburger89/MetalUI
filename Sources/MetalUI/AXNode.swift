@@ -95,8 +95,23 @@ public struct AXNode: Equatable {
     /// records themselves. Settable only from inside this module.
     public internal(set) var children: [GlobalElementID] = []
 
-    /// No `frame:`/`children:` parameters, deliberately — see this type's own
-    /// doc on why a caller cannot supply either.
+    /// Whether this node is still current — design spec §9's requirement that
+    /// a handle an AX client still holds reports itself **invalid** once its
+    /// element stops being produced, rather than vanishing or dangling.
+    /// Meaningless, and fixed at `true`, on every value this type has carried
+    /// until now: an `AXNode` fresh out of `Frame.axNodes` for the frame that
+    /// emitted it was, by construction, just produced, and a declared value
+    /// (`Handlers.axNode`, before emission) has no notion of validity yet
+    /// either. `Frame.axNode(for:)` is the one reader that can make this
+    /// `false` — a durable lookup, separate from `Frame.axNodes`, that
+    /// resolves against `StateTable.isLive` rather than a second liveness
+    /// notion of its own. See that method's own doc for the mechanism, and
+    /// `AXNodeTests.swift` for the two-sided pin (a node still being produced
+    /// reports valid; one that stopped reports invalid, without vanishing).
+    public internal(set) var isValid: Bool = true
+
+    /// No `frame:`/`children:`/`isValid:` parameters, deliberately — see this
+    /// type's own doc on why a caller cannot supply any of the three.
     public init(role: AXRole = .generic, label: String? = nil, value: String? = nil,
                 traits: Set<AXTrait> = [], actions: Set<AXActionKind> = []) {
         self.role = role
@@ -111,11 +126,11 @@ public struct AXNode: Equatable {
     /// `Box` whose `handlers.axNode` is still this value emits no `AXNode` at
     /// all; see `Box.prepaint`.
     ///
-    /// **Safe to compare as a whole value BECAUSE `frame`/`children` cannot
-    /// vary on a declared value** — `internal(set)` is what makes that true
-    /// rather than this property scoping itself to the five declarable
-    /// fields by hand. A resolved value read back out of `Frame.axNodes` is
-    /// never checked with this — `Box.prepaint` calls it only on the declared
-    /// `handlers.axNode`, before emission.
+    /// **Safe to compare as a whole value BECAUSE `frame`/`children`/`isValid`
+    /// cannot vary on a declared value** — `internal(set)` is what makes that
+    /// true rather than this property scoping itself to the five declarable
+    /// fields by hand. A resolved value read back out of `Frame.axNodes` or
+    /// `Frame.axNode(for:)` is never checked with this — `Box.prepaint` calls
+    /// it only on the declared `handlers.axNode`, before emission.
     public var isEmpty: Bool { self == AXNode() }
 }

@@ -111,6 +111,98 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     #expect(resolved.children == [eid("kid")])
 }
 
+// MARK: - Validity: a handle survives the sweep as a tombstone (design spec §9)
+//
+// `Frame.axNodes` (the dictionary the tests above read) is rebuilt from
+// scratch every frame — an id not produced THIS frame is simply absent from
+// it, which is a plain dictionary miss and cannot be told apart from "never
+// existed". `Frame.axNode(for:)` is the durable query: it survives the
+// sweep and reports `.isValid` from `StateTable.isLive`, the same query
+// Task 4 already rides for focus retention — not a second liveness notion.
+
+/// The step 1 case from this task's own brief, stated as literally as
+/// possible: emit a node, hold its id, stop producing the element (nothing
+/// re-emits under `eid("a")` on the next sweep), sweep, and the handle must
+/// report itself invalid — not trap (a plain `Optional`, no force-unwrap
+/// anywhere in `axNode(for:)`), not vanish (`try #require` below fails the
+/// test if it does), and not silently keep reporting the stale value as
+/// current (the whole point of `.isValid`).
+///
+/// **One half of the required two-sided assertion, and measured to redden
+/// ALONE.** A mutation that always reports `isValid = true` reddens exactly
+/// this test and nothing else in the 776-test suite; `aHandleToAProducedElementReportsValid`
+/// below is the mutation that must always report `isValid = false` catches,
+/// and it alone — verified by running both, not reasoned. See that test's
+/// own comment for its half.
+@Test @MainActor func aHandleToAnUnproducedElementReportsInvalid() throws {
+    let frame = bareFrame()
+    let pass = PrepaintPass(frame: frame)
+    pass.emitAXNode(AXNode(role: .button, label: "Go"), at: rect(0, 0, 40, 20),
+                    id: eid("a"), children: [])
+
+    // Two sweeps, not one — `TombstoneTests`/`FocusTests`' own two-frame
+    // idiom. `withState` (what `emitAXNode` writes through) marks the slot
+    // live IMMEDIATELY, before any sweep runs, so the sweep that closes the
+    // producing frame only CONFIRMS liveness — it does not yet observe
+    // absence. The first sweep below ends the frame that produced the node;
+    // nothing marks the slot again before the second sweep, which ends the
+    // frame the element was NOT produced in — that is the one that must
+    // observe invalidity. One sweep here would assert a wrong reason for a
+    // right-looking implementation; two is what the mechanism actually needs
+    // (verified: a single-sweep version of this test fails against today's
+    // correct implementation, which is why it is not written this way — see
+    // this task's report for the exact failure).
+    frame.stateTable.sweep()
+    frame.stateTable.sweep()
+
+    let tombstoned = try #require(frame.axNode(for: eid("a")),
+        "the handle must survive the sweep as a tombstone, not vanish")
+    #expect(!tombstoned.isValid,
+        "the element was not produced this frame — the handle must report itself invalid")
+    // The tombstone still carries the last-known data, on `StateTable`'s own
+    // tombstone contract (`peek` after `sweep()` still returns a value) —
+    // asserted here so a future reader does not mistake `.isValid == false`
+    // for the fields themselves having been cleared.
+    #expect(tombstoned.role == .button && tombstoned.label == "Go")
+}
+
+/// The other half. A handle to an element that IS still being produced must
+/// report itself valid — checked here, independently of the test above, so
+/// a mutation that always reports `isValid = false` has something to redden
+/// on its own. **Measured to redden ALONE**: with that mutation applied, this
+/// test fails (both assertions below) and
+/// `aHandleToAnUnproducedElementReportsInvalid` above still passes — the two
+/// tests are not accidentally redundant, each catches exactly one direction.
+@Test @MainActor func aHandleToAProducedElementReportsValid() throws {
+    let frame = bareFrame()
+    let pass = PrepaintPass(frame: frame)
+    pass.emitAXNode(AXNode(role: .text, label: "Hi"), at: rect(0, 0, 40, 20),
+                    id: eid("b"), children: [])
+
+    let node = try #require(frame.axNode(for: eid("b")))
+    #expect(node.isValid, "just emitted, and never swept without being re-marked — must be valid")
+
+    // A sweep that DOES re-mark it (a second emission before the sweep, the
+    // ordinary "produced again next frame" case) must keep it valid — not
+    // only "valid before the first sweep ever runs", which a narrower
+    // implementation could satisfy by accident (e.g. defaulting `isValid` to
+    // `true` and never actually consulting `StateTable.isLive` at all).
+    pass.emitAXNode(AXNode(role: .text, label: "Hi"), at: rect(0, 0, 40, 20),
+                    id: eid("b"), children: [])
+    frame.stateTable.sweep()
+    let stillLive = try #require(frame.axNode(for: eid("b")))
+    #expect(stillLive.isValid, "produced again before the sweep — must still report valid")
+}
+
+/// An id that was never emitted at all is `nil`, not a tombstone — the
+/// differential that proves `axNode(for:)` distinguishes "genuinely never
+/// existed" from "existed and stopped", the same distinction `StateTable`
+/// already draws between an absent key and a tombstoned one.
+@Test @MainActor func aHandleThatWasNeverEmittedIsNilNotATombstone() {
+    let frame = bareFrame()
+    #expect(frame.axNode(for: eid("never")) == nil)
+}
+
 // MARK: - `AXNode.isEmpty`
 
 /// The default value is empty and a declared one is not — `Handlers`' own
@@ -165,31 +257,36 @@ private func sized(_ w: Float, _ h: Float) -> Style {
     return s
 }
 
-// MARK: - `AXNode.frame`/`.children` are unreachable from a REAL external caller
+// MARK: - `AXNode.frame`/`.children`/`.isValid` are unreachable from a REAL external caller
 //
 // Every test above imports `MetalUI` with `@testable`, which grants this whole
 // file `internal`-level access — so it could still write `n.frame = …` despite
 // `internal(set)`, and would prove nothing about the actual public surface an
-// app author sees. These two compile a fixture against the *built module*,
+// app author sees. These compile a fixture against the *built module*,
 // imported plainly, the way `ErasureCompileGuards.swift` and
 // `PhaseSeparationTests.swift` pin every other "this must not compile" claim
 // in this repo (ruling EP-1) — `@testable`'s access widening cannot reach in
-// here at all.
+// here at all. `isValid` joins `frame`/`children` here on Ruling N's own
+// footing (this milestone's Task 5 review): a `@testable`-only test cannot
+// demonstrate ANY access-level narrowing, `isValid` is `internal(set)` exactly
+// like its two neighbours, and this task's own tests above (all `@testable`)
+// prove nothing about whether a plain importer could set it.
 
 private let skipReason: Comment =
     "built module directory .build/<triple>/debug/Modules holding MetalUI not found — AXNode guard skipped"
 
 /// The load-bearing positive: a plain, non-`@testable` importer can still
-/// construct and read an `AXNode` at all. Without this, the negative below
-/// would pass just as well if `AXNode` did not exist, or `MetalUI` failed to
-/// import, or `role`/`label` were also unreachable — none of which is the
-/// claim this pair exists to isolate.
+/// construct and read an `AXNode` at all, `isValid` included. Without this,
+/// the negatives below would pass just as well if `AXNode` did not exist, or
+/// `MetalUI` failed to import, or `role`/`label` were also unreachable — none
+/// of which is the claim this trio exists to isolate.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func aPlainImporterCanConstructAndReadAnAXNode() throws {
     let result = try typecheck("""
         let node = AXNode(role: .button, label: "Go")
         _ = node.frame
         _ = node.children
+        _ = node.isValid
         """, importing: "MetalUI")
     #expect(result.succeeded,
             "a plain importer must be able to construct and READ an AXNode:\n\(result.output)")
@@ -214,5 +311,19 @@ func aPlainImporterCannotSetAnAXNodesFrame() throws {
     // passing for the wrong cause, `messages`-not-`output`'s own reason
     // (`TypecheckResult.messages`'s own doc).
     #expect(result.messages.contains("setter is inaccessible") && result.messages.contains("frame"),
+            "must fail because the setter is inaccessible, not for an unrelated reason:\n\(result.output)")
+}
+
+/// The same negative, for `.isValid` — this task's own field, and the one
+/// `Ruling N` says a `@testable` test cannot demonstrate on its own.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func aPlainImporterCannotSetAnAXNodesIsValid() throws {
+    let result = try typecheck("""
+        var node = AXNode(role: .button)
+        node.isValid = node.isValid
+        """, importing: "MetalUI")
+    #expect(!result.succeeded,
+            "`isValid` is `internal(set)` — a plain importer must not be able to assign it")
+    #expect(result.messages.contains("setter is inaccessible") && result.messages.contains("isValid"),
             "must fail because the setter is inaccessible, not for an unrelated reason:\n\(result.output)")
 }

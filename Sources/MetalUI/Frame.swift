@@ -579,25 +579,85 @@ public final class Frame {
     /// `AXNode` has no equivalent because nothing needs one.
     ///
     /// **Rebuilt from scratch every frame**, on `hitboxes` and `focusRegistry`'s
-    /// own footing: an element not produced this frame emits nothing, so a
-    /// tombstoned element's last-known node does not linger here the way its
-    /// `StateTable` entry does — this task builds no equivalent retention for
-    /// AX identity; see `AXNode`'s own doc and this task's report for what a
-    /// later task (design spec §9's tombstone-reporting node) still owes.
+    /// own footing: an element not produced this frame emits nothing here, so
+    /// this dictionary alone answers only "was `id` produced THIS frame", not
+    /// "does `id` still exist". **That is deliberately not this property's
+    /// job any more** — `axNode(for:)` below is the durable, tombstone-aware
+    /// query (design spec §9); this one stays exactly what Task 5 shipped, a
+    /// per-frame view, because Task 7 and any future tree walk still want
+    /// "what was produced this frame" as a distinct question from "is this id
+    /// still valid".
     private(set) var axNodes: [GlobalElementID: AXNode] = [:]
 
     /// Records `node` as `id`'s accessibility node, resolving its `frame` and
     /// `children` from the parameters rather than from whatever `node` itself
     /// carried — see `AXNode`'s own doc on why a declared value's `frame` and
     /// `children` are not meaningful on the way in.
+    ///
+    /// **Also persists a durable copy, under a dedicated retention slot —
+    /// this is what makes `axNode(for:)` below possible at all.** `axNodes`
+    /// itself is rebuilt from scratch every frame (see its own doc), so an id
+    /// not produced THIS frame is simply absent from it — a dictionary miss a
+    /// caller cannot tell apart from "never existed". Design spec §9 needs
+    /// more than that: a handle an AX client still holds must survive and
+    /// report itself invalid, not vanish. `StateTable` already has exactly
+    /// that mechanism (Tasks 1-2 of this milestone: an entry's `value`
+    /// outlives the frame that stopped producing it, and `isLive` says
+    /// whether it was actually produced). Riding it here is Task 4's rule
+    /// applied a second time — "validity is `StateTable.isLive`, not a second
+    /// liveness notion" — so this writes to a distinct child slot of `id`,
+    /// never `id` itself, on `focusRetentionSlot`'s exact footing: `id` is
+    /// already `ScrollView`'s own `withState(id, …)` key, typed `ScrollState`,
+    /// and writing an `AXNode` there would silently clobber it (mismatched
+    /// types are `StateTable.write`'s own documented clobber hazard).
     @discardableResult
     func emitAXNode(_ node: AXNode, at bounds: Bounds<Pixels>, id: GlobalElementID,
                     children: [GlobalElementID]) -> AXNode {
         var resolved = node
         resolved.frame = bounds
         resolved.children = children
+        resolved.isValid = true
         axNodes[id] = resolved
+        stateTable.withState(Self.axRetentionSlot(for: id), initial: resolved) { $0 = resolved }
         return resolved
+    }
+
+    /// The state-table key that backs an AX handle's retention window — see
+    /// `emitAXNode`'s own doc for why it must be a distinct slot rather than
+    /// `id` itself. `at: 0` is inert, on `focusRetentionSlot`'s footing:
+    /// `GlobalElementID.child(of:at:name:)` always prefers `name` when one is
+    /// supplied.
+    private static func axRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
+        .child(of: id, at: 0, name: ElementID("$ax"))
+    }
+
+    /// The durable accessibility record for `id` — design spec §9's actual
+    /// requirement, and the reason `emitAXNode` above writes a second copy.
+    /// `Frame.axNodes[id]` only ever answers "was this produced THIS frame";
+    /// this answers "what is the last-known node, and is it still current" —
+    /// exactly the query an AX client holding `id` across frames needs.
+    ///
+    /// **`.isValid` is `StateTable.isLive` at the retention slot, read fresh
+    /// on every call — not a value snapshotted at emission.** A node stored
+    /// while its element was being produced would read `isValid == true`
+    /// forever if that flag were captured once; deriving it here, from the
+    /// same table Task 4's focus retention and every `@State` slot already
+    /// use, is what keeps this one liveness notion rather than a second one
+    /// that could disagree with it.
+    ///
+    /// `nil` only once the slot is actually reaped by `sweep()`'s existing
+    /// bound (`StateTable.staleAfterGenerations`/`sweepThreshold`) — the same
+    /// bound divergence 12 and 17 already ride, not a new one invented here.
+    /// Until then, an id that was never emitted at all is indistinguishable
+    /// from one reaped long ago (`nil` either way); an id whose element
+    /// merely stopped being produced is not — it comes back with
+    /// `.isValid == false`, the tombstone spec §9 asks for, rather than
+    /// vanishing or dangling.
+    func axNode(for id: GlobalElementID) -> AXNode? {
+        let slot = Self.axRetentionSlot(for: id)
+        guard var node = stateTable.peek(slot, as: AXNode.self) else { return nil }
+        node.isValid = stateTable.isLive(slot)
+        return node
     }
 
     // MARK: - Focus (design spec §4.2)
