@@ -85,25 +85,35 @@ final class StateTable {
     ///
     /// **Not copied from `ShapingCache` — chosen against this table's own two
     /// numbers, per the brief.** The steady state a windowed `List` leaves
-    /// behind is **20** entries (measured on a scrolling 500-row and a
-    /// scrolling 100,000-row list alike — steady state is flat regardless of
-    /// list size). The cold frame — frame 0, before a `ScrollView`'s own
-    /// `prepaint` has run once (ruling MP-I) — builds every row: **100,002**
-    /// on a 100k-row list. **Both figures moved by exactly +1 from the
-    /// milestone's Task 7**, which made a `List` unconditionally emit its own
-    /// `AXNode` — a permanent, every-frame-re-marked `$ax` retention slot that
-    /// never goes stale, so it adds one resident entry to any windowed
-    /// `List`'s steady state and one to its cold-frame peak alike (Task 7's
-    /// fix round measured the delta directly, both in the large-jump 10k-row
-    /// suite test and in a differential steady-scroll probe: +1 in both,
-    /// independent of scroll parameters). `ShapingCache`'s 256 sits close to
-    /// *its* measured resident set (207, ~81% of 256) on purpose, because its
-    /// cost model is "an eviction that turns out to still be live re-shapes
-    /// every frame forever" — thrashing near the threshold is expensive
-    /// there. Nothing here re-computes a value once reaped; a reaped `@State`
-    /// slot that comes back is just a fresh `initial()`, which is cheap and
-    /// correct (it is what a never-produced-before element gets too). So this
-    /// table has no reason to sit close to its steady state the way the cache
+    /// behind is **20** entries — **19 (the ORIGINAL measurement, on a
+    /// scrolling 500-row and a scrolling 100,000-row list alike — steady
+    /// state flat regardless of list size; that harness is not preserved as
+    /// a runnable test and was NOT re-run this round) plus 1 (this
+    /// milestone's Task 7, DIRECTLY re-measured in its fix round — see
+    /// below).** Read 20 as a derivation, not a fresh measurement of the sum:
+    /// the base is inherited and unverified this round, the +1 is not. The
+    /// cold frame — frame 0, before a `ScrollView`'s own `prepaint` has run
+    /// once (ruling MP-I) — builds every row: **100,002** on a 100k-row list,
+    /// the identical derivation (100,001 inherited + 1 re-measured). **Task 7
+    /// made a `List` unconditionally emit its own `AXNode`** — a permanent,
+    /// every-frame-re-marked `$ax` retention slot that never goes stale, so
+    /// it adds one resident entry to any windowed `List`'s steady state and
+    /// one to its cold-frame peak alike. **The +1 is what Task 7's fix round
+    /// actually measured**, twice, on two different harnesses: reverting the
+    /// `AXNode` emission in the large-jump 10k-row suite test
+    /// (`MeasurePerformanceTests.swift`) drops every figure by exactly one
+    /// (10002→10001, and each of 77/127/99→76/126/98), and a separate
+    /// differential steady-scroll probe (throwaway, not committed) showed the
+    /// identical flat +1 under different scroll parameters — independent of
+    /// scroll parameters, but not a re-derivation of 19 or 100,001
+    /// themselves. `ShapingCache`'s 256 sits close to *its* measured resident
+    /// set (207, ~81% of 256) on purpose, because its cost model is "an
+    /// eviction that turns out to still be live re-shapes every frame
+    /// forever" — thrashing near the threshold is expensive there. Nothing
+    /// here re-computes a value once reaped; a reaped `@State` slot that
+    /// comes back is just a fresh `initial()`, which is cheap and correct
+    /// (it is what a never-produced-before element gets too). So this table
+    /// has no reason to sit close to its steady state the way the cache
     /// does, and every reason not to: 20 is two orders of magnitude below
     /// 100,002, so a threshold anywhere in, say, the low thousands still
     /// reaps the cold-frame spike down to near-nothing while leaving the
@@ -111,7 +121,7 @@ final class StateTable {
     /// frame. **256** would work for that alone, but this table's growth is
     /// unbounded on the number of distinct elements a session ever produces
     /// — not on a fixed viewport-driven working set the way glyph runs are —
-    /// so a threshold sized only to clear 19 leaves no margin for a second,
+    /// so a threshold sized only to clear 20 leaves no margin for a second,
     /// smaller list or a handful of ordinary (non-list) stateful elements
     /// coexisting with it before the sweep starts firing every frame. 256
     /// itself is kept: it is comfortably above any plausible non-list steady
@@ -363,8 +373,9 @@ final class StateTable {
     /// this task inverted it — see that test's own comment).
     ///
     /// **The reap runs second, guarded on `storage.count > sweepThreshold`, so
-    /// the steady state pays nothing at all** — a table sitting at 19 entries
-    /// never even evaluates a single entry's staleness. `entry.lastSeenGeneration
+    /// the steady state pays nothing at all** — a table sitting at 20 entries
+    /// (this type's own doc above, `sweepThreshold`'s own comment) never even
+    /// evaluates a single entry's staleness. `entry.lastSeenGeneration
     /// + staleAfterGenerations < generation` — addition against the just-
     /// advanced `generation`, not subtraction from it — is deliberate:
     /// `generation` is a `UInt64` starting at 0, and a subtracting form
