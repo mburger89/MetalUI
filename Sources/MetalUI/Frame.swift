@@ -951,11 +951,18 @@ public final class Frame {
         // to write down.** Sweeping first does *not* discard everything the
         // previous frame established: `marked` is cleared only inside `sweep()`,
         // so a sweep at frame start still sees the previous frame's marks. The
-        // real cost of that ordering is a **one-frame eviction lag** — an
-        // element that stops being produced keeps its state for one extra frame.
-        // Witnessed by `anElementThatStopsBeingProducedIsSweptByTheNextFrame`,
-        // which is the only test that reddens if this call moves above the
-        // phases.
+        // real cost of that ordering is a **one-frame LIVENESS lag** — an
+        // element that stops being produced reports `isLive == true` for one
+        // extra frame. (Before the tombstones milestone this was a one-frame
+        // *eviction* lag — the entry's whole value stayed an extra frame — but
+        // `sweep()` no longer evicts anything, so the wrong ordering now only
+        // delays the `isLive` flag, not the value.) Witnessed by
+        // `anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue`
+        // (`StateTableTests.swift`, formerly `…IsSweptByTheNextFrame`), which
+        // is the only test that reddens if this call moves above the phases —
+        // and, since that milestone, only through its `isLive` assertions:
+        // `peek`/`count` no longer discriminate the mutation at all, because
+        // nothing `sweep()` does is deletion any more.
         stateTable.sweep()
     }
 }
