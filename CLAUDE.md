@@ -1889,17 +1889,19 @@ are the two most likely to be cited from outside this file**, because both were
 recorded at `List`'s own type doc and in several test comments before they were
 retired; a citation of either is a citation of a *bounded* closure, not of a
 live limitation. A reader who counts to the highest label ever assigned gets
-seventeen, a reader who counts to the highest label still present gets sixteen,
-and a reader who counts entries gets ten; the heading says all three because
-they answer different questions.
+eighteen, a reader who counts to the highest label still present gets eighteen,
+and a reader who counts entries gets eleven; the heading says all three because
+they answer different questions. (**Those first two coincide today and did not
+before divergence 18** — the highest label was seventeen and retired, so the
+two questions had different answers. They will diverge again the moment 18 is
+retired; that is why the heading still asks all three.)
 
 **Not every entry is a disagreement with WebKit, and 10 was the first that
 never was one.** 1, 2, 4 and 9 are places this engine answers differently
 from an oracle. (The retired 8 was the one entry where the disagreement was
 not with WebKit at all but between this engine's own layout and its own paint
-— which is also why it was the one that could simply be fixed.) **10, 11 and
-16 and 18 are design choices recorded here because a reader comparing this
-framework to CSS — or, for 18, to **SwiftUI** — will otherwise read them as
+— which is also why it was the one that could simply be fixed.) **10, 11, 16 and 18 are design choices recorded here because a reader comparing
+this framework to CSS — or, for 18, to SwiftUI — will otherwise read them as
 bugs** — 10 and 11 are the two directions
 of one seam and each entry names the other, and 16 is the price of the rule
 that closes the modal-scrim case. **13 and 14 are a third kind again:
@@ -2326,9 +2328,12 @@ SwiftUI destroys a view's `@State` when the view leaves the tree; bring it back
 and the counter is 0 again. This framework, since 2026-09-01, does not.
 `StateTable.sweep()` retains an unmarked entry with its value and clears only
 `isLive`; the **reap** that would eventually discard it runs *only* on a sweep
-where `storage.count > StateTable.sweepThreshold` (**256**). A tree with fewer
-than 257 live entries — which is the demo, and most applications — therefore
-never reaps anything at all.
+where `storage.count > StateTable.sweepThreshold` (**256**). A tree whose `storage.count` stays at or below
+**256** — which is the demo, and most applications — therefore never reaps
+anything at all. **`storage.count`, not the live count**: tombstones are still
+entries, so an app that churns conditional subtrees crosses the gate without
+ever holding 257 live elements at once. `theColdFrameSpikeIsReapedRatherThanRetainedForever`
+reaps with **19** live entries, which is this distinction as a green test.
 
 Measured through a real `Window`, with the content closure re-evaluated per
 frame so this is the production shape rather than a stored-tree one:
