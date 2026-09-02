@@ -343,6 +343,27 @@ there: `@State` is recoverable from the datum and focus is not.
 **What it costs if wrong.** Focus that vanishes when a user did not move it. Bounded
 by the fact that the element genuinely stopped being produced.
 
+**SUPERSEDED IN PART on 2026-09-01, and the part that expired is the REASONING rather
+than the choice** (rulings `TB-J`, `TB-AH`;
+`docs/superpowers/2026-09-01-tombstones-decisions.md`). This ruling's stated reason —
+"Design spec §4.3 records that tombstones do not exist" — was true when written and is
+false now: the tombstones-and-AX milestone built them, and §4.3 carries a correction
+block saying so. **The choice above still stands verbatim**: `resolveFocus()` still runs
+at the prepaint/paint boundary and still clears focus the frame an element stops being
+*focusable*. What changed is the other branch. An element that stops being **produced**
+now falls back to `StateTable`'s retention: `Frame.registerHandlers` writes a `$focus`
+child slot for the focused id, and focus survives while that entry does — bounded by
+`staleAfterGenerations` (**2**) generations and gated on `sweepThreshold` (**256**), so
+a windowed row scrolled out and back within two generations keeps focus and one gone
+three generations on a large table does not. **Divergence 17 is retired as a bounded
+closure**, and the "produced" / "focusable" distinction this ruling relied on became
+load-bearing rather than incidental: it is now carried by a separate signal,
+`focusedElementProducedThisFrame`, set independently of `handlers.isFocusable`, and
+collapsing the two reddens `anElementThatStopsBeingFocusableLosesFocus` plus two
+pre-existing tests. Recorded here rather than left standing, because a reader tracing
+divergence 17's retirement backwards lands on this ruling and would otherwise read a
+false premise as current.
+
 ---
 
 ## IN-N — clicking does not focus

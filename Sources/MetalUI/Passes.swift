@@ -144,17 +144,22 @@ public struct LayoutPass {
 /// been painted yet, which is what makes this the only correct place to register
 /// hit-test, focus, scroll and accessibility structure.
 ///
-/// **Scroll, general hit-test and focus all register now; accessibility still
-/// does not.** `registerScrollRegion` was the first `register…` method this
-/// pass gained and `insertHitbox` is the second, and they write to the same
-/// hitbox registry on `Frame` — the first is the second with a scroll axis
-/// attached (design spec §3.1). Focus is the third, and it has **no method of
-/// its own**: `registerHandlers` writes both the hitbox and `Frame`'s focus
+/// **Scroll, general hit-test, focus and accessibility all register now.**
+/// `registerScrollRegion` was the first `register…` method this pass gained
+/// and `insertHitbox` is the second, and they write to the same hitbox
+/// registry on `Frame` — the first is the second with a scroll axis attached
+/// (design spec §3.1). Focus is the third, and it has **no method of its
+/// own**: `registerHandlers` writes both the hitbox and `Frame`'s focus
 /// registry, because an element that binds a click and an element that binds a
 /// key are the same element asking through the same `Handlers` value, and two
-/// calls would be two chances for a conformer to forget one. `Frame` still owns
-/// no accessibility store, so there is nothing for a `registerAXNode` to write
-/// into and none is declared; accessibility brings its own (§9).
+/// calls would be two chances for a conformer to forget one. `emitAXNode`
+/// below is the fourth, and it writes its own store, `Frame.axNodes` (design
+/// spec §9), rather than riding `registerHandlers` the way focus does. The
+/// data it writes — `Handlers.axNode` — does live alongside the other three,
+/// on `Handlers`' own footing; the *call* stays separate because most
+/// elements declare nothing accessible at all (`AXNode.isEmpty`), and a
+/// conformer gates it on that rather than emitting an entry for every `Box`
+/// unconditionally the way `registerHandlers` does for hitboxes and focus.
 @MainActor
 public struct PrepaintPass {
     let frame: Frame
@@ -278,6 +283,31 @@ public struct PrepaintPass {
     public func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
                                  id: GlobalElementID) {
         frame.registerHandlers(handlers, at: bounds, id: id)
+    }
+
+    /// Records `node` as `id`'s accessibility node, resolving its `frame` to
+    /// `bounds` and its `children` to the ids given — design spec §9.
+    ///
+    /// **The same phase, and the same shape, as `insertHitbox` and
+    /// `registerHandlers` above** (`Passes.swift:238,278` — this task's own
+    /// brief cites both): prepaint is the only phase where positions have
+    /// resolved and nothing has been emitted yet, so it is the only correct
+    /// place to register accessibility structure alongside hit-test and focus
+    /// structure. Emitting here rather than in `paint` is also what makes
+    /// culled content naturally excluded — an element `paint` never visits
+    /// never calls this either.
+    ///
+    /// `node`'s own `frame` and `children` are ignored on the way in and
+    /// overwritten by `bounds` and `children` — see `AXNode`'s own doc on why
+    /// a declared value carries neither meaningfully.
+    ///
+    /// Returns the resolved node, for a caller that wants to build a parent's
+    /// own children list from what its children just emitted without a second
+    /// lookup into `Frame.axNodes`.
+    @discardableResult
+    public func emitAXNode(_ node: AXNode, at bounds: Bounds<Pixels>, id: GlobalElementID,
+                           children: [GlobalElementID]) -> AXNode {
+        frame.emitAXNode(node, at: bounds, id: id, children: children)
     }
 
     /// Runs `body` with the layer hoisted to the root layer and the clip

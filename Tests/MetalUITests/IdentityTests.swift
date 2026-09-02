@@ -168,8 +168,29 @@ import MetalUICore
 /// is about a branch changing *between phases* and stays green; the three
 /// type-level builder tests cannot see a key at all.
 ///
-/// The `== 1` is the load-bearing assertion. Were the branches to share a
-/// component, the second frame would find the first frame's entry and write 2.
+/// The `== 1` on the `else` branch's value is the load-bearing assertion.
+/// Were the branches to share a component, the second frame would find the
+/// first frame's entry and write 2.
+///
+/// **Two assertions inverted by the tombstones milestone's Task 1** — the `if`
+/// branch's entry no longer disappears when its element stops being produced,
+/// it tombstones. That does not touch what this test exists to prove: the two
+/// branches are still **distinct entries** rather than one shared one (the
+/// `else` branch's value is still 1, not a continued 2), which is the
+/// reset-not-carried property in this test's name. What changed is only that
+/// the abandoned `if` branch's entry is now still there, holding the value it
+/// had, reporting itself not live.
+///
+/// **That `!isLive` assertion is incidentally sensitive to `Frame.render`'s
+/// sweep-after-phases ordering** — found by a review, not by design: moving
+/// `stateTable.sweep()` above the phases makes this line redden too, because
+/// it exercises the same one-frame liveness lag
+/// `anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue`
+/// (`StateTableTests.swift`) exists to pin. This test is not a second guard
+/// on that ordering — its own purpose (distinct entries, not a shared one) is
+/// unrelated to it — so do not read the `!isLive` line as pinning ordering,
+/// and do not remove it on the theory that the dedicated pin already covers
+/// it; the two happen to overlap, they do not replace each other.
 @MainActor
 @Test func flippingAnEitherBranchResetsTheBranchesState() {
     let table = StateTable()
@@ -187,12 +208,18 @@ import MetalUICore
     let ifBranch = GlobalElementID.child(of: root, at: 0, name: nil)
     let elseBranch = GlobalElementID.child(of: root, at: 1, name: nil)
 
-    // The `if` branch's element stopped being produced and was swept.
-    #expect(table.peek(GlobalElementID.child(of: ifBranch, at: 0, name: nil),
-                       as: Int.self) == nil)
+    // The `if` branch's element stopped being produced. It is now a
+    // tombstone — value 1, retained from the one frame it ran on — rather
+    // than swept away.
+    let ifContentID = GlobalElementID.child(of: ifBranch, at: 0, name: nil)
+    #expect(table.peek(ifContentID, as: Int.self) == 1)
+    #expect(!table.isLive(ifContentID))
     #expect(table.peek(GlobalElementID.child(of: elseBranch, at: 0, name: nil),
                        as: Int.self) == 1)
-    #expect(table.count == 1)
+    // Both entries are retained now: the live `else` branch and the `if`
+    // branch's tombstone. A shared-component regression would still show up
+    // here as `1`, not `2` — see the load-bearing comment above.
+    #expect(table.count == 2)
 }
 
 /// The branches stay disjoint **whatever they contain**, which a flat pair of
@@ -208,6 +235,13 @@ import MetalUICore
 ///
 /// `EitherGroup` gives the taken branch an id of its own and numbers members
 /// from 0 inside it, so the collision is unreachable at any branch size.
+///
+/// **`table.count` inverted by the tombstones milestone's Task 1**, for the
+/// same reason as the test above: the abandoned `if` branch's two members no
+/// longer vanish when frame 2 stops producing them, they tombstone. `3`, not
+/// `1` — the two `if`-branch tombstones plus the one live `else`-branch
+/// entry. The collision this test actually guards against would still show
+/// up as the `else` entry's value below reading `2` instead of `1`.
 @MainActor
 @Test func aBranchWithTwoMembersDoesNotLeakStateIntoAOneMemberBranch() {
     let table = StateTable()
@@ -229,7 +263,7 @@ import MetalUICore
     let root = GlobalElementID.child(of: nil, at: 0, name: nil)
     let elseBranch = GlobalElementID.child(of: root, at: 1, name: nil)
 
-    #expect(table.count == 1)
+    #expect(table.count == 3)
     #expect(table.peek(GlobalElementID.child(of: elseBranch, at: 0, name: nil),
                        as: Int.self) == 1)
 }
@@ -270,8 +304,30 @@ import MetalUICore
     // `1` here would mean the slot was reset; a `nil` at slot 0 with `2` at
     // slot 1 would mean the absent branch had reserved its index.
     #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: nil), as: Int.self) == 2)
-    #expect(table.peek(GlobalElementID.child(of: root, at: 1, name: nil), as: Int.self) == nil)
-    #expect(table.count == 1)
+    // **Inverted by the tombstones milestone's Task 1.** Slot 1 held frame
+    // 1's original trailing element (value 1) — the one whose position the
+    // adoption above displaced, not "reserved" by the absent branch. Before
+    // this task it read `nil` because `sweep()` deleted it the moment frame 2
+    // stopped landing anything there; now it tombstones instead, so it still
+    // reads its last value, just no longer live. This assertion was never
+    // about the sweep mechanism — it was ruling out "the absent branch
+    // reserved its index" — and that ruling-out is unaffected: a reserved
+    // index would show a *fresh* entry (value 1, `isLive == true`), not a
+    // tombstone.
+    //
+    // The `!isLive` assertion below is, incidentally (found by a review, not
+    // by design), sensitive to `Frame.render`'s sweep-after-phases ordering —
+    // moving `stateTable.sweep()` above the phases reddens this line too, via
+    // the same one-frame liveness lag
+    // `anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue`
+    // (`StateTableTests.swift`) exists to pin. This test is not a second
+    // guard on that ordering; its purpose is unrelated (what a vacated slot
+    // does and does not inherit). Do not remove the assertion on the theory
+    // that the dedicated pin already covers it.
+    let vacatedSlot = GlobalElementID.child(of: root, at: 1, name: nil)
+    #expect(table.peek(vacatedSlot, as: Int.self) == 1)
+    #expect(!table.isLive(vacatedSlot))
+    #expect(table.count == 2)
 }
 
 /// Naming the **later sibling** is the remedy; naming the conditional content is
@@ -284,6 +340,16 @@ import MetalUICore
 /// the vanishing element out of slot 0, which stops the adoption and leaves the
 /// trailing element starting from scratch at slot 0 — **1**. That is better than
 /// inheriting a stranger's state and still not "survives".
+///
+/// **Both `count` assertions inverted by the tombstones milestone's Task 1**,
+/// and for the same reason as the tests above: an entry whose element stops
+/// being produced now tombstones rather than vanishes, so every abandoned
+/// slot this test's two frames leave behind is still counted. Neither
+/// inversion touches what each half of this test actually proves — the
+/// `peek` values, asserted unchanged, are the load-bearing checks for
+/// "survives" versus "resets"; `count` here was only ever a byproduct of how
+/// many distinct slots existed, which the tombstone change makes larger, not
+/// wrong.
 @MainActor
 @Test func namingTheLaterSiblingIsWhatSurvivesAVanishingIf() {
     let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
@@ -301,7 +367,9 @@ import MetalUICore
     }
     #expect(named.peek(GlobalElementID.child(of: root, at: 0, name: ElementID("tail")),
                        as: Int.self) == 2)
-    #expect(named.count == 1)
+    // 2 entries: the live "tail" and the tombstoned `if`-branch content that
+    // ran only on frame 1 (positional, value 1, `isLive == false`).
+    #expect(named.count == 2)
 
     // Not the remedy: the *conditional content* carries the name instead.
     let misplaced = StateTable()
@@ -316,7 +384,11 @@ import MetalUICore
     // No adoption — but the trailing element still moved slot and restarted.
     #expect(misplaced.peek(GlobalElementID.child(of: root, at: 0, name: nil),
                            as: Int.self) == 1)
-    #expect(misplaced.count == 1)
+    // 3 entries: the fresh trailing entry at slot 0 (live), the vacated
+    // slot 1 that frame 1's trailing element left behind, and the named
+    // "conditional" entry from frame 1's `if`-branch — the latter two now
+    // tombstoned rather than swept.
+    #expect(misplaced.count == 3)
 }
 
 // MARK: - The two index-arithmetic lines the branch shipped unguarded
@@ -349,6 +421,10 @@ import MetalUICore
 ///
 /// The `== 1` on the branch member is as load-bearing as the count: a shared
 /// entry shows up there as a 3.
+///
+/// **`table.count` inverted by the tombstones milestone's Task 1** — see the
+/// re-measurement note above the assertion itself for what the mutation now
+/// does to it, checked rather than assumed.
 @MainActor
 @Test func aBranchReservesBothIndicesSoASiblingCannotLandOnTheUntakenOne() {
     let table = StateTable()
@@ -372,7 +448,11 @@ import MetalUICore
                        as: Int.self) == 1)
     #expect(table.peek(GlobalElementID.child(of: sibling, at: 0, name: nil),
                        as: Int.self) == 2)
-    #expect(table.count == 2)
+    // 3, not 2: the live `else`-branch entry, the live sibling entry, and
+    // the tombstoned `if`-branch entry from frame 1 (see the class comment
+    // above about `table.count` inverting here). The `peek` values above are
+    // still the load-bearing assertions against a shared-entry regression.
+    #expect(table.count == 3)
 }
 
 /// **An erased element is still one element and therefore one index.**

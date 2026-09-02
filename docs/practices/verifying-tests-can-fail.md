@@ -80,11 +80,13 @@ coverage gap, prove the mutant *behaves* differently — print the two values, o
 mutate one step further out. A mutation you cannot show changed an observable
 quantity has told you nothing about the tests.
 
-### Three ways a *record* goes wrong, all paid for in rework
+### Five ways a *record* goes wrong, all paid for in rework
 
 These are not shapes of untestable test — they are ways the written record stops
-matching what was measured, and every one of them was found the expensive way on
-the input-and-state milestone.
+matching what was measured. The first three were found the expensive way on
+the input-and-state milestone; **4 and 5 were added by the tombstones-and-AX
+milestone**, which also amended 1 and 3 with their own converses. Nobody should
+read the numbering as a priority order: 5 is the one that has fired most often.
 
 **1. A measurement recorded in the report is not a measurement applied to the
 source.** Three consecutive tasks shipped a comment their *own report*
@@ -100,6 +102,22 @@ became where true things went, and the comment kept its draft-time belief.
 > back to the mutated LINE in the same pass.** Not to the report, not to the
 > ledger — to the line. A comment is read by the next person to touch the code;
 > a report is read by nobody.
+
+**And its converse, added by the tombstones-and-AX milestone (ruling `TB-AA`):
+anything a measurement did NOT establish must not appear at the line as though
+it had.** A doc comment carried a parenthetical — "(measured on a scrolling
+500-row and a scrolling 100,000-row list alike…)" — that was true of the number
+it was written for and got attached, unqualified, to a *derived* successor that
+nothing had measured that way. The implementer flagged that its own figures
+could not be independently reproduced from the original harness, which is the
+only reason it was caught; the report said so honestly and one committed doc
+line did not.
+
+> A line saying "19" reads as a measurement whatever the report says. **The fix
+> is not to delete the number — deleting it would have destroyed the argument
+> that needed it — but to say at the line which half was measured and which half
+> was derived.** An inherited base, a re-measured delta and their sum are three
+> different epistemic statuses wearing one typeface.
 
 **2. A fix round is exactly as capable of producing an unmeasured claim as the
 round it fixes.** A review found a timeout that was bracketed rather than pinned
@@ -123,7 +141,88 @@ new test turned out to catch two distinct mutants).
 > check. **Re-take the whole table, do not patch the flagged rows** — and name the
 > tests each row reddens, which is what makes a stale row visible at all.
 
-## The taxonomy — fourteen shapes, all found in this repo
+**An EXCLUSIVITY claim is the shape that rots worst, and it rots differently
+from a count.** "This mutation reddens exactly this test and nothing else in the
+777-test suite" is a statement about the *whole suite at one moment*, so it
+expires whenever anyone adds a test anywhere — and it expires **silently**,
+because the sentence still parses and the number still looks like a date. The
+tombstones-and-AX milestone's whole-branch review caught one: re-run at HEAD, the
+mutation reddened **two** tests, the second added to the *same file* two commits
+later. The claim was wrong in **kind**, not merely stale in number, and updating
+777 to 782 would have preserved a false sentence with a fresh date on it.
+
+> **Word a coverage claim as a differential between named tests, not as
+> exclusivity over a suite.** "This test catches the always-`true` direction and
+> that one catches always-`false`, and neither catches the other" survives every
+> test anyone adds. "…and nothing else in the N-test suite" does not, and its
+> failure mode is that it keeps looking measured. CS-N's "name the tests each
+> row reddens" is the same rule; this is why it is the rule.
+
+**Sharpened by the tombstones-and-AX milestone (ruling `TB-AC`), where the same
+mechanism fired inside a single fix round rather than across a milestone.** A
+review handed over four stale numbers. Taking the whole *file* instead of the
+four found **two more**: one in a function's own doc comment, a fifth site
+entirely outside the reviewer's set, and one **twenty-six lines below a line
+the fix round had itself just corrected** — so proximity to a corrected line is
+not evidence of having been looked at.
+
+> **A set of stale sites handed over by a review is a SAMPLE, not an
+> inventory.** The instruction that works is "sweep the file and adjudicate
+> every hard-coded count", which also means recording the ones you *leave*
+> alone and why — that round left four (a fixture parameter, another type's
+> figures, an unrelated historical suite count, and lines already framed
+> correctly), and saying so is what stops the next sweep re-litigating them.
+
+**4. Silence in a review is scope not covered, not coverage.** An implementer
+wrote a false claim about a function's call sites and explained afterwards
+exactly how the belief formed:
+
+> "I'd assumed `withState`'s callers were homogeneous with `mark`'s because the
+> review had confirmed `mark`'s and `write`'s call graphs and said nothing about
+> `withState`. **I read that silence as coverage rather than as scope not
+> covered.**"
+
+The claim was false — one caller runs from raw scroll-wheel handling, entirely
+outside frame construction — and no shipped behaviour was wrong, but the stated
+*reason* for a load-bearing decision was undercut. **This is distinct from 1, 2
+and 3, all of which are about a claim the author never measured.** This is about
+a claim the author believed because a reviewer had verified its *neighbours*.
+
+> A review returns findings, not a map of what it looked at. **The shape of what
+> was sampled is not stated in what comes back**, so "the reviewer didn't
+> mention it" carries no information at all about whether it is true.
+
+**5. Knowing a rule, quoting a rule, and having a controller record a ruling
+about a rule are all weaker than running the mutation.** This one has three
+instances and they escalate.
+
+- A controller wrote a ruling *specifically to pre-empt* a comment shipping the
+  wrong claim about a redundant guard. The shipped comment asserted the
+  **converse**, and the same report claimed the nuance was "recorded in the
+  doc comment now" — which a `grep` showed it was not. Three layers of control
+  were in play: this document names the mechanism, the ruling pre-empted this
+  exact instance, and **the implementer's own report quoted the rule two
+  paragraphs above the violation.** All three failed; a reviewer running a grep
+  caught it.
+- `HandlerShape` (`Tests/MetalUITests/ModifierTests.swift`) is a hand-built
+  projection standing in for `Handlers`, which cannot be `Equatable` because it
+  carries escaping closures. It fell behind the struct **for the second time,
+  for the same reason** — a new stored member added without a matching field —
+  while CLAUDE.md names *that exact projection and that exact failure* in
+  advance, citing the first occurrence.
+- Both were closed only when someone mutated: for the second, widening the
+  projection proves nothing on its own, and the closure was judged by whether a
+  modifier that also writes the new field now reddens the test. It does, alone,
+  1 issue of 782.
+
+> **The only control that fires is the one that executes something.** A rule in
+> a primer, a rule quoted in a report, and a ruling in a ledger the implementer
+> does not read are all documentation about a hazard, not detection of it. And
+> a corollary for controllers: **a ruling that must survive into a source
+> comment has to be stated in the DISPATCH**, because the ledger is not
+> something the implementer reads.
+
+## The taxonomy — sixteen shapes, all found in this repo
 
 Use this as a checklist when writing tests, and as a hit list when mutating.
 
@@ -568,6 +667,43 @@ confident number comes back about nothing.
 > skip a branch; a fixture value can equal its own default. Each is invisible
 > from the number alone, and each is cheap to rule out once named: change the
 > one input the diff actually reads and confirm the number moves.
+
+### 16. A `@testable` test file cannot prove an access-level narrowing
+
+**The tool that gives a test its reach is the tool that hides the change.**
+`@testable import` raises `internal` to be visible from the test module, so a
+test file that imports that way sees an `internal(set)` property exactly as it
+saw a `public var` — and every assertion it can write is green before the
+change, after it, and with the change reverted.
+
+The instance. The tombstones-and-AX milestone narrowed two `AXNode` properties
+from `public var` to `public internal(set)`, closing a demonstrated footgun (a
+stray write to one of them flipped an `isEmpty` check and would have emitted a
+real but empty node). `AXNodeTests.swift` uses `@testable import MetalUI`.
+**Nothing in that file — the file whose whole subject is the type — could
+demonstrate the fix closed anything.** The narrowing is not observable at
+runtime at all: it is a compile-time property, and the only instrument that can
+see it is a compiler invoked against a **plain** import of the built module.
+
+The remedy is machinery this repo already has:
+`Tests/MetalUITestSupport/Typecheck.swift`'s `canTypecheck`, used the way
+`ErasureCompileGuards.swift` uses it — write a snippet that assigns to the
+narrowed property, compile it against a non-`@testable` import, and assert it
+fails *with the expected diagnostic*.
+
+**And the guard itself needed the same discipline it exists to enforce.** The
+first draft asserted the diagnostic contained `"Cannot assign"` where the real
+text is lowercase `"cannot assign"`. `!result.succeeded` still held, so the
+test passed — on one of its two assertions, with the half that says *why* it
+failed to compile never matching anything. It was caught by **printing the real
+diagnostic before trusting it**, not by re-reading the string.
+
+> **Before writing a test for a visibility, access-level or module-boundary
+> change, check the import line.** If it says `@testable`, the test cannot see
+> the change and a green result means nothing. This generalises past `AXNode`
+> and past this repo: it applies to any narrowing — `private`, `internal`,
+> `fileprivate`, `internal(set)`, and to `@_spi` — and the tell is that the
+> change has no runtime behaviour to assert on at all.
 
 ### A fixture hazard worth knowing before you write goldens
 

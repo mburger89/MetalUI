@@ -209,7 +209,47 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
 ///
 /// **A branch that flips between frames is a different subtree, not the same one
 /// resized.** Any state its elements held keyed on a `GlobalElementID` that is
-/// no longer produced is swept after the frame it disappears in (§4.3).
+/// no longer produced stops being **live** after the frame it disappears in
+/// (§4.3), and is eventually reaped.
+///
+/// **Read the next paragraph before assuming a removed branch's `@State` is
+/// gone. In an ordinary tree it is NOT, and it is not bounded either —
+/// CLAUDE.md's divergence 18.**
+///
+/// **This doc said "is swept" until 2026-09-01, and its first correction then
+/// under-stated the replacement — both are recorded rather than smoothed
+/// over.** `StateTable.sweep()` no longer deletes an unmarked entry: it keeps
+/// the value and clears `isLive`. The **reap** that would discard it runs only
+/// on a sweep where `storage.count` exceeds `StateTable.sweepThreshold`
+/// (**256**), and only for entries unmarked for more than
+/// `StateTable.staleAfterGenerations` (**2**) generations.
+///
+/// **The gate comes first, so state it first.** While `storage.count` stays at
+/// or below 256 — which is the demo and most applications — **nothing is ever
+/// reaped, and a removed branch's `@State` survives indefinitely**. The gate
+/// counts *entries*, not live ones, and tombstones are entries: an app that
+/// churns conditional subtrees crosses it without ever holding 257 live
+/// elements at once (`theColdFrameSpikeIsReapedRatherThanRetainedForever`
+/// reaps with 19 live). Measured through a real `Window`:
+/// a counter behind an `if` reads 1, 2, 3, is removed for **500 frames**, and
+/// comes back reading **4**, with the table sitting at one entry throughout.
+/// **This disagrees with SwiftUI**, which destroys a view's `@State` when the
+/// view leaves the tree, and SwiftUI is this project's design authority where
+/// it and CSS differ (ruling EP-5) — so it is a recorded divergence rather than
+/// an implementation detail. Only *above* the threshold does
+/// `staleAfterGenerations` bind, and two generations is that ceiling rather
+/// than the common case: the first correction of this comment led with "within
+/// two frames" and relegated the unbounded case to a subordinate clause, which
+/// is the reading a whole-branch review flagged.
+///
+/// **Nothing pins the element-level sub-threshold behaviour.**
+/// `aStaleEntryIsRetainedForeverWhileStorageStaysAtOrBelowSweepThreshold` pins
+/// the raw table, and both excursion tests insert 260 ballast ids to force the
+/// gate open, so no test in the suite asserts what a caller actually sees here.
+///
+/// **Nothing about the identity rule below changes** — a flipped branch is
+/// still a different subtree and the cursor still shifts every later sibling —
+/// only how long the abandoned entry survives.
 public struct OptionalGroup<Wrapped: ElementGroup>: ElementGroup {
     public var wrapped: Wrapped?
 

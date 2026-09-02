@@ -527,8 +527,196 @@ public final class Frame {
         // not gated on the pointer gate below, and an element can ask for one
         // without the other. `register` gates itself on `isKeyTarget`.
         focusRegistry.register(handlers, id: id)
+        // **Independent of `isKeyTarget`/`isFocusable` — this is "was the
+        // currently-focused id produced this frame at all", not "did it ask
+        // to stay focused".** `Box.prepaint` calls this unconditionally for
+        // every produced `Box` (see this method's own doc), so it is the one
+        // per-frame signal that fires for `focusedElement` whether or not
+        // `handlers` asks for anything. `resolveFocus()` needs exactly that
+        // to tell "still produced, gave up `.focusable()`" (clear at once)
+        // apart from "not produced this frame" (fall back to the state
+        // table's retention window) — `focusRegistry.isFocusable(_:)` alone
+        // cannot make that distinction, since a produced-but-uninterested
+        // element and an unproduced one both read `false` there.
+        if let focused = focusedElement, id == focused {
+            focusedElementProducedThisFrame = true
+            // Rides `StateTable`'s own tombstone mechanism rather than a
+            // focus-specific grace period (design spec §5) — a distinct
+            // slot, `$focus`, so this can never collide with a `@State`
+            // slot (always a CHILD of the element's own id, named
+            // `"$state\(n)"`) or with a `ScrollView`'s own
+            // `withState(id, ...)` entry (keyed directly on its own id,
+            // typed `ScrollState` — writing `Bool` there would silently
+            // clobber it, per `StateTable.write`'s own doc on mismatched
+            // types). `resolveFocus()` reads this back with `peek`, which
+            // returns non-nil for a live OR a tombstoned entry and nil only
+            // once it is actually reaped.
+            //
+            // **KNOWN, and ruled "record, do not fix" at the whole-branch
+            // review: this write is not gated on `handlers.isKeyTarget`, so a
+            // `$focus` slot can be written for an element that was never
+            // legitimately focusable.** `Window.focus(x)` on a produced but
+            // non-focusable `x` reaches here and writes the slot *before*
+            // `resolveFocus()` clears the focus later in the same frame. Below
+            // `StateTable.sweepThreshold` that slot is never reaped, so a later
+            // `Window.focus(x)` made while `x` is NOT produced then **sticks**:
+            // `resolveFocus`'s fallback tests only `peek(...) != nil` and never
+            // asks whether the slot was written by a frame that also found `x`
+            // focusable. The consequence is a wrongly-sticky focus on an
+            // element that has never been a key target — not a clobber, not a
+            // crash, and not reachable without an explicit `Window.focus` call
+            // on a non-focusable element.
+            //
+            // **Deliberately not fixed, and the reason is the SHAPE of the fix
+            // rather than its size.** The obvious patch — gate this write on
+            // `isKeyTarget` — cannot be applied on its own, because the
+            // *produced* signal set immediately above must stay ungated: it is
+            // the only per-frame evidence distinguishing "gave up
+            // `.focusable()`" (clear at once) from "not produced" (fall back to
+            // retention), and `anElementThatStopsBeingFocusableLosesFocus`
+            // depends on exactly that. A correct fix must therefore SEPARATE
+            // two things that today share one conditional — keep
+            // `focusedElementProducedThisFrame` ungated, gate the slot write on
+            // `isKeyTarget`, and clear the slot in `resolveFocus`'s
+            // produced-but-not-focusable branch so a stale one cannot outlive
+            // the frame that invalidated it. That is a change to the focus
+            // contract rather than a patch, and it does not go in unreviewed in
+            // the last commit before a merge — the same judgement
+            // `Window.applyScroll` was given during the input milestone.
+            stateTable.withState(Self.focusRetentionSlot(for: focused),
+                                 initial: true) { _ in }
+        }
         guard handlers.isPointerTarget else { return }
         _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
+    }
+
+    /// The state-table key that backs a focused id's retention window — see
+    /// `registerHandlers`'s own doc for why it must be a distinct slot rather
+    /// than `id` itself. `at: 0` is inert: `GlobalElementID.child(of:at:name:)`
+    /// always prefers `name` when one is supplied.
+    private static func focusRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
+        .child(of: id, at: 0, name: ElementID("$focus"))
+    }
+
+    // MARK: - Accessibility (design spec §9)
+
+    /// Every accessibility node emitted this frame, keyed by the element that
+    /// emitted it.
+    ///
+    /// **A dictionary rather than a list**, unlike `hitboxes` — nothing here
+    /// ranks records against each other (there is no "topmost" question for an
+    /// AX node), so the only operation any caller performs is "look up `id`",
+    /// which `hitboxes` would need a linear scan for. `Hitbox`'s per-frame
+    /// `HitboxID` handle exists to keep a dense array cheap to index; an
+    /// `AXNode` has no equivalent because nothing needs one.
+    ///
+    /// **Rebuilt from scratch every frame**, on `hitboxes` and `focusRegistry`'s
+    /// own footing: an element not produced this frame emits nothing here, so
+    /// this dictionary alone answers only "was `id` produced THIS frame", not
+    /// "does `id` still exist". **That is deliberately not this property's
+    /// job any more** — `axNode(for:)` below is the durable, tombstone-aware
+    /// query (design spec §9); this one stays exactly what Task 5 shipped, a
+    /// per-frame view, because Task 7 and any future tree walk still want
+    /// "what was produced this frame" as a distinct question from "is this id
+    /// still valid".
+    private(set) var axNodes: [GlobalElementID: AXNode] = [:]
+
+    /// Records `node` as `id`'s accessibility node, resolving its `frame` and
+    /// `children` from the parameters rather than from whatever `node` itself
+    /// carried — see `AXNode`'s own doc on why a declared value's `frame` and
+    /// `children` are not meaningful on the way in.
+    ///
+    /// **Also persists a durable copy, under a dedicated retention slot —
+    /// this is what makes `axNode(for:)` below possible at all.** `axNodes`
+    /// itself is rebuilt from scratch every frame (see its own doc), so an id
+    /// not produced THIS frame is simply absent from it — a dictionary miss a
+    /// caller cannot tell apart from "never existed". Design spec §9 needs
+    /// more than that: a handle an AX client still holds must survive and
+    /// report itself invalid, not vanish. `StateTable` already has exactly
+    /// that mechanism (Tasks 1-2 of this milestone: an entry's `value`
+    /// outlives the frame that stopped producing it, and `isLive` says
+    /// whether it was actually produced). Riding it here is Task 4's rule
+    /// applied a second time — "validity is `StateTable.isLive`, not a second
+    /// liveness notion" — so this writes to a distinct child slot of `id`,
+    /// never `id` itself, on `focusRetentionSlot`'s exact footing: `id` is
+    /// already `ScrollView`'s own `withState(id, …)` key, typed `ScrollState`,
+    /// and writing an `AXNode` there would silently clobber it (mismatched
+    /// types are `StateTable.write`'s own documented clobber hazard).
+    @discardableResult
+    func emitAXNode(_ node: AXNode, at bounds: Bounds<Pixels>, id: GlobalElementID,
+                    children: [GlobalElementID]) -> AXNode {
+        var resolved = node
+        resolved.frame = bounds
+        resolved.children = children
+        resolved.isValid = true
+        axNodes[id] = resolved
+        stateTable.withState(Self.axRetentionSlot(for: id), initial: resolved) { $0 = resolved }
+        return resolved
+    }
+
+    /// The state-table key that backs an AX handle's retention window — see
+    /// `emitAXNode`'s own doc for why it must be a distinct slot rather than
+    /// `id` itself. `at: 0` is inert, on `focusRetentionSlot`'s footing:
+    /// `GlobalElementID.child(of:at:name:)` always prefers `name` when one is
+    /// supplied.
+    private static func axRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
+        .child(of: id, at: 0, name: ElementID("$ax"))
+    }
+
+    /// The durable accessibility record for `id` — design spec §9's actual
+    /// requirement, and the reason `emitAXNode` above writes a second copy.
+    /// `Frame.axNodes[id]` only ever answers "was this produced THIS frame";
+    /// this answers "was `id` produced by the last COMPLETED frame" — exactly
+    /// the query an AX client holding `id` across frames needs, and see the
+    /// next paragraph for why that is not quite "is it current right now".
+    ///
+    /// **`.isValid` is `StateTable.isLive` at the retention slot, read fresh
+    /// on every call — not a value snapshotted at emission.** A node stored
+    /// while its element was being produced would read `isValid == true`
+    /// forever if that flag were captured once; deriving it here, from the
+    /// same table Task 4's focus retention and every `@State` slot already
+    /// use, is what keeps this one liveness notion rather than a second one
+    /// that could disagree with it.
+    ///
+    /// **That derivation has a one-frame read lag, and it is documented here
+    /// rather than closed.** `StateTable.isLive` reflects the sweep at the
+    /// END of the last COMPLETED frame (`Frame.render`'s `stateTable.sweep()`
+    /// call); an element that stops being produced mid-frame is not noticed
+    /// until that frame's own sweep runs, so a query made DURING the frame it
+    /// vanished in still reads `isValid == true` — even though
+    /// `Frame.axNodes[id]` for that very frame is already `nil`. Measured on
+    /// this exact shape: emit, sweep (confirms — still `true`), construct the
+    /// next frame with nothing re-emitting — `axNode(for:).isValid` is still
+    /// `true` while `axNodes[id]` is already `nil` — sweep that frame, and
+    /// only then does `isValid` become `false`. **The lag is one-directional
+    /// and self-correcting**: it can only report valid one frame too long,
+    /// never invalid too early, and it always resolves by the next sweep. A
+    /// lag-free answer needs a per-frame production signal alongside
+    /// `StateTable.isLive` — the shape `Frame.focusedElementProducedThisFrame`
+    /// gives focus — which is a second signal on top of the one liveness
+    /// notion this task's brief forbids adding; not built here for that
+    /// reason.
+    ///
+    /// `nil` only once the slot is actually reaped by `sweep()`'s existing
+    /// bound (`StateTable.staleAfterGenerations`/`sweepThreshold`) — the same
+    /// bound divergence 12 and 17 already ride, not a new one invented here.
+    /// Until then, an id that was never emitted at all is indistinguishable
+    /// from one reaped long ago (`nil` either way); an id whose element
+    /// merely stopped being produced is not — it comes back with
+    /// `.isValid == false`, the tombstone spec §9 asks for, rather than
+    /// vanishing or dangling. **This reaped→`nil` transition is unpinned by
+    /// any test** — the obvious fixture (a fixed set of filler keys) falls
+    /// back under `sweepThreshold` before reaching it and the slot then
+    /// survives forever reporting `isValid == false`, never `nil`; reaching
+    /// the reap needs fresh keys every frame holding the table above
+    /// `sweepThreshold`, which no test here does. Left unmeasured rather than
+    /// given a test that cannot express the defect (MP-J's shape) — see this
+    /// task's fix-round report.
+    func axNode(for id: GlobalElementID) -> AXNode? {
+        let slot = Self.axRetentionSlot(for: id)
+        guard var node = stateTable.peek(slot, as: AXNode.self) else { return nil }
+        node.isValid = stateTable.isLive(slot)
+        return node
     }
 
     // MARK: - Focus (design spec §4.2)
@@ -548,7 +736,10 @@ public final class Frame {
     private(set) var focusRegistry = FocusRegistry()
 
     /// The focused element for this frame — handed in from `Window`, then
-    /// **cleared here** by `resolveFocus()` if this frame did not produce it.
+    /// possibly **cleared here** by `resolveFocus()` — see that method's own
+    /// doc for the actual rule, which is no longer just "if this frame did
+    /// not produce it": an id the state table still retains, live or
+    /// tombstoned, survives a frame that did not produce it (divergence 17).
     ///
     /// A `var` rather than a `let`, unlike `activeElement`, and that difference
     /// is the whole of §4.2's dangling rule: `Window` reads this back after
@@ -556,8 +747,16 @@ public final class Frame {
     /// the frame actually built rather than against the previous frame's.
     private(set) var focusedElement: GlobalElementID?
 
-    /// Drops focus when the focused element was not produced this frame
-    /// (design spec §4.2).
+    /// Whether `registerHandlers` saw `focusedElement` produced this frame —
+    /// **independent of what it asked for**, unlike `focusRegistry.isFocusable`.
+    /// See `registerHandlers`'s own doc. Defaults `false`; nothing has to reset
+    /// it between frames because `Frame` itself is rebuilt fresh every frame
+    /// (`Window.drawFrameIfNeeded`).
+    private var focusedElementProducedThisFrame = false
+
+    /// Drops focus when the focused element was not produced this frame AND
+    /// is no longer retained by the state table (design spec §4.2, closing
+    /// CLAUDE.md's divergence 17).
     ///
     /// **Called once per frame, from `render`, at the prepaint/paint boundary
     /// — beside `resolveHover(at:)` and for its reason.** "Was it produced" is
@@ -566,20 +765,72 @@ public final class Frame {
     /// would let this frame paint a focus ring for an element it has already
     /// decided is not focused.
     ///
-    /// **There are no tombstones**, and this is why the answer is "clear it"
-    /// rather than "remember it for later". Design spec §4.3 records that
-    /// `StateTable` entries are reaped rather than kept as invalid-reporting
-    /// placeholders, and that exit transitions wait on that mechanism; focus
-    /// sits on the same footing. The consequence — a focused row scrolled out
-    /// of a `List`'s window loses focus, and scrolling back does not restore it
-    /// — is recorded as a candidate divergence rather than fixed here.
+    /// **Two separate questions, and conflating them is the trap.** "Is
+    /// `focused` still `.focusable()` right now" is `focusRegistry.isFocusable`;
+    /// an element that answers no to that but WAS produced this frame (it
+    /// simply stopped asking to be focusable) loses focus on the spot — the
+    /// existing contract, pinned by `anElementThatStopsBeingFocusableLosesFocus`,
+    /// and nothing here weakens it. "Was `focused` produced at all this frame"
+    /// is `focusedElementProducedThisFrame`, and only when that is ALSO false —
+    /// nothing at `focused`'s position in the tree ran `prepaint` — does this
+    /// fall back to the state table. **One notion of "still exists", not two**
+    /// (design spec §5): rather than a focus-specific grace period, an id that
+    /// stops being produced keeps focus for exactly as long as
+    /// `StateTable` retains its `$focus` slot — live or tombstoned, the same
+    /// `staleAfterGenerations` bound divergence 12's `@State` entries get,
+    /// because it rides the identical `sweep()`/reap. Once that slot is
+    /// actually reaped, `peek` returns `nil` and focus clears here, one frame
+    /// after the reap happened.
+    ///
+    /// **"The same `staleAfterGenerations` bound" above is the CEILING, not the
+    /// behaviour an ordinary tree gets — and three consequences follow that
+    /// nobody designed in.** The reap runs only on a sweep where
+    /// `storage.count` exceeds `StateTable.sweepThreshold` (**256**), so below
+    /// that the `$focus` slot is never reaped and focus on a permanently
+    /// removed element is retained **indefinitely**. All three measured through
+    /// a real `Window` on 2026-09-02:
+    ///
+    /// 1. **Retained indefinitely.** Focus an element behind an `if`, remove
+    ///    it, render **60** more frames — `focusedElement` is still that id.
+    ///    Intended per design spec §5; the indefiniteness is what §5 did not
+    ///    say, and it is CLAUDE.md divergence 18's mechanism seen from the
+    ///    focus side rather than the `@State` side.
+    /// 2. **The dismissed subtree's still-produced ANCESTORS keep claiming its
+    ///    keystrokes**, and this is the consequence with no pin.
+    ///    `focusChain(from:)` walks the retained id's parent chain; those
+    ///    ancestors are produced and registered, so an ancestor's `onKey` and
+    ///    `keyContext` stay live for a subtree the user dismissed. Measured
+    ///    with a root carrying `onKey`: a keystroke after removal runs the
+    ///    ancestor's handler, where before this milestone it fell through to
+    ///    `Window.onInput`. **`focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`
+    ///    does not catch it, by accident rather than by design** — it asserts
+    ///    `raw == ["window"]`, which reads as "the event reached the window",
+    ///    and only holds because that fixture's ancestors carry no `onKey`.
+    /// 3. **Focus is RESTORED on return** — 60 absent frames, bring the element
+    ///    back, and its own `onKey` runs again. That half is divergence 17's
+    ///    closure working as intended.
+    ///
+    /// **All three require a CONFIRMING FRAME, which is easy to trip over.**
+    /// `registerHandlers` writes the `$focus` slot only while the focused id is
+    /// actually being produced, so `Window.focus(x)` followed by removal with
+    /// no frame rendered in between retains nothing — measured by getting it
+    /// wrong first, in a probe that skipped the frame and looked like a
+    /// refutation of all three. `focusSetWithNoConfirmingFrameHasNothingToRetain`
+    /// is that boundary's pin.
     ///
     /// A free method rather than a step inlined into `render`, so a test can
     /// drive `PrepaintPass` directly and resolve focus explicitly, exactly as
     /// `resolveHover(at:)` allows.
     func resolveFocus() {
         guard let focused = focusedElement else { return }
-        if !focusRegistry.isFocusable(focused) { focusedElement = nil }
+        if focusRegistry.isFocusable(focused) { return }
+        if focusedElementProducedThisFrame {
+            focusedElement = nil
+            return
+        }
+        if stateTable.peek(Self.focusRetentionSlot(for: focused), as: Bool.self) == nil {
+            focusedElement = nil
+        }
     }
 
     /// The topmost **opaque** hitbox containing `point`, or `nil` when nothing
@@ -951,11 +1202,31 @@ public final class Frame {
         // to write down.** Sweeping first does *not* discard everything the
         // previous frame established: `marked` is cleared only inside `sweep()`,
         // so a sweep at frame start still sees the previous frame's marks. The
-        // real cost of that ordering is a **one-frame eviction lag** — an
-        // element that stops being produced keeps its state for one extra frame.
-        // Witnessed by `anElementThatStopsBeingProducedIsSweptByTheNextFrame`,
-        // which is the only test that reddens if this call moves above the
-        // phases.
+        // real cost of that ordering is a **one-frame LIVENESS lag** — an
+        // element that stops being produced reports `isLive == true` for one
+        // extra frame. (Before the tombstones milestone this was a one-frame
+        // *eviction* lag — the entry's whole value stayed an extra frame — but
+        // `sweep()` no longer evicts anything, so the wrong ordering now only
+        // delays the `isLive` flag, not the value.) Witnessed by
+        // `anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue`
+        // (`StateTableTests.swift`, formerly `…IsSweptByTheNextFrame`), which
+        // is this ordering's own dedicated pin, through its `isLive`
+        // assertions — `peek`/`count` no longer discriminate the mutation at
+        // all, because nothing `sweep()` does is deletion any more.
+        //
+        // **Not the only test that reddens, and this was measured rather than
+        // assumed after a review caught the stale claim.** Moving this call
+        // to right after `StateBinder.bind` above reddens 3, not 1:
+        // the pin above, plus `flippingAnEitherBranchResetsTheBranchesState`
+        // and `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`
+        // (`IdentityTests.swift`). Both are two-frame `IdentityTests` cases
+        // whose tombstones-milestone inversion added an `isLive` assertion on
+        // an abandoned branch's entry — the same one-frame liveness lag this
+        // ordering pin exists for, reached incidentally rather than by design.
+        // They are not a second ordering guard: nothing about their own
+        // purpose (branch state resets rather than carries; a vacated slot is
+        // not "reserved") depends on sweep ordering, and a future edit should
+        // not preserve their `isLive` lines *for* this reason.
         stateTable.sweep()
     }
 }

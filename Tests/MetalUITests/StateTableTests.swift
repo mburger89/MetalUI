@@ -30,22 +30,38 @@ private func id(_ names: String...) -> GlobalElementID {
     #expect(seen == 7)
 }
 
+/// **Inverted by the tombstones milestone's Task 1 — this asserted the OLD
+/// contract.** It used to be named `stateIsSweptWhenTheElementStopsBeingProduced`
+/// and asserted `table.peek(id("b")) == nil` and `table.count == 1`: before
+/// this task, `sweep()` deleted every entry `marked` did not contain, so `b`'s
+/// entry vanished, value and all, the moment it stopped being produced.
+///
+/// **That is exactly the behaviour spec §3 (design spec
+/// `2026-09-01-tombstones-and-ax-design.md`) requires this milestone to stop
+/// doing** — an AX client holding `b`'s `GlobalElementID` needs it to keep
+/// answering, as an invalid handle, rather than the table forgetting it ever
+/// existed. So this is not a regression to chase; it is the change working.
+/// `b`'s entry now survives as a tombstone: its value is still `9` and
+/// `isLive` reports `false` because no frame has marked it since. `table.count`
+/// is `2`, not `1`, because the tombstone is still an entry.
 @MainActor
-@Test func stateIsSweptWhenTheElementStopsBeingProduced() {
+@Test func anElementThatStopsBeingProducedIsRetainedAsATombstone() {
     let table = StateTable()
     table.withState(id("a"), initial: 0) { $0 = 7 }
     table.withState(id("b"), initial: 0) { $0 = 9 }
     table.sweep()
 
-    // Next frame produces only `a`. `b` is gone after the sweep that follows.
+    // Next frame produces only `a`. `b` is no longer produced, so the sweep
+    // that follows tombstones it rather than deleting it.
     table.withState(id("a"), initial: 0) { _ in }
     table.sweep()
 
     #expect(table.peek(id("a"), as: Int.self) == 7)
-    #expect(table.peek(id("b"), as: Int.self) == nil)
-    // Absolute, not relative: comparing two counts that both drop to zero would
-    // pass when the table sweeps everything.
-    #expect(table.count == 1)
+    #expect(table.peek(id("b"), as: Int.self) == 9, "a tombstone keeps its value")
+    #expect(!table.isLive(id("b")), "but reports itself not live — no frame has marked it since")
+    #expect(table.isLive(id("a")))
+    // Both entries are retained now: the live one and the tombstone.
+    #expect(table.count == 2)
 }
 
 /// Identity is the **path**, not the local id.
@@ -190,20 +206,49 @@ struct CountingElement: Element {
     #expect(table.count == 1)
 }
 
-/// An element that stops being produced loses its state on the next sweep, and
-/// this is the mechanism behind §14's "no exit transitions".
+/// **Inverted by the tombstones milestone's Task 1, and renamed —
+/// `anElementThatStopsBeingProducedIsSweptByTheNextFrame` said what no longer
+/// happens.** An element that stops being produced no longer loses its state
+/// on the next sweep; it loses only its liveness, which is the mechanism
+/// behind §9's AX handles reading as invalid rather than crashing, and it is
+/// what makes exit transitions buildable in a later milestone instead of
+/// impossible in this one.
 ///
-/// **This is also the only test that pins the sweep's ORDERING.** Moving
-/// `stateTable.sweep()` in `Frame.render` from after the phases to before them
-/// reddens exactly this test and nothing else. A previous
-/// `sweepingBeforeTheFrameWouldDiscardEverythingItExistsToKeep` claimed that
-/// job and did not do it: it reddened only under "never sweep", which
-/// `stateIsSweptWhenTheElementStopsBeingProduced` already covers, and stayed
-/// green under the real ordering mutation. It was deleted rather than renamed —
-/// a test that duplicates another while claiming unique coverage is worse than
-/// no test, because the name is what people trust.
+/// **This is still the DEDICATED pin for the sweep's ORDERING — but no longer
+/// the only test that reddens under the mutation, and that "only" was a
+/// review finding, not a re-derivation of mine.** Moving `stateTable.sweep()`
+/// in `Frame.render` from after the phases to before them used to redden only
+/// this test, via `peek`/`count`, because under the old delete-on-sweep
+/// semantics the wrong ordering left `a`'s entry alive with the wrong value.
+/// **Under tombstones `peek` and `count` no longer discriminate the mutation
+/// at all**: nothing is ever deleted, so both orderings land on `count == 2`
+/// and `peek(a) == 1` regardless of when `sweep()` runs. Re-derived and
+/// checked against the mutation (not assumed): the ordering only changes
+/// whether `sweep()`, when it runs at the *start* of frame 2, still sees `a`'s
+/// mark from frame 1's `marked` set (which is cleared only inside `sweep()`
+/// itself) — so under the wrong ordering `a` reads `isLive == true` one frame
+/// longer than it should. `!isLive(id("a"))` below is therefore the specific
+/// assertion that reddens under the mutation — not `isLive(id("b"))`, whose
+/// entry is created live directly by `withState` regardless of when `sweep()`
+/// runs relative to `requestLayout`, so it agrees under both orderings — and
+/// it is why this test could not simply keep its old shape with `!= nil`
+/// swapped in for `== nil`.
+///
+/// **What I did not check, and a review did: this task's own inversions gave
+/// two `IdentityTests` cases the same sensitivity, incidentally.**
+/// `flippingAnEitherBranchResetsTheBranchesState` and
+/// `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`
+/// (`IdentityTests.swift`) also added an `isLive` assertion on an abandoned
+/// branch's entry when Task 1 inverted them, and that assertion happens to be
+/// sensitive to the same one-frame liveness lag this test exists to pin —
+/// moving `sweep()` reddens all three, not one. Neither of the two is a
+/// second ordering guard: what each test is actually *for* (branch state
+/// resets rather than continues; a vacated slot is not "reserved") has
+/// nothing to do with sweep ordering, so do not preserve their `isLive` lines
+/// on the theory that they guard it — this test is still the one written for
+/// that purpose, and the only one whose comment claims it.
 @MainActor
-@Test func anElementThatStopsBeingProducedIsSweptByTheNextFrame() {
+@Test func anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue() {
     let table = StateTable()
     let size = Size<Pixels>(width: Pixels(100), height: Pixels(100))
 
@@ -211,14 +256,18 @@ struct CountingElement: Element {
     var a = CountingElement("a")
     first.render(&a)
     #expect(table.count == 1)
+    #expect(table.isLive(id("a")))
 
     // The next frame produces a different element. `a` is not marked, so the
-    // sweep at the end of that frame removes it.
+    // sweep at the end of that frame tombstones it — the value stays, the
+    // liveness does not.
     let second = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
     var b = CountingElement("b")
     second.render(&b)
 
-    #expect(table.peek(id("a"), as: Int.self) == nil)
+    #expect(table.peek(id("a"), as: Int.self) == 1, "the tombstone keeps its value")
+    #expect(!table.isLive(id("a")), "but is no longer live — the load-bearing assertion")
     #expect(table.peek(id("b"), as: Int.self) == 1)
-    #expect(table.count == 1)
+    #expect(table.isLive(id("b")))
+    #expect(table.count == 2, "both the live entry and the tombstone are retained")
 }

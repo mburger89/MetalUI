@@ -7,8 +7,9 @@
 /// field-by-field on whole-value equality by
 /// `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` — a closure field
 /// makes `Style` unequatable and takes that test with it. `Decoration` is paint
-/// data: `Box.paint` reads it and nothing else does, while a handler is read in
-/// `prepaint` by the frame and afterwards by the window.
+/// data: read only by each conformer's own `paint` (`Box.paint`, `Stack.paint`,
+/// `Text.paint`) and nothing else, while a handler is read in `prepaint` by the
+/// frame and afterwards by the window.
 ///
 /// **Empty is the default and it means "not a hit target".** A `Handlers` with
 /// no callback set registers no hitbox at all — see
@@ -114,6 +115,34 @@ public struct Handlers {
     /// that names a context stays transparent to the pointer and does not
     /// swallow the wheel of a `ScrollView` it sits inside.
     public var keyContext: KeyContext?
+
+    /// The accessibility data this element declares — design spec §9's role,
+    /// label, value, traits and actions. `frame` and `children` on the value
+    /// stored here are always `AXNode`'s own defaults and cannot be otherwise
+    /// — `AXNode`'s own `internal(set)` on both is what enforces that, not a
+    /// convention this comment states; they are filled in by
+    /// `PrepaintPass.emitAXNode(_:at:id:children:)`, not by a caller.
+    ///
+    /// **On `Handlers` rather than a fifth `StyledElement` requirement, and the
+    /// grounds are this type's own**: AX emission rides the exact registration
+    /// call `registerHandlers` already makes (`Box.prepaint` — see there), so it
+    /// is read in `prepaint` by the frame, on `Handlers`' own footing and not
+    /// `Decoration`'s (paint data, read only by each conformer's own `paint` —
+    /// see this file's own top-of-struct doc). A fifth stored requirement
+    /// would additionally need a stored property on every
+    /// `StyledElement` conformer that does not already forward to a `Box`
+    /// (`Stack`, `List`, `Text` each declare their own `handlers`, unlike
+    /// `Column`/`Row`, which forward to an internal `Box`) — riding `Handlers`
+    /// costs none of that, because every conformer already stores one.
+    ///
+    /// **Unlike every other member of this struct, `AXNode` carries no
+    /// closure and is `Equatable`** (see `AXActionKind`'s own doc for why
+    /// "actions" is descriptive rather than a callback table) — so it does not
+    /// take `Handlers` any further from being comparable than it already was,
+    /// and `ModifierTests.swift`'s `HandlerShape` projection can carry it as a
+    /// whole-value field rather than needing per-member flags the way the
+    /// closure-holding members do.
+    public var axNode: AXNode = AXNode()
 
     public init() {}
 

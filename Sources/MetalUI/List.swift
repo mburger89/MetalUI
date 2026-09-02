@@ -17,14 +17,47 @@ import MetalUILayout
 /// (that position varies frame to frame as the window slides) — only on its
 /// name.
 ///
-/// **That is about the NAME staying stable, not about the STATE surviving —
-/// spec §7.5 is explicit that it does not.** A row outside the window is not
-/// merely un-painted; it is not produced at all, so nothing marks its
+/// **That is about the NAME staying stable. The STATE now survives too — but
+/// only for a BOUNDED window, and this paragraph said the opposite until the
+/// tombstones milestone (2026-09-01).** What it used to say, and what spec
+/// §7.5 was written against: a row outside the window is not merely
+/// un-painted, it is not produced at all, so nothing marks its
 /// `GlobalElementID` in the `StateTable` that frame, and `StateTable.sweep()`
-/// reaps it exactly as it would an element removed from the tree for good
-/// (§4.3). A row's own state — anything it keeps in the table, not the
-/// framework's structural identity — is therefore reset, not preserved, the
-/// next time that row scrolls back into the window.
+/// reaped it exactly as it would an element removed from the tree for good
+/// (§4.3) — so a row's own state was reset, not preserved, the next time it
+/// scrolled back in. That was CLAUDE.md's divergence 12, and it is retired.
+///
+/// **What is true now.** `sweep()` retains an unmarked entry *with its value*
+/// and only clears its `isLive` flag; a separate **reap** removes an entry
+/// that has been unmarked for more than `StateTable.staleAfterGenerations`
+/// (**2**) generations, and only on a sweep where `storage.count` exceeds
+/// `StateTable.sweepThreshold` (**256**). So a row scrolled out and back
+/// within two generations finds its `@State` intact; a row gone for three
+/// generations, on a table over threshold, comes back holding a fresh
+/// `initial()` under the same identity. **A focused row rides the identical
+/// bound** through a dedicated `$focus` retention slot (that was divergence
+/// 17, also retired).
+///
+/// **The threshold clause is not a technicality here, and a SHORT list is the
+/// case it changes.** The reap runs only above 256 entries, so a list whose
+/// rows carry `@State` reaches it only once enough rows have been built to put
+/// the table over — the cold frame builds every row (ruling MP-I), so a
+/// 500-row list crosses it and a 40-row one never does. **Below the threshold
+/// nothing is ever reaped and a row's `@State` survives any excursion, of any
+/// length.** That is not specific to `List`: it is CLAUDE.md's divergence 18,
+/// which records the same retention for every conditional subtree in the
+/// framework and notes that it disagrees with SwiftUI. Read "two generations"
+/// as the ceiling a large table imposes rather than as what a small one does.
+///
+/// **So the old advice survives for long excursions and only for those**: a
+/// value a long scroll must not lose belongs in the **data**, which is where
+/// a windowed list wants it anyway — `List` re-reads `data` every frame, so a
+/// value derived from a datum is stable by construction and one a row stores
+/// privately is stable only inside the window above. Pinned by
+/// `aListRowsStateSurvivesABoundedExcursionButNotALongerOne`
+/// (`TombstoneTests.swift`) and
+/// `aFocusedListRowSurvivesABoundedExcursionButNotALongerOne`
+/// (`FocusTests.swift`), each of which asserts both halves.
 ///
 /// **`String(describing:)` is not injective, and this is a real, unguarded
 /// gap.** Two distinct ids that happen to describe to the same string — e.g.
@@ -148,6 +181,24 @@ import MetalUILayout
 /// the `.center` `Column`/`Row` set for themselves. A row with no explicit
 /// width therefore fills `List`'s own width, which is the shape a list's rows
 /// are expected to have.
+///
+/// **Exposes its full logical count to accessibility (design spec §9), but
+/// not its realized children — read this before wondering why VoiceOver
+/// finds no rows.** Every `List` emits its own `AXNode` (`role: .container`
+/// by default) unconditionally, carrying `logicalCount = data.count`
+/// regardless of how many rows this frame actually built — that half of §9's
+/// "3 of 500" is real (Task 7, `AXNodeTests.swift`). **The "3" half is not**:
+/// `AXNode.children` is always `[]` in production (see its own doc for why —
+/// `ElementGroup` hands a container a flat `[LayoutNodeID]`, not per-child
+/// ids, and reconstructing order from `Frame.axNodes`' own keys is provably
+/// ambiguous), and `List`'s row-wrapping `Box`es carry no `AXNode` of their
+/// own unless a caller's row element sets one. Measured on a production
+/// 500-row `List` (rows built as ordinary `Box { Text(...) }`, with or
+/// without `.onClick`): `Frame.axNodes` holds exactly **one** entry — the
+/// `List`'s own container — with **zero** row nodes. An M4 accessibility
+/// bridge reading a `List` today gets the 500 and nothing to attach it to;
+/// closing that needs the same `ElementGroup` change named above and is
+/// deferred outside this milestone.
 public struct List<Data: RandomAccessCollection, Row: Element>: Element, StyledElement
 where Data.Element: Identifiable {
     public var style: Style
@@ -307,7 +358,25 @@ where Data.Element: Identifiable {
                         content: Pair(spacer, ArrayGroup(rows)))
         // Carried onto the freshly-built box so `Box.prepaint` registers the
         // click target — this type has no `prepaint` of its own to do it in.
-        built.handlers = handlers
+        // `.axNode` rides the same trip: design spec §9's virtualization
+        // requirement is that a `List` exposes its FULL logical count
+        // (`count`, `data.count` above) regardless of how many rows this
+        // frame actually realized (`rows.count`, always <= `count` once
+        // windowing is active) — the two are asserted as different numbers
+        // by `AXNodeTests.swift`'s `aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount`.
+        // Unconditional, unlike every other declared `AXNode` field: nothing
+        // gates this behind a caller opting in (there is no public modifier
+        // for `.axNode` at all yet — see `AXNode.swift`'s own doc), because
+        // the exit criterion is that a `List` always exposes this, not that
+        // one CAN. A role is set only when the caller declared none, so a
+        // future `.axNode(_:)` modifier's own `role`/`label` are not
+        // silently overwritten here.
+        var listHandlers = handlers
+        if listHandlers.axNode.isEmpty {
+            listHandlers.axNode = AXNode(role: .container)
+        }
+        listHandlers.axNode.logicalCount = count
+        built.handlers = listHandlers
         let result = built.requestLayout(id, pass: &pass)
         box = built
         return result
