@@ -1331,7 +1331,7 @@ Ships incrementally: nodes and identity with **M3** (when interaction exists), t
 >   not — rows emit no AX nodes at all. Measured through the real pipeline on a production-shaped
 >   500-row `List`: `totalAXNodes=1, rowNodes=0, children=0, logicalCount=500`, against
 >   `hitboxes=17` for the same rows. **So a bridge reading a `List` today gets a correct count and
->   nothing to attach it to.** Same blocker as the emission bullet. §7.5 carries the same correction
+>   nothing to attach it to.** Same blocker as the emission bullet. §4.7 carries the same correction
 >   at the `List` end.
 > - **System settings — not built.**
 >
