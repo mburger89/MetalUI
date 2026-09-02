@@ -243,7 +243,7 @@ struct MeasurePerformanceTests {
     /// `staleAfterGenerations`, not on total row count: measured side by side,
     /// 10k and 100k produce byte-identical checkpoints (76 / 126 / 98 at
     /// frames 10/100/299) and a byte-identical cold-frame peak shape
-    /// (`n + 1`). 10k reaches the same demonstration in 0.181 s against
+    /// (`n + 2` as of Task 7 — see below). 10k reaches the same demonstration in 0.181 s against
     /// 1.3-1.9 s release for 100k, and this test alone was ~49 s of the
     /// suite's added wall clock at 100k. `aListsWorkIsTheSameFor100kRowsAsFor500`
     /// above is the one that must keep the real 100k — it is timing the M3
@@ -256,11 +256,11 @@ struct MeasurePerformanceTests {
     /// that re-marks an already-resident row does not create a new entry, it
     /// only flips `isLive`/`lastSeenGeneration` on the existing one
     /// (`StateTable.mark`/`withState`). So `table.count` cannot climb back
-    /// toward `n + 1` once it has fallen: entries leave storage only through
+    /// toward `n + 2` once it has fallen: entries leave storage only through
     /// `sweep()`'s reap, and this scroll never introduces an id `sweep()` has
     /// not already seen. A policy that never reaps (the pre-tombstone
     /// `sweep()`, or a reap with the size gate deleted the wrong way) would
-    /// leave `table.count` at exactly `n + 1` forever, since nothing would
+    /// leave `table.count` at exactly `n + 2` forever, since nothing would
     /// ever remove an entry; this test's bound (`n / 10`, an order of
     /// magnitude above the ~19-40 entries steady scrolling actually leaves
     /// resident) is loose enough to hold under any working reap policy and
@@ -268,7 +268,7 @@ struct MeasurePerformanceTests {
     ///
     /// **This test cannot see whether the size-gated reap exists at all — a
     /// fix-round caveat, not a hedge.** `storage.count` sits above
-    /// `StateTable.sweepThreshold` throughout this test (10,001 rows against
+    /// `StateTable.sweepThreshold` throughout this test (10,002 rows against
     /// a 256 threshold), so the size gate is permanently satisfied here and a
     /// mutation that deleted the gate (`storage.count > sweepThreshold`) would
     /// still redden nothing in THIS test — it would only change how early the
@@ -309,8 +309,15 @@ struct MeasurePerformanceTests {
         // builds every row (ruling MP-I) rather than windowing — the peak
         // this test exists to see reaped.
         renderFrame(offset: nil)
-        #expect(table.count == n + 1,
-                "the cold frame must build every row plus the scroller's own ScrollState entry")
+        #expect(table.count == n + 2, """
+                the cold frame must build every row plus the scroller's own \
+                ScrollState entry plus the List's own $ax retention slot — Task 7 made \
+                a List unconditionally emit ITS OWN AXNode (role .container, carrying \
+                logicalCount) so spec §9's exit criterion 4 holds regardless of whether \
+                a caller declared one, and Frame.emitAXNode retains a durable copy of \
+                every emission under a distinct \"$ax\" child slot (Task 6) — one more \
+                entry than before Task 7, for exactly one List, not per row
+                """)
 
         // Scroll in large jumps across the FULL 10k-row range — each
         // frame's window barely overlaps the last, so this is the shape that
@@ -335,7 +342,7 @@ struct MeasurePerformanceTests {
             print("MeasurePerformanceTests: table.count after scroll frame \(frame) = \(count)")
             #expect(count < n / 10, """
                     after frame \(frame) of scrolling, \(count) entries survive — a \
-                    policy that never reaps would sit at \(n + 1) here, since every \
+                    policy that never reaps would sit at \(n + 2) here, since every \
                     jump only re-marks entries the cold frame already created.
                     """)
         }

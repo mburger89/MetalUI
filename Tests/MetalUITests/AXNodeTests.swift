@@ -349,6 +349,168 @@ private func sized(_ w: Float, _ h: Float) -> Style {
     return s
 }
 
+// MARK: - Virtualization: a `List`'s logical count vs. its realized rows (design spec §9, Task 7)
+
+/// A row's own datum for the virtualization tests below — an `Int` id is
+/// enough, on `ListTests.swift`'s own `Item` footing.
+private struct AXListRow: Identifiable {
+    let id: Int
+}
+
+/// A minimal row element that emits its OWN `AXNode` during prepaint —
+/// deliberately, since `List`'s row-wrapping `Box` (`List.requestLayout`'s
+/// `rowStyle`) declares no `AXNode` of its own. This task's brief rules that
+/// `AXNode.children` cannot observe the realized set (Task 5's review found
+/// reconstructing child order from ids provably ambiguous) and that the
+/// realized set must instead be read off `Frame.axNodes` — the true set of
+/// nodes actually emitted this frame. That is only observable if SOMETHING
+/// per row emits a node, so this fixture opts every row in explicitly; a
+/// production `List` does not do this for its rows on its own (only for its
+/// own container node — see `List.requestLayout`), and this fixture is not
+/// claiming otherwise.
+private struct AXListLeaf: Element {
+    let datum: AXListRow
+    var elementID: ElementID? { nil }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Void) {
+        (pass.requestNode(style: Style(), children: []), ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Void, pass: inout PrepaintPass) {
+        pass.emitAXNode(AXNode(role: .text, label: "Row \(datum.id)"), at: bounds,
+                        id: id, children: [])
+    }
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// Runs the full three-phase pipeline over `list` with `context` pushed onto
+/// `frame`'s scroll-context stack before `requestLayout` runs —
+/// `ListTests.swift`'s own `renderWindowed`, reproduced here because that one
+/// is `private` to its own file.
+@MainActor
+private func renderListWindowed<Data: RandomAccessCollection, Row: Element>(
+    _ list: inout List<Data, Row>, context: ScrollContext
+) -> Frame where Data.Element: Identifiable {
+    let frame = bareFrame(600)
+    frame.pushScrollContext(context)
+    let rootID = GlobalElementID.child(of: nil, at: 0, name: list.elementID)
+    var layoutPass = LayoutPass(frame: frame)
+    let (root, layoutState) = list.requestLayout(rootID, pass: &layoutPass)
+    frame.popScrollContext()
+    var state = layoutState
+
+    frame.computeRootLayout(root: root)
+    let rootBounds = frame.bounds(of: root)
+
+    var prepaintPass = PrepaintPass(frame: frame)
+    var prepaintState = list.prepaint(rootID, bounds: rootBounds, layout: &state,
+                                      pass: &prepaintPass)
+    var paintPass = PaintPass(frame: frame)
+    list.paint(rootID, bounds: rootBounds, layout: &state, prepaint: &prepaintState,
+              pass: &paintPass)
+    return frame
+}
+
+/// **This task's own step 1 test, and the ruling that corrects its brief.**
+/// The brief asked to assert "its realized children are ~17" through
+/// `AXNode.children` — impossible, per this task's ruling above `AXNode.children`
+/// is always `[]` this milestone. The realized set is read off `Frame.axNodes`
+/// instead: the count of `.text`-role nodes actually emitted this frame, which
+/// only the rows inside the window contribute (`AXListLeaf.prepaint` above).
+///
+/// 500 rows at `rowHeight` 28, offset 140 (row 5's top), viewport 364 (13
+/// rows): window is rows 3..<20 — 17 rows, by the identical arithmetic
+/// `aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan`
+/// (`ListTests.swift`) already pins for this milestone's `visibleRange`.
+///
+/// **Both halves are asserted, and they are different numbers** — the ruling's
+/// own requirement: a test that only checks 500 would pass against a `List`
+/// that realized every row, which is exactly the regression windowing exists
+/// to prevent.
+@Test @MainActor func aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount() throws {
+    let data = (0..<500).map { AXListRow(id: $0) }
+    var list = List(data, rowHeight: px(28)) { AXListLeaf(datum: $0) }
+    list.elementID = ElementID("list")
+
+    let context = ScrollContext(offset: 140, viewportExtent: 364, axis: .vertical)
+    let frame = renderListWindowed(&list, context: context)
+
+    let listID = GlobalElementID.child(of: nil, at: 0, name: list.elementID)
+    let listNode = try #require(frame.axNodes[listID], "the List's own container node")
+    #expect(listNode.role == .container)
+    #expect(listNode.logicalCount == 500,
+            "the FULL logical count — spec §9's '500' half of '3 of 500'")
+
+    let realizedRowCount = frame.axNodes.values.filter { $0.role == .text }.count
+    #expect(realizedRowCount == 17,
+            "13 rows intersecting the 364pt viewport, widened by overscan 2 on each side")
+
+    #expect(listNode.logicalCount != realizedRowCount,
+            """
+            the two halves of spec §9's '3 of 500' must be different numbers — a List \
+            that realized every row would make this equal 500 and pass the two checks \
+            above for the wrong reason
+            """)
+}
+
+/// The positive control for the mutation the brief names in Step 5: report
+/// the realized count as the logical count. If `List.requestLayout` set
+/// `logicalCount` to `rows.count` (what was actually built) instead of
+/// `count` (`data.count`), this test would read `logicalCount == 17` and
+/// still be internally consistent with `realizedRowCount`, so a same-file
+/// mutant needs a second, undisturbed signal — `logicalCount` is checked here
+/// against the raw `data.count` literal (500) rather than against
+/// `realizedRowCount`'s own value, which is what actually catches that
+/// mutant (see this task's report for the mutation run).
+@Test @MainActor func aVirtualizedListsLogicalCountIsTheFullDataCountEvenWhenEveryRowFits() throws {
+    let data = (0..<5).map { AXListRow(id: $0) }
+    var list = List(data, rowHeight: px(28)) { AXListLeaf(datum: $0) }
+    list.elementID = ElementID("list")
+
+    // No scroll context at all: `visibleRange` builds everything, so this is
+    // the "realizes every row" shape — logicalCount must still read 5, not
+    // merely "whatever was built", which this small fixture cannot tell
+    // apart on its own without the differential test above.
+    let frame = bareFrame(600)
+    frame.render(&list)
+
+    let listID = GlobalElementID.child(of: nil, at: 0, name: list.elementID)
+    let listNode = try #require(frame.axNodes[listID])
+    #expect(listNode.logicalCount == 5)
+    let realizedRowCount = frame.axNodes.values.filter { $0.role == .text }.count
+    #expect(realizedRowCount == 5, "no scroll context — every row is built")
+}
+
+/// **A mutation gap found and closed, not merely reported.** Rewriting
+/// `List.requestLayout`'s `if listHandlers.axNode.isEmpty` guard to `if true`
+/// — always overwrite with `role: .container` — reddened NOTHING in the
+/// 781-test suite before this test existed: nothing anywhere sets
+/// `list.handlers.axNode` before rendering, so the guard's "already declared"
+/// branch was never exercised. `handlers` is a normal `public var` on `List`
+/// (there is no `.axNode(_:)` modifier yet — `AXNode.swift`'s own doc), so a
+/// caller CAN reach in and declare a role/label today; this pins that a
+/// caller's own declaration survives `List` adding `logicalCount`, rather
+/// than being silently clobbered to `.container`.
+@Test @MainActor func aCallerDeclaredAXNodeOnAListSurvivesLogicalCountBeingAdded() throws {
+    let data = (0..<3).map { AXListRow(id: $0) }
+    var list = List(data, rowHeight: px(28)) { AXListLeaf(datum: $0) }
+    list.elementID = ElementID("list")
+    list.handlers.axNode = AXNode(role: .button, label: "Custom")
+
+    let frame = bareFrame(600)
+    frame.render(&list)
+
+    let listID = GlobalElementID.child(of: nil, at: 0, name: list.elementID)
+    let listNode = try #require(frame.axNodes[listID])
+    #expect(listNode.role == .button && listNode.label == "Custom",
+            "the caller's own declared role/label must survive, not be overwritten to .container")
+    #expect(listNode.logicalCount == 3, "logicalCount is still added on top")
+}
+
 // MARK: - `AXNode.frame`/`.children`/`.isValid` are unreachable from a REAL external caller
 //
 // Every test above imports `MetalUI` with `@testable`, which grants this whole

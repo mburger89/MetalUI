@@ -307,7 +307,25 @@ where Data.Element: Identifiable {
                         content: Pair(spacer, ArrayGroup(rows)))
         // Carried onto the freshly-built box so `Box.prepaint` registers the
         // click target — this type has no `prepaint` of its own to do it in.
-        built.handlers = handlers
+        // `.axNode` rides the same trip: design spec §9's virtualization
+        // requirement is that a `List` exposes its FULL logical count
+        // (`count`, `data.count` above) regardless of how many rows this
+        // frame actually realized (`rows.count`, always <= `count` once
+        // windowing is active) — the two are asserted as different numbers
+        // by `AXNodeTests.swift`'s `aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount`.
+        // Unconditional, unlike every other declared `AXNode` field: nothing
+        // gates this behind a caller opting in (there is no public modifier
+        // for `.axNode` at all yet — see `AXNode.swift`'s own doc), because
+        // the exit criterion is that a `List` always exposes this, not that
+        // one CAN. A role is set only when the caller declared none, so a
+        // future `.axNode(_:)` modifier's own `role`/`label` are not
+        // silently overwritten here.
+        var listHandlers = handlers
+        if listHandlers.axNode.isEmpty {
+            listHandlers.axNode = AXNode(role: .container)
+        }
+        listHandlers.axNode.logicalCount = count
+        built.handlers = listHandlers
         let result = built.requestLayout(id, pass: &pass)
         box = built
         return result

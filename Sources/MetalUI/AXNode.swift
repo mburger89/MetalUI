@@ -81,6 +81,25 @@ public struct AXNode: Equatable {
     public var traits: Set<AXTrait>
     public var actions: Set<AXActionKind>
 
+    /// The full count a virtualized container represents — spec §9's "3 of
+    /// 500", the 500 half. `nil` for an ordinary node; a `List` sets it to
+    /// `data.count` on its own emitted node regardless of how many rows are
+    /// actually realized this frame (Task 7, `List.requestLayout`).
+    ///
+    /// **A normal declared field, on `role`/`label`'s footing — NOT
+    /// `frame`/`children`/`isValid`'s.** Those three are `internal(set)`
+    /// because `emitAXNode` overwrites them unconditionally from its own
+    /// parameters, discarding whatever a declared value carried (see this
+    /// type's own doc above). `logicalCount` is never touched by
+    /// `emitAXNode` — it flows straight through from whatever the caller set,
+    /// exactly as `role` and `label` do. Keeping it `public var` and on the
+    /// public initializer is what lets an author of a *custom* virtualized
+    /// element (not `List`) declare their own count the same way `List` does
+    /// internally; making it `internal(set)` would block every caller outside
+    /// this module from ever setting it, which is the wrong shape for data
+    /// nobody but the declarer can supply.
+    public var logicalCount: Int?
+
     /// The resolved bounds, absolute to the root — meaningless, and fixed at
     /// zero, until `emitAXNode` fills it in from `prepaint`'s own resolved
     /// geometry. Settable only from inside this module; see this type's own
@@ -125,13 +144,17 @@ public struct AXNode: Equatable {
 
     /// No `frame:`/`children:`/`isValid:` parameters, deliberately — see this
     /// type's own doc on why a caller cannot supply any of the three.
+    /// `logicalCount` IS a parameter here, on `role`/`label`'s footing rather
+    /// than theirs — see its own doc above.
     public init(role: AXRole = .generic, label: String? = nil, value: String? = nil,
-                traits: Set<AXTrait> = [], actions: Set<AXActionKind> = []) {
+                traits: Set<AXTrait> = [], actions: Set<AXActionKind> = [],
+                logicalCount: Int? = nil) {
         self.role = role
         self.label = label
         self.value = value
         self.traits = traits
         self.actions = actions
+        self.logicalCount = logicalCount
     }
 
     /// Whether this is the value an element gets by declaring nothing —
@@ -141,7 +164,7 @@ public struct AXNode: Equatable {
     ///
     /// **Safe to compare as a whole value BECAUSE `frame`/`children`/`isValid`
     /// cannot vary on a declared value** — `internal(set)` is what makes that
-    /// true rather than this property scoping itself to the five declarable
+    /// true rather than this property scoping itself to the six declarable
     /// fields by hand. A resolved value read back out of `Frame.axNodes` or
     /// `Frame.axNode(for:)` is never checked with this — `Box.prepaint` calls
     /// it only on the declared `handlers.axNode`, before emission.
