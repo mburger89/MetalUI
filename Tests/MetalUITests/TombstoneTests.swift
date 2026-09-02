@@ -41,11 +41,16 @@ import MetalUILayout
 
 /// **The cold-frame spike must FALL, and this is the only assertion that can
 /// see it.** Ruling MP-I: a `ScrollView`'s viewport is not measured until its
-/// own `prepaint` has run once, so frame 0 builds every row — 100,001 entries
-/// for a 100k list against a steady state of 19. Task 1 made the sweep retain,
-/// which turns that transient into a permanent one until something reaps it.
+/// own `prepaint` has run once, so frame 0 builds every row — 100,002 entries
+/// for a 100k list against a steady state of 20 (both **+1** over this
+/// paragraph's original 100,001/19 — this milestone's own Task 7 made a
+/// `List` unconditionally emit its own `AXNode`, a permanent `$ax` retention
+/// slot that adds exactly one resident entry, cold frame and steady state
+/// alike; re-measured for this fix round rather than assumed). Task 1 made
+/// the sweep retain, which turns that transient into a permanent one until
+/// something reaps it.
 ///
-/// A steady-state test cannot see this: 19 never approaches any threshold, so a
+/// A steady-state test cannot see this: 20 never approaches any threshold, so a
 /// policy that never reaps at all passes it.
 @MainActor
 @Test func theColdFrameSpikeIsReapedRatherThanRetainedForever() {

@@ -148,6 +148,24 @@ import MetalUILayout
 /// the `.center` `Column`/`Row` set for themselves. A row with no explicit
 /// width therefore fills `List`'s own width, which is the shape a list's rows
 /// are expected to have.
+///
+/// **Exposes its full logical count to accessibility (design spec §9), but
+/// not its realized children — read this before wondering why VoiceOver
+/// finds no rows.** Every `List` emits its own `AXNode` (`role: .container`
+/// by default) unconditionally, carrying `logicalCount = data.count`
+/// regardless of how many rows this frame actually built — that half of §9's
+/// "3 of 500" is real (Task 7, `AXNodeTests.swift`). **The "3" half is not**:
+/// `AXNode.children` is always `[]` in production (see its own doc for why —
+/// `ElementGroup` hands a container a flat `[LayoutNodeID]`, not per-child
+/// ids, and reconstructing order from `Frame.axNodes`' own keys is provably
+/// ambiguous), and `List`'s row-wrapping `Box`es carry no `AXNode` of their
+/// own unless a caller's row element sets one. Measured on a production
+/// 500-row `List` (rows built as ordinary `Box { Text(...) }`, with or
+/// without `.onClick`): `Frame.axNodes` holds exactly **one** entry — the
+/// `List`'s own container — with **zero** row nodes. An M4 accessibility
+/// bridge reading a `List` today gets the 500 and nothing to attach it to;
+/// closing that needs the same `ElementGroup` change named above and is
+/// deferred outside this milestone.
 public struct List<Data: RandomAccessCollection, Row: Element>: Element, StyledElement
 where Data.Element: Identifiable {
     public var style: Style

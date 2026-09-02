@@ -55,11 +55,22 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// `keyContext(_:_:)` that made its element focusable, an `onAction(_:_:)` that
 /// also registered a pointer hitbox by writing `onClick`.
 ///
-/// **`Handlers` has FIVE members as of the keymap task, and this comment said
-/// three until then.** The projection stopped tracking the struct and the
-/// comment stopped saying so, in one commit — the reason the two new modifiers
-/// escaped this table entirely. When `Handlers` gains a member, it gains a
-/// field here in the same change.
+/// **`Handlers` has SIX members as of the tombstones-and-AX milestone's Task
+/// 5, and this comment said five (before that, three) until this fix round.**
+/// The projection stopped tracking the struct and the comment stopped saying
+/// so, in one commit — the reason the two keymap-task modifiers escaped this
+/// table entirely, back when it happened the first time. It has now happened
+/// a SECOND time, to the same projection, for the same reason: `axNode` was
+/// added to `Handlers` at Task 5 and this struct was not updated in the same
+/// change. CLAUDE.md names this exact failure shape in advance and records
+/// this as its second occurrence. There is no modifier that writes `axNode`
+/// yet (`List.requestLayout` sets it directly, not through
+/// `StyledElement`'s modifier surface — see `AXNode.swift`'s own doc), so no
+/// `ModifierCase` below sets `axNode` in its `effect`; the field exists here
+/// so a FUTURE modifier — or a bug in an EXISTING one — that writes `axNode`
+/// is caught rather than silently absent from every case's comparison, on
+/// `context`'s own footing. When `Handlers` gains a member, it gains a field
+/// here in the same change.
 private struct HandlerShape: Equatable {
     var click = false
     var key = false
@@ -72,6 +83,13 @@ private struct HandlerShape: Equatable {
     /// `keyContext(_:_:)` that dropped its `values` argument is a mismatch here
     /// rather than a coincidence.
     var context: KeyContext?
+    /// The whole value, not a flag — `AXNode` is `Equatable` (unlike the four
+    /// closure-carrying members above, which is why this one CAN be a whole
+    /// value at all), so a future `axNode`-writing modifier that wrote the
+    /// wrong role/label is a mismatch here rather than a coincidence. Every
+    /// case below leaves this at the default `AXNode()`, matching
+    /// `Handlers.axNode`'s own default — nothing today writes it.
+    var axNode = AXNode()
 }
 
 @MainActor
@@ -299,7 +317,8 @@ private struct ModifierCase {
                              key: got.handlers.onKey != nil,
                              focusable: got.handlers.isFocusable,
                              actionCount: got.handlers.actions.count,
-                             context: got.handlers.keyContext) == expectedHandlers,
+                             context: got.handlers.keyContext,
+                             axNode: got.handlers.axNode) == expectedHandlers,
                 "\(c.name) wrote the wrong `Handlers` member, or wrote nothing")
     }
 }

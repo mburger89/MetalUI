@@ -241,8 +241,10 @@ struct MeasurePerformanceTests {
     /// **10,000 rows, not 100,000 — a fix-round finding, not a shortcut.**
     /// The checkpoint counts this test asserts depend on the *window size* and
     /// `staleAfterGenerations`, not on total row count: measured side by side,
-    /// 10k and 100k produce byte-identical checkpoints (76 / 126 / 98 at
-    /// frames 10/100/299) and a byte-identical cold-frame peak shape
+    /// 10k and 100k produce byte-identical checkpoints (77 / 127 / 99 at
+    /// frames 10/100/299 — re-measured fresh for this fix round, at both row
+    /// counts, rather than shifted by arithmetic; the byte-identical property
+    /// still holds) and a byte-identical cold-frame peak shape
     /// (`n + 2` as of Task 7 — see below). 10k reaches the same demonstration in 0.181 s against
     /// 1.3-1.9 s release for 100k, and this test alone was ~49 s of the
     /// suite's added wall clock at 100k. `aListsWorkIsTheSameFor100kRowsAsFor500`
@@ -262,9 +264,13 @@ struct MeasurePerformanceTests {
     /// `sweep()`, or a reap with the size gate deleted the wrong way) would
     /// leave `table.count` at exactly `n + 2` forever, since nothing would
     /// ever remove an entry; this test's bound (`n / 10`, an order of
-    /// magnitude above the ~19-40 entries steady scrolling actually leaves
-    /// resident) is loose enough to hold under any working reap policy and
-    /// tight enough to fail hard under a reap that does not run at all.
+    /// magnitude above the ~20-41 entries steady scrolling actually leaves
+    /// resident — shifted by the +1 this task's own `$ax` retention slot
+    /// adds, confirmed flat regardless of scroll parameters by a differential
+    /// probe rather than re-derived from the original harness, which this
+    /// range's own comment does not preserve) is loose enough to hold under
+    /// any working reap policy and tight enough to fail hard under a reap
+    /// that does not run at all.
     ///
     /// **This test cannot see whether the size-gated reap exists at all — a
     /// fix-round caveat, not a hedge.** `storage.count` sits above

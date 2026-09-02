@@ -85,22 +85,29 @@ final class StateTable {
     ///
     /// **Not copied from `ShapingCache` — chosen against this table's own two
     /// numbers, per the brief.** The steady state a windowed `List` leaves
-    /// behind is **19** entries (measured on a scrolling 500-row and a
+    /// behind is **20** entries (measured on a scrolling 500-row and a
     /// scrolling 100,000-row list alike — steady state is flat regardless of
     /// list size). The cold frame — frame 0, before a `ScrollView`'s own
-    /// `prepaint` has run once (ruling MP-I) — builds every row: **100,001**
-    /// on a 100k-row list. `ShapingCache`'s 256 sits close to *its* measured
-    /// resident set (207, ~81% of 256) on purpose, because its cost model is
-    /// "an eviction that turns out to still be live re-shapes every frame
-    /// forever" — thrashing near the threshold is expensive there. Nothing
-    /// here re-computes a value once reaped; a reaped `@State` slot that
-    /// comes back is just a fresh `initial()`, which is cheap and correct
-    /// (it is what a never-produced-before element gets too). So this table
-    /// has no reason to sit close to its steady state the way the cache
-    /// does, and every reason not to: 19 is two orders of magnitude below
-    /// 100,001, so a threshold anywhere in, say, the low thousands still
+    /// `prepaint` has run once (ruling MP-I) — builds every row: **100,002**
+    /// on a 100k-row list. **Both figures moved by exactly +1 from the
+    /// milestone's Task 7**, which made a `List` unconditionally emit its own
+    /// `AXNode` — a permanent, every-frame-re-marked `$ax` retention slot that
+    /// never goes stale, so it adds one resident entry to any windowed
+    /// `List`'s steady state and one to its cold-frame peak alike (Task 7's
+    /// fix round measured the delta directly, both in the large-jump 10k-row
+    /// suite test and in a differential steady-scroll probe: +1 in both,
+    /// independent of scroll parameters). `ShapingCache`'s 256 sits close to
+    /// *its* measured resident set (207, ~81% of 256) on purpose, because its
+    /// cost model is "an eviction that turns out to still be live re-shapes
+    /// every frame forever" — thrashing near the threshold is expensive
+    /// there. Nothing here re-computes a value once reaped; a reaped `@State`
+    /// slot that comes back is just a fresh `initial()`, which is cheap and
+    /// correct (it is what a never-produced-before element gets too). So this
+    /// table has no reason to sit close to its steady state the way the cache
+    /// does, and every reason not to: 20 is two orders of magnitude below
+    /// 100,002, so a threshold anywhere in, say, the low thousands still
     /// reaps the cold-frame spike down to near-nothing while leaving the
-    /// steady state (19) nowhere close to firing the reap on any ordinary
+    /// steady state (20) nowhere close to firing the reap on any ordinary
     /// frame. **256** would work for that alone, but this table's growth is
     /// unbounded on the number of distinct elements a session ever produces
     /// — not on a fixed viewport-driven working set the way glyph runs are —

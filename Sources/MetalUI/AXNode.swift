@@ -108,10 +108,32 @@ public struct AXNode: Equatable {
         origin: Point(x: .zero, y: .zero), size: Size(width: .zero, height: .zero))
 
     /// This node's children, in declaration order, by their own
-    /// `GlobalElementID` — meaningless, and fixed at `[]`, until `emitAXNode`
-    /// fills it in. A consumer looks each one up in `Frame.axNodes` to walk
-    /// the tree, which is what keeps this array from duplicating the child
-    /// records themselves. Settable only from inside this module.
+    /// `GlobalElementID` — meant to let a consumer look each one up in
+    /// `Frame.axNodes` to walk the tree, without this array duplicating the
+    /// child records themselves. Settable only from inside this module.
+    ///
+    /// **In production this is ALWAYS `[]`, and no caller fills it in — a
+    /// correction of what this doc used to say (Task 7's review).** The
+    /// earlier wording read as though `emitAXNode` populates this from real
+    /// child ids; it does not, because nothing ever hands it any. The one
+    /// production caller, `Box.prepaint`, always passes `children: []` (see
+    /// its own doc), and the reason is not an oversight left for `emitAXNode`
+    /// to close: `ElementGroup.requestGroupLayout` hands a container a flat
+    /// `[LayoutNodeID]` rather than a `GlobalElementID` per child, so a
+    /// container has no ids to pass in the first place. Reconstructing order
+    /// from `Frame.axNodes`' own keys does not work either — Task 5's review
+    /// found it provably ambiguous: `GlobalElementID.child(of:at:name:)` is
+    /// `name.map(PathComponent.named) ?? .positional(index)`, so the index is
+    /// discarded whenever a name is given, and two containers with the same
+    /// named children in opposite declaration orders produce an identical set
+    /// of ids — there is no order left to recover. Closing this needs an
+    /// `ElementGroup` associated-type change (an API that hands back ids
+    /// alongside layout nodes), which is out of this milestone's scope; see
+    /// `List`'s own type doc for the consequence this leaves for `List`
+    /// specifically, and Task 7's report for the measurement (a production
+    /// 500-row `List` emits exactly one `AXNode`, its own container, with
+    /// zero row nodes and `children.count == 0`, whether or not the rows
+    /// carry `onClick`).
     public internal(set) var children: [GlobalElementID] = []
 
     /// Whether this node was produced by the last **completed** frame —
