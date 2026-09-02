@@ -38,6 +38,17 @@ import MetalUILayout
 /// bound** through a dedicated `$focus` retention slot (that was divergence
 /// 17, also retired).
 ///
+/// **The threshold clause is not a technicality here, and a SHORT list is the
+/// case it changes.** The reap runs only above 256 entries, so a list whose
+/// rows carry `@State` reaches it only once enough rows have been built to put
+/// the table over — the cold frame builds every row (ruling MP-I), so a
+/// 500-row list crosses it and a 40-row one never does. **Below the threshold
+/// nothing is ever reaped and a row's `@State` survives any excursion, of any
+/// length.** That is not specific to `List`: it is CLAUDE.md's divergence 18,
+/// which records the same retention for every conditional subtree in the
+/// framework and notes that it disagrees with SwiftUI. Read "two generations"
+/// as the ceiling a large table imposes rather than as what a small one does.
+///
 /// **So the old advice survives for long excursions and only for those**: a
 /// value a long scroll must not lose belongs in the **data**, which is where
 /// a windowed list wants it anyway — `List` re-reads `data` every frame, so a

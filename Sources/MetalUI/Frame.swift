@@ -551,6 +551,38 @@ public final class Frame {
             // types). `resolveFocus()` reads this back with `peek`, which
             // returns non-nil for a live OR a tombstoned entry and nil only
             // once it is actually reaped.
+            //
+            // **KNOWN, and ruled "record, do not fix" at the whole-branch
+            // review: this write is not gated on `handlers.isKeyTarget`, so a
+            // `$focus` slot can be written for an element that was never
+            // legitimately focusable.** `Window.focus(x)` on a produced but
+            // non-focusable `x` reaches here and writes the slot *before*
+            // `resolveFocus()` clears the focus later in the same frame. Below
+            // `StateTable.sweepThreshold` that slot is never reaped, so a later
+            // `Window.focus(x)` made while `x` is NOT produced then **sticks**:
+            // `resolveFocus`'s fallback tests only `peek(...) != nil` and never
+            // asks whether the slot was written by a frame that also found `x`
+            // focusable. The consequence is a wrongly-sticky focus on an
+            // element that has never been a key target — not a clobber, not a
+            // crash, and not reachable without an explicit `Window.focus` call
+            // on a non-focusable element.
+            //
+            // **Deliberately not fixed, and the reason is the SHAPE of the fix
+            // rather than its size.** The obvious patch — gate this write on
+            // `isKeyTarget` — cannot be applied on its own, because the
+            // *produced* signal set immediately above must stay ungated: it is
+            // the only per-frame evidence distinguishing "gave up
+            // `.focusable()`" (clear at once) from "not produced" (fall back to
+            // retention), and `anElementThatStopsBeingFocusableLosesFocus`
+            // depends on exactly that. A correct fix must therefore SEPARATE
+            // two things that today share one conditional — keep
+            // `focusedElementProducedThisFrame` ungated, gate the slot write on
+            // `isKeyTarget`, and clear the slot in `resolveFocus`'s
+            // produced-but-not-focusable branch so a stale one cannot outlive
+            // the frame that invalidated it. That is a change to the focus
+            // contract rather than a patch, and it does not go in unreviewed in
+            // the last commit before a merge — the same judgement
+            // `Window.applyScroll` was given during the input milestone.
             stateTable.withState(Self.focusRetentionSlot(for: focused),
                                  initial: true) { _ in }
         }
@@ -749,6 +781,42 @@ public final class Frame {
     /// because it rides the identical `sweep()`/reap. Once that slot is
     /// actually reaped, `peek` returns `nil` and focus clears here, one frame
     /// after the reap happened.
+    ///
+    /// **"The same `staleAfterGenerations` bound" above is the CEILING, not the
+    /// behaviour an ordinary tree gets — and three consequences follow that
+    /// nobody designed in.** The reap runs only on a sweep where
+    /// `storage.count` exceeds `StateTable.sweepThreshold` (**256**), so below
+    /// that the `$focus` slot is never reaped and focus on a permanently
+    /// removed element is retained **indefinitely**. All three measured through
+    /// a real `Window` on 2026-09-02:
+    ///
+    /// 1. **Retained indefinitely.** Focus an element behind an `if`, remove
+    ///    it, render **60** more frames — `focusedElement` is still that id.
+    ///    Intended per design spec §5; the indefiniteness is what §5 did not
+    ///    say, and it is CLAUDE.md divergence 18's mechanism seen from the
+    ///    focus side rather than the `@State` side.
+    /// 2. **The dismissed subtree's still-produced ANCESTORS keep claiming its
+    ///    keystrokes**, and this is the consequence with no pin.
+    ///    `focusChain(from:)` walks the retained id's parent chain; those
+    ///    ancestors are produced and registered, so an ancestor's `onKey` and
+    ///    `keyContext` stay live for a subtree the user dismissed. Measured
+    ///    with a root carrying `onKey`: a keystroke after removal runs the
+    ///    ancestor's handler, where before this milestone it fell through to
+    ///    `Window.onInput`. **`focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow`
+    ///    does not catch it, by accident rather than by design** — it asserts
+    ///    `raw == ["window"]`, which reads as "the event reached the window",
+    ///    and only holds because that fixture's ancestors carry no `onKey`.
+    /// 3. **Focus is RESTORED on return** — 60 absent frames, bring the element
+    ///    back, and its own `onKey` runs again. That half is divergence 17's
+    ///    closure working as intended.
+    ///
+    /// **All three require a CONFIRMING FRAME, which is easy to trip over.**
+    /// `registerHandlers` writes the `$focus` slot only while the focused id is
+    /// actually being produced, so `Window.focus(x)` followed by removal with
+    /// no frame rendered in between retains nothing — measured by getting it
+    /// wrong first, in a probe that skipped the frame and looked like a
+    /// refutation of all three. `focusSetWithNoConfirmingFrameHasNothingToRetain`
+    /// is that boundary's pin.
     ///
     /// A free method rather than a step inlined into `render`, so a test can
     /// drive `PrepaintPass` directly and resolve focus explicitly, exactly as

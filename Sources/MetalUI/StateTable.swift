@@ -44,7 +44,23 @@ import MetalUICore
 /// corresponding slot, silently and with no diagnostic — design spec §8 risk
 /// 1, which named only the first of the three. Guarding one alone would leave
 /// one namespace defended and two open, which reads as though the other two
-/// were safe. What *is* pinned is that the three cannot collide with each
+/// were safe.
+///
+/// **And as of this milestone the risk is no longer only an AUTHOR typing one
+/// — a `List`'s DATA can supply it, which is a different threat model.** A
+/// row's wrapping `Box` is `.child(of: listID, at: 0, name:
+/// String(describing: datum.id))` and the `List`'s own AX retention slot is
+/// `.child(of: listID, at: 0, name: "$ax")`, so a datum whose id describes to
+/// `"$ax"` mints the identical `GlobalElementID`. `List`'s own doc already
+/// records `String(describing:)` non-injectivity as a real unguarded gap; what
+/// widens here is that the colliding string now comes from a caller's data
+/// rather than from a literal in their source, where nobody is looking for it.
+/// **No live clobber today** — nothing stores state under a bare row-`Box` id,
+/// and the row's own `$focus`/`$state0` slots are children of it and so remain
+/// distinct — which is why this is recorded rather than guarded, on the same
+/// footing as the three names above.
+///
+/// What *is* pinned is that the three cannot collide with each
 /// other: `theThreeRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`),
 /// written because renaming `"$ax"` to `"$focus"` reddened **0 of 777 tests**
 /// — measured at that suite size, before the pin itself was added, so the
@@ -465,7 +481,9 @@ final class StateTable {
     /// live entry can ever be stale here, with or without `!entry.isLive`.
     /// Proved both ways: read the two loops together, and empirically —
     /// deleting the `!entry.isLive` conjunct produces a byte-identical
-    /// 758/758 test run.
+    /// **782/782** test run (re-run 2026-09-02 at the whole-branch fix wave;
+    /// it read 758/758 when first measured, which was that task's own suite
+    /// size — the claim is "byte-identical", and the count only dates it).
     ///
     /// **Kept anyway, on purpose, as an honest label rather than dead
     /// code.** The redundancy is an accident of *this* ordering, not a law:

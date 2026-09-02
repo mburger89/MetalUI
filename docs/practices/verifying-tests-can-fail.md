@@ -141,6 +141,23 @@ new test turned out to catch two distinct mutants).
 > check. **Re-take the whole table, do not patch the flagged rows** — and name the
 > tests each row reddens, which is what makes a stale row visible at all.
 
+**An EXCLUSIVITY claim is the shape that rots worst, and it rots differently
+from a count.** "This mutation reddens exactly this test and nothing else in the
+777-test suite" is a statement about the *whole suite at one moment*, so it
+expires whenever anyone adds a test anywhere — and it expires **silently**,
+because the sentence still parses and the number still looks like a date. The
+tombstones-and-AX milestone's whole-branch review caught one: re-run at HEAD, the
+mutation reddened **two** tests, the second added to the *same file* two commits
+later. The claim was wrong in **kind**, not merely stale in number, and updating
+777 to 782 would have preserved a false sentence with a fresh date on it.
+
+> **Word a coverage claim as a differential between named tests, not as
+> exclusivity over a suite.** "This test catches the always-`true` direction and
+> that one catches always-`false`, and neither catches the other" survives every
+> test anyone adds. "…and nothing else in the N-test suite" does not, and its
+> failure mode is that it keeps looking measured. CS-N's "name the tests each
+> row reddens" is the same rule; this is why it is the rule.
+
 **Sharpened by the tombstones-and-AX milestone (ruling `TB-AC`), where the same
 mechanism fired inside a single fix round rather than across a milestone.** A
 review handed over four stale numbers. Taking the whole *file* instead of the

@@ -144,12 +144,26 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// test if it does), and not silently keep reporting the stale value as
 /// current (the whole point of `.isValid`).
 ///
-/// **One half of the required two-sided assertion, and measured to redden
-/// ALONE.** A mutation that always reports `isValid = true` reddens exactly
-/// this test and nothing else in the 777-test suite; `aHandleToAProducedElementReportsValid`
-/// below is the test the mutation that must always report `isValid = false`
-/// catches, and it alone — verified by running both, not reasoned. See that
-/// test's own comment for its half.
+/// **One half of the required two-sided assertion. The "and it alone" half of
+/// this comment was TRUE WHEN WRITTEN AND IS FALSE NOW — corrected rather than
+/// renumbered, because it is wrong in KIND and not merely stale by a count.**
+/// It said a mutation that always reports `isValid = true` "reddens exactly
+/// this test and nothing else in the 777-test suite". Re-run 2026-09-02
+/// (deleting `node.isValid = stateTable.isLive(slot)` from
+/// `Frame.axNode(for:)`): it reddens **two tests, 2 issues out of 782** — this
+/// one *and* `theThreeRetentionSlotsAreMutuallyDistinct`, which landed in this
+/// same file two commits later and reads validity back through the same
+/// production accessor.
+///
+/// **What survives is the claim that actually mattered**: this test is the one
+/// that catches the always-`true` direction, `aHandleToAProducedElementReportsValid`
+/// below catches always-`false`, and neither catches the other — the two-sided
+/// split is intact and was verified by running both rather than reasoned. What
+/// does not survive is *exclusivity*, and the reason is the ordinary one: a
+/// later test in the same file grew sensitivity to the same line. **An
+/// exclusivity claim is a claim about the whole suite at one moment, so it
+/// expires whenever any test is added anywhere** — which is why the surviving
+/// claim above is worded as a differential between two named tests instead.
 @Test @MainActor func aHandleToAnUnproducedElementReportsInvalid() throws {
     let frame = bareFrame()
     let pass = PrepaintPass(frame: frame)

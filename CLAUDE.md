@@ -94,6 +94,19 @@ idiomatic Swift. macOS and iOS.
     and "fixing" it means giving dispatch a second notion of sameness that
     disagrees with the one `StateTable`, focus and hover all use.
 
+    **FOCUS has the same flavour of this, it is PRE-EXISTING, and it is
+    recorded here because a reader will otherwise find it and file it against
+    the tombstones milestone.** A *focused* element inside a vanishing `if`
+    hands focus to the trailing sibling that adopts its id, and that sibling's
+    `onKey` runs — measured through a real `Window`: `["A"]` before the vanish,
+    `["B"]` after, with `focusedElement` unchanged. **Tombstone retention did
+    not create this and does not worsen it.** The old `resolveFocus` was
+    `if !focusRegistry.isFocusable(focused) { focusedElement = nil }`, and the
+    adopting sibling registers as focusable *under the adopted id* — so
+    `isFocusable(focused)` was already `true` and focus was already retained,
+    on exactly the same frame, before any of this milestone's changes. Same
+    rule, same remedy: name the trailing sibling.
+
   - **`cachedHash` and `==` are safe individually and unsafe only together.**
     Dropping the parent from the hash reddens exactly one test; a hash-shortcut
     `==` reddens nothing; do both and two unrelated elements silently share a
@@ -340,7 +353,15 @@ idiomatic Swift. macOS and iOS.
     `$ax`, the two retention slots the tombstones milestone added. All three
     are children of an element's own `GlobalElementID`, none is guarded, and
     guarding one alone would leave the framework with one namespace defended
-    and two open — which reads as though the other two were safe. What *is*
+    and two open — which reads as though the other two were safe. **And the
+    risk is no longer only an author typing one: a `List`'s DATA can supply
+    it.** A row's wrapping `Box` is named `String(describing: datum.id)` under
+    the list's id and the `List`'s own AX slot is `"$ax"` under the same id, so
+    a datum whose id describes to `"$ax"` mints the identical
+    `GlobalElementID`. No live clobber today — nothing stores state under a bare
+    row-`Box` id, and a row's own `$focus`/`$state0` slots are children of it —
+    but it is a different threat model from a literal in source, because the
+    colliding string arrives from data nobody is inspecting. What *is*
     pinned is that the three cannot collide with **each other**:
     `theThreeRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`), written
     because renaming `"$ax"` to `"$focus"` reddened **0 of 777** while
@@ -467,10 +488,57 @@ idiomatic Swift. macOS and iOS.
   IN-N), which is what lets a keymap binding work with nothing focused at all.
   A key event bubbles the focused id's **own parent chain** outward, with no
   second tree to keep in sync: structural identity already bought a persistent
-  parent link. `Frame.resolveFocus()` clears a focused id this frame did not
-  produce, at the prepaint/paint boundary — so an element that vanishes, *or*
-  stops being `.focusable()`, reads as unfocused on the very frame that drops
+  parent link. `Frame.resolveFocus()` clears a focused id that is produced this
+  frame and has stopped being `.focusable()`, at the prepaint/paint boundary —
+  so giving up `.focusable()` reads as unfocused on the very frame that drops
   it rather than one frame late.
+
+  **That sentence used to say "clears a focused id this frame did not produce",
+  and the "did not produce" half EXPIRED on 2026-09-01.** An id that is not
+  produced no longer clears: it falls back to `StateTable`'s retention through a
+  dedicated `$focus` child slot, which is how divergence 17 was retired
+  (ruling `TB-J`). The two branches are kept apart by a second signal,
+  `focusedElementProducedThisFrame`, set independently of
+  `handlers.isFocusable` — collapsing them reddens
+  `anElementThatStopsBeingFocusableLosesFocus` and two other tests, which is
+  what makes the distinction load-bearing rather than incidental.
+
+  **Three consequences of that fallback, and the first two are the ones nobody
+  designed in.** All three measured through a real `Window` on 2026-09-02.
+
+  - **Focus on a permanently-removed element is retained INDEFINITELY below
+    `sweepThreshold`.** Focus an element behind an `if`, remove it, render
+    **60** more frames: `window.focusedElement` is still that id. It never
+    becomes `nil` on its own, because the reap that would drop the `$focus`
+    slot only runs once the table exceeds 256 entries — the same
+    unbounded-below-the-gate behaviour divergence 18 records for `@State`.
+    Intended, per design spec §5's "one notion of still exists, not two"; the
+    *indefiniteness* is the part the spec did not say.
+  - **The dismissed subtree's still-produced ANCESTORS keep claiming its
+    keystrokes.** `focusChain(from:)` walks the retained id's parent chain, and
+    those ancestors are produced and registered, so an ancestor's `onKey` and
+    its `keyContext` stay live for a subtree the user dismissed. Measured: with
+    a root carrying `onKey`, a keystroke after removal logs **`["ancestor"]`**
+    where before this milestone it fell through to `Window.onInput`. **Nothing
+    pins this, and the reason is an accident worth knowing**:
+    `focusOnAnElementThatStopsBeingProducedIsRetainedWithinTheWindow` asserts
+    `raw == ["window"]`, which reads as "the event reaches the window" — but
+    only because that fixture's ancestors happen to carry no `onKey`. It is
+    untested by coincidence, not by design, and a fixture whose root had one
+    would show the ancestor claiming it.
+  - **Focus is RESTORED on return, which is the intended half.** Same shape,
+    60 absent frames, bring the element back: `focusedElement` is still it and
+    its own `onKey` runs again (`["child"]`). That is divergence 17's closure
+    working.
+
+  **A boundary on all three, and it is easy to trip over: retention needs a
+  CONFIRMING FRAME.** The `$focus` slot is written by `registerHandlers` only
+  while the focused id is actually being produced, so `Window.focus(x)` followed
+  by removal *with no frame rendered in between* retains nothing — focus clears
+  and the ancestor claims no keystroke. Measured by getting it wrong first: a
+  probe that skipped the confirming frame reproduced none of the three
+  consequences above and looked like a refutation of them.
+  `focusSetWithNoConfirmingFrameHasNothingToRetain` is the pin.
 
   **A keystroke resolves against the window's `Keymap` FIRST and reaches a raw
   `onKey` only if no binding matched.** Keymap as declaration of intent, raw
@@ -1665,13 +1733,22 @@ not for appearing, and which this demo's 500 rows cannot distinguish (reason 3,
 ruling `TB-K`). And every look this file already lists as permanently open,
 including the three the M2 entry names.
 
-## Ten known divergences, numbered 1, 2, 4, 9-11 and 13-16 — expected, measured, not defects
+## Eleven known divergences, numbered 1, 2, 4, 9-11, 13-16 and 18 — expected, measured, not defects
 
 **The labels are stable ids, not a running count, and there are now SEVEN
-retired labels.** There are **ten** entries; the highest label ever assigned is
-**17** and the highest still present is **16**. Seven labels are permanently
-retired, for **four** different reasons, which is worth knowing before assuming
-a gap means a lost entry:
+retired labels.** There are **eleven** entries and the highest label ever
+assigned is **18**, which is also the highest still present. Seven labels are
+permanently retired, for **four** different reasons, which is worth knowing
+before assuming a gap means a lost entry:
+
+**18 is new, and it was added by the same milestone that retired 12 and 17 —
+which is the shape to notice rather than a coincidence.** The mechanism that
+closed those two is a *general* change to `StateTable.sweep()`, and a general
+change has consequences outside the case it was built for. 12 and 17 were
+`List`-windowing limitations; 18 is what the same retention does to **every
+conditional subtree in the framework**, and it disagrees with SwiftUI rather
+than with CSS. A milestone that retires two entries and adds one has not
+necessarily come out ahead by one; read 18 before concluding it has.
 
 - **12 and 17 were retired by the tombstones-and-AX milestone (2026-09-01),
   and they are the first two entries retired by a fix that is DELIBERATELY
@@ -1821,8 +1898,9 @@ never was one.** 1, 2, 4 and 9 are places this engine answers differently
 from an oracle. (The retired 8 was the one entry where the disagreement was
 not with WebKit at all but between this engine's own layout and its own paint
 — which is also why it was the one that could simply be fixed.) **10, 11 and
-16 are design choices recorded here because a reader comparing this framework
-to CSS will otherwise read them as bugs** — 10 and 11 are the two directions
+16 and 18 are design choices recorded here because a reader comparing this
+framework to CSS — or, for 18, to **SwiftUI** — will otherwise read them as
+bugs** — 10 and 11 are the two directions
 of one seam and each entry names the other, and 16 is the price of the rule
 that closes the modal-scrim case. **13 and 14 are a third kind again:
 neither a disagreement nor a design preference, but accepted limitations
@@ -1837,7 +1915,13 @@ stale, so read it before putting a `List` in a scroller that
 holds anything else. **15 is a fourth kind and the only one of its own: a
 defect this framework has and has deliberately not fixed yet**, recorded here
 rather than left latent because its symptom — a subtree that draws nothing at
-all — reads as anything but a clipping bug.
+all — reads as anything but a clipping bug. **18 sits in the design-choice
+family with 10, 11 and 16 but is the only entry in this list whose disagreement
+is with SwiftUI rather than with CSS or with an oracle**, which matters because
+this project's standing rule takes SwiftUI's answer where the two differ
+(ruling EP-5). It is recorded as accepted rather than as settled: nothing about
+it is a browser question, so there is no oracle to appeal to, and the reason it
+is accepted is written into the entry rather than assumed.
 
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
@@ -2233,6 +2317,83 @@ the call site.
 wrong answer on purpose and says so in its own message. No fixture or golden
 encodes it and none could — CSS's wheel routing is not what this implements.
 
+**18. A `@State` in a removed conditional subtree is NOT reset the way SwiftUI
+resets it — it is retained, and below `sweepThreshold` it is retained
+indefinitely.** The only entry in this list whose disagreement is with
+**SwiftUI**, and the only one added by the same milestone that retired two.
+
+SwiftUI destroys a view's `@State` when the view leaves the tree; bring it back
+and the counter is 0 again. This framework, since 2026-09-01, does not.
+`StateTable.sweep()` retains an unmarked entry with its value and clears only
+`isLive`; the **reap** that would eventually discard it runs *only* on a sweep
+where `storage.count > StateTable.sweepThreshold` (**256**). A tree with fewer
+than 257 live entries — which is the demo, and most applications — therefore
+never reaps anything at all.
+
+Measured through a real `Window`, with the content closure re-evaluated per
+frame so this is the production shape rather than a stored-tree one:
+
+```swift
+Box { if flag.on { Counter() } }.id("root")
+```
+
+Three frames producing give counts **1, 2, 3**. Set `flag.on = false` and render
+**500** more frames. Set it back and render one: the counter reads **4**, not a
+fresh 1. `StateTable.count` sat at **1** the whole time, so the reap never
+engaged once.
+
+**This is a different claim from divergences 12 and 17's retirement, and
+conflating them is the mistake this entry exists to prevent.** Those two are
+recorded as closed "for two generations", and that is the *ceiling* — the
+behaviour a table over 256 entries gets. It is not what a small tree gets, and
+it is not what the phrase suggests. Read together: **`staleAfterGenerations`
+bounds retention only once `sweepThreshold` has opened the gate; below the gate
+there is no bound.** Every one of this milestone's excursion fixtures inserts
+**260 ballast ids** for exactly that reason — to force the gate open so the
+bound is observable at all.
+
+**Which is also the coverage statement, and it is a gap rather than a
+subtlety.** `aStaleEntryIsRetainedForeverWhileStorageStaysAtOrBelowSweepThreshold`
+(`TombstoneTests.swift`) pins the sub-threshold behaviour of the **raw table**,
+and nothing pins the **element-level** consequence — that a `@State` in a
+vanished `if` comes back holding its old value. No test in the 782 asserts it,
+and the two tests a reader would expect to (`TombstoneTests`' and `FocusTests`'
+excursion pair) are ballasted above threshold and therefore cannot see it.
+Recorded per taxonomy shape 4: silence at a behaviour reads as "not the
+behaviour".
+
+**Why it is accepted rather than fixed, stated because "deliberate" is not
+"free".** Reaping unconditionally — dropping the `sweepThreshold` gate — makes
+every frame walk the whole table, which is the cost the gate exists to avoid and
+which `ShapingCache`'s own threshold has the same shape for. Resetting on
+removal *instead of* retaining is the SwiftUI answer and is precisely what
+divergences 12 and 17 were retired for not doing; it cannot be had at the same
+time as their closure without a second notion of "gone", which design spec §5
+rejects for the reason the `dispatchClick` identity bullet gives. **So this is a
+real trade and not an oversight: SwiftUI's reset and a windowed row's surviving
+excursion are the same mechanism pointed in opposite directions.** What would
+resolve it honestly is an *element-scoped* removal signal — something that knows
+a subtree was removed from the tree rather than merely not produced this frame —
+which this framework does not have and which is the same missing distinction
+that keeps exit transitions unbuilt (design spec §4.3's correction block).
+
+**What it costs a caller today.** A `@State` counter, a text-field draft, a
+disclosure state, or an animation progress in a subtree behind an `if` survives
+being dismissed and reappears with its old value. That is *usually* invisible
+and occasionally wrong — a modal that re-opens showing the previous session's
+half-typed input is the shape to watch for. **The remedy is the same one
+divergence 12's entry gave and it did not go away with that entry**: a value
+that must be fresh on re-entry belongs in the data, or must be reset explicitly
+when the branch is taken. Recorded at `OptionalGroup`'s own doc
+(`ElementGroup.swift`), which is where a reader of the vanishing-`if` rule will
+be looking.
+
+**The focus half is the same mechanism and is written up in the focus bullet
+above rather than as its own entry**, because it is the identical retention with
+a different observable: a focused element removed behind an `if` keeps focus
+indefinitely below threshold, and its still-produced ancestors keep claiming its
+keystrokes.
+
 ## Declared but inert — verified, not remembered
 
 The single most likely way to write a bug in this repo is to use an API that
@@ -2462,6 +2623,22 @@ after Task 6's fix round (`f9d7613`, `0a10d53` — validity from
 a virtualized `List` reporting its full logical count) and **782** unchanged
 through both of its doc-only fix rounds (`fd62e63`, `84c0baa`). This
 documentation task adds no test, so 782 reproduces exactly.
+
+**The whole-branch fix wave added NO test and NO golden — 782 and 87 before and
+after — and that is a result rather than an omission.** The whole-branch review
+ran **17 mutations** against the branch's load-bearing lines and every one
+reddened something naming the property it mutated, so the wave had no coverage
+gap to close. What it produced instead was five record findings, and the largest
+is **divergence 18**: this branch shipped a real behaviour change — a `@State` in
+a removed conditional subtree is no longer reset, and below `sweepThreshold` not
+ever — that no divergence entry covered, because the whole record was framed
+around the `List` case the milestone was built for. **A general mechanism was
+documented only at its motivating case.** The wave also corrected two mutation
+claims in source docs, one of which was wrong in *kind*: an exclusivity claim
+("reddens exactly this test and nothing else in the 777-test suite") had become
+false because a later test in the same file grew sensitivity to the same line.
+See the practices doc's third record-mechanism for why an exclusivity claim rots
+worse than a count.
 
 **Two steps in that list are worth reading rather than counting.** Task 3's
 `+2` is one test the task was asked for and one it was not: the brief assigned
