@@ -2051,6 +2051,18 @@ earlier in the same milestone). Per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
 rather than at the commit that first quoted it.
 
+**`aListsWorkIsTheSameFor100kRowsAsFor500`
+(`Tests/MetalUITests/MeasurePerformanceTests.swift`) is disabled by default and
+does not run in the count above.** It times M3's exit-criterion cold frame at
+the real 100,000 rows (ruling MP-I) and alone adds ~42 s debug / ~17 s release
+to the suite's wall clock — gated the same way `regenerateAllGoldens`
+(`Tests/MetalUILayoutTests/GeneratorTests.swift`) gates an expensive
+deliberate act rather than a per-run one. Run it deliberately:
+
+```
+METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
+```
+
 **Typecheck guards: still 29** — 19 `PhaseSeparationTests` + 7
 `ErasureCompileGuards` + 1 `ElementGroupTrapTests` + 2
 `Tests/MetalUICoreTests/UnitSafetyTests.swift` (a bare `grep -c` there reads 3;

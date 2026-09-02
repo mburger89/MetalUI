@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 import MetalUICore
 import MetalUILayout
 @testable import MetalUIText
@@ -180,7 +181,16 @@ struct MeasurePerformanceTests {
     /// **Reported here, not asserted**: `swift test` output carries the
     /// printed line; the task report quotes the numbers it produced on this
     /// machine, in both debug and release.
-    @Test
+    ///
+    /// **Disabled by default: it alone adds ~42 s debug / ~17 s release to the
+    /// suite's wall clock**, dominated by the one mandatory 100,000-row cold
+    /// frame with full text shaping (ruling MP-I). Every later task, review
+    /// and fix round in this milestone would otherwise pay that on every run.
+    /// Matches `regenerateAllGoldens`'s own gating shape
+    /// (`Tests/MetalUILayoutTests/GeneratorTests.swift`) — an expensive
+    /// deliberate act, not a per-run guard. Enable deliberately:
+    ///   METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["METALUI_RUN_100K_LIST_TEST"] == "1"))
     func aListsWorkIsTheSameFor100kRowsAsFor500() throws {
         let states500 = StateTable(), states100k = StateTable()
         _ = Self.render({ demoLikeRows(500) }, states: states500)   // warm
@@ -211,7 +221,7 @@ struct MeasurePerformanceTests {
     }
 
     /// **Step 3 of the brief: the resident `StateTable` entry set stays
-    /// bounded while scrolling a 100k-row list, with tombstones live.**
+    /// bounded while scrolling a large list, with tombstones live.**
     /// `demoLikeRows(_:)` cannot see this — its rows carry no `@State` at all
     /// (measured live set of 1, the scroller's own offset), so it cannot
     /// exercise the tombstone/reap machinery `StateTable.sweep()` added this
@@ -225,28 +235,56 @@ struct MeasurePerformanceTests {
     /// **Deliberately content-free** (no `Text`): Step 1's test above already
     /// covers the shaping-heavy shape (`demoLikeRows`'s rows carry a distinct
     /// string apiece); this one isolates the `StateTable` question and keeps
-    /// the mandatory 100k-row cold frame cheaper by not also paying for
-    /// 100,000 distinct strings' worth of shaping.
+    /// the mandatory cold frame cheaper by not also paying for thousands of
+    /// distinct strings' worth of shaping.
+    ///
+    /// **10,000 rows, not 100,000 — a fix-round finding, not a shortcut.**
+    /// The checkpoint counts this test asserts depend on the *window size* and
+    /// `staleAfterGenerations`, not on total row count: measured side by side,
+    /// 10k and 100k produce byte-identical checkpoints (76 / 126 / 98 at
+    /// frames 10/100/299) and a byte-identical cold-frame peak shape
+    /// (`n + 1`). 10k reaches the same demonstration in 0.181 s against
+    /// 1.3-1.9 s release for 100k, and this test alone was ~49 s of the
+    /// suite's added wall clock at 100k. `aListsWorkIsTheSameFor100kRowsAsFor500`
+    /// above is the one that must keep the real 100k — it is timing the M3
+    /// exit-criterion number itself — but this test's question ("does the
+    /// bound hold, does it stay away from the peak") does not need six figures
+    /// of rows to ask.
     ///
     /// **Why the bound is safe rather than a guess.** After the cold frame,
-    /// every one of the 100,000 rows already has a `StateTable` entry — a
-    /// later frame that re-marks an already-resident row does not create a
-    /// new entry, it only flips `isLive`/`lastSeenGeneration` on the existing
-    /// one (`StateTable.mark`/`withState`). So `table.count` cannot climb
-    /// back toward 100,001 once it has fallen: entries leave storage only
-    /// through `sweep()`'s reap, and this scroll never introduces an id
-    /// `sweep()` has not already seen. A policy that never reaps (the
-    /// pre-tombstone `sweep()`, or a reap with the size gate deleted the
-    /// wrong way) would leave `table.count` at exactly 100,001 forever, since
-    /// nothing would ever remove an entry; this test's bound (`n / 10`, two
-    /// orders of magnitude above the ~19-40 entries steady scrolling actually
-    /// leaves resident) is loose enough to hold under any working reap policy
-    /// and tight enough to fail hard under a reap that does not run at all.
+    /// every one of the rows already has a `StateTable` entry — a later frame
+    /// that re-marks an already-resident row does not create a new entry, it
+    /// only flips `isLive`/`lastSeenGeneration` on the existing one
+    /// (`StateTable.mark`/`withState`). So `table.count` cannot climb back
+    /// toward `n + 1` once it has fallen: entries leave storage only through
+    /// `sweep()`'s reap, and this scroll never introduces an id `sweep()` has
+    /// not already seen. A policy that never reaps (the pre-tombstone
+    /// `sweep()`, or a reap with the size gate deleted the wrong way) would
+    /// leave `table.count` at exactly `n + 1` forever, since nothing would
+    /// ever remove an entry; this test's bound (`n / 10`, an order of
+    /// magnitude above the ~19-40 entries steady scrolling actually leaves
+    /// resident) is loose enough to hold under any working reap policy and
+    /// tight enough to fail hard under a reap that does not run at all.
+    ///
+    /// **This test cannot see whether the size-gated reap exists at all — a
+    /// fix-round caveat, not a hedge.** `storage.count` sits above
+    /// `StateTable.sweepThreshold` throughout this test (10,001 rows against
+    /// a 256 threshold), so the size gate is permanently satisfied here and a
+    /// mutation that deleted the gate (`storage.count > sweepThreshold`) would
+    /// still redden nothing in THIS test — it would only change how early the
+    /// first reap fires, which this test does not distinguish. Task 3 of this
+    /// milestone found exactly this shape in its own `List` fixture: a
+    /// permanently-true guard condition cannot test whether the guard exists.
+    /// `aStaleEntryIsRetainedForeverWhileStorageStaysAtOrBelowSweepThreshold`
+    /// (`TombstoneTests.swift`) is the test that actually pins the gate — a
+    /// single stale entry with `storage.count == 1`, nowhere near the
+    /// threshold, retained forever. Read that test for the size-gate claim;
+    /// read this one only for "the bound holds at scale."
     @Test
-    func theResidentEntrySetStaysBoundedWhileScrolling100kRows() throws {
+    func theResidentEntrySetStaysBoundedWhileScrolling10kRows() throws {
         func px(_ v: Float) -> Pixels { Pixels(v) }
         let rowHeight = px(20)
-        let n = 100_000
+        let n = 10_000
         let data = (0..<n).map(DemoRow.init)
         let table = StateTable()
 
@@ -274,7 +312,7 @@ struct MeasurePerformanceTests {
         #expect(table.count == n + 1,
                 "the cold frame must build every row plus the scroller's own ScrollState entry")
 
-        // Scroll in large jumps across the FULL 100k-row range — each
+        // Scroll in large jumps across the FULL 10k-row range — each
         // frame's window barely overlaps the last, so this is the shape that
         // would grow `storage` without bound under a policy that never
         // reaps: the cold frame already created every entry, so nothing here
@@ -350,12 +388,12 @@ func demoLikeRows(_ n: Int) -> some Element {
 
 /// A `List` row with a live `@State` slot and no content — this file's own
 /// version of `TombstoneTests.ExcursionRow`, used by
-/// `theResidentEntrySetStaysBoundedWhileScrolling100kRows` because
+/// `theResidentEntrySetStaysBoundedWhileScrolling10kRows` because
 /// `demoLikeRows(_:)`'s rows carry no `@State` at all (measured live set of
 /// 1, the scroller's own offset) and so cannot exercise `StateTable`'s
 /// tombstone/reap machinery. Deliberately content-free — `Step 1`'s test
-/// above already covers the shaping-heavy shape, and a 100,000-row cold
-/// frame is cheaper without also shaping 100,000 distinct strings.
+/// above already covers the shaping-heavy shape, and a 10,000-row cold
+/// frame is cheaper without also shaping 10,000 distinct strings.
 /// `elementID` is computed rather than stored so `Mirror` sees only `count`:
 /// its ordinal is 0, matching `TombstoneTests.ExcursionRow` and every other
 /// single-`@State` fixture in this suite (`$state0`).
