@@ -27,15 +27,16 @@ import MetalUICore
 /// survive the sweep as a **tombstone that reports itself invalid**, rather than
 /// vanishing.
 ///
-/// **Half of that mechanism is here; half is not.** `sweep()` no longer removes
-/// unmarked entries — every `Entry` retains its `value` forever, and `isLive`
-/// reports whether the element that owns it was produced by the most recent
-/// frame. `isLive(_:)` is the validity flag AX will read. What is still missing
-/// is **reaping**: nothing bounds how long a tombstone survives, so this table
-/// grows without limit as elements come and go — deliberately out of scope here
-/// (a later task's own central assertion needs that growth to be red on
-/// arrival) and tracked by `lastSeenGeneration`, which is written but not yet
-/// read by anything that reaps.
+/// **Both halves of that mechanism are here now.** `sweep()` no longer removes
+/// unmarked entries on the spot — every `Entry` retains its `value` past the
+/// frame that stopped producing it, and `isLive` reports whether the element
+/// that owns it was produced by the most recent frame. `isLive(_:)` is the
+/// validity flag AX will read. What bounds the tombstone's lifetime is
+/// **reaping**: once `storage.count` exceeds `sweepThreshold`, `sweep()` also
+/// drops entries that are both unmarked and more than `staleAfterGenerations`
+/// behind — see `staleAfterGenerations` and `sweepThreshold` for why those two
+/// numbers are sized against the cold frame (ruling MP-I) rather than the
+/// steady state a windowed `List` leaves behind.
 ///
 /// **Exit transitions are still impossible today**, but for a narrower reason
 /// than before: the *state* now survives an element's last frame, but nothing
@@ -59,9 +60,59 @@ final class StateTable {
     private var marked: Set<GlobalElementID> = []
 
     /// Advanced by `sweep()`, once per frame. An entry's `lastSeenGeneration`
-    /// is compared against this to decide staleness — the reaping this task
-    /// deliberately does not implement; see the class doc.
+    /// is compared against this to decide staleness.
     private(set) var generation: UInt64 = 0
+
+    /// An entry survives being unmarked for this many generations before
+    /// `sweep()` will reap it — same shape and same value as
+    /// `ShapingCache.staleAfterGenerations` (`Sources/MetalUIText/ShapingCache.swift:141`),
+    /// kept rather than widened: that value's own story is a grace period for
+    /// a caller that touches a key on a slightly different frame than the one
+    /// right before it (a windowed `List` re-touching a row it dropped one
+    /// frame and picked back up the next), and a `List` row is exactly that
+    /// caller here too — divergence 12/17 in CLAUDE.md are the state and
+    /// focus versions of the same re-touch pattern `ShapingCache` was tuned
+    /// for. There is no measurement here that argues for a different number,
+    /// so this copies the constant rather than inventing one.
+    static let staleAfterGenerations: UInt64 = 2
+
+    /// The entry-count `sweep()`'s reap triggers on — a trigger, not a
+    /// ceiling, on `ShapingCache.sweepThreshold`'s exact footing
+    /// (`Sources/MetalUIText/ShapingCache.swift:188`): once over this, reap
+    /// removes only entries that are both unmarked *and* stale, so a working
+    /// set that itself exceeds this number settles above it rather than
+    /// being forced under it.
+    ///
+    /// **Not copied from `ShapingCache` — chosen against this table's own two
+    /// numbers, per the brief.** The steady state a windowed `List` leaves
+    /// behind is **19** entries (measured on a scrolling 500-row and a
+    /// scrolling 100,000-row list alike — steady state is flat regardless of
+    /// list size). The cold frame — frame 0, before a `ScrollView`'s own
+    /// `prepaint` has run once (ruling MP-I) — builds every row: **100,001**
+    /// on a 100k-row list. `ShapingCache`'s 256 sits close to *its* measured
+    /// resident set (207, ~81% of 256) on purpose, because its cost model is
+    /// "an eviction that turns out to still be live re-shapes every frame
+    /// forever" — thrashing near the threshold is expensive there. Nothing
+    /// here re-computes a value once reaped; a reaped `@State` slot that
+    /// comes back is just a fresh `initial()`, which is cheap and correct
+    /// (it is what a never-produced-before element gets too). So this table
+    /// has no reason to sit close to its steady state the way the cache
+    /// does, and every reason not to: 19 is two orders of magnitude below
+    /// 100,001, so a threshold anywhere in, say, the low thousands still
+    /// reaps the cold-frame spike down to near-nothing while leaving the
+    /// steady state (19) nowhere close to firing the reap on any ordinary
+    /// frame. **256** would work for that alone, but this table's growth is
+    /// unbounded on the number of distinct elements a session ever produces
+    /// — not on a fixed viewport-driven working set the way glyph runs are —
+    /// so a threshold sized only to clear 19 leaves no margin for a second,
+    /// smaller list or a handful of ordinary (non-list) stateful elements
+    /// coexisting with it before the sweep starts firing every frame. 256
+    /// itself is kept: it is comfortably above any plausible non-list steady
+    /// state this framework's own demo produces, and the cold-frame test
+    /// below requires only that reaping actually runs when the table is
+    /// three orders of magnitude over it — it does not require sitting close
+    /// to it the way `ShapingCache` does.
+    static let sweepThreshold = 256
 
     /// Set by `write`. **A pure test observable with no production reader —
     /// `grep -rn "isDirty" Sources/` finds the declaration, the set in
@@ -275,19 +326,19 @@ final class StateTable {
     /// (spec §9) once that layer exists.
     func isLive(_ id: GlobalElementID) -> Bool { storage[id]?.isLive ?? false }
 
-    /// Re-mark every entry's liveness for the frame just finished, and retain
-    /// every entry regardless of the answer.
+    /// Re-mark every entry's liveness for the frame just finished, retain
+    /// every entry regardless of the answer, and — only once the table has
+    /// grown past `sweepThreshold` — reap the ones that are both unmarked and
+    /// stale.
     ///
     /// Called once per frame, **after** the frame is built.
     ///
-    /// **This no longer deletes anything — that is this task's whole change.**
-    /// Before it, this was `storage = storage.filter { marked.contains($0.key)
-    /// }`: an unmarked entry vanished, value and all, on the very sweep after
-    /// its element stopped being produced. Now every entry survives; only its
-    /// `isLive` flag (and, for the marked ones, `lastSeenGeneration`) moves.
-    /// Deletion — reaping a tombstone once it has been dead long enough — is
-    /// deliberately not implemented here; see the class doc and the milestone
-    /// this task is the first step of.
+    /// **The liveness pass no longer deletes anything — that was this
+    /// milestone's Task 1.** Before it, this was `storage = storage.filter {
+    /// marked.contains($0.key) }`: an unmarked entry vanished, value and all,
+    /// on the very sweep after its element stopped being produced. Now every
+    /// entry survives that pass; only its `isLive` flag (and, for the marked
+    /// ones, `lastSeenGeneration`) moves.
     ///
     /// **Clearing `marked` here is what makes the ordering matter, and it is
     /// subtler than it looks.** Because marks are cleared only inside this
@@ -303,6 +354,22 @@ final class StateTable {
     /// reddens is `anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue`
     /// (formerly `anElementThatStopsBeingProducedIsSweptByTheNextFrame`, before
     /// this task inverted it — see that test's own comment).
+    ///
+    /// **The reap runs second, guarded on `storage.count > sweepThreshold`, so
+    /// the steady state pays nothing at all** — a table sitting at 19 entries
+    /// never even evaluates a single entry's staleness. `entry.lastSeenGeneration
+    /// + staleAfterGenerations < generation` — addition against the just-
+    /// advanced `generation`, not subtraction from it — is deliberate:
+    /// `generation` is a `UInt64` starting at 0, and a subtracting form
+    /// (`generation - staleAfterGenerations`) underflows and traps on any of
+    /// the first `staleAfterGenerations` sweeps of this table's life. The
+    /// addition form asks the identical question and cannot underflow.
+    /// **`isLive` is checked, not `lastSeenGeneration` alone**: a `false` for
+    /// `isMarked` already means `isLive` was just set `false` above, so
+    /// `!entry.isLive` here is redundant with that but kept as the guard a
+    /// reader would look for first — a live entry (one this very sweep just
+    /// marked) must never be reaped regardless of how old its
+    /// `lastSeenGeneration` reads, and this is the line that promise rests on.
     func sweep() {
         generation += 1
         for id in storage.keys {
@@ -313,5 +380,12 @@ final class StateTable {
             }
         }
         marked.removeAll(keepingCapacity: true)
+
+        if storage.count > Self.sweepThreshold {
+            for (id, entry) in storage
+            where !entry.isLive && entry.lastSeenGeneration + Self.staleAfterGenerations < generation {
+                storage.removeValue(forKey: id)
+            }
+        }
     }
 }
