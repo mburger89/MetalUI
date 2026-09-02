@@ -156,6 +156,152 @@ struct MeasurePerformanceTests {
         #expect(lastStorage <= ShapingCache.sweepThreshold)
         #expect(lastMinContent <= ShapingCache.sweepThreshold)
     }
+
+    // MARK: - Task 8: M3's exit criterion — a 100k-row list
+
+    /// **Design spec §12 milestone 3's own exit criterion**: "a 100k-row
+    /// virtualized list scrolling smoothly." This is the same instrument as
+    /// `aListsWorkIsTheSameFor160RowsAsFor40`, extended two and a half orders
+    /// of magnitude — 100,000 against 500 rather than 160 against 40 — and it
+    /// asserts the SHAPE, not the time: a count fails identically on a loaded
+    /// machine where a millisecond baseline would flake, per this file's own
+    /// header comment.
+    ///
+    /// **The cold-frame timing is folded into this same test rather than
+    /// given its own** (Step 2 of the brief: "measure the cold frame
+    /// separately and report it"). Reaching steady state at 100k requires one
+    /// full cold-frame render regardless — ruling MP-I, a `ScrollView`'s
+    /// viewport is not measured until its own `prepaint` has run once, so
+    /// `List` builds every row on frame 0 — and that render is exactly the
+    /// number Step 2 asks for. Timing a SECOND, separate cold render would
+    /// double this test's own cost for no new information; the `warm-up`
+    /// comment below is where that number is taken and printed.
+    ///
+    /// **Reported here, not asserted**: `swift test` output carries the
+    /// printed line; the task report quotes the numbers it produced on this
+    /// machine, in both debug and release.
+    @Test
+    func aListsWorkIsTheSameFor100kRowsAsFor500() throws {
+        let states500 = StateTable(), states100k = StateTable()
+        _ = Self.render({ demoLikeRows(500) }, states: states500)   // warm
+
+        let clock = ContinuousClock()
+        let coldElapsed = clock.measure {
+            _ = Self.render({ demoLikeRows(100_000) }, states: states100k)   // warm — ruling MP-I's cold frame
+        }
+        // Step 2 of the brief: report, do not assert. Printing keeps the
+        // number in `swift test`'s own output rather than in a threshold
+        // this repo's own practice document says would flake on a loaded box.
+        print("MeasurePerformanceTests: cold frame at 100,000 rows took \(coldElapsed)")
+
+        Shaper.resetUnbreakableRunCalls()
+        let f500 = Self.render({ demoLikeRows(500) }, states: states500)
+        let calls500 = Shaper.unbreakableRunCalls
+
+        Shaper.resetUnbreakableRunCalls()
+        let f100k = Self.render({ demoLikeRows(100_000) }, states: states100k)
+        let calls100k = Shaper.unbreakableRunCalls
+
+        // Equal, not merely close — same reasoning as the 160-vs-40 test
+        // above: a uniform row height means the window is found by division,
+        // so the same ~13 rows are built regardless of whether the list holds
+        // 500 rows or 100,000.
+        #expect(calls100k == calls500)
+        #expect(f100k.shapingCache.storageCount == f500.shapingCache.storageCount)
+    }
+
+    /// **Step 3 of the brief: the resident `StateTable` entry set stays
+    /// bounded while scrolling a 100k-row list, with tombstones live.**
+    /// `demoLikeRows(_:)` cannot see this — its rows carry no `@State` at all
+    /// (measured live set of 1, the scroller's own offset), so it cannot
+    /// exercise the tombstone/reap machinery `StateTable.sweep()` added this
+    /// milestone. `StatefulListRow` below is this file's own version of
+    /// `TombstoneTests.ExcursionRow` — a row that increments a `@State` every
+    /// time it is actually built — and this test drives the scroller's stored
+    /// `ScrollState` directly (`TombstoneTests`' idiom, `ScrollRoutingTests`'
+    /// `stateTable.peek(id, as: ScrollState.self)` run in reverse) rather than
+    /// simulating wheel events.
+    ///
+    /// **Deliberately content-free** (no `Text`): Step 1's test above already
+    /// covers the shaping-heavy shape (`demoLikeRows`'s rows carry a distinct
+    /// string apiece); this one isolates the `StateTable` question and keeps
+    /// the mandatory 100k-row cold frame cheaper by not also paying for
+    /// 100,000 distinct strings' worth of shaping.
+    ///
+    /// **Why the bound is safe rather than a guess.** After the cold frame,
+    /// every one of the 100,000 rows already has a `StateTable` entry — a
+    /// later frame that re-marks an already-resident row does not create a
+    /// new entry, it only flips `isLive`/`lastSeenGeneration` on the existing
+    /// one (`StateTable.mark`/`withState`). So `table.count` cannot climb
+    /// back toward 100,001 once it has fallen: entries leave storage only
+    /// through `sweep()`'s reap, and this scroll never introduces an id
+    /// `sweep()` has not already seen. A policy that never reaps (the
+    /// pre-tombstone `sweep()`, or a reap with the size gate deleted the
+    /// wrong way) would leave `table.count` at exactly 100,001 forever, since
+    /// nothing would ever remove an entry; this test's bound (`n / 10`, two
+    /// orders of magnitude above the ~19-40 entries steady scrolling actually
+    /// leaves resident) is loose enough to hold under any working reap policy
+    /// and tight enough to fail hard under a reap that does not run at all.
+    @Test
+    func theResidentEntrySetStaysBoundedWhileScrolling100kRows() throws {
+        func px(_ v: Float) -> Pixels { Pixels(v) }
+        let rowHeight = px(20)
+        let n = 100_000
+        let data = (0..<n).map(DemoRow.init)
+        let table = StateTable()
+
+        var tree = ScrollView(.vertical, elementID: ElementID("scroller")) {
+            List(data, rowHeight: rowHeight) { _ in StatefulListRow() }
+        }
+        let contentSize = Size<Pixels>(width: px(200), height: px(400))
+        let scrollerID = GlobalElementID.child(of: nil, at: 0, name: ElementID("scroller"))
+
+        func renderFrame(offset: Double?) {
+            if let offset {
+                let current = table.peek(scrollerID, as: ScrollState.self) ?? ScrollState()
+                table.write(scrollerID, ScrollState(offset: offset,
+                                                    lastScrollTime: current.lastScrollTime,
+                                                    viewportExtent: current.viewportExtent))
+            }
+            let frame = Frame(contentSize: contentSize, scaleFactor: 1, stateTable: table)
+            frame.render(&tree)
+        }
+
+        // Frame 0: cold. No `ScrollView.prepaint` has run yet, so `List`
+        // builds every row (ruling MP-I) rather than windowing — the peak
+        // this test exists to see reaped.
+        renderFrame(offset: nil)
+        #expect(table.count == n + 1,
+                "the cold frame must build every row plus the scroller's own ScrollState entry")
+
+        // Scroll in large jumps across the FULL 100k-row range — each
+        // frame's window barely overlaps the last, so this is the shape that
+        // would grow `storage` without bound under a policy that never
+        // reaps: the cold frame already created every entry, so nothing here
+        // needs a NEW entry to be built, only for stale ones to be removed.
+        // `staleAfterGenerations` (2) is why a handful of frames is enough
+        // for the cold spike itself to become reapable.
+        let viewportExtent = Double(contentSize.height.value)
+        let totalExtent = Double(rowHeight.value) * Double(n)
+        let frameCount = 300
+        var countAtCheckpoint: [Int: Int] = [:]
+        for i in 0..<frameCount {
+            let offset = (totalExtent - viewportExtent) * Double(i) / Double(frameCount - 1)
+            renderFrame(offset: offset)
+            if i == 10 || i == 100 || i == frameCount - 1 {
+                countAtCheckpoint[i] = table.count
+            }
+        }
+
+        for (frame, count) in countAtCheckpoint.sorted(by: { $0.key < $1.key }) {
+            print("MeasurePerformanceTests: table.count after scroll frame \(frame) = \(count)")
+            #expect(count < n / 10, """
+                    after frame \(frame) of scrolling, \(count) entries survive — a \
+                    policy that never reaps would sit at \(n + 1) here, since every \
+                    jump only re-marks entries the cold frame already created.
+                    """)
+        }
+    }
 }
 
 // `ScrollView` conforms to `Element`, not `StyledElement` (CLAUDE.md's
@@ -200,4 +346,32 @@ func demoLikeRows(_ n: Int) -> some Element {
     .width(Pixels(420))
     .height(Pixels(370))
     .minHeight(Pixels(0))
+}
+
+/// A `List` row with a live `@State` slot and no content — this file's own
+/// version of `TombstoneTests.ExcursionRow`, used by
+/// `theResidentEntrySetStaysBoundedWhileScrolling100kRows` because
+/// `demoLikeRows(_:)`'s rows carry no `@State` at all (measured live set of
+/// 1, the scroller's own offset) and so cannot exercise `StateTable`'s
+/// tombstone/reap machinery. Deliberately content-free — `Step 1`'s test
+/// above already covers the shaping-heavy shape, and a 100,000-row cold
+/// frame is cheaper without also shaping 100,000 distinct strings.
+/// `elementID` is computed rather than stored so `Mirror` sees only `count`:
+/// its ordinal is 0, matching `TombstoneTests.ExcursionRow` and every other
+/// single-`@State` fixture in this suite (`$state0`).
+private struct StatefulListRow: Element {
+    @State var count = 0
+    var elementID: ElementID? { nil }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Void) {
+        count += 1
+        return (pass.requestNode(style: Style(), children: []), ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Void, pass: inout PrepaintPass) {}
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
 }
