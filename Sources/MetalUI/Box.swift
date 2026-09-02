@@ -88,6 +88,20 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // layer tie by registration index, and a child paints over its parent.
         // No-op unless `onClick(_:)` was called; see `registerHandlers`.
         pass.registerHandlers(handlers, at: bounds, id: id)
+        // No-op unless something set `handlers.axNode` to something other than
+        // `AXNode()` — `AXNode.isEmpty`'s own doc names this as `Handlers`'
+        // "empty means not a hit target" rule, one type over. **`children` is
+        // always `[]` from this call site**: a generic `Content: ElementGroup`
+        // hands `requestGroupLayout` a flat `[LayoutNodeID]`, not a
+        // `GlobalElementID` per child (`ElementGroup.swift`), so this container
+        // has no way to name its own children's ids without a change to that
+        // protocol's associated types — out of this task's scope. Whoever
+        // assembles a real tree either extends `ElementGroup` for it or walks
+        // `GlobalElementID.parent` over the flat `Frame.axNodes` map; see this
+        // task's report.
+        if !handlers.axNode.isEmpty {
+            pass.emitAXNode(handlers.axNode, at: bounds, id: id, children: [])
+        }
         // `bounds` is this box's own rect and is deliberately not passed down:
         // the engine stores rects **absolute to the root**, so each child looks
         // its own up rather than being offset by its parent. Adding `bounds`

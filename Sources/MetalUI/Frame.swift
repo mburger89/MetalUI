@@ -566,6 +566,40 @@ public final class Frame {
         .child(of: id, at: 0, name: ElementID("$focus"))
     }
 
+    // MARK: - Accessibility (design spec §9)
+
+    /// Every accessibility node emitted this frame, keyed by the element that
+    /// emitted it.
+    ///
+    /// **A dictionary rather than a list**, unlike `hitboxes` — nothing here
+    /// ranks records against each other (there is no "topmost" question for an
+    /// AX node), so the only operation any caller performs is "look up `id`",
+    /// which `hitboxes` would need a linear scan for. `Hitbox`'s per-frame
+    /// `HitboxID` handle exists to keep a dense array cheap to index; an
+    /// `AXNode` has no equivalent because nothing needs one.
+    ///
+    /// **Rebuilt from scratch every frame**, on `hitboxes` and `focusRegistry`'s
+    /// own footing: an element not produced this frame emits nothing, so a
+    /// tombstoned element's last-known node does not linger here the way its
+    /// `StateTable` entry does — this task builds no equivalent retention for
+    /// AX identity; see `AXNode`'s own doc and this task's report for what a
+    /// later task (design spec §9's tombstone-reporting node) still owes.
+    private(set) var axNodes: [GlobalElementID: AXNode] = [:]
+
+    /// Records `node` as `id`'s accessibility node, resolving its `frame` and
+    /// `children` from the parameters rather than from whatever `node` itself
+    /// carried — see `AXNode`'s own doc on why a declared value's `frame` and
+    /// `children` are not meaningful on the way in.
+    @discardableResult
+    func emitAXNode(_ node: AXNode, at bounds: Bounds<Pixels>, id: GlobalElementID,
+                    children: [GlobalElementID]) -> AXNode {
+        var resolved = node
+        resolved.frame = bounds
+        resolved.children = children
+        axNodes[id] = resolved
+        return resolved
+    }
+
     // MARK: - Focus (design spec §4.2)
 
     /// What each element asked for on the keyboard side this frame, built
