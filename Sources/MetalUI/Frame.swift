@@ -959,10 +959,23 @@ public final class Frame {
         // delays the `isLive` flag, not the value.) Witnessed by
         // `anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue`
         // (`StateTableTests.swift`, formerly `…IsSweptByTheNextFrame`), which
-        // is the only test that reddens if this call moves above the phases —
-        // and, since that milestone, only through its `isLive` assertions:
-        // `peek`/`count` no longer discriminate the mutation at all, because
-        // nothing `sweep()` does is deletion any more.
+        // is this ordering's own dedicated pin, through its `isLive`
+        // assertions — `peek`/`count` no longer discriminate the mutation at
+        // all, because nothing `sweep()` does is deletion any more.
+        //
+        // **Not the only test that reddens, and this was measured rather than
+        // assumed after a review caught the stale claim.** Moving this call
+        // to right after `StateBinder.bind` above reddens 3, not 1:
+        // the pin above, plus `flippingAnEitherBranchResetsTheBranchesState`
+        // and `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`
+        // (`IdentityTests.swift`). Both are two-frame `IdentityTests` cases
+        // whose tombstones-milestone inversion added an `isLive` assertion on
+        // an abandoned branch's entry — the same one-frame liveness lag this
+        // ordering pin exists for, reached incidentally rather than by design.
+        // They are not a second ordering guard: nothing about their own
+        // purpose (branch state resets rather than carries; a vacated slot is
+        // not "reserved") depends on sweep ordering, and a future edit should
+        // not preserve their `isLive` lines *for* this reason.
         stateTable.sweep()
     }
 }

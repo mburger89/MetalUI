@@ -180,6 +180,17 @@ import MetalUICore
 /// reset-not-carried property in this test's name. What changed is only that
 /// the abandoned `if` branch's entry is now still there, holding the value it
 /// had, reporting itself not live.
+///
+/// **That `!isLive` assertion is incidentally sensitive to `Frame.render`'s
+/// sweep-after-phases ordering** — found by a review, not by design: moving
+/// `stateTable.sweep()` above the phases makes this line redden too, because
+/// it exercises the same one-frame liveness lag
+/// `anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue`
+/// (`StateTableTests.swift`) exists to pin. This test is not a second guard
+/// on that ordering — its own purpose (distinct entries, not a shared one) is
+/// unrelated to it — so do not read the `!isLive` line as pinning ordering,
+/// and do not remove it on the theory that the dedicated pin already covers
+/// it; the two happen to overlap, they do not replace each other.
 @MainActor
 @Test func flippingAnEitherBranchResetsTheBranchesState() {
     let table = StateTable()
@@ -303,6 +314,16 @@ import MetalUICore
     // reserved its index" — and that ruling-out is unaffected: a reserved
     // index would show a *fresh* entry (value 1, `isLive == true`), not a
     // tombstone.
+    //
+    // The `!isLive` assertion below is, incidentally (found by a review, not
+    // by design), sensitive to `Frame.render`'s sweep-after-phases ordering —
+    // moving `stateTable.sweep()` above the phases reddens this line too, via
+    // the same one-frame liveness lag
+    // `anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue`
+    // (`StateTableTests.swift`) exists to pin. This test is not a second
+    // guard on that ordering; its purpose is unrelated (what a vacated slot
+    // does and does not inherit). Do not remove the assertion on the theory
+    // that the dedicated pin already covers it.
     let vacatedSlot = GlobalElementID.child(of: root, at: 1, name: nil)
     #expect(table.peek(vacatedSlot, as: Int.self) == 1)
     #expect(!table.isLive(vacatedSlot))

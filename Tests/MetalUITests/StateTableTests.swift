@@ -214,21 +214,39 @@ struct CountingElement: Element {
 /// what makes exit transitions buildable in a later milestone instead of
 /// impossible in this one.
 ///
-/// **This is still the only test that pins the sweep's ORDERING, but the
-/// signal that proves it changed.** Moving `stateTable.sweep()` in
-/// `Frame.render` from after the phases to before them used to redden this
-/// test via `peek`/`count`, because under the old delete-on-sweep semantics
-/// the wrong ordering left `a`'s entry alive with the wrong value. **Under
-/// tombstones `peek` and `count` no longer discriminate the mutation at
-/// all**: nothing is ever deleted, so both orderings land on `count == 2`
+/// **This is still the DEDICATED pin for the sweep's ORDERING — but no longer
+/// the only test that reddens under the mutation, and that "only" was a
+/// review finding, not a re-derivation of mine.** Moving `stateTable.sweep()`
+/// in `Frame.render` from after the phases to before them used to redden only
+/// this test, via `peek`/`count`, because under the old delete-on-sweep
+/// semantics the wrong ordering left `a`'s entry alive with the wrong value.
+/// **Under tombstones `peek` and `count` no longer discriminate the mutation
+/// at all**: nothing is ever deleted, so both orderings land on `count == 2`
 /// and `peek(a) == 1` regardless of when `sweep()` runs. Re-derived and
 /// checked against the mutation (not assumed): the ordering only changes
 /// whether `sweep()`, when it runs at the *start* of frame 2, still sees `a`'s
 /// mark from frame 1's `marked` set (which is cleared only inside `sweep()`
 /// itself) — so under the wrong ordering `a` reads `isLive == true` one frame
-/// longer than it should. `isLive(_:)` is therefore the only assertion below
-/// that still reddens under the mutation, and it is why this test could not
-/// simply keep its old shape with `!= nil` swapped in for `== nil`.
+/// longer than it should. `!isLive(id("a"))` below is therefore the specific
+/// assertion that reddens under the mutation — not `isLive(id("b"))`, whose
+/// entry is created live directly by `withState` regardless of when `sweep()`
+/// runs relative to `requestLayout`, so it agrees under both orderings — and
+/// it is why this test could not simply keep its old shape with `!= nil`
+/// swapped in for `== nil`.
+///
+/// **What I did not check, and a review did: this task's own inversions gave
+/// two `IdentityTests` cases the same sensitivity, incidentally.**
+/// `flippingAnEitherBranchResetsTheBranchesState` and
+/// `anElementAfterAVanishingIfAdoptsTheVanishedElementsState`
+/// (`IdentityTests.swift`) also added an `isLive` assertion on an abandoned
+/// branch's entry when Task 1 inverted them, and that assertion happens to be
+/// sensitive to the same one-frame liveness lag this test exists to pin —
+/// moving `sweep()` reddens all three, not one. Neither of the two is a
+/// second ordering guard: what each test is actually *for* (branch state
+/// resets rather than continues; a vacated slot is not "reserved") has
+/// nothing to do with sweep ordering, so do not preserve their `isLive` lines
+/// on the theory that they guard it — this test is still the one written for
+/// that purpose, and the only one whose comment claims it.
 @MainActor
 @Test func anElementThatStopsBeingProducedLosesLivenessButKeepsItsValue() {
     let table = StateTable()

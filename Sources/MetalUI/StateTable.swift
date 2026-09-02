@@ -123,16 +123,31 @@ final class StateTable {
     /// compiler checks, not a convention a reader has to remember.
     ///
     /// **`marked` — not `write` — is what `sweep()` reads to decide who was
-    /// actually produced.** `withState` and `mark` insert into it because
-    /// both run only from inside a frame's own construction (`requestLayout`
-    /// / `prepaint`), which is genuinely "this element was here this frame."
-    /// `write` deliberately does NOT (see `write`'s own doc for why) — so the
-    /// single field every one of the three flips is `Entry.isLive`, and
-    /// `marked` membership is the one thing that is allowed to differ between
-    /// them. That split is itself the "one path" the class doc's tombstone
-    /// section promises: there is exactly one flag (`Entry.isLive`) and
-    /// exactly one function (`sweep()`) that ever recomputes it from
-    /// `marked`; nothing keeps a second, shadow notion of liveness.
+    /// actually produced.** `withState` and `mark` insert into it; `write`
+    /// deliberately does not (see `write`'s own doc for why). **Correction to
+    /// an earlier draft of this comment, caught by a review rather than by
+    /// a test:** it claimed `withState` "runs only from inside a frame's own
+    /// construction," which is false — `Window.applyScroll`
+    /// (`Window.swift:711`) calls `stateTable.withState` directly, from raw
+    /// scroll-wheel handling, entirely outside `Frame.render`. `mark`'s only
+    /// path in (`StateBinder.bind`, `ElementGroup.swift:112` and
+    /// `Frame.swift:896`) really is exclusively frame construction — checked
+    /// by grepping every call site of `StateBinder.bind`, not assumed — but
+    /// `withState` is not, so "both run only from inside a frame's own
+    /// construction" overstated it for one of the two. What actually
+    /// distinguishes `withState` from `write` is narrower: `withState`'s
+    /// callers are a small, framework-owned set (`LayoutPass`/`PrepaintPass`/
+    /// `PaintPass`'s wrappers, `ScrollView`'s own bookkeeping, and
+    /// `Window.applyScroll`'s scroll-offset write) that are all tied to a
+    /// scroll region's continued existence — a wheel event that reaches
+    /// `applyScroll` always calls `setNeedsRedraw()` right after, so the
+    /// region is about to be produced again regardless. `write` has exactly
+    /// one caller (`@State`'s `wrappedValue` setter, `State.swift:64`) and
+    /// says nothing at all about whether its element still exists. The
+    /// single field every one of the three flips is still `Entry.isLive`,
+    /// and `marked` membership is still the one thing allowed to differ
+    /// between them — that part of the "one path" claim holds; only the
+    /// reason given for `withState`'s half did not.
     func withState<S>(_ id: GlobalElementID,
                       initial: @autoclosure () -> S,
                       _ body: (inout S) -> Void) {
@@ -171,15 +186,25 @@ final class StateTable {
     ///
     /// **Deliberately does NOT join `marked`, and this is a decision this
     /// task made rather than one the brief specified — see the report.**
-    /// `withState` and `mark` both run only from inside a frame's own
-    /// construction, so their `marked.insert` is a true "this element was
-    /// produced this frame" signal that `sweep()` may act on. `write` is
-    /// `@State`'s `wrappedValue` setter and can run from anywhere — most
-    /// often a click handler firing *between* frames — so treating a write as
-    /// equivalent to production would let an element that was never rendered
-    /// this frame masquerade as live for exactly one sweep, which is wrong
-    /// for what `isLive` promises AX (spec §9): produced, not merely poked.
-    /// If the owning element genuinely is being produced this frame, its own
+    /// `mark`'s only call path (`StateBinder.bind`) runs exclusively from
+    /// inside a frame's own construction, so its `marked.insert` is a true
+    /// "this element was produced this frame" signal. `withState` is looser
+    /// — it is also called from `Window.applyScroll` in direct response to a
+    /// raw scroll-wheel event, outside any frame — but every one of its
+    /// callers is a small, framework-owned set tied to a scroll region's
+    /// continued existence, and a wheel event that reaches `applyScroll`
+    /// always triggers `setNeedsRedraw()`, so the region is about to be
+    /// produced again regardless of exactly which call marked it (see
+    /// `withState`'s own doc for the correction to an earlier, overstated
+    /// version of this claim). `write` is different in kind, not degree: it
+    /// is `@State`'s `wrappedValue` setter, has exactly one call site
+    /// (`State.swift:64`), and can run from *anywhere* — most often a click
+    /// handler firing between frames — with no relationship at all to
+    /// whether its element still exists. Treating a write as equivalent to
+    /// production would let an element that was never rendered this frame
+    /// masquerade as live for exactly one sweep, which is wrong for what
+    /// `isLive` promises AX (spec §9): produced, not merely poked. If the
+    /// owning element genuinely is being produced this frame, its own
     /// `mark`/`withState` call already keeps the entry live; this only
     /// changes what happens to a write whose element is NOT being produced —
     /// its value still survives the next `sweep()` (tombstones keep every
