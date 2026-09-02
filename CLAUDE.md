@@ -1478,6 +1478,193 @@ process fact (build, launch, stderr, test count, goldens) or a measurement
 taken through a headless probe (`Task9Probe.swift`, deleted before Task 9's
 own commit), never through a rendered window.
 
+**The tombstones-and-AX milestone — exit criterion 9
+(`docs/superpowers/specs/2026-09-01-tombstones-and-ax-design.md` §7 item 9) is
+OPEN. Nobody has run this build.** The criterion asks a human to run the demo
+and report *whether anything regressed*, and that wording is exact rather than
+modest: a regression check is the whole of what this demo can supply.
+
+**Read what a positive report would close before asking for one, because it is
+less than a reader of the entries above will expect.** Three reasons, each
+measured or verified here rather than supposed.
+
+1. **The demo does not exercise this milestone's own subject.** Divergences 12
+   and 17 were about a windowed `List` row keeping its `@State` and its focus
+   across an excursion. `Sources/MetalUIDemo/main.swift` declares exactly
+   **one** `@State` in the whole file — `CounterPanel.count`, at line 181 —
+   and the `List` row builder declares none; re-verified this task with
+   `grep -n "@State" Sources/MetalUIDemo/main.swift`, whose only non-comment
+   hit is that one line. **No row in the running demo has any state to keep**,
+   so a human scrolling the list cannot observe a row keeping *or* losing one:
+   the observable this milestone is about is simply absent from the screen.
+   Design §8 risk 4 predicted exactly this, and the design's §2 probe measured
+   a live set of **1** — a figure attributed rather than re-run here, and one
+   to read precisely, since it was taken against `demoLikeRows`,
+   `MeasurePerformanceTests`' fixture, which carries no counter and is
+   therefore not a figure for the shipping demo's whole tree.
+
+   **What this reason rests on is the grep and nothing more.** The stronger
+   claim — that no element in the demo tree ever produces a tombstone at all —
+   was **not** measured: the counter, the `List` and the scroller are produced
+   on every frame and so are marked on every frame, but that is derived from
+   reading the tree rather than read off a live table, and nobody should cite
+   it as though a probe had said so.
+2. **There is no AX bridge, so nothing about the AX node tree is observable at
+   all — and whether VoiceOver actually navigates the tree is PERMANENTLY
+   OPEN, not pending.** Design §4 puts `NSAccessibilityElement` /
+   `UIAccessibilityElement` in M4 explicitly. Until it exists there is no path
+   from an `AXNode` to a screen reader, so no human report on any build of
+   this milestone can say anything about it, positive or negative. The node
+   tree being plain data and directly assertable (design §6) settles what the
+   tree *contains*; it settles nothing about what a screen reader *does with
+   it*, and this entry must not be cited as though it did. The demo also
+   declares no AX data of its own — `grep -n "axNode" Sources/MetalUIDemo/main.swift`
+   returns nothing, and `Box.prepaint` emits only when `handlers.axNode` is
+   non-empty (`Sources/MetalUI/Box.swift:102`) — so the only `AXNode` in the
+   running tree is the one `List.requestLayout` writes for itself.
+3. **M3's own exit criterion — "a 100k-row virtualized list scrolling
+   smoothly" — cannot be cleared by this demo either, and the reason is that
+   the demo cannot exhibit the failure.** Ruling `TB-K`: a 100,000-row list
+   scrolls at 500-row cost and **hangs ~17 s in release the first time it is
+   shown**, which is ruling MP-I's cold frame scaled. `demoRowCount` is
+   **500** (`Sources/MetalUIDemo/main.swift:91`), whose cold frame MP-I puts
+   at ~76 ms release. A human reporting "the list scrolls fine" is reporting
+   on 500 rows and is not reporting on 100,000. See the Build section's own
+   `### The 100k cold frame…` subsection, where both halves of that criterion
+   are stated separately.
+
+**The demo was deliberately NOT changed to make divergence 12 observable, and
+the reason is two framework hazards this file already records rather than a
+judgement about effort.** Making a row's `@State` visible requires the value to
+*differ* from its initial value, which requires a write, and a `List` row has
+exactly two write paths. An `onClick` on the row is **divergence 16** — every
+`onClick` registers an opaque hitbox and a wheel stops at the topmost opaque
+hitbox, pinned by `aClickTargetInsideAScrollViewSwallowsTheWheel`
+(`Tests/MetalUITests/InputDispatchTests.swift`) — so stateful rows would make
+the demo's list unscrollable over its own rows, sabotaging the standing report
+item that asks whether the list still scrolls. A write from `requestLayout` is
+forbidden outright by the `@State` bullet at the top of this file: it keeps the
+window permanently dirty, so the display link never pauses, which is milestone
+4's exit criterion sabotaged from an element. **And the bound would mostly not
+be humanly reachable anyway**: `StateTable.staleAfterGenerations` is **2**, so
+the generation half of the window is two sweeps wide, while the half a human
+*could* reach is the `sweepThreshold` (**256**) gate — whose boundary in this
+particular tree is a sawtooth in `storage.count` that would have to be measured
+headlessly to be described honestly, on a build nobody has run. The modal-scrim
+precedent applies on top: this one file carries every milestone's exit criteria
+in one demo, and a per-row affordance added for one of them taxes every future
+look.
+
+**What was established here, and it is a set of process facts rather than a
+look.** All of the following were run on 2026-09-02 at commit `ebfaed8`:
+
+- `swift package clean` followed by `swift build` — **`Build complete!
+  (27.13s)`**, and a `grep -ci "warning:"` over the full build log reads **0**.
+  Because it followed a clean, `MetalUIDemo` was genuinely compiled and linked
+  from scratch (`Compiling MetalUIDemo main.swift`, `Linking MetalUIDemo` both
+  present in the log) rather than skipped as a cached no-op.
+- `swift run MetalUIDemo` — reached a running process, was still alive under
+  `ps` at **21 s** (`.build/arm64-apple-macosx/debug/MetalUIDemo`, state `SN`),
+  and was terminated deliberately by this task rather than exiting on its own.
+  **stdout was 0 bytes**; stderr was 142 bytes and carried nothing beyond
+  SwiftPM's own banner (`[0/1] Planning build`, `Building for debugging...`,
+  `Build of product 'MetalUIDemo' complete! (0.17s)`).
+- `swift test --no-parallel`, unfiltered, twice: **`Test run with 782 tests in
+  1 suite passed after 29.022 seconds.`** and, on the second run,
+  `…after 15.091 seconds.` The **first followed the `swift package clean`** and
+  the second did not; beyond that the difference was not chased, and 15.091 s
+  reproduces the regime Task 9 recorded (14.903 s). The summary line was read;
+  the exit status was not trusted. `grep -ci "warning:"` over each full log
+  reads **0**.
+- **780 of the 782 run**: exactly two tests report as skipped in each run —
+  `regenerateAllGoldens` and `aListsWorkIsTheSameFor100kRowsAsFor500` — which
+  is the Build section's own distinction between being gated and not counting.
+- **Goldens 87** (`find Tests -name "*.json" | wc -l`), and none touched:
+  `git diff --name-only 2f8994b -- 'Tests/**/*.json'` and `git status --short --
+  'Tests/**/*.json'` are both empty.
+- **Guards 32 across five files**, re-summed by `grep -c canTypecheck` per
+  file: 19 + 7 + 1 + 2 + 3, where `Tests/MetalUICoreTests/UnitSafetyTests.swift`
+  reads 3 because line 13 is a comment, and `Tests/MetalUITests/AXNodeTests.swift`'s
+  3 are all real `@Test(.enabled(if:…))`.
+
+**Those facts rule out exactly one failure — a crash on startup — and establish
+nothing whatever about what is on screen.** The process stayed alive; nobody
+looked at it.
+
+**What the machine established, and every figure of it is a headless count.**
+The milestone's evidence is in the Build section's climb, the divergence-12/17
+retirement bullet and the `### The 100k cold frame…` subsection, and it is
+counts out of `Frame` rather than observations of a window: a cold resident set
+of exactly `n + 2` collapsing to under `n / 10` within ten scroll frames at
+10,000 rows, the two asymmetric excursion pins, the threshold-gate pin, and the
+AX node tree's contents. **No pixel was inspected and no `renderOffscreen`
+readback was taken at any point in this milestone** — unlike the `Stack`
+milestone, which had one, and checked rather than assumed: every occurrence of
+`renderOffscreen` across the branch's own diff and its task reports is prose
+about this file, not a call. There is therefore no artifact anywhere in this
+milestone that has observed the demo, and this entry claims none.
+
+**What a human must do, and what to report.** Run `swift run MetalUIDemo`.
+Then run `swift run -c release MetalUIDemo`, because the measure-performance
+entry above records that the two builds can disagree and that its own debug
+half was never reported on. Look at the whole window; items 1 through 4 are
+where this milestone's changes could show, and item 5 is deliberately aimed at
+nothing in particular.
+
+1. **Is the counter panel visibly focused at launch, and do `=` / `shift-+` /
+   `-` move the count?** The counter is where `resolveFocus`'s new clause is
+   reachable by hand. `Frame.resolveFocus()` gained a clause: it now keeps a
+   focused id whose element was not produced this frame when that id's `$focus`
+   retention slot is still present in the `StateTable`
+   (`Sources/MetalUI/Frame.swift:756-766`). The counter *is* produced every
+   frame, so the expected answer is that nothing changed from the
+   input-and-state entry above — but a defect in the new clause in the
+   permissive direction would show here first.
+2. **Press Escape and press `=` and `-` again: the expected answer is that
+   NOTHING happens.** This is item 1's other direction and the sharper of the
+   two. Both bindings carry `context: "Counter"`, contributed only by the
+   focused panel, so a count that still moves after Escape means focus was
+   retained when it should have been cleared — which is precisely the failure
+   mode a retention slot introduces. Press **F** to take focus back and confirm
+   they work again.
+3. **Does the scroll list still behave** — same visible extent, same scrolling
+   motion, reaching row 500 cleanly at the bottom, and no row missing, blank or
+   late-arriving at the bottom edge while scrolling hard? `List` gained a
+   per-list `$ax` retention slot and a `logicalCount` write this milestone, and
+   `StateTable.sweep()` — which runs once a frame over every element's state —
+   changed. The list is where a sweep defect would surface as something a
+   person can see.
+4. **Does the window take a visible moment to appear at launch, in debug
+   especially?** Unchanged in mechanism (ruling MP-I, ~188 ms debug / ~76 ms
+   release at 500 rows), and asked again only because nobody has watched this
+   build start. **Do not expect tombstones to have made it worse here, and the
+   reason is reason 1 again**: the cold frame's `n + 2` resident spike is a
+   property of a fixture whose every row holds `@State`, and this demo's rows
+   hold none, so there is no per-row entry for the sweep to retain. **This is
+   500 rows and is not evidence about the 100,000-row hang** — see reason 3
+   above.
+5. **Anything different that this milestone did not predict.** `sweep()` is on
+   the path every element's state takes, so this question is deliberately aimed
+   at nothing in particular, on the same footing as every other milestone's in
+   this file.
+
+**What a positive report closes, stated narrowly.** It closes design spec §7
+item 9 as written — "a human runs the demo and reports whether anything
+regressed" — and it is genuinely valuable as that: `sweep()` is shared by every
+element in the framework and a general "nothing looks wrong" from a real window
+is evidence no headless count supplies.
+
+**What it does NOT close, and none of these becomes closeable by a better
+report on this build.** Divergences 12 and 17's bounded closure, which no
+element in this demo can exercise (reason 1) — the pins named in the divergence
+bullet are the only evidence for it and are headless. Anything about
+accessibility as experienced, which needs M4's bridge and a human with a screen
+reader, and which is **permanently open here rather than pending** (reason 2).
+M3's "100k rows scrolling smoothly" as a whole, which is met for scrolling and
+not for appearing, and which this demo's 500 rows cannot distinguish (reason 3,
+ruling `TB-K`). And every look this file already lists as permanently open,
+including the three the M2 entry names.
+
 ## Ten known divergences, numbered 1, 2, 4, 9-11 and 13-16 — expected, measured, not defects
 
 **The labels are stable ids, not a running count, and there are now SEVEN
