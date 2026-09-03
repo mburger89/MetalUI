@@ -205,13 +205,34 @@ final class ProbeModel {
 }
 
 /// Spec §4.2, the hop branch. An off-thread mutation cannot touch `@MainActor`
-/// state, so it must go through a `Task`. The observable difference is exactly
-/// the suspension: still clean immediately after the write, dirty after a yield.
+/// state, so it must go through a `Task`. This test asserts the branch's two
+/// genuinely OBSERVABLE guarantees rather than an intermediate "still clean"
+/// state that turns out not to be observable at all (see below).
 ///
-/// The two halves are what make this a test of the BRANCH. Asserting only the
-/// second half would pass under an implementation that hopped in both cases,
-/// and asserting only the first would pass under one that dropped the callback
-/// entirely.
+/// **Guarantee 1: it does not trap.** A bare `MainActor.assumeIsolated` called
+/// from a non-main thread terminates the process — not a thrown error, not a
+/// red `#expect`, the whole test run dies. So *reaching the end of this test*
+/// is itself the evidence that the off-thread branch took the `Task { @MainActor
+/// … }` path rather than `assumeIsolated`. No `#expect` can state that, because
+/// the failure mode this guards against is process termination, not a failed
+/// assertion.
+///
+/// **Guarantee 2: it does eventually dirty**, once given a chance to run —
+/// asserted below after an explicit yield.
+///
+/// **What used to be asserted here and is not any more**: that the window is
+/// still clean immediately after `await done.value`, before any further
+/// suspension. Measured rather than assumed to be safe: instrumenting
+/// `markDirtyFromObservation` confirmed the off-thread branch IS taken
+/// (`Thread.isMainThread == false`) on every run, and the assertion still
+/// failed 5/5 times. The mechanism is that `await done.value` itself is a
+/// suspension point on the main actor — it gives the main actor's thread back
+/// to the scheduler, which is then free to run the hop's already-enqueued
+/// `Task` before this function's own continuation is resumed. There is no
+/// difference in KIND between that suspension and the explicit
+/// `await Task.yield()` below; a test that asserted "still clean" right after
+/// `await done.value` would be pinning the scheduler's ordering of two
+/// already-runnable jobs, not any behaviour of the code under test.
 @MainActor
 @Test func anOffThreadMutationMarksTheWindowDirtyAfterAHop() async throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
@@ -230,11 +251,6 @@ final class ProbeModel {
         model.label = "async"
     }
     await done.value
-
-    // The write has landed, but the main actor has not yet run the hop's body,
-    // because this function has not suspended in a way that lets it.
-    #expect(!window.needsRedraw,
-            "the hop must not have completed yet — if this is already true, the off-thread branch is not hopping and MainActor.assumeIsolated would have trapped instead")
 
     // One yield is enough: the hop's Task is already enqueued on the main actor.
     await Task.yield()
@@ -310,6 +326,8 @@ final class ProbeModel {
         }
     }
     window.drawFrameIfNeeded()
+    // Advances `lastTick` away from 0 — see the comment above, this is what
+    // lets the indicator's fade age actually move instead of pinning at 0.
     platformWindow.simulateTick(timestamp: 100)
     try #require(!window.needsRedraw, "set up: the window must be clean")
 
