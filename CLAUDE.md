@@ -23,7 +23,8 @@ idiomatic Swift. macOS and iOS.
   `docs/superpowers/2026-08-28-measure-performance-decisions.md`,
   `docs/superpowers/2026-08-29-input-decisions.md`,
   `docs/superpowers/2026-08-30-sizing-decisions.md`,
-  `docs/superpowers/2026-09-01-tombstones-decisions.md` — each ruling with
+  `docs/superpowers/2026-09-01-tombstones-decisions.md`,
+  `docs/superpowers/2026-09-02-reactivity-decisions.md` — each ruling with
   its reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
@@ -33,9 +34,11 @@ idiomatic Swift. macOS and iOS.
   to structural identity, `TX-n` to text (M2), `CL-n` to clipping and scroll,
   `ST-n` to the stack container, `AP-n` to absolute positioning, `MP-n` to
   measure-path performance, `IN-n` to `@State`/hit testing/input dispatch,
-  `SZ-n` to the sizing milestone that closed BM-4, FS-3 and TX-H, and `TB-n`
-  to the tombstones-and-AX milestone that closed divergences 12 and 17 (the
-  last ten are
+  `SZ-n` to the sizing milestone that closed BM-4, FS-3 and TX-H, `TB-n`
+  to the tombstones-and-AX milestone that closed divergences 12 and 17, and
+  `RX-n` to the reactivity milestone that wrapped the frame build in
+  `withObservationTracking` (M4 spec 1) (the
+  last eleven are
   **lettered** — `CS-A`…`CS-O`, `SI-A`…`SI-H`, `TX-A`…`TX-J`, `CL-A`…`CL-F`,
   `ST-A`…`ST-G`, `AP-A`…`AP-M`, `MP-A`…`MP-N`, `IN-A`…`IN-W`, `SZ-A`…`SZ-O`
   (**`SZ-A`…`SZ-N` until the sizing milestone's whole-branch fix wave added
@@ -46,9 +49,13 @@ idiomatic Swift. macOS and iOS.
   during that milestone still resolves, and `TB-AE`…`TB-AH` are the four
   foundational decisions the ledger recorded as prose rather than as
   lettered rulings — read those four first
+  — and **`RX-A`…`RX-R`**, which follows `TB-`'s pattern deliberately:
+  `RX-A`…`RX-J` carry the reactivity ledger's own ten letters one for one, and
+  `RX-K`…`RX-R` are the eight foundational decisions that ledger recorded as
+  prose — read those eight first
   — so a bare
-  `CS-3`, `SI-3`, `TX-3`, `CL-3`, `ST-3`, `AP-3`, `MP-3`, `IN-3`, `SZ-3` or
-  `TB-3` is a
+  `CS-3`, `SI-3`, `TX-3`, `CL-3`, `ST-3`, `AP-3`, `MP-3`, `IN-3`, `SZ-3`,
+  `TB-3` or `RX-3` is a
   typo rather than a citation; **`MP-A`…`MP-K` is what this line said until the
   input-and-state milestone re-read the file — the measure-performance
   milestone's whole-branch review added `MP-L`, `MP-M` and `MP-N` and did not
@@ -298,6 +305,31 @@ idiomatic Swift. macOS and iOS.
   nodes. Both `AXNode.children` and `AXNode.logicalCount` have rows in the
   declared-but-inert table.
 
+  **A third consequence of "not produced ⇒ not seen" arrived on 2026-09-02 with
+  `@Observable` tracking, and it is DOCUMENTED BEHAVIOUR rather than a
+  divergence (ruling `RX-P`).** A `List` builds only the rows intersecting the
+  viewport, so an off-screen row's builder never runs and its model reads are
+  never tracked — **mutating an off-screen row's datum marks nothing dirty.**
+  That is correct: there is nothing on screen to redraw, and scrolling to the
+  row rebuilds it and re-reads the model, so it self-heals; the value lives in
+  the datum, which `List` re-reads every frame. **Explicitly not a divergence,
+  and the reason is that no oracle disagrees** — SwiftUI's `List` behaves the
+  same way for the same reason — where 13 and 14 above are accepted limitations
+  and 12 and 17 were live losses. **That SwiftUI comparison is DERIVED from
+  SwiftUI's documented laziness and was NOT measured here** (ruling `RX-P`): a
+  row's `body` is not evaluated until the row is realized, so nothing in it can
+  be read or tracked — but no probe was run, and this repo's own precedent
+  (divergences 2 and 9) is that an oracle claim gets run before it is written.
+  Confirming it needs a SwiftUI harness this repository does not have and should
+  not grow for one claim, so it is labelled rather than deleted. **Nothing is
+  foreclosed: if SwiftUI does differ, the divergence label is still
+  available.** It is the same *mechanism* as those four,
+  which is why it is recorded here rather than left to be rediscovered. Pinned
+  by `anOffScreenListRowsModelReadIsNotTracked` (`ObservationTests.swift`),
+  which carries its own positive control on the same fixture — `rows[0]` is
+  mutated first and must dirty — because without one a `List` that stopped
+  tracking row builders *entirely* would pass the off-screen half vacuously.
+
 - **`Deferred` is a portal, and it is the framework's first element that is not
   a container.** It takes **exactly one** child (ruling AP-J: it is a paint
   modifier, not a layout container, so two children would force it to answer a
@@ -393,10 +425,128 @@ idiomatic Swift. macOS and iOS.
   every frame keeps the window permanently dirty, so the display link never
   pauses, which is milestone 4's exit criterion sabotaged from an element.
 
+  **There is a SECOND hazard with the same ADVICE and the OPPOSITE failure
+  mode, and this paragraph described it backwards until 2026-09-03 (ruling
+  `RX-S`).** It said an `@Observable` write from inside `renderRoot` "does the
+  identical damage" and that "the display link never pauses" — folding the two
+  together as "one hazard with two spellings". **Both halves were wrong**, and
+  the inverted symptom is the worse of the two: a debugger following that note
+  looks for a window that spins, and the real window is asleep.
+
+  Keep them as two hazards:
+
+  - **`@State` written from a phase → permanently dirty, the link NEVER
+    pauses.** The bullet above, unchanged and correct. `onWrite` fires
+    synchronously at the write, so every frame re-dirties the window.
+  - **`@Observable` written from a phase → silently STALE, the link pauses
+    IMMEDIATELY.** `withObservationTracking` installs its observers **after**
+    the apply closure returns, so a write landing inside the build fires **no**
+    `onChange` at all. The window renders the pre-write value, clears
+    `needsRedraw`, and idles. Measured in-tree: `observationDirtyings=0`, and
+    across 21 ticks `needsRedraw=false`, **0** frames drawn, 21 pauses entered,
+    `pauseCalls.last=true`. Standalone, an in-closure write fires `onChange`
+    **0** times against **1** for the same write after apply returns. The
+    `isFlushing` guard is irrelevant here — nothing fires for it to guard.
+
+  So the two failures are not one: one window never sleeps, the other never
+  wakes. **What IS common is the advice, and it is the only part to present as
+  shared: write from input, never from a phase.** The `@Observable` case has
+  the wider blast radius, a model being shared where a `@State` box is one
+  element's — that much of the old paragraph stands.
+
+  **The same mechanism is a standing limitation rather than only an author
+  error**, because the unarmed interval is the whole frame build: a *background*
+  write arriving in it, after the property has been read, is lost the same way,
+  on a path the framework supports and tests. Recorded at
+  `markDirtyFromObservation` with both probes and with why it is not fixed in
+  code. **It is unpinned by any test** — both measurements are throwaway
+  probes, not suite assertions. A pin would have to drive a write from inside
+  the tracked closure and assert the window goes clean and stays clean; nobody
+  has written it.
+
   **`@State` inside an `AnyElement` is silently inert** and has its own row in
   the inert table. Decisions doc:
   `docs/superpowers/2026-08-29-input-decisions.md`, rulings prefixed `IN-`
   (**lettered**, `IN-A`…`IN-W`, so a bare `IN-3` is a typo).
+
+- **`@Observable` is a SECOND, independent dirty source, and the tracked region
+  is the whole frame build.** As of 2026-09-02 (M4 spec 1),
+  `Window.drawFrameIfNeeded` wraps `renderRoot(frame)` in
+  `withObservationTracking`, so **any `@Observable` property read anywhere in a
+  frame — content closure, `requestLayout`, `prepaint` or `paint` — is a
+  dependency of that frame.** No opt-in, no annotations, no registration; the
+  framework knows nothing about the model type. That is SwiftUI's semantics,
+  taken per ruling EP-5. `@State` keeps its own path unchanged
+  (`StateTable.onWrite` → `setNeedsRedraw()`) and the two compose without
+  interacting: `StateTable` holds no `@Observable` property, so a `@State`
+  write registers nothing with the observation machinery and an observation
+  change touches no `StateTable` entry
+  (`stateAndObservableAreIndependentDirtySources`). Tracking `paint` too is
+  deliberate — a model read only during paint is a real dependency and a
+  narrower region would drop it silently.
+
+  **The design spec was WRONG about the cost of doing this, and the sentinel is
+  what pays it (ruling `RX-K`).** `docs/superpowers/specs/2026-08-24-metalui-design.md`
+  §4.4 calls `withObservationTracking`'s one-shot nature "normally an annoyance,
+  here ideal, since we re-register every frame." Measured on a standalone probe:
+  re-registering every frame **accumulates one observer per drawn frame per
+  unchanged property**, linearly — 1 `onChange` at 1 frame, 10 at 10, 100 at
+  100, **1000 at 1000**, no plateau — and **there is no public cancellation
+  API**. This framework's common case is the pathological one: scrolling draws
+  frames continuously while the document is static. A private `@Observable`
+  `RedrawSentinel`, read inside every session and written at the top of each
+  frame, fires and thereby *removes* every previously-armed session; the same
+  probe then gives **1 at every N up to 10,000**. §4.4 now carries a correction
+  block with the original claim visible.
+
+  **Three orderings in `drawFrameIfNeeded` are load-bearing, and one of them
+  CANNOT BE PINNED — read that before deleting anything (ruling `RX-G`).** The
+  flush sits inside the dirty branch after the guard (flushing before it disarms
+  an idle window, which then never redraws); the flush precedes
+  `needsRedraw = false` (so the clear absorbs any dirty the flush produced); and
+  the sentinel is read *inside* the tracked closure (which is what arms the next
+  flush). The second of those is **unpinnable by construction**: with the
+  `isFlushing` guard present, moving the clear above the flush changes no
+  observable at all, because the flush marks nothing dirty. The guard and the
+  ordering are **deliberately redundant — either alone suffices** — so a test
+  could only "pin" the ordering by also deleting the guard, which tests a
+  two-line mutation rather than an ordering. **Neither may be removed on the
+  evidence of a green suite.** What *is* pinned is the guard's own observable:
+  `aFrameThatChangesNoObservedPropertyReportsNoObservationDirtying` reports 0
+  across 200 frames and **199** with the guard deleted (199 not 200 — frame 1
+  has no prior session armed to trip), and
+  `theObserverSetIsBoundedRegardlessOfFramesDrawn` reports 1 and **200** with
+  the sentinel removed.
+
+  **`markDirtyFromObservation` is `nonisolated` and its SYNCHRONOUS branch is
+  load-bearing for the idle criterion, not an optimisation (ruling `RX-N`).**
+  `onChange` is `@Sendable` and fires on the mutating thread, so the callback
+  re-enters the main actor synchronously when `Thread.isMainThread` and via a
+  `Task { @MainActor }` otherwise. Collapsing both to the hop fails **six**
+  tests: the sentinel flush's own callback would then land *after*
+  `needsRedraw = false`, dirtying the window every frame forever. Collapsing
+  both to a bare `MainActor.assumeIsolated` does not redden anything — it
+  **crashes the suite with SIGTRAP, signal 5, and no summary line**, reproduced
+  deterministically in the full suite and in isolation. That is taxonomy shape
+  13 arriving as a live result, and it is why the off-thread branch's "does not
+  trap" guarantee is prose in a doc comment rather than an `#expect`.
+
+  **`hasActiveAnimations` DOES NOT EXIST, and a reader of §4.4 should not go
+  looking for it (ruling `RX-O`).** That section's guard reads
+  `needsRedraw || hasActiveAnimations`; M4 spec 1 implements the `needsRedraw`
+  half only. `grep -rn "hasActiveAnimations" Sources/` returns **0**.
+  Deliberate: an always-`false` stored property with no writer is exactly the
+  declared-but-inert trap the table below exists for, so M4 spec 3 introduces
+  the property, its `prepaint` registration site, the display-link timebase and
+  both widened conditions **in one change**.
+
+  **`Window.pausesEntered` and `Window.observationDirtyings` are debug and test
+  observability and deliberately have NO row in the inert table (ruling
+  `RX-R`)** — both have a production writer, a production reader in
+  `Sources/MetalUIDemo/main.swift`'s exit summary, and test readers. They are
+  deleted in the same change that lands a real profiling story. Decisions doc:
+  `docs/superpowers/2026-09-02-reactivity-decisions.md`, rulings prefixed `RX-`
+  (**lettered**, `RX-A`…`RX-R`, so a bare `RX-3` is a typo).
 
 - **There is ONE hitbox list, and a scroll region is a hitbox with an axis
   attached.** `Frame.hitboxes` is the only stored registry: wheel routing,
@@ -872,7 +1022,7 @@ what the demo draws — and no test can establish it.** `MetalLayerSurface` vend
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and the whole suite still passed when that was measured, at 342 tests
-(**782 today**, re-run 2026-09-02; the count is quoted so the measurement can be
+(**791 today**, re-run 2026-09-02 at the reactivity milestone's last commit; the count is quoted so the measurement can be
 dated, not because 342 is a property of anything — and the "today" figure has to
 be re-taken with the rest, which it was not at 739 for two milestones). If you
 touch that ordering, re-run the demo
@@ -933,6 +1083,43 @@ notice: every existing off-main-actor layout builds its own leafless tree, and
 a test that got this wrong would crash the run rather than redden. If layout
 ever moves off the main actor, the measure closure is the first thing to
 rewrite.
+
+**That paragraph named ONE `assumeIsolated` site and there are FOUR, which is
+why they are listed together (ruling `RX-J`).** A section naming one of four
+reads as though the others were a different kind of thing. Re-counted on
+2026-09-02 with `grep -rn "assumeIsolated" Sources/`, which returned eleven
+lines of which **four are calls**. Run it and read the lines rather than
+trusting the eleven — seven of them are doc comments and that half moves
+whenever the prose does, which is the failure the `evictUnusedSince` row below
+was caught by twice. **"Four call sites" is the claim**; here they are:
+
+- **`Sources/MetalUI/Text.swift:217`** — the live trap the paragraph above
+  describes. **Unguarded**, and sound only by the `computeLayout`-runs-on-the-
+  caller's-thread argument. This is the one to rewrite.
+- **`Sources/MetalUIText/UnbreakableRuns.swift:110`** — **pre-existing and
+  never named here before.** Guarded by `if Thread.isMainThread`, so the
+  assumption cannot fail; it increments the `unbreakableRunCalls` instrument,
+  which is `@MainActor` precisely so every write and read happen on one thread.
+  Its own doc comment already carries the measurement — delete the guard and
+  `theRunCounterIgnoresCallsMadeOffTheMainThread` does not redden, it takes the
+  process down with signal 5.
+- **`Window.markDirtyFromObservation`** (`Sources/MetalUI/Window.swift`) — new
+  2026-09-02, inside its synchronous branch. Guarded by the same
+  `Thread.isMainThread` predicate, with the `Task { @MainActor }` fallback as
+  the other arm. Collapsing the two arms to this one alone is the SIGTRAP result
+  recorded in the reactivity bullet.
+- **The demo's `atexit_b` counter-summary hook** —
+  `atexit_b { MainActor.assumeIsolated { printReactivitySummary() } }` in
+  `Sources/MetalUIDemo/main.swift` — new 2026-09-02. Safe because `atexit` handlers run on the
+  thread that calls `exit()` and both quit paths (the **Q** binding and the
+  window's close button) go through `NSApplication.shared.terminate(nil)` on the
+  main thread.
+
+**Two of the four are guarded by `Thread.isMainThread`, one by an argument about
+where `exit()` is called from, and exactly one by nothing.** That last one is
+`Text.requestLayout` and it is the only live trap; the other three are recorded
+so that a reader greping for `assumeIsolated` finds an explanation at each hit
+rather than three unexplained ones and one documented.
 
 **Clipping and scroll verified on 2026-08-28 — this milestone's exit criterion,
 and it took three looks to close.** A human ran `swift run MetalUIDemo` and
@@ -1559,7 +1746,8 @@ measured or verified here rather than supposed.
 1. **The demo does not exercise this milestone's own subject.** Divergences 12
    and 17 were about a windowed `List` row keeping its `@State` and its focus
    across an excursion. `Sources/MetalUIDemo/main.swift` declares exactly
-   **one** `@State` in the whole file — `CounterPanel.count`, at line 181 —
+   **one** `@State` in the whole file — `CounterPanel.count`, declared on
+   `CounterPanel` itself —
    and the `List` row builder declares none; re-verified this task with
    `grep -n "@State" Sources/MetalUIDemo/main.swift`, whose only non-comment
    hit is that one line. **No row in the running demo has any state to keep**,
@@ -1595,7 +1783,8 @@ measured or verified here rather than supposed.
    the demo cannot exhibit the failure.** Ruling `TB-K`: a 100,000-row list
    scrolls at 500-row cost and **hangs ~17 s in release the first time it is
    shown**, which is ruling MP-I's cold frame scaled. `demoRowCount` is
-   **500** (`Sources/MetalUIDemo/main.swift:91`), whose cold frame MP-I puts
+   **500** (`Sources/MetalUIDemo/main.swift`, the `let demoRowCount` line),
+   whose cold frame MP-I puts
    at ~76 ms release. A human reporting "the list scrolls fine" is reporting
    on 500 rows and is not reporting on 100,000. See the Build section's own
    `### The 100k cold frame…` subsection, where both halves of that criterion
@@ -1732,6 +1921,60 @@ M3's "100k rows scrolling smoothly" as a whole, which is met for scrolling and
 not for appearing, and which this demo's 500 rows cannot distinguish (reason 3,
 ruling `TB-K`). And every look this file already lists as permanently open,
 including the three the M2 entry names.
+
+**The reactivity milestone (M4 spec 1) — its exit criterion 7 is OPEN, and it
+is the first entry in this section that asks for a MEASUREMENT rather than a
+judgement.** `docs/superpowers/specs/2026-09-02-reactivity-design.md` §8 item 7
+asks a human to run the instrumented demo and **report the printed counts**.
+Every other entry here asks whether something *looks* right; this one asks a
+human to read three integers off stderr, because the thing no test can reach —
+whether the real `CADisplayLink` actually pauses — is a count rather than an
+appearance. §7 says so explicitly: "It is not a human *judgement*, and should
+not be recorded as one."
+
+**Nobody has run it.** Task 5 deliberately did not fake the run: there was no
+interactive display, the process was verified alive under `ps` and then
+`SIGTERM`'d — **and `SIGTERM` does not run `atexit` handlers, so no counters
+were printed and none were observed.** That is stated rather than glossed
+because a process that started and stayed alive is the same evidence every other
+entry here calls "a process fact rather than a look".
+
+**What a human must do.** Run `swift run MetalUIDemo`, **leave the window
+untouched for a measured interval** — say thirty seconds, unfocused and with the
+pointer off it — then press **M** twice, and quit with **Q** or the close
+button. Both quit paths print through the same `atexit_b` hook, so either works.
+Report the three numbers the summary prints: `frames drawn`, `pauses entered`,
+`observation dirtyings`.
+
+**What the numbers should say, so a reader knows what a regression looks like.**
+`pauses entered` must be **non-zero** — a window that never idles never
+increments it. `frames drawn` across the idle interval must be **small and
+bounded rather than proportional to the interval**; a count that scales with how
+long the window sat untouched is the display link never pausing, which is
+exactly what an always-hop `markDirtyFromObservation` or a deleted `isFlushing`
+guard would produce. `observation dirtyings` should be roughly **two** for two
+**M** presses, not two per frame drawn since — that is the accumulation bound
+(`RX-K`) observed outside the harness for the first time.
+
+**What a report closes, stated narrowly.** It closes M4's *"no frames built and
+display link paused while idle"* for the question it was written to answer, and
+it is the **only** observation of the real `CADisplayLink` anywhere in this
+repo: every other figure for the pause is against `FakePlatformWindow`, and
+nothing here can drive real AppKit display-link scheduling — the same boundary
+this file already records for `NSTrackingArea` and for drawable presentation.
+**It closes nothing else.** M4's other two criteria ("a real small app",
+"VoiceOver navigates it") belong to specs 2 and 4. Whether an idle window
+actually permits display *downclocking* is a property of the OS compositor,
+outside this process entirely, and is not claimed or measured. And every look
+this file lists as permanently open stays open.
+
+**One thing worth knowing before running it: the demo's own subject is thin.**
+`grep -n "@Observable" Sources/MetalUIDemo/main.swift` returns **two** lines, of
+which exactly **one is a declaration** — `DemoModel`, holding `showModal` alone;
+the other is a doc comment explaining why it exists — so the only observable dependency in
+the running tree is the modal's visibility. A human exercising **M** is
+exercising the whole of what this demo can show about reactivity, and no row,
+counter or label in it reads a model at all.
 
 ## Eleven known divergences, numbered 1, 2, 4, 9-11, 13-16 and 18 — expected, measured, not defects
 
@@ -1924,6 +2167,28 @@ this project's standing rule takes SwiftUI's answer where the two differ
 (ruling EP-5). It is recorded as accepted rather than as settled: nothing about
 it is a browser question, so there is no oracle to appeal to, and the reason it
 is accepted is written into the entry rather than assumed.
+
+**One thing the reactivity milestone deliberately did NOT add to this list, said
+here because silence in this section reads as an oversight (ruling `RX-P`).**
+An off-screen `List` row's model reads are not tracked, so mutating its datum
+marks nothing dirty — the same "not produced ⇒ not seen" mechanism as the
+retired 12 and 17 and the live 13 and 14, in a **third** place. It is **not** a
+divergence and does not get a label: **SwiftUI's `List` does the identical thing
+for the identical reason**, so unlike 18 there is no SwiftUI disagreement, and
+unlike 1, 2, 4 and 9 there is no oracle disagreement either. **Read that
+SwiftUI claim at its strength, because it is the sole justification for
+withholding a label and it is DERIVED rather than measured** (ruling `RX-P`): it
+follows from SwiftUI's documented laziness, and **no probe was run** — unlike
+divergences 2 and 9, whose oracle claims were each measured through a throwaway
+probe before being written. Measuring it needs a SwiftUI harness this repo does
+not have and should not grow for one claim, so the shortfall is labelled rather
+than glossed. **If SwiftUI turns out to differ, label 19 is still available and
+nothing here forecloses it.** It is correct
+behaviour — nothing on screen to redraw, self-healing on scroll, with the value
+living in the datum `List` re-reads every frame — and it is written up in the
+`List` bullet at the top of this file and pinned by
+`anOffScreenListRowsModelReadIsNotTracked`. A reader who finds it and reaches
+for label 19 should stop here.
 
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
@@ -2534,30 +2799,34 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **782 tests** and 87 browser fixtures, warning-free
-(re-measured 2026-09-01 `--no-parallel` at the tombstones-and-AX milestone's
-last commit: `Test run with 782 tests in 1 suite passed after 14.903 seconds.`,
+`swift build` · `swift test` — **791 tests** and 87 browser fixtures, warning-free
+(re-measured 2026-09-02 `--no-parallel` at the reactivity milestone's
+last commit: `Test run with 791 tests in 1 suite passed after 15.783 seconds.`,
 `find Tests -name "*.json" | wc -l` = 87, and a full-log `grep -ci "warning:"`
-of 0; 755 and 87 was that milestone's own baseline, and 752 and 86 the sizing
+of 0; 782 and 87 was that milestone's own baseline, 755 and 87 the tombstones
+milestone's, and 752 and 86 the sizing
 milestone's before its whole-branch fix wave). Per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
 rather than at the commit that first quoted it.
 
-**87 goldens is this milestone's exit criterion 2, not a by-product.**
-Tombstones and AX nodes touch nothing in the layout engine —
-`git diff --name-only 2f8994b..HEAD -- Sources/MetalUILayout/` is **empty for
-the whole branch** — so a moved golden would mean something reached the engine
-that should not have. None moved and none was added: 87 before, 87 after.
+**87 goldens is the reactivity milestone's exit criterion 5 as it was the
+tombstones milestone's exit criterion 2 — not a by-product either time.**
+Neither touches the layout engine:
+`git diff --name-only aab0e6a..HEAD -- Sources/MetalUILayout/` is **empty for
+the whole reactivity branch**, as `2f8994b..HEAD` was for the tombstones one, so
+a moved golden would mean something reached the engine
+that should not have. None moved and none was added: 87 before, 87 after, twice.
 
-**Two tests are gated and DO count toward the 782 — a claim this paragraph got
+**Two tests are gated and DO count toward the 791 — a claim this paragraph got
 wrong for one milestone and which is corrected here rather than quietly
 edited.** It previously said the 100k test "is disabled by default and does not
 run in the count above", which conflates two things. Measured:
 `swift test --no-parallel --filter aListsWorkIsTheSameFor100kRowsAsFor500`
 reports `Test run with 1 test in 1 suite passed`, and a full-log grep for
-`skipped` finds exactly two tests — `regenerateAllGoldens` and that one. **A
+`skipped` finds exactly two tests — `regenerateAllGoldens` and that one, both
+re-confirmed skipped in the 791-test run above. **A
 `.enabled(if:)` skip counts toward the total and is reported as skipped; what
-is disabled is what RUNS, 780 of the 782 by default.** The distinction matters
+is disabled is what RUNS, 789 of the 791 by default.** The distinction matters
 because the reflex when the summary line moves is to look for an added or
 deleted test, and a gate changes neither number.
 
@@ -2594,7 +2863,49 @@ which argues at length that the guard count does *not* track the suite count —
 this is a data point for that argument, not an exception to it. The three new
 guards exist because `AXNodeTests.swift` uses `@testable import`, which widens
 `internal` and therefore **cannot** demonstrate an access-level narrowing —
-ruling `TB-N`, and taxonomy shape 16 in the practices doc.
+ruling `TB-N`, and taxonomy shape 16 in the practices doc. **Re-counted by grep
+per file at the reactivity milestone's last commit (suite 791): still 32** —
+19 + 7 + 1 + 2 + 3, unchanged. That milestone added nine tests, no guard and no
+file, which is the "When CI lands" argument arriving once more as a data point
+rather than an exception: 791 does not say 32 and nothing here claims it does.
+
+**The reactivity milestone's own climb, task by task** (baseline **782** tests,
+87 goldens, 32 guards, warning-free — the tombstones milestone's own
+end-of-milestone count, which reproduced exactly). **Each figure below is the
+summary line the task itself read at its own commit; only the final 791 was
+re-run by this documentation task.** They are corroborated rather than trusted,
+by the same net `@Test`-declaration delta the paragraph below uses — for each
+commit, `git show <c> -- 'Tests/*' | grep -c "^+.*@Test"` minus the same with
+`"^-.*@Test"`, accumulated from 782 — which reproduces every intermediate figure
+and lands exactly on the re-measured 791.
+**782** after Tasks 1+2's first commit (`b1e7deb`, the sentinel and the two
+counters — dispatched as one unit with Task 2 because its diff is dead code by
+construction, ruling `RX-A`) and **784** after its second (`2b616e3`, the
+tracked frame build; one of its two tests is **green on arrival by design**,
+asserting an absence, ruling `RX-B`). **787** after Task 3 (`616f108`, the
+accumulation bound, the flush guard and waking a paused window — both mutations
+run and both discriminating: sentinel removed gives 200 against 1 and moves
+nothing else, `isFlushing` deleted gives 199 against 0). **791** after Task 4
+(`3eadcc1`, both hop branches, `@State`/`@Observable` composition and the
+windowed-`List` consequence) and **791** unchanged through both of its fix
+rounds (`0588863`, replacing an assertion that pinned the scheduler rather than
+the code, ruling `RX-I`; `d3aa92c`, adding the off-screen test's positive
+control). **791** after Task 5 (`9ea6062`, the demo's `showModal` on an
+`@Observable` model plus the exit-counter summary; no test). This documentation
+task adds none, so 791 reproduces exactly. Seven commits, `aab0e6a..9ea6062`.
+
+**Two steps in that list are worth reading rather than counting, and both are
+about a prediction that failed.** Task 3's `isFlushing` mutation was run
+specifically to confirm that `idleWindowPausesTheDisplayLinkAndDirtyingResumesIt`
+**stays green**, which is the corrected form of a spec assertion; Task 4 then
+found the *same* test green under the always-hop mutation the spec's §4.2
+argument had predicted it would catch — six others failed instead, and the
+reason is structural blindness rather than insensitivity (ruling `RX-H`, and the
+reactivity spec's §4.2 now carries the correction). And Task 4's fix round
+produced the branch's sharpest measurement, which is not a test count at all:
+collapsing `markDirtyFromObservation` to a bare `MainActor.assumeIsolated`
+**crashes the suite with SIGTRAP, signal 5, and no summary line** rather than
+reddening anything — taxonomy shape 13 as a live result.
 
 **The tombstones-and-AX milestone's own climb, task by task** (baseline
 **755** tests, 87 goldens, 29 guards, warning-free). **Each figure below is the
@@ -3396,9 +3707,13 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    at that milestone's last commit (suite **782**), both counting methods
    agreeing where they can. **This is the paragraph's own claim arriving a
    fourth time, not an exception to it**: the suite has now moved 304 → 358 →
-   444 → 488 → 538 → 577 → 604 → 609 → 640 → 739 → 782 and the guard count has
+   444 → 488 → 538 → 577 → 604 → 609 → 640 → 739 → 782 → **791** and the guard
+   count has
    moved four times, at commits that had nothing to do with the suite's size.
-   782 does not say 32 and nothing here claims it does.
+   782 does not say 32 and nothing here claims it does — nor does 791, which is
+   the reactivity milestone's count, **re-counted by grep per file at its last
+   commit and still 32** while nine tests were added. The two numbers moved
+   independently one more time, which is this item's whole argument.
 
    **The reason these three exist is a new hazard rather than a new phase
    guard, and it generalises past this repo (ruling `TB-N`).** Task 5 narrowed

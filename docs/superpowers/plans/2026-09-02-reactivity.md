@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-02-reactivity-design.md`
 
+> **PARTLY SUPERSEDED DURING EXECUTION — read `docs/superpowers/2026-09-02-reactivity-decisions.md` beside this plan, in particular `RX-Q` and `RX-H`.** This plan is kept as written, including text later measured to be false, because two rulings cite that text as evidence and correcting it in place would destroy what they cite. The plan is not the record of what shipped; the decisions doc is.
+
 ## Global Constraints
 
 - **Read the test summary line, never the exit status.** `swift test --no-parallel`, unfiltered, and read `Test run with N tests in 1 suite passed after …`. A run that dies mid-suite prints no summary line and exits non-zero in a way that is easy to misread.

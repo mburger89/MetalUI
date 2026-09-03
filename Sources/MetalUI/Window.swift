@@ -1,4 +1,5 @@
 import Metal
+import Observation
 import MetalUICore
 import MetalUIRender
 import MetalUIPlatform
@@ -134,6 +135,25 @@ public final class Window {
 
     /// Test observability: how many frames actually reached the GPU.
     public private(set) var framesDrawn: Int = 0
+
+    /// How many times the loop has found nothing to do and paused the display
+    /// link. Test and debug observability, not API.
+    public private(set) var pausesEntered: Int = 0
+
+    /// How many times an `@Observable` change has marked this window dirty,
+    /// **excluding** the per-frame sentinel flush.
+    ///
+    /// This is the only observable that can distinguish "one dirty-marking per
+    /// write" from "N of them" — `needsRedraw` is a `Bool` and cannot. It is
+    /// what `theObserverSetIsBoundedRegardlessOfFramesDrawn` reads.
+    /// **Measured in this tree, not prototyped**: with both `redrawSentinel`
+    /// lines commented out, drawing 200 frames and then writing once takes this
+    /// delta from 1 to **200** — one dirty-marking per frame drawn since the
+    /// last change, exactly the accumulation this property exists to bound.
+    ///
+    /// Test and debug observability, not API. Delete both counters in the same
+    /// change that lands a real profiling story.
+    public private(set) var observationDirtyings: Int = 0
 
     /// The primitives the most recent frame handed to the renderer.
     ///
@@ -336,6 +356,28 @@ public final class Window {
     /// sampling a wall clock independently.
     private var lastTick: Double = 0
 
+    /// Written once per frame to flush observation sessions armed by previous
+    /// frames. See `RedrawSentinel` for why, with the measurement.
+    private let redrawSentinel = RedrawSentinel()
+
+    /// True only for the duration of the sentinel write in
+    /// `drawFrameIfNeeded`, so `markDirtyFromObservation` can tell a flush from
+    /// a real change.
+    ///
+    /// **Behaviourally redundant today and kept anyway** — measured: deleting
+    /// this guard changes `needsRedraw`, `framesDrawn` and the pause record not
+    /// at all, because the `needsRedraw = false` on the line after the flush
+    /// already absorbs the spurious dirty. It shows up only in
+    /// `observationDirtyings`. **Measured in this tree** (`aFrameThatChangesNoObservedPropertyReportsNoObservationDirtying`,
+    /// 200 drawn frames): 0 with the guard, **199** without — one short of 200
+    /// because the very first flush has no prior session armed to trip: a
+    /// session is armed only by a preceding `withObservationTracking` call
+    /// reading `redrawSentinel.tick`, and frame 1 is the first read there ever
+    /// is. Frames 2 through 200 each trip the session the frame before armed,
+    /// so 199 fire. It is kept because it makes the correctness independent of the
+    /// flush happening to run on the main thread, rather than resting on that.
+    private var isFlushing = false
+
     init<Root: Element>(platformWindow: any PlatformWindow,
                         renderer: Renderer,
                         startsDisplayLink: Bool = true,
@@ -446,20 +488,164 @@ public final class Window {
         platformWindow.setDisplayLinkPaused(false)
     }
 
+    /// The `withObservationTracking` callback: something a frame read has
+    /// changed, so the next frame must be built.
+    ///
+    /// **`nonisolated` is forced, not chosen.** `withObservationTracking`'s
+    /// `onChange` is `@Sendable` and fires on the *mutating* thread, which may
+    /// be any thread, so this cannot be `@MainActor` and cannot touch a stored
+    /// property directly. Both branches below re-enter the actor before reading
+    /// `isFlushing` or writing anything.
+    ///
+    /// **The two branches differ in latency, not in outcome.** A main-thread
+    /// mutation — the demo, every test, any main-actor model — marks the window
+    /// dirty *synchronously*, before the write it is reacting to has even
+    /// landed. An off-thread mutation costs one main-actor hop first.
+    ///
+    /// **The synchronous branch is load-bearing for the idle criterion, not an
+    /// optimisation.** The per-frame sentinel flush runs on the main thread and
+    /// fires this method; under an always-hop implementation that callback
+    /// would land *after* `drawFrameIfNeeded`'s `needsRedraw = false`, marking
+    /// the window dirty on every single frame forever and destroying the
+    /// display-link pause this milestone exists to deliver. The `isFlushing`
+    /// guard is what makes that independent of thread affinity rather than
+    /// resting on it.
+    ///
+    /// **KNOWN LIMITATION — a window is UNARMED for the whole frame build, and
+    /// a change arriving in that interval is lost (ruling `RX-S`).** This
+    /// method fires only for an *armed* session, and `withObservationTracking`
+    /// installs its observers **after** the apply closure returns. So the
+    /// unarmed interval runs from `drawFrameIfNeeded`'s sentinel flush to the
+    /// end of the apply closure — essentially the whole frame build. A write
+    /// landing in that interval, *after* the property has been read, fires no
+    /// `onChange`: the window renders the pre-write value, clears
+    /// `needsRedraw`, and pauses. It self-heals only if some other cause draws
+    /// another frame.
+    ///
+    /// Measured twice rather than reasoned. Standalone: a write inside the
+    /// apply closure fires `onChange` **0** times where the identical write
+    /// after it returns fires **1**, and a session that missed an in-closure
+    /// write still fires for a later one — so the session is armed and simply
+    /// did not see the first. In-tree, with a content closure that reads then
+    /// writes a model property: `observationDirtyings == 0`, and across 21
+    /// subsequent ticks `needsRedraw == false`, **0** frames drawn, 21 pauses
+    /// entered, `pauseCalls.last == true`. A post-build write on that same
+    /// window then dirties it normally (`observationDirtyings == 1`).
+    ///
+    /// **Not fixed in code, deliberately.** Closing it means arming a session
+    /// across the build, which is exactly what the flush ordering in
+    /// `drawFrameIfNeeded` exists to prevent — the flush is what bounds
+    /// registrations at one outstanding session, and an always-armed window
+    /// re-enters the accumulation `RedrawSentinel` was built to stop. The
+    /// off-thread path this reaches (`anOffThreadMutationMarksTheWindowDirtyAfterAHop`)
+    /// is supported and tested; what is not guaranteed is a background write
+    /// whose arrival lands inside a build. **Probably not a divergence**, by
+    /// `RX-P`'s own test: SwiftUI's tracking has the same install-after-body
+    /// semantics, so no oracle disagrees — but that claim is **derived from
+    /// documented semantics, not measured against SwiftUI**, exactly as
+    /// `RX-P`'s own SwiftUI claim is.
+    ///
+    /// **This limitation is UNPINNED by any test.** The two measurements above
+    /// are both throwaway probes, not `#expect`s in the suite. A pin would have
+    /// to drive a write from *inside* the tracked closure and assert the window
+    /// goes clean and stays clean across subsequent ticks with no further
+    /// cause to redraw — nobody has written it, and per this project's
+    /// taxonomy shape 4, its absence must be stated rather than left silent.
+    nonisolated private func markDirtyFromObservation() {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                guard !self.isFlushing else { return }
+                self.observationDirtyings += 1
+                self.setNeedsRedraw()
+            }
+        } else {
+            Task { @MainActor [weak self] in
+                guard let self, !self.isFlushing else { return }
+                self.observationDirtyings += 1
+                self.setNeedsRedraw()
+            }
+        }
+    }
+
     public func drawFrameIfNeeded() {
         guard needsRedraw else {
             // Nothing to do: let the display idle rather than spinning.
             platformWindow.setDisplayLinkPaused(true)
+            pausesEntered += 1
             return
         }
+
+        // Flush every observation session armed by an earlier frame, so
+        // registrations stay bounded at one outstanding session instead of
+        // growing with frames drawn. See `RedrawSentinel` for the measurement.
+        //
+        // THREE ORDERINGS ARE LOAD-BEARING HERE.
+        //
+        // 1. The flush is INSIDE the dirty branch, after the guard above. A
+        //    clean, paused window must keep its one armed session — that
+        //    session is what wakes it. Flushing before the guard disarms an
+        //    idle window and it never redraws again.
+        // 2. The flush PRECEDES `needsRedraw = false`. Any dirty the flush
+        //    produces is absorbed by that clear. Moving the clear above the
+        //    flush leaves the window permanently dirty at full frame rate.
+        // 3. `redrawSentinel.tick` is READ inside the tracked closure below.
+        //    That is what arms the next flush; a frame that does not read it
+        //    cannot be flushed and rejoins the accumulating case.
+        // Cleared by `defer` rather than by a following statement. `&+=` cannot
+        // trap, so nothing here can escape early *today* — the `defer` is what
+        // keeps that true for whoever adds a second statement later, at no
+        // cost. **The enclosing `do` is load-bearing, not style — but the
+        // reasoning below was wrong, and this comment claimed it until
+        // 2026-09-03 (ruling `RX-S`).** It said a bare `defer` in this
+        // function's own scope would run at the END of `drawFrameIfNeeded`,
+        // holding `isFlushing` true across `renderRoot` and suppressing every
+        // observation dirty for the whole frame. **That contradicts the KNOWN
+        // LIMITATION recorded above, at `markDirtyFromObservation`**:
+        // `withObservationTracking` installs its observers only *after* the
+        // apply closure returns, and the previous frame's one-shot session was
+        // already consumed by the flush two lines above — so nothing is armed
+        // during `renderRoot` and nothing could fire there to be suppressed.
+        // The off-thread arm cannot help either: its `Task { @MainActor }`
+        // cannot run while the main thread is inside `drawFrameIfNeeded`, so
+        // under a bare `defer` it would read `isFlushing == false` anyway.
+        //
+        // **The real hazard is narrower and worse, and it is LATENT rather
+        // than live.** The interval that actually differs is the *tail* after
+        // `withObservationTracking` returns and before `drawFrameIfNeeded`
+        // does — there, a session *is* armed. A suppressed `onChange` in that
+        // tail would consume the one-shot session and leave the window clean
+        // and unarmed — never waking at all, rather than one frame stale.
+        // Today no framework code writes a tracked property in that tail, so
+        // a bare `defer` would change no observable behaviour on this branch
+        // as it stands: this is a latent hazard the scoping guards against,
+        // not a live bug it is presently papering over.
+        do {
+            isFlushing = true
+            defer { isFlushing = false }
+            redrawSentinel.tick &+= 1
+        }
+
         needsRedraw = false
         // Cleared HERE, before `renderRoot` runs below — not after the frame
         // is built. **This ordering has no production consequence**: a
         // `@State` write made during `renderRoot` fires `onWrite` →
         // `setNeedsRedraw()` regardless of where this call sits, nothing
         // clears `needsRedraw` again before this function returns, so the
-        // write is unswallowable either way. What the ordering actually
-        // protects is `isDirty` itself, which is otherwise-inert test
+        // write is unswallowable either way.
+        //
+        // **That argument does NOT extend to an `@Observable` change arriving
+        // during the build, and this comment claimed it did until 2026-09-03.**
+        // A `@State` write reaches `needsRedraw` through `onWrite`, which fires
+        // synchronously at the write; an observation change reaches it only if
+        // a session is *armed*, and `withObservationTracking` installs its
+        // observers **after** the apply closure returns. A write landing inside
+        // the closure fires no `onChange` at all, so there is no dirty for this
+        // clear to absorb — the failure is a lost dirty, not a swallowed one.
+        // See `markDirtyFromObservation` for the unarmed interval and what it
+        // costs. Ruling `RX-S`.
+        //
+        // What the ordering actually protects is `isDirty` itself, which is
+        // otherwise-inert test
         // observability (see `StateTable.isDirty`'s doc): clearing it AFTER
         // `renderRoot` would raise it during the render and immediately
         // clear it again on the next line, so a test reading it back would
@@ -506,7 +692,16 @@ public final class Window {
                           mousePosition: lastMousePosition,
                           activeElement: active,
                           focusedElement: focusHandedIn)
-        renderRoot(frame)
+        withObservationTracking {
+            // Reading the sentinel arms the next frame's flush; see ordering
+            // note 3 above. Everything the element tree reads during all three
+            // phases is tracked too, which is what makes an `@Observable`
+            // model a dependency with no opt-in.
+            _ = redrawSentinel.tick
+            renderRoot(frame)
+        } onChange: { [weak self] in
+            self?.markDirtyFromObservation()
+        }
         let scene = frame.finalizedScene()
         lastScene = scene
         lastHitboxes = frame.hitboxes

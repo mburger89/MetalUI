@@ -1,4 +1,8 @@
 import MetalUI
+import Observation
+#if canImport(AppKit)
+import AppKit
+#endif
 
 /// Whether the modal is on screen. Toggled by the **M** key (`runDemo` below)
 /// and read by `demoContent`, which `Window` re-invokes every frame — so
@@ -41,7 +45,35 @@ import MetalUI
 /// `main.swift`, where the compiler rejects an explicit global actor
 /// ("top-level code variables cannot have a global actor") because it already
 /// isolates them to the main actor for you.
-var showModal = false
+///
+/// The demo's application model, and the reason it exists is M4 spec 1 rather
+/// than the modal.
+///
+/// `showModal` was a top-level `var` until 2026-09-02, and **nothing in this
+/// file has ever marked the window dirty** — `grep -n setNeedsRedraw` over this
+/// file at commit `aab0e6a` returns nothing at all. The redraw came
+/// **structurally**, from `Window.swift`'s own `dispatchAction` path, which
+/// calls `setNeedsRedraw()` unconditionally after **any** action a keymap
+/// dispatches. Moving `showModal` onto an `@Observable` model therefore
+/// **deleted no call**, and this comment said it did until ruling `RX-Q`
+/// measured it. What the move buys is a second, independent dirty source for
+/// the same state — the action mutates the model and nothing else, and the
+/// window is now dirtied by *observation* as well as by dispatch.
+///
+/// **So the modal appearing is NOT the observable that proves anything.**
+/// Pressing M dirties the window twice, and the modal would still appear with
+/// observation entirely broken. `Window.observationDirtyings` is the
+/// discriminating observable, which is why the exit summary prints it.
+///
+/// The move is still the right shape: it costs the demo no new visible element,
+/// which matters because this one file carries every milestone's exit criteria
+/// and a per-look affordance taxes every future look.
+@Observable
+final class DemoModel {
+    var showModal = false
+}
+
+let demoModel = DemoModel()
 
 /// One row of the scrollable list.
 ///
@@ -116,6 +148,11 @@ struct FocusCounter: Action {}
 struct ClearFocus: Action {}
 struct ToggleTheme: Action {}
 struct ToggleModal: Action {}
+/// Terminates the app. Bound to **Q**. The reactivity instrument's summary
+/// (`printReactivitySummary`, below) prints on **this** quit path and on the
+/// window's close button alike, because it is registered with `atexit_b`
+/// rather than called from either handler — one hook, every exit.
+struct QuitDemo: Action {}
 
 /// The window, for the two handlers that must reach it — the focus actions.
 ///
@@ -671,7 +708,7 @@ func demoContent() -> some Element {
                         // the *trailing sibling* with `.id(_:)` — naming the
                         // conditional content is the half that does not work
                         // (CLAUDE.md's identity bullet).
-                        if showModal {
+                        if demoModel.showModal {
                             Deferred {
                                 Stack(alignment: .center) {
                                     Column(gap: Pixels(8)) {
@@ -734,7 +771,7 @@ func demoContent() -> some Element {
                                 // milestones recorded, closed. Clicking
                                 // dismisses, which is also how a human tells
                                 // the hitbox is really there.
-                                .onClick { showModal = false }
+                                .onClick { demoModel.showModal = false }
                             }
                         }
 
@@ -863,6 +900,29 @@ func runDemo() throws {
     // folds shift in: the same physical key reports `"="` with no modifiers and
     // `"+"` with shift, and `Keystroke.matches` compares the modifier set
     // exactly rather than by containment, so one spelling cannot cover both.
+    //
+    // **Q quits, and the summary below is what makes that worth a binding.**
+    // M4 spec 1's instrument. Every other figure for the idle pause is against
+    // the fake platform window; this is the only thing that observes the real
+    // `CADisplayLink` pausing. It is a printed COUNT, not a human judgement —
+    // see the spec's §7.
+    func printReactivitySummary() {
+        print("""
+
+        --- reactivity counters ---
+        frames drawn:          \(window.framesDrawn)
+        pauses entered:        \(window.pausesEntered)
+        observation dirtyings: \(window.observationDirtyings)
+        ---------------------------
+        """)
+    }
+    // Registered once, here, rather than called from `QuitDemo`'s handler or
+    // from the window's close button separately — `atexit_b` fires on every
+    // path out of the process, so **Q** and the close button print the
+    // identical summary through the identical hook rather than two call
+    // sites that could drift apart.
+    atexit_b { MainActor.assumeIsolated { printReactivitySummary() } }
+
     window.keymap = Keymap {
         Binding("=", Increment(), context: "Counter")
         Binding("shift-+", Increment(), context: "Counter")
@@ -871,6 +931,7 @@ func runDemo() throws {
         Binding("escape", ClearFocus())
         Binding("space", ToggleTheme())
         Binding("m", ToggleModal())
+        Binding("q", QuitDemo())
     }
 
     // **The window's fallback, which is what makes a binding work with nothing
@@ -889,7 +950,7 @@ func runDemo() throws {
             window.theme = window.theme == .dark ? .light : .dark
             return true
         case is ToggleModal:
-            showModal.toggle()
+            demoModel.showModal.toggle()
             return true
         case is FocusCounter:
             // `counterID` is `nil` only before the first frame has been laid
@@ -900,6 +961,20 @@ func runDemo() throws {
         case is ClearFocus:
             window.focus(nil)
             return true
+        case is QuitDemo:
+            // The `return` is INSIDE the `#if` on purpose. Returning `true`
+            // unconditionally claims the keystroke on a platform where this
+            // handler does nothing, so **Q** would be silently swallowed
+            // rather than falling through to `onKey` and `Window.onInput`.
+            // Handling an action is what claims it — an action nobody handles
+            // does not claim the keystroke — and on a non-AppKit build nobody
+            // handles this one.
+            #if canImport(AppKit)
+            NSApplication.shared.terminate(nil)
+            return true
+            #else
+            return false
+            #endif
         default:
             return false
         }

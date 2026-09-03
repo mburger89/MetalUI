@@ -185,6 +185,43 @@ mutation sets `needsRedraw` synchronously — assertable immediately after the w
 `await`. A background mutation does not — assertable as still-false immediately, and true after a
 yield. A branch that cannot be reddened by mutating it is not pinned; both can.
 
+> **Corrected 2026-09-02 during execution (rulings `RX-H` and `RX-I`;
+> `docs/superpowers/2026-09-02-reactivity-decisions.md`). The always-hop argument above is
+> CONFIRMED; two things stated around it are wrong and are corrected in place rather than
+> rewritten.**
+>
+> **1. The example derived from the always-hop argument named the wrong test — this branch's THIRD
+> wrong prediction about which test catches what**, after §6.1's original "nothing observes
+> `setDisplayLinkPaused`" and §6.2 assertion 4's "deleting the guard reddens assertion 1" (both
+> already corrected in place in their own sections). The plan derived from this section
+> (`docs/superpowers/plans/2026-09-02-reactivity.md`, Task 4 step 3) predicted that collapsing both
+> branches to the hop alone would fail "the idle tests … including the pre-existing
+> `idleWindowPausesTheDisplayLinkAndDirtyingResumesIt`". **Measured: that mutation failed SIX tests,
+> and that one stayed GREEN.** It is structurally blind to the mutation rather than insensitive to
+> the hazard — it draws only two frames, frame 1 has no armed session to flush, and frame 2 returns
+> at the `guard needsRedraw` before reaching the flush, so it never triggers a flush at all; and it
+> dirties via a direct `setNeedsRedraw()`, never through `@Observable`, so it is not on
+> `markDirtyFromObservation`'s path in either direction. Verified independently twice, by the
+> implementer and then by the reviewer against `idleWindowPausesTheDisplayLinkAndDirtyingResumesIt`
+> (`FrameLoopTests.swift`) and `Window.drawFrameIfNeeded`'s idle guard and sentinel flush. **The test that DOES mirror this hazard is
+> `anObservableWriteWakesAPausedWindowAndDrawsExactlyOneFrame`** (`ObservationTests.swift`) — it
+> wakes a genuinely paused window through an `@Observable` write, draws exactly one frame, and
+> confirms the window idles again with `pausesEntered` advancing by exactly one. It is among the six
+> that failed. **Cite that one, not the pre-existing idle test.** The general claim is untouched.
+>
+> **2. "A background mutation … assertable as still-false immediately" is FALSE, and asserting it
+> was pinning the scheduler rather than the code.** Measured: the off-thread branch *is* taken
+> (`Thread.isMainThread == false`, instrumented, 5/5 deterministic) and the "still clean" assertion
+> failed 5/5 anyway. `await done.value` is itself a suspension point on the main actor — it hands
+> the thread back to the scheduler, which is free to run the hop's already-enqueued `Task` before
+> this function's continuation resumes. **There is no difference in kind between that suspension and
+> an explicit `await Task.yield()`.** The branch's two genuinely observable guarantees are that it
+> **does not trap** and that it **does eventually dirty** after a yield, and the first cannot be an
+> `#expect`: collapsing to a bare `MainActor.assumeIsolated` crashes the suite with **SIGTRAP,
+> signal 5, and no summary line**, reproduced deterministically in the full suite and in isolation —
+> CLAUDE.md's taxonomy shape 13 as a live result. That crash, not a red assertion, is the evidence,
+> which is why it is carried in the test's doc comment as prose.
+
 The synchronous branch is the overwhelmingly common one (the demo, every test, any main-actor
 model) and costs zero added latency. The hop branch cannot crash, which is why it is the fallback
 rather than a bare `assumeIsolated` — this repo already carries one live `assumeIsolated` release
@@ -320,6 +357,34 @@ That is a stronger demonstration than adding a new control would be, and it cost
 visible element — which matters, because this one file carries every milestone's exit criteria and
 CLAUDE.md records that a per-look affordance taxes every future look.
 
+> **Corrected 2026-09-02 during execution (ruling `RX-Q`;
+> `docs/superpowers/2026-09-02-reactivity-decisions.md`). Two claims in the paragraph above are
+> false — one about what was removed, one about what the modal demonstrates — and the conclusion
+> survives both.**
+>
+> **1. There was no explicit dirty-marking to remove.** The paragraph *above* this one gets it
+> right — "the keymap action path happens to call `setNeedsRedraw()`" — and then this one restates
+> it as though the call lived in the demo. It did not:
+> `git show aab0e6a:Sources/MetalUIDemo/main.swift | grep -n setNeedsRedraw` returns **nothing at
+> all**. The redraw came **structurally**, from `Window.swift:464-465`'s `dispatchAction` path,
+> which calls `setNeedsRedraw()` unconditionally after any action a keymap dispatches. Verified
+> independently by Task 5's implementer and again by its reviewer against the source. **Nothing was
+> deleted**, and the same false framing shipped in `main.swift`'s own comment until this correction.
+> What the move actually buys is a *second, independent* dirty source for the same state.
+>
+> **2. "And the modal still appears" discriminates nothing.** Pressing **M** dirties the window
+> twice — once through `dispatchAction`, once through observation — so **the modal would still
+> appear with observation entirely broken.** Its appearance is therefore not evidence about this
+> spec at all. The discriminating observable is `Window.observationDirtyings`, which is exactly why
+> §7's instrumented run prints it and why the human-verification entry in `CLAUDE.md` asks for the
+> three counts rather than for a look. This is the branch's own rule — *require the arms of a
+> comparison to disagree before believing that they agree* — arriving in a demo instead of a
+> benchmark.
+>
+> **What survives.** The choice itself: converting an existing control rather than adding a new one
+> costs the demo no new visible element, which is the whole reason it was preferred, and that
+> argument does not depend on either false claim.
+
 **The instrumented run.** The demo prints a summary on quit: frames drawn, pauses entered,
 observation-dirties. A human runs it, leaves the window untouched for a measured interval, presses
 **M** twice, and quits. The expected report is that pauses entered is non-zero and that frames drawn
@@ -360,4 +425,4 @@ should not be recorded as one.
 | A future `@Observable` conformance on `Window` itself creates a self-dirtying loop | The frame build reads `Window`'s own properties. Nothing here makes `Window` observable and nothing should; recorded because the loop would present as a window that never idles, which reads as a scheduling bug rather than a conformance one |
 | `Thread.isMainThread` is the wrong predicate for main-actor isolation in some future runtime | It is a heuristic for "already on the main actor", not a proof. The `isFlushing` guard is what makes correctness independent of it; the branch itself only affects latency |
 | The instrumented demo's counters are read once and then rot | They are debug output, not API. Delete them in the same change that lands a real profiling story, per the rule that governs the declared-but-inert table |
-| An observation change arriving during the frame build is lost | It is not: `onChange` sets `needsRedraw` and nothing clears it again before `drawFrameIfNeeded` returns — the same argument `Window.drawFrameIfNeeded`'s existing comment makes for a `@State` write during render. Recorded because the ordering looks unsafe on first reading |
+| An observation change arriving during the frame build is lost | ~~It is not: `onChange` sets `needsRedraw` and nothing clears it again before `drawFrameIfNeeded` returns — the same argument `Window.drawFrameIfNeeded`'s existing comment makes for a `@State` write during render. Recorded because the ordering looks unsafe on first reading~~ **THAT DISMISSAL IS WRONG AND THE HAZARD IS REAL — corrected 2026-09-03, ruling `RX-S`.** The struck text is kept visible because this row is what a later reader consults *instead of* re-deriving the answer, which is exactly how it did its damage: the hazard was raised, dismissed with a confident wrong reason, and the question closed — taxonomy shape 14. The reason is wrong at its first step: `onChange` **never fires** for such a change, so there is no `needsRedraw` for the ordering argument to protect. `withObservationTracking` installs its observers **after** the apply closure returns, so the window is unarmed from the sentinel flush to the end of the build. Measured twice: standalone, an in-closure write fires `onChange` **0** times against **1** for the identical write after apply returns; in-tree, a content closure that reads then writes a model property gives `observationDirtyings == 0` and then, across 21 ticks, `needsRedraw == false`, **0** frames drawn, 21 pauses entered, `pauseCalls.last == true` — **the window pauses on the very next tick and renders the pre-write value until some other cause draws a frame.** The `@State` half of the analogy is sound and unaffected; only its extension to `@Observable` was false. Not fixed in code — arming across the build is what the flush ordering exists to prevent — and recorded as a known limitation at `markDirtyFromObservation`. Probably not a divergence by `RX-P`'s test (SwiftUI has the same install-after-body semantics), **derived, not measured against SwiftUI** |

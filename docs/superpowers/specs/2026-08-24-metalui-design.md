@@ -349,6 +349,53 @@ Three properties of `withObservationTracking` make it fit a full-rebuild model:
 - `onChange` fires on the mutating thread just before the write lands, so we hop to `@MainActor` and
   set a flag rather than working inline.
 
+> **Corrected on 2026-09-02 by the reactivity milestone (rulings `RX-K`, `RX-N`, `RX-O`;
+> `docs/superpowers/2026-09-02-reactivity-decisions.md`). The second bullet's "here ideal, since we
+> re-register every frame" is measurably wrong, and the third bullet's hop is right for one of its
+> two cases. This document is named binding authority in `CLAUDE.md`'s "Start here", so the
+> correction is recorded here rather than only downstream.**
+>
+> **The one-shot bullet.** `withObservationTracking` installs an observer per tracked property per
+> call and removes it only when `onChange` fires, and **there is no public cancellation API** — it
+> returns nothing and exposes no handle, and `ObservationRegistrar`'s install path is not public for
+> arbitrary models. Re-registering every frame therefore does not exploit the one-shot behaviour; it
+> **accumulates** one observer per *drawn frame* on every property that has not changed, and fires
+> them all together on the next write. Measured on a standalone probe (`swiftc -O -swift-version 6`,
+> Swift 6.3.3) reading one `@Observable` property across N frames and then writing it once, the
+> `onChange` count for that single write is **1 at N = 1, 10 at N = 10, 100 at N = 100 and 1000 at
+> N = 1000** — linear, no plateau. **MetalUI's common case is the pathological one**: scrolling a
+> list draws frames continuously while the document model is static, so a minute of 120 Hz scrolling
+> leaves ~7,200 stale registrations. **That last figure is DERIVED (60 × 120) from the measured
+> linear relationship, not itself measured** — an illustration of the bound's shape, not an
+> observation of a running window.
+>
+> **The mitigation, which is what actually ships.** A private `@Observable` `RedrawSentinel`
+> (`Sources/MetalUI/RedrawSentinel.swift`) is read inside every tracking session and written at the
+> top of each drawn frame, so every previously armed session fires and is thereby removed. Same
+> probe: **1** `onChange` per write at every N up to 10,000, with N−1 flush callbacks — exactly one
+> session outstanding at any moment, O(1) amortized. Three orderings in
+> `Window.drawFrameIfNeeded` are load-bearing and are named at that call site. The in-tree pin is
+> `theObserverSetIsBoundedRegardlessOfFramesDrawn`, which reports **200 against 1** with the
+> sentinel removed.
+>
+> **The `onChange` bullet.** Hopping unconditionally is wrong, and this is the sharper half.
+> `Window.markDirtyFromObservation` re-enters the main actor **synchronously** when
+> `Thread.isMainThread`, and via a `Task { @MainActor }` only otherwise. The sentinel flush runs on
+> the main thread and fires that callback; under an always-hop implementation it would land *after*
+> `drawFrameIfNeeded`'s `needsRedraw = false`, marking the window dirty on every frame forever and
+> **destroying the very idle pause this section specifies**. Measured: collapsing both branches to
+> the hop alone fails six tests. The converse mutation is not merely wrong but unassertable —
+> collapsing to a bare `MainActor.assumeIsolated` crashes the suite with **SIGTRAP, signal 5, and no
+> summary line**, since `assumeIsolated` off the main thread terminates the process.
+>
+> **What this correction does NOT change.** The first bullet is right and is the whole reason the
+> approach fits: tracking is exactly the properties read during the closure, with no annotations.
+> The tracked region really is the whole frame build, all three phases. And **`hasActiveAnimations`,
+> named in this section's guard and pause condition, deliberately does not exist yet** — M4 spec 1
+> implements the `needsRedraw` half only, because an always-`false` stored property with no writer
+> is exactly the declared-but-inert trap `CLAUDE.md` keeps a table for. M4 spec 3 introduces the
+> property, its `prepaint` registration site and both widened conditions in one change (`RX-O`).
+
 **Display link. (measured)** `CVDisplayLink` is deprecated **in its entirety** as of macOS 15 —
 `CVDisplayLink.h` opens `API_DEPRECATED_BEGIN(…, macos(10.4, 15.0))` at line 51 and closes at 251 —
 and this package targets macOS 26. The frame loop uses **`NSView.displayLink(target:selector:)`** on
