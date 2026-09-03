@@ -135,6 +135,22 @@ public final class Window {
     /// Test observability: how many frames actually reached the GPU.
     public private(set) var framesDrawn: Int = 0
 
+    /// How many times the loop has found nothing to do and paused the display
+    /// link. Test and debug observability, not API.
+    public private(set) var pausesEntered: Int = 0
+
+    /// How many times an `@Observable` change has marked this window dirty,
+    /// **excluding** the per-frame sentinel flush.
+    ///
+    /// This is the only observable that can distinguish "one dirty-marking per
+    /// write" from "N of them" — `needsRedraw` is a `Bool` and cannot. It is
+    /// what `theObserverSetIsBoundedRegardlessOfFramesDrawn` reads, and
+    /// removing `redrawSentinel` takes it from 1 to N.
+    ///
+    /// Test and debug observability, not API. Delete both counters in the same
+    /// change that lands a real profiling story.
+    public private(set) var observationDirtyings: Int = 0
+
     /// The primitives the most recent frame handed to the renderer.
     ///
     /// Test observability, and internal rather than public: what the GPU
@@ -335,6 +351,23 @@ public final class Window {
     /// every element in one frame sees the same instant rather than each
     /// sampling a wall clock independently.
     private var lastTick: Double = 0
+
+    /// Written once per frame to flush observation sessions armed by previous
+    /// frames. See `RedrawSentinel` for why, with the measurement.
+    private let redrawSentinel = RedrawSentinel()
+
+    /// True only for the duration of the sentinel write in
+    /// `drawFrameIfNeeded`, so `markDirtyFromObservation` can tell a flush from
+    /// a real change.
+    ///
+    /// **Behaviourally redundant today and kept anyway** — measured: deleting
+    /// this guard changes `needsRedraw`, `framesDrawn` and the pause record not
+    /// at all, because the `needsRedraw = false` on the line after the flush
+    /// already absorbs the spurious dirty. It shows up only in
+    /// `observationDirtyings`: 0 across 1000 drawn frames with the guard, 999
+    /// without. It is kept because it makes the correctness independent of the
+    /// flush happening to run on the main thread, rather than resting on that.
+    private var isFlushing = false
 
     init<Root: Element>(platformWindow: any PlatformWindow,
                         renderer: Renderer,
