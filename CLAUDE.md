@@ -315,7 +315,15 @@ idiomatic Swift. macOS and iOS.
   the datum, which `List` re-reads every frame. **Explicitly not a divergence,
   and the reason is that no oracle disagrees** — SwiftUI's `List` behaves the
   same way for the same reason — where 13 and 14 above are accepted limitations
-  and 12 and 17 were live losses. It is the same *mechanism* as those four,
+  and 12 and 17 were live losses. **That SwiftUI comparison is DERIVED from
+  SwiftUI's documented laziness and was NOT measured here** (ruling `RX-P`): a
+  row's `body` is not evaluated until the row is realized, so nothing in it can
+  be read or tracked — but no probe was run, and this repo's own precedent
+  (divergences 2 and 9) is that an oracle claim gets run before it is written.
+  Confirming it needs a SwiftUI harness this repository does not have and should
+  not grow for one claim, so it is labelled rather than deleted. **Nothing is
+  foreclosed: if SwiftUI does differ, the divergence label is still
+  available.** It is the same *mechanism* as those four,
   which is why it is recorded here rather than left to be rediscovered. Pinned
   by `anOffScreenListRowsModelReadIsNotTracked` (`ObservationTests.swift`),
   which carries its own positive control on the same fixture — `rows[0]` is
@@ -2138,7 +2146,15 @@ marks nothing dirty — the same "not produced ⇒ not seen" mechanism as the
 retired 12 and 17 and the live 13 and 14, in a **third** place. It is **not** a
 divergence and does not get a label: **SwiftUI's `List` does the identical thing
 for the identical reason**, so unlike 18 there is no SwiftUI disagreement, and
-unlike 1, 2, 4 and 9 there is no oracle disagreement either. It is correct
+unlike 1, 2, 4 and 9 there is no oracle disagreement either. **Read that
+SwiftUI claim at its strength, because it is the sole justification for
+withholding a label and it is DERIVED rather than measured** (ruling `RX-P`): it
+follows from SwiftUI's documented laziness, and **no probe was run** — unlike
+divergences 2 and 9, whose oracle claims were each measured through a throwaway
+probe before being written. Measuring it needs a SwiftUI harness this repo does
+not have and should not grow for one claim, so the shortfall is labelled rather
+than glossed. **If SwiftUI turns out to differ, label 19 is still available and
+nothing here forecloses it.** It is correct
 behaviour — nothing on screen to redraw, self-healing on scroll, with the value
 living in the datum `List` re-reads every frame — and it is written up in the
 `List` bullet at the top of this file and pinned by

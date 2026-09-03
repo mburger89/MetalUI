@@ -44,7 +44,22 @@ is assembled from exactly those.
 unless the ruling says otherwise, and where a figure came from a standalone
 prototype rather than from the suite the ruling says so at the number.** That
 distinction is `TB-AA`'s rule and this milestone had to apply it twice — see
-`RX-F`.
+`RX-F`. Two further labels appear at their own numbers: a figure **derived**
+from a measured relationship rather than observed (`RX-K`'s ~7,200), and a
+claim about **SwiftUI** derived from documentation rather than probed (`RX-P`).
+
+**Where the authoritative copy of each in-tree number lives, so a future editor
+knows which to update first.** The three mutation figures — **1 vs 200** for the
+sentinel, **0 vs 199** for the `isFlushing` guard, and the off-by-one's reason —
+now appear in three places apiece: the source doc comments, this document, and
+`CLAUDE.md`'s reactivity bullet. **The source is authoritative**, because it is
+the copy a mutation is run against and the one `RX-F` exists to keep honest:
+`Sources/MetalUI/Window.swift`'s `observationDirtyings` comment for 1-vs-200 and
+its `isFlushing` comment for 0-vs-199. Re-measure there, correct there first,
+then propagate here and to `CLAUDE.md`. The §2 prototype table in
+`Sources/MetalUI/RedrawSentinel.swift` and in the reactivity spec is a
+*different* measurement (the standard library's behaviour, not this tree's) and
+must not be reconciled with these.
 
 ---
 
@@ -79,7 +94,10 @@ only *fired*.
 design problem rather than a curiosity: scrolling a list draws frames
 continuously while the document model is static, so the accumulation is bounded
 only by frames-drawn-since-that-property-last-changed. A minute of 120 Hz
-scrolling leaves ~7,200 stale registrations that all fire on the next write.
+scrolling leaves ~7,200 stale registrations that all fire on the next write —
+**that figure is DERIVED (60 × 120) from the measured linear relationship above,
+not itself measured**, and is stated as an illustration of the bound's shape
+rather than as an observation of a running window.
 
 **The mitigation, and its measurement.** With the sentinel read inside every
 session and written at the top of each frame, every previously armed session
@@ -269,6 +287,29 @@ mechanism. **This is none of those: SwiftUI's `List` behaves the same way for
 the same reason, so no oracle disagrees.** Recording it as a divergence would
 say the framework is out of step with something, and it is not.
 
+**That SwiftUI claim is DERIVED, not measured, and this milestone declined to
+measure it — read the label before citing it.** It follows from SwiftUI's
+documented laziness (a `List` row's `body` is not evaluated until the row is
+realized, so nothing in it can be read, so nothing in it can be tracked), and
+**no probe was run against SwiftUI here.** That is a deliberate scope call, on
+the same footing as this repo's prototype figures being labelled as prototype
+figures (`RX-F`, `TB-AA`): confirming it needs a SwiftUI test harness this
+repository does not have and should not grow for one claim, and the alternative
+to labelling it was either an unrun assertion or silence.
+
+**Labelling it rather than deleting it is the point.** A derived claim with its
+derivation stated is more useful than nothing, and this repo's own precedent —
+divergences 2 and 9, both of whose oracle claims were measured through a
+throwaway probe before being written — is exactly the standard this one does not
+meet, which is why the shortfall is named rather than glossed. **It is also the
+one thing that could reopen the question**: if SwiftUI turns out to differ, the
+divergence label is still available, nothing here is foreclosed, and the
+observable to compare is whether a mutation to an unrealized row's model
+schedules an update at all. **Cost if wrong:** a real disagreement with the
+framework this project takes its answers from (ruling EP-5) goes unrecorded —
+which is taxonomy shape 14, a confident reason closing a question before it is
+asked, and is why the reason is now labelled instead of stated flat.
+
 **It is recorded anyway, and the reason is the pattern rather than the
 behaviour.** It is the same "not produced ⇒ not seen" mechanism that produced
 divergences 12 and 17, arriving in a **third** place. A reader who finds it
@@ -312,11 +353,35 @@ returns nothing at all. The redraw came **structurally**, from
 after any action a keymap dispatches. Task 5's implementer reported it and Task
 5's reviewer verified it independently against the source rather than taking it.
 
-**The demonstration still holds and its wording changes.** The modal now
-dirties *through observation* — the action mutates the model and nothing else —
-which is a real integration proof. It is **not** "an explicit dirty-marking was
-removed", and repeating that framing would put a third unmeasured prediction
-into this branch's record (see `RX-H` for the second).
+**The demonstration's wording changes, and so does its strength — the second
+half is a correction to the first version of this ruling.** The modal now
+dirties *through observation* as well as through dispatch, which is a real
+second dirty source. It is **not** "an explicit dirty-marking was removed", and
+repeating that framing would put a third unmeasured prediction into this
+branch's record (see `RX-H` for the second).
+
+**But "and the modal still appears" is NOT a discriminating observable, and
+calling the move "a real integration proof" overstated it.** `main.swift:942-943`
+toggles the model inside `ToggleModal`'s handler, and `Window.swift:464-465`
+calls `setNeedsRedraw()` unconditionally after **any** action a keymap
+dispatches. So pressing **M** dirties the window **twice**, and **the modal
+would still appear with observation entirely broken.** Its appearance is
+evidence about `dispatchAction`, not about this milestone.
+
+**The discriminating observable is `Window.observationDirtyings`**, which is why
+the exit summary prints it and why `CLAUDE.md`'s human-verification entry asks
+for three counts rather than for a look — that entry already had this right
+while this ruling denied it. **This is the branch's own discriminator applied to
+a demo instead of a benchmark**: *require the arms of a comparison to disagree
+before believing that they agree.* The demo's two arms — observation working and
+observation broken — are indistinguishable by eye, and a human reporting "the
+modal appeared" has confirmed nothing about reactivity. What the *counter*
+separates is a small number (roughly two, for two presses) from zero.
+
+**And what the move genuinely buys is unaffected**: a second, independent dirty
+source for the same state, and no new visible element in a file that carries
+every milestone's exit criteria. That is the reason it was chosen, and it does
+not rest on either corrected claim.
 
 **The instrument that comes with it.** A `Q` binding and an `atexit_b` hook
 print `framesDrawn`, `pausesEntered` and `observationDirtyings` on quit. It is
@@ -426,11 +491,15 @@ review sees both. **Discharged at Task 3**, whose three tests cover all five.
 
 ## RX-F — a prototype figure attached to an in-tree line must be REPLACED by an in-tree measurement, not corroborated by one
 
-Two doc comments carried planning-time prototype numbers: `Window.swift` said
-the `isFlushing` guard gives "0 across 1000 drawn frames … 999 without", and
-`RedrawSentinel`'s reference said removing the sentinel "takes it from 1 to N".
-Both were measured on a standalone prototype at 1000 frames. **Task 3's fixture
-draws 200**, so the true in-tree figures are **0 vs 199** and **1 vs 200**.
+Two doc comments carried planning-time prototype numbers, **both of them in
+`Window.swift`**: `isFlushing`'s own comment said the guard gives "0 across 1000
+drawn frames … 999 without", and `observationDirtyings`' comment said removing
+the sentinel "takes it from 1 to N". Both were measured on a standalone
+prototype at 1000 frames. **Task 3's fixture draws 200**, so the true in-tree
+figures are **0 vs 199** and **1 vs 200**. (`RedrawSentinel.swift` was not one
+of the two: it carries only the §2 prototype table, which is *correctly*
+labelled a standalone probe and is the right evidence for the standard library's
+behaviour rather than this tree's — see `RX-K`.)
 
 **This is `TB-AA`'s converse applied to a fresh instance: a measurement taken on
 one harness, attached to a line on another as though measured there.** The

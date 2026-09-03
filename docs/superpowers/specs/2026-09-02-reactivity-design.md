@@ -357,6 +357,34 @@ That is a stronger demonstration than adding a new control would be, and it cost
 visible element — which matters, because this one file carries every milestone's exit criteria and
 CLAUDE.md records that a per-look affordance taxes every future look.
 
+> **Corrected 2026-09-02 during execution (ruling `RX-Q`;
+> `docs/superpowers/2026-09-02-reactivity-decisions.md`). Two claims in the paragraph above are
+> false — one about what was removed, one about what the modal demonstrates — and the conclusion
+> survives both.**
+>
+> **1. There was no explicit dirty-marking to remove.** The paragraph *above* this one gets it
+> right — "the keymap action path happens to call `setNeedsRedraw()`" — and then this one restates
+> it as though the call lived in the demo. It did not:
+> `git show aab0e6a:Sources/MetalUIDemo/main.swift | grep -n setNeedsRedraw` returns **nothing at
+> all**. The redraw came **structurally**, from `Window.swift:464-465`'s `dispatchAction` path,
+> which calls `setNeedsRedraw()` unconditionally after any action a keymap dispatches. Verified
+> independently by Task 5's implementer and again by its reviewer against the source. **Nothing was
+> deleted**, and the same false framing shipped in `main.swift`'s own comment until this correction.
+> What the move actually buys is a *second, independent* dirty source for the same state.
+>
+> **2. "And the modal still appears" discriminates nothing.** Pressing **M** dirties the window
+> twice — once through `dispatchAction`, once through observation — so **the modal would still
+> appear with observation entirely broken.** Its appearance is therefore not evidence about this
+> spec at all. The discriminating observable is `Window.observationDirtyings`, which is exactly why
+> §7's instrumented run prints it and why the human-verification entry in `CLAUDE.md` asks for the
+> three counts rather than for a look. This is the branch's own rule — *require the arms of a
+> comparison to disagree before believing that they agree* — arriving in a demo instead of a
+> benchmark.
+>
+> **What survives.** The choice itself: converting an existing control rather than adding a new one
+> costs the demo no new visible element, which is the whole reason it was preferred, and that
+> argument does not depend on either false claim.
+
 **The instrumented run.** The demo prints a summary on quit: frames drawn, pauses entered,
 observation-dirties. A human runs it, leaves the window untouched for a measured interval, presses
 **M** twice, and quits. The expected report is that pauses entered is non-zero and that frames drawn

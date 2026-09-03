@@ -365,7 +365,9 @@ Three properties of `withObservationTracking` make it fit a full-rebuild model:
 > `onChange` count for that single write is **1 at N = 1, 10 at N = 10, 100 at N = 100 and 1000 at
 > N = 1000** — linear, no plateau. **MetalUI's common case is the pathological one**: scrolling a
 > list draws frames continuously while the document model is static, so a minute of 120 Hz scrolling
-> leaves ~7,200 stale registrations.
+> leaves ~7,200 stale registrations. **That last figure is DERIVED (60 × 120) from the measured
+> linear relationship, not itself measured** — an illustration of the bound's shape, not an
+> observation of a running window.
 >
 > **The mitigation, which is what actually ships.** A private `@Observable` `RedrawSentinel`
 > (`Sources/MetalUI/RedrawSentinel.swift`) is read inside every tracking session and written at the

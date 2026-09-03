@@ -49,15 +49,25 @@ import AppKit
 /// The demo's application model, and the reason it exists is M4 spec 1 rather
 /// than the modal.
 ///
-/// `showModal` was a top-level `var` until 2026-09-02. It redrew only because
-/// the keymap action that wrote it happened to sit on a path that calls
-/// `Window.setNeedsRedraw()` afterwards — the variable itself marked nothing.
-/// Moving it onto an `@Observable` model proves the reactivity integration **by
-/// removing an explicit dirty-marking**: the action below now mutates the model
-/// and nothing else, and the modal still appears.
+/// `showModal` was a top-level `var` until 2026-09-02, and **nothing in this
+/// file has ever marked the window dirty** — `grep -n setNeedsRedraw` over this
+/// file at commit `aab0e6a` returns nothing at all. The redraw came
+/// **structurally**, from `Window.swift`'s own `dispatchAction` path, which
+/// calls `setNeedsRedraw()` unconditionally after **any** action a keymap
+/// dispatches. Moving `showModal` onto an `@Observable` model therefore
+/// **deleted no call**, and this comment said it did until ruling `RX-Q`
+/// measured it. What the move buys is a second, independent dirty source for
+/// the same state — the action mutates the model and nothing else, and the
+/// window is now dirtied by *observation* as well as by dispatch.
 ///
-/// That is a stronger demonstration than a new control would be, and it costs
-/// the demo no new visible element.
+/// **So the modal appearing is NOT the observable that proves anything.**
+/// Pressing M dirties the window twice, and the modal would still appear with
+/// observation entirely broken. `Window.observationDirtyings` is the
+/// discriminating observable, which is why the exit summary prints it.
+///
+/// The move is still the right shape: it costs the demo no new visible element,
+/// which matters because this one file carries every milestone's exit criteria
+/// and a per-look affordance taxes every future look.
 @Observable
 final class DemoModel {
     var showModal = false
