@@ -185,6 +185,43 @@ mutation sets `needsRedraw` synchronously — assertable immediately after the w
 `await`. A background mutation does not — assertable as still-false immediately, and true after a
 yield. A branch that cannot be reddened by mutating it is not pinned; both can.
 
+> **Corrected 2026-09-02 during execution (rulings `RX-H` and `RX-I`;
+> `docs/superpowers/2026-09-02-reactivity-decisions.md`). The always-hop argument above is
+> CONFIRMED; two things stated around it are wrong and are corrected in place rather than
+> rewritten.**
+>
+> **1. The example derived from the always-hop argument named the wrong test — this branch's THIRD
+> wrong prediction about which test catches what**, after §6.1's original "nothing observes
+> `setDisplayLinkPaused`" and §6.2 assertion 4's "deleting the guard reddens assertion 1" (both
+> already corrected in place in their own sections). The plan derived from this section
+> (`docs/superpowers/plans/2026-09-02-reactivity.md`, Task 4 step 3) predicted that collapsing both
+> branches to the hop alone would fail "the idle tests … including the pre-existing
+> `idleWindowPausesTheDisplayLinkAndDirtyingResumesIt`". **Measured: that mutation failed SIX tests,
+> and that one stayed GREEN.** It is structurally blind to the mutation rather than insensitive to
+> the hazard — it draws only two frames, frame 1 has no armed session to flush, and frame 2 returns
+> at the `guard needsRedraw` before reaching the flush, so it never triggers a flush at all; and it
+> dirties via a direct `setNeedsRedraw()`, never through `@Observable`, so it is not on
+> `markDirtyFromObservation`'s path in either direction. Verified independently twice, by the
+> implementer and then by the reviewer against `FrameLoopTests.swift:109-126` and
+> `Window.swift:528-540`. **The test that DOES mirror this hazard is
+> `anObservableWriteWakesAPausedWindowAndDrawsExactlyOneFrame`** (`ObservationTests.swift`) — it
+> wakes a genuinely paused window through an `@Observable` write, draws exactly one frame, and
+> confirms the window idles again with `pausesEntered` advancing by exactly one. It is among the six
+> that failed. **Cite that one, not the pre-existing idle test.** The general claim is untouched.
+>
+> **2. "A background mutation … assertable as still-false immediately" is FALSE, and asserting it
+> was pinning the scheduler rather than the code.** Measured: the off-thread branch *is* taken
+> (`Thread.isMainThread == false`, instrumented, 5/5 deterministic) and the "still clean" assertion
+> failed 5/5 anyway. `await done.value` is itself a suspension point on the main actor — it hands
+> the thread back to the scheduler, which is free to run the hop's already-enqueued `Task` before
+> this function's continuation resumes. **There is no difference in kind between that suspension and
+> an explicit `await Task.yield()`.** The branch's two genuinely observable guarantees are that it
+> **does not trap** and that it **does eventually dirty** after a yield, and the first cannot be an
+> `#expect`: collapsing to a bare `MainActor.assumeIsolated` crashes the suite with **SIGTRAP,
+> signal 5, and no summary line**, reproduced deterministically in the full suite and in isolation —
+> CLAUDE.md's taxonomy shape 13 as a live result. That crash, not a red assertion, is the evidence,
+> which is why it is carried in the test's doc comment as prose.
+
 The synchronous branch is the overwhelmingly common one (the demo, every test, any main-actor
 model) and costs zero added latency. The hop branch cannot crash, which is why it is the fallback
 rather than a bare `assumeIsolated` — this repo already carries one live `assumeIsolated` release
