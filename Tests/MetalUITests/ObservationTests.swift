@@ -215,7 +215,13 @@ final class ProbeModel {
 /// is itself the evidence that the off-thread branch took the `Task { @MainActor
 /// … }` path rather than `assumeIsolated`. No `#expect` can state that, because
 /// the failure mode this guards against is process termination, not a failed
-/// assertion.
+/// assertion. **Measured, not asserted-by-inference**: collapsing
+/// `markDirtyFromObservation` to a bare `MainActor.assumeIsolated` (deleting the
+/// `Thread.isMainThread` branch) crashes the suite with **SIGTRAP (signal 5)
+/// and no summary line at all**, rather than reddening this or any other test —
+/// reproduced deterministically both in a full unfiltered run and filtered to
+/// this test alone. That crash, not a red `#expect`, is what this guarantee
+/// stands on, which is exactly why it cannot be written as one.
 ///
 /// **Guarantee 2: it does eventually dirty**, once given a chance to run —
 /// asserted below after an explicit yield.
@@ -299,6 +305,17 @@ final class ProbeModel {
 /// mechanism that produced divergences 12 and 17, arriving in a third place.
 /// Asserted as the documented behaviour it is, not as a defect: SwiftUI's
 /// `List` does the same thing for the same reason, so no oracle disagrees.
+///
+/// **Carries its own positive control, on the same window and the same
+/// fixture, before the off-screen half runs** — the same pairing
+/// `mutatingAnUnreadPropertyDoesNotDirtyTheWindow` needs
+/// `mutatingAnObservedModelMarksTheWindowDirty` for. Without it, a `List` that
+/// stopped tracking row builders entirely — memoizing built rows instead of
+/// rebuilding them from `visibleRange` every frame — would pass this test
+/// vacuously: no row's read would be tracked either way, on-screen or off.
+/// `rows[0]` is the control, mutated first and confirmed to dirty the window
+/// on its own, so the later "stays clean" half is evidence about visibility
+/// and not about tracking having silently stopped altogether.
 @MainActor
 @Test func anOffScreenListRowsModelReadIsNotTracked() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(),
@@ -331,11 +348,28 @@ final class ProbeModel {
     platformWindow.simulateTick(timestamp: 100)
     try #require(!window.needsRedraw, "set up: the window must be clean")
 
+    // The positive control. `rows[0]` is inside the built window at every
+    // offset `List.visibleRange` can produce, not just for this fixture's
+    // particular size: at `offset == 0` (this fixture never scrolls),
+    // `rawFirst = floor(0 / rowExtent) - overscan`, which is negative, and
+    // `visibleRange` clamps it with `max(0, rawFirst)` — so row 0 is always
+    // the window's lower bound at offset 0, independent of `rowHeight`,
+    // `viewportExtent` or `overscan`'s own value (`Sources/MetalUI/List.swift`,
+    // `visibleRange(count:pass:)`). Read from the source rather than guessed.
+    rows[0].model.label += "y"
+
+    #expect(window.needsRedraw, "an on-screen row's datum IS a dependency of the frame that built it")
+    #expect(window.observationDirtyings == 1)
+
+    window.drawFrameIfNeeded()
+    try #require(!window.needsRedraw, "back to clean before the off-screen half")
+
     // Row 199 is far outside a 64pt viewport at offset 0, so its builder never
     // ran and nothing read `models[199].label`.
     rows[199].model.label += "x"
 
     #expect(!window.needsRedraw,
             "an off-screen row's datum is not a dependency of a frame that never built that row")
-    #expect(window.observationDirtyings == 0)
+    #expect(window.observationDirtyings == 1,
+            "unchanged from the control above — the off-screen mutation adds no new dirtying")
 }
