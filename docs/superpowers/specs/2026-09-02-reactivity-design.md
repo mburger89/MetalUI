@@ -272,10 +272,21 @@ Numbered 1 and 2 exist today and are listed so the boundary is visible; 3 throug
    in this spec green, because a redundant dirty-marking is behaviourally invisible. It must be
    demonstrated red with the sentinel removed by running that mutation, not by asserting here that
    it is sensitive.
-4. **The flush does not dirty.** Deleting the `isFlushing` guard must redden assertion 1 —
-   demonstrated by mutation, not claimed. Note that assertion 1 is a *pre-existing* test, so this
-   is a case of new code being guarded by old coverage, and the mutation is the only thing that
-   establishes it.
+4. **The flush does not dirty — and this assertion was CORRECTED by running its own mutation.**
+   The first draft said deleting the `isFlushing` guard must redden assertion 1. **Measured on a
+   standalone prototype of this exact shape: it reddens nothing behavioural.** With the guard gone,
+   `needsRedraw`, `framesDrawn` and the pause record are byte-identical, because §4.1's ordering
+   already absorbs the spurious dirty on the very next line. The guard is observable *only* in
+   `observationDirtyings`: 0 across 1000 drawn frames with the guard, **999** without it.
+
+   So the pin is a counter assertion and must be written as one: **a frame that changes no observed
+   property reports zero observation-dirtyings**, across N frames. That is semantically meaningful
+   in its own right rather than a mutation trap, which is why it is the right shape.
+
+   **The guard is kept despite being behaviourally redundant today**, on §4.2's argument: it makes
+   the correctness independent of thread affinity rather than resting on the flush happening to run
+   on the main thread. A reader who deletes it as dead code should find this paragraph and the
+   counter assertion, not a green suite.
 5. **The hop, both branches.** A main-thread mutation leaves `needsRedraw == true` with no `await`.
    A background mutation leaves it `false` at the same point and `true` after a yield.
 6. **`@State` and `@Observable` compose.** A frame dirtied by a `@State` write and a frame dirtied
