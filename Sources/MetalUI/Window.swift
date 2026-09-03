@@ -1,4 +1,5 @@
 import Metal
+import Observation
 import MetalUICore
 import MetalUIRender
 import MetalUIPlatform
@@ -479,20 +480,81 @@ public final class Window {
         platformWindow.setDisplayLinkPaused(false)
     }
 
+    /// The `withObservationTracking` callback: something a frame read has
+    /// changed, so the next frame must be built.
+    ///
+    /// **`nonisolated` is forced, not chosen.** `withObservationTracking`'s
+    /// `onChange` is `@Sendable` and fires on the *mutating* thread, which may
+    /// be any thread, so this cannot be `@MainActor` and cannot touch a stored
+    /// property directly. Both branches below re-enter the actor before reading
+    /// `isFlushing` or writing anything.
+    ///
+    /// **The two branches differ in latency, not in outcome.** A main-thread
+    /// mutation — the demo, every test, any main-actor model — marks the window
+    /// dirty *synchronously*, before the write it is reacting to has even
+    /// landed. An off-thread mutation costs one main-actor hop first.
+    ///
+    /// **The synchronous branch is load-bearing for the idle criterion, not an
+    /// optimisation.** The per-frame sentinel flush runs on the main thread and
+    /// fires this method; under an always-hop implementation that callback
+    /// would land *after* `drawFrameIfNeeded`'s `needsRedraw = false`, marking
+    /// the window dirty on every single frame forever and destroying the
+    /// display-link pause this milestone exists to deliver. The `isFlushing`
+    /// guard is what makes that independent of thread affinity rather than
+    /// resting on it.
+    nonisolated private func markDirtyFromObservation() {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                guard !self.isFlushing else { return }
+                self.observationDirtyings += 1
+                self.setNeedsRedraw()
+            }
+        } else {
+            Task { @MainActor [weak self] in
+                guard let self, !self.isFlushing else { return }
+                self.observationDirtyings += 1
+                self.setNeedsRedraw()
+            }
+        }
+    }
+
     public func drawFrameIfNeeded() {
         guard needsRedraw else {
             // Nothing to do: let the display idle rather than spinning.
             platformWindow.setDisplayLinkPaused(true)
+            pausesEntered += 1
             return
         }
+
+        // Flush every observation session armed by an earlier frame, so
+        // registrations stay bounded at one outstanding session instead of
+        // growing with frames drawn. See `RedrawSentinel` for the measurement.
+        //
+        // THREE ORDERINGS ARE LOAD-BEARING HERE.
+        //
+        // 1. The flush is INSIDE the dirty branch, after the guard above. A
+        //    clean, paused window must keep its one armed session — that
+        //    session is what wakes it. Flushing before the guard disarms an
+        //    idle window and it never redraws again.
+        // 2. The flush PRECEDES `needsRedraw = false`. Any dirty the flush
+        //    produces is absorbed by that clear. Moving the clear above the
+        //    flush leaves the window permanently dirty at full frame rate.
+        // 3. `redrawSentinel.tick` is READ inside the tracked closure below.
+        //    That is what arms the next flush; a frame that does not read it
+        //    cannot be flushed and rejoins the accumulating case.
+        isFlushing = true
+        redrawSentinel.tick &+= 1
+        isFlushing = false
+
         needsRedraw = false
         // Cleared HERE, before `renderRoot` runs below — not after the frame
         // is built. **This ordering has no production consequence**: a
         // `@State` write made during `renderRoot` fires `onWrite` →
         // `setNeedsRedraw()` regardless of where this call sits, nothing
         // clears `needsRedraw` again before this function returns, so the
-        // write is unswallowable either way. What the ordering actually
-        // protects is `isDirty` itself, which is otherwise-inert test
+        // write is unswallowable either way. The same argument covers an
+        // `@Observable` change arriving during the build. What the ordering
+        // actually protects is `isDirty` itself, which is otherwise-inert test
         // observability (see `StateTable.isDirty`'s doc): clearing it AFTER
         // `renderRoot` would raise it during the render and immediately
         // clear it again on the next line, so a test reading it back would
@@ -539,7 +601,16 @@ public final class Window {
                           mousePosition: lastMousePosition,
                           activeElement: active,
                           focusedElement: focusHandedIn)
-        renderRoot(frame)
+        withObservationTracking {
+            // Reading the sentinel arms the next frame's flush; see ordering
+            // note 3 above. Everything the element tree reads during all three
+            // phases is tracked too, which is what makes an `@Observable`
+            // model a dependency with no opt-in.
+            _ = redrawSentinel.tick
+            renderRoot(frame)
+        } onChange: { [weak self] in
+            self?.markDirtyFromObservation()
+        }
         let scene = frame.finalizedScene()
         lastScene = scene
         lastHitboxes = frame.hitboxes
