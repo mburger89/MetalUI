@@ -145,8 +145,11 @@ public final class Window {
     ///
     /// This is the only observable that can distinguish "one dirty-marking per
     /// write" from "N of them" — `needsRedraw` is a `Bool` and cannot. It is
-    /// what `theObserverSetIsBoundedRegardlessOfFramesDrawn` reads, and
-    /// removing `redrawSentinel` takes it from 1 to N.
+    /// what `theObserverSetIsBoundedRegardlessOfFramesDrawn` reads.
+    /// **Measured in this tree, not prototyped**: with both `redrawSentinel`
+    /// lines commented out, drawing 200 frames and then writing once takes this
+    /// delta from 1 to **200** — one dirty-marking per frame drawn since the
+    /// last change, exactly the accumulation this property exists to bound.
     ///
     /// Test and debug observability, not API. Delete both counters in the same
     /// change that lands a real profiling story.
@@ -365,8 +368,13 @@ public final class Window {
     /// this guard changes `needsRedraw`, `framesDrawn` and the pause record not
     /// at all, because the `needsRedraw = false` on the line after the flush
     /// already absorbs the spurious dirty. It shows up only in
-    /// `observationDirtyings`: 0 across 1000 drawn frames with the guard, 999
-    /// without. It is kept because it makes the correctness independent of the
+    /// `observationDirtyings`. **Measured in this tree** (`aFrameThatChangesNoObservedPropertyReportsNoObservationDirtying`,
+    /// 200 drawn frames): 0 with the guard, **199** without — one short of 200
+    /// because the very first flush has no prior session armed to trip: a
+    /// session is armed only by a preceding `withObservationTracking` call
+    /// reading `redrawSentinel.tick`, and frame 1 is the first read there ever
+    /// is. Frames 2 through 200 each trip the session the frame before armed,
+    /// so 199 fire. It is kept because it makes the correctness independent of the
     /// flush happening to run on the main thread, rather than resting on that.
     private var isFlushing = false
 

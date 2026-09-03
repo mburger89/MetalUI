@@ -62,3 +62,122 @@ final class ProbeModel {
             "a property no frame read is not a dependency of any frame")
     #expect(window.observationDirtyings == 0)
 }
+
+/// Spec §2 and §6.2 assertion 3. `withObservationTracking` installs an observer
+/// per tracked property per call and removes it only when `onChange` fires, and
+/// there is **no public cancellation API**. Re-registering every frame — which
+/// design spec §4.4 prescribes — therefore accumulates one observer per drawn
+/// frame on every property that has not changed, and MetalUI's common case
+/// (scrolling a list while the document is static) is the pathological one.
+///
+/// `Window.redrawSentinel` bounds it at exactly one outstanding session.
+///
+/// **This is the assertion that would rot silently.** Removing the sentinel
+/// leaves every other test in this file green, because a redundant
+/// dirty-marking changes no behaviour anyone can observe. Measured on a
+/// standalone prototype of this exact shape: 1000 drawn frames then one write
+/// gives an `observationDirtyings` delta of **1** with the sentinel and
+/// **1000** without it.
+@MainActor
+@Test func theObserverSetIsBoundedRegardlessOfFramesDrawn() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+
+    // Two windows rather than a loop over one, so the low and high frame counts
+    // are compared as a differential. A single-count assertion cannot tell a
+    // bounded implementation from an accumulating one — the whole defect is
+    // that the number GROWS.
+    for framesToDraw in [1, 200] {
+        let model = ProbeModel()
+        let (window, _) = try makeFakeWindow(device: device) {
+            Box().background(.surface).width(Pixels(10))
+                 .height(Pixels(Float(model.label.count)))
+        }
+
+        for _ in 0..<framesToDraw {
+            window.setNeedsRedraw()
+            window.drawFrameIfNeeded()
+        }
+
+        let before = window.observationDirtyings
+        model.label += "x"
+
+        #expect(window.observationDirtyings - before == 1,
+                """
+                one write must produce exactly one dirty-marking, not one per \
+                frame drawn since the last change. Drew \(framesToDraw) frames \
+                and got \(window.observationDirtyings - before). If this reads \
+                \(framesToDraw), `Window.redrawSentinel` is not being written \
+                or not being read inside the tracked closure.
+                """)
+    }
+}
+
+/// Spec §6.2 assertion 4, in its **corrected** form.
+///
+/// The spec's first draft said deleting `Window.isFlushing`'s guard would
+/// redden the pre-existing idle test. Measured on a standalone prototype: it
+/// reddens nothing behavioural. `needsRedraw`, `framesDrawn` and the pause
+/// record are byte-identical with and without the guard, because the
+/// `needsRedraw = false` on the line after the flush already absorbs the
+/// spurious dirty.
+///
+/// So the pin is a counter assertion, and it is semantically meaningful in its
+/// own right rather than a mutation trap: **a frame that changes no observed
+/// property reports no observation-dirtying.** With the guard deleted this
+/// reads 199 rather than 0.
+@MainActor
+@Test func aFrameThatChangesNoObservedPropertyReportsNoObservationDirtying() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let model = ProbeModel()
+    let (window, _) = try makeFakeWindow(device: device) {
+        Box().background(.surface).width(Pixels(10)).height(Pixels(Float(model.label.count)))
+    }
+
+    for _ in 0..<200 {
+        window.setNeedsRedraw()          // dirtied by something that is not the model
+        window.drawFrameIfNeeded()
+    }
+
+    #expect(window.observationDirtyings == 0,
+            """
+            the per-frame sentinel flush must not count as an observation \
+            change. Got \(window.observationDirtyings) across 200 frames; if \
+            this reads 199, `isFlushing` is not guarding \
+            `markDirtyFromObservation`.
+            """)
+}
+
+/// Spec §6.2 assertion 1's new half. The pre-existing
+/// `idleWindowPausesTheDisplayLinkAndDirtyingResumesIt` (`FrameLoopTests.swift`)
+/// already pins that an idle tick pauses and that `setNeedsRedraw()` resumes.
+/// What is new is that an **observable write** must be able to wake a *paused*
+/// window — the path that did not exist before this spec.
+@MainActor
+@Test func anObservableWriteWakesAPausedWindowAndDrawsExactlyOneFrame() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let model = ProbeModel()
+    let (window, platformWindow) = try makeFakeWindow(device: device) {
+        Box().background(.surface).width(Pixels(10)).height(Pixels(Float(model.label.count)))
+    }
+
+    window.drawFrameIfNeeded()                       // drain the initial dirty
+    window.drawFrameIfNeeded()                       // idle: this one pauses
+    try #require(platformWindow.pauseCalls.last == true,
+                 "set up: the link must be paused before the write")
+    let framesBefore = window.framesDrawn
+    let pausesBefore = window.pausesEntered
+
+    model.label = "woken"
+
+    #expect(platformWindow.pauseCalls.last == false, "the write must resume the link")
+
+    window.drawFrameIfNeeded()
+    #expect(window.framesDrawn == framesBefore + 1, "exactly one frame, not zero and not two")
+
+    window.drawFrameIfNeeded()
+    #expect(window.framesDrawn == framesBefore + 1, "and then the window idles again")
+    #expect(window.pausesEntered == pausesBefore + 1, "having paused exactly once more")
+}
