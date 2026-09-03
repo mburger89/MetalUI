@@ -962,10 +962,19 @@ func runDemo() throws {
             window.focus(nil)
             return true
         case is QuitDemo:
+            // The `return` is INSIDE the `#if` on purpose. Returning `true`
+            // unconditionally claims the keystroke on a platform where this
+            // handler does nothing, so **Q** would be silently swallowed
+            // rather than falling through to `onKey` and `Window.onInput`.
+            // Handling an action is what claims it — an action nobody handles
+            // does not claim the keystroke — and on a non-AppKit build nobody
+            // handles this one.
             #if canImport(AppKit)
             NSApplication.shared.terminate(nil)
-            #endif
             return true
+            #else
+            return false
+            #endif
         default:
             return false
         }

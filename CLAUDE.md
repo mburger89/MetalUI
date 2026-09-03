@@ -425,18 +425,41 @@ idiomatic Swift. macOS and iOS.
   every frame keeps the window permanently dirty, so the display link never
   pauses, which is milestone 4's exit criterion sabotaged from an element.
 
-  **The same trap has a SECOND door as of 2026-09-02, and it is folded in here
-  rather than given a rival bullet because it is one hazard with two spellings.**
-  An `@Observable` **write** from inside `renderRoot` — an element that reads a
-  model property and then writes one during `requestLayout`, `prepaint` or
-  `paint` — does the identical damage. `Window.drawFrameIfNeeded` arms the
-  observation session *during* the apply closure, so a write made inside it
-  fires `onChange` mid-render → `markDirtyFromObservation()` →
-  `setNeedsRedraw()`, and the display link never pauses. The `isFlushing` guard
-  does not help: it is set only for the sentinel write and is false throughout
-  the render. Same rule, same reason, wider blast radius — a model is shared,
-  where a `@State` box is one element's. **Write a model from input, never from
-  a phase.**
+  **There is a SECOND hazard with the same ADVICE and the OPPOSITE failure
+  mode, and this paragraph described it backwards until 2026-09-03 (ruling
+  `RX-S`).** It said an `@Observable` write from inside `renderRoot` "does the
+  identical damage" and that "the display link never pauses" — folding the two
+  together as "one hazard with two spellings". **Both halves were wrong**, and
+  the inverted symptom is the worse of the two: a debugger following that note
+  looks for a window that spins, and the real window is asleep.
+
+  Keep them as two hazards:
+
+  - **`@State` written from a phase → permanently dirty, the link NEVER
+    pauses.** The bullet above, unchanged and correct. `onWrite` fires
+    synchronously at the write, so every frame re-dirties the window.
+  - **`@Observable` written from a phase → silently STALE, the link pauses
+    IMMEDIATELY.** `withObservationTracking` installs its observers **after**
+    the apply closure returns, so a write landing inside the build fires **no**
+    `onChange` at all. The window renders the pre-write value, clears
+    `needsRedraw`, and idles. Measured in-tree: `observationDirtyings=0`, and
+    across 21 ticks `needsRedraw=false`, **0** frames drawn, 21 pauses entered,
+    `pauseCalls.last=true`. Standalone, an in-closure write fires `onChange`
+    **0** times against **1** for the same write after apply returns. The
+    `isFlushing` guard is irrelevant here — nothing fires for it to guard.
+
+  So the two failures are not one: one window never sleeps, the other never
+  wakes. **What IS common is the advice, and it is the only part to present as
+  shared: write from input, never from a phase.** The `@Observable` case has
+  the wider blast radius, a model being shared where a `@State` box is one
+  element's — that much of the old paragraph stands.
+
+  **The same mechanism is a standing limitation rather than only an author
+  error**, because the unarmed interval is the whole frame build: a *background*
+  write arriving in it, after the property has been read, is lost the same way,
+  on a path the framework supports and tests. Recorded at
+  `markDirtyFromObservation` with both probes and with why it is not fixed in
+  code.
 
   **`@State` inside an `AnyElement` is silently inert** and has its own row in
   the inert table. Decisions doc:
@@ -1077,13 +1100,14 @@ was caught by twice. **"Four call sites" is the claim**; here they are:
   Its own doc comment already carries the measurement — delete the guard and
   `theRunCounterIgnoresCallsMadeOffTheMainThread` does not redden, it takes the
   process down with signal 5.
-- **`Sources/MetalUI/Window.swift:515`** — new 2026-09-02, inside
-  `markDirtyFromObservation`'s synchronous branch. Guarded by the same
+- **`Window.markDirtyFromObservation`** (`Sources/MetalUI/Window.swift`) — new
+  2026-09-02, inside its synchronous branch. Guarded by the same
   `Thread.isMainThread` predicate, with the `Task { @MainActor }` fallback as
   the other arm. Collapsing the two arms to this one alone is the SIGTRAP result
   recorded in the reactivity bullet.
-- **`Sources/MetalUIDemo/main.swift:914`** — new 2026-09-02, inside the demo's
-  `atexit_b` counter-summary hook. Safe because `atexit` handlers run on the
+- **The demo's `atexit_b` counter-summary hook** —
+  `atexit_b { MainActor.assumeIsolated { printReactivitySummary() } }` in
+  `Sources/MetalUIDemo/main.swift` — new 2026-09-02. Safe because `atexit` handlers run on the
   thread that calls `exit()` and both quit paths (the **Q** binding and the
   window's close button) go through `NSApplication.shared.terminate(nil)` on the
   main thread.

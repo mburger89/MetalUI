@@ -510,6 +510,40 @@ public final class Window {
     /// display-link pause this milestone exists to deliver. The `isFlushing`
     /// guard is what makes that independent of thread affinity rather than
     /// resting on it.
+    ///
+    /// **KNOWN LIMITATION — a window is UNARMED for the whole frame build, and
+    /// a change arriving in that interval is lost (ruling `RX-S`).** This
+    /// method fires only for an *armed* session, and `withObservationTracking`
+    /// installs its observers **after** the apply closure returns. So the
+    /// unarmed interval runs from `drawFrameIfNeeded`'s sentinel flush to the
+    /// end of the apply closure — essentially the whole frame build. A write
+    /// landing in that interval, *after* the property has been read, fires no
+    /// `onChange`: the window renders the pre-write value, clears
+    /// `needsRedraw`, and pauses. It self-heals only if some other cause draws
+    /// another frame.
+    ///
+    /// Measured twice rather than reasoned. Standalone: a write inside the
+    /// apply closure fires `onChange` **0** times where the identical write
+    /// after it returns fires **1**, and a session that missed an in-closure
+    /// write still fires for a later one — so the session is armed and simply
+    /// did not see the first. In-tree, with a content closure that reads then
+    /// writes a model property: `observationDirtyings == 0`, and across 21
+    /// subsequent ticks `needsRedraw == false`, **0** frames drawn, 21 pauses
+    /// entered, `pauseCalls.last == true`. A post-build write on that same
+    /// window then dirties it normally (`observationDirtyings == 1`).
+    ///
+    /// **Not fixed in code, deliberately.** Closing it means arming a session
+    /// across the build, which is exactly what the flush ordering in
+    /// `drawFrameIfNeeded` exists to prevent — the flush is what bounds
+    /// registrations at one outstanding session, and an always-armed window
+    /// re-enters the accumulation `RedrawSentinel` was built to stop. The
+    /// off-thread path this reaches (`anOffThreadMutationMarksTheWindowDirtyAfterAHop`)
+    /// is supported and tested; what is not guaranteed is a background write
+    /// whose arrival lands inside a build. **Probably not a divergence**, by
+    /// `RX-P`'s own test: SwiftUI's tracking has the same install-after-body
+    /// semantics, so no oracle disagrees — but that claim is **derived from
+    /// documented semantics, not measured against SwiftUI**, exactly as
+    /// `RX-P`'s own SwiftUI claim is.
     nonisolated private func markDirtyFromObservation() {
         if Thread.isMainThread {
             MainActor.assumeIsolated {
@@ -550,9 +584,19 @@ public final class Window {
         // 3. `redrawSentinel.tick` is READ inside the tracked closure below.
         //    That is what arms the next flush; a frame that does not read it
         //    cannot be flushed and rejoins the accumulating case.
-        isFlushing = true
-        redrawSentinel.tick &+= 1
-        isFlushing = false
+        // Cleared by `defer` rather than by a following statement. `&+=` cannot
+        // trap, so nothing here can escape early *today* — the `defer` is what
+        // keeps that true for whoever adds a second statement later, at no
+        // cost. **The enclosing `do` is load-bearing, not style**: a bare
+        // `defer` in this function's own scope would run at the END of
+        // `drawFrameIfNeeded`, holding `isFlushing` true across `renderRoot`
+        // and suppressing every observation dirty for the whole frame — a
+        // behaviour change, and the wrong one.
+        do {
+            isFlushing = true
+            defer { isFlushing = false }
+            redrawSentinel.tick &+= 1
+        }
 
         needsRedraw = false
         // Cleared HERE, before `renderRoot` runs below — not after the frame
@@ -560,9 +604,21 @@ public final class Window {
         // `@State` write made during `renderRoot` fires `onWrite` →
         // `setNeedsRedraw()` regardless of where this call sits, nothing
         // clears `needsRedraw` again before this function returns, so the
-        // write is unswallowable either way. The same argument covers an
-        // `@Observable` change arriving during the build. What the ordering
-        // actually protects is `isDirty` itself, which is otherwise-inert test
+        // write is unswallowable either way.
+        //
+        // **That argument does NOT extend to an `@Observable` change arriving
+        // during the build, and this comment claimed it did until 2026-09-03.**
+        // A `@State` write reaches `needsRedraw` through `onWrite`, which fires
+        // synchronously at the write; an observation change reaches it only if
+        // a session is *armed*, and `withObservationTracking` installs its
+        // observers **after** the apply closure returns. A write landing inside
+        // the closure fires no `onChange` at all, so there is no dirty for this
+        // clear to absorb — the failure is a lost dirty, not a swallowed one.
+        // See `markDirtyFromObservation` for the unarmed interval and what it
+        // costs. Ruling `RX-S`.
+        //
+        // What the ordering actually protects is `isDirty` itself, which is
+        // otherwise-inert test
         // observability (see `StateTable.isDirty`'s doc): clearing it AFTER
         // `renderRoot` would raise it during the render and immediately
         // clear it again on the next line, so a test reading it back would

@@ -361,9 +361,11 @@ repeating that framing would put a third unmeasured prediction into this
 branch's record (see `RX-H` for the second).
 
 **But "and the modal still appears" is NOT a discriminating observable, and
-calling the move "a real integration proof" overstated it.** `main.swift:942-943`
-toggles the model inside `ToggleModal`'s handler, and `Window.swift:464-465`
-calls `setNeedsRedraw()` unconditionally after **any** action a keymap
+calling the move "a real integration proof" overstated it.** `main.swift`'s
+`ToggleModal` case (`case is ToggleModal:` in the demo's `window.onAction`
+handler) toggles `demoModel.showModal`, and the `platformWindow.onInput`
+closure installed in `Window.init` calls `setNeedsRedraw()` unconditionally
+whenever `dispatchAction` returns `true` — i.e. after **any** action a keymap
 dispatches. So pressing **M** dirties the window **twice**, and **the modal
 would still appear with observation entirely broken.** Its appearance is
 evidence about `dispatchAction`, not about this milestone.
@@ -413,11 +415,25 @@ because `grep` finds no production read anywhere. These two are the opposite:
 
 | | writer | production reader | test reader |
 |---|---|---|---|
-| `pausesEntered` | `Window.swift:533` | `main.swift:904` | `ObservationTests.swift:171,182` |
-| `observationDirtyings` | `Window.swift:517,523` | `main.swift:905` | **ten** `#expect`s in `ObservationTests.swift` (`grep -c "#expect(window.observationDirtyings"`) |
+| `pausesEntered` | `Window.drawFrameIfNeeded`'s idle guard | `main.swift`'s `printReactivitySummary` | `ObservationTests.swift`, `anObservableWriteWakesAPausedWindowAndDrawsExactlyOneFrame` |
+| `observationDirtyings` | `Window.markDirtyFromObservation`, both branches | `main.swift`'s `printReactivitySummary` | **ten** `#expect`s in `ObservationTests.swift` (`grep -c "#expect(window.observationDirtyings"`) |
 
-Re-verified by grep at this milestone's last commit rather than carried from
-the ledger. `pausesEntered` was flagged during Task 1+2's review as having a
+**Symbol names, not line numbers, and the reason is this ruling's own
+history.** The table cited `main.swift:904` and `:905` and was **correct when
+written, at `3881f65`** — then `966cc84`, the very commit that last edited this
+document, added a net +10 lines to `main.swift` and did not re-run its own
+citations, so both were off by ten before the branch was finished. That is the
+hazard CLAUDE.md's `Frame.scrollRegions` row already records twice over and
+concludes "No line numbers, on purpose"; applied here after this fix wave found
+five stale citations across this file and CLAUDE.md, all from that one commit.
+
+**The sentence that stood here — "Re-verified by grep at this milestone's last
+commit rather than carried from the ledger" — was therefore FALSE as written**,
+and is corrected rather than deleted because it is the same class of error as
+everything else this wave fixed: it was true at the commit the verification was
+run against and untrue at the commit that shipped it, and nothing re-ran it.
+A verification is dated to the commit it was run at, not to the document that
+quotes it. `pausesEntered` was flagged during Task 1+2's review as having a
 writer and no reader — **true at that commit** — and Task 3's
 `anObservableWriteWakesAPausedWindowAndDrawsExactlyOneFrame` gave it one
 (`pausesEntered == pausesBefore + 1`). Adding a row now would document a gap
@@ -431,6 +447,98 @@ table from the other side. Recorded so a reader does not add a third.
 teaches the table's own criterion wrongly, which is worse than the missing row
 would be: the table's value is entirely in a reader trusting that a row means
 "nothing reads this".
+
+---
+
+## RX-S — an observation change arriving DURING the frame build is lost, the spec's risk table said the opposite, and the fix is in the record rather than in code
+
+**The correction.** Design spec §9's risk table raised "an observation change
+arriving during the frame build is lost" and dismissed it — "**It is not**:
+`onChange` sets `needsRedraw` and nothing clears it again before
+`drawFrameIfNeeded` returns". That dismissal is wrong at its first step, and
+the same false claim had been copied to `Window.drawFrameIfNeeded`'s ordering
+comment and to CLAUDE.md's `@State` bullet. All three are corrected.
+
+**The mechanism.** `withObservationTracking` installs its observers **after**
+the apply closure returns, not during it. A property written inside the closure
+— after being read there — fires **no** `onChange` for that session. So there is
+no `needsRedraw` for the ordering argument to protect: the failure mode is a
+**lost dirty**, not a swallowed one. The `@State` half of the original argument
+is sound and untouched; `onWrite` fires synchronously at the write, which is
+precisely what observation does not do.
+
+**Measured twice, and neither number is carried from a report.**
+
+- **Standalone** (`swiftc -swift-version 6`, `import Observation`, three arms).
+  A write inside the apply closure: `onChange` fired **0** times. The identical
+  write after the closure returned: **1**. And the discriminating third arm — an
+  in-closure write *followed by* a post-apply write on the same session — fired
+  **1**, which is what proves the session is armed and simply never saw the
+  first write. Without that third arm the result is also consistent with "the
+  session was never armed at all", which is a different and less useful finding.
+- **In-tree**, through a real `Window` and `makeFakeWindow`, with the content
+  closure reading `model.n` and then writing it during the build:
+  `observationDirtyings == 0` on that frame. Across 21 subsequent ticks:
+  `needsRedraw == false`, **0** frames drawn, **21** pauses entered,
+  `pauseCalls.last == true`. A post-build write on that same window then
+  dirties it normally (`needsRedraw == true`, `observationDirtyings == 1`),
+  which is the in-tree twin of the standalone third arm.
+
+**So the symptom is the OPPOSITE of what CLAUDE.md recorded**, and that is the
+worse half of this finding. CLAUDE.md's "SECOND door" paragraph said the display
+link "never pauses" and folded the `@Observable` case together with the
+`@State`-write-from-a-phase hazard as "one hazard with two spellings". They are
+opposite failure modes: `@State` from a phase leaves the window permanently
+dirty and the link never pauses; `@Observable` from a phase leaves it silently
+stale and the link pauses **immediately** — on the very next tick, in the
+measurement above. One window never sleeps and the other never wakes, and a
+debugger following the old note would look for a spinning window while the real
+one is asleep. What genuinely is shared is the **advice**, and only that is now
+presented as common: *write from input, never from a phase.*
+
+**The real gap is wider than an author error, and it was documented as
+impossible.** The unarmed interval runs from `drawFrameIfNeeded`'s sentinel
+flush to the end of the apply closure — essentially the whole frame build. A
+**background** write landing in that interval, after the property has been read,
+is lost the same way: the window renders stale, goes clean, and pauses. It
+self-heals only if some other cause draws another frame. This is on a path the
+branch explicitly supports and tests
+(`anOffThreadMutationMarksTheWindowDirtyAfterAHop`), so it is a known limitation
+of a supported path rather than a hazard confined to misuse.
+
+**Not fixed in code, and the reason is structural rather than effort.** Closing
+it means keeping a session armed across the build, which is exactly what the
+flush ordering exists to prevent: the flush is what bounds registrations at one
+outstanding session, and an always-armed window re-enters the per-frame
+accumulation `RedrawSentinel` was built to stop (`RX-K`, and §6.2 assertion 3).
+Trading a bounded-registration guarantee for a narrow latency window is the
+wrong trade to make inside a fix wave, and it is not a one-line change. It is
+therefore stated as a **known limitation** at `markDirtyFromObservation`, which
+is where a reader chasing a lost dirty will be looking — **not** as a risk that
+was ruled out, which is how it was recorded before.
+
+**Probably not a divergence, and the qualifier is load-bearing.** By `RX-P`'s
+own test — a divergence needs an oracle that disagrees — SwiftUI's tracking has
+the same install-after-body semantics, so nothing disagrees and this is the
+platform's behaviour rather than this framework's. **That claim is DERIVED from
+documented semantics and was not measured against SwiftUI**, exactly as `RX-P`'s
+own SwiftUI claim is, and it is labelled as derived at all three sites for the
+reason `RX-F`/`TB-AA` give: a derived figure must not appear at a line as though
+it had been observed.
+
+**Cost if wrong.** If SwiftUI does arm across the body, this is a divergence and
+belongs in CLAUDE.md's numbered list rather than in a limitation note —
+recoverable by writing the SwiftUI harness `RX-P` already says this repo lacks.
+If the interval turns out to be reachable in ordinary use rather than rare, the
+remedy is the two-session design this ruling declines, not a re-run of the
+argument above.
+
+**Taxonomy note.** This is shape 14 — "a confident wrong reason closes the
+question before it is asked" — in its purest observed form: the hazard was
+raised **by name**, dismissed with a reason nobody ran, and the question closed
+in the one document a later reader would consult instead of re-deriving it. The
+dismissal is struck through in place rather than deleted, per this project's
+rule, so the shape stays visible at the site where it did its damage.
 
 ---
 
@@ -549,7 +657,9 @@ anyway: that is where a reader picks the argument up and would derive the same
 wrong example again.)
 
 **The reason, verified independently twice** — by the implementer and then by
-the reviewer against `FrameLoopTests.swift:109-126` and `Window.swift:528-540` —
+the reviewer against `idleWindowPausesTheDisplayLinkAndDirtyingResumesIt`
+(`FrameLoopTests.swift`) and `Window.drawFrameIfNeeded`'s idle guard and
+sentinel flush —
 is that the test is **structurally blind** to the mutation. It draws only two
 frames: frame 1 has no armed session to flush, and frame 2 returns at the
 `guard needsRedraw` before reaching the flush at all. It never triggers a flush,
@@ -613,7 +723,11 @@ naming one of several reads as though the others were a different kind of thing.
 three the task was briefed with**: `Text.swift:217` (the live, unguarded trap),
 `UnbreakableRuns.swift:110` (**pre-existing**, guarded by `Thread.isMainThread`,
 already documented at its own line with its own signal-5 measurement, and never
-named in CLAUDE.md either), `Window.swift:515` (new, guarded) and
-`main.swift:914` (new, this ruling). **Cost if wrong:** process termination at
+named in CLAUDE.md either), `Window.markDirtyFromObservation`'s synchronous
+branch (new, guarded) and the demo's `atexit_b` hook —
+`atexit_b { MainActor.assumeIsolated { printReactivitySummary() } }` in
+`main.swift` — (new, this ruling). **Symbols rather than line numbers**, for
+the reason `RX-R`'s table now records: the line numbers these two carried were
+correct at `3881f65` and stale at `966cc84`. **Cost if wrong:** process termination at
 exit — cosmetic, since the summary is the last thing that happens, but it would
 be a further instance of a trap this repo already carries one live example of.
