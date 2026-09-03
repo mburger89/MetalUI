@@ -459,7 +459,10 @@ idiomatic Swift. macOS and iOS.
   write arriving in it, after the property has been read, is lost the same way,
   on a path the framework supports and tests. Recorded at
   `markDirtyFromObservation` with both probes and with why it is not fixed in
-  code.
+  code. **It is unpinned by any test** — both measurements are throwaway
+  probes, not suite assertions. A pin would have to drive a write from inside
+  the tracked closure and assert the window goes clean and stays clean; nobody
+  has written it.
 
   **`@State` inside an `AnyElement` is silently inert** and has its own row in
   the inert table. Decisions doc:
@@ -1743,7 +1746,8 @@ measured or verified here rather than supposed.
 1. **The demo does not exercise this milestone's own subject.** Divergences 12
    and 17 were about a windowed `List` row keeping its `@State` and its focus
    across an excursion. `Sources/MetalUIDemo/main.swift` declares exactly
-   **one** `@State` in the whole file — `CounterPanel.count`, at line 181 —
+   **one** `@State` in the whole file — `CounterPanel.count`, declared on
+   `CounterPanel` itself —
    and the `List` row builder declares none; re-verified this task with
    `grep -n "@State" Sources/MetalUIDemo/main.swift`, whose only non-comment
    hit is that one line. **No row in the running demo has any state to keep**,
@@ -1779,7 +1783,8 @@ measured or verified here rather than supposed.
    the demo cannot exhibit the failure.** Ruling `TB-K`: a 100,000-row list
    scrolls at 500-row cost and **hangs ~17 s in release the first time it is
    shown**, which is ruling MP-I's cold frame scaled. `demoRowCount` is
-   **500** (`Sources/MetalUIDemo/main.swift:91`), whose cold frame MP-I puts
+   **500** (`Sources/MetalUIDemo/main.swift`, the `let demoRowCount` line),
+   whose cold frame MP-I puts
    at ~76 ms release. A human reporting "the list scrolls fine" is reporting
    on 500 rows and is not reporting on 100,000. See the Build section's own
    `### The 100k cold frame…` subsection, where both halves of that criterion

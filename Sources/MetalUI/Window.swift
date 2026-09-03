@@ -544,6 +544,13 @@ public final class Window {
     /// semantics, so no oracle disagrees — but that claim is **derived from
     /// documented semantics, not measured against SwiftUI**, exactly as
     /// `RX-P`'s own SwiftUI claim is.
+    ///
+    /// **This limitation is UNPINNED by any test.** The two measurements above
+    /// are both throwaway probes, not `#expect`s in the suite. A pin would have
+    /// to drive a write from *inside* the tracked closure and assert the window
+    /// goes clean and stays clean across subsequent ticks with no further
+    /// cause to redraw — nobody has written it, and per this project's
+    /// taxonomy shape 4, its absence must be stated rather than left silent.
     nonisolated private func markDirtyFromObservation() {
         if Thread.isMainThread {
             MainActor.assumeIsolated {
@@ -587,11 +594,31 @@ public final class Window {
         // Cleared by `defer` rather than by a following statement. `&+=` cannot
         // trap, so nothing here can escape early *today* — the `defer` is what
         // keeps that true for whoever adds a second statement later, at no
-        // cost. **The enclosing `do` is load-bearing, not style**: a bare
-        // `defer` in this function's own scope would run at the END of
-        // `drawFrameIfNeeded`, holding `isFlushing` true across `renderRoot`
-        // and suppressing every observation dirty for the whole frame — a
-        // behaviour change, and the wrong one.
+        // cost. **The enclosing `do` is load-bearing, not style — but the
+        // reasoning below was wrong, and this comment claimed it until
+        // 2026-09-03 (ruling `RX-S`).** It said a bare `defer` in this
+        // function's own scope would run at the END of `drawFrameIfNeeded`,
+        // holding `isFlushing` true across `renderRoot` and suppressing every
+        // observation dirty for the whole frame. **That contradicts the KNOWN
+        // LIMITATION recorded above, at `markDirtyFromObservation`**:
+        // `withObservationTracking` installs its observers only *after* the
+        // apply closure returns, and the previous frame's one-shot session was
+        // already consumed by the flush two lines above — so nothing is armed
+        // during `renderRoot` and nothing could fire there to be suppressed.
+        // The off-thread arm cannot help either: its `Task { @MainActor }`
+        // cannot run while the main thread is inside `drawFrameIfNeeded`, so
+        // under a bare `defer` it would read `isFlushing == false` anyway.
+        //
+        // **The real hazard is narrower and worse, and it is LATENT rather
+        // than live.** The interval that actually differs is the *tail* after
+        // `withObservationTracking` returns and before `drawFrameIfNeeded`
+        // does — there, a session *is* armed. A suppressed `onChange` in that
+        // tail would consume the one-shot session and leave the window clean
+        // and unarmed — never waking at all, rather than one frame stale.
+        // Today no framework code writes a tracked property in that tail, so
+        // a bare `defer` would change no observable behaviour on this branch
+        // as it stands: this is a latent hazard the scoping guards against,
+        // not a live bug it is presently papering over.
         do {
             isFlushing = true
             defer { isFlushing = false }

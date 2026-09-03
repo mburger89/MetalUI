@@ -540,6 +540,15 @@ in the one document a later reader would consult instead of re-deriving it. The
 dismissal is struck through in place rather than deleted, per this project's
 rule, so the shape stays visible at the site where it did its damage.
 
+**This limitation is unpinned by any test, at all three sites.** The two
+measurements above are throwaway probes, not `#expect`s in the suite — no
+commit on this branch touches `Tests/`. A pin would have to drive a write from
+*inside* the tracked closure and assert the window goes clean and stays clean
+across subsequent ticks with nothing else to redraw it. Per taxonomy shape 4,
+silence at a behaviour reads as "not the behaviour", which is why this is
+stated rather than left implicit; adding the pin itself is outside this
+ruling's scope.
+
 ---
 
 # The ledger's rulings, A through J
