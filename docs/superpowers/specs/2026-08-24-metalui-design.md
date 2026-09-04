@@ -233,6 +233,50 @@ protocol Component: Element {
 `requestLayout`, stashes it in `LayoutState`, and forwards all three phases. `Component` is sugar;
 implementing `Element` directly remains available and is expected for the node graph.
 
+> **Corrected on 2026-09-03 by the `Component` milestone (M4 spec 2; rulings `CO-P` and `CO-S`,
+> `docs/superpowers/2026-09-03-component-decisions.md`). Two of the declaration's own lines
+> above are wrong as shipped, and this document is named binding authority in `CLAUDE.md`'s "Start
+> here", so the correction is recorded here rather than only downstream.** The shipped protocol is
+> `Sources/MetalUI/Component.swift`:
+>
+> ```swift
+> @MainActor
+> public protocol Component: ElementGroup {          // NOT `: Element`
+>     associatedtype Content: ElementGroup           // NOT `Content: Element`
+>     @ElementBuilder var content: Content { get }
+>     var elementID: ElementID? { get }              // defaulted to nil in the extension
+> }
+> ```
+>
+> - **`Component: Element` → `Component: ElementGroup`.** An `Element` contributes *exactly one*
+>   layout node. A component contributes **zero or many** — its content's nodes pass through to its
+>   parent unchanged, which is what layout transparency *is*. Refining `Element` would force a node
+>   of its own and make every component layout-opaque, which is the divergence from SwiftUI the
+>   design exists to avoid (`CO-P`).
+> - **`Content: Element` → `Content: ElementGroup`.** A bare two-statement content block —
+>   `{ Text(…); Text(…) }` — builds a `Pair`, which is an `ElementGroup` and is **not** an
+>   `Element`. Under the literal text above, a component could never have two top-level children.
+>   `Element` refines `ElementGroup`, so this is strictly more permissive and a single-element
+>   content still satisfies it (`CO-S`).
+>
+> **The rest of the paragraph is ACCURATE and shipped as written, and that distinction is the
+> point of stating it.** The extension really does materialize `content` **once** during the
+> request phase and stash it — `ComponentLayout.content` is that field, and re-evaluating the
+> computed `content` in a later phase would build fresh element structs and discard whatever the
+> earlier phase wrote into them (pinned by `contentIsMaterializedExactlyOncePerFrame`). It really
+> does forward all three phases, and implementing `Element` directly really does remain available:
+> `Box`, `Column`, `Row`, `Stack`, `List`, `Text`, `Deferred` and `ScrollView` are all still
+> written that way. A correction block that does not separate the right half from the wrong half
+> teaches a reader to distrust all of it.
+>
+> **Two things the declaration above does not mention and the shipped one has.** `elementID` is a
+> requirement with a `nil` default, because **there is deliberately no `.id()` modifier** — that
+> method lives on `StyledElement`, which a component does not conform to (`CO-T`). And modifiers
+> on a component **distribute** rather than wrap: `MyComponent().padding(4)` amends the `Style` of
+> each top-level node the content contributed and adds no node of its own, which is SwiftUI's
+> measured behaviour (`CO-U`). See `docs/superpowers/specs/2026-09-03-component-design.md` for
+> both.
+
 **Vocabulary decision.** Names are deliberately distinct from SwiftUI's — `Component`/`content`, not
 `View`/`body` — primarily to avoid symbol ambiguity when a file imports both frameworks. Universal
 UI terms (`Button`, `Column`, `Row`, `Grid`) are kept because they belong to no single framework.

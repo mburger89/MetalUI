@@ -56,6 +56,13 @@ than nesting them. `.padding()` does introduce a layer, but by wrapping the view
 `ModifiedContent` — the modifier is not applied *to* the custom view's own (nonexistent)
 node.
 
+**Read that last sentence only as a statement about SwiftUI's TYPE, not about its layout
+effect, and §5 is why.** `ModifiedContent` is real and `.padding()` really does produce one;
+what it does *not* do is introduce a layout box around the transparent body. §5 measured
+that and the number is `120 × 26` — the padding lands on each child. This sentence was the
+stated basis for §5's original wrapping design, which the measurement overturned, so it is
+kept with the qualifier attached rather than deleted.
+
 **MEASURED on 2026-09-03, and this paragraph previously said it was not.** The first draft
 recorded the SwiftUI description as derived-from-documentation on ruling `RX-P`'s footing,
 because there is no SwiftUI test target in this repo. It was then measured with a throwaway
