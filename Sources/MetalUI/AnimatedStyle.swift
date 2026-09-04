@@ -26,20 +26,28 @@ import MetalUILayout
 ///   `position`, and the rest of spec §4's snapping list).
 /// - **`Decoration.background` / `hoverBackground` / `focusBackground`.**
 ///   Spec §4 lists these as animatable, through their theme-*resolved* `Hsla`
-///   — but resolving a `ColorToken` needs a `Theme`, and `Theme` is
-///   deliberately **not** on `LayoutPass` (`Passes.swift`'s own doc on
-///   `PaintPass.theme`: "Deliberately not on `LayoutPass` or `PrepaintPass` …
-///   layout contributes `Style`, which has no colour field"). This helper
-///   runs at registration time — `LayoutPass` — which is the only phase this
-///   task's interface gives it. Even given a theme, `ColorToken` is a
-///   discrete enum with no addressable intermediate value the way a `Double`
-///   has 50 between 0 and 100, so there is nowhere to write a "halfway
-///   colour" back into a `Decoration.background: ColorToken?` field. These
-///   three fields therefore pass through unchanged, on `aspectRatio`'s exact
-///   footing. **This is a real, reportable narrowing of spec §4's animatable
-///   list, not an oversight** — see this task's report for the alternative
-///   (a paint-time consumer of this same `$anim` slot, which needs a `Theme`
-///   and was out of this task's scope).
+///   — and the SUFFICIENT reason this helper does not is the type, not
+///   reach: `Decoration.background` is `ColorToken?`, a discrete enum with no
+///   addressable intermediate value the way a `Double` has 50 between 0 and
+///   100, so there is nowhere to write a "halfway colour" back into it even
+///   with a theme in hand. **`Frame.theme` is in fact reachable from here** —
+///   it is `internal let`, and this file already reaches `pass.frame` for
+///   `stateTable` and `timestamp` — so the earlier form of this paragraph,
+///   which called it unreachable, was wrong and has been corrected at this
+///   line rather than only in the fix-round report (practices doc mechanism
+///   1). `PaintPass.theme`'s own doc — "Deliberately not on `LayoutPass` or
+///   `PrepaintPass` … layout contributes `Style`, which has no colour field"
+///   — is a **phase-contract boundary this helper honours**, not a wall it
+///   is blocked by: colour belongs to paint by design, and reaching around
+///   that design through `pass.frame.theme` would be the wrong fix even
+///   though it would compile. These three fields therefore pass through
+///   unchanged, on `aspectRatio`'s exact footing. **This is a real,
+///   reportable narrowing of spec §4's animatable list, not an oversight**
+///   — see this task's report for the alternative (a paint-time consumer of
+///   this same `$anim` slot, which needs `Box.paint`'s own theme access and
+///   was out of this task's scope). A later task has since ruled that colour
+///   animates at PAINT instead, off the effective background `Box.paint`
+///   already selects by pointer state — hover/focus fades come free there.
 ///
 /// ## Storage (spec §6)
 ///
@@ -85,12 +93,12 @@ typealias AnimatedFieldMap = [String: AnimatedFieldState]
 /// of the caller's own declared values.
 ///
 /// Spec §5's four steps, in order: (1)/(2) below read the previous frame's
-/// `$anim` values via `peek` (never marking — Ruling I), (3) starts an
-/// animation for each animatable field that differs while a transaction is
-/// in flight, and each field call below is (4)'s substitution for that one
-/// field. The one `withState` call at the end is the sole write, and it is
-/// skipped entirely — Ruling I — when nothing this frame needs to be
-/// persisted: no new difference on any field, and no field still mid-flight.
+/// `$anim` values via `peek` (never marking on its own — see Ruling P below),
+/// (3) starts an animation for each animatable field that differs while a
+/// transaction is in flight, and each field call below is (4)'s substitution
+/// for that one field. The one `withState` call at the end WRITES only when
+/// something this frame needs to be persisted — Ruling I — no new difference
+/// on any field, and no field still mid-flight.
 ///
 /// **`withState`, never `write` (Ruling H).** `StateTable.write` raises
 /// `isDirty` and fires `onWrite → Window.setNeedsRedraw()`; this helper runs
@@ -99,6 +107,25 @@ typealias AnimatedFieldMap = [String: AnimatedFieldState]
 /// animating, and the display link would never pause — exactly the hazard
 /// CLAUDE.md's `@State` bullet names. `theHelperNeverDirtiesTheStateTable`
 /// (`AnimationTests.swift`) pins it across 20 frames of an unchanging style.
+///
+/// **Ruling P (fix round 1): a settled entry that is NOT written must still
+/// be MARKED, whenever one already exists.** Ruling I as originally shipped
+/// conflated "nothing to write" with "nothing to do" — a continuously
+/// produced but unchanging element called this helper every frame and never
+/// touched `marked` on a settled frame, so its `$anim` entry went stale
+/// after exactly `StateTable.staleAfterGenerations` (2) sweeps and became
+/// eligible for the tombstone reap on the very next one, **even while being
+/// produced every frame**. Above `sweepThreshold` this is a churn cycle —
+/// reaped and immediately re-minted as a fresh "first sighting" — and worse,
+/// a SILENT ONE: a value that changes on the exact frame after its baseline
+/// was reaped finds `peek == nil`, is treated as a first sighting, and
+/// stores the new value with **no animation at all**. `StateTable.mark(_:)`
+/// exists for exactly this shape (`@State`'s own identical case, per its own
+/// doc) — it marks without reading, creating, writing, or touching `isDirty`
+/// (so it costs nothing either ruling H or I care about) — and is called
+/// below whenever an entry already exists but this frame found nothing to
+/// write. `aSettledAnimationSurvivesRepeatedSweepsAboveTheThresholdAndStillAnimatesWhenLaterChanged`
+/// (`AnimationTests.swift`) pins the fix.
 @MainActor
 func animated(_ style: Style, _ decoration: Decoration, for id: GlobalElementID,
              pass: inout LayoutPass) -> (Style, Decoration) {
@@ -178,6 +205,13 @@ func animated(_ style: Style, _ decoration: Decoration, for id: GlobalElementID,
 
     if dirty {
         pass.frame.stateTable.withState(slotID, initial: updated) { $0 = updated }
+    } else if !existing.isEmpty {
+        // Ruling P: nothing to write, but an entry already exists for this
+        // element — mark it live so it is not silently reaped while still
+        // being produced every frame. `mark` touches neither `isDirty` nor
+        // the entry's stored value, so this costs nothing rulings H or I
+        // forbid.
+        pass.frame.stateTable.mark(slotID)
     }
 
     return (newStyle, newDecoration)
@@ -260,7 +294,19 @@ private func recomposeLength(tag: Int, value: Double) -> Length {
     switch tag {
     case 0: return .pixels(Pixels(Float(value)))
     case 1: return .rems(Rems(Float(value)))
-    default: return .percent(Float(value)) // tag == 2
+    case 2: return .percent(Float(value))
+    default:
+        // Every `caseTag` this file ever writes comes from `decomposeLength`/
+        // `decomposeDimension`, which only ever produce 0-3 — so reaching
+        // here means a `$anim` entry's `caseTag` was corrupted (a string-key
+        // collision — see the `$state`/`$focus`/`$ax`/`$anim` collision risk
+        // this file's own top-of-file doc names — or a stray direct write
+        // into the slot). Silently mapping an unrecognised tag to `.percent`
+        // (this branch's shape before this fix round) would substitute a
+        // wrong VALUE with no diagnostic; a loud trap is what makes that
+        // hazard visible instead.
+        preconditionFailure("recomposeLength: unrecognised case tag \(tag) for value \(value) — " +
+                            "a corrupted $anim entry, not a value this file ever writes")
     }
 }
 

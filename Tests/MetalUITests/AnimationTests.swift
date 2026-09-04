@@ -534,6 +534,17 @@ import MetalUILayout
 /// registering site on every frame — a 500-row `List` would mint 500+
 /// entries if an unchanging field re-wrote its slot every frame. A static
 /// tree writes its baseline once (frame 1) and then leaves the table flat.
+///
+/// **Calls `table.sweep()` after every frame (fix round 1, minor c).** The
+/// original version of this test never did, so it modelled a sequence of
+/// `animated(...)` calls rather than an actual frame loop and could not see
+/// ruling P's own interaction with `sweep()` at all — `count` alone cannot
+/// distinguish "never wrote again" from "was marked every frame" from "went
+/// stale and silently got reaped and re-minted with the same count". This
+/// test's element count (25) stays far below `StateTable.sweepThreshold`
+/// (256), so the reap itself never engages here regardless — see
+/// `aSettledAnimationSurvivesRepeatedSweepsAboveTheThresholdAndStillAnimatesWhenLaterChanged`
+/// below for the fixture that forces the reap to actually run.
 @Test @MainActor func aStaticTreeLeavesStateTableCountUnchangedAcrossFrames() {
     let table = StateTable()
     let ids = (0..<25).map { eid("el\($0)") }
@@ -543,14 +554,124 @@ import MetalUILayout
 
     var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
     for id in ids { _ = animated(style, Decoration(), for: id, pass: &pass1) }
+    table.sweep()
     let afterFirstFrame = table.count
 
     for frameIndex in 1..<10 {
         var pass = LayoutPass(frame: animFrame(table, timestamp: Double(frameIndex)))
         for id in ids { _ = animated(style, Decoration(), for: id, pass: &pass) }
+        table.sweep()
         #expect(table.count == afterFirstFrame, """
                 frame \(frameIndex): a static tree must not keep minting $anim entries \
                 (started at \(afterFirstFrame), now \(table.count))
                 """)
     }
+}
+
+/// Ruling C2 (fix round 1). Neither `count` (the test above) nor `isDirty`
+/// (`theHelperNeverDirtiesTheStateTable`) can see write FREQUENCY:
+/// re-writing an existing key changes neither the dictionary's size nor
+/// `isDirty` (`withState` never sets it). `StateTable.writeCount` is what
+/// makes frequency assertable — it increments exactly once inside
+/// `withState` and nowhere else, so it is a direct count of how many times
+/// this helper actually persisted something, as opposed to how many times it
+/// was merely called.
+///
+/// **Measured to redden under the mutation it guards against**: replacing
+/// this helper's `if dirty { withState… } else if !existing.isEmpty {
+/// mark… }` with an unconditional `withState` on every call passes both
+/// tests above (837/837, 0 issues) and reddens exactly this one. See this
+/// task's fix-round report for the reproduced count.
+@Test @MainActor func aSettledFieldStopsIncrementingTheWriteCount() {
+    let table = StateTable()
+    let id = eid("box")
+    var style = Style()
+    style.flexGrow = 7
+
+    var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    _ = animated(style, Decoration(), for: id, pass: &pass1)
+    table.sweep()
+    let afterFirstFrame = table.writeCount
+    #expect(afterFirstFrame == 1, "the first sighting establishes exactly one baseline write")
+
+    for frameIndex in 1..<10 {
+        var pass = LayoutPass(frame: animFrame(table, timestamp: Double(frameIndex)))
+        _ = animated(style, Decoration(), for: id, pass: &pass)
+        table.sweep()
+        #expect(table.writeCount == afterFirstFrame, """
+                frame \(frameIndex): a settled field must not re-write its slot every frame \
+                (writeCount \(table.writeCount), expected \(afterFirstFrame))
+                """)
+    }
+}
+
+/// Ruling P (fix round 1). Before this fix, a settled `$anim` entry was
+/// never re-marked once it stopped needing a write, so it went stale after
+/// `StateTable.staleAfterGenerations` (2) sweeps and was reaped on the next
+/// one whenever `storage.count` exceeded `sweepThreshold` (256) — EVEN WHILE
+/// its element was produced every single frame. The consequence was silent:
+/// a value that changed on the frame right after its baseline was reaped
+/// found `peek == nil`, was treated as a first sighting, and snapped to the
+/// new value with no animation at all — the worst failure this subsystem
+/// can have. `mark`-ing a settled entry whenever one already exists (this
+/// helper does now) keeps it live for as long as its element keeps being
+/// produced, which is a STRONGER guarantee than the bounded 2-generation
+/// excursion CLAUDE.md documents for `$state`/`$focus`/`$ax` — those go
+/// stale the moment their element stops being produced even briefly; this
+/// entry does not go stale AT ALL while its element is produced every frame,
+/// however long that is.
+///
+/// **The 260-id padding ballast is `TombstoneTests.swift`'s own idiom**,
+/// needed because the fixture's own one real entry never comes close to 256
+/// on its own — without it the reap gate never opens and this test would
+/// pass vacuously regardless of whether ruling P's fix is present.
+@Test @MainActor func aSettledAnimationSurvivesRepeatedSweepsAboveTheThresholdAndStillAnimatesWhenLaterChanged() {
+    let table = StateTable()
+
+    let paddingIDs = (0..<260).map {
+        GlobalElementID.child(of: nil, at: 10_000 + $0, name: ElementID("pad\($0)"))
+    }
+    for pad in paddingIDs { table.write(pad, 0) }
+
+    let id = eid("box")
+    var style = Style()
+    style.flexGrow = 0
+
+    // Frame 1: establish the baseline.
+    var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    _ = animated(style, Decoration(), for: id, pass: &pass1)
+    for pad in paddingIDs { table.mark(pad) }
+    table.sweep()
+
+    // Ten more frames declaring the SAME value every time — settled, nothing
+    // to write — each followed by a sweep. This is well past
+    // `staleAfterGenerations` (2): without ruling P's `mark` call, `id`'s
+    // entry would already have been reaped by the third of these.
+    for frameIndex in 1...10 {
+        var pass = LayoutPass(frame: animFrame(table, timestamp: Double(frameIndex)))
+        _ = animated(style, Decoration(), for: id, pass: &pass)
+        for pad in paddingIDs { table.mark(pad) }
+        table.sweep()
+    }
+
+    // NOW change it, under a transaction, and confirm it actually ANIMATES
+    // rather than silently snapping — a reaped-and-reborn baseline has
+    // nothing to diff against, so it would treat the new value as a first
+    // sighting and return it immediately instead.
+    style.flexGrow = 100
+    var pass12 = LayoutPass(frame: animFrame(table, timestamp: 11))
+    withAnimation(.linear(duration: 1)) {
+        let (out, _) = animated(style, Decoration(), for: id, pass: &pass12)
+        #expect(out.flexGrow == 0, """
+                the frame that starts the transaction reads its own `from` (0) — a \
+                reaped-and-restarted baseline would read 100 (a snap) instead, got \(out.flexGrow)
+                """)
+    }
+
+    var pass13 = LayoutPass(frame: animFrame(table, timestamp: 11.5))
+    let (out2, _) = animated(style, Decoration(), for: id, pass: &pass13)
+    #expect(out2.flexGrow == 50, """
+            halfway through linear(duration: 1) should read 50 — a reaped baseline would have \
+            snapped straight to 100 with nothing to interpolate from, got \(out2.flexGrow)
+            """)
 }

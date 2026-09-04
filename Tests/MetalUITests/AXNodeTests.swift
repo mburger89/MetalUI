@@ -43,11 +43,11 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// milestone's Task 3 extended it), which needs several frames sharing one
 /// table to reproduce `Frame.render`'s own two-sweep shape.
 @MainActor private func sharedFrame(_ table: StateTable, focusedElement: GlobalElementID? = nil,
-                                    side: Float = 300) -> Frame {
+                                    side: Float = 300, timestamp: Double = 0) -> Frame {
     Frame(contentSize: Size(width: px(side), height: px(side)),
           scaleFactor: 1, stateTable: table,
           shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
-          theme: Theme.forAppearance(.light), focusedElement: focusedElement)
+          theme: Theme.forAppearance(.light), timestamp: timestamp, focusedElement: focusedElement)
 }
 
 // MARK: - The API contract, driven directly against `PrepaintPass`
@@ -288,26 +288,48 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// `peek(…, as: Bool.self)` then reads `nil` from the stored `AXNode` and
 /// clears focus, which reddens the assertion below. See this task's fix-round
 /// report for the exact run.
+///
+/// **The `$anim` half was originally written to a SETTLED value and it was
+/// wrong — corrected in the same fix round that found it, not just in the
+/// report (practices doc mechanism 1).** A settled `$anim` read (the
+/// original shape: change with no transaction, read back the plain
+/// declared value) is indistinguishable from a FULLY CLOBBERED slot: under a
+/// `"$anim"` → `"$focus"` collision, `animated`'s `peek` returns `nil` (its
+/// map was overwritten by `$focus`'s `Bool`), which this helper treats as a
+/// first sighting and returns the **declared** value unchanged — exactly
+/// what an intact settled slot also returns. Measured: the rename mutation
+/// reddened **0 of 837** against the original settled-readback shape, the
+/// identical silent-miss shape ruling `TB-R` records for `"$ax"` → `"$focus"`.
+/// The fix is to assert a value only an INTACT slot can produce: start the
+/// animation under a real transaction and read back MID-FLIGHT, at a
+/// timestamp the animation has not yet finished at. A clobbered slot has no
+/// interpolation state to resume — it can only ever answer with the
+/// currently-declared value (100 here), never the true interpolated one
+/// (50) — so the two cases are now observably different. See this task's
+/// fix-round report for the reproduced rename-mutation count against this
+/// corrected shape.
 @Test @MainActor func theFourRetentionSlotsAreMutuallyDistinct() throws {
     let table = StateTable()
     let id = eid("shared")
 
-    // Frame 1: the confirming frame — `id` is `focusedElement`, the subject
-    // of an `AXNode` emission, AND has an animation in flight, in
+    // Frame 1: `id` becomes `focusedElement`, the subject of an `AXNode`
+    // emission, AND starts a real, still-running animation, in
     // `Box.prepaint`'s own order (`animated` runs earlier still, inside
     // `requestLayout`, before `registerHandlers`/`emitAXNode` in `prepaint`).
-    // No transaction is needed to exercise the $anim write — a plain,
-    // no-transaction change already writes a settled slot (see
-    // `aFieldChangedWithNoTransactionSnaps` in `AnimationTests.swift`), and
-    // keeping this test to that shape means it needs no timestamp threading
-    // to read a deterministic value back in frame 3.
+    // The FIRST `animated` call (flexGrow 0, no transaction) is a plain
+    // first-sighting baseline — transaction-independent by construction, so
+    // it needs no special shape. The SECOND is what makes this test able to
+    // tell an intact slot from a clobbered one: a linear animation begun at
+    // this frame's timestamp (0) and read back half a second later.
     let frame1 = sharedFrame(table, focusedElement: id)
     var layoutPass1 = LayoutPass(frame: frame1)
     var style = Style()
     style.flexGrow = 0
     _ = animated(style, Decoration(), for: id, pass: &layoutPass1)
     style.flexGrow = 100
-    _ = animated(style, Decoration(), for: id, pass: &layoutPass1)
+    withAnimation(.linear(duration: 1)) {
+        _ = animated(style, Decoration(), for: id, pass: &layoutPass1)
+    }
 
     let pass1 = PrepaintPass(frame: frame1)
     var handlers = Handlers()
@@ -321,8 +343,9 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     table.sweep()
 
     // Frame 3: reads all three slots back through their own production
-    // consumers.
-    let frame3 = sharedFrame(table, focusedElement: id)
+    // consumers, half a second after the animation started — still
+    // mid-flight (`linear(duration: 1)` at elapsed 0.5 == halfway).
+    let frame3 = sharedFrame(table, focusedElement: id, timestamp: 0.5)
     frame3.resolveFocus()
     #expect(frame3.focusedElement == id, """
             the $focus retention slot must still hold its Bool — a collision with \
@@ -336,9 +359,11 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 
     var layoutPass3 = LayoutPass(frame: frame3)
     let (out3, _) = animated(style, Decoration(), for: id, pass: &layoutPass3)
-    #expect(out3.flexGrow == 100, """
-            the $anim retention slot must still hold its own settled state — a collision with \
-            $focus or $ax would clobber it too
+    #expect(out3.flexGrow == 50, """
+            the $anim retention slot must still hold its own MID-FLIGHT state (50, halfway \
+            through a linear(duration: 1)) — a collision with $focus or $ax clobbers the map \
+            outright, which reads as a first sighting and returns the declared value (100) \
+            instead; only an intact slot can produce 50 here
             """)
 }
 
