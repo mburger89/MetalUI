@@ -61,7 +61,9 @@ import MetalUICore
 /// footing as the three names above.
 ///
 /// What *is* pinned is that the three cannot collide with each
-/// other: `theThreeRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`),
+/// other: `theFourRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`,
+/// named `theThreeRetentionSlotsAreMutuallyDistinct` until the animation
+/// milestone's Task 3 extended it to a fourth slot, `$anim`),
 /// written because renaming `"$ax"` to `"$focus"` reddened **0 of 777 tests**
 /// — measured at that suite size, before the pin itself was added, so the
 /// number dates the claim rather than decorating it — while silently

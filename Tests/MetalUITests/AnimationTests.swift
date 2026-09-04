@@ -1,5 +1,6 @@
 import Testing
 import MetalUICore
+import MetalUILayout
 @testable import MetalUI
 
 // M4 spec 3. Curve maths first, with no framework coupling — an `Animation`
@@ -334,5 +335,222 @@ import MetalUICore
     }
     await #expect(processExitsWith: .failure) {
         _ = Animation.timingCurve(0.25, 0.5, 0.75, 0.5, duration: .infinity)
+    }
+}
+
+// MARK: - Task 3: `animated(_:_:for:pass:)`, the shared registration-time helper
+//
+// M4 spec 3 §5/§6. Every test below drives the helper directly against a
+// throwaway `Frame`/`LayoutPass`, on `StackElementTests.swift`'s own footing
+// — no `Window`, no real element tree, just the pass surface the helper
+// actually consumes. `animFrame` shares one `StateTable` across several
+// `Frame` instances so state persists the way `Window` really threads it
+// across frames (`AXNodeTests.swift`'s `sharedFrame` does the same for a
+// different reason).
+
+@MainActor private func eid(_ name: String) -> GlobalElementID {
+    GlobalElementID.child(of: nil, at: 0, name: ElementID(name))
+}
+
+@MainActor private func animFrame(_ table: StateTable, timestamp: Double, side: Float = 300) -> Frame {
+    Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
+          scaleFactor: 1, stateTable: table, timestamp: timestamp)
+}
+
+/// Spec §9 test 1's first half. A field that differs while a transaction is
+/// in flight begins animating: the frame that STARTS the transition reads
+/// its own `from` (elapsed 0), and the next frame — still declaring the new
+/// target, no transaction needed on its own part — reads a value strictly
+/// between old and new.
+@Test @MainActor func aFieldThatDiffersUnderATransactionBeginsAnimatingAndReadsAnIntermediateValueNextFrame() {
+    let table = StateTable()
+    let id = eid("box")
+    var style = Style()
+    style.flexGrow = 0
+
+    // Frame 1: establish the baseline, no transaction.
+    var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    let (out1, _) = animated(style, Decoration(), for: id, pass: &pass1)
+    #expect(out1.flexGrow == 0)
+
+    // Frame 2: flexGrow -> 100 inside a transaction, same timestamp as frame
+    // 1 — this is the instant the animation starts, so it reads `from`.
+    style.flexGrow = 100
+    var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    withAnimation(.linear(duration: 1)) {
+        let (out2, _) = animated(style, Decoration(), for: id, pass: &pass2)
+        #expect(out2.flexGrow == 0, "the frame that starts the transaction reads its own `from`, not the target")
+    }
+
+    // Frame 3: half a second later, still declaring 100 — no transaction of
+    // its own; this is the animation begun in frame 2 still running.
+    var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+    let (out3, _) = animated(style, Decoration(), for: id, pass: &pass3)
+    #expect(out3.flexGrow == 50, "linear(duration: 1) halfway through should read 50, got \(out3.flexGrow)")
+}
+
+/// Spec §9 test 1's second half, and the asymmetry is the evidence: the
+/// SAME change with no transaction in flight applies immediately and stays
+/// put — it does not merely start faster, it never animates at all.
+@Test @MainActor func aFieldChangedWithNoTransactionSnaps() {
+    let table = StateTable()
+    let id = eid("box")
+    var style = Style()
+    style.flexGrow = 0
+
+    var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    _ = animated(style, Decoration(), for: id, pass: &pass1)
+
+    style.flexGrow = 100
+    var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0.001))
+    let (out2, _) = animated(style, Decoration(), for: id, pass: &pass2)
+    #expect(out2.flexGrow == 100, "no transaction in flight — the new value must apply immediately")
+
+    // And it must STAY at 100 rather than having quietly started some
+    // animation a later frame would still be advancing.
+    var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+    let (out3, _) = animated(style, Decoration(), for: id, pass: &pass3)
+    #expect(out3.flexGrow == 100)
+}
+
+/// Spec §9 test 7. `display` is not in spec §4's animatable list at all, so
+/// this helper never intercepts it — it always carries the caller's own
+/// latest declared value straight through, transaction or not.
+@Test @MainActor func aSnappingFieldLikeDisplayTakesItsNewValueImmediatelyEvenInsideATransaction() {
+    let table = StateTable()
+    let id = eid("box")
+    var style = Style()
+    style.display = .flex
+
+    var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    _ = animated(style, Decoration(), for: id, pass: &pass1)
+
+    style.display = .stack
+    var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    withAnimation(.linear(duration: 1)) {
+        let (out2, _) = animated(style, Decoration(), for: id, pass: &pass2)
+        #expect(out2.display == .stack, "display has no midpoint and must snap even inside a transaction")
+    }
+}
+
+/// Spec §9 test 8, first direction. `.auto` carries no number, so a
+/// transition to a declared length has nothing to interpolate from — it
+/// snaps even mid-transaction, and stays snapped on a later frame rather
+/// than having started some deferred motion.
+@Test @MainActor func aDimensionTransitionFromAutoToLengthSnaps() {
+    let table = StateTable()
+    let id = eid("box")
+    var style = Style()
+    style.size.width = .auto
+
+    var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    _ = animated(style, Decoration(), for: id, pass: &pass1)
+
+    style.size.width = .length(.pixels(Pixels(100)))
+    var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    withAnimation(.linear(duration: 1)) {
+        let (out2, _) = animated(style, Decoration(), for: id, pass: &pass2)
+        #expect(out2.size.width == .length(.pixels(Pixels(100))),
+                "`.auto` carries no number to interpolate from, so this must snap")
+    }
+
+    var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.3))
+    let (out3, _) = animated(style, Decoration(), for: id, pass: &pass3)
+    #expect(out3.size.width == .length(.pixels(Pixels(100))), "must still be at the target, not mid-flight")
+}
+
+/// Spec §9 test 8, second direction. A percentage's basis is not known at
+/// this choke point, so a `.pixels -> .percent` transition — same enum,
+/// different case — snaps rather than interpolating the raw numbers.
+@Test @MainActor func aLengthTransitionFromPixelsToPercentSnaps() {
+    let table = StateTable()
+    let id = eid("box")
+    var style = Style()
+    style.padding.top = .pixels(Pixels(0))
+
+    var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    _ = animated(style, Decoration(), for: id, pass: &pass1)
+
+    style.padding.top = .percent(50)
+    var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    withAnimation(.linear(duration: 1)) {
+        let (out2, _) = animated(style, Decoration(), for: id, pass: &pass2)
+        #expect(out2.padding.top == .percent(50),
+                "a percentage's basis is not known here, so a case change must snap")
+    }
+}
+
+/// Two elements, two independent slots — a bug that shared one `$anim` entry
+/// across ids, or clobbered one element's state while writing the other's,
+/// would make one or both of these numbers wrong. Both animate to DIFFERENT
+/// targets over the same transaction so a mix-up is visible either way.
+@Test @MainActor func twoElementsAnimateIndependently() {
+    let table = StateTable()
+    let a = eid("a")
+    let b = eid("b")
+    var styleA = Style(); styleA.flexGrow = 0
+    var styleB = Style(); styleB.flexGrow = 1000
+
+    var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    _ = animated(styleA, Decoration(), for: a, pass: &pass1)
+    _ = animated(styleB, Decoration(), for: b, pass: &pass1)
+
+    styleA.flexGrow = 100
+    styleB.flexGrow = 2000
+    var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    withAnimation(.linear(duration: 1)) {
+        _ = animated(styleA, Decoration(), for: a, pass: &pass2)
+        _ = animated(styleB, Decoration(), for: b, pass: &pass2)
+    }
+
+    var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+    let (outA, _) = animated(styleA, Decoration(), for: a, pass: &pass3)
+    let (outB, _) = animated(styleB, Decoration(), for: b, pass: &pass3)
+
+    #expect(outA.flexGrow == 50, "a: linear(0 -> 100) halfway should read 50, got \(outA.flexGrow)")
+    #expect(outB.flexGrow == 1500, "b: linear(1000 -> 2000) halfway should read 1500, got \(outB.flexGrow)")
+}
+
+/// Ruling H. `StateTable.write` raises `isDirty` and fires
+/// `onWrite -> Window.setNeedsRedraw()`; this helper must use `withState`
+/// exclusively, or a window whose style never changes would never let its
+/// display link pause — the exact hazard CLAUDE.md's `@State` bullet names,
+/// arriving from every registering site on every frame.
+@Test @MainActor func theHelperNeverDirtiesTheStateTable() {
+    let table = StateTable()
+    let id = eid("box")
+    var style = Style()
+    style.flexGrow = 42
+    style.padding = Edges(all: .pixels(Pixels(4)))
+
+    for frameIndex in 0..<20 {
+        var pass = LayoutPass(frame: animFrame(table, timestamp: Double(frameIndex) / 60))
+        _ = animated(style, Decoration(), for: id, pass: &pass)
+        #expect(!table.isDirty, "frame \(frameIndex): animated(...) must never dirty the table")
+    }
+}
+
+/// Ruling I. `withState` inserts on access, and this helper runs at every
+/// registering site on every frame — a 500-row `List` would mint 500+
+/// entries if an unchanging field re-wrote its slot every frame. A static
+/// tree writes its baseline once (frame 1) and then leaves the table flat.
+@Test @MainActor func aStaticTreeLeavesStateTableCountUnchangedAcrossFrames() {
+    let table = StateTable()
+    let ids = (0..<25).map { eid("el\($0)") }
+    var style = Style()
+    style.padding = Edges(all: .pixels(Pixels(4)))
+    style.flexGrow = 1
+
+    var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    for id in ids { _ = animated(style, Decoration(), for: id, pass: &pass1) }
+    let afterFirstFrame = table.count
+
+    for frameIndex in 1..<10 {
+        var pass = LayoutPass(frame: animFrame(table, timestamp: Double(frameIndex)))
+        for id in ids { _ = animated(style, Decoration(), for: id, pass: &pass) }
+        #expect(table.count == afterFirstFrame, """
+                frame \(frameIndex): a static tree must not keep minting $anim entries \
+                (started at \(afterFirstFrame), now \(table.count))
+                """)
     }
 }

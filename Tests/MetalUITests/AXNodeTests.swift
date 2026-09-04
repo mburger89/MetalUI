@@ -38,9 +38,10 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// single bare frame cannot vary: a table that survives across several
 /// `Frame` instances (the way `Window` really threads one across frames),
 /// and a focused id (`private(set)` on `Frame`, settable only at `init`).
-/// Exists for `theThreeRetentionSlotsAreMutuallyDistinct` below, which needs
-/// several frames sharing one table to reproduce `Frame.render`'s own
-/// two-sweep shape.
+/// Exists for `theFourRetentionSlotsAreMutuallyDistinct` below (named
+/// `theThreeRetentionSlotsAreMutuallyDistinct` until the animation
+/// milestone's Task 3 extended it), which needs several frames sharing one
+/// table to reproduce `Frame.render`'s own two-sweep shape.
 @MainActor private func sharedFrame(_ table: StateTable, focusedElement: GlobalElementID? = nil,
                                     side: Float = 300) -> Frame {
     Frame(contentSize: Size(width: px(side), height: px(side)),
@@ -151,9 +152,11 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// this test and nothing else in the 777-test suite". Re-run 2026-09-02
 /// (deleting `node.isValid = stateTable.isLive(slot)` from
 /// `Frame.axNode(for:)`): it reddens **two tests, 2 issues out of 782** — this
-/// one *and* `theThreeRetentionSlotsAreMutuallyDistinct`, which landed in this
-/// same file two commits later and reads validity back through the same
-/// production accessor.
+/// one *and* `theFourRetentionSlotsAreMutuallyDistinct` (named
+/// `theThreeRetentionSlotsAreMutuallyDistinct` at the time this was measured;
+/// the animation milestone's Task 3 later extended it to a fourth slot),
+/// which landed in this same file two commits later and reads validity back
+/// through the same production accessor.
 ///
 /// **What survives is the claim that actually mattered**: this test is the one
 /// that catches the always-`true` direction, `aHandleToAProducedElementReportsValid`
@@ -253,21 +256,30 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     #expect(fromDict.isValid, "the same normalisation on the copy Frame.axNodes stores")
 }
 
-/// **The invariant `axRetentionSlot`/`focusRetentionSlot` are both built to
-/// preserve — pinned here because nothing else does.** The three retention
-/// slot names (`"$ax"`, `"$focus"`, `"$state\(n)"`) are mutually distinct at
-/// construction (`GlobalElementID.child(of:at:name:)` makes any two distinct
-/// `.named` strings distinct components under the same parent), but nothing
-/// enforced that until this test: renaming `axRetentionSlot`'s `"$ax"` to
-/// `"$focus"` reddened 0 of 777 before this test existed.
+/// **The invariant `axRetentionSlot`/`focusRetentionSlot`/`animRetentionSlot`
+/// are all built to preserve — pinned here because nothing else does.** The
+/// four retention slot names (`"$ax"`, `"$focus"`, `"$anim"`, `"$state\(n)"`)
+/// are mutually distinct at construction
+/// (`GlobalElementID.child(of:at:name:)` makes any two distinct `.named`
+/// strings distinct components under the same parent), but nothing enforced
+/// that until this test: renaming `axRetentionSlot`'s `"$ax"` to `"$focus"`
+/// reddened 0 of 777 before this test existed.
 ///
-/// Reproduces the review's own probe: one element that is BOTH focused and
-/// AX-emitting, across the same two-sweep shape `Frame.render` uses (confirm,
-/// then vanish). `focusRetentionSlot`/`axRetentionSlot` are both `private` —
-/// unreachable even through `@testable` — so this drives the two PRODUCTION
-/// paths that read each slot back (`resolveFocus()` for `$focus`,
-/// `axNode(for:)` for `$ax`) rather than the private key constructors
-/// themselves.
+/// **Renamed from `theThreeRetentionSlotsAreMutuallyDistinct` and extended to
+/// four by the animation milestone's Task 3 (ruling J,
+/// `docs/superpowers/specs/2026-09-03-animation-design.md` §6/§7 item 10):**
+/// `$anim` is a fourth reserved child slot (`AnimatedStyle.swift`) and
+/// inherits this exact collision risk — guarding three names while leaving a
+/// fourth open would read as though the fourth were safe.
+///
+/// Reproduces the review's own probe: one element that is focused,
+/// AX-emitting, AND mid-animation, across the same two-sweep shape
+/// `Frame.render` uses (confirm, then vanish). `focusRetentionSlot`/
+/// `axRetentionSlot`/`animRetentionSlot` are all `private`/file-private —
+/// unreachable even through `@testable` — so this drives the three
+/// PRODUCTION paths that read each slot back (`resolveFocus()` for `$focus`,
+/// `axNode(for:)` for `$ax`, `animated(_:_:for:pass:)` for `$anim`) rather
+/// than the key constructors themselves.
 ///
 /// **Measured to redden under the collision it guards against**: renaming
 /// `Frame.axRetentionSlot`'s `"$ax"` to `"$focus"` makes the `AXNode` written
@@ -276,14 +288,27 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// `peek(…, as: Bool.self)` then reads `nil` from the stored `AXNode` and
 /// clears focus, which reddens the assertion below. See this task's fix-round
 /// report for the exact run.
-@Test @MainActor func theThreeRetentionSlotsAreMutuallyDistinct() throws {
+@Test @MainActor func theFourRetentionSlotsAreMutuallyDistinct() throws {
     let table = StateTable()
     let id = eid("shared")
 
-    // Frame 1: the confirming frame — `id` is both `focusedElement` and the
-    // subject of an `AXNode` emission, in `Box.prepaint`'s own order
-    // (`registerHandlers` before `emitAXNode`).
+    // Frame 1: the confirming frame — `id` is `focusedElement`, the subject
+    // of an `AXNode` emission, AND has an animation in flight, in
+    // `Box.prepaint`'s own order (`animated` runs earlier still, inside
+    // `requestLayout`, before `registerHandlers`/`emitAXNode` in `prepaint`).
+    // No transaction is needed to exercise the $anim write — a plain,
+    // no-transaction change already writes a settled slot (see
+    // `aFieldChangedWithNoTransactionSnaps` in `AnimationTests.swift`), and
+    // keeping this test to that shape means it needs no timestamp threading
+    // to read a deterministic value back in frame 3.
     let frame1 = sharedFrame(table, focusedElement: id)
+    var layoutPass1 = LayoutPass(frame: frame1)
+    var style = Style()
+    style.flexGrow = 0
+    _ = animated(style, Decoration(), for: id, pass: &layoutPass1)
+    style.flexGrow = 100
+    _ = animated(style, Decoration(), for: id, pass: &layoutPass1)
+
     let pass1 = PrepaintPass(frame: frame1)
     var handlers = Handlers()
     handlers.isFocusable = true
@@ -295,18 +320,26 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     // Frame 2: nothing touches `id` at all — it stopped being produced.
     table.sweep()
 
-    // Frame 3: reads both slots back through their own production consumers.
+    // Frame 3: reads all three slots back through their own production
+    // consumers.
     let frame3 = sharedFrame(table, focusedElement: id)
     frame3.resolveFocus()
     #expect(frame3.focusedElement == id, """
             the $focus retention slot must still hold its Bool — a collision with \
-            $ax would clobber it with the AXNode and clear focus here
+            $ax or $anim would clobber it and clear focus here
             """)
 
     let tombstoned = try #require(frame3.axNode(for: id),
         "the $ax retention slot must still hold its AXNode")
     #expect(!tombstoned.isValid && tombstoned.role == .button && tombstoned.label == "Go",
-            "the AXNode data must be the one this test wrote, not a Bool coerced through Any")
+            "the AXNode data must be the one this test wrote, not a Bool or animation state coerced through Any")
+
+    var layoutPass3 = LayoutPass(frame: frame3)
+    let (out3, _) = animated(style, Decoration(), for: id, pass: &layoutPass3)
+    #expect(out3.flexGrow == 100, """
+            the $anim retention slot must still hold its own settled state — a collision with \
+            $focus or $ax would clobber it too
+            """)
 }
 
 // MARK: - `AXNode.isEmpty`
