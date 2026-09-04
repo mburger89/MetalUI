@@ -207,3 +207,79 @@ func aCopyableElementCanBeStoredInAnArray() throws {
     #expect(result.succeeded,
             "the copyable half must compile, or the negative above proves nothing:\n\(result.output)")
 }
+
+// MARK: - Fact 4 (Task 3): `.background()` is not offered on a `Component`
+
+/// Spec §5's limit, as a compile guard rather than only as
+/// `decorationBackedModifiersAreNotOfferedOnAComponent`'s type-name check.
+/// `Decoration` is per-element state a `StyledElement`'s own `prepaint`
+/// registers; `LayoutTree.setStyle` reaches only a node's `Style`, so
+/// `background`/`onClick`/`focusable`/`keyContext` cannot distribute the way
+/// `padding`/`width`/`height` do, and are deliberately not declared in the
+/// `Component` extension at all. A regression that adds one makes this
+/// *compile*, which no runtime test could see.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func backgroundCannotBeCalledOnAComponent() throws {
+    let result = try typecheck("""
+        struct Leafless: Component {
+            var elementID: ElementID? { nil }
+            var content: some ElementGroup { EmptyGroup() }
+        }
+        @MainActor func probe() {
+            _ = Leafless().background(.accent)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded,
+            "`.background()` type-checks on a Component — it must stay Decoration-backed and undistributable:\n\(result.output)")
+    #expect(result.messages.contains("background"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
+
+// MARK: - Fact 5 (fix wave): `LayoutPass.style`/`setStyle` are not public
+
+/// `LayoutPass.style(_:)` and `setStyle(_:_:)` are `internal`, and this is the
+/// only artifact that can say so. They read back and overwrite the `Style` of
+/// any `LayoutNodeID` a caller can name — a sibling's, a parent's — during the
+/// request phase; as `public` they would hand every out-of-module element that
+/// reach, for one in-module caller (`StyledComponent`, `Component.swift`).
+///
+/// **This guard MUST use a plain import, and every guard in this file already
+/// does** — `typecheck(_:importing:)` writes `import MetalUI` into a fresh
+/// fixture, so it compiles against the built module rather than against this
+/// file's `@testable` view. That is not incidental: `@testable import` widens
+/// `internal`, so no assertion inside a `@testable` test file can demonstrate
+/// an access-level narrowing at all (taxonomy shape 16, ruling `TB-N`, whose
+/// three `AXNodeTests` guards exist for this same reason). A regression that
+/// re-widens either member makes this fixture *compile*, which no runtime test
+/// in the suite could see.
+///
+/// **MUTATION (fix wave), run rather than predicted**: restoring `public` on
+/// both members and rebuilding makes the fixture compile and reddens **both**
+/// of this test's assertions — `result.succeeded` becomes `true`, and
+/// `messages` is the **empty string**: the fixture compiles clean, with no
+/// diagnostic at all, which is exactly what the `s.flexGrow = 1` mutation four
+/// lines below exists to guarantee — a fixture that only round-tripped the
+/// value would instead emit a `never mutated` warning. Both assertions matter:
+/// the second is what would catch a rejection *for some other reason* reading
+/// as a pass, which is the two-assertion hazard the `HitboxID` /
+/// `GlobalElementID` hover probes record from the other direction — here it
+/// has nothing to catch, because the mutation leaves no diagnostic behind.
+///
+/// The fixture mutates `s` between the read and the write on purpose — it is
+/// `StyledComponent`'s exact shape, and a fixture that only round-trips the
+/// value emits a `never mutated` warning whose text then lands in `messages`
+/// and muddies the second assertion.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func layoutPassStyleAccessorsAreNotPublic() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout LayoutPass, node: LayoutNodeID) {
+            var s = pass.style(node)
+            s.flexGrow = 1
+            pass.setStyle(node, s)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded,
+            "`LayoutPass.style`/`setStyle` are reachable from outside MetalUI — they must stay internal:\n\(result.output)")
+    #expect(result.messages.contains("style"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}

@@ -24,7 +24,8 @@ idiomatic Swift. macOS and iOS.
   `docs/superpowers/2026-08-29-input-decisions.md`,
   `docs/superpowers/2026-08-30-sizing-decisions.md`,
   `docs/superpowers/2026-09-01-tombstones-decisions.md`,
-  `docs/superpowers/2026-09-02-reactivity-decisions.md` — each ruling with
+  `docs/superpowers/2026-09-02-reactivity-decisions.md`,
+  `docs/superpowers/2026-09-03-component-decisions.md` — each ruling with
   its reasoning and what it costs if wrong. Read the "Carried..." sections before
   starting new work.
 
@@ -37,8 +38,9 @@ idiomatic Swift. macOS and iOS.
   `SZ-n` to the sizing milestone that closed BM-4, FS-3 and TX-H, `TB-n`
   to the tombstones-and-AX milestone that closed divergences 12 and 17, and
   `RX-n` to the reactivity milestone that wrapped the frame build in
-  `withObservationTracking` (M4 spec 1) (the
-  last eleven are
+  `withObservationTracking` (M4 spec 1), and `CO-n` to the `Component`
+  milestone (M4 spec 2) (the
+  last twelve are
   **lettered** — `CS-A`…`CS-O`, `SI-A`…`SI-H`, `TX-A`…`TX-J`, `CL-A`…`CL-F`,
   `ST-A`…`ST-G`, `AP-A`…`AP-M`, `MP-A`…`MP-N`, `IN-A`…`IN-W`, `SZ-A`…`SZ-O`
   (**`SZ-A`…`SZ-N` until the sizing milestone's whole-branch fix wave added
@@ -53,9 +55,16 @@ idiomatic Swift. macOS and iOS.
   `RX-A`…`RX-J` carry the reactivity ledger's own ten letters one for one, and
   `RX-K`…`RX-R` are the eight foundational decisions that ledger recorded as
   prose — read those eight first
+  — and **`CO-A`…`CO-Z`**, which follows the same pattern a third time:
+  `CO-A`…`CO-O` carry the `Component` ledger's own fifteen letters one for one,
+  and `CO-P`…`CO-Z` are the eleven foundational decisions that ledger recorded
+  as prose, a user decision or a task report — read those eleven first. **The
+  alphabet is exactly used up at `CO-Z` and that is a coincidence, not a
+  boundary**: a further ruling becomes `CO-AA`, on `TB-`'s two-letter footing,
+  and must not restart at `CO-A`
   — so a bare
   `CS-3`, `SI-3`, `TX-3`, `CL-3`, `ST-3`, `AP-3`, `MP-3`, `IN-3`, `SZ-3`,
-  `TB-3` or `RX-3` is a
+  `TB-3`, `RX-3` or `CO-3` is a
   typo rather than a citation; **`MP-A`…`MP-K` is what this line said until the
   input-and-state milestone re-read the file — the measure-performance
   milestone's whole-branch review added `MP-L`, `MP-M` and `MP-N` and did not
@@ -360,6 +369,117 @@ idiomatic Swift. macOS and iOS.
   the portal; a modal needs both. Decisions doc:
   `docs/superpowers/2026-08-28-absolute-positioning-decisions.md`, rulings
   prefixed `AP-`.
+
+- **`Component` is the user-facing element surface, and it is TRANSPARENT to
+  layout and OPAQUE to identity — one sentence with two halves, and a reader
+  who carries only one will be wrong about the other.** As of 2026-09-03 (M4
+  spec 2), an author writes `content` and gets a working element:
+  `protocol Component: ElementGroup` with `associatedtype Content: ElementGroup`,
+  and one protocol extension supplies the whole conformance
+  (`Sources/MetalUI/Component.swift`). Every *other* element in this framework
+  is opaque to **both** axes — a `Box` consumes one cursor index *and*
+  contributes one layout node — so `Component` is the first type to use them
+  differently.
+
+  - **Layout-transparent**: it contributes **no layout node of its own**. Its
+    content's `[LayoutNodeID]` is returned unchanged, so `Column { MyRow(); MyRow() }`
+    lays the rows' children out as the `Column`'s own children.
+  - **Identity-opaque**: it consumes **one cursor index** and its content nests
+    beneath the component's own `GlobalElementID`. **This half is not a
+    choice.** `@State` slots are `.named("$state\(n)")` children of the
+    element's own id (`StateBinder.bind`), so a component with no id of its own
+    **could not hold state at all** — and holding state is the main reason to
+    write a component rather than a function returning elements.
+
+  **MODIFIERS DISTRIBUTE, they do not wrap, and this overturned the spec's own
+  first design (ruling `CO-U`).** `MyComponent().padding(4)` returns a
+  `StyledComponent<C>` that amends the `Style` of **each** top-level node the
+  content contributed — via `LayoutTree.setStyle`, which this is the **first
+  production caller** of (`CO-V`) — and returns those same nodes unchanged. **A
+  modified component is therefore still layout-transparent**, which is the
+  opposite of what a wrapping implementation would give. It also mints **no
+  identity of its own**: `MyComponent()` and `MyComponent().padding(4)` produce
+  the identical `GlobalElementID`, so a modifier does not reset a component's
+  `@State` (`addingAModifierDoesNotResetAComponentsState`).
+
+  **The SwiftUI claim underneath both halves is MEASURED, not derived, and it
+  does not sit on `RX-P`'s footing (rulings `CO-E`, `CO-U`).** Two throwaway
+  probes outside the repo, each with a passing positive control, neither
+  committed — the footing this repo uses for oracle probes. A custom `Layout`
+  conformer recording `subviews.count`: inline `A; B` = **2** (the control),
+  `Group { A; B }` = **2**, a custom view whose body is two views = **2**, two
+  such views = **4**. And `NSHostingView.fittingSize` on a body of 30×10 and
+  50×10: single view `.padding(8)` = **46×26** (the control),
+  `HStack { MyRow() }` = **88×10**, `MyRow().padding(8)` = **120×26**,
+  `Group { A; B }.padding(8)` = **120×26** — `(30+16) + 8 + (50+16) = 120`,
+  where wrapping predicts 96–104. **Transparency and distribution are ONE
+  mechanism**: `MyRow()` *is* its children, so a modifier on it applies to each,
+  because there is no single thing to wrap.
+
+  **What it costs a caller, in three places.** `.padding()` pads **each**
+  top-level child rather than the component as a unit — indistinguishable for a
+  single-child component, visibly different for a multi-child one, and nothing
+  enforces it. **`.background()` does not compile on a component**, deliberately
+  (`CO-W`): `Decoration` and `Handlers` are per-*element* state registered in
+  each `StyledElement`'s own `prepaint`, with **no per-node table for `setStyle`
+  to amend**, and offering it with wrapping semantics beside a distributing
+  `.padding()` would be two modifiers that read alike and behave differently.
+  The remedy is an explicit `Box`, which is honest about introducing a
+  container; the absence is pinned by a `swiftc -typecheck` guard, which is what
+  took the guard count **32 → 33**. And **there is no `.id()` modifier**
+  (`CO-T`) — that method lives on `StyledElement`, which a component does not
+  conform to — so an author who needs a stable name declares
+  `var elementID: ElementID? { … }`, which defaults to `nil`.
+
+  **`display: contents` DOES NOT EXIST, and it is what "styled *and*
+  transparent" would need (ruling `CO-R`).** `Component` gives transparency to
+  something with no style of its own; a styled box that contributes its children
+  to its parent's layout as though it were not there is CSS's own primitive and
+  this engine has no `contents` case — `public enum Display: Sendable, Equatable
+  { case flex, stack, none }`. It was deferred on **scope**, not on merit: it is
+  layout-engine work in `collectItems` and the flex algorithm, needs browser
+  fixtures, and would be the first thing in three M4 specs to move a golden. It
+  is also why `StyledElement` conformance was refused (`CO-Q`) — a `Style` must
+  attach to a layout node, `Style.display` defaults to `.flex`, so conforming
+  would **force** every component to contribute a real flex container and make
+  it layout-opaque, moving every rect in every tree that uses one.
+
+  **That stale site is now FIXED, and the paragraph is kept as the record of
+  it.** `Sources/MetalUI/Component.swift`'s type doc said the SwiftUI
+  description was "DERIVED from its documented behaviour and is not measured
+  here" and said `.padding()` wraps in `ModifiedContent`. Both sentences were
+  written **before** either probe ran and neither was walked back to the line
+  when they landed — practices mechanism 1 firing inside the milestone that
+  cites it. The fix wave corrected both at the line, along with the four sites
+  in `docs/superpowers/plans/2026-09-03-component.md` that were the *source* of
+  them (two of which were forward-looking instructions to reintroduce the
+  refuted design). The measured account is the one above, in the design spec's
+  §2 and §5, and in ruling `CO-E`.
+
+  **Two compositions a reader will otherwise meet by surprise, both measured in
+  the fix wave and both recorded in the component spec.** (1) **A caller's
+  modifier overwrites the component's own internal sizing**: a component whose
+  author wrote `.width(30)` on child `a` and `.width(50)` on child `b` renders
+  30/50 bare and **70/70** under a caller's `.width(70)`, because every `amend`
+  is a plain `=` on one `Style` field and there is no node to nest with the way
+  SwiftUI's `.frame()` does. Inherent to distribution, not a defect; §9 of the
+  spec carries it. (2) **`Deferred` and `List` reject a component outright** —
+  both are generic over `Content: Element` and a component is an `ElementGroup`
+  — so `Component` composes with **five of seven** containers (`Box`, `Column`,
+  `Row`, `Stack`, `ScrollView` take one), and the two exceptions are the portal
+  and the data-driven list, which is where a reusable row is most wanted.
+  Verified by `swiftc -typecheck`; spec §7 names both the one-word half
+  (`List`) and the real design question (`Deferred` returns `nodes[0]`, and a
+  component contributes zero or many).
+
+  **`Component` has NO production caller** — the demo was deliberately left
+  alone (`CO-Y`), because `Sources/MetalUIDemo/main.swift` carries every past
+  milestone's human-verification criteria and "no rect moved" is a weaker
+  guarantee than it sounds when those criteria include things no rect can
+  express. So whether the type is *pleasant to write* has no evidence at all,
+  and this spec closes none of M4's exit criteria on its own. Decisions doc:
+  `docs/superpowers/2026-09-03-component-decisions.md`, rulings prefixed `CO-`
+  (**lettered**, `CO-A`…`CO-Z`, so a bare `CO-3` is a typo).
 
 - **`@State` exists, and it is a box seeded by reflection — not a stored value
   in the element struct.** `@State var count = 0` on any `Element` conformer
@@ -896,10 +1016,11 @@ since divergence 5's own entry is gone.) The tell is a **"cannot" that was not
 measured**.
 
 The three mechanisms are new sections under "The method" in the practices doc,
-and each cost a round of rework. **That section is titled "FIVE ways a record
+and each cost a round of rework. **That section is titled "SEVEN ways a record
 goes wrong" today** — the tombstones-and-AX milestone added 4 and 5 below and
-amended 1 and 3 with their own converses; the numbering is stable, so a
-citation of mechanism 1, 2 or 3 still resolves:
+amended 1 and 3 with their own converses, and the `Component` milestone added 6
+and 7; the numbering is stable, so a citation of mechanism 1, 2 or 3 still
+resolves:
 
 1. **A measurement recorded in the report is not a measurement applied to the
    source.** Three consecutive tasks shipped a comment their own report
@@ -968,6 +1089,57 @@ measured lie its shared comment claimed, since `Frame.activeElement` is a `let`.
 A prohibition aimed at preventing a bad addition surfaced a pre-existing false
 justification. Forbid the reasoning shortcut, not only the outcome.
 
+**The `Component` milestone added two mechanisms and they are the FIRST two that
+are about the PROCESS producing the record rather than about a claim inside
+it.** Both were paid for in this session rather than reasoned about:
+
+6. **A subagent reporting that it "accidentally launched" another agent is
+   reporting a LIVE PROCESS, not a closed incident.** Two reviewers invoked the
+   `code-review` **skill** by name — out of habit, instead of reading the
+   task-reviewer method file they were pointed at — and each spawned a
+   background multi-agent review. One of those had reported, a milestone
+   earlier, that it had accidentally launched such an agent and was
+   *disregarding its findings*; disregarding them was right, and not stopping
+   the agent left it running against the shared checkout, where it forked eight
+   more and **at least one applied live mutations to `Sources/`**, clobbering an
+   implementer's in-progress edit. "I disregarded its output" is not "I stopped
+   it." The dispatch-side control is one sentence: **reviewer dispatches must
+   say explicitly not to invoke the `code-review` skill.**
+7. **Mutation testing belongs in an isolated `git worktree` whenever another
+   agent is live in the checkout** (rulings `CO-M`, `CO-K`). **A mutation
+   result taken from a contended tree is unattributable, and an unattributable
+   result is worse than none, because it still looks like evidence.** The
+   companion rule is what to do on finding out afterwards: discard every
+   measurement taken during the contended window and re-take it. One extra
+   suite run is the whole cost.
+
+**And that milestone's own best evidence for the method is a claim the SPEC made
+that measurement reversed.** §5 specified that a modifier on a component wraps
+it in a `Box`, on the stated grounds that this is what SwiftUI's
+`ModifiedContent` does, and the implementing task was written to build it. A
+throwaway probe with a passing positive control measured **120×26** where
+wrapping predicts 96–104: SwiftUI **distributes**. The design was rewritten
+before it shipped (ruling `CO-U`). The tell is the same one shape 14 names — a
+confident reason, stated as settled, that nobody had run — arriving this time in
+a design document rather than in a task report.
+
+**And the fix wave added the sharper half of that, which is what a refuted claim
+does AFTER it is refuted.** The spec was corrected the day it was measured; the
+shipped comment in `Sources/MetalUI/Component.swift` was not, and neither were
+**four** sites in the plan — including two Task 4 *instructions* reading "State
+that modifiers wrap, and that a modified component is layout-opaque" and
+"labelled as derived and not measured". So the branch shipped with the corrected
+account in the spec, the refuted account in the source a reader actually opens,
+and a standing instruction to write the refuted account into `CLAUDE.md` next
+time. **A refuted claim has a blast radius, and correcting where it was
+DISCOVERED is not correcting where it was COPIED TO.** The remedy is a
+grep-for-the-sentence sweep at the moment of refutation, not at the end of the
+branch — the same shape as mechanism 3's "staleness is systematic, not local",
+pointed forward instead of backward. This is also why the plan was corrected in
+place rather than preserved as history the way the reactivity plan's own false
+claim was: nothing cites these four, and two of them are live instructions.
+Preserving an instruction is not preserving a record.
+
 ## Verified on real hardware
 
 `swift run MetalUIDemo` was run and inspected on a Retina display: the window
@@ -1022,7 +1194,7 @@ what the demo draws — and no test can establish it.** `MetalLayerSurface` vend
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
 assignment order in `AppKitPlatform` renders perfect pixels into a texture nobody
 sees — and the whole suite still passed when that was measured, at 342 tests
-(**791 today**, re-run 2026-09-02 at the reactivity milestone's last commit; the count is quoted so the measurement can be
+(**811 today**, re-run 2026-09-03 at the `Component` milestone's whole-branch fix wave; the count is quoted so the measurement can be
 dated, not because 342 is a property of anything — and the "today" figure has to
 be re-taken with the rest, which it was not at 739 for two milestones). If you
 touch that ordering, re-run the demo
@@ -2777,7 +2949,7 @@ are the dangerous ones.
 | **Colour glyphs** (emoji, `COLR`/`sbix`) | **Wrong rather than absent, and now visibly so.** Spec §6.1 routes them to a *polychrome* atlas that skips tinting; there is no polychrome atlas in M2 and `GlyphRaster.rasterize` does not detect one either. So `CTFontDrawGlyphs` renders an emoji into the `DeviceGray` context as a **luminance silhouette**, it packs into the R8 atlas like any other glyph, and `glyph_fragment` multiplies it by the text colour — `Text("hi 🎉")` paints a flat blob in the text's colour where the emoji should be. It does not trap and it is not blank, which is exactly why it is written down: **nothing in this repo can see it**, there being no oracle for a rendered glyph at all (spec §4.2). The fix is a second atlas and a second draw path, not a branch in the rasterizer. Note that it was *invisible* rather than *wrong* until the glyph emitter landed — this row's status changed without its text changing, which is the shape ruling CS-E names |
 | `GlyphAtlas.evictUnusedSince(_:)`, and the grow-only atlas it leaves | **Zero production callers — and a caller would make things WORSE, not better, until the packer can reclaim.** That is the mechanism, and it is checkable rather than a milestone to wait for: the shelf packer never revisits a closed shelf, so evicting a key frees a dictionary entry and **strands its pixels**; the next frame that wants that glyph packs a *second* copy further down. Calling eviction every frame therefore makes the atlas fill **faster**. `grep -rn "evictUnusedSince" Sources/` finds **no call at all** — only the declaration in `Atlas.swift`, the string inside its own precondition message, and doc comments in `Atlas.swift`, `ShapingCache.swift`, `Frame.swift` and `Window.swift` — the same shape as `LayoutTree.reset(generation:)` below. **No count is quoted, deliberately, and this row is the reason the rule exists**: it read "nine" through two milestones, was corrected to "eleven" at the end of the input-and-state milestone, and was already **12** by that milestone's own last commit, without one line of eviction code changing — the number tracks the PROSE, and the "eleven" breakdown was additionally self-inconsistent as written ("2 + nine doc comments" is 11, but its per-file list summed to 11 *doc comments*, which is 13). Run the grep and read the lines; "no call" is the claim, and it is the only half that stays true while the comments move. The two neighbouring rows dropped their counts for this reason one fix round earlier. The frame brackets it depends on *are* live: `Frame.render` calls `beginFrame`/`endFrame` around the paint phase, so the ordering guard is enforceable; what is absent is only the call. **These three facts are one story, so read them together:** eviction is unwired, the atlas is therefore **grow-only**, and when it is full `Frame.draw` **silently drops** the glyphs that will not fit — a window showing an unbounded stream of distinct glyphs loses text with no error anywhere. What unblocks it is a repacker or a whole-atlas rebuild, not a call site. Its guards (`evictingDuringFrameConstructionTraps`, `aGlyphUnusedSinceAnOlderGenerationIsEvicted`) stay for `LayoutTree.reset`'s reason: they pin the contract for whoever does call it |
 | `Style.alignSelf` on a **stack child** | **Ignored entirely, and it is the most misleading inert API this table holds** — an *alignment* property, public and live for flex, silently doing nothing on an *alignment* container. `Stack { Box().alignSelf(.flexEnd) }` compiles today: `StyledElement.alignSelf(_:)` is a live modifier and `Stack` conforms to `StyledElement` as of the stack milestone. Measured at that milestone's final review: a 20x10 child with `alignSelf = .flexEnd` in a 100x60 stack lays out at **`y = 0`**; WebKit's grid puts the same child at **`y = 50`**. The mechanism, not a milestone: `positionStackItems` reads the *container's* `alignItems`/`justifyItems` once before its item loop and never consults `tree.style(item.node)` for an override — the only per-item style it reads is `size`, for the `stretch` carve-out. Per-child alignment was out of the milestone's scope, and closing it needs **two** things rather than one: `alignSelf` for the block axis and a `justifySelf` that does not exist in this `Style` at all for the inline one, since implementing one alone would make a stack's two axes disagree about whether a child may override its container. Recorded at `Display.stack`'s own doc comment (`Style.swift`) as well as here |
-| `Style.padding` / `Style.border` / `Style.margin` on a **leaf** | **Ignored entirely — for a `Text`, not "resolved wrongly".** `measureNode` returns a leaf's measure result unchanged where it adds a container's `edges` back on, and `contentBox` only ever runs on a node with children, so a leaf's border box *is* its content box. `Text(…).padding(Pixels(8))` therefore changes no size and moves no glyph, and `Text.paint` lays its glyphs from `bounds.origin` on exactly that basis. Consistent, and consistently wrong against CSS. **Reachable from the public API**, unlike the `Style` properties above: `StyledElement.padding(_:)`/`.borderWidth(_:)`/`.margin(_:)` are live modifiers that do the right thing on a `Box` and nothing on a `Text` — which is the shape this table exists for, an API that is implemented for one receiver and inert for another. Whoever implements a leaf's box model owns the paint half too: the glyph origin becomes the content box and must come from the engine rather than be re-resolved at paint time, for the percentage-inset reason recorded at `Frame.fill` |
+| `Style.padding` / `Style.border` / `Style.margin` on a **leaf** | **Ignored entirely — for a `Text`, not "resolved wrongly".** `measureNode` returns a leaf's measure result unchanged where it adds a container's `edges` back on, and `contentBox` only ever runs on a node with children, so a leaf's border box *is* its content box. `Text(…).padding(Pixels(8))` therefore changes no size and moves no glyph, and `Text.paint` lays its glyphs from `bounds.origin` on exactly that basis. Consistent, and consistently wrong against CSS. **Reachable from the public API**, unlike the `Style` properties above: `StyledElement.padding(_:)`/`.borderWidth(_:)`/`.margin(_:)` are live modifiers that do the right thing on a `Box` and nothing on a `Text` — which is the shape this table exists for, an API that is implemented for one receiver and inert for another. **There is now a SECOND way to meet this row, and it is quieter than the first (2026-09-03, the `Component` milestone).** `Component`'s modifiers **distribute** — `StyledComponent` amends the `Style` of each top-level node the content contributed — so `Component { Text("Hi") }.padding(20)` puts the padding on the `Text`'s own leaf node, where this row says it does nothing. **Measured**: a following marker leaf's `x` reads **13.0 bare and 13.0 padded**, i.e. zero effect, where the same modifier on a component of `Box`-backed children moves it (80.0 → 90.0). Neither half is a defect and each is documented alone; **together they are silent**, and the exposure is the worst case available — a single-`Text` component is the most likely first component anyone writes, and `padding` is the modifier the component spec leads with. Recorded in that spec's §9 and at `StyledComponent`'s own doc. Whoever implements a leaf's box model owns the paint half too: the glyph origin becomes the content box and must come from the engine rather than be re-resolved at paint time, for the percentage-inset reason recorded at `Frame.fill` |
 | `StyledElement.hidden()` / `Style.display = .none` on a subtree that **draws** | **Live for layout, ignored by paint, and the failure is glyphs at the window's top-left corner.** The engine really does filter a `.none` node out of its parent's item list, so its rect stays at `LayoutTree`'s zero — that half works and is what the modifier's doc comment used to describe in full, which is exactly why the comment misled: it explained the layout half completely and said nothing about paint, so it read as "paints nothing". Nothing in `Sources/MetalUI` reads `Style.display` during paint at all. `Box.paint` recurses into `content.paintGroup` unconditionally, and fills its own bounds whenever it carries a `.background`; that fill is a harmless zero-size rect, but the children paint from the node's **origin**, and a node that was never placed has origin `(0, 0)` in *surface* coordinates. `Text.paint` then re-shapes at `max(bounds.width, smallestWrapWidth)` with `smallestWrapWidth == 0.5`, so the string wraps after every character and stacks one glyph per line down the window's left edge. **Measured** with a throwaway probe rather than read: `Column { Box { Text("Hi") }.width(80).height(20).hidden(); Box().width(40).height(10) }` in a 400×300 frame emits **0 rects and 2 glyphs**, at `(0, 2)` and `(−1, 18)` — the second negative in x. **0 rects, not one zero-size rect**: neither `Box` in that probe carries a `.background`, so nothing fills at all and the glyphs are the entire output. Re-measured 2026-08-28; this row said "the expected zero rect and two glyphs" until then. **Nothing in the suite can see it**: every existing `hidden()` test asserts a rect, and a zero rect is exactly what a correct implementation produces, so the glyphs are invisible to every assertion that exists. Found while evaluating a key-toggled modal for the demo and rejected on this basis — the demo uses an `@ElementBuilder` `if` instead, which removes the element from the *tree* rather than from the item list. The fix is a `display` check in paint (probably in `Element`'s group walk, so it costs one test per phase rather than one per element); until then `hidden()` is safe on `Box`es, wrong on anything that draws, and — as of the input-and-state milestone — **wrong on anything FOCUSABLE, which is a new failure mode rather than an instance of the paint one**. Measured through a real `Window`: a `.focusable().onKey { … }.hidden()` box registers as focusable, `focus(_:)` sticks, it **claims the keystroke**, the window's `onInput` fallback sees nothing, and focus is **retained** across the next frame — `Frame.resolveFocus()` cannot clear it, because the element's `prepaint` genuinely ran. **The differential is what makes it new**: the same box with `onClick` registers a `(0,0) 0x0` hitbox, so the *pointer* side is protected by geometry (`Bounds.contains` is half-open), while focus registration reads no geometry at all — deliberately, that being the design's own argument for riding on `registerHandlers`. `display: .none` is invisible to it, and the consequence is keystrokes vanishing into an element nobody can see. **No deliberately-wrong pin, and that judgement is carried rather than hidden**: the paint half of this row has no pin either, one `display` check in the group walk closes both halves, and a single pin covering both is the better artifact — but nothing enforces that, so the next person to touch `hidden()` owns all three failures |
 | `Frame.scrollRegions` / `Window.lastScrollRegions` | **Get-only derived views with ZERO production readers — `LayoutTree.reset`'s exact shape, arrived at by a refactor rather than by never being wired.** They were the framework's scroll registry until the input-and-state milestone folded scroll regions into the one hitbox list (design spec §3.1); keeping the names as accessors is what let every routing assertion written against the old registry pass **unedited**, which was that task's whole safety argument and is why this is the right call rather than dead weight. But `Window.applyScroll` ranks against `lastHitboxes` directly, `Window.lastScrollRegions` derives its own view from that same array rather than calling `Frame.scrollRegions`, and nothing else reads either. Verify with `grep -rn "scrollRegions" Sources/`, which returns **five lines and no call site at all**: the one declaration this pattern matches, in `Frame.swift`; two doc lines, one in `Frame.swift` and one in `Window.swift` (the latter the sentence you are reading, quoted back); and two references in `Hitbox.swift`'s prose. **No line numbers, on purpose** — this row cited `Frame.swift:420` and `:400` when it was written and both were wrong by the end of the same milestone (**431** and **401**), the second time line numbers in this table have moved inside one milestone. Read the five lines the grep prints; the count and the "no call site" claim are two separate assertions and both were re-run here. **The pattern is case-sensitive and therefore misses `Window.lastScrollRegions`' own declaration** — so it finds one declaration, not two, and a case-INSENSITIVE sweep (`grep -rni "scrollregions" Sources/`) is what sees both. No count is quoted for that one deliberately: it matches every prose mention including this row, so it moves whenever the prose does. The load-bearing half is "no call site", which holds under either pattern. (This sentence said "the two declarations" and named no doc lines until the counts were actually run — a correction written from reasoning rather than from the grep it prescribes, which is the exact failure the practices doc's first record-mechanism names.) `Window`'s one already said "test observability" in its first line; `Frame`'s did not and read as a live API — it says so now. **Keep both**: they are what several routing tests read, and deleting them churns green tests to prove nothing |
 | `LayoutTree.reset(generation:)` | **Zero production callers.** `grep -rn "\.reset(" Sources/` returns **three** lines and none is a call: the string inside its own precondition message (`LayoutTree.swift:135`), a doc comment on the method that quotes this very grep (`:116`), and — added by the input-and-state milestone — a doc line in `Frame.swift`, where the `Frame.scrollRegions` row below cites this one as the same shape. (Line numbers are deliberately not given for the prose lines: they moved twice inside this one fix round.) (It matched one line when this row was written and two after the method's own doc comment landed, so re-run it rather than counting — the claim is "no call", not any particular number, and this row has now been made stale twice by prose that merely mentions the symbol.) The element pipeline's plan predicted a per-frame reset; `Frame` allocates a **fresh `LayoutTree` each frame** instead (spec §4.1), so the capacity-reuse path this method exists for is never taken. It is not inert in the sense the rows above are — it works, and its four guards in `LayoutTreeTests` prove the ruling C-3 staleness contract fires — but its doc comment reads as a live API, which is exactly the situation `newLeaf` is listed here for. **Keep the guards**: they pin the contract for whoever does call it, and C-3 is the hazard this repo has already been bitten by |
@@ -2799,34 +2971,52 @@ is taxonomy shape 4 in the practices doc.
 
 ## Build
 
-`swift build` · `swift test` — **791 tests** and 87 browser fixtures, warning-free
-(re-measured 2026-09-02 `--no-parallel` at the reactivity milestone's
-last commit: `Test run with 791 tests in 1 suite passed after 15.783 seconds.`,
-`find Tests -name "*.json" | wc -l` = 87, and a full-log `grep -ci "warning:"`
-of 0; 782 and 87 was that milestone's own baseline, 755 and 87 the tombstones
+`swift build` · `swift test` — **811 tests** and 87 browser fixtures, warning-free
+(re-measured 2026-09-03 `--no-parallel`, unfiltered, at the `Component`
+milestone's whole-branch fix wave: `Test run with 811 tests in 1 suite passed
+after 17.108 seconds.`, `find Tests -name "*.json" | wc -l` = 87, and a
+full-log `grep -ci "warning:"` of 0 on both the test log and a `swift build`
+log. **810 was the count through `32542d7` and `ca33d88`**, re-measured twice
+there — `Test run with 810 tests in 1 suite passed after 15.688 seconds.` and,
+on an independent second run, `…after 19.289 seconds.` — and the fix wave's one
+added test is `layoutPassStyleAccessorsAreNotPublic`, a typecheck guard; 791 and 87 was that milestone's own
+baseline, 782 and 87 the reactivity milestone's, 755 and 87 the tombstones
 milestone's, and 752 and 86 the sizing
 milestone's before its whole-branch fix wave). Per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
 rather than at the commit that first quoted it.
 
-**87 goldens is the reactivity milestone's exit criterion 5 as it was the
-tombstones milestone's exit criterion 2 — not a by-product either time.**
-Neither touches the layout engine:
-`git diff --name-only aab0e6a..HEAD -- Sources/MetalUILayout/` is **empty for
-the whole reactivity branch**, as `2f8994b..HEAD` was for the tombstones one, so
+**87 goldens is the `Component` milestone's exit criterion 4, as it was the
+reactivity milestone's 5 and the tombstones milestone's 2 — not a by-product any
+of the three times.** None of them touches the layout engine:
+`git diff --name-only b36195d..HEAD -- Sources/MetalUILayout/` is **empty for
+the whole `Component` branch** — re-run at `32542d7` — as `aab0e6a..HEAD` was
+for the reactivity one and `2f8994b..HEAD` for the tombstones one, so
 a moved golden would mean something reached the engine
-that should not have. None moved and none was added: 87 before, 87 after, twice.
+that should not have. None moved and none was added: 87 before, 87 after, three
+times.
 
-**Two tests are gated and DO count toward the 791 — a claim this paragraph got
+**That the `Component` branch leaves `Sources/MetalUILayout/` untouched is
+worth one extra sentence, because its headline feature is a STYLE AMENDMENT.**
+`StyledComponent` writes through `LayoutTree.setStyle` — whose **first
+production caller** this is (ruling `CO-V`; `git grep -n "setStyle" b36195d --
+Sources/` returns three lines, all inside `LayoutTree.swift` itself, none a
+call) — but the call is made from `MetalUI`, and the engine already had the API.
+`display: contents`, the one thing this milestone considered that *would* have
+moved a golden, was deferred for exactly that reason (`CO-R`).
+
+**Two tests are gated and DO count toward the 811 — a claim this paragraph got
 wrong for one milestone and which is corrected here rather than quietly
 edited.** It previously said the 100k test "is disabled by default and does not
 run in the count above", which conflates two things. Measured:
 `swift test --no-parallel --filter aListsWorkIsTheSameFor100kRowsAsFor500`
 reports `Test run with 1 test in 1 suite passed`, and a full-log grep for
 `skipped` finds exactly two tests — `regenerateAllGoldens` and that one, both
-re-confirmed skipped in the 791-test run above. **A
+re-confirmed skipped in the 811-test run above (`grep -i skipped` over the full
+log returns six lines, of which four are two ordinary tests whose *names*
+contain the word — re-run at the fix wave, same six). **A
 `.enabled(if:)` skip counts toward the total and is reported as skipped; what
-is disabled is what RUNS, 789 of the 791 by default.** The distinction matters
+is disabled is what RUNS, 809 of the 811 by default.** The distinction matters
 because the reflex when the summary line moves is to look for an added or
 deleted test, and a gate changes neither number.
 
@@ -2852,7 +3042,10 @@ documentation task read 14.903, 14.981 and 15.117 s** — the same regime, on th
 same machine, one milestone-task later; the 66.8 s figure is the one nobody has
 re-run, and it would require reverting the gate to see again.
 
-**Typecheck guards: 32, and across FIVE files rather than four** — 19
+**Typecheck guards: 34 today, and across FIVE files rather than four. The
+breakdown immediately below is the TOMBSTONES milestone's 32**, kept because the
+argument it makes is about the fifth *file*; today's 34 and the counting trap
+that comes with it are two paragraphs down — 19
 `PhaseSeparationTests` + 7 `ErasureCompileGuards` + 1 `ElementGroupTrapTests`
 + 2 `Tests/MetalUICoreTests/UnitSafetyTests.swift` (a bare `grep -c` there
 reads 3; one is a comment) + **3 `Tests/MetalUITests/AXNodeTests.swift`**, the
@@ -2868,6 +3061,116 @@ per file at the reactivity milestone's last commit (suite 791): still 32** —
 19 + 7 + 1 + 2 + 3, unchanged. That milestone added nine tests, no guard and no
 file, which is the "When CI lands" argument arriving once more as a data point
 rather than an exception: 791 does not say 32 and nothing here claims it does.
+
+**It is 34 as of the `Component` milestone's fix wave (suite 811), and the
+fifth file is still the last one** — 19 `PhaseSeparationTests` + **9**
+`ErasureCompileGuards` + 1 `ElementGroupTrapTests` + 2 `UnitSafetyTests` + 3
+`AXNodeTests`, re-counted by per-file `grep -c canTypecheck` at the fix wave's
+commit. **A `grep -rl canTypecheck Tests/` returns SIX paths and only five of
+them carry guards**: the sixth is `Tests/MetalUITestSupport/Typecheck.swift`,
+where the single hit is `canTypecheck`'s own declaration. Count guards per file,
+not files.
+
+**Two guards landed in this milestone, one per round.** The task-round one is
+`backgroundCannotBeCalledOnAComponent`, asserting that
+`Leafless().background(.accent)` does **not** compile — a regression that adds
+the modifier makes the probe *compile*, which no runtime test could see (ruling
+`CO-W`). The fix wave's is `layoutPassStyleAccessorsAreNotPublic`, which is the
+**only** artifact that can demonstrate that fix wave's narrowing of
+`LayoutPass.style(_:)`/`setStyle(_:_:)` from `public` to `internal`: those two
+read back and overwrite the `Style` of any `LayoutNodeID` a caller can name —
+a sibling's, a parent's — during the request phase, for one in-module caller
+(`StyledComponent`). **The mutation was run, not predicted**: restoring `public`
+on both and rebuilding reddens *both* of that test's assertions. Note that it
+must probe through a **plain** import, which `typecheck(_:importing:)` supplies
+by construction — `@testable` widens `internal` and so cannot demonstrate a
+narrowing at all (taxonomy shape 16, ruling `TB-N`).
+
+Same pattern as every previous move: a guard written in the same change that
+could have introduced the hazard it guards against, and 811 does not say 34 any
+more than 791 said 32. **One honest qualifier on that, since this move is the
+weakest data point in the series rather than the strongest**: the fix wave's
+guard is itself a `@Test`, so it moved the suite count and the guard count
+together, by one each. The independence claim rests on the other five moves and
+on the milestones where the suite grew and the count did not.
+
+**The `Component` milestone's own climb, task by task** (baseline **791** tests,
+87 goldens, 32 guards, warning-free — the reactivity milestone's own
+end-of-milestone count, which reproduced exactly). **Each figure below is the
+summary line the task itself read at its own commit; only the final 810 was
+re-run by this documentation task, twice.** They are corroborated rather than
+trusted, by the same net `@Test`-declaration delta the paragraphs below use —
+for each commit, `git show <c> -- 'Tests/*' | grep -c "^+.*@Test"` minus the same
+with `"^-.*@Test"`, accumulated from 791 — which reproduces every intermediate
+figure and lands exactly on the re-measured 810.
+**795** after Task 1 (`d32b25c`, the protocol, `ComponentLayout` and the
+extension — **red-first by construction**, since the file does not compile until
+the conformance is complete) and 795 through its fix round (`a98bb03`) and
+through the two doc commits the SwiftUI probes forced (`b9d6895`, `b8f9918`).
+**801** after Task 2 (`8000f51`, `@State` inside a component and the four
+mutations that pin it — the plan expected 800; the sixth test is ruling `CO-F`'s
+`contentIsMaterializedExactlyOncePerFrame`, which Task 1's review demanded and
+the plan lacked) and **802** after its first fix round (`f74688e`, ruling
+`CO-I`'s coverage gap). **806** after Task 3 (`87891a3`, distribution: three
+tests plus the `.background()` typecheck guard, taking guards 32 → 33) and 806
+through Task 2's second fix round (`dda81bc`, the whole-table re-take, comments
+only). **810** after Task 3's fix round (`32542d7`, chained modifiers composing
+— ruling `CO-N`, four tests), and **810** unchanged through its scoped
+re-review's comment-only follow-up (`ca33d88`, which walks an honest negative
+back to the test's own doc comment; `git show ca33d88 -- 'Tests/*' | grep -c
+"^+.*@Test"` reads 0). This documentation task adds none, so 810
+reproduces exactly. Ten commits, `b36195d..ca33d88`.
+
+**The whole-branch fix wave then added exactly ONE test and NO golden — 810 →
+**811**, 87 unchanged — and that one test is a `swiftc -typecheck` guard, taking
+guards 33 → 34.** Both numbers moved, and by the same one line: a
+`.enabled(if:)` compile guard is a `@Test` like any other and counts toward the
+suite total, so "the fix wave added no test" would be false. (The guard count
+and the suite count are still independent in the sense "When CI lands" item 3
+argues — five of the six guard moves came with unrelated suite growth or none —
+but this particular move is the one case where a single commit moved both by
+one, and saying otherwise would be tidier and wrong.) The review returned "ready
+to merge with fixes" with **no Critical findings**; the mechanism had been
+verified by probe rather than argued, so there was no *coverage* gap to close,
+and the guard closes an access-level one instead. Three
+findings were **measured** rather than reasoned, and none of the three had been
+written down anywhere: a caller's modifier silently overwrites a component's own
+internal sizing (30/50 → **70/70**); `.padding()` on a leaf-only component is
+**completely inert** (a marker leaf's `x` reads 13.0 both ways), which is the
+inert table's leaf row composing with distribution; and `Deferred` and `List`
+**reject a component outright**, so `Component` composes with five of seven
+containers. The other half was correcting two refuted claims that were still
+standing in shipped source, four sites in the plan that still *instructed* the
+refuted design — two of them forward-looking instructions rather than history —
+and three stale record sites (a deleted `ComponentLayout.id`, a spurious
+`@MainActor`, a "14 tests" denominator that had become 18; that last mutation
+was **re-run**, and it still reddens the same 10 issues across the same six
+tests). Everything measured was walked back to the line, per the practices doc's
+first record-mechanism.
+
+**Three steps in that list are worth reading rather than counting.** Task 1's
+review found **three load-bearing lines reddening NOTHING on 795 tests** —
+`cursor += 1`, threading the outer cursor, and `prepaintGroup` re-evaluating
+`content` — so the "opaque to identity" half of the design was entirely unguarded
+at that point and was carried to Task 2 as a requirement rather than patched
+(`CO-F`). Task 2's fix round then produced the branch's cleanest instance of
+practices mechanism 3: **re-taking the whole four-row mutation table found two
+rows moved and two unchanged**, and had only the one flagged row been corrected,
+two of the four would still be wrong today. And Task 3's fix round exists because
+`swiftc -typecheck` found that the three forwarded modifiers **did not compose**
+— `Leafless().width(…).height(…)` was a type error, undetected because no test
+exercised `width` or `height` at all, which is this file's own recurring lesson
+verbatim: *a feature that works alone and a feature that works alone can be wrong
+together* (`CO-X`).
+
+**And one thing the branch measured that it deliberately refused to predict.**
+`.padding(4).padding(8)` — **the second call wins outright**, width 16 = 2×8. It
+does not accumulate (24) and the first does not survive (8). The mutation that
+pins the composition (drop `previous(&style)` from all three chained overloads)
+reddens **2 issues on `widthAndHeightComposeOnAChainedModifier`**, and the
+implementer reported unprompted that `chainedPaddingReplacesRatherThanAccumulates`
+**stays green** under it, because same-field replace-versus-compose is
+indistinguishable. Stating what a test cannot see is the half most reports omit.
 
 **The reactivity milestone's own climb, task by task** (baseline **782** tests,
 87 goldens, 32 guards, warning-free — the tombstones milestone's own
@@ -3594,7 +3897,7 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
 
 1. The ABI probe **skips** without a Metal device.
 2. `committedGoldensMatchTheBrowser` is the only live-WebKit consumer.
-3. **The 32 `swiftc -typecheck` guards skip whenever `.build` is not where
+3. **The 34 `swiftc -typecheck` guards skip whenever `.build` is not where
    `#filePath`-relative resolution expects it.** `canTypecheck`
    (`Tests/MetalUITestSupport/Typecheck.swift`) walks three directories up from
    its own `#filePath` and looks for `.build/<triple>/debug/Modules` holding the
@@ -3602,7 +3905,7 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    `swift test -c release` all make that miss and every guard becomes a skip.
    **That set is this milestone's headline deliverable and both of its
    compile-time exit criteria** — `PhaseSeparationTests` (**19**),
-   `ErasureCompileGuards` (7), `ElementGroupTrapTests` (1), `UnitSafetyTests` (2,
+   `ErasureCompileGuards` (**9**), `ElementGroupTrapTests` (1), `UnitSafetyTests` (2,
    in `Tests/MetalUICoreTests/`, where a bare `grep -c` reads 3 because one is a
    comment) and `AXNodeTests` (**3**, in `Tests/MetalUITests/`, added by the
    tombstones-and-AX milestone — see the last block of this item)
@@ -3613,12 +3916,12 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    **Taxonomy shape 11's count heuristic does not catch this one.** Measured, by
    forcing `canTypecheck` to `false`: exactly 25 tests report as skipped, the
    total does not move, and the run passes. **The 25 is dated — it is the guard
-   count at the time, and the guard count is 32 today.** The load-bearing half
+   count at the time, and the guard count is 34 today.** The load-bearing half
    is the other two clauses, "the total does not move" and "the run passes",
    which are properties of `.enabled(if:)` rather than of any count; that a
    skip counts toward the total was independently re-measured at the
    tombstones milestone (see the Build section). Nobody has re-forced
-   `canTypecheck` to `false` since, so **do not read 32 into this sentence** —
+   `canTypecheck` to `false` since, so **do not read 34 into this sentence** —
    the number that would appear has not been run. The 25 was first taken at
    `Test run with 304 tests`, re-measured at 358 on the structural-identity
    branch, and **re-counted at the end of M2 (suite 444): still 25 — 15 + 7 + 1
@@ -3707,13 +4010,33 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    at that milestone's last commit (suite **782**), both counting methods
    agreeing where they can. **This is the paragraph's own claim arriving a
    fourth time, not an exception to it**: the suite has now moved 304 → 358 →
-   444 → 488 → 538 → 577 → 604 → 609 → 640 → 739 → 782 → **791** and the guard
+   444 → 488 → 538 → 577 → 604 → 609 → 640 → 739 → 782 → **791** → 810 → **811** and
+   the guard
    count has
-   moved four times, at commits that had nothing to do with the suite's size.
+   moved six times, at commits that had nothing to do with the suite's size.
    782 does not say 32 and nothing here claims it does — nor does 791, which is
    the reactivity milestone's count, **re-counted by grep per file at its last
    commit and still 32** while nine tests were added. The two numbers moved
    independently one more time, which is this item's whole argument.
+
+   **The fifth and sixth moves are both the `Component` milestone's, at suites
+   810 then 811: 33 then 34** — `ErasureCompileGuards`'
+   `backgroundCannotBeCalledOnAComponent` (ruling `CO-W`) in the task round,
+   and `layoutPassStyleAccessorsAreNotPublic` in the fix wave, for the
+   `public` → `internal` narrowing of `LayoutPass.style`/`setStyle`. **The
+   sixth is the WEAKEST data point this item has, and it is recorded as such**:
+   a compile guard is a `@Test`, so it moved the suite count and the guard count
+   together, by one each — the only move in the series that did. The
+   independence claim rests on the other five and on every milestone where the
+   suite grew while this number held. Same pattern as the five before it — a guard written in the same
+   change that could have introduced the hazard, not a guard that tracked a
+   growing suite. **And it adds a counting trap the item above does not
+   describe.** `grep -rl canTypecheck Tests/` now returns **six** paths and only
+   five carry guards: the sixth is
+   `Tests/MetalUITestSupport/Typecheck.swift`, whose single hit is
+   `canTypecheck`'s own **declaration**. Summing per-file `grep -c` across every
+   matching path reads **36**, not 34. Count guards, not files, and check what
+   each hit actually is.
 
    **The reason these three exist is a new hazard rather than a new phase
    guard, and it generalises past this repo (ruling `TB-N`).** Task 5 narrowed
@@ -3733,6 +4056,10 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    hover probes above record from the other direction.
 
    **Re-count by grep, and note the DIRECTORIES — there are now two of them.**
+   (**The totals in this paragraph are the tombstones milestone's**, when the
+   count was 32; the fifth-move note above carries today's 34 and the six-path
+   trap. The claim being made here is about directories, not about either
+   number.)
    `Tests/MetalUICoreTests/UnitSafetyTests.swift`, not `MetalUITests`; and
    `Tests/MetalUITests/AXNodeTests.swift`, not `MetalUICoreTests`. A recheck
    that greps the wrong directory silently reads 26 instead of 32 — or misses

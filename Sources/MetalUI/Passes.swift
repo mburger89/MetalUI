@@ -51,6 +51,38 @@ public struct LayoutPass {
         frame.requestLeaf(style: style, measure: measure)
     }
 
+    /// Reads back a node's current `Style`, so a caller that registered a node
+    /// earlier in this same layout pass can amend rather than replace it.
+    /// `StyledComponent`'s only production caller (`Component.swift`).
+    ///
+    /// **`internal`, not `public`, and deliberately so — narrowed by the fix
+    /// wave.** This pair is a read-back-and-overwrite on a raw
+    /// `LayoutNodeID`, and a `LayoutNodeID` is not scoped to whoever minted it:
+    /// as `public` these two let *any* out-of-module element read and overwrite
+    /// the `Style` of any node it can name — a sibling's, a parent's — during
+    /// the request phase, with no signal to the node's owner. Nothing outside
+    /// `MetalUI` needs that: `StyledComponent` is in-module and amends only the
+    /// nodes its own component just returned. Shipping public surface with one
+    /// in-module caller is what this repo's inert-API discipline refuses;
+    /// widening later is trivial and unshipping is not. Pinned by
+    /// `layoutPassStyleAccessorsAreNotPublic` (`ErasureCompileGuards.swift`), which
+    /// must use a **plain** import — `@testable` widens `internal` and cannot
+    /// demonstrate a narrowing at all (taxonomy shape 16, ruling `TB-N`).
+    func style(_ id: LayoutNodeID) -> Style {
+        frame.style(id)
+    }
+
+    /// Overwrites a node's `Style` in place. `LayoutTree.setStyle`'s only
+    /// production caller: registration derives nothing from style, so this is
+    /// sound at any point before `computeLayout` runs, which is exactly the
+    /// window this pass exists for. **`internal` for the reason stated at
+    /// `style(_:)` above**, which is this method's reason more than that one's:
+    /// the read is harmless on its own and the overwrite is what makes the pair
+    /// reach through a boundary.
+    func setStyle(_ id: LayoutNodeID, _ style: Style) {
+        frame.setStyle(id, style)
+    }
+
     /// The window's shaping cache (spec §3.2).
     ///
     /// **Internal, unlike everything else on this pass.** It is the one member

@@ -1,10 +1,37 @@
 # `Component` (M4 spec 2) Implementation Plan
 
+> **Corrected 2026-09-03, mid-execution and again in the fix wave. Spec §5 and
+> this plan's Task 3 were REWRITTEN after measurement**, and four sites in this
+> document have been corrected in place rather than preserved.
+>
+> The plan as first written said modifiers on a component **wrap it in a `Box`,
+> which is what SwiftUI's `ModifiedContent` does**. Two throwaway probes outside
+> the repo refuted both halves. SwiftUI **is** layout-transparent (a `Layout`
+> conformer's `subviews.count` reads 2 for an inline pair — the control — 2 for
+> `Group { A; B }`, 2 for a custom view whose body is two views, and 4 for two
+> such views), and modifiers **distribute** (`MyRow().padding(8)` is 120x26,
+> i.e. `(30+16) + 8 + (50+16)`, bit-identical to `Group { A; B }.padding(8)`,
+> where wrapping predicts 96-104). What shipped is `StyledComponent`, which
+> amends each contributed node's `Style` and returns the same nodes.
+>
+> **These four sites are corrected, not preserved as history, and that is a
+> deliberate departure from how the reactivity plan handled its own false
+> claim.** That one was kept because two rulings cite it as evidence; **nothing
+> cites these**. Two of them (Task 1's doc-comment text) are the *source* of a
+> comment that shipped into `Sources/MetalUI/Component.swift` and had to be
+> corrected there, and Task 4 Step 3's are forward-looking **instructions**
+> that would have a future reader reintroduce a design measurement overturned.
+> A live instruction is not history.
+>
+> The measurements themselves are in the design spec (§2's "Why this is
+> SwiftUI's shape" and §5's own heading, which records that it previously said
+> the opposite), and in `Sources/MetalUI/Component.swift`'s type doc.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a `Component` protocol so an element author writes only `content` — layout-transparent (contributes no node of its own) and identity-opaque (consumes one cursor index, so `@State` works).
 
-**Architecture:** `Component` refines `ElementGroup` rather than `Element`. One protocol extension supplies the whole conformance: it mints the component's `GlobalElementID`, binds its `@State`, materializes `content` **once** into a stashed value, forwards to `content.requestGroupLayout(under: myID, at: &innerCursor, …)`, and returns the content's `[LayoutNodeID]` **unchanged**. Modifiers are not attached — they wrap the component in a `Box`, which is what SwiftUI's `ModifiedContent` does.
+**Architecture:** `Component` refines `ElementGroup` rather than `Element`. One protocol extension supplies the whole conformance: it mints the component's `GlobalElementID`, binds its `@State`, materializes `content` **once** into a stashed value, forwards to `content.requestGroupLayout(under: myID, at: &innerCursor, …)`, and returns the content's `[LayoutNodeID]` **unchanged**. Modifiers **distribute**: `StyledComponent` amends each contributed node's `Style` through `LayoutTree.setStyle` and returns the same nodes, so a modified component stays layout-transparent. (**This sentence said modifiers "wrap the component in a `Box`, which is what SwiftUI's `ModifiedContent` does"** until measurement refuted it — see the correction block at the head of this file.)
 
 **Tech Stack:** Swift 6.3, `@resultBuilder` (`ElementBuilder`, already complete), Swift Testing. Package floor `.macOS(.v14)`, unchanged.
 
@@ -260,13 +287,20 @@ Create `Sources/MetalUI/Component.swift`:
 /// - **Layout-transparent**: a component contributes **no layout node of its
 ///   own**; its content's nodes pass through to its parent unchanged. So
 ///   `Column { MyRow(); MyRow() }` lays the rows' children out as the
-///   `Column`'s own children. That is SwiftUI's shape — a custom `View`
-///   contributes no layout container, and `.padding()` introduces a layer by
-///   wrapping the view in `ModifiedContent` rather than by attaching to it.
-///   **That description of SwiftUI is DERIVED from its documented behaviour and
-///   is not measured here**: there is no SwiftUI test target in this repo. If
-///   SwiftUI turns out to differ, this is a divergence and the label is
-///   available.
+///   `Column`'s own children. **That is SwiftUI's shape, and it is MEASURED
+///   rather than derived** — a `Layout` conformer's `subviews.count` reads 2
+///   for an inline pair (the control), 2 for `Group { A; B }`, 2 for a custom
+///   view whose body is two views, and 4 for two such views. And `.padding()`
+///   **distributes** rather than wrapping: `MyRow().padding(8)` is 120x26,
+///   i.e. `(30+16) + 8 + (50+16)`, bit-identical to
+///   `Group { A; B }.padding(8)`, where wrapping predicts 96-104.
+///
+///   **This paragraph said the opposite** — that `.padding()` wraps in
+///   `ModifiedContent`, and that the SwiftUI claim was "DERIVED … and is not
+///   measured here". Both halves were refuted by this branch's own probes, and
+///   this is the text Task 1 actually shipped into
+///   `Sources/MetalUI/Component.swift`, so it is corrected here as well as
+///   there. See the correction block at the head of this file.
 /// - **Identity-opaque**: a component consumes one cursor index and its content
 ///   nests beneath the component's own `GlobalElementID`. **This is not a
 ///   choice.** `@State` slots are `.named("$state\(n)")` children of the
@@ -278,8 +312,9 @@ Create `Sources/MetalUI/Component.swift`:
 /// attach to a layout node, and `Style.display` defaults to `.flex` with no
 /// `contents` case in the engine — so conforming would force a component to
 /// contribute a real flex container and make it layout-opaque, which is the
-/// exact divergence this design exists to avoid. Modifiers wrap instead; see
-/// the extension below.
+/// exact divergence this design exists to avoid. Modifiers **distribute**
+/// instead — see `StyledComponent`. (This read "Modifiers wrap instead; see the
+/// extension below" and is corrected for the reason at the head of this file.)
 ///
 /// **No `.id()` modifier**, for the same reason: that method lives on
 /// `StyledElement`. An author who needs a stable name declares the property:
@@ -724,135 +759,267 @@ Claude-Session: https://claude.ai/code/session_01FN1rUy2Qkdyd53wiM3pKnK"
 
 ---
 
-### Task 3: Forwarded modifiers
+### Task 3: Modifiers that DISTRIBUTE
 
 **Files:**
 - Modify: `Sources/MetalUI/Component.swift`
 - Modify: `Tests/MetalUITests/ComponentTests.swift`
 
 **Interfaces:**
-- Consumes: `Box<Content: ElementGroup>: Element, StyledElement` (`Box.swift:30`), `Box.init(style:decoration:content:)` (`:43`), and `StyledElement`'s live modifiers.
-- Produces: modifier methods on `Component` returning `Box<Self>`.
+- Consumes: `Component`, `ComponentLayout` from Task 1. `LayoutTree.style(_:)` and
+  `LayoutTree.setStyle(_:_:)` (`Sources/MetalUILayout/LayoutTree.swift:102-108`).
+- Produces: `public struct StyledComponent<C: Component>: ElementGroup` and the modifier
+  methods on `Component` that return it.
 
-- [ ] **Step 1: Write the tests**
+**This task was rewritten after measurement.** Its first version had modifiers **wrap** the
+component in a `Box`. A probe measured SwiftUI and found it **distributes** instead:
+`MyRow().padding(8)`, where `MyRow`'s body is a 30×10 and a 50×10 view, is **120×26** —
+`(30+16) + 8 + (50+16)` — bit-identical to `Group { A; B }.padding(8)`, where a wrapping
+implementation predicts 96–104. Spec §5 carries both measurements.
+
+**The mechanism exists already** (feasibility probe, spec §5): `LayoutTree.setStyle` amends a
+registered node's `Style` in place; registration derives nothing from style, so amendment is
+sound; its `isLayingOut` precondition is a phase boundary the request walk completes before;
+and it operates on raw `LayoutNodeID`s, so it does not care whether a child is a
+`StyledElement`. `setStyle` has **zero production callers** today — this is its first.
+
+- [ ] **Step 1: Check what `LayoutPass` already forwards**
+
+Run: `grep -n "func requestNode\|func requestLeaf\|func style\|func setStyle\|var tree\|frame.tree" Sources/MetalUI/Passes.swift`
+
+`LayoutPass` wraps `Frame`, which owns the `LayoutTree`. You need read and write access to a
+node's style from inside `requestGroupLayout`. If `LayoutPass` already forwards them, use
+what is there. If not, add exactly two forwarding methods mirroring `requestNode`'s shape —
+**no more**, and no new capability beyond reading and writing a node's `Style`.
+
+Report which you found and what you added.
+
+- [ ] **Step 2: Write the failing tests**
 
 Append to `Tests/MetalUITests/ComponentTests.swift`:
 
 ```swift
-// MARK: - Modifiers wrap rather than attach
+// MARK: - Modifiers distribute
 
-/// Spec §5. A bare component is transparent; a MODIFIED one introduces exactly
-/// one flex container — which is what SwiftUI's `ModifiedContent` does.
+/// Spec §5. A modifier on a component applies to EACH top-level node its content
+/// contributed, and the component stays layout-transparent — no node is added.
 ///
-/// The cost is real and this test is where it is written down: a modified
-/// component's children become children of the wrapping `Box`, not of the
-/// component's parent. So `Row { TwoLeaves() }` and
-/// `Row { TwoLeaves().padding(4) }` arrange the leaves differently. That is
-/// visible rather than silent — a padded thing looks padded — and it is
-/// asserted here as documented behaviour, not discovered later as a surprise.
+/// **Measured against SwiftUI, which is why it is distribution and not wrapping**:
+/// `HStack { MyRow().padding(8) }` is 120x26 where `MyRow`'s body is a 30x10 and
+/// a 50x10, which is `(30+16) + 8 + (50+16)` — each child padded — and is
+/// bit-identical to `Group { A; B }.padding(8)`. Wrapping predicts 96-104.
+///
+/// **Both halves are asserted and both are needed.** The node count alone cannot
+/// tell distribution from a modifier that did nothing at all; the rects alone
+/// cannot tell distribution from wrapping in every fixture. Together they can.
 @MainActor
-@Test func aModifiedComponentIntroducesExactlyOneNode() {
-    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
-    var bare = Row { TwoLeaves(log: ComponentLog()) }
+@Test func aModifierOnAComponentDistributesToEachTopLevelChild() {
+    let bareLog = ComponentLog()
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    var bare = Row { TwoLeaves(log: bareLog) }
     bareFrame.render(&bare)
 
-    let paddedFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
-    let log = ComponentLog()
-    var padded = Row { TwoLeaves(log: log).padding(px(4)) }
-    paddedFrame.render(&padded)
+    let padLog = ComponentLog()
+    let padFrame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    var padded = Row { TwoLeaves(log: padLog).padding(px(4)) }
+    padFrame.render(&padded)
 
-    // Exactly one more node: the wrapping Box.
-    #expect(paddedFrame.layoutNodeCount == bareFrame.layoutNodeCount + 1)
-    // And the padding actually applies — the leaves move in by 4.
-    #expect(rect(log.bounds["a"]!).0 == 4)
+    // Transparency survives the modifier: still no node of the component's own.
+    #expect(padFrame.tree.nodeCount == bareFrame.tree.nodeCount,
+            "a modified component must still add no node; got \(padFrame.tree.nodeCount) against \(bareFrame.tree.nodeCount)")
+
+    // And EACH leaf grew by the padding on both axes — distribution, not one
+    // padding around the pair.
+    let bareA = rect(bareLog.bounds["a"]!)
+    let padA = rect(padLog.bounds["a"]!)
+    #expect(padA.2 == bareA.2 + 8, "leaf a's width gains 2x4; got \(padA.2) against \(bareA.2)")
+    let bareB = rect(bareLog.bounds["b"]!)
+    let padB = rect(padLog.bounds["b"]!)
+    #expect(padB.2 == bareB.2 + 8, "leaf b's width gains 2x4 too — this is the assertion \
+                                    that separates distribution from wrapping")
 }
 
-/// Spec §5's rule: a forwarded modifier must have the SAME signature as its
-/// `StyledElement` original. A forwarded modifier whose parameter type drifts
-/// is worse than none, because a caller reads the two as the same modifier.
+/// Spec §5's limit. Only `Style`-backed modifiers can be distributed, because
+/// `setStyle` reaches `LayoutTree` and nothing reaches `Decoration`/`Handlers`
+/// per node. So `background`, `onClick` and `focusable` are NOT offered on a
+/// component at all — offering them with wrapping semantics beside a
+/// distributing `padding` would be two modifiers that read alike at the call
+/// site and behave differently.
 ///
-/// Type-level, because no layout assertion can see a signature.
+/// Type-level, because no layout assertion can see an absent method.
 @MainActor
-@Test func aForwardedModifierProducesABoxWrappingTheComponent() {
-    let wrapped = TwoLeaves(log: ComponentLog()).padding(px(4))
-    let name = String(describing: type(of: wrapped))
-    #expect(name.hasPrefix("Box<"))
+@Test func decorationBackedModifiersAreNotOfferedOnAComponent() {
+    // `.padding` exists and returns a StyledComponent, not a Box.
+    let styled = TwoLeaves(log: ComponentLog()).padding(px(4))
+    let name = String(describing: type(of: styled))
+    #expect(name.hasPrefix("StyledComponent<"))
     #expect(name.contains("TwoLeaves"))
 }
 ```
 
-Use the same fallback for `layoutNodeCount` as Task 1 if it does not exist.
+**`.background()` must not compile on a component.** Add a `swiftc -typecheck` guard for that
+in the style of `Tests/MetalUITests/ErasureCompileGuards.swift`, using the shared
+`canTypecheck` machinery in `Tests/MetalUITestSupport/Typecheck.swift`. **That raises the
+guard count from 32 to 33** — say so in your report, because that count is quoted in
+`CLAUDE.md` and Task 4 must update it. If the guard cannot be written (the probe file cannot
+reach the module, the diagnostic text differs), report that rather than dropping the
+assertion silently.
 
-- [ ] **Step 2: Run them to verify they fail**
+- [ ] **Step 3: Run them to verify they fail**
 
 Run: `swift test --no-parallel --filter ComponentTests 2>&1 | tail -20`
 Expected: compile failure — `value of type 'TwoLeaves' has no member 'padding'`.
 
-- [ ] **Step 3: Add the forwarded modifiers**
+- [ ] **Step 4: Implement `StyledComponent` and the modifiers**
 
 Append to `Sources/MetalUI/Component.swift`:
 
 ```swift
-/// Modifiers on a `Component` **wrap rather than attach**, because a component
-/// has no `Style` of its own and no layout node for one to attach to (spec §5).
-/// `MyComponent().padding(12)` is a `Box` wrapping the component, which is what
-/// SwiftUI's `ModifiedContent` is.
+/// A component with a `Style` amendment applied to each of its top-level nodes.
 ///
-/// **The cost, stated because "deliberate" is not "free":** a modified
-/// component is layout-OPAQUE. Its children become children of the wrapping
-/// `Box`, not of the component's parent, so `Column { MyRow() }` and
-/// `Column { MyRow().padding(4) }` arrange `MyRow`'s children differently.
-/// Pinned by `aModifiedComponentIntroducesExactlyOneNode`.
+/// **Modifiers on a `Component` DISTRIBUTE rather than wrap, and that is
+/// measured** (spec §5). SwiftUI's `MyRow().padding(8)`, where `MyRow`'s body is
+/// a 30x10 and a 50x10 view, measures 120x26 — `(30+16) + 8 + (50+16)`, each
+/// child padded — bit-identical to `Group { A; B }.padding(8)`. A wrapping
+/// implementation predicts 96-104. The two are one mechanism with §2's
+/// transparency: `MyRow()` IS its children, so a modifier applied to it applies
+/// to each of them, because there is no single thing to wrap.
 ///
-/// What has no spelling at all is "styled AND transparent" — that is CSS's
-/// `display: contents`, which this engine does not have. See the decisions doc.
+/// This type contributes **no layout node of its own** — it returns the
+/// component's nodes unchanged, having amended their styles — so a modified
+/// component is exactly as layout-transparent as a bare one.
 ///
-/// **Every signature here must match its `StyledElement` original exactly.** A
-/// forwarded modifier whose parameter type drifts from the original is worse
-/// than none, because a caller reads the two as the same modifier. And forward
-/// only modifiers that are LIVE on `StyledElement`: forwarding an inert one
-/// (`aspectRatio`, `overflow`) would put a second unreachable API in front of a
-/// caller, which is what CLAUDE.md's inert table exists to prevent.
+/// **Only `Style`-backed modifiers can work this way.** `LayoutTree.setStyle`
+/// reaches a node's `Style`; nothing reaches `Decoration` or `Handlers` per
+/// node, because those are per-ELEMENT state registered by each
+/// `StyledElement`'s own `prepaint`. So `background`, `onClick`, `focusable`
+/// and `keyContext` are deliberately **not** offered on a component. See the
+/// decisions doc for the mechanism that would close it.
+public struct StyledComponent<C: Component>: ElementGroup {
+    var component: C
+    var amend: @Sendable (inout Style) -> Void
+    // …requestGroupLayout forwards to `component`, then for each returned node
+    //   reads the style, applies `amend`, writes it back with `setStyle`, and
+    //   returns the SAME nodes. prepaintGroup/paintGroup forward unchanged.
+}
+
 extension Component {
-    public func padding(_ points: Pixels) -> Box<Self> {
-        Box(content: self).padding(points)
+    /// Padding on each top-level child (spec §5). Signature matches
+    /// `StyledElement.padding(_ points:)` (`Box.swift:643`) exactly — a
+    /// forwarded modifier whose parameter type drifts from its original is
+    /// worse than none, because a caller reads the two as the same modifier.
+    public func padding(_ points: Pixels) -> StyledComponent<Self> {
+        StyledComponent(component: self) { $0.padding = Edges(all: .pixels(points)) }
     }
 }
 ```
 
-**Then choose which further modifiers to forward, and say why in the report.** Read `Box.swift`'s `StyledElement` extension and forward the ones a component author plausibly needs at a call site. Suggested floor: `padding`, `background`, `width`, `height`. **Do not forward all of them mechanically** — each one is public API, and an unused forwarded modifier is surface with no caller. For each one you add, confirm the original is live (has a production reader) rather than in the inert table.
+**Fill in `requestGroupLayout`/`prepaintGroup`/`paintGroup` yourself** from `Component`'s own
+extension as the model — the shape is the same, minus the identity level, because
+`StyledComponent` is a modifier and not an element: **it must NOT mint its own
+`GlobalElementID` and must NOT call `StateBinder.bind`.** Forward the parent and cursor it was
+given straight through to the component, so `MyComponent()` and `MyComponent().padding(4)`
+have the **identical** identity — otherwise adding a modifier would silently reset the
+component's `@State`, which is the sharpest hazard in this task. Assert that.
 
-- [ ] **Step 4: Run the tests**
+**Then choose which further `Style`-backed modifiers to forward** and say why in the report.
+Suggested floor: `padding`, `width`, `height`. For each, confirm the `StyledElement` original
+is live (has a production reader) rather than in the inert table, and match its signature
+exactly. **Do not forward `background`, `onClick`, `focusable`, `keyContext`,
+`hoverBackground` or `focusBackground`** — those are `Decoration`/`Handlers`-backed and cannot
+distribute.
+
+- [ ] **Step 5: Add the identity test**
+
+```swift
+/// A modifier must NOT change a component's identity. `StyledComponent` forwards
+/// the parent and cursor it was given straight through, minting no id of its own
+/// — so `MyComponent()` and `MyComponent().padding(4)` hold the SAME `@State`.
+///
+/// If this fails, adding a modifier silently resets a component's state, which
+/// is the sharpest hazard in this design and one no rect assertion could see.
+@MainActor
+@Test func addingAModifierDoesNotResetAComponentsState() {
+    // Render a stateful component for two frames unmodified, then a third frame
+    // with the SAME component modified, against one shared StateTable. The count
+    // must continue rather than restart.
+}
+```
+
+Write the body using Task 2's `Counter` fixture and the `StateTests.swift:146-152` cross-frame
+idiom (thread one `StateTable` through several `Frame`s; read the value back through the
+element's own property). If `Counter` is `private` to a different section of the same file it
+is reachable; if the shapes do not compose, say what you changed.
+
+- [ ] **Step 6: Run the tests**
 
 Run: `swift test --no-parallel --filter ComponentTests 2>&1 | tail -20`
-Expected: both PASS.
+Expected: all three PASS.
 
-- [ ] **Step 5: Run the whole suite and commit**
+- [ ] **Step 7: MUTATION — make the modifier wrap instead of distribute**
+
+Change `StyledComponent.requestGroupLayout` to return a single wrapping node carrying the
+amended style, instead of amending each child's style.
+
+Run: `swift test --no-parallel 2>&1 | tail -20`
+Expected: `aModifierOnAComponentDistributesToEachTopLevelChild` FAILS on both halves — the
+node count and leaf `b`'s width. **Report the actual output.** If only one half fails, say
+which; that tells us which assertion is carrying the claim. Restore and re-run.
+
+- [ ] **Step 8: MUTATION — mint an identity level in `StyledComponent`**
+
+Add a `GlobalElementID.child(of: parent, at: cursor, name: nil)` and `cursor += 1` to
+`StyledComponent.requestGroupLayout`, passing the new id down as the component's parent.
+
+Run: `swift test --no-parallel 2>&1 | tail -20`
+Expected: `addingAModifierDoesNotResetAComponentsState` FAILS. **If it stays green, that is
+the finding** — the identity claim is unpinned and the fixture cannot express it. Report and
+restore.
+
+- [ ] **Step 9: Run the whole suite and commit**
 
 Run: `swift test --no-parallel 2>&1 | tail -5`
-Expected: `Test run with 802 tests in 1 suite passed after …` (800 + 2).
+Expected: `Test run with 804 tests in 1 suite passed after …` (801 + 3). Report the actual
+number; the guard added in Step 2 counts toward the total even though it is a compile guard.
+
+Confirm `git diff --stat Sources/` carries no leftover mutation, goldens 87 unmodified, and
+`git diff --name-only -- Sources/MetalUILayout/` **empty** — `setStyle` is *called* from
+`MetalUI`, not changed in `MetalUILayout`.
 
 ```bash
-git add Sources/MetalUI/Component.swift Tests/MetalUITests/ComponentTests.swift
-git commit -m "feat: forwarded modifiers on Component wrap in a Box
+git add Sources/MetalUI/Component.swift Tests/MetalUITests/ComponentTests.swift Tests/MetalUITests/ErasureCompileGuards.swift
+git commit -m "feat: modifiers on a Component distribute to each top-level child
 
-A component has no Style and no layout node for one to attach to, so
-.padding() returns a Box wrapping the component — which is what SwiftUI's
-ModifiedContent does. A bare component stays transparent; a modified one
-introduces exactly one container, and that cost is asserted rather than
-discovered.
+Measured against SwiftUI rather than assumed: MyRow().padding(8) is 120x26,
+which is (30+16) + 8 + (50+16) — each child padded — and bit-identical to
+Group { A; B }.padding(8). A wrapping implementation predicts 96-104. This
+replaces the first design, which wrapped in a Box.
 
-Signatures match their StyledElement originals exactly, and only live
-modifiers are forwarded — forwarding an inert one would put a second
-unreachable API in front of a caller.
+StyledComponent amends the style of each node its component contributed and
+returns those same nodes, so a modified component stays layout-transparent. It
+mints no GlobalElementID and calls no StateBinder.bind, so adding a modifier
+does not reset the component's @State — pinned, because no rect assertion could
+see that.
+
+The mechanism needed no engine change: LayoutTree.setStyle already existed with
+zero production callers, registration derives nothing from style, and its
+isLayingOut guard is a phase boundary the request walk completes before.
+
+Only Style-backed modifiers can distribute. Decoration- and Handlers-backed ones
+are per-element state with no per-node table, so background/onClick/focusable
+are not offered at all rather than offered with different semantics from
+padding.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FN1rUy2Qkdyd53wiM3pKnK"
 ```
 
-**The demo is NOT converted, and this plan forbids it** even though spec §7 permits it conditionally. Converting `CounterPanel` to a `Component` adds an identity level, which changes its `@State` slot ids *and* the `GlobalElementID` its self-focusing `Window.focus(_:)` call uses. The demo's focus-at-launch behaviour is a documented human-verification item that took a fix wave to get right once already. `Component`'s first real caller belongs in a later M4 spec, and the report should say the conversion was declined on this ground rather than not considered.
-
----
+**The demo is NOT converted, and this plan forbids it** even though spec §7 permits it
+conditionally. Converting `CounterPanel` to a `Component` adds an identity level, which
+changes its `@State` slot ids *and* the `GlobalElementID` its self-focusing `Window.focus(_:)`
+call uses. The demo's focus-at-launch behaviour is a documented human-verification item that
+took a fix wave to get right once already. Say in the report that the conversion was declined
+on this ground rather than not considered.
 
 ### Task 4: The record
 
@@ -886,7 +1053,20 @@ protocol Component: Element {
 
 Create `docs/superpowers/2026-09-03-component-decisions.md`, following `docs/superpowers/2026-09-02-reactivity-decisions.md`'s shape: one section per ruling, each with its reasoning and what it costs if wrong. **Prefix every ruling `CO-` and letter them** (`CO-A`, `CO-B`, …), matching this project's convention that a bare `CO-3` is a typo rather than a citation.
 
-At minimum, one ruling each for: layout transparency and why identity opacity is not a choice; the `StyledElement` rejection with the `display: .flex` mechanism that forces it; `display: contents` deferred on scope with what it would take; the `Modified<C>` rejection; `Content: ElementGroup` diverging from §4.2; no `.id()` modifier and the defaulted property instead; modifiers wrapping in a `Box` and the layout-opacity that buys; and the demo conversion declined.
+At minimum, one ruling each for: layout transparency and why identity opacity is not a
+choice; the `StyledElement` rejection with the `display: .flex` mechanism that forces it;
+`display: contents` deferred on scope with what it would take; `Content: ElementGroup`
+diverging from §4.2; no `.id()` modifier and the defaulted property instead; the demo
+conversion declined; and — the two the branch measured rather than assumed — **SwiftUI's
+layout transparency, confirmed by probe with its four subview counts and its control**, and
+**modifiers distributing rather than wrapping**, with the four sizes, the control, and the
+fact that this OVERTURNED the spec's first design. Record `LayoutTree.setStyle` gaining its
+first production caller, and the `Decoration`/`Handlers` limit with the mechanism that would
+close it.
+
+**Both probes carry a passing positive control and neither is committed** — a committed
+version would pin SwiftUI's behaviour rather than this framework's, which is the same footing
+this repo uses for WebKit oracle probes. Record the technique so it can be re-run.
 
 Include the **actual** mutation results from Task 2, not the ones this plan predicted.
 
@@ -894,8 +1074,8 @@ Include the **actual** mutation results from Task 2, not the ones this plan pred
 
 Add, in the appropriate existing sections rather than as a new top-level block:
 
-- A `Component` bullet beside the `Stack`/`List`/`Deferred` bullets, leading with the transparent-to-layout / opaque-to-identity pairing, because that is the thing a reader will otherwise get wrong. State that modifiers wrap, and that a modified component is layout-opaque.
-- The SwiftUI-flattening claim, **labelled as derived and not measured**, on ruling `RX-P`'s footing.
+- A `Component` bullet beside the `Stack`/`List`/`Deferred` bullets, leading with the transparent-to-layout / opaque-to-identity pairing, because that is the thing a reader will otherwise get wrong. State that modifiers **distribute** over the component's top-level nodes, and that a modified component is therefore **still layout-transparent**. (**These two bullets read "State that modifiers wrap, and that a modified component is layout-opaque" and "labelled as derived and not measured"** — both instructing the design measurement overturned. Corrected rather than preserved: they are forward-looking instructions, not cited evidence. See the head of this file.)
+- The SwiftUI-flattening claim, **labelled as MEASURED**, with the `subviews.count` readings (2 / 2 / 2 / 4) and the 120x26 padding figure attached, since a claim's strength is the thing a later reader will cite.
 - A note that `display: contents` does not exist and is what "styled and transparent" would need — so a reader who wants it finds the follow-up rather than re-deriving it.
 - The Build section's climb: baseline 791, and the per-task figures each task actually read.
 
@@ -941,10 +1121,15 @@ Claude-Session: https://claude.ai/code/session_01FN1rUy2Qkdyd53wiM3pKnK"
 
 ## Expected final state
 
-- **802 tests**, 87 goldens, 32 typecheck guards, warning-free.
+- **804 tests**, 87 goldens, **33** typecheck guards (32 + the one Task 3 adds for
+  `.background()` not compiling on a component), warning-free.
 - `grep -rn "protocol Component" Sources/` returns one hit, in `Component.swift`.
 - `grep -rn "hasActiveAnimations" Sources/` returns **0**.
 - `git diff --name-only master..HEAD -- Sources/MetalUILayout/` is **empty**.
 - `Component` does not conform to `StyledElement`, and no `Style` property was added anywhere.
+- Modifiers on a `Component` **distribute** — `MyComponent().padding(4)` adds no layout node
+  and pads each top-level child — and `.background()` does **not** compile on one.
+- `LayoutTree.setStyle` has its first production caller; `Sources/MetalUILayout/` is
+  nonetheless untouched, because the call is made from `MetalUI`.
 - The demo is untouched.
 - Design spec §4.2 carries a correction block; `CLAUDE.md` carries the `Component` bullet and the climb.

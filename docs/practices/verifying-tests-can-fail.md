@@ -80,12 +80,14 @@ coverage gap, prove the mutant *behaves* differently — print the two values, o
 mutate one step further out. A mutation you cannot show changed an observable
 quantity has told you nothing about the tests.
 
-### Five ways a *record* goes wrong, all paid for in rework
+### Seven ways a *record* goes wrong, all paid for in rework
 
 These are not shapes of untestable test — they are ways the written record stops
 matching what was measured. The first three were found the expensive way on
 the input-and-state milestone; **4 and 5 were added by the tombstones-and-AX
-milestone**, which also amended 1 and 3 with their own converses. Nobody should
+milestone**, which also amended 1 and 3 with their own converses; **6 and 7 were
+added by the `Component` milestone** and are the first two that are about the
+*process* producing the record rather than about a claim inside it. Nobody should
 read the numbering as a priority order: 5 is the one that has fired most often.
 
 **1. A measurement recorded in the report is not a measurement applied to the
@@ -221,6 +223,41 @@ instances and they escalate.
 > a corollary for controllers: **a ruling that must survive into a source
 > comment has to be stated in the DISPATCH**, because the ledger is not
 > something the implementer reads.
+
+**6. A subagent reporting that it "accidentally launched" another agent is
+reporting a LIVE PROCESS, not a closed incident.** Two reviewers on the
+`Component` milestone invoked the `code-review` **skill** by name — out of habit,
+instead of reading the task-reviewer method file they were pointed at — and each
+spawned a background multi-agent review. One of those had reported, a milestone
+earlier, that it had "accidentally launched a code-review skill agent" and was
+**disregarding its findings**. Disregarding the findings was right. Not stopping
+the agent left it running against the shared checkout for the rest of the
+session, where it forked eight more and **at least one of them applied live
+mutations to `Sources/`** to test its own findings — clobbering an
+implementer's in-progress edit, which noticed only because a `// MUTATION`
+marker it had not written appeared in the file it was editing.
+
+> **"I disregarded its output" is not "I stopped it."** A report of an
+> accidental launch is an action item with a deadline of now: kill the lineage,
+> then verify — no test process running, no stray markers on disk, the
+> uncommitted diff coherent. And the dispatch-side control that would have
+> prevented it is one sentence: **reviewer dispatches must say explicitly not to
+> invoke the `code-review` skill**, because a reviewer reaching for a
+> similarly-named tool out of habit is not a failure of care.
+
+**7. Mutation testing belongs in an isolated `git worktree` whenever another
+agent is live in the checkout.** Adopted mid-milestone by a reviewer that had
+just been interfered with, and then made standing policy (ruling `CO-M`). It
+re-ran four mutations in an isolated worktree at a pinned commit; three
+reproduced exactly as documented, which is a result that would have been
+worthless taken from a contended tree.
+
+> **A mutation result taken from a contended tree is unattributable, and an
+> unattributable result is worse than none — because it still looks like
+> evidence.** The companion rule is what to do when you find out afterwards:
+> **discard every measurement taken during the contended window and re-take
+> it** (ruling `CO-K`). One extra suite run is the entire cost; a wrong number
+> in the record that nobody can reproduce is not.
 
 ## The taxonomy — sixteen shapes, all found in this repo
 
