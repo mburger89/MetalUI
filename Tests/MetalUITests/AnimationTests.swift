@@ -279,20 +279,60 @@ import MetalUICore
             "expected comparable to the unit-travel settle time \(unitTravel), got \(tinyTravelWithMomentum)")
 }
 
-// MARK: - Fix round 2: timingCurve finiteness
+// MARK: - Fix round 3, ruling N: the at-rest case, unprotected until pinned
 
-/// Fix round 2, ruling M. `min(max(.nan, 0), 1)` is `.nan` in Swift, so the
-/// x-clamp added last round silently passes a NaN control point through —
-/// on `Curve.progress`'s own `if u <= 0`/`if u >= 1` guards, every
-/// comparison against a NaN is false, so the curve sits at `from` for its
-/// whole declared duration and then jumps at the very end. `spring`'s
-/// `bounce` domain got a loud `precondition` in the same fix round; this is
-/// the same shape of programmer error and gets the same treatment.
+/// Fix round 3, ruling N.1. The round 2 swap from `<` to `<=` in both
+/// `isFinished` comparisons was made unprompted and reasoned about in a
+/// comment, but nothing pinned it — and it is load-bearing, not cosmetic.
+/// `travel == 0 && v0 == 0` makes `scale` exactly `0`, so `positionThreshold`
+/// is exactly `0` too; under `<`, `abs(displacement) < 0` is never true even
+/// when `displacement` is also exactly `0` (which it is here, by
+/// construction of the closed form) — so a spring created already at its
+/// target would report `!isFinished` at `t == 0` and FOREVER, since nothing
+/// about a resting spring's state ever changes. Ruling L deleted the
+/// `travel == 0` special case that used to route this through a nonzero
+/// constant, which is what makes this comparison operator load-bearing
+/// rather than a style choice.
+@Test func aSpringAlreadyAtRestIsFinishedImmediately() {
+    let s = Animation.spring(duration: 0.5, bounce: 0.4)
+    let r = s.value(at: 0.0, from: 50, to: 50, initialVelocity: 0)
+    #expect(r.value == 50)
+    #expect(r.velocity == 0)
+    #expect(r.isFinished,
+            "a spring created already at its target must be finished at t=0, not never")
+}
+
+// MARK: - Fix round 2/3: timingCurve finiteness
+
+/// Fix round 2, ruling M, sharpened by fix round 3. `min(max(.nan, 0), 1)`
+/// is `.nan` in Swift, so the x-clamp added in round 2 silently passes a
+/// NaN control point through — on `Curve.progress`'s own
+/// `if u <= 0`/`if u >= 1` guards, every comparison against a NaN is false,
+/// so the curve sits at `from` for its whole declared duration and jumps at
+/// the very end. `spring`'s `bounce` domain got a loud `precondition` in the
+/// same round; this is the same shape of programmer error.
+///
+/// **Exercises all FIVE arguments individually (fix round 3 review), not
+/// two.** The round 2 version checked only `x1` NaN and `duration`
+/// infinite — a weakened precondition checking just `x1.isFinite &&
+/// duration.isFinite` still passed it, because that pair happened to be
+/// exactly the two it exercised. Each case below leaves the other four
+/// arguments at a valid, finite value, so the test discriminates the
+/// precondition's ARGUMENTS rather than merely its presence.
 @Test func timingCurveTrapsOnANonFiniteArgument() async {
     await #expect(processExitsWith: .failure) {
-        _ = Animation.timingCurve(.nan, 0, 0.5, 1, duration: 1)
+        _ = Animation.timingCurve(.nan, 0.5, 0.75, 0.5, duration: 1)
     }
     await #expect(processExitsWith: .failure) {
-        _ = Animation.timingCurve(0.5, 0, 0.5, 1, duration: .infinity)
+        _ = Animation.timingCurve(0.25, .nan, 0.75, 0.5, duration: 1)
+    }
+    await #expect(processExitsWith: .failure) {
+        _ = Animation.timingCurve(0.25, 0.5, .nan, 0.5, duration: 1)
+    }
+    await #expect(processExitsWith: .failure) {
+        _ = Animation.timingCurve(0.25, 0.5, 0.75, .nan, duration: 1)
+    }
+    await #expect(processExitsWith: .failure) {
+        _ = Animation.timingCurve(0.25, 0.5, 0.75, 0.5, duration: .infinity)
     }
 }
