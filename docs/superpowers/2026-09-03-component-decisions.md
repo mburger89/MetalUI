@@ -631,6 +631,23 @@ that section states: **anything a measurement teaches must be walked back to the
 mutated LINE in the same pass.** The correction belongs in `Sources/` and this
 documentation task does not edit `Sources/`; it is reported instead.
 
+**FIXED by the whole-branch fix wave, and the paragraph above is kept as the
+record rather than deleted.** `Sources/MetalUI/Component.swift`'s type doc now
+carries the measured account — the `subviews.count` readings (2 / 2 / 2 / 4) and
+the 120x26 padding figure — with the refuted sentences quoted at the line so a
+reader who has seen the old text knows which claim was replaced. **The fix wave
+also found the SOURCE of the shipped comment, which this ruling did not name**:
+the text lived in `docs/superpowers/plans/2026-09-03-component.md` (Task 1's
+doc-comment block, `:265`/`:281` at the time) and was copied into `Sources/`
+from there, so correcting only the shipped comment would have left the next
+reader of the plan re-deriving it. Four plan sites were corrected, two of them
+**forward-looking instructions** in Task 4 that would have had a future reader
+reintroduce the refuted design ("State that modifiers wrap, and that a modified
+component is layout-opaque"; "labelled as derived and not measured"). Those two
+are the reason the plan was corrected rather than preserved the way the
+reactivity plan's own false claim was: nothing cites these, and a live
+instruction is not history.
+
 **Cost if wrong:** none to the code — the design's footing goes from assumption
 to evidence either way. The cost of the *unfixed site* is a reader of
 `Component.swift` concluding the claim is unmeasured and either re-running the

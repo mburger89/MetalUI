@@ -7,10 +7,21 @@ import MetalUILayout
 // it contributes no layout node of its own, and it consumes one cursor index so
 // that its `@State` has an id to hang on. Those are separate axes and this is
 // the first type in the framework to use them differently — every other element
-// is opaque to both. **This file pins the layout-transparency half only.** The
-// identity-opaque half's own mechanics — the cursor arithmetic that gives a
-// component an id, `content` materialized once rather than re-evaluated per
-// phase — are Task 2's `ComponentTests` additions to pin, not this file's.
+// is opaque to both. **This file pins BOTH halves, and the modifier-
+// distribution mechanism on top of them.** It said "the layout-transparency
+// half only" when it held only Task 1's tests, and sent the reader to "Task 2's
+// `ComponentTests` additions" for the rest — additions that landed in this same
+// file. They are here: `aComponentsOwnStateSurvivesAcrossFrames`,
+// `twoSiblingComponentsHoldIndependentState`,
+// `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`,
+// `anEmptyComponentStillHoldsItsOwnState`,
+// `stateInsideAComponentsContentIsAlsoSeeded`,
+// `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt` and
+// `contentIsMaterializedExactlyOncePerFrame` pin the identity-opaque half —
+// the cursor arithmetic that gives a component an id, and `content`
+// materialized once rather than re-evaluated per phase. Task 3's six
+// (`aModifierOnAComponentDistributesToEachTopLevelChild` through
+// `chainedPaddingReplacesRatherThanAccumulates`) pin distribution.
 //
 // The assertions below are structural and geometric together. A component that
 // wrongly contributed its own flex container would still produce the right
@@ -452,7 +463,15 @@ private struct Wrapper: Component {
 /// dispatch's prediction that this mutation "reddens nothing, because none of
 /// the other tests in this file reads state during prepaint" was wrong): a
 /// `prepaintGroup` that re-evaluates `content` instead of using the stashed
-/// `layout.content` reddens **10 issues across 6 of this file's 14 tests** —
+/// `layout.content` reddens **10 issues across 6 of this file's 18 tests**.
+/// **The denominator read 14 until the fix wave; the mutation was RE-RUN there
+/// rather than re-dated**, and it still reddens exactly 10 issues across
+/// exactly the same six tests, out of 18. Task 3's fix round added four tests
+/// after this comment was written and none of them is sensitive to this line —
+/// which is a result, not an assumption, and is why the numerator did not move
+/// with the denominator. (The stale denominator is the practices doc's third
+/// record-mechanism arriving as a count of what a claim was measured
+/// *against*, rather than as a count of what it reddened.) The six are —
 /// `aComponentsOwnStateSurvivesAcrossFrames`,
 /// `twoSiblingComponentsHoldIndependentState`,
 /// `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`,

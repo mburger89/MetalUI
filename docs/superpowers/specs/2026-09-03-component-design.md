@@ -124,7 +124,6 @@ styling model, only a second way to reach the existing one.
 ### 4.1 The protocol
 
 ```swift
-@MainActor
 public protocol Component: ElementGroup {
     associatedtype Content: ElementGroup
     @ElementBuilder var content: Content { get }
@@ -135,8 +134,24 @@ public protocol Component: ElementGroup {
 }
 ```
 
-`@MainActor` matches `ElementGroup` and `Element`, both of which carry it
-(`ElementGroup.swift:43`, `Element.swift:43`).
+**Corrected by the fix wave: the declaration above carried an explicit
+`@MainActor` and the shipped one carries no attribute at all.** The isolation is
+unchanged — it is **inherited** from `ElementGroup`, which is `@MainActor`
+(`ElementGroup.swift:43`) — and that was **measured, not reasoned**:
+`nonisolated func probe(_ c: C1) { _ = c.content }` against a plain-import
+`Component` conformer is rejected with *"main actor-isolated property 'content'
+can not be referenced from a nonisolated context."*
+
+So the attribute would have been redundant rather than wrong, and this
+correction changes no behaviour. It is made anyway because this section is the
+branch's binding authority and a reader comparing it to
+`Sources/MetalUI/Component.swift` finds a difference the document does not
+explain. **Note the sibling convention it departs from**: `Element` refines the
+same `@MainActor` protocol and *does* write the attribute (`Element.swift:43`).
+Whether `Component` should match that spelling is a style question this fix wave
+does not decide; what it settles is that the isolation is the same either way.
+Design spec §4.2's own correction block carried the same spurious `@MainActor`
+and is corrected there too.
 
 **`Content: ElementGroup`, and this DIVERGES from design spec §4.2, which says
 `Content: Element`.** The divergence is what makes layout transparency possible: a bare
@@ -166,9 +181,17 @@ That is less pretty than `.id(…)` and it is the spelling that cannot be wrong.
 `Component`'s `ElementGroup` conformance comes from one protocol extension, so an author
 writes `content` and nothing else.
 
+**Corrected by the fix wave: `ComponentLayout` has no `id` field as shipped**
+(ruling `CO-H`). The declaration and the construction below both carried one
+when this section was written; **nothing read it** — `Component`'s
+`prepaintGroup` and `paintGroup` forward to `layout.content` and pass no id.
+The field was modelled on `SingleElementLayout.id` (`ElementGroup.swift`),
+which *is* read, and that is what misled. `CO-H` deleted it rather than tabling
+it in the declared-but-inert table: re-adding one line is cheaper than a row
+for a struct this new.
+
 ```swift
 public struct ComponentLayout<C: Component> {
-    var id: GlobalElementID
     var content: C.Content
     var contentLayout: C.Content.GroupLayout
 }
@@ -192,8 +215,7 @@ extension Component {
         let (nodes, contentLayout) =
             materialized.requestGroupLayout(under: id, at: &innerCursor, pass: &pass)
 
-        return (nodes, ComponentLayout(id: id,
-                                       content: materialized,
+        return (nodes, ComponentLayout(content: materialized,
                                        contentLayout: contentLayout))
     }
 
@@ -382,6 +404,40 @@ Counts and structure, never wall-clock times.
   state registered in each `StyledElement`'s own `prepaint`, with no per-node table. Closing
   it needs either a per-node decoration/handler registry or the `ElementGroup` per-child
   operation §3 rejected — a named mechanism, not a mystery, and larger than this spec.
+- **`Deferred` and `List` reject a `Component` outright — five of seven
+  containers take one, and these two are the exceptions.** Both are generic over
+  `Content: Element`, not `Content: ElementGroup`, so a component fails to
+  typecheck at the call site. **Verified with `swiftc -typecheck` against a
+  plain-import fixture, in the fix wave**, and the diagnostics are the whole of
+  the evidence:
+
+  ```
+  Deferred { MyComponent() }
+      → generic struct 'Deferred' requires that 'MyComponent' conform to 'Element'
+  List(items, rowHeight: Pixels(20)) { _ in MyRowComponent() }
+      → generic struct 'List' requires that 'MyRowComponent' conform to 'Element'
+  ```
+
+  `Box`, `Column`, `Row`, `Stack` and `ScrollView` all take `Content:
+  ElementGroup` and accept a component — also verified, in one fixture that
+  typechecks clean. That the two exceptions are a **portal** and the
+  **data-driven list** is the part that stings: a reusable row is exactly what
+  an author reaches for a component to write.
+
+  **The two halves are NOT the same size, which is why this is documented now
+  and fixed later.** `List`'s constraint looks like one word — relax `Row:
+  Element` to `Row: ElementGroup` — and its row builder's result already flows
+  into a wrapping `Box` whose own `Content` is an `ElementGroup`
+  (`Box(style: rowStyle, content: { row(datum) })`, `List.swift`), so there is
+  a plausible target for the relaxation to land on. `Deferred` is a real design
+  question: it returns `nodes[0]` (`Deferred.swift`), justified by a comment
+  that says a single `Element` "always hands back exactly one node",
+  and a component contributes **zero or many** nodes, so relaxing its
+  constraint forces a decision about what a portal does with N nodes (hoist
+  each? synthesize a container and stop being layout-transparent? reject
+  empty?). Neither is a fix-wave edit, and `Deferred`'s is not a one-word one
+  in any milestone.
+
 - **Converting existing elements or the demo to `Component`.** `Box`, `Column`, `Row`,
   `Stack`, `List`, `Text`, `Deferred` and `ScrollView` stay as they are. Design spec §4.2
   says implementing `Element` directly "remains available and is expected for the node
@@ -416,6 +472,8 @@ Counts and structure, never wall-clock times.
 | Risk | Standing |
 |---|---|
 | An author writes a component expecting `.padding()` to pad the component as a unit | It pads each top-level child instead — SwiftUI's behaviour, measured (§5). For a single-child component the two are indistinguishable; for a multi-child one they differ visibly. §5 states it; nothing enforces it |
+| **A caller's modifier silently OVERWRITES the component's own internal sizing** | **Measured in the fix wave**, on a component whose author wrote `.width(30)` on child `a` and `.width(50)` on child `b`, in a 300x40 `Row`: bare gives `a: 30.0, b: 50.0`; `.width(70)` on the component gives `a: 70.0, b: 70.0`. `amend` is `var style = pass.style(node); amend(&style); pass.setStyle(node, style)` and every `amend` is a plain `=` on one field, so a caller reaches *through* the component. **Inherent to the design, not a defect**: SwiftUI's `.frame()` composes by *nesting*, and distribution has no node to nest with — it amends the same node the component's author styled. Sharper than the row above, which is about *which* boxes a modifier reaches; this is about a component's internal layout being publicly overwritable, with nothing signalling it. Stated at `StyledComponent`'s doc |
+| **`.padding()` on a component whose content is a bare LEAF is completely inert** | **Measured in the fix wave**: `Component { Text("Hi") }.padding(20)` moves a following marker leaf's `x` not at all — **13.0 bare, 13.0 padded** — where the same modifier on a component of `Box`-backed children moves it (80.0 → 90.0). Not a defect of this spec: it is CLAUDE.md's standing inert row — `Style.padding`/`border`/`margin` on a leaf is ignored entirely, since `measureNode` returns a leaf's measure result unchanged and `contentBox` runs only on a node with children — **composing** with distribution. Each is documented alone and together they are silent, which is the recurring lesson: a feature that works alone and a feature that works alone can be wrong together. **The exposure is the worst case available**: a single-`Text` component is the most likely first component anyone writes, and `padding` is the modifier §5 leads with. Recorded at the leaf row in CLAUDE.md's inert table as a second way to meet it |
 | An author reaches for `.background()` on a component and finds it absent | Deliberate (§5's limit): `Decoration` has no per-node table for `setStyle` to amend, and offering it with wrapping semantics beside a distributing `.padding()` would be two modifiers that read alike and behave differently. The remedy is an explicit `Box`, which is honest about introducing a container |
 | `Content: ElementGroup` lets a component return a group where a single element was meant, and a caller cannot tell from the type | True, and it is the same latitude `Box`'s content already has. The alternative forbids two children |
 | The SwiftUI-flattening claim is wrong | Then this is a divergence, and §2 says so in advance rather than presenting the claim as settled. The label is available |

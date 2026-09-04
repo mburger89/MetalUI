@@ -234,20 +234,30 @@ protocol Component: Element {
 implementing `Element` directly remains available and is expected for the node graph.
 
 > **Corrected on 2026-09-03 by the `Component` milestone (M4 spec 2; rulings `CO-P` and `CO-S`,
-> `docs/superpowers/2026-09-03-component-decisions.md`). Two of the declaration's own lines
-> above are wrong as shipped, and this document is named binding authority in `CLAUDE.md`'s "Start
-> here", so the correction is recorded here rather than only downstream.** The shipped protocol is
+> `docs/superpowers/2026-09-03-component-decisions.md`). **THREE** of the declaration's own lines
+> above are wrong as shipped — it was written as two, and the fix wave found that this block's own
+> replacement carried a spurious `@MainActor`, which is the third — and this document is named
+> binding authority in `CLAUDE.md`'s "Start here", so the correction is recorded here rather than
+> only downstream.** The shipped protocol is
 > `Sources/MetalUI/Component.swift`:
 >
 > ```swift
-> @MainActor
-> public protocol Component: ElementGroup {          // NOT `: Element`
+> public protocol Component: ElementGroup {          // NOT `: Element`; and NO `@MainActor` attribute
 >     associatedtype Content: ElementGroup           // NOT `Content: Element`
 >     @ElementBuilder var content: Content { get }
 >     var elementID: ElementID? { get }              // defaulted to nil in the extension
 > }
 > ```
 >
+> - **No `@MainActor` attribute — a THIRD correction, made by the fix wave to this block
+>   itself.** The block above is introduced as "The shipped protocol is …" and then showed an
+>   attribute the shipped declaration does not carry, which is the one failure a correction block
+>   cannot afford. The isolation is unchanged and **inherited** from `ElementGroup`, which is
+>   `@MainActor` (`ElementGroup.swift:43`) — measured rather than reasoned: a `nonisolated`
+>   function reading a `Component` conformer's `content` is rejected with *"main actor-isolated
+>   property 'content' can not be referenced from a nonisolated context."* So the attribute would
+>   have been redundant rather than wrong. Note the sibling convention it departs from: `Element`
+>   refines the same protocol and *does* write it (`Element.swift:43`).
 > - **`Component: Element` → `Component: ElementGroup`.** An `Element` contributes *exactly one*
 >   layout node. A component contributes **zero or many** — its content's nodes pass through to its
 >   parent unchanged, which is what layout transparency *is*. Refining `Element` would force a node

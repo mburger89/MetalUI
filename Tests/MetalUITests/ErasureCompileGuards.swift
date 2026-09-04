@@ -234,3 +234,48 @@ func backgroundCannotBeCalledOnAComponent() throws {
     #expect(result.messages.contains("background"),
             "rejected, but not for the reason this test is about:\n\(result.output)")
 }
+
+// MARK: - Fact 5 (fix wave): `LayoutPass.style`/`setStyle` are not public
+
+/// `LayoutPass.style(_:)` and `setStyle(_:_:)` are `internal`, and this is the
+/// only artifact that can say so. They read back and overwrite the `Style` of
+/// any `LayoutNodeID` a caller can name — a sibling's, a parent's — during the
+/// request phase; as `public` they would hand every out-of-module element that
+/// reach, for one in-module caller (`StyledComponent`, `Component.swift`).
+///
+/// **This guard MUST use a plain import, and every guard in this file already
+/// does** — `typecheck(_:importing:)` writes `import MetalUI` into a fresh
+/// fixture, so it compiles against the built module rather than against this
+/// file's `@testable` view. That is not incidental: `@testable import` widens
+/// `internal`, so no assertion inside a `@testable` test file can demonstrate
+/// an access-level narrowing at all (taxonomy shape 16, ruling `TB-N`, whose
+/// three `AXNodeTests` guards exist for this same reason). A regression that
+/// re-widens either member makes this fixture *compile*, which no runtime test
+/// in the suite could see.
+///
+/// **MUTATION (fix wave), run rather than predicted**: restoring `public` on
+/// both members and rebuilding makes the fixture compile and reddens **both**
+/// of this test's assertions — `result.succeeded` becomes `true`, and
+/// `messages` degrades to the fixture's own unrelated warning. Both halves
+/// matter: the second is what keeps a rejection *for some other reason* from
+/// reading as a pass, which is the two-assertion hazard the `HitboxID` /
+/// `GlobalElementID` hover probes record from the other direction.
+///
+/// The fixture mutates `s` between the read and the write on purpose — it is
+/// `StyledComponent`'s exact shape, and a fixture that only round-trips the
+/// value emits a `never mutated` warning whose text then lands in `messages`
+/// and muddies the second assertion.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func layoutPassStyleAccessorsAreNotPublic() throws {
+    let result = try typecheck("""
+        @MainActor func probe(pass: inout LayoutPass, node: LayoutNodeID) {
+            var s = pass.style(node)
+            s.flexGrow = 1
+            pass.setStyle(node, s)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded,
+            "`LayoutPass.style`/`setStyle` are reachable from outside MetalUI — they must stay internal:\n\(result.output)")
+    #expect(result.messages.contains("style"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}

@@ -8,26 +8,49 @@
 /// - **Layout-transparent**: a component contributes **no layout node of its
 ///   own**; its content's nodes pass through to its parent unchanged. So
 ///   `Column { MyRow(); MyRow() }` lays the rows' children out as the
-///   `Column`'s own children. That is SwiftUI's shape — a custom `View`
-///   contributes no layout container, and `.padding()` introduces a layer by
-///   wrapping the view in `ModifiedContent` rather than by attaching to it.
-///   **That description of SwiftUI is DERIVED from its documented behaviour and
-///   is not measured here**: there is no SwiftUI test target in this repo. If
-///   SwiftUI turns out to differ, this is a divergence and the label is
-///   available.
+///   `Column`'s own children. **That is SwiftUI's shape, and it is MEASURED
+///   rather than derived** (spec §2's "Why this is SwiftUI's shape" and §5) —
+///   two throwaway probes outside this repo, because there is no SwiftUI test
+///   target in it. A `Layout` conformer's `subviews.count` reads **2** for an
+///   inline pair (the control), **2** for `Group { A; B }`, **2** for a custom
+///   view whose body is two views, and **4** for two such views: a custom
+///   `View` contributes no layout container. And `.padding()` **distributes**
+///   rather than wrapping — `MyRow().padding(8)`, where `MyRow`'s body is a
+///   30x10 and a 50x10, measures **120x26**, i.e. `(30+16) + 8 + (50+16)`,
+///   bit-identical to `Group { A; B }.padding(8)`; a wrapping implementation
+///   predicts 96-104.
+///
+///   **An earlier version of this comment said the opposite** — that the
+///   SwiftUI claim was "DERIVED … and is not measured here", and that
+///   `.padding()` "introduces a layer by wrapping the view in
+///   `ModifiedContent`". Both halves were refuted by this branch's own probes
+///   and the design was rewritten mid-execution because of them (spec §5's own
+///   heading records it). The correction is stated at this line rather than
+///   only in the spec, per the practices doc's first record-mechanism: a
+///   measurement recorded in a report is not a measurement applied to the
+///   source.
 /// - **Identity-opaque**: a component consumes one cursor index and its content
 ///   nests beneath the component's own `GlobalElementID`. **This is not a
 ///   choice.** `@State` slots are `.named("$state\(n)")` children of the
 ///   element's own id (`StateBinder.bind`), so a component with no id of its
 ///   own could not hold state — and holding state is the main reason to write a
-///   component rather than a function returning elements. **This file's own
-///   tests do not pin the cursor arithmetic that gives a component that id** —
-///   `ComponentTests.swift` asserts layout transparency and identity opacity's
-///   *geometric* consequence, not the cursor line itself. Task 2's
-///   `ComponentTests` additions are where `cursor += 1`, threading `innerCursor`
-///   rather than the outer `cursor`, and `content` being materialized once
-///   rather than re-evaluated in `prepaintGroup` are each pinned by a mutation
-///   that reddens something.
+///   component rather than a function returning elements. **The cursor
+///   arithmetic that gives a component that id IS pinned, in
+///   `ComponentTests.swift` — the same file that pins layout transparency**,
+///   which is where a reader of this comment should look and nowhere else.
+///   `cursor += 1`, threading a fresh `innerCursor` rather than the outer
+///   `cursor`, and `content` being materialized once rather than re-evaluated
+///   in `prepaintGroup` each have a mutation recorded at their own line below,
+///   and each reddens a named test in that file
+///   (`twoSiblingComponentsHoldIndependentState`,
+///   `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`,
+///   `contentIsMaterializedExactlyOncePerFrame` among them).
+///
+///   **An earlier version of this sentence said this file's tests "do not pin
+///   the cursor arithmetic" and then sent the reader to "Task 2's
+///   `ComponentTests` additions"** — which landed in that same file, fifteen
+///   lines below what the reader was already looking at. A pointer to
+///   elsewhere for coverage that is here is worse than no pointer.
 ///
 /// **No `StyledElement` conformance, deliberately** (spec §3). A `Style` must
 /// attach to a layout node, and `Style.display` defaults to `.flex` with no
@@ -259,6 +282,38 @@ extension Component {
 /// slot id is a child of whatever id `StateBinder.bind` was called with.
 /// `addingAModifierDoesNotResetAComponentsState` (`ComponentTests.swift`) pins
 /// it, and Step 8's mutation reddens exactly that test.
+///
+/// **A CALLER'S MODIFIER OVERWRITES THE COMPONENT'S OWN LAYOUT, silently, and
+/// this is inherent to the design rather than a defect.** `amend` runs
+/// `var style = pass.style(node); amend(&style); pass.setStyle(node, style)`,
+/// and every `amend` this file declares is a plain `=` on one `Style` field —
+/// so a caller reaches *through* the component and obliterates whatever the
+/// component's author wrote on that same field. **Measured** on a component
+/// whose author declared `.width(30)` on child `a` and `.width(50)` on child
+/// `b`, rendered in a 300x40 `Row`:
+///
+/// ```
+/// bare          a: 30.0   b: 50.0
+/// .width(70)    a: 70.0   b: 70.0
+/// ```
+///
+/// SwiftUI has no equivalent because its `.frame()` composes by **nesting** —
+/// the caller's frame wraps the body's. There is no node here to nest with:
+/// distribution amends the child's own node, which is the same node the
+/// component's author styled. Nothing signals the collision and nothing can,
+/// short of a merge policy that would then disagree with `StyledElement`'s own
+/// `modifying` (`Box.swift`), which assigns rather than merges. Recorded in
+/// the component spec's §9 risk table as well.
+///
+/// **`padding` on a component whose content is a bare LEAF is completely
+/// inert** — measured, `Component { Text("Hi") }.padding(20)` moves a following
+/// marker leaf's `x` not at all (**13.0 bare, 13.0 padded**), where the same
+/// modifier on a component of `Box`-backed children moves it (80.0 → 90.0).
+/// That is not this type failing: it is CLAUDE.md's standing inert row —
+/// `Style.padding`/`border`/`margin` on a leaf is ignored entirely, since
+/// `measureNode` returns a leaf's measure result unchanged — composing with
+/// distribution. Each is documented alone and together they are silent, and a
+/// single-`Text` component is the most likely first component anyone writes.
 ///
 /// **Only `Style`-backed modifiers can work this way.** `LayoutTree.setStyle`
 /// reaches a node's `Style`; nothing reaches `Decoration` or `Handlers` per

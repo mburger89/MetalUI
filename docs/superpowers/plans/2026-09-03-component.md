@@ -1,10 +1,37 @@
 # `Component` (M4 spec 2) Implementation Plan
 
+> **Corrected 2026-09-03, mid-execution and again in the fix wave. Spec §5 and
+> this plan's Task 3 were REWRITTEN after measurement**, and four sites in this
+> document have been corrected in place rather than preserved.
+>
+> The plan as first written said modifiers on a component **wrap it in a `Box`,
+> which is what SwiftUI's `ModifiedContent` does**. Two throwaway probes outside
+> the repo refuted both halves. SwiftUI **is** layout-transparent (a `Layout`
+> conformer's `subviews.count` reads 2 for an inline pair — the control — 2 for
+> `Group { A; B }`, 2 for a custom view whose body is two views, and 4 for two
+> such views), and modifiers **distribute** (`MyRow().padding(8)` is 120x26,
+> i.e. `(30+16) + 8 + (50+16)`, bit-identical to `Group { A; B }.padding(8)`,
+> where wrapping predicts 96-104). What shipped is `StyledComponent`, which
+> amends each contributed node's `Style` and returns the same nodes.
+>
+> **These four sites are corrected, not preserved as history, and that is a
+> deliberate departure from how the reactivity plan handled its own false
+> claim.** That one was kept because two rulings cite it as evidence; **nothing
+> cites these**. Two of them (Task 1's doc-comment text) are the *source* of a
+> comment that shipped into `Sources/MetalUI/Component.swift` and had to be
+> corrected there, and Task 4 Step 3's are forward-looking **instructions**
+> that would have a future reader reintroduce a design measurement overturned.
+> A live instruction is not history.
+>
+> The measurements themselves are in the design spec (§2's "Why this is
+> SwiftUI's shape" and §5's own heading, which records that it previously said
+> the opposite), and in `Sources/MetalUI/Component.swift`'s type doc.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a `Component` protocol so an element author writes only `content` — layout-transparent (contributes no node of its own) and identity-opaque (consumes one cursor index, so `@State` works).
 
-**Architecture:** `Component` refines `ElementGroup` rather than `Element`. One protocol extension supplies the whole conformance: it mints the component's `GlobalElementID`, binds its `@State`, materializes `content` **once** into a stashed value, forwards to `content.requestGroupLayout(under: myID, at: &innerCursor, …)`, and returns the content's `[LayoutNodeID]` **unchanged**. Modifiers are not attached — they wrap the component in a `Box`, which is what SwiftUI's `ModifiedContent` does.
+**Architecture:** `Component` refines `ElementGroup` rather than `Element`. One protocol extension supplies the whole conformance: it mints the component's `GlobalElementID`, binds its `@State`, materializes `content` **once** into a stashed value, forwards to `content.requestGroupLayout(under: myID, at: &innerCursor, …)`, and returns the content's `[LayoutNodeID]` **unchanged**. Modifiers **distribute**: `StyledComponent` amends each contributed node's `Style` through `LayoutTree.setStyle` and returns the same nodes, so a modified component stays layout-transparent. (**This sentence said modifiers "wrap the component in a `Box`, which is what SwiftUI's `ModifiedContent` does"** until measurement refuted it — see the correction block at the head of this file.)
 
 **Tech Stack:** Swift 6.3, `@resultBuilder` (`ElementBuilder`, already complete), Swift Testing. Package floor `.macOS(.v14)`, unchanged.
 
@@ -260,13 +287,20 @@ Create `Sources/MetalUI/Component.swift`:
 /// - **Layout-transparent**: a component contributes **no layout node of its
 ///   own**; its content's nodes pass through to its parent unchanged. So
 ///   `Column { MyRow(); MyRow() }` lays the rows' children out as the
-///   `Column`'s own children. That is SwiftUI's shape — a custom `View`
-///   contributes no layout container, and `.padding()` introduces a layer by
-///   wrapping the view in `ModifiedContent` rather than by attaching to it.
-///   **That description of SwiftUI is DERIVED from its documented behaviour and
-///   is not measured here**: there is no SwiftUI test target in this repo. If
-///   SwiftUI turns out to differ, this is a divergence and the label is
-///   available.
+///   `Column`'s own children. **That is SwiftUI's shape, and it is MEASURED
+///   rather than derived** — a `Layout` conformer's `subviews.count` reads 2
+///   for an inline pair (the control), 2 for `Group { A; B }`, 2 for a custom
+///   view whose body is two views, and 4 for two such views. And `.padding()`
+///   **distributes** rather than wrapping: `MyRow().padding(8)` is 120x26,
+///   i.e. `(30+16) + 8 + (50+16)`, bit-identical to
+///   `Group { A; B }.padding(8)`, where wrapping predicts 96-104.
+///
+///   **This paragraph said the opposite** — that `.padding()` wraps in
+///   `ModifiedContent`, and that the SwiftUI claim was "DERIVED … and is not
+///   measured here". Both halves were refuted by this branch's own probes, and
+///   this is the text Task 1 actually shipped into
+///   `Sources/MetalUI/Component.swift`, so it is corrected here as well as
+///   there. See the correction block at the head of this file.
 /// - **Identity-opaque**: a component consumes one cursor index and its content
 ///   nests beneath the component's own `GlobalElementID`. **This is not a
 ///   choice.** `@State` slots are `.named("$state\(n)")` children of the
@@ -278,8 +312,9 @@ Create `Sources/MetalUI/Component.swift`:
 /// attach to a layout node, and `Style.display` defaults to `.flex` with no
 /// `contents` case in the engine — so conforming would force a component to
 /// contribute a real flex container and make it layout-opaque, which is the
-/// exact divergence this design exists to avoid. Modifiers wrap instead; see
-/// the extension below.
+/// exact divergence this design exists to avoid. Modifiers **distribute**
+/// instead — see `StyledComponent`. (This read "Modifiers wrap instead; see the
+/// extension below" and is corrected for the reason at the head of this file.)
 ///
 /// **No `.id()` modifier**, for the same reason: that method lives on
 /// `StyledElement`. An author who needs a stable name declares the property:
@@ -1039,8 +1074,8 @@ Include the **actual** mutation results from Task 2, not the ones this plan pred
 
 Add, in the appropriate existing sections rather than as a new top-level block:
 
-- A `Component` bullet beside the `Stack`/`List`/`Deferred` bullets, leading with the transparent-to-layout / opaque-to-identity pairing, because that is the thing a reader will otherwise get wrong. State that modifiers wrap, and that a modified component is layout-opaque.
-- The SwiftUI-flattening claim, **labelled as derived and not measured**, on ruling `RX-P`'s footing.
+- A `Component` bullet beside the `Stack`/`List`/`Deferred` bullets, leading with the transparent-to-layout / opaque-to-identity pairing, because that is the thing a reader will otherwise get wrong. State that modifiers **distribute** over the component's top-level nodes, and that a modified component is therefore **still layout-transparent**. (**These two bullets read "State that modifiers wrap, and that a modified component is layout-opaque" and "labelled as derived and not measured"** — both instructing the design measurement overturned. Corrected rather than preserved: they are forward-looking instructions, not cited evidence. See the head of this file.)
+- The SwiftUI-flattening claim, **labelled as MEASURED**, with the `subviews.count` readings (2 / 2 / 2 / 4) and the 120x26 padding figure attached, since a claim's strength is the thing a later reader will cite.
 - A note that `display: contents` does not exist and is what "styled and transparent" would need — so a reader who wants it finds the follow-up rather than re-deriving it.
 - The Build section's climb: baseline 791, and the per-task figures each task actually read.
 
