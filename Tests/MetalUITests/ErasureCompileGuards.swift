@@ -283,3 +283,28 @@ func layoutPassStyleAccessorsAreNotPublic() throws {
     #expect(result.messages.contains("style"),
             "rejected, but not for the reason this test is about:\n\(result.output)")
 }
+
+// MARK: - Fact 6 (Animation fix round 1): `Animation.pendingTransaction` is not public
+
+/// `Animation.pendingTransaction` is `internal`. Public, anything outside this
+/// module could write the ambient transaction directly — bypassing
+/// `withAnimation`'s save-and-restore, the entire point of the transaction
+/// model (spec §3, `Sources/MetalUI/Animation.swift`). `withAnimation` itself
+/// stays public; only the raw slot is narrowed.
+///
+/// **Plain import, for the same reason the guard above states it**:
+/// `AnimationTests.swift` uses `@testable import MetalUI`, which widens
+/// `internal` — no assertion in that file, `@testable` or not, can
+/// demonstrate this narrowing at all (taxonomy shape 16, ruling `TB-N`).
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func pendingTransactionIsNotPublic() throws {
+    let result = try typecheck("""
+        @MainActor func probe() {
+            _ = Animation.pendingTransaction
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded,
+            "`Animation.pendingTransaction` is reachable from outside MetalUI — it must stay internal:\n\(result.output)")
+    #expect(result.messages.contains("pendingTransaction"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}

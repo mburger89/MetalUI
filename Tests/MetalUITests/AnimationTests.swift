@@ -55,14 +55,31 @@ import MetalUICore
     // Mid-flight: the spring's first swing carries it back THROUGH the
     // target on its way to overshoot, so displacement crosses zero while
     // velocity is still near its peak. This is the case the position-alone
-    // mistake gets wrong and the two samples above do not exercise: at
-    // t = 0.22 the displacement (measured, ~-0.06) is already inside
-    // `positionThreshold` (1/6) but the velocity (measured, ~240) is twelve
-    // times `velocityThreshold` (20) — declaring this finished on position
-    // alone is exactly "at the target with velocity still in it".
-    let midFlight = s.value(at: 0.22, from: 0, to: 100, initialVelocity: 0)
-    #expect(abs(midFlight.value - 100) < 0.5, "expected near the target in passing, got \(midFlight.value)")
-    #expect(!midFlight.isFinished, "velocity is still large here; must not be finished")
+    // mistake gets wrong and the two samples above do not exercise.
+    //
+    // SCANNED rather than a single hand-picked instant (fix round 1 review):
+    // the exact crossing time sits in a sub-millisecond window of the
+    // closed-form motion, which is a fragile thing to hardcode. Instead,
+    // scan for any sample near the target (a loose bound, well outside the
+    // actual — travel-scaled — position threshold) while the velocity is
+    // still above 20, the LARGEST `velocityThreshold` can ever be for any
+    // travel (it is `positionThreshold * 120`, and `positionThreshold`
+    // itself is capped at the absolute floor of 1/6). That implication —
+    // velocity this large means not finished — holds for every travel size
+    // and does not depend on knowing the internal threshold at all, so it
+    // survives the exact crossing time moving by anything less than the
+    // whole scan.
+    var sawNearTargetStillMoving = false
+    for i in stride(from: 0, through: 1000, by: 1) {
+        let t = Double(i) * 0.001
+        let sample = s.value(at: t, from: 0, to: 100, initialVelocity: 0)
+        if abs(sample.value - 100) < 0.5 && abs(sample.velocity) > 20 {
+            sawNearTargetStillMoving = true
+            #expect(!sample.isFinished, "near target but still moving fast at t=\(t): \(sample)")
+        }
+    }
+    #expect(sawNearTargetStillMoving,
+            "fixture never reaches a near-target, still-moving state — cannot exercise the velocity gate")
 
     // Late: both position and velocity within threshold.
     let late = s.value(at: 5.0, from: 0, to: 100, initialVelocity: 0)
@@ -103,4 +120,101 @@ import MetalUICore
     }
     #expect(sawInside == .linear(duration: 1))
     #expect(Animation.pendingTransaction == nil, "the transaction must not outlive its body")
+}
+
+// MARK: - Fix round 1: three regions the original seven tests left uncovered
+
+/// Fix round 1, Important 1. Nothing named `easeInOut` at a point other than
+/// its symmetric midpoint (0.5, shared with `linear`), so a mutation that
+/// replaces `easeInOut`'s curve with `.linear` passed all seven original
+/// tests — `aDurationCurveIsFinishedExactlyAtItsDuration` only checks
+/// `isFinished`/`value == 1`, which a straight line satisfies identically.
+/// 0.25 is asymmetric and discriminates: `linear` gives exactly 0.25,
+/// `easeInOut` (starting slow) gives less. Reference value independently
+/// computed (fix round 1 review) at `0.1292`; reproduced here to high
+/// precision by this file's own 32-iteration bisection.
+@Test func easeInOutDiffersFromLinearAtAnAsymmetricPoint() {
+    let value = Animation.easeInOut(duration: 1).value(at: 0.25, from: 0, to: 1, initialVelocity: 0).value
+    #expect(abs(value - 0.12916) < 1e-4, "expected ease-in-out(0.25) ~= 0.1292, got \(value)")
+}
+
+/// Fix round 1, Important 1. `timingCurve` is in this type's own public
+/// Interfaces and had zero coverage — a mutation replacing its curve with
+/// `.linear`, ignoring all four control points, passed every original test.
+/// Reference value independently computed (fix round 1 review) at `0.4406`.
+@Test func timingCurveHonorsItsOwnControlPoints() {
+    let a = Animation.timingCurve(0.17, 0.67, 0.83, 0.67, duration: 1)
+    let value = a.value(at: 0.25, from: 0, to: 1, initialVelocity: 0).value
+    #expect(abs(value - 0.44057) < 1e-4, "expected timingCurve(0.17,0.67,0.83,0.67)(0.25) ~= 0.4406, got \(value)")
+}
+
+/// Fix round 1, Important 1. A duration curve's `velocity` was never
+/// asserted, so a mutation hardcoding it to 0 passed every original test —
+/// silent because `velocity` is exactly what Task 3's interruption hand-off
+/// will read. `linear(duration: 1)` over a 0→100 travel has constant
+/// velocity 100/s at every unfinished instant.
+@Test func aDurationCurveReportsNonzeroVelocityWhileRunning() {
+    let velocity = Animation.linear(duration: 1).value(at: 0.5, from: 0, to: 100, initialVelocity: 0).velocity
+    #expect(abs(velocity - 100) < 1e-6, "expected linear(1)'s velocity to be ~100, got \(velocity)")
+}
+
+/// Fix round 1, Important 3. Redone in normalized (0...1) units to prove the
+/// settling threshold actually gates for a small-magnitude travel like
+/// opacity or a colour channel, not only for a pixel-scale one — the exact
+/// case the flat 1/6-point threshold could never resolve (measured: it
+/// settled a 0→1 travel at 83.6% complete). Both halves still apply: never
+/// finished while moving fast in normalized units, and finished once truly
+/// settled.
+@Test func theSettlingThresholdGatesForANormalizedZeroToOneTravelToo() {
+    let s = Animation.spring(duration: 0.5, bounce: 0.4)
+
+    var sawNearTargetStillMoving = false
+    for i in stride(from: 0, through: 1000, by: 1) {
+        let t = Double(i) * 0.001
+        let sample = s.value(at: t, from: 0, to: 1, initialVelocity: 0)
+        // 0.2 is well outside the true (travel-scaled, sub-thousandth)
+        // threshold for a travel of 1, and this only needs a velocity that
+        // is unambiguously "still moving" relative to the same travel.
+        if abs(sample.value - 1) < 0.2 && abs(sample.velocity) > 0.2 {
+            sawNearTargetStillMoving = true
+            #expect(!sample.isFinished, "near target but still moving at t=\(t): \(sample)")
+        }
+    }
+    #expect(sawNearTargetStillMoving,
+            "fixture never reaches a near-target, still-moving state in normalized units")
+
+    let late = s.value(at: 5.0, from: 0, to: 1, initialVelocity: 0)
+    #expect(late.isFinished)
+    #expect(abs(late.value - 1) < 0.01, "settled means at the target, got \(late.value)")
+}
+
+/// Fix round 1, Important 2. `x1`/`x2` outside `[0, 1]` makes `X(t) = u`
+/// non-monotonic, so the bisection solve is ambiguous — measured (fix round
+/// 1 review): `timingCurve(2.0, 0, -1.0, 1.0)` has THREE roots at `u = 0.5`,
+/// and unclamped, the lowest one (~0.035) is what the solve happened to
+/// return, not the "obviously intended" 0.5. Clamping x1/x2 to `[0, 1]`
+/// (CSS's own rule for `cubic-bezier()`) makes the curve monotonic and the
+/// root unambiguous; `y1`/`y2` are left untouched, since a `y` outside that
+/// range is deliberate overshoot rather than a solver hazard.
+@Test func timingCurveClampsOutOfRangeControlPointsToKeepTheSolveMonotonic() {
+    let value = Animation.timingCurve(2.0, 0.0, -1.0, 1.0, duration: 1)
+        .value(at: 0.5, from: 0, to: 1, initialVelocity: 0).value
+    #expect(abs(value - 0.5) < 0.05,
+            "expected the clamped curve's root near 0.5, got \(value) (the unclamped bug picks ~0.035)")
+}
+
+// MARK: - Fix round 1: bounce domain
+
+/// Fix round 1, Important 4, the dangerous one. Task 5 wires `isFinished` to
+/// `hasActiveAnimations`; either pathology below reaching production is a
+/// window whose display link never pauses. `bounce` must be strictly inside
+/// `(-1, 1)`, and that is a `precondition` — programmer error, not a value
+/// to clamp and silently animate something else.
+@Test func bounceOutsideItsOpenDomainTraps() async {
+    await #expect(processExitsWith: .failure) {
+        _ = Animation.spring(duration: 0.5, bounce: 1.0)
+    }
+    await #expect(processExitsWith: .failure) {
+        _ = Animation.spring(duration: 0.5, bounce: -1.0)
+    }
 }

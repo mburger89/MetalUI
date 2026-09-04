@@ -53,15 +53,23 @@ public struct Animation: Sendable, Equatable {
                 // Solve X(t) = u for the Bézier's own parameter t, then
                 // evaluate Y(t) at that t. Bisection, not Newton: X(t) is
                 // monotonic increasing in t for every timing-function shape
-                // this type constructs (x1, x2 both in [0, 1]), which is
-                // exactly bisection's precondition and not Newton's — Newton
-                // additionally needs a derivative and can step outside
-                // [0, 1] where that derivative is small, which happens right
-                // at t == 0 for easeOut (x1 == 0 makes dX/dt == 0 there).
-                // Bisection never leaves its bracket and is guaranteed to
-                // converge for any monotonic function, which matters more
-                // here than Newton's faster convergence — this is evaluated
-                // at most a few times per frame, never in a hot loop.
+                // this type constructs — and that precondition is ENFORCED,
+                // not merely true of the four built-in eases: `timingCurve`
+                // (the only public entry point that can construct a
+                // `.bezier` with caller-chosen control points) clamps x1 and
+                // x2 to [0, 1] before this case is ever reached, which is
+                // exactly CSS's own rule for `cubic-bezier()` and exactly
+                // why — an x outside that range makes X(t) non-monotonic and
+                // the solve below ambiguous (measured: `timingCurve(2.0, 0,
+                // -1.0, 1.0)` has three roots at u = 0.5 without the clamp).
+                // Newton's method additionally needs a derivative and can
+                // step outside [0, 1] where that derivative is small, which
+                // happens right at t == 0 for easeOut (x1 == 0 makes
+                // dX/dt == 0 there). Bisection never leaves its bracket and
+                // is guaranteed to converge for any monotonic function,
+                // which matters more here than Newton's faster convergence
+                // — this is evaluated at most a few times per frame, never
+                // in a hot loop.
                 var lo = 0.0
                 var hi = 1.0
                 for _ in 0..<32 {
@@ -103,24 +111,42 @@ public struct Animation: Sendable, Equatable {
 
     /// CSS's `ease-in`: `cubic-bezier(0.42, 0.0, 1.0, 1.0)` — starts slow.
     public static func easeIn(duration: Double) -> Animation {
-        Animation(.duration(.bezier(x1: 0.42, y1: 0.0, x2: 1.0, y2: 1.0), seconds: duration))
+        timingCurve(0.42, 0.0, 1.0, 1.0, duration: duration)
     }
 
     /// CSS's `ease-out`: `cubic-bezier(0.0, 0.0, 0.58, 1.0)` — starts fast.
     public static func easeOut(duration: Double) -> Animation {
-        Animation(.duration(.bezier(x1: 0.0, y1: 0.0, x2: 0.58, y2: 1.0), seconds: duration))
+        timingCurve(0.0, 0.0, 0.58, 1.0, duration: duration)
     }
 
     /// CSS's `ease-in-out`: `cubic-bezier(0.42, 0.0, 0.58, 1.0)`.
     public static func easeInOut(duration: Double) -> Animation {
-        Animation(.duration(.bezier(x1: 0.42, y1: 0.0, x2: 0.58, y2: 1.0), seconds: duration))
+        timingCurve(0.42, 0.0, 0.58, 1.0, duration: duration)
     }
 
-    /// The general form the four named eases above are fixed points of.
+    /// The general form the three named eases above are fixed points of.
+    ///
+    /// **`x1` and `x2` are clamped to `[0, 1]`; `y1` and `y2` are left
+    /// free.** This is CSS's own rule for `cubic-bezier()`, and CSS's own
+    /// reason: `Curve.progress(at:)` solves `X(t) = u` by bisection, which
+    /// needs `X` monotonic increasing — true for any x1, x2 inside [0, 1]
+    /// and not guaranteed outside it. Measured without the clamp:
+    /// `timingCurve(2.0, 0, -1.0, 1.0)` makes `X(t) = u` have **three**
+    /// roots at `u = 0.5`, and the bisection silently returns whichever one
+    /// the bracket happens to converge to (0.0352, where 0.5 is also a
+    /// root) — a caller-chosen `y` outside [0, 1], by contrast, is the
+    /// legitimate "overshoot" some timing functions want deliberately, and
+    /// nothing about the solve depends on `Y`'s range, so it is not
+    /// touched. Every named ease above is written in terms of this
+    /// function, so the clamp is universal rather than a built-ins-only
+    /// property — this is called out at `Curve.progress(at:)` too, which is
+    /// where a reader chasing the monotonicity claim will be looking.
     public static func timingCurve(
         _ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, duration: Double
     ) -> Animation {
-        Animation(.duration(.bezier(x1: x1, y1: y1, x2: x2, y2: y2), seconds: duration))
+        let clampedX1 = min(max(x1, 0), 1)
+        let clampedX2 = min(max(x2, 0), 1)
+        return Animation(.duration(.bezier(x1: clampedX1, y1: y1, x2: clampedX2, y2: y2), seconds: duration))
     }
 
     // MARK: - Springs
@@ -128,12 +154,39 @@ public struct Animation: Sendable, Equatable {
     /// SwiftUI's modern spelling: `duration` and `bounce` rather than raw
     /// mass/stiffness/damping, because the latter is a physics API and this
     /// one is a design API (spec §7).
+    ///
+    /// **`bounce` must be inside `(-1, 1)`, exclusive on both ends, and this
+    /// is a `precondition`, not a clamp** — `LayoutTree.setStyle` already
+    /// uses this shape for exactly this reason: it is programmer error, and
+    /// a clamp would silently animate something other than what was asked
+    /// for. Both boundary values fail open rather than loud, which is what
+    /// makes this non-negotiable rather than a nicety. Measured (fix round
+    /// 1 review, reproduced here): `bounce: 1.0` makes `zeta` exactly 0
+    /// (undamped) — a `spring(duration: 0.5, bounce: 1.0)` from 0 to 100 is
+    /// still not `isFinished` after 30 simulated seconds, because an
+    /// undamped oscillator never decays. `bounce: -1.0` divides by
+    /// `1 + bounce == 0`, so `zeta` is infinite and every downstream term is
+    /// `NaN` — `value`, `velocity`, and `isFinished` (every `NaN` comparison
+    /// is `false`, so this also never finishes, just silently instead of
+    /// obviously). Task 5 wires `isFinished` to `hasActiveAnimations`, so
+    /// either pathology reaching production is a window whose display link
+    /// never pauses — M4's own exit criterion, sabotaged from call-site
+    /// user code that looks entirely reasonable.
     public static func spring(duration: Double, bounce: Double) -> Animation {
-        Animation(.spring(duration: duration, bounce: bounce))
+        precondition(bounce > -1 && bounce < 1,
+                     "Animation.spring(bounce:) must be strictly between -1 and 1; got \(bounce). " +
+                     "0 is critically damped, 1 is undamped (never settles), and -1 divides by zero.")
+        return Animation(.spring(duration: duration, bounce: bounce))
     }
 
-    /// A gentle, mostly-settled spring — SwiftUI's own default shape
-    /// (critically damped, half-second response).
+    /// A gentle, mostly-settled spring. **Not** SwiftUI's `Animation.default`
+    /// — probed (fix round 1 review): SwiftUI's own `.default` is a distinct
+    /// `DefaultAnimation()` value that compares unequal to this one. What
+    /// this value matches is SwiftUI's **`.smooth`**: both print
+    /// `FluidSpringAnimation(response: 0.5, dampingFraction: 1.0,
+    /// blendDuration: 0.0)`. Still a reasonable default shape (critically
+    /// damped, half-second response) — the sentence above is corrected, not
+    /// the value.
     public static let `default` = Animation.spring(duration: 0.5, bounce: 0)
 
     // MARK: - Evaluation
@@ -175,17 +228,27 @@ public struct Animation: Sendable, Equatable {
         // t == 0 — a removable but fiddly singularity), and this function is
         // a pure evaluation with no per-frame performance pressure, so the
         // extra pair of `progress(at:)` calls costs nothing that matters.
-        let epsilon = 1e-4
-        let uBefore = max(u - epsilon, 0)
-        let uAfter = min(u + epsilon, 1)
-        let du = uAfter - uBefore
+        // Past the end, the curve is pinned rather than extrapolating (the
+        // clamp on `u` above), and velocity is pinned to 0 to match — a
+        // finished duration curve has stopped, and reporting a nonzero
+        // velocity forever after (this returned `100` for `linear(duration:
+        // 1)` at t = 9 before this guard) is a real value a caller could
+        // read and act on, not a cosmetic loose end.
         let velocity: Double
-        if du > 0 {
-            let pBefore = curve.progress(at: uBefore)
-            let pAfter = curve.progress(at: uAfter)
-            velocity = (to - from) * (pAfter - pBefore) / du / seconds
-        } else {
+        if isFinished {
             velocity = 0
+        } else {
+            let epsilon = 1e-4
+            let uBefore = max(u - epsilon, 0)
+            let uAfter = min(u + epsilon, 1)
+            let du = uAfter - uBefore
+            if du > 0 {
+                let pBefore = curve.progress(at: uBefore)
+                let pAfter = curve.progress(at: uAfter)
+                velocity = (to - from) * (pAfter - pBefore) / du / seconds
+            } else {
+                velocity = 0
+            }
         }
 
         return (value, velocity, isFinished)
@@ -216,11 +279,16 @@ public struct Animation: Sendable, Equatable {
         // zeta — the damping ratio. SwiftUI's own documented semantics for
         // `bounce` are qualitative: 0 is critically damped, positive is
         // underdamped with growing overshoot as bounce approaches 1,
-        // negative is overdamped. The simplest mapping that satisfies all
-        // three, is continuous at 0, and stays inside `bounce`'s documented
-        // domain of (-1, 1) is:
+        // negative is overdamped:
         //   bounce >= 0:  zeta = 1 - bounce       (1 at 0, -> 0 as bounce -> 1)
         //   bounce <  0:  zeta = 1 / (1 + bounce)  (1 at 0, -> +inf as bounce -> -1)
+        //
+        // This is not merely the simplest mapping satisfying those three
+        // qualitative cases — measured (fix round 1 review, independent
+        // SwiftUI probe): together with the `omega` derivation above, this
+        // conversion is a BIT-EXACT match to Apple's own `Spring` type
+        // across all three damping regimes (under-, critically, and
+        // over-damped) and the initial-velocity / interruption case.
         let zeta = bounce >= 0 ? (1 - bounce) : (1 / (1 + bounce))
 
         let x0 = from - to // displacement from the target (the equilibrium)
@@ -235,20 +303,72 @@ public struct Animation: Sendable, Equatable {
         // is mid-overshoot, so BOTH position and velocity must be within
         // threshold. ---
         //
-        // Position: half a device pixel is the standard "not worth resolving
-        // further" perceptual floor. At a plausible high-density scale
-        // factor of 3x (iPhone Pro-class; a 2x Mac display's pixel is
-        // larger, so 3x is the stricter — smaller — bound and the more
-        // conservative choice):
-        //     positionThreshold = 0.5 device px / 3 px-per-point = 1/6 pt ≈ 0.1667
-        let positionThreshold = 0.5 / 3.0
+        // **Relative to the travel, with an absolute ceiling — not a flat
+        // absolute number.** `value(at:)` is unit-agnostic (spec §7 names no
+        // unit at all), and a single absolute point-valued threshold breaks
+        // the moment `from`/`to` are not points: measured (fix round 1
+        // review) on `spring(0.5, 0.4)` with a flat 1/6-point threshold, a
+        // 100pt travel settled at 99.8% complete, a 2pt travel at 91.8%, and
+        // a 0→1 opacity travel — the exact shape `Decoration.background`'s
+        // `Hsla` animation uses (spec §4) — at 83.6%: the flat threshold is
+        // more than a SIXTH of the whole opacity range, so it "settles" a
+        // sixth of the way from done.
+        //
+        // A fraction of the travel fixes that (a 0→1 property and a 0→100pt
+        // one settle at the same fraction of completion), but a pure
+        // fraction breaks the opposite way for a travel too small to
+        // resolve at all — so the two are combined with `min`, which makes
+        // the fraction tighten the requirement for a small travel while the
+        // absolute value caps how much precision is ever demanded for a
+        // large one (a spring is never required to resolve BELOW
+        // sub-perceptual precision, which is what "floor" means here — a
+        // floor under how much imprecision is acceptable, not a floor on
+        // the threshold's value):
+        //
+        //     positionThreshold = min(0.001 * |travel|, absoluteFloor)
+        //
+        // `0.001` — one part in a thousand of the travel — is the relative
+        // criterion: displacement below a tenth of a percent of the total
+        // motion is imperceptible for a continuously varying quantity,
+        // independent of what unit that quantity happens to be in.
+        // `absoluteFloor` is the previous derivation, unchanged, and now
+        // reached only once the travel is large enough that a flat fraction
+        // of it would ask for finer than half-a-device-pixel precision —
+        // exactly the "floor for pixel-valued travel" a large point-valued
+        // travel needs and an opacity or colour travel never reaches:
+        //     absoluteFloor = 0.5 device px / 3 px-per-point (a plausible
+        //                     high-density scale factor) = 1/6 pt ≈ 0.1667
+        //
+        // The `3.0` is hardcoded rather than read from a real surface (spec
+        // §7 says "the surface's scale factor") because this type has no
+        // surface to ask — it is deliberately usable with no isolation and
+        // no rendering context at all. It should become a parameter reading
+        // the surface's actual scale factor once Task 5 gives this a caller
+        // that has one.
+        //
+        // A travel of exactly 0 (already at the target, resting) falls back
+        // to `absoluteFloor` alone (`0.001 * 0 == 0` would otherwise demand
+        // an unsatisfiable zero threshold) — which is also the physically
+        // right answer: with `x0 == 0` and `v0 == 0` the closed form below
+        // gives `displacement == velocity == 0` identically, comfortably
+        // inside any positive threshold, so this still reports finished
+        // immediately rather than never.
+        let travel = abs(x0)
+        let absoluteFloor = 0.5 / 3.0
+        let positionThreshold = travel > 0 ? min(0.001 * travel, absoluteFloor) : absoluteFloor
 
         // Velocity: a spring within `positionThreshold` but still moving
         // fast enough to cross back out of it within a single frame has not
         // settled either. This project's fastest target frame rate is
         // 120 Hz ProMotion (§2), so one frame is 1/120 s, and the velocity
-        // that could cover exactly `positionThreshold` in one such frame is:
-        //     velocityThreshold = positionThreshold / (1/120) = (1/6) * 120 = 20 pt/s
+        // that could cover exactly `positionThreshold` in one such frame is
+        // `positionThreshold / (1/120)` — derived from `positionThreshold`
+        // itself so it scales down with a small travel exactly the way
+        // `positionThreshold` does. This is the other half of what the flat
+        // constant broke: measured, that spring's peak velocity on the 0→1
+        // opacity travel above is ~6.2/s against a flat 20/s threshold, so
+        // the velocity gate could never bind for a normalized property at
+        // all — scaling it with the travel restores that.
         let velocityThreshold = positionThreshold * 120.0
 
         let isFinished = abs(displacement) < positionThreshold && abs(velocity) < velocityThreshold
@@ -313,8 +433,20 @@ extension Animation {
     ///
     /// A plain static var in this task; a dedicated per-window store lands in
     /// Task 5 per the brief.
+    ///
+    /// **`internal`, not `public` (fix round 1 review).** Public, anything
+    /// outside this module could write the ambient transaction directly,
+    /// bypassing `withAnimation`'s save-and-restore entirely — defeating the
+    /// one thing the transaction model exists to guarantee. `withAnimation`
+    /// itself is the public surface; this is the slot it manages.
+    /// `AnimationTests.swift` reads and writes it directly through
+    /// `@testable import`, which is why the narrowing needs its own
+    /// `swiftc -typecheck` guard against a PLAIN import to be demonstrated
+    /// at all (`@testable` widens `internal`, taxonomy shape 16, ruling
+    /// `TB-N`) — see `pendingTransactionIsNotPublic` in
+    /// `ErasureCompileGuards.swift`.
     @MainActor
-    public static var pendingTransaction: Animation?
+    static var pendingTransaction: Animation?
 }
 
 /// Parks `animation` as the ambient transaction for the duration of `body`,
@@ -329,6 +461,10 @@ extension Animation {
 public func withAnimation(_ animation: Animation = .default, _ body: () -> Void) {
     let previous = Animation.pendingTransaction
     Animation.pendingTransaction = animation
+    // `defer`, not a trailing assignment: nothing today can skip past `body()`
+    // without restoring (it is non-throwing), but this makes the restore
+    // survive a future signature change (e.g. `rethrows`) rather than
+    // silently stop happening on the path that would need it most.
+    defer { Animation.pendingTransaction = previous }
     body()
-    Animation.pendingTransaction = previous
 }
