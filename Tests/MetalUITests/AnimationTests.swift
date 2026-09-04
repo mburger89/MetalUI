@@ -822,7 +822,7 @@ import MetalUILayout
     do {
         let table = StateTable()
         let id = eid("scroll-content")
-        let animID = GlobalElementID.child(of: id, at: 0, name: ElementID("$anim-content"))
+        let animID = scrollViewContentAnimID(for: id)
         let slot = animRetentionSlot(for: animID)
         // Ruling U: the baseline `style` must match what `ScrollView` will
         // actually declare for `contentStyle` this frame (a default `Style`
@@ -852,7 +852,7 @@ import MetalUILayout
     do {
         let table = StateTable()
         let id = eid("scroll-viewport")
-        let animID = GlobalElementID.child(of: id, at: 0, name: ElementID("$anim-viewport"))
+        let animID = scrollViewViewportAnimID(for: id)
         let slot = animRetentionSlot(for: animID)
         // Ruling U: `viewportStyle` never sets `flexGrow` explicitly, so the
         // seeded baseline is a plain default `Style()` — matching what
@@ -871,6 +871,93 @@ import MetalUILayout
         #expect(out.flexGrow == -50, """
                 ScrollView viewport node: registering site does not animate — expected the \
                 interpolated value -50, got \(out.flexGrow)
+                """)
+    }
+}
+
+// MARK: - Task 4 fix round 1: the `Decoration` half was unguarded at every site
+
+/// **`everyRegisteringSiteAnimatesItsStyle` reads back only `pass.style(node)`,
+/// which cannot see `decoration` at all — so `Box.swift`'s own comment
+/// ("storing the result back on `self` … is what makes `cornerRadius`
+/// animation … reach the screen rather than only the layout node") shipped
+/// with ZERO coverage.** Measured, not assumed: mutating `Box.swift` and
+/// `Stack.swift`'s `(style, decoration) = animated(…)` to `(style, _) =
+/// animated(…)` — dropping the returned `Decoration` on the floor while
+/// still substituting `Style` correctly — reddens **0 of 840**. Every
+/// existing test either never touches `Decoration` at all or drives
+/// `animated(_:_:for:pass:)` directly rather than through a real element's
+/// `requestLayout`, so nothing was reading `Box`/`Stack`'s own
+/// `self.decoration` back after the call.
+///
+/// This test does: it builds a real `Box`/`Stack`, calls its `requestLayout`
+/// through a real `LayoutPass`, and reads `element.decoration.cornerRadius`
+/// back off `self` afterward — exactly the read `Box.paint` performs later
+/// the same frame, which is why the mutation above is invisible to every
+/// rect-based assertion in the suite (paint is never reached from a bare
+/// `requestLayout` call) but is not invisible here.
+@Test @MainActor func decorationSubstitutionReachesTheElementOnBoxAndStack() throws {
+    func cornerRadius(_ points: Float) -> Decoration {
+        var d = Decoration()
+        d.cornerRadius = Pixels(points)
+        return d
+    }
+
+    // MARK: Box
+
+    do {
+        let table = StateTable()
+        let id = eid("box-decoration")
+
+        var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+        var box1 = Box(decoration: cornerRadius(0))
+        _ = box1.requestLayout(id, pass: &pass1)
+
+        var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
+        var box2 = Box(decoration: cornerRadius(20))
+        withAnimation(.linear(duration: 1)) {
+            _ = box2.requestLayout(id, pass: &pass2)
+        }
+        #expect(box2.decoration.cornerRadius.value == 0, """
+                Box: decoration substitution does not reach the element — expected the \
+                transaction-start value 0, got \(box2.decoration.cornerRadius.value)
+                """)
+
+        var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+        var box3 = Box(decoration: cornerRadius(20))
+        _ = box3.requestLayout(id, pass: &pass3)
+        #expect(box3.decoration.cornerRadius.value == 10, """
+                Box: decoration substitution does not reach the element — expected the \
+                halfway value 10, got \(box3.decoration.cornerRadius.value)
+                """)
+    }
+
+    // MARK: Stack
+
+    do {
+        let table = StateTable()
+        let id = eid("stack-decoration")
+
+        var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+        var stack1 = Stack { Box() }.cornerRadius(Pixels(0))
+        _ = stack1.requestLayout(id, pass: &pass1)
+
+        var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
+        var stack2 = Stack { Box() }.cornerRadius(Pixels(20))
+        withAnimation(.linear(duration: 1)) {
+            _ = stack2.requestLayout(id, pass: &pass2)
+        }
+        #expect(stack2.decoration.cornerRadius.value == 0, """
+                Stack: decoration substitution does not reach the element — expected the \
+                transaction-start value 0, got \(stack2.decoration.cornerRadius.value)
+                """)
+
+        var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+        var stack3 = Stack { Box() }.cornerRadius(Pixels(20))
+        _ = stack3.requestLayout(id, pass: &pass3)
+        #expect(stack3.decoration.cornerRadius.value == 10, """
+                Stack: decoration substitution does not reach the element — expected the \
+                halfway value 10, got \(stack3.decoration.cornerRadius.value)
                 """)
     }
 }

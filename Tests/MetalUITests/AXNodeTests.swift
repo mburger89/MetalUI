@@ -38,10 +38,11 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// single bare frame cannot vary: a table that survives across several
 /// `Frame` instances (the way `Window` really threads one across frames),
 /// and a focused id (`private(set)` on `Frame`, settable only at `init`).
-/// Exists for `theFourRetentionSlotsAreMutuallyDistinct` below (named
+/// Exists for `theSixRetentionSlotsAreMutuallyDistinct` below (named
 /// `theThreeRetentionSlotsAreMutuallyDistinct` until the animation
-/// milestone's Task 3 extended it), which needs several frames sharing one
-/// table to reproduce `Frame.render`'s own two-sweep shape.
+/// milestone's Task 3 extended it to four, then Task 4's own fix round to
+/// six), which needs several frames sharing one table to reproduce
+/// `Frame.render`'s own two-sweep shape.
 @MainActor private func sharedFrame(_ table: StateTable, focusedElement: GlobalElementID? = nil,
                                     side: Float = 300, timestamp: Double = 0) -> Frame {
     Frame(contentSize: Size(width: px(side), height: px(side)),
@@ -152,11 +153,12 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// this test and nothing else in the 777-test suite". Re-run 2026-09-02
 /// (deleting `node.isValid = stateTable.isLive(slot)` from
 /// `Frame.axNode(for:)`): it reddens **two tests, 2 issues out of 782** — this
-/// one *and* `theFourRetentionSlotsAreMutuallyDistinct` (named
+/// one *and* `theSixRetentionSlotsAreMutuallyDistinct` (named
 /// `theThreeRetentionSlotsAreMutuallyDistinct` at the time this was measured;
-/// the animation milestone's Task 3 later extended it to a fourth slot),
-/// which landed in this same file two commits later and reads validity back
-/// through the same production accessor.
+/// the animation milestone's Task 3 later extended it to a fourth slot and
+/// Task 4's own fix round to a sixth), which landed in this same file two
+/// commits later and reads validity back through the same production
+/// accessor.
 ///
 /// **What survives is the claim that actually mattered**: this test is the one
 /// that catches the always-`true` direction, `aHandleToAProducedElementReportsValid`
@@ -258,12 +260,12 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 
 /// **The invariant `axRetentionSlot`/`focusRetentionSlot`/`animRetentionSlot`
 /// are all built to preserve — pinned here because nothing else does.** The
-/// four retention slot names (`"$ax"`, `"$focus"`, `"$anim"`, `"$state\(n)"`)
-/// are mutually distinct at construction
-/// (`GlobalElementID.child(of:at:name:)` makes any two distinct `.named`
-/// strings distinct components under the same parent), but nothing enforced
-/// that until this test: renaming `axRetentionSlot`'s `"$ax"` to `"$focus"`
-/// reddened 0 of 777 before this test existed.
+/// six retention slot names (`"$ax"`, `"$focus"`, `"$anim"`, `"$state\(n)"`,
+/// `"$anim-content"`, `"$anim-viewport"`) are mutually distinct at
+/// construction (`GlobalElementID.child(of:at:name:)` makes any two distinct
+/// `.named` strings distinct components under the same parent), but nothing
+/// enforced that until this test: renaming `axRetentionSlot`'s `"$ax"` to
+/// `"$focus"` reddened 0 of 777 before this test existed.
 ///
 /// **Renamed from `theThreeRetentionSlotsAreMutuallyDistinct` and extended to
 /// four by the animation milestone's Task 3 (ruling J,
@@ -272,6 +274,16 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// inherits this exact collision risk — guarding three names while leaving a
 /// fourth open would read as though the fourth were safe.
 ///
+/// **Extended to six by Task 4's own fix round.** `ScrollView.requestLayout`
+/// registers two nodes from one element id and cannot pass that id to
+/// `animated(_:_:for:)` twice without colliding the two nodes' fields under
+/// one `$anim` slot (`animRetentionSlot(for:)` derives one slot per id, not
+/// per call), so it names each node's id `"$anim-content"`/`"$anim-viewport"`
+/// — two MORE reserved names, both DIRECT children of the element's own id,
+/// on the same level as `$state\(n)`/`$focus`/`$ax`/`$anim` and carrying the
+/// identical unguarded risk. `ScrollView.swift`'s own comment already says
+/// they are "on the same footing as `$state`, `$focus` and `$ax`" — this is
+/// what actually puts them on it.
 /// Reproduces the review's own probe: one element that is focused,
 /// AX-emitting, AND mid-animation, across the same two-sweep shape
 /// `Frame.render` uses (confirm, then vanish). `focusRetentionSlot`/
@@ -308,9 +320,13 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// (50) — so the two cases are now observably different. See this task's
 /// fix-round report for the reproduced rename-mutation count against this
 /// corrected shape.
-@Test @MainActor func theFourRetentionSlotsAreMutuallyDistinct() throws {
+@Test @MainActor func theSixRetentionSlotsAreMutuallyDistinct() throws {
     let table = StateTable()
     let id = eid("shared")
+    // `ScrollView`'s own two extra names — direct NAMED children of `id`,
+    // exactly where `$state\(n)`/`$focus`/`$ax`/`$anim` live.
+    let contentAnimID = scrollViewContentAnimID(for: id)
+    let viewportAnimID = scrollViewViewportAnimID(for: id)
 
     // Frame 1: `id` becomes `focusedElement`, the subject of an `AXNode`
     // emission, AND starts a real, still-running animation, in
@@ -331,6 +347,26 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
         _ = animated(style, Decoration(), for: id, pass: &layoutPass1)
     }
 
+    // The two `ScrollView`-node slots, exercised the identical way, under
+    // named children of the same `id` — the collision this extension exists
+    // to rule out. Distinct targets (42 vs -7) so a collision between the
+    // two of THEM, not only against the original four, would also show up
+    // as a wrong halfway value below.
+    var contentStyle = Style()
+    contentStyle.flexShrink = 0
+    _ = animated(contentStyle, Decoration(), for: contentAnimID, pass: &layoutPass1)
+    contentStyle.flexShrink = 42
+    withAnimation(.linear(duration: 1)) {
+        _ = animated(contentStyle, Decoration(), for: contentAnimID, pass: &layoutPass1)
+    }
+
+    var viewportStyle = Style()
+    _ = animated(viewportStyle, Decoration(), for: viewportAnimID, pass: &layoutPass1)
+    viewportStyle.flexGrow = -7
+    withAnimation(.linear(duration: 1)) {
+        _ = animated(viewportStyle, Decoration(), for: viewportAnimID, pass: &layoutPass1)
+    }
+
     let pass1 = PrepaintPass(frame: frame1)
     var handlers = Handlers()
     handlers.isFocusable = true
@@ -342,14 +378,14 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     // Frame 2: nothing touches `id` at all — it stopped being produced.
     table.sweep()
 
-    // Frame 3: reads all three slots back through their own production
-    // consumers, half a second after the animation started — still
+    // Frame 3: reads all five slots back through their own production
+    // consumers, half a second after the animations started — still
     // mid-flight (`linear(duration: 1)` at elapsed 0.5 == halfway).
     let frame3 = sharedFrame(table, focusedElement: id, timestamp: 0.5)
     frame3.resolveFocus()
     #expect(frame3.focusedElement == id, """
             the $focus retention slot must still hold its Bool — a collision with \
-            $ax or $anim would clobber it and clear focus here
+            $ax, $anim, $anim-content or $anim-viewport would clobber it and clear focus here
             """)
 
     let tombstoned = try #require(frame3.axNode(for: id),
@@ -364,6 +400,20 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
             through a linear(duration: 1)) — a collision with $focus or $ax clobbers the map \
             outright, which reads as a first sighting and returns the declared value (100) \
             instead; only an intact slot can produce 50 here
+            """)
+
+    let (contentOut3, _) = animated(contentStyle, Decoration(), for: contentAnimID, pass: &layoutPass3)
+    #expect(contentOut3.flexShrink == 21, """
+            the $anim-content retention slot (a NAMED child of the same $id as $state/$focus/$ax/$anim) \
+            must still hold its own mid-flight state (21, halfway from 0 to 42) — a collision with \
+            any of the other five slots reads as a first sighting and returns 42 instead
+            """)
+
+    let (viewportOut3, _) = animated(viewportStyle, Decoration(), for: viewportAnimID, pass: &layoutPass3)
+    #expect(viewportOut3.flexGrow == -3.5, """
+            the $anim-viewport retention slot must still hold its own mid-flight state (-3.5, \
+            halfway from 0 to -7) — a collision with any of the other five slots (including \
+            $anim-content, its own sibling) reads as a first sighting and returns -7 instead
             """)
 }
 

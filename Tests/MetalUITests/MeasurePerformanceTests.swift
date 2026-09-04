@@ -273,15 +273,42 @@ struct MeasurePerformanceTests {
     /// not already seen. A policy that never reaps (the pre-tombstone
     /// `sweep()`, or a reap with the size gate deleted the wrong way) would
     /// leave `table.count` at exactly `2n + 6` forever, since nothing would
-    /// ever remove an entry; this test's bound (`n / 10`, an order of
-    /// magnitude above the resident count steady scrolling actually leaves —
-    /// **measured 150-256 entries at this test's checkpoints as of the
-    /// animation milestone's Task 4**, roughly double the pre-Task-4 figure
-    /// this comment used to quote (~20-41), because every windowed row's own
-    /// wrapping `Box` now also carries a `$anim` retention slot alongside its
-    /// `StatefulListRow`'s `@State` one — see the cold-frame assertion below)
-    /// is loose enough to hold under any working reap policy and tight
-    /// enough to fail hard under a reap that does not run at all.
+    /// ever remove an entry; this test's bound (`n / 10` = 1000) is **3.9x**
+    /// the resident count steady scrolling actually leaves today, not an
+    /// order of magnitude — that overstatement was this comment's own fix-
+    /// round mistake, corrected here rather than only in the report
+    /// (practices doc mechanism 1). Measured 150-256 entries at this test's
+    /// checkpoints as of the animation milestone's Task 4, against
+    /// **77 / 127 / 99 measured at the same three checkpoints one commit
+    /// before Task 4** (`2edf193`, re-run directly rather than carried
+    /// forward from CLAUDE.md's own quote of the same three numbers) — a
+    /// **1.5x-3.3x** increase across the three checkpoints, not the "roughly
+    /// double the pre-Task-4 figure (~20-41)" this comment claimed in its
+    /// first draft. That "~20-41" was never this test's own pre-Task-4
+    /// number at all — it was CLAUDE.md's own quote of an EARLIER
+    /// milestone's steady-scrolling figure, anchored to here without
+    /// re-measuring this test's actual baseline first (practices doc
+    /// mechanism 3, staleness inherited rather than produced). The real
+    /// mechanism behind the increase stands: every windowed row's own
+    /// wrapping `Box` now also carries a `$anim` retention slot alongside
+    /// its `StatefulListRow`'s `@State` one — see the cold-frame assertion
+    /// below. The 3.9x margin is loose enough to hold under any working
+    /// reap policy and tight enough to fail hard under a reap that does not
+    /// run at all.
+    ///
+    /// **One thing changed in KIND, not only in size, and it bounds how far
+    /// that 3.9x can be trusted.** Before Task 4 the steady set was
+    /// *working-set*-limited — 77 / 127 / 99, whatever the visible window
+    /// plus its overscan happened to need. It is now *gate*-limited: the reap
+    /// runs the table down toward `StateTable.sweepThreshold` (256) and
+    /// stops, which is why two of the three checkpoints read exactly 256
+    /// rather than some workload-shaped number. That is not a defect — the
+    /// entries above the gate are genuinely stale and genuinely removed — but
+    /// it means this test's margin is now a function of a CONSTANT rather
+    /// than of the workload, so raising `sweepThreshold` past `n / 10`
+    /// (1000 at this fixture's size) would redden this test for a reason
+    /// having nothing to do with reaping. Whoever raises it owns this
+    /// assertion.
     ///
     /// **This test cannot see whether the size-gated reap exists at all — a
     /// fix-round caveat, not a hedge.** `storage.count` sits above

@@ -171,6 +171,22 @@ public struct ScrollView<Content: ElementGroup>: Element {
     /// carried no clip at all — so it painted square across the very corner
     /// this radius exists to curve. `paintIndicator` pushes the same bounds
     /// and the same radii with a zero offset.
+    ///
+    /// **Does NOT animate, silently, where the identical modifier on a `Box`
+    /// does (M4 spec 3, Task 4's fix round).** This is a plain stored
+    /// `Pixels`, not a `Decoration.cornerRadius` — it never reaches
+    /// `animated(_:_:for:pass:)`, which only substitutes the `Style`/
+    /// `Decoration` pair each of `requestLayout`'s TWO nodes builds fresh.
+    /// A caller who wraps a `cornerRadius(_:)` change in `withAnimation`
+    /// here gets an instant snap, with no error and nothing in the type
+    /// system to say why — a `Box`'s `.cornerRadius(_:)` right next to it in
+    /// the same tree would smoothly interpolate. The `Decoration()` passed
+    /// to `animated(_:_:for:)` at both of this type's registering sites is
+    /// deliberately fresh and discarded (`ScrollView` has none of its own),
+    /// which means each call mints and immediately drops a
+    /// `Decoration.cornerRadius` field that nothing here reads — a real,
+    /// harmless-but-wasted per-frame `animateField` call for a property this
+    /// type does not have.
     public var cornerRadius: Pixels = Pixels(0)
 
     /// Whether `paintIndicator` paints the fading thumb at all. `.automatic`
@@ -274,9 +290,12 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // A named child id per node — on the same footing as `$state`,
         // `$focus` and `$ax` — keeps them apart. `ScrollView` has no
         // `Decoration` of its own (see `cornerRadius`'s doc above), so a
-        // fresh, discarded one is passed through and back.
-        let contentAnimID = GlobalElementID.child(of: id, at: 0, name: ElementID("$anim-content"))
-        (contentStyle, _) = animated(contentStyle, Decoration(), for: contentAnimID, pass: &pass)
+        // fresh, discarded one is passed through and back. The two derived
+        // ids are shared functions (`AnimatedStyle.swift`), not inlined here
+        // — see that file's own doc for why a copy would leave a rename
+        // uncaught.
+        (contentStyle, _) = animated(contentStyle, Decoration(), for: scrollViewContentAnimID(for: id),
+                                     pass: &pass)
         let contentNode = pass.requestNode(style: contentStyle, children: children)
 
         var viewportStyle = Style()
@@ -286,8 +305,8 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // probe — so it documents intent rather than driving behaviour. See
         // CLAUDE.md's declared-but-inert table.
         viewportStyle.overflow = Axes(both: .scroll)
-        let viewportAnimID = GlobalElementID.child(of: id, at: 0, name: ElementID("$anim-viewport"))
-        (viewportStyle, _) = animated(viewportStyle, Decoration(), for: viewportAnimID, pass: &pass)
+        (viewportStyle, _) = animated(viewportStyle, Decoration(), for: scrollViewViewportAnimID(for: id),
+                                      pass: &pass)
         let node = pass.requestNode(style: viewportStyle, children: [contentNode])
 
         return (node, Layout(node: node, contentNode: contentNode, inner: inner))

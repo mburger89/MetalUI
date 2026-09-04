@@ -499,13 +499,21 @@ idiomatic Swift. macOS and iOS.
   Three consequences a reader will otherwise get wrong:
 
   - **A hand-written `.id("$state0")` collides with slot 0** (spec §8 risk 1).
-    Unlikely, not prevented, and there is no diagnostic. **There are now THREE
+    Unlikely, not prevented, and there is no diagnostic. **There are now SIX
     reserved slot names carrying this identical risk, and they are recorded
     together on purpose (ruling `TB-Q`)**: `$state\(n)`, plus `$focus` and
-    `$ax`, the two retention slots the tombstones milestone added. All three
-    are children of an element's own `GlobalElementID`, none is guarded, and
-    guarding one alone would leave the framework with one namespace defended
-    and two open — which reads as though the other two were safe. **And the
+    `$ax`, the two retention slots the tombstones milestone added, plus the
+    three the animation milestone added — `$anim`, and `ScrollView`'s own
+    `$anim-content` and `$anim-viewport`. **The last two are the first
+    reserved names that are NOT one-per-element**, and the reason is worth
+    knowing: `ScrollView.requestLayout` registers *two* layout nodes from a
+    single element id, so passing that id to `animated(_:_:for:pass:)` twice
+    would merge both nodes' baselines into one slot and each node would read
+    the other's previous style as its own. Named child ids keep them apart.
+    All six are children of an element's own `GlobalElementID`, none is
+    guarded, and guarding one alone would leave the framework with one
+    namespace defended and five open — which reads as though the others were
+    safe. **And the
     risk is no longer only an author typing one: a `List`'s DATA can supply
     it.** A row's wrapping `Box` is named `String(describing: datum.id)` under
     the list's id and the `List`'s own AX slot is `"$ax"` under the same id, so
@@ -514,8 +522,11 @@ idiomatic Swift. macOS and iOS.
     row-`Box` id, and a row's own `$focus`/`$state0` slots are children of it —
     but it is a different threat model from a literal in source, because the
     colliding string arrives from data nobody is inspecting. What *is*
-    pinned is that the three cannot collide with **each other**:
-    `theThreeRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`), written
+    pinned is that the six cannot collide with **each other**:
+    `theSixRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift` — named
+    `theThreeRetentionSlotsAreMutuallyDistinct` until the animation milestone's
+    Task 3 added `$anim` and its Task 4 fix round added `ScrollView`'s two, so
+    a citation of either older name points at this same test), written
     because renaming `"$ax"` to `"$focus"` reddened **0 of 777** while
     silently dropping focus — the `AXNode` clobbers the `Bool`,
     `resolveFocus`'s `peek(…, as: Bool.self)` returns `nil`, and divergence 17

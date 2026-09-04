@@ -90,16 +90,44 @@ import MetalUILayout
 ///
 /// This is the FOURTH reserved slot name, joining `$state\(n)`, `$focus` and
 /// `$ax` — CLAUDE.md records those three as carrying an identical, unguarded
-/// collision risk, and `$anim` inherits it exactly.
-/// `theFourRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`, renamed
-/// from `theThreeRetentionSlotsAreMutuallyDistinct` by this task, per spec §7
-/// item 10) is what pins it — the existing three-way test extended to four.
-/// `ScrollView`'s own two named child ids (`$anim-content`, `$anim-viewport`)
-/// are a FIFTH and SIXTH — see that type's own doc and CLAUDE.md's reserved
-/// slot list.
+/// collision risk, and `$anim` inherits it exactly. `ScrollView`'s own two
+/// named child ids (`$anim-content`, `$anim-viewport`) are a FIFTH and
+/// SIXTH — see that type's own doc and CLAUDE.md's reserved slot list.
+/// `theSixRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`, renamed
+/// from `theThreeRetentionSlotsAreMutuallyDistinct` by Task 3 per spec §7
+/// item 10, and extended from four to six by Task 4's own fix round) is
+/// what pins all of it — one test, extended in place twice rather than
+/// replaced.
 @MainActor
 func animRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
     .child(of: id, at: 0, name: ElementID("$anim"))
+}
+
+/// `ScrollView`'s own two reserved child ids (the fifth and sixth slot
+/// names this file's top doc names). `ScrollView.requestLayout` registers
+/// two nodes from one element id, and `animRetentionSlot(for:)` derives
+/// exactly one `$anim` slot per id it is given — passing the element's own
+/// `id` to `animated(_:_:for:)` for both nodes would collide both nodes'
+/// fields under the identical slot. A named child per node, on
+/// `$state`/`$focus`/`$ax`'s footing, keeps them apart.
+///
+/// **Exposed as functions rather than inlined at `ScrollView.requestLayout`'s
+/// two call sites, and that is load-bearing for `AXNodeTests.swift`'s
+/// `theSixRetentionSlotsAreMutuallyDistinct`.** A test that reconstructs
+/// `"$anim-content"`/`"$anim-viewport"` as its own string literals cannot
+/// catch a rename at the real call site — measured, by making exactly that
+/// mistake first: a test built from its own copy of the two strings stayed
+/// green under a rename of the real call site's literal. Both
+/// `ScrollView.swift` and the test call these same two functions, so a
+/// rename in either can only ever be a rename in one place.
+@MainActor
+func scrollViewContentAnimID(for id: GlobalElementID) -> GlobalElementID {
+    .child(of: id, at: 0, name: ElementID("$anim-content"))
+}
+
+@MainActor
+func scrollViewViewportAnimID(for id: GlobalElementID) -> GlobalElementID {
+    .child(of: id, at: 0, name: ElementID("$anim-viewport"))
 }
 
 /// One element's whole `$anim` slot (ruling U).
