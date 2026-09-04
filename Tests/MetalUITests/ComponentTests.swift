@@ -224,6 +224,15 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 /// all, and `anEmptyComponentStillHoldsItsOwnState` below already covers that
 /// shape on its own type. `log`/`name` are kept only to match the brief's call
 /// sites (`Counter("a", log: log)`); this file does not assert on `log`.
+///
+/// **Writing `@State` from a `content` getter is a TEST-ONLY idiom and is
+/// forbidden in production**, for the same reason writing it from
+/// `requestLayout` is (see the `@State` bullet in `CLAUDE.md`): it keeps the
+/// window permanently dirty, since a value that mutates on every frame's
+/// materialization gives `StateTable.onWrite` something to fire on every
+/// frame, which is milestone 4's exit criterion sabotaged from an element. A
+/// reader landing on this file without that context should not copy the
+/// pattern into a real component.
 private struct Counter: Component {
     @State var count = 0
     var elementID: ElementID?
@@ -439,12 +448,25 @@ private struct Wrapper: Component {
             "a named component's content state must survive a sibling inserted before it; got \(withSibling.content.second.inner.count)")
 }
 
-/// Added by Task 2 beyond the brief's five: without this, `prepaintGroup`
-/// re-evaluating `content` instead of using the stashed `layout.content`
-/// reddens nothing — a re-materialized struct has an unbound `@State` box, and
-/// none of the other tests in this file reads state during prepaint. `calls`
-/// is a plain `@MainActor` class the test owns, not `@State`, so it observes
-/// materialization itself rather than a value `@State` happens to carry.
+/// Added by Task 2 beyond the brief's five. **Measured** (fix round 2; the
+/// dispatch's prediction that this mutation "reddens nothing, because none of
+/// the other tests in this file reads state during prepaint" was wrong): a
+/// `prepaintGroup` that re-evaluates `content` instead of using the stashed
+/// `layout.content` reddens **10 issues across 6 of this file's 14 tests** —
+/// `aComponentsOwnStateSurvivesAcrossFrames`,
+/// `twoSiblingComponentsHoldIndependentState`,
+/// `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`,
+/// `anEmptyComponentStillHoldsItsOwnState`, this test itself and
+/// `addingAModifierDoesNotResetAComponentsState`, because the `@Binding`
+/// fallback puts `Counter`'s and `Quiet`'s own `@State` increment inside
+/// `content`'s getter — see `Counter`'s doc — so re-evaluating it
+/// double-increments every one of them. This test is kept and is still the
+/// right one to have, not because it is the only thing that catches the
+/// defect, but because it **isolates the property directly**: `calls` is a
+/// plain `@MainActor` class the test owns, not `@State`, so it counts
+/// materializations themselves rather than inferring the count from a value
+/// `@State` happens to carry, and it fails on exactly this mutation with no
+/// dependence on how any other fixture in the file happens to be shaped.
 @MainActor
 @Test func contentIsMaterializedExactlyOncePerFrame() {
     struct Once: Component {

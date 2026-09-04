@@ -84,18 +84,26 @@ extension Component {
         // component: `Element`'s default `requestGroupLayout` is not reached,
         // because a `Component` is not an `Element`.
         //
-        // MUTATION (Task 2 Step 4, first mutation): deleting this call
-        // reddens 5 of `ComponentTests`' 8 issues on the full 801-test suite —
+        // MUTATION (Task 2 Step 4, first mutation — RE-TAKEN fix round 2
+        // against the full 806-test file, after Task 3 added
+        // `StyledComponent`/`addingAModifierDoesNotResetAComponentsState`):
+        // deleting this call reddens **9 issues across 5 tests** —
         // `aComponentsOwnStateSurvivesAcrossFrames`,
         // `twoSiblingComponentsHoldIndependentState`,
-        // `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`
-        // and `anEmptyComponentStillHoldsItsOwnState` all read back **0**
-        // where they expect 3 (or 1) — not the brief's predicted `[1, 1, 1]`,
-        // because an unbound `@State`'s writes are discarded outright
-        // (`anUnboundStateReturnsItsInitialValueAndDiscardsWrites`,
-        // `StateTests.swift`), not merely un-persisted. `stateInsideAComponentsContentIsAlsoSeeded`
+        // `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`,
+        // `anEmptyComponentStillHoldsItsOwnState` and (new since the last
+        // count) `addingAModifierDoesNotResetAComponentsState` — all read
+        // back **0** where they expect 3 (or 1), not the brief's predicted
+        // `[1, 1, 1]`, because an unbound `@State`'s writes are discarded
+        // outright (`anUnboundStateReturnsItsInitialValueAndDiscardsWrites`,
+        // `StateTests.swift`), not merely un-persisted.
+        // `stateInsideAComponentsContentIsAlsoSeeded`,
+        // `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`
         // and `contentIsMaterializedExactlyOncePerFrame` stay green — the
-        // discriminating result this mutation exists to produce.
+        // discriminating result this mutation exists to produce. (Fix round
+        // 1's earlier count — 5 issues across 4 tests, on the then-801-test
+        // file — was correct for that file and is superseded here, not
+        // wrong; `StyledComponent` did not exist yet.)
         StateBinder.bind(self, table: pass.frame.stateTable, id: id)
 
         // One index from the PARENT's cursor, and a fresh cursor for the
@@ -129,6 +137,13 @@ extension Component {
         // is the one shape that can see this. That silence was a real
         // coverage gap in the fixtures, not evidence the line is dead.
         //
+        // RE-VERIFIED (fix round 2), against the full 806-test file, after
+        // Task 3 added `StyledComponent` and its own tests: still **exactly
+        // 1 issue**, the same test, the same reading (`1`, not 2). This
+        // comment did not need correcting — it is recorded as re-checked
+        // rather than left unremarked, since fix round 2 re-took the whole
+        // table rather than assuming any one row still held.
+        //
         // MUTATION (Task 2 Step 6): dropping this line reddens **4 issues**
         // on the full 801-test suite — `twoSiblingComponentsHoldIndependentState`
         // (both siblings COLLIDE onto one slot: `tree.content.first.count`
@@ -144,6 +159,14 @@ extension Component {
         // mutations are not equivalent — dropping `cursor += 1` is what
         // actually collides siblings; sharing the counter with content alone
         // does not, on any fixture in this file.
+        //
+        // RE-VERIFIED (fix round 2), against the full 806-test file: still
+        // **exactly 4 issues**, the same two tests
+        // (`twoSiblingComponentsHoldIndependentState` and the unnamed half of
+        // `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`),
+        // the same readings. `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`
+        // and `addingAModifierDoesNotResetAComponentsState` both stay green
+        // under this mutation. Recorded as re-checked, not left unremarked.
         cursor += 1
         var materialized = content
         var innerCursor = 0
@@ -153,8 +176,9 @@ extension Component {
         // CLAUDE.md's declared-but-inert table: `@State` returns its initial
         // value forever, with NO diagnostic, because nothing ever seeds its
         // box.
-        // MUTATION (Task 2 Step 4, second mutation): calling this recursive
-        // step TWICE on `materialized` (discarding the first call, resetting
+        // MUTATION (Task 2 Step 4, second mutation — RE-TAKEN fix round 2
+        // against the full 806-test file): calling this recursive step
+        // TWICE on `materialized` (discarding the first call, resetting
         // `innerCursor`, then calling again) — the smallest edit available
         // that isolates the content-path binding from the component's own
         // `StateBinder.bind` above without re-evaluating `content` a second
@@ -162,23 +186,32 @@ extension Component {
         // `Counter`'s own `@State`, since this file's `Counter.content`
         // getter is where that increment lives — see `Counter`'s doc — which
         // would wrongly redden `aComponentsOwnStateSurvivesAcrossFrames` too
-        // and fail to discriminate the two mechanisms) reddens exactly
-        // `stateInsideAComponentsContentIsAlsoSeeded` (reads **6**, not 3 —
-        // each of `Wrapper`'s content elements is bound and incremented
-        // twice per frame) plus three PRE-EXISTING layout-transparency tests
-        // that also use a component whose content holds real leaves
-        // (`aComponentsContentFlattensIntoItsParent`,
+        // and fail to discriminate the two mechanisms) reddens **6 issues
+        // across 5 tests**: `stateInsideAComponentsContentIsAlsoSeeded`
+        // (reads **6**, not 3 — each of `Wrapper`'s content elements is bound
+        // and incremented twice per frame),
+        // `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`
+        // (reads **4**, not 2 — the fix-round-1 test is ALSO sensitive to
+        // this line, which fix round 1's own comment did not check; that was
+        // the staleness fix round 2 corrects) and three PRE-EXISTING
+        // layout-transparency tests that use a component whose content holds
+        // real leaves (`aComponentsContentFlattensIntoItsParent`,
         // `aComponentContributesNoLayoutNodeOfItsOwn`,
         // `aComponentInsideAComponentFlattensThroughBothLevels` — 5 nodes
         // registered against an expected 3, doubled `registered` logs).
         // `aComponentsOwnStateSurvivesAcrossFrames`,
         // `twoSiblingComponentsHoldIndependentState`,
         // `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`,
-        // `anEmptyComponentStillHoldsItsOwnState` and
-        // `contentIsMaterializedExactlyOncePerFrame` all stay green — `Counter`'s
-        // own `content` is `EmptyGroup()`, so nothing here can touch its own
-        // state regardless of how this recursive call is mutated, which is
-        // exactly the discriminating property Step 4 asks for.
+        // `anEmptyComponentStillHoldsItsOwnState`,
+        // `contentIsMaterializedExactlyOncePerFrame` and
+        // `addingAModifierDoesNotResetAComponentsState` all stay green —
+        // `Counter`'s own `content` is `EmptyGroup()`, so nothing here can
+        // touch its own state regardless of how this recursive call is
+        // mutated, which is exactly the discriminating property Step 4 asks
+        // for. (Fix round 1's earlier count — 5 issues across 4 tests — did
+        // not include the test fix round 1 itself had just added; see that
+        // test's own doc and the practices doc's third record-mechanism,
+        // "staleness is systematic, not local".)
         let (nodes, contentLayout) =
             materialized.requestGroupLayout(under: id, at: &innerCursor, pass: &pass)
 
