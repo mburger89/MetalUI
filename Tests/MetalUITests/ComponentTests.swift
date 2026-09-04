@@ -625,3 +625,79 @@ private struct TwoAutoLeaves: Component {
     #expect(modified.content.component.count == 3,
             "a modifier must not reset the component's @State; got \(modified.content.component.count)")
 }
+
+// MARK: - Fix round 1: chained modifiers compose
+
+/// Fix round 1. `StyledComponent<C>` is an `ElementGroup`, not a `Component`,
+/// so the three modifiers declared in `extension Component` were unreachable
+/// on the value any of them returned — `Leafless().width(10)` had no
+/// `.height`. Measured with `swiftc -typecheck`:
+/// `error: value of type 'StyledComponent<Leafless>' has no member 'height'`.
+/// `.width(_:).height(_:)` is the most natural pairing there is — it is this
+/// file's own `TwoLeaves` fixture, above — so this is the discriminating
+/// test: both fields must land on EACH top-level child, not just the later
+/// call's field.
+@MainActor
+@Test func widthAndHeightComposeOnAChainedModifier() {
+    let log = ComponentLog()
+    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    var tree = Row { TwoAutoLeaves(log: log).width(px(20)).height(px(15)) }
+    frame.render(&tree)
+
+    let a = rect(log.bounds["a"]!)
+    let b = rect(log.bounds["b"]!)
+    #expect(a.2 == 20 && a.3 == 15,
+            "leaf a must carry BOTH the width and the height from the chained call; got \(a)")
+    #expect(b.2 == 20 && b.3 == 15,
+            "leaf b must carry BOTH the width and the height too; got \(b)")
+}
+
+/// Coverage gap the fix round found: neither `width` nor `height` had ANY
+/// test on its own, chained or not — only `padding` was exercised, by
+/// `aModifierOnAComponentDistributesToEachTopLevelChild` and the type-name
+/// check. A bare (unchained) `.width(_:)` distributing at all.
+@MainActor
+@Test func widthAloneDistributesToEachTopLevelChild() {
+    let log = ComponentLog()
+    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    var tree = Row { TwoAutoLeaves(log: log).width(px(20)) }
+    frame.render(&tree)
+
+    #expect(rect(log.bounds["a"]!).2 == 20, "got \(rect(log.bounds["a"]!))")
+    #expect(rect(log.bounds["b"]!).2 == 20, "got \(rect(log.bounds["b"]!))")
+}
+
+/// The other half of the same gap: a bare (unchained) `.height(_:)`.
+@MainActor
+@Test func heightAloneDistributesToEachTopLevelChild() {
+    let log = ComponentLog()
+    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    var tree = Row { TwoAutoLeaves(log: log).height(px(15)) }
+    frame.render(&tree)
+
+    #expect(rect(log.bounds["a"]!).3 == 15, "got \(rect(log.bounds["a"]!))")
+    #expect(rect(log.bounds["b"]!).3 == 15, "got \(rect(log.bounds["b"]!))")
+}
+
+/// `.padding(_:).padding(_:)` — chained onto the SAME field, unlike
+/// width/height above. `StyledElement.modifying` (`Box.swift:293`) does not
+/// merge two calls to the same modifier; it assigns the field directly, so a
+/// second `.padding(_:)` on a `Box` simply overwrites the first one's value.
+/// `StyledComponent`'s chained `padding(_:)` reproduces exactly that — run
+/// and measured here rather than assumed: the SECOND value wins outright,
+/// and the two do NOT accumulate (4 then 8 reads as a border box padded by
+/// 8, not by 4, and not by 12).
+@MainActor
+@Test func chainedPaddingReplacesRatherThanAccumulates() {
+    let log = ComponentLog()
+    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    var tree = Row { TwoAutoLeaves(log: log).padding(px(4)).padding(px(8)) }
+    frame.render(&tree)
+
+    // Content is 0 (Leaf has no children and no measure), so the border box
+    // is padding alone: 2x8 = 16 if the second call wins, 2x4 = 8 if the
+    // first call wins, 2x(4+8) = 24 if the two accumulated.
+    #expect(rect(log.bounds["a"]!).2 == 16,
+            "the second .padding(_:) call must win outright; got \(rect(log.bounds["a"]!).2)")
+    #expect(rect(log.bounds["b"]!).2 == 16, "got \(rect(log.bounds["b"]!).2)")
+}

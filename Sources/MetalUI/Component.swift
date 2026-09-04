@@ -317,3 +317,52 @@ extension Component {
         StyledComponent(component: self) { $0.size.height = .length(.pixels(points)) }
     }
 }
+
+/// Fix round 1. `StyledComponent<C>` is an `ElementGroup`, not a `Component`,
+/// so the `extension Component { padding / width / height }` above is
+/// unreachable on the value any of those three returns — `Leafless().width(10)`
+/// has no `.height`, and even `.padding(4).padding(4)` fails to typecheck.
+/// Measured with `swiftc -typecheck`:
+/// `error: value of type 'StyledComponent<Leafless>' has no member 'height'`.
+/// Undetected because no test exercised `width`/`height` at all, nor any
+/// two-modifier call — the recurring lesson this project's practices doc
+/// names: a feature that works alone and a feature that works alone can be
+/// wrong together.
+///
+/// These three CHAIN onto whatever `amend` this `StyledComponent` already
+/// carries, rather than replacing it, so `.padding(4).width(10)` distributes
+/// both. **The later call wins where two touch the SAME field** — matched
+/// against `StyledElement.modifying` (`Box.swift:293`), which does not merge
+/// or accumulate: it assigns the field directly (`$0.padding = newValue`), so
+/// a second `.padding(_:)` on a `Box` simply overwrites the first one's value.
+/// Composing here by running `previous` first and the new field assignment
+/// second reproduces exactly that: the later assignment always lands on top,
+/// because Swift closures run in the order given and the field write is a
+/// plain `=`, not a merge. **Not accumulation** — `.padding(4).padding(4)`
+/// leaves a component padded by 4, not 8; asserted directly by
+/// `chainedPaddingReplacesRatherThanAccumulates`.
+extension StyledComponent {
+    public func padding(_ points: Pixels) -> StyledComponent<C> {
+        let previous = amend
+        return StyledComponent(component: component) { style in
+            previous(&style)
+            style.padding = Edges(all: .pixels(points))
+        }
+    }
+
+    public func width(_ points: Pixels) -> StyledComponent<C> {
+        let previous = amend
+        return StyledComponent(component: component) { style in
+            previous(&style)
+            style.size.width = .length(.pixels(points))
+        }
+    }
+
+    public func height(_ points: Pixels) -> StyledComponent<C> {
+        let previous = amend
+        return StyledComponent(component: component) { style in
+            previous(&style)
+            style.size.height = .length(.pixels(points))
+        }
+    }
+}
