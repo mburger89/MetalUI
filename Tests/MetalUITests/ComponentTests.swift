@@ -7,12 +7,17 @@ import MetalUILayout
 // it contributes no layout node of its own, and it consumes one cursor index so
 // that its `@State` has an id to hang on. Those are separate axes and this is
 // the first type in the framework to use them differently — every other element
-// is opaque to both.
+// is opaque to both. **This file pins the layout-transparency half only.** The
+// identity-opaque half's own mechanics — the cursor arithmetic that gives a
+// component an id, `content` materialized once rather than re-evaluated per
+// phase — are Task 2's `ComponentTests` additions to pin, not this file's.
 //
 // The assertions below are structural and geometric together. A component that
 // wrongly contributed its own flex container would still produce the right
 // CHILD COUNT in some trees while moving every rect, so counting alone cannot
-// see the defect this file exists to prevent.
+// see the defect this file exists to prevent — but the geometry only sees it
+// when the fixture's leaves DISAGREE in height; see `TwoLeaves`' own doc for
+// the mutation that found this the hard way.
 //
 // **Node-count spelling.** `frame.layoutNodeCount` does not exist on `Frame`.
 // `LayoutTree.nodeCount` does (`Sources/MetalUILayout/LayoutTree.swift:59`,
@@ -70,13 +75,27 @@ private struct Leaf: Element, StyledElement {
 /// Two leaves and nothing else — the shape that distinguishes a transparent
 /// component from an opaque one. If `TwoLeaves` contributed a node, `a` and `b`
 /// would be children of THAT node rather than of the enclosing container.
+///
+/// **`a` and `b` have DIFFERENT heights, and that is load-bearing.** A wrapping
+/// node built from a default `Style` is an `auto`-sized flex row, and with
+/// equal-height leaves it shrink-wraps to exactly the leaves' own extent and
+/// the outer `Row` centres it to the same `y` the leaves would have gotten
+/// directly — so a component that wrongly wraps its content is byte-identical
+/// on rects to a correct one, and only the node COUNT would tell them apart.
+/// Measured: with both leaves at height 10, mutating `requestGroupLayout` to
+/// wrap `nodes` in `pass.requestNode(style: Style(), children: nodes)` left
+/// both rect-based tests below green. With `b` at 30, the wrapper's own cross
+/// size (30, from its tallest child) no longer matches the outer `Row`'s
+/// height (40), so `a` centres at a different `y` when it is laid out
+/// directly under the `Row` (15) than when it is laid out under an
+/// intervening 30-tall wrapper (5) — the two cases separate.
 private struct TwoLeaves: Component {
     let log: ComponentLog
     var elementID: ElementID?
 
     var content: some ElementGroup {
         Leaf("a", log: log).width(px(30)).height(px(10))
-        Leaf("b", log: log).width(px(50)).height(px(10))
+        Leaf("b", log: log).width(px(50)).height(px(30))
     }
 }
 
@@ -93,8 +112,11 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 ///
 /// The geometry is the load-bearing half. A component that contributed its own
 /// flex container would still register both leaves in the right order — so
-/// `registered` alone cannot see the defect — but `b` would sit inside a nested
-/// row and the two rects would differ from the inline spelling's.
+/// `registered` alone cannot see the defect — but `TwoLeaves`' own doc records
+/// why an equal-height fixture would have let the rects agree anyway; `a` and
+/// `b` differ in height precisely so a wrapping node's own cross size (bounded
+/// by its tallest child) pulls `a`'s `y` away from what the `Row` would give it
+/// directly.
 @MainActor
 @Test func aComponentsContentFlattensIntoItsParent() {
     let componentLog = ComponentLog()
@@ -106,7 +128,7 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
     let inlineFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
     var inline = Row {
         Leaf("a", log: inlineLog).width(px(30)).height(px(10))
-        Leaf("b", log: inlineLog).width(px(50)).height(px(10))
+        Leaf("b", log: inlineLog).width(px(50)).height(px(30))
     }
     inlineFrame.render(&inline)
 
@@ -117,9 +139,10 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
     #expect(rect(componentLog.bounds["a"]!) == rect(inlineLog.bounds["a"]!))
     #expect(rect(componentLog.bounds["b"]!) == rect(inlineLog.bounds["b"]!))
     // Literal numbers alongside, because two runs of a broken engine agree with
-    // each other. A 40-tall row centres a 10-tall child at y = 15 (ruling EP-8).
+    // each other. A 40-tall row centres each leaf INDEPENDENTLY on the cross
+    // axis (ruling EP-8): the 10-tall `a` at y = 15, the 30-tall `b` at y = 5.
     #expect(rect(componentLog.bounds["a"]!) == (0, 15, 30, 10))
-    #expect(rect(componentLog.bounds["b"]!) == (30, 15, 50, 10))
+    #expect(rect(componentLog.bounds["b"]!) == (30, 5, 50, 30))
 }
 
 /// Spec §2. The node count for a tree holding a component equals the count for
@@ -136,7 +159,7 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
     let log = ComponentLog()
     var inline = Row {
         Leaf("a", log: log).width(px(30)).height(px(10))
-        Leaf("b", log: log).width(px(50)).height(px(10))
+        Leaf("b", log: log).width(px(50)).height(px(30))
     }
     inlineFrame.render(&inline)
 
@@ -160,7 +183,7 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 
     #expect(log.registered == ["a", "b"])
     #expect(rect(log.bounds["a"]!) == (0, 15, 30, 10))
-    #expect(rect(log.bounds["b"]!) == (30, 15, 50, 10))
+    #expect(rect(log.bounds["b"]!) == (30, 5, 50, 30))
 }
 
 /// Spec §4.3. `EmptyGroup` is an `ElementGroup`, so a component with an empty

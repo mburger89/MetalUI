@@ -20,7 +20,14 @@
 ///   choice.** `@State` slots are `.named("$state\(n)")` children of the
 ///   element's own id (`StateBinder.bind`), so a component with no id of its
 ///   own could not hold state — and holding state is the main reason to write a
-///   component rather than a function returning elements.
+///   component rather than a function returning elements. **This file's own
+///   tests do not pin the cursor arithmetic that gives a component that id** —
+///   `ComponentTests.swift` asserts layout transparency and identity opacity's
+///   *geometric* consequence, not the cursor line itself. Task 2's
+///   `ComponentTests` additions are where `cursor += 1`, threading `innerCursor`
+///   rather than the outer `cursor`, and `content` being materialized once
+///   rather than re-evaluated in `prepaintGroup` are each pinned by a mutation
+///   that reddens something.
 ///
 /// **No `StyledElement` conformance, deliberately** (spec §3). A `Style` must
 /// attach to a layout node, and `Style.display` defaults to `.flex` with no
@@ -39,7 +46,6 @@
 ///     var content: some ElementGroup { … }
 /// }
 /// ```
-@MainActor
 public protocol Component: ElementGroup {
     associatedtype Content: ElementGroup
 
@@ -58,7 +64,6 @@ public protocol Component: ElementGroup {
 /// discard whatever `requestGroupLayout` wrote into them. Design spec §4.2's
 /// "materializes `content` once" is this field.
 public struct ComponentLayout<C: Component> {
-    var id: GlobalElementID
     var content: C.Content
     var contentLayout: C.Content.GroupLayout
 }
@@ -87,14 +92,19 @@ extension Component {
         cursor += 1
         var materialized = content
         var innerCursor = 0
+        // `requestGroupLayout`, never `requestLayout` — this is what reaches
+        // `StateBinder.bind` for every element inside `content`. Calling
+        // `requestLayout` directly is the live `AnyElement` defect in
+        // CLAUDE.md's declared-but-inert table: `@State` returns its initial
+        // value forever, with NO diagnostic, because nothing ever seeds its
+        // box.
         let (nodes, contentLayout) =
             materialized.requestGroupLayout(under: id, at: &innerCursor, pass: &pass)
 
         // `nodes` returned UNCHANGED — this is layout transparency. Wrapping
         // them, or replacing them with a node of the component's own, is what
         // makes a component layout-opaque.
-        return (nodes, ComponentLayout(id: id,
-                                       content: materialized,
+        return (nodes, ComponentLayout(content: materialized,
                                        contentLayout: contentLayout))
     }
 
