@@ -48,7 +48,7 @@ the element's own `GlobalElementID` (`StateBinder.bind`), so a component with no
 own cannot hold state — and holding state is the main reason to write a component rather
 than a function returning elements. The cursor index is what buys the id.
 
-### Why this is SwiftUI's shape, and the part of that claim that is NOT measured
+### Why this is SwiftUI's shape — measured, not assumed
 
 SwiftUI's custom `View` contributes no layout container: `VStack { MyRow() }`, where
 `MyRow`'s body is two `Text`s, lays those two texts out as the stack's own children rather
@@ -56,11 +56,26 @@ than nesting them. `.padding()` does introduce a layer, but by wrapping the view
 `ModifiedContent` — the modifier is not applied *to* the custom view's own (nonexistent)
 node.
 
-**That description of SwiftUI is DERIVED from its documented behaviour and was not measured
-here.** There is no SwiftUI test target in this repo and this spec does not add one. It is
-recorded as derived on the same footing ruling `RX-P` uses for the windowed-`List`
-comparison. If SwiftUI turns out to differ, this is a divergence and the label is
-available; nothing here forecloses it.
+**MEASURED on 2026-09-03, and this paragraph previously said it was not.** The first draft
+recorded the SwiftUI description as derived-from-documentation on ruling `RX-P`'s footing,
+because there is no SwiftUI test target in this repo. It was then measured with a throwaway
+probe outside the repo: a custom `Layout` conformer recording `subviews.count`, hosted in an
+`NSHostingView` and forced to lay out.
+
+| case | subview count |
+|---|---|
+| inline `A; B` — **the positive control** | 2 |
+| `Group { A; B }` — SwiftUI's documented transparent container | 2 |
+| `MyRow()`, whose body is two views | **2** |
+| `MyRow(); MyRow()` | **4** |
+
+A `Layout` conformer sees through a custom view exactly as it sees through `Group`. The
+fourth row matters: it rules out the third being an artifact of having only one instance.
+**SwiftUI is layout-transparent for custom views, and this framework agrees with it.**
+
+The probe was not committed, on the footing this repo uses for oracle probes — a committed
+version would pin the standard library's behaviour rather than this framework's. The
+technique is recorded here so it can be re-run rather than re-derived.
 
 ---
 
@@ -87,10 +102,13 @@ goldens, and it would be the first thing in three specs to move one. **It remain
 way to give a *styled* box the transparent behaviour**, which is a thing this design cannot
 express at all — see §7. Filed as a named follow-up, not as a mystery.
 
-**A `Modified<C>` wrapper carrying a `Style` around any component was rejected** as a
-second styling mechanism beside `StyledElement`, which this framework has so far kept to
-exactly one. §5's modifier extensions get the same ergonomics by returning a `Box`, which
-is a mechanism that already exists.
+**A `Modified<C>` wrapper carrying a `Style` around any component was rejected in the first
+draft**, on the grounds that it would be a second styling mechanism beside `StyledElement`.
+**That rejection is withdrawn**: §5 now implements something very close to it, because
+measurement showed the alternative — wrapping in a `Box` — is not what SwiftUI does. The
+reasoning that survives is narrower: the wrapper must **distribute** a style over the
+content's top-level nodes rather than **carry** one of its own, so it introduces no second
+styling model, only a second way to reach the existing one.
 
 ---
 
@@ -209,45 +227,91 @@ identity level still exists, so its own `@State` still works. That is consistent
 
 ---
 
-## 5. Modifiers wrap, they do not attach
+## 5. Modifiers DISTRIBUTE — measured, after this section said they wrap
 
-`Component` conforms to no styling protocol, so `StyledElement`'s modifiers do not apply.
-The extension supplies them by **wrapping in a `Box`**:
+**This section previously specified that a modifier on a component wraps it in a `Box`**, on
+the stated grounds that this is what SwiftUI's `ModifiedContent` does. **That was measured
+and is false.** SwiftUI distributes a modifier over a transparent multi-child body; it does
+not wrap it. The original claim is recorded here rather than deleted, because the design was
+built on it and a reader deserves to know it was tested.
+
+The measurement, a throwaway probe outside the repo reading `NSHostingView.fittingSize`:
+
+| case | measured |
+|---|---|
+| `HStack { Color.red.frame(30,10).padding(8) }` — **the positive control** | 46 × 26 |
+| `HStack { MyRow() }` — baseline, `MyRow`'s body is 30×10 and 50×10 | 88 × 10 |
+| `HStack { MyRow().padding(8) }` | **120 × 26** |
+| `HStack { Group { A; B }.padding(8) }` — the known-distributing case | **120 × 26** |
+
+`(30 + 16) + 8 + (50 + 16) = 120` — the padding is applied to **each** child, and the result
+is bit-identical to `Group`'s. A wrapping implementation predicts 96–104. The baseline's 88
+(`30 + 8 + 50`, with `HStack`'s default spacing) independently corroborates §2's flattening
+result on a different instrument.
+
+**The two findings are one mechanism.** `MyRow()` *is* its children, so a modifier applied to
+it applies to each of them, because there is no single thing to wrap. Transparency and
+distribution are the same fact seen twice.
+
+### What this framework does
+
+A modifier on a `Component` returns a wrapper that is itself an `ElementGroup`. The wrapper
+calls the component's `requestGroupLayout`, then **amends the style of each top-level node
+the content contributed** and returns those same nodes unchanged. It contributes no node of
+its own, so a modified component stays layout-transparent — which a wrapping implementation
+would have destroyed.
 
 ```swift
-extension Component {
-    public func padding(_ points: Pixels) -> Box<Self> {
-        Box(content: self).padding(points)
-    }
-    // … and so on for the modifiers a component author actually needs
+public struct StyledComponent<C: Component>: ElementGroup {
+    var component: C
+    var amend: (inout Style) -> Void
+    // requestGroupLayout: forward to `component`, then for each returned node
+    //   var s = pass.style(node); amend(&s); pass.setStyle(node, s)
+    // …and return the same nodes.
 }
 ```
 
-`Box<Content: ElementGroup>` (`Box.swift:30`) and `Box.init(style:decoration:content:)`
-(`:43`) both accept any `ElementGroup`, so `Box<Self>` needs no new machinery. Note the
-signature: `StyledElement.padding` takes `Pixels` (`Box.swift:643`) or `Edges<Length>`
-(`:647`) — **not** a bare `Length`. Forward whichever overloads are wanted, with the exact
-parameter types the `StyledElement` originals use; a forwarded modifier whose signature
-drifts from its original is worse than none, because a caller reads the two as the same
-modifier.
+**The mechanism already exists and needed no engine change** (measured by probe):
 
-So `MyComponent()` is transparent and `MyComponent().padding(12)` introduces exactly one
-flex container — which is what `ModifiedContent` does in SwiftUI, and is the same trade a
-`Box` makes anywhere else.
+- `LayoutTree.setStyle(_:_:)` (`LayoutTree.swift:104`) overwrites a registered node's `Style`
+  in place. It is `public` and has **zero production callers** today — two tests in
+  `LayoutContextTests` are its only exercise — so this is its first.
+- **Registration derives nothing from style.** `newNode`/`newLeaf` (`LayoutTree.swift:83-97`)
+  append the style and zeroed layout into parallel arrays; every engine consumer reads it
+  fresh through `tree.style(id)` inside `computeLayout`. Amendment after registration is
+  therefore sound rather than merely tolerated.
+- **The one guard is a phase boundary and this is safely inside it.** `setStyle` traps when
+  `isLayingOut`, which is set only within `computeLayout`. `Frame.render` completes the whole
+  `requestGroupLayout` walk before calling `computeRootLayout`, so a modifier amending styles
+  during the request phase cannot trip it.
+- **No `ElementGroup` change is needed.** The wrapper operates on raw `LayoutNodeID`s, not on
+  the Swift values that produced them, so it is indifferent to whether a top-level child came
+  from a `StyledElement` or from a nested non-`StyledElement` `Component`. That was the hazard
+  most likely to make distribution impossible, and it does not arise.
 
-**The cost is real and is stated rather than buried.** A modified component is
-layout-*opaque*: its children become children of the wrapping `Box`, not of the component's
-parent. So `Column { MyRow() }` and `Column { MyRow().padding(4) }` arrange `MyRow`'s
-children differently, and that is visible rather than silent — a padded thing looks padded.
-What has no spelling at all is "styled *and* transparent", which is `display: contents`'
-job (§3).
+### The limit, and it is the part to read before planning
 
-**Which modifiers to forward is deliberately left to implementation**, with one rule: a
-modifier is forwarded only if it is already live on `StyledElement`. Forwarding an inert one
-(`aspectRatio`, `overflow`) would put a second unreachable API in front of a caller, which
-is what CLAUDE.md's inert table exists to prevent.
+**Only `Style`-backed modifiers can be distributed this way.** `padding`, `width`, `height`,
+`flexGrow`, `flexShrink`, `alignSelf` and the rest of `Style` live in `LayoutTree`, keyed by
+node, and `setStyle` reaches them.
 
----
+**`Decoration`- and `Handlers`-backed modifiers cannot** — `background`, `onClick`,
+`focusable`, `keyContext`, `hoverBackground`, `focusBackground`. Those are per-*element*
+state, registered by each `StyledElement`'s own `prepaint` through `registerHandlers`, and
+there is **no per-node table to amend**. Distributing them hits exactly the
+non-`StyledElement`-child wall that `setStyle` sidesteps, and would need a different
+mechanism.
+
+**So this spec forwards `Style`-backed modifiers only, and offers the others not at all.**
+Offering `.background()` with wrapping semantics while `.padding()` distributes would be
+worse than offering neither: two modifiers that read identically at the call site and behave
+differently. An author who wants a background writes an explicit `Box` around the component,
+which is one visible line and is honest about introducing a container.
+
+**Which `Style`-backed modifiers to forward is left to implementation**, with one rule: only
+those already live on `StyledElement`. Forwarding an inert one (`aspectRatio`, `overflow`)
+would put a second unreachable API in front of a caller, which is what CLAUDE.md's inert
+table exists to prevent.
 
 ## 6. Testing
 
@@ -268,9 +332,12 @@ Counts and structure, never wall-clock times.
    Both halves, on the pattern `namingTheLaterSiblingIsWhatSurvivesAVanishingIf` already
    uses — the asymmetry is the evidence.
 6. **A component with an empty content block contributes zero nodes and still holds state.**
-7. **A modified component introduces exactly one node**, and its children become that
-   node's children — §5's stated cost, asserted so it is documented behaviour rather than a
-   surprise.
+7. **A modified component stays transparent and its style reaches EACH top-level child.**
+   `Row { TwoLeaves().padding(4) }` must add **no** node and must pad both leaves — the
+   arithmetic separating distribution from wrapping is the same one the SwiftUI probe used,
+   so assert the rects, not just the node count. A wrapping implementation adds one node and
+   pads once; both halves must be checked, because the node count alone cannot tell
+   distribution from a no-op.
 8. **A component nested inside a component flattens through both levels**, with two identity
    levels and zero layout nodes added.
 
@@ -290,8 +357,10 @@ Counts and structure, never wall-clock times.
 
 - **Whether `Component` is pleasant to write.** The whole point of the type is ergonomics,
   and no assertion reaches that. The demo is the only evidence, and it is weak evidence.
-- **Whether SwiftUI actually flattens** (§2). Derived, not measured, and no test here can
-  measure it.
+- **Whether SwiftUI flattens or distributes** (§2, §5). Both are now measured, but by
+  throwaway probes outside this repo that are deliberately not committed. Nothing in the
+  suite re-checks them, so a future SwiftUI change would go unnoticed here — which is the
+  same standing as every WebKit oracle claim this project makes between corpus regenerations.
 
 ---
 
@@ -301,6 +370,11 @@ Counts and structure, never wall-clock times.
   Engine work, needs fixtures and goldens.
 - **A `.id()` modifier on `Component`** (§4.1) — needs either a layout node or a second
   identity level; the defaulted property is the spelling that cannot be wrong.
+- **Distributing `Decoration`- and `Handlers`-backed modifiers** (`background`, `onClick`,
+  `focusable`, `keyContext`). §5 records why `setStyle` cannot reach them: they are per-element
+  state registered in each `StyledElement`'s own `prepaint`, with no per-node table. Closing
+  it needs either a per-node decoration/handler registry or the `ElementGroup` per-child
+  operation §3 rejected — a named mechanism, not a mystery, and larger than this spec.
 - **Converting existing elements or the demo to `Component`.** `Box`, `Column`, `Row`,
   `Stack`, `List`, `Text`, `Deferred` and `ScrollView` stay as they are. Design spec §4.2
   says implementing `Element` directly "remains available and is expected for the node
@@ -334,7 +408,8 @@ Counts and structure, never wall-clock times.
 
 | Risk | Standing |
 |---|---|
-| An author writes a component expecting `.padding()` to apply to the component's own frame | It applies to a wrapping `Box` instead, which for a single-child component is indistinguishable and for a multi-child one changes the arrangement. §5 states it; nothing enforces it |
+| An author writes a component expecting `.padding()` to pad the component as a unit | It pads each top-level child instead — SwiftUI's behaviour, measured (§5). For a single-child component the two are indistinguishable; for a multi-child one they differ visibly. §5 states it; nothing enforces it |
+| An author reaches for `.background()` on a component and finds it absent | Deliberate (§5's limit): `Decoration` has no per-node table for `setStyle` to amend, and offering it with wrapping semantics beside a distributing `.padding()` would be two modifiers that read alike and behave differently. The remedy is an explicit `Box`, which is honest about introducing a container |
 | `Content: ElementGroup` lets a component return a group where a single element was meant, and a caller cannot tell from the type | True, and it is the same latitude `Box`'s content already has. The alternative forbids two children |
 | The SwiftUI-flattening claim is wrong | Then this is a divergence, and §2 says so in advance rather than presenting the claim as settled. The label is available |
 | `StateBinder.bind`'s per-instance `Mirror` walk now runs for components too | ~2.3 us per *stateful* element per frame (CLAUDE.md); a component with no `@State` costs a dictionary hit against an empty array. Unchanged in kind from any other element |
