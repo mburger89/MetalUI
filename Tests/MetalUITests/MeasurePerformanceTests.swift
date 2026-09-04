@@ -268,19 +268,20 @@ struct MeasurePerformanceTests {
     /// that re-marks an already-resident row does not create a new entry, it
     /// only flips `isLive`/`lastSeenGeneration` on the existing one
     /// (`StateTable.mark`/`withState`). So `table.count` cannot climb back
-    /// toward `n + 2` once it has fallen: entries leave storage only through
+    /// toward `2n + 6` once it has fallen: entries leave storage only through
     /// `sweep()`'s reap, and this scroll never introduces an id `sweep()` has
     /// not already seen. A policy that never reaps (the pre-tombstone
     /// `sweep()`, or a reap with the size gate deleted the wrong way) would
-    /// leave `table.count` at exactly `n + 2` forever, since nothing would
+    /// leave `table.count` at exactly `2n + 6` forever, since nothing would
     /// ever remove an entry; this test's bound (`n / 10`, an order of
-    /// magnitude above the ~20-41 entries steady scrolling actually leaves
-    /// resident — shifted by the +1 this task's own `$ax` retention slot
-    /// adds, confirmed flat regardless of scroll parameters by a differential
-    /// probe rather than re-derived from the original harness, which this
-    /// range's own comment does not preserve) is loose enough to hold under
-    /// any working reap policy and tight enough to fail hard under a reap
-    /// that does not run at all.
+    /// magnitude above the resident count steady scrolling actually leaves —
+    /// **measured 150-256 entries at this test's checkpoints as of the
+    /// animation milestone's Task 4**, roughly double the pre-Task-4 figure
+    /// this comment used to quote (~20-41), because every windowed row's own
+    /// wrapping `Box` now also carries a `$anim` retention slot alongside its
+    /// `StatefulListRow`'s `@State` one — see the cold-frame assertion below)
+    /// is loose enough to hold under any working reap policy and tight
+    /// enough to fail hard under a reap that does not run at all.
     ///
     /// **This test cannot see whether the size-gated reap exists at all — a
     /// fix-round caveat, not a hedge.** `storage.count` sits above
@@ -325,14 +326,34 @@ struct MeasurePerformanceTests {
         // builds every row (ruling MP-I) rather than windowing — the peak
         // this test exists to see reaped.
         renderFrame(offset: nil)
-        #expect(table.count == n + 2, """
+        // `2n + 6`, not `n + 2` — moved by the animation milestone's Task 4,
+        // measured rather than derived (20006 at n = 10_000, re-run after
+        // wiring `animated(_:_:for:pass:)` into `Box.requestLayout`). Every
+        // row is wrapped in its OWN `Box` (`List.requestLayout`, `rows`), and
+        // `Box` now unconditionally substitutes through `animated` — first
+        // sighting always writes a settled baseline (ruling Q,
+        // `AnimatedStyle.swift`), so every one of the `n` built rows' wrapping
+        // `Box` gains a persistent `$anim` slot alongside its
+        // `StatefulListRow`'s own `@State` one: `n` (row state) + `n` (row
+        // `Box` `$anim`) = `2n`. The fixed overhead grew from 2 to 6 the same
+        // way: the scroller's `ScrollState`, the `List`'s own `$ax` retention
+        // slot (Task 7, unchanged), the `List`'s own wrapping `Box`'s
+        // `$anim` slot, the windowing spacer `Box`'s `$anim` slot
+        // (`List.requestLayout`'s `spacer`), and `ScrollView`'s two
+        // registering nodes' `$anim` slots (content and viewport) — six
+        // fixed entries regardless of row count, none of them per-row.
+        #expect(table.count == 2 * n + 6, """
                 the cold frame must build every row plus the scroller's own \
                 ScrollState entry plus the List's own $ax retention slot — Task 7 made \
                 a List unconditionally emit ITS OWN AXNode (role .container, carrying \
                 logicalCount) so spec §9's exit criterion 4 holds regardless of whether \
                 a caller declared one, and Frame.emitAXNode retains a durable copy of \
                 every emission under a distinct \"$ax\" child slot (Task 6) — one more \
-                entry than before Task 7, for exactly one List, not per row
+                entry than before Task 7, for exactly one List, not per row. The animation \
+                milestone's Task 4 then wired every Box (including one per row, the List's \
+                own wrapper, ScrollView's two nodes and the windowing spacer) through \
+                animated(_:_:for:pass:), which unconditionally persists a $anim baseline on \
+                first sighting — doubling the per-row cost and adding four more fixed entries.
                 """)
 
         // Scroll in large jumps across the FULL 10k-row range — each
@@ -358,7 +379,7 @@ struct MeasurePerformanceTests {
             print("MeasurePerformanceTests: table.count after scroll frame \(frame) = \(count)")
             #expect(count < n / 10, """
                     after frame \(frame) of scrolling, \(count) entries survive — a \
-                    policy that never reaps would sit at \(n + 2) here, since every \
+                    policy that never reaps would sit at \(2 * n + 6) here, since every \
                     jump only re-marks entries the cold frame already created.
                     """)
         }

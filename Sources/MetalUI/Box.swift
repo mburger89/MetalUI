@@ -76,6 +76,12 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
                                                                    pass: &pass)
+        // M4 spec 3 §5: substitutes any animatable field mid-transition,
+        // storing the result back on `self` — `paint` reads `self.decoration`
+        // later in this same frame, so this is what makes `cornerRadius`
+        // animation (and any other decoration field this helper animates)
+        // reach the screen rather than only the layout node.
+        (style, decoration) = animated(style, decoration, for: id, pass: &pass)
         let node = pass.requestNode(style: style, children: children)
         return (node, Layout(node: node, content: contentLayout))
     }

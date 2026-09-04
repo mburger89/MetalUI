@@ -267,6 +267,16 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // content node of 200 (== viewport, nothing to scroll) without this
         // line and 508 with it. See the type doc.
         contentStyle.flexShrink = 0
+        // M4 spec 3 §5: `ScrollView` registers TWO nodes from one element id,
+        // so passing `id` itself to `animated(_:_:for:)` twice would collide
+        // both nodes' fields under the identical `$anim` retention slot
+        // (`animRetentionSlot(for:)` derives one slot per id, not per call).
+        // A named child id per node — on the same footing as `$state`,
+        // `$focus` and `$ax` — keeps them apart. `ScrollView` has no
+        // `Decoration` of its own (see `cornerRadius`'s doc above), so a
+        // fresh, discarded one is passed through and back.
+        let contentAnimID = GlobalElementID.child(of: id, at: 0, name: ElementID("$anim-content"))
+        (contentStyle, _) = animated(contentStyle, Decoration(), for: contentAnimID, pass: &pass)
         let contentNode = pass.requestNode(style: contentStyle, children: children)
 
         var viewportStyle = Style()
@@ -276,6 +286,8 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // probe — so it documents intent rather than driving behaviour. See
         // CLAUDE.md's declared-but-inert table.
         viewportStyle.overflow = Axes(both: .scroll)
+        let viewportAnimID = GlobalElementID.child(of: id, at: 0, name: ElementID("$anim-viewport"))
+        (viewportStyle, _) = animated(viewportStyle, Decoration(), for: viewportAnimID, pass: &pass)
         let node = pass.requestNode(style: viewportStyle, children: [contentNode])
 
         return (node, Layout(node: node, contentNode: contentNode, inner: inner))

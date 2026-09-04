@@ -99,6 +99,10 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
                                                                    pass: &pass)
+        // M4 spec 3 §5 — see `Box.requestLayout`'s identical line. Stored
+        // back on `self` so `paint`'s read of `self.decoration` later this
+        // frame sees the substituted (possibly mid-transition) values.
+        (style, decoration) = animated(style, decoration, for: id, pass: &pass)
         let node = pass.requestNode(style: style, children: children)
         return (node, Layout(node: node, content: contentLayout))
     }

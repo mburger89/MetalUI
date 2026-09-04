@@ -714,3 +714,148 @@ import MetalUILayout
             snapped straight to 100 with nothing to interpolate from, got \(out2.flexGrow)
             """)
 }
+
+// MARK: - Task 4: every registering site substitutes through `animated`
+
+/// Spec §5's correction block: there is no single choke point. `Box`,
+/// `Stack` and `ScrollView`'s two nodes each call
+/// `LayoutPass.requestNode` independently, so nothing enforces that any one
+/// of them actually routes its declared `Style`/`Decoration` through
+/// `animated(_:_:for:pass:)` before handing it to the layout engine — on
+/// `onClickIsLiveOnEveryConformerThatCanRegisterOne`'s footing
+/// (`InputDispatchTests.swift`), which exists for the identical reason: a
+/// conformer can compile and register nothing.
+///
+/// **`Box` and `Stack`** are checked the way Task 3's own tests check the
+/// helper directly (see `aFieldThatDiffersUnderATransactionBeginsAnimating…`
+/// above): a fresh element is reconstructed each frame — exactly as
+/// `Frame.render` rebuilds one from the content closure every frame — with a
+/// real, caller-visible field (`flexGrow`) declared differently, and the
+/// registered node's `Style` is read back through `pass.style(_:)`.
+///
+/// **`ScrollView`'s two nodes have no caller-visible `Style` at all** — the
+/// type is not `StyledElement`, and `contentStyle`/`viewportStyle` are built
+/// entirely from constants inside `requestLayout` (spec §5's own reason this
+/// site needs two independent `$anim` slots — see `ScrollView.requestLayout`'s
+/// comment). So there is no declared field a test can vary across frames the
+/// way it can for `Box`/`Stack`. Each is instead checked by pre-seeding an
+/// in-flight, unfinished `AnimatedFieldState` directly into the exact
+/// `$anim` slot that site's own wiring derives, targeting the value the site
+/// always declares (`flexShrink: 0` for the content node, `flexGrow: 0` —
+/// never explicitly set — for the viewport node). A wired site substitutes
+/// the still-interpolating value in; an unwired one hands the raw declared
+/// value straight through unchanged, which is exactly the differential a
+/// mutation that un-wires the site needs to redden.
+@Test @MainActor func everyRegisteringSiteAnimatesItsStyle() throws {
+    func styled(flexGrow: Float) -> Style {
+        var s = Style()
+        s.flexGrow = flexGrow
+        return s
+    }
+
+    // MARK: Box
+
+    do {
+        let table = StateTable()
+        let id = eid("box")
+
+        var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+        var box1 = Box(style: styled(flexGrow: 0))
+        _ = box1.requestLayout(id, pass: &pass1)
+
+        var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
+        var midStyle: Style!
+        withAnimation(.linear(duration: 1)) {
+            var box2 = Box(style: styled(flexGrow: 100))
+            let (node, _) = box2.requestLayout(id, pass: &pass2)
+            midStyle = pass2.style(node)
+        }
+        #expect(midStyle.flexGrow == 0, """
+                Box: registering site does not animate — expected the transaction-start \
+                'from' value 0, got \(midStyle.flexGrow)
+                """)
+
+        var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+        var box3 = Box(style: styled(flexGrow: 100))
+        let (node3, _) = box3.requestLayout(id, pass: &pass3)
+        #expect(pass3.style(node3).flexGrow == 50, """
+                Box: registering site does not animate — expected the halfway value 50, \
+                got \(pass3.style(node3).flexGrow)
+                """)
+    }
+
+    // MARK: Stack
+
+    do {
+        let table = StateTable()
+        let id = eid("stack")
+
+        var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+        var stack1 = Stack { Box() }
+        _ = stack1.requestLayout(id, pass: &pass1)
+
+        var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
+        var midStyle: Style!
+        withAnimation(.linear(duration: 1)) {
+            var stack2 = Stack { Box() }.flexGrow(100)
+            let (node, _) = stack2.requestLayout(id, pass: &pass2)
+            midStyle = pass2.style(node)
+        }
+        #expect(midStyle.flexGrow == 0, """
+                Stack: registering site does not animate — expected the transaction-start \
+                'from' value 0, got \(midStyle.flexGrow)
+                """)
+
+        var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+        var stack3 = Stack { Box() }.flexGrow(100)
+        let (node3, _) = stack3.requestLayout(id, pass: &pass3)
+        #expect(pass3.style(node3).flexGrow == 50, """
+                Stack: registering site does not animate — expected the halfway value 50, \
+                got \(pass3.style(node3).flexGrow)
+                """)
+    }
+
+    // MARK: ScrollView — content node
+
+    do {
+        let table = StateTable()
+        let id = eid("scroll-content")
+        let animID = GlobalElementID.child(of: id, at: 0, name: ElementID("$anim-content"))
+        let slot = animRetentionSlot(for: animID)
+        table.withState(slot, initial: AnimatedFieldMap()) {
+            $0["flexShrink"] = AnimatedFieldState(caseTag: 0, from: -100, to: 0, startTime: 0,
+                                                  animation: .linear(duration: 1), velocity: 0)
+        }
+
+        var pass = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+        var scroll = ScrollView { Box() }
+        let (_, layout) = scroll.requestLayout(id, pass: &pass)
+        let out = pass.style(layout.contentNode)
+        #expect(out.flexShrink == -50, """
+                ScrollView content node: registering site does not animate — expected the \
+                interpolated value -50, got \(out.flexShrink)
+                """)
+    }
+
+    // MARK: ScrollView — viewport node
+
+    do {
+        let table = StateTable()
+        let id = eid("scroll-viewport")
+        let animID = GlobalElementID.child(of: id, at: 0, name: ElementID("$anim-viewport"))
+        let slot = animRetentionSlot(for: animID)
+        table.withState(slot, initial: AnimatedFieldMap()) {
+            $0["flexGrow"] = AnimatedFieldState(caseTag: 0, from: -100, to: 0, startTime: 0,
+                                                animation: .linear(duration: 1), velocity: 0)
+        }
+
+        var pass = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+        var scroll = ScrollView { Box() }
+        let (node, _) = scroll.requestLayout(id, pass: &pass)
+        let out = pass.style(node)
+        #expect(out.flexGrow == -50, """
+                ScrollView viewport node: registering site does not animate — expected the \
+                interpolated value -50, got \(out.flexGrow)
+                """)
+    }
+}
