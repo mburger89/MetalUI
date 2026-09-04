@@ -65,7 +65,7 @@ public struct LayoutPass {
     /// nodes its own component just returned. Shipping public surface with one
     /// in-module caller is what this repo's inert-API discipline refuses;
     /// widening later is trivial and unshipping is not. Pinned by
-    /// `layoutPassSetStyleIsNotPublic` (`ErasureCompileGuards.swift`), which
+    /// `layoutPassStyleAccessorsAreNotPublic` (`ErasureCompileGuards.swift`), which
     /// must use a **plain** import — `@testable` widens `internal` and cannot
     /// demonstrate a narrowing at all (taxonomy shape 16, ruling `TB-N`).
     func style(_ id: LayoutNodeID) -> Style {

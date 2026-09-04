@@ -256,10 +256,14 @@ func backgroundCannotBeCalledOnAComponent() throws {
 /// **MUTATION (fix wave), run rather than predicted**: restoring `public` on
 /// both members and rebuilding makes the fixture compile and reddens **both**
 /// of this test's assertions — `result.succeeded` becomes `true`, and
-/// `messages` degrades to the fixture's own unrelated warning. Both halves
-/// matter: the second is what keeps a rejection *for some other reason* from
-/// reading as a pass, which is the two-assertion hazard the `HitboxID` /
-/// `GlobalElementID` hover probes record from the other direction.
+/// `messages` is the **empty string**: the fixture compiles clean, with no
+/// diagnostic at all, which is exactly what the `s.flexGrow = 1` mutation four
+/// lines below exists to guarantee — a fixture that only round-tripped the
+/// value would instead emit a `never mutated` warning. Both assertions matter:
+/// the second is what would catch a rejection *for some other reason* reading
+/// as a pass, which is the two-assertion hazard the `HitboxID` /
+/// `GlobalElementID` hover probes record from the other direction — here it
+/// has nothing to catch, because the mutation leaves no diagnostic behind.
 ///
 /// The fixture mutates `s` between the read and the write on purpose — it is
 /// `StyledComponent`'s exact shape, and a fixture that only round-trips the

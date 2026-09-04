@@ -3897,7 +3897,7 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
 
 1. The ABI probe **skips** without a Metal device.
 2. `committedGoldensMatchTheBrowser` is the only live-WebKit consumer.
-3. **The 33 `swiftc -typecheck` guards skip whenever `.build` is not where
+3. **The 34 `swiftc -typecheck` guards skip whenever `.build` is not where
    `#filePath`-relative resolution expects it.** `canTypecheck`
    (`Tests/MetalUITestSupport/Typecheck.swift`) walks three directories up from
    its own `#filePath` and looks for `.build/<triple>/debug/Modules` holding the
@@ -3905,7 +3905,7 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    `swift test -c release` all make that miss and every guard becomes a skip.
    **That set is this milestone's headline deliverable and both of its
    compile-time exit criteria** — `PhaseSeparationTests` (**19**),
-   `ErasureCompileGuards` (**8**), `ElementGroupTrapTests` (1), `UnitSafetyTests` (2,
+   `ErasureCompileGuards` (**9**), `ElementGroupTrapTests` (1), `UnitSafetyTests` (2,
    in `Tests/MetalUICoreTests/`, where a bare `grep -c` reads 3 because one is a
    comment) and `AXNodeTests` (**3**, in `Tests/MetalUITests/`, added by the
    tombstones-and-AX milestone — see the last block of this item)
@@ -3916,12 +3916,12 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    **Taxonomy shape 11's count heuristic does not catch this one.** Measured, by
    forcing `canTypecheck` to `false`: exactly 25 tests report as skipped, the
    total does not move, and the run passes. **The 25 is dated — it is the guard
-   count at the time, and the guard count is 33 today.** The load-bearing half
+   count at the time, and the guard count is 34 today.** The load-bearing half
    is the other two clauses, "the total does not move" and "the run passes",
    which are properties of `.enabled(if:)` rather than of any count; that a
    skip counts toward the total was independently re-measured at the
    tombstones milestone (see the Build section). Nobody has re-forced
-   `canTypecheck` to `false` since, so **do not read 33 into this sentence** —
+   `canTypecheck` to `false` since, so **do not read 34 into this sentence** —
    the number that would appear has not been run. The 25 was first taken at
    `Test run with 304 tests`, re-measured at 358 on the structural-identity
    branch, and **re-counted at the end of M2 (suite 444): still 25 — 15 + 7 + 1
@@ -4035,7 +4035,7 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    five carry guards: the sixth is
    `Tests/MetalUITestSupport/Typecheck.swift`, whose single hit is
    `canTypecheck`'s own **declaration**. Summing per-file `grep -c` across every
-   matching path reads **35**, not 33. Count guards, not files, and check what
+   matching path reads **36**, not 34. Count guards, not files, and check what
    each hit actually is.
 
    **The reason these three exist is a new hazard rather than a new phase
@@ -4057,7 +4057,7 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
 
    **Re-count by grep, and note the DIRECTORIES — there are now two of them.**
    (**The totals in this paragraph are the tombstones milestone's**, when the
-   count was 32; the fifth-move note above carries today's 33 and the six-path
+   count was 32; the fifth-move note above carries today's 34 and the six-path
    trap. The claim being made here is about directories, not about either
    number.)
    `Tests/MetalUICoreTests/UnitSafetyTests.swift`, not `MetalUITests`; and
