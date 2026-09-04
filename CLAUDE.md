@@ -1272,7 +1272,7 @@ claim**; here they are:
 - **`Sources/MetalUI/Text.swift:217`** — the live trap the paragraph above
   describes. **Unguarded**, and sound only by the `computeLayout`-runs-on-the-
   caller's-thread argument. This is the one to rewrite.
-- **`Window.markDirtyFromObservation`** (`Sources/MetalUI/Window.swift:556`) —
+- **`Window.markDirtyFromObservation`** (`Sources/MetalUI/Window.swift`) —
   inside its synchronous branch. Guarded by a `Thread.isMainThread` predicate,
   with the `Task { @MainActor }` fallback as the other arm. Collapsing the two
   arms to this one alone is the SIGTRAP result recorded in the reactivity
@@ -1305,8 +1305,9 @@ call site is gone rather than re-guarded. See `UnbreakableRuns.swift`'s own
 doc comment for the full correction, kept in place with the superseded
 reasoning still visible rather than deleted.
 
-**Two of the three remaining are guarded by `Thread.isMainThread`, one by an
-argument about where `exit()` is called from, and exactly one by nothing.**
+**One of the three remaining is guarded by `Thread.isMainThread`
+(`Window.markDirtyFromObservation`), one by an argument about where `exit()`
+is called from (the demo's `atexit_b` hook), and exactly one by nothing.**
 That last one is `Text.requestLayout` and it is the only live trap; the other
 two are recorded so that a reader greping for `assumeIsolated` finds an
 explanation at each hit rather than one unexplained and one documented.
@@ -3427,8 +3428,14 @@ Task 7's review round (both shaping caches bounded by a generation sweep). Task
 the axis clause (MP-M), `Deferred`'s layout-phase escape (MP-N) and divergence
 14's deliberately-wrong pin (MP-L) — and two in `ShapingCacheTests`, one pinning
 `staleAfterGenerations` at exactly 2 from both sides and one pinning that
-`Shaper.unbreakableRunCalls` ignores calls made off the main thread, which is
-what makes it safe to be a plain counter at all. **Goldens did not move at any
+`Shaper.unbreakableRunCalls` ignored calls made off the main thread — the
+guard that made a bare `@MainActor` global safe from a *nonisolated* caller
+at the time. **Both the symbol and that guard are gone now**: the
+tokenizer-counter flake fix replaced the global with a task-local sink
+(`Shaper.runCallCounter`, `UnbreakableRuns.swift`) and renamed the pinning
+test, because the guard never protected against two `@MainActor` tests
+racing each other's own window — see that fix's own record for the measured
+flake this closes. **Goldens did not move at any
 point in this milestone: 81 before, 81 after, and no existing golden file
 modified** — which is the milestone's own second exit
 criterion, since it touches the measure path and a moved golden would mean

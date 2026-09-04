@@ -158,15 +158,19 @@ extension Shaper {
     /// serialise the *tests*, and Swift Testing runs `@MainActor` tests as
     /// separate tasks that interleave on the main actor at every suspension
     /// point. Under a plain, parallel `swift test` — not `--no-parallel` —
-    /// that is exactly what a shared global lets happen: measured,
-    /// `theRunCounterIgnoresCallsMadeOffTheMainThread`'s neighbour
-    /// `aMinContentHitReStampsSoItSurvivesASweepingLoad` (or another
-    /// `@MainActor` test's own reset-and-assert window) failed **3 of 5**
-    /// runs at one commit and **1 of 3** at a later one, always with the
-    /// count *higher* than expected by exactly the calls a second test's
-    /// window contributed. `--no-parallel` passed every time, which is why
-    /// this went unnoticed for as long as it did: nobody who saw it fail was
-    /// running tests the way `swift test` runs them by default.
+    /// that is exactly what a shared global let happen: measured directly at
+    /// this repo's HEAD before this fix, **`theRunCounterIgnoresCallsMadeOffTheMainThread`
+    /// itself** — the very test that was supposed to demonstrate main-thread
+    /// isolation — failed **8 of 10** plain `swift test` runs, both of its
+    /// own assertions, always with the count *higher* than expected by
+    /// exactly the calls another `@MainActor` test's window contributed.
+    /// (Two earlier, smaller samples — **3 of 5** and **1 of 3** — came from
+    /// an earlier session's dispatch rather than from a re-measurement here;
+    /// they are the same failure, on the same test, and are superseded by
+    /// the 8/10 figure rather than added to it.) `--no-parallel` passed every
+    /// time, which is why this went unnoticed for as long as it did: nobody
+    /// who saw it fail was running tests the way `swift test` runs them by
+    /// default.
     ///
     /// **So the fix is scope rather than isolation.** ``runCallCounter`` is a
     /// `@TaskLocal`: `nil` in production and in any test that never binds it,
@@ -186,19 +190,31 @@ extension Shaper {
     /// closure does not inherit the binding by design, so its calls are
     /// invisible to the counter the calling task bound; a `TaskGroup` child
     /// — off the main actor, still inheriting — is counted.
-    public final class RunCallCounter: @unchecked Sendable {
+    final class RunCallCounter: @unchecked Sendable {
         private let lock = NSLock()
         private var n = 0
-        func bump() { lock.lock(); n += 1; lock.unlock() }
+        func bump() { lock.lock(); defer { lock.unlock() }; n += 1 }
         /// The number of ``Shaper/unbreakableRuns(of:)`` calls made while
         /// this instance was bound to ``Shaper/runCallCounter``.
-        public var count: Int { lock.lock(); defer { lock.unlock() }; return n }
-        public init() {}
+        var count: Int { lock.lock(); defer { lock.unlock() }; return n }
+        init() {}
     }
 
     /// The counter, if any, that the calling task — or the task it was
     /// created from, transitively, unless a `Task.detached` broke the chain
     /// — has bound via `$runCallCounter.withValue(_:operation:)`. `nil` in
     /// production, where nothing ever binds it.
-    @TaskLocal public static var runCallCounter: RunCallCounter?
+    ///
+    /// **`internal`, deliberately — this is a test instrument, not API.**
+    /// Both test targets that use it (`Tests/MetalUITextTests`,
+    /// `Tests/MetalUITests`) import `MetalUIText` with `@testable`, which
+    /// widens `internal` to visible; nothing needs `public` here, and the
+    /// symbols this replaces (`unbreakableRunCalls`, `resetUnbreakableRunCalls`)
+    /// were both `internal` too. Verified: narrowing all four declarations in
+    /// this type (the class, `count`, `init()`, this property) from `public`
+    /// to `internal` builds clean and the suite still passes 811/811 — no
+    /// `swiftc -typecheck` guard is added for it, because this restores the
+    /// original access level rather than making a new claim the way the
+    /// `LayoutPass` narrowing did, and no test ever depended on the wider one.
+    @TaskLocal static var runCallCounter: RunCallCounter?
 }

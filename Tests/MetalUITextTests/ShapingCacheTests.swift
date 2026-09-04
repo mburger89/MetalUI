@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import MetalUIText
 
@@ -300,6 +301,14 @@ private func touchLiveFillers(_ cache: ShapingCache, count: Int, tag: String) {
 /// See ``Shaper/runCallCounter``'s doc comment for the data race the
 /// `@MainActor` global replaced, and for the cross-test flake replacing the
 /// global with a task-local sink was written to fix.
+/// `Thread.isMainThread` is `NS_SWIFT_UNAVAILABLE_FROM_ASYNC` — the compiler
+/// refuses it directly inside an `async` closure body — so this indirection
+/// is what lets `aCounterOnlyCountsCallsWithinItsOwnBinding` assert it from
+/// inside a `TaskGroup` child. The function itself is synchronous, so the
+/// read is not "from an async context" as far as the compiler is concerned;
+/// only the *call site* is async.
+private func synchronouslyIsMainThread() -> Bool { Thread.isMainThread }
+
 @MainActor
 @Test func aCounterOnlyCountsCallsWithinItsOwnBinding() async {
     let detachedCounter = Shaper.RunCallCounter()
@@ -317,7 +326,14 @@ private func touchLiveFillers(_ cache: ShapingCache, count: Int, tag: String) {
     let inheritedCounter = Shaper.RunCallCounter()
     await Shaper.$runCallCounter.withValue(inheritedCounter) {
         await withTaskGroup(of: Void.self) { group in
-            group.addTask { _ = Shaper.unbreakableRuns(of: "inherited, off the main actor") }
+            group.addTask {
+                // The property that makes this half a positive control: if a
+                // toolchain change ever made `addTask`'s closure inherit the
+                // enclosing `@MainActor` isolation, this test would stay
+                // green while no longer testing what its comment claims.
+                #expect(!synchronouslyIsMainThread())
+                _ = Shaper.unbreakableRuns(of: "inherited, off the main actor")
+            }
             await group.waitForAll()
         }
     }
