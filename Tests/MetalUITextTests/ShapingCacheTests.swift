@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import MetalUIText
 
@@ -65,10 +66,12 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
     let s = "Row 1 of 40 — a scrollable list item"
 
     _ = cache.minContentWidth(s, font: font)
-    Shaper.resetUnbreakableRunCalls()
-    let second = cache.minContentWidth(s, font: font)
+    let counter = Shaper.RunCallCounter()
+    let second = Shaper.$runCallCounter.withValue(counter) {
+        cache.minContentWidth(s, font: font)
+    }
 
-    #expect(Shaper.unbreakableRunCalls == 0)
+    #expect(counter.count == 0)
     // The memo must return the same number it computed, not a fresh zero.
     #expect(second == cache.minContentWidth(s, font: font))
     #expect(second > 0)
@@ -167,14 +170,17 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
 /// re-stamp would let it go stale and fall out, and the next lookup would
 /// retokenize.
 ///
-/// **The tokenizer-call counter is one global across every main-thread caller
-/// (see `Shaper.unbreakableRunCalls`), and a filler `minContentWidth`
-/// call is a genuine miss on every iteration**, so it moves the same
-/// counter `target`'s own re-tokenization would. Isolating `target`'s
-/// contribution means resetting the counter immediately before touching
-/// `target` each iteration and reading it back before touching filler —
-/// a `#expect` inside the loop rather than one global count after it, for
-/// exactly that reason.
+/// **The tokenizer-call counter is now a task-local sink each caller binds
+/// its own instance of (see `Shaper.runCallCounter`), which is what lets
+/// `target`'s contribution be isolated without a reset-and-check dance.** A
+/// filler `minContentWidth` call is a genuine miss on every iteration, but it
+/// is made with no counter bound at all, so it is simply not observed —
+/// unlike the old global, where every main-thread caller moved the same
+/// counter and isolating `target`'s call meant resetting immediately before
+/// it and reading back before touching filler. A fresh counter is still
+/// bound around each iteration's `target` lookup, and the assertion still
+/// lives inside the loop, because what is being pinned is "no retokenization
+/// on frame `i`" rather than a single total.
 @MainActor
 @Test func aMinContentHitReStampsSoItSurvivesASweepingLoad() {
     let cache = ShapingCache()
@@ -186,9 +192,11 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
 
     for i in 0..<(ShapingCache.sweepThreshold * 2) {
         cache.beginFrame()
-        Shaper.resetUnbreakableRunCalls()
-        _ = cache.minContentWidth(target, font: font)
-        #expect(Shaper.unbreakableRunCalls == 0, "target retokenized on frame \(i)")
+        let counter = Shaper.RunCallCounter()
+        Shaper.$runCallCounter.withValue(counter) {
+            _ = cache.minContentWidth(target, font: font)
+        }
+        #expect(counter.count == 0, "target retokenized on frame \(i)")
         _ = cache.minContentWidth("filler \(i) of 4000 — a scrollable list item", font: font)
         cache.endFrame()
     }
@@ -228,9 +236,10 @@ private func touchLiveFillers(_ cache: ShapingCache, count: Int, tag: String) {
 ///   sweep ending `G+3` has cutoff `G` or lower and keeps it.
 ///
 /// Both halves read the tokenizer counter rather than `hits`/`misses`, since a
-/// re-shape after eviction is precisely a re-tokenization; the counter is reset
-/// immediately before the probed lookup so the live fillers' own genuine misses
-/// on the same frame cannot be mistaken for the target's.
+/// re-shape after eviction is precisely a re-tokenization; a fresh counter is
+/// bound immediately around the probed lookup alone, so the live fillers'
+/// own genuine misses on the same frame — made with no counter bound — are
+/// never observed and cannot be mistaken for the target's.
 @MainActor
 @Test func anEntrySurvivesExactlyTwoUntouchedSweptFrames() {
     let fillers = ShapingCache.sweepThreshold + 4
@@ -242,9 +251,11 @@ private func touchLiveFillers(_ cache: ShapingCache, count: Int, tag: String) {
         if frame == 1 { _ = survives.minContentWidth("target one", font: font) }
         touchLiveFillers(survives, count: fillers, tag: "a")
         if frame == 4 {
-            Shaper.resetUnbreakableRunCalls()
-            _ = survives.minContentWidth("target one", font: font)
-            #expect(Shaper.unbreakableRunCalls == 0,
+            let counter = Shaper.RunCallCounter()
+            Shaper.$runCallCounter.withValue(counter) {
+                _ = survives.minContentWidth("target one", font: font)
+            }
+            #expect(counter.count == 0,
                     "an entry untouched for two swept frames must still be cached")
         }
         survives.endFrame()
@@ -257,38 +268,75 @@ private func touchLiveFillers(_ cache: ShapingCache, count: Int, tag: String) {
         if frame == 1 { _ = evicted.minContentWidth("target two", font: font) }
         touchLiveFillers(evicted, count: fillers, tag: "b")
         if frame == 5 {
-            Shaper.resetUnbreakableRunCalls()
-            _ = evicted.minContentWidth("target two", font: font)
-            #expect(Shaper.unbreakableRunCalls == 1,
+            let counter = Shaper.RunCallCounter()
+            Shaper.$runCallCounter.withValue(counter) {
+                _ = evicted.minContentWidth("target two", font: font)
+            }
+            #expect(counter.count == 1,
                     "an entry untouched for three swept frames must have been evicted")
         }
         evicted.endFrame()
     }
 }
 
-/// **What makes `Shaper.unbreakableRunCalls` safe to be a plain `var` at all**,
-/// and it is not the `@MainActor` annotation by itself: that stops a foreign
-/// *read*, and the write is inside a `nonisolated public` function any executor
-/// may call. The `Thread.isMainThread` guard at the increment is the half that
-/// closes it, and this is what would notice its removal — without the guard,
-/// `MainActor.assumeIsolated` on a cooperative thread traps outright, so this
-/// test fails loudly rather than silently counting.
+/// **Replaces `theRunCounterIgnoresCallsMadeOffTheMainThread`, whose name
+/// stopped describing what the counter guarantees once it stopped being a
+/// `@MainActor` global.** That test pinned "a call from another executor is
+/// never counted" — true of the old main-thread guard, and no longer true at
+/// all: `Shaper.runCallCounter` is a `@TaskLocal`, so a call made from any
+/// executor counts as long as the task making it inherited the binding. What
+/// is invariant now is **scope**, not thread, and this test pins that
+/// instead.
 ///
-/// See `unbreakableRunCalls`' doc comment for the data race this replaced: a
-/// count that moved under a `@MainActor` test's reset-and-assert window because
-/// an unrelated nonisolated test was tokenizing at the same moment.
-@MainActor
-@Test func theRunCounterIgnoresCallsMadeOffTheMainThread() async {
-    Shaper.resetUnbreakableRunCalls()
-    await Task.detached {
-        for _ in 0..<50 { _ = Shaper.unbreakableRuns(of: "off the main thread entirely") }
-    }.value
-    #expect(Shaper.unbreakableRunCalls == 0,
-            "a call from another executor must not move the counter a @MainActor reader owns")
+/// - **A `Task.detached` closure does not inherit the binding**, by
+///   design — detached tasks start with no inherited task-local state — so
+///   50 calls made there are invisible to a counter bound in the calling
+///   task, regardless of which thread they run on.
+/// - **A `TaskGroup` child DOES inherit it**, and runs off the main actor
+///   while doing so — `addTask`'s closures are not actor-isolated to their
+///   parent — so a call made there still counts. This is the half that would
+///   have failed under the old main-thread guard and is exactly the
+///   behaviour change ``Shaper/runCallCounter``'s doc comment calls out.
+///
+/// See ``Shaper/runCallCounter``'s doc comment for the data race the
+/// `@MainActor` global replaced, and for the cross-test flake replacing the
+/// global with a task-local sink was written to fix.
+/// `Thread.isMainThread` is `NS_SWIFT_UNAVAILABLE_FROM_ASYNC` — the compiler
+/// refuses it directly inside an `async` closure body — so this indirection
+/// is what lets `aCounterOnlyCountsCallsWithinItsOwnBinding` assert it from
+/// inside a `TaskGroup` child. The function itself is synchronous, so the
+/// read is not "from an async context" as far as the compiler is concerned;
+/// only the *call site* is async.
+private func synchronouslyIsMainThread() -> Bool { Thread.isMainThread }
 
-    // The positive control: the same call ON the main thread does count, so
-    // this is a test about isolation rather than about a counter that stopped
-    // counting.
-    _ = Shaper.unbreakableRuns(of: "on the main thread")
-    #expect(Shaper.unbreakableRunCalls == 1)
+@MainActor
+@Test func aCounterOnlyCountsCallsWithinItsOwnBinding() async {
+    let detachedCounter = Shaper.RunCallCounter()
+    await Shaper.$runCallCounter.withValue(detachedCounter) {
+        await Task.detached {
+            for _ in 0..<50 { _ = Shaper.unbreakableRuns(of: "off the main thread entirely") }
+        }.value
+    }
+    #expect(detachedCounter.count == 0,
+            "a detached task does not inherit the binding, so its calls must be invisible to it")
+
+    // The positive control: a call made by a task that DID inherit the
+    // binding counts even though it did not run on the main actor — this is
+    // a test about the binding's scope, not about main-thread isolation.
+    let inheritedCounter = Shaper.RunCallCounter()
+    await Shaper.$runCallCounter.withValue(inheritedCounter) {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                // The property that makes this half a positive control: if a
+                // toolchain change ever made `addTask`'s closure inherit the
+                // enclosing `@MainActor` isolation, this test would stay
+                // green while no longer testing what its comment claims.
+                #expect(!synchronouslyIsMainThread())
+                _ = Shaper.unbreakableRuns(of: "inherited, off the main actor")
+            }
+            await group.waitForAll()
+        }
+    }
+    #expect(inheritedCounter.count == 1,
+            "a non-detached child task inherits the binding, so its call must count")
 }

@@ -1256,42 +1256,61 @@ a test that got this wrong would crash the run rather than redden. If layout
 ever moves off the main actor, the measure closure is the first thing to
 rewrite.
 
-**That paragraph named ONE `assumeIsolated` site and there are FOUR, which is
-why they are listed together (ruling `RX-J`).** A section naming one of four
-reads as though the others were a different kind of thing. Re-counted on
-2026-09-02 with `grep -rn "assumeIsolated" Sources/`, which returned eleven
-lines of which **four are calls**. Run it and read the lines rather than
-trusting the eleven — seven of them are doc comments and that half moves
-whenever the prose does, which is the failure the `evictUnusedSince` row below
-was caught by twice. **"Four call sites" is the claim**; here they are:
+**That paragraph named ONE `assumeIsolated` site and there were FOUR for one
+milestone; it is THREE now, and the fourth's removal is the point of this
+correction rather than a quiet renumbering (ruling `RX-J`, amended by the
+tokenizer-counter flake fix).** A section naming one of several reads as
+though the others were a different kind of thing, which is why they are
+listed together at all. Re-counted with `grep -rn "assumeIsolated" Sources/`,
+which returns **seven** lines today, of which **three are calls** — down from
+eleven and four at the count this paragraph originally took. Run it and read
+the lines rather than trusting either number — most of them are doc comments
+and that half moves whenever the prose does, which is the failure the
+`evictUnusedSince` row below was caught by twice. **"Three call sites" is the
+claim**; here they are:
 
 - **`Sources/MetalUI/Text.swift:217`** — the live trap the paragraph above
   describes. **Unguarded**, and sound only by the `computeLayout`-runs-on-the-
   caller's-thread argument. This is the one to rewrite.
-- **`Sources/MetalUIText/UnbreakableRuns.swift:110`** — **pre-existing and
-  never named here before.** Guarded by `if Thread.isMainThread`, so the
-  assumption cannot fail; it increments the `unbreakableRunCalls` instrument,
-  which is `@MainActor` precisely so every write and read happen on one thread.
-  Its own doc comment already carries the measurement — delete the guard and
-  `theRunCounterIgnoresCallsMadeOffTheMainThread` does not redden, it takes the
-  process down with signal 5.
-- **`Window.markDirtyFromObservation`** (`Sources/MetalUI/Window.swift`) — new
-  2026-09-02, inside its synchronous branch. Guarded by the same
-  `Thread.isMainThread` predicate, with the `Task { @MainActor }` fallback as
-  the other arm. Collapsing the two arms to this one alone is the SIGTRAP result
-  recorded in the reactivity bullet.
+- **`Window.markDirtyFromObservation`** (`Sources/MetalUI/Window.swift`) —
+  inside its synchronous branch. Guarded by a `Thread.isMainThread` predicate,
+  with the `Task { @MainActor }` fallback as the other arm. Collapsing the two
+  arms to this one alone is the SIGTRAP result recorded in the reactivity
+  bullet.
 - **The demo's `atexit_b` counter-summary hook** —
   `atexit_b { MainActor.assumeIsolated { printReactivitySummary() } }` in
-  `Sources/MetalUIDemo/main.swift` — new 2026-09-02. Safe because `atexit` handlers run on the
+  `Sources/MetalUIDemo/main.swift` — safe because `atexit` handlers run on the
   thread that calls `exit()` and both quit paths (the **Q** binding and the
   window's close button) go through `NSApplication.shared.terminate(nil)` on the
   main thread.
 
-**Two of the four are guarded by `Thread.isMainThread`, one by an argument about
-where `exit()` is called from, and exactly one by nothing.** That last one is
-`Text.requestLayout` and it is the only live trap; the other three are recorded
-so that a reader greping for `assumeIsolated` finds an explanation at each hit
-rather than three unexplained ones and one documented.
+**The fourth — `Sources/MetalUIText/UnbreakableRuns.swift`'s
+`unbreakableRunCalls` guard — is GONE, and it was removed rather than fixed in
+place, because the guard it sat under was never the actual defect.** It read
+"Guarded by `if Thread.isMainThread`, so the assumption cannot fail," and that
+was true and beside the point: the guard made the *write* safe from a
+nonisolated caller, but the counter it protected was a `@MainActor` **global**,
+and two `@MainActor` **tests** running under a plain, parallel `swift test`
+could still race each other's reset-and-assert windows on it — measured, **8
+of 10** runs of `theRunCounterIgnoresCallsMadeOffTheMainThread` failed under
+plain `swift test` at this repo's HEAD before the fix, always with the count
+higher than expected. `--no-parallel` never reproduced it, which is why the
+flake stood unnoticed. The fix replaced the `@MainActor` global and its
+`Thread.isMainThread`/`assumeIsolated` guard with a `@TaskLocal`
+`Shaper.runCallCounter: RunCallCounter?` each caller binds its own instance
+of — visible only within the binding task and its non-detached children, so
+concurrent tests cannot see each other's window at all. With no shared mutable
+state left to protect, there is nothing for `assumeIsolated` to guard, and the
+call site is gone rather than re-guarded. See `UnbreakableRuns.swift`'s own
+doc comment for the full correction, kept in place with the superseded
+reasoning still visible rather than deleted.
+
+**One of the three remaining is guarded by `Thread.isMainThread`
+(`Window.markDirtyFromObservation`), one by an argument about where `exit()`
+is called from (the demo's `atexit_b` hook), and exactly one by nothing.**
+That last one is `Text.requestLayout` and it is the only live trap; the other
+two are recorded so that a reader greping for `assumeIsolated` finds an
+explanation at each hit rather than one unexplained and one documented.
 
 **Clipping and scroll verified on 2026-08-28 — this milestone's exit criterion,
 and it took three looks to close.** A human ran `swift run MetalUIDemo` and
@@ -3409,8 +3428,14 @@ Task 7's review round (both shaping caches bounded by a generation sweep). Task
 the axis clause (MP-M), `Deferred`'s layout-phase escape (MP-N) and divergence
 14's deliberately-wrong pin (MP-L) — and two in `ShapingCacheTests`, one pinning
 `staleAfterGenerations` at exactly 2 from both sides and one pinning that
-`Shaper.unbreakableRunCalls` ignores calls made off the main thread, which is
-what makes it safe to be a plain counter at all. **Goldens did not move at any
+`Shaper.unbreakableRunCalls` ignored calls made off the main thread — the
+guard that made a bare `@MainActor` global safe from a *nonisolated* caller
+at the time. **Both the symbol and that guard are gone now**: the
+tokenizer-counter flake fix replaced the global with a task-local sink
+(`Shaper.runCallCounter`, `UnbreakableRuns.swift`) and renamed the pinning
+test, because the guard never protected against two `@MainActor` tests
+racing each other's own window — see that fix's own record for the measured
+flake this closes. **Goldens did not move at any
 point in this milestone: 81 before, 81 after, and no existing golden file
 modified** — which is the milestone's own second exit
 criterion, since it touches the measure path and a moved golden would mean
