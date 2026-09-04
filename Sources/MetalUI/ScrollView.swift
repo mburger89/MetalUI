@@ -33,9 +33,9 @@ public struct ScrollState: Sendable {
     /// `timestamp - lastScrollTime` is small, ramping to invisible after.
     /// `Window.applyScroll` is the sole writer, stamping it from
     /// `ScrollEvent.timestamp` at the moment a wheel event lands — not from
-    /// the display link's `lastTick`, which is frozen at whatever instant the
-    /// last frame ran and goes stale for as long as the link is paused while
-    /// idle (spec §4.4).
+    /// the display link's `lastTick`, which holds the *target* presentation
+    /// instant for whichever frame is currently being built (spec §4.4) and
+    /// goes stale for as long as the link is paused while idle.
     public var lastScrollTime: Double = 0
 
     /// The viewport's extent along the scroll axis, as of the last `prepaint`

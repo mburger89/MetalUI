@@ -927,9 +927,13 @@ public final class Window {
             // indicator on the very frame meant to show it. `event.timestamp`
             // and `PaintPass.timestamp` (from the display link) share
             // `mach_absolute_time`'s base, so the subtraction stays valid —
-            // and the event's own time is also simply more current than
-            // `lastTick`, which is the *previous* frame's instant, even when
-            // not idle.
+            // and `lastTick` is not a usable stand-in for "now" in either
+            // direction: it is the display link's *target* presentation
+            // instant (spec §4.4), so while the link is running it sits
+            // roughly one frame interval AHEAD of the event's own timestamp,
+            // and while paused it is however many seconds behind. The event's
+            // own timestamp is the only one of the two that is actually
+            // current.
             $0.lastScrollTime = event.timestamp
         }
         return true
