@@ -206,3 +206,239 @@ private func rect(_ b: Bounds<Pixels>) -> (Float, Float, Float, Float) {
 
     #expect(frame.tree.nodeCount == bareFrame.tree.nodeCount)
 }
+
+// MARK: - Identity opacity: `@State` inside a component
+
+/// `@Binding` does not exist in this framework — `grep -rn "propertyWrapper"
+/// Sources/MetalUI/` finds exactly one `@propertyWrapper`, `State.swift:39`.
+/// So this component takes the brief's stated fallback: it increments its own
+/// `@State` directly inside `content`'s getter, rather than handing a binding
+/// down to a child leaf. That is safe only because `content` is materialized
+/// **exactly once per frame** — `requestGroupLayout` evaluates the getter once
+/// and stashes the result in `ComponentLayout.content` (spec §4.2); a getter
+/// re-evaluated by `prepaintGroup` would double-count, which is exactly what
+/// `contentIsMaterializedExactlyOncePerFrame` below is watching for.
+///
+/// `content` also returns `EmptyGroup()` — the component's own `@State` and
+/// its identity level do not depend on `content` producing any layout nodes at
+/// all, and `anEmptyComponentStillHoldsItsOwnState` below already covers that
+/// shape on its own type. `log`/`name` are kept only to match the brief's call
+/// sites (`Counter("a", log: log)`); this file does not assert on `log`.
+private struct Counter: Component {
+    @State var count = 0
+    var elementID: ElementID?
+    let log: ComponentLog
+    let name: String
+
+    init(_ name: String, log: ComponentLog, elementID: ElementID? = nil) {
+        self.name = name
+        self.log = log
+        self.elementID = elementID
+    }
+
+    var content: some ElementGroup {
+        count += 1
+        log.registered.append(name)
+        return EmptyGroup()
+    }
+}
+
+/// A plain `Element` with one `@State` slot, incremented in `requestLayout` —
+/// copied from `StateTests.swift:77`'s `CounterElement` rather than widening
+/// that type's access level.
+private struct CounterLeaf: Element {
+    @State var count = 0
+    var elementID: ElementID?
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Int) {
+        count += 1
+        var style = Style()
+        style.size = Size(width: .length(.pixels(px(10))), height: .length(.pixels(px(10))))
+        return (pass.requestNode(style: style, children: []), 0)
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                  layout: inout Int, pass: inout PrepaintPass) -> Int { 0 }
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+               layout: inout Int, prepaint: inout Int, pass: inout PaintPass) {}
+}
+
+/// Spec §6 assertion 3. The component's own `@State` must survive across
+/// frames, which requires its own `GlobalElementID`, which is what the
+/// extension's `cursor += 1` buys.
+@MainActor
+@Test func aComponentsOwnStateSurvivesAcrossFrames() {
+    let table = StateTable()
+    let size = Size<Pixels>(width: px(100), height: px(100))
+    var tree = Box(content: Counter("c", log: ComponentLog()))
+
+    for _ in 0..<3 {
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
+    }
+
+    #expect(tree.content.count == 3,
+            "the component's own @State must accumulate, not reset; got \(tree.content.count)")
+}
+
+/// Spec §6 assertion 4. Two sibling instances of the same component type hold
+/// INDEPENDENT state. This is what the outer `cursor += 1` and the fresh
+/// `innerCursor` buy together — a shared cursor collides them, and each would
+/// read 6 or 0 rather than 3.
+@MainActor
+@Test func twoSiblingComponentsHoldIndependentState() {
+    let table = StateTable()
+    let size = Size<Pixels>(width: px(100), height: px(100))
+    let log = ComponentLog()
+    var tree = Box {
+        Counter("a", log: log)
+        Counter("b", log: log)
+    }
+
+    for _ in 0..<3 {
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
+    }
+
+    #expect(tree.content.first.count == 3, "got \(tree.content.first.count)")
+    #expect(tree.content.second.count == 3, "got \(tree.content.second.count)")
+}
+
+/// Spec §6 assertion 5, both halves in one test, because the ASYMMETRY is the
+/// evidence — the pattern `namingTheLaterSiblingIsWhatSurvivesAVanishingIf`
+/// already uses. A named component keeps its own count through a swap; an
+/// unnamed one's count follows the position.
+@MainActor
+@Test func aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot() {
+    let size = Size<Pixels>(width: px(100), height: px(100))
+
+    // Named: the counts travel with the names.
+    let namedTable = StateTable()
+    let log = ComponentLog()
+    var forward = Box {
+        Counter("a", log: log, elementID: ElementID("a"))
+        Counter("b", log: log, elementID: ElementID("b"))
+    }
+    Frame(contentSize: size, scaleFactor: 1, stateTable: namedTable).render(&forward)
+    Frame(contentSize: size, scaleFactor: 1, stateTable: namedTable).render(&forward)
+
+    var swapped = Box {
+        Counter("b", log: log, elementID: ElementID("b"))
+        Counter("a", log: log, elementID: ElementID("a"))
+    }
+    Frame(contentSize: size, scaleFactor: 1, stateTable: namedTable).render(&swapped)
+
+    #expect(swapped.content.first.count == 3, "\"b\" kept its own slot across the swap")
+    #expect(swapped.content.second.count == 3, "\"a\" kept its own slot across the swap")
+
+    // Unnamed: the counts stay with the POSITIONS, so the swap is invisible to
+    // the table and both still read 3 — but for the opposite reason. To make
+    // the asymmetry observable, give the two different starting counts by
+    // rendering the unnamed pair an unequal number of times before swapping.
+    let unnamedTable = StateTable()
+    var first = Box { Counter("a", log: log) }
+    Frame(contentSize: size, scaleFactor: 1, stateTable: unnamedTable).render(&first)
+    Frame(contentSize: size, scaleFactor: 1, stateTable: unnamedTable).render(&first)
+
+    var pair = Box {
+        Counter("x", log: log)
+        Counter("y", log: log)
+    }
+    Frame(contentSize: size, scaleFactor: 1, stateTable: unnamedTable).render(&pair)
+
+    // Position 0 inherits the slot the single unnamed component built up.
+    #expect(pair.content.first.count == 3,
+            "an unnamed component at position 0 ADOPTS the slot a previous unnamed component at position 0 left; got \(pair.content.first.count)")
+    #expect(pair.content.second.count == 1,
+            "position 1 is fresh; got \(pair.content.second.count)")
+}
+
+/// Spec §4.3 second half. A childless component still has an identity level,
+/// so its own `@State` still works.
+@MainActor
+@Test func anEmptyComponentStillHoldsItsOwnState() {
+    struct Quiet: Component {
+        @State var count = 0
+        var elementID: ElementID?
+        var content: some ElementGroup {
+            count += 1
+            return EmptyGroup()
+        }
+    }
+
+    let table = StateTable()
+    let size = Size<Pixels>(width: px(100), height: px(100))
+    var tree = Box(content: Quiet())
+
+    for _ in 0..<3 {
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
+    }
+
+    #expect(tree.content.count == 3, "got \(tree.content.count)")
+}
+
+/// Spec §4.2's load-bearing line: the content is reached through
+/// `requestGroupLayout`, which is what calls `StateBinder.bind` for every
+/// element inside it. Forwarding to `requestLayout` instead is the live
+/// `AnyElement` defect — `@State` returns its initial value forever, with no
+/// diagnostic.
+///
+/// **This and `aComponentsOwnStateSurvivesAcrossFrames` must be reddened by
+/// DIFFERENT mutations**, or one of the two is proving less than it claims.
+@MainActor
+@Test func stateInsideAComponentsContentIsAlsoSeeded() {
+    struct Wrapper: Component {
+        let inner: CounterLeaf
+        var elementID: ElementID?
+        var content: some ElementGroup { inner }
+    }
+
+    let table = StateTable()
+    let size = Size<Pixels>(width: px(100), height: px(100))
+    var tree = Box(content: Wrapper(inner: CounterLeaf()))
+
+    for _ in 0..<3 {
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
+    }
+
+    #expect(tree.content.inner.count == 3,
+            "@State inside a component's CONTENT must be seeded too; got \(tree.content.inner.count)")
+}
+
+/// Added by Task 2 beyond the brief's five: without this, `prepaintGroup`
+/// re-evaluating `content` instead of using the stashed `layout.content`
+/// reddens nothing — a re-materialized struct has an unbound `@State` box, and
+/// none of the other tests in this file reads state during prepaint. `calls`
+/// is a plain `@MainActor` class the test owns, not `@State`, so it observes
+/// materialization itself rather than a value `@State` happens to carry.
+@MainActor
+@Test func contentIsMaterializedExactlyOncePerFrame() {
+    struct Once: Component {
+        let calls: CallCounter
+        var elementID: ElementID?
+        var content: some ElementGroup {
+            calls.count += 1
+            return EmptyGroup()
+        }
+    }
+
+    let table = StateTable()
+    let size = Size<Pixels>(width: px(100), height: px(100))
+    let calls = CallCounter()
+    var tree = Box(content: Once(calls: calls))
+
+    let frameCount = 5
+    for _ in 0..<frameCount {
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&tree)
+    }
+
+    #expect(calls.count == frameCount,
+            "content must be materialized exactly once per frame; got \(calls.count)")
+}
+
+/// Plain call counter for `contentIsMaterializedExactlyOncePerFrame` —
+/// deliberately not `@State`, since the point is to observe how many times
+/// the `content` getter itself runs, independent of any state seeding.
+@MainActor
+private final class CallCounter {
+    var count = 0
+}

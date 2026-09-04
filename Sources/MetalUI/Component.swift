@@ -83,12 +83,64 @@ extension Component {
         // Binds the COMPONENT's own `@State`. Nothing else does this for a
         // component: `Element`'s default `requestGroupLayout` is not reached,
         // because a `Component` is not an `Element`.
+        //
+        // MUTATION (Task 2 Step 4, first mutation): deleting this call
+        // reddens 5 of `ComponentTests`' 8 issues on the full 801-test suite —
+        // `aComponentsOwnStateSurvivesAcrossFrames`,
+        // `twoSiblingComponentsHoldIndependentState`,
+        // `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`
+        // and `anEmptyComponentStillHoldsItsOwnState` all read back **0**
+        // where they expect 3 (or 1) — not the brief's predicted `[1, 1, 1]`,
+        // because an unbound `@State`'s writes are discarded outright
+        // (`anUnboundStateReturnsItsInitialValueAndDiscardsWrites`,
+        // `StateTests.swift`), not merely un-persisted. `stateInsideAComponentsContentIsAlsoSeeded`
+        // and `contentIsMaterializedExactlyOncePerFrame` stay green — the
+        // discriminating result this mutation exists to produce.
         StateBinder.bind(self, table: pass.frame.stateTable, id: id)
 
         // One index from the PARENT's cursor, and a fresh cursor for the
         // content. Threading the outer cursor into the content instead would
         // give the content its siblings' positions and silently collide their
         // state.
+        //
+        // MUTATION (Task 2 Step 5): dropping `var innerCursor = 0` and
+        // threading `&cursor` into the content call below instead reddened
+        // **nothing** — full 801-test suite, 0 issues, run twice. Measured,
+        // not predicted, and it is `twoSiblingComponentsHoldIndependentState`
+        // itself that cannot see it (ruling `MP-J`'s shape): that test
+        // renders ONE fixed tree shape three times against one `StateTable`,
+        // and a component's own id is computed from `cursor` **before**
+        // `content` ever runs, so sharing the counter with content only
+        // shifts every later sibling's id by a constant that is identical on
+        // every one of the three frames — self-consistent, not colliding.
+        // Confirmed by two further probes, both still green: giving
+        // `Counter.content` an actual cursor-consuming leaf instead of
+        // `EmptyGroup()` (so the shared cursor is genuinely read, not just
+        // ignored — `EmptyGroup.requestGroupLayout` provably never touches
+        // its `cursor` argument at all, so the unmodified fixture's green
+        // result was guaranteed rather than merely unlucky), and comparing
+        // against `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`'s
+        // own two-DIFFERENT-tree-shapes-one-table pattern, which is the shape
+        // that would be needed to observe a real collision and which no test
+        // in this file runs against `TwoLeaves`/`Counter` together. This is
+        // the fixture-cannot-express-the-defect finding the brief names as a
+        // live possibility, reported rather than forced.
+        //
+        // MUTATION (Task 2 Step 6): dropping this line reddens **4 issues**
+        // on the full 801-test suite — `twoSiblingComponentsHoldIndependentState`
+        // (both siblings COLLIDE onto one slot: `tree.content.first.count`
+        // and `.second.count` both read **6**, i.e. both writes land in the
+        // same entry and both siblings see every increment) and the UNNAMED
+        // half of `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`
+        // (`pair.content.first.count`/`.second.count` both read **4**, the
+        // same collision one level deeper — position 0 and 1 no longer
+        // differ). The NAMED half of that same test stays green, as
+        // expected: a name replaces a position rather than depending on
+        // `cursor`'s value at all. **This is a DIFFERENT set of failing
+        // tests than Step 5's** (which reddened nothing), so the two
+        // mutations are not equivalent — dropping `cursor += 1` is what
+        // actually collides siblings; sharing the counter with content alone
+        // does not, on any fixture in this file.
         cursor += 1
         var materialized = content
         var innerCursor = 0
@@ -98,6 +150,32 @@ extension Component {
         // CLAUDE.md's declared-but-inert table: `@State` returns its initial
         // value forever, with NO diagnostic, because nothing ever seeds its
         // box.
+        // MUTATION (Task 2 Step 4, second mutation): calling this recursive
+        // step TWICE on `materialized` (discarding the first call, resetting
+        // `innerCursor`, then calling again) — the smallest edit available
+        // that isolates the content-path binding from the component's own
+        // `StateBinder.bind` above without re-evaluating `content` a second
+        // time (re-evaluating `content` itself would ALSO double-increment
+        // `Counter`'s own `@State`, since this file's `Counter.content`
+        // getter is where that increment lives — see `Counter`'s doc — which
+        // would wrongly redden `aComponentsOwnStateSurvivesAcrossFrames` too
+        // and fail to discriminate the two mechanisms) reddens exactly
+        // `stateInsideAComponentsContentIsAlsoSeeded` (reads **6**, not 3 —
+        // each of `Wrapper`'s content elements is bound and incremented
+        // twice per frame) plus three PRE-EXISTING layout-transparency tests
+        // that also use a component whose content holds real leaves
+        // (`aComponentsContentFlattensIntoItsParent`,
+        // `aComponentContributesNoLayoutNodeOfItsOwn`,
+        // `aComponentInsideAComponentFlattensThroughBothLevels` — 5 nodes
+        // registered against an expected 3, doubled `registered` logs).
+        // `aComponentsOwnStateSurvivesAcrossFrames`,
+        // `twoSiblingComponentsHoldIndependentState`,
+        // `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`,
+        // `anEmptyComponentStillHoldsItsOwnState` and
+        // `contentIsMaterializedExactlyOncePerFrame` all stay green — `Counter`'s
+        // own `content` is `EmptyGroup()`, so nothing here can touch its own
+        // state regardless of how this recursive call is mutated, which is
+        // exactly the discriminating property Step 4 asks for.
         let (nodes, contentLayout) =
             materialized.requestGroupLayout(under: id, at: &innerCursor, pass: &pass)
 
