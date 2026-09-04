@@ -636,7 +636,7 @@ import MetalUILayout
 /// **The fix is to change the value DURING the churn window, not after
 /// it** — ruling R's mechanism. This version renders settled frames one at
 /// a time, checking after each sweep whether `$anim`'s own slot has become
-/// unreadable (`peek(slotID, as: AnimatedFieldMap.self) == nil`), and
+/// unreadable (`peek(slotID, as: AnimatedElementState.self) == nil`), and
 /// changes the declared value on the VERY NEXT `animated` call once that
 /// happens — the frame the bug can actually reach. Self-discovering rather
 /// than hardcoding "4": under ruling P's fix the entry is never reaped at
@@ -683,7 +683,7 @@ import MetalUILayout
         _ = animated(style, Decoration(), for: id, pass: &pass)
         for pad in paddingIDs { table.mark(pad) }
         table.sweep()
-        if table.peek(slotID, as: AnimatedFieldMap.self) == nil {
+        if table.peek(slotID, as: AnimatedElementState.self) == nil {
             reaped = true
             break
         }
@@ -739,13 +739,15 @@ import MetalUILayout
 /// site needs two independent `$anim` slots — see `ScrollView.requestLayout`'s
 /// comment). So there is no declared field a test can vary across frames the
 /// way it can for `Box`/`Stack`. Each is instead checked by pre-seeding an
-/// in-flight, unfinished `AnimatedFieldState` directly into the exact
-/// `$anim` slot that site's own wiring derives, targeting the value the site
-/// always declares (`flexShrink: 0` for the content node, `flexGrow: 0` —
-/// never explicitly set — for the viewport node). A wired site substitutes
-/// the still-interpolating value in; an unwired one hands the raw declared
-/// value straight through unchanged, which is exactly the differential a
-/// mutation that un-wires the site needs to redden.
+/// in-flight, unfinished `AnimatedFieldState` directly into the `inFlight`
+/// dictionary of an `AnimatedElementState` baseline written to the exact
+/// `$anim` slot that site's own wiring derives (ruling U's reshaped
+/// storage — `AnimatedStyle.swift`), targeting the value the site always
+/// declares (`flexShrink: 0` for the content node, `flexGrow: 0` — never
+/// explicitly set — for the viewport node). A wired site substitutes the
+/// still-interpolating value in; an unwired one hands the raw declared value
+/// straight through unchanged, which is exactly the differential a mutation
+/// that un-wires the site needs to redden.
 @Test @MainActor func everyRegisteringSiteAnimatesItsStyle() throws {
     func styled(flexGrow: Float) -> Style {
         var s = Style()
@@ -822,10 +824,18 @@ import MetalUILayout
         let id = eid("scroll-content")
         let animID = GlobalElementID.child(of: id, at: 0, name: ElementID("$anim-content"))
         let slot = animRetentionSlot(for: animID)
-        table.withState(slot, initial: AnimatedFieldMap()) {
-            $0["flexShrink"] = AnimatedFieldState(caseTag: 0, from: -100, to: 0, startTime: 0,
-                                                  animation: .linear(duration: 1), velocity: 0)
-        }
+        // Ruling U: the baseline `style` must match what `ScrollView` will
+        // actually declare for `contentStyle` this frame (a default `Style`
+        // with `flexShrink = 0`) so every OTHER field's native equality
+        // check short-circuits and only the pre-seeded `flexShrink` entry
+        // exercises the animation machinery.
+        var seedStyle = Style()
+        seedStyle.flexShrink = 0
+        let seed = AnimatedElementState(style: seedStyle, decoration: Decoration(), inFlight: [
+            "flexShrink": AnimatedFieldState(caseTag: 0, from: -100, to: 0, startTime: 0,
+                                             animation: .linear(duration: 1), velocity: 0)
+        ])
+        table.write(slot, seed)
 
         var pass = LayoutPass(frame: animFrame(table, timestamp: 0.5))
         var scroll = ScrollView { Box() }
@@ -844,10 +854,15 @@ import MetalUILayout
         let id = eid("scroll-viewport")
         let animID = GlobalElementID.child(of: id, at: 0, name: ElementID("$anim-viewport"))
         let slot = animRetentionSlot(for: animID)
-        table.withState(slot, initial: AnimatedFieldMap()) {
-            $0["flexGrow"] = AnimatedFieldState(caseTag: 0, from: -100, to: 0, startTime: 0,
-                                                animation: .linear(duration: 1), velocity: 0)
-        }
+        // Ruling U: `viewportStyle` never sets `flexGrow` explicitly, so the
+        // seeded baseline is a plain default `Style()` — matching what
+        // `ScrollView` will actually declare this frame, on the content
+        // node's footing above.
+        let seed = AnimatedElementState(style: Style(), decoration: Decoration(), inFlight: [
+            "flexGrow": AnimatedFieldState(caseTag: 0, from: -100, to: 0, startTime: 0,
+                                           animation: .linear(duration: 1), velocity: 0)
+        ])
+        table.write(slot, seed)
 
         var pass = LayoutPass(frame: animFrame(table, timestamp: 0.5))
         var scroll = ScrollView { Box() }
