@@ -295,7 +295,23 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     }
 
     @objc private func displayLinkFired() {
-        tick?(displayLink?.timestamp ?? 0)
+        // `targetTimestamp`, not `timestamp` (design spec §4.4). `timestamp` is
+        // when the *previous* frame was displayed; `targetTimestamp` is when
+        // the frame this callback is building is expected to be presented —
+        // one whole frame interval later (8.33 ms at 120 Hz). An animation
+        // evaluated against `timestamp` is a frame behind from the moment it
+        // reads the clock.
+        //
+        // The only current consumer is `ScrollView`'s indicator-fade age
+        // (`age = timestamp - lastScrollTime` in `ScrollView.paint`), so today
+        // this shifts that age by one frame interval — immaterial, unasserted,
+        // and invisible to a human. Unpinned: `CADisplayLink` cannot be driven
+        // from a test in this repo, and `FakePlatformWindow.simulateTick`
+        // supplies whatever timestamp a test chooses, so no assertion here can
+        // distinguish this clock from the one it replaces — the same footing
+        // CLAUDE.md already records for the display-link pause itself and for
+        // `NSTrackingArea`.
+        tick?(displayLink?.targetTimestamp ?? 0)
     }
 
     func windowWillClose(_ notification: Notification) {
