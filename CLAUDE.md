@@ -3532,8 +3532,11 @@ asserted the wrong answer on purpose, the divergence was fixed on 2026-08-30,
 and it was replaced by
 `paintWrapsAtTheWidthLayoutMeasuredAtNotTheRoundedBox`. The sentence is kept
 as the history it is — do not grep for the old name and conclude a test was
-lost.) Read the summary line, never
-the exit status — shape 11.
+lost.) Read the summary lines, never
+the exit status — shape 11. **This said "the summary line", singular, until
+the documentation task corrected it below (Build section): a current `swift
+test` prints one per test target — six today — and only their sum is the
+suite total.**
 The milestone started at **445** (M2's own end-of-milestone count) and climbed
 task by task: 451 after Task 1 (`DrawListTests`), 452 after Task 2, 455 after
 Task 3 (`ClipTests`), 458 after Task 4, 463 after Task 5 (`ClipStackTests`),
@@ -3602,7 +3605,7 @@ Four constraints that are easy to violate silently:
   see the difference, and a square containing block cannot.
 
 **Adding an AppKit or WebKit test? Run the WHOLE suite and read the summary
-line — `--filter` is a different program.** Every test target runs in **one
+lines — `--filter` is a different program.** Every test target runs in **one
 process**, so an AppKit test and the WebKit layout-oracle tests share a main run
 loop. That composition has already crashed the suite once: two
 `MetalUIPlatformTests` cases ended in `defer { nsWindow.close() }`, and
@@ -3619,7 +3622,46 @@ window and then drives the oracle crashes with no interleaving at all. The full
 write-up is under shape 11 in `docs/practices/verifying-tests-can-fail.md`; the
 short rule is that a test touching a process-wide host (AppKit windows, WebKit,
 CoreAnimation, the main run loop) is only verified by an unfiltered run whose
-count you read.
+counts you read.
+
+**"The summary line", singular, is now WRONG on this toolchain, and it was
+repeated in more than one place in this section before being caught.** A
+current `swift test` (verified 2026-09-03, Swift 6.3.3, six `.testTarget`
+declarations in `Package.swift`) prints one summary per test target rather than
+one for the whole run:
+
+```
+Test run with 47 tests in 0 suites passed after …
+Test run with 398 tests in 1 suite passed after …
+Test run with 50 tests in 0 suites passed after …
+Test run with 6 tests in 0 suites passed after …
+Test run with 288 tests in 0 suites passed after …
+Test run with 22 tests in 0 suites passed after …
+```
+
+47 + 398 + 50 + 6 + 288 + 22 = **811**, the count this file's Build section
+quotes — but reading only the instruction's literal "the summary line" sends a
+reader to the **last** one printed, which reads **22**. That is not a rounding
+error, it is the opposite conclusion from the one the old instruction was
+written to support: a reader who trusts it will believe the suite has
+collapsed from 811 to 22, which is a false alarm rather than a missed
+regression, and the worst possible one — it fires on every single healthy run,
+because the last target printed (`MetalUICoreTests`, 22 tests) is always the
+smallest. **The instruction's intent is unchanged and still correct — read the
+printed counts, never the exit status — only the number of lines to sum
+changed.** Sum them instead of reading one:
+
+```
+swift test --no-parallel 2>&1 | grep -oE "Test run with [0-9]+ tests" | grep -oE "[0-9]+" | paste -sd+ - | bc
+```
+
+**`--no-parallel` is still required, and it is now a separate concern from the
+summary-line count rather than the same one.** A tokenizer-counter flake that
+failed 8 of 10 plain (parallel) runs was fixed on 2026-09-03 by making the
+counter task-local rather than global, but that fix is about test isolation
+under concurrency, not about how many lines `swift test` prints; the split into
+per-target summaries happens under `--no-parallel` too, as the six lines above
+were. Both instructions stand and are independent of each other.
 
 **After editing `Sources/MetalUIRender/Shaders/MetalUIShaderTypes.h`, run
 `swift package clean`.** The header reaches its C target through a symlink SwiftPM
