@@ -218,3 +218,81 @@ import MetalUICore
         _ = Animation.spring(duration: 0.5, bounce: -1.0)
     }
 }
+
+// MARK: - Fix round 2: the settling scale is the motion that remains, not `travel`
+
+/// Fix round 2, ruling L, half of finding 4 the previous round did not
+/// cover. `travel` alone is only the right settling scale when `v0 == 0`; a
+/// spring interrupted EXACTLY at its target still carries velocity, and the
+/// travel-only threshold declared it finished on arrival regardless — before
+/// this fix, `v0 = 19.9` at a spring's own target reported `isFinished` at
+/// `t == 0` and then moved another 0.79 of a `0...1` range. This is
+/// hypothetical only until Task 3, which re-targets mid-flight and produces
+/// exactly this shape (from == to's current value, non-zero inbound
+/// velocity) as ordinary behaviour.
+@Test func aSpringInterruptedExactlyAtItsTargetIsNotFinishedUntilItSettles() {
+    let s = Animation.spring(duration: 0.5, bounce: 0.4)
+    let atStart = s.value(at: 0.0, from: 50, to: 50, initialVelocity: 19.9)
+    #expect(atStart.value == 50, "displacement is 0 at t=0 regardless of velocity")
+    #expect(!atStart.isFinished, "still carrying velocity 19.9; must not report finished on arrival")
+
+    // Still not finished a short way in (the velocity has not had time to
+    // decay away yet).
+    let early = s.value(at: 0.05, from: 50, to: 50, initialVelocity: 19.9)
+    #expect(!early.isFinished, "\(early)")
+
+    // Genuinely settles once the velocity has decayed — measured settle
+    // time on this exact fixture is ~0.62s; 1.5s is comfortably past it
+    // without hardcoding the crossing.
+    let late = s.value(at: 1.5, from: 50, to: 50, initialVelocity: 19.9)
+    #expect(late.isFinished, "\(late)")
+}
+
+/// Fix round 2, ruling L, the other half. Before this fix, `travel == 0` and
+/// `travel == 1e-12` with identical momentum (`v0 == 6`) disagreed by four
+/// orders of magnitude in settling time (instant vs. 4.35s) — discontinuous
+/// in a physical quantity that has no reason to jump. After the fix, a
+/// tiny-travel-with-momentum case settles in a time comparable to a
+/// unit-travel one, not an order of magnitude later: measured, 0.809s
+/// (0→1, v0=0) against 0.6209s (0→1e-12, v0=6) on the same spring — same
+/// order of magnitude, where the pre-fix number was ~5x *larger* than the
+/// unit case rather than comparable to it.
+@Test func aSmallTravelWithMomentumSettlesInComparableTimeToAUnitTravelOne() {
+    let s = Animation.spring(duration: 0.5, bounce: 0.4)
+    func settleTime(from: Double, to: Double, v0: Double) -> Double? {
+        for i in 0...100000 {
+            let t = Double(i) * 0.0001
+            if s.value(at: t, from: from, to: to, initialVelocity: v0).isFinished { return t }
+        }
+        return nil
+    }
+    let unitTravel = try! #require(settleTime(from: 0, to: 1, v0: 0))
+    let tinyTravelWithMomentum = try! #require(settleTime(from: 0, to: 1e-12, v0: 6))
+
+    // Comfortably below the pre-fix 4.35s and within a small factor of the
+    // unit-travel baseline — "comparable", not "identical": the two cases
+    // are physically different motions and are not expected to match
+    // exactly, only to share an order of magnitude.
+    #expect(tinyTravelWithMomentum < 2.0,
+            "expected well under the pre-fix 4.35s, got \(tinyTravelWithMomentum)")
+    #expect(tinyTravelWithMomentum < unitTravel * 4,
+            "expected comparable to the unit-travel settle time \(unitTravel), got \(tinyTravelWithMomentum)")
+}
+
+// MARK: - Fix round 2: timingCurve finiteness
+
+/// Fix round 2, ruling M. `min(max(.nan, 0), 1)` is `.nan` in Swift, so the
+/// x-clamp added last round silently passes a NaN control point through —
+/// on `Curve.progress`'s own `if u <= 0`/`if u >= 1` guards, every
+/// comparison against a NaN is false, so the curve sits at `from` for its
+/// whole declared duration and then jumps at the very end. `spring`'s
+/// `bounce` domain got a loud `precondition` in the same fix round; this is
+/// the same shape of programmer error and gets the same treatment.
+@Test func timingCurveTrapsOnANonFiniteArgument() async {
+    await #expect(processExitsWith: .failure) {
+        _ = Animation.timingCurve(.nan, 0, 0.5, 1, duration: 1)
+    }
+    await #expect(processExitsWith: .failure) {
+        _ = Animation.timingCurve(0.5, 0, 0.5, 1, duration: .infinity)
+    }
+}

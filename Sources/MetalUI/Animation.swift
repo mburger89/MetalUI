@@ -141,9 +141,23 @@ public struct Animation: Sendable, Equatable {
     /// function, so the clamp is universal rather than a built-ins-only
     /// property — this is called out at `Curve.progress(at:)` too, which is
     /// where a reader chasing the monotonicity claim will be looking.
+    ///
+    /// **All five arguments must be finite (fix round 2 review, ruling M,
+    /// on `spring(duration:bounce:)`'s precondition's own footing).** Swift's
+    /// `min`/`max` pass a `.nan` straight through — `min(max(.nan, 0), 1)` is
+    /// `.nan`, not a clamped `0` or `1` — so the x-clamp above silently
+    /// admits one: `timingCurve(.nan, 0, 0.5, 1, duration: 1)` sat at `from`
+    /// for its whole duration and jumped at the end, with no diagnostic
+    /// anywhere. Shipping that silently beside `spring`'s loud
+    /// `precondition(bounce > -1 && bounce < 1)` in the same fix round would
+    /// be the inconsistency — not the NaN itself, which is exactly the same
+    /// shape of programmer error `bounce` traps on.
     public static func timingCurve(
         _ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double, duration: Double
     ) -> Animation {
+        precondition(x1.isFinite && y1.isFinite && x2.isFinite && y2.isFinite && duration.isFinite,
+                     "Animation.timingCurve's control points and duration must all be finite; " +
+                     "got x1=\(x1) y1=\(y1) x2=\(x2) y2=\(y2) duration=\(duration).")
         let clampedX1 = min(max(x1, 0), 1)
         let clampedX2 = min(max(x2, 0), 1)
         return Animation(.duration(.bezier(x1: clampedX1, y1: y1, x2: clampedX2, y2: y2), seconds: duration))
@@ -303,41 +317,72 @@ public struct Animation: Sendable, Equatable {
         // is mid-overshoot, so BOTH position and velocity must be within
         // threshold. ---
         //
-        // **Relative to the travel, with an absolute ceiling — not a flat
-        // absolute number.** `value(at:)` is unit-agnostic (spec §7 names no
-        // unit at all), and a single absolute point-valued threshold breaks
-        // the moment `from`/`to` are not points: measured (fix round 1
-        // review) on `spring(0.5, 0.4)` with a flat 1/6-point threshold, a
-        // 100pt travel settled at 99.8% complete, a 2pt travel at 91.8%, and
-        // a 0→1 opacity travel — the exact shape `Decoration.background`'s
-        // `Hsla` animation uses (spec §4) — at 83.6%: the flat threshold is
-        // more than a SIXTH of the whole opacity range, so it "settles" a
-        // sixth of the way from done.
+        // **`scale` is the motion that REMAINS if this spring runs to
+        // completion, not merely `travel` (fix round 2 review, ruling L).**
+        // `travel` (== |x0|) is the correct scale only when `v0 == 0` — the
+        // half of the input space fix round 1 measured. `v0` also carries a
+        // spring away from rest on its own, and `|v0| / omega` is the
+        // displacement that velocity alone would produce in the UNDAMPED
+        // case, so it is dimensionally a length and `travel`'s natural
+        // companion term:
         //
-        // A fraction of the travel fixes that (a 0→1 property and a 0→100pt
-        // one settle at the same fraction of completion), but a pure
-        // fraction breaks the opposite way for a travel too small to
-        // resolve at all — so the two are combined with `min`, which makes
-        // the fraction tighten the requirement for a small travel while the
-        // absolute value caps how much precision is ever demanded for a
-        // large one (a spring is never required to resolve BELOW
-        // sub-perceptual precision, which is what "floor" means here — a
-        // floor under how much imprecision is acceptable, not a floor on
-        // the threshold's value):
+        //     scale = max(|travel|, |v0| / omega)
         //
-        //     positionThreshold = min(0.001 * |travel|, absoluteFloor)
+        // This subsumes both consequences fix round 1's flat-when-`travel ==
+        // 0` fallback had and fix round 2 measured:
+        //   - A spring interrupted exactly AT its target (`x0 == 0`, `v0 !=
+        //     0` — Task 3's re-targeting mid-flight, one task from now) no
+        //     longer falls back to the flat `absoluteCeiling` below. Its
+        //     `scale` is `|v0| / omega`, so the same relative logic that
+        //     fixed opacity/colour travel now also gates a re-targeted
+        //     spring's settling on the velocity it actually carries. Before
+        //     this fix: `v0 == 19.9` into a spring exactly at its target
+        //     reported `isFinished` at `t == 0` and then moved another
+        //     `0.79` — 79% of a `0...1` range "settled" before it moved,
+        //     finding 4's original complaint, this time from `v0` rather
+        //     than `travel`.
+        //   - `scale` is CONTINUOUS in `(travel, v0)` together, where the
+        //     flat fallback was not: `travel == 0` used to finish instantly
+        //     and `travel == 1e-12` with the same `v0` took **4.35 s** — four
+        //     orders of magnitude apart for the same momentum, and ~20x the
+        //     frames a paused display link would otherwise hold awake once
+        //     Task 5 wires `isFinished` to `hasActiveAnimations`.
         //
-        // `0.001` — one part in a thousand of the travel — is the relative
+        // The only case still needing a guard is `travel == 0 AND v0 == 0` —
+        // genuinely at rest, where `scale == 0` and the closed form below
+        // gives `displacement == velocity == 0` identically. `<=` below
+        // (not `<`) is what settles that case immediately rather than never:
+        // a strict `<` against a `positionThreshold` of exactly `0` is
+        // false even when `displacement` is also exactly `0`.
+        let scale = max(abs(x0), abs(v0) / omega)
+
+        // **`positionThreshold` is a CEILING on the threshold — a floor on
+        // PRECISION, not a floor on the threshold's value — and this
+        // paragraph is the correction of two comment clauses fix round 2
+        // review found saying the opposite (record-mechanism 1: a
+        // measurement recorded in a review is not a measurement applied to
+        // the source until it is walked back to the mutated line, and that
+        // applies to a review's own prose fix just as much).** The previous
+        // round called the constant below an "absolute floor" and said the
+        // `min` "caps how much precision is ever demanded for a large
+        // [scale]" — right about what `min` does, wrong about which word
+        // names it: `min` bounds `positionThreshold` from ABOVE, so a large
+        // `scale` gets the SMALLER (more precise) of the two operands, not
+        // the larger one — `0.001 * scale` alone would ask for `1.0`pt of
+        // slop at `scale == 1000`, and `min` keeps it at the tighter
+        // `0.1667`pt instead. "Floor" was the wrong word for a clause that
+        // makes the number smaller, not larger; it is a ceiling on how much
+        // imprecision `positionThreshold` may ever demand.
+        //
+        // `0.001` — one part in a thousand of `scale` — is the relative
         // criterion: displacement below a tenth of a percent of the total
         // motion is imperceptible for a continuously varying quantity,
         // independent of what unit that quantity happens to be in.
-        // `absoluteFloor` is the previous derivation, unchanged, and now
-        // reached only once the travel is large enough that a flat fraction
-        // of it would ask for finer than half-a-device-pixel precision —
-        // exactly the "floor for pixel-valued travel" a large point-valued
-        // travel needs and an opacity or colour travel never reaches:
-        //     absoluteFloor = 0.5 device px / 3 px-per-point (a plausible
-        //                     high-density scale factor) = 1/6 pt ≈ 0.1667
+        // `absoluteCeiling` is the previous derivation, unchanged — half a
+        // device pixel at a plausible high-density (3x) scale factor — and
+        // is reached only once `scale` is large enough that a flat fraction
+        // of it would ask for finer than half-a-device-pixel precision:
+        //     absoluteCeiling = 0.5 device px / 3 px-per-point ≈ 0.1667
         //
         // The `3.0` is hardcoded rather than read from a real surface (spec
         // §7 says "the surface's scale factor") because this type has no
@@ -345,17 +390,8 @@ public struct Animation: Sendable, Equatable {
         // no rendering context at all. It should become a parameter reading
         // the surface's actual scale factor once Task 5 gives this a caller
         // that has one.
-        //
-        // A travel of exactly 0 (already at the target, resting) falls back
-        // to `absoluteFloor` alone (`0.001 * 0 == 0` would otherwise demand
-        // an unsatisfiable zero threshold) — which is also the physically
-        // right answer: with `x0 == 0` and `v0 == 0` the closed form below
-        // gives `displacement == velocity == 0` identically, comfortably
-        // inside any positive threshold, so this still reports finished
-        // immediately rather than never.
-        let travel = abs(x0)
-        let absoluteFloor = 0.5 / 3.0
-        let positionThreshold = travel > 0 ? min(0.001 * travel, absoluteFloor) : absoluteFloor
+        let absoluteCeiling = 0.5 / 3.0
+        let positionThreshold = min(0.001 * scale, absoluteCeiling)
 
         // Velocity: a spring within `positionThreshold` but still moving
         // fast enough to cross back out of it within a single frame has not
@@ -363,15 +399,11 @@ public struct Animation: Sendable, Equatable {
         // 120 Hz ProMotion (§2), so one frame is 1/120 s, and the velocity
         // that could cover exactly `positionThreshold` in one such frame is
         // `positionThreshold / (1/120)` — derived from `positionThreshold`
-        // itself so it scales down with a small travel exactly the way
-        // `positionThreshold` does. This is the other half of what the flat
-        // constant broke: measured, that spring's peak velocity on the 0→1
-        // opacity travel above is ~6.2/s against a flat 20/s threshold, so
-        // the velocity gate could never bind for a normalized property at
-        // all — scaling it with the travel restores that.
+        // itself so it scales down with `scale` exactly the way
+        // `positionThreshold` does.
         let velocityThreshold = positionThreshold * 120.0
 
-        let isFinished = abs(displacement) < positionThreshold && abs(velocity) < velocityThreshold
+        let isFinished = abs(displacement) <= positionThreshold && abs(velocity) <= velocityThreshold
 
         return (value, velocity, isFinished)
     }
