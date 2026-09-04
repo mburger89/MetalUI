@@ -51,6 +51,21 @@ public struct LayoutPass {
         frame.requestLeaf(style: style, measure: measure)
     }
 
+    /// Reads back a node's current `Style`, so a caller that registered a node
+    /// earlier in this same layout pass can amend rather than replace it.
+    /// `StyledComponent`'s only production caller (`Component.swift`).
+    public func style(_ id: LayoutNodeID) -> Style {
+        frame.style(id)
+    }
+
+    /// Overwrites a node's `Style` in place. `LayoutTree.setStyle`'s only
+    /// production caller: registration derives nothing from style, so this is
+    /// sound at any point before `computeLayout` runs, which is exactly the
+    /// window this pass exists for.
+    public func setStyle(_ id: LayoutNodeID, _ style: Style) {
+        frame.setStyle(id, style)
+    }
+
     /// The window's shaping cache (spec §3.2).
     ///
     /// **Internal, unlike everything else on this pass.** It is the one member

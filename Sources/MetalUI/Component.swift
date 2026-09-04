@@ -33,8 +33,8 @@
 /// attach to a layout node, and `Style.display` defaults to `.flex` with no
 /// `contents` case in the engine — so conforming would force a component to
 /// contribute a real flex container and make it layout-opaque, which is the
-/// exact divergence this design exists to avoid. Modifiers wrap instead; see
-/// the extension below.
+/// exact divergence this design exists to avoid. Modifiers distribute instead —
+/// see `StyledComponent` below.
 ///
 /// **No `.id()` modifier**, for the same reason: that method lives on
 /// `StyledElement`. An author who needs a stable name declares the property:
@@ -200,5 +200,87 @@ extension Component {
                                     pass: inout PaintPass) {
         layout.content.paintGroup(layout: &layout.contentLayout,
                                   prepaint: &prepaint, pass: &pass)
+    }
+}
+
+/// A component with a `Style` amendment applied to each of its top-level nodes.
+///
+/// **Modifiers on a `Component` DISTRIBUTE rather than wrap, and that is
+/// measured** (spec §5). SwiftUI's `MyRow().padding(8)`, where `MyRow`'s body is
+/// a 30x10 and a 50x10 view, measures 120x26 — `(30+16) + 8 + (50+16)`, each
+/// child padded — bit-identical to `Group { A; B }.padding(8)`. A wrapping
+/// implementation predicts 96-104. The two are one mechanism with §2's
+/// transparency: `MyRow()` IS its children, so a modifier applied to it applies
+/// to each of them, because there is no single thing to wrap.
+///
+/// This type contributes **no layout node of its own** — it returns the
+/// component's nodes unchanged, having amended their styles — so a modified
+/// component is exactly as layout-transparent as a bare one.
+///
+/// **It also mints no identity of its own.** `requestGroupLayout` forwards the
+/// `parent` and `cursor` it was given straight through to `component`
+/// unchanged, so `MyComponent()` and `MyComponent().padding(4)` produce the
+/// *identical* `GlobalElementID` for `MyComponent` — a modifier is not a level
+/// in the tree. Getting this wrong (mint an id here, pass it down as the
+/// component's parent) silently resets the component's `@State`, because its
+/// slot id is a child of whatever id `StateBinder.bind` was called with.
+/// `addingAModifierDoesNotResetAComponentsState` (`ComponentTests.swift`) pins
+/// it, and Step 8's mutation reddens exactly that test.
+///
+/// **Only `Style`-backed modifiers can work this way.** `LayoutTree.setStyle`
+/// reaches a node's `Style`; nothing reaches `Decoration` or `Handlers` per
+/// node, because those are per-ELEMENT state registered by each
+/// `StyledElement`'s own `prepaint`. So `background`, `onClick`, `focusable`
+/// and `keyContext` are deliberately **not** offered on a component —
+/// `decorationBackedModifiersAreNotOfferedOnAComponent` and the `.background()`
+/// typecheck guard in `ErasureCompileGuards.swift` pin the absence.
+public struct StyledComponent<C: Component>: ElementGroup {
+    var component: C
+    var amend: @Sendable (inout Style) -> Void
+
+    public mutating func requestGroupLayout(under parent: GlobalElementID?,
+                                            at cursor: inout Int,
+                                            pass: inout LayoutPass)
+        -> ([LayoutNodeID], C.GroupLayout) {
+        // `parent` and `cursor` forwarded UNCHANGED — see the type's own doc.
+        let (nodes, layout) = component.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+        for node in nodes {
+            var style = pass.style(node)
+            amend(&style)
+            pass.setStyle(node, style)
+        }
+        return (nodes, layout)
+    }
+
+    public mutating func prepaintGroup(layout: inout C.GroupLayout,
+                                       pass: inout PrepaintPass)
+        -> C.GroupPrepaint {
+        component.prepaintGroup(layout: &layout, pass: &pass)
+    }
+
+    public mutating func paintGroup(layout: inout C.GroupLayout,
+                                    prepaint: inout C.GroupPrepaint,
+                                    pass: inout PaintPass) {
+        component.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+extension Component {
+    /// Padding on each top-level child (spec §5). Signature matches
+    /// `StyledElement.padding(_ points:)` (`Box.swift:643`) exactly — a
+    /// forwarded modifier whose parameter type drifts from its original is
+    /// worse than none, because a caller reads the two as the same modifier.
+    public func padding(_ points: Pixels) -> StyledComponent<Self> {
+        StyledComponent(component: self) { $0.padding = Edges(all: .pixels(points)) }
+    }
+
+    /// Matches `StyledElement.width(_ points:)` (`Box.swift:603`).
+    public func width(_ points: Pixels) -> StyledComponent<Self> {
+        StyledComponent(component: self) { $0.size.width = .length(.pixels(points)) }
+    }
+
+    /// Matches `StyledElement.height(_ points:)` (`Box.swift:607`).
+    public func height(_ points: Pixels) -> StyledComponent<Self> {
+        StyledComponent(component: self) { $0.size.height = .length(.pixels(points)) }
     }
 }

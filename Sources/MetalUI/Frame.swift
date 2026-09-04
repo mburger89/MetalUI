@@ -980,6 +980,21 @@ public final class Frame {
         tree.newLeaf(style: style, measure: measure)
     }
 
+    /// Reads back a node's current `Style` — `StyledComponent`'s read half of
+    /// amend-in-place (`Component.swift`), the first production caller of
+    /// `LayoutTree.setStyle`'s sibling `style(_:)`.
+    func style(_ id: LayoutNodeID) -> Style {
+        tree.style(id)
+    }
+
+    /// Overwrites a node's `Style` after it has already been registered.
+    /// `StyledComponent`'s write half: a modifier on a `Component` distributes
+    /// by amending each of its top-level nodes' styles in place rather than by
+    /// wrapping them in a new one (spec §5).
+    func setStyle(_ id: LayoutNodeID, _ style: Style) {
+        tree.setStyle(id, style)
+    }
+
     /// Runs the flex engine over the tree, between `requestLayout` and
     /// `prepaint`. Not reachable from any pass: elements contribute nodes, the
     /// frame runs the engine on the finished root.

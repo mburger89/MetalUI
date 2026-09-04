@@ -477,3 +477,129 @@ private struct Wrapper: Component {
 private final class CallCounter {
     var count = 0
 }
+
+// MARK: - Modifiers distribute
+
+/// Two AUTO-sized leaves — deliberately **not** `TwoLeaves`, whose two leaves
+/// each declare an explicit `.width(_:).height(_:)`.
+///
+/// **This is a reported mismatch against the brief, not a silent
+/// substitution.** The brief's Step 2 fixture reuses `TwoLeaves` and predicts
+/// `padA.2 == bareA.2 + 8` — a leaf's outer rect growing by the padding, the
+/// way SwiftUI's own `.padding()` grows a fixed-size view's frame. That is
+/// **content-box** reasoning, and this framework's box model is border-box
+/// **only**, by design: `Style.swift:97`, "`size`, `minSize` and `maxSize`
+/// include padding and border. There is deliberately no `boxSizing`
+/// property." Measured against `TwoLeaves` first, as the brief specifies:
+/// `.padding(px(4))` left leaf `a`'s width at exactly 30.0 and leaf `b`'s at
+/// exactly 50.0 — unchanged from the unpadded run, both times, because an
+/// EXPLICIT `.width()` already fixes the border box and padding can only eat
+/// into the content area inside it, which nothing here logs. No implementation
+/// of distribution-vs-wrapping could move that number; the fixture cannot see
+/// the effect it was written to demonstrate.
+///
+/// An **auto**-sized leaf can: `size == .auto` on both axes with no content
+/// (`Leaf` has no children and no measure function) resolves its border box
+/// to padding-plus-border alone, so padding genuinely changes what these two
+/// leaves paint at, and the same discriminator the brief wanted — each leaf's
+/// rect moves under distribution, neither leaf's rect moves under wrapping —
+/// is observable here instead.
+private struct TwoAutoLeaves: Component {
+    let log: ComponentLog
+    var elementID: ElementID?
+
+    var content: some ElementGroup {
+        Leaf("a", log: log)
+        Leaf("b", log: log)
+    }
+}
+
+/// Spec §5. A modifier on a component applies to EACH top-level node its content
+/// contributed, and the component stays layout-transparent — no node is added.
+///
+/// **Measured against SwiftUI, which is why it is distribution and not wrapping**:
+/// `HStack { MyRow().padding(8) }` is 120x26 where `MyRow`'s body is a 30x10 and
+/// a 50x10, which is `(30+16) + 8 + (50+16)` — each child padded — and is
+/// bit-identical to `Group { A; B }.padding(8)`. Wrapping predicts 96-104. That
+/// SwiftUI measurement is about the DESIGN (distribute, don't wrap); it is not
+/// reproducible as a literal number here, because SwiftUI's `.padding()` grows
+/// a fixed-size frame (content-box-shaped) where this engine's `.padding()`
+/// is border-box only (`Style.swift:97`) and cannot move a box with an
+/// explicit size at all — see `TwoAutoLeaves`' own doc for the mismatch this
+/// forced, measured against the brief's literal fixture before it was changed.
+///
+/// **Both halves are asserted and both are needed.** The node count alone cannot
+/// tell distribution from a modifier that did nothing at all; the rects alone
+/// cannot tell distribution from wrapping in every fixture. Together they can.
+@MainActor
+@Test func aModifierOnAComponentDistributesToEachTopLevelChild() {
+    let bareLog = ComponentLog()
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    var bare = Row { TwoAutoLeaves(log: bareLog) }
+    bareFrame.render(&bare)
+
+    let padLog = ComponentLog()
+    let padFrame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+    var padded = Row { TwoAutoLeaves(log: padLog).padding(px(4)) }
+    padFrame.render(&padded)
+
+    // Transparency survives the modifier: still no node of the component's own.
+    #expect(padFrame.tree.nodeCount == bareFrame.tree.nodeCount,
+            "a modified component must still add no node; got \(padFrame.tree.nodeCount) against \(bareFrame.tree.nodeCount)")
+
+    // And EACH leaf grew by the padding on both axes — distribution, not one
+    // padding around the pair.
+    let bareA = rect(bareLog.bounds["a"]!)
+    let padA = rect(padLog.bounds["a"]!)
+    #expect(padA.2 == bareA.2 + 8, "leaf a's width gains 2x4; got \(padA.2) against \(bareA.2)")
+    let bareB = rect(bareLog.bounds["b"]!)
+    let padB = rect(padLog.bounds["b"]!)
+    #expect(padB.2 == bareB.2 + 8,
+            "leaf b's width gains 2x4 too — this is the assertion that separates distribution from wrapping")
+}
+
+/// Spec §5's limit. Only `Style`-backed modifiers can be distributed, because
+/// `setStyle` reaches `LayoutTree` and nothing reaches `Decoration`/`Handlers`
+/// per node. So `background`, `onClick` and `focusable` are NOT offered on a
+/// component at all — offering them with wrapping semantics beside a
+/// distributing `padding` would be two modifiers that read alike at the call
+/// site and behave differently.
+///
+/// Type-level, because no layout assertion can see an absent method.
+@MainActor
+@Test func decorationBackedModifiersAreNotOfferedOnAComponent() {
+    // `.padding` exists and returns a StyledComponent, not a Box.
+    let styled = TwoLeaves(log: ComponentLog()).padding(px(4))
+    let name = String(describing: type(of: styled))
+    #expect(name.hasPrefix("StyledComponent<"))
+    #expect(name.contains("TwoLeaves"))
+}
+
+/// A modifier must NOT change a component's identity. `StyledComponent` forwards
+/// the parent and cursor it was given straight through, minting no id of its own
+/// — so `MyComponent()` and `MyComponent().padding(4)` hold the SAME `@State`.
+///
+/// If this fails, adding a modifier silently resets a component's state, which
+/// is the sharpest hazard in this design and one no rect assertion could see.
+///
+/// Idiom from `StateTests.swift:143-152`: thread one `StateTable` through
+/// several `Frame`s and read the value back through the element's own
+/// property. `Counter` is Task 2's fixture, reused here rather than declaring
+/// a second one — its `content` increments `count` on every render regardless
+/// of whether the component itself carries a modifier.
+@MainActor
+@Test func addingAModifierDoesNotResetAComponentsState() {
+    let table = StateTable()
+    let size = Size<Pixels>(width: px(100), height: px(100))
+    let log = ComponentLog()
+
+    var bare = Box(content: Counter("c", log: log))
+    Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&bare)
+    Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&bare)
+
+    var modified = Box(content: Counter("c", log: log).padding(px(4)))
+    Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&modified)
+
+    #expect(modified.content.component.count == 3,
+            "a modifier must not reset the component's @State; got \(modified.content.component.count)")
+}

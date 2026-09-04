@@ -207,3 +207,30 @@ func aCopyableElementCanBeStoredInAnArray() throws {
     #expect(result.succeeded,
             "the copyable half must compile, or the negative above proves nothing:\n\(result.output)")
 }
+
+// MARK: - Fact 4 (Task 3): `.background()` is not offered on a `Component`
+
+/// Spec §5's limit, as a compile guard rather than only as
+/// `decorationBackedModifiersAreNotOfferedOnAComponent`'s type-name check.
+/// `Decoration` is per-element state a `StyledElement`'s own `prepaint`
+/// registers; `LayoutTree.setStyle` reaches only a node's `Style`, so
+/// `background`/`onClick`/`focusable`/`keyContext` cannot distribute the way
+/// `padding`/`width`/`height` do, and are deliberately not declared in the
+/// `Component` extension at all. A regression that adds one makes this
+/// *compile*, which no runtime test could see.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func backgroundCannotBeCalledOnAComponent() throws {
+    let result = try typecheck("""
+        struct Leafless: Component {
+            var elementID: ElementID? { nil }
+            var content: some ElementGroup { EmptyGroup() }
+        }
+        @MainActor func probe() {
+            _ = Leafless().background(.accent)
+        }
+        """, importing: "MetalUI")
+    #expect(!result.succeeded,
+            "`.background()` type-checks on a Component — it must stay Decoration-backed and undistributable:\n\(result.output)")
+    #expect(result.messages.contains("background"),
+            "rejected, but not for the reason this test is about:\n\(result.output)")
+}
