@@ -31,8 +31,10 @@ struct MeasurePerformanceTests {
         let states = StateTable()
         _ = Self.render({ demoLikeRows(40) }, states: states)   // warm
 
-        Shaper.resetUnbreakableRunCalls()
-        _ = Self.render({ demoLikeRows(40) }, states: states)
+        let counter = Shaper.RunCallCounter()
+        Shaper.$runCallCounter.withValue(counter) {
+            _ = Self.render({ demoLikeRows(40) }, states: states)
+        }
 
         // 40 rows share no strings, so 40 distinct strings is the ceiling a
         // per-string memo allows. `ShapingCache.minContentWidth` memoizes the
@@ -65,7 +67,7 @@ struct MeasurePerformanceTests {
         // load-bearing for that assertion, and this test's own instrument —
         // a per-frame call count, not a cross-frame one — is chosen to keep
         // it that way.
-        #expect(Shaper.unbreakableRunCalls <= 40)
+        #expect(counter.count <= 40)
     }
 
     @Test
@@ -74,13 +76,17 @@ struct MeasurePerformanceTests {
         _ = Self.render({ demoLikeRows(40) }, states: states40)
         _ = Self.render({ demoLikeRows(160) }, states: states160)
 
-        Shaper.resetUnbreakableRunCalls()
-        let f40 = Self.render({ demoLikeRows(40) }, states: states40)
-        let calls40 = Shaper.unbreakableRunCalls
+        let counter40 = Shaper.RunCallCounter()
+        let f40 = Shaper.$runCallCounter.withValue(counter40) {
+            Self.render({ demoLikeRows(40) }, states: states40)
+        }
+        let calls40 = counter40.count
 
-        Shaper.resetUnbreakableRunCalls()
-        let f160 = Self.render({ demoLikeRows(160) }, states: states160)
-        let calls160 = Shaper.unbreakableRunCalls
+        let counter160 = Shaper.RunCallCounter()
+        let f160 = Shaper.$runCallCounter.withValue(counter160) {
+            Self.render({ demoLikeRows(160) }, states: states160)
+        }
+        let calls160 = counter160.count
 
         // Equal, not merely close: with a uniform row height the window is
         // computed by division, so the same ~13 rows are built either way and
@@ -204,13 +210,17 @@ struct MeasurePerformanceTests {
         // this repo's own practice document says would flake on a loaded box.
         print("MeasurePerformanceTests: cold frame at 100,000 rows took \(coldElapsed)")
 
-        Shaper.resetUnbreakableRunCalls()
-        let f500 = Self.render({ demoLikeRows(500) }, states: states500)
-        let calls500 = Shaper.unbreakableRunCalls
+        let counter500 = Shaper.RunCallCounter()
+        let f500 = Shaper.$runCallCounter.withValue(counter500) {
+            Self.render({ demoLikeRows(500) }, states: states500)
+        }
+        let calls500 = counter500.count
 
-        Shaper.resetUnbreakableRunCalls()
-        let f100k = Self.render({ demoLikeRows(100_000) }, states: states100k)
-        let calls100k = Shaper.unbreakableRunCalls
+        let counter100k = Shaper.RunCallCounter()
+        let f100k = Shaper.$runCallCounter.withValue(counter100k) {
+            Self.render({ demoLikeRows(100_000) }, states: states100k)
+        }
+        let calls100k = counter100k.count
 
         // Equal, not merely close — same reasoning as the 160-vs-40 test
         // above: a uniform row height means the window is found by division,
