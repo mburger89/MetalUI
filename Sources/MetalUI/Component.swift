@@ -100,31 +100,34 @@ extension Component {
 
         // One index from the PARENT's cursor, and a fresh cursor for the
         // content. Threading the outer cursor into the content instead would
-        // give the content its siblings' positions and silently collide their
-        // state.
+        // NOT collide two components' ids — `GlobalElementID.child(of:at:name:)`
+        // nests content under the COMPONENT's OWN id regardless, so the
+        // numbers stay unique even when threaded. What it destroys is
+        // STABILITY: with a fresh `innerCursor`, a component's content is
+        // always numbered from 0 *within that component*, so its ids depend
+        // on nothing outside it; with the outer cursor threaded through, the
+        // content's ids depend on how many siblings preceded the component —
+        // so inserting a sibling *before* a NAMED component shifts its
+        // content's ids and resets its content's state, defeating the entire
+        // purpose of naming it. Pinned by
+        // `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`.
         //
-        // MUTATION (Task 2 Step 5): dropping `var innerCursor = 0` and
-        // threading `&cursor` into the content call below instead reddened
-        // **nothing** — full 801-test suite, 0 issues, run twice. Measured,
-        // not predicted, and it is `twoSiblingComponentsHoldIndependentState`
-        // itself that cannot see it (ruling `MP-J`'s shape): that test
-        // renders ONE fixed tree shape three times against one `StateTable`,
-        // and a component's own id is computed from `cursor` **before**
-        // `content` ever runs, so sharing the counter with content only
-        // shifts every later sibling's id by a constant that is identical on
-        // every one of the three frames — self-consistent, not colliding.
-        // Confirmed by two further probes, both still green: giving
-        // `Counter.content` an actual cursor-consuming leaf instead of
-        // `EmptyGroup()` (so the shared cursor is genuinely read, not just
-        // ignored — `EmptyGroup.requestGroupLayout` provably never touches
-        // its `cursor` argument at all, so the unmodified fixture's green
-        // result was guaranteed rather than merely unlucky), and comparing
-        // against `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`'s
-        // own two-DIFFERENT-tree-shapes-one-table pattern, which is the shape
-        // that would be needed to observe a real collision and which no test
-        // in this file runs against `TwoLeaves`/`Counter` together. This is
-        // the fixture-cannot-express-the-defect finding the brief names as a
-        // live possibility, reported rather than forced.
+        // MUTATION (Task 2 Step 5, fix round 1): dropping `var innerCursor = 0`
+        // and threading `&cursor` into the content call below instead reddens
+        // **exactly** `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`
+        // (1 issue on the full 802-test suite, both filtered and unfiltered) —
+        // `withSibling.content.second.inner.count` reads **1**, not 2: the
+        // named component's content is renumbered by the sibling declared
+        // before it and its state resets rather than continuing. The first
+        // version of this comment (before this test existed) reported the
+        // mutation as reddening nothing at all on the then-801-test suite,
+        // including two extra probes (`twoSiblingComponentsHoldIndependentState`
+        // with a real cursor-consuming content leaf, and a comparison against
+        // `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`)
+        // that also stayed green — correctly, since neither reads a NAMED
+        // component's CONTENT state across an inserted-sibling render, which
+        // is the one shape that can see this. That silence was a real
+        // coverage gap in the fixtures, not evidence the line is dead.
         //
         // MUTATION (Task 2 Step 6): dropping this line reddens **4 issues**
         // on the full 801-test suite — `twoSiblingComponentsHoldIndependentState`

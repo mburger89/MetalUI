@@ -264,6 +264,17 @@ private struct CounterLeaf: Element {
                layout: inout Int, prepaint: inout Int, pass: inout PaintPass) {}
 }
 
+/// A component whose CONTENT (not the component itself) holds the `@State` —
+/// file-scoped, rather than local to `stateInsideAComponentsContentIsAlsoSeeded`
+/// (which first declared this shape), so
+/// `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt` can
+/// reuse it with a name rather than inventing a second copy of the shape.
+private struct Wrapper: Component {
+    let inner: CounterLeaf
+    var elementID: ElementID?
+    var content: some ElementGroup { inner }
+}
+
 /// Spec §6 assertion 3. The component's own `@State` must survive across
 /// frames, which requires its own `GlobalElementID`, which is what the
 /// extension's `cursor += 1` buys.
@@ -386,12 +397,6 @@ private struct CounterLeaf: Element {
 /// DIFFERENT mutations**, or one of the two is proving less than it claims.
 @MainActor
 @Test func stateInsideAComponentsContentIsAlsoSeeded() {
-    struct Wrapper: Component {
-        let inner: CounterLeaf
-        var elementID: ElementID?
-        var content: some ElementGroup { inner }
-    }
-
     let table = StateTable()
     let size = Size<Pixels>(width: px(100), height: px(100))
     var tree = Box(content: Wrapper(inner: CounterLeaf()))
@@ -402,6 +407,36 @@ private struct CounterLeaf: Element {
 
     #expect(tree.content.inner.count == 3,
             "@State inside a component's CONTENT must be seeded too; got \(tree.content.inner.count)")
+}
+
+/// Fix round 1. A NAMED component's content must not depend on how many
+/// siblings preceded the component — that is the whole point of naming it.
+/// Threading the outer `cursor` into the content (instead of a fresh
+/// `innerCursor`) does not collide two components' ids — `GlobalElementID`
+/// nests content under the component's OWN id regardless, so the numbers
+/// stay unique — but it does make the content's ids depend on how many
+/// siblings preceded the NAMED component, which defeats naming: inserting a
+/// sibling before the named component shifts its content's numeric position
+/// and resets its content's state. `aNamedComponentKeepsItsStateThroughAReorderAndAnUnnamedOneDoesNot`
+/// cannot see this, because that test's state lives on the COMPONENT itself,
+/// not inside its content.
+@MainActor
+@Test func aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt() {
+    let table = StateTable()
+    let size = Size<Pixels>(width: px(100), height: px(100))
+    let log = ComponentLog()
+
+    var solo = Box(content: Wrapper(inner: CounterLeaf(), elementID: ElementID("named")))
+    Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&solo)
+
+    var withSibling = Box {
+        Leaf("sibling", log: log).width(px(10)).height(px(10))
+        Wrapper(inner: CounterLeaf(), elementID: ElementID("named"))
+    }
+    Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&withSibling)
+
+    #expect(withSibling.content.second.inner.count == 2,
+            "a named component's content state must survive a sibling inserted before it; got \(withSibling.content.second.inner.count)")
 }
 
 /// Added by Task 2 beyond the brief's five: without this, `prepaintGroup`
