@@ -605,21 +605,47 @@ import MetalUILayout
     }
 }
 
-/// Ruling P (fix round 1). Before this fix, a settled `$anim` entry was
-/// never re-marked once it stopped needing a write, so it went stale after
-/// `StateTable.staleAfterGenerations` (2) sweeps and was reaped on the next
-/// one whenever `storage.count` exceeded `sweepThreshold` (256) — EVEN WHILE
-/// its element was produced every single frame. The consequence was silent:
-/// a value that changed on the frame right after its baseline was reaped
-/// found `peek == nil`, was treated as a first sighting, and snapped to the
-/// new value with no animation at all — the worst failure this subsystem
-/// can have. `mark`-ing a settled entry whenever one already exists (this
+/// Ruling P (fix round 1), sharpened by Ruling R (fix round 2). Before the
+/// fix, a settled `$anim` entry was never re-marked once it stopped needing
+/// a write, so it went stale after `StateTable.staleAfterGenerations` (2)
+/// sweeps and was reaped on the next one whenever `storage.count` exceeded
+/// `sweepThreshold` (256) — EVEN WHILE its element was produced every single
+/// frame. `mark`-ing a settled entry whenever one already exists (this
 /// helper does now) keeps it live for as long as its element keeps being
 /// produced, which is a STRONGER guarantee than the bounded 2-generation
 /// excursion CLAUDE.md documents for `$state`/`$focus`/`$ax` — those go
 /// stale the moment their element stops being produced even briefly; this
 /// entry does not go stale AT ALL while its element is produced every frame,
 /// however long that is.
+///
+/// **This test's first version changed the value only after the churn had
+/// already re-settled to an identical baseline, and that made it BLIND to
+/// the exact bug it claimed to guard — measured, not assumed (fix round 2
+/// review).** Without ruling P's `mark` call, the entry is reaped at a fixed
+/// generation (measured: 4, then again at 8, from the ballast fixture
+/// below), and the very next `animated` call — REGARDLESS of whether that
+/// call's declared value differs — re-mints a fresh baseline via the
+/// first-sighting path, which itself calls `withState` and therefore marks
+/// the entry again. So a value change landing on any LATER frame finds an
+/// already-fresh, already-marked entry and animates correctly even under
+/// the bug — the silent failure exists on exactly ONE frame: the one whose
+/// own `peek` first returns `nil`. Removing only `mark` and leaving this
+/// test's original "change ten settled frames later" shape reddened **0 of
+/// 839**, the identical silent-miss shape ruling `TB-R` records elsewhere.
+///
+/// **The fix is to change the value DURING the churn window, not after
+/// it** — ruling R's mechanism. This version renders settled frames one at
+/// a time, checking after each sweep whether `$anim`'s own slot has become
+/// unreadable (`peek(slotID, as: AnimatedFieldMap.self) == nil`), and
+/// changes the declared value on the VERY NEXT `animated` call once that
+/// happens — the frame the bug can actually reach. Self-discovering rather
+/// than hardcoding "4": under ruling P's fix the entry is never reaped at
+/// all, so the loop exhausts its bound and `reaped` stays `false`, which is
+/// asserted directly as the first, structural half of this test; the
+/// second half (a value change immediately afterward still reads a
+/// mid-flight value rather than snapping) is Ruling R's own literal ask and
+/// is kept as insurance even though, under this fix, the first half alone
+/// already implies it.
 ///
 /// **The 260-id padding ballast is `TombstoneTests.swift`'s own idiom**,
 /// needed because the fixture's own one real entry never comes close to 256
@@ -634,6 +660,7 @@ import MetalUILayout
     for pad in paddingIDs { table.write(pad, 0) }
 
     let id = eid("box")
+    let slotID = animRetentionSlot(for: id)
     var style = Style()
     style.flexGrow = 0
 
@@ -643,33 +670,45 @@ import MetalUILayout
     for pad in paddingIDs { table.mark(pad) }
     table.sweep()
 
-    // Ten more frames declaring the SAME value every time — settled, nothing
-    // to write — each followed by a sweep. This is well past
-    // `staleAfterGenerations` (2): without ruling P's `mark` call, `id`'s
-    // entry would already have been reaped by the third of these.
-    for frameIndex in 1...10 {
+    // Settled frames — the value never changes — each followed by a sweep,
+    // stopping the INSTANT the entry becomes unreadable (bounded well above
+    // the measured generation-4 reap so a shift in the exact arithmetic is
+    // still caught). Under ruling P's fix this loop always exhausts its
+    // bound without ever finding one.
+    var reaped = false
+    var lastFrameIndex = 0
+    for frameIndex in 1...20 {
+        lastFrameIndex = frameIndex
         var pass = LayoutPass(frame: animFrame(table, timestamp: Double(frameIndex)))
         _ = animated(style, Decoration(), for: id, pass: &pass)
         for pad in paddingIDs { table.mark(pad) }
         table.sweep()
+        if table.peek(slotID, as: AnimatedFieldMap.self) == nil {
+            reaped = true
+            break
+        }
     }
+    #expect(!reaped, """
+            ruling P's mark must keep a continuously-produced settled entry alive \
+            indefinitely — it was reaped after frame \(lastFrameIndex) instead
+            """)
 
-    // NOW change it, under a transaction, and confirm it actually ANIMATES
-    // rather than silently snapping — a reaped-and-reborn baseline has
-    // nothing to diff against, so it would treat the new value as a first
-    // sighting and return it immediately instead.
+    // The frame immediately after — reaped or not — is where ruling R's
+    // mechanism says a missing `mark` silently snaps rather than animates:
+    // it is the exact frame whose own `peek` would first see `nil`.
     style.flexGrow = 100
-    var pass12 = LayoutPass(frame: animFrame(table, timestamp: 11))
+    let changeTimestamp = Double(lastFrameIndex + 1)
+    var passChange = LayoutPass(frame: animFrame(table, timestamp: changeTimestamp))
     withAnimation(.linear(duration: 1)) {
-        let (out, _) = animated(style, Decoration(), for: id, pass: &pass12)
+        let (out, _) = animated(style, Decoration(), for: id, pass: &passChange)
         #expect(out.flexGrow == 0, """
                 the frame that starts the transaction reads its own `from` (0) — a \
                 reaped-and-restarted baseline would read 100 (a snap) instead, got \(out.flexGrow)
                 """)
     }
 
-    var pass13 = LayoutPass(frame: animFrame(table, timestamp: 11.5))
-    let (out2, _) = animated(style, Decoration(), for: id, pass: &pass13)
+    var passMid = LayoutPass(frame: animFrame(table, timestamp: changeTimestamp + 0.5))
+    let (out2, _) = animated(style, Decoration(), for: id, pass: &passMid)
     #expect(out2.flexGrow == 50, """
             halfway through linear(duration: 1) should read 50 — a reaped baseline would have \
             snapped straight to 100 with nothing to interpolate from, got \(out2.flexGrow)
