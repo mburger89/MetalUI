@@ -687,6 +687,21 @@ private struct TwoAutoLeaves: Component {
 /// and measured here rather than assumed: the SECOND value wins outright,
 /// and the two do NOT accumulate (4 then 8 reads as a border box padded by
 /// 8, not by 4, and not by 12).
+///
+/// **This test is BLIND to the drop-`previous` mutation that
+/// `widthAndHeightComposeOnAChainedModifier` catches — measured, not
+/// inferred.** Dropping `previous(&style)` from the chained `padding(_:)`
+/// makes its outer closure do `style.padding = 8` unconditionally, and that
+/// is byte-identical to composing-then-overwriting to 8, because `Style()`'s
+/// default padding is `0` either way: there is nothing for the earlier
+/// `.padding(4)` call to have left behind that the later one does not
+/// already clobber. So a same-field chain genuinely cannot observe
+/// replace-versus-compose — not because this test is weak, but because the
+/// two implementations are indistinguishable on one field. Composition is
+/// only observable where two DIFFERENT fields are involved, which is exactly
+/// what `widthAndHeightComposeOnAChainedModifier` is for: the two tests are
+/// complementary, not redundant — it takes both to cover the change this fix
+/// round made.
 @MainActor
 @Test func chainedPaddingReplacesRatherThanAccumulates() {
     let log = ComponentLog()
