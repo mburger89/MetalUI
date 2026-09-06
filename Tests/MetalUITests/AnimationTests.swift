@@ -961,3 +961,299 @@ import MetalUILayout
                 """)
     }
 }
+
+// MARK: - Task 4 fix round 2: ruling U's own two mechanisms
+
+/// **Ruling U's two load-bearing lines were entirely unpinned, and this test
+/// is the only thing that observes either of them.** Measured by the fix
+/// round 1 re-review, each mutation run separately in an isolated worktree:
+/// deleting `inFlight[key] = nil` on `animateField`'s `current.isFinished`
+/// branch (`AnimatedStyle.swift`) reddened **0 of 841**, and deleting all
+/// three of `number`/`length`/`dimension`'s fast-path gates
+/// (`if inFlight[key] == nil && declared == previous { return declared }`)
+/// reddened **0 of 841**. No test in the suite asserted anything about
+/// `inFlight` at all — so the whole "a settled element stores an EMPTY
+/// dictionary, not 28 idle records" claim the 91.6% memory reduction rests on
+/// was unobserved.
+///
+/// The four checkpoints below are one lifecycle, and each is a different
+/// mechanism rather than four samples of one:
+///
+/// 1. **A settled element's `inFlight` is empty** — the resting state ruling U
+///    exists to make cheap.
+/// 2. **Mid-flight it holds exactly the one field that is moving**, asserted
+///    by KEY and not only by count: a count alone cannot tell "flexGrow is
+///    animating" from "some other field is animating instead".
+/// 3. **It is empty again on the settle frame** ← the `inFlight[key] = nil`
+///    mutation reddens here. Values stay correct under that mutation (the
+///    settled branch still returns `declared`), so nothing else in the suite
+///    can see it; what leaks is memory, one entry per field that has ever
+///    animated, for the element's whole life.
+/// 4. **An UNCHANGED frame under a live transaction leaves it empty** ← the
+///    gate mutation reddens here, and this is the checkpoint that matters
+///    for the future rather than for today. The gates are currently
+///    value-equivalent because `Animation.pendingTransaction` is only live
+///    inside `withAnimation`'s own lexical body (ruling V) — which is why
+///    this test, like every other one in this file, calls `animated(...)`
+///    *inside* that closure to see a transaction at all. Once Task 5 makes
+///    the transaction ambient for a whole frame build, the ungated mutant
+///    puts **all 28 fields of every element in the tree** into `inFlight` on
+///    every transaction frame, reinstating exactly the allocation ruling U
+///    removed.
+///
+/// **Both mutations were re-run against this test, in an isolated worktree,
+/// and both discriminate** (843 tests after this round's two additions; six
+/// per-target summary lines confirmed summing before any issue count was
+/// believed):
+///
+/// | mutation | result |
+/// |---|---|
+/// | delete `inFlight[key] = nil` on the `isFinished` branch | **3 issues / 2 tests** — checkpoints 3 and 4 here, plus `allTwentyEight…`'s own settle assertion |
+/// | delete all three fast-path gates | **3 issues / 1 test** — checkpoints 2, 3 and 4 here, and nothing else in the suite |
+///
+/// The gate mutation reddens more of this test than predicted, and the reason
+/// is worth knowing rather than being read as slack: with the gates gone, the
+/// *transition-start* frame (checkpoint 2) also enrols all 28 fields, because
+/// every unchanged field then reaches `animateField` under the same live
+/// transaction. Checkpoint 4 is still the one that isolates the mechanism —
+/// it is the only checkpoint with **no** field differing at all.
+///
+/// Two honest negatives, stated because a bare "it reddens" hides them:
+/// this test does **not** redden under the 25-field-deletion mutation that
+/// `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` is for
+/// (it drives `flexGrow`, one of the three fields that survive it), and that
+/// test does not redden under the gate mutation (its transaction frames
+/// change all 28 fields, so the gates never fire in it). The two tests cover
+/// different lines and neither subsumes the other.
+@Test @MainActor func theInFlightDictionaryIsEmptyWhenSettledAndHoldsOnlyTheMovingField() throws {
+    let table = StateTable()
+    let id = eid("lifecycle")
+    let slot = animRetentionSlot(for: id)
+
+    func inFlightKeys(_ label: String) throws -> [String] {
+        let state = try #require(table.peek(slot, as: AnimatedElementState.self),
+                                 "\(label): the $anim slot must hold an AnimatedElementState")
+        return state.inFlight.keys.sorted()
+    }
+
+    var style = Style()
+    style.flexGrow = 0
+
+    // 1. First sighting, and then three unchanged frames: nothing has ever
+    //    differed, so nothing is in flight.
+    var pass0 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    _ = animated(style, Decoration(), for: id, pass: &pass0)
+    let atFirstSighting = try inFlightKeys("first sighting")
+    #expect(atFirstSighting.isEmpty, """
+            a first-sighting baseline must store an EMPTY inFlight dictionary, got \(atFirstSighting)
+            """)
+
+    for frameIndex in 1...3 {
+        var pass = LayoutPass(frame: animFrame(table, timestamp: Double(frameIndex) / 60))
+        _ = animated(style, Decoration(), for: id, pass: &pass)
+        let settledKeys = try inFlightKeys("settled frame \(frameIndex)")
+        #expect(settledKeys.isEmpty, """
+                a settled element must store an EMPTY inFlight dictionary — frame \(frameIndex) \
+                holds \(settledKeys)
+                """)
+    }
+
+    // 2. Start a transition: exactly one field moves, and it is `flexGrow`.
+    style.flexGrow = 100
+    var passStart = LayoutPass(frame: animFrame(table, timestamp: 1))
+    withAnimation(.linear(duration: 1)) {
+        _ = animated(style, Decoration(), for: id, pass: &passStart)
+    }
+    let atStart = try inFlightKeys("transition start")
+    #expect(atStart == ["flexGrow"], """
+            the frame that starts a transition must put exactly the moving field in flight, \
+            got \(atStart)
+            """)
+
+    var passMid = LayoutPass(frame: animFrame(table, timestamp: 1.5))
+    let (mid, _) = animated(style, Decoration(), for: id, pass: &passMid)
+    #expect(mid.flexGrow == 50, "sanity: halfway through linear(duration: 1), got \(mid.flexGrow)")
+    let atMid = try inFlightKeys("mid-flight")
+    #expect(atMid == ["flexGrow"], """
+            a mid-flight element must hold exactly the moving field, got \(atMid)
+            """)
+
+    // 3. The settle frame removes it again. This is the checkpoint the
+    //    `inFlight[key] = nil` deletion reddens: `settled.flexGrow` is still
+    //    100 under that mutation, so only the dictionary can see it.
+    var passSettle = LayoutPass(frame: animFrame(table, timestamp: 2))
+    let (settled, _) = animated(style, Decoration(), for: id, pass: &passSettle)
+    #expect(settled.flexGrow == 100, "sanity: the settle frame reads the target, got \(settled.flexGrow)")
+    let atSettle = try inFlightKeys("settle")
+    #expect(atSettle.isEmpty, """
+            a finished animation must leave inFlight entirely — ruling U's whole claim — \
+            got \(atSettle)
+            """)
+
+    // 4. An UNCHANGED frame under a LIVE transaction must still leave it
+    //    empty: a transaction is permission to animate a difference, not an
+    //    instruction to enrol every field that has none.
+    var passIdleTransaction = LayoutPass(frame: animFrame(table, timestamp: 3))
+    withAnimation(.linear(duration: 1)) {
+        _ = animated(style, Decoration(), for: id, pass: &passIdleTransaction)
+    }
+    let underIdleTransaction = try inFlightKeys("unchanged frame under a live transaction")
+    #expect(underIdleTransaction.isEmpty, """
+            an unchanged frame under a live transaction must enrol NOTHING — the fast-path \
+            gates are what keep all 28 fields out of inFlight, got \(underIdleTransaction)
+            """)
+}
+
+/// **All 28 animatable fields, in one table — because the suite pins three.**
+/// Measured by the fix round 1 re-review: instrumenting `animateField` to
+/// print its key and running the unfiltered suite showed only **6 of the 28
+/// keys are ever reached at all** (`size.width`, `size.height`, `flexGrow`,
+/// `flexShrink`, `cornerRadius`, `padding.top`), and deleting **25 of the 28**
+/// field assignments from `animated(...)` left **841 tests, 0 issues**. The
+/// positive control — also deleting `flexGrow`, `flexShrink` and
+/// `cornerRadius` — reddened 6 tests / 19 issues, so the instrument worked and
+/// the zero was the finding: 25 of the 28 fields could have been silently
+/// un-wired and nothing would have noticed.
+///
+/// **The explicit non-`.auto` baseline is load-bearing, not tidiness.**
+/// `inset`, `size`, `minSize`, `maxSize` and `flexBasis` all default to
+/// `.auto`, and `.auto -> .length` snaps by spec §4 rule 1 — so from a plain
+/// `Style()` baseline only 17 of the 28 fields go in flight and the other 11
+/// sit at their declared value, which would make this test's midpoint
+/// assertion vacuous for exactly those 11. `allAnimatableFields(0)` gives
+/// every one of the 28 a concrete pixel baseline first.
+///
+/// Both halves are asserted: every field reads **exactly** halfway at t = 0.5,
+/// and all 28 leave `inFlight` on the settle frame — the same lifecycle
+/// `theInFlightDictionaryIsEmptyWhenSettledAndHoldsOnlyTheMovingField` pins
+/// for one field, taken across the whole table so a field wired to the wrong
+/// baseline sub-field (`p.minSize.width` under `maxSize.width`, say) reads a
+/// wrong midpoint here rather than passing silently.
+///
+/// **The 25-field deletion was re-run against this test in an isolated
+/// worktree and reddens it alone: 843 tests, `26 issues / 1 test`** — the
+/// key-set assertion, which names all 25 missing keys in its own message, plus
+/// one midpoint assertion per deleted field (15 `Dimension` + 10 `Length`).
+/// Nothing else in the suite moved, which is the re-review's `0 of 841`
+/// reproduced with this test as the only difference.
+@Test @MainActor func allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle() throws {
+    let dimensionFields: [(key: String, read: (Style) -> Dimension)] = [
+        ("inset.top", { $0.inset.top }),
+        ("inset.right", { $0.inset.right }),
+        ("inset.bottom", { $0.inset.bottom }),
+        ("inset.left", { $0.inset.left }),
+        ("size.width", { $0.size.width }),
+        ("size.height", { $0.size.height }),
+        ("minSize.width", { $0.minSize.width }),
+        ("minSize.height", { $0.minSize.height }),
+        ("maxSize.width", { $0.maxSize.width }),
+        ("maxSize.height", { $0.maxSize.height }),
+        ("margin.top", { $0.margin.top }),
+        ("margin.right", { $0.margin.right }),
+        ("margin.bottom", { $0.margin.bottom }),
+        ("margin.left", { $0.margin.left }),
+        ("flexBasis", { $0.flexBasis }),
+    ]
+    let lengthFields: [(key: String, read: (Style) -> Length)] = [
+        ("padding.top", { $0.padding.top }),
+        ("padding.right", { $0.padding.right }),
+        ("padding.bottom", { $0.padding.bottom }),
+        ("padding.left", { $0.padding.left }),
+        ("border.top", { $0.border.top }),
+        ("border.right", { $0.border.right }),
+        ("border.bottom", { $0.border.bottom }),
+        ("border.left", { $0.border.left }),
+        ("gap.horizontal", { $0.gap.horizontal }),
+        ("gap.vertical", { $0.gap.vertical }),
+    ]
+    let numberFields: [(key: String, read: (Style) -> Float)] = [
+        ("flexGrow", { $0.flexGrow }),
+        ("flexShrink", { $0.flexShrink }),
+    ]
+    let expectedKeys = (dimensionFields.map(\.key) + lengthFields.map(\.key)
+                        + numberFields.map(\.key) + ["cornerRadius"]).sorted()
+    // Spec §4's animatable list, as narrowed by `AnimatedStyle.swift`'s own
+    // top doc (`aspectRatio` and the three colour fields pass through). If
+    // this number moves, the list moved, and every table above must move
+    // with it.
+    #expect(expectedKeys.count == 28, "expected 28 animatable fields, listed \(expectedKeys.count)")
+
+    let table = StateTable()
+    let id = eid("all-fields")
+    let slot = animRetentionSlot(for: id)
+
+    // Frame 1: an explicit pixel-0 baseline for all 28.
+    var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    _ = animated(allAnimatableFields(0), allAnimatableDecoration(0), for: id, pass: &pass1)
+
+    // Frame 2: all 28 change to 100 inside one transaction.
+    let target = allAnimatableFields(100)
+    let targetDecoration = allAnimatableDecoration(100)
+    var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
+    withAnimation(.linear(duration: 1)) {
+        _ = animated(target, targetDecoration, for: id, pass: &pass2)
+    }
+    let started = try #require(table.peek(slot, as: AnimatedElementState.self)).inFlight
+    #expect(started.keys.sorted() == expectedKeys, """
+            every animatable field must be in flight after the transition starts — missing \
+            \(Set(expectedKeys).subtracting(started.keys).sorted()), unexpected \
+            \(Set(started.keys).subtracting(expectedKeys).sorted())
+            """)
+
+    // Frame 3: exactly halfway, for every field independently.
+    var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5))
+    let (mid, midDecoration) = animated(target, targetDecoration, for: id, pass: &pass3)
+    let halfDimension = Dimension.length(.pixels(Pixels(50)))
+    let halfLength = Length.pixels(Pixels(50))
+    for field in dimensionFields {
+        #expect(field.read(mid) == halfDimension,
+                "\(field.key): expected the halfway value 50, got \(field.read(mid))")
+    }
+    for field in lengthFields {
+        #expect(field.read(mid) == halfLength,
+                "\(field.key): expected the halfway value 50, got \(field.read(mid))")
+    }
+    for field in numberFields {
+        #expect(field.read(mid) == 50,
+                "\(field.key): expected the halfway value 50, got \(field.read(mid))")
+    }
+    #expect(midDecoration.cornerRadius.value == 50,
+            "cornerRadius: expected the halfway value 50, got \(midDecoration.cornerRadius.value)")
+
+    // Frame 4: the settle frame empties `inFlight` for all 28 at once.
+    var pass4 = LayoutPass(frame: animFrame(table, timestamp: 1))
+    _ = animated(target, targetDecoration, for: id, pass: &pass4)
+    let settled = try #require(table.peek(slot, as: AnimatedElementState.self)).inFlight
+    #expect(settled.isEmpty, """
+            every finished field must leave inFlight on the settle frame — \
+            \(settled.keys.sorted()) stayed
+            """)
+}
+
+/// Every one of spec §4's 28 animatable fields at one concrete, non-`.auto`
+/// value. Used by `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`
+/// as both baseline and target; the five `.auto`-defaulting fields are the
+/// reason it exists at all (see that test's doc).
+@MainActor private func allAnimatableFields(_ value: Float) -> Style {
+    let d = Dimension.length(.pixels(Pixels(value)))
+    let l = Length.pixels(Pixels(value))
+    var s = Style()
+    s.inset = Edges(all: d)
+    s.size = Size(width: d, height: d)
+    s.minSize = Size(width: d, height: d)
+    s.maxSize = Size(width: d, height: d)
+    s.margin = Edges(all: d)
+    s.padding = Edges(all: l)
+    s.border = Edges(all: l)
+    s.gap = Axes(both: l)
+    s.flexGrow = value
+    s.flexShrink = value
+    s.flexBasis = d
+    return s
+}
+
+@MainActor private func allAnimatableDecoration(_ value: Float) -> Decoration {
+    var d = Decoration()
+    d.cornerRadius = Pixels(value)
+    return d
+}
