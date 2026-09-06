@@ -287,8 +287,13 @@ public struct ScrollView<Content: ElementGroup>: Element {
         // so passing `id` itself to `animated(_:_:for:)` twice would collide
         // both nodes' fields under the identical `$anim` retention slot
         // (`animRetentionSlot(for:)` derives one slot per id, not per call).
-        // A named child id per node — on the same footing as `$state`,
-        // `$focus` and `$ax` — keeps them apart. `ScrollView` has no
+        // A named child id per node — on the same collision footing as
+        // `$state`, `$focus` and `$ax` — keeps them apart. Note the SHAPE:
+        // these two are id PREFIXES, not slots. `animated(...)` derives
+        // `animRetentionSlot(for:)` from whatever id it is handed, so the
+        // stored value ends up at `child(child(id, "$anim-content"),
+        // "$anim")` — a grandchild — and nothing is ever stored at
+        // `$anim-content` itself. `ScrollView` has no
         // `Decoration` of its own (see `cornerRadius`'s doc above), so a
         // fresh, discarded one is passed through and back. The two derived
         // ids are shared functions (`AnimatedStyle.swift`), not inlined here

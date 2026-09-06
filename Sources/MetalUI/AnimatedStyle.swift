@@ -72,10 +72,25 @@ import MetalUILayout
 /// right now. A settled element (the overwhelming majority of every frame,
 /// for any element not mid-transition) costs one `Style` (`MemoryLayout<Style>.stride`
 /// = 228) plus one `Decoration` (12) plus an EMPTY dictionary, rather than a
-/// 64-bucket table of 28 mostly-redundant entries. Measured in isolated
-/// processes at n = 20,000: **7,503 → 509 bytes per entry** (a bare-`Int`
-/// control entry costs 187), a 93% reduction; at n = 100,000 the animation
-/// overhead this file adds falls from ~756 MB to ~51 MB.
+/// 64-bucket table of 28 mostly-redundant entries.
+///
+/// **Measured on the SHIPPED shape, in isolated processes at n = 20,000:
+/// 7,636 → 643 bytes per entry, a ~91.6% reduction** — a bare-`Int` control
+/// entry costs 187, and at n = 100,000 the animation overhead this file adds
+/// falls from ~756 MB to ~51 MB.
+///
+/// **Those are not the numbers this line carried until fix round 2, and the
+/// correction is recorded rather than quietly substituted** (practices
+/// mechanism 1, with `TB-AA`'s converse). It read "Measured in isolated
+/// processes at n = 20,000: **7,503 → 509** bytes per entry … a 93%
+/// reduction" — which is ruling U's own **dispatch-time projection for the
+/// PROPOSED shape**, taken before any of this was written, and never re-taken
+/// at the line once the implementation measured itself. The implementer did
+/// measure the shipped shape independently and reported 7,636 → 643; that
+/// number reached the round's report and never reached `Sources/`. 509
+/// against a real 643 is a 26% gap, standing under the word "Measured".
+/// Both are kept above so the shape of the error stays visible; the shipped
+/// figures are the ones to quote.
 ///
 /// **Baseline equality is now native, not tag-decomposed, for the common
 /// case.** `Length`/`Dimension` are `Hashable` (hence `Equatable`) in their
@@ -87,6 +102,48 @@ import MetalUILayout
 /// already-running animation) needs numeric interpolation — that machinery
 /// is unchanged; only the "is there anything to do here at all" gate in
 /// front of it got cheaper.
+///
+/// ### Ruling U's reason (c) was REFUTED by this implementation, and `caseTag`
+/// is retained deliberately
+///
+/// Ruling U gave three reasons and called the third "the one that makes it
+/// not a cost trade". Its own words, kept visible rather than deleted:
+///
+/// > (c) It REMOVES machinery rather than adding it. […] a `Style` snapshot
+/// > keeps `Dimension`/`Length` as real enums, so spec §4's "same case
+/// > interpolates, different case snaps" becomes a native case comparison and
+/// > **the whole 0/1/2/3 `caseTag` space and its `preconditionFailure`
+/// > disappear**. […] 60-80 lines of a 323-line file.
+///
+/// **None of that happened.** `caseTag`, `decomposeLength`,
+/// `decomposeDimension`, `recomposeLength`, `recomposeDimension` and the
+/// `preconditionFailure` all survive — they are right below this doc — the
+/// native comparison landed as a *fast path in front of* the tag machinery
+/// rather than as a replacement, and this file went **322 lines at `562488f`
+/// → 416 at the reshape commit `6f7f7d7` → 444 at the end of that fix
+/// round**: 122 added where 60-80 were predicted removed. (It is longer
+/// still now — this correction block is itself part of the cost of the
+/// prediction having been wrong.)
+///
+/// **The refutation is the record, not a reversal — keeping `caseTag` is
+/// correct, and here is why.** Detecting a **mid-flight** case change needs
+/// the *running animation's own* case, and a native `Style` baseline does not
+/// carry it: once a field is in `inFlight`, `existing.style.<field>` is the
+/// last DECLARED value, while what a case change must be tested against is
+/// what the animation is currently interpolating between. `animateField`'s
+/// `declaredTag != running.caseTag` is that test, and there is nowhere else
+/// to read `running.caseTag` from. Removing the tag space means storing
+/// `Length`/`Dimension` natively inside `AnimatedFieldState` instead — a
+/// second, larger change, not a deletion.
+///
+/// **So ruling U's justification rests on (a) memory and (b) containment
+/// alone**, both of which were delivered and independently re-measured (the
+/// 7,636 → 643 figure above is that re-measurement). Recorded here, at the
+/// line, because this is the milestone whose predecessor added "a refuted
+/// claim has a blast radius" to `docs/practices/verifying-tests-can-fail.md`
+/// — and this claim was refuted inside the very round that shipped it, by
+/// the round's own diff, with nobody noticing until the re-review measured
+/// the file's line count.
 ///
 /// This is the FOURTH reserved slot name, joining `$state\(n)`, `$focus` and
 /// `$ax` — CLAUDE.md records those three as carrying an identical, unguarded
@@ -176,6 +233,20 @@ struct AnimatedFieldState: Equatable {
 /// for that one field. The one `withState` call at the end WRITES only when
 /// something this frame needs to be persisted — Ruling I — no new difference
 /// on any field, and no field still mid-flight.
+///
+/// **The first transition of a field that defaults to `.auto` SNAPS, and it
+/// is the first thing a caller hits.** `size`, `minSize`, `maxSize`, `inset`
+/// and `flexBasis` all default to `Dimension.auto`, and `.auto → .length` is
+/// a case change, which spec §4 rule 1 says snaps unconditionally — `.auto`
+/// carries no number to interpolate from. So `withAnimation { … }` on a box
+/// that had **no declared width** applies the new width immediately, silently
+/// and correctly, and only its *second* transition animates. Measured: from a
+/// plain `Style()` baseline with every animatable field changed under one
+/// transaction, **17 of 28** fields go in flight; give those five an explicit
+/// pixel baseline first and all 28 do
+/// (`allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`,
+/// whose non-`.auto` baseline exists for exactly this reason). The remedy for
+/// a caller is to declare the resting value rather than leaving it `.auto`.
 ///
 /// **`withState`, never `write` (Ruling H).** `StateTable.write` raises
 /// `isDirty` and fires `onWrite → Window.setNeedsRedraw()`; this helper runs
@@ -311,6 +382,17 @@ func animated(_ style: Style, _ decoration: Decoration, for id: GlobalElementID,
     // state, and the baseline is only ever "the last thing the caller
     // asked for", never the interpolated value in between.
     let newState = AnimatedElementState(style: style, decoration: decoration, inFlight: inFlight)
+    // Ruling I is stated as "writes only when something this frame needs to be
+    // persisted", and ruling U's reshape quietly WIDENED that set: this
+    // compares the WHOLE `Style` and `Decoration`, so a change to a purely
+    // *snapping* field (`display`, `position`, `flexDirection`, `alignItems`,
+    // … — none of which this helper interpolates) or to any of the three
+    // colour fields now takes the write branch and increments
+    // `StateTable.writeCount`, where the old per-field `dirty` flag took
+    // `mark`. Benign, and said here rather than left for a reader to find:
+    // `withState` raises no `isDirty` and fires no `onWrite`, so ruling H is
+    // intact and the display link is unaffected, and the baseline for those
+    // fields is never read back — so this is wasted work, not a wrong value.
     if newState != existing {
         pass.frame.stateTable.withState(slotID, initial: newState) { $0 = newState }
     } else {

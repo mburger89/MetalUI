@@ -510,7 +510,19 @@ idiomatic Swift. macOS and iOS.
     single element id, so passing that id to `animated(_:_:for:pass:)` twice
     would merge both nodes' baselines into one slot and each node would read
     the other's previous style as its own. Named child ids keep them apart.
-    All six are children of an element's own `GlobalElementID`, none is
+    **Four of the six are terminal SLOTS and two are id PREFIXES, and this
+    line said all six were slots until it was checked against the code.**
+    `$state\(n)`, `$focus`, `$ax` and `$anim` are children of an element's own
+    `GlobalElementID` and hold a value. `$anim-content`/`$anim-viewport` hold
+    nothing: `ScrollView` passes `scrollViewContentAnimID(for: id)` *to*
+    `animated(_:_:for:pass:)`, which then derives `animRetentionSlot(for:)`
+    from it, so the value lives at `child(child(id, "$anim-content"),
+    "$anim")` — a **grandchild** of the element, one level deeper than the
+    other four. **The paragraph's conclusion is unchanged and the hazard is
+    exactly as real**: a hand-written `.id("$anim-content")` child mints the
+    identical prefix, and that child's own `$anim` slot then collides with
+    the `ScrollView` content node's. Only the shape was described wrongly.
+    None of the six is
     guarded, and guarding one alone would leave the framework with one
     namespace defended and five open — which reads as though the others were
     safe. **And the

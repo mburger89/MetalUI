@@ -279,11 +279,26 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// `animated(_:_:for:)` twice without colliding the two nodes' fields under
 /// one `$anim` slot (`animRetentionSlot(for:)` derives one slot per id, not
 /// per call), so it names each node's id `"$anim-content"`/`"$anim-viewport"`
-/// — two MORE reserved names, both DIRECT children of the element's own id,
-/// on the same level as `$state\(n)`/`$focus`/`$ax`/`$anim` and carrying the
-/// identical unguarded risk. `ScrollView.swift`'s own comment already says
-/// they are "on the same footing as `$state`, `$focus` and `$ax`" — this is
-/// what actually puts them on it.
+/// — two MORE reserved names carrying the identical unguarded risk.
+/// `ScrollView.swift`'s own comment already says they are "on the same
+/// footing as `$state`, `$focus` and `$ax`" — this is what actually puts
+/// them on it.
+///
+/// **Those two are id PREFIXES, not slots, and this doc said "both DIRECT
+/// children of the element's own id, on the same level as
+/// `$state\(n)`/`$focus`/`$ax`/`$anim`" until Task 4's fix round 2 checked
+/// it against the code.** Nothing is ever stored at `$anim-content` itself:
+/// `ScrollView` passes `scrollViewContentAnimID(for: id)` *to*
+/// `animated(_:_:for:pass:)`, which derives `animRetentionSlot(for:)` from
+/// it, so the stored value lives at `child(child(id, "$anim-content"),
+/// "$anim")` — a **grandchild**, one level deeper than the other four. This
+/// test is unaffected and its subject is unchanged: a hand-written
+/// `.id("$anim-content")` child mints the identical prefix, and that child's
+/// own `$anim` slot then collides with the `ScrollView` content node's, so
+/// the hazard is equivalent and the six names must still be mutually
+/// distinct. Only the shape was described wrongly, in this doc and in
+/// CLAUDE.md's own reserved-name paragraph, which is corrected in the same
+/// pass.
 /// Reproduces the review's own probe: one element that is focused,
 /// AX-emitting, AND mid-animation, across the same two-sweep shape
 /// `Frame.render` uses (confirm, then vanish). `focusRetentionSlot`/
@@ -404,7 +419,8 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 
     let (contentOut3, _) = animated(contentStyle, Decoration(), for: contentAnimID, pass: &layoutPass3)
     #expect(contentOut3.flexShrink == 21, """
-            the $anim-content retention slot (a NAMED child of the same $id as $state/$focus/$ax/$anim) \
+            the $anim slot derived from the $anim-content PREFIX (child(child(id, "$anim-content"), \
+            "$anim"), a grandchild — not a sibling of $state/$focus/$ax/$anim) \
             must still hold its own mid-flight state (21, halfway from 0 to 42) — a collision with \
             any of the other five slots reads as a first sighting and returns 42 instead
             """)
