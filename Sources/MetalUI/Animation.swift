@@ -507,13 +507,64 @@ extension Animation {
     /// reason also animates") — but that is *the same frame*, and this was an
     /// arbitrarily distant one about something else.
     ///
-    /// So `withAnimation` parks eagerly and **rolls the slot back** if
-    /// `Window.redrawRequests` did not move across `body`. "There will be a
-    /// next build" is exactly "somebody called `setNeedsRedraw()`", which is
-    /// the one thing every dirty path in the framework has in common —
-    /// `@State`'s `onWrite` hook and `@Observable`'s
-    /// `markDirtyFromObservation` both reach it synchronously on the main
-    /// thread, which is where a `withAnimation` body runs.
+    /// So `withAnimation` parks eagerly and **rolls the slot back only when
+    /// nothing is going to build a frame** — neither `Window.redrawRequests`
+    /// moved across `body`, nor was `Window.aFrameBuildIsPending` already true
+    /// when it started.
+    ///
+    /// **Both halves are needed, and the second was added because the first
+    /// alone was measured to be WRONG** (fix round 2, re-review finding N-1).
+    /// The counter answers "did *this* body dirty a *clean* window", which is
+    /// narrower than "will there be a next build", and the gap is ordinary
+    /// code rather than a corner:
+    ///
+    /// - **`@State` is genuinely covered by the counter.** `StateTable.write`
+    ///   fires `onWrite` unconditionally on **every** write and `Window` wires
+    ///   that straight to `setNeedsRedraw()`.
+    /// - **`@Observable` is not, and the reason is not asynchrony.** The
+    ///   `markDirtyFromObservation` main-thread branch *is* synchronous — that
+    ///   much was true when this comment claimed it settled the path, and it
+    ///   does not settle it. `withObservationTracking`'s `onChange` is
+    ///   **one-shot**, and the session is re-armed only by the next *drawn*
+    ///   frame. So the second and every later `@Observable` mutation between
+    ///   two frames fires no `onChange` at all and moves no counter. Measured:
+    ///   `model.width = 120` then
+    ///   `withAnimation(.linear(duration: 1)) { model.width = 200 }` parked
+    ///   `nil` and **snapped to 200** where the animation reads **150** — a
+    ///   legitimate animation, silently discarded, with no diagnostic. The
+    ///   window was already dirty from the first write and a frame was
+    ///   certainly coming.
+    ///
+    /// `Window.aFrameBuildIsPending` is `drawFrameIfNeeded`'s own guard
+    /// (`needsRedraw || hasActiveAnimations`) asked across every live window,
+    /// which is exactly the question the rule needs answered. It also fixes a
+    /// second, benign instance the same round measured: a `withAnimation`
+    /// before a window's first frame has ever been drawn used to roll back
+    /// even though `needsRedraw` is `true` from `init`.
+    ///
+    /// **A counter-silent body never DISPLACES a park that is already there,
+    /// and that clause is the whole of the difference between this rule and
+    /// the re-review's suggestion as written.** Taking the suggestion bare —
+    /// park whenever a build is pending — made
+    /// `withAnimation(.linear(duration: 1)) { model.width = 200 }` followed by
+    /// an empty `withAnimation(.linear(duration: 4)) { }` hand the *empty* one
+    /// the build, because the first call's own dirty made a build pending for
+    /// the second. Measured, by running it: `112.5` where the first
+    /// transaction reads `150`, reddening
+    /// `aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAnimateALaterChange`'s
+    /// third arm. So the full rule is: **a body that asked for no redraw keeps
+    /// the slot only when the slot was FREE and a build was already coming** —
+    /// which is exactly the N-1 case, an observable write nobody observed. If
+    /// the slot was already claimed, the claimant's body demonstrably dirtied
+    /// a clean window, so it has the stronger claim and gets it back.
+    ///
+    /// **The residual, stated rather than discovered.** Two `withAnimation`
+    /// calls in one frame interval where the SECOND one's writes are
+    /// unobserved (`withAnimation(a) { model.x = 1 }; withAnimation(b) { model.y = 2 }`)
+    /// give the build `a`, not `b`. Only one ambient transaction reaches one
+    /// build in any case, so this is which-curve-wins rather than a dropped
+    /// animation — `y` still animates — and "the one whose body demonstrably
+    /// dirtied" is the defensible half of the choice. Unpinned by any test.
     ///
     /// **This also stops the module-global leaking across the suite.** The 13+
     /// direct-helper `withAnimation` sites from Tasks 3, 4 and 4b build no
@@ -588,8 +639,9 @@ extension Animation {
 ///   `body` and then RESTORED to whatever was parked before — not `nil` — so a
 ///   `withAnimation` nested inside another leaves the outer one in effect once
 ///   the inner body returns.
-/// - `Animation.parkedTransaction` survives this call **if and only if `body`
-///   asked for a redraw** — i.e. only if there is going to be a next frame
+/// - `Animation.parkedTransaction` survives this call **if and only if a frame
+///   build is coming** — `body` asked for a redraw, or one was already pending
+///   when the call started — i.e. only if there is going to be a next frame
 ///   build for it to reach — and is then taken by the next
 ///   `Window.drawFrameIfNeeded`. That is the whole hand-off: the mutation
 ///   inside `body` marks the window dirty through `@State`'s `onWrite` or
@@ -613,6 +665,11 @@ public func withAnimation(_ animation: Animation = .default, _ body: () -> Void)
     let previous = Animation.pendingTransaction
     let previouslyParked = Animation.parkedTransaction
     let redrawsBefore = Window.redrawRequests
+    // Sampled BEFORE the body, and that is the meaningful reading: it asks
+    // whether a build was ALREADY coming when this call started. Sampled
+    // after, it would also be true of any body that dirtied something, which
+    // the counter already covers.
+    let buildAlreadyPending = Window.aFrameBuildIsPending
     Animation.pendingTransaction = animation
     Animation.parkedTransaction = animation
     // `defer`, not a trailing assignment: nothing today can skip past `body()`
@@ -621,7 +678,8 @@ public func withAnimation(_ animation: Animation = .default, _ body: () -> Void)
     // silently stop happening on the path that would need it most.
     //
     // The LEXICAL slot is restored unconditionally. The PARKED one is rolled
-    // back only when `body` requested no redraw — restoring it
+    // back when nothing is going to build a frame, and also when the slot was
+    // already claimed by a call whose body did dirty something — restoring it
     // unconditionally is precisely the pre-task behaviour that made production
     // animate nothing, and mutation 5 in this task's report is that line put
     // back. Rolled back to `previouslyParked` rather than to `nil`, so a
@@ -629,7 +687,8 @@ public func withAnimation(_ animation: Animation = .default, _ body: () -> Void)
     // legitimately parked.
     defer {
         Animation.pendingTransaction = previous
-        if Window.redrawRequests == redrawsBefore {
+        if Window.redrawRequests == redrawsBefore
+            && (!buildAlreadyPending || previouslyParked != nil) {
             Animation.parkedTransaction = previouslyParked
         }
     }

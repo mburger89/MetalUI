@@ -115,9 +115,17 @@ import MetalUIRender
 /// `withAnimation` parks a transaction and clears it. The clearing half is what
 /// stops every later frame animating.
 @MainActor
-@Test func withAnimationParksATransactionForTheDurationOfItsBodyOnly() {
+@Test func withAnimationParksATransactionForTheDurationOfItsBodyOnly() throws {
     #expect(Animation.pendingTransaction == nil)
     let parkedBefore = Animation.parkedTransaction
+    // The parked-slot arm below is about the no-build-coming case, so the
+    // fixture must actually be in it. `try #require` rather than `#expect`
+    // because the arm asserts nothing meaningful otherwise, and because a
+    // failure here is cross-test pollution (a dirty window left alive by an
+    // earlier test) rather than a defect in `withAnimation` — worth saying
+    // loudly rather than reading as a wrong value.
+    try #require(!Window.aFrameBuildIsPending,
+                 "set up: no live window is about to build a frame")
     var sawInside: Animation?
     withAnimation(.linear(duration: 1)) {
         sawInside = Animation.pendingTransaction
@@ -2709,4 +2717,71 @@ final class AnimationDriveModel {
                 no-op one won; got \(String(describing: subjectWidth(window)))
                 """)
     }
+}
+
+/// **Fix round 2, re-review finding N-1**, reproduced as the re-reviewer
+/// measured it and then closed.
+///
+/// Fix round 1 gated parking on `Window.redrawRequests` moving across the body,
+/// on the premise that every dirty path reaches `setNeedsRedraw()` before the
+/// body returns. **The premise is false for `@Observable`, and not because that
+/// path is asynchronous.** `withObservationTracking`'s `onChange` is one-shot
+/// and its session is re-armed only by the next *drawn* frame, so the second
+/// and every later observable mutation between two frames fires no `onChange`
+/// at all. Under the counter-only rule this test's `withAnimation` parked `nil`
+/// and the width **snapped to 200** — a legitimate animation, written in
+/// ordinary code, discarded with no diagnostic.
+///
+/// Nothing in the repo regressed, because `Sources/` has no `withAnimation`
+/// caller; the defect was in the shipped public API, which is worse rather than
+/// better. It was invisible to all 860 tests and to all four of fix round 1's
+/// mutations because every existing fixture's animated write happens to be the
+/// first of its interval.
+///
+/// **Two `try #require`s carry the fixture rather than decorate it**: the first
+/// proves an interval's first observable write *does* move the counter, and the
+/// second proves this one does *not*. Without the second, a future change that
+/// re-armed the session every write would make this test pass while testing
+/// nothing (taxonomy shape 15) — and it is the arm that fails if the one-shot
+/// mechanism this test is named for ever stops being the mechanism.
+@MainActor @Test func anAnimatedWriteThatIsNotTheFirstObservableWriteOfItsIntervalStillAnimates() throws {
+    let model = AnimationDriveModel()
+    let (window, platformWindow) = try makeDriveWindow(model)
+    platformWindow.simulateTick(timestamp: 100)
+    try #require(subjectWidth(window) == 100, "set up: the resting baseline")
+
+    // The FIRST observable write since that drawn frame: the session is armed,
+    // `onChange` fires, `markDirtyFromObservation` reaches `setNeedsRedraw()`.
+    let beforeFirst = Window.redrawRequests
+    model.width = 120
+    try #require(Window.redrawRequests > beforeFirst, """
+                 set up: an interval's FIRST observable write must reach setNeedsRedraw() — \
+                 if it does not, this fixture is not the asymmetry it is named for
+                 """)
+
+    // The SECOND, inside a transaction. The session is spent and is re-armed
+    // only by the next drawn frame, so nothing observes this at all.
+    let beforeSecond = Window.redrawRequests
+    withAnimation(.linear(duration: 1)) { model.width = 200 }
+    try #require(Window.redrawRequests == beforeSecond, """
+                 set up: the second observable write of an interval must move NO counter — \
+                 that is the whole regime this test exists in, and a fixture where the \
+                 counter moved would pass under the very rule it must reject
+                 """)
+
+    // A frame is coming regardless, because the first write left the window
+    // dirty. The transaction must survive to reach it.
+    platformWindow.simulateTick(timestamp: 100)
+    #expect(subjectWidth(window) == 100, """
+            the frame that starts the transition reads its own `from`; 200 means the \
+            transaction was discarded and the change snapped, \
+            got \(String(describing: subjectWidth(window)))
+            """)
+
+    platformWindow.simulateTick(timestamp: 100.5)
+    #expect(subjectWidth(window) == 150, """
+            halfway through a 1s linear 100 -> 200; 200 is the counter-only rule silently \
+            dropping a legitimate animation, got \(String(describing: subjectWidth(window)))
+            """)
+    #expect(window.hasActiveAnimations, "and it is genuinely still interpolating")
 }

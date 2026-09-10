@@ -504,6 +504,11 @@ public final class Window {
                 self?.drawFrameIfNeeded()
             }
         }
+
+        // Last, because `register` stores `self` and everything above must
+        // have run first. Weak, so this is not a retain and a window nobody
+        // else holds still deallocates — see `liveWindows`.
+        Window.register(self)
     }
 
     /// Monotonic count of `setNeedsRedraw()` calls across every window, ever.
@@ -523,6 +528,66 @@ public final class Window {
     /// Static rather than per-window because `withAnimation` has no window in
     /// scope — the same constraint that puts the parking slot at module scope.
     static var redrawRequests: UInt64 = 0
+
+    /// Every `Window` still alive, weakly.
+    ///
+    /// **One caller, one question: `withAnimation` needs to know whether a
+    /// frame build is already pending**, and `redrawRequests` above cannot
+    /// answer it — see `aFrameBuildIsPending`. Weak, so a window nobody holds
+    /// any more drops out on its own; compacted on every read and on every
+    /// registration, so the array cannot grow past the number of live windows
+    /// plus whatever died since the last look. **Weak references rather than a
+    /// maintained count** deliberately: a count needs decrementing when a
+    /// dirty window is deallocated, which means an isolated `deinit` touching
+    /// main-actor state, and a count that drifts upward once is a
+    /// `withAnimation` that parks forever with no diagnostic.
+    ///
+    /// This is the "window registry" whose absence is `Animation.parkedTransaction`'s
+    /// stated reason for living at module scope. It does **not** change that:
+    /// this answers "is *any* window about to build", which is a global
+    /// question with a global answer, where the parking slot needs "*which*
+    /// window did this body mutate", which nothing here can answer.
+    private static var liveWindows: [WeakWindowRef] = []
+
+    private struct WeakWindowRef {
+        weak var window: Window?
+    }
+
+    /// True when some live window will build a frame at its next display-link
+    /// tick — **`drawFrameIfNeeded`'s own guard, asked from outside**.
+    ///
+    /// `withAnimation` needs "will there be a next build for this transaction
+    /// to reach", and `redrawRequests` answers only the narrower "did THIS
+    /// body dirty a CLEAN window". The two differ on ordinary code, and the
+    /// difference was measured rather than reasoned (fix round 2, re-review
+    /// finding N-1): `withObservationTracking`'s `onChange` is **one-shot**,
+    /// and a session is re-armed only by the next *drawn* frame, so the second
+    /// and every later `@Observable` mutation between two frames reaches
+    /// `markDirtyFromObservation` never and the counter never moves —
+    ///
+    /// ```
+    /// model.count += 1                                          // counter +1
+    /// withAnimation(.linear(duration: 1)) { model.width = 200 } // counter +0
+    /// ```
+    ///
+    /// — even though a frame is certainly coming, because the first write left
+    /// the window dirty. Gating on the counter alone silently snapped that
+    /// second animation: measured `200.0` where the animation reads `150.0`.
+    /// This property is what accepts it.
+    ///
+    /// `hasActiveAnimations` is in the condition for the same reason it is in
+    /// the guard: a window mid-fade is CLEAN and still building every frame,
+    /// so a `withAnimation` raised from a handler during one must park.
+    static var aFrameBuildIsPending: Bool {
+        liveWindows.removeAll { $0.window == nil }
+        return liveWindows.contains { $0.window?.needsRedraw == true
+                                      || $0.window?.hasActiveAnimations == true }
+    }
+
+    private static func register(_ window: Window) {
+        liveWindows.removeAll { $0.window == nil }
+        liveWindows.append(WeakWindowRef(window: window))
+    }
 
     public func setNeedsRedraw() {
         Window.redrawRequests &+= 1

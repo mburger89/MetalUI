@@ -50,9 +50,9 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 ```
 
-- **Counts, dated:** 860 tests, 87 browser-fixture goldens, 35 `swiftc
+- **Counts, dated:** 861 tests, 87 browser-fixture goldens, 35 `swiftc
   -typecheck` guards, warning-free — measured 2026-09-10 on `feat/animation`
-  at Task 5's fix round 1 (`master` at the Component
+  at `2c34e3d`, on a `swift package clean` build (`master` at the Component
   milestone's end was 811 / 87 / 34; this branch read 843 at `6591360` before
   the animation milestone's Tasks 4b and 5).
   A count is stale the moment a test lands; re-measure rather than trust.
@@ -220,12 +220,16 @@ moving layout off the main actor rewrites it first. The other two
 restored in its own `defer` and therefore alive only for the closure's lexical
 duration, and `parkedTransaction`, which survives the closure **only if `body`
 asked for a redraw** and is then taken by the next `Window.drawFrameIfNeeded`
-and handed to the `Frame` as ambient `pass.transaction` (spec §3). **A body
-that dirties nothing parks nothing**, and that is a fix rather than a nicety:
-without it a `withAnimation { if cond { … } }` with a false `cond` parked a
-transaction no frame could consume, which then animated an unrelated change
-400 s later. `Window.redrawRequests` is the counter `withAnimation` compares
-across `body` to decide. **The parked one is the whole hand-off**: until
+and handed to the `Frame` as ambient `pass.transaction` (spec §3). **The park survives only if a frame build is
+coming** — `Window.redrawRequests` moved across `body`, or
+`Window.aFrameBuildIsPending` (a weak registry asking `drawFrameIfNeeded`'s own
+guard of every live window) was already true and the slot was free. Both halves
+are fixes with measurements behind them: without the first, a
+`withAnimation { if cond { … } }` with a false `cond` parked a transaction no
+frame could consume and animated an unrelated change 400 s later; without the
+second, `withObservationTracking`'s **one-shot** session meant the *second*
+`@Observable` write between two frames moved no counter, so
+`model.count += 1; withAnimation { model.width = 200 }` silently snapped. **The parked one is the whole hand-off**: until
 Task 5 there was only the lexical slot, the frame build runs later from the
 display link, and every field snapped — four wired sites, none of which could
 ever start an animation (ruling V). Consumed by exactly ONE build. Spec §3 says
