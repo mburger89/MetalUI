@@ -1,0 +1,189 @@
+## When CI lands
+
+Three guarantees silently lapse under plausible configurations and must be
+required, non-gateable jobs. All three are detailed in the decisions docs:
+
+1. The ABI probe **skips** without a Metal device.
+2. `committedGoldensMatchTheBrowser` is the only live-WebKit consumer.
+3. **The 34 `swiftc -typecheck` guards skip whenever `.build` is not where
+   `#filePath`-relative resolution expects it.** `canTypecheck`
+   (`Tests/MetalUITestSupport/Typecheck.swift`) walks three directories up from
+   its own `#filePath` and looks for `.build/<triple>/debug/Modules` holding the
+   module; a `--scratch-path`, a CI that builds elsewhere, a moved checkout, or
+   `swift test -c release` all make that miss and every guard becomes a skip.
+   **That set is this milestone's headline deliverable and both of its
+   compile-time exit criteria** — `PhaseSeparationTests` (**19**),
+   `ErasureCompileGuards` (**9**), `ElementGroupTrapTests` (1), `UnitSafetyTests` (2,
+   in `Tests/MetalUICoreTests/`, where a bare `grep -c` reads 3 because one is a
+   comment) and `AXNodeTests` (**3**, in `Tests/MetalUITests/`, added by the
+   tombstones-and-AX milestone — see the last block of this item)
+   — and none of them has a runtime equivalent, by construction: each asserts
+   that something must *not* compile, so a regression makes the offending code
+   compile and leaves every ordinary test green.
+
+   **Taxonomy shape 11's count heuristic does not catch this one.** Measured, by
+   forcing `canTypecheck` to `false`: exactly 25 tests report as skipped, the
+   total does not move, and the run passes. **The 25 is dated — it is the guard
+   count at the time, and the guard count is 34 today.** The load-bearing half
+   is the other two clauses, "the total does not move" and "the run passes",
+   which are properties of `.enabled(if:)` rather than of any count; that a
+   skip counts toward the total was independently re-measured at the
+   tombstones milestone (see the Build section). Nobody has re-forced
+   `canTypecheck` to `false` since, so **do not read 34 into this sentence** —
+   the number that would appear has not been run. The 25 was first taken at
+   `Test run with 304 tests`, re-measured at 358 on the structural-identity
+   branch, and **re-counted at the end of M2 (suite 444): still 25 — 15 + 7 + 1
+   + 2 across the four files**, where `grep -c canTypecheck` reads 3 in
+   `UnitSafetyTests` because one is a comment. **Re-counted again at the end of
+   the clipping-and-scroll milestone (suite 488), again at the end of the
+   stack milestone's review round (suite 538), and again at the end of absolute
+   positioning (suite 577): still 25. Re-counted again at the end of
+   measure-performance (suite 604), and once more after that milestone's
+   whole-branch fix round (suite 609): still 25 — by grep both times (15 + 7 + 1
+   + 2 across the four files) rather than by forcing `canTypecheck` to `false`,
+   which is the weaker of the two methods and is said so rather than implied.**
+   The suite has
+   moved 304 → 358 → 444 → 488 → 538 → 577 → 604 → 609 and the guard count has not moved at
+   all, which is the paragraph's point arriving as eight data points rather than as
+   one delta — the argument is that the two numbers are independent, so do not
+   restate it as "the suite grew by N and the 25 held", which rots the moment N
+   changes. **The guard count does not track the suite count and neither number
+   implies the other.** A falling suite count
+   is the signal shape 11 tells you to watch, and this failure does not move it.
+
+   **It finally DID move, at the input-and-state milestone's Task 6 fix round
+   (suite 640): 27 — 17 + 7 + 1 + 2, by grep.** `PhaseSeparationTests` gained
+   two, `queryingHoverDuringPrepaintDoesNotCompile` and
+   `queryingActiveDuringPrepaintDoesNotCompile`, for `theme`'s own reason
+   stated sharper: a colour read during prepaint simply fails to compile, but
+   `isHovered`/`isActive` would **compile and lie** if reachable there —
+   returning a silently wrong `false` from a syntactically fine call. Two
+   independent things make it wrong, and the guard is worth having for the
+   second even more than the first: `Frame.hoveredHitbox` is still `nil`
+   because `resolveHover(at:)` runs *after* prepaint returns, **and** the
+   hitbox list is still being built, since `PrepaintPass.insertHitbox` is
+   what fills it. So a prepaint-time answer would be wrong even if hover
+   had somehow already resolved — it would rank against a partial list,
+   which is exactly §3.3's reason for resolving once at the boundary
+   rather than during registration: "topmost wins" is not knowable until
+   every hitbox is registered. (This sentence said the opposite when first
+   written — "every hitbox has already registered by the time
+   `PrepaintPass` runs" — which inverts the mechanism the guard exists
+   for.) **This does not contradict "the guard count does not track the
+   suite count" above — it is the other half of the same claim, not an
+   exception to it.** Every prior re-count held 25 steady while unrelated
+   tests were added elsewhere; this one moved because a guard was
+   *deliberately written* in the same change that could have introduced the
+   hazard it guards against, which is what a compile-time guard is for. The
+   two numbers still do not imply one another: 640 does not say 27, and nothing
+   here claims it does.
+
+   **It then moved twice more in the same milestone, to 28 and to 29 — and
+   both times for that same reason, which is the pattern to recognise rather
+   than a count to memorise.** Task 9 added
+   `queryingFocusDuringPrepaintDoesNotCompile` (**28** = 18 + 7 + 1 + 2) and
+   Task 11 added `queryingElementKeyedHoverDuringPrepaintDoesNotCompile`
+   (**29** = 19 + 7 + 1 + 2). Both are guards written in the same change that
+   could have introduced the hazard. **Re-counted by grep at the whole-branch
+   fix wave (suite 739): still 29** — 19 + 7 + 1 + 2 across the four files,
+   where `grep -c canTypecheck Tests/MetalUICoreTests/UnitSafetyTests.swift`
+   reads 3 because one of them is a comment. The fix wave added three tests and
+   no guard, which is the paragraph's own claim arriving once more.
+
+   **The focus one is the case worth reading, because its brief FORBADE adding
+   it by symmetry and the measurement went the other way from how the question
+   was framed.** The framing was "focus is window state fully known before the
+   frame starts, so `isActive`'s justification may not apply". Measured: an
+   element that stops being focusable reads `prepaint=true / paint=false` in
+   the **same frame**, because `Frame.resolveFocus()` clears at the boundary —
+   so a prepaint-time `isFocused` returns a wrong `true`. And answering that
+   honestly for the new guard answered it for an old one **in the opposite
+   direction**: `isActive`'s guard is *not* a measured lie, because
+   `Frame.activeElement` is a `let` assigned once in `init` and a prepaint-time
+   `isActive` would answer correctly. Its guard is kept as placement insurance,
+   and the shared comment says so instead of implying one measurement covers
+   all three. The paragraph above still describes `isHovered` correctly; it
+   described `isActive` wrongly until this was measured.
+
+   **Task 11's is a second SPELLING rather than a second member.** The
+   element-keyed `isHovered(_ id: GlobalElementID)` overload landed for
+   `Box.paint` to reach (ruling IN-V), and the existing hover guard probes the
+   `HitboxID` spelling — so adding *only* the new one to `PrepaintPass` would
+   leave that guard green while shipping the identical hazard. Two spellings
+   need two probes.
+
+   **It moved a fourth time, at the tombstones-and-AX milestone: 32, and for
+   the FIRST time across a fifth FILE** — 19 + 7 + 1 + 2 + **3**, the three new
+   ones in `Tests/MetalUITests/AXNodeTests.swift`. Re-counted by grep per file
+   at that milestone's last commit (suite **782**), both counting methods
+   agreeing where they can. **This is the paragraph's own claim arriving a
+   fourth time, not an exception to it**: the suite has now moved 304 → 358 →
+   444 → 488 → 538 → 577 → 604 → 609 → 640 → 739 → 782 → **791** → 810 → **811** and
+   the guard
+   count has
+   moved six times, at commits that had nothing to do with the suite's size.
+   782 does not say 32 and nothing here claims it does — nor does 791, which is
+   the reactivity milestone's count, **re-counted by grep per file at its last
+   commit and still 32** while nine tests were added. The two numbers moved
+   independently one more time, which is this item's whole argument.
+
+   **The fifth and sixth moves are both the `Component` milestone's, at suites
+   810 then 811: 33 then 34** — `ErasureCompileGuards`'
+   `backgroundCannotBeCalledOnAComponent` (ruling `CO-W`) in the task round,
+   and `layoutPassStyleAccessorsAreNotPublic` in the fix wave, for the
+   `public` → `internal` narrowing of `LayoutPass.style`/`setStyle`. **The
+   sixth is the WEAKEST data point this item has, and it is recorded as such**:
+   a compile guard is a `@Test`, so it moved the suite count and the guard count
+   together, by one each — the only move in the series that did. The
+   independence claim rests on the other five and on every milestone where the
+   suite grew while this number held. Same pattern as the five before it — a guard written in the same
+   change that could have introduced the hazard, not a guard that tracked a
+   growing suite. **And it adds a counting trap the item above does not
+   describe.** `grep -rl canTypecheck Tests/` now returns **six** paths and only
+   five carry guards: the sixth is
+   `Tests/MetalUITestSupport/Typecheck.swift`, whose single hit is
+   `canTypecheck`'s own **declaration**. Summing per-file `grep -c` across every
+   matching path reads **36**, not 34. Count guards, not files, and check what
+   each hit actually is.
+
+   **The reason these three exist is a new hazard rather than a new phase
+   guard, and it generalises past this repo (ruling `TB-N`).** Task 5 narrowed
+   `AXNode.frame`/`children` from `public var` to `public internal(set)`.
+   `AXNodeTests.swift` uses **`@testable import`, which widens `internal` — so
+   no test in that file could demonstrate the narrowing closed anything at
+   all.** The tool that gives a test its reach is the tool that hides the
+   change. Proving it needed guards against a **plain** import of the built
+   module, on `ErasureCompileGuards.swift`'s pattern; Task 6 added a third for
+   `isValid`, confirmed by mutation (widening `isValid` to `public var` reddens
+   exactly the new guard and nothing else in 777). **And the first draft of one
+   guard was passing on its weaker half only**: it asserted the diagnostic
+   contained `"Cannot assign"` where the real text is lowercase
+   `"cannot assign"`, so `!result.succeeded` held and the message assertion
+   never matched — caught by printing the real diagnostic before trusting it,
+   which is the same two-assertion hazard the `HitboxID`/`GlobalElementID`
+   hover probes above record from the other direction.
+
+   **Re-count by grep, and note the DIRECTORIES — there are now two of them.**
+   (**The totals in this paragraph are the tombstones milestone's**, when the
+   count was 32; the fifth-move note above carries today's 34 and the six-path
+   trap. The claim being made here is about directories, not about either
+   number.)
+   `Tests/MetalUICoreTests/UnitSafetyTests.swift`, not `MetalUITests`; and
+   `Tests/MetalUITests/AXNodeTests.swift`, not `MetalUICoreTests`. A recheck
+   that greps the wrong directory silently reads 26 instead of 32 — or misses
+   the AX file entirely and reads 29, which is exactly the number this
+   paragraph carried for eight milestones and would therefore look right.
+   `UnitSafetyTests` still reads 3 by a bare `grep -c` because one occurrence
+   is a comment; `AXNodeTests`' 3 are all real guards.
+
+   **Not converted to a hard failure, and the reason is a configuration rather
+   than a preference.** The obvious rule — fail rather than skip when `.build`
+   exists at all — reddens `swift test -c release` on a clean checkout, where
+   `.build` exists and only `release/Modules` is populated. It also does not fire
+   in the `--scratch-path` case it is aimed at: a checkout that has ever been
+   built normally still has a populated `.build/…/debug/Modules`, so
+   `canTypecheck` returns *true* and the guards run against **stale** modules,
+   which is a worse failure than the skip and a different bug. The fix that
+   actually closes it is to resolve the modules directory from the **running
+   test binary's** own location rather than from `#filePath`, which is correct
+   under every configuration above; it was out of scope here.
