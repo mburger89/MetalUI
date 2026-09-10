@@ -50,9 +50,11 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 ```
 
-- **Counts, dated:** 843 tests, 87 browser-fixture goldens, 35 `swiftc
-  -typecheck` guards, warning-free — measured 2026-09-09 on `feat/animation`
-  at `6591360` (`master` at the Component milestone's end was 811 / 87 / 34).
+- **Counts, dated:** 859 tests, 87 browser-fixture goldens, 35 `swiftc
+  -typecheck` guards, warning-free — measured 2026-09-10 on `feat/animation`
+  at `c07c2a7`, on a `swift package clean` build (`master` at the Component
+  milestone's end was 811 / 87 / 34; this branch read 843 at `6591360` before
+  the animation milestone's Tasks 4b and 5).
   A count is stale the moment a test lands; re-measure rather than trust.
   Two tests are gated and **count toward the total** while being skipped
   (`regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`).
