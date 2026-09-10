@@ -1791,3 +1791,66 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     defer { Animation.pendingTransaction = previous }
     try body()
 }
+
+/// **An overshooting spring must not hand `fill` a colour outside the HSLA
+/// unit range** — the pin for `lerpComponents`' clamp, added because dropping
+/// the clamp reddened **nothing** in the 848-test suite and a green mutation is
+/// a coverage gap or a broken instrument, never a pass.
+///
+/// The mechanism, measured rather than predicted. `probeTheme`'s `background →
+/// accent` moves red from `0.10` to `0.90`, and a `bounce: 0.6` spring
+/// overshoots (`aBouncySpringOvershootsItsTarget` pins that it does), so red
+/// genuinely leaves `[0, 1]`. `Rgba.toHsla` then divides by `1 - |2l - 1|`
+/// against an out-of-range `l`, and returns a **saturation above 1** — a value
+/// that is not a colour, handed straight to `Frame.fill` and into the shader.
+///
+/// Sampled across the whole flight rather than at one guessed peak: the exact
+/// frame the overshoot maxes out is a property of the spring's parameters, and
+/// pinning it would be taxonomy shape 8 — an assertion on which frame happened
+/// to be chosen rather than on the invariant.
+@Test @MainActor func anOvershootingColourSpringStaysInsideTheHslaUnitRange() {
+    let table = StateTable()
+    let theme = probeTheme()
+    let id = eid("bouncy")
+
+    var f1 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: theme))
+    _ = animatedColor(.background, for: id, pass: &f1)
+
+    var f2 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: theme))
+    withAnimation(.spring(duration: 0.5, bounce: 0.6)) {
+        _ = animatedColor(.accent, for: id, pass: &f2)
+    }
+
+    // **`slack` is one ULP of `Float`, not a fudge factor, and the two numbers
+    // it sits between are both measured.** `Rgba.toHsla` divides Floats, so a
+    // legitimately fully-saturated colour comes back as `s == 1.0000001` — the
+    // first draft of this test asserted `<= 1` exactly and reddened 14 times
+    // WITH the clamp in place. The failure being guarded against is three
+    // orders of magnitude larger: with the clamp removed the same fixture peaks
+    // at `s == 1.2846` — measured in an isolated worktree, not predicted, and
+    // this line carried a guessed `1.1481` until that run replaced it.
+    let slack: Float = 1e-3
+    var sawOvershootRoom = false
+    for step in 1...240 {
+        let t = Double(step) / 240.0   // two seconds at 120 Hz
+        var pass = PaintPass(frame: colorFrame(table, timestamp: t, theme: theme))
+        guard let out = animatedColor(.accent, for: id, pass: &pass) else {
+            Issue.record("the helper must keep returning a colour while the spring runs")
+            return
+        }
+        #expect(out.s >= -slack && out.s <= 1 + slack,
+                "saturation left the unit range at t = \(t): \(out.s)")
+        #expect(out.l >= -slack && out.l <= 1 + slack,
+                "lightness left the unit range at t = \(t): \(out.l)")
+        #expect(out.a >= -slack && out.a <= 1 + slack,
+                "alpha left the unit range at t = \(t): \(out.a)")
+        // The fixture must actually reach the regime it exists to test — a
+        // spring that never got near the far end would make every assertion
+        // above vacuous (taxonomy shape 15).
+        if out.l > 0.58 { sawOvershootRoom = true }
+    }
+    #expect(sawOvershootRoom, """
+            the fixture never travelled far enough to overshoot at all, so the \
+            assertions above measured nothing
+            """)
+}

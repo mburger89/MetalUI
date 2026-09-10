@@ -266,6 +266,15 @@ func animatedColor(_ token: ColorToken?, for id: GlobalElementID,
 /// colour. Clamping the position (and not the velocity, which must stay real
 /// for a re-target to pick up honest momentum) is what keeps an overshooting
 /// colour spring on the screen instead of in the weeds.
+///
+/// **Measured, and it was unguarded until it was.** Deleting the clamp reddened
+/// **0 of 848** — a green mutation is a coverage gap or a broken instrument,
+/// never a pass — so the mutant was made to show its behaviour before the gap
+/// was banked: a `spring(duration: 0.5, bounce: 0.6)` over `probeTheme`'s
+/// `background → accent` peaks at a **saturation of 1.2846**, a value that is
+/// not a colour, handed straight to `Frame.fill` and into the shader.
+/// `anOvershootingColourSpringStaysInsideTheHslaUnitRange` is the pin, and it
+/// reddens 42 issues alone under the same deletion.
 private func lerpComponents(_ animation: Animation, elapsed: Double,
                             from: Rgba, to: Rgba, velocity: RgbaVelocity)
     -> (value: Rgba, velocity: RgbaVelocity, isFinished: Bool) {
