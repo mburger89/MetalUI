@@ -534,11 +534,13 @@ idiomatic Swift. macOS and iOS.
     row-`Box` id, and a row's own `$focus`/`$state0` slots are children of it —
     but it is a different threat model from a literal in source, because the
     colliding string arrives from data nobody is inspecting. What *is*
-    pinned is that the six cannot collide with **each other**:
-    `theSixRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift` — named
+    pinned is that the seven cannot collide with **each other**:
+    `theSevenRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift` — named
     `theThreeRetentionSlotsAreMutuallyDistinct` until the animation milestone's
-    Task 3 added `$anim` and its Task 4 fix round added `ScrollView`'s two, so
-    a citation of either older name points at this same test), written
+    Task 3 added `$anim`, its Task 4 fix round added `ScrollView`'s two and
+    Task 4b added `$anim-color`, so a citation of any older name — including
+    `theSixRetentionSlotsAreMutuallyDistinct` — points at this same test),
+    written
     because renaming `"$ax"` to `"$focus"` reddened **0 of 777** while
     silently dropping focus — the `AXNode` clobbers the `Bool`,
     `resolveFocus`'s `peek(…, as: Bool.self)` returns `nil`, and divergence 17

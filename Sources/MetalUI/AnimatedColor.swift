@@ -103,6 +103,17 @@ func animColorRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
 /// rather than a jump", and spec §11's risk row naming cached resolved colours
 /// as the optimisation that breaks it.
 ///
+/// **The SETTLED half of that comparison was itself unpinned until fix round 1**
+/// (review finding M-5): storing the resolved `Hsla` beside the token and
+/// comparing against it instead reddened **0 of 849**, and is not equivalent —
+/// a theme swap changes what an unchanged token resolves to, so with any
+/// transaction in flight a colour-keyed baseline starts a fade on an element
+/// nobody re-declared and holds the display link awake for its whole duration.
+/// Right pixels, wasted frames, no diagnostic.
+/// `aThemeSwapAloneNeverStartsAFadeOnASettledElement` is the pin; the
+/// MID-flight half was already pinned by
+/// `aThemeChangeMidFlightMovesBothOfTheAnimationsEndpoints`' `to` arm.
+///
 /// **Measured cost, because ruling U made this a live question rather than a
 /// theoretical one: `MemoryLayout<AnimatedColorState>.stride` is 120 bytes**,
 /// of which 112 is the `Optional<ColorAnimation>` — stored inline, so a
@@ -132,6 +143,18 @@ struct AnimatedColorState: Equatable {
 /// position is not any token. That exception is the whole of this file's
 /// narrowing of spec §4 rule 3, and both halves are pinned by
 /// `aThemeChangeMidFlightMovesBothOfTheAnimationsEndpoints`' two arms.
+///
+/// **The re-target itself was completely unguarded when this shipped, and that
+/// was found by mutation rather than by reading** (review finding I-1). Swapping
+/// `from: .fixed(current.value)` for `from: running.from` AND
+/// `velocity: current.velocity` for `.zero` reddened **0 of 849** — so
+/// `ColorEnd.fixed`, every non-`.zero` path through `RgbaVelocity`, and the
+/// sibling no-transaction snap were all declared-but-unverified, which is
+/// CLAUDE.md's inert-table shape arriving inside the file that argues hardest
+/// against it. `interruptingAColourFadeReTargetsFromItsCurrentValueAndVelocity`
+/// closes it in three arms, because the two halves need different curve models
+/// to be visible at all: a DURATION curve ignores `initialVelocity` by design,
+/// so only a SPRING interrupt can ever see `velocity: .zero`.
 struct ColorAnimation: Equatable {
     var from: ColorEnd
     var toToken: ColorToken

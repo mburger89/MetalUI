@@ -228,8 +228,12 @@ and `Text.paint` also fill a background and are **not** wired — a named hole,
 on spec §5's "an element that registers without calling the helper is silently
 unanimated" footing.
 `Frame.hasActiveAnimations` and the widened idle guard are Task 5 and do not
-exist yet — `grep -rn hasActiveAnimations Sources/` returns nothing, and an
-always-false stored property would be the inert table's trap (RX-O).
+exist yet — `grep -rn hasActiveAnimations Sources/` returns **no declaration**,
+three forward-pointing comments and nothing else, and an always-false stored
+property would be the inert table's trap (RX-O). (That grep read "returns
+nothing" until Task 4b's fix round measured it; two of the three comments
+pre-date this milestone's Task 4b, so the sentence was already false when it
+was written.)
 Constraints from its plan: no golden may move or be added, no
 test may sleep (drive `simulateTick(timestamp:)`), `aspectRatio` must not
 become animatable, no Reduce Motion / exit transitions / transforms.

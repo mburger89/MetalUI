@@ -150,11 +150,12 @@ import MetalUILayout
 /// collision risk, and `$anim` inherits it exactly. `ScrollView`'s own two
 /// named child ids (`$anim-content`, `$anim-viewport`) are a FIFTH and
 /// SIXTH — see that type's own doc and CLAUDE.md's reserved slot list.
-/// `theSixRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`, renamed
+/// `theSevenRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`, renamed
 /// from `theThreeRetentionSlotsAreMutuallyDistinct` by Task 3 per spec §7
-/// item 10, and extended from four to six by Task 4's own fix round) is
-/// what pins all of it — one test, extended in place twice rather than
-/// replaced.
+/// item 10, extended from four to six by Task 4's own fix round, and to a
+/// SEVENTH — `$anim-color`, the paint-side colour helper's own slot
+/// (`AnimatedColor.swift`) — by Task 4b) is what pins all of it — one test,
+/// extended in place three times rather than replaced.
 @MainActor
 func animRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
     .child(of: id, at: 0, name: ElementID("$anim"))
@@ -170,7 +171,7 @@ func animRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
 ///
 /// **Exposed as functions rather than inlined at `ScrollView.requestLayout`'s
 /// two call sites, and that is load-bearing for `AXNodeTests.swift`'s
-/// `theSixRetentionSlotsAreMutuallyDistinct`.** A test that reconstructs
+/// `theSevenRetentionSlotsAreMutuallyDistinct`.** A test that reconstructs
 /// `"$anim-content"`/`"$anim-viewport"` as its own string literals cannot
 /// catch a rename at the real call site — measured, by making exactly that
 /// mistake first: a test built from its own copy of the two strings stayed

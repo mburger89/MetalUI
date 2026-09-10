@@ -1516,7 +1516,11 @@ private func expectColor(_ got: Hsla?, h: Float, s: Float, l: Float,
 // a near-grey instead. This one number is the probe's finding, pinned.
 private let midBackgroundToAccent = (h: Float(0.75), s: Float(0.10), l: Float(0.50))
 
-// separator (0.60, 0.10, 0.90) -> HSL h=0.783333 s=0.80 l=0.50
+// separator (0.60, 0.10, 0.90) -> HSL h=0.770833 s=0.80 l=0.50
+//     (this line read h=0.783333 until fix round 1 re-derived it to build the
+//      interruption test's oracle: max is b, so h = (r-g)/delta + 4 = 0.625 + 4
+//      = 4.625, /6 = 0.770833. Nothing asserted the endpoint, only the midpoint,
+//      which is exactly why a wrong number survived in a comment.)
 // background -> separator midpoint (0.35, 0.15, 0.85):
 //     max=0.85 (b), min=0.15 (g), delta=0.70, l=0.50, s=0.70/1 = 0.70
 //     h = (0.35 - 0.15)/0.70 + 4 = 4.285714, /6 = 0.714286
@@ -1821,16 +1825,34 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
         _ = animatedColor(.accent, for: id, pass: &f2)
     }
 
-    // **`slack` is one ULP of `Float`, not a fudge factor, and the two numbers
-    // it sits between are both measured.** `Rgba.toHsla` divides Floats, so a
-    // legitimately fully-saturated colour comes back as `s == 1.0000001` — the
-    // first draft of this test asserted `<= 1` exactly and reddened 14 times
-    // WITH the clamp in place. The failure being guarded against is three
-    // orders of magnitude larger: with the clamp removed the same fixture peaks
-    // at `s == 1.2846` — measured in an isolated worktree, not predicted, and
-    // this line carried a guessed `1.1481` until that run replaced it.
+    // **`slack` sits between two measured numbers, and this comment says which
+    // — it claimed "one ULP of `Float`" until fix round 1 measured that too and
+    // found 8,389 of them.** `Float(1.0).ulp` is `1.1920929e-07`, so
+    // `1e-3 / ulp == 8388.6`; the honest description is not a unit but a
+    // placement. `Rgba.toHsla` divides Floats, so a legitimately
+    // fully-saturated colour comes back as `s == 1.0000001` — exactly ONE ulp
+    // above 1, and the first draft of this test asserted `<= 1` and reddened 14
+    // times WITH the clamp in place. The failure being guarded against peaks at
+    // `s == 1.2846`, measured in an isolated worktree with the clamp removed.
+    // `1e-3` is ~8,000x above the false positive and ~285x below the true one,
+    // which is the margin that matters and the reason the value needs no
+    // re-tuning even though its stated justification was wrong. (The guessed
+    // `1.1481` this line once carried was likewise replaced by the measured
+    // `1.2846` — same defect, second occurrence, both now corrected at the
+    // line rather than only in a report.)
     let slack: Float = 1e-3
-    var sawOvershootRoom = false
+    // **The vacuity guard is `s`, not `l`, and the first version was too weak
+    // to mean what its message said.** It read `l > 0.58` against a target `l`
+    // of `0.60`, so a spring that merely ARRIVED without overshooting at all
+    // would have satisfied it. `l` cannot serve here: red clamps at `1.0` while
+    // green rises and blue falls, so `l == (max + min)/2` DROPS as the
+    // overshoot grows (`0.60` at 20% overshoot, `0.575` at 30%) instead of
+    // rising. Saturation can: for `max + min >= 1`, `s == (max - min) /
+    // (2 - max - min)`, which is identically `1` when `max == 1` — that is,
+    // exactly when the clamp fired — while the resting target
+    // `(0.90, 0.70, 0.30)` sits at `s == 0.75`. So `s` reaching 1 is a direct
+    // readout of the clamp having done something, not a proxy for it.
+    var sawTheClampFire = false
     for step in 1...240 {
         let t = Double(step) / 240.0   // two seconds at 120 Hz
         var pass = PaintPass(frame: colorFrame(table, timestamp: t, theme: theme))
@@ -1844,13 +1866,227 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
                 "lightness left the unit range at t = \(t): \(out.l)")
         #expect(out.a >= -slack && out.a <= 1 + slack,
                 "alpha left the unit range at t = \(t): \(out.a)")
-        // The fixture must actually reach the regime it exists to test — a
-        // spring that never got near the far end would make every assertion
-        // above vacuous (taxonomy shape 15).
-        if out.l > 0.58 { sawOvershootRoom = true }
+        // The fixture must actually reach the regime it exists to test, or
+        // every assertion above is vacuous (taxonomy shape 15).
+        if out.s >= 1 - slack { sawTheClampFire = true }
     }
-    #expect(sawOvershootRoom, """
-            the fixture never travelled far enough to overshoot at all, so the \
-            assertions above measured nothing
+    #expect(sawTheClampFire, """
+            saturation never reached 1, so no component was ever clamped and the \
+            assertions above measured nothing — the fixture stopped overshooting
             """)
+}
+
+// MARK: - Task 4b fix round 1: the interruption branch, which reddened 0 of 849
+
+/// **Interrupting a running colour fade re-targets from where the colour IS,
+/// with the momentum it HAS — and none of that was pinned until this test.**
+///
+/// Review finding I-1, measured rather than argued: replacing
+/// `from: .fixed(current.value)` with `from: running.from` and
+/// `velocity: current.velocity` with `.zero` in `AnimatedColor.swift` reddened
+/// **0 of 849**. So `ColorEnd.fixed`, `RgbaVelocity`'s entire non-`.zero` path
+/// and the sibling no-transaction snap were all declared-but-unverified — the
+/// inert table's own shape, inside the file that argues hardest against it.
+///
+/// Three arms, because the branch has three separable behaviours and a single
+/// fixture would let one of them coast:
+///
+/// - **A** interrupts with a DURATION curve. `Animation.value(at:…)` ignores
+///   `initialVelocity` for a duration curve by design, so this arm is blind to
+///   the velocity half and pins the `from` half alone.
+/// - **B** interrupts with a SPRING, which is the only model that reads
+///   `initialVelocity` at all — so it is the only shape that can see
+///   `velocity: .zero`. It requires its two candidate answers to DISAGREE
+///   before believing the one it asserts (practices doc, shape 15).
+/// - **C** changes the declared token mid-flight with NO transaction, which
+///   must snap and must stop asking for frames.
+///
+/// Every expected value is hand-derived from `probeTheme`'s endpoints, with the
+/// arithmetic in the comments — not read back out of the helper.
+@Test @MainActor func interruptingAColourFadeReTargetsFromItsCurrentValueAndVelocity() {
+    let theme = probeTheme()
+
+    /// Frames 1-2 of every arm: park a `background → accent` `linear(1)` fade
+    /// starting at t = 0. At t = 0.25 it is a quarter of the way along, so
+    /// (hand-computed, per component):
+    ///     r = 0.10 + 0.25(0.90 - 0.10) = 0.30
+    ///     g = 0.20 + 0.25(0.70 - 0.20) = 0.325
+    ///     b = 0.80 + 0.25(0.30 - 0.80) = 0.675
+    /// and a linear curve's velocity is `(to - from) / seconds` exactly, so
+    ///     v = (0.80, 0.50, -0.50) per second, alpha 0 (both ends opaque).
+    func parkedFade(_ table: StateTable, _ id: GlobalElementID) {
+        var f1 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: theme))
+        _ = animatedColor(.background, for: id, pass: &f1)
+        var f2 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: theme))
+        withAnimation(.linear(duration: 1)) {
+            _ = animatedColor(.accent, for: id, pass: &f2)
+        }
+    }
+    let interruptPoint = Rgba(r: 0.30, g: 0.325, b: 0.675)
+    let carriedVelocity = RgbaVelocity(r: 0.80, g: 0.50, b: -0.50, a: 0)
+
+    // MARK: A — the `from` half, under a duration curve
+    do {
+        let table = StateTable()
+        let id = eid("interrupt-linear")
+        parkedFade(table, id)
+
+        // t = 0.25: re-target at `separator` under a FRESH transaction. The
+        // frame that interrupts must read the CURRENT position — not the old
+        // `from`, not the new target.
+        //   (0.30, 0.325, 0.675): max = b = 0.675, min = r = 0.30, delta = 0.375
+        //     l = (0.675 + 0.30)/2 = 0.4875
+        //     s = 0.375 / (1 - |2(0.4875) - 1|) = 0.375 / 0.975 = 0.384615
+        //     h = (r - g)/delta + 4 = (0.30 - 0.325)/0.375 + 4 = 3.933333, /6 = 0.655556
+        var f3 = PaintPass(frame: colorFrame(table, timestamp: 0.25, theme: theme))
+        var out3: Hsla?
+        withAnimation(.linear(duration: 1)) {
+            out3 = animatedColor(.separator, for: id, pass: &f3)
+        }
+        expectColor(out3, h: 0.655556, s: 0.384615, l: 0.4875,
+                    "the interrupting frame reads the colour's CURRENT position")
+
+        // t = 0.75 — half a second into the new linear(1), so halfway from the
+        // interrupt point to `separator`:
+        //   (0.45, 0.2125, 0.7875): max = b, min = g, delta = 0.575
+        //     l = (0.7875 + 0.2125)/2 = 0.50
+        //     s = 0.575 / (1 - 0) = 0.575
+        //     h = (0.45 - 0.2125)/0.575 + 4 = 4.413043, /6 = 0.735507
+        // Re-targeting from `running.from` instead would give the plain
+        // `background → separator` midpoint (0.714286, 0.70, 0.50) — which is
+        // `midBackgroundToSeparator`, and differs on h and s.
+        var f4 = PaintPass(frame: colorFrame(table, timestamp: 0.75, theme: theme))
+        let out4 = animatedColor(.separator, for: id, pass: &f4)
+        expectColor(out4, h: 0.735507, s: 0.575, l: 0.50,
+                    "the re-targeted fade runs from the interrupt point, not from the old `from`")
+        #expect(abs((out4?.s ?? 0) - midBackgroundToSeparator.s) > 0.1, """
+                sanity: the re-targeted answer must differ from the un-interrupted \
+                background -> separator midpoint, or this arm cannot tell them apart
+                """)
+    }
+
+    // MARK: B — the velocity half, under a spring
+    do {
+        let table = StateTable()
+        let id = eid("interrupt-spring")
+        parkedFade(table, id)
+
+        let spring = Animation.spring(duration: 0.5, bounce: 0)
+        var f3 = PaintPass(frame: colorFrame(table, timestamp: 0.25, theme: theme))
+        withAnimation(spring) {
+            _ = animatedColor(.separator, for: id, pass: &f3)
+        }
+
+        // The oracle is `Animation.value(at:from:to:initialVelocity:)` — Task 1
+        // code, pinned by its own tests, and NOT the code under test here. What
+        // is under test is which `from` and which `initialVelocity`
+        // `AnimatedColor.swift` hands it, and those arrive as the hand-derived
+        // literals above rather than from the helper.
+        let target = probeSeparatorRGB
+        func projected(_ v: RgbaVelocity) -> Hsla {
+            func c(_ from: Float, _ to: Float, _ v0: Double) -> Float {
+                Float(min(max(spring.value(at: 0.05, from: Double(from), to: Double(to),
+                                           initialVelocity: v0).value, 0), 1))
+            }
+            return Rgba(r: c(interruptPoint.r, target.r, v.r),
+                        g: c(interruptPoint.g, target.g, v.g),
+                        b: c(interruptPoint.b, target.b, v.b),
+                        a: c(interruptPoint.a, target.a, v.a)).toHsla()
+        }
+        let withMomentum = projected(carriedVelocity)
+        let fromRest = projected(.zero)
+
+        // **Require the two candidates to DISAGREE before believing the one
+        // asserted below** (practices doc, shape 15). A spring interrupted at a
+        // point where the carried velocity happened not to matter would make
+        // the assertion that follows green under both implementations.
+        #expect(abs(withMomentum.l - fromRest.l) > 2e-3 || abs(withMomentum.s - fromRest.s) > 2e-3
+                || abs(withMomentum.h - fromRest.h) > 2e-3, """
+                the carried velocity makes no difference at this sample point \
+                (momentum \(withMomentum) vs rest \(fromRest)), so this arm cannot see \
+                `velocity: .zero` at all
+                """)
+
+        var f4 = PaintPass(frame: colorFrame(table, timestamp: 0.30, theme: theme))
+        let out4 = animatedColor(.separator, for: id, pass: &f4)
+        expectColor(out4, h: withMomentum.h, s: withMomentum.s, l: withMomentum.l,
+                    "the re-targeted spring must carry the momentum the fade had")
+    }
+
+    // MARK: C — a mid-flight token change with NO transaction snaps
+    do {
+        let table = StateTable()
+        let id = eid("interrupt-none")
+        parkedFade(table, id)
+
+        // separator (0.60, 0.10, 0.90): max = b, min = g, delta = 0.80
+        //   l = 0.50, s = 0.80 / (1 - 0) = 0.80
+        //   h = (0.60 - 0.10)/0.80 + 4 = 4.625, /6 = 0.770833
+        let frame3 = colorFrame(table, timestamp: 0.25, theme: theme)
+        var f3 = PaintPass(frame: frame3)
+        let out3 = animatedColor(.separator, for: id, pass: &f3)
+        expectColor(out3, h: 0.770833, s: 0.80, l: 0.50, tolerance: 1e-5,
+                    "a token change with no transaction snaps even mid-flight")
+        #expect(!frame3.wantsAnotherFrame,
+                "and the abandoned animation must stop holding the display link awake")
+
+        let frame4 = colorFrame(table, timestamp: 0.5, theme: theme)
+        var f4 = PaintPass(frame: frame4)
+        let out4 = animatedColor(.separator, for: id, pass: &f4)
+        expectColor(out4, h: 0.770833, s: 0.80, l: 0.50, tolerance: 1e-5,
+                    "and it STAYS there — the old animation was dropped, not paused")
+        #expect(!frame4.wantsAnotherFrame)
+    }
+}
+
+/// **The settled-path comparison is on the TOKEN, never on the resolved
+/// colour** — review finding M-5, and the half of the storage argument that was
+/// not pinned.
+///
+/// Storing the resolved `Hsla` beside the token and comparing against that
+/// instead reddened **0 of 849**. The reviewer proved the mutant is not
+/// equivalent, and this is that proof turned into an assertion: a theme swap
+/// changes what a settled element's unchanged token resolves to, so a
+/// colour-keyed comparison sees "the value changed" where nothing was declared
+/// differently at all — and with any transaction in flight anywhere in the
+/// frame, it starts a fade from the old theme's colour and holds the display
+/// link awake for that animation's whole duration. Right pixels eventually,
+/// wasted frames throughout, and no diagnostic.
+///
+/// The transaction is what makes this observable: without one, both
+/// implementations snap and the two are indistinguishable.
+@Test @MainActor func aThemeSwapAloneNeverStartsAFadeOnASettledElement() {
+    let table = StateTable()
+    let id = eid("settled-through-a-theme-swap")
+
+    var f1 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: probeTheme()))
+    _ = animatedColor(.background, for: id, pass: &f1)
+
+    // Same token, different theme, and a transaction in flight — the exact
+    // frame a colour-keyed baseline mistakes for a declaration change.
+    //   background' (0.50, 0.10, 0.20): max = r, min = g, delta = 0.40
+    //     l = (0.50 + 0.10)/2 = 0.30
+    //     s = 0.40 / (1 - |2(0.30) - 1|) = 0.40 / 0.60 = 0.666667
+    //     h = ((g - b)/delta) mod 6 = (0.10 - 0.20)/0.40 = -0.25, /6 = -0.041667, +1 = 0.958333
+    let swapped = probeTheme(background: Rgba(r: 0.50, g: 0.10, b: 0.20))
+    let frame2 = colorFrame(table, timestamp: 0, theme: swapped)
+    var f2 = PaintPass(frame: frame2)
+    var out2: Hsla?
+    withAnimation(.linear(duration: 1)) {
+        out2 = animatedColor(.background, for: id, pass: &f2)
+    }
+    expectColor(out2, h: 0.958333, s: 0.666667, l: 0.30, tolerance: 1e-5,
+                "a theme swap on an unchanged token must apply immediately, not fade")
+    #expect(!frame2.wantsAnotherFrame, """
+            nothing was declared differently, so no animation may start and the display \
+            link must not be held awake
+            """)
+
+    // And nothing is left running to advance on a later frame.
+    let frame3 = colorFrame(table, timestamp: 0.5, theme: swapped)
+    var f3 = PaintPass(frame: frame3)
+    let out3 = animatedColor(.background, for: id, pass: &f3)
+    expectColor(out3, h: 0.958333, s: 0.666667, l: 0.30, tolerance: 1e-5,
+                "and it stays there")
+    #expect(!frame3.wantsAnotherFrame)
 }
