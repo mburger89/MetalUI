@@ -102,6 +102,20 @@ func animColorRetentionSlot(for id: GlobalElementID) -> GlobalElementID {
 /// a new transition and snapping — which is spec §4 rule 3's "continuous result
 /// rather than a jump", and spec §11's risk row naming cached resolved colours
 /// as the optimisation that breaks it.
+///
+/// **Measured cost, because ruling U made this a live question rather than a
+/// theoretical one: `MemoryLayout<AnimatedColorState>.stride` is 120 bytes**,
+/// of which 112 is the `Optional<ColorAnimation>` — stored inline, so a
+/// SETTLED element pays for the whole animation record it is not using.
+/// (`AnimatedElementState`, the `$anim` slot, is 248 for comparison.) Only
+/// elements that declare a background pay it at all, which is why the `nil`
+/// token early-returns before touching the table. **Reducing the settled cost
+/// to ~2 bytes is a real follow-on and is deliberately not done here**: it
+/// means either boxing `ColorAnimation` in a class (an allocation per
+/// animating element, better settled and worse in flight) or splitting the
+/// live animation into a second slot written only while one runs. Neither is
+/// this task's, and 120 bytes per backgrounded element is three orders of
+/// magnitude below the 7.5 KB ruling U existed to remove.
 struct AnimatedColorState: Equatable {
     var token: ColorToken
     var inFlight: ColorAnimation?
