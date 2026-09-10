@@ -52,7 +52,7 @@ swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 
 - **Counts, dated:** 861 tests, 87 browser-fixture goldens, 35 `swiftc
   -typecheck` guards, warning-free — measured 2026-09-10 on `feat/animation`
-  at `cd3f676`, on a `swift package clean` build (`master` at the Component
+  at `54f2bb5`, on a `swift package clean` build (`master` at the Component
   milestone's end was 811 / 87 / 34; this branch read 843 at `6591360` before
   the animation milestone's Tasks 4b and 5).
   A count is stale the moment a test lands; re-measure rather than trust.
