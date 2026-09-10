@@ -535,9 +535,10 @@ extension Animation {
     ///   window was already dirty from the first write and a frame was
     ///   certainly coming.
     ///
-    /// `Window.aFrameBuildIsPending` is `drawFrameIfNeeded`'s own guard
-    /// (`needsRedraw || hasActiveAnimations`) asked across every live window,
-    /// which is exactly the question the rule needs answered. It also fixes a
+    /// `Window.aFrameBuildIsPending` asks whether any live window is dirty —
+    /// `drawFrameIfNeeded`'s guard less its `hasActiveAnimations` half, which
+    /// that property's own doc argues can never be needed here and measures
+    /// doing harm when included. It also fixes a
     /// second, benign instance the same round measured: a `withAnimation`
     /// before a window's first frame has ever been drawn used to roll back
     /// even though `needsRedraw` is `true` from `init`.

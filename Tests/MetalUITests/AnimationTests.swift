@@ -2271,7 +2271,11 @@ final class AnimationDriveModel {
     try makeFakeWindowOnDefaultDevice(size: 300, startsDisplayLink: true) {
         Column {
             if model.show {
-                Box().background(.accent)
+                // The background token is model-driven so a fixture can put
+                // the window mid-FADE — a state in which it is clean and still
+                // drawing every frame. Every assertion below reads the
+                // subject's WIDTH, so the token itself is never asserted.
+                Box().background(model.useAccent ? .accent : .background)
                     .width(Pixels(model.width)).height(Pixels(40))
                     .id("subject")
             }
@@ -2715,6 +2719,36 @@ final class AnimationDriveModel {
                 the no-op `withAnimation` must leave the first transaction alone: \
                 200 means it discarded it and the change snapped, 112.5 means the \
                 no-op one won; got \(String(describing: subjectWidth(window)))
+                """)
+    }
+
+    // MARK: the same hijack DURING a live animation — the arm that decided
+    // against putting `hasActiveAnimations` in `Window.aFrameBuildIsPending`.
+    //
+    // A window mid-fade is CLEAN and still drawing every frame. With the
+    // re-review's suggested predicate in full, the empty `withAnimation`
+    // below parks `linear(4)` (measured), and the ordinary bare write after
+    // it then animates instead of snapping — fix round 1's bug again,
+    // bounded by the fade's lifetime rather than unbounded.
+    do {
+        let model = AnimationDriveModel()
+        let (window, platformWindow) = try makeDriveWindow(model)
+        platformWindow.simulateTick(timestamp: 100)
+        try #require(subjectWidth(window) == 100, "set up")
+
+        withAnimation(.linear(duration: 1)) { model.useAccent = true }
+        platformWindow.simulateTick(timestamp: 100.1)   // the colour fade starts
+        platformWindow.simulateTick(timestamp: 100.2)   // and is mid-flight here
+        try #require(window.hasActiveAnimations, "set up: a fade is genuinely live")
+        try #require(!window.needsRedraw, "set up: and the window is CLEAN while it runs")
+
+        withAnimation(.linear(duration: 4)) { }         // empty body, mid-fade
+        model.width = 200                               // ordinary write, no transaction
+        platformWindow.simulateTick(timestamp: 100.3)
+        #expect(subjectWidth(window) == 200, """
+                an empty `withAnimation` during a live fade must park nothing, so this \
+                bare write snaps; 100 means it parked and the write animated off a \
+                transaction nobody asked for; got \(String(describing: subjectWidth(window)))
                 """)
     }
 }

@@ -575,13 +575,35 @@ public final class Window {
     /// second animation: measured `200.0` where the animation reads `150.0`.
     /// This property is what accepts it.
     ///
-    /// `hasActiveAnimations` is in the condition for the same reason it is in
-    /// the guard: a window mid-fade is CLEAN and still building every frame,
-    /// so a `withAnimation` raised from a handler during one must park.
+    /// **`needsRedraw` alone, NOT `needsRedraw || hasActiveAnimations`, and
+    /// that is a deviation from the re-review's suggested predicate with a
+    /// measurement and an argument behind it.**
+    ///
+    /// *It can never be needed.* The only case the pending test exists for is
+    /// a counter-silent `@Observable` write, and a write is counter-silent
+    /// only when the session is already spent — which means some earlier write
+    /// since the last drawn frame *did* fire `onChange` and therefore *did*
+    /// run `setNeedsRedraw()`. `needsRedraw = true` is written in exactly one
+    /// place and cleared in exactly one other, `drawFrameIfNeeded`, whose
+    /// tracked closure re-arms the session in the same breath. So "session
+    /// spent" implies "no draw since" implies `needsRedraw == true`. A write
+    /// to a model no window reads fires nothing and dirties nothing, but no
+    /// frame renders it either, so nothing is dropped.
+    ///
+    /// *And it is reachable, and harmful when reached.* Measured with a
+    /// throwaway probe (not kept): mid-fade, `needsRedraw == false` and
+    /// `hasActiveAnimations == true`, an empty
+    /// `withAnimation(.linear(duration: 4)) { }` parked `linear(4)` with the
+    /// clause and `nil` without it. That parked transaction then applies to
+    /// the next bare write — the exact shape of the bug fix round 1 existed to
+    /// close, merely bounded by the running animation's lifetime instead of
+    /// being unbounded. `aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAnimateALaterChange`'s
+    /// fourth arm is that case, pinned.
+    ///
+    /// A measured cost against a structurally zero benefit is what decided it.
     static var aFrameBuildIsPending: Bool {
         liveWindows.removeAll { $0.window == nil }
-        return liveWindows.contains { $0.window?.needsRedraw == true
-                                      || $0.window?.hasActiveAnimations == true }
+        return liveWindows.contains { $0.window?.needsRedraw == true }
     }
 
     private static func register(_ window: Window) {

@@ -222,8 +222,8 @@ duration, and `parkedTransaction`, which survives the closure **only if `body`
 asked for a redraw** and is then taken by the next `Window.drawFrameIfNeeded`
 and handed to the `Frame` as ambient `pass.transaction` (spec §3). **The park survives only if a frame build is
 coming** — `Window.redrawRequests` moved across `body`, or
-`Window.aFrameBuildIsPending` (a weak registry asking `drawFrameIfNeeded`'s own
-guard of every live window) was already true and the slot was free. Both halves
+`Window.aFrameBuildIsPending` (a weak registry asking whether any live window
+is dirty) was already true and the slot was free. Both halves
 are fixes with measurements behind them: without the first, a
 `withAnimation { if cond { … } }` with a false `cond` parked a transaction no
 frame could consume and animated an unrelated change 400 s later; without the
