@@ -150,9 +150,9 @@ declare `var elementID`. `Deferred` and `List` reject a component. No
 production caller yet (CO-Y).
 
 **`@State` is a box seeded by reflection, per element per frame.** Slot ids
-are `.named("$state<mirror-index>")` under the element's id. Six reserved
-names, none guarded: `$state<n>`, `$focus`, `$ax`, `$anim`, and the prefixes
-`$anim-content`/`$anim-viewport` (`ScrollView`'s two nodes). A `List` datum
+are `.named("$state<mirror-index>")` under the element's id. Seven reserved
+names, none guarded: `$state<n>`, `$focus`, `$ax`, `$anim`, `$anim-color`, and
+the prefixes `$anim-content`/`$anim-viewport` (`ScrollView`'s two nodes). A `List` datum
 whose id describes to one of these collides. Seeding marks, so a declared,
 unread `@State` is never swept. **A write marks the window dirty via
 `StateTable.onWrite`; write from input, never from a phase** — a phase-time
@@ -216,7 +216,17 @@ moving layout off the main actor rewrites it first. The other two
 **Animation (in progress, M4 spec 3).** `withAnimation` parks an `Animation`
 on the `Window`; one shared helper in `AnimatedStyle.swift` compares each
 registering site's resolved `Style`/`Decoration` against the element's `$anim`
-slot and substitutes interpolated values (Tasks 1–4 landed).
+slot and substitutes interpolated values (Tasks 1–4 landed). **Colour is a
+second helper in a second phase** (`AnimatedColor.swift`, Task 4b): only
+`PaintPass` has a theme, so `Box.paint` animates the resolved result of its
+`focusBackground`/`hoverBackground`/`background` `??` chain — one value, not
+three fields — through a `$anim-color` slot, and hover and focus fades fall out
+free. Interpolation is per-component **RGB, never hue** (measured against
+SwiftUI and CoreAnimation probes; the encoding is CoreAnimation's gamma sRGB,
+SwiftUI's is cube-root-of-linear and is recorded at the line). `Stack.paint`
+and `Text.paint` also fill a background and are **not** wired — a named hole,
+on spec §5's "an element that registers without calling the helper is silently
+unanimated" footing.
 `Frame.hasActiveAnimations` and the widened idle guard are Task 5 and do not
 exist yet — `grep -rn hasActiveAnimations Sources/` returns nothing, and an
 always-false stored property would be the inert table's trap (RX-O).

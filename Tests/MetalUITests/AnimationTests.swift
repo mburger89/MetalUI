@@ -1,6 +1,7 @@
 import Testing
 import MetalUICore
 import MetalUILayout
+import MetalUIRender
 @testable import MetalUI
 
 // M4 spec 3. Curve maths first, with no framework coupling — an `Animation`
@@ -1400,4 +1401,393 @@ private func fieldOffset(_ key: String) -> Float {
         d.focusBackground = .scrollIndicator
     }
     return d
+}
+
+// MARK: - Task 4b: `animatedColor(_:for:pass:)`, the PAINT-side colour helper
+//
+// M4 spec 3 §4's third rule. Colour cannot go through `animated(_:_:for:pass:)`
+// and that is structural rather than a shortcut: two `ColorToken`s interpolate
+// through their theme-*resolved* `Hsla`, re-resolved every frame, and only
+// `PaintPass` has a theme (`Passes.swift`'s `PaintPass.theme`, whose own doc
+// says it is deliberately absent from the other two passes and why).
+//
+// **Every fixture below uses a purpose-built `Theme` whose colours differ in
+// every RGB component**, per the Task 4 amendment: a pair that agrees on any
+// component cannot tell a helper that reads that component from one that
+// transposes it. `probeTheme`'s three subject colours and every expected
+// midpoint are hand-computed in the comments, from the endpoints, by the
+// arithmetic the helper is supposed to perform — an oracle independent of the
+// helper itself (taxonomy shape 12).
+
+/// The interpolation space, SETTLED BY MEASUREMENT rather than by argument
+/// (ruling `CO-E`'s precedent, which this task's brief invokes by name).
+///
+/// Two throwaway probes outside this repo, each with a positive control whose
+/// answer was known in advance (black → white must read an achromatic grey
+/// strictly between the endpoints):
+///
+/// - **SwiftUI**, through its own `Animatable` conformance — the mechanism its
+///   animation engine actually blends with. `Color.Resolved.animatableData`
+///   midpoint of blue → orange: sRGB `(0.4893, 0.5107, 0.7078)`, HSL
+///   `s = 0.2722`. Distance to the per-component RGB prediction `0.2799`;
+///   to the hue-space prediction `0.7229`.
+/// - **CoreAnimation**, end-to-end — a real `CALayer` in a real window, a real
+///   `CABasicAnimation` on `backgroundColor`, sampled off the PRESENTATION
+///   layer. Blue → orange midpoint `(0.5005, 0.3238, 0.4995)` against the
+///   gamma-sRGB per-component prediction `(0.5000, 0.3235, 0.5000)` —
+///   agreement to 0.0007, which is the sampling jitter.
+///
+/// **Both say RGB, neither says hue**, so ruling O's open question is closed:
+/// there is no arc, no wrap-around sweep through cyan between two neighbouring
+/// reds, and no shortest-arc rule to get wrong. The probes DISAGREE on the
+/// encoding — CoreAnimation lerps in gamma-encoded sRGB exactly, SwiftUI in the
+/// cube root of linear light (measured at four fractions: black → white reads
+/// sRGB 0.1315 / 0.3886 / 0.6813 at t = 0.25 / 0.5 / 0.75, matching
+/// `srgbEncode(t³)` to four decimals and NOT matching `t`). This framework
+/// takes CoreAnimation's: `Rgba` already IS gamma-encoded sRGB, it is the space
+/// the compositor blends in (design spec §7.8, CLAUDE.md's `bgra8Unorm`
+/// constraint), and adopting SwiftUI's would add the only linearization in the
+/// repo. The cost of being wrong is a fade's midpoint sitting at sRGB 0.5 where
+/// SwiftUI's sits at 0.389 — same endpoints, same hue, different pacing.
+private let probeBackgroundRGB = Rgba(r: 0.10, g: 0.20, b: 0.80)
+private let probeAccentRGB = Rgba(r: 0.90, g: 0.70, b: 0.30)
+private let probeSeparatorRGB = Rgba(r: 0.60, g: 0.10, b: 0.90)
+
+/// A theme built for discrimination rather than for looks: `background`,
+/// `accent` and `separator` differ in **all three** RGB components and in all
+/// three HSL components, and each pairwise midpoint is far from both endpoints
+/// on every component asserted.
+@MainActor private func probeTheme(background: Rgba = probeBackgroundRGB,
+                                   accent: Rgba = probeAccentRGB,
+                                   separator: Rgba = probeSeparatorRGB) -> Theme {
+    Theme(background: background.toHsla(),
+          surface: Rgba(r: 0.05, g: 0.55, b: 0.15).toHsla(),
+          surfaceSecondary: Rgba(r: 0.25, g: 0.05, b: 0.45).toHsla(),
+          accent: accent.toHsla(),
+          separator: separator.toHsla(),
+          textPrimary: Rgba(r: 0.85, g: 0.15, b: 0.05).toHsla(),
+          scrollIndicator: Rgba(r: 0.15, g: 0.85, b: 0.65).toHsla(),
+          scrim: Rgba(r: 0.45, g: 0.35, b: 0.95).toHsla())
+}
+
+@MainActor private func colorFrame(_ table: StateTable, timestamp: Double,
+                                   theme: Theme, side: Float = 100,
+                                   mousePosition: Point<Pixels>? = nil,
+                                   focusedElement: GlobalElementID? = nil) -> Frame {
+    Frame(contentSize: Size(width: Pixels(side), height: Pixels(side)),
+          scaleFactor: 1, stateTable: table,
+          theme: theme, timestamp: timestamp,
+          mousePosition: mousePosition, focusedElement: focusedElement)
+}
+
+/// Componentwise, with each component named — never `==` on the whole `Hsla`.
+/// A single equality would report "colours differ" and say nothing about which
+/// channel moved, and a transposition of two channels is exactly what a
+/// whole-value comparison cannot describe.
+private func expectColor(_ got: Hsla?, h: Float, s: Float, l: Float,
+                         tolerance: Float = 2e-4, _ what: String,
+                         sourceLocation: SourceLocation = #_sourceLocation) {
+    guard let got else {
+        Issue.record("\(what): expected a colour, got nil", sourceLocation: sourceLocation)
+        return
+    }
+    #expect(abs(got.h - h) < tolerance,
+            "\(what): h expected \(h), got \(got.h)", sourceLocation: sourceLocation)
+    #expect(abs(got.s - s) < tolerance,
+            "\(what): s expected \(s), got \(got.s)", sourceLocation: sourceLocation)
+    #expect(abs(got.l - l) < tolerance,
+            "\(what): l expected \(l), got \(got.l)", sourceLocation: sourceLocation)
+}
+
+// Hand-computed, from the endpoints above, by the arithmetic the helper is
+// meant to perform — this is the independent oracle, not a value read back out
+// of the code under test.
+//
+//   background (0.10, 0.20, 0.80) -> HSL h=0.642857 s=0.777778 l=0.45
+//   accent     (0.90, 0.70, 0.30) -> HSL h=0.111111 s=0.75     l=0.60
+//   midpoint   (0.50, 0.45, 0.55):
+//       max=0.55 (b), min=0.45 (g), delta=0.10, l=(0.55+0.45)/2 = 0.50
+//       s = 0.10 / (1 - |2(0.50) - 1|) = 0.10 / 1 = 0.10
+//       h = (r - g)/delta + 4 = (0.50 - 0.45)/0.10 + 4 = 4.5, /6 = 0.75
+//
+// **The `s = 0.10` is what kills hue-space interpolation dead.** Any
+// interpolation through hue keeps saturation near the endpoints' own ~0.76 and
+// puts the hue between 0.111 and 0.643; the measured RGB answer desaturates to
+// a near-grey instead. This one number is the probe's finding, pinned.
+private let midBackgroundToAccent = (h: Float(0.75), s: Float(0.10), l: Float(0.50))
+
+// separator (0.60, 0.10, 0.90) -> HSL h=0.783333 s=0.80 l=0.50
+// background -> separator midpoint (0.35, 0.15, 0.85):
+//     max=0.85 (b), min=0.15 (g), delta=0.70, l=0.50, s=0.70/1 = 0.70
+//     h = (0.35 - 0.15)/0.70 + 4 = 4.285714, /6 = 0.714286
+private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: Float(0.50))
+
+/// **Brief test 1.** A `background` token changed under a transaction reads a
+/// genuine MID-FLIGHT `Hsla` at the halfway timestamp — a value equal to
+/// neither endpoint, asserted componentwise against a hand-computed midpoint.
+/// Not "an animation exists".
+///
+/// The two extra assertions at the end are the signal Task 5 will read:
+/// `Frame.wantsAnotherFrame` is raised while the fade is live and left alone
+/// once it settles. `Window.drawFrameIfNeeded` already consumes it
+/// (`Window.swift`'s `if frame.wantsAnotherFrame { setNeedsRedraw() }`), and
+/// paint runs before that check, so a paint-phase contribution is reachable.
+@Test @MainActor func aBackgroundTokenChangedUnderATransactionReadsAMidFlightColour() {
+    let table = StateTable()
+    let theme = probeTheme()
+    let id = eid("colour-box")
+
+    var f1 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: theme))
+    let out1 = animatedColor(.background, for: id, pass: &f1)
+    expectColor(out1, h: 0.642857, s: 0.777778, l: 0.45, "frame 1 baseline is the declared token")
+
+    // Frame 2: the token changes under a transaction, at the same timestamp —
+    // the instant the animation starts, so it reads its own `from`.
+    let frame2 = colorFrame(table, timestamp: 0, theme: theme)
+    var f2 = PaintPass(frame: frame2)
+    var out2: Hsla?
+    withAnimation(.linear(duration: 1)) {
+        out2 = animatedColor(.accent, for: id, pass: &f2)
+    }
+    expectColor(out2, h: 0.642857, s: 0.777778, l: 0.45,
+                "the frame that starts the transaction reads its own `from`, not the target")
+    #expect(frame2.wantsAnotherFrame,
+            "an animation started this frame must ask for the next one")
+
+    // Frame 3: half a second later, still declaring `.accent`, no transaction
+    // of its own — the animation begun in frame 2 still running.
+    let frame3 = colorFrame(table, timestamp: 0.5, theme: theme)
+    var f3 = PaintPass(frame: frame3)
+    let out3 = animatedColor(.accent, for: id, pass: &f3)
+    expectColor(out3, h: midBackgroundToAccent.h, s: midBackgroundToAccent.s,
+                l: midBackgroundToAccent.l, "halfway through linear(duration: 1)")
+    #expect(frame3.wantsAnotherFrame, "still mid-flight: the display link must stay awake")
+
+    // Frame 4: past the end. The value lands exactly on the target and the
+    // frame stops asking for another one.
+    let frame4 = colorFrame(table, timestamp: 1.5, theme: theme)
+    var f4 = PaintPass(frame: frame4)
+    let out4 = animatedColor(.accent, for: id, pass: &f4)
+    expectColor(out4, h: 0.111111, s: 0.75, l: 0.60, tolerance: 1e-5,
+                "finished: exactly the target token's resolved colour")
+    #expect(!frame4.wantsAnotherFrame,
+            "a settled colour must not hold the display link awake — M4's own idle criterion")
+}
+
+/// **Brief test 2.** The same change with NO transaction snaps: the first frame
+/// after the change reads the new token's resolved colour exactly, and stays
+/// there rather than having quietly started something a later frame advances.
+///
+/// The asymmetry against test 1 is the evidence — this is what rules out
+/// "everything animates always", which is exactly what step 5's mutation makes
+/// the helper do.
+@Test @MainActor func aBackgroundTokenChangedWithNoTransactionSnaps() {
+    let table = StateTable()
+    let theme = probeTheme()
+    let id = eid("colour-box")
+
+    var f1 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: theme))
+    _ = animatedColor(.background, for: id, pass: &f1)
+
+    let frame2 = colorFrame(table, timestamp: 0.001, theme: theme)
+    var f2 = PaintPass(frame: frame2)
+    let out2 = animatedColor(.accent, for: id, pass: &f2)
+    expectColor(out2, h: 0.111111, s: 0.75, l: 0.60, tolerance: 1e-5,
+                "no transaction in flight — the new token must apply immediately")
+    #expect(!frame2.wantsAnotherFrame,
+            "a snap is not an animation and must not hold the display link awake")
+
+    var f3 = PaintPass(frame: colorFrame(table, timestamp: 0.5, theme: theme))
+    let out3 = animatedColor(.accent, for: id, pass: &f3)
+    expectColor(out3, h: 0.111111, s: 0.75, l: 0.60, tolerance: 1e-5,
+                "and it must STAY there — no animation was quietly started")
+}
+
+/// **Brief test 3: hover and focus fade through the same path, and this is the
+/// whole reason the helper animates the RESOLVED result of `Box.paint`'s
+/// pointer/focus `??` chain rather than the three `Decoration` fields.**
+///
+/// Animating `background`/`hoverBackground`/`focusBackground` separately would
+/// interpolate values that are not on screen; animating the chain's result
+/// makes hover and focus fades fall out for free — the affordance CLAUDE.md
+/// records a human as unable to read as a static token swap ("a judgement about
+/// two dark greys"). Free is not the same as pinned, which is what this is for.
+///
+/// **Driven through a real `Box.paint` via `Frame.render`**, not through the
+/// helper directly: the `??` chain lives in `Box.swift` and a test that
+/// resolved the effective token itself would be blind to step 7's mutation.
+@Test @MainActor func hoverAndFocusFadeThroughTheSameEffectiveColourPath() throws {
+    let theme = probeTheme()
+
+    func box() -> Box<EmptyGroup> {
+        var b = Box(style: Style(), decoration: Decoration())
+            .width(Pixels(40)).height(Pixels(40))
+            .background(.background)
+            .hoverBackground(.accent)
+            .focusBackground(.separator)
+            .focusable()
+            .onClick {}
+        b.elementID = ElementID("chain")
+        return b
+    }
+    let id = eid("chain")
+    let inside = Point(x: Pixels(20), y: Pixels(20))
+
+    func painted(_ frame: Frame) throws -> Hsla {
+        var element = box()
+        frame.render(&element)
+        let rect = try #require(frame.scene.rects.first)
+        return Hsla(h: rect.background.h, s: rect.background.s,
+                    l: rect.background.l, a: rect.background.a)
+    }
+
+    // MARK: hover
+    do {
+        let table = StateTable()
+        // Frame 1: not hovered — the baseline is the plain `background` token.
+        let plain = try painted(colorFrame(table, timestamp: 0, theme: theme))
+        expectColor(plain, h: 0.642857, s: 0.777778, l: 0.45, "unhovered: the plain token")
+
+        // Frame 2: hovered, under a transaction. The EFFECTIVE token moved from
+        // `background` to `accent` without any `Decoration` field changing at
+        // all — which is the point.
+        let frame2 = colorFrame(table, timestamp: 0, theme: theme, mousePosition: inside)
+        var started: Hsla?
+        try withAnimationThrowing(.linear(duration: 1)) { started = try painted(frame2) }
+        expectColor(started, h: 0.642857, s: 0.777778, l: 0.45,
+                    "the frame hover begins reads its own `from`")
+
+        // Frame 3: still hovered, halfway.
+        let mid = try painted(colorFrame(table, timestamp: 0.5, theme: theme, mousePosition: inside))
+        expectColor(mid, h: midBackgroundToAccent.h, s: midBackgroundToAccent.s,
+                    l: midBackgroundToAccent.l, "hover fades through the effective colour")
+    }
+
+    // MARK: focus — a DIFFERENT token, so a helper that animated `background`
+    // alone (step 7's mutation) cannot pass both arms by coincidence.
+    do {
+        let table = StateTable()
+        let plain = try painted(colorFrame(table, timestamp: 0, theme: theme))
+        expectColor(plain, h: 0.642857, s: 0.777778, l: 0.45, "unfocused: the plain token")
+
+        let frame2 = colorFrame(table, timestamp: 0, theme: theme, focusedElement: id)
+        var started: Hsla?
+        try withAnimationThrowing(.linear(duration: 1)) { started = try painted(frame2) }
+        expectColor(started, h: 0.642857, s: 0.777778, l: 0.45,
+                    "the frame focus begins reads its own `from`")
+
+        let mid = try painted(colorFrame(table, timestamp: 0.5, theme: theme, focusedElement: id))
+        expectColor(mid, h: midBackgroundToSeparator.h, s: midBackgroundToSeparator.s,
+                    l: midBackgroundToSeparator.l, "focus fades through the effective colour")
+    }
+}
+
+/// **Brief test 4, and the one that pins the PHASE CHOICE.** A theme change
+/// mid-flight is re-resolved, not frozen: the endpoints the animation is
+/// travelling between move with the theme, so a theme swap during a fade
+/// produces a continuous result rather than a jump (spec §4 rule 3, and its
+/// row in spec §11's risk table, which names caching resolved colours as the
+/// optimisation that would break it).
+///
+/// **Without this assertion, "colour lives in paint because only `PaintPass`
+/// has a theme" is an argument nothing in the suite can see.** Step 6's
+/// mutation — resolve once and store — is exactly the shape it rules out.
+///
+/// Both arms, because spec §4 says both ends re-resolve: swapping the token the
+/// animation is heading TOWARD moves the midpoint, and so does swapping the one
+/// it came FROM.
+@Test @MainActor func aThemeChangeMidFlightMovesBothOfTheAnimationsEndpoints() {
+    // MARK: the `to` end
+    do {
+        let table = StateTable()
+        let id = eid("themed")
+        var f1 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: probeTheme()))
+        _ = animatedColor(.background, for: id, pass: &f1)
+
+        var f2 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: probeTheme()))
+        withAnimation(.linear(duration: 1)) {
+            _ = animatedColor(.accent, for: id, pass: &f2)
+        }
+
+        // Halfway — but `accent` is a different colour now.
+        //   background (0.10, 0.20, 0.80) -> accent' (0.30, 0.90, 0.50)
+        //   midpoint (0.20, 0.55, 0.65): max=0.65 (b), min=0.20 (r), delta=0.45
+        //       l = (0.65 + 0.20)/2 = 0.425
+        //       s = 0.45 / (1 - |2(0.425) - 1|) = 0.45 / 0.85 = 0.529412
+        //       h = (r - g)/delta + 4 = (0.20 - 0.55)/0.45 + 4 = 3.222222, /6 = 0.537037
+        let swapped = probeTheme(accent: Rgba(r: 0.30, g: 0.90, b: 0.50))
+        var f3 = PaintPass(frame: colorFrame(table, timestamp: 0.5, theme: swapped))
+        let out3 = animatedColor(.accent, for: id, pass: &f3)
+        expectColor(out3, h: 0.537037, s: 0.529412, l: 0.425,
+                    "the `to` endpoint must be re-resolved against THIS frame's theme")
+        // And it is genuinely a different answer from the un-swapped one, so
+        // the assertion above cannot be satisfied by a frozen endpoint that
+        // happens to land nearby.
+        #expect(abs((out3?.l ?? 0) - midBackgroundToAccent.l) > 0.05,
+                "the swapped-theme midpoint must differ from the original one")
+    }
+
+    // MARK: the `from` end
+    do {
+        let table = StateTable()
+        let id = eid("themed-from")
+        var f1 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: probeTheme()))
+        _ = animatedColor(.background, for: id, pass: &f1)
+
+        var f2 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: probeTheme()))
+        withAnimation(.linear(duration: 1)) {
+            _ = animatedColor(.accent, for: id, pass: &f2)
+        }
+
+        //   background' (0.50, 0.10, 0.20) -> accent (0.90, 0.70, 0.30)
+        //   midpoint (0.70, 0.40, 0.25): max=0.70 (r), min=0.25 (b), delta=0.45
+        //       l = (0.70 + 0.25)/2 = 0.475
+        //       s = 0.45 / (1 - |2(0.475) - 1|) = 0.45 / 0.95 = 0.473684
+        //       h = ((g - b)/delta) mod 6 = (0.40 - 0.25)/0.45 = 0.333333, /6 = 0.055556
+        let swapped = probeTheme(background: Rgba(r: 0.50, g: 0.10, b: 0.20))
+        var f3 = PaintPass(frame: colorFrame(table, timestamp: 0.5, theme: swapped))
+        let out3 = animatedColor(.accent, for: id, pass: &f3)
+        expectColor(out3, h: 0.055556, s: 0.473684, l: 0.475,
+                    "the `from` endpoint must be re-resolved too — spec §4 says BOTH ends")
+    }
+}
+
+/// **Brief test 5.** Two elements animate colour independently — different
+/// targets, both mid-flight in the same frame, each reading its own midpoint.
+/// A single shared `$anim-color` slot, or a slot keyed on anything but the
+/// element's own id, collapses these onto one answer.
+@Test @MainActor func twoElementsAnimateColourIndependently() {
+    let table = StateTable()
+    let theme = probeTheme()
+    let a = eid("colour-a")
+    let b = eid("colour-b")
+
+    var f1 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: theme))
+    _ = animatedColor(.background, for: a, pass: &f1)
+    _ = animatedColor(.background, for: b, pass: &f1)
+
+    var f2 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: theme))
+    withAnimation(.linear(duration: 1)) {
+        _ = animatedColor(.accent, for: a, pass: &f2)
+        _ = animatedColor(.separator, for: b, pass: &f2)
+    }
+
+    var f3 = PaintPass(frame: colorFrame(table, timestamp: 0.5, theme: theme))
+    let outA = animatedColor(.accent, for: a, pass: &f3)
+    let outB = animatedColor(.separator, for: b, pass: &f3)
+    expectColor(outA, h: midBackgroundToAccent.h, s: midBackgroundToAccent.s,
+                l: midBackgroundToAccent.l, "element A heads for `accent`")
+    expectColor(outB, h: midBackgroundToSeparator.h, s: midBackgroundToSeparator.s,
+                l: midBackgroundToSeparator.l, "element B heads for `separator`")
+}
+
+/// `withAnimation` takes a non-throwing body, and two arms of the hover/focus
+/// test need to `try` inside one. A local rethrowing wrapper over the same
+/// save-and-restore, rather than widening the production signature for a test.
+@MainActor private func withAnimationThrowing(_ animation: Animation,
+                                              _ body: () throws -> Void) rethrows {
+    let previous = Animation.pendingTransaction
+    Animation.pendingTransaction = animation
+    defer { Animation.pendingTransaction = previous }
+    try body()
 }

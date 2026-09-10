@@ -135,10 +135,11 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // conformer to keep, so the element-keyed `isHovered` overload is the
         // only one `Box` can reach. See `PaintPass.isHovered(_:)`'s two
         // overloads and `Frame.hoveredElement`.
-        if let token = (pass.isFocused(id) ? decoration.focusBackground : nil)
+        let effective = (pass.isFocused(id) ? decoration.focusBackground : nil)
             ?? (pass.isHovered(id) ? decoration.hoverBackground : nil)
-            ?? decoration.background {
-            pass.fill(bounds, color: pass.theme[token],
+            ?? decoration.background
+        if let color = animatedColor(effective, for: id, pass: &pass) {
+            pass.fill(bounds, color: color,
                       cornerRadii: Corners(all: decoration.cornerRadius))
         }
         content.paintGroup(layout: &layout.content,

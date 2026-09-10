@@ -38,17 +38,40 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// single bare frame cannot vary: a table that survives across several
 /// `Frame` instances (the way `Window` really threads one across frames),
 /// and a focused id (`private(set)` on `Frame`, settable only at `init`).
-/// Exists for `theSixRetentionSlotsAreMutuallyDistinct` below (named
+/// Exists for `theSevenRetentionSlotsAreMutuallyDistinct` below (named
 /// `theThreeRetentionSlotsAreMutuallyDistinct` until the animation
 /// milestone's Task 3 extended it to four, then Task 4's own fix round to
-/// six), which needs several frames sharing one table to reproduce
-/// `Frame.render`'s own two-sweep shape.
+/// six, then Task 4b to seven), which needs several frames sharing one table
+/// to reproduce `Frame.render`'s own two-sweep shape.
+///
+/// **`theme` is a parameter because Task 4b's `$anim-color` arm needs one**:
+/// the seventh slot's mid-flight value is a colour, and `Theme.light`'s
+/// `background`/`accent` pair is too close in hue and saturation for a
+/// componentwise assertion to separate an intact slot from a clobbered one
+/// with any margin. A purpose-built pair is.
 @MainActor private func sharedFrame(_ table: StateTable, focusedElement: GlobalElementID? = nil,
-                                    side: Float = 300, timestamp: Double = 0) -> Frame {
+                                    side: Float = 300, timestamp: Double = 0,
+                                    theme: Theme = Theme.forAppearance(.light)) -> Frame {
     Frame(contentSize: Size(width: px(side), height: px(side)),
           scaleFactor: 1, stateTable: table,
           shapingCache: ShapingCache(), glyphAtlas: GlyphAtlas(width: 64, height: 64),
-          theme: Theme.forAppearance(.light), timestamp: timestamp, focusedElement: focusedElement)
+          theme: theme, timestamp: timestamp, focusedElement: focusedElement)
+}
+
+/// The `$anim-color` arm's own theme (Task 4b). Two colours differing in every
+/// RGB component, whose midpoint is far from both endpoints on every component
+/// asserted — `AnimationTests.swift`'s `probeTheme` for the same reason, kept
+/// local rather than shared because these two files are compiled together but
+/// their fixtures are not one another's business.
+@MainActor private func slotProbeTheme() -> Theme {
+    Theme(background: Rgba(r: 0.10, g: 0.20, b: 0.80).toHsla(),
+          surface: Rgba(r: 0.05, g: 0.55, b: 0.15).toHsla(),
+          surfaceSecondary: Rgba(r: 0.25, g: 0.05, b: 0.45).toHsla(),
+          accent: Rgba(r: 0.90, g: 0.70, b: 0.30).toHsla(),
+          separator: Rgba(r: 0.60, g: 0.10, b: 0.90).toHsla(),
+          textPrimary: Rgba(r: 0.85, g: 0.15, b: 0.05).toHsla(),
+          scrollIndicator: Rgba(r: 0.15, g: 0.85, b: 0.65).toHsla(),
+          scrim: Rgba(r: 0.45, g: 0.35, b: 0.95).toHsla())
 }
 
 // MARK: - The API contract, driven directly against `PrepaintPass`
@@ -153,7 +176,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// this test and nothing else in the 777-test suite". Re-run 2026-09-02
 /// (deleting `node.isValid = stateTable.isLive(slot)` from
 /// `Frame.axNode(for:)`): it reddens **two tests, 2 issues out of 782** — this
-/// one *and* `theSixRetentionSlotsAreMutuallyDistinct` (named
+/// one *and* `theSevenRetentionSlotsAreMutuallyDistinct` (named
 /// `theThreeRetentionSlotsAreMutuallyDistinct` at the time this was measured;
 /// the animation milestone's Task 3 later extended it to a fourth slot and
 /// Task 4's own fix round to a sixth), which landed in this same file two
@@ -258,10 +281,11 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     #expect(fromDict.isValid, "the same normalisation on the copy Frame.axNodes stores")
 }
 
-/// **The invariant `axRetentionSlot`/`focusRetentionSlot`/`animRetentionSlot`
-/// are all built to preserve — pinned here because nothing else does.** The
-/// six retention slot names (`"$ax"`, `"$focus"`, `"$anim"`, `"$state\(n)"`,
-/// `"$anim-content"`, `"$anim-viewport"`) are mutually distinct at
+/// **The invariant `axRetentionSlot`/`focusRetentionSlot`/`animRetentionSlot`/
+/// `animColorRetentionSlot` are all built to preserve — pinned here because
+/// nothing else does.** The seven retention slot names (`"$ax"`, `"$focus"`,
+/// `"$anim"`, `"$state\(n)"`, `"$anim-content"`, `"$anim-viewport"`,
+/// `"$anim-color"`) are mutually distinct at
 /// construction (`GlobalElementID.child(of:at:name:)` makes any two distinct
 /// `.named` strings distinct components under the same parent), but nothing
 /// enforced that until this test: renaming `axRetentionSlot`'s `"$ax"` to
@@ -283,6 +307,13 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// `ScrollView.swift`'s own comment already says they are "on the same
 /// footing as `$state`, `$focus` and `$ax`" — this is what actually puts
 /// them on it.
+///
+/// **Extended to seven by Task 4b.** `$anim-color` (`AnimatedColor.swift`) is
+/// the paint-side colour helper's own slot, a direct named child of the
+/// element's id exactly as `$anim` is. Colour could not go through `$anim`:
+/// that helper runs in `LayoutPass`, which deliberately has no theme, and two
+/// `ColorToken`s interpolate through their theme-resolved `Hsla` (spec §4's
+/// third rule).
 ///
 /// **Those two are id PREFIXES, not slots, and this doc said "both DIRECT
 /// children of the element's own id, on the same level as
@@ -335,8 +366,9 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// (50) — so the two cases are now observably different. See this task's
 /// fix-round report for the reproduced rename-mutation count against this
 /// corrected shape.
-@Test @MainActor func theSixRetentionSlotsAreMutuallyDistinct() throws {
+@Test @MainActor func theSevenRetentionSlotsAreMutuallyDistinct() throws {
     let table = StateTable()
+    let theme = slotProbeTheme()
     let id = eid("shared")
     // `ScrollView`'s own two extra names — direct NAMED children of `id`,
     // exactly where `$state\(n)`/`$focus`/`$ax`/`$anim` live.
@@ -352,7 +384,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     // it needs no special shape. The SECOND is what makes this test able to
     // tell an intact slot from a clobbered one: a linear animation begun at
     // this frame's timestamp (0) and read back half a second later.
-    let frame1 = sharedFrame(table, focusedElement: id)
+    let frame1 = sharedFrame(table, focusedElement: id, theme: theme)
     var layoutPass1 = LayoutPass(frame: frame1)
     var style = Style()
     style.flexGrow = 0
@@ -382,6 +414,20 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
         _ = animated(viewportStyle, Decoration(), for: viewportAnimID, pass: &layoutPass1)
     }
 
+    // The SEVENTH name (Task 4b): `$anim-color`, the paint-side colour
+    // helper's own slot under the same `id`. Same shape as the `$anim` arm —
+    // a real transaction begun at this frame's timestamp, read back
+    // mid-flight — because a settled colour readback is indistinguishable
+    // from a fully clobbered slot for the identical reason ruling `TB-R`
+    // records: a clobbered slot reads as a first sighting and answers with
+    // the currently-declared colour, which is exactly what an intact settled
+    // slot answers too.
+    var colorPass1 = PaintPass(frame: frame1)
+    _ = animatedColor(.background, for: id, pass: &colorPass1)
+    withAnimation(.linear(duration: 1)) {
+        _ = animatedColor(.accent, for: id, pass: &colorPass1)
+    }
+
     let pass1 = PrepaintPass(frame: frame1)
     var handlers = Handlers()
     handlers.isFocusable = true
@@ -396,7 +442,7 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
     // Frame 3: reads all five slots back through their own production
     // consumers, half a second after the animations started — still
     // mid-flight (`linear(duration: 1)` at elapsed 0.5 == halfway).
-    let frame3 = sharedFrame(table, focusedElement: id, timestamp: 0.5)
+    let frame3 = sharedFrame(table, focusedElement: id, timestamp: 0.5, theme: theme)
     frame3.resolveFocus()
     #expect(frame3.focusedElement == id, """
             the $focus retention slot must still hold its Bool — a collision with \
@@ -430,6 +476,26 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
             the $anim-viewport retention slot must still hold its own mid-flight state (-3.5, \
             halfway from 0 to -7) — a collision with any of the other five slots (including \
             $anim-content, its own sibling) reads as a first sighting and returns -7 instead
+            """)
+
+    // The seventh. Hand-computed from `slotProbeTheme`, by the arithmetic the
+    // helper is meant to perform rather than by reading it back out of the
+    // helper (taxonomy shape 12):
+    //   background (0.10, 0.20, 0.80) -> accent (0.90, 0.70, 0.30)
+    //   midpoint (0.50, 0.45, 0.55): max=0.55 (b), min=0.45 (g), delta=0.10
+    //       l = 0.50, s = 0.10, h = (0.50 - 0.45)/0.10 + 4 = 4.5, /6 = 0.75
+    // A clobbered slot answers with the DECLARED `accent` instead
+    // (l = 0.60, s = 0.75, h = 0.111111), so every component separates the
+    // two cases by a wide margin.
+    var colorPass3 = PaintPass(frame: frame3)
+    let colorOut3 = try #require(animatedColor(.accent, for: id, pass: &colorPass3))
+    #expect(abs(colorOut3.l - 0.50) < 2e-4 && abs(colorOut3.s - 0.10) < 2e-4
+            && abs(colorOut3.h - 0.75) < 2e-4, """
+            the $anim-color retention slot must still hold its own MID-FLIGHT state \
+            (h 0.75, s 0.10, l 0.50 — halfway through a linear(duration: 1)); a collision with \
+            any of the other six slots reads as a first sighting and answers with the declared \
+            accent (h 0.111111, s 0.75, l 0.60) instead. Got h \(colorOut3.h) s \(colorOut3.s) \
+            l \(colorOut3.l)
             """)
 }
 
