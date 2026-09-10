@@ -133,6 +133,29 @@ public final class Window {
     /// costs nothing (spec 4.4).
     public private(set) var needsRedraw: Bool = true
 
+    /// Whether the frame this window last built left an `Animation` still
+    /// interpolating — the second half of the binding design spec §4.4 guard,
+    /// which M4 spec 1 deliberately left undeclared (ruling `RX-O`: an
+    /// always-`false` stored property with no writer is the declared-but-inert
+    /// trap, and refusing to declare it was the right call until there was a
+    /// writer).
+    ///
+    /// **It keeps the loop running WITHOUT marking the window dirty**, and that
+    /// distinction is the reason this is a second flag rather than a
+    /// `setNeedsRedraw()` after the render. `needsRedraw` means "something
+    /// changed and has not been drawn"; a window mid-fade has nothing of the
+    /// sort — the model is settled, the tree is settled, and only the clock has
+    /// moved. Folding the two would make `needsRedraw` permanently true for the
+    /// whole of every animation and destroy the only observable that can tell
+    /// a dirtying from a redraw.
+    ///
+    /// **Nothing unpauses the link on this flag's account, and nothing needs
+    /// to.** The frame that *starts* an animation is itself drawn because
+    /// something dirtied the window (that is what `withAnimation`'s body did),
+    /// and `setNeedsRedraw()` unpauses. From there this flag only ever prevents
+    /// a pause, which is all a running link requires.
+    public private(set) var hasActiveAnimations: Bool = false
+
     /// Test observability: how many frames actually reached the GPU.
     public private(set) var framesDrawn: Int = 0
 
@@ -481,9 +504,115 @@ public final class Window {
                 self?.drawFrameIfNeeded()
             }
         }
+
+        // Last, because `register` stores `self` and everything above must
+        // have run first. Weak, so this is not a retain and a window nobody
+        // else holds still deallocates — see `liveWindows`.
+        Window.register(self)
+    }
+
+    /// Monotonic count of `setNeedsRedraw()` calls across every window, ever.
+    ///
+    /// **Not a statistic — it is `withAnimation`'s only way to ask "will there
+    /// be a next frame build for this transaction to reach?"** A transaction
+    /// is for the frame that results from the mutation inside the body; a body
+    /// that dirties nothing produces no such frame, and a transaction parked
+    /// for it would otherwise wait indefinitely and apply to whatever happens
+    /// to differ on the next frame drawn for any reason at all. See
+    /// `withAnimation` for the rule and `Animation.parkedTransaction` for the
+    /// measured failure it closes.
+    ///
+    /// A plain `static var`, not an atomic, for `Frame.nextTreeGeneration`'s
+    /// reason: `@MainActor` isolation is what rules out a concurrent
+    /// increment, and `UInt64` at one per dirty cannot realistically wrap.
+    /// Static rather than per-window because `withAnimation` has no window in
+    /// scope — the same constraint that puts the parking slot at module scope.
+    static var redrawRequests: UInt64 = 0
+
+    /// Every `Window` still alive, weakly.
+    ///
+    /// **One caller, one question: `withAnimation` needs to know whether a
+    /// frame build is already pending**, and `redrawRequests` above cannot
+    /// answer it — see `aFrameBuildIsPending`. Weak, so a window nobody holds
+    /// any more drops out on its own; compacted on every read and on every
+    /// registration, so the array cannot grow past the number of live windows
+    /// plus whatever died since the last look. **Weak references rather than a
+    /// maintained count** deliberately: a count needs decrementing when a
+    /// dirty window is deallocated, which means an isolated `deinit` touching
+    /// main-actor state, and a count that drifts upward once is a
+    /// `withAnimation` that parks forever with no diagnostic.
+    ///
+    /// This is the "window registry" whose absence is `Animation.parkedTransaction`'s
+    /// stated reason for living at module scope. It does **not** change that:
+    /// this answers "is *any* window about to build", which is a global
+    /// question with a global answer, where the parking slot needs "*which*
+    /// window did this body mutate", which nothing here can answer.
+    private static var liveWindows: [WeakWindowRef] = []
+
+    private struct WeakWindowRef {
+        weak var window: Window?
+    }
+
+    /// True when some live window will build a frame at its next display-link
+    /// tick — **`drawFrameIfNeeded`'s own guard, asked from outside**.
+    ///
+    /// `withAnimation` needs "will there be a next build for this transaction
+    /// to reach", and `redrawRequests` answers only the narrower "did THIS
+    /// body dirty a CLEAN window". The two differ on ordinary code, and the
+    /// difference was measured rather than reasoned (fix round 2, re-review
+    /// finding N-1): `withObservationTracking`'s `onChange` is **one-shot**,
+    /// and a session is re-armed only by the next *drawn* frame, so the second
+    /// and every later `@Observable` mutation between two frames reaches
+    /// `markDirtyFromObservation` never and the counter never moves —
+    ///
+    /// ```
+    /// model.count += 1                                          // counter +1
+    /// withAnimation(.linear(duration: 1)) { model.width = 200 } // counter +0
+    /// ```
+    ///
+    /// — even though a frame is certainly coming, because the first write left
+    /// the window dirty. Gating on the counter alone silently snapped that
+    /// second animation: measured `200.0` where the animation reads `150.0`.
+    /// This property is what accepts it.
+    ///
+    /// **`needsRedraw` alone, NOT `needsRedraw || hasActiveAnimations`, and
+    /// that is a deviation from the re-review's suggested predicate with a
+    /// measurement and an argument behind it.**
+    ///
+    /// *It can never be needed.* The only case the pending test exists for is
+    /// a counter-silent `@Observable` write, and a write is counter-silent
+    /// only when the session is already spent — which means some earlier write
+    /// since the last drawn frame *did* fire `onChange` and therefore *did*
+    /// run `setNeedsRedraw()`. `needsRedraw = true` is written in exactly one
+    /// place and cleared in exactly one other, `drawFrameIfNeeded`, whose
+    /// tracked closure re-arms the session in the same breath. So "session
+    /// spent" implies "no draw since" implies `needsRedraw == true`. A write
+    /// to a model no window reads fires nothing and dirties nothing, but no
+    /// frame renders it either, so nothing is dropped.
+    ///
+    /// *And it is reachable, and harmful when reached.* Measured with a
+    /// throwaway probe (not kept): mid-fade, `needsRedraw == false` and
+    /// `hasActiveAnimations == true`, an empty
+    /// `withAnimation(.linear(duration: 4)) { }` parked `linear(4)` with the
+    /// clause and `nil` without it. That parked transaction then applies to
+    /// the next bare write — the exact shape of the bug fix round 1 existed to
+    /// close, merely bounded by the running animation's lifetime instead of
+    /// being unbounded. `aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAnimateALaterChange`'s
+    /// fourth arm is that case, pinned.
+    ///
+    /// A measured cost against a structurally zero benefit is what decided it.
+    static var aFrameBuildIsPending: Bool {
+        liveWindows.removeAll { $0.window == nil }
+        return liveWindows.contains { $0.window?.needsRedraw == true }
+    }
+
+    private static func register(_ window: Window) {
+        liveWindows.removeAll { $0.window == nil }
+        liveWindows.append(WeakWindowRef(window: window))
     }
 
     public func setNeedsRedraw() {
+        Window.redrawRequests &+= 1
         needsRedraw = true
         platformWindow.setDisplayLinkPaused(false)
     }
@@ -568,7 +697,13 @@ public final class Window {
     }
 
     public func drawFrameIfNeeded() {
-        guard needsRedraw else {
+        // Binding design spec §4.4, and the widening M4 spec 1 could not make.
+        // `hasActiveAnimations` is the PREVIOUS frame's answer — an animation
+        // left mid-interpolation there needs this frame drawn to advance it —
+        // and it goes false on the frame a duration curve lands exactly on its
+        // target, so the pause happens on the frame AFTER the last animation
+        // ends rather than one frame later or never.
+        guard needsRedraw || hasActiveAnimations else {
             // Nothing to do: let the display idle rather than spinning.
             platformWindow.setDisplayLinkPaused(true)
             pausesEntered += 1
@@ -682,6 +817,15 @@ public final class Window {
         // *decision* rather than its value — see there for why a plain copy
         // loses a `focus(_:)` call made from inside the render.
         let focusHandedIn = focusedElement
+        // Spec §3's hand-off, and the whole reason production can animate at
+        // all. `withAnimation` parked this and returned; the mutation inside
+        // its body dirtied the window through `@State`'s `onWrite` or
+        // `@Observable`'s tracking; this is the build that results, and it is
+        // the FIRST place the transaction has been readable since the closure
+        // ended. Taken (not merely read) so it is consumed by exactly one
+        // build — spec §3's non-re-entrancy — whether or not this frame
+        // contains anything that can use it.
+        let transaction = Animation.takeParkedTransaction()
         let frame = Frame(contentSize: platformWindow.contentSize,
                           scaleFactor: surfaceFrame.scaleFactor,
                           stateTable: stateTable,
@@ -691,7 +835,8 @@ public final class Window {
                           timestamp: lastTick,
                           mousePosition: lastMousePosition,
                           activeElement: active,
-                          focusedElement: focusHandedIn)
+                          focusedElement: focusHandedIn,
+                          transaction: transaction)
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
@@ -742,6 +887,15 @@ public final class Window {
         // last input event stops arriving, because `needsRedraw` above already
         // went false for this pass and nothing else would flip it back.
         if frame.wantsAnotherFrame { setNeedsRedraw() }
+
+        // The animation half of the same idea, and deliberately NOT the same
+        // mechanism. `wantsAnotherFrame` marks the window dirty; this records
+        // that an `Animation` is still interpolating, which the guard at the
+        // top of this function reads on the next tick to keep drawing without
+        // claiming anything changed. Assigned rather than or-ed: the frame's
+        // answer is the whole answer, and a flag that only ever went true is
+        // a window whose display link never pauses again.
+        hasActiveAnimations = frame.hasActiveAnimations
 
         // **Before `encode`, and the ordering is the whole point.** Paint has
         // just packed whatever glyphs this frame needed and the scene holds
@@ -927,9 +1081,13 @@ public final class Window {
             // indicator on the very frame meant to show it. `event.timestamp`
             // and `PaintPass.timestamp` (from the display link) share
             // `mach_absolute_time`'s base, so the subtraction stays valid —
-            // and the event's own time is also simply more current than
-            // `lastTick`, which is the *previous* frame's instant, even when
-            // not idle.
+            // and `lastTick` is not a usable stand-in for "now" in either
+            // direction: it is the display link's *target* presentation
+            // instant (spec §4.4), so while the link is running it sits
+            // roughly one frame interval AHEAD of the event's own timestamp,
+            // and while paused it is however many seconds behind. The event's
+            // own timestamp is the only one of the two that is actually
+            // current.
             $0.lastScrollTime = event.timestamp
         }
         return true

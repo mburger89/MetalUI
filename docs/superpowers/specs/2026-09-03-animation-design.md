@@ -82,6 +82,49 @@ The **next frame build** carries that animation as ambient context on the passes
 `LayoutPass.scrollContext` already is. Any animatable value that differs from the one stored
 for its element adopts it.
 
+> **Corrected in place on 2026-09-10, with the original above kept visible because the design
+> leaned on it and because reading only its first clause is what caused this milestone's largest
+> defect. Rulings `AN-B`, `AN-C`, `AN-D` in
+> `docs/superpowers/2026-09-03-animation-decisions.md`.**
+>
+> **"stores … runs `body`, and clears it" and "the next frame build carries that animation" are
+> in tension, and Task 1 implemented the first sentence only.** A single slot restored in
+> `withAnimation`'s own `defer` satisfies "clears it" read alone and **defeats the sentence after
+> it**: the helpers run during the frame build, which happens later, from the display link,
+> entirely outside the closure body. So for four tasks a production
+> `withAnimation { model.x = 1 }` marked the window dirty, the next frame built, and **every
+> field snapped** — with all thirteen animating tests green, because each of them called the
+> helper *lexically inside* a `withAnimation` body, a configuration production cannot reach
+> (taxonomy shape 15).
+>
+> **What ships is TWO slots, two lifetimes, one value**, written in the same statement so they
+> cannot disagree about which animation, only about when: `Animation.pendingTransaction` is the
+> lexical ambient (restored on the way out to whatever was parked before, so nesting leaves the
+> outer one in effect), and `Animation.parkedTransaction` is the hand-off, taken by the next
+> `Window.drawFrameIfNeeded` and consumed by **exactly one** build. The helpers prefer the
+> frame-carried value and fall back to the lexical one.
+>
+> **The park is CONDITIONAL, and neither clause is an optimisation.** It survives only if
+> `Window.redrawRequests` moved across `body`, **or** a build was already pending when the call
+> started and the slot was free. Without the first, a body that dirties nothing parks a
+> transaction no frame consumes and ambushes an unrelated change an arbitrary time later
+> (measured at 400 s). Without the second, `withObservationTracking`'s **one-shot** session means
+> the second `@Observable` write between two frames moves no counter, so a legitimate animation
+> is **silently discarded**. `AN-C` records both measurements.
+>
+> **"on the `Window`" is NOT what shipped, and it is unsatisfiable as written.** The slot is a
+> `@MainActor static` module-global. `withAnimation` is a free function with no window in scope,
+> and this framework has no window registry and no ambient "current window" to give it one —
+> checked rather than assumed. The cost is stated rather than discovered: with two windows live,
+> whichever builds first consumes the transaction and the other snaps. Unreachable today;
+> nothing constructs two live windows that both build. The fix, when a second window exists, is a
+> per-window slot plus a way for `withAnimation` to name its window — a signature change, not a
+> redesign (`AN-D`).
+>
+> **What this correction does NOT change.** The ambient model itself, the absence of causality
+> tracking, one-transaction-per-build, and "not re-entrant across frames" all shipped exactly as
+> §3 specifies them.
+
 ### There is no causality tracking, and none is needed
 
 This is the design's central simplification and it is worth stating because the alternative
@@ -192,6 +235,42 @@ coupling one-directional.
 in layout — animating it means re-measuring text every frame, which is a different cost
 question from substituting a number. Named in §8 rather than left to be discovered.
 
+> **Corrected in place on 2026-09-10. This section was wrong about the choke point TWICE — the
+> block above corrects the SITE count, and this one corrects the PHASE count. Rulings `AN-E`,
+> `AN-F`, `AN-Q` in `docs/superpowers/2026-09-03-animation-decisions.md`.**
+>
+> **There are two helpers in two phases, not one helper called from four sites.** Colour cannot
+> be interpolated from `LayoutPass` at all: §4's own third rule requires two `ColorToken`s to
+> interpolate through their **theme-resolved** `Hsla`, re-resolved every frame, and **only
+> `PaintPass` has a theme**. So:
+>
+> | phase | helper | sites |
+> |---|---|---|
+> | `requestLayout` | `animated(_ style: Style, _ decoration: Decoration, for: GlobalElementID, pass: inout LayoutPass)` | `Box`, `Stack`, `ScrollView` ×2 — the four in the table above |
+> | `paint` | `animatedColor(_ token: ColorToken?, for: GlobalElementID, pass: inout PaintPass)` | `Box.paint`, `Stack.paint`, `Text.paint` — three of the four `pass.fill` sites |
+>
+> The shipped layout signature also takes and returns the `Decoration`, not the `Style` alone as
+> sketched above: `Decoration.cornerRadius` is a plain `Pixels` and needs no theme, so it stays
+> at layout while the three colour fields do not.
+>
+> **The paint helper animates ONE value, not three fields.** `Box.paint` already selects among
+> `focusBackground` / `hoverBackground` / `background` by pointer state before drawing, so what
+> is animated is the **resolved result of that chain**. Animating the three fields separately
+> would animate values that are not on screen. This is a deliberate departure from §4's own
+> field list and is a better decomposition than the one this document specifies.
+>
+> **§5's demand for "one test case per registering site" is met TWICE, once per phase** —
+> `everyRegisteringSiteAnimatesItsStyle` and `everyBackgroundPaintingSiteAnimatesItsColour`. The
+> first was **red on arrival** (6 issues with all four `Sources/` edits stashed, going green one
+> site at a time, 6 → 4 → 2 → 1 → 0), which is what distinguishes "this site is covered" from
+> "this test cannot see any site".
+>
+> **The fourth `pass.fill` site is `ScrollView`'s indicator and it is deliberately unwired** — it
+> drives itself by dirtying the window rather than through the animation path (`AN-M`). **And
+> `Text`'s own paragraph above is now only half true**: `Text.paint`'s *background* is animated
+> as of this milestone; its **glyph colour** and its **measured style** remain §8's named holes,
+> for exactly the re-measurement reason that paragraph gives.
+
 ---
 
 ## 6. Storage
@@ -206,6 +285,20 @@ records those three as carrying an identical, unguarded collision risk — a han
 `GlobalElementID`. **`$anim` inherits that risk exactly**, and the existing test
 `theThreeRetentionSlotsAreMutuallyDistinct` must become four. Guarding one name while leaving
 three open would read as though the others were safe.
+
+> **Corrected in place on 2026-09-10: it is SEVEN names, not four, and the test is
+> `theSevenRetentionSlotsAreMutuallyDistinct` — the same test, extended in place three times
+> (three → four → six → seven), never replaced. Ruling `AN-P`.** `ScrollView` registers **two**
+> nodes from one element id, so each got a named child id (`$anim-content`, `$anim-viewport`) —
+> those two are id **prefixes**, not slots: the `$anim` slot hangs off them, so the value lives
+> at a **grandchild**. `$anim-color` is the paint-side colour helper's own slot (§5's
+> correction). **Extending the test in FORM was not enough**: as first written it asserted a
+> *settled* value, and renaming `"$anim"` to `"$focus"` reddened **0 of 837**, because a fully
+> clobbered slot produces the same settled value — the helper treats a `nil` peek as a first
+> sighting and returns the declared value. It now asserts a **mid-flight** value, which only an
+> intact slot can produce (50.0 intact against 100.0 collided), and the rename mutation reddens
+> **1 issue** on that test alone. This paragraph's claim about *why* the test matters was right;
+> its assumption that widening it would carry the guarantee was not.
 
 Animation state gets tombstone retention for free, with the bound the tombstones milestone
 established: `staleAfterGenerations` is 2, above a `sweepThreshold` of 256 entries. **An
@@ -291,7 +384,9 @@ feeding timestamps, exactly as `FrameClockTests` already does with `simulateTick
 9. **An animating element that vanishes and returns within the retention window resumes**
    rather than restarting (§6's free consequence).
 10. **The four reserved slot names are mutually distinct** — the existing three-way test
-    extended to four.
+    extended to four. *(Delivered as **seven** names in
+    `theSevenRetentionSlotsAreMutuallyDistinct`, extended in place three times — §6's
+    correction block and ruling `AN-P` have the reason and the mutation count.)*
 
 ### Mutations that must be run, not predicted
 

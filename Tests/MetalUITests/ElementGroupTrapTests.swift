@@ -277,11 +277,14 @@ struct StateProbe: Element, StyledElement {
 
     frame.render(&column)
 
-    // One entry, incremented twice — the second sibling continued the first's
-    // count instead of starting its own.
+    // One shared entry, incremented twice — the second sibling continued the
+    // first's count instead of starting its own — plus one more: the
+    // animation milestone's Task 4 wired `Column` (via its wrapped `Box`)
+    // through `animated(_:_:for:pass:)`, which unconditionally persists a
+    // `$anim` baseline for the container on its first frame.
     #expect(log.counters.map(\.name) == ["left", "right"])
     #expect(log.counters.map(\.value) == [1, 2])
-    #expect(table.count == 1)
+    #expect(table.count == 2)
     #expect(table.peek(GlobalElementID.child(of: GlobalElementID.child(of: nil, at: 0, name: ElementID("root")),
                                              at: 0, name: ElementID("a")),
                        as: Int.self) == 2)
@@ -306,5 +309,7 @@ struct StateProbe: Element, StyledElement {
     frame.render(&column)
 
     #expect(log.counters.map(\.value) == [1, 1])
-    #expect(table.count == 2)
+    // 2 (one per sibling) + 1 — the `Column`'s own `$anim` baseline, on
+    // `twoSiblingsWithTheSameIDShareOneStateEntry`'s footing above.
+    #expect(table.count == 3)
 }

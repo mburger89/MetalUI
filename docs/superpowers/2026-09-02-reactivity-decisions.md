@@ -267,6 +267,34 @@ is not there and reads its absence as an oversight — which is why CLAUDE.md
 carries a sentence saying it does not exist and why. That note is the cost being
 paid deliberately.
 
+> **DISCHARGED, and one clause above was WRONG — corrected on 2026-09-10 by the
+> animation milestone (M4 spec 3), rulings `AN-M` and `AN-N`,
+> `docs/superpowers/2026-09-03-animation-decisions.md`. The original is kept
+> visible because a future reader will arrive here from §4.4 or from CLAUDE.md
+> and needs to know which half held.**
+>
+> **The ruling itself held exactly as stated.** `hasActiveAnimations` arrived
+> with a writer and a reader in the same change; there is no always-`false`
+> stored property at any point in that branch's diff, and the timebase moved to
+> `targetTimestamp` in the same milestone. `grep -rn "hasActiveAnimations" Sources/`
+> no longer returns 0 — that figure is dated to *this* milestone's last commit
+> and must not be re-cited as current.
+>
+> **"its registration site in `prepaint`" is the clause that was wrong**, and it
+> is the same wording design spec §4.4 carried. The flag is raised from **layout
+> and from paint**: `AnimatedStyle.swift`'s helper runs inside `requestLayout`
+> and `AnimatedColor.swift`'s inside `paint`, both calling
+> `Frame.noteActiveAnimation()`, and `Window` copies the frame's answer **after
+> the whole of `render`**. Colour cannot be interpolated from `LayoutPass` at all
+> — two `ColorToken`s interpolate through their theme-resolved `Hsla` and only
+> `PaintPass` has a theme — so the phase split is structural rather than a
+> choice, and computing the flag from layout alone would stop a fade on a
+> style-static element the instant input stopped.
+>
+> **`RX-O`'s cost was paid and then reversed, which is the outcome to note.** The
+> sentence CLAUDE.md carried saying the property did not exist is gone, and
+> `docs/record/01-start-here.md`'s copy of it is marked as history in place.
+
 ---
 
 ## RX-P — the windowed-`List` consequence is DOCUMENTED BEHAVIOUR and explicitly not a divergence

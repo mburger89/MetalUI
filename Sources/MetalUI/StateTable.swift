@@ -61,7 +61,12 @@ import MetalUICore
 /// footing as the three names above.
 ///
 /// What *is* pinned is that the three cannot collide with each
-/// other: `theThreeRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`),
+/// other: `theSevenRetentionSlotsAreMutuallyDistinct` (`AXNodeTests.swift`,
+/// named `theThreeRetentionSlotsAreMutuallyDistinct` until the animation
+/// milestone's Task 3 extended it to a fourth slot (`$anim`), Task 4's
+/// own fix round extended it again to a sixth (`$anim-content`,
+/// `$anim-viewport` — `ScrollView`'s own two extra reserved names), and
+/// Task 4b to a seventh (`$anim-color`, `AnimatedColor.swift`)),
 /// written because renaming `"$ax"` to `"$focus"` reddened **0 of 777 tests**
 /// — measured at that suite size, before the pin itself was added, so the
 /// number dates the claim rather than decorating it — while silently
@@ -257,6 +262,20 @@ final class StateTable {
     /// so `public` here bought nothing and implied a supported API.
     var count: Int { storage.count }
 
+    /// How many times `withState` has actually run its `body` and written an
+    /// entry, cumulative since this table was created. Test observability, on
+    /// `isDirty`'s exact footing — no production reader, `internal` for the
+    /// same reason `count` is.
+    ///
+    /// **Added for the animation milestone's Task 3 fix round, ruling C2.**
+    /// Neither `count` nor `isDirty` can see write *frequency*: `withState`
+    /// overwriting an EXISTING key changes neither the dictionary's size nor
+    /// `isDirty` (`withState` never sets it — see that flag's own doc for
+    /// why). A caller that re-writes a settled, unchanging entry every frame
+    /// — precisely what `$anim`'s Ruling I forbids — is invisible to both.
+    /// This counter is what makes that frequency assertable at all.
+    private(set) var writeCount: Int = 0
+
     /// Read-modify-write the state at `id`, creating it from `initial` on first
     /// access, and **mark it as still live**.
     ///
@@ -306,6 +325,7 @@ final class StateTable {
         var value = (storage[id]?.value as? S) ?? initial()
         body(&value)
         storage[id] = Entry(value: value, lastSeenGeneration: generation, isLive: true)
+        writeCount += 1
     }
 
     /// Mark `id` live for this frame's sweep, without reading or creating an

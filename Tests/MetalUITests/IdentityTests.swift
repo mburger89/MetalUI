@@ -63,7 +63,12 @@ import MetalUICore
     let frame = Frame(contentSize: size, scaleFactor: 1, stateTable: table)
     var row = Row { CountingElement(nil); CountingElement(nil) }
     frame.render(&row)
-    #expect(table.count == 2)
+    // 2 (one per sibling) + 1 — the `Row`'s own `$anim` baseline. The
+    // animation milestone's Task 4 wired `Row` (via its wrapped `Box`)
+    // through `animated(_:_:for:pass:)`, which unconditionally persists a
+    // `$anim` slot for the container on its first frame — every `Row`/
+    // `Column`/`Stack` fixture in this file gains exactly one entry for it.
+    #expect(table.count == 3)
 }
 
 /// The flat index space: the builder nests `Pair`s, identity does not.
@@ -86,7 +91,9 @@ import MetalUICore
         #expect(table.peek(GlobalElementID.child(of: root, at: index, name: nil),
                            as: Int.self) == 1)
     }
-    #expect(table.count == 3)
+    // 3 (one per child) + 1 — the `Row`'s own `$anim` baseline, on
+    // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing above.
+    #expect(table.count == 4)
 }
 
 /// **A named list carries state through a reorder.** This is the whole reason a
@@ -126,7 +133,10 @@ import MetalUICore
                        as: Int.self) == 2)
     #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: ElementID("b")),
                        as: Int.self) == 2)
-    #expect(table.count == 2)
+    // 2 ("a" and "b") + 1 — the `Row`'s own `$anim` baseline (one entry
+    // total across both frames, since the root's own identity is the same
+    // both times), on `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
+    #expect(table.count == 3)
 }
 
 /// **An unnamed list does not**, because position IS the identity there. The
@@ -148,7 +158,9 @@ import MetalUICore
     let root = GlobalElementID.child(of: nil, at: 0, name: nil)
     #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: nil), as: Int.self) == 2)
     #expect(table.peek(GlobalElementID.child(of: root, at: 1, name: nil), as: Int.self) == 2)
-    #expect(table.count == 2)
+    // 2 (one per slot) + 1 — the `Row`'s own `$anim` baseline, on
+    // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing above.
+    #expect(table.count == 3)
 }
 
 // MARK: - `EitherGroup`'s two branches
@@ -218,8 +230,10 @@ import MetalUICore
                        as: Int.self) == 1)
     // Both entries are retained now: the live `else` branch and the `if`
     // branch's tombstone. A shared-component regression would still show up
-    // here as `1`, not `2` — see the load-bearing comment above.
-    #expect(table.count == 2)
+    // here as `1`, not `2` — see the load-bearing comment above. + 1 for the
+    // `Row`'s own `$anim` baseline, on
+    // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
+    #expect(table.count == 3)
 }
 
 /// The branches stay disjoint **whatever they contain**, which a flat pair of
@@ -263,7 +277,10 @@ import MetalUICore
     let root = GlobalElementID.child(of: nil, at: 0, name: nil)
     let elseBranch = GlobalElementID.child(of: root, at: 1, name: nil)
 
-    #expect(table.count == 3)
+    // 3 (the two `if`-branch tombstones plus the live `else`-branch entry)
+    // + 1 — the `Row`'s own `$anim` baseline, on
+    // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
+    #expect(table.count == 4)
     #expect(table.peek(GlobalElementID.child(of: elseBranch, at: 0, name: nil),
                        as: Int.self) == 1)
 }
@@ -327,7 +344,10 @@ import MetalUICore
     let vacatedSlot = GlobalElementID.child(of: root, at: 1, name: nil)
     #expect(table.peek(vacatedSlot, as: Int.self) == 1)
     #expect(!table.isLive(vacatedSlot))
-    #expect(table.count == 2)
+    // 2 (the adopted slot 0 and the vacated slot 1) + 1 — the `Row`'s own
+    // `$anim` baseline, on `twoUnnamedSiblingsDoNotShareOneStateEntry`'s
+    // footing.
+    #expect(table.count == 3)
 }
 
 /// Naming the **later sibling** is the remedy; naming the conditional content is
@@ -367,9 +387,11 @@ import MetalUICore
     }
     #expect(named.peek(GlobalElementID.child(of: root, at: 0, name: ElementID("tail")),
                        as: Int.self) == 2)
-    // 2 entries: the live "tail" and the tombstoned `if`-branch content that
-    // ran only on frame 1 (positional, value 1, `isLive == false`).
-    #expect(named.count == 2)
+    // 2 entries (the live "tail" and the tombstoned `if`-branch content that
+    // ran only on frame 1, positional, value 1, `isLive == false`) + 1 —
+    // the `Row`'s own `$anim` baseline, on
+    // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
+    #expect(named.count == 3)
 
     // Not the remedy: the *conditional content* carries the name instead.
     let misplaced = StateTable()
@@ -384,11 +406,12 @@ import MetalUICore
     // No adoption — but the trailing element still moved slot and restarted.
     #expect(misplaced.peek(GlobalElementID.child(of: root, at: 0, name: nil),
                            as: Int.self) == 1)
-    // 3 entries: the fresh trailing entry at slot 0 (live), the vacated
-    // slot 1 that frame 1's trailing element left behind, and the named
+    // 3 entries (the fresh trailing entry at slot 0, live; the vacated
+    // slot 1 that frame 1's trailing element left behind; and the named
     // "conditional" entry from frame 1's `if`-branch — the latter two now
-    // tombstoned rather than swept.
-    #expect(misplaced.count == 3)
+    // tombstoned rather than swept) + 1 — the `Row`'s own `$anim` baseline,
+    // on `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
+    #expect(misplaced.count == 4)
 }
 
 // MARK: - The two index-arithmetic lines the branch shipped unguarded
@@ -452,7 +475,10 @@ import MetalUICore
     // the tombstoned `if`-branch entry from frame 1 (see the class comment
     // above about `table.count` inverting here). The `peek` values above are
     // still the load-bearing assertions against a shared-entry regression.
-    #expect(table.count == 3)
+    // + 2 — this fixture has TWO `Row`s (the root and the nested trailing
+    // one), each now carrying its own `$anim` baseline, on
+    // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
+    #expect(table.count == 5)
 }
 
 /// **An erased element is still one element and therefore one index.**
@@ -486,5 +512,7 @@ import MetalUICore
     let root = GlobalElementID.child(of: nil, at: 0, name: nil)
     #expect(table.peek(GlobalElementID.child(of: root, at: 0, name: nil), as: Int.self) == 1)
     #expect(table.peek(GlobalElementID.child(of: root, at: 1, name: nil), as: Int.self) == 1)
-    #expect(table.count == 2)
+    // 2 (one per erased sibling) + 1 — the `Row`'s own `$anim` baseline, on
+    // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
+    #expect(table.count == 3)
 }

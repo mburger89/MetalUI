@@ -317,6 +317,7 @@ M4 spec 1 deliberately did not declare `hasActiveAnimations` without a writer (r
 - An animation started inside `withAnimation` survives into the next frame build (the transaction hand-off works end to end).
 - An animating element that vanishes and returns within the retention window **resumes** rather than restarting (spec §6's free consequence of `StateTable` tombstones).
 - The four reserved slot names are mutually distinct — extend the existing `theThreeRetentionSlotsAreMutuallyDistinct` to four rather than adding a second test.
+  - **DONE, and this line is stale in two ways — corrected 2026-09-10 rather than left as a live instruction a reader would act on (ruling `AN-P`).** It was delivered by **Task 3**, not by this task (see the ledger's correction to its own ruling J), and the count reached **seven**, not four: `$anim`, `ScrollView`'s two id prefixes `$anim-content` / `$anim-viewport`, and `$anim-color`. The test is `theSevenRetentionSlotsAreMutuallyDistinct` today — the same test, extended in place three times, which is what this line asked for and got. **Anyone greping for the old name will find nothing**; that is why this is marked rather than silently rewritten.
 
 - [ ] **Step 2-4: Run red, implement, run green.**
 

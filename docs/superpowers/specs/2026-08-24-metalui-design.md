@@ -449,6 +449,12 @@ Three properties of `withObservationTracking` make it fit a full-rebuild model:
 > implements the `needsRedraw` half only, because an always-`false` stored property with no writer
 > is exactly the declared-but-inert trap `CLAUDE.md` keeps a table for. M4 spec 3 introduces the
 > property, its `prepaint` registration site and both widened conditions in one change (`RX-O`).
+>
+> > **`hasActiveAnimations` NOW EXISTS** — M4 spec 3 landed it, its writer and both widened
+> > conditions in one change, exactly as `RX-O` required, so the paragraph above is history
+> > rather than a live warning. **Its "`prepaint` registration site" is the one part that was
+> > wrong**: the flag is raised from **layout and from paint**, for the reason §4.4's own
+> > correction block gives. Rulings `AN-M`, `AN-N`.
 
 **Display link. (measured)** `CVDisplayLink` is deprecated **in its entirety** as of macOS 15 —
 `CVDisplayLink.h` opens `API_DEPRECATED_BEGIN(…, macos(10.4, 15.0))` at line 51 and closes at 251 —
@@ -468,6 +474,44 @@ the first event after idle.
 presentation timestamp**, never wall clock — required for correct 120 Hz ProMotion and
 variable-refresh behavior. `hasActiveAnimations` is set when an animation is registered during
 `prepaint` and cleared on the first frame where none is.
+
+> **Corrected on 2026-09-10 by the animation milestone (rulings `AN-M` and `AN-N`;
+> `docs/superpowers/2026-09-03-animation-decisions.md`). Two claims in the paragraph above: one
+> was true only after this milestone made it so, and the other is wrong about the phase. The
+> original is kept visible because the design leaned on both.**
+>
+> **The timebase sentence is RIGHT and the code did not comply with it for FIVE milestones.**
+> `AppKitPlatform.displayLinkFired` passed `displayLink?.timestamp` — when the *previous* frame
+> was displayed — from M0 until this spec, and `grep -rn "targetTimestamp" Sources/ Tests/`
+> returned nothing at all. It now passes `displayLink?.targetTimestamp`, and
+> `grep -rn "displayLink?.timestamp" Sources/` returns **0**, re-run at `b869253`. **No test in
+> this repo can see which clock the platform feeds, and that was a deliberate ruling rather than
+> an oversight** (`AN-N`): `FakePlatformWindow.simulateTick(timestamp:)` supplies whatever the
+> test chooses and bypasses `displayLinkFired` entirely for every consumer, and nothing here
+> constructs a real `AppKitWindow` or fires a real `CADisplayLink`. The same boundary this file
+> already records for the display-link pause and for hover from a real `NSTrackingArea`. Writing
+> a test that *appears* to check it was forbidden by the plan and declined by the implementer;
+> the grep above is a **structural** pin, not a behavioural one, and is named as such.
+>
+> **"registered during `prepaint`" is WRONG, and it is wrong in a way that matters.** The flag is
+> raised from **layout and from paint** — `AnimatedStyle.swift`'s helper runs inside
+> `requestLayout` and `AnimatedColor.swift`'s runs inside `paint`, and both call
+> `Frame.noteActiveAnimation()`. `Window` copies `frame.hasActiveAnimations` **after the whole of
+> `render`**, not after any single phase. That ordering is load-bearing rather than incidental:
+> computing the flag from layout alone stops a fade on a style-static element the instant input
+> stops, which is why the pin
+> (`aColourFadeOnAStyleStaticElementKeepsTheDisplayLinkRunning`) uses a subject whose width and
+> height are literals, so the layout half is silent by construction. Colour cannot be animated
+> from `LayoutPass` at all — interpolating two `ColorToken`s requires the theme-resolved `Hsla`
+> and **only `PaintPass` has a theme** — so the phase split is structural, not a choice
+> (`AN-F`). Ruling `RX-O` carries the same stale "`prepaint` registration site" wording and is
+> corrected in its own document.
+>
+> **What this correction does NOT change.** The guard and the pause condition are exactly as
+> written above and at `drawFrameIfNeeded`; the property is real, has a writer and a reader in
+> one change, and `RX-O` is discharged the way it asked to be. "Cleared on the first frame where
+> none is" holds — `Window.hasActiveAnimations` is **assigned** from the frame's answer, not
+> or-ed into, and a mutation proves that choice load-bearing rather than stylistic.
 
 **Post-commit.** After presenting, the loop calls `NSTextInputContext.invalidateCharacterCoordinates`
 when the caret rect moved (§8.4); without it the input system will not call `handleEvent:` correctly.

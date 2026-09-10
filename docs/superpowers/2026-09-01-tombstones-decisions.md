@@ -548,6 +548,16 @@ footnotes. Recorded in CLAUDE.md's `@State` bullet;
 `theThreeRetentionSlotsAreMutuallyDistinct` is what pins the three apart from
 *each other*.
 
+> **That test's NAME has moved three times since; the test has not.** It is
+> `theSevenRetentionSlotsAreMutuallyDistinct` today (`AXNodeTests.swift`),
+> extended in place — three → four → six → seven — rather than replaced, as the
+> animation milestone added `$anim`, `ScrollView`'s two `$anim-content` /
+> `$anim-viewport` id prefixes, and `$anim-color`. **This line is left as the
+> record of what was true at this milestone**, with the alias noted so a citation
+> of any generation resolves; see `AN-P` in
+> `docs/superpowers/2026-09-03-animation-decisions.md`. The three names this
+> ruling is about, and the risk it states for them, are unchanged.
+
 ## TB-R — the slot-distinctness test is worth more than its size, and the measurement is why
 
 Renaming `"$ax"` to `"$focus"` reddened **0 of 777**. The reviewer measured the

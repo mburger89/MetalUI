@@ -282,8 +282,23 @@ public struct Text: Element, StyledElement {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Void,
                                pass: inout PaintPass) {
-        if let token = decoration.background {
-            pass.fill(bounds, color: pass.theme[token],
+        // Through `animatedColor`, exactly as `Box.paint` and `Stack.paint`
+        // do — see Task 5's note at `Stack.paint` for why this was wired here
+        // rather than left as a named hole.
+        //
+        // **This is a `Text`'s BACKGROUND, not its style and not its glyph
+        // colour, and the distinction is what keeps it inside spec §8's
+        // exclusion rather than in breach of it.** §5 and §8 exclude animating
+        // a `Text`'s own *style* because its style participates in
+        // MEASUREMENT — animating it means re-running `CTTypesetter` every
+        // frame, a different cost question from substituting a number. A
+        // background fill participates in neither: it is the same paint-phase
+        // rect `Box` and `Stack` emit, at the same bounds layout already
+        // computed. The glyph fill below (`foregroundColor ?? .textPrimary`)
+        // is genuinely still unanimated — it is not in spec §4's animatable
+        // list, and animating text colour is §8's named hole, unchanged.
+        if let color = animatedColor(decoration.background, for: id, pass: &pass) {
+            pass.fill(bounds, color: color,
                       cornerRadii: Corners(all: decoration.cornerRadius))
         }
 
