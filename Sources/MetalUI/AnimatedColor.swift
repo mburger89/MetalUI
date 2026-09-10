@@ -141,8 +141,25 @@ struct AnimatedColorState: Equatable {
 /// exactly — and a fixed `Rgba` when it cannot be: an interruption re-targets
 /// from wherever the colour currently IS (spec §7), and a mid-interpolation
 /// position is not any token. That exception is the whole of this file's
-/// narrowing of spec §4 rule 3, and both halves are pinned by
-/// `aThemeChangeMidFlightMovesBothOfTheAnimationsEndpoints`' two arms.
+/// narrowing of spec §4 rule 3.
+///
+/// **This paragraph claimed both halves of that narrowing were pinned by
+/// `aThemeChangeMidFlightMovesBothOfTheAnimationsEndpoints`' two arms, and they
+/// were not** — both of that test's arms drive an UN-interrupted fade, so they
+/// pin the token/token case and say nothing about the narrowed one. Measured
+/// before the sentence was rewritten rather than after: with an interruption in
+/// front of it, re-theming the token the fade originally came from left the
+/// answer **bit-identical** at `0.735507 / 0.575 / 0.50`, while the identical
+/// swap moved an un-interrupted control. So the narrowing was live, correct,
+/// documented — and invisible to all 851 tests. The accurate statement, and
+/// what each test actually covers:
+///
+/// - **token/token, both ends re-resolving** —
+///   `aThemeChangeMidFlightMovesBothOfTheAnimationsEndpoints`, two arms.
+/// - **`from` frozen after an interruption, `to` still re-resolving** —
+///   `anInterruptedFadeFreezesItsFromEndAgainstALaterThemeSwap`, whose
+///   un-interrupted control is what stops "it did not move" being satisfied by
+///   a helper that re-resolves nothing at all.
 ///
 /// **The re-target itself was completely unguarded when this shipped, and that
 /// was found by mutation rather than by reading** (review finding I-1). Swapping

@@ -1841,17 +1841,33 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     // `1.2846` — same defect, second occurrence, both now corrected at the
     // line rather than only in a report.)
     let slack: Float = 1e-3
-    // **The vacuity guard is `s`, not `l`, and the first version was too weak
-    // to mean what its message said.** It read `l > 0.58` against a target `l`
-    // of `0.60`, so a spring that merely ARRIVED without overshooting at all
-    // would have satisfied it. `l` cannot serve here: red clamps at `1.0` while
-    // green rises and blue falls, so `l == (max + min)/2` DROPS as the
-    // overshoot grows (`0.60` at 20% overshoot, `0.575` at 30%) instead of
-    // rising. Saturation can: for `max + min >= 1`, `s == (max - min) /
-    // (2 - max - min)`, which is identically `1` when `max == 1` — that is,
-    // exactly when the clamp fired — while the resting target
-    // `(0.90, 0.70, 0.30)` sits at `s == 0.75`. So `s` reaching 1 is a direct
-    // readout of the clamp having done something, not a proxy for it.
+    // **The vacuity guard is `s`, not `l`.** The first version read `l > 0.58`
+    // against a target `l` of `0.60`, so a spring that merely ARRIVED without
+    // overshooting at all would have satisfied it — and 173 of 240 samples do,
+    // at `bounce: 0.0`, measured.
+    //
+    // **Raising it to `l > 0.60` — the fix round 1 review's own suggestion —
+    // would have worked as a vacuity guard while still meaning the wrong
+    // thing, and this comment said "`l` cannot serve" until fix round 2
+    // measured the difference.** Instrumenting the real fixture over its 240
+    // samples: `l > 0.60` fires on **102/240** at `bounce: 0.6` and **0/240**
+    // at `bounce: 0.0`, so it *would* have discriminated an overshooting
+    // fixture from a flat one. What it would not do is mean what its failure
+    // message says. `l` is not a readout of clamping and its relation to
+    // overshoot inverts: red clamps at `1.0` while blue keeps falling, so
+    // `l == (max + min)/2` rises only until red saturates (peak **0.6185**)
+    // and then falls — so of the **42** samples where the clamp actually
+    // fires, **26 have `l <= 0.60`** (minimum 0.5866). In the regime this test
+    // exists to cover, an `l > 0.60` guard is mostly false. The
+    // recommendation was insufficient, not wrong, and saying otherwise was
+    // this branch's shape-14 "confident cannot" in the paragraph correcting
+    // someone else's.
+    //
+    // Saturation IS a readout: for `max + min >= 1`,
+    // `s == (max - min) / (2 - max - min)`, which is identically `1` exactly
+    // when `max == 1` — that is, exactly when the clamp fired — while the
+    // resting target `(0.90, 0.70, 0.30)` sits at `s == 0.75` and the whole
+    // `bounce: 0.0` flight peaks at `0.7755`.
     var sawTheClampFire = false
     for step in 1...240 {
         let t = Double(step) / 240.0   // two seconds at 120 Hz
@@ -1903,7 +1919,7 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
 ///
 /// Every expected value is hand-derived from `probeTheme`'s endpoints, with the
 /// arithmetic in the comments — not read back out of the helper.
-@Test @MainActor func interruptingAColourFadeReTargetsFromItsCurrentValueAndVelocity() {
+@Test @MainActor func interruptingAColourFadeReTargetsFromItsCurrentValueAndVelocity() throws {
     let theme = probeTheme()
 
     /// Frames 1-2 of every arm: park a `background → accent` `linear(1)` fade
@@ -1959,7 +1975,11 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
         let out4 = animatedColor(.separator, for: id, pass: &f4)
         expectColor(out4, h: 0.735507, s: 0.575, l: 0.50,
                     "the re-targeted fade runs from the interrupt point, not from the old `from`")
-        #expect(abs((out4?.s ?? 0) - midBackgroundToSeparator.s) > 0.1, """
+        // `try #require`, not `out4?.s ?? 0`: the `??` made this sanity check
+        // PASS on a nil (|0 - 0.70| > 0.1), and the disagreement guard is the
+        // one assertion in the arm that must never pass vacuously.
+        let s4 = try #require(out4?.s, "the helper must return a colour mid-flight")
+        #expect(abs(s4 - midBackgroundToSeparator.s) > 0.1, """
                 sanity: the re-targeted answer must differ from the un-interrupted \
                 background -> separator midpoint, or this arm cannot tell them apart
                 """)
@@ -2089,4 +2109,105 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     expectColor(out3, h: 0.958333, s: 0.666667, l: 0.30, tolerance: 1e-5,
                 "and it stays there")
     #expect(!frame3.wantsAnotherFrame)
+}
+
+/// **After an interruption the `from` end stops re-resolving, and the `to` end
+/// does not** — the narrowing `ColorAnimation` documents, made observable.
+///
+/// Fix round 1 review, concern 1, and it was more than a coverage gap:
+/// `ColorAnimation`'s doc claimed both halves of the narrowing were pinned by
+/// `aThemeChangeMidFlightMovesBothOfTheAnimationsEndpoints`, and **both of that
+/// test's arms drive an UN-interrupted fade** — so they pin the token/token case
+/// and say nothing about the narrowed one. The sentence claimed a pin it did not
+/// have. This is that pin.
+///
+/// **The interrupted subject and the un-interrupted control take the SAME theme
+/// swap in the same test**, so the only difference between them is whether an
+/// interruption happened. Without the control, "the answer did not move" is
+/// equally satisfied by a helper that never re-resolves anything at all.
+@Test @MainActor func anInterruptedFadeFreezesItsFromEndAgainstALaterThemeSwap() {
+    let theme = probeTheme()
+
+    /// Park `background → accent` `linear(1)` at t = 0 and interrupt it at
+    /// t = 0.25 toward `separator` under a fresh transaction, exactly as
+    /// `interruptingAColourFadeReTargetsFromItsCurrentValueAndVelocity`'s arm A
+    /// does. `from` is then `.fixed((0.30, 0.325, 0.675))` — a colour, not a
+    /// token — and `toToken` is `.separator`.
+    func interruptedFade(_ table: StateTable, _ id: GlobalElementID) {
+        var f1 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: theme))
+        _ = animatedColor(.background, for: id, pass: &f1)
+        var f2 = PaintPass(frame: colorFrame(table, timestamp: 0, theme: theme))
+        withAnimation(.linear(duration: 1)) {
+            _ = animatedColor(.accent, for: id, pass: &f2)
+        }
+        var f3 = PaintPass(frame: colorFrame(table, timestamp: 0.25, theme: theme))
+        withAnimation(.linear(duration: 1)) {
+            _ = animatedColor(.separator, for: id, pass: &f3)
+        }
+    }
+
+    // MARK: the `from` end is frozen — and the control proves the swap bites
+    do {
+        // `background` — the token the interrupted fade ORIGINALLY came from —
+        // now resolves to something else entirely.
+        let swapped = probeTheme(background: Rgba(r: 0.50, g: 0.30, b: 0.10))
+
+        let subject = StateTable()
+        interruptedFade(subject, eid("interrupted"))
+        var f4 = PaintPass(frame: colorFrame(subject, timestamp: 0.75, theme: swapped))
+        let out = animatedColor(.separator, for: eid("interrupted"), pass: &f4)
+        // Unchanged from arm A's un-swapped answer: `from` is a colour now, so
+        // `theme[.background]` is never consulted again on this animation.
+        expectColor(out, h: 0.735507, s: 0.575, l: 0.50, """
+                    an interrupted fade's `from` end is a fixed colour and must not \
+                    move when the token it once came from is re-themed
+                    """)
+
+        // CONTROL: the same swap, the same two endpoints, the same elapsed time
+        // — but never interrupted, so `from` is still `.token(.background)` and
+        // MUST move.
+        //   background' (0.50, 0.30, 0.10) -> separator (0.60, 0.10, 0.90)
+        //   midpoint (0.55, 0.20, 0.50): max = r, min = g, delta = 0.35
+        //     l = (0.55 + 0.20)/2 = 0.375
+        //     s = 0.35 / (1 - |2(0.375) - 1|) = 0.35 / 0.75 = 0.466667
+        //     h = ((g - b)/delta) mod 6 = (0.20 - 0.50)/0.35 = -0.857143,
+        //         /6 = -0.142857, +1 = 0.857143
+        // Un-swapped this would be `midBackgroundToSeparator` (0.714286, 0.70,
+        // 0.50), so the swap genuinely bites on a fade that still holds tokens.
+        let control = StateTable()
+        let cid = eid("never-interrupted")
+        var c1 = PaintPass(frame: colorFrame(control, timestamp: 0.25, theme: theme))
+        _ = animatedColor(.background, for: cid, pass: &c1)
+        var c2 = PaintPass(frame: colorFrame(control, timestamp: 0.25, theme: theme))
+        withAnimation(.linear(duration: 1)) {
+            _ = animatedColor(.separator, for: cid, pass: &c2)
+        }
+        var c3 = PaintPass(frame: colorFrame(control, timestamp: 0.75, theme: swapped))
+        let controlOut = animatedColor(.separator, for: cid, pass: &c3)
+        expectColor(controlOut, h: 0.857143, s: 0.466667, l: 0.375, """
+                    CONTROL: an un-interrupted fade still holds `from` as a token, so the \
+                    identical swap MUST move it — without this the subject's \
+                    "did not move" is satisfied by a helper that re-resolves nothing
+                    """)
+    }
+
+    // MARK: the `to` end still re-resolves, interruption or not
+    do {
+        //   from (0.30, 0.325, 0.675) -> separator' (0.30, 0.90, 0.50)
+        //   midpoint (0.30, 0.6125, 0.5875): max = g, min = r, delta = 0.3125
+        //     l = (0.6125 + 0.30)/2 = 0.45625
+        //     s = 0.3125 / (1 - |2(0.45625) - 1|) = 0.3125 / 0.9125 = 0.342466
+        //     h = (b - r)/delta + 2 = (0.5875 - 0.30)/0.3125 + 2 = 2.92, /6 = 0.486667
+        let swapped = probeTheme(separator: Rgba(r: 0.30, g: 0.90, b: 0.50))
+
+        let table = StateTable()
+        interruptedFade(table, eid("interrupted-to"))
+        var f4 = PaintPass(frame: colorFrame(table, timestamp: 0.75, theme: swapped))
+        let out = animatedColor(.separator, for: eid("interrupted-to"), pass: &f4)
+        expectColor(out, h: 0.486667, s: 0.342466, l: 0.45625, """
+                    the `to` end re-resolves every frame even on a RE-TARGETED animation — \
+                    freezing it there would be invisible to \
+                    aThemeChangeMidFlightMovesBothOfTheAnimationsEndpoints, which never interrupts
+                    """)
+    }
 }
