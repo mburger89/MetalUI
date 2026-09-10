@@ -39,10 +39,24 @@ import MetalUILayout
 /// 17, also retired).
 ///
 /// **The threshold clause is not a technicality here, and a SHORT list is the
-/// case it changes.** The reap runs only above 256 entries, so a list whose
-/// rows carry `@State` reaches it only once enough rows have been built to put
-/// the table over — the cold frame builds every row (ruling MP-I), so a
-/// 500-row list crosses it and a 40-row one never does. **Below the threshold
+/// case it changes.** The reap runs only above 256 entries, so a list reaches
+/// it only once enough rows have been built to put the table over — the cold
+/// frame builds every row (ruling MP-I).
+///
+/// **Corrected 2026-09-10: crossing no longer requires a row to carry `@State`
+/// at all, and the row count that crosses is much lower than this comment
+/// said.** The animation milestone's `animated(_:_:for:pass:)` mints a `$anim`
+/// entry on first sight of every registering element, unconditionally
+/// (`AnimatedStyle.swift:309` — the `withState` call is not gated on anything
+/// being in flight), so a `List` row that is a plain `Box` costs a `StateTable`
+/// entry whether or not it declares state. Measured on the committed
+/// `demoLikeRows(_:)` fixture, whose rows carry **no `@State` whatsoever**:
+/// `storage.count` is exactly `2n + 7`, so 40 rows read 87, **125 rows read 257
+/// and cross**, and 500 rows read 1007. The demo's own list is 500 rows
+/// (`main.swift:133`), so the demo crosses the gate on its cold frame. Read the
+/// old claim — "a 500-row list crosses it and a 40-row one never does" — as
+/// accidentally still true at those two endpoints and wrong about the reason
+/// and about everything between 125 and 500. **Below the threshold
 /// nothing is ever reaped and a row's `@State` survives any excursion, of any
 /// length.** That is not specific to `List`: it is CLAUDE.md's divergence 18,
 /// which records the same retention for every conditional subtree in the

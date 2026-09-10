@@ -979,6 +979,20 @@ ranges partition the string contiguously with full coverage — the shape an ari
 Throughput `-O`: **93.6 ns/char**, ~22 µs per 231-character line, paid once and cacheable *because*
 it is width-independent.
 
+> **Correction, 2026-09-10 — this is not a throughput, and reading it as one understates short
+> strings by an order of magnitude.** The cost is **fixed + linear**, not linear. Re-measured with
+> the shipped `Shaper.unbreakableRuns` body under `xcrun swiftc -O`, best-of-2000 after 50 warm-ups:
+> `CFStringTokenizerCreate` alone is **~18.4 µs and flat in length** — 19.0 µs against a
+> 1-character string, 18.4 µs against a 1,000-character one — while the remainder (the token walk
+> plus the per-run `String` construction this function does) runs ~140 ns/char asymptotically.
+> Whole-function ns/char is therefore **21,708 at 1 char, 644 at 40, 220 at 231, 156 at 1,000** on
+> this machine: there is no single per-character number. The consequence the original framing hides
+> is that for short strings — the demo's list rows are ~40 characters — creation is ~72% of the
+> call, so hoisting one tokenizer and re-pointing it with `CFStringTokenizerSetString` is worth
+> ~3.4x there and much less on a long paragraph. `~22 µs per 231-character line` also does not
+> reproduce here (50.8 µs); treat the absolute figures as this machine's and the fixed/linear
+> *shape* as the transferable part. Ruling `TX-G` carries the same figure and the same correction.
+
 `NSString.enumerateSubstrings(.byWords)` remains wrong for the reasons this section gives, and
 measurably so: `well-known` → `["well","known"]`, hyphen dropped; `日本語` → `["日本","語"]`.
 

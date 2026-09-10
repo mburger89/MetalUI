@@ -2,7 +2,12 @@
 
 A GPU-accelerated UI framework for Swift, architecturally modeled on
 [gpui](https://github.com/zed-industries/zed/tree/main/crates/gpui) but written
-as idiomatic Swift. macOS and iOS.
+as idiomatic Swift. **macOS only today** — `Package.swift` declares
+`platforms: [.macOS(.v14)]`, `grep -rn UIKit Sources/ Tests/` returns zero
+hits, and `App.swift:37` constructs `AppKitPlatform` unguarded. The platform
+seam exists (`PlatformWindow`, `Platform`, `RenderSurface` — 15 requirements)
+but has no non-macOS conformer, and `InputEvent` has no `.touch` case. The
+spec's §1 target of macOS **and iOS/iPadOS** is unmet, not delivered.
 
 **This file is the rules. The reasoning, the measurements and the history live
 in `docs/record/`** — the pre-2026-09-09 `CLAUDE.md`, moved there verbatim
@@ -372,7 +377,7 @@ entries). Full entries with repro and pins in record §04.
 | 14 | `List` limit | Window placed against the scroller's origin: a `List` with a flow sibling above it renders **blank**. Pinned wrong on purpose. |
 | 15 | unfixed defect | A `ScrollView` inside a scrolled `ScrollView` gets an empty content mask (`pushClip` ignores `activeOffset`). One-line fix, deferred to a paint milestone; pinned wrong on purpose. |
 | 16 | design | An `onClick` inside a `ScrollView` swallows the wheel over its rect. Fix named in `Window.applyScroll`'s doc (compare layers). Demo keeps its counter out of the list. |
-| 18 | vs SwiftUI | `@State` behind a removed `if` is retained, not reset; indefinitely below 256 entries. Reset explicitly or keep the value in data. Element-level consequence is unpinned. |
+| 18 | vs SwiftUI | `@State` behind a removed `if` is retained, not reset; indefinitely below 256 entries — but 256 is easier to reach than it reads, since every registering element mints a `$anim` entry unconditionally (measured: a `List` is `2n + 7`, crossing at **125 rows**, so the demo's 500-row list sits at 1007). Reset explicitly or keep the value in data. Element-level consequence is unpinned. |
 
 ## Declared but inert — verify, do not remember
 
@@ -403,7 +408,11 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 Record §07 has the tables and machines. `computeLayout` is ~40 µs/node debug,
 ~5 µs/node release, flat 8k–88k nodes (content sizing's §4.5 automatic-minimum
 probe multiplied it ~4.9x; whoever optimises starts there). The demo's warm
-release frame is ~1.3 ms at 40 and at 500 rows; scrolling adds 0.1–0.3 ms. The
+release frame is **1.571 ms at 40 rows and 1.570 at 500** (§07's later table,
+`07-layout-cost.md:117-120`, which supersedes the 1.279/1.273 row above it —
+this line quoted the superseded one until 2026-09-10); scrolling adds
+0.1–0.3 ms. **That table is dated 2026-08-29 and predates the animation
+milestone**, so every ratio taken against it is stale by one milestone. The
 cold first frame builds every `List` row: ~76 ms release / ~188 ms debug at
 500, ~17 s release at 100k — M3's "100k scrolls smoothly" is met for scrolling
 and not for appearing. Identity path construction is ~0.4% of a frame. Hitbox

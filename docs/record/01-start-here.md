@@ -2,7 +2,9 @@
 
 A GPU-accelerated UI framework for Swift, architecturally modeled on
 [gpui](https://github.com/zed-industries/zed/tree/main/crates/gpui) but written as
-idiomatic Swift. macOS and iOS.
+idiomatic Swift. **macOS only today**; the spec's iOS/iPadOS target is unmet.
+The platform seam is declared and unconformed — see CLAUDE.md's opening for
+the greps that establish it.
 
 ## Start here
 

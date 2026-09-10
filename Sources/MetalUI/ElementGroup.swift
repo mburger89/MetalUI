@@ -225,8 +225,13 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
 /// `StateTable.staleAfterGenerations` (**2**) generations.
 ///
 /// **The gate comes first, so state it first.** While `storage.count` stays at
-/// or below 256 — which is the demo and most applications — **nothing is ever
-/// reaped, and a removed branch's `@State` survives indefinitely**. The gate
+/// or below 256, **nothing is ever reaped, and a removed branch's `@State`
+/// survives indefinitely**. (**"which is the demo and most applications" was
+/// struck 2026-09-10**: since the animation milestone every registering element
+/// mints a `$anim` entry on first sight, unconditionally, so the demo's 500-row
+/// list alone puts the table at 1007. Measured on `demoLikeRows(_:)`, whose rows
+/// declare no `@State`: `storage.count == 2n + 7`, crossing at **125 rows**.
+/// A tree stays under the gate now only if it is genuinely small.) The gate
 /// counts *entries*, not live ones, and tombstones are entries: an app that
 /// churns conditional subtrees crosses it without ever holding 257 live
 /// elements at once (`theColdFrameSpikeIsReapedRatherThanRetainedForever`
