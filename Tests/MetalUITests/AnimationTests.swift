@@ -976,11 +976,21 @@ import MetalUILayout
 /// dictionary, not 28 idle records" claim the 91.6% memory reduction rests on
 /// was unobserved.
 ///
-/// The four checkpoints below are one lifecycle, and each is a different
-/// mechanism rather than four samples of one:
+/// The four checkpoints below are one lifecycle, and they are **three**
+/// mechanisms rather than four samples of one — checkpoint 1 is the fourth and
+/// it is a sanity assertion, not a pinned mechanism:
 ///
 /// 1. **A settled element's `inFlight` is empty** — the resting state ruling U
-///    exists to make cheap.
+///    exists to make cheap. **Neither mutation below reddens this checkpoint**,
+///    measured rather than reasoned: both were re-run at `18a137d` and the
+///    reddened assertions are named in the table's own rows, and this one is
+///    in neither. An element that has never had a field differ never reaches
+///    `animateField` at all, so neither the `inFlight[key] = nil` deletion nor
+///    the gate deletion can put anything here. It is worth asserting — a
+///    first-sighting baseline that enrolled its 28 fields would be exactly the
+///    allocation ruling U removed — but it is a sanity check on the entry
+///    conditions of checkpoints 2-4, and calling it a fourth pinned mechanism
+///    would overstate what was measured.
 /// 2. **Mid-flight it holds exactly the one field that is moving**, asserted
 ///    by KEY and not only by count: a count alone cannot tell "flexGrow is
 ///    animating" from "some other field is animating instead".
@@ -1002,14 +1012,23 @@ import MetalUILayout
 ///    removed.
 ///
 /// **Both mutations were re-run against this test, in an isolated worktree,
-/// and both discriminate** (843 tests after this round's two additions; six
-/// per-target summary lines confirmed summing before any issue count was
-/// believed):
+/// and both discriminate** (843 tests; six per-target summary lines confirmed
+/// summing before any issue count was believed). Re-taken by fix round 3 at
+/// `18a137d`, because that round changed `allAnimatableFields` and a fixture
+/// change can move a figure recorded under the old one — both counts
+/// reproduced, and the second row's **checkpoint attribution did not**:
 ///
 /// | mutation | result |
 /// |---|---|
 /// | delete `inFlight[key] = nil` on the `isFinished` branch | **3 issues / 2 tests** — checkpoints 3 and 4 here, plus `allTwentyEight…`'s own settle assertion |
-/// | delete all three fast-path gates | **3 issues / 1 test** — checkpoints 2, 3 and 4 here, and nothing else in the suite |
+/// | delete all three fast-path gates | **3 issues / 1 test** — checkpoint 2's *two* assertions (`atStart` and `atMid`) and checkpoint 4 here, and nothing else in the suite |
+///
+/// That second row read "checkpoints 2, 3 and 4" until it was re-run: the
+/// three issues are `atStart`, `atMid` and checkpoint 4, and **checkpoint 3
+/// does not redden under the gate deletion at all**. The count was right and
+/// the attribution was not, which is precisely the kind of claim the count
+/// alone hides — the reason this branch names the tests, and now the
+/// assertions, that a mutation reddens.
 ///
 /// The gate mutation reddens more of this test than predicted, and the reason
 /// is worth knowing rather than being read as slack: with the gates gone, the
@@ -1123,19 +1142,48 @@ import MetalUILayout
 /// assertion vacuous for exactly those 11. `allAnimatableFields(0)` gives
 /// every one of the 28 a concrete pixel baseline first.
 ///
+/// **The baseline is also per-field DISTINCT, and that half was added by fix
+/// round 3 after a measurement.** The *i*-th field of `animatableFieldOrder`
+/// runs `i -> 100 + i` and must read `50 + i` here. Fix round 2 shipped this
+/// test with a uniform fixture — every field `0 -> 100`, every midpoint
+/// compared against the same literal `50` — under which a crossed read, a
+/// crossed key and a crossed assignment are all invisible, because both sides
+/// of every swap carry the same number. Measured, in an isolated worktree at
+/// `18a137d`: cross-wiring `minSize.width` and `maxSize.width` in
+/// `animated(...)` left the whole suite **green at 843, 0 issues**. Under the
+/// distinct fixture the same mutation reddens this test and names both fields.
+///
 /// Both halves are asserted: every field reads **exactly** halfway at t = 0.5,
 /// and all 28 leave `inFlight` on the settle frame — the same lifecycle
 /// `theInFlightDictionaryIsEmptyWhenSettledAndHoldsOnlyTheMovingField` pins
-/// for one field, taken across the whole table so a field wired to the wrong
-/// baseline sub-field (`p.minSize.width` under `maxSize.width`, say) reads a
-/// wrong midpoint here rather than passing silently.
+/// for one field, taken across the whole table.
+///
+/// **The key-set assertion's `unexpected` half is what guards the plan's
+/// "`aspectRatio` must not become animatable" constraint, and it needs the
+/// fixtures to differ in that field to have any teeth.** Every wiring in
+/// `animated(...)` mints its key only when the field differs from its
+/// baseline, so a field left equal in both fixtures can be wired and mint
+/// nothing. Measured, same worktree and commit: with `aspectRatio` `nil` in
+/// both fixtures, wiring it into `animated(...)` left the suite **green at
+/// 843, 0 issues** — the constraint was unguarded. `allAnimatableFields` now
+/// gives it `1.0` and `2.0`, and `allAnimatableDecoration` gives the three
+/// non-animatable colour fields two distinct token sets, for the same reason.
+///
+/// **Neither this test nor
+/// `theInFlightDictionaryIsEmptyWhenSettledAndHoldsOnlyTheMovingField` goes
+/// through a registering site** — both call `animated(...)` directly, so
+/// neither would notice `Box`/`Stack`/`ScrollView` being un-wired. That is
+/// `everyRegisteringSiteAnimatesItsStyle` and the per-site guards' job; this
+/// test covers the field table, not the call sites.
 ///
 /// **The 25-field deletion was re-run against this test in an isolated
 /// worktree and reddens it alone: 843 tests, `26 issues / 1 test`** — the
 /// key-set assertion, which names all 25 missing keys in its own message, plus
 /// one midpoint assertion per deleted field (15 `Dimension` + 10 `Length`).
 /// Nothing else in the suite moved, which is the re-review's `0 of 841`
-/// reproduced with this test as the only difference.
+/// reproduced with this test as the only difference. Re-taken at `18a137d`
+/// against the distinct fixture rather than carried, because a fixture change
+/// can move a mutation figure recorded under the old one.
 @Test @MainActor func allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle() throws {
     let dimensionFields: [(key: String, read: (Style) -> Dimension)] = [
         ("inset.top", { $0.inset.top }),
@@ -1170,23 +1218,30 @@ import MetalUILayout
         ("flexGrow", { $0.flexGrow }),
         ("flexShrink", { $0.flexShrink }),
     ]
-    let expectedKeys = (dimensionFields.map(\.key) + lengthFields.map(\.key)
-                        + numberFields.map(\.key) + ["cornerRadius"]).sorted()
-    // Spec §4's animatable list, as narrowed by `AnimatedStyle.swift`'s own
-    // top doc (`aspectRatio` and the three colour fields pass through). If
-    // this number moves, the list moved, and every table above must move
-    // with it.
+    // `animatableFieldOrder` is this file's single source for both the fixture
+    // values and the expected midpoints, so the four tables here must name
+    // exactly the same keys as it does. `try #require`, not `#expect`: every
+    // fixture call below indexes into that table by key.
+    let expectedKeys = animatableFieldOrder.sorted()
+    try #require((dimensionFields.map(\.key) + lengthFields.map(\.key)
+                  + numberFields.map(\.key) + ["cornerRadius"]).sorted() == expectedKeys,
+                 "the tables above and animatableFieldOrder must name the same fields")
+    // A tripwire on THIS TEST's own tables and nothing else — it counts the
+    // literals a few lines above it, so it cannot observe `Sources/` or spec
+    // §4 moving, only someone editing one of these lists. The assertion that
+    // observes `animated(...)` is the key-set one below.
     #expect(expectedKeys.count == 28, "expected 28 animatable fields, listed \(expectedKeys.count)")
 
     let table = StateTable()
     let id = eid("all-fields")
     let slot = animRetentionSlot(for: id)
 
-    // Frame 1: an explicit pixel-0 baseline for all 28.
+    // Frame 1: an explicit, per-field distinct pixel baseline for all 28 —
+    // field `i` starts at `i`, not all 28 at 0.
     var pass1 = LayoutPass(frame: animFrame(table, timestamp: 0))
     _ = animated(allAnimatableFields(0), allAnimatableDecoration(0), for: id, pass: &pass1)
 
-    // Frame 2: all 28 change to 100 inside one transaction.
+    // Frame 2: all 28 change to `100 + i` inside one transaction.
     let target = allAnimatableFields(100)
     let targetDecoration = allAnimatableDecoration(100)
     var pass2 = LayoutPass(frame: animFrame(table, timestamp: 0))
@@ -1200,25 +1255,33 @@ import MetalUILayout
             \(Set(started.keys).subtracting(expectedKeys).sorted())
             """)
 
-    // Frame 3: exactly halfway, for every field independently.
+    // Frame 3: exactly halfway, for every field independently — and every
+    // field's halfway value is its OWN `50 + i`, so a crossed field lands a
+    // number that belongs to a different, named field rather than the 50 that
+    // every field would have shared.
     var pass3 = LayoutPass(frame: animFrame(table, timestamp: 0.5))
     let (mid, midDecoration) = animated(target, targetDecoration, for: id, pass: &pass3)
-    let halfDimension = Dimension.length(.pixels(Pixels(50)))
-    let halfLength = Length.pixels(Pixels(50))
     for field in dimensionFields {
-        #expect(field.read(mid) == halfDimension,
-                "\(field.key): expected the halfway value 50, got \(field.read(mid))")
+        let half = 50 + fieldOffset(field.key)
+        #expect(field.read(mid) == Dimension.length(.pixels(Pixels(half))),
+                "\(field.key): expected the halfway value \(half), got \(field.read(mid))")
     }
     for field in lengthFields {
-        #expect(field.read(mid) == halfLength,
-                "\(field.key): expected the halfway value 50, got \(field.read(mid))")
+        let half = 50 + fieldOffset(field.key)
+        #expect(field.read(mid) == Length.pixels(Pixels(half)),
+                "\(field.key): expected the halfway value \(half), got \(field.read(mid))")
     }
     for field in numberFields {
-        #expect(field.read(mid) == 50,
-                "\(field.key): expected the halfway value 50, got \(field.read(mid))")
+        let half = 50 + fieldOffset(field.key)
+        #expect(field.read(mid) == half,
+                "\(field.key): expected the halfway value \(half), got \(field.read(mid))")
     }
-    #expect(midDecoration.cornerRadius.value == 50,
-            "cornerRadius: expected the halfway value 50, got \(midDecoration.cornerRadius.value)")
+    let halfCornerRadius = 50 + fieldOffset("cornerRadius")
+    #expect(midDecoration.cornerRadius.value == halfCornerRadius,
+            """
+            cornerRadius: expected the halfway value \(halfCornerRadius), got \
+            \(midDecoration.cornerRadius.value)
+            """)
 
     // Frame 4: the settle frame empties `inFlight` for all 28 at once.
     var pass4 = LayoutPass(frame: animFrame(table, timestamp: 1))
@@ -1230,30 +1293,111 @@ import MetalUILayout
             """)
 }
 
-/// Every one of spec §4's 28 animatable fields at one concrete, non-`.auto`
-/// value. Used by `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle`
-/// as both baseline and target; the five `.auto`-defaulting fields are the
-/// reason it exists at all (see that test's doc).
-@MainActor private func allAnimatableFields(_ value: Float) -> Style {
-    let d = Dimension.length(.pixels(Pixels(value)))
-    let l = Length.pixels(Pixels(value))
+/// Spec §4's 28 animatable fields in one canonical order, so that every fixture
+/// value and every expected midpoint in
+/// `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` can be
+/// **distinct per field**: the *i*-th field animates `i -> 100 + i` and reads
+/// `50 + i` at the midpoint.
+///
+/// This table exists because the uniform version of that fixture was shape 1 of
+/// `docs/practices/verifying-tests-can-fail.md` — "uniform values on both sides
+/// of an assertion". With all 28 fields at `0 -> 100` and every midpoint
+/// compared against the same literal `50`, swapping two same-typed baseline
+/// reads, two declared reads, two key strings or two assignment targets in
+/// `animated(...)` is invisible: both sides of every swap hold the same number.
+/// Measured in an isolated worktree at `18a137d` — cross-wiring
+/// `minSize.width` and `maxSize.width` left the suite **green at 843, 0
+/// issues**; with these offsets it reddens, naming both fields.
+private let animatableFieldOrder: [String] = [
+    "inset.top", "inset.right", "inset.bottom", "inset.left",
+    "size.width", "size.height",
+    "minSize.width", "minSize.height",
+    "maxSize.width", "maxSize.height",
+    "margin.top", "margin.right", "margin.bottom", "margin.left",
+    "flexBasis",
+    "padding.top", "padding.right", "padding.bottom", "padding.left",
+    "border.top", "border.right", "border.bottom", "border.left",
+    "gap.horizontal", "gap.vertical",
+    "flexGrow", "flexShrink",
+    "cornerRadius",
+]
+
+/// One animatable field's fixture offset: its index in `animatableFieldOrder`.
+///
+/// Traps on an unknown key rather than returning a sentinel, because a sentinel
+/// would be handed to the fixture and to the expectation alike and the two
+/// would agree on it — a silent pass. The trap is reachable only from a typo in
+/// this file's own key literals, never from any value produced by `Sources/`,
+/// so no mutation of the code under test can route here and truncate the run
+/// (the practices doc's shape 13).
+private func fieldOffset(_ key: String) -> Float {
+    guard let index = animatableFieldOrder.firstIndex(of: key) else {
+        preconditionFailure("\(key) is not one of animatableFieldOrder's fields")
+    }
+    return Float(index)
+}
+
+/// Every one of spec §4's 28 animatable fields at a concrete, non-`.auto`,
+/// **per-field distinct** value: field *i* of `animatableFieldOrder` gets
+/// `base + i`. Used by
+/// `allTwentyEightAnimatableFieldsInterpolateAndLeaveInFlightOnSettle` as both
+/// baseline (`base` 0) and target (`base` 100); the five `.auto`-defaulting
+/// fields are the reason a concrete baseline exists at all, and the crossed-
+/// field measurement is the reason the values are distinct (see that test's
+/// doc, and `animatableFieldOrder` above).
+@MainActor private func allAnimatableFields(_ base: Float) -> Style {
+    func dim(_ key: String) -> Dimension { .length(.pixels(Pixels(base + fieldOffset(key)))) }
+    func len(_ key: String) -> Length { .pixels(Pixels(base + fieldOffset(key))) }
     var s = Style()
-    s.inset = Edges(all: d)
-    s.size = Size(width: d, height: d)
-    s.minSize = Size(width: d, height: d)
-    s.maxSize = Size(width: d, height: d)
-    s.margin = Edges(all: d)
-    s.padding = Edges(all: l)
-    s.border = Edges(all: l)
-    s.gap = Axes(both: l)
-    s.flexGrow = value
-    s.flexShrink = value
-    s.flexBasis = d
+    s.inset = Edges(top: dim("inset.top"), right: dim("inset.right"),
+                    bottom: dim("inset.bottom"), left: dim("inset.left"))
+    s.size = Size(width: dim("size.width"), height: dim("size.height"))
+    s.minSize = Size(width: dim("minSize.width"), height: dim("minSize.height"))
+    s.maxSize = Size(width: dim("maxSize.width"), height: dim("maxSize.height"))
+    s.margin = Edges(top: dim("margin.top"), right: dim("margin.right"),
+                     bottom: dim("margin.bottom"), left: dim("margin.left"))
+    s.padding = Edges(top: len("padding.top"), right: len("padding.right"),
+                      bottom: len("padding.bottom"), left: len("padding.left"))
+    s.border = Edges(top: len("border.top"), right: len("border.right"),
+                     bottom: len("border.bottom"), left: len("border.left"))
+    s.gap = Axes(horizontal: len("gap.horizontal"), vertical: len("gap.vertical"))
+    s.flexGrow = base + fieldOffset("flexGrow")
+    s.flexShrink = base + fieldOffset("flexShrink")
+    s.flexBasis = dim("flexBasis")
+    // NOT animatable, and the plan's Global Constraints say it must not become
+    // so — it is in CLAUDE.md's declared-but-inert table, and animating a
+    // property nothing reads is that table's trap doubled. It carries two
+    // DIFFERING values across this helper's two call sites purely so the
+    // key-set assertion can catch it being wired: every wiring in
+    // `animated(...)` mints its key only when the field differs from its
+    // baseline, so a field left equal in both fixtures mints nothing and
+    // passes. Measured at `18a137d` — with `aspectRatio` nil in both fixtures,
+    // wiring it into `animated(...)` left the suite green at 843, 0 issues.
+    s.aspectRatio = 1 + base / 100
     return s
 }
 
-@MainActor private func allAnimatableDecoration(_ value: Float) -> Decoration {
+/// `Decoration`'s one animatable field (`cornerRadius`, offset from
+/// `animatableFieldOrder` like the other 27) plus its three non-animatable
+/// colour fields.
+///
+/// The colours differ between this helper's two call sites for exactly the
+/// reason `aspectRatio` does: `background`, `hoverBackground` and
+/// `focusBackground` pass through `animated(...)` untouched today, and the
+/// key-set assertion's `unexpected` half is the only thing that would notice
+/// one of them being interpolated instead — which it cannot do while both
+/// fixtures leave them at `Decoration()`'s `nil`.
+@MainActor private func allAnimatableDecoration(_ base: Float) -> Decoration {
     var d = Decoration()
-    d.cornerRadius = Pixels(value)
+    d.cornerRadius = Pixels(base + fieldOffset("cornerRadius"))
+    if base == 0 {
+        d.background = .surface
+        d.hoverBackground = .surfaceSecondary
+        d.focusBackground = .textPrimary
+    } else {
+        d.background = .accent
+        d.hoverBackground = .separator
+        d.focusBackground = .scrollIndicator
+    }
     return d
 }
