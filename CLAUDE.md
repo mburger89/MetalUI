@@ -50,9 +50,9 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 ```
 
-- **Counts, dated:** 859 tests, 87 browser-fixture goldens, 35 `swiftc
+- **Counts, dated:** 860 tests, 87 browser-fixture goldens, 35 `swiftc
   -typecheck` guards, warning-free — measured 2026-09-10 on `feat/animation`
-  at `c07c2a7`, on a `swift package clean` build (`master` at the Component
+  at Task 5's fix round 1 (`master` at the Component
   milestone's end was 811 / 87 / 34; this branch read 843 at `6591360` before
   the animation milestone's Tasks 4b and 5).
   A count is stale the moment a test lands; re-measure rather than trust.
@@ -218,9 +218,14 @@ moving layout off the main actor rewrites it first. The other two
 **Animation (M4 spec 3, Tasks 1–5 landed — production animates).**
 `withAnimation` writes **two** slots with one value: `pendingTransaction`,
 restored in its own `defer` and therefore alive only for the closure's lexical
-duration, and `parkedTransaction`, which survives the closure and is taken by
-the next `Window.drawFrameIfNeeded` and handed to the `Frame` as ambient
-`pass.transaction` (spec §3). **The parked one is the whole hand-off**: until
+duration, and `parkedTransaction`, which survives the closure **only if `body`
+asked for a redraw** and is then taken by the next `Window.drawFrameIfNeeded`
+and handed to the `Frame` as ambient `pass.transaction` (spec §3). **A body
+that dirties nothing parks nothing**, and that is a fix rather than a nicety:
+without it a `withAnimation { if cond { … } }` with a false `cond` parked a
+transaction no frame could consume, which then animated an unrelated change
+400 s later. `Window.redrawRequests` is the counter `withAnimation` compares
+across `body` to decide. **The parked one is the whole hand-off**: until
 Task 5 there was only the lexical slot, the frame build runs later from the
 display link, and every field snapped — four wired sites, none of which could
 ever start an animation (ruling V). Consumed by exactly ONE build. Spec §3 says

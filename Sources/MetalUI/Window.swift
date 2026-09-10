@@ -506,7 +506,26 @@ public final class Window {
         }
     }
 
+    /// Monotonic count of `setNeedsRedraw()` calls across every window, ever.
+    ///
+    /// **Not a statistic — it is `withAnimation`'s only way to ask "will there
+    /// be a next frame build for this transaction to reach?"** A transaction
+    /// is for the frame that results from the mutation inside the body; a body
+    /// that dirties nothing produces no such frame, and a transaction parked
+    /// for it would otherwise wait indefinitely and apply to whatever happens
+    /// to differ on the next frame drawn for any reason at all. See
+    /// `withAnimation` for the rule and `Animation.parkedTransaction` for the
+    /// measured failure it closes.
+    ///
+    /// A plain `static var`, not an atomic, for `Frame.nextTreeGeneration`'s
+    /// reason: `@MainActor` isolation is what rules out a concurrent
+    /// increment, and `UInt64` at one per dirty cannot realistically wrap.
+    /// Static rather than per-window because `withAnimation` has no window in
+    /// scope — the same constraint that puts the parking slot at module scope.
+    static var redrawRequests: UInt64 = 0
+
     public func setNeedsRedraw() {
+        Window.redrawRequests &+= 1
         needsRedraw = true
         platformWindow.setDisplayLinkPaused(false)
     }

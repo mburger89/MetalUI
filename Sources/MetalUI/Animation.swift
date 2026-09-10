@@ -493,6 +493,45 @@ extension Animation {
     /// `pendingTransaction == nil` and snapped. All four sites Task 4 wired ran
     /// and none of them could ever start an animation.
     ///
+    /// **A transaction is parked only if `body` actually asked for a redraw,
+    /// and this rule is a FIX, not an optimisation** (fix round 1, review
+    /// finding I-1, reproduced rather than reasoned). Without it, a
+    /// `withAnimation(.linear(duration: 1)) { }` whose body dirties nothing —
+    /// `withAnimation { if cond { model.x = 1 } }` with a false `cond` is
+    /// ordinary code — parks a transaction that no frame ever consumes,
+    /// because `takeParkedTransaction` runs only on a *drawn* frame and no
+    /// frame is drawn. Measured: **400 seconds later**, an unrelated
+    /// `model.width = 200` with no `withAnimation` anywhere read a mid-flight
+    /// `150` instead of snapping to `200`. Spec §3 already accepts collateral
+    /// animation ("a value that changed in the same frame for an unrelated
+    /// reason also animates") — but that is *the same frame*, and this was an
+    /// arbitrarily distant one about something else.
+    ///
+    /// So `withAnimation` parks eagerly and **rolls the slot back** if
+    /// `Window.redrawRequests` did not move across `body`. "There will be a
+    /// next build" is exactly "somebody called `setNeedsRedraw()`", which is
+    /// the one thing every dirty path in the framework has in common —
+    /// `@State`'s `onWrite` hook and `@Observable`'s
+    /// `markDirtyFromObservation` both reach it synchronously on the main
+    /// thread, which is where a `withAnimation` body runs.
+    ///
+    /// **This also stops the module-global leaking across the suite.** The 13+
+    /// direct-helper `withAnimation` sites from Tasks 3, 4 and 4b build no
+    /// frame and dirty no window, so they now park nothing at all rather than
+    /// each leaving the global set for whatever runs next. They are unaffected
+    /// otherwise: every one of them reads the LEXICAL slot below.
+    ///
+    /// **The reviewer's alternative — bound the park to the current run-loop
+    /// turn with a `Task { @MainActor }` clear — was considered and not
+    /// taken**, for two reasons stated rather than assumed. It races the thing
+    /// it must not: the clear is enqueued on the main actor *before* the
+    /// display link's next callback is, so on a FIFO main queue it runs first
+    /// and the hand-off dies exactly the way ruling V describes. And it is
+    /// untestable in this suite by construction — `simulateTick(timestamp:)`
+    /// is synchronous and the test never returns to a run loop between the
+    /// park and the tick, so a turn-bounded rule would be exercised only in
+    /// production, where nothing can see it.
+    ///
     /// **The two slots cannot disagree about WHICH animation, only about
     /// WHEN.** `withAnimation` writes both, in the same statement, with the
     /// same value. `pendingTransaction` is the *lexical* ambient (alive only
@@ -549,29 +588,50 @@ extension Animation {
 ///   `body` and then RESTORED to whatever was parked before — not `nil` — so a
 ///   `withAnimation` nested inside another leaves the outer one in effect once
 ///   the inner body returns.
-/// - `Animation.parkedTransaction` survives this call and is taken by the next
+/// - `Animation.parkedTransaction` survives this call **if and only if `body`
+///   asked for a redraw** — i.e. only if there is going to be a next frame
+///   build for it to reach — and is then taken by the next
 ///   `Window.drawFrameIfNeeded`. That is the whole hand-off: the mutation
 ///   inside `body` marks the window dirty through `@State`'s `onWrite` or
 ///   `@Observable`'s tracking, this function returns, and the frame that
-///   results is the one that reads the animation.
+///   results is the one that reads the animation. A body that dirties nothing
+///   leaves the slot exactly as it found it; see `Animation.parkedTransaction`
+///   for the 400-second failure that rule closes.
 ///
-/// **A nested call parks the INNER animation and does not restore the outer
-/// one for the build.** Consistent with "last writer wins" and with the
-/// lexical slot's own final state at the outer body's last statement; stated
-/// here because it is the one place the two slots' behaviour differs and
-/// nothing in this task's suite exercises nesting.
+/// **Nesting is unchanged by the rollback: the INNER animation still wins.**
+/// The park is eager and the rollback restores whatever was parked *before*
+/// this call, so an inner `withAnimation` whose body dirtied something keeps
+/// its slot when the outer one's `defer` runs (the outer's own count moved
+/// too, so the outer does not roll back). One transaction reaches one build,
+/// so `withAnimation(fast) { withAnimation(slow) { a = 1 }; b = 2 }` animates
+/// both `a` and `b` with `slow` — neither SwiftUI's answer nor obviously
+/// wrong, and a consequence of one-ambient-transaction-per-build rather than
+/// of this rule. Nothing in the suite exercises nesting; stated rather than
+/// discovered.
 @MainActor
 public func withAnimation(_ animation: Animation = .default, _ body: () -> Void) {
     let previous = Animation.pendingTransaction
+    let previouslyParked = Animation.parkedTransaction
+    let redrawsBefore = Window.redrawRequests
     Animation.pendingTransaction = animation
     Animation.parkedTransaction = animation
     // `defer`, not a trailing assignment: nothing today can skip past `body()`
     // without restoring (it is non-throwing), but this makes the restore
     // survive a future signature change (e.g. `rethrows`) rather than
-    // silently stop happening on the path that would need it most. It restores
-    // the LEXICAL slot only — restoring the parked one here is precisely the
-    // pre-task behaviour that made production animate nothing, and mutation 5
-    // in this task's report is that line put back.
-    defer { Animation.pendingTransaction = previous }
+    // silently stop happening on the path that would need it most.
+    //
+    // The LEXICAL slot is restored unconditionally. The PARKED one is rolled
+    // back only when `body` requested no redraw — restoring it
+    // unconditionally is precisely the pre-task behaviour that made production
+    // animate nothing, and mutation 5 in this task's report is that line put
+    // back. Rolled back to `previouslyParked` rather than to `nil`, so a
+    // no-op `withAnimation` cannot clobber a transaction an earlier one
+    // legitimately parked.
+    defer {
+        Animation.pendingTransaction = previous
+        if Window.redrawRequests == redrawsBefore {
+            Animation.parkedTransaction = previouslyParked
+        }
+    }
     body()
 }

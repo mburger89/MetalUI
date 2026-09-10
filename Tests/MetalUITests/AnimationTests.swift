@@ -117,12 +117,24 @@ import MetalUIRender
 @MainActor
 @Test func withAnimationParksATransactionForTheDurationOfItsBodyOnly() {
     #expect(Animation.pendingTransaction == nil)
+    let parkedBefore = Animation.parkedTransaction
     var sawInside: Animation?
     withAnimation(.linear(duration: 1)) {
         sawInside = Animation.pendingTransaction
     }
     #expect(sawInside == .linear(duration: 1))
     #expect(Animation.pendingTransaction == nil, "the transaction must not outlive its body")
+
+    // Task 5 fix round 1: the PARKED slot is left exactly as it was found,
+    // because this body asked for no redraw and so no frame will ever be
+    // built for it to reach. Compared against a locally saved value rather
+    // than against `nil`, so this says something about THIS call rather than
+    // about whatever ran before it in the suite.
+    #expect(Animation.parkedTransaction == parkedBefore, """
+            a body that dirties nothing parks nothing — otherwise every one of this \
+            file's direct-helper `withAnimation` sites leaves the module-global set \
+            for whatever runs next
+            """)
 }
 
 // MARK: - Fix round 1: three regions the original seven tests left uncovered
@@ -2609,4 +2621,63 @@ final class AnimationDriveModel {
     platformWindow.simulateTick(timestamp: 101.3)
     #expect(platformWindow.pauseCalls.last == true,
             "and the link pauses on the frame after the fade ends")
+}
+
+/// **Fix round 1, review finding I-1**, reproduced as the reviewer wrote it and
+/// then closed.
+///
+/// A `withAnimation` whose body dirties nothing parks a transaction that no
+/// frame ever consumes — `takeParkedTransaction()` runs only on a *drawn*
+/// frame, and a clean window draws none. Before the fix it waited indefinitely
+/// and then applied to whatever happened to differ on the next frame drawn for
+/// any reason at all: measured at **400 simulated seconds**, an unrelated
+/// `model.width = 200` with no `withAnimation` anywhere read a mid-flight
+/// value instead of snapping.
+///
+/// The two arms must DISAGREE (taxonomy shape 15). A rule that never parks
+/// passes the first arm and fails the second; the rule as shipped — park only
+/// when `body` asked for a redraw — is the only thing that passes both.
+@MainActor @Test func aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAnimateALaterChange() throws {
+    // MARK: the subject — a body that changes nothing the window reads
+    do {
+        let model = AnimationDriveModel()
+        let (window, platformWindow) = try makeDriveWindow(model)
+        platformWindow.simulateTick(timestamp: 100)
+        try #require(subjectWidth(window) == 100, "set up: the resting baseline")
+
+        withAnimation(.linear(duration: 1)) { }
+        platformWindow.simulateTick(timestamp: 100.1)
+        try #require(platformWindow.pauseCalls.last == true,
+                     "set up: nothing was dirtied, so no frame is drawn and nothing consumes")
+
+        // 400 simulated seconds later, an unrelated change with no
+        // `withAnimation` anywhere near it.
+        model.width = 200
+        platformWindow.simulateTick(timestamp: 500)
+        #expect(subjectWidth(window) == 200, """
+                a transaction nobody could consume must not animate an unrelated later \
+                change; got \(String(describing: subjectWidth(window)))
+                """)
+        platformWindow.simulateTick(timestamp: 500.5)
+        #expect(subjectWidth(window) == 200, "and it stays snapped on the frame after")
+        #expect(!window.hasActiveAnimations, "nothing is interpolating, so the link may idle")
+    }
+
+    // MARK: the control — the IDENTICAL shape with a body that does dirty,
+    // which must still animate. Without this arm, "never park anything at all"
+    // passes the subject above.
+    do {
+        let model = AnimationDriveModel()
+        let (window, platformWindow) = try makeDriveWindow(model)
+        platformWindow.simulateTick(timestamp: 100)
+        try #require(subjectWidth(window) == 100, "set up")
+
+        withAnimation(.linear(duration: 1)) { model.width = 200 }
+        platformWindow.simulateTick(timestamp: 100.1)
+        platformWindow.simulateTick(timestamp: 100.6)
+        #expect(subjectWidth(window) == 150, """
+                CONTROL: a body that DID dirty must still park and still animate; \
+                got \(String(describing: subjectWidth(window)))
+                """)
+    }
 }
