@@ -1,4 +1,5 @@
 import Testing
+import Observation
 import MetalUICore
 import MetalUILayout
 import MetalUIRender
@@ -1531,11 +1532,12 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
 /// neither endpoint, asserted componentwise against a hand-computed midpoint.
 /// Not "an animation exists".
 ///
-/// The two extra assertions at the end are the signal Task 5 will read:
-/// `Frame.wantsAnotherFrame` is raised while the fade is live and left alone
-/// once it settles. `Window.drawFrameIfNeeded` already consumes it
-/// (`Window.swift`'s `if frame.wantsAnotherFrame { setNeedsRedraw() }`), and
-/// paint runs before that check, so a paint-phase contribution is reachable.
+/// The two extra assertions at the end are the signal the drive loop reads:
+/// `Frame.hasActiveAnimations` is raised while the fade is live and left alone
+/// once it settles. These said `wantsAnotherFrame` when Task 4b wrote them —
+/// Task 5 moved the colour helper onto `hasActiveAnimations` so there is ONE
+/// notion of "an animation is live" rather than two that would have kept each
+/// other green; see `animatedColor`'s own line for the argument.
 @Test @MainActor func aBackgroundTokenChangedUnderATransactionReadsAMidFlightColour() {
     let table = StateTable()
     let theme = probeTheme()
@@ -1555,7 +1557,7 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     }
     expectColor(out2, h: 0.642857, s: 0.777778, l: 0.45,
                 "the frame that starts the transaction reads its own `from`, not the target")
-    #expect(frame2.wantsAnotherFrame,
+    #expect(frame2.hasActiveAnimations,
             "an animation started this frame must ask for the next one")
 
     // Frame 3: half a second later, still declaring `.accent`, no transaction
@@ -1565,7 +1567,7 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     let out3 = animatedColor(.accent, for: id, pass: &f3)
     expectColor(out3, h: midBackgroundToAccent.h, s: midBackgroundToAccent.s,
                 l: midBackgroundToAccent.l, "halfway through linear(duration: 1)")
-    #expect(frame3.wantsAnotherFrame, "still mid-flight: the display link must stay awake")
+    #expect(frame3.hasActiveAnimations, "still mid-flight: the display link must stay awake")
 
     // Frame 4: past the end. The value lands exactly on the target and the
     // frame stops asking for another one.
@@ -1574,7 +1576,7 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     let out4 = animatedColor(.accent, for: id, pass: &f4)
     expectColor(out4, h: 0.111111, s: 0.75, l: 0.60, tolerance: 1e-5,
                 "finished: exactly the target token's resolved colour")
-    #expect(!frame4.wantsAnotherFrame,
+    #expect(!frame4.hasActiveAnimations,
             "a settled colour must not hold the display link awake — M4's own idle criterion")
 }
 
@@ -1598,7 +1600,7 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     let out2 = animatedColor(.accent, for: id, pass: &f2)
     expectColor(out2, h: 0.111111, s: 0.75, l: 0.60, tolerance: 1e-5,
                 "no transaction in flight — the new token must apply immediately")
-    #expect(!frame2.wantsAnotherFrame,
+    #expect(!frame2.hasActiveAnimations,
             "a snap is not an animation and must not hold the display link awake")
 
     var f3 = PaintPass(frame: colorFrame(table, timestamp: 0.5, theme: theme))
@@ -2047,7 +2049,7 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
         let out3 = animatedColor(.separator, for: id, pass: &f3)
         expectColor(out3, h: 0.770833, s: 0.80, l: 0.50, tolerance: 1e-5,
                     "a token change with no transaction snaps even mid-flight")
-        #expect(!frame3.wantsAnotherFrame,
+        #expect(!frame3.hasActiveAnimations,
                 "and the abandoned animation must stop holding the display link awake")
 
         let frame4 = colorFrame(table, timestamp: 0.5, theme: theme)
@@ -2055,7 +2057,7 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
         let out4 = animatedColor(.separator, for: id, pass: &f4)
         expectColor(out4, h: 0.770833, s: 0.80, l: 0.50, tolerance: 1e-5,
                     "and it STAYS there — the old animation was dropped, not paused")
-        #expect(!frame4.wantsAnotherFrame)
+        #expect(!frame4.hasActiveAnimations)
     }
 }
 
@@ -2097,7 +2099,7 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     }
     expectColor(out2, h: 0.958333, s: 0.666667, l: 0.30, tolerance: 1e-5,
                 "a theme swap on an unchanged token must apply immediately, not fade")
-    #expect(!frame2.wantsAnotherFrame, """
+    #expect(!frame2.hasActiveAnimations, """
             nothing was declared differently, so no animation may start and the display \
             link must not be held awake
             """)
@@ -2108,7 +2110,7 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
     let out3 = animatedColor(.background, for: id, pass: &f3)
     expectColor(out3, h: 0.958333, s: 0.666667, l: 0.30, tolerance: 1e-5,
                 "and it stays there")
-    #expect(!frame3.wantsAnotherFrame)
+    #expect(!frame3.hasActiveAnimations)
 }
 
 /// **After an interruption the `from` end stops re-resolving, and the `to` end
@@ -2209,5 +2211,331 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
                     freezing it there would be invisible to \
                     aThemeChangeMidFlightMovesBothOfTheAnimationsEndpoints, which never interrupts
                     """)
+    }
+}
+
+// MARK: - Task 5: the transaction hand-off, `hasActiveAnimations`, the drive loop
+//
+// Everything above this line drives the two helpers DIRECTLY, from inside a
+// `withAnimation` body. That configuration is correct for testing the helpers
+// and it is one production cannot reach (ruling V): `withAnimation` restores
+// its transaction in a `defer`, and the frame build that reads it runs later,
+// from the display link, entirely outside that body. Every window test below
+// therefore drives a REAL `Window` — `withAnimation` RETURNS first, and the
+// frame is built by a separate `simulateTick`, which is the whole subject of
+// this task.
+
+/// The application-side model these tests animate. `@Observable`, so the write
+/// inside `withAnimation` reaches the window through the production dirty path
+/// and nothing here calls `setNeedsRedraw()` by hand.
+@Observable
+final class AnimationDriveModel {
+    var width: Float = 100
+    var show: Bool = true
+}
+
+/// The width of the one 40pt-tall rect the fixtures below paint, in device
+/// pixels — the fake surface's scale factor is 1, so this is also points.
+///
+/// Read out of `Window.lastScene` rather than by calling `animated(...)`: the
+/// question this task answers is whether a value reaches the SCENE through a
+/// real frame build, and a test that called the helper itself would be blind to
+/// a hand-off that never happens.
+@MainActor private func subjectWidth(_ window: Window) -> Float? {
+    window.lastScene.rects.first { $0.bounds.size.height == 40 }?.bounds.size.width
+}
+
+@MainActor private func makeDriveWindow(_ model: AnimationDriveModel)
+    throws -> (Window, FakePlatformWindow) {
+    try makeFakeWindowOnDefaultDevice(size: 300, startsDisplayLink: true) {
+        Column {
+            if model.show {
+                Box().background(.accent)
+                    .width(Pixels(model.width)).height(Pixels(40))
+                    .id("subject")
+            }
+        }
+    }
+}
+
+/// **The test this task exists for.** A `withAnimation` whose body mutates
+/// state and nothing else, followed by a separately driven frame build, must
+/// animate.
+///
+/// The assertion is a MID-FLIGHT interpolated width — 150 of a 100 → 200 linear
+/// second at exactly its halfway point — not "an animation exists". Only a
+/// running animation produces 150; a dead hand-off produces 200 on the first
+/// frame after the write.
+@MainActor @Test func aTransactionParkedOutsideTheBuildAnimatesTheNextFrameEndToEnd() throws {
+    let model = AnimationDriveModel()
+    let (window, platformWindow) = try makeDriveWindow(model)
+
+    platformWindow.simulateTick(timestamp: 100)
+    try #require(subjectWidth(window) == 100, "set up: the resting baseline is 100")
+
+    // The body mutates state ONLY. No `animated(...)`, no `Frame.render` and no
+    // window call is lexically inside it.
+    withAnimation(.linear(duration: 1)) { model.width = 200 }
+    #expect(Animation.pendingTransaction == nil, """
+            the LEXICAL transaction is already gone by the time the build below runs — \
+            which is exactly why a lexically-scoped transaction cannot reach production
+            """)
+
+    // The frame that starts the transition reads its own `from`.
+    platformWindow.simulateTick(timestamp: 100)
+    #expect(subjectWidth(window) == 100, """
+            the frame that consumes the transaction starts at elapsed 0, so it reads `from`; \
+            got \(String(describing: subjectWidth(window)))
+            """)
+
+    // MID-FLIGHT. This number exists only while an animation is running.
+    platformWindow.simulateTick(timestamp: 100.5)
+    #expect(subjectWidth(window) == 150, """
+            halfway through linear(duration: 1) from 100 to 200 is 150; 200 means the change \
+            snapped and the hand-off is dead; got \(String(describing: subjectWidth(window)))
+            """)
+
+    // And it lands exactly on the target at the duration.
+    platformWindow.simulateTick(timestamp: 101)
+    #expect(subjectWidth(window) == 200, """
+            a duration curve terminates exactly; got \(String(describing: subjectWidth(window)))
+            """)
+}
+
+/// Spec §9 item 4, and M4 spec 1's ruling `RX-O` finally discharged: the
+/// display link stays running while an animation is live and pauses on the
+/// frame AFTER the last one ends.
+///
+/// The two halves are asserted separately because they fail under different
+/// mistakes — a flag that is never raised stops the first, a flag that is never
+/// cleared stops the second — and the mutation table reddens them separately.
+///
+/// Nothing writes to the model between the first animating tick and the last:
+/// every frame after that one is drawn on the strength of `hasActiveAnimations`
+/// alone, because `needsRedraw` is false for all of them.
+@MainActor @Test func theDisplayLinkStaysRunningWhileAnimatingAndPausesOnTheFrameAfterTheLastEnds() throws {
+    let model = AnimationDriveModel()
+    let (window, platformWindow) = try makeDriveWindow(model)
+
+    platformWindow.simulateTick(timestamp: 100)
+    // Control: with nothing animating, an idle window pauses. Without it, "it
+    // paused at the end" is equally satisfied by a window that pauses always.
+    platformWindow.simulateTick(timestamp: 100.1)
+    try #require(platformWindow.pauseCalls.last == true,
+                 "set up: a clean window with no animation must pause")
+    #expect(!window.hasActiveAnimations, "set up: nothing is animating yet")
+
+    withAnimation(.linear(duration: 1)) { model.width = 200 }
+
+    platformWindow.simulateTick(timestamp: 100.2)      // starts the animation
+    #expect(window.hasActiveAnimations,
+            "a frame that left a field mid-interpolation must report an active animation")
+    try #require(!window.needsRedraw, """
+                 set up: the window is CLEAN from here on — every frame below is drawn on the \
+                 strength of the animation alone
+                 """)
+
+    let drawnBeforeIdling = window.framesDrawn
+    let pausesBefore = platformWindow.pauseCalls.filter { $0 }.count
+
+    platformWindow.simulateTick(timestamp: 100.6)
+    #expect(window.framesDrawn == drawnBeforeIdling + 1,
+            "a clean window with a live animation must still draw")
+    #expect(window.hasActiveAnimations, "still mid-flight")
+    #expect(subjectWidth(window) == 140, """
+            0.4s into a 1s linear 100 -> 200 is 140; \
+            got \(String(describing: subjectWidth(window)))
+            """)
+
+    platformWindow.simulateTick(timestamp: 101.2)      // exactly at the duration
+    #expect(subjectWidth(window) == 200)
+    #expect(!window.hasActiveAnimations, """
+            termination is exact for a duration curve: the frame that lands on the target \
+            reports NO active animation, which is what lets the link pause on the next one
+            """)
+    #expect(platformWindow.pauseCalls.filter { $0 }.count == pausesBefore,
+            "the link must not have paused at any point while the animation was live")
+
+    platformWindow.simulateTick(timestamp: 101.3)
+    #expect(platformWindow.pauseCalls.last == true,
+            "the link pauses on the frame AFTER the last animation ends")
+    #expect(window.framesDrawn == drawnBeforeIdling + 2,
+            "and that pausing tick draws nothing")
+}
+
+/// The negative arm, in the same test as the positive one so the two must
+/// DISAGREE before either is believed (taxonomy shape 15). A property that is
+/// always `false` passes the first half; one that is always `true` passes the
+/// third; only a real one passes all four.
+@MainActor @Test func aFrameWithNoAnimationsReportsNoActiveAnimationsAndOneMidFlightReportsSome() {
+    let table = StateTable()
+    let id = eid("box")
+    var style = Style()
+    style.flexGrow = 0
+
+    let f1 = animFrame(table, timestamp: 0)
+    var pass1 = LayoutPass(frame: f1)
+    _ = animated(style, Decoration(), for: id, pass: &pass1)
+    #expect(!f1.hasActiveAnimations, "a first sighting establishes a baseline and animates nothing")
+
+    // A second static frame: nothing differs, nothing is in flight.
+    let f2 = animFrame(table, timestamp: 0.1)
+    var pass2 = LayoutPass(frame: f2)
+    _ = animated(style, Decoration(), for: id, pass: &pass2)
+    #expect(!f2.hasActiveAnimations, "an unchanged element animates nothing")
+
+    // Now one that genuinely differs under a transaction.
+    style.flexGrow = 100
+    let f3 = animFrame(table, timestamp: 0.1)
+    var pass3 = LayoutPass(frame: f3)
+    withAnimation(.linear(duration: 1)) {
+        _ = animated(style, Decoration(), for: id, pass: &pass3)
+    }
+    #expect(f3.hasActiveAnimations, "a field left mid-interpolation IS an active animation")
+
+    // …and false again once it settles, which is what makes the flag a
+    // per-frame answer rather than a latch.
+    let f4 = animFrame(table, timestamp: 1.1)
+    var pass4 = LayoutPass(frame: f4)
+    _ = animated(style, Decoration(), for: id, pass: &pass4)
+    #expect(!f4.hasActiveAnimations, "the frame the animation lands on reports no active animation")
+}
+
+/// Spec §3's non-re-entrancy: the pending animation is consumed by the next
+/// build and cleared. A second build with no new transaction must not start a
+/// second animation.
+///
+/// The discriminator is a SNAP to an exact declared value. A re-target from the
+/// mid-flight position would read something strictly between 125 and 300 — and
+/// a transaction that leaked into the second build is exactly what produces
+/// that.
+@MainActor @Test func aParkedTransactionIsConsumedByExactlyOneBuild() throws {
+    let model = AnimationDriveModel()
+    let (window, platformWindow) = try makeDriveWindow(model)
+
+    platformWindow.simulateTick(timestamp: 100)
+    try #require(subjectWidth(window) == 100, "set up")
+
+    withAnimation(.linear(duration: 1)) { model.width = 200 }
+    platformWindow.simulateTick(timestamp: 100)        // consumes the transaction
+    platformWindow.simulateTick(timestamp: 100.25)
+    try #require(subjectWidth(window) == 125,
+                 "set up: the animation this test exists NOT to see repeated is genuinely running")
+
+    // A second declaration change, with no `withAnimation` of its own.
+    model.width = 300
+    platformWindow.simulateTick(timestamp: 100.5)
+    #expect(subjectWidth(window) == 300, """
+            the transaction was consumed by ONE build; a change made without a fresh \
+            `withAnimation` snaps; got \(String(describing: subjectWidth(window)))
+            """)
+    #expect(!window.hasActiveAnimations,
+            "and nothing is left interpolating, so the link is free to idle")
+}
+
+/// Spec §6's free consequence of `StateTable` tombstones: an animating element
+/// that vanishes and returns within the retention window RESUMES on its
+/// original trajectory rather than restarting.
+///
+/// 175 at t = 100.75 is the resumption. A restart from the value it vanished at
+/// would read 125 there (a fresh 125 → 200 second, at elapsed 0), and a restart
+/// from the declared baseline would read 100.
+@MainActor @Test func anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting() throws {
+    let model = AnimationDriveModel()
+    let (window, platformWindow) = try makeDriveWindow(model)
+
+    platformWindow.simulateTick(timestamp: 100)
+    try #require(subjectWidth(window) == 100, "set up")
+
+    withAnimation(.linear(duration: 1)) { model.width = 200 }
+    platformWindow.simulateTick(timestamp: 100)
+    platformWindow.simulateTick(timestamp: 100.25)
+    try #require(subjectWidth(window) == 125, "set up: mid-flight before it vanishes")
+
+    model.show = false
+    platformWindow.simulateTick(timestamp: 100.5)
+    try #require(subjectWidth(window) == nil, "set up: the element is genuinely gone")
+
+    model.show = true
+    platformWindow.simulateTick(timestamp: 100.75)
+    #expect(subjectWidth(window) == 175, """
+            resumed on the ORIGINAL trajectory (elapsed 0.75 of the animation started at \
+            t = 100), not restarted; got \(String(describing: subjectWidth(window)))
+            """)
+}
+
+/// The colour analogue of `everyRegisteringSiteAnimatesItsStyle`, and spec
+/// exit criterion 8's shape applied to the paint phase: **one case per site
+/// that fills a background**, so a fourth site added later fails a test rather
+/// than silently snapping.
+///
+/// The three sites are `grep -rn "theme\[" Sources/MetalUI/` less the helper's
+/// own internals: `Box.paint` (Task 4b), `Stack.paint` and `Text.paint` (Task
+/// 5). Two more colour fills exist and are deliberately NOT here, named rather
+/// than left for a reader to wonder about:
+///
+/// - `ScrollView.swift`'s scroll-indicator fill fades its own alpha on a clock
+///   of its own and predates the `Animation` type; it declares no background.
+/// - `Text.swift`'s glyph fill (`foregroundColor ?? .textPrimary`) is not in
+///   spec §4's animatable list at all — animating text colour is spec §8's
+///   named hole and stays one.
+///
+/// Each arm drives a REAL `paint` through `Frame.render` and reads the colour
+/// back out of the emitted `MUIRect`, for
+/// `hoverAndFocusFadeThroughTheSameEffectiveColourPath`'s reason: a test that
+/// resolved the token itself would be blind to an un-wired call site.
+@Test @MainActor func everyBackgroundPaintingSiteAnimatesItsColour() throws {
+    let theme = probeTheme()
+
+    /// Renders `element` into a fresh frame over `table` and returns the
+    /// background colour of the first rect it emitted.
+    func painted<E: Element>(_ table: StateTable, _ timestamp: Double,
+                             _ element: @autoclosure () -> E) throws -> Hsla {
+        let frame = colorFrame(table, timestamp: timestamp, theme: theme)
+        var e = element()
+        frame.render(&e)
+        let rect = try #require(frame.scene.rects.first)
+        return Hsla(h: rect.background.h, s: rect.background.s,
+                    l: rect.background.l, a: rect.background.a)
+    }
+
+    /// The three-frame shape every arm runs: baseline on `.background`, a
+    /// transaction-start frame on `.accent` that must read its own `from`, and
+    /// a halfway frame that must read the hand-computed midpoint.
+    func check<E: Element>(_ site: String,
+                           _ make: @escaping @MainActor (ColorToken) -> E) throws {
+        let table = StateTable()
+
+        let baseline = try painted(table, 0, make(.background))
+        expectColor(baseline, h: 0.642857, s: 0.777778, l: 0.45,
+                    "\(site): the resting baseline is the declared token")
+
+        var started: Hsla?
+        try withAnimationThrowing(.linear(duration: 1)) {
+            started = try painted(table, 0, make(.accent))
+        }
+        expectColor(started, h: 0.642857, s: 0.777778, l: 0.45,
+                    "\(site): the frame that starts the transition reads its own `from`")
+
+        let mid = try painted(table, 0.5, make(.accent))
+        expectColor(mid, h: midBackgroundToAccent.h, s: midBackgroundToAccent.s,
+                    l: midBackgroundToAccent.l,
+                    "\(site): this painting site does not animate its background colour")
+    }
+
+    try check("Box") { token in
+        var b = Box().width(Pixels(40)).height(Pixels(40)).background(token)
+        b.elementID = ElementID("site")
+        return b
+    }
+    try check("Stack") { token in
+        var s = Stack { Box() }.width(Pixels(40)).height(Pixels(40)).background(token)
+        s.elementID = ElementID("site")
+        return s
+    }
+    try check("Text") { token in
+        var t = Text("hi").background(token)
+        t.elementID = ElementID("site")
+        return t
     }
 }

@@ -283,7 +283,17 @@ func animated(_ style: Style, _ decoration: Decoration, for id: GlobalElementID,
              pass: inout LayoutPass) -> (Style, Decoration) {
     let slotID = animRetentionSlot(for: id)
     let now = pass.frame.timestamp
-    let transaction = Animation.pendingTransaction
+    // **The FRAME's transaction first, the lexical one only as a fallback.**
+    // `pass.transaction` is what `withAnimation` parked and this build took
+    // (spec §3's hand-off) and is the only one production can ever supply:
+    // `Animation.pendingTransaction` is restored in `withAnimation`'s `defer`,
+    // so by the time the display link builds a frame it is `nil`. The fallback
+    // exists for the direct-helper configuration this file's own tests use —
+    // `withAnimation { animated(...) }`, with no `Frame.render` in between —
+    // where there is no build to have carried anything. Both are written by the
+    // same `withAnimation` call with the same value, so they cannot disagree
+    // about WHICH animation; see `Animation.parkedTransaction`.
+    let transaction = pass.transaction ?? Animation.pendingTransaction
 
     guard let existing = pass.frame.stateTable.peek(slotID, as: AnimatedElementState.self) else {
         // First sighting of this ELEMENT — not, as before ruling U, of each
@@ -394,6 +404,16 @@ func animated(_ style: Style, _ decoration: Decoration, for id: GlobalElementID,
     // `withState` raises no `isDirty` and fires no `onWrite`, so ruling H is
     // intact and the display link is unaffected, and the baseline for those
     // fields is never read back — so this is wasted work, not a wrong value.
+    if !inFlight.isEmpty {
+        // Spec §9 item 4 / binding spec §4.4: something here is still
+        // interpolating, so the display link must not idle after this frame.
+        // Read AFTER every field call above, so a field that settled on this
+        // frame has already left `inFlight` and does not hold the loop awake
+        // for an extra frame — which is what makes "pauses on the frame after
+        // the last one ends" exact rather than approximate.
+        pass.frame.noteActiveAnimation()
+    }
+
     if newState != existing {
         pass.frame.stateTable.withState(slotID, initial: newState) { $0 = newState }
     } else {

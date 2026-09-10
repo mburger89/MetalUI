@@ -223,3 +223,28 @@ func makeFakeWindow<Root: Element>(
                         content: content)
     return (window, platformWindow)
 }
+
+struct NoMetalDevice: Error, CustomStringConvertible {
+    var description: String { "no Metal device; run on macOS hardware" }
+}
+
+/// `makeFakeWindow` plus the default Metal device, for a test file that must
+/// not `import Metal` itself.
+///
+/// **`AnimationTests.swift` cannot import Metal**, and the reason is a real
+/// collision rather than taste: `Metal` re-exports `Foundation`, whose
+/// `Dimension` (the `NSDimension` units base class) is ambiguous against
+/// `MetalUICore.Dimension` — the type half of that file's fixtures are written
+/// in. Measured, by importing it: 4 test files failed to compile and the
+/// diagnostics ranged from "'Dimension' is ambiguous" to "unable to type-check
+/// this expression in reasonable time".
+@MainActor
+func makeFakeWindowOnDefaultDevice<Root: Element>(
+    size: Int = 64,
+    startsDisplayLink: Bool = false,
+    content: @escaping @MainActor () -> Root
+) throws -> (Window, FakePlatformWindow) {
+    guard let device = MTLCreateSystemDefaultDevice() else { throw NoMetalDevice() }
+    return try makeFakeWindow(device: device, size: size,
+                              startsDisplayLink: startsDisplayLink, content: content)
+}

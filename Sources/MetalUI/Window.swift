@@ -133,6 +133,29 @@ public final class Window {
     /// costs nothing (spec 4.4).
     public private(set) var needsRedraw: Bool = true
 
+    /// Whether the frame this window last built left an `Animation` still
+    /// interpolating — the second half of the binding design spec §4.4 guard,
+    /// which M4 spec 1 deliberately left undeclared (ruling `RX-O`: an
+    /// always-`false` stored property with no writer is the declared-but-inert
+    /// trap, and refusing to declare it was the right call until there was a
+    /// writer).
+    ///
+    /// **It keeps the loop running WITHOUT marking the window dirty**, and that
+    /// distinction is the reason this is a second flag rather than a
+    /// `setNeedsRedraw()` after the render. `needsRedraw` means "something
+    /// changed and has not been drawn"; a window mid-fade has nothing of the
+    /// sort — the model is settled, the tree is settled, and only the clock has
+    /// moved. Folding the two would make `needsRedraw` permanently true for the
+    /// whole of every animation and destroy the only observable that can tell
+    /// a dirtying from a redraw.
+    ///
+    /// **Nothing unpauses the link on this flag's account, and nothing needs
+    /// to.** The frame that *starts* an animation is itself drawn because
+    /// something dirtied the window (that is what `withAnimation`'s body did),
+    /// and `setNeedsRedraw()` unpauses. From there this flag only ever prevents
+    /// a pause, which is all a running link requires.
+    public private(set) var hasActiveAnimations: Bool = false
+
     /// Test observability: how many frames actually reached the GPU.
     public private(set) var framesDrawn: Int = 0
 
@@ -568,7 +591,13 @@ public final class Window {
     }
 
     public func drawFrameIfNeeded() {
-        guard needsRedraw else {
+        // Binding design spec §4.4, and the widening M4 spec 1 could not make.
+        // `hasActiveAnimations` is the PREVIOUS frame's answer — an animation
+        // left mid-interpolation there needs this frame drawn to advance it —
+        // and it goes false on the frame a duration curve lands exactly on its
+        // target, so the pause happens on the frame AFTER the last animation
+        // ends rather than one frame later or never.
+        guard needsRedraw || hasActiveAnimations else {
             // Nothing to do: let the display idle rather than spinning.
             platformWindow.setDisplayLinkPaused(true)
             pausesEntered += 1
@@ -682,6 +711,15 @@ public final class Window {
         // *decision* rather than its value — see there for why a plain copy
         // loses a `focus(_:)` call made from inside the render.
         let focusHandedIn = focusedElement
+        // Spec §3's hand-off, and the whole reason production can animate at
+        // all. `withAnimation` parked this and returned; the mutation inside
+        // its body dirtied the window through `@State`'s `onWrite` or
+        // `@Observable`'s tracking; this is the build that results, and it is
+        // the FIRST place the transaction has been readable since the closure
+        // ended. Taken (not merely read) so it is consumed by exactly one
+        // build — spec §3's non-re-entrancy — whether or not this frame
+        // contains anything that can use it.
+        let transaction = Animation.takeParkedTransaction()
         let frame = Frame(contentSize: platformWindow.contentSize,
                           scaleFactor: surfaceFrame.scaleFactor,
                           stateTable: stateTable,
@@ -691,7 +729,8 @@ public final class Window {
                           timestamp: lastTick,
                           mousePosition: lastMousePosition,
                           activeElement: active,
-                          focusedElement: focusHandedIn)
+                          focusedElement: focusHandedIn,
+                          transaction: transaction)
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
@@ -742,6 +781,15 @@ public final class Window {
         // last input event stops arriving, because `needsRedraw` above already
         // went false for this pass and nothing else would flip it back.
         if frame.wantsAnotherFrame { setNeedsRedraw() }
+
+        // The animation half of the same idea, and deliberately NOT the same
+        // mechanism. `wantsAnotherFrame` marks the window dirty; this records
+        // that an `Animation` is still interpolating, which the guard at the
+        // top of this function reads on the next tick to keep drawing without
+        // claiming anything changed. Assigned rather than or-ed: the frame's
+        // answer is the whole answer, and a flag that only ever went true is
+        // a window whose display link never pauses again.
+        hasActiveAnimations = frame.hasActiveAnimations
 
         // **Before `encode`, and the ordering is the whole point.** Paint has
         // just packed whatever glyphs this frame needed and the scene holds

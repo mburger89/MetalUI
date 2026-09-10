@@ -72,6 +72,53 @@ public final class Frame {
     /// Ask for another frame after this one — for an animation in progress.
     func requestAnotherFrame() { wantsAnotherFrame = true }
 
+    /// True once anything in this frame has reported an `Animation` that is
+    /// still interpolating **after this frame's own update** — the property
+    /// M4 spec 1 refused to declare without a writer (ruling `RX-O`), and the
+    /// one the binding design spec §4.4's idle guard is written in terms of.
+    ///
+    /// **It must see BOTH animation subsystems, and computing it from layout
+    /// alone is the way to get this wrong.** `animated(_:_:for:pass:)`
+    /// (`AnimatedStyle.swift`) animates `Style`/`Decoration` from `LayoutPass`
+    /// through the `$anim` slot; `animatedColor(_:for:pass:)`
+    /// (`AnimatedColor.swift`) animates the resolved background colour from
+    /// `PaintPass` through `$anim-color`, because only `PaintPass` carries a
+    /// theme. A colour fade on an element whose `Style` never changes raises
+    /// nothing during layout, so a layout-only criterion would be a fade that
+    /// stops the instant input stops arriving. Both helpers call
+    /// `noteActiveAnimation()`; `Window` reads this AFTER the whole of
+    /// `render` — layout, prepaint and paint — so the paint-phase contribution
+    /// arrives in time with no ordering change.
+    ///
+    /// **A per-frame answer, not a latch.** It is `false` on the frame a
+    /// duration curve lands on its target (termination is exact, so nothing is
+    /// left in flight), which is precisely what lets the display link pause on
+    /// the frame *after* the last animation ends rather than one frame later.
+    ///
+    /// **Distinct from `wantsAnotherFrame` above, and after this task nothing
+    /// raises both.** `wantsAnotherFrame` means "mark the window DIRTY next
+    /// frame" and its one caller is `ScrollView`'s scroll-indicator fade, which
+    /// predates the `Animation` type and drives itself by dirtying. This means
+    /// "an `Animation` is interpolating", and it keeps the loop running
+    /// *without* dirtying the window — so a window mid-fade reports
+    /// `needsRedraw == false`, which is true: nobody changed anything.
+    private(set) var hasActiveAnimations = false
+
+    /// Report that an `Animation` in this frame is still interpolating.
+    func noteActiveAnimation() { hasActiveAnimations = true }
+
+    /// The transaction this build inherited from a `withAnimation` that ran
+    /// since the last one — spec §3's "the **next frame build** carries that
+    /// animation as ambient context on the passes, the way
+    /// `LayoutPass.scrollContext` already is".
+    ///
+    /// A `let`, for `theme`'s reason: the two halves of one frame must not
+    /// resolve the same transition under different animations. `Window` takes
+    /// it from `Animation.parkedTransaction` once per drawn frame and hands it
+    /// in here; a `Frame` built by a test defaults to `nil` and its callers
+    /// fall back to the lexical `Animation.pendingTransaction`.
+    let transaction: Animation?
+
     /// CSS's `rem` basis for `Length.rem`. One value per frame.
     ///
     /// **M2 came and went without making this settable, and that was a
@@ -947,7 +994,8 @@ public final class Frame {
          timestamp: Double = 0,
          mousePosition: Point<Pixels>? = nil,
          activeElement: GlobalElementID? = nil,
-         focusedElement: GlobalElementID? = nil) {
+         focusedElement: GlobalElementID? = nil,
+         transaction: Animation? = nil) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
@@ -961,6 +1009,7 @@ public final class Frame {
         self.mousePosition = mousePosition
         self.activeElement = activeElement
         self.focusedElement = focusedElement
+        self.transaction = transaction
     }
 
     // MARK: - Layout phase

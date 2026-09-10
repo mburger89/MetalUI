@@ -213,27 +213,42 @@ moving layout off the main actor rewrites it first. The other two
 `assumeIsolated` calls (`Window.markDirtyFromObservation`, the demo's
 `atexit_b`) are guarded.
 
-**Animation (in progress, M4 spec 3).** `withAnimation` parks an `Animation`
-on the `Window`; one shared helper in `AnimatedStyle.swift` compares each
-registering site's resolved `Style`/`Decoration` against the element's `$anim`
-slot and substitutes interpolated values (Tasks 1–4 landed). **Colour is a
-second helper in a second phase** (`AnimatedColor.swift`, Task 4b): only
-`PaintPass` has a theme, so `Box.paint` animates the resolved result of its
+**Animation (M4 spec 3, Tasks 1–5 landed — production animates).**
+`withAnimation` writes **two** slots with one value: `pendingTransaction`,
+restored in its own `defer` and therefore alive only for the closure's lexical
+duration, and `parkedTransaction`, which survives the closure and is taken by
+the next `Window.drawFrameIfNeeded` and handed to the `Frame` as ambient
+`pass.transaction` (spec §3). **The parked one is the whole hand-off**: until
+Task 5 there was only the lexical slot, the frame build runs later from the
+display link, and every field snapped — four wired sites, none of which could
+ever start an animation (ruling V). Consumed by exactly ONE build. Spec §3 says
+"on the `Window`" and it is a module-global instead, because `withAnimation`
+has no window in scope; with two windows live the first to build wins.
+
+One shared helper in `AnimatedStyle.swift` compares each registering site's
+resolved `Style`/`Decoration` against the element's `$anim` slot and
+substitutes interpolated values. **Colour is a second helper in a second
+phase** (`AnimatedColor.swift`): only `PaintPass` has a theme, so `Box.paint`
+animates the resolved result of its
 `focusBackground`/`hoverBackground`/`background` `??` chain — one value, not
 three fields — through a `$anim-color` slot, and hover and focus fades fall out
-free. Interpolation is per-component **RGB, never hue** (measured against
-SwiftUI and CoreAnimation probes; the encoding is CoreAnimation's gamma sRGB,
-SwiftUI's is cube-root-of-linear and is recorded at the line). `Stack.paint`
-and `Text.paint` also fill a background and are **not** wired — a named hole,
-on spec §5's "an element that registers without calling the helper is silently
-unanimated" footing.
-`Frame.hasActiveAnimations` and the widened idle guard are Task 5 and do not
-exist yet — `grep -rn hasActiveAnimations Sources/` returns **no declaration**,
-three forward-pointing comments and nothing else, and an always-false stored
-property would be the inert table's trap (RX-O). (That grep read "returns
-nothing" until Task 4b's fix round measured it; two of the three comments
-pre-date this milestone's Task 4b, so the sentence was already false when it
-was written.)
+free. `Stack.paint` and `Text.paint` call the same helper on their plain
+`decoration.background` (Task 5; `Text`'s glyph colour and its measured *style*
+are still spec §8's holes). Interpolation is per-component **RGB, never hue**
+(measured against SwiftUI and CoreAnimation probes; the encoding is
+CoreAnimation's gamma sRGB, SwiftUI's is cube-root-of-linear and is recorded at
+the line).
+
+**One notion of "an animation is live", and it is not `wantsAnotherFrame`.**
+Both helpers call `Frame.noteActiveAnimation()`; `Window` copies
+`frame.hasActiveAnimations` after the whole render and the idle guard is
+`needsRedraw || hasActiveAnimations`. It keeps the loop running **without**
+dirtying the window, so a window mid-fade reports `needsRedraw == false`.
+`Frame.wantsAnotherFrame` still means "mark the window dirty next frame" and
+its one caller is `ScrollView`'s indicator fade; after Task 5 **nothing raises
+both**, deliberately — two signals for one claim would have kept each other
+green under mutation.
+
 Constraints from its plan: no golden may move or be added, no
 test may sleep (drive `simulateTick(timestamp:)`), `aspectRatio` must not
 become animatable, no Reduce Motion / exit transitions / transforms.
@@ -287,6 +302,7 @@ or any of text's three §4.2 failure modes; these are looks.
 | measure performance in **debug**; row missing/blank at the bottom edge; reaching row 500; launch hitch | not reported either way |
 | tombstones-and-AX §7 item 9 (regression check; the demo cannot exercise its subject) | open, nobody has run the build |
 | reactivity §8 item 7: run the demo, idle 30 s, press **M** twice, quit with **Q**, report `frames drawn` / `pauses entered` / `observation dirtyings` — a measurement, not a judgement | open |
+| animation §9's "whether the motion looks right" (spec exit criterion 9) | open, and **not yet reachable**: the hand-off ships, but `grep -rn withAnimation Sources/` finds no caller outside `Animation.swift`'s own comments, and nothing animates without a transaction. Needs a demo interaction first — a key bound to a model property a `Box` declares as `width`/`background`, toggled inside `withAnimation`; the modal, theme and counter keys are all wrong subjects (appearance/disappearance snaps, a theme swap deliberately never fades, and text content is not animatable) |
 | VoiceOver navigating the AX tree | permanently open until M4's bridge exists |
 
 Demo keys: **M** modal (translucent scrim, gated so other looks stay

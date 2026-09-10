@@ -479,24 +479,99 @@ extension Animation {
     /// `ErasureCompileGuards.swift`.
     @MainActor
     static var pendingTransaction: Animation?
+
+    /// The animation `withAnimation` has PARKED for the next frame build to
+    /// consume, or `nil` once a build has taken it.
+    ///
+    /// **This is the hand-off, and without it production animates nothing**
+    /// (ruling V). `pendingTransaction` above is restored in `withAnimation`'s
+    /// `defer`, so it lives for the *lexical duration of the closure body*;
+    /// `animated(_:_:for:pass:)` and `animatedColor(_:for:pass:)` run during
+    /// the frame build, which happens later, from the display link, entirely
+    /// outside that body. So `withAnimation { model.x = 1 }` marked the window
+    /// dirty, the next frame built, and every animatable field found
+    /// `pendingTransaction == nil` and snapped. All four sites Task 4 wired ran
+    /// and none of them could ever start an animation.
+    ///
+    /// **The two slots cannot disagree about WHICH animation, only about
+    /// WHEN.** `withAnimation` writes both, in the same statement, with the
+    /// same value. `pendingTransaction` is the *lexical* ambient (alive only
+    /// inside the body, restored on the way out, so a nested `withAnimation`
+    /// leaves the outer one in effect); this is the *parked* one (alive from
+    /// the call until the next build takes it, and no longer). Production only
+    /// ever reaches the parked one, because a production `withAnimation` body
+    /// never contains a frame build; the direct-helper tests from Tasks 3, 4
+    /// and 4b only ever reach the lexical one, because they never build a
+    /// frame. `animated`/`animatedColor` prefer the frame-carried value and
+    /// fall back to the lexical one, which is what keeps both configurations
+    /// working off one implementation.
+    ///
+    /// **Spec §3 says this is stored "on the `Window`", and it is not — a
+    /// deliberate, reportable narrowing.** `withAnimation` is a free function
+    /// with no window in scope and no way to name one; there is no ambient
+    /// "current window" in this framework and inventing one to satisfy the
+    /// letter of §3 would be a larger global than this is. The cost is a
+    /// multi-window one, stated rather than discovered: with two windows live,
+    /// whichever builds first consumes the transaction and the other snaps.
+    /// The fix, when a second window ever exists, is a per-window parking slot
+    /// plus a way for `withAnimation` to name its window — a signature change,
+    /// not a re-design of anything here.
+    ///
+    /// **`internal`, on `pendingTransaction`'s own footing** — public, anything
+    /// outside the module could park a transaction that no `withAnimation`
+    /// call authorised, which is the one thing the transaction model exists to
+    /// prevent.
+    @MainActor
+    static var parkedTransaction: Animation?
+
+    /// Takes the parked transaction and clears it, so it is consumed by
+    /// **exactly one** build (spec §3: "`withAnimation` is NOT re-entrant
+    /// across frames. The pending animation is consumed by the next build and
+    /// cleared."). `Window.drawFrameIfNeeded` is the only production caller,
+    /// and it calls this once per drawn frame whether or not anything is
+    /// parked. Pinned by `aParkedTransactionIsConsumedByExactlyOneBuild`.
+    @MainActor
+    static func takeParkedTransaction() -> Animation? {
+        defer { parkedTransaction = nil }
+        return parkedTransaction
+    }
 }
 
-/// Parks `animation` as the ambient transaction for the duration of `body`,
-/// then RESTORES whatever was parked before — not `nil` — so a
-/// `withAnimation` nested inside another leaves the outer one in effect once
-/// the inner body returns. (This task's own test only exercises the
-/// non-nested case — parked, then cleared back to `nil` — so the restore
-/// behaviour is written and stated here rather than proven by a test in this
-/// task; nesting is spec §3's transaction model and a future task's frame
-/// integration is what will exercise it.)
+/// Runs `body` with `animation` as the ambient transaction, and **parks it for
+/// the next frame build** — spec §3's "stores a pending `Animation`, runs
+/// `body`, and clears it", where the clearing is done by the build that
+/// consumes it rather than by this function's own `defer`.
+///
+/// Two writes, two lifetimes, one value; see `Animation.parkedTransaction` for
+/// why both exist and what makes them agree.
+///
+/// - `Animation.pendingTransaction` is set for the *lexical* duration of
+///   `body` and then RESTORED to whatever was parked before — not `nil` — so a
+///   `withAnimation` nested inside another leaves the outer one in effect once
+///   the inner body returns.
+/// - `Animation.parkedTransaction` survives this call and is taken by the next
+///   `Window.drawFrameIfNeeded`. That is the whole hand-off: the mutation
+///   inside `body` marks the window dirty through `@State`'s `onWrite` or
+///   `@Observable`'s tracking, this function returns, and the frame that
+///   results is the one that reads the animation.
+///
+/// **A nested call parks the INNER animation and does not restore the outer
+/// one for the build.** Consistent with "last writer wins" and with the
+/// lexical slot's own final state at the outer body's last statement; stated
+/// here because it is the one place the two slots' behaviour differs and
+/// nothing in this task's suite exercises nesting.
 @MainActor
 public func withAnimation(_ animation: Animation = .default, _ body: () -> Void) {
     let previous = Animation.pendingTransaction
     Animation.pendingTransaction = animation
+    Animation.parkedTransaction = animation
     // `defer`, not a trailing assignment: nothing today can skip past `body()`
     // without restoring (it is non-throwing), but this makes the restore
     // survive a future signature change (e.g. `rethrows`) rather than
-    // silently stop happening on the path that would need it most.
+    // silently stop happening on the path that would need it most. It restores
+    // the LEXICAL slot only — restoring the parked one here is precisely the
+    // pre-task behaviour that made production animate nothing, and mutation 5
+    // in this task's report is that line put back.
     defer { Animation.pendingTransaction = previous }
     body()
 }

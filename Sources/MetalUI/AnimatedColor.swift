@@ -229,7 +229,9 @@ func animatedColor(_ token: ColorToken?, for id: GlobalElementID,
     let declared = theme[token]
     let slotID = animColorRetentionSlot(for: id)
     let now = pass.timestamp
-    let transaction = Animation.pendingTransaction
+    // The frame's parked transaction first, the lexical one as a fallback —
+    // see `animated(_:_:for:pass:)`'s identical line for the whole argument.
+    let transaction = pass.transaction ?? Animation.pendingTransaction
 
     guard let existing = pass.frame.stateTable.peek(slotID, as: AnimatedColorState.self) else {
         // First sighting: establish the resting baseline rather than animating
@@ -299,13 +301,25 @@ func animatedColor(_ token: ColorToken?, for id: GlobalElementID,
     }
 
     if inFlight != nil {
-        // **This is the signal Task 5 reads.** `Frame.requestAnotherFrame()`
-        // sets `Frame.wantsAnotherFrame`, which `Window.drawFrameIfNeeded`
-        // already consumes (`if frame.wantsAnotherFrame { setNeedsRedraw() }`)
-        // AFTER the whole render, paint included — so a paint-phase
-        // contribution reaches it. Task 5 owns `hasActiveAnimations`; this file
-        // deliberately does not declare it.
-        pass.requestAnotherFrame()
+        // **A colour transition is still interpolating, so the display link
+        // must not idle after this frame.**
+        //
+        // This line said `pass.requestAnotherFrame()` when Task 4b shipped it,
+        // and Task 5 changed it rather than adding a second signal beside it.
+        // The reason is that `wantsAnotherFrame` and `hasActiveAnimations`
+        // would otherwise have been two names for one claim about colour:
+        // both would have kept the loop running, the redundancy would have
+        // made either one deletable with the suite green, and neither would
+        // have been the single answer to "is an animation live" that the
+        // binding spec §4.4 guard is written against. They now mean different
+        // things and nothing raises both — `wantsAnotherFrame` is
+        // `ScrollView`'s indicator fade marking the window DIRTY, this is an
+        // `Animation` interpolating. `Window.drawFrameIfNeeded` reads
+        // `Frame.hasActiveAnimations` after the whole of `render` — layout,
+        // prepaint AND paint — so this paint-phase contribution reaches it
+        // with no ordering change, exactly as the `wantsAnotherFrame` read at
+        // the same place always did.
+        pass.frame.noteActiveAnimation()
     }
     return value
 }

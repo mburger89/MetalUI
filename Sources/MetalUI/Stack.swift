@@ -126,8 +126,26 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
         // Own background first, then children, so a background never paints
         // over a child — see `Box.paint`'s comment for why emission order is
         // paint order.
-        if let token = decoration.background {
-            pass.fill(bounds, color: pass.theme[token],
+        // Through `animatedColor`, exactly as `Box.paint` does — see that
+        // call site and `AnimatedColor.swift`'s top doc.
+        //
+        // **Wired by Task 5 rather than by Task 4b, which introduced the
+        // helper and deliberately scoped itself to `Box`.** That exclusion was
+        // accepted by both of its reviews on the stated ground that the hole
+        // was "not live today" (ruling V: nothing could animate in production
+        // at all). Task 5 is the change that removes that ground, so leaving
+        // it would ship a live animation subsystem in which a
+        // `Box {}.background(.accent)` fades under a transaction and a
+        // `Stack {}.background(.accent)` snaps, with no diagnostic — spec §5's
+        // own named hazard in its colour form, and CLAUDE.md's inert-table
+        // shape.
+        //
+        // There is no `??` chain here because `Stack` paints
+        // `decoration.background` alone: it registers no hitbox of its own for
+        // `isHovered`/`isFocused` to key on, so `hoverBackground` and
+        // `focusBackground` on a `Stack` are inert with or without this.
+        if let color = animatedColor(decoration.background, for: id, pass: &pass) {
+            pass.fill(bounds, color: color,
                       cornerRadii: Corners(all: decoration.cornerRadius))
         }
         content.paintGroup(layout: &layout.content,

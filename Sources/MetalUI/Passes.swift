@@ -133,6 +133,21 @@ public struct LayoutPass {
         frame.activeScrollContext
     }
 
+    /// The ambient animation transaction for this build, or `nil` — spec §3's
+    /// "the next frame build carries that animation as ambient context on the
+    /// passes, the way `LayoutPass.scrollContext` already is". Set once per
+    /// drawn frame by `Window`, from whatever `withAnimation` parked since the
+    /// last build.
+    ///
+    /// **`internal`, where `scrollContext` above is `public`**, and the
+    /// asymmetry is deliberate rather than an oversight: `scrollContext` is
+    /// read by `List`, an element, so it must be reachable from outside this
+    /// module. This is read only by `animated(_:_:for:pass:)`, and an element
+    /// outside `MetalUI` has no animatable state to apply it to — it would be
+    /// API with no possible consumer. It becomes `public` in the change that
+    /// gives an external element something to do with it.
+    var transaction: Animation? { frame.transaction }
+
     /// Runs `body` with `context` as the innermost active scroll context and
     /// returns whatever `body` returns.
     ///
@@ -435,6 +450,11 @@ public struct PaintPass {
 
     /// Ask for another frame after this one — for an animation in progress.
     public func requestAnotherFrame() { frame.requestAnotherFrame() }
+
+    /// The ambient animation transaction for this build, or `nil`. The paint
+    /// half of `LayoutPass.transaction` — `animatedColor(_:for:pass:)` reads
+    /// it, for the same reason and with the same visibility.
+    var transaction: Animation? { frame.transaction }
 
     /// Emits a filled rect, **in logical points**.
     ///
