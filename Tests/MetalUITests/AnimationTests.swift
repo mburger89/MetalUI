@@ -2680,4 +2680,33 @@ final class AnimationDriveModel {
                 got \(String(describing: subjectWidth(window)))
                 """)
     }
+
+    // MARK: what the rollback restores — a no-op `withAnimation` must not
+    // CLOBBER a transaction an earlier one legitimately parked.
+    //
+    // Added because rolling back to `nil` instead of to `previouslyParked`
+    // reddened 0 of 860, and a green mutation is a coverage gap or a broken
+    // instrument, never a pass. The mutant does behave differently, and this
+    // is the difference: under it the first transaction is discarded by the
+    // second call and the pending change snaps to 200 instead of reading 150.
+    //
+    // The second animation is deliberately a DIFFERENT duration, so 150 also
+    // separates "the first one survived" from "the second one won": 0.5 s of
+    // `linear(duration: 4)` over the same 100 -> 200 would read 112.5.
+    do {
+        let model = AnimationDriveModel()
+        let (window, platformWindow) = try makeDriveWindow(model)
+        platformWindow.simulateTick(timestamp: 100)
+        try #require(subjectWidth(window) == 100, "set up")
+
+        withAnimation(.linear(duration: 1)) { model.width = 200 }
+        withAnimation(.linear(duration: 4)) { }
+        platformWindow.simulateTick(timestamp: 100.1)
+        platformWindow.simulateTick(timestamp: 100.6)
+        #expect(subjectWidth(window) == 150, """
+                the no-op `withAnimation` must leave the first transaction alone: \
+                200 means it discarded it and the change snapped, 112.5 means the \
+                no-op one won; got \(String(describing: subjectWidth(window)))
+                """)
+    }
 }
