@@ -685,6 +685,22 @@ idiomatic Swift. macOS and iOS.
   the property, its `prepaint` registration site, the display-link timebase and
   both widened conditions **in one change**.
 
+  > **HISTORY as of 2026-09-10 — M4 spec 3 landed and the paragraph above
+  > describes the state at the reactivity milestone, not today (rulings `AN-M`,
+  > `AN-N`).** `hasActiveAnimations` is real: declared on `Frame` and on
+  > `Window`, written by both animation helpers through
+  > `Frame.noteActiveAnimation()`, and read by the widened guard
+  > `needsRedraw || hasActiveAnimations`. **Do not re-cite that grep as
+  > current** — it is dated to the reactivity milestone's last commit. **And
+  > "its `prepaint` registration site" was wrong**: the flag is raised from
+  > **layout and from paint**, because colour interpolation needs a
+  > theme-resolved `Hsla` and only `PaintPass` has a theme. `Window` copies the
+  > frame's answer after the whole of `render`, and computing it from layout
+  > alone would stop a fade on a style-static element the instant input stopped.
+  > Design spec §4.4 and ruling `RX-O` carry the same correction at their own
+  > lines; the animation milestone's own record is
+  > `docs/superpowers/2026-09-03-animation-decisions.md`.
+
   **`Window.pausesEntered` and `Window.observationDirtyings` are debug and test
   observability and deliberately have NO row in the inert table (ruling
   `RX-R`)** — both have a production writer, a production reader in

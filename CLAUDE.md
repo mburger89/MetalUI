@@ -26,13 +26,16 @@ their record to `docs/record/` and put only the rule here.
   | `FS-`, `AL-`, `BM-`, `WR-`, `EP-` | flex sizing, alignment, box model, wrapping, element pipeline | numbered (`EP-2`/`EP-4` never assigned, never reuse) |
   | `CS-`, `SI-`, `TX-`, `CL-`, `ST-`, `AP-`, `MP-`, `IN-`, `SZ-` | content sizing … sizing | **lettered** (`CS-A`…; `MP-L`…`MP-N` and `SZ-O` are real) |
   | `TB-`, `RX-`, `CO-` | tombstones (`TB-A`…`TB-AH`), reactivity (`RX-A`…`RX-R`), Component (`CO-A`…`CO-Z`, next is `CO-AA`) | lettered, two-letter tails are deliberate |
+  | `AN-` | animation (`AN-A`…`AN-W`, next is `AN-X`) | lettered |
 
-  A bare `CS-3`, `TB-3`, `CO-3` etc. is a typo, not a citation. Sweep for stray
-  citations case-insensitively. The animation milestone (M4 spec 3, in progress
+  A bare `CS-3`, `TB-3`, `CO-3`, `AN-3` etc. is a typo, not a citation. Sweep
+  for stray citations case-insensitively. The animation milestone (M4 spec 3,
   on `feat/animation`) is specced at
-  `docs/superpowers/specs/2026-09-03-animation-design.md` and planned at
-  `docs/superpowers/plans/2026-09-03-animation.md`; its decisions doc is not
-  yet written.
+  `docs/superpowers/specs/2026-09-03-animation-design.md`, planned at
+  `docs/superpowers/plans/2026-09-03-animation.md`, and its decisions doc is
+  `docs/superpowers/2026-09-03-animation-decisions.md`. **Its `AN-` letters do
+  NOT track its ledger's**, unlike `CO-A`…`CO-O`; that ledger lettered twice
+  and half its rulings were about dispatch.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests. Sixteen numbered shapes of test that cannot fail, seven ways a
   record goes wrong, all observed here.
@@ -50,14 +53,16 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 ```
 
-- **Counts, dated:** 861 tests, 87 browser-fixture goldens, 35 `swiftc
-  -typecheck` guards, warning-free — measured 2026-09-10 on `feat/animation`
-  at `54f2bb5`, on a `swift package clean` build (`master` at the Component
-  milestone's end was 811 / 87 / 34; this branch read 843 at `6591360` before
-  the animation milestone's Tasks 4b and 5).
+- **Counts, dated:** 861 tests (47 + 448 + 50 + 6 + 288 + 22), 87
+  browser-fixture goldens, 35 `swiftc -typecheck` guards, 0 `error:`, 0
+  `warning:` — re-measured 2026-09-10 on `feat/animation` at `b869253`
+  (`master` at the Component milestone's end was 811 / 87 / 34).
   A count is stale the moment a test lands; re-measure rather than trust.
   Two tests are gated and **count toward the total** while being skipped
   (`regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`).
+  **`--build-system native` prints ONE summary line, not six** — it read the
+  same 861 — and its lone `warning:` is SwiftPM's own deprecation notice, not a
+  compiler warning.
 - **Read the printed counts, never the exit status.** The last summary line
   alone reads 22 (`MetalUICoreTests`) on every healthy run.
 - **Goldens must not move** on any milestone that does not touch
@@ -153,9 +158,14 @@ production caller yet (CO-Y).
 
 **`@State` is a box seeded by reflection, per element per frame.** Slot ids
 are `.named("$state<mirror-index>")` under the element's id. Seven reserved
-names, none guarded: `$state<n>`, `$focus`, `$ax`, `$anim`, `$anim-color`, and
-the prefixes `$anim-content`/`$anim-viewport` (`ScrollView`'s two nodes). A `List` datum
-whose id describes to one of these collides. Seeding marks, so a declared,
+names, none guarded: `$state<n>`, `$focus`, `$ax`, `$anim` and `$anim-color`
+are slots; `$anim-content`/`$anim-viewport` are **id prefixes, not slots** —
+`ScrollView` registers two nodes from one element id, so each gets a named
+child and the `$anim` slot hangs off *that*, putting the value at a
+**grandchild**. All seven are pinned apart by
+`theSevenRetentionSlotsAreMutuallyDistinct`, one test extended in place three
+times. A `List` datum whose id describes to one of these collides.
+Seeding marks, so a declared,
 unread `@State` is never swept. **A write marks the window dirty via
 `StateTable.onWrite`; write from input, never from a phase** — a phase-time
 `@State` write keeps the link awake forever. `@State` inside `AnyElement` is
@@ -215,54 +225,73 @@ moving layout off the main actor rewrites it first. The other two
 `assumeIsolated` calls (`Window.markDirtyFromObservation`, the demo's
 `atexit_b`) are guarded.
 
-**Animation (M4 spec 3, Tasks 1–5 landed — production animates).**
-`withAnimation` writes **two** slots with one value: `pendingTransaction`,
-restored in its own `defer` and therefore alive only for the closure's lexical
-duration, and `parkedTransaction`, which survives the closure **only if `body`
-asked for a redraw** and is then taken by the next `Window.drawFrameIfNeeded`
-and handed to the `Frame` as ambient `pass.transaction` (spec §3). **The park survives only if a frame build is
-coming** — `Window.redrawRequests` moved across `body`, or
-`Window.aFrameBuildIsPending` (a weak registry asking whether any live window
-is dirty) was already true and the slot was free. Both halves
-are fixes with measurements behind them: without the first, a
-`withAnimation { if cond { … } }` with a false `cond` parked a transaction no
-frame could consume and animated an unrelated change 400 s later; without the
-second, `withObservationTracking`'s **one-shot** session meant the *second*
-`@Observable` write between two frames moved no counter, so
-`model.count += 1; withAnimation { model.width = 200 }` silently snapped. **The parked one is the whole hand-off**: until
-Task 5 there was only the lexical slot, the frame build runs later from the
-display link, and every field snapped — four wired sites, none of which could
-ever start an animation (ruling V). Consumed by exactly ONE build. Spec §3 says
-"on the `Window`" and it is a module-global instead, because `withAnimation`
-has no window in scope; with two windows live the first to build wins.
+**Animation (M4 spec 3, complete — production animates; decisions doc `AN-`).**
+`withAnimation` writes **two** slots with one value. `pendingTransaction` is
+restored in its own `defer` and so is alive only for the closure's **lexical**
+duration; `parkedTransaction` is **the whole hand-off** — taken by the next
+`Window.drawFrameIfNeeded` and handed to the `Frame` as ambient
+`pass.transaction`, consumed by exactly ONE build. Until Task 5 there was only
+the lexical slot: the frame build runs later, from the display link, so every
+field snapped and all four wired sites were unreachable while every test passed
+(they call the helper *inside* the body — a shape production cannot reach).
 
-One shared helper in `AnimatedStyle.swift` compares each registering site's
-resolved `Style`/`Decoration` against the element's `$anim` slot and
-substitutes interpolated values. **Colour is a second helper in a second
-phase** (`AnimatedColor.swift`): only `PaintPass` has a theme, so `Box.paint`
-animates the resolved result of its
-`focusBackground`/`hoverBackground`/`background` `??` chain — one value, not
-three fields — through a `$anim-color` slot, and hover and focus fades fall out
-free. `Stack.paint` and `Text.paint` call the same helper on their plain
-`decoration.background` (Task 5; `Text`'s glyph colour and its measured *style*
-are still spec §8's holes). Interpolation is per-component **RGB, never hue**
-(measured against SwiftUI and CoreAnimation probes; the encoding is
-CoreAnimation's gamma sRGB, SwiftUI's is cube-root-of-linear and is recorded at
-the line).
+**The park is rolled back unless a frame build is coming: the counter moved, or
+one was already pending and the slot was free.** Both clauses are fixes with
+measurements behind them. Without the first, `withAnimation { if cond { … } }`
+with a false `cond` parked a transaction no frame could consume and animated an
+unrelated change **400 s later**. Without the second,
+`withObservationTracking`'s **one-shot** session means the *second*
+`@Observable` write between two frames moves no counter, so
+`model.count += 1; withAnimation { model.width = 200 }` **silently snapped** —
+a legitimate animation discarded, invisible to all 860 tests then passing.
+`Window.aFrameBuildIsPending` asks a weak registry of live windows. Spec §3
+says "on the `Window`"; it is a module-global instead, because `withAnimation`
+has no window in scope — with two windows live the first to build wins.
+
+**Two helpers, two phases, seven registering points.** `AnimatedStyle.swift`'s
+`animated(_:_:for:pass:)` runs in `requestLayout` and compares the resolved
+`Style`/`Decoration` against the element's `$anim` slot. **Colour is a second
+helper in a second phase** (`AnimatedColor.swift`), because two `ColorToken`s
+interpolate through their theme-resolved `Hsla` and **only `PaintPass` has a
+theme**. Layout sites: `Box`, `Stack`, `ScrollView` ×2. Paint sites: `Box.paint`,
+`Stack.paint`, `Text.paint` — three of the **four** `pass.fill` sites; the
+fourth, `ScrollView`'s indicator, drives itself by dirtying and stays unwired.
+A site that skips its helper is silently unanimated with no diagnostic; the two
+per-site guards are `everyRegisteringSiteAnimatesItsStyle` and
+`everyBackgroundPaintingSiteAnimatesItsColour`.
+
+`Box.paint` animates the resolved result of its
+`focusBackground`/`hoverBackground`/`background` `??` chain — **one value, not
+three fields**. **Hover and focus fades use that same path for free, but the
+PATH is the only free half: nothing parks a transaction around pointer-move
+handling**, so a colour change with no live transaction takes the snap branch
+and a real hover fade needs a framework change. Interpolation is per-component
+**RGB, never hue** (SwiftUI and CoreAnimation probes both; the encoding is
+CoreAnimation's gamma sRGB — SwiftUI's is cube-root-of-linear and taking it
+would mean linearizing, against §7.8). Slot storage is **tokens**, so a theme
+swap mid-fade stays continuous. `Text`'s glyph colour and its measured *style*
+are still spec §8's holes.
 
 **One notion of "an animation is live", and it is not `wantsAnotherFrame`.**
 Both helpers call `Frame.noteActiveAnimation()`; `Window` copies
-`frame.hasActiveAnimations` after the whole render and the idle guard is
-`needsRedraw || hasActiveAnimations`. It keeps the loop running **without**
-dirtying the window, so a window mid-fade reports `needsRedraw == false`.
-`Frame.wantsAnotherFrame` still means "mark the window dirty next frame" and
-its one caller is `ScrollView`'s indicator fade; after Task 5 **nothing raises
-both**, deliberately — two signals for one claim would have kept each other
-green under mutation.
+`frame.hasActiveAnimations` **after the whole render** — layout *and* paint, or
+a fade on a style-static element stops the instant input stops — and the idle
+guard is `needsRedraw || hasActiveAnimations`. It keeps the loop running
+**without** dirtying the window, so a window mid-fade reports
+`needsRedraw == false`. `Frame.wantsAnotherFrame` still means "mark the window
+dirty next frame" and its one caller is `ScrollView`'s indicator fade; **nothing
+raises both**, deliberately — two signals for one claim would have kept each
+other green under mutation.
 
-Constraints from its plan: no golden may move or be added, no
-test may sleep (drive `simulateTick(timestamp:)`), `aspectRatio` must not
-become animatable, no Reduce Motion / exit transitions / transforms.
+**What snaps rather than animates:** any transition between two different
+`Dimension`/`Length` cases (`px → rem`, `px → pct`, and **anything touching
+`.auto`**). Five `Style` fields default to `.auto` — `inset`, `size`, `minSize`,
+`maxSize`, `flexBasis`, which is **11 of the 28 animatable keys** — so **their
+first transition snaps**; declare a real baseline value if it must animate.
+`aspectRatio` is deliberately never animated (it is inert; see the table).
+Constraints from its plan: no golden may move or be added, no test may sleep
+(drive `simulateTick(timestamp:)`), no Reduce Motion / exit transitions /
+transforms.
 
 ## Practices — the short form
 
@@ -313,7 +342,7 @@ or any of text's three §4.2 failure modes; these are looks.
 | measure performance in **debug**; row missing/blank at the bottom edge; reaching row 500; launch hitch | not reported either way |
 | tombstones-and-AX §7 item 9 (regression check; the demo cannot exercise its subject) | open, nobody has run the build |
 | reactivity §8 item 7: run the demo, idle 30 s, press **M** twice, quit with **Q**, report `frames drawn` / `pauses entered` / `observation dirtyings` — a measurement, not a judgement | open |
-| animation §9's "whether the motion looks right" (spec exit criterion 9): press **A**. The sidebar's width (196pt ↔ 320pt, the layout-phase helper) and its background (`.surface` ↔ `.accent`, the paint-phase helper) both read `DemoModel.animationDemoActive` inside one `withAnimation(.spring(duration: 0.6, bounce: 0.2))` transaction, so one keystroke drives both. Watch whether both properties genuinely glide over roughly half a second — the spring's `bounce` should read as a slight overshoot past 320pt on the way out, not a hard stop — rather than jumping straight to the new value; press **A** again to reverse it and watch the same thing outbound and back. **Report the two properties separately**: if the width slides but the colour snaps (or the reverse), that pins which helper is actually live in production rather than only in tests, which is exactly what this key exists to distinguish | open, now reachable |
+| animation §9's "whether the motion looks right" (spec exit criterion 9): press **A**. The sidebar's width (196pt ↔ 320pt, the layout-phase helper) and its background (`.surface` ↔ `.accent`, the paint-phase helper) both read `DemoModel.animationDemoActive` inside one `withAnimation(.spring(duration: 0.6, bounce: 0.2))`, so one keystroke drives both and they can be reported separately | **run 2026-09-10, release, at `b869253` — BOTH animate; the paint-phase helper is confirmed live in production.** Read first as "width slides, colour snaps" and corrected on a second look, so the fade is **not obvious at a glance**. **Still open:** the spring's overshoot past 320pt was not separately confirmed, and no second press was reported, so the reverse direction is unobserved. Record §03 |
 | VoiceOver navigating the AX tree | permanently open until M4's bridge exists |
 
 Demo keys: **M** modal (translucent scrim, gated so other looks stay
@@ -382,8 +411,28 @@ registration is ~0.01 ms.
 
 ## When CI lands
 
-Three guarantees lapse silently and must be required, non-gateable jobs: the
-ABI probe skips without a Metal device; `committedGoldensMatchTheBrowser` is
-the only live-WebKit consumer; and every typecheck guard skips when `.build`
-is not where `#filePath` resolution expects. The honest fix for the third is
-resolving the modules directory from the test binary's own location.
+Four guarantees lapse silently and must be required, non-gateable jobs. Record
+§08 has the mechanisms.
+
+- The ABI probe **skips** without a Metal device.
+- `committedGoldensMatchTheBrowser` is the only live-WebKit consumer.
+- **Every typecheck guard skips when `.build` is not where `#filePath`
+  resolution expects** — and that includes **the default build system**.
+  `swiftbuild` writes modules flat into `.build/out/Products/Debug/` with no
+  `Modules` directory, so under it alone **all 35 guards skip**, the total does
+  not move and the run passes. `--build-system native` writes
+  `.build/<triple>/debug/Modules`, **and that directory survives**: once a
+  checkout has ever been built that way the guards run under the default system
+  too, against those **leftover** modules rather than what swiftbuild just
+  built. Both halves measured at `b869253`. **So take the guard count under
+  `--build-system native`, and know the number does not tell you whether any
+  guard ran** — a mutation run in a `git worktree` executes none of them at all.
+  `--build-system native` is **deprecated** and prints so, which makes the
+  honest fix — resolving the modules directory from the **test binary's** own
+  location rather than from `#filePath` — a dated obligation.
+- **Seven device-dependent window tests HARD-FAIL rather than skip** on a
+  runner with no display device: `makeFakeWindowOnDefaultDevice`
+  (`Tests/MetalUITests/Fakes.swift`) throws where the surrounding convention is
+  `try #require(MTLCreateSystemDefaultDevice())`. All seven are in
+  `AnimationTests.swift`; re-count by greping for the helper, not by trusting
+  the seven.

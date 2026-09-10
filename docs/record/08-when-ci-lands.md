@@ -187,3 +187,69 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    actually closes it is to resolve the modules directory from the **running
    test binary's** own location rather than from `#filePath`, which is correct
    under every configuration above; it was out of scope here.
+
+   **The seventh move, and a SECOND configuration that fires this item — the
+   default build system. Animation milestone, 2026-09-10, ruling `AN-V`
+   (`docs/superpowers/2026-09-03-animation-decisions.md`).** The count is **35**,
+   re-taken by per-file `grep -c canTypecheck` at `b869253`: 19 + **10** + 1 + 2
+   + 3, the new one being `pendingTransactionIsNotPublic` in
+   `ErasureCompileGuards` (so that file reads 10, not 9) for
+   `Animation.pendingTransaction`'s `public` → `internal` narrowing — a guard
+   written in the same change that could have introduced the hazard, which is the
+   pattern all six earlier moves share. Summing per-file `grep -c` across the six
+   matching paths now reads **37**, not 35; the two extra are
+   `Typecheck.swift`'s own declaration and `UnitSafetyTests`' comment. **Count
+   guards, not files, and check what each hit actually is.**
+
+   **And the paragraph above predicted the stale-modules failure for
+   `--scratch-path`; it now fires on an ordinary developer machine with no
+   flags at all, for a reason this item did not name.** SwiftPM's default build
+   system is `swiftbuild`, which writes modules **flat** into
+   `.build/out/Products/Debug/` (reached by the `.build/debug` symlink) with **no
+   `Modules` subdirectory anywhere**. `modulesDirectory` looks for
+   `<entry>/debug/Modules` and finds none — so under swiftbuild alone **all 35
+   guards skip**, the total does not move, and the run passes. **But
+   `--build-system native` writes `.build/<triple>/debug/Modules` and that
+   directory survives**, and `canTypecheck` scans every `.build` entry — so once
+   a checkout has *ever* been cross-checked under native, the guards run under
+   the **default** build system too, **against those leftover native-built
+   modules rather than against what swiftbuild just built**. Measured both ways
+   at `b869253`: with `.build/arm64-apple-macosx/` present, two named guards
+   report `started`/`passed` under the default build system and the full default
+   run skips only the two env-gated tests; with the identical command and that
+   one directory moved aside, both report `skipped` carrying `canTypecheck`'s own
+   message, and the total is **861 either way**. **So the cross-check that
+   established the skip is what stops it being true**, and a guard count is not
+   evidence that any guard ran.
+
+   **Two consequences for CI, and one deadline.** Every mutation run in an
+   isolated `git worktree` — this project's standing practice — happens where no
+   `.build/<triple>/debug/Modules` exists, so **no guard executes in any of
+   them**; that is immaterial for a round touching only prose or test content
+   and material for one touching a module boundary or an access level. And
+   `--build-system native`, the workaround the count is taken under, prints
+   `'--build-system native' has been deprecated and will be removed in a future
+   release`. **The `#filePath` fix named above is therefore a dated obligation
+   rather than a preference.**
+
+4. **Six — now SEVEN — device-dependent window tests HARD-FAIL rather than skip
+   on a runner with no display device**, and they belong beside the ABI probe in
+   item 1 rather than sharing its treatment silently. The animation milestone
+   added `makeFakeWindowOnDefaultDevice` (`Tests/MetalUITests/Fakes.swift`),
+   which `throw`s `NoMetalDevice` where the surrounding convention is
+   `try #require(MTLCreateSystemDefaultDevice())`. **Both fail rather than skip**,
+   so this is not a behaviour change and not a new class of hazard — the branch
+   simply added tests in that shape. Task 5's review counted **six** at suite
+   859; **re-counted for the record task at `b869253` it is seven**, the extra
+   being `anAnimatedWriteThatIsNotTheFirstObservableWriteOfItsIntervalStillAnimates`,
+   which fix round 2 added after that review. The seven are
+   `aTransactionParkedOutsideTheBuildAnimatesTheNextFrameEndToEnd`,
+   `theDisplayLinkStaysRunningWhileAnimatingAndPausesOnTheFrameAfterTheLastEnds`,
+   `aParkedTransactionIsConsumedByExactlyOneBuild`,
+   `anAnimatingElementThatVanishesAndReturnsResumesRatherThanRestarting`,
+   `aTransactionWhoseBodyDirtiesNothingIsNeverParkedAndCannotAnimateALaterChange`,
+   `aColourFadeOnAStyleStaticElementKeepsTheDisplayLinkRunning` and
+   `anAnimatedWriteThatIsNotTheFirstObservableWriteOfItsIntervalStillAnimates`,
+   all in `AnimationTests.swift`. **This count is dated like every other count in
+   this file** — it is a property of how the fixture is written, not of the
+   suite, so re-take it by greping for the helper rather than trusting the seven.

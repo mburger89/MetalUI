@@ -1025,3 +1025,90 @@ the running tree is the modal's visibility. A human exercising **M** is
 exercising the whole of what this demo can show about reactivity, and no row,
 counter or label in it reads a model at all.
 
+> **Widened on 2026-09-10 by the animation milestone's Task 5b (ruling `AN-R`).**
+> `DemoModel` now holds a **second** property, `animationDemoActive`, toggled by
+> key **A** inside a real
+> `withAnimation(.spring(duration: 0.6, bounce: 0.2))`. The sidebar `Column`
+> reads it every frame for **both** its declared width (196 ↔ 320, the
+> layout-phase helper) and its background token (`.surface` ↔ `.accent`, the
+> paint-phase helper), so it is a genuine second observable dependency in the
+> running tree and the paragraph above understates the demo by one subject.
+> **The `@Observable` grep still returns two lines with one declaration** — that
+> half is unchanged, since both properties live on the same model. The reactivity
+> reading stands otherwise: `Window.observationDirtyings` is still the
+> discriminating observable, and no *row, counter or label* reads a model.
+> **Key A HAS now been run — see the animation entry below.**
+
+
+---
+
+## Animation verified on 2026-09-10 — M4 spec 3's exit criterion 9, and its first reading was WRONG
+
+**What was run.** `swift build -c release`, then `./.build/release/MetalUIDemo`
+at `b869253` on `feat/animation`, by the project's owner. One keystroke: **A**.
+
+**What the key does, and why it was built to be reported in two halves.** **A**
+toggles `DemoModel.animationDemoActive` inside a single
+`withAnimation(.spring(duration: 0.6, bounce: 0.2))`. The sidebar `Column` reads
+that one `Bool` for **both** its declared width (196 ↔ 320pt, the **layout**-phase
+helper, `AnimatedStyle.swift`) and its background token (`.surface` ↔ `.accent`,
+the **paint**-phase helper, `AnimatedColor.swift`) — `main.swift:485` and `:488`.
+So one press drives both helpers, and **a human can report them separately**.
+That separability is the entire design of the row: if one glides and the other
+snaps, that pins which helper is actually live in production rather than only in
+tests.
+
+**The report, both halves of it, in the order they arrived.**
+
+> *"the width slides but the colour snaps"*
+
+> *"no it does appear to be working."*
+
+**The first reading is exactly the discriminating outcome the row was
+constructed to produce**, and had it held it would have meant the paint-phase
+helper was **not live in production despite 861 passing tests** — a defect no
+assertion in this repo had been able to reach. On a second look it was corrected.
+**Both properties animate. The paint-phase helper is live in production.**
+
+**The ambiguity is recorded rather than tidied away, because it is itself the
+finding.** A milestone whose whole practice is that unmeasured claims are the
+defect does not get to keep only the conclusion of its one human observation.
+What it says about the artefact is that **the fade is not obvious at a glance** —
+one of two subjects deliberately built to be separately visible read as absent on
+first viewing. That is information about the motion, not about the observer, and
+it is the reason a fade's *perceptibility* stays a look rather than becoming a
+test.
+
+**What this closes.** Spec exit criterion 9's core question — whether the motion
+actually happens in a running window rather than only in the suite — is answered
+**yes, for both phases, on the outbound press**. It is the first evidence of any
+kind that the paint-phase colour helper reaches production.
+
+**What it does NOT close, stated so nobody promotes the row.**
+
+- **The spring's overshoot past 320pt was not separately confirmed.** Overshoot
+  is what visibly distinguishes a spring from a fast fade, and it is why a spring
+  was chosen over a duration curve; it remains unobserved.
+- **No second press was reported**, so the **reverse direction is unobserved**.
+- Nothing here speaks to whether the easing *looks right* as a perceptual
+  judgement, which is what spec §9's own "what no test here can see" names.
+
+**A systematic-debugging pass ran against the first report before the correction
+arrived, found no defect, and its trace is kept as confirmation** (re-verified
+line by line at `b869253`):
+
+- `LayoutPass.transaction` and `PaintPass.transaction` are the **same
+  expression** — `frame.transaction`, `Passes.swift:149` and `:457` — so one
+  frame's transaction is visible to both phases, and there is no path by which
+  layout sees a transaction paint does not.
+- Exactly **four** `pass.fill` sites exist: `Box.swift:142`, `Stack.swift:148`,
+  `ScrollView.swift:441` (the indicator, deliberately unwired) and
+  `Text.swift:301` — matching Task 5's review's independent enumeration, taken
+  at a different time by a different agent.
+- `Column` delegates to `Box`, so the sidebar's background reaches `Box.paint`'s
+  effective `focusBackground`/`hoverBackground`/`background` chain and therefore
+  `animatedColor`.
+
+**Decisions doc:** `docs/superpowers/2026-09-03-animation-decisions.md`, rulings
+prefixed `AN-` (**lettered**, `AN-A`…`AN-W`, so a bare `AN-3` is a typo); this
+entry is `AN-R`.
