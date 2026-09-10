@@ -71,6 +71,16 @@ import AppKit
 @Observable
 final class DemoModel {
     var showModal = false
+
+    /// Whether the animation milestone's one keyed demo interaction is live.
+    /// Toggled by the **A** key (`runDemo` below), inside a real
+    /// `withAnimation` — the sidebar `Column` in `demoContent` reads it for
+    /// both its declared width (the layout-phase helper, `AnimatedStyle.swift`)
+    /// and its background token (the paint-phase helper, `AnimatedColor.swift`)
+    /// in the same transaction, so one keystroke exercises both helpers this
+    /// milestone built. See CLAUDE.md's human-verification table for what a
+    /// human should watch.
+    var animationDemoActive = false
 }
 
 let demoModel = DemoModel()
@@ -148,6 +158,9 @@ struct FocusCounter: Action {}
 struct ClearFocus: Action {}
 struct ToggleTheme: Action {}
 struct ToggleModal: Action {}
+/// Toggles `DemoModel.animationDemoActive` under a real `withAnimation`.
+/// Bound to **A**. The only action this file wraps in a transaction.
+struct ToggleAnimationDemo: Action {}
 /// Terminates the app. Bound to **Q**. The reactivity instrument's summary
 /// (`printReactivitySummary`, below) prints on **this** quit path and on the
 /// window's close button alike, because it is registered with `atexit_b`
@@ -457,10 +470,22 @@ func demoContent() -> some Element {
             // move this number in principle (`min(196, content) == content`
             // whichever half of §4.5 is implemented), and there is no engine
             // divergence here to attribute to anything.
-            .width(Pixels(196))
+            // **The animation milestone's demo interaction — M4 spec 3.**
+            // 196 is the resting width `SZ-L` above is measured against;
+            // `demoModel.animationDemoActive` is the only thing that ever
+            // moves it away from that number, under the **A** key's
+            // `withAnimation` in `runDemo` below. Both this width and the
+            // background two lines down read the same bool inside the same
+            // transaction, so one keystroke drives the layout-phase helper
+            // (`AnimatedStyle.swift`) and the paint-phase one
+            // (`AnimatedColor.swift`) at once. The baseline is a declared
+            // pixel value rather than `.auto`, which is what lets the FIRST
+            // press animate rather than snap (`AnimatedStyle.swift`'s own
+            // documented `.auto` pitfall).
+            .width(demoModel.animationDemoActive ? Pixels(320) : Pixels(196))
             .padding(Pixels(14))
             .alignItems(.stretch)
-            .background(.surface)
+            .background(demoModel.animationDemoActive ? .accent : .surface)
             .cornerRadius(Pixels(14))
 
             Column(gap: Pixels(12)) {
@@ -931,6 +956,7 @@ func runDemo() throws {
         Binding("escape", ClearFocus())
         Binding("space", ToggleTheme())
         Binding("m", ToggleModal())
+        Binding("a", ToggleAnimationDemo())
         Binding("q", QuitDemo())
     }
 
@@ -951,6 +977,19 @@ func runDemo() throws {
             return true
         case is ToggleModal:
             demoModel.showModal.toggle()
+            return true
+        case is ToggleAnimationDemo:
+            // A spring rather than a duration curve — Task 1 built both, and
+            // the brief asked which reads more convincingly here: a slide
+            // with a little give reads as motion rather than a discrete
+            // jump, where the milestone's own `.default`
+            // (`spring(duration: 0.5, bounce: 0)`) is critically damped and
+            // easy to mistake for a fast linear move. `bounce: 0.2` keeps a
+            // human's eye on the overshoot without visibly nudging the width
+            // back under 196pt.
+            withAnimation(.spring(duration: 0.6, bounce: 0.2)) {
+                demoModel.animationDemoActive.toggle()
+            }
             return true
         case is FocusCounter:
             // `counterID` is `nil` only before the first frame has been laid

@@ -313,13 +313,14 @@ or any of text's three §4.2 failure modes; these are looks.
 | measure performance in **debug**; row missing/blank at the bottom edge; reaching row 500; launch hitch | not reported either way |
 | tombstones-and-AX §7 item 9 (regression check; the demo cannot exercise its subject) | open, nobody has run the build |
 | reactivity §8 item 7: run the demo, idle 30 s, press **M** twice, quit with **Q**, report `frames drawn` / `pauses entered` / `observation dirtyings` — a measurement, not a judgement | open |
-| animation §9's "whether the motion looks right" (spec exit criterion 9) | open, and **not yet reachable**: the hand-off ships, but `grep -rn withAnimation Sources/` finds no caller outside `Animation.swift`'s own comments, and nothing animates without a transaction. Needs a demo interaction first — a key bound to a model property a `Box` declares as `width`/`background`, toggled inside `withAnimation`; the modal, theme and counter keys are all wrong subjects (appearance/disappearance snaps, a theme swap deliberately never fades, and text content is not animatable) |
+| animation §9's "whether the motion looks right" (spec exit criterion 9): press **A**. The sidebar's width (196pt ↔ 320pt, the layout-phase helper) and its background (`.surface` ↔ `.accent`, the paint-phase helper) both read `DemoModel.animationDemoActive` inside one `withAnimation(.spring(duration: 0.6, bounce: 0.2))` transaction, so one keystroke drives both. Watch whether both properties genuinely glide over roughly half a second — the spring's `bounce` should read as a slight overshoot past 320pt on the way out, not a hard stop — rather than jumping straight to the new value; press **A** again to reverse it and watch the same thing outbound and back. **Report the two properties separately**: if the width slides but the colour snaps (or the reverse), that pins which helper is actually live in production rather than only in tests, which is exactly what this key exists to distinguish | open, now reachable |
 | VoiceOver navigating the AX tree | permanently open until M4's bridge exists |
 
 Demo keys: **M** modal (translucent scrim, gated so other looks stay
 undimmed), **Space** theme, **F**/**Escape** focus the counter, **=**/**-**
-count (context `"Counter"`), **Q** quit. The demo's sidebar shrinks below its
-196pt declaration and WebKit does the identical thing (SZ-L); it is not a bug.
+count (context `"Counter"`), **A** the animation look above, **Q** quit. The
+demo's sidebar shrinks below its 196pt declaration and WebKit does the
+identical thing (SZ-L); it is not a bug.
 Dark-on-dark dimming is hard to judge by eye — measure a "no scrim" report
 before believing it.
 
