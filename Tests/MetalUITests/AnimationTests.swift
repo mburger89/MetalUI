@@ -2232,6 +2232,7 @@ private let midBackgroundToSeparator = (h: Float(0.714286), s: Float(0.70), l: F
 final class AnimationDriveModel {
     var width: Float = 100
     var show: Bool = true
+    var useAccent: Bool = false
 }
 
 /// The width of the one 40pt-tall rect the fixtures below paint, in device
@@ -2538,4 +2539,74 @@ final class AnimationDriveModel {
         t.elementID = ElementID("site")
         return t
     }
+}
+
+/// **The composition the whole idle criterion turns on, and the one no
+/// helper-level test can see.** A colour fade lives in PAINT and reaches
+/// `hasActiveAnimations` from there; an element whose `Style` never changes
+/// raises nothing during layout at all. So a criterion computed from the layout
+/// pass — or read before paint — is a fade that stops the instant input stops
+/// arriving, with the first frame looking perfectly correct.
+///
+/// Measured before this test existed: silencing the paint helper's
+/// `noteActiveAnimation()` reddened **2 issues, in
+/// `aBackgroundTokenChangedUnderATransactionReadsAMidFlightColour` alone** —
+/// a real pin on the flag, and nothing anywhere on the drive LOOP. That is
+/// taxonomy shape 9: two shipped features (`AnimatedColor` × the display-link
+/// guard) whose pair had no fixture, because each was added by the task that
+/// added it.
+///
+/// The subject's width and height are literals, so `animated(_:_:for:pass:)`
+/// leaves `inFlight` empty on every frame and the layout half is silent by
+/// construction — which is what makes this test about the paint half rather
+/// than about both.
+@MainActor @Test func aColourFadeOnAStyleStaticElementKeepsTheDisplayLinkRunning() throws {
+    let model = AnimationDriveModel()
+    let (window, platformWindow) = try makeFakeWindowOnDefaultDevice(size: 300,
+                                                                    startsDisplayLink: true) {
+        Box().width(Pixels(40)).height(Pixels(40))
+            .background(model.useAccent ? .accent : .background)
+            .id("subject")
+    }
+    // The same discrimination-built theme every colour assertion above uses, so
+    // the expected midpoint is `midBackgroundToAccent` — hand-derived, with the
+    // arithmetic at its declaration, rather than read off `Theme.light`.
+    window.theme = probeTheme()
+
+    func painted() throws -> Hsla {
+        let rect = try #require(window.lastScene.rects.first)
+        return Hsla(h: rect.background.h, s: rect.background.s,
+                    l: rect.background.l, a: rect.background.a)
+    }
+
+    platformWindow.simulateTick(timestamp: 100)
+    expectColor(try painted(), h: 0.642857, s: 0.777778, l: 0.45, "set up: the resting token")
+    platformWindow.simulateTick(timestamp: 100.1)
+    try #require(platformWindow.pauseCalls.last == true,
+                 "set up: a clean window with nothing animating pauses")
+
+    withAnimation(.linear(duration: 1)) { model.useAccent = true }
+
+    platformWindow.simulateTick(timestamp: 100.2)
+    expectColor(try painted(), h: 0.642857, s: 0.777778, l: 0.45,
+                "the frame that starts the fade reads its own `from`")
+    #expect(window.hasActiveAnimations,
+            "a colour transition mid-flight is an active animation, and only PAINT knows it")
+    try #require(!window.needsRedraw,
+                 "set up: the window is clean from here on — nothing but the fade is left")
+
+    let drawnBefore = window.framesDrawn
+    platformWindow.simulateTick(timestamp: 100.7)
+    #expect(window.framesDrawn == drawnBefore + 1,
+            "a clean window with a live COLOUR fade must still draw")
+    expectColor(try painted(), h: midBackgroundToAccent.h, s: midBackgroundToAccent.s,
+                l: midBackgroundToAccent.l, "halfway through the fade")
+
+    platformWindow.simulateTick(timestamp: 101.2)
+    expectColor(try painted(), h: 0.111111, s: 0.75, l: 0.60, "landed exactly on the target")
+    #expect(!window.hasActiveAnimations, "settled")
+
+    platformWindow.simulateTick(timestamp: 101.3)
+    #expect(platformWindow.pauseCalls.last == true,
+            "and the link pauses on the frame after the fade ends")
 }
