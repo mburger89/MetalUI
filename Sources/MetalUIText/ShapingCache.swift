@@ -325,7 +325,9 @@ public final class ShapingCache {
             return minContent.values[idx].value
         }
         var width = 0.0
-        for run in Shaper.unbreakableRuns(of: string) {
+        // The main-actor twin of `Shaper.unbreakableRuns(of:)`: the same runs,
+        // from one re-pointed tokenizer instead of a new one per miss.
+        for run in Shaper.unbreakableRunsReusingTokenizer(of: string) {
             width = max(width, shaped(run, font: font, wrappingAt: nil).widestLine)
         }
         minContent[key] = Entry(value: width, generation: currentGeneration)

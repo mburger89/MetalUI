@@ -70,6 +70,31 @@ struct MeasurePerformanceTests {
         #expect(counter.count <= 40)
     }
 
+    /// **The cold frame — every `List` row built (ruling MP-I) — creates at
+    /// most one line-break tokenizer**, where it created one per min-content
+    /// miss: 40 on this harness before `ShapingCache.minContentWidth` re-pointed
+    /// a shared one. A warm frame makes no tokenizer call at all, so the cold
+    /// frame and newly revealed rows are the only places this saving exists;
+    /// hence a cold render here and not a warm one.
+    ///
+    /// `calls == 40` proves the frame reached the min-content branch through the
+    /// counted path — without it, a frame that never tokenized would read
+    /// `0 <= 1`. At most one rather than zero because the tokenizer is
+    /// process-wide and an earlier test may already have created it.
+    @Test
+    func aColdFrameCreatesAtMostOneLineBreakTokenizer() throws {
+        let states = StateTable()
+        let calls = Shaper.RunCallCounter()
+        let creations = Shaper.RunCallCounter()
+        Shaper.$runCallCounter.withValue(calls) {
+            Shaper.$tokenizerCreationCounter.withValue(creations) {
+                _ = Self.render({ demoLikeRows(40) }, states: states)
+            }
+        }
+        #expect(calls.count == 40)
+        #expect(creations.count <= 1)
+    }
+
     /// Font resolution is memoized on the window's `ShapingCache`, so a warm
     /// frame over the same `Text`s reaches the uncached
     /// `FontResolver.resolve(family:size:)` **zero** times. Before the memo,
