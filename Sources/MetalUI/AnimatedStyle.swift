@@ -48,8 +48,10 @@ import MetalUILayout
 ///   — see this task's report for the alternative (a paint-time consumer of
 ///   this same `$anim` slot, which needs `Box.paint`'s own theme access and
 ///   was out of this task's scope). A later task has since ruled that colour
-///   animates at PAINT instead, off the effective background `Box.paint`
-///   already selects by pointer state — hover/focus fades come free there.
+///   animates at PAINT instead, off the effective background
+///   `animatedBackground(_:for:pass:)` selects by pointer and focus state
+///   (called by `Box.paint`, `Stack.paint` and `Text.paint`) — hover/focus
+///   fades come free there.
 ///
 /// ## Storage (spec §6, RESHAPED by ruling U — Task 4's fix round)
 ///

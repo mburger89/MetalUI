@@ -2,7 +2,11 @@ import CoreText
 import Foundation
 
 /// The identity of a **resolved** font: what an atlas, a shaping cache or a
-/// metrics cache may safely be keyed on (spec §6.1).
+/// metrics cache may safely be keyed on (spec §6.1) — for glyph identity. It
+/// does NOT fully identify shaping behaviour: the UI font and `"System Font"`
+/// at the same size produce equal keys and shape non-Latin text differently
+/// (see `ShapingCache.fonts`; pinned wrong on purpose by
+/// `twoRequestsWithEqualFontKeysShareOneShapeThoughTheyShapeDifferently`).
 ///
 /// **Every component is read back off the `CTFont` CoreText handed us, never
 /// off the request, and §6.1 measured why.** `CTFontCreateWithName` does not

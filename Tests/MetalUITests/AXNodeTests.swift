@@ -377,8 +377,10 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 
     // Frame 1: `id` becomes `focusedElement`, the subject of an `AXNode`
     // emission, AND starts a real, still-running animation, in
-    // `Box.prepaint`'s own order (`animated` runs earlier still, inside
-    // `requestLayout`, before `registerHandlers`/`emitAXNode` in `prepaint`).
+    // the registration order `Frame.registerHandlers` now owns (`animated` runs
+    // earlier still, inside `requestLayout`; `emitAXNode` runs last inside
+    // `registerHandlers`, reached from every conformer's `prepaint`). Review
+    // item B-14 measured that this test does not depend on that order.
     // The FIRST `animated` call (flexGrow 0, no transaction) is a plain
     // first-sighting baseline — transaction-independent by construction, so
     // it needs no special shape. The SECOND is what makes this test able to

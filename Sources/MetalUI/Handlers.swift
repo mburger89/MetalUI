@@ -125,7 +125,8 @@ public struct Handlers {
     ///
     /// **On `Handlers` rather than a fifth `StyledElement` requirement, and the
     /// grounds are this type's own**: AX emission rides the exact registration
-    /// call `registerHandlers` already makes (`Box.prepaint` — see there), so it
+    /// call `registerHandlers` already makes (`Frame.registerHandlers` — see there;
+    /// reached from `Box`, `Stack` and `Text`'s `prepaint`), so it
     /// is read in `prepaint` by the frame, on `Handlers`' own footing and not
     /// `Decoration`'s (paint data, read only by each conformer's own `paint` —
     /// see this file's own top-of-struct doc). A fifth stored requirement

@@ -36,7 +36,19 @@ public struct ScrollState: Sendable {
     /// the display link's `lastTick`, which holds the *target* presentation
     /// instant for whichever frame is currently being built (spec §4.4) and
     /// goes stale for as long as the link is paused while idle.
-    public var lastScrollTime: Double = 0
+    ///
+    /// **Defaults to `-.infinity`, meaning "never scrolled" — not `0`.**
+    /// `Window.lastTick` is also 0 until the display link first fires, and
+    /// `App.openWindow` draws one frame before that happens, so a `0` default
+    /// made that frame's `age` exactly 0: every scrollable `ScrollView` painted
+    /// its thumb at full strength on the window's first frame and requested
+    /// another one. With `-.infinity`, any finite `timestamp` gives
+    /// `age == +.infinity`, the ramp gives `max(0, -.infinity) == 0` rather
+    /// than NaN, and `paintIndicator`'s `guard alpha > 0` returns before
+    /// `requestAnotherFrame()`. The init's parameter default is the one
+    /// `ScrollState()` actually reaches, so it carries the same value.
+    /// Pinned by `aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame`.
+    public var lastScrollTime: Double = -.infinity
 
     /// The viewport's extent along the scroll axis, as of the last `prepaint`
     /// — written by `resolvedOffset`'s `PrepaintPass` overload from the same
@@ -46,7 +58,7 @@ public struct ScrollState: Sendable {
     /// earlier. Zero until the first `prepaint` ever runs for this element.
     public var viewportExtent: Double = 0
 
-    public init(offset: Double = 0, lastScrollTime: Double = 0, viewportExtent: Double = 0) {
+    public init(offset: Double = 0, lastScrollTime: Double = -.infinity, viewportExtent: Double = 0) {
         self.offset = offset
         self.lastScrollTime = lastScrollTime
         self.viewportExtent = viewportExtent

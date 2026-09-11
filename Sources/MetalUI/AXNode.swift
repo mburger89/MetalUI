@@ -116,7 +116,8 @@ public struct AXNode: Equatable {
     /// correction of what this doc used to say (Task 7's review).** The
     /// earlier wording read as though `emitAXNode` populates this from real
     /// child ids; it does not, because nothing ever hands it any. The one
-    /// production caller, `Box.prepaint`, always passes `children: []` (see
+    /// production caller, `Frame.registerHandlers` (reached from `Box`, `Stack` and
+    /// `Text`'s `prepaint`), always passes `children: []` (see
     /// its own doc), and the reason is not an oversight left for `emitAXNode`
     /// to close: `ElementGroup.requestGroupLayout` hands a container a flat
     /// `[LayoutNodeID]` rather than a `GlobalElementID` per child, so a
@@ -182,13 +183,13 @@ public struct AXNode: Equatable {
     /// Whether this is the value an element gets by declaring nothing —
     /// `Handlers`' own "empty means not a hit target" rule, one type over. A
     /// `Box` whose `handlers.axNode` is still this value emits no `AXNode` at
-    /// all; see `Box.prepaint`.
+    /// all; see `Frame.registerHandlers`.
     ///
     /// **Safe to compare as a whole value BECAUSE `frame`/`children`/`isValid`
     /// cannot vary on a declared value** — `internal(set)` is what makes that
     /// true rather than this property scoping itself to the six declarable
     /// fields by hand. A resolved value read back out of `Frame.axNodes` or
-    /// `Frame.axNode(for:)` is never checked with this — `Box.prepaint` calls
+    /// `Frame.axNode(for:)` is never checked with this — `Frame.registerHandlers` calls
     /// it only on the declared `handlers.axNode`, before emission.
     public var isEmpty: Bool { self == AXNode() }
 }

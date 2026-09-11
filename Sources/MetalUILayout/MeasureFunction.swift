@@ -23,7 +23,8 @@ public enum AvailableSpace: Sendable, Hashable {
     /// Size to the smallest width that avoids overflow — the longest
     /// unbreakable run, for text.
     case minContent
-    /// Size as if infinitely wide — a single line, for text.
+    /// Size as if infinitely wide — for text, one line per hard line break
+    /// (ruling TX-K), never one line for the whole string.
     case maxContent
 }
 
