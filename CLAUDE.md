@@ -58,10 +58,10 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 ```
 
-- **Counts, dated:** **862 tests**, 87 browser-fixture goldens, 35 `swiftc
+- **Counts, dated:** **864 tests**, 87 browser-fixture goldens, 35 `swiftc
   -typecheck` guards, 0 `error:`, 0 `warning:` — re-measured 2026-09-10 on
   `fix/record-refresh`, where `aZeroWidthBordersColorChangesNoPixel` took the
-  total from 861 to 862. The previous reading was 861 (47 + 448 + 50 + 6 + 288
+  total from 861 to 862 and the two shared-`@State`-box probes took it to 864. The previous reading was 861 (47 + 448 + 50 + 6 + 288
   + 22) on `feat/animation` at `b869253`; `master` at the Component milestone's
   end was 811 / 87 / 34. **The per-target split is no longer printed on this
   machine** — SwiftPM now emits ONE summary line for the whole run, not six, so
@@ -365,7 +365,7 @@ before believing it.
 
 ## Known divergences — expected, measured, not defects
 
-Eleven entries; labels are stable ids. Retired and never reused: 3, 5, 6
+Twelve entries; labels are stable ids. Retired and never reused: 3, 5, 6
 (sizing, fixed), 7 (renumbering), 8 (`Text.paint` wrap, fixed), 12 and 17
 (tombstones, closed for a **bounded** two-generation window above 256
 entries). Full entries with repro and pins in record §04.
@@ -382,6 +382,7 @@ entries). Full entries with repro and pins in record §04.
 | 14 | `List` limit | Window placed against the scroller's origin: a `List` with a flow sibling above it renders **blank**. Pinned wrong on purpose. |
 | 15 | unfixed defect | A `ScrollView` inside a scrolled `ScrollView` gets an empty content mask (`pushClip` ignores `activeOffset`). One-line fix, deferred to a paint milestone; pinned wrong on purpose. |
 | 16 | design | An `onClick` inside a `ScrollView` swallows the wheel over its rect. Fix named in `Window.applyScroll`'s doc (compare layers). Demo keeps its counter out of the list. |
+| 19 | unfixed defect | **One element VALUE placed twice shares one `@State` box.** `let sep = Ctr(); Row { sep; sep }` — reads were fixed 2026-09-10 by re-binding in `prepaintGroup`/`paintGroup`, but a **handler** registered by one occurrence still writes the other's slot, because the closure captures the class box and one box holds one slot. Measured: occurrence 0 clicked once reads 1, occurrence 1 never clicked reads 102. Pinned wrong on purpose; counted by `StateTable.aliasedStateBoxes`. Build two values, don't reuse one. |
 | 18 | vs SwiftUI | `@State` behind a removed `if` is retained, not reset; indefinitely below 256 entries — but 256 is easier to reach than it reads, since every registering element mints a `$anim` entry unconditionally (measured: a `List` is `2n + 7`, crossing at **125 rows**, so the demo's 500-row list sits at 1007). Reset explicitly or keep the value in data. Element-level consequence is unpinned. |
 
 ## Declared but inert — verify, do not remember

@@ -516,3 +516,163 @@ import MetalUICore
     // `twoUnnamedSiblingsDoNotShareOneStateEntry`'s footing.
     #expect(table.count == 3)
 }
+
+// MARK: - One element VALUE placed twice
+
+/// Reads the `@State` each occurrence can see, in a phase AFTER layout.
+@MainActor
+final class StampRecorder {
+    var stampsInPrepaint: [Int] = []
+}
+
+/// Stamps a **distinct** number into its own `@State` during `requestLayout`,
+/// then reads it back in `prepaint`.
+///
+/// The three properties that make this able to fail are the ones
+/// `twoCopiesOfOneElementDoNotShareLayoutState` names for `LayoutState`: the
+/// two children are **copies of one value**, they are the **same type**, and
+/// the stamp is **read back in a later phase**. The fourth, specific to
+/// `@State`, is that the two occurrences must stamp **different** numbers —
+/// `State.swift`'s own open-question note records that a probe where both
+/// advance in lockstep reads `[1, 1, 2, 2, 3, 3]` and proves nothing.
+private struct StampedStateProbe: Element {
+    @State var stamp = 0
+    let counter: InstanceCounter
+    let recorder: StampRecorder
+    var elementID: ElementID? { nil }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Void) {
+        stamp = counter.next()                       // occurrence 0 -> 1, occurrence 1 -> 2
+        return (pass.requestNode(style: Style(), children: []), ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Void, pass: inout PrepaintPass) {
+        recorder.stampsInPrepaint.append(stamp)
+    }
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **One element value placed twice must not share one `@State` box.**
+///
+/// This is the differential probe `State.swift`'s open-question note asks for
+/// and records as never having been written. `State.Box` is a **class**, so two
+/// copies of one element value share it; `StateBinder.bind` runs only inside
+/// layout (`ElementGroup.swift:112`, `Component.swift:130`, `Frame.swift:1211`)
+/// and `prepaintGroup`/`paintGroup` never rebind. The second occurrence's
+/// `bind` therefore leaves the shared box pointing at ITS slot, and the first
+/// occurrence reads the second's value in every phase after layout.
+///
+/// Each occurrence stamps a distinct number, so a wrong slot reads a wrong
+/// NUMBER rather than merely a wrong entry — which is exactly what the
+/// lockstep probe in `State.swift`'s note could not distinguish.
+@MainActor
+@Test func oneElementValuePlacedTwiceDoesNotShareItsState() {
+    let counter = InstanceCounter()
+    let recorder = StampRecorder()
+    let table = StateTable()
+
+    let probe = StampedStateProbe(counter: counter, recorder: recorder)
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)),
+                      scaleFactor: 1, stateTable: table)
+    var root = Row { probe; probe }
+    frame.render(&root)
+
+    // Layout stamped 1 into the first occurrence's slot and 2 into the
+    // second's; each must read back its own.
+    #expect(recorder.stampsInPrepaint == [1, 2],
+            "occurrences read \(recorder.stampsInPrepaint) — a shared box reads [2, 2]")
+    // NOT asserted on `table.count`: a `Row` wraps a `Box`, which mints a
+    // `$anim` retention slot of its own, so the table holds three entries and
+    // the count cannot discriminate this defect. The stamps can.
+    #expect(Set(recorder.stampsInPrepaint).count == 2,
+            "the two occurrences read the same value, so they shared one slot")
+}
+
+/// Registers a click handler that writes to its OWN `@State`, capturing the
+/// property wrapper — which is how any element that mutates its state from a
+/// handler has to be written, since a `mutating` phase cannot capture `self`.
+private struct ClickableStateProbe: Element {
+    @State var stamp = 0
+    let counter: InstanceCounter
+    var elementID: ElementID? { nil }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass)
+        -> (LayoutNodeID, Void) {
+        stamp = counter.next()
+        return (pass.requestNode(style: Style(), children: []), ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Void, pass: inout PrepaintPass) {
+        let state = _stamp                       // shares the class box
+        var handlers = Handlers()
+        handlers.onClick = { state.wrappedValue += 100 }
+        pass.registerHandlers(handlers, at: bounds, id: id)
+    }
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                        layout: inout Void, prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// **PINNED WRONG ON PURPOSE.** A handler registered by one occurrence writes
+/// to the OTHER occurrence's `@State`, and this test asserts the broken values
+/// so the defect cannot be "fixed" by accident without the pin going red.
+///
+/// This is the half of the shared-box defect that re-binding in
+/// `prepaintGroup`/`paintGroup` does NOT fix, and cannot: the closure captures
+/// the shared `State.Box` by reference, one box holds one `slotID`, and by the
+/// time the click arrives it holds whatever the LAST phase bound.
+/// `Window.lastHitboxes` keeps handlers alive across frames, so this is the
+/// production path rather than a contrivance.
+///
+/// Measured: occurrence 0 stamps 1, occurrence 1 stamps 2, occurrence 0 is
+/// clicked once — and occurrence 0 reads **1** (its click went elsewhere) while
+/// occurrence 1 reads **102** (it received a click it never got). Correct
+/// would be 101 and 2.
+///
+/// **Why this is not fixed here.** Binding is reflection-driven
+/// (`StateBinder.bind` walks a `Mirror`), which is exactly why the slot lives
+/// in a class box rather than a stored struct field — `Mirror` cannot write
+/// one. A per-copy slot would fix this and would also make the box
+/// unnecessary, but that is a change to how `@State` binds, not a patch to
+/// this path. `StateTable.aliasedStateBoxes` counts the shape in the meantime;
+/// it reads 0 across the whole suite apart from the two tests here.
+@MainActor
+@Test func aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt() {
+    let counter = InstanceCounter()
+    let table = StateTable()
+    let probe = ClickableStateProbe(counter: counter)
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)),
+                      scaleFactor: 1, stateTable: table)
+    var root = Row { probe; probe }
+    frame.render(&root)
+
+    let ids = frame.hitboxes.map(\.id)
+    #expect(ids.count == 2, "each occurrence registers its own hitbox, got \(ids.count)")
+    guard ids.count == 2 else { return }
+
+    // Fire ONLY the first occurrence's handler.
+    frame.hitboxes[0].handlers.onClick?()
+
+    // The `@State` slot is a NAMED CHILD of the element id, not the id itself
+    // (`State.swift:88`).
+    func slot(_ id: GlobalElementID) -> GlobalElementID {
+        GlobalElementID.child(of: id, at: 0, name: ElementID("$state0"))
+    }
+    let first = table.peek(slot(ids[0]), as: Int.self)
+    let second = table.peek(slot(ids[1]), as: Int.self)
+
+    // The CORRECT answers are 101 and 2. These are the wrong ones, asserted so
+    // the defect is pinned rather than latent — change them together with the
+    // fix, and delete this test's "wrong on purpose" framing when you do.
+    #expect(first == 1, "occurrence 0 was clicked; its own slot should have moved to 101")
+    #expect(second == 102, "occurrence 1 was never clicked, yet received the write")
+
+    // And the shape is detected, which is what makes it findable in an app.
+    #expect(table.aliasedStateBoxes > 0,
+            "one value placed twice must be counted as an aliased state box")
+}

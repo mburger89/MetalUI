@@ -117,13 +117,26 @@ extension Element {
 
     public mutating func prepaintGroup(layout: inout SingleElementLayout<Self>,
                                        pass: inout PrepaintPass) -> PrepaintState {
-        prepaint(layout.id, bounds: pass.bounds(of: layout.node),
-                 layout: &layout.state, pass: &pass)
+        // **Re-bind, because `State.Box` is a class and one element VALUE can
+        // be placed twice.** `Row { sep; sep }` copies the struct, and a copy
+        // shares the box by reference, so the second occurrence's `bind` in
+        // `requestGroupLayout` leaves the box pointing at ITS slot. Without
+        // this line the first occurrence reads the second's `@State` in every
+        // phase after layout — measured `[2, 2]` where `[1, 2]` is correct.
+        // `layout.id` is this occurrence's own id, stamped during layout, so
+        // re-binding to it is exact rather than a guess.
+        // Pinned by `oneElementValuePlacedTwiceDoesNotShareItsState`.
+        StateBinder.bind(self, table: pass.frame.stateTable, id: layout.id)
+        return prepaint(layout.id, bounds: pass.bounds(of: layout.node),
+                        layout: &layout.state, pass: &pass)
     }
 
     public mutating func paintGroup(layout: inout SingleElementLayout<Self>,
                                     prepaint: inout PrepaintState,
                                     pass: inout PaintPass) {
+        // Same reason as `prepaintGroup` above — paint is a third phase and the
+        // box is still whatever the last `bind` left it.
+        StateBinder.bind(self, table: pass.frame.stateTable, id: layout.id)
         paint(layout.id, bounds: pass.bounds(of: layout.node),
               layout: &layout.state, prepaint: &prepaint, pass: &pass)
     }
