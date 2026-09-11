@@ -239,6 +239,15 @@ let allFixtures: [(String, CGSize)] = [
     ("stack_fit_content_inline",                    CGSize(width: 800, height: 600)),
     ("stack_fit_content_floor",                     CGSize(width: 800, height: 600)),
     ("stack_fit_content_min_content_contribution",  CGSize(width: 800, height: 600)),
+    // A STRETCHED stack child keeps its own min/max and its padding+border
+    // floor, clamp then floor. `stack_stretch` and `stack_stretch_declared_size`
+    // are blind to it: neither child carries a bound or an edge. Red against the
+    // engine whose `positionStackItems` assigned the cell's size outright
+    // (every child below 300x200, or 100x100 in the floor fixture). See
+    // `StackFixtureTests.swift`.
+    ("stack_stretch_max",                           CGSize(width: 800, height: 600)),
+    ("stack_stretch_min",                           CGSize(width: 800, height: 600)),
+    ("stack_stretch_border_box_floor",              CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

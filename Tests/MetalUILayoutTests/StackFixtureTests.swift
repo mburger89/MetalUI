@@ -337,6 +337,80 @@ private func alignmentTree(align: AlignItems, justify: JustifyItems)
                         golden: golden, tolerance: 0.1)
 }
 
+/// An auto-sized child with `configure` applied to its otherwise default style.
+private func autoChild(_ tree: LayoutTree, _ configure: (inout Style) -> Void) -> LayoutNodeID {
+    var s = Style()
+    configure(&s)
+    return tree.newNode(style: s, children: [])
+}
+
+/// A stretched stack child still obeys its own `max-*` on the axis it is
+/// stretched along — `positionStackItems` assigned the cell's size outright, so
+/// every child here was 300x200 where WebKit gives 300x50, 40x200 and 60x20.
+///
+/// **What it catches, stated as implementations:** the bare assignment (all
+/// three children 300x200); a clamp on one axis only (`.h` or `.w` stays
+/// full); and bounds resolved against the other axis's extent, which leaves the
+/// px children right and moves `.p` to 40x30 — `.p` is the only child whose
+/// bounds are percentages, and so the only one that sees the basis at all.
+@Test func stackStretchMaxMatchesWebKit() throws {
+    let golden = try loadGolden("stack_stretch_max")
+    let tree = LayoutTree(generation: 0)
+    let h = autoChild(tree) { $0.maxSize = Size(width: .auto, height: px(50)) }
+    let w = autoChild(tree) { $0.maxSize = Size(width: px(40), height: .auto) }
+    let p = autoChild(tree) {
+        $0.maxSize = Size(width: .length(.percent(0.2)), height: .length(.percent(0.1)))
+    }
+    let root = stackNode(tree, [h, w, p], align: .stretch, justify: .stretch,
+                         size: Size(width: px(300), height: px(200)))
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree, ids: [root: "root", h: "h", w: "w", p: "p"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// The `min-*` half: a stretched child with a min above the 300x200 cell on
+/// both axes is 340x260 in WebKit; the engine gave 300x200. The two mins
+/// differ, so a clamp reading the other axis's bound gives 300x340. Alone in
+/// its cell — the fixture says why.
+@Test func stackStretchMinMatchesWebKit() throws {
+    let golden = try loadGolden("stack_stretch_min")
+    let tree = LayoutTree(generation: 0)
+    let m = autoChild(tree) { $0.minSize = Size(width: px(340), height: px(260)) }
+    let root = stackNode(tree, [m], align: .stretch, justify: .stretch,
+                         size: Size(width: px(300), height: px(200)))
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree, ids: [root: "root", m: "m"], golden: golden, tolerance: 0.1)
+}
+
+/// A stretched child's border box is floored at its own padding + border
+/// (ruling BM-4) AFTER its min/max clamp. Both children carry a 120x140 floor in
+/// a 100x100 cell; WebKit gives both 120x140, the engine gave both 100x100.
+///
+/// **What it catches:** no floor (`.f` 100x100, `.c` 40x50) and the floor
+/// applied before the clamp (`.c` 40x50 with `.f` right). `.c`'s maxes are both
+/// below its floor, which is the one input on which the two orders disagree.
+@Test func stackStretchBorderBoxFloorMatchesWebKit() throws {
+    let golden = try loadGolden("stack_stretch_border_box_floor")
+    let tree = LayoutTree(generation: 0)
+    func padded(_ s: inout Style) {
+        s.padding = Edges(top: .pixels(Pixels(60)), right: .pixels(Pixels(50)),
+                          bottom: .pixels(Pixels(60)), left: .pixels(Pixels(50)))
+        s.border = Edges(all: .pixels(Pixels(10)))
+    }
+    let f = autoChild(tree) { padded(&$0) }
+    let c = autoChild(tree) {
+        padded(&$0)
+        $0.maxSize = Size(width: px(40), height: px(50))
+    }
+    let root = stackNode(tree, [f, c], align: .stretch, justify: .stretch,
+                         size: Size(width: px(100), height: px(100)))
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree, ids: [root: "root", f: "f", c: "c"], golden: golden, tolerance: 0.1)
+}
+
 /// A wrapping flex row of `count` `w`x`h` items — min-content `w`, max-content
 /// `w * count`, and a height that depends on which width it is laid out at. The
 /// one shape without a font whose two intrinsic widths differ, and so the only

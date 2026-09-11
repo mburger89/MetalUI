@@ -523,9 +523,13 @@ private func resolveRootSize(
 /// content box invert. Every site that turns a node's declared `width`/`height`
 /// into a used border-box size takes this floor — `resolveRootSize`,
 /// `resolveNodeSize`, `flexBaseSize`'s `mainFloor()`, `layOutStack` and
-/// `placeAbsolute`. Five, and the count is literal — run
+/// `placeAbsolute`. Five, and the count is literal. A sixth function floors a
+/// size that was never declared: `positionStackItems`, whose `stretch` branch
+/// hands an `auto` axis the stack's content extent, clamps it by the child's
+/// min/max and floors the result (review finding B-8; it assigned the extent
+/// bare before). Run
 /// `grep -rn 'borderBoxFloor(tree' Sources/MetalUILayout/` and **read the
-/// lines rather than the count**: it returns **seven**. One is the sentence you
+/// lines rather than the count**: it returns **eight**. One is the sentence you
 /// are reading, which names the pattern while explaining it. The other is
 /// `collectItems`' automatic minimum. It floors no declared size: it re-floors
 /// §4.5's minimum after a `max-*` has clamped it, and only when the clamp bit
@@ -1719,8 +1723,45 @@ private func positionStackItems(
         let itemStyle = tree.style(item.node)
         let widthIsAuto: Bool = { if case .auto = itemStyle.size.width { return true }; return false }()
         let heightIsAuto: Bool = { if case .auto = itemStyle.size.height { return true }; return false }()
-        if horizontal == .stretch && widthIsAuto { size.width = containerSize.width }
-        if vertical == .stretch && heightIsAuto { size.height = containerSize.height }
+        // **A stretched axis is still clamped by the child's own min/max and
+        // then floored at its padding + border** — clamp then floor, the order
+        // `layOutStack` applies to the size it hands this function and
+        // `borderBoxFloor`'s doc records for every other site. These two lines
+        // were bare assignments of `containerSize` until review finding B-8,
+        // which threw away both of `layOutStack`'s answers one function after
+        // its comment said that exact trap was closed. Measured against the
+        // grid analogue: an auto child of a 300x200 cell with `max-height: 50`
+        // is 300x50 in WebKit (`stack_stretch_max`), with `min-width: 340;
+        // min-height: 260` is 340x260 (`stack_stretch_min`), and with
+        // `padding: 60px 50px; border: 10px` in a 100x100 cell is 120x140 —
+        // still 120x140 with `max-width: 40; max-height: 50` added, not 40x50
+        // (`stack_stretch_border_box_floor`). The engine gave the bare cell
+        // size for all of them.
+        //
+        // Bounds resolve per axis against `containerSize`, the stack's content
+        // box: the same basis `layOutStack` resolves them against in the
+        // placement pass (its `box.size`, definite there), and read from the
+        // child's style here for the reason the paragraph above gives.
+        let stretchWidth = horizontal == .stretch && widthIsAuto
+        let stretchHeight = vertical == .stretch && heightIsAuto
+        if stretchWidth || stretchHeight {
+            func stretched(_ extent: Double, min minDim: Dimension, max maxDim: Dimension,
+                           floor: Double) -> Double {
+                let lower = resolveDimension(minDim, against: extent, rootFontSize: ctx.rootFontSize)
+                let upper = resolveDimension(maxDim, against: extent, rootFontSize: ctx.rootFontSize)
+                return max(clamp(extent, min: lower, max: upper), floor)
+            }
+            let floor = borderBoxFloor(tree, item.node, containingBlockWidth: containerSize.width,
+                                       rootFontSize: ctx.rootFontSize)
+            if stretchWidth {
+                size.width = stretched(containerSize.width, min: itemStyle.minSize.width,
+                                       max: itemStyle.maxSize.width, floor: floor.width)
+            }
+            if stretchHeight {
+                size.height = stretched(containerSize.height, min: itemStyle.minSize.height,
+                                        max: itemStyle.maxSize.height, floor: floor.height)
+            }
+        }
 
         let x: Double
         switch horizontal {
