@@ -205,6 +205,82 @@ public final class ShapingCache {
         fonts[key]
     }
 
+    /// A font **request** — `Text`'s `(fontFamily, fontSize)` — as opposed to
+    /// the resolved identity ``FontKey`` describes. `size` is compared and
+    /// hashed by `bitPattern`, exactly as ``Key``'s `width` is, so the key is
+    /// total and reflexive for every `Double`. For every size
+    /// ``FontResolver/resolve(family:size:)`` admits (finite and positive)
+    /// bit-pattern equality and `==` agree; the spelling is for totality, not
+    /// for a case that reaches a stored entry — a NaN request misses, calls
+    /// the resolver, and traps there before anything is stored.
+    ///
+    /// **Keyed on a family name, and that does not break ``FontKey``'s rule.**
+    /// The rule is that nothing *downstream of resolution* — a glyph image, a
+    /// shape, a metric — may be keyed on the requested name, because
+    /// `CTFontCreateWithName` substitutes. This memo caches the resolution
+    /// itself: its key is the resolver's own input, and what it hands back
+    /// carries the resolved ``FontKey`` every other cache here keys on. Two
+    /// requests that resolve to one face ("NoSuchFontXYZ" and "Helvetica")
+    /// are two entries holding equal keys, which is correct.
+    private struct FontRequest: Hashable {
+        var family: String?
+        var size: Double
+
+        static func == (lhs: FontRequest, rhs: FontRequest) -> Bool {
+            lhs.family == rhs.family && lhs.size.bitPattern == rhs.size.bitPattern
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(family)
+            hasher.combine(size.bitPattern)
+        }
+    }
+
+    /// ``resolveFont(family:size:)``'s memo.
+    ///
+    /// **Never swept, deliberately, and on the same footing as `fonts`.** It
+    /// grows by one entry per distinct `(family, size)` request ever made on
+    /// this window's cache, and by nothing else: no frame-varying input
+    /// reaches either half of the key. `fontSize` is a stored property of
+    /// `Text`, not a `Style` field, so no animation drives it, and nothing in
+    /// `Sources/` computes a size or a family. `fonts` has the same growth
+    /// shape — one entry per distinct resolved ``FontKey``, which is at most
+    /// one per request — and is not swept either, so sweeping this memo alone
+    /// would re-resolve fonts whose `CTFont` `fonts` still holds. The two
+    /// belong together: **if font size becomes animatable (spec §8's hole) or
+    /// `fonts` is ever swept, move both into ``endFrame()``'s sweep as
+    /// `Entry`-wrapped dictionaries**, and rewrite `Text.requestLayout`'s
+    /// guard argument, which relies on `fonts` never losing an entry.
+    private var resolvedFonts: [FontRequest: ResolvedFont] = [:]
+
+    /// Entry count for the font memo, for tests.
+    var resolvedFontCount: Int { resolvedFonts.count }
+
+    /// ``FontResolver/resolve(family:size:)``, memoized per request.
+    ///
+    /// **This is the per-frame entry point, and `FontResolver` is not.**
+    /// `Text` resolves its font in `requestLayout` and again in `paint`;
+    /// uncached, that is two `CTFont` creations per `Text` per frame, and
+    /// CoreText does not memoize them. The memo lives here rather than on
+    /// `FontResolver` because this type is already `@MainActor` and
+    /// window-owned, and reachable from both phases as `pass.shapingCache`;
+    /// making `FontResolver` `@MainActor` instead would isolate every
+    /// nonisolated test that calls it. Pinned by
+    /// `aWarmFrameReachesTheUncachedFontResolverZeroTimes` (a warm frame makes
+    /// zero resolver calls, a cold one exactly one per distinct request) and
+    /// `everyComponentOfTheFontRequestDiscriminates`.
+    ///
+    /// The lookup does not re-stamp or register anything: see `resolvedFonts`
+    /// for why it is not swept, and `Text.requestLayout` for the one caller
+    /// that also needs ``registerFont(_:)``.
+    public func resolveFont(family: String?, size: Double) -> ResolvedFont {
+        let request = FontRequest(family: family, size: size)
+        if let font = resolvedFonts[request] { return font }
+        let font = FontResolver.resolve(family: family, size: size)
+        resolvedFonts[request] = font
+        return font
+    }
+
     /// Shapes `string` in `font` at `width`, consulting the cache first.
     ///
     /// Registers `font` under its key as a side effect (see

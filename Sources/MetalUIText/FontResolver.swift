@@ -74,7 +74,42 @@ public enum FontResolver {
     ///    size, so ``FontKey``'s identity would rest on ``FontKey/matrix``
     ///    instead of ``FontKey/size``, which every cache keyed on a `FontKey`
     ///    would feel. It belongs to the milestone that needs it.
+    ///
+    /// ## `size` must be finite and positive, and this traps otherwise
+    ///
+    /// **CoreText does not reject a bad size, and this is where one would
+    /// otherwise enter every cache in the framework.** Measured on this OS with
+    /// `CTFontCreateWithName("Menlo", …)` and the system-font call below:
+    ///
+    /// | size | named family | `family: nil` |
+    /// |---|---|---|
+    /// | NaN | `CTFontGetSize` is NaN | 12pt |
+    /// | +inf | size and ascent infinite | size and ascent infinite |
+    /// | 0 | 12pt | 13pt |
+    /// | -5, -inf | 12pt | 12pt |
+    ///
+    /// The NaN/named cell is the one that aborted a process: ``FontKey``'s
+    /// synthesized `==` compares `size` by IEEE equality, so the key was
+    /// unequal to itself and `Text.requestLayout`'s measure closure could not
+    /// find the font it had just registered. Every other cell draws at a size
+    /// nobody asked for, or with infinite metrics, and says nothing. Both
+    /// production callers — `Text`'s layout and paint phases, through
+    /// ``ShapingCache/resolveFont(family:size:)`` — reach this function, so
+    /// the precondition sits here rather than on either of them. A tiny
+    /// positive size (1e-300 was probed) is admitted and resolves to a font
+    /// with vanishing metrics: degenerate, but finite and self-equal.
+    ///
+    /// **Uncached.** Each call creates a `CTFont`; CoreText does not memoize
+    /// `CTFontCreateUIFontForLanguage`. Per-frame callers go through
+    /// ``ShapingCache/resolveFont(family:size:)``, which does.
     public static func resolve(family: String?, size: Double) -> ResolvedFont {
+        // Counted only for a caller that bound a counter; see `resolveCallCounter`.
+        Self.resolveCallCounter?.bump()
+        precondition(size.isFinite && size > 0, """
+            FontResolver.resolve(family:size:) needs a finite, positive point size; \
+            got \(size). CoreText would not reject it: it substitutes 12 or 13pt, \
+            or keeps a NaN or infinite size, and a NaN makes FontKey unequal to itself.
+            """)
         let font: CTFont
         if let family {
             font = CTFontCreateWithName(family as CFString, CGFloat(size), nil)
@@ -90,4 +125,26 @@ public enum FontResolver {
         }
         return ResolvedFont(ctFont: font)
     }
+
+    /// Counts calls to ``resolve(family:size:)`` made while the calling task
+    /// has a ``CallCounter`` bound to ``resolveCallCounter`` — the same
+    /// instrument, for the same reasons, as `Shaper.RunCallCounter`: a
+    /// `@TaskLocal` rather than a static, because this function is called from
+    /// nonisolated tests the runner schedules concurrently, and a shared
+    /// counter would describe two callers instead of one. See that type's doc
+    /// comment for the race that forced the shape.
+    final class CallCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var n = 0
+        func bump() { lock.lock(); defer { lock.unlock() }; n += 1 }
+        /// The number of ``FontResolver/resolve(family:size:)`` calls made
+        /// while this instance was bound to ``FontResolver/resolveCallCounter``.
+        var count: Int { lock.lock(); defer { lock.unlock() }; return n }
+        init() {}
+    }
+
+    /// `nil` in production, where nothing binds it. **`internal`, a test
+    /// instrument and not API**: both test targets that read it import
+    /// `MetalUIText` with `@testable`.
+    @TaskLocal static var resolveCallCounter: CallCounter?
 }

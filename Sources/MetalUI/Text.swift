@@ -130,10 +130,16 @@ public struct Text: Element, StyledElement {
     /// model every other element follows.
     public var string: String
 
-    /// `nil` means the platform UI font. Resolution happens in `requestLayout`,
-    /// through `FontResolver`, which substitutes rather than failing — see
-    /// `FontKey` for why nothing may be keyed on this name.
+    /// `nil` means the platform UI font. Resolution happens in `requestLayout`
+    /// and again in `paint`, both through the window's
+    /// `ShapingCache.resolveFont(family:size:)`, which memoizes `FontResolver`
+    /// — and `FontResolver` substitutes rather than failing, so see `FontKey`
+    /// for why nothing downstream may be keyed on this name.
     public var fontFamily: String?
+    /// **Must be finite and positive.** Not checked here — this is a settable
+    /// property — but `FontResolver.resolve(family:size:)` traps on anything
+    /// else the first frame this `Text` is laid out, because CoreText would
+    /// otherwise substitute 12 or 13pt or keep a NaN.
     public var fontSize: Double
 
     /// The colour the glyphs are tinted with. `nil` means
@@ -175,7 +181,10 @@ public struct Text: Element, StyledElement {
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
         let cache = pass.shapingCache
-        let font = FontResolver.resolve(family: fontFamily, size: fontSize)
+        // Memoized per `(family, size)` request on the window's cache — see
+        // `ShapingCache.resolveFont(family:size:)`. `paint` below asks the same
+        // question and gets the same `ResolvedFont` back.
+        let font = cache.resolveFont(family: fontFamily, size: fontSize)
         // Registered here, on the main actor, so that the `@Sendable` closure
         // below can reach the font by its `Sendable` key instead of capturing
         // the font itself — see the capture list note below.
@@ -215,22 +224,40 @@ public struct Text: Element, StyledElement {
         // built.
         let node = pass.requestLeaf(style: style) { known, available in
             MainActor.assumeIsolated {
-                // **Cannot fire: same instance, and the cache has no removal
-                // path.** `registerFont` ran on this exact `ShapingCache`
-                // object four lines above (the closure captures the object, not
-                // a copy), and `ShapingCache` exposes no eviction, no clear and
-                // no re-key — `fonts` is only ever written by `registerFont`.
-                // A miss would therefore mean the closure is holding a
-                // different cache than the one that registered, which no call
-                // path can produce. It traps rather than substituting a zero
-                // size, because a text run silently measuring 0x0 is precisely
-                // the invisible failure this milestone has no test for.
+                // **A hit here rests on three things, and this comment once
+                // named two of them and called the guard unable to fire.**
+                //
+                // 1. Same instance: `registerFont` ran on this exact
+                //    `ShapingCache` object above, and the closure captures the
+                //    object, not a copy.
+                // 2. No removal: `fonts` is written only by `registerFont`, and
+                //    `endFrame()` sweeps `storage` and `minContent`, not it.
+                // 3. **`key == key`.** `FontKey`'s `==` is synthesized, so it
+                //    compares `size` by IEEE equality. Both halves above held
+                //    for `Text("x").font(family: "Menlo", size: .nan)`, and
+                //    this still missed: `CTFontCreateWithName` keeps a NaN
+                //    point size, the key was unequal to itself, and the process
+                //    died here with a message blaming cache identity.
+                //
+                // The third now holds by precondition upstream:
+                // `FontResolver.resolve` traps on a size that is not finite
+                // and positive, naming the size, before any key exists. The
+                // key's other components come from CoreText; at 13pt and
+                // 1e-300pt on both resolver paths they were probed finite
+                // (identity matrix, no NaN variation coordinate), which is a
+                // measurement of those sizes, not a proof for all of them.
+                //
+                // A miss traps rather than substituting a zero size, because a
+                // text run silently measuring 0x0 is the invisible failure
+                // nothing else here would report.
                 guard let font = cache.font(for: key) else {
                     preconditionFailure("""
                         No font registered for \(key) on the shaping cache this \
                         measure function captured. Text.requestLayout registers \
                         the font on that same instance before building the \
-                        closure, and ShapingCache never removes one.
+                        closure and ShapingCache never removes one, so either \
+                        the key is not equal to itself (a NaN component) or the \
+                        closure holds a different cache.
                         """)
                 }
                 return textMeasure(string, font: font, cache: cache,
@@ -302,7 +329,9 @@ public struct Text: Element, StyledElement {
                       cornerRadii: Corners(all: decoration.cornerRadius))
         }
 
-        let font = FontResolver.resolve(family: fontFamily, size: fontSize)
+        // The same memoized request `requestLayout` made — a dictionary hit,
+        // not a second `CTFont` creation.
+        let font = pass.shapingCache.resolveFont(family: fontFamily, size: fontSize)
         // **The width layout MEASURED at, not the rounded box it stored** —
         // the fix for what CLAUDE.md carried as divergence 8, and the reason
         // this reads `pass.measuredWidth(of:)` rather than `bounds`.
