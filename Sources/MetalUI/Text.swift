@@ -242,7 +242,9 @@ public struct Text: Element, StyledElement {
                 //    `ShapingCache` object above, and the closure captures the
                 //    object, not a copy.
                 // 2. No removal: `fonts` is written only by `registerFont`, and
-                //    `endFrame()` sweeps `storage` and `minContent`, not it.
+                //    `endFrame()` sweeps `storage` and `minContent`, not it —
+                //    deliberately; `ShapingCache.fonts` says why, and that
+                //    sweeping it means rewriting this argument.
                 // 3. **`key == key`.** `FontKey`'s `==` is synthesized, so it
                 //    compares `size` by IEEE equality. Both halves above held
                 //    for `Text("x").font(family: "Menlo", size: .nan)`, and
@@ -261,6 +263,14 @@ public struct Text: Element, StyledElement {
                 // A miss traps rather than substituting a zero size, because a
                 // text run silently measuring 0x0 is the invisible failure
                 // nothing else here would report.
+                //
+                // **A hit is the font last registered under `key`, which is
+                // this `Text`'s own only when no other request shares the key.**
+                // `FontKey` does not identify shaping behaviour: a 13pt `Text`
+                // with no family and one declared `.font(family: "System
+                // Font", size: 13)` share a key and shape non-Latin text
+                // differently, and one shape serves both — see
+                // `ShapingCache.fonts`.
                 guard let font = cache.font(for: key) else {
                     preconditionFailure("""
                         No font registered for \(key) on the shaping cache this \
