@@ -25,9 +25,20 @@ private let smallestWrapWidth = 0.5
 ///
 /// | `available.width` | wrapped at | width reported |
 /// |---|---|---|
-/// | `.maxContent` | nothing — one line | the line's advance |
+/// | `.maxContent` | nothing — one line per hard line break | the widest line |
 /// | `.minContent` | the widest unbreakable run | that run's width |
 /// | `.definite(w)` | `max(w, smallestWrapWidth)` | the widest resulting line |
+///
+/// **The max-content row said "one line" until it was measured wrong.** The
+/// unwrapped shape was a single `CTLine` for the whole string, so a label with
+/// a hard break (`"Ready\nSet\nGo"`) reported the **sum** of its lines — 75.004
+/// where every definite width at or above 37.565 reported 37.565 — and a
+/// centring `Column` placed its box on that width while `paint`, which re-wraps
+/// at the measured width and lays each line from the box's left edge, drew the
+/// ink about 19pt left of centre. The shaper now breaks at hard breaks with no
+/// width offered (see `Shaper.shape(_:font:wrappingAt:)`), so the row now
+/// gives the answer every definite width at or above the widest line gives.
+/// Pinned by `aLabelWithHardBreaksMeasuresItsWidestLineAtMaxContent`.
 ///
 /// The min-content row is the one the design spec words differently — it says
 /// "typeset at a small positive width; the widest resulting line". Measured,
