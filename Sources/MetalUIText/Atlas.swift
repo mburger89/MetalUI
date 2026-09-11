@@ -111,14 +111,26 @@ public final class GlyphAtlas {
     /// `replaceRegion` call.
     public private(set) var dirtyRect: (x: Int, y: Int, width: Int, height: Int)?
 
-    private var placed: [GlyphKey: PackedGlyph] = [:]
+    /// One placed glyph and the generation it was last handed back in.
+    ///
+    /// **The generation lives beside the glyph, in the one dictionary, rather
+    /// than in a second dictionary keyed on the same `GlyphKey`.** A cache hit
+    /// is the per-glyph, per-frame path — every glyph of every visible `Text`
+    /// on every built frame — and a second dictionary cost it a second full
+    /// hash of a `String`-bearing key, only so that ``evictUnusedSince(_:)``,
+    /// which has no production caller, could read it. This is a private
+    /// wrapper rather than a field on ``PackedGlyph`` or ``AtlasSlot`` because
+    /// both of those are public and compared in tests against packer geometry
+    /// and bearings alone.
+    private struct Placement {
+        let glyph: PackedGlyph
+        var generation: Int
+    }
 
-    /// The generation each key was last handed back in, by ``packed(for:rasterize:)``.
-    /// ``evictUnusedSince(_:)`` reads this and this alone to decide what to drop —
-    /// kept as a separate dictionary rather than folded into ``AtlasSlot`` because
-    /// that type is public and its equality is compared in tests against packer
-    /// geometry alone.
-    private var lastUsedGeneration: [GlyphKey: Int] = [:]
+    /// ``evictUnusedSince(_:)`` reads ``Placement/generation`` and nothing
+    /// else to decide what to drop. Pinned structurally by
+    /// `theGenerationLivesInTheOneDictionaryThatHoldsTheGlyph`.
+    private var placed: [GlyphKey: Placement] = [:]
 
     /// True for the duration of one frame's scene construction — the same shape
     /// as `LayoutTree.isLayingOut`. ``evictUnusedSince(_:)`` traps while this is
@@ -130,11 +142,11 @@ public final class GlyphAtlas {
     public private(set) var isBuildingFrame = false
 
     /// Advances by one on every ``beginFrame()``, starting at 1 for the first
-    /// frame. 0 is deliberately never a live generation, so a slot that has
-    /// never been touched by ``packed(for:rasterize:)`` (absent from
-    /// ``lastUsedGeneration``, defaulting to 0) is indistinguishable from one
-    /// stamped before the atlas's first frame — both are "older than anything
-    /// eviction would keep."
+    /// frame. 0 is deliberately never a live generation: a glyph packed before
+    /// the atlas's first ``beginFrame()`` is stamped 0, which is older than any
+    /// generation ``evictUnusedSince(_:)`` is handed once a frame has run. There
+    /// is no "never stamped" state to reason about — every entry in `placed`
+    /// carries its generation from the moment it is inserted.
     public private(set) var currentGeneration = 0
 
     /// The shelf packer's whole state. `shelfY` is the current shelf's top,
@@ -179,9 +191,14 @@ public final class GlyphAtlas {
     /// eviction is meant to relieve, so a key refused today must be free to
     /// succeed tomorrow.
     public func packed(for key: GlyphKey, rasterize: () -> GlyphImage) -> PackedGlyph? {
-        if let existing = placed[key] {
-            lastUsedGeneration[key] = currentGeneration
-            return existing
+        // `index(forKey:)` plus an in-place `values[idx]` edit, the pattern
+        // `ShapingCache.shaped(_:font:wrappingAt:)` documents: it hashes the key
+        // once, and `values[idx]` addresses the bucket directly for both the
+        // re-stamp and the read. A `placed[key]` read followed by a
+        // `placed[key] = …` write would hash it twice.
+        if let idx = placed.index(forKey: key) {
+            placed.values[idx].generation = currentGeneration
+            return placed.values[idx].glyph
         }
 
         let image = rasterize()
@@ -193,16 +210,14 @@ public final class GlyphAtlas {
         guard !image.isEmpty else {
             let empty = PackedGlyph(slot: AtlasSlot(x: 0, y: 0, width: 0, height: 0),
                                     left: 0, top: 0)
-            placed[key] = empty
-            lastUsedGeneration[key] = currentGeneration
+            placed[key] = Placement(glyph: empty, generation: currentGeneration)
             return empty
         }
 
         guard let slot = place(width: image.width, height: image.height) else { return nil }
         blit(image, into: slot)
         let entry = PackedGlyph(slot: slot, left: image.left, top: image.top)
-        placed[key] = entry
-        lastUsedGeneration[key] = currentGeneration
+        placed[key] = Placement(glyph: entry, generation: currentGeneration)
         return entry
     }
 
@@ -247,10 +262,9 @@ public final class GlyphAtlas {
     public func evictUnusedSince(_ generation: Int) {
         precondition(!isBuildingFrame,
                      "evictUnusedSince called while a frame is being built — the frame in flight may still hold an AtlasSlot for the entry this would evict")
-        for (key, used) in lastUsedGeneration where used < generation {
-            placed.removeValue(forKey: key)
-            lastUsedGeneration.removeValue(forKey: key)
-        }
+        // A whole-dictionary rebuild rather than removals inside a loop over
+        // `placed`: nothing is mutated while it is being iterated.
+        placed = placed.filter { $0.value.generation >= generation }
     }
 
     /// Forgets the dirty region, after a consumer has uploaded it.

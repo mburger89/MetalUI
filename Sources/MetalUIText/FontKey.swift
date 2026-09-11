@@ -67,19 +67,97 @@ public struct FontKey: Hashable, Sendable {
     public let variations: [VariationCoordinate]
     public let matrix: Matrix
 
+    /// The four components above, hashed once, at the only initialiser.
+    ///
+    /// **Why it is stored.** A `GlyphKey` is hashed for every glyph of every
+    /// visible `Text` on every built frame, and it hashes this key; a
+    /// synthesized `hash(into:)` would walk the PostScript name, the variation
+    /// array and the six matrix `Double`s each time. The components are fixed
+    /// by ``init(resolved:)``, so this cannot fall out of step with them.
+    ///
+    /// **A fast reject for `==`, never a proof of equality** — the same
+    /// contract as `GlobalElementID.cachedHash`, and see `==` for why it is a
+    /// combination to keep. `Hasher` is seeded per process, so the value is
+    /// meaningful within one run only; nothing persists it.
+    ///
+    /// Internal rather than private so that
+    /// `aForgedHashCollisionIsSettledByTheComponents` can take its offset.
+    let precomputedHash: Int
+
     /// Reads the identity **out of** a resolved `CTFont`.
     public init(resolved font: CTFont) {
-        self.postScriptName = CTFontCopyPostScriptName(font) as String
-        self.size = Double(CTFontGetSize(font))
+        let postScriptName = CTFontCopyPostScriptName(font) as String
+        let size = Double(CTFontGetSize(font))
 
         let coordinates = (CTFontCopyVariation(font) as? [NSNumber: NSNumber]) ?? [:]
-        self.variations = coordinates
+        let variations = coordinates
             .map { VariationCoordinate(axis: $0.key.intValue, value: $0.value.doubleValue) }
             .sorted { $0.axis < $1.axis }
 
         let m = CTFontGetMatrix(font)
-        self.matrix = Matrix(a: Double(m.a), b: Double(m.b), c: Double(m.c),
-                             d: Double(m.d), tx: Double(m.tx), ty: Double(m.ty))
+        let matrix = Matrix(a: Double(m.a), b: Double(m.b), c: Double(m.c),
+                            d: Double(m.d), tx: Double(m.tx), ty: Double(m.ty))
+
+        var hasher = Hasher()
+        hasher.combine(postScriptName)
+        hasher.combine(size)
+        hasher.combine(variations)
+        hasher.combine(matrix)
+
+        self.postScriptName = postScriptName
+        self.size = size
+        self.variations = variations
+        self.matrix = matrix
+        self.precomputedHash = hasher.finalize()
+    }
+
+    /// **All four components decide; ``precomputedHash`` only rejects early.**
+    ///
+    /// Keys that are equal component by component hashed the same values in
+    /// the same order, so they agree on the hash and the early reject never
+    /// refuses an equal pair. The converse does not hold: two different keys
+    /// can collide, and then only the component comparison gives the right
+    /// answer.
+    ///
+    /// **Safe alone and unsafe together**, as with `GlobalElementID`: an `==`
+    /// that answered with the hash alone, or that skipped any one component, is
+    /// wrong only on a collision. Measured, whole suite: each of those five
+    /// spellings reddened `aForgedHashCollisionIsSettledByTheComponents` and no
+    /// other test — the keys every other test compares already hash
+    /// differently, so the early reject gives the right answer for the wrong
+    /// reason. That test can see it because it writes a collision into a key
+    /// instead of searching for one. A hash that dropped a component is the
+    /// other half, a silent performance defect that
+    /// `theFontKeyHashItselfDistinguishesEveryComponent` pins.
+    ///
+    /// **To force collisions under mutation, make the STORED hash constant**
+    /// (`self.precomputedHash = 0`), not `hash(into:)`. This `==` reads
+    /// ``precomputedHash`` directly, so a constant `hash(into:)` leaves the early
+    /// reject fully working and proves nothing about the component comparison —
+    /// measured: it left dropping `variations` or `matrix` from this body
+    /// invisible to `everyComponentOfTheFontKeyDiscriminates`. With the stored
+    /// hash constant, that test and `everyComponentOfTheGlyphKeyDiscriminates`
+    /// both pass on the component comparison alone. Then dropping `variations`
+    /// or `matrix` here reddens `everyComponentOfTheFontKeyDiscriminates`,
+    /// dropping `size` reddens `theKeyDistinguishesSizes`, and answering with the
+    /// hash alone reddens both discrimination tests. The `GlyphKey` test's two
+    /// fonts differ in size and `opsz` at once, so no single dropped component
+    /// reaches it.
+    ///
+    /// The comparison is **IEEE on `size`** exactly as the synthesized one was,
+    /// so a NaN size is still unequal to itself.
+    public static func == (lhs: FontKey, rhs: FontKey) -> Bool {
+        lhs.precomputedHash == rhs.precomputedHash
+            && lhs.size == rhs.size
+            && lhs.matrix == rhs.matrix
+            && lhs.postScriptName == rhs.postScriptName
+            && lhs.variations == rhs.variations
+    }
+
+    /// Feeds ``precomputedHash`` alone. Pinned by
+    /// `aFontKeyHashesOnlyItsPrecomputedHash`.
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(precomputedHash)
     }
 }
 
