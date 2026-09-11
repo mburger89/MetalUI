@@ -146,6 +146,12 @@ final class LayoutContext {
     /// Cache observability. **Test-only in intent and the only way to see that
     /// the cache is a cache** — a `storeMeasure` that never stores leaves every
     /// behavioural test green. Pinned by `theCacheIsActuallyConsulted`.
+    ///
+    /// **A node with no children and no measure function counts as neither.**
+    /// `measureNode` answers it in closed form without building a key. So
+    /// `misses` counts real measurements: containers with children, and
+    /// measure-function leaves.
+    /// `aChildlessNodeWithNoMeasureFunctionIsNeverACacheMiss` uses exactly that.
     private(set) var hits = 0
     private(set) var misses = 0
 

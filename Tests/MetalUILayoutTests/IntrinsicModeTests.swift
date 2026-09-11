@@ -63,15 +63,18 @@ import MetalUICore
 /// main axis twice and the cross axis not at all.
 ///
 /// **`min-height: 0` is load-bearing, not tidiness.** Without it, CSS Sizing
-/// §4.5's automatic minimum probes the same leaf with a hardcoded
-/// `width: .maxContent` (see `collectItems`), gets 77 back, and clamps the
-/// 33 up to 77 — hiding the effect completely. That confounded the first
-/// probe written for this.
+/// §4.5's automatic minimum probes the same leaf at `width: .maxContent`, gets
+/// 77 back, and clamps the 33 up to 77 — hiding the effect completely. That
+/// confounded the first probe written for this. The probe is max-content here
+/// because this column has no definite width: with one, `collectItems` offers
+/// the item's used width instead (`sizing_column_content_suggestion`), but the
+/// fallback for an indefinite cross extent is still max-content.
 @Test func theCrossAxisOfTheQueryReachesTheChildToo() {
     let tree = LayoutTree(generation: 0)
     var kid = Style()
     // Disable §4.5's automatic minimum, whose own probe is max-content in the
-    // cross axis and would clamp the min-content answer back up.
+    // cross axis when the column has no width, and would clamp the
+    // min-content answer back up.
     kid.minSize = Size(width: .auto, height: .length(.pixels(Pixels(0))))
     let leaf = tree.newLeaf(style: kid) { _, available in
         if case .minContent = available.width { return SizeD(width: 10, height: 33) }

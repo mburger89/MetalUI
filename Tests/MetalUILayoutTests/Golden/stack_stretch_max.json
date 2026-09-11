@@ -1,0 +1,67 @@
+{
+  "fixture" : "stack_stretch_max",
+  "raw" : [
+    {
+      "height" : 200,
+      "id" : "root",
+      "width" : 300,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 50,
+      "id" : "h",
+      "width" : 300,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 200,
+      "id" : "w",
+      "width" : 40,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "p",
+      "width" : 60,
+      "x" : 0,
+      "y" : 0
+    }
+  ],
+  "rounded" : [
+    {
+      "height" : 200,
+      "id" : "root",
+      "width" : 300,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 50,
+      "id" : "h",
+      "width" : 300,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 200,
+      "id" : "w",
+      "width" : 40,
+      "x" : 0,
+      "y" : 0
+    },
+    {
+      "height" : 20,
+      "id" : "p",
+      "width" : 60,
+      "x" : 0,
+      "y" : 0
+    }
+  ],
+  "viewport" : [
+    800,
+    600
+  ]
+}

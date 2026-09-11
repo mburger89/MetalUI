@@ -294,8 +294,9 @@ private func inset(_ t: Double?, _ r: Double?, _ b: Double?, _ l: Double?) -> Ed
 /// **The 0×0 sizing bug, pinned directly.** Task 3's `placeAbsolute` sized
 /// every absolute child by calling `measureNode(known: .unspecified, …)`
 /// unconditionally, which for a childless node with no `MeasureFunction`
-/// falls into the container branch and returns `contentSize + edges` — zero
-/// for an empty container, never consulting `Style.size`. All insets stay
+/// fell into the container branch and returned `contentSize + edges` — zero
+/// for an empty container, never consulting `Style.size`. (`measureNode` now
+/// answers such a node in closed form, with the same edges.) All insets stay
 /// `.auto` here, so this isolates the sizing bug from the (already-tested)
 /// inset arithmetic: with no insets to stretch or position from, the ONLY
 /// source the resolved size can come from is the declared `Style.size`.

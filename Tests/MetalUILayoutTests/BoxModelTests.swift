@@ -1309,3 +1309,136 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
     #expect(tree.layout(kid).x == 40)
     #expect(tree.layout(kid).y == 40)
 }
+
+// MARK: - §4.5's max clamp on the automatic minimum, and the floor after it
+
+/// The floor applied after §4.5's max clamp is the **main** axis's padding and
+/// border — in a column, the vertical edges — with a percentage among them
+/// resolved against the containing block's **width**.
+///
+/// A 400x600 column holding `.a { display: flex; max-height: 50px;
+/// padding: 10% 0 }` around a 20x200 `flex: none` child, then a 50x20 `.b`.
+/// 10% of the 400 width is 40 per edge, so the content suggestion is 280,
+/// clamped to 50, floored at 80: **80**, `.b` at y = 80. Measured through the
+/// WebKit oracle with a throwaway probe using the corpus preamble: `.a` 400x80,
+/// the child at y = 40, `.b` at y = 80.
+///
+/// Each wrong reading lands somewhere else, and the column is not square so two
+/// of them cannot coincide:
+/// - no floor, or the floor read off the cross axis (horizontal padding is 0): 50
+/// - the percentage resolved against the column's 600 height: 120
+/// - no clamp (the engine before this change): 280
+@Test func aColumnsClampedAutomaticMinimumIsFlooredByItsVerticalPadding() {
+    let tree = LayoutTree(generation: 0)
+    var gStyle = Style()
+    gStyle.size = Size(width: px(20), height: px(200))
+    gStyle.flexGrow = 0
+    gStyle.flexShrink = 0
+    let g = tree.newNode(style: gStyle, children: [])
+
+    var aStyle = Style()
+    aStyle.flexDirection = .row
+    aStyle.maxSize = Size(width: .auto, height: px(50))
+    aStyle.padding = Edges(top: pctL(0.10), right: pxL(0), bottom: pctL(0.10), left: pxL(0))
+    let a = tree.newNode(style: aStyle, children: [g])
+
+    var bStyle = Style()
+    bStyle.size = Size(width: px(50), height: px(20))
+    let b = tree.newNode(style: bStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .column
+    rootStyle.size = Size(width: px(400), height: px(600))
+    let root = tree.newNode(style: rootStyle, children: [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a) == LayoutRect(x: 0, y: 0, width: 400, height: 80))
+    #expect(tree.layout(g).y == 40)
+    #expect(tree.layout(b).y == 80)
+}
+
+/// A measured leaf's content size suggestion is clamped by its max main size
+/// too — the case reachable from `Text` through `.maxWidth(_:)`.
+///
+/// A leaf measuring 150 at min-content and 300 at max-content, with
+/// `max-width: 100px`, in a 400 row: base 300, automatic minimum
+/// `min(150, 100)` = **100**, so the leaf is 100 wide and its sibling sits at
+/// x = 100. Before the clamp the floor of 150 beat the max and the leaf was 150.
+///
+/// The oracle is the arithmetic, not a fixture — the corpus has no text fixture
+/// and must not gain one (ruling TX-B). The browser shape was measured through a
+/// throwaway probe: a `max-width: 100px` flex item holding a 240-wide unbreakable
+/// word is 100 wide in WebKit.
+@Test func aMeasuredLeafsContentSizeSuggestionIsClampedByItsMaxWidth() {
+    let tree = LayoutTree(generation: 0)
+    var s = Style()
+    s.size = Size(width: .auto, height: px(20))
+    s.maxSize = Size(width: px(100), height: .auto)
+    let leaf = tree.newLeaf(style: s) { _, available in
+        if case .minContent = available.width { return SizeD(width: 150, height: 20) }
+        return SizeD(width: 300, height: 20)
+    }
+    var bStyle = Style()
+    bStyle.size = Size(width: px(50), height: px(20))
+    let b = tree.newNode(style: bStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .row
+    rootStyle.size = Size(width: px(400), height: px(60))
+    let root = tree.newNode(style: rootStyle, children: [leaf, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(leaf).width == 100)
+    #expect(tree.layout(b).x == 100)
+}
+
+/// The floor after §4.5's max clamp is the padding and border the suggestion
+/// was measured **with**, and a content-sized measured leaf's measurement has
+/// none: `measureNode` returns its `MeasureFunction` answer unchanged (record
+/// §05's leaf-padding row). So the clamp must not lift a padded leaf onto its
+/// inert padding.
+///
+/// Two leaves measuring 150 at min-content and 300 at max-content, each
+/// `max-width: 50px`, one with `padding: 0 40px`. The unpadded control is
+/// hand-computed: `min(150, 50)` = **50**. The padded leaf must equal it.
+/// Flooring every item at `borderBoxFloor` — the fix as first written up —
+/// gives the padded leaf `max(50, 80)` = 80, a live effect for a modifier the
+/// leaf otherwise ignores. The oracle is the control, not the browser, for the
+/// same reason as `aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`.
+@Test func aClampedMeasuredLeafIsNotFlooredByItsInertPadding() {
+    func width(padding: Double) -> (leaf: Double, bx: Double) {
+        let tree = LayoutTree(generation: 0)
+        var s = Style()
+        s.size = Size(width: .auto, height: px(20))
+        s.maxSize = Size(width: px(50), height: .auto)
+        s.padding = Edges(top: pxL(0), right: pxL(padding), bottom: pxL(0), left: pxL(padding))
+        let leaf = tree.newLeaf(style: s) { _, available in
+            if case .minContent = available.width { return SizeD(width: 150, height: 20) }
+            return SizeD(width: 300, height: 20)
+        }
+        var bStyle = Style()
+        bStyle.size = Size(width: px(50), height: px(20))
+        let b = tree.newNode(style: bStyle, children: [])
+
+        var rootStyle = Style()
+        rootStyle.flexDirection = .row
+        rootStyle.size = Size(width: px(400), height: px(60))
+        let root = tree.newNode(style: rootStyle, children: [leaf, b])
+
+        computeLayout(tree, root: root,
+                      available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+        return (tree.layout(leaf).width, tree.layout(b).x)
+    }
+
+    let control = width(padding: 0)
+    let padded = width(padding: 40)
+
+    #expect(control.leaf == 50)
+    #expect(control.bx == 50)
+    #expect(padded.leaf == control.leaf)
+    #expect(padded.bx == control.bx)
+}

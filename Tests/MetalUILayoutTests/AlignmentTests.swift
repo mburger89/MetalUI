@@ -20,7 +20,7 @@ private func fixedChild(_ tree: LayoutTree, w: Double, h: Double) -> LayoutNodeI
 @Test func lineContentSizeCountsGapsBetweenItemsOnly() {
     let tree = LayoutTree(generation: 0)
     let items = (0..<3).map { _ in
-        FlexItem(node: fixedChild(tree, w: 50, h: 10), baseSize: 50,
+        FlexItem(node: fixedChild(tree, w: 50, h: 10), baseSize: 50, mainEdges: 0,
                  hypotheticalMainSize: 50, minMain: nil, maxMain: nil,
                  targetMainSize: 50, crossSize: 10,
                  stretchEligible: false, minCross: nil, maxCross: nil, frozen: true,
