@@ -112,6 +112,14 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         // Before the children, so a child's click target ranks above this one
         // — see `Box.prepaint`, whose body this mirrors line for line.
+        //
+        // **That "line for line" was false until the AX gate moved.**
+        // `Box.prepaint` also called `emitAXNode` behind
+        // `!handlers.axNode.isEmpty`, and this body did not, so a node declared
+        // on a `Stack` was dropped silently. The gate now lives inside
+        // `Frame.registerHandlers`, so the one line below is the whole of it on
+        // both types. `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`
+        // (`AXEmitSiteTests.swift`) has a `stack` arm.
         pass.registerHandlers(handlers, at: bounds, id: id)
         // `bounds` is this stack's own rect and is deliberately not passed
         // down: the engine stores rects **absolute to the root**, so each
@@ -126,8 +134,9 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
         // Own background first, then children, so a background never paints
         // over a child — see `Box.paint`'s comment for why emission order is
         // paint order.
-        // Through `animatedColor`, exactly as `Box.paint` does — see that
-        // call site and `AnimatedColor.swift`'s top doc.
+        // Through `animatedBackground`, exactly as `Box.paint` and
+        // `Text.paint` do — see that helper and `AnimatedColor.swift`'s top
+        // doc.
         //
         // **Wired by Task 5 rather than by Task 4b, which introduced the
         // helper and deliberately scoped itself to `Box`.** That exclusion was
@@ -140,11 +149,19 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
         // own named hazard in its colour form, and CLAUDE.md's inert-table
         // shape.
         //
-        // There is no `??` chain here because `Stack` paints
-        // `decoration.background` alone: it registers no hitbox of its own for
-        // `isHovered`/`isFocused` to key on, so `hoverBackground` and
-        // `focusBackground` on a `Stack` are inert with or without this.
-        if let color = animatedColor(decoration.background, for: id, pass: &pass) {
+        // **The hover/focus chain applies here exactly as on `Box`, and this
+        // comment used to say it could not.** It read: a `Stack` "registers no
+        // hitbox of its own for `isHovered`/`isFocused` to key on", so the two
+        // modifiers were inert on one either way. Both halves were false.
+        // `prepaint` above calls `registerHandlers`, so an `onClick` stack has
+        // its own hitbox (the `stack` arm of
+        // `onClickIsLiveOnEveryConformerThatCanRegisterOne` pins it), and
+        // `PaintPass.isFocused` reads `Frame.focusedElement`, not a hitbox. What
+        // shipped was `hoverBackground(_:)`/`focusBackground(_:)` compiling on
+        // `Stack` through `extension StyledElement` and painting the plain
+        // background. `everyBackgroundPaintingSiteHonoursHoverAndFocus`
+        // (`BackgroundChainTests.swift`) is now the per-site pin.
+        if let color = animatedBackground(decoration, for: id, pass: &pass) {
             pass.fill(bounds, color: color,
                       cornerRadii: Corners(all: decoration.cornerRadius))
         }

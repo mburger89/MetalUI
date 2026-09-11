@@ -33,6 +33,33 @@ private var font: ResolvedFont { FontResolver.resolve(family: nil, size: 13) }
     #expect(cache.misses == 2)
 }
 
+/// `ShapingCache.resolveFont`'s memo key must carry both halves of a request.
+/// A key that dropped `size` would hand 13pt's font to a 26pt request; one that
+/// dropped `family` would hand the system font to a `"Menlo"` request. The
+/// frame-level count test cannot see either — its rows all ask for one request.
+///
+/// The expected keys come from the **uncached** resolver, not from the memo,
+/// and the three requests are required to resolve to three different fonts
+/// first, so a memo returning one arm's font for another's request disagrees.
+@MainActor
+@Test func everyComponentOfTheFontRequestDiscriminates() {
+    let cache = ShapingCache()
+    let system13 = cache.resolveFont(family: nil, size: 13).key
+    let system26 = cache.resolveFont(family: nil, size: 26).key
+    let menlo13 = cache.resolveFont(family: "Menlo", size: 13).key
+
+    let oracle13 = FontResolver.resolve(family: nil, size: 13).key
+    let oracle26 = FontResolver.resolve(family: nil, size: 26).key
+    let oracleMenlo = FontResolver.resolve(family: "Menlo", size: 13).key
+    #expect(oracle13 != oracle26)
+    #expect(oracle13 != oracleMenlo)
+
+    #expect(system13 == oracle13)
+    #expect(system26 == oracle26)
+    #expect(menlo13 == oracleMenlo)
+    #expect(cache.resolvedFontCount == 3)
+}
+
 @MainActor
 @Test func twoFontSizesDoNotShareOneEntry() {
     let cache = ShapingCache()
