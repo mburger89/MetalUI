@@ -282,6 +282,13 @@ public struct Text: Element, StyledElement {
     /// called. A `Text` with no handler registers nothing, exactly as a `Box`
     /// with none does; `prepaint` was empty before this and is still empty for
     /// every `Text` in the demo.
+    ///
+    /// The same call registers focus and emits a declared `handlers.axNode`
+    /// (`Frame.registerHandlers` holds all three gates). **The AX half used to
+    /// be missing here**: only `Box.prepaint` emitted, so a node declared on a
+    /// `Text` was dropped silently. The `text` arm of
+    /// `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` pins it.
+    /// Nothing derives a label from the string; a caller declares one.
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout, pass: inout PrepaintPass) {
         pass.registerHandlers(handlers, at: bounds, id: id)

@@ -576,8 +576,9 @@ public final class Frame {
         focusRegistry.register(handlers, id: id)
         // **Independent of `isKeyTarget`/`isFocusable` — this is "was the
         // currently-focused id produced this frame at all", not "did it ask
-        // to stay focused".** `Box.prepaint` calls this unconditionally for
-        // every produced `Box` (see this method's own doc), so it is the one
+        // to stay focused".** `Box.prepaint`, `Stack.prepaint` and
+        // `Text.prepaint` call this unconditionally for every produced element
+        // of their type (see this method's own doc), so it is the one
         // per-frame signal that fires for `focusedElement` whether or not
         // `handlers` asks for anything. `resolveFocus()` needs exactly that
         // to tell "still produced, gave up `.focusable()`" (clear at once)
@@ -633,8 +634,39 @@ public final class Frame {
             stateTable.withState(Self.focusRetentionSlot(for: focused),
                                  initial: true) { _ in }
         }
-        guard handlers.isPointerTarget else { return }
-        _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
+        if handlers.isPointerTarget {
+            _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
+        }
+        // **Accessibility rides here too, and it was not always here.** The
+        // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and
+        // `Text.prepaint` — which call this and nothing else — dropped a
+        // declared `handlers.axNode` silently.
+        // `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`
+        // (`AXEmitSiteTests.swift`) is the per-conformer pin. No-op unless
+        // something set `handlers.axNode` to something other than `AXNode()`
+        // — `AXNode.isEmpty`'s own doc names this as `Handlers`' "empty means
+        // not a hit target" rule, one type over.
+        //
+        // **Kept LAST in this method**, so the `$ax` write follows the
+        // `$focus` write above — `Box.prepaint`'s order before this moved, and
+        // the order `theSevenRetentionSlotsAreMutuallyDistinct`
+        // (`AXNodeTests.swift`) calls the two in by hand. **That test does not
+        // pin this ordering, and it is not what keeps it red:** it calls
+        // `registerHandlers` with an empty `axNode` and then `emitAXNode`
+        // itself. Measured when this moved: its `"$ax"` → `"$focus"` collision
+        // mutation reddens it (its `$focus` assertion) with this call last,
+        // and ALSO with this call moved above `focusRegistry.register`.
+        //
+        // **`children` is always `[]` from here**: a generic
+        // `Content: ElementGroup` hands `requestGroupLayout` a flat
+        // `[LayoutNodeID]`, not a `GlobalElementID` per child
+        // (`ElementGroup.swift`), so no container can name its own children's
+        // ids without a change to that protocol's associated types (ruling
+        // `TB-M`). Whoever assembles a real tree either extends `ElementGroup`
+        // for it or walks `GlobalElementID.parent` over the flat `axNodes` map.
+        if !handlers.axNode.isEmpty {
+            emitAXNode(handlers.axNode, at: bounds, id: id, children: [])
+        }
     }
 
     /// The state-table key that backs a focused id's retention window — see

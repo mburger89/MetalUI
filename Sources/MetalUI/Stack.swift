@@ -112,6 +112,14 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         // Before the children, so a child's click target ranks above this one
         // — see `Box.prepaint`, whose body this mirrors line for line.
+        //
+        // **That "line for line" was false until the AX gate moved.**
+        // `Box.prepaint` also called `emitAXNode` behind
+        // `!handlers.axNode.isEmpty`, and this body did not, so a node declared
+        // on a `Stack` was dropped silently. The gate now lives inside
+        // `Frame.registerHandlers`, so the one line below is the whole of it on
+        // both types. `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`
+        // (`AXEmitSiteTests.swift`) has a `stack` arm.
         pass.registerHandlers(handlers, at: bounds, id: id)
         // `bounds` is this stack's own rect and is deliberately not passed
         // down: the engine stores rects **absolute to the root**, so each
