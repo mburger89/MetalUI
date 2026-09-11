@@ -931,7 +931,7 @@ private func layOutChildren(
     // Branching here, before `collectItems`, means nothing below this line
     // (every flex-specific field and function) is ever reached for a stack.
     if tree.style(container).display == .stack {
-        return layOutStack(ctx, tree, container, box: box)
+        return layOutStack(ctx, tree, container, box: box, intrinsic: intrinsic)
     }
 
     let items = collectItems(ctx, tree, container, containerSize: box.size,
@@ -1306,12 +1306,14 @@ private func layOutStack(
     _ ctx: LayoutContext,
     _ tree: LayoutTree,
     _ container: LayoutNodeID,
-    box: (origin: (Double, Double), size: OptionalSizeD, edges: SizeD, padding: ResolvedEdges)
+    box: (origin: (Double, Double), size: OptionalSizeD, edges: SizeD, padding: ResolvedEdges),
+    intrinsic: IntrinsicQuery
 ) -> ContainerLayout {
     let rootFontSize = ctx.rootFontSize
 
-    // A literal `auto` is measured from the child's own content (a stack does
-    // not stretch, so this is always `.maxContent` — shrink-wrap, never fill).
+    // A literal `auto` is measured from the child's own content — content
+    // height on the block axis, fit-content on the inline axis (see the
+    // measuring branch below; a stack does not stretch, so it never fills).
     // **So is a percentage that fails to resolve** — against `box.size`'s `nil`
     // on an axis the stack itself has no extent on yet. Returning `nil` here is
     // the signal "this axis needs measuring", and both cases return it.
@@ -1374,22 +1376,85 @@ private func layOutStack(
             // recurses into it once it has a final origin.
             size = SizeD(width: knownWidth, height: knownHeight)
         } else {
-            let measured = measureNode(
-                ctx, tree, kid,
-                known: OptionalSizeD(width: knownWidth, height: knownHeight),
-                available: AvailableSpaceSize(
-                    width: knownWidth.map { .definite($0) } ?? .maxContent,
-                    height: knownHeight.map { .definite($0) } ?? .maxContent),
-                containingBlockWidth: box.size.width)
+            // The child measured with every axis it has resolved held as
+            // `known`, and `width` asked on the one it may not have. The block
+            // axis is always content height: `.maxContent` unless declared.
+            func measure(width: AvailableSpace, knownWidth: Double?) -> SizeD {
+                measureNode(
+                    ctx, tree, kid,
+                    known: OptionalSizeD(width: knownWidth, height: knownHeight),
+                    available: AvailableSpaceSize(
+                        width: width,
+                        height: knownHeight.map { .definite($0) } ?? .maxContent),
+                    containingBlockWidth: box.size.width)
+            }
             // A content-measured axis is clamped here, after measuring — the
             // same order `collectItems`' `ownCross` uses, and CSS's own: min/max
             // bounds the USED size regardless of how it was computed, so a
             // measured axis needs the clamp exactly as much as a declared one
             // (`knownWidth`/`knownHeight` were already clamped by
-            // `resolvedAxis` above when they came back non-nil, so this `??`
-            // only ever runs the clamp on the axis that was actually measured).
-            size = SizeD(width: knownWidth ?? clamp(measured.width, min: minWidth, max: maxWidthBound),
-                         height: knownHeight ?? clamp(measured.height, min: minHeight, max: maxHeightBound))
+            // `resolvedAxis` above when they came back non-nil, so only the
+            // axis that was actually measured is clamped below).
+            if let knownWidth {
+                let measured = measure(width: .definite(knownWidth), knownWidth: knownWidth)
+                size = SizeD(width: knownWidth,
+                             height: clamp(measured.height, min: minHeight, max: maxHeightBound))
+            } else {
+                // **An `auto` WIDTH is fit-content, not max-content** — CSS
+                // sizes an `auto` inline axis by shrink-to-fit and an `auto`
+                // block axis by content height (ruling TX-H's distinction),
+                // and the grid item a stack is modelled on follows it. This
+                // branch measured every content-sized child at `.maxContent`
+                // until review finding B-4: a 120-wide stack holding a
+                // wrapping row of four 50x20 items (min-content 50,
+                // max-content 200) laid the row out 200x20 at x = -40 where
+                // WebKit's grid analogue gives 120x40 at 0
+                // (`stack_fit_content_inline`). The arithmetic is
+                // `fitContentInlineSize`'s, shared with a column item's cross
+                // size so the two container types cannot drift apart again.
+                //
+                // **Offering `.definite(box.size.width)` in place of
+                // `.maxContent` is not this fix; it is a third wrong answer.**
+                // `measureNode` lays a container out INSIDE a definite offer and
+                // reports its content extent, not the offer — so a wrapping
+                // child answers its widest line, and in the floor regime its
+                // items shrink into the offer. Built as a mutant and measured:
+                // `stack_fit_content_inline`'s `.a` 100x40 at x = 10 (WebKit
+                // 120x40 at 0), `stack_fit_content_floor`'s child 30x40 (WebKit
+                // 50x40), and the min-content case untouched at 200, because an
+                // intrinsic question offers no width to be definite about.
+                //
+                // `box.size.width` is `nil` while the stack is itself being
+                // asked an intrinsic question, and `intrinsic.width` then
+                // answers: under `.minContent` the child is offered 0, so a
+                // stack's min-content width is its widest child's MIN-content —
+                // what CSS §4.5's automatic minimum reads when a stack is a
+                // shrinking flex item (`stack_fit_content_min_content_contribution`:
+                // 100 in WebKit, 200 here before). No margin is subtracted:
+                // neither this function nor `positionStackItems` reads a stack
+                // child's margin at all.
+                let maxContent = measure(width: .maxContent, knownWidth: nil)
+                let fit = fitContentInlineSize(
+                    maxContent: maxContent.width, containerExtent: box.size.width,
+                    margin: (0, 0), intrinsic: intrinsic.width,
+                    minContent: { measure(width: .minContent, knownWidth: nil).width })
+                let width = clamp(fit, min: minWidth, max: maxWidthBound)
+                // **The height is measured at the USED width**, after the
+                // clamp — a wrapping child capped at `max-width: 70` wraps at
+                // 70. The max-content measurement is reused only where the
+                // width did not move from it — a child whose max-content fits
+                // its offer and is not clamped, which is every stack child in
+                // the goldens committed before these three (none moved).
+                // `stack_fit_content_inline`'s `.m` is 80 tall in WebKit;
+                // measured at max-content it was 20.
+                size = SizeD(
+                    width: width,
+                    height: knownHeight ?? clamp(
+                        (width == maxContent.width
+                            ? maxContent
+                            : measure(width: .definite(width), knownWidth: width)).height,
+                        min: minHeight, max: maxHeightBound))
+            }
         }
 
         // Ruling BM-4 — a stack child grows to fit its own padding and border
@@ -1739,6 +1804,12 @@ private func positionStackItems(
 ///    wrote it**: it said "exactly two places" and claimed two tests covered
 ///    them, while reverting the cross-axis edit reddened 0 of 330. Adding a
 ///    site here without adding the test that kills it is how that recurs.
+///
+///    **And "three" is stale again, by two.** `fitContentInlineSize` consults
+///    the query for an `auto` inline axis with no container extent, and it has
+///    two callers: a column item's cross size (`itemFitContentCrossSize`,
+///    killed by `theCrossAxisQueryReachesAnAutoCrossItem`) and a stack child's
+///    width (`layOutStack`, killed by `stackMinContentContributionMatchesWebKit`).
 /// 2. **`flex-grow` does not apply here, and under CSS it would.** An
 ///    indefinite main axis skips §9.7 (ruling CS-D) and every item keeps its
 ///    hypothetical main size — but CSS does not run §9.7 under intrinsic
@@ -1949,18 +2020,39 @@ private func itemFitContentCrossSize(
             containingBlockWidth: containingBlockWidth)
     }
     let maxContent = measure(cross: .maxContent)
-    var value = isRow ? maxContent.height : maxContent.width
-    if !isRow {
-        // `nil` here means "infinite", which is what max-content already
-        // answers — so the probe below is skipped.
-        let available: Double? = containerCross
-            .map { $0 - marginCross.leading - marginCross.trailing }
-            ?? (intrinsic.width == .minContent ? 0 : nil)
-        if let available, value > available {
-            value = max(measure(cross: .minContent).width, available)
-        }
-    }
+    let value = isRow
+        ? maxContent.height
+        : fitContentInlineSize(
+            maxContent: maxContent.width, containerExtent: containerCross,
+            margin: marginCross, intrinsic: intrinsic.width,
+            minContent: { measure(cross: .minContent).width })
     return clamp(value, min: minCross, max: maxCross)
+}
+
+/// §10.3.5's fit-content on an INLINE axis,
+/// `min(max(min-content, available), max-content)` — the arithmetic both
+/// container types that size an `auto` inline axis share: a column item's
+/// cross size (`itemFitContentCrossSize`, ruling TX-H) and a stack child's
+/// width (`layOutStack`). One function so the two cannot disagree; until
+/// review finding B-4 the stack measured max-content and they did.
+///
+/// `available` is `containerExtent` less the item's inline margins when the
+/// container has an extent. Without one it comes from the container's own
+/// intrinsic question: `.minContent` offers 0, collapsing the answer to
+/// min-content; anything else offers nothing, and `nil` here means "infinite",
+/// which is what max-content already answers. `minContent` is a closure
+/// because it is a second measurement, taken **only** when max-content
+/// overflows `available` — the ordinary case costs one measure.
+private func fitContentInlineSize(
+    maxContent: Double, containerExtent: Double?,
+    margin: (leading: Double, trailing: Double),
+    intrinsic: IntrinsicMode?, minContent: () -> Double
+) -> Double {
+    let available: Double? = containerExtent
+        .map { $0 - margin.leading - margin.trailing }
+        ?? (intrinsic == .minContent ? 0 : nil)
+    guard let available, maxContent > available else { return maxContent }
+    return max(minContent(), available)
 }
 
 /// Phase 1 — size every item without positioning any of them.

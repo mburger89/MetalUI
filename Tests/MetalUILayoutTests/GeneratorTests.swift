@@ -229,6 +229,16 @@ let allFixtures: [(String, CGSize)] = [
     // width. Red against that engine: `.a` 30 / 30 / 40 / 30 / 30 against
     // WebKit's 40 / 80 / 80 / 40 / 80.
     ("sizing_column_content_suggestion", CGSize(width: 800, height: 600)),
+    // A stack child's `auto` WIDTH is fit-content, as a column item's is (ruling
+    // TX-H) — the inline axis, in the other container type. Every stack fixture
+    // above is blind to it: each child is either declared or an unwrapping row
+    // whose min-content and max-content widths are one number. Red against the
+    // engine that measured every stack child at max-content (`.a` 200x20 at
+    // x = -40 against WebKit's 120x40 at 0; `.f` 100x20 against 50x40; the
+    // shrinking stack 200 wide against 100). See `StackFixtureTests.swift`.
+    ("stack_fit_content_inline",                    CGSize(width: 800, height: 600)),
+    ("stack_fit_content_floor",                     CGSize(width: 800, height: 600)),
+    ("stack_fit_content_min_content_contribution",  CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.
