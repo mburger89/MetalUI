@@ -770,6 +770,13 @@ import MetalUIRender
 /// still-interpolating value in; an unwired one hands the raw declared value
 /// straight through unchanged, which is exactly the differential a mutation
 /// that un-wires the site needs to redden.
+///
+/// **`Component` is not a registering site** — it contributes no node — but a
+/// value can reach a component's node from two places. Its arm checks both.
+/// A width declared INSIDE the component (the control) animates through the
+/// member `Box`'s own call. A caller's `.width`/`.height`/`.padding` ON the
+/// component snaps, and that half is **pinned wrong on purpose** (finding
+/// B-7). See the arm's comment and `StyledComponent`'s doc.
 @Test @MainActor func everyRegisteringSiteAnimatesItsStyle() throws {
     func styled(flexGrow: Float) -> Style {
         var s = Style()
@@ -894,6 +901,129 @@ import MetalUIRender
                 ScrollView viewport node: registering site does not animate — expected the \
                 interpolated value -50, got \(out.flexGrow)
                 """)
+    }
+
+    // MARK: Component — the member's own declaration, and a caller's modifier
+
+    do {
+        struct Panel: Component {
+            let innerWidth: Pixels
+            var content: some ElementGroup { Box().width(innerWidth).height(10) }
+        }
+
+        // Every node `group` returns, read back after its `requestGroupLayout`
+        // — which for a `StyledComponent` is AFTER its `amend` has run.
+        func nodeStyles<G: ElementGroup>(_ group: G, _ table: StateTable, at t: Double) -> [Style] {
+            var group = group
+            var pass = LayoutPass(frame: animFrame(table, timestamp: t))
+            var cursor = 0
+            let (nodes, _) = group.requestGroupLayout(under: eid("component"), at: &cursor, pass: &pass)
+            return nodes.map { pass.style($0) }
+        }
+
+        // Control: the width declared INSIDE the component animates, because
+        // it reaches the member `Box`'s own `animated(...)` call.
+        do {
+            let table = StateTable()
+            _ = nodeStyles(Panel(innerWidth: 196), table, at: 0)
+            var start: [Style] = []
+            withAnimation(.linear(duration: 1)) {
+                start = nodeStyles(Panel(innerWidth: 320), table, at: 0)
+            }
+            let mid = nodeStyles(Panel(innerWidth: 320), table, at: 0.5)
+            try #require(start.count == 1 && mid.count == 1)
+            #expect(start[0].size.width == .length(.pixels(196)), """
+                    Component member: a width declared inside the component does not animate — \
+                    expected 'from' 196, got \(start[0].size.width)
+                    """)
+            #expect(mid[0].size.width == .length(.pixels(258)), """
+                    Component member: a width declared inside the component does not animate — \
+                    expected the halfway value 258, got \(mid[0].size.width)
+                    """)
+        }
+
+        // A caller's modifier on the component. **PINNED WRONG ON PURPOSE**
+        // (review finding B-7). All three `Component` modifiers — `width`,
+        // `height`, `padding` — SNAP even inside `withAnimation`. Measured on
+        // this fixture: (w, h, padding.left) reads **(320, 80, 20) at t = 0 and
+        // again at t = 0.5**. The CORRECT readings are **(196, 40, 4) at t = 0
+        // and (258, 60, 12) at t = 0.5** — what the control arm above gives
+        // for the same width declared inside the component.
+        //
+        // This is NOT the `.auto` / case-change snap: the member declares real
+        // pixel baselines for `size` (100 x 10), and `padding` is a `Length`,
+        // which has no `.auto`. The mechanism is ordering.
+        // `StyledComponent.requestGroupLayout` runs `amend` and `pass.setStyle`
+        // AFTER the member `Box.requestLayout` has already called
+        // `animated(...)` and stored its `$anim` baseline. So that baseline
+        // never contains the caller's value, and `setStyle` overwrites the
+        // interpolated result with the raw target on every frame.
+        //
+        // The blocker is `ElementGroup.requestGroupLayout`: it returns a flat
+        // `[LayoutNodeID]`, so `StyledComponent` cannot name a member's id or
+        // its `$anim` slot. The fix needs the associated-type change ruling
+        // TB-M names. Two cheaper fixes are unsound. Calling `animated` on the
+        // member's slot from here would rewrite its baseline with an empty
+        // `Decoration()`, because the member's `Decoration` is unreachable too.
+        // An ambient amendment on the pass would be consumed by the first
+        // `animated` call to run, and `Box.requestLayout` registers children
+        // first, so it would land on grandchildren, against CO-U.
+        //
+        // When that change lands, flip these expectations to the correct
+        // values above, delete this framing, and delete the `Component` row
+        // from CLAUDE.md's "What snaps rather than animates".
+        //
+        // MUTATIONS, whole suite unfiltered, each restored afterwards:
+        // - Deleting `pass.setStyle(node, style)` in
+        //   `StyledComponent.requestGroupLayout` makes both samples read the
+        //   member's own (100, 10, 0). It reddens this arm and `ComponentTests`'
+        //   `aModifierOnAComponentDistributesToEachTopLevelChild`,
+        //   `widthAloneDistributesToEachTopLevelChild`,
+        //   `heightAloneDistributesToEachTopLevelChild`,
+        //   `widthAndHeightComposeOnAChainedModifier` and
+        //   `chainedPaddingReplacesRatherThanAccumulates`.
+        // - Routing the amended style through `animated(...)` under a separate
+        //   probe id beneath the component's id makes this arm read exactly
+        //   the correct values: (196, 40, 4), then (258, 60, 12). It reddens
+        //   this arm, and none of the five `ComponentTests` the first mutation
+        //   reddens, so a real fix trips this arm without breaking
+        //   distribution. That was a probe, not a fix: it adds an unreserved slot,
+        //   and how it composes with a member's own running animation was not
+        //   measured.
+        // - Deleting `Box.requestLayout`'s `animated(...)` call makes the
+        //   control arm above read 320 at both samples, which reddens it along
+        //   with this test's `Box` arm and many others. The pinned arm is
+        //   unaffected, because the caller's value never went through that
+        //   call.
+        do {
+            let table = StateTable()
+            _ = nodeStyles(Panel(innerWidth: 100).width(196).height(40).padding(4), table, at: 0)
+            var start: [Style] = []
+            withAnimation(.linear(duration: 1)) {
+                start = nodeStyles(Panel(innerWidth: 100).width(320).height(80).padding(20), table, at: 0)
+            }
+            let mid = nodeStyles(Panel(innerWidth: 100).width(320).height(80).padding(20), table, at: 0.5)
+            try #require(start.count == 1 && mid.count == 1)
+            let readings = """
+                start (w, h, padding.left) = (\(start[0].size.width), \(start[0].size.height), \
+                \(start[0].padding.left)); mid = (\(mid[0].size.width), \(mid[0].size.height), \
+                \(mid[0].padding.left))
+                """
+            #expect(start[0].size.width == .length(.pixels(320))
+                    && start[0].size.height == .length(.pixels(80))
+                    && start[0].padding.left == .pixels(20), """
+                    WRONG ON PURPOSE — B-7. A caller's modifier on a Component snaps: 'from' \
+                    should be (196, 40, 4) and today reads the target (320, 80, 20). If this \
+                    now reads (196, 40, 4), the snap is fixed; flip the arm. \(readings)
+                    """)
+            #expect(mid[0].size.width == .length(.pixels(320))
+                    && mid[0].size.height == .length(.pixels(80))
+                    && mid[0].padding.left == .pixels(20), """
+                    WRONG ON PURPOSE — B-7. Halfway should read (258, 60, 12) and today reads \
+                    the target (320, 80, 20). If it now reads (258, 60, 12), the snap is \
+                    fixed; flip the arm. \(readings)
+                    """)
+        }
     }
 }
 
