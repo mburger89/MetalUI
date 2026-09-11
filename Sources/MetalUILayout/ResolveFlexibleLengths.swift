@@ -8,9 +8,12 @@ import MetalUICore
 ///
 /// Three details that are easy to get wrong and that the tests pin:
 ///
-/// - **Shrink is weighted by base size**, grow is not. Two items with equal
-///   `flex-shrink` but different base sizes do not lose equal amounts — a larger
-///   item gives up proportionally more. §9.7.4.c.
+/// - **Shrink is weighted by the INNER base size**, grow is not. Two items with
+///   equal `flex-shrink` but different base sizes do not lose equal amounts — a
+///   larger item gives up proportionally more. §9.7.4.c. "Inner" is the content
+///   box: `baseSize` minus the item's main-axis padding and border, which
+///   `FlexItem.mainEdges` carries. `flex_row_shrink_padded_weighting` is
+///   WebKit's word on the difference.
 /// - **Gaps come out of free space before distribution.** They are part of the
 ///   line's consumed space, not something items may grow into.
 /// - **Flex factors summing to less than one distribute only that fraction**
@@ -54,7 +57,7 @@ func resolveFlexibleLengths(
     /// An item's **raw** flex factor — `flex-grow` or `flex-shrink` exactly as
     /// authored, with no base-size weighting. §9.7.4.b's sub-one test is
     /// specified on these; §9.7.4.c's distribution weights the shrink case by
-    /// base size. Keeping the two apart is the whole reason this is its own
+    /// inner base size. Keeping the two apart is the whole reason this is its own
     /// function: letting the weighting leak into the sub-one sum would make the
     /// clause fire on the wrong items and at the wrong threshold — pinned by
     /// `fractionalShrinkScalesByRawFactorsNotWeightedOnes`.
@@ -160,10 +163,34 @@ func resolveFlexibleLengths(
         }
 
         // §9.7.4.c — distribute in proportion to the flex factor, which for
-        // shrink is scaled by the base size.
+        // shrink is scaled by the item's **inner** flex base size: "multiply
+        // its flex shrink factor by its inner flex base size".
+        //
+        // `baseSize` is a border box, so the inner size is `baseSize` minus
+        // the item's main-axis padding and border. Weighting by the border box
+        // was this line's reading until a padded fixture existed, and every
+        // shrink test before it was blind to the difference, because none of
+        // their items had padding or border.
+        //
+        // **The `max(0, …)` is a guard, not a pinned behaviour.** `baseSize` is
+        // floored at those same edges, and replacing the `max` with a trap on
+        // a negative difference left the whole suite green when this landed —
+        // no current input reaches it, so deleting it would redden nothing.
+        // It stays because a negative weight would not merely be wrong: it
+        // would hand a shrinking item growth.
+        //
+        // **A zero weight is a real answer, not an edge case.** When every
+        // unfrozen item's inner base is 0 — `flex-basis: 0` with padding, say —
+        // `factorTotal` is 0, the distribution below is skipped, each item keeps
+        // its base, and the line overflows. WebKit does exactly that (80 / 80 in
+        // a 100 row for two `flex: 0 1 0px; padding: 0 40px` items; the
+        // border-box weighting gave 50 / 50, inside the padding). Pinned by
+        // `aLineWhoseItemsHaveNoInnerBaseSizeOverflowsInsteadOfShrinking`.
         let factors: [Double] = items.map { item in
             guard !item.frozen else { return 0 }
-            return usingGrow ? rawFactor(item) : rawFactor(item) * item.baseSize
+            return usingGrow
+                ? rawFactor(item)
+                : rawFactor(item) * max(0, item.baseSize - item.mainEdges)
         }
         let factorTotal = factors.reduce(0, +)
 

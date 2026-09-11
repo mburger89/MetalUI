@@ -205,8 +205,27 @@ private func roundStoredRects(_ tree: LayoutTree, _ node: LayoutNodeID) {
 struct FlexItem {
     let node: LayoutNodeID
     /// §9.2 flex base size, before min/max clamping. §9.7 distributes free
-    /// space *from* this, not from the clamped size, and weights shrink by it.
+    /// space *from* this, not from the clamped size.
+    ///
+    /// **A border box**, like every size this engine stores: ruling BM-4 floors
+    /// both of `flexBaseSize`'s declared branches at the item's own padding and
+    /// border. So it is **not** §9.7.4.c's shrink weight — see `mainEdges`.
     var baseSize: Double
+    /// The item's own padding plus border on the **main** axis — horizontal in
+    /// a row, vertical in a column — resolved against the containing block's
+    /// width on every edge, the same basis `flexBaseSize`'s floor resolves them
+    /// against.
+    ///
+    /// **Read only by §9.7.4.c**, which weights shrink by the item's INNER flex
+    /// base size, `baseSize - mainEdges`. Weighting by `baseSize` itself gives a
+    /// padded item too much to lose: a 200 row holding a `width: 200px;
+    /// padding: 0 40px` box and a plain `width: 200px` one is 125 / 75 in WebKit
+    /// and was 100 / 100 here (`flex_row_shrink_padded_weighting`).
+    ///
+    /// No default value, deliberately: a `= 0` here would let a construction
+    /// site omit it and silently weight by the border box again, green on every
+    /// unpadded test.
+    let mainEdges: Double
     /// §9.2 base size clamped by min/max. §9.7 sums these to decide whether
     /// the line is growing or shrinking, and compares against `baseSize` to
     /// find the items that cannot flex in that direction.
@@ -499,13 +518,17 @@ private func resolveRootSize(
 /// `resolveNodeSize`, `flexBaseSize`'s `mainFloor()`, `layOutStack` and
 /// `placeAbsolute`. Five, and the count is literal — run
 /// `grep -rn 'borderBoxFloor(tree' Sources/MetalUILayout/` and **read the
-/// lines rather than the count**: it returns **six**, the sixth being the
-/// sentence you are reading, which names the pattern while explaining it.
+/// lines rather than the count**: it returns **seven**. One is the sentence
+/// you are reading, which names the pattern while explaining it. The other
+/// extra is a sixth call that floors nothing: `collectItems` reads the same
+/// edges back out as `FlexItem.mainEdges`, because §9.7.4.c weights shrink by
+/// the item's inner base size and this function is the one place those edges
+/// are resolved.
 /// (Written that way deliberately after the first draft claimed "exactly those
 /// five lines" and was falsified by its own quotation in the same edit — the
 /// failure mode CLAUDE.md's `evictUnusedSince` row is about, where a number
-/// tracks the prose instead of the code. Five *calls*; the claim is which
-/// functions call it.) **`flexBaseSize` is the one to read carefully** — this used to say
+/// tracks the prose instead of the code. Five *flooring calls* and one
+/// reading call; the claim is which functions call it and why.) **`flexBaseSize` is the one to read carefully** — this used to say
 /// "`flexBaseSize`'s size-property branch", which names one of the *two*
 /// branches that floor. `mainFloor()` is a single call site consumed by both:
 /// branch 1, a definite `flex-basis`, and branch 2, `flex-basis: auto`
@@ -550,6 +573,13 @@ private func resolveRootSize(
 /// 2. Two `width: 500px; min-width: 0` items with 120 of padding+border each,
 ///    shrinking into a 200-wide row, are **120** each in WebKit (overflowing)
 ///    and 100 each here — §9.7 shrinks below the floor. Same site as 1.
+///    WebKit's 120 was re-measured when §9.7.4.c's weight became the inner
+///    base size (`FlexItem.mainEdges`), and that change does **not** reach
+///    this shape: the two inner bases are equal, so the overflow still splits
+///    evenly — 100 each here, by the loop's arithmetic rather than a fresh
+///    engine run. It closes only the limiting case, where every item's inner
+///    base is 0: those items now keep their base and overflow, as WebKit does
+///    (`aLineWhoseItemsHaveNoInnerBaseSizeOverflowsInsteadOfShrinking`).
 /// 3. An **`auto`** cross size clamped by a `max-*` below the floor:
 ///    `height: auto; max-height: 40px; padding: 60px 0; border-width: 10px 0`
 ///    is **140** in WebKit and **40** here. This one is not about the used main
@@ -1962,6 +1992,20 @@ private func collectItems(
                                     containerMain: containerMain,
                                     containerCross: containerCross,
                                     intrinsic: intrinsic)
+            // The padding and border `base` includes on the main axis, which
+            // §9.7.4.c subtracts to weight shrink by the INNER base size (see
+            // `FlexItem.mainEdges`).
+            //
+            // **The basis is `containerSize.width` and it must stay the same
+            // number `flexBaseSize` floors with.** That function derives its
+            // `containingBlockWidth` as `isRow ? containerMain : containerCross`,
+            // which is `containerSize.width` on both branches. Any other basis
+            // gives a percentage-padded item a second, disagreeing edge value,
+            // and the weight would subtract edges the base never added:
+            // `shrinkWeightSubtractsMainAxisEdgesResolvedAgainstTheContainingBlockWidth`.
+            let edges = borderBoxFloor(tree, kid, containingBlockWidth: containerSize.width,
+                                       rootFontSize: rootFontSize)
+            let mainEdges = isRow ? edges.width : edges.height
 
             let ks = tree.style(kid)
             // The item's own border-box size, resolved from its style alone.
@@ -2342,7 +2386,8 @@ private func collectItems(
             // `positionItems`. It repeats `hypothetical` only because a
             // constructor must pass something; nothing depends on which value.
             // See the field's declaration.
-            return FlexItem(node: kid, baseSize: base, hypotheticalMainSize: hypothetical,
+            return FlexItem(node: kid, baseSize: base, mainEdges: mainEdges,
+                            hypotheticalMainSize: hypothetical,
                             minMain: minMain, maxMain: maxMain,
                             targetMainSize: hypothetical, crossSize: ownCross,
                             stretchEligible: stretchEligible,

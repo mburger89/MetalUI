@@ -70,7 +70,8 @@ private func row(_ tree: LayoutTree, width: Double, _ kids: [LayoutNodeID]) -> L
 }
 
 @Test func shrinkIsWeightedByBaseSize() {
-    // §9.7: shrink is scaled by base size, so equal shrink factors do NOT
+    // §9.7: shrink is scaled by the inner base size — for these unpadded items,
+    // the whole base size — so equal shrink factors do NOT
     // remove equal amounts. a=200 b=200 c=100 in a 300 row: 200 overflow.
     // Scaled factors: a 1*200=200, b 2*200=400, c frozen. Total 600.
     // a loses 200*(200/600)=66.67 -> 133.33; b loses 200*(400/600)=133.33 -> 66.67.
@@ -78,8 +79,8 @@ private func row(_ tree: LayoutTree, width: Double, _ kids: [LayoutNodeID]) -> L
     // **This test cannot detect the weighting being dropped.** a and b have the
     // same base size, so the common 200 cancels: unweighted factors 1 and 2 out
     // of 3 give exactly the same 133.33 / 66.67 as weighted 200 and 400 out of
-    // 600. Deleting `* item.baseSize` leaves this test green — verified by
-    // mutation, not by reading. It pins the arithmetic against WebKit's answer
+    // 600. Dropping the weighting term from the shrink factor leaves this test
+    // green — verified by mutation, not by reading. It pins the arithmetic against WebKit's answer
     // for `flex_row_shrink` (which is blind for the same reason); the test that
     // actually pins the weighting is
     // `shrinkWeightingDistinguishesItemsWithDifferentBaseSizes` below, which
@@ -843,4 +844,141 @@ private func row(_ tree: LayoutTree, width: Double, _ kids: [LayoutNodeID]) -> L
     assertMatchesGolden(
         tree, ids: [root: "root", a: "a", b: "b"],
         golden: golden, tolerance: 0.1)
+}
+
+// MARK: - §9.7.4.c's shrink weight is the INNER flex base size.
+//
+// "Multiply its flex shrink factor by its inner flex base size." `baseSize` is
+// a border box — ruling BM-4 floors both of `flexBaseSize`'s declared branches
+// at the item's padding and border — so the weight is `baseSize` minus the
+// item's main-axis padding and border, which `FlexItem.mainEdges` carries.
+//
+// Every shrink test above this line is blind to the distinction by
+// construction: none of their items has padding or border, so the two base
+// sizes are the same number. The three below are the ones that can see it.
+
+/// The browser's word on the weighting, in the ordinary shape: a row of padded
+/// boxes that overflows, with `flex-shrink` and `min-width` at their initial
+/// values.
+///
+/// `flex_row_shrink_padded_weighting`: a 200 row holding `.a { width: 200px;
+/// padding: 0 40px }` and `.b { width: 200px }`, 200 of overflow. Inner bases
+/// are 120 and 200, so `.a` gives up 200 x 120/320 = 75 and lands on **125**,
+/// `.b` on **75**. Weighting by the border box gives 100 / 100.
+///
+/// `.a`'s automatic minimum is its 80 of padding, below both answers, so the
+/// §4.5 floor never binds here. That matters: an item that shrinks onto its
+/// floor freezes there whatever weight it was given, which is why
+/// `sizing_specified_suggestion_is_used_value` — padded, and shrinking — could
+/// not see this either.
+@MainActor
+@Test func paddedShrinkWeightingMatchesWebKit() throws {
+    let golden = try loadGolden("flex_row_shrink_padded_weighting")
+
+    let tree = LayoutTree(generation: 0)
+    var aStyle = Style()
+    aStyle.size = Size(width: px(200), height: .auto)
+    aStyle.padding = Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(40)),
+                           bottom: .pixels(Pixels(0)), left: .pixels(Pixels(40)))
+    let a = tree.newNode(style: aStyle, children: [])
+    var bStyle = Style()
+    bStyle.size = Size(width: px(200), height: .auto)
+    let b = tree.newNode(style: bStyle, children: [])
+    let root = row(tree, width: 200, [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).width == 125)
+    #expect(tree.layout(b).width == 75)
+    #expect(tree.layout(b).x == 125)
+
+    assertMatchesGolden(
+        tree, ids: [root: "root", a: "a", b: "b"],
+        golden: golden, tolerance: 0.1)
+}
+
+/// The edges subtracted are the **main** axis's, and a percentage among them
+/// resolves against the containing block's **width** — in a column, that is
+/// the container's cross extent, not its main one.
+///
+/// A column 100 wide and 200 tall holding `.a { height: 200px; padding: 40% 0 }`
+/// and `.b { height: 200px }`. 40% of the containing block's width is 40 per
+/// edge, so `.a`'s vertical edges are 80, its inner base 120, and the answer is
+/// the row case turned on its side: **125 / 75**. WebKit measured exactly that,
+/// through a throwaway probe using the corpus's preamble.
+///
+/// Three wrong wirings, each a distinct number:
+/// - the edges taken off the **cross** axis (horizontal, 0 here): 100 / 100;
+/// - the percentage resolved against **nothing**: 0 edges again, 100 / 100;
+/// - the percentage resolved against the column's **main** extent, 200: 80 per
+///   edge, inner base 40, so `.a` gives up only 200 x 40/240 and lands on
+///   166.67, `.b` on 33.33.
+///
+/// `.a`'s automatic minimum is 80 (its padding) and `.b`'s is 0, so neither
+/// floor binds under any of the four readings.
+@Test func shrinkWeightSubtractsMainAxisEdgesResolvedAgainstTheContainingBlockWidth() {
+    let tree = LayoutTree(generation: 0)
+    var aStyle = Style()
+    aStyle.size = Size(width: .auto, height: px(200))
+    aStyle.padding = Edges(top: .percent(0.4), right: .pixels(Pixels(0)),
+                           bottom: .percent(0.4), left: .pixels(Pixels(0)))
+    let a = tree.newNode(style: aStyle, children: [])
+    var bStyle = Style()
+    bStyle.size = Size(width: .auto, height: px(200))
+    let b = tree.newNode(style: bStyle, children: [])
+
+    var rootStyle = Style()
+    rootStyle.flexDirection = .column
+    rootStyle.size = Size(width: px(100), height: px(200))
+    let root = tree.newNode(style: rootStyle, children: [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).height == 125)
+    #expect(tree.layout(b).height == 75)
+    #expect(tree.layout(b).y == 125)
+}
+
+/// When every unfrozen item's inner base size is 0 there is nothing to weight,
+/// so nothing is distributed and the line **overflows** rather than shrinking.
+///
+/// Two `flex: 0 1 0px; padding: 0 40px; min-width: 0` items in a 100 row.
+/// Ruling BM-4 floors each border-box base at its 80 of padding, so the line
+/// holds 160 against 100. Both scaled shrink factors are 1 x (80 - 80) = 0, the
+/// factor total is 0, and each item keeps its base: **80 / 80**, the second
+/// ending at 160. WebKit measured 80 / 80 through a throwaway probe, with
+/// `min-width: 0` and without it. Weighting by the border box instead shares
+/// the 60 of overflow evenly and gives 50 / 50 — inside the padding.
+///
+/// **`min-width: 0` is what makes this test able to fail.** With the initial
+/// `auto`, each item's automatic minimum is the same 80 of padding, so a
+/// border-box-weighted 50 would be clamped straight back up to 80 by §9.7.4.d
+/// and both weightings would agree.
+///
+/// This is the one case where the weighting change is also a change in whether
+/// the line shrinks at all, which is why it has a pin of its own rather than
+/// sharing the one above.
+@Test func aLineWhoseItemsHaveNoInnerBaseSizeOverflowsInsteadOfShrinking() {
+    let tree = LayoutTree(generation: 0)
+    let kids = (0..<2).map { _ -> LayoutNodeID in
+        var s = Style()
+        s.flexGrow = 0
+        s.flexShrink = 1
+        s.flexBasis = px(0)
+        s.minSize = Size(width: px(0), height: .auto)
+        s.padding = Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(40)),
+                          bottom: .pixels(Pixels(0)), left: .pixels(Pixels(40)))
+        return tree.newNode(style: s, children: [])
+    }
+    let root = row(tree, width: 100, kids)
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(kids[0]).width == 80)
+    #expect(tree.layout(kids[1]).width == 80)
+    // Deliberately overflowing the container's 100.
+    #expect(tree.layout(kids[1]).x + tree.layout(kids[1]).width == 160)
 }

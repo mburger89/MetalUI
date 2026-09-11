@@ -208,6 +208,11 @@ let allFixtures: [(String, CGSize)] = [
     // was live, reachable and browser-correct, and no test in the 752 could
     // see it. Mutating the guard moved geometry and reddened nothing.
     ("sizing_percent_main_against_indefinite", CGSize(width: 800, height: 600)),
+    // §9.7.4.c's shrink weight is the INNER flex base size. Every shrink
+    // fixture above is blind to it: their items carry no padding or border, so
+    // inner and border-box base sizes are one number. Red against the engine
+    // that weighted by the border box (100/100 against WebKit's 125/75).
+    ("flex_row_shrink_padded_weighting", CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.
