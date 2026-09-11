@@ -525,8 +525,11 @@ private func resolveRootSize(
 /// `resolveNodeSize`, `flexBaseSize`'s `mainFloor()`, `layOutStack` and
 /// `placeAbsolute`. Five, and the count is literal — run
 /// `grep -rn 'borderBoxFloor(tree' Sources/MetalUILayout/` and **read the
-/// lines rather than the count**: it returns **six**, the sixth being the
-/// sentence you are reading, which names the pattern while explaining it.
+/// lines rather than the count**: it returns **seven**. One is the sentence you
+/// are reading, which names the pattern while explaining it. The other is
+/// `collectItems`' automatic minimum. It floors no declared size: it re-floors
+/// §4.5's minimum after a `max-*` has clamped it, and only when the clamp bit
+/// and the item is not a measured leaf.
 /// (Written that way deliberately after the first draft claimed "exactly those
 /// five lines" and was falsified by its own quotation in the same edit — the
 /// failure mode CLAUDE.md's `evictUnusedSince` row is about, where a number
@@ -2099,6 +2102,12 @@ private func collectItems(
             // unresolvable axis to 0 (then floors it), and a 0 suggestion
             // would floor every such item at its padding and border while
             // pretending to be the item's own width.
+            // Hoisted above `minMain`, which clamps §4.5's automatic minimum by
+            // it. A pure function of the item's style and `containerMain`, so
+            // resolving it earlier changes nothing for `hypothetical` or for
+            // `FlexItem.maxMain`, its other two readers.
+            let maxMain = resolveDimension(isRow ? ks.maxSize.width : ks.maxSize.height,
+                                           against: containerMain, rootFontSize: rootFontSize)
             let minDim = isRow ? ks.minSize.width : ks.minSize.height
             let specifiedMain: Double? = {
                 let mainDim = isRow ? ks.size.width : ks.size.height
@@ -2144,8 +2153,38 @@ private func collectItems(
                     // §4.5: `min(specified size suggestion, content size
                     // suggestion)`, the specified one standing down when the
                     // item declares no definite main size.
-                    guard let specifiedMain else { return content }
-                    return Swift.min(specifiedMain, content)
+                    let suggestion = specifiedMain.map { Swift.min($0, content) } ?? content
+                    // **§4.5 clamps the automatic minimum by a definite max
+                    // main size, and this branch did not.** A floor above the
+                    // item's own `max-*` beats it (`clamp` applies the floor
+                    // last), so an `auto`-width item whose min-content exceeds
+                    // its `max-width` ignored the cap. Measured through the
+                    // WebKit oracle: a `display: flex; max-width: 50px` item
+                    // around a 200-wide `flex: none` child is 50 in WebKit and
+                    // was 200 here. `sizing_max_clamps_content_suggestion`.
+                    guard let maxMain, maxMain < suggestion else { return suggestion }
+                    // **The clamp alone is the obvious fix and it is wrong.**
+                    // Ruling BM-4's floor comes after the clamp, as it does in
+                    // `resolveNodeSize`: `width: 100px; max-width: 40px` with
+                    // 120 of padding and border is 120 in WebKit, which this
+                    // engine answered only because the automatic minimum was
+                    // unclamped. Clamping without the floor made it 40, and no
+                    // test saw it.
+                    // `sizing_max_below_floor_keeps_automatic_minimum` pins it.
+                    //
+                    // The floor is the edges the suggestion was measured WITH,
+                    // so a measured leaf gets none. `measureNode` returns a
+                    // leaf's `MeasureFunction` answer unchanged (record §05's
+                    // leaf-padding row), so flooring a clamped leaf at its
+                    // padding would give an inert modifier a live effect
+                    // (`aClampedMeasuredLeafIsNotFlooredByItsInertPadding`).
+                    //
+                    // Reached only where the clamp bites, so every other item
+                    // keeps exactly the suggestion it had.
+                    guard tree.measure(kid) == nil else { return maxMain }
+                    let edges = borderBoxFloor(tree, kid, containingBlockWidth: containerSize.width,
+                                               rootFontSize: rootFontSize)
+                    return Swift.max(maxMain, isRow ? edges.width : edges.height)
                 }
                 // An explicit `min-width` wins outright: it *replaces* the
                 // automatic minimum rather than being combined with it, so an
@@ -2155,8 +2194,6 @@ private func collectItems(
                 // at exactly 150.
                 return resolveDimension(minDim, against: containerMain, rootFontSize: rootFontSize)
             }()
-            let maxMain = resolveDimension(isRow ? ks.maxSize.width : ks.maxSize.height,
-                                           against: containerMain, rootFontSize: rootFontSize)
             let hypothetical = clamp(base, min: minMain, max: maxMain)
 
             // Margins sit outside the border box `own`/`base` describe.

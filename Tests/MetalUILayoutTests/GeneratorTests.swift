@@ -213,6 +213,16 @@ let allFixtures: [(String, CGSize)] = [
     // inner and border-box base sizes are one number. Red against the engine
     // that weighted by the border box (100/100 against WebKit's 125/75).
     ("flex_row_shrink_padded_weighting", CGSize(width: 800, height: 600)),
+    // §4.5's content size suggestion is clamped by a definite `max-*`. Every
+    // main-axis `max-*` fixture above caps an empty div (content suggestion 0)
+    // or a min-content below its cap, so none could see it. Red against the
+    // unclamped engine (`.a` 200 against WebKit's 50).
+    ("sizing_max_clamps_content_suggestion", CGSize(width: 800, height: 600)),
+    // The clamp above composed with ruling BM-4: the border-box floor is applied
+    // after it. `.c` is green before the clamp and reddens under the obvious
+    // clamp-the-content-only fix (120 -> 40); `.p` is red before it (280
+    // against WebKit's 80).
+    ("sizing_max_below_floor_keeps_automatic_minimum", CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

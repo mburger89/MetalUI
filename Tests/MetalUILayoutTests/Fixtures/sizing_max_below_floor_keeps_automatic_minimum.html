@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* CSS Flexbox §4.5's max clamp on the automatic minimum, composed with
+     ruling BM-4: a `max-*` below an item's own padding and border does not
+     take the item below them. The clamp is applied first and the border-box
+     floor last — the same order `resolveNodeSize` uses and ruling BM-4's
+     cross-axis probe measured.
+
+     `.p`: no width, `max-width: 50px`, 80 of horizontal padding, a 200-wide
+     `flex: none` child. Content suggestion 280, clamped to 50, floored at 80:
+       clamp then floor -> 80      (WebKit)
+       clamp alone      -> 50
+       no clamp         -> 280
+     `.c`: `width: 100px; max-width: 40px` with 100 of padding and 20 of
+     border. Specified suggestion 120 (ruling BM-4's used size), content
+     suggestion 120, clamped to 40, floored at 120:
+       clamp then floor -> 120     (WebKit, and this engine before the clamp)
+       clamp alone      -> 40
+     `.c` is the shape the obvious fix — clamp the content suggestion and
+     nothing else — silently breaks. With `min-width: 0` the same `.c` is the
+     open composition 1 in `borderBoxFloor`'s doc (WebKit 120, this engine 40),
+     which is a different site and is not this fixture's subject.
+
+     `border-style: solid` IS NOT OPTIONAL — without it `border-width` is
+     inert and `.c` measures 100 in WebKit, not 120.
+
+     The root is 500 wide so no answer above overflows it: every candidate sum
+     (80+120+50, 50+40+50, 280+120+50) fits, nothing shrinks, and `.c`'s and
+     `.b`'s x positions follow from the widths alone. */
+  #root { display: flex; width: 500px; height: 60px; }
+  .p { display: flex; max-width: 50px; padding: 0 40px; }
+  .p > div { width: 200px; height: 20px; flex: none; }
+  .c {
+    width: 100px; max-width: 40px; height: 20px;
+    padding: 0 50px;
+    border-style: solid; border-width: 0 10px; border-color: transparent;
+  }
+  .b { width: 50px; height: 20px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="p" data-id="p"><div data-id="pg"></div></div>
+    <div class="c" data-id="c"></div>
+    <div class="b" data-id="b"></div>
+  </div>
+</body></html>
