@@ -223,6 +223,12 @@ let allFixtures: [(String, CGSize)] = [
     // clamp-the-content-only fix (120 -> 40); `.p` is red before it (280
     // against WebKit's 80).
     ("sizing_max_below_floor_keeps_automatic_minimum", CGSize(width: 800, height: 600)),
+    // §4.5's content size suggestion on the COLUMN axis, the first golden for
+    // it (the content-sizing decisions doc recorded that there was none). The
+    // probe measured a column item's min-content height at its max-content
+    // width. Red against that engine: `.a` 30 / 30 / 40 / 30 / 30 against
+    // WebKit's 40 / 80 / 80 / 40 / 80.
+    ("sizing_column_content_suggestion", CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

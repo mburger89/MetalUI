@@ -2115,6 +2115,50 @@ private func collectItems(
                                        rootFontSize: rootFontSize) != nil else { return nil }
                 return isRow ? own.width : own.height
             }()
+            // Margins sit outside the border box `own`/`base` describe.
+            // Percentages resolve against the containing block's **width**,
+            // on every edge including top and bottom — CSS's rule, which
+            // `resolveMargin` (like `resolveEdges`) already implements.
+            // `containerSize` here is the CONTENT box (the BOX MODEL milestone
+            // threads it into `collectItems`), not the border box.
+            //
+            // Resolved BEFORE the stretch block below, not after: a stretched
+            // item's cross size must subtract `marginCross` (CSS stretches the
+            // *margin box* to fill the line, not the border box), so
+            // `marginCross` has to exist before that clamp runs. Getting this
+            // ordering backwards was fix-round-1 bug 2 — `cross =
+            // clamp(containerCross, …)` filled the whole line and then
+            // silently overflowed it by the item's own margins, undetected by
+            // any of the 153 tests at the time, because no fixture combined
+            // `auto` cross sizing with a nonzero cross margin. Pinned now by
+            // `stretchSubtractsCrossMarginsBeforeClamping` and the
+            // `flex_row_stretch_with_margins` fixture.
+            //
+            // Hoisted above `minMain`, whose column probe subtracts
+            // `marginCross` for the same reason. A pure function of the item's
+            // style and `containerSize.width`, so resolving it earlier changes
+            // nothing for its other readers.
+            let margin = resolveMargin(ks.margin, against: containerSize.width,
+                                       rootFontSize: rootFontSize)
+            // Typed explicitly (not inferred) so `.leading`/`.trailing` are
+            // usable locally, below, before either value reaches `FlexItem`'s
+            // own labelled-tuple fields.
+            let marginMain: (leading: Double, trailing: Double) =
+                isRow ? (margin.left, margin.right) : (margin.top, margin.bottom)
+            let marginCross: (leading: Double, trailing: Double) =
+                isRow ? (margin.top, margin.bottom) : (margin.left, margin.right)
+            // Resolved against `containerCross` — the containing block's cross
+            // extent — NOT against the line's, which does not exist yet and
+            // would in any case be the wrong basis for a percentage min/max.
+            //
+            // Resolved BEFORE `ownCross` below, which needs them: an `auto`
+            // cross size is measured and then clamped by the item's own cross
+            // min/max, exactly as `resolveNodeSize` clamps a declared one.
+            // Hoisted above `minMain`, whose column probe clamps by them too.
+            let minCross = resolveDimension(isRow ? ks.minSize.height : ks.minSize.width,
+                                            against: containerCross, rootFontSize: rootFontSize)
+            let maxCross = resolveDimension(isRow ? ks.maxSize.height : ks.maxSize.width,
+                                            against: containerCross, rootFontSize: rootFontSize)
             let minMain: Double? = {
                 if case .auto = minDim {
                     // **A FOURTH site with hardcoded intrinsic modes, and it
@@ -2123,16 +2167,51 @@ private func collectItems(
                     // container was asked — so unlike `flexBaseSize`'s content
                     // branch, this probe must not take `intrinsic`.
                     //
-                    // Worth knowing before measuring a column: the CROSS axis
-                    // here is max-content, so this floor is computed from the
-                    // item's widest content even when the container is being
-                    // asked for its min-content width. A column whose item
-                    // reports 33 tall at min-content width and 77 at
-                    // max-content gets a floor of 77 and answers 77 — which
-                    // looks exactly like the cross-axis query failing to
-                    // propagate, and hid it from the first probe written for
+                    // **In a column the probe is asked at the WIDTH layout
+                    // will give the item, and it used to be asked at
+                    // max-content.** A column's main axis is the block axis,
+                    // so the item's min-content height depends on its width.
+                    // At max-content width every wrapping row is one line.
+                    // Measured through the WebKit oracle: a wrapping row of
+                    // four 50x20 boxes over a 40-tall sibling in a 120x60
+                    // column is 40 tall in WebKit and was 30 here.
+                    // `sizing_column_content_suggestion`.
+                    //
+                    // The width is the one layout computes, not
+                    // `containerCross`. A definite declared width is `own`'s,
+                    // clamped and floored as `ownCross` takes it. Otherwise
+                    // it is stretch's arithmetic from `layOutChildren`: the
+                    // container's cross extent minus the item's cross
+                    // margins, clamped by its cross min/max. Offering the bare
+                    // `containerCross` was measured wrong three ways in that
+                    // fixture (`margin-left: 40px`, `width: 80px`,
+                    // `max-width: 80px`: WebKit 80, bare 40). A centred
+                    // fit-content item is laid out at that width too. Its
+                    // used width can be narrower only when its max-content
+                    // fits, and then it is one line at either width.
+                    //
+                    // **The fallback is still max-content** when the
+                    // container has no definite cross extent. That case
+                    // computes the floor from the item's widest content even
+                    // when the container is being asked for its min-content
+                    // width. A column whose item reports 33 tall at
+                    // min-content width and 77 at max-content gets a floor of
+                    // 77 and answers 77. That looks exactly like the
+                    // cross-axis query failing to propagate, and hid it from
+                    // the first probe written for
                     // `theCrossAxisOfTheQueryReachesTheChildToo`. That test
                     // sets `min-height: 0` to switch this off.
+                    //
+                    // **§9.2's flex base size does not do the same yet.**
+                    // `flexBaseSize` offers a column item the bare
+                    // `containerCross`, so shapes where the floor does not
+                    // bind stay wrong: `margin-left: 40px; min-height: 0` is
+                    // 80 tall in WebKit and 40 here, and `min-width: 200px`
+                    // is 20 in WebKit and 30 here.
+                    //
+                    // The ROW arm is unchanged: a row's cross axis is the
+                    // block axis, which content-sizes, so max-content is
+                    // right there.
                     //
                     // **`known: .unspecified` is deliberate and is MORE
                     // load-bearing now that both halves of ruling FS-3 are
@@ -2144,11 +2223,30 @@ private func collectItems(
                     // Measured against WebKit: a `width: 120px` empty div
                     // shrinks to 75 in a row that overflows, because its
                     // content suggestion is 0 and 0 wins the `min`.
-                    let probe = measureNode(ctx, tree, kid, known: .unspecified,
-                                            available: AvailableSpaceSize(
-                                                width: isRow ? .minContent : .maxContent,
-                                                height: isRow ? .maxContent : .minContent),
+                    let probe: SizeD
+                    if isRow {
+                        probe = measureNode(ctx, tree, kid, known: .unspecified,
+                                            available: AvailableSpaceSize(width: .minContent,
+                                                                          height: .maxContent),
                                             containingBlockWidth: containerSize.width)
+                    } else {
+                        // A definite declared width goes down as `known`
+                        // WIDTH only. `known.height` stays `nil`, so the probe
+                        // still answers the content suggestion (see below).
+                        let declaredWidth: Double? =
+                            resolveDimension(ks.size.width, against: containerCross,
+                                             rootFontSize: rootFontSize) == nil ? nil : own.width
+                        let usedWidth: Double? = declaredWidth ?? containerCross.map {
+                            clamp(Swift.max(0, $0 - marginCross.leading - marginCross.trailing),
+                                  min: minCross, max: maxCross)
+                        }
+                        probe = measureNode(ctx, tree, kid,
+                                            known: OptionalSizeD(width: declaredWidth, height: nil),
+                                            available: AvailableSpaceSize(
+                                                width: usedWidth.map { .definite($0) } ?? .maxContent,
+                                                height: .minContent),
+                                            containingBlockWidth: containerSize.width)
+                    }
                     let content = isRow ? probe.width : probe.height
                     // §4.5: `min(specified size suggestion, content size
                     // suggestion)`, the specified one standing down when the
@@ -2196,34 +2294,9 @@ private func collectItems(
             }()
             let hypothetical = clamp(base, min: minMain, max: maxMain)
 
-            // Margins sit outside the border box `own`/`base` describe.
-            // Percentages resolve against the containing block's **width**,
-            // on every edge including top and bottom — CSS's rule, which
-            // `resolveMargin` (like `resolveEdges`) already implements.
-            // `containerSize` here is the CONTENT box (the BOX MODEL milestone
-            // threads it into `collectItems`), not the border box.
+            // `margin`, `marginMain` and `marginCross` are resolved above
+            // `minMain`, which needs `marginCross` in a column.
             //
-            // Resolved BEFORE the stretch block below, not after: a stretched
-            // item's cross size must subtract `marginCross` (CSS stretches the
-            // *margin box* to fill the line, not the border box), so
-            // `marginCross` has to exist before that clamp runs. Getting this
-            // ordering backwards was fix-round-1 bug 2 — `cross =
-            // clamp(containerCross, …)` filled the whole line and then
-            // silently overflowed it by the item's own margins, undetected by
-            // any of the 153 tests at the time, because no fixture combined
-            // `auto` cross sizing with a nonzero cross margin. Pinned now by
-            // `stretchSubtractsCrossMarginsBeforeClamping` and the
-            // `flex_row_stretch_with_margins` fixture.
-            let margin = resolveMargin(ks.margin, against: containerSize.width,
-                                       rootFontSize: rootFontSize)
-            // Typed explicitly (not inferred) so `.leading`/`.trailing` are
-            // usable locally, below, before either value reaches `FlexItem`'s
-            // own labelled-tuple fields.
-            let marginMain: (leading: Double, trailing: Double) =
-                isRow ? (margin.left, margin.right) : (margin.top, margin.bottom)
-            let marginCross: (leading: Double, trailing: Double) =
-                isRow ? (margin.top, margin.bottom) : (margin.left, margin.right)
-
             // CSS Flexbox §9.4 — cross-axis stretch.
             //
             // An item stretches when its resolved alignment is `stretch` AND its
@@ -2286,17 +2359,8 @@ private func collectItems(
             let align = resolvedAlignment(ks, container: s)
             var stretchEligible = false
             if align == .stretch, case .auto = crossDim { stretchEligible = true }
-            // Resolved against `containerCross` — the containing block's cross
-            // extent — NOT against the line's, which does not exist yet and
-            // would in any case be the wrong basis for a percentage min/max.
-            //
-            // Resolved BEFORE `ownCross` below, which needs them: an `auto`
-            // cross size is measured and then clamped by the item's own cross
-            // min/max, exactly as `resolveNodeSize` clamps a declared one.
-            let minCross = resolveDimension(isRow ? ks.minSize.height : ks.minSize.width,
-                                            against: containerCross, rootFontSize: rootFontSize)
-            let maxCross = resolveDimension(isRow ? ks.maxSize.height : ks.maxSize.width,
-                                            against: containerCross, rootFontSize: rootFontSize)
+            // `minCross` and `maxCross` are resolved above `minMain`, which
+            // clamps a column's §4.5 probe width by them.
 
             // §9.4 step 7 — the item's HYPOTHETICAL cross size: "perform layout
             // with the used main size and the available space, treating auto as

@@ -1311,3 +1311,61 @@ private func wrappingChildInANarrowContainer(
     #expect(tree.layout(b).y == 40)
     #expect(tree.layout(b).height == 30)
 }
+
+/// The widths a measure closure was offered by §4.5's content-suggestion probe
+/// alone. That probe is the only caller that asks a leaf `.minContent` on the
+/// HEIGHT axis in these layouts. `flexBaseSize` asks `.maxContent` and the
+/// cross-size measures pass a definite height, so filtering on it isolates the
+/// probe. `MeasureFunction` is `@Sendable`, and layout runs synchronously on
+/// the caller's thread, hence the unchecked box.
+private final class ProbeWidths: @unchecked Sendable {
+    var offered: [AvailableSpace] = []
+}
+
+/// A column's §4.5 probe offers the item's used width: clamped by its cross
+/// `min-width`, and `.maxContent` when the container has no cross extent.
+///
+/// `sizing_column_content_suggestion` pins the margin, declared-width and
+/// `max-width` parts against WebKit. The `min-width` clamp cannot have a golden
+/// yet: WebKit's `min-width: 200px` shape (`.a` 20, `.b` 40) is also wrong in
+/// §9.2's flex base size, which this change does not touch, so the layout
+/// stays wrong whatever the probe offers. So the oracle here is the closure,
+/// not WebKit: it reports the width it was asked at.
+///
+/// Red against the engine whose probe offered `.maxContent` in a column:
+/// case A recorded `.maxContent`, not `.definite(200)`. Case B is the other
+/// direction and passed there too: an indefinite container must keep the old
+/// max-content fallback.
+@Test func aColumnsContentSuggestionProbeOffersTheClampedWidthOrMaxContent() throws {
+    func column(width: Double?) -> (LayoutTree, LayoutNodeID, ProbeWidths) {
+        let tree = LayoutTree(generation: 0)
+        let widths = ProbeWidths()
+        var leafStyle = Style()
+        leafStyle.minSize = Size(width: px(200), height: .auto)
+        let leaf = tree.newLeaf(style: leafStyle) { _, available in
+            if case .minContent = available.height { widths.offered.append(available.width) }
+            return SizeD(width: 10, height: 10)
+        }
+        var s = Style()
+        s.display = .flex
+        s.flexDirection = .column
+        if let width { s.size = Size(width: px(width), height: px(60)) }
+        return (tree, tree.newNode(style: s, children: [leaf]), widths)
+    }
+
+    // A — a definite 120: stretch's arithmetic, clamped up to the 200 minimum.
+    let (definiteTree, definiteRoot, definite) = column(width: 120)
+    computeLayout(definiteTree, root: definiteRoot,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    try #require(!definite.offered.isEmpty)
+    #expect(Set(definite.offered) == [.definite(200)])
+
+    // B — no cross extent: the fallback stays max-content.
+    let (autoTree, autoRoot, indefinite) = column(width: nil)
+    _ = measureNode(LayoutContext(rootFontSize: 16), autoTree, autoRoot,
+                    known: .unspecified,
+                    available: AvailableSpaceSize(width: .maxContent, height: .maxContent),
+                    containingBlockWidth: nil)
+    try #require(!indefinite.offered.isEmpty)
+    #expect(Set(indefinite.offered) == [.maxContent])
+}
