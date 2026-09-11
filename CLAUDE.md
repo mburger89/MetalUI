@@ -408,11 +408,13 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 Record §07 has the tables and machines. `computeLayout` is ~40 µs/node debug,
 ~5 µs/node release, flat 8k–88k nodes (content sizing's §4.5 automatic-minimum
 probe multiplied it ~4.9x; whoever optimises starts there). The demo's warm
-release frame is **1.571 ms at 40 rows and 1.570 at 500** (§07's later table,
-`07-layout-cost.md:117-120`, which supersedes the 1.279/1.273 row above it —
-this line quoted the superseded one until 2026-09-10); scrolling adds
-0.1–0.3 ms. **That table is dated 2026-08-29 and predates the animation
-milestone**, so every ratio taken against it is stale by one milestone. The
+release frame is **1.652 ms at 40 rows and 1.637 at 500**, re-taken 2026-09-10
+at `2457da8` after the animation milestone; scrolling adds 0.1–0.3 ms. The
++5% against the superseded 1.571/1.570 is **within the ~5% harness drift §07
+already documents — do not read it as animation's cost**. Warm resident
+`StateTable` entries are **165 at 40 rows and 63 at 500**: the smaller tree
+holds more, because only the larger one crosses `sweepThreshold` and is reaped.
+The
 cold first frame builds every `List` row: ~76 ms release / ~188 ms debug at
 500, ~17 s release at 100k — M3's "100k scrolls smoothly" is met for scrolling
 and not for appearing. Identity path construction is ~0.4% of a frame. Hitbox
