@@ -684,3 +684,75 @@ path between frames, and neither has a public mutator (`active` is `private(set)
 internal, `lastMousePosition` is `private`), so nothing in a tree can write them
 mid-render either. The asymmetry is real and load-bearing: focus is the only one of
 the three the *frame* discovers something about.
+
+---
+
+## OPEN — press-and-drag hover: keep AppKit's freeze, or follow the pointer? (review item B-13, awaiting the owner)
+
+**Deliberately no ruling id: the owner has not decided. The next free letter is
+`IN-Y`; assign it only when a choice is made.**
+
+**The gap.** `MetalHostView` overrides `mouseMoved` and not `mouseDragged(with:)`, and
+`InputEvent` has no drag case. So between `mouseDown` and `mouseUp`,
+`Window.updatePointerState` gets no position: `lastMousePosition` holds the press
+point, and a `hoverBackground` stays where it was at press time until `mouseUp` (which
+writes the position and dirties the window). `active` is unaffected.
+`PaintPass.isActive` is consulted by no built-in element anyway.
+
+**Evidence, replica-measured.** Standalone probes, not in the repo, macOS 26.6.2
+(25G83). Each is an `NSView` whose `NSTrackingArea` carries MetalUI's exact options
+(`[.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect]`), two such
+views A|B side by side, driven by `CGEvent`s posted to the HID event tap.
+
+- No-button control: A.entered, A.moved, A.exited, B.entered as the pointer crosses.
+- Press in A and drag into B: only `A.down`, four `A.dragged` (all delivered to A, the
+  press view, even over B), then `A.up`. **No exited or entered during the drag, and
+  none at mouseUp either.** `A.exited` and `B.entered` arrive on the first free move
+  afterwards. Apple's doc for `.enabledDuringMouseDrag` says the no-option owner gets
+  entered events "on mouseUp events after a mouse drag"; measured, that did not happen.
+- **SwiftUI** (`NSHostingView`, `.onHover` and `.onContinuousHover` on two `Color`
+  views), same drag: no hover callback during the drag; `A.onHover(false)` and
+  `B.onHover(true)` arrive on the first move after release.
+- Adding `.enabledDuringMouseDrag` changed **nothing** in seven variants (press on a
+  view or on bare background; `.activeInKeyWindow` or `.activeAlways`; 30pt steps or
+  5pt steps with deltas and pressure). That arm never disagreed with the no-option arm,
+  so this probe does not establish what the option does, and a synthetic drag the
+  window server does not track would produce the same log. **A real hand drag is the
+  confirming look.**
+- Instrument notes: `NSEvent(cgEvent:)` plus `NSApp.sendEvent` delivers nothing (the
+  event has `window == nil`). `NSEvent.mouseEvent` plus `sendEvent` delivers down, drag
+  and up but **no** tracking callback even on the control, and so does
+  `CGEvent.postToPid`. Tracking is window-server driven, and no windowless or
+  in-process test can pin it.
+
+**Option A: keep the freeze (no override).** Matches measured AppKit with MetalUI's
+options, and matches measured SwiftUI, the EP-5 authority above the engine. MetalUI
+already corrects one event earlier than both: it corrects at `mouseUp`, they wait for
+the next move. Cost: when a real drag gesture (slider thumb, scrollbar drag, both
+currently 'Out, deliberately' in the clipping spec) is specced, that milestone must add
+the override anyway and re-decide hover then. Pin: a windowless `MetalUIPlatformTests`
+test that requires
+`class_getMethodImplementation(MetalHostView.self, #selector(NSResponder.mouseDragged(with:)))`
+to equal `NSView`'s, so adding the override reddens until this ruling is revisited.
+Plus a human look: press a demo button, drag onto the other and hold; the highlight
+should stay on the pressed one until release.
+
+**Option B: follow the pointer (add `mouseDragged`).** The web's semantics, per the
+review; not measured here. It is the reverse of EP-5's usual direction, and the
+measured AppKit and SwiftUI arms disagree with it: B lights while A is pressed and
+`active`. Forwarding as `.mouseMoved` needs no public enum change. A new drag case on
+`InputEvent` is the cross-module stale-incremental-build hazard CLAUDE.md records, and
+needs `swift package clean`. Either way, every drag event dirties a frame. Pin: a
+windowless test that calls
+`view.mouseDragged(with: NSEvent.mouseEvent(with: .leftMouseDragged, …))` on a
+`MetalHostView` and requires `onInput` to receive the converted position. That should
+be red on arrival (no override exists) but was not run against `MetalHostView` here.
+Add a `FakePlatformWindow` test in which mouseDown on A then a drag-sourced move to B
+resolves hover to B with `active` still A, plus the same human look with the opposite
+expected answer.
+
+**Recommendation: A**, recorded as a ruling. Both platform authorities measured the
+freeze. The only visible cost is a highlight held for the length of a press, which
+self-corrects. And B decides a question (hover during a gesture) that belongs to the
+milestone that first builds a gesture. Revisit if the hand-drag look contradicts the
+replica.

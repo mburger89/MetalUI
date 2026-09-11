@@ -160,8 +160,9 @@ its `auto` size" happened to coincide here only by the fixture's own constructio
 An unresolved percentage does not have a special "counts as zero" rule; it becomes
 `Dimension.auto` and then goes through ordinary content sizing of that box, exactly
 like a literal `auto`. For an empty box that content size is 0 — this probe's case.
-A percentage child **with content** contributes that content's own auto
-(max-content) size during the intrinsic pass instead.
+A percentage child **with content** contributes that content's own auto size
+during the intrinsic pass instead: its max-content width under a max-content
+question and its min-content width under a min-content one (ST-H).
 
 ### The two paragraphs that stood here were WRONG, and this is the error record
 
@@ -267,6 +268,18 @@ stretch branch both now name the rule and cite the measured numbers, so a future
 "simplification" back to unconditional stretch has to delete an explanation, not just
 two `&&` clauses.
 
+**Addendum (review finding B-8): stretch filled the cell but discarded the child's own
+bounds.** ST-F settled *whether* an axis stretches and said nothing about min/max. The
+stretch branch then set the axis to the cell size outright, dropping the min/max clamp
+and BM-4's padding+border floor that `layOutStack` had just applied. Measured against
+the grid analogue: an auto child with `max-height: 50` in a 300x200 cell is 300x50 in
+WebKit and was 300x200 here. `min-width: 340; min-height: 260` gives 340x260 against
+300x200. `padding: 60px 50px; border: 10px` in a 100x100 cell gives 120x140 against
+100x100, and it is still 120x140 with `max-width: 40; max-height: 50` added, so clamp
+then floor. The branch now takes `max(clamp(extent, min, max), floor)`, resolving each
+bound against its own axis of the stack's content box. Pinned by `stack_stretch_max`,
+`stack_stretch_min` and `stack_stretch_border_box_floor`.
+
 ## ST-G — `AlignItems` and `JustifyItems` being distinct types makes axis confusion unrepresentable, not merely tested
 
 **The precise claim.** `AlignItems` (`flexStart, flexEnd, center, baseline, stretch`)
@@ -297,3 +310,30 @@ the representable bug — **but for a different bug than a first read of the two
 design suggests.** Do not write "the fixture guards the axis swap": the fixture guards
 against reading the wrong axis's *value*; the type system alone guards against binding
 the wrong axis's *type*, and no fixture is needed for that half at all.
+
+## ST-H — a stack child's `auto` width is fit-content, not max-content (review finding B-4)
+
+**The defect.** `layOutStack` measured every content-sized child at `.maxContent` on
+both axes. A 120-wide stack holding a wrapping row of four 50x20 items laid it out
+200x20 at x = -40; WebKit's one-cell grid gives 120x40 at 0. A stack's min-content
+width was likewise its widest child's max-content: an auto stack inside a 100-wide
+flex row stayed 200 wide where WebKit shrinks it to 100x40.
+
+**The ruling.** Inline axis: fit-content against `box.size.width`, or against the
+stack's intrinsic question when it has no width, via the helper
+`fitContentInlineSize` shared with `itemFitContentCrossSize`. Block axis: content
+height at the used (post-clamp) width.
+
+**Rejected: `.definite(box.size.width)`.** Built as a mutant and measured: widest line
+100x40 at x = 10 (WebKit 120x40 at 0); floor lost, 30x40 (WebKit 50x40); the
+min-content case untouched at 200.
+
+**Oracle limit.** When a child's min-content exceeds the stack's width, grid grows its
+single track, and a centred child sits at x = 0 (measured). A stack centres in its own
+content box (x = -10). Fixtures in that regime use `start` alignment.
+
+**Pins.** `stack_fit_content_inline`, `stack_fit_content_floor`,
+`stack_fit_content_min_content_contribution` (StackFixtureTests.swift).
+
+**Cost if wrong.** Stack children would overflow or under-wrap where SwiftUI's ZStack
+and CSS grid both fit them.

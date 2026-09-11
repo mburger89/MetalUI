@@ -915,7 +915,7 @@ public enum AvailableSpace: Sendable, Equatable {
     /// Size to the smallest width that avoids overflow — the longest
     /// unbreakable run, for text.
     case minContent
-    /// Size as if infinitely wide — a single line, for text.
+    /// Size as if infinitely wide — a single line, for text. (Erratum 2026-09-10, TX-K: one line per hard line break.)
     case maxContent
 }
 

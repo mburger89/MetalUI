@@ -88,6 +88,17 @@ in them reaches the memo. A tree of boxes costs today what it cost before, and
 anyone reading "the measure path got faster" as "these numbers got smaller"
 would be reading a text optimisation into a tree with no text in it.
 
+**2026-09-11, `perf: §9.7's freeze loop no longer allocates per item on every
+pass`:** `resolveFlexibleLengths` no longer builds per-pass `filter` arrays, an
+`items.map` or a violation dictionary. Measured by allocation count, not time: a
+two-pass line went from 269 allocations at 7 items and 2,330 at 67 to at most one
+per pass in the debug test build, and a standalone `-O` build makes exactly one
+per pass. Layout output is byte-identical (600 random trees, 29,587 nodes, and
+all goldens). **The per-node figures above were NOT re-taken after this change;**
+the round-2 review's replica estimate of a 9.7–11.7% `computeLayout` saving is
+unconfirmed in-tree. The next term in this function is `rawFactor`'s
+`tree.style(item.node)`, which returns a whole `Style` by value.
+
 **Where the milestone's change actually shows is a tree with `Text` in it, and
 the demo is the one to quote.** The whole `Frame.render` over
 `Sources/MetalUIDemo/main.swift`'s real element tree at 920x560, release, best
@@ -153,6 +164,12 @@ copied into the test target so `Frame.render` is reachable — so it is a third
 harness, not the second one rebuilt. **What this re-take establishes is the
 current number and that the flatness survived**, not a delta.
 
+Since 144208e (lane/text), font resolution is memoized per window on
+`ShapingCache.resolveFont(family:size:)`: a warm frame makes zero
+`FontResolver.resolve` calls (pinned by
+`aWarmFrameReachesTheUncachedFontResolverZeroTimes`; it was two per built `Text`
+before). The warm-frame milliseconds above predate this and were not re-taken.
+
 **The durable observable is a count, not a millisecond, and it is new.** The
 same harness reads `StateTable.count` after the 210th warm render:
 
@@ -195,6 +212,15 @@ memo cache in `LayoutContext` is what keeps this a constant multiplier instead
 of the depth-exponential ~700x the design spec predicted without it, and
 `theCacheIsActuallyConsulted` is the only test that can see the cache working.
 
+**The column probe's cache key widened on 2026-09-10 (column-probe fix,
+lane/layout).** A column item's §4.5 probe is now asked at the item's used width
+instead of `.maxContent`. Probes of one subtree under different container widths
+therefore no longer share one cache entry. Counted, not timed: `measureNode` on a
+365-node branching tree of alternating columns and wrapping rows, with one
+`LayoutContext`, went from 1633 to 1723 misses and from 3879 to 4113 hits. The
+probe count per item is unchanged. The warm-frame figures above predate this and
+were not re-taken.
+
 **Measure on a BRANCHING tree, never a chain.** A chain has one child per level,
 so the three probes per item collapse onto the same few cache keys and the cost
 looks linear and cheap — which is exactly what the during-task measurement
@@ -218,6 +244,11 @@ command is in the Build section precisely so that stays cheap.
 once, so the first frame builds *every* row. MP-I already records that as 76 ms
 release / 188 ms debug at 500 rows; at 100,000 rows it scales roughly linearly
 to sixteen and a half seconds.
+
+As of f2afa55 (2026-09-10) a cold frame creates at most one line-break tokenizer
+instead of one per distinct `Text` string (40 → ≤1 on `demoLikeRows(40)`, a
+count). The cold-frame millisecond figures above predate this and were not
+re-taken under uncontended conditions.
 
 **So state M3's exit criterion at exactly its strength.** "A 100k-row
 virtualized list scrolling smoothly" is met for **scrolling** — steady-state
@@ -294,4 +325,24 @@ frame. The linked list is the right structure for the reason it was chosen (it
 removes a depth factor from a per-frame cost for one allocation's price), but
 nobody should expect a frame-time change from it while `computeLayout` costs
 ~40 us/node.
+
+### 2026-09-11 — closed-form answer for a childless node with no measure function (lane/layout, leaf-probe-shortcut)
+
+- `measureNode` returns `known ?? (0 + borderBoxFloor)` for such a node, which is
+  exactly what the full path computes.
+- **Work, counted:** a 4x5x3 empty-Box tree at three queries made 707 cache
+  misses, 540 of them the leaves' own, and makes 167 with the change. The count
+  is pinned by `aChildlessNodeWithNoMeasureFunctionIsNeverACacheMiss`.
+- **Output:** bit-identical across all 5,318 `computeLayout` results the whole
+  suite produces, and across 150 seeded random trees against a reference with a
+  `display: none` child under every leaf
+  (`theLeafShortcutMovesNoRectOnSeededRandomTrees`). No golden moved.
+- **Found by mutation:** ignoring `known` in the shortcut changes nothing
+  reachable through `computeLayout`, so only direct measurement pins it.
+  Dropping its `0 +` changes a stored pre-rounding width to -0.0 on a box whose
+  every edge is -0.0.
+- **Timings owed:** re-take this file's per-node table on an uncontended
+  machine, on record §07's canonical depth-12 branch-2 and depth-10 branch-3
+  trees and on a tree whose leaves are `Text`. The report's -9% to -36% came
+  from synthetic empty-Box trees and was not reproduced.
 

@@ -191,7 +191,7 @@ git commit -m "feat(text): MetalUIText target with resolved-font keys and pinned
                                wrappingAt width: Double?) -> ShapedText
   }
   ```
-  `width == nil` means "one line, no wrapping".
+  `width == nil` means "one line, no wrapping". *(Erratum 2026-09-10, ruling TX-K: one line per **hard** line break, never one line for the whole string.)*
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -526,7 +526,7 @@ Expected: FAIL — `Text` does not exist.
 
 | `available` | answer |
 |---|---|
-| `.maxContent` | `shaped(wrappingAt: nil)` — one line, full advance |
+| `.maxContent` | `shaped(wrappingAt: nil)` — one line, full advance *(erratum 2026-09-10, TX-K: one line per hard line break)* |
 | `.minContent` | `shaped(wrappingAt: small positive)` — widest line |
 | `.definite(w)` | `shaped(wrappingAt: w)` — widest line, `lines × lineHeight` |
 

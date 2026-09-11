@@ -49,7 +49,7 @@ mutate anything**, and reading it as a coverage gap banks a finding that is not
 there. Telling the two apart is part of the method, not an afterthought — the
 text milestone hit both, three times each way, in one branch.
 
-**Broken instrument.** Two spellings that look like mutations and are not:
+**Broken instrument.** Three spellings that look like mutations and are not:
 
 - **Replacing a stored property with a computed one over surviving storage does
   not mutate synthesized `Hashable`/`Equatable` at all.** Dropping `size` from
@@ -60,6 +60,13 @@ text milestone hit both, three times each way, in one branch.
   repo, so `glyphs.sort { $0.order < $1.order }` cannot be destabilised by
   wishing. Reversing the tiebreaker, and deleting the sort, each redden
   `finalizeSortsGlyphsStablyByOrder` alone.
+- **A constant `hash(into:)` does not force collisions when `==` reads a stored
+  hash directly.** `FontKey` stores `precomputedHash` and uses it as `==`'s early
+  reject; with `hash(into:)` returning a constant, dropping `variations` or
+  `matrix` from `==` still reddened nothing that compares keys, because the early
+  reject kept rejecting on the real stored value. The mutation that makes every key
+  collide is the stored hash itself (`self.precomputedHash = 0`); under it,
+  dropping a component from `==` reddens `everyComponentOfTheFontKeyDiscriminates`.
 
 **The finding.** Three in the same branch, each on code everyone was sure of:
 

@@ -354,6 +354,8 @@ that `??` chain** is what makes hover and focus transitions use the same path;
 animating the three fields separately would animate values that are not on
 screen. This is a deliberate departure from the spec's own field list.
 
+**Amended 2026-09-10 (review finding B-9):** the `focusBackground` / `hoverBackground` / `background` chain this passage places in `Box.paint` now lives in `animatedBackground(_:for:pass:)` (`AnimatedColor.swift`), called by `Box.paint`, `Stack.paint` and `Text.paint`. Until then both modifiers compiled on `Stack` and `Text` and painted nothing. The substance is unchanged — one resolved value is animated, not three fields; pinned per site by `everyBackgroundPaintingSiteHonoursHoverAndFocus`.
+
 **The phase choice is PINNED, not merely argued.** Without a test, "colour lives
 in paint because only `PaintPass` has a theme" is an assertion nothing can see.
 `aThemeChangeMidFlightMovesBothOfTheAnimationsEndpoints` is the pin, and the
@@ -559,6 +561,17 @@ away.
 finished while it is visibly moving and the value snaps; too tight, and
 `hasActiveAnimations` never goes false and the display link never pauses — M4's
 own idle criterion, sabotaged from a call site. Both directions are pinned.
+
+**Amended 2026-09-10 (review B-12): `duration` is finite-preconditioned on
+`linear(duration:)` and `spring(duration:bounce:)` too.** AN-I covered `bounce` and
+all five `timingCurve` arguments and never mentioned the other two constructors'
+`duration`. Both evaluators' `> 0` guard snaps 0, negatives and NaN, but lets
+`.infinity` through. Measured on the unfixed source: `linear` and a bounce-0 `spring`
+sat at `from` with `isFinished == false` at elapsed 0 through 1e6, and a bounce-0.2
+`spring` returned NaN forever, so the display link never paused. The rule is
+`isFinite`, not `> 0`: 0 and negatives still snap and 1e9 still animates. NaN, which
+used to snap, now traps, to match `easeIn`/`easeOut`/`easeInOut`, which already
+trapped through `timingCurve`. Pinned by `AnimationDurationTrapTests.swift`.
 
 ---
 
@@ -1136,6 +1149,8 @@ blast radius by another route.
 than the three fields — means a hover or focus change flows through the same
 interpolation path as any other colour change. That is true and it is why the
 decomposition is right.
+
+**Amended 2026-09-10 (review finding B-9):** the `focusBackground` / `hoverBackground` / `background` chain this passage places in `Box.paint` now lives in `animatedBackground(_:for:pass:)` (`AnimatedColor.swift`), called by `Box.paint`, `Stack.paint` and `Text.paint`. Until then both modifiers compiled on `Stack` and `Text` and painted nothing. The substance is unchanged — one resolved value is animated, not three fields; pinned per site by `everyBackgroundPaintingSiteHonoursHoverAndFocus`.
 
 **What was NOT recorded, and it is the half a caller needs.** **Nothing parks a
 transaction around pointer-move handling.** A hover change with no active

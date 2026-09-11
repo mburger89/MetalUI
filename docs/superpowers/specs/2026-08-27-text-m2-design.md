@@ -72,7 +72,7 @@ line's advance, and the vertical metrics (ascent, descent, leading).
 `StateTable`.
 
 - **`resolvedFontKey` identifies the resolved `CTFont` including variation
-  coordinates and matrix — never a family or PostScript name.** §6.1 measured the
+  coordinates and matrix — never a family or PostScript name.** *(Erratum 2026-09-10: it identifies the font for glyph identity, not its shaping behaviour — the UI font and `"System Font"` at one size share a key and shape non-Latin text differently; `twoRequestsWithEqualFontKeysShareOneShapeThoughTheyShapeDifferently`, pinned wrong on purpose.)* §6.1 measured the
   trap: requesting `"SFMono-Regular"` by name on the target machine returned a
   font whose PostScript name is `Helvetica`. A name-keyed cache serves one font's
   glyphs for another's.
@@ -107,9 +107,22 @@ path over it, measurable against a working implementation.
 
 | `available` | answer |
 |---|---|
-| `.maxContent` | one line, full advance |
+| `.maxContent` | one line per **hard** line break (no soft wrapping); width is the widest line, height is `lines × lineHeight` |
 | `.minContent` | the **widest unbreakable run**, from `CFStringTokenizer(kCFStringTokenizerUnitLineBreak)`, trailing whitespace trimmed |
 | `.definite(w)` | typeset at `w`; width is the widest line, height is `lines × lineHeight` |
+
+**The max-content row said "one line, full advance" until 2026-09-10, and that
+was wrong for any string containing a hard line break (ruling TX-K).** The shaper
+built one `CTLine` for the whole string, which lays every hard break's segments
+side by side, while the definite-width branch's `CTTypesetterSuggestLineBreak`
+breaks after each one. So max-content was the **sum** of a label's lines where
+every definite width gave the widest: `"Ready\nSet\nGo"` at 13pt measured 75.004
+against 37.565. The shaper now runs its typesetter loop at width `+infinity` when
+no width is offered. For a break-free string that is byte-identical to the
+whole-string line, measured over bidi, CJK, clusters and a 136,000-unit string. A
+finite large width is not equivalent: that string soft-breaks at `1e4` and `1e5`.
+The separators are CoreText's: U+000A, U+000D, CR LF, U+2028, U+2029, U+0085,
+U+000B and U+000C. A trailing break opens no empty last line.
 
 **The min-content recipe in this section's first two drafts was wrong, and it
 would have shipped a §4.5 floor an order of magnitude too small.** They said

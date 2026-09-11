@@ -711,6 +711,17 @@ occurrences, oldest first:
 list offers: it is the one public struct that crosses a module boundary and is
 still growing stored properties.
 
+**A third dated instance, 2026-09-10, item scene-arrays:** `Scene`'s private
+stored properties changed from two `[PrimitiveKind: [Int]]` dictionaries to four
+`[Int]` arrays. Private stored properties still set the public struct's layout,
+so this is the same hazard; clean after merging it.
+
+**Also 2026-09-10, item atlas-fold:** `FontKey` (public, `MetalUIText` → `MetalUI`) gained the
+stored property `precomputedHash`, so `GlyphKey` and `PlacedGlyph` grew with it. Both this and the
+`Scene` change above were cleaned before any test ran — in each fix lane's worktree and again at
+integration — so **neither produced an observed failure**. They are recorded as hazards, not as
+members of the observed list above, which still has four entries.
+
 Both symptoms point at a code defect; neither is one. `swift package clean`
 followed by a full rebuild has resolved it every time, and the isolated change
 then passed cleanly and repeatably. **Recognise it by the shape**: an ordinary

@@ -92,7 +92,12 @@ necessarily come out ahead by one; read 18 before concluding it has.
   raised to 120 is untouched by either a 100 or a 130 automatic minimum, and
   only a fixture with a shrinking sibling can tell the two rules apart —
   measured, not assumed, after the plan's own claim that the first fixture
-  guarded this choice turned out false. **6** was ruling TX-H, an item's cross
+  guarded this choice turned out false. A second gap in the same formula — the
+  automatic minimum was never clamped by a definite `max-*` — was found by the
+  post-merge review and fixed without a divergence number:
+  `sizing_max_clamps_content_suggestion` (WebKit 50, engine 200 before) and
+  `sizing_max_below_floor_keeps_automatic_minimum` (the clamp must not take an
+  item below its padding and border). **6** was ruling TX-H, an item's cross
   size measured before §9.7 flexes it; fixed by re-running the fit-content
   cross measurement for any non-stretched item whose used main size differs
   from its hypothetical one, and pinned by
