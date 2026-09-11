@@ -190,3 +190,75 @@ import MetalUICore
     #expect(nsWindow.isReleasedWhenClosed == false,
             "AppKit will release a window ARC already owns; closing it crashes the process later")
 }
+
+/// A non-precise scroll device (a wheel mouse) reports LINES in
+/// `scrollingDeltaX/Y`; a precise one (trackpad, Magic Mouse) reports points.
+///
+/// **Both arms carry the same raw numbers and must come back different.** Before
+/// the fix the seam copied the raw value in either case, so the line arm read
+/// `3, -2` points where `NSScrollView` would have moved `30, -20`. The oracle is
+/// AppKit's own `NSScrollView.verticalLineScroll`/`horizontalLineScroll` read at
+/// test time, not the constant under test. The x and y magnitudes differ and
+/// carry opposite signs, so a transposed or sign-dropping conversion reddens
+/// too (practices doc, shape 1).
+@MainActor
+@Test func aNonPreciseScrollDeltaIsScaledFromLinesToPointsAndAPreciseOneIsNot() throws {
+    let precise = MetalHostView.scrollDelta(x: 3, y: -2, precise: true)
+    let lines = MetalHostView.scrollDelta(x: 3, y: -2, precise: false)
+
+    // The arms must disagree; agreement is the bug.
+    #expect(precise.x != lines.x, "a wheel mouse's line count was applied as points")
+    #expect(precise.y != lines.y, "a wheel mouse's line count was applied as points")
+
+    // The precise arm is exactly the raw value: trackpads were already right.
+    #expect(precise.x == Pixels(3))
+    #expect(precise.y == Pixels(-2))
+
+    let reference = NSScrollView(frame: .zero)
+    #expect(lines.x == Pixels(Float(3 * reference.horizontalLineScroll)))
+    #expect(lines.y == Pixels(Float(-2 * reference.verticalLineScroll)))
+}
+
+/// The same conversion, through the override AppKit actually calls, with real
+/// `NSEvent`s. The pure-function test above cannot see a `scrollWheel(with:)`
+/// that stops calling it; this one can.
+///
+/// `CGEvent(scrollWheelEvent2Source:units:.line …)` is what a wheel mouse's
+/// event looks like after `NSEvent(cgEvent:)`: `hasPreciseScrollingDeltas` is
+/// false and `scrollingDeltaY` holds the raw line count. `.pixel` gives the
+/// precise shape. Both premises are required, not assumed, so an SDK that
+/// changes either stops this test loudly instead of letting it pass on
+/// identical inputs. No window is opened.
+@MainActor
+@Test func aWheelMouseEventReachesOnInputInPointsAndATrackpadEventIsUnchanged() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let view = MetalHostView(surface: MetalLayerSurface(device: device))
+    var deltas: [Point<Pixels>] = []
+    view.onInput = { event in
+        if case .scrollWheel(let scroll) = event { deltas.append(scroll.delta) }
+        return true
+    }
+
+    func wheelEvent(_ units: CGScrollEventUnit) throws -> NSEvent {
+        let cg = try #require(CGEvent(scrollWheelEvent2Source: nil, units: units,
+                                      wheelCount: 2, wheel1: -2, wheel2: 3, wheel3: 0))
+        return try #require(NSEvent(cgEvent: cg))
+    }
+    let line = try wheelEvent(.line)
+    let pixel = try wheelEvent(.pixel)
+    try #require(line.hasPreciseScrollingDeltas == false)
+    try #require(pixel.hasPreciseScrollingDeltas == true)
+    try #require(line.scrollingDeltaX == 3 && line.scrollingDeltaY == -2)
+    try #require(pixel.scrollingDeltaX == 3 && pixel.scrollingDeltaY == -2)
+
+    view.scrollWheel(with: line)
+    view.scrollWheel(with: pixel)
+    try #require(deltas.count == 2)
+
+    let reference = NSScrollView(frame: .zero)
+    #expect(deltas[0].x == Pixels(Float(3 * reference.horizontalLineScroll)))
+    #expect(deltas[0].y == Pixels(Float(-2 * reference.verticalLineScroll)))
+    #expect(deltas[1].x == Pixels(3))
+    #expect(deltas[1].y == Pixels(-2))
+}
