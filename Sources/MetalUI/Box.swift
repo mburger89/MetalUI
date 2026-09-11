@@ -124,21 +124,13 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // paint over them. Reversing these two lines is caught by
         // `aContainerPaintsItsBackgroundBeneathItsChildren`.
         //
-        // **The pointer and keyboard states are consulted here and nowhere
-        // else.** `??` chains left to right, so a declared `focusBackground`
-        // wins over a declared `hoverBackground` and both win over the plain
-        // one; an element that declares neither takes the same single branch it
-        // always did, and an element that declares one but is neither hovered
-        // nor focused falls through to `background` rather than painting
-        // nothing. Both queries are keyed on this element's own
-        // `GlobalElementID` — `registerHandlers` returns no `HitboxID` for a
-        // conformer to keep, so the element-keyed `isHovered` overload is the
-        // only one `Box` can reach. See `PaintPass.isHovered(_:)`'s two
-        // overloads and `Frame.hoveredElement`.
-        let effective = (pass.isFocused(id) ? decoration.focusBackground : nil)
-            ?? (pass.isHovered(id) ? decoration.hoverBackground : nil)
-            ?? decoration.background
-        if let color = animatedColor(effective, for: id, pass: &pass) {
+        // The pointer and keyboard states are consulted inside
+        // `animatedBackground(_:for:pass:)`, which resolves the
+        // `focusBackground ?? hoverBackground ?? background` chain and animates
+        // the one resulting value. It is shared with `Stack.paint` and
+        // `Text.paint` — see its doc for the precedence and why only the
+        // element-keyed `isHovered` overload is reachable from here.
+        if let color = animatedBackground(decoration, for: id, pass: &pass) {
             pass.fill(bounds, color: color,
                       cornerRadii: Corners(all: decoration.cornerRadius))
         }
@@ -230,8 +222,10 @@ public struct Decoration: Sendable, Hashable {
     /// pointer and a user recovers it by moving, focus is where the keyboard is
     /// pointing and has no other indication. Reversing the two makes a focused
     /// element lose its only affordance whenever the pointer happens to rest on
-    /// it — which is exactly when a user is about to type. `Box.paint` is the
-    /// one site, and `focusOutranksHoverWhenAnElementIsBoth` is the pin.
+    /// it — which is exactly when a user is about to type.
+    /// `animatedBackground(_:for:pass:)` is the one site (shared by `Box`,
+    /// `Stack` and `Text`); `focusOutranksHoverWhenAnElementIsBoth` pins it on
+    /// `Box` and `everyBackgroundPaintingSiteHonoursHoverAndFocus` on all three.
     public var focusBackground: ColorToken?
 
     public init(background: ColorToken? = nil, cornerRadius: Pixels = Pixels(0),

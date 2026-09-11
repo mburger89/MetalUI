@@ -320,9 +320,15 @@ public struct Text: Element, StyledElement {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Void,
                                pass: inout PaintPass) {
-        // Through `animatedColor`, exactly as `Box.paint` and `Stack.paint`
-        // do — see Task 5's note at `Stack.paint` for why this was wired here
-        // rather than left as a named hole.
+        // Through `animatedBackground`, exactly as `Box.paint` and
+        // `Stack.paint` do — see Task 5's note at `Stack.paint` for why this
+        // was wired here rather than left as a named hole. That helper
+        // resolves the `focusBackground ?? hoverBackground ?? background`
+        // chain; `prepaint` registers this text's own hitbox and focus
+        // registration, so an `onClick`/`focusable()` `Text` is hovered and
+        // focused like any `Box`. Before the chain was hoisted this line passed
+        // `decoration.background` and both modifiers compiled here and painted
+        // nothing (`BackgroundChainTests.swift`).
         //
         // **This is a `Text`'s BACKGROUND, not its style and not its glyph
         // colour, and the distinction is what keeps it inside spec §8's
@@ -335,7 +341,7 @@ public struct Text: Element, StyledElement {
         // computed. The glyph fill below (`foregroundColor ?? .textPrimary`)
         // is genuinely still unanimated — it is not in spec §4's animatable
         // list, and animating text colour is §8's named hole, unchanged.
-        if let color = animatedColor(decoration.background, for: id, pass: &pass) {
+        if let color = animatedBackground(decoration, for: id, pass: &pass) {
             pass.fill(bounds, color: color,
                       cornerRadii: Corners(all: decoration.cornerRadius))
         }

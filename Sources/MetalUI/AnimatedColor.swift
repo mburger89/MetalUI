@@ -17,8 +17,9 @@ import MetalUICore
 ///
 /// ## ONE value is animated, not three fields, and that is the decomposition
 ///
-/// `Box.paint` already selects among `focusBackground` / `hoverBackground` /
-/// `background` by pointer and focus state before it draws anything — a
+/// `animatedBackground(_:for:pass:)` — which `Box.paint`, `Stack.paint` and
+/// `Text.paint` all call — selects among `focusBackground` / `hoverBackground` /
+/// `background` by pointer and focus state before anything is drawn — a
 /// left-to-right `??` chain. **This helper animates the resolved RESULT of that
 /// chain**, which is a deliberate departure from spec §4's own field list, for
 /// two reasons:
@@ -32,9 +33,11 @@ import MetalUICore
 ///
 /// `hoverAndFocusFadeThroughTheSameEffectiveColourPath` (`AnimationTests.swift`)
 /// is what pins the consequence rather than assuming it — it drives a real
-/// `Box.paint` through `Frame.render` precisely because the `??` chain lives in
-/// `Box.swift` and a test resolving the effective token itself would be blind
-/// to a mutation there.
+/// `Box.paint` through `Frame.render` precisely because the `??` chain is
+/// resolved inside the element's paint call and a test resolving the effective
+/// token itself would be blind to a mutation there.
+/// `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`
+/// (`BackgroundChainTests.swift`) extends that to `Stack` and `Text`.
 ///
 /// ## The interpolation space: RGB, and it was MEASURED
 ///
@@ -206,11 +209,50 @@ struct RgbaVelocity: Equatable {
     static let zero = RgbaVelocity(r: 0, g: 0, b: 0, a: 0)
 }
 
+/// The animated background for `id` — the ONE entry point every element that
+/// fills its own background calls: `Box.paint`, `Stack.paint` and `Text.paint`.
+/// `Column`, `Row` and `List` forward paint to a wrapped `Box` and reach it
+/// through that.
+///
+/// **The pointer and keyboard states are consulted here and in no element's
+/// `paint`.** `??` chains left to right, so a declared `focusBackground` wins
+/// over a declared `hoverBackground` and both win over the plain one; an
+/// element that declares neither takes the same single branch it always did,
+/// and an element that declares one but is neither hovered nor focused falls
+/// through to `background` rather than painting nothing. Both queries are keyed
+/// on the element's own `GlobalElementID` — `registerHandlers` returns no
+/// `HitboxID` for a conformer to keep, so the element-keyed `isHovered`
+/// overload is the only one a conformer can reach. See `PaintPass.isHovered(_:)`'s
+/// two overloads and `Frame.hoveredElement`.
+///
+/// **One helper rather than the chain written at each site, because the chain
+/// was written at one site.** It lived in `Box.paint` alone while `Stack.paint`
+/// and `Text.paint` passed `decoration.background` straight to
+/// `animatedColor(_:for:pass:)`, so `hoverBackground(_:)` and
+/// `focusBackground(_:)` — declared on `extension StyledElement` — compiled on
+/// both and painted nothing. The RESOLVED token goes to `animatedColor`, never
+/// the three fields separately (this file's top doc). Pinned per site by
+/// `everyBackgroundPaintingSiteHonoursHoverAndFocus` and
+/// `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`
+/// (`BackgroundChainTests.swift`), whose arms are genuinely hovered and focused
+/// through a real `Window`; `everyBackgroundPaintingSiteAnimatesItsColour`'s
+/// arms declare neither and cannot see the chain.
+@MainActor
+func animatedBackground(_ decoration: Decoration, for id: GlobalElementID,
+                        pass: inout PaintPass) -> Hsla? {
+    let effective = (pass.isFocused(id) ? decoration.focusBackground : nil)
+        ?? (pass.isHovered(id) ? decoration.hoverBackground : nil)
+        ?? decoration.background
+    return animatedColor(effective, for: id, pass: &pass)
+}
+
 /// The animated effective background colour for `id`, or `nil` when there is
 /// nothing to paint.
 ///
-/// `token` is the already-selected effective token — `Box.paint`'s `??` chain
-/// result — **not** `decoration.background`. See this file's top doc.
+/// `token` is the already-selected effective token — `animatedBackground`'s
+/// `??` chain result — **not** `decoration.background`. See this file's top
+/// doc. No element calls this directly; the three background sites call
+/// `animatedBackground(_:for:pass:)`, which calls this.
 ///
 /// **A `nil` token returns immediately and touches the state table not at all**,
 /// which is a memory decision rather than an oversight. Most boxes in a real
