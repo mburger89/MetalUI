@@ -11,9 +11,11 @@ import MetalUICore
 /// - **Shrink is weighted by the INNER base size**, grow is not. Two items with
 ///   equal `flex-shrink` but different base sizes do not lose equal amounts — a
 ///   larger item gives up proportionally more. §9.7.4.c. "Inner" is the content
-///   box: `baseSize` minus the item's main-axis padding and border, which
-///   `FlexItem.mainEdges` carries. `flex_row_shrink_padded_weighting` is
-///   WebKit's word on the difference.
+///   box: `baseSize` minus the main-axis padding and border it holds, which
+///   `FlexItem.mainEdges` carries — all of them for a declared size or a
+///   container, none for a content-sized measured leaf, whose base never
+///   included them. `flex_row_shrink_padded_weighting` is WebKit's word on the
+///   difference.
 /// - **Gaps come out of free space before distribution.** They are part of the
 ///   line's consumed space, not something items may grow into.
 /// - **Flex factors summing to less than one distribute only that fraction**
@@ -166,18 +168,22 @@ func resolveFlexibleLengths(
         // shrink is scaled by the item's **inner** flex base size: "multiply
         // its flex shrink factor by its inner flex base size".
         //
-        // `baseSize` is a border box, so the inner size is `baseSize` minus
-        // the item's main-axis padding and border. Weighting by the border box
-        // was this line's reading until a padded fixture existed, and every
-        // shrink test before it was blind to the difference, because none of
-        // their items had padding or border.
+        // The inner size is `baseSize` minus `mainEdges`, the main-axis
+        // padding and border that `baseSize` holds — which `flexBaseSize`
+        // reports per branch, because a content-sized measured leaf's base holds
+        // none. Weighting by the whole base was this line's reading until a
+        // padded fixture existed, and every shrink test before it was blind to
+        // the difference, because none of their items had padding or border.
         //
-        // **The `max(0, …)` is a guard, not a pinned behaviour.** `baseSize` is
-        // floored at those same edges, and replacing the `max` with a trap on
-        // a negative difference left the whole suite green when this landed —
-        // no current input reaches it, so deleting it would redden nothing.
-        // It stays because a negative weight would not merely be wrong: it
-        // would hand a shrinking item growth.
+        // **The `max(0, …)` is a guard, not a pinned behaviour.** Replacing it
+        // with a trap on a negative difference left the whole suite green, both
+        // when this landed and again once the measured-leaf and content-sized
+        // container cases had tests — no current input reaches it, so deleting
+        // it would redden nothing. By reading rather than measurement: a
+        // declared base is floored at the very value subtracted, a measured
+        // leaf subtracts 0, and a container's base is its content plus those
+        // edges. It stays because a negative weight would not merely be wrong:
+        // it would hand a shrinking item growth.
         //
         // **A zero weight is a real answer, not an edge case.** When every
         // unfrozen item's inner base is 0 — `flex-basis: 0` with padding, say —

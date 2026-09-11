@@ -207,20 +207,27 @@ struct FlexItem {
     /// §9.2 flex base size, before min/max clamping. §9.7 distributes free
     /// space *from* this, not from the clamped size.
     ///
-    /// **A border box**, like every size this engine stores: ruling BM-4 floors
-    /// both of `flexBaseSize`'s declared branches at the item's own padding and
-    /// border. So it is **not** §9.7.4.c's shrink weight — see `mainEdges`.
+    /// **Not §9.7.4.c's shrink weight**, because it may hold the item's own
+    /// padding and border — see `mainEdges`. It holds them for a declared size
+    /// (ruling BM-4 floors both of `flexBaseSize`'s declared branches there) and
+    /// for a content-sized container (`measureNode` adds them back), and does
+    /// **not** for a content-sized measured leaf, whose `MeasureFunction` answer
+    /// `measureNode` returns unchanged. So "a border box" is true of it only
+    /// where a leaf's border box and content box are the same thing.
     var baseSize: Double
-    /// The item's own padding plus border on the **main** axis — horizontal in
-    /// a row, vertical in a column — resolved against the containing block's
-    /// width on every edge, the same basis `flexBaseSize`'s floor resolves them
-    /// against.
+    /// The main-axis padding plus border that `baseSize` **holds** —
+    /// horizontal in a row, vertical in a column — as reported by
+    /// `flexBaseSize` from the branch that produced the base: the item's
+    /// resolved edges, or 0 for a content-sized measured leaf.
     ///
     /// **Read only by §9.7.4.c**, which weights shrink by the item's INNER flex
     /// base size, `baseSize - mainEdges`. Weighting by `baseSize` itself gives a
     /// padded item too much to lose: a 200 row holding a `width: 200px;
     /// padding: 0 40px` box and a plain `width: 200px` one is 125 / 75 in WebKit
-    /// and was 100 / 100 here (`flex_row_shrink_padded_weighting`).
+    /// and was 100 / 100 here (`flex_row_shrink_padded_weighting`). Subtracting
+    /// the item's edges whether or not the base holds them is the opposite
+    /// mistake, and it reached a padded `Text`:
+    /// `aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`.
     ///
     /// No default value, deliberately: a `= 0` here would let a construction
     /// site omit it and silently weight by the border box again, green on every
@@ -518,21 +525,19 @@ private func resolveRootSize(
 /// `resolveNodeSize`, `flexBaseSize`'s `mainFloor()`, `layOutStack` and
 /// `placeAbsolute`. Five, and the count is literal — run
 /// `grep -rn 'borderBoxFloor(tree' Sources/MetalUILayout/` and **read the
-/// lines rather than the count**: it returns **seven**. One is the sentence
-/// you are reading, which names the pattern while explaining it. The other
-/// extra is a sixth call that floors nothing: `collectItems` reads the same
-/// edges back out as `FlexItem.mainEdges`, because §9.7.4.c weights shrink by
-/// the item's inner base size and this function is the one place those edges
-/// are resolved.
+/// lines rather than the count**: it returns **six**, the sixth being the
+/// sentence you are reading, which names the pattern while explaining it.
 /// (Written that way deliberately after the first draft claimed "exactly those
 /// five lines" and was falsified by its own quotation in the same edit — the
 /// failure mode CLAUDE.md's `evictUnusedSince` row is about, where a number
-/// tracks the prose instead of the code. Five *flooring calls* and one
-/// reading call; the claim is which functions call it and why.) **`flexBaseSize` is the one to read carefully** — this used to say
+/// tracks the prose instead of the code. Five *calls*; the claim is which
+/// functions call it.) **`flexBaseSize` is the one to read carefully** — this used to say
 /// "`flexBaseSize`'s size-property branch", which names one of the *two*
 /// branches that floor. `mainFloor()` is a single call site consumed by both:
 /// branch 1, a definite `flex-basis`, and branch 2, `flex-basis: auto`
-/// deferring to the size property. Flooring only the second is a real bug this
+/// deferring to the size property. Branch 3 reads it too, without flooring
+/// anything: for a content-sized container it reports the edges `measureNode`
+/// added back, as `FlexItem.mainEdges`. Flooring only the second is a real bug this
 /// file shipped once, on a bad oracle reading — see the paragraph below and
 /// `mainFloor()`'s own comment, which carries the table.
 /// Each was measured against WebKit rather than reasoned:
@@ -1988,24 +1993,18 @@ private func collectItems(
         // container's size and occupies no space on either axis.
         .filter { tree.style($0).display != .none && tree.style($0).position != .absolute }
         .map { kid in
-            let base = flexBaseSize(ctx, tree, item: kid, isRow: isRow,
-                                    containerMain: containerMain,
-                                    containerCross: containerCross,
-                                    intrinsic: intrinsic)
-            // The padding and border `base` includes on the main axis, which
-            // §9.7.4.c subtracts to weight shrink by the INNER base size (see
-            // `FlexItem.mainEdges`).
-            //
-            // **The basis is `containerSize.width` and it must stay the same
-            // number `flexBaseSize` floors with.** That function derives its
-            // `containingBlockWidth` as `isRow ? containerMain : containerCross`,
-            // which is `containerSize.width` on both branches. Any other basis
-            // gives a percentage-padded item a second, disagreeing edge value,
-            // and the weight would subtract edges the base never added:
-            // `shrinkWeightSubtractsMainAxisEdgesResolvedAgainstTheContainingBlockWidth`.
-            let edges = borderBoxFloor(tree, kid, containingBlockWidth: containerSize.width,
-                                       rootFontSize: rootFontSize)
-            let mainEdges = isRow ? edges.width : edges.height
+            // `mainEdges` is the padding and border `base` holds on the main
+            // axis, which §9.7.4.c subtracts to weight shrink by the INNER base
+            // size. **Take it from `flexBaseSize`, never re-resolve it here**:
+            // whether the base holds the edges depends on which of its branches
+            // ran — a content-sized measured leaf's does not — and nothing out
+            // here can see that. Resolving them here for every item is the
+            // version that shipped first and moved a padded `Text`
+            // (`aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`).
+            let (base, mainEdges) = flexBaseSize(ctx, tree, item: kid, isRow: isRow,
+                                                 containerMain: containerMain,
+                                                 containerCross: containerCross,
+                                                 intrinsic: intrinsic)
 
             let ks = tree.style(kid)
             // The item's own border-box size, resolved from its style alone.

@@ -848,10 +848,11 @@ private func row(_ tree: LayoutTree, width: Double, _ kids: [LayoutNodeID]) -> L
 
 // MARK: - §9.7.4.c's shrink weight is the INNER flex base size.
 //
-// "Multiply its flex shrink factor by its inner flex base size." `baseSize` is
-// a border box — ruling BM-4 floors both of `flexBaseSize`'s declared branches
-// at the item's padding and border — so the weight is `baseSize` minus the
-// item's main-axis padding and border, which `FlexItem.mainEdges` carries.
+// "Multiply its flex shrink factor by its inner flex base size." For the
+// declared sizes below, `baseSize` holds the item's padding and border — ruling
+// BM-4 floors both of `flexBaseSize`'s declared branches at them — so the
+// weight is `baseSize` minus the item's main-axis padding and border, which
+// `FlexItem.mainEdges` carries. (Not every base holds them; see the next MARK.)
 //
 // Every shrink test above this line is blind to the distinction by
 // construction: none of their items has padding or border, so the two base
@@ -981,4 +982,147 @@ private func row(_ tree: LayoutTree, width: Double, _ kids: [LayoutNodeID]) -> L
     #expect(tree.layout(kids[1]).width == 80)
     // Deliberately overflowing the container's 100.
     #expect(tree.layout(kids[1]).x + tree.layout(kids[1]).width == 160)
+}
+
+// MARK: - The weight subtracts only the edges the base size CONTAINS.
+//
+// `baseSize` is not a border box for every item. Steps 1 and 2 of §9.2 floor a
+// declared size at the item's padding and border (ruling BM-4), and step 3 asks
+// `measureNode`, which adds a **container's** edges back onto what its children
+// come to — but returns a **measured leaf's** `MeasureFunction` result
+// unchanged, because a leaf's box model is not implemented (record §05's
+// leaf-padding row). So `FlexItem.mainEdges` is the padding and border the
+// base actually holds, reported by `flexBaseSize` from the branch that produced
+// it, and the three tests below pin the three branches the first three tests
+// did not reach.
+
+/// A content-sized **measured leaf**'s padding is not in its base size, so it
+/// must not come off its shrink weight either.
+///
+/// A 100 row holding two leaves whose `MeasureFunction` reports 100 at
+/// max-content and 10 at min-content, `min-width` left at `auto`. The first
+/// carries `padding: 0 40px`. Both bases are the measured 100 — `measureNode`
+/// adds nothing to a leaf — so the weights are 100 and 100, the overflow of 100
+/// splits evenly, and both land on **50**, exactly what the unpadded control
+/// row gives. The 10 of min-content is below 50, so §9.7.4.d never binds.
+///
+/// Subtracting the 80 of padding anyway — what the first cut of the inner
+/// weighting did, for every item — weights the padded leaf 20 against 100: it
+/// gives up only 100 x 20/120 and lands on **83.33**, its sibling on 16.67. That
+/// is neither record §05's inert answer nor a CSS one (in CSS the padding would
+/// be inside the base too), so the oracle here is the unpadded control, not the
+/// browser: the corpus has no text fixture and must not gain one (ruling TX-B).
+@Test func aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight() {
+    func widths(padded: Bool) -> (a: Double, b: Double, bx: Double) {
+        let tree = LayoutTree(generation: 0)
+        func leaf(_ padding: Double) -> LayoutNodeID {
+            var s = Style()
+            s.size = Size(width: .auto, height: px(40))
+            s.padding = Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(Float(padding))),
+                              bottom: .pixels(Pixels(0)), left: .pixels(Pixels(Float(padding))))
+            return tree.newLeaf(style: s) { _, available in
+                if case .minContent = available.width { return SizeD(width: 10, height: 40) }
+                return SizeD(width: 100, height: 40)
+            }
+        }
+        let a = leaf(padded ? 40 : 0)
+        let b = leaf(0)
+        let root = row(tree, width: 100, [a, b])
+        computeLayout(tree, root: root,
+                      available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+        return (tree.layout(a).width, tree.layout(b).width, tree.layout(b).x)
+    }
+
+    let control = widths(padded: false)
+    let padded = widths(padded: true)
+
+    // The control is hand-computed, not taken from the engine alone.
+    #expect(control.a == 50)
+    #expect(control.b == 50)
+    #expect(padded.a == control.a)
+    #expect(padded.b == control.b)
+    #expect(padded.bx == 50)
+}
+
+/// A measured leaf with a **declared** main size is floored at its padding by
+/// ruling BM-4 exactly as a container is, so its base does contain the edges and
+/// its weight is the inner size — the same 125 / 75 as
+/// `flex_row_shrink_padded_weighting`.
+///
+/// A 200 row holding two leaves declaring `width: 200px`, each measuring 50 at
+/// max-content and 10 at min-content; the first carries `padding: 0 40px`.
+/// Inner bases 120 and 200, overflow 200: the padded leaf gives up
+/// 200 x 120/320 = 75 and lands on **125**, its sibling on **75**. Weighting by
+/// the border box gives 100 / 100.
+///
+/// **WebKit agrees for the content-bearing form**, measured through a throwaway
+/// probe with the corpus preamble: the golden's two divs, each holding a
+/// `width: 10px` child, are 125 / 75 — and 100 / 100 with the padding removed,
+/// so the probe's padding is what moved it. The declared branch of §9.2 never
+/// consults content, which is why the content does not move it.
+///
+/// This is the test that tells "subtract the edges the base contains" from
+/// "subtract nothing for any measured leaf": the second reads 100 / 100 here.
+@Test func aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize() {
+    let tree = LayoutTree(generation: 0)
+    func leaf(_ padding: Double) -> LayoutNodeID {
+        var s = Style()
+        s.size = Size(width: px(200), height: px(40))
+        s.padding = Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(Float(padding))),
+                          bottom: .pixels(Pixels(0)), left: .pixels(Pixels(Float(padding))))
+        return tree.newLeaf(style: s) { _, available in
+            if case .minContent = available.width { return SizeD(width: 10, height: 40) }
+            return SizeD(width: 50, height: 40)
+        }
+    }
+    let a = leaf(40)
+    let b = leaf(0)
+    let root = row(tree, width: 200, [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).width == 125)
+    #expect(tree.layout(b).width == 75)
+    #expect(tree.layout(b).x == 125)
+}
+
+/// A content-sized **container**'s base is what its children come to **plus
+/// its own padding and border** — `measureNode` adds them back — so those edges
+/// come off its weight.
+///
+/// A 200 row holding `.a { padding: 0 40px; min-width: 0 }` around a
+/// `width: 200px` child, and `.b { width: 200px }`. `.a`'s base is 280, its inner
+/// base 200; `.b`'s is 200. The line overflows by 280, the equal inner weights
+/// split it evenly, and `.a` lands on **140**, `.b` on **60**. Weighting by the
+/// border box gives 116.67 / 83.33.
+///
+/// WebKit measured 140 / 60 through a throwaway probe with the corpus preamble
+/// (`.a` spelled `display: flex`, which is what every node here is); with the
+/// padding removed it measured 100 / 100.
+///
+/// `min-width: 0` on `.a` is what lets it shrink at all: its automatic minimum
+/// would otherwise be its min-content size, 280, which includes a `width: 200px`
+/// child's full contribution. `.b` is empty, so its automatic minimum is 0.
+@Test func aContentSizedContainersShrinkWeightExcludesTheEdgesItsBaseAddedBack() {
+    let tree = LayoutTree(generation: 0)
+    var cStyle = Style()
+    cStyle.size = Size(width: px(200), height: px(10))
+    let c = tree.newNode(style: cStyle, children: [])
+    var aStyle = Style()
+    aStyle.minSize = Size(width: px(0), height: .auto)
+    aStyle.padding = Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(40)),
+                           bottom: .pixels(Pixels(0)), left: .pixels(Pixels(40)))
+    let a = tree.newNode(style: aStyle, children: [c])
+    var bStyle = Style()
+    bStyle.size = Size(width: px(200), height: .auto)
+    let b = tree.newNode(style: bStyle, children: [])
+    let root = row(tree, width: 200, [a, b])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+
+    #expect(tree.layout(a).width == 140)
+    #expect(tree.layout(b).width == 60)
+    #expect(tree.layout(b).x == 140)
 }

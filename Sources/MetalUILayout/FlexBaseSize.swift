@@ -35,6 +35,25 @@ import MetalUICore
 /// border and that is 0 for such a node. That is honest rather than
 /// convenient — a zero-width box is visibly wrong where a container-width box
 /// is plausibly wrong. It is no longer a statement about containers.
+///
+/// **It also reports `mainEdges`: how much of that size is the item's own
+/// main-axis padding and border.** §9.7.4.c weights shrink by the INNER base
+/// size, and only the branch that produced a base knows what it put in it:
+/// - steps 1 and 2 floor a declared size at those edges (ruling BM-4), so the
+///   base holds them and `mainEdges` is the floor;
+/// - step 3 on a **container** holds them too: `measureNode` adds `contentBox`'s
+///   `edges` back onto what the children come to, resolved against the same
+///   `containingBlockWidth` the floor uses;
+/// - step 3 on a **measured leaf** holds none: `measureNode` returns a
+///   `MeasureFunction`'s answer unchanged, because a leaf's box model is not
+///   implemented (record §05's leaf-padding row). `mainEdges` is 0, so the
+///   padding stays out of the weight exactly as it stays out of the size.
+///   Subtracting it anyway put a padded content-sized leaf at 83 / 17 in a row
+///   where its unpadded twin is 50 / 50 —
+///   `aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`.
+///
+/// Asking the caller to resolve the edges itself is how that last case went
+/// wrong: the caller cannot see which branch ran.
 func flexBaseSize(
     _ ctx: LayoutContext,
     _ tree: LayoutTree,
@@ -43,7 +62,7 @@ func flexBaseSize(
     containerMain: Double?,
     containerCross: Double?,
     intrinsic: IntrinsicQuery
-) -> Double {
+) -> (size: Double, mainEdges: Double) {
     let rootFontSize = ctx.rootFontSize
     let s = tree.style(item)
 
@@ -61,9 +80,9 @@ func flexBaseSize(
     // Ruling BM-4's floor on this item's main axis: `box-sizing: border-box`
     // defines a used size as `max(specified, padding + border)`, so neither of
     // the two declared branches below may return less than the item's own
-    // edges. A function rather than a `let` because step 3 does not need it
-    // and would otherwise pay for two `resolveEdges` walks on the commonest
-    // path (an auto-sized item), which is where this function spends its time.
+    // edges. A function rather than a `let` because step 3 needs it only for a
+    // container, to report the edges `measureNode` added back; a measured leaf
+    // on that path never pays for its two `resolveEdges` walks.
     //
     // **Both declared branches take it, and an earlier version of this file
     // floored only step 2 on the strength of a bad measurement.** That probe
@@ -94,7 +113,8 @@ func flexBaseSize(
     // 1. Definite flex-basis.
     if let basis = resolveDimension(s.flexBasis, against: containerMain,
                                     rootFontSize: rootFontSize) {
-        return max(basis, mainFloor())
+        let floor = mainFloor()
+        return (max(basis, floor), floor)
     }
 
     // 2. flex-basis: auto -> the main size property, if definite.
@@ -109,7 +129,8 @@ func flexBaseSize(
     let mainDim = isRow ? s.size.width : s.size.height
     if let main = resolveDimension(mainDim, against: containerMain,
                                    rootFontSize: rootFontSize) {
-        return max(main, mainFloor())
+        let floor = mainFloor()
+        return (max(main, floor), floor)
     }
 
     // 3. Content size, under the CONTAINER's own question in the main axis.
@@ -147,5 +168,11 @@ func flexBaseSize(
         height: isRow ? crossAvailable : mainAvailable)
     let measured = measureNode(ctx, tree, item, known: known, available: available,
                                containingBlockWidth: containingBlockWidth)
-    return isRow ? measured.width : measured.height
+    // What that size holds of the item's own edges (this function's doc).
+    // `measureNode` branches on exactly this test: a node with a
+    // `MeasureFunction` gets its answer back unchanged, and anything else has
+    // `contentBox`'s `edges` added, resolved against the `containingBlockWidth`
+    // passed just above — the basis `mainFloor()` uses, so the two agree.
+    let mainEdges = tree.measure(item) == nil ? mainFloor() : 0
+    return (isRow ? measured.width : measured.height, mainEdges)
 }
