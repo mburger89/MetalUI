@@ -529,11 +529,13 @@ private func resolveRootSize(
 /// min/max and floors the result (review finding B-8; it assigned the extent
 /// bare before). Run
 /// `grep -rn 'borderBoxFloor(tree' Sources/MetalUILayout/` and **read the
-/// lines rather than the count**: it returns **eight**. One is the sentence you
-/// are reading, which names the pattern while explaining it. The other is
-/// `collectItems`' automatic minimum. It floors no declared size: it re-floors
-/// §4.5's minimum after a `max-*` has clamped it, and only when the clamp bit
-/// and the item is not a measured leaf.
+/// lines rather than the count**: it returns **nine**. One is the sentence you
+/// are reading, which names the pattern while explaining it. Two more floor no
+/// declared size. `collectItems`' automatic minimum re-floors §4.5's minimum
+/// after a `max-*` has clamped it, and only when the clamp bit and the item is
+/// not a measured leaf. `measureNode`'s closed-form answer for a node with no
+/// children and no measure function returns the floor as that node's content
+/// size, because that is what the full path computes.
 /// (Written that way deliberately after the first draft claimed "exactly those
 /// five lines" and was falsified by its own quotation in the same edit — the
 /// failure mode CLAUDE.md's `evictUnusedSince` row is about, where a number
@@ -1601,10 +1603,11 @@ func placeNode(
 ///
 /// **The 0×0 sizing bug this task's brief named.** Task 3 sized every absolute
 /// child by calling `measureNode(known: .unspecified, …)` unconditionally —
-/// for a childless node with no `MeasureFunction`, that falls into
-/// `measureNode`'s container branch and returns `contentSize + edges`, zero
-/// for an empty container, never consulting `Style.size`. `declaredAxis`
-/// below is what fixes it: a declared size is resolved from the node's own
+/// for a childless node with no `MeasureFunction`, that fell into
+/// `measureNode`'s container branch and returned `contentSize + edges`, zero
+/// for an empty container, never consulting `Style.size`. (Such a node is now
+/// answered in closed form above that branch. The number is the same edges.)
+/// `declaredAxis` below is what fixes it: a declared size is resolved from the node's own
 /// style FIRST, the same way `resolveNodeSize` resolves a flex item's cross
 /// axis, and `measureNode` is reached only when the axis is genuinely `auto`
 /// and not fully bounded by its two insets.
@@ -1901,6 +1904,39 @@ func measureNode(
 ) -> SizeD {
     ctx.enter(node)
     defer { ctx.leave() }
+
+    // **A node with no children and no measure function, in closed form.** The
+    // full path below computes exactly this, one step at a time. `layOutChildren`
+    // takes `edges` from `contentBox`, and `contentBox` makes the same two
+    // `resolveEdges` calls, with the same arguments, as `borderBoxFloor`. With no
+    // children, the flex path returns early with `contentSize: .zero` and the
+    // stack path's two maxima stay 0. The last line then gives
+    // `known ?? (0 + edges)`. `probe` and `intrinsic` shape only the content box,
+    // and nothing reads the content box when there are no children.
+    //
+    // **`0 +` is not a typo, and neither is `known ??`.** `0 +` is the full
+    // path's own sum, and it turns a `-0.0` edge total into `+0.0`. Dropping it
+    // leaves every rect alone, but a box with every edge at `-0.0` then stores a
+    // pre-rounding width of `-0.0`. `known ??` is `measureNode`'s contract.
+    // Dropping it moved nothing, bit for bit, in any `computeLayout` the suite
+    // runs; that was measured by mutation. Only a direct measurement with a known
+    // axis sees it. `theLeafShortcutMovesNoRectOnSeededRandomTrees` pins both.
+    //
+    // **The shortcut must stay BELOW `ctx.enter`.** `measureNodeConsultsTheDepthGuard`
+    // calls this function at `maxDepth` on precisely such a node and expects the
+    // guard to abort. Above the `enter`, that test would exit cleanly and fail.
+    //
+    // It also skips the cache on purpose. The answer is two `resolveEdges` calls,
+    // so there is nothing worth a key, a hash and a stored entry. Such a node is
+    // therefore neither a hit nor a miss in `LayoutContext`'s counters
+    // (`aChildlessNodeWithNoMeasureFunctionIsNeverACacheMiss`). A `newLeaf`
+    // (every `Text`) has a measure function and never takes this branch.
+    if tree.measure(node) == nil, tree.children(node).isEmpty {
+        let floor = borderBoxFloor(tree, node, containingBlockWidth: containingBlockWidth,
+                                   rootFontSize: ctx.rootFontSize)
+        return SizeD(width: known.width ?? (0 + floor.width),
+                     height: known.height ?? (0 + floor.height))
+    }
 
     let key = LayoutContext.MeasureKey(
         node: node, knownWidth: known.width, knownHeight: known.height,

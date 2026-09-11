@@ -91,8 +91,11 @@ private func px(_ v: Double) -> Dimension { .length(.pixels(Pixels(Float(v)))) }
     #expect(narrow == SizeD(width: 30, height: 40))
 }
 
-/// A container with no children measures 0, not a trap. `layOutChildren`'s
-/// `guard !items.isEmpty` becomes a returned size here.
+/// A container with no children measures 0, not a trap. Such a node no longer
+/// reaches `layOutChildren` from `measureNode`: it is answered in closed form,
+/// by its own padding and border (`LeafProbeShortcutTests.swift`). A flex
+/// container whose children are all `display: none` or absolute still reaches
+/// `layOutChildren`, and its `guard !items.isEmpty` is what produces the 0.
 @Test func measuringAnEmptyContainerIsZeroNotATrap() {
     let tree = LayoutTree(generation: 0)
     let container = tree.newNode(style: Style(), children: [])
