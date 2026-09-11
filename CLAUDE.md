@@ -58,10 +58,15 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 ```
 
-- **Counts, dated:** 861 tests (47 + 448 + 50 + 6 + 288 + 22), 87
-  browser-fixture goldens, 35 `swiftc -typecheck` guards, 0 `error:`, 0
-  `warning:` — re-measured 2026-09-10 on `feat/animation` at `b869253`
-  (`master` at the Component milestone's end was 811 / 87 / 34).
+- **Counts, dated:** **862 tests**, 87 browser-fixture goldens, 35 `swiftc
+  -typecheck` guards, 0 `error:`, 0 `warning:` — re-measured 2026-09-10 on
+  `fix/record-refresh`, where `aZeroWidthBordersColorChangesNoPixel` took the
+  total from 861 to 862. The previous reading was 861 (47 + 448 + 50 + 6 + 288
+  + 22) on `feat/animation` at `b869253`; `master` at the Component milestone's
+  end was 811 / 87 / 34. **The per-target split is no longer printed on this
+  machine** — SwiftPM now emits ONE summary line for the whole run, not six, so
+  the parenthesised breakdown above cannot currently be re-taken and the sum
+  command in the Build section returns the total rather than six addends.
   A count is stale the moment a test lands; re-measure rather than trust.
   Two tests are gated and **count toward the total** while being skipped
   (`regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`).
