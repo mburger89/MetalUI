@@ -42,7 +42,20 @@ func resolveFlexibleLengths(
     guard !items.isEmpty else { return }
 
     let totalGap = gap * Double(items.count - 1)
-    let hypotheticalTotal = items.reduce(0) { $0 + $1.hypotheticalMainSize }
+
+    // Every walk over `items` in this function is an index loop, including the
+    // two sums here and below and the `while` condition, where `reduce` and
+    // `contains(where:)` would read more naturally. That is deliberate: in a
+    // debug build each of those two allocates per element of `[FlexItem]`
+    // (measured with libmalloc's `malloc_logger` hook in this package's debug
+    // test build: 2 per element for each), so the loop's allocation pin could
+    // not see its own allocations past them. It is not a release cost: a
+    // standalone `-O` build of the same sources, with both still in place, made
+    // exactly one allocation per pass for the whole function — the violations
+    // buffer — so neither allocated there. The sums are the same Doubles
+    // either way: `reduce(0)` also starts at +0 and adds in index order.
+    var hypotheticalTotal: Double = 0
+    for i in items.indices { hypotheticalTotal += items[i].hypotheticalMainSize }
 
     // §9.7.1 — the used flex factor: grow if the items do not already fill the
     // line, shrink otherwise.
@@ -68,6 +81,15 @@ func resolveFlexibleLengths(
         return usingGrow ? Double(s.flexGrow) : Double(s.flexShrink)
     }
 
+    /// §9.7.4.c's distribution weight for an unfrozen item whose raw factor is
+    /// `raw`: the raw factor itself for grow, scaled by the **inner** base size
+    /// for shrink. The block at the distribution below says why inner, and why
+    /// the `max(0, …)` stays. It takes `raw` rather than calling `rawFactor`
+    /// so the summing walk, which needs both, reads the style once.
+    func weightedFactor(_ item: FlexItem, raw: Double) -> Double {
+        usingGrow ? raw : raw * max(0, item.baseSize - item.mainEdges)
+    }
+
     // §9.7.2 — freeze items that cannot flex in the chosen direction.
     for i in items.indices {
         let inflexible = rawFactor(items[i]) == 0
@@ -85,9 +107,11 @@ func resolveFlexibleLengths(
     // clause scales this, not the loop's shrinking `remaining`; recomputing it
     // each pass would let a sub-one line creep towards filling the container as
     // items froze. `flex_row_fractional_grow_clamped` is the browser's word.
-    let initialFreeSpace = containerMain - totalGap - items.reduce(0) {
-        $0 + ($1.frozen ? $1.targetMainSize : $1.baseSize)
+    var startingSizes: Double = 0
+    for i in items.indices {
+        startingSizes += items[i].frozen ? items[i].targetMainSize : items[i].baseSize
     }
+    let initialFreeSpace = containerMain - totalGap - startingSizes
 
     // Termination is provable **for a finite `containerMain`**: §9.7.4.e's three
     // branches are exhaustive and each freezes a nonempty set, so every pass
@@ -124,7 +148,14 @@ func resolveFlexibleLengths(
     let maximumPasses = items.count + 1
     var passes = 0
 
-    while items.contains(where: { !$0.frozen }) {
+    /// `items.contains(where: { !$0.frozen })`, as an index loop — see the
+    /// note at `hypotheticalTotal` for why.
+    func anyUnfrozen(_ items: [FlexItem]) -> Bool {
+        for i in items.indices where !items[i].frozen { return true }
+        return false
+    }
+
+    while anyUnfrozen(items) {
         passes += 1
         if passes > maximumPasses {
             assertionFailure("""
@@ -140,8 +171,35 @@ func resolveFlexibleLengths(
             break
         }
 
-        let frozenTotal = items.filter(\.frozen).reduce(0) { $0 + $1.targetMainSize }
-        let unfrozenBase = items.filter { !$0.frozen }.reduce(0) { $0 + $1.baseSize }
+        // One walk gives every sum the pass needs, with no per-pass array.
+        //
+        // **Each sum is the same Double to the bit as the `filter(…).reduce`
+        // it replaced**: every accumulator starts at +0 and adds the same items
+        // in the same index order, and interleaving four accumulators in one
+        // loop does not reorder any one of them. `factorTotal` used to be summed
+        // over *every* item, a frozen one contributing a literal 0; skipping it
+        // instead is exact, because a sum that starts at +0 can never become -0
+        // and adding +0 to anything else is the identity.
+        //
+        // This used to be three `filter`s of whole `FlexItem`s, an `items.map`
+        // and a dictionary per pass — allocations that grew with the line's item
+        // count, to produce four scalars. Pinned by
+        // `freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine`; the identical
+        // arithmetic by `freezeLoopMatchesItsAllocatingReferenceBitForBit`.
+        var frozenTotal: Double = 0
+        var unfrozenBase: Double = 0
+        var rawTotal: Double = 0
+        var factorTotal: Double = 0
+        for i in items.indices {
+            if items[i].frozen {
+                frozenTotal += items[i].targetMainSize
+            } else {
+                let raw = rawFactor(items[i])
+                unfrozenBase += items[i].baseSize
+                rawTotal += raw
+                factorTotal += weightedFactor(items[i], raw: raw)
+            }
+        }
         var remaining = containerMain - totalGap - frozenTotal - unfrozenBase
 
         // §9.7.4.b — if the unfrozen items' raw factors sum to less than one,
@@ -157,8 +215,8 @@ func resolveFlexibleLengths(
         // WebKit is the outlier. See CLAUDE.md's known-divergences section —
         // cited by its subject, "WebKit's flex sub-one clause", because the
         // heading counts them and the count has changed twice — and
-        // `subOneScalingNeverExceedsTheRemainingFreeSpace`.
-        let rawTotal = items.filter { !$0.frozen }.reduce(0) { $0 + rawFactor($1) }
+        // `subOneScalingNeverExceedsTheRemainingFreeSpace`. `rawTotal` comes
+        // from the walk above.
         if rawTotal < 1 {
             let scaled = initialFreeSpace * rawTotal
             if abs(scaled) < abs(remaining) { remaining = scaled }
@@ -192,14 +250,11 @@ func resolveFlexibleLengths(
         // a 100 row for two `flex: 0 1 0px; padding: 0 40px` items; the
         // border-box weighting gave 50 / 50, inside the padding). Pinned by
         // `aLineWhoseItemsHaveNoInnerBaseSizeOverflowsInsteadOfShrinking`.
-        let factors: [Double] = items.map { item in
-            guard !item.frozen else { return 0 }
-            return usingGrow
-                ? rawFactor(item)
-                : rawFactor(item) * max(0, item.baseSize - item.mainEdges)
-        }
-        let factorTotal = factors.reduce(0, +)
-
+        //
+        // The weight is `weightedFactor`, and `factorTotal` was summed by the
+        // walk above; each item's weight is recomputed here rather than kept in
+        // an array, from the same style and the same fields, so it is the same
+        // Double that went into the total.
         if factorTotal > 0 {
             for i in items.indices where !items[i].frozen {
                 // The share is added to the item's **base** size, not to zero:
@@ -207,7 +262,8 @@ func resolveFlexibleLengths(
                 // Every growing item in the corpus used to have `flex-basis: 0`,
                 // which made the two indistinguishable —
                 // `flex_row_grow_nonzero_basis` exists to separate them.
-                items[i].targetMainSize = items[i].baseSize + remaining * (factors[i] / factorTotal)
+                let factor = weightedFactor(items[i], raw: rawFactor(items[i]))
+                items[i].targetMainSize = items[i].baseSize + remaining * (factor / factorTotal)
             }
         }
 
@@ -223,8 +279,17 @@ func resolveFlexibleLengths(
         // returns nil for `.auto` and would drop every automatic floor on the
         // floor without a single test noticing, because the same floor is also
         // applied to `hypotheticalMainSize` — where it is usually a no-op.
+        //
+        // `violation` is indexed like `items` and allocated per pass, so no
+        // entry outlives the pass that wrote it. A frozen item's entry stays 0,
+        // which neither direction in §9.7.4.e freezes — exactly as the
+        // `[Int: Double]` this replaced held no entry for it at all. Its old
+        // iteration order was a dictionary's, i.e. undefined, and nothing
+        // depended on it: freezing is idempotent and order-free. What matters
+        // is the branch the total selects and that only violators in that
+        // direction freeze, and both are unchanged.
         var totalViolation: Double = 0
-        var violation: [Int: Double] = [:]
+        var violation = ContiguousArray<Double>(repeating: 0, count: items.count)
         for i in items.indices where !items[i].frozen {
             // An item may never go negative, whatever its min says.
             let bounded = max(0, clamp(items[i].targetMainSize,
@@ -243,9 +308,9 @@ func resolveFlexibleLengths(
         if totalViolation == 0 {
             for i in items.indices { items[i].frozen = true }
         } else if totalViolation > 0 {
-            for (i, v) in violation where v > 0 { items[i].frozen = true }   // min violations
+            for i in items.indices where violation[i] > 0 { items[i].frozen = true }   // min violations
         } else {
-            for (i, v) in violation where v < 0 { items[i].frozen = true }   // max violations
+            for i in items.indices where violation[i] < 0 { items[i].frozen = true }   // max violations
         }
     }
 }
