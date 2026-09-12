@@ -134,7 +134,23 @@ fragment float4 rect_fragment(
 
     float4 background  = hsla_to_srgba(r.background);
     float4 borderColor = hsla_to_srgba(r.borderColor);
-    float4 color = mix(borderColor, background, innerAlpha);
+
+    // **`innerAlpha` selects between border and background; it must NOT carry
+    // edge coverage, because `outerAlpha` already does, below.** With zero
+    // border widths `innerAlpha` is bit-identical to `outerAlpha`, so mixing by
+    // it directly premultiplied the fragment a second time: the emitted RGB
+    // decayed as `c^3` against an alpha of `c^2`, which loses *colour* rather
+    // than merely opacity and left a desaturated fringe on every rounded
+    // corner and every fractionally-positioned edge. Measured on a 100x100
+    // rect at radius 30: pixel (8,8) came out alpha 2 / red 0 where 24 / 24 is
+    // correct. Normalising by `outerAlpha` makes this a pure selector — 0 in
+    // the outer antialiasing band where `innerAlpha` is 0 (border colour,
+    // weighted once below), and exactly `innerAlpha` at the inner transition
+    // where `outerAlpha` is 1, so the non-zero-border case is unchanged.
+    // Pinned by `aZeroWidthBordersColorChangesNoPixel`, whose two arms are
+    // measured to disagree without this line.
+    float borderMix = outerAlpha > 0.0 ? saturate(innerAlpha / outerAlpha) : 0.0;
+    float4 color = mix(borderColor, background, borderMix);
 
     // Premultiplied output, to pair with a (one, oneMinusSourceAlpha) blend.
     // Clip last, so it composes with the rounded-rect coverage above rather

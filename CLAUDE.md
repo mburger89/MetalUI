@@ -2,7 +2,12 @@
 
 A GPU-accelerated UI framework for Swift, architecturally modeled on
 [gpui](https://github.com/zed-industries/zed/tree/main/crates/gpui) but written
-as idiomatic Swift. macOS and iOS.
+as idiomatic Swift. **macOS only today** — `Package.swift` declares
+`platforms: [.macOS(.v14)]`, `grep -rn UIKit Sources/ Tests/` returns zero
+hits, and `App.swift:37` constructs `AppKitPlatform` unguarded. The platform
+seam exists (`PlatformWindow`, `Platform`, `RenderSurface` — 15 requirements)
+but has no non-macOS conformer, and `InputEvent` has no `.touch` case. The
+spec's §1 target of macOS **and iOS/iPadOS** is unmet, not delivered.
 
 **This file is the rules. The reasoning, the measurements and the history live
 in `docs/record/`** — the pre-2026-09-09 `CLAUDE.md`, moved there verbatim
@@ -53,10 +58,17 @@ METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsA
 swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 ```
 
-- **Counts, dated:** 861 tests (47 + 448 + 50 + 6 + 288 + 22), 87
-  browser-fixture goldens, 35 `swiftc -typecheck` guards, 0 `error:`, 0
-  `warning:` — re-measured 2026-09-10 on `feat/animation` at `b869253`
-  (`master` at the Component milestone's end was 811 / 87 / 34).
+- **Counts, dated:** **923 tests**, **97** browser-fixture goldens, 35 `swiftc
+  -typecheck` guards, 0 `error:`, 0 `warning:` — re-measured 2026-09-11 on
+  `feat/review-fixes` at `7f58db9`, after `swift package clean`, in the main
+  checkout (where the guards resolve against the native `Modules` directory).
+  That branch landed 20 review-fix items: +59 tests and +10 WebKit goldens over
+  `fix/record-refresh`'s 864 / 87, which in turn had taken 861 to 864. The previous reading was 861 (47 + 448 + 50 + 6 + 288
+  + 22) on `feat/animation` at `b869253`; `master` at the Component milestone's
+  end was 811 / 87 / 34. **The per-target split is no longer printed on this
+  machine** — SwiftPM now emits ONE summary line for the whole run, not six, so
+  the parenthesised breakdown above cannot currently be re-taken and the sum
+  command in the Build section returns the total rather than six addends.
   A count is stale the moment a test lands; re-measure rather than trust.
   Two tests are gated and **count toward the total** while being skipped
   (`regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`).
@@ -83,9 +95,13 @@ swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
   reason.
 - **`swift package clean` when the impossible happens.** Two mechanisms: the
   shader header `Sources/MetalUIRender/Shaders/MetalUIShaderTypes.h` reaches
-  its C target through an untracked symlink; and adding a case/stored property
-  to a public type that crosses a module boundary (`Scene` twice, `Display`)
-  leaves incremental builds disagreeing about layout. Symptoms: SIGSEGV or a
+  its C target through a symlink SwiftPM does not track for changes
+  (`Sources/MetalUIShaderTypes/include/`; git does track it, so a fresh
+  `git worktree` gets it); and adding a case/stored property to a public type
+  that crosses a module boundary leaves incremental builds disagreeing about
+  layout — observed with `Scene` twice and `Display`, and a hazard again when
+  `Scene`'s storage and `FontKey` (`MetalUIText` → `MetalUI`) changed on
+  2026-09-10, both cleaned before testing (record §06). Symptoms: SIGSEGV or a
   truncated run with no summary line, or an assertion whose *expected* side
   holds a value its own source cannot produce. Clean before debugging.
 - **Targets:** eight one-way-dependent non-test targets (`MetalUICore`,
@@ -129,7 +145,9 @@ joins it.** Consequences (record §01):
 (EP-8, set in the inits, not in `Style`) — so a childless `Box` with no cross
 size paints nothing; declare a size or `.alignItems(.stretch)`. `Stack` layers
 (`Stack.swift`; `Column`/`Row` live in `Flex.swift`), last child on top; its
-paint order is invisible to every rect test. There is no `display: contents`.
+paint order is invisible to every rect test. A `Stack` child's `auto` width is
+fit-content against the stack, as a column item's cross size is (ST-H, TX-H);
+its height is measured at that width. There is no `display: contents`.
 
 **`List` is a windowed `Box`, not a container.** Four load-bearing
 requirements: `Identifiable` data, a uniform `rowHeight`, an enclosing
@@ -151,7 +169,10 @@ needs both.
 layout node, consumes one cursor index, and its `@State` hangs off its own id.
 Modifiers **distribute** to each top-level node (measured against SwiftUI,
 CO-U), so a caller's `.width(70)` overwrites internal sizing and `.padding()` on
-a single-`Text` component is inert (leaf box model, below). `.background()`
+a single-`Text` component is inert while that leaf is content-sized (leaf box
+model, below). A caller's modifier
+also never animates (review finding B-7; see the Animation section's snap
+list). `.background()`
 deliberately does not compile on one (use a `Box`); there is no `.id()` —
 declare `var elementID`. `Deferred` and `List` reject a component. No
 production caller yet (CO-Y).
@@ -195,8 +216,11 @@ prepaint/paint boundary. Handlers outlive the frame (`Window.lastHitboxes`), so
 
 **`StyledElement` has four requirements — `style`, `decoration`, `elementID`,
 `handlers`** — and a conformer must also call `registerHandlers` in its own
-`prepaint` (nothing enforces it;
-`onClickIsLiveOnEveryConformerThatCanRegisterOne` is the guard). `Handlers` is
+`prepaint` — that one call registers the hitbox, focus, AND a declared
+`handlers.axNode` (nothing enforces the call;
+`onClickIsLiveOnEveryConformerThatCanRegisterOne` and
+`aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` are the
+guards). `Handlers` is
 not `Equatable`; `HandlerShape` in `ModifierTests.swift` must gain a field in
 the same change `Handlers` gains a member — it has fallen behind twice.
 
@@ -209,9 +233,40 @@ below-threshold retention is indefinite. Focus is drawn by `focusBackground`
 token swap; nothing above the renderer can draw a border (`Frame.fill`
 hard-codes zero widths). Focus outranks hover.
 
-**Text.** Never key anything on a font family or PostScript name — `FontKey`
-identifies the resolved `CTFont`. Min-content is the longest word from
-`CFStringTokenizer`, not the typesetter (TX-F). `Text.paint` wraps at the width
+**Text.** Never key a glyph, shape or metrics cache on a font family or
+PostScript name — `FontKey` reads its four components (PostScript name, size,
+variations, matrix) off the **resolved** `CTFont`. Those four do **not**
+identify shaping behaviour: `Text(s)` and `Text(s).font(family: "System Font",
+size: 13)` produce equal keys, are not `CFEqual`, and shape Arabic, Devanagari,
+CJK and emoji to different widths, so `ShapingCache` serves whichever shapes
+first to both (`font(for:)` returns the last registration). Nothing in
+`Sources/` spells that name; unfixed, pinned wrong on purpose by
+`twoRequestsWithEqualFontKeysShareOneShapeThoughTheyShapeDifferently`. The one
+request-keyed map is `ShapingCache.resolveFont(family:size:)`'s memo
+(`resolvedFonts`), which caches the resolution itself; it and `fonts` are never
+swept, deliberately (see `fonts`' doc comment), and the two must move into
+`endFrame()`'s sweep together if either ever does. `FontResolver.resolve` traps
+on a size that is not finite and positive: CoreText otherwise substitutes 12 or
+13pt, or keeps a NaN that makes `FontKey` unequal to itself. `FontKey` stores
+its hash (`precomputedHash`, computed once in `init(resolved:)`) and `==`
+compares all four components with that hash as an early reject only —
+`GlobalElementID`'s pair, safe alone and unsafe together. Unlike
+`GlobalElementID` it is guarded: `aForgedHashCollisionIsSettledByTheComponents`
+forges a collision per component and is the only test that sees an `==`
+answering from the hash. To force collisions under mutation, make the **stored**
+hash constant, not `hash(into:)` — `==` reads the stored `Int`, so a constant
+`hash(into:)` proves nothing. Min-content is the longest word from
+`CFStringTokenizer`, not the typesetter (TX-F). The min-content miss path
+re-points ONE `@MainActor` tokenizer
+(`Shaper.unbreakableRunsReusingTokenizer(of:)`); the public
+`unbreakableRuns(of:)` is nonisolated and must keep creating one per call,
+since a `CFStringTokenizer` is not thread-safe. Both bump
+`Shaper.runCallCounter`; a path that skips the bump turns the warm-frame and
+160-vs-40 count tests into `0 <= 40` and `0 == 0`. Max-content is one line per
+**hard** line break, not one line (TX-K): `Shaper.shape(_:font:wrappingAt:)`
+with a `nil` width is the typesetter loop at `+infinity`, byte-identical to a
+whole-string `CTLine` for break-free text; a finite stand-in width soft-breaks
+a long string. `Text.paint` wraps at the width
 layout measured (the retired divergence 8). Colour glyphs render as tinted
 silhouettes. The glyph atlas is grow-only and silently drops glyphs when full;
 `evictUnusedSince` has no caller and calling it would strand pixels.
@@ -253,16 +308,28 @@ has no window in scope — with two windows live the first to build wins.
 `Style`/`Decoration` against the element's `$anim` slot. **Colour is a second
 helper in a second phase** (`AnimatedColor.swift`), because two `ColorToken`s
 interpolate through their theme-resolved `Hsla` and **only `PaintPass` has a
-theme**. Layout sites: `Box`, `Stack`, `ScrollView` ×2. Paint sites: `Box.paint`,
+theme**. Layout sites: `Box`, `Stack`, `ScrollView` ×2. `Component` is not a
+site (it contributes no node); `everyRegisteringSiteAnimatesItsStyle` carries a
+`Component` arm whose control half animates and whose caller-modifier half is
+pinned wrong on purpose. Paint sites: `Box.paint`,
 `Stack.paint`, `Text.paint` — three of the **four** `pass.fill` sites; the
 fourth, `ScrollView`'s indicator, drives itself by dirtying and stays unwired.
 A site that skips its helper is silently unanimated with no diagnostic; the two
 per-site guards are `everyRegisteringSiteAnimatesItsStyle` and
-`everyBackgroundPaintingSiteAnimatesItsColour`.
+`everyBackgroundPaintingSiteAnimatesItsColour`. Neither of those guards can see
+the hover/focus chain: the colour guard's arms declare no `onClick` or
+`focusable()`. The chain is pinned per site by
+`everyBackgroundPaintingSiteHonoursHoverAndFocus` and
+`everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour`
+(`BackgroundChainTests.swift`), whose arms are genuinely hovered and focused
+through a real `Window`.
 
-`Box.paint` animates the resolved result of its
-`focusBackground`/`hoverBackground`/`background` `??` chain — **one value, not
-three fields**. **Hover and focus fades use that same path for free, but the
+`animatedBackground(_:for:pass:)` (`AnimatedColor.swift`), called by all three
+background sites — `Box.paint`, `Stack.paint`, `Text.paint` — resolves the
+`focusBackground`/`hoverBackground`/`background` `??` chain and animates the
+result — **one value, not three fields**. Until 2026-09-10 the chain lived in
+`Box.paint` alone, so both modifiers compiled on `Stack` and `Text` and painted
+nothing. **Hover and focus fades use that same path for free, but the
 PATH is the only free half: nothing parks a transaction around pointer-move
 handling**, so a colour change with no live transaction takes the snap branch
 and a real hover fade needs a framework change. Interpolation is per-component
@@ -288,6 +355,15 @@ other green under mutation.
 `.auto`**). Five `Style` fields default to `.auto` — `inset`, `size`, `minSize`,
 `maxSize`, `flexBasis`, which is **11 of the 28 animatable keys** — so **their
 first transition snaps**; declare a real baseline value if it must animate.
+**A caller's modifier on a `Component` always snaps, whatever the cases**
+(review finding B-7): `MyComponent().width(196)` → `.width(320)` inside
+`withAnimation` reads 320 at t = 0 and t = 0.5, where the same width declared
+*inside* the component reads 196 then 258. `StyledComponent` amends node styles
+after each member's `animated(_:_:for:pass:)` has stored its `$anim` baseline,
+and it cannot reach that slot until `ElementGroup` gains the associated type
+ruling TB-M names. To animate a component's size, declare it inside the
+component. Pinned wrong on purpose by `everyRegisteringSiteAnimatesItsStyle`'s
+`Component` arm.
 `aspectRatio` is deliberately never animated (it is inert; see the table).
 Constraints from its plan: no golden may move or be added, no test may sleep
 (drive `simulateTick(timestamp:)`), no Reduce Motion / exit transitions /
@@ -324,7 +400,13 @@ ones that cost a round of rework each. History in record §02.
 - **Performance tests count work (tokenizer calls, cache entries), never wall
   clock**, are written first and must be red on arrival; measure on a
   branching tree, never a chain, and in a configuration where the code under
-  test is reachable.
+  test is reachable. Heap allocations are countable too:
+  `FreezeLoopAllocationTests.swift` counts them on the calling thread through
+  libmalloc's `malloc_logger` hook, and calibrates the counter against known
+  buffers before believing a zero. Take such counts in the configuration the
+  suite runs: a debug build allocates per element inside closure-taking stdlib
+  algorithms (`reduce`, `contains(where:)`) over large structs, and `-O` does
+  not.
 - **Write typecheck guards in the change that introduces the hazard.** The
   guard count and the suite count are independent.
 
@@ -339,10 +421,11 @@ or any of text's three §4.2 failure modes; these are looks.
 |---|---|
 | M0, M1 element pipeline, EP-8 centring, M2 text, clipping/scroll, Stack, absolute positioning (failures 1–2), measure performance (release), input/state, sizing | **closed** by a human look on the dated build |
 | absolute positioning failures 3–4 (modal stays put while scrolling; wheel over scrim must **not** scroll the list — inverted since IN-W) | open |
+| wheel-mouse scroll distance: run the demo with a **conventional (non-precise) wheel mouse**, not a trackpad or Magic Mouse, and scroll the 500-row list one detent at a time. Report roughly how far one click moves it, in rows (rows are 28pt): about a third of a row per click at a one-line detent means the conversion is live; a thirtieth of a row means it is not. Also report whether it feels comparable to scrolling a native app (e.g. a Finder list) with the same mouse | open. `MetalHostView.scrollDelta(x:y:precise:)` converts lines to points at 10pt per line (`NSScrollView`'s default), verified only with **synthesized** `CGEvent(...units: .line)` events. A real wheel's per-detent line count after the window server's acceleration is **unmeasured**, so the on-screen distance per click is not established. Record §03 |
 | measure performance in **debug**; row missing/blank at the bottom edge; reaching row 500; launch hitch | not reported either way |
 | tombstones-and-AX §7 item 9 (regression check; the demo cannot exercise its subject) | open, nobody has run the build |
 | reactivity §8 item 7: run the demo, idle 30 s, press **M** twice, quit with **Q**, report `frames drawn` / `pauses entered` / `observation dirtyings` — a measurement, not a judgement | open |
-| animation §9's "whether the motion looks right" (spec exit criterion 9): press **A**. The sidebar's width (196pt ↔ 320pt, the layout-phase helper) and its background (`.surface` ↔ `.accent`, the paint-phase helper) both read `DemoModel.animationDemoActive` inside one `withAnimation(.spring(duration: 0.6, bounce: 0.2))`, so one keystroke drives both and they can be reported separately | **run 2026-09-10, release, at `b869253` — BOTH animate; the paint-phase helper is confirmed live in production.** Read first as "width slides, colour snaps" and corrected on a second look, so the fade is **not obvious at a glance**. **Still open:** the spring's overshoot past 320pt was not separately confirmed, and no second press was reported, so the reverse direction is unobserved. Record §03 |
+| animation §9's "whether the motion looks right" (spec exit criterion 9): press **A**. The sidebar's width (196pt ↔ 320pt, the layout-phase helper) and its background (`.surface` ↔ `.accent`, the paint-phase helper) both read `DemoModel.animationDemoActive` inside one `withAnimation(.spring(duration: 0.6, bounce: 0.2))`, so one keystroke drives both and they can be reported separately | **run 2026-09-10, release, at `b869253` — BOTH animate; the paint-phase helper is confirmed live in production.** Read first as "width slides, colour snaps" and corrected on a second look, so the fade is **not obvious at a glance**. **Overshoot and reverse direction closed 2026-09-10 by a scripted measurement, not a human look** (the running release demo, scripted keystrokes, window captures): the forward press peaks at 114pt and settles at 113pt on screen — the declared 196→320 spring's 1.88pt overshoot at t = 0.500 s, computed from the real `springValue`, lands as a 2-device-pixel rebound because the sidebar is flex-shrunk (SZ-L); the colour overshoots too, (97,167,253) against a (96,165,250) target; and the reverse press animates width and colour 113→73pt. Record §03 |
 | VoiceOver navigating the AX tree | permanently open until M4's bridge exists |
 
 Demo keys: **M** modal (translucent scrim, gated so other looks stay
@@ -355,7 +438,7 @@ before believing it.
 
 ## Known divergences — expected, measured, not defects
 
-Eleven entries; labels are stable ids. Retired and never reused: 3, 5, 6
+Twelve entries; labels are stable ids. Retired and never reused: 3, 5, 6
 (sizing, fixed), 7 (renumbering), 8 (`Text.paint` wrap, fixed), 12 and 17
 (tombstones, closed for a **bounded** two-generation window above 256
 entries). Full entries with repro and pins in record §04.
@@ -372,7 +455,8 @@ entries). Full entries with repro and pins in record §04.
 | 14 | `List` limit | Window placed against the scroller's origin: a `List` with a flow sibling above it renders **blank**. Pinned wrong on purpose. |
 | 15 | unfixed defect | A `ScrollView` inside a scrolled `ScrollView` gets an empty content mask (`pushClip` ignores `activeOffset`). One-line fix, deferred to a paint milestone; pinned wrong on purpose. |
 | 16 | design | An `onClick` inside a `ScrollView` swallows the wheel over its rect. Fix named in `Window.applyScroll`'s doc (compare layers). Demo keeps its counter out of the list. |
-| 18 | vs SwiftUI | `@State` behind a removed `if` is retained, not reset; indefinitely below 256 entries. Reset explicitly or keep the value in data. Element-level consequence is unpinned. |
+| 19 | unfixed defect | **One element VALUE placed twice shares one `@State` box.** `let sep = Ctr(); Row { sep; sep }` — reads were fixed 2026-09-10 by re-binding in `prepaintGroup`/`paintGroup`, but a **handler** registered by one occurrence still writes the other's slot, because the closure captures the class box and one box holds one slot. Measured: occurrence 0 clicked once reads 1, occurrence 1 never clicked reads 102. Pinned wrong on purpose; counted by `StateTable.aliasedStateBoxes`. Build two values, don't reuse one. |
+| 18 | vs SwiftUI | `@State` behind a removed `if` is retained, not reset; indefinitely below 256 entries — but 256 is easier to reach than it reads, since every registering element mints a `$anim` entry unconditionally (measured: a `List` is `2n + 7`, crossing at **125 rows**, so the demo's 500-row list sits at 1007). Reset explicitly or keep the value in data. Element-level consequence is unpinned. |
 
 ## Declared but inert — verify, do not remember
 
@@ -388,11 +472,12 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 | `MUIRect.borderColor`/`borderWidths` | drawn by the shader, settable by nothing above the renderer; `borderWidth(_:)` shrinks the content box and paints nothing |
 | `Position.relative`'s offset | makes a containing block, does not shift the box |
 | `Style.alignSelf` on a `Stack` child | ignored entirely |
-| `padding`/`border`/`margin` on a **leaf** (`Text`) | ignored entirely, including via a distributing `Component` modifier |
+| `padding`/`border`/`margin` on a **leaf** (`Text`) | ignored on a **content-sized** leaf, including via a distributing `Component` modifier: no size moves, and it stays out of §9.7.4.c's shrink weight (`aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`). **Not inert once the leaf declares a main size**: ruling BM-4 puts the padding inside that base, so it comes off the shrink weight as CSS says — a 200 row of two `width: 200px` measured leaves, one with `padding: 0 40px`, lays out 125 / 75 (`aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`) |
 | `hidden()` on a subtree that draws or is focusable | layout filters it, paint does not: glyphs stack at the window's top-left; a hidden focusable still claims keystrokes. Use a builder `if` instead |
 | `AnyElement` | works when hand-written; the builder never produces one and must not |
 | `@State` inside `AnyElement` | silently inert |
 | `PaintPass.isActive` | correct, pinned, consulted by no built-in element — nothing paints a pressed state |
+| `PlatformWindow.onInput`'s `-> Bool` | `Window` computes it and `AppKitWindow` forwards it one hop; all seven `MetalHostView` event overrides discard it (`_ = onInput?(…)`, no `super`), so AppKit never sees it and an unhandled event never continues down the responder chain. Only the fake reads it. Do not wire `super.keyDown` in without an `NSMenu`: every unbound key beeps |
 | colour glyphs | tinted luminance silhouettes |
 | `GlyphAtlas.evictUnusedSince`, `LayoutTree.reset(generation:)` | zero callers; guards kept for whoever calls them |
 | `Frame.scrollRegions` / `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount` | test observables with no production reader |
@@ -402,8 +487,23 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 
 Record §07 has the tables and machines. `computeLayout` is ~40 µs/node debug,
 ~5 µs/node release, flat 8k–88k nodes (content sizing's §4.5 automatic-minimum
-probe multiplied it ~4.9x; whoever optimises starts there). The demo's warm
-release frame is ~1.3 ms at 40 and at 500 rows; scrolling adds 0.1–0.3 ms. The
+probe multiplied it ~4.9x; whoever optimises starts there). A column item's
+probe is keyed on its used width since 2026-09-10, which added misses
+(1633 → 1723 on a 365-node column/wrap tree; record §07). A node with no
+children and no measure function is answered in closed form inside
+`measureNode` — no cache key, no `layOutChildren`, neither a hit nor a miss —
+and sits below `ctx.enter`, or `measureNodeConsultsTheDepthGuard` fails.
+Counted on a branching 4x5x3 tree of empty Boxes at three queries, cache misses
+fell from 707 to 167. The µs/node figures above predate this and have **not**
+been re-taken (the only timing available was on a contended machine). `Text`
+leaves never take this path. The demo's warm
+release frame is **1.652 ms at 40 rows and 1.637 at 500**, re-taken 2026-09-10
+at `2457da8` after the animation milestone; scrolling adds 0.1–0.3 ms. The
++5% against the superseded 1.571/1.570 is **within the ~5% harness drift §07
+already documents — do not read it as animation's cost**. Warm resident
+`StateTable` entries are **165 at 40 rows and 63 at 500**: the smaller tree
+holds more, because only the larger one crosses `sweepThreshold` and is reaped.
+The
 cold first frame builds every `List` row: ~76 ms release / ~188 ms debug at
 500, ~17 s release at 100k — M3's "100k scrolls smoothly" is met for scrolling
 and not for appearing. Identity path construction is ~0.4% of a frame. Hitbox
@@ -430,6 +530,20 @@ Four guarantees lapse silently and must be required, non-gateable jobs. Record
   `--build-system native` is **deprecated** and prints so, which makes the
   honest fix — resolving the modules directory from the **test binary's** own
   location rather than from `#filePath` — a dated obligation.
+- **The freeze loop's allocation pin checks only half of itself on CI, and
+  says so in the log.** Under Apple's swiftlang toolchain — Xcode, and every
+  GitHub macOS runner — a bare `for i in items.indices { sum += items[i].x }`
+  registers **one allocation per element** in a debug build, where a swift.org
+  toolchain registers none (measured 2026-09-11: 0 vs 67 at 67 items; 16 known
+  buffers read as 16 and as 33). So an absolute per-pass bound there measures
+  the toolchain, not `resolveFlexibleLengths`.
+  `freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine` measures that floor in
+  the same run and keeps its strict bound only when the floor is 0, falling
+  back to a relative comparison against the allocating reference spelling.
+  **On a swiftlang toolchain a per-item regression of about one allocation is
+  invisible to it**; grep a CI log for `FREEZE-ALLOC: strict per-pass bound NOT
+  CHECKED`. Run the suite under a swift.org toolchain to get the strict half.
+
 - **Seven device-dependent window tests HARD-FAIL rather than skip** on a
   runner with no display device: `makeFakeWindowOnDefaultDevice`
   (`Tests/MetalUITests/Fakes.swift`) throws where the surrounding convention is

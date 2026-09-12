@@ -175,11 +175,212 @@ private let ctFontKey = NSAttributedString.Key(kCTFontAttributeName as String)
 /// would return **zero** lines, while the unwrapped path returns one. An empty
 /// `Text` would then measure one line high with no width offered and nothing
 /// high with one — a height that appears and disappears with the container.
+///
+/// **Since hard line breaks moved the unwrapped case onto the same loop**
+/// (`width: nil` is the loop at `+infinity`), the guard covers `nil` too: without
+/// it an empty string would now be zero lines for every width, `nil` included,
+/// so every arm below reddens rather than only the wrapped ones.
 @Test func anEmptyStringIsOneEmptyLineWhetherWrappedOrNot() {
     for width: Double? in [nil, 0.5, 100] {
         let shaped = Shaper.shape("", font: font, wrappingAt: width)
         #expect(shaped.lines.count == 1)
         #expect(shaped.widestLine == 0)
         #expect(abs(shaped.totalHeight - font.metrics.lineHeight) < 0.001)
+    }
+}
+
+// MARK: - Hard line breaks (finding B-6)
+
+/// CoreText's own advance for `text` on one line, reached without `Shaper` —
+/// the independent oracle for the hard-break tests below (shape 12).
+private func ctAdvance(_ text: String) -> Double {
+    let attr = NSAttributedString(string: text, attributes: [ctFontKey: font.ctFont])
+    return CTLineGetTypographicBounds(CTLineCreateWithAttributedString(attr), nil, nil, nil)
+}
+
+/// Baseline-to-baseline distance from CoreText's three numbers, ceiled the way
+/// `FontMetrics.lineHeight` ceils — computed here rather than read off the
+/// property, so a height assertion does not share a summand with the code under
+/// test.
+private func ctLineHeight() -> Double {
+    let f = font.ctFont
+    return ceil(Double(CTFontGetAscent(f) + CTFontGetDescent(f) + CTFontGetLeading(f)))
+}
+
+/// **A hard line break ends a line whether or not a width is offered.**
+///
+/// `shape(wrappingAt: nil)` used to build ONE `CTLine` for the whole string,
+/// which lays every hard break's segments side by side, while the wrapping
+/// branch's `CTTypesetterSuggestLineBreak` always breaks after one. So
+/// `.maxContent` reported the **sum** of the segments where every definite
+/// width reported the widest: `"Ready\nSet\nGo"` at 13pt measured **75.004**
+/// unwrapped against **37.565** wrapped, one line tall against three — and a
+/// `Text` placed at that width in a centring `Column` drew its three lines
+/// half the over-report left of centre.
+///
+/// **The separator set is CoreText's, measured, and wider than the finding
+/// named.** U+000A, U+000D, CR LF, U+2028 and U+2029 were reported; the
+/// typesetter also breaks after U+0085 (NEL), U+000B (VT) and U+000C (FF). Each
+/// separator's line advance is exactly its visible segment's standalone
+/// advance — the separator prices at zero — so the oracle is the three
+/// segments shaped on their own by `CTLineCreateWithAttributedString`, which
+/// has no loop and no width in it.
+@Test(arguments: ["\n", "\r", "\r\n", "\u{2028}", "\u{2029}", "\u{0085}", "\u{000B}", "\u{000C}"])
+func aHardLineBreakEndsALineWhenNoWidthIsOffered(separator: String) throws {
+    let segments = ["Ready", "Set", "Go"]
+    let s = segments.joined(separator: separator)
+    let segmentAdvances = segments.map(ctAdvance)
+    let widest = try #require(segmentAdvances.max())
+
+    // The sample is one the defect is visible in: CoreText's whole-string line
+    // prices all three segments side by side. Without this the assertions
+    // below could hold against the one-line implementation on a sample whose
+    // segments happened to sum to their maximum.
+    #expect(ctAdvance(s) > widest + 30)
+
+    let shaped = Shaper.shape(s, font: font, wrappingAt: nil)
+    try #require(shaped.lines.count == segments.count,
+                 "\(s.debugDescription) shaped to \(shaped.lines.count) line(s) unwrapped")
+
+    // Each line is one segment plus the separator that ends it, contiguous.
+    var location = 0
+    for (i, line) in shaped.lines.enumerated() {
+        let range = CTLineGetStringRange(line.line)
+        let length = segments[i].utf16.count
+            + (i < segments.count - 1 ? separator.utf16.count : 0)
+        #expect(range.location == location && range.length == length,
+                "line \(i): \(range.location)+\(range.length), expected \(location)+\(length)")
+        #expect(abs(line.advance - segmentAdvances[i]) < 0.001)
+        location += length
+    }
+    #expect(abs(shaped.widestLine - widest) < 0.001)
+    #expect(abs(shaped.totalHeight - 3 * ctLineHeight()) < 0.001)
+
+    // What `Text` relies on: it MEASURES unwrapped and PAINTS wrapped at the
+    // width it measured, so the two must agree on the lines. At the old
+    // over-report the paint shape was already three lines while the measure
+    // shape was one.
+    let atMeasuredWidth = Shaper.shape(s, font: font, wrappingAt: shaped.widestLine)
+    #expect(atMeasuredWidth.lines.count == shaped.lines.count)
+    #expect(abs(atMeasuredWidth.widestLine - shaped.widestLine) < 0.001)
+}
+
+/// **A leading, trailing or doubled hard break, unwrapped.** Each range below
+/// is CoreText's own answer from `CTTypesetterSuggestLineBreak`, measured at
+/// widths `.infinity`, `.greatestFiniteMagnitude`, `1e7` and `1000` alike, and
+/// the wrapping branch has always given it.
+///
+/// **A trailing break does not open an empty last line** — `"Ready\n"` is one
+/// line, the separator inside it. That is CoreText's typesetter, not a rule
+/// this module chose, and it is stated so nobody reads the one-line answer as
+/// the old defect surviving: the doubled break is the case that discriminates,
+/// three lines where the old unwrapped path gave one.
+@Test func aLeadingTrailingOrDoubledHardBreakIsOneLinePerBreakUnwrapped() throws {
+    let cases: [(string: String, ranges: [(Int, Int)], visible: [String])] = [
+        ("Ready\n", [(0, 6)], ["Ready"]),
+        ("\n", [(0, 1)], [""]),
+        ("a\n\nb", [(0, 2), (2, 1), (3, 1)], ["a", "", "b"]),
+        ("\nGo", [(0, 1), (1, 2)], ["", "Go"]),
+    ]
+    for c in cases {
+        let shaped = Shaper.shape(c.string, font: font, wrappingAt: nil)
+        try #require(shaped.lines.count == c.ranges.count,
+                     "\(c.string.debugDescription) shaped to \(shaped.lines.count) line(s) unwrapped")
+        for (i, line) in shaped.lines.enumerated() {
+            let range = CTLineGetStringRange(line.line)
+            #expect(range.location == c.ranges[i].0 && range.length == c.ranges[i].1,
+                    "\(c.string.debugDescription) line \(i): \(range.location)+\(range.length)")
+            #expect(abs(line.advance - ctAdvance(c.visible[i])) < 0.001)
+        }
+        #expect(abs(shaped.totalHeight - Double(c.ranges.count) * ctLineHeight()) < 0.001)
+    }
+}
+
+/// Everything about a `CTLine` that `ShapedText` and `placedGlyphs` read, and
+/// the rest of what CoreText will say about it: per run, the glyphs, their
+/// positions, advances and string indices, the run's status and range; per
+/// line, the typographic bounds, string range, trailing whitespace and glyph
+/// count. Compared with `==`, not a tolerance.
+private struct LineDump: Equatable {
+    struct Run: Equatable {
+        var glyphs: [CGGlyph]
+        var positions: [CGPoint]
+        var advances: [CGSize]
+        var indices: [CFIndex]
+        var status: UInt32
+        var location: CFIndex
+        var length: CFIndex
+    }
+    var runs: [Run]
+    var bounds: [Double]
+
+    init(_ line: CTLine) {
+        var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
+        let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+        let range = CTLineGetStringRange(line)
+        bounds = [width, Double(ascent), Double(descent), Double(leading),
+                  Double(range.location), Double(range.length),
+                  CTLineGetTrailingWhitespaceWidth(line), Double(CTLineGetGlyphCount(line))]
+        runs = (CTLineGetGlyphRuns(line) as? [CTRun] ?? []).map { run in
+            let n = CTRunGetGlyphCount(run)
+            let all = CFRange(location: 0, length: 0)
+            var glyphs = [CGGlyph](repeating: 0, count: n)
+            var positions = [CGPoint](repeating: .zero, count: n)
+            var advances = [CGSize](repeating: .zero, count: n)
+            var indices = [CFIndex](repeating: 0, count: n)
+            CTRunGetGlyphs(run, all, &glyphs)
+            CTRunGetPositions(run, all, &positions)
+            CTRunGetAdvances(run, all, &advances)
+            CTRunGetStringIndices(run, all, &indices)
+            let r = CTRunGetStringRange(run)
+            return Run(glyphs: glyphs, positions: positions, advances: advances, indices: indices,
+                       status: CTRunGetStatus(run).rawValue, location: r.location, length: r.length)
+        }
+    }
+}
+
+/// **For a string with no hard break, the unwrapped shape is exactly the line
+/// `CTLineCreateWithAttributedString` builds** — the guard on the hard-break
+/// fix, which replaced that call with the typesetter loop at an infinite width.
+///
+/// Green before the fix and after it, by design: it pins what the fix must not
+/// change. The corpus covers what a typesetter could plausibly treat
+/// differently from a whole-string line — base-RTL and mixed bidi, CJK, a ZWJ
+/// family, regional indicators, a combining mark, Thai and Devanagari
+/// clusters, leading and trailing spaces, ZWSP/NBSP/soft hyphen, ligature and
+/// kerning pairs.
+///
+/// **The last string is the one that discriminates the width**, and why it is
+/// long: 4,000 repetitions, 136,000 UTF-16 units, 854,547pt at 13pt. The
+/// round-2 review recorded `1e4` as byte-identical too; that held for short
+/// strings only — measured, this string breaks at **1,564** units at width 1e4
+/// and at **15,912** at 1e5. So "large" had to mean `.infinity`. This sample
+/// catches a finite width up to about 8.5e5 and no further.
+@Test func anUnwrappedBreakFreeStringIsTheLineCoreTextBuildsWhole() throws {
+    let corpus = [
+        "Hello, world",
+        "a bb supercalifragilistic dd",
+        "مرحبا بالعالم",
+        "Hello مرحبا world",
+        "שלום abc 123",
+        "漢字かなカナ混じり文",
+        "👨‍👩‍👧‍👦 🇩🇪 e\u{301}",
+        "สวัสดีครับ",
+        "नमस्ते दुनिया",
+        "   leading and trailing   ",
+        "\u{200B}zw\u{00A0}nb\u{00AD}sh",
+        "fi ffl AV To",
+        String(repeating: "antidisestablishmentarianism word ", count: 4000),
+    ]
+    for s in corpus {
+        let attr = NSAttributedString(string: s, attributes: [ctFontKey: font.ctFont])
+        let whole = LineDump(CTLineCreateWithAttributedString(attr))
+
+        let shaped = Shaper.shape(s, font: font, wrappingAt: nil)
+        try #require(shaped.lines.count == 1,
+                     "\(s.prefix(24).debugDescription) shaped to \(shaped.lines.count) lines unwrapped")
+        #expect(LineDump(shaped.lines[0].line) == whole,
+                "\(s.prefix(24).debugDescription) differs from CTLineCreateWithAttributedString")
+        #expect(shaped.lines[0].advance == whole.bounds[0])
     }
 }

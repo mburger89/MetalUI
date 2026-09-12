@@ -268,6 +268,17 @@ node's **used** size after BM-4's border-box floor has already applied —
 `own.width`/`own.height` from `resolveNodeSize`'s output — not from the raw
 declared `Style.size`. `specifiedMain` is `nil` (and the automatic minimum is
 the content suggestion alone) exactly when the declaration is `auto`.
+**Amended by the post-merge review (finding B2): the automatic minimum is then
+clamped by a definite max main size, and ruling BM-4's floor is re-applied after
+that clamp.** §4.5 says the content size suggestion is 'further clamped by the
+maximum main size if that is definite'; the engine did not, so an `auto`-width
+`display: flex; max-width: 50px` item around a 200-wide `flex: none` child was
+200 against WebKit's 50. Clamping alone is wrong: `width: 100px; max-width: 40px`
+with 120 of padding and border is 120 in WebKit and becomes 40. So `collectItems`
+returns `max(maxMain, main-axis borderBoxFloor)` where the clamp bites. A measured
+leaf takes no floor, because `measureNode` excludes its (inert) padding. Pinned by
+`sizing_max_clamps_content_suggestion`,
+`sizing_max_below_floor_keeps_automatic_minimum` and three `BoxModelTests` pins.
 
 **Reasoning — worked through in Task 3, before either BM-4 or FS-3 had
 landed, because the fixture built to pin BM-4 turned out to exercise both

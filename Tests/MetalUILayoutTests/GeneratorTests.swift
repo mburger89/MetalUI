@@ -208,6 +208,46 @@ let allFixtures: [(String, CGSize)] = [
     // was live, reachable and browser-correct, and no test in the 752 could
     // see it. Mutating the guard moved geometry and reddened nothing.
     ("sizing_percent_main_against_indefinite", CGSize(width: 800, height: 600)),
+    // §9.7.4.c's shrink weight is the INNER flex base size. Every shrink
+    // fixture above is blind to it: their items carry no padding or border, so
+    // inner and border-box base sizes are one number. Red against the engine
+    // that weighted by the border box (100/100 against WebKit's 125/75).
+    ("flex_row_shrink_padded_weighting", CGSize(width: 800, height: 600)),
+    // §4.5's content size suggestion is clamped by a definite `max-*`. Every
+    // main-axis `max-*` fixture above caps an empty div (content suggestion 0)
+    // or a min-content below its cap, so none could see it. Red against the
+    // unclamped engine (`.a` 200 against WebKit's 50).
+    ("sizing_max_clamps_content_suggestion", CGSize(width: 800, height: 600)),
+    // The clamp above composed with ruling BM-4: the border-box floor is applied
+    // after it. `.c` is green before the clamp and reddens under the obvious
+    // clamp-the-content-only fix (120 -> 40); `.p` is red before it (280
+    // against WebKit's 80).
+    ("sizing_max_below_floor_keeps_automatic_minimum", CGSize(width: 800, height: 600)),
+    // §4.5's content size suggestion on the COLUMN axis, the first golden for
+    // it (the content-sizing decisions doc recorded that there was none). The
+    // probe measured a column item's min-content height at its max-content
+    // width. Red against that engine: `.a` 30 / 30 / 40 / 30 / 30 against
+    // WebKit's 40 / 80 / 80 / 40 / 80.
+    ("sizing_column_content_suggestion", CGSize(width: 800, height: 600)),
+    // A stack child's `auto` WIDTH is fit-content, as a column item's is (ruling
+    // TX-H) — the inline axis, in the other container type. Every stack fixture
+    // above is blind to it: each child is either declared or an unwrapping row
+    // whose min-content and max-content widths are one number. Red against the
+    // engine that measured every stack child at max-content (`.a` 200x20 at
+    // x = -40 against WebKit's 120x40 at 0; `.f` 100x20 against 50x40; the
+    // shrinking stack 200 wide against 100). See `StackFixtureTests.swift`.
+    ("stack_fit_content_inline",                    CGSize(width: 800, height: 600)),
+    ("stack_fit_content_floor",                     CGSize(width: 800, height: 600)),
+    ("stack_fit_content_min_content_contribution",  CGSize(width: 800, height: 600)),
+    // A STRETCHED stack child keeps its own min/max and its padding+border
+    // floor, clamp then floor. `stack_stretch` and `stack_stretch_declared_size`
+    // are blind to it: neither child carries a bound or an edge. Red against the
+    // engine whose `positionStackItems` assigned the cell's size outright
+    // (every child below 300x200, or 100x100 in the floor fixture). See
+    // `StackFixtureTests.swift`.
+    ("stack_stretch_max",                           CGSize(width: 800, height: 600)),
+    ("stack_stretch_min",                           CGSize(width: 800, height: 600)),
+    ("stack_stretch_border_box_floor",              CGSize(width: 800, height: 600)),
 ]
 
 /// The committed goldens must still be what the browser says.

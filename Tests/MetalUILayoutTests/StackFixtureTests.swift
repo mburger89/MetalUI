@@ -336,3 +336,181 @@ private func alignmentTree(align: AlignItems, justify: JustifyItems)
                               pct: "pct", inner: "inner"],
                         golden: golden, tolerance: 0.1)
 }
+
+/// An auto-sized child with `configure` applied to its otherwise default style.
+private func autoChild(_ tree: LayoutTree, _ configure: (inout Style) -> Void) -> LayoutNodeID {
+    var s = Style()
+    configure(&s)
+    return tree.newNode(style: s, children: [])
+}
+
+/// A stretched stack child still obeys its own `max-*` on the axis it is
+/// stretched along — `positionStackItems` assigned the cell's size outright, so
+/// every child here was 300x200 where WebKit gives 300x50, 40x200 and 60x20.
+///
+/// **What it catches, stated as implementations:** the bare assignment (all
+/// three children 300x200); a clamp on one axis only (`.h` or `.w` stays
+/// full); and bounds resolved against the other axis's extent, which leaves the
+/// px children right and moves `.p` to 40x30 — `.p` is the only child whose
+/// bounds are percentages, and so the only one that sees the basis at all.
+@Test func stackStretchMaxMatchesWebKit() throws {
+    let golden = try loadGolden("stack_stretch_max")
+    let tree = LayoutTree(generation: 0)
+    let h = autoChild(tree) { $0.maxSize = Size(width: .auto, height: px(50)) }
+    let w = autoChild(tree) { $0.maxSize = Size(width: px(40), height: .auto) }
+    let p = autoChild(tree) {
+        $0.maxSize = Size(width: .length(.percent(0.2)), height: .length(.percent(0.1)))
+    }
+    let root = stackNode(tree, [h, w, p], align: .stretch, justify: .stretch,
+                         size: Size(width: px(300), height: px(200)))
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree, ids: [root: "root", h: "h", w: "w", p: "p"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// The `min-*` half: a stretched child with a min above the 300x200 cell on
+/// both axes is 340x260 in WebKit; the engine gave 300x200. The two mins
+/// differ, so a clamp reading the other axis's bound gives 300x340. Alone in
+/// its cell — the fixture says why.
+@Test func stackStretchMinMatchesWebKit() throws {
+    let golden = try loadGolden("stack_stretch_min")
+    let tree = LayoutTree(generation: 0)
+    let m = autoChild(tree) { $0.minSize = Size(width: px(340), height: px(260)) }
+    let root = stackNode(tree, [m], align: .stretch, justify: .stretch,
+                         size: Size(width: px(300), height: px(200)))
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree, ids: [root: "root", m: "m"], golden: golden, tolerance: 0.1)
+}
+
+/// A stretched child's border box is floored at its own padding + border
+/// (ruling BM-4) AFTER its min/max clamp. Both children carry a 120x140 floor in
+/// a 100x100 cell; WebKit gives both 120x140, the engine gave both 100x100.
+///
+/// **What it catches:** no floor (`.f` 100x100, `.c` 40x50) and the floor
+/// applied before the clamp (`.c` 40x50 with `.f` right). `.c`'s maxes are both
+/// below its floor, which is the one input on which the two orders disagree.
+@Test func stackStretchBorderBoxFloorMatchesWebKit() throws {
+    let golden = try loadGolden("stack_stretch_border_box_floor")
+    let tree = LayoutTree(generation: 0)
+    func padded(_ s: inout Style) {
+        s.padding = Edges(top: .pixels(Pixels(60)), right: .pixels(Pixels(50)),
+                          bottom: .pixels(Pixels(60)), left: .pixels(Pixels(50)))
+        s.border = Edges(all: .pixels(Pixels(10)))
+    }
+    let f = autoChild(tree) { padded(&$0) }
+    let c = autoChild(tree) {
+        padded(&$0)
+        $0.maxSize = Size(width: px(40), height: px(50))
+    }
+    let root = stackNode(tree, [f, c], align: .stretch, justify: .stretch,
+                         size: Size(width: px(100), height: px(100)))
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree, ids: [root: "root", f: "f", c: "c"], golden: golden, tolerance: 0.1)
+}
+
+/// A wrapping flex row of `count` `w`x`h` items — min-content `w`, max-content
+/// `w * count`, and a height that depends on which width it is laid out at. The
+/// one shape without a font whose two intrinsic widths differ, and so the only
+/// one that can tell fit-content from max-content (`FitContentFixtureTests`).
+private func wrapping(_ tree: LayoutTree, count: Int, _ w: Double, _ h: Double,
+                      configure: (inout Style) -> Void = { _ in })
+    -> (LayoutNodeID, [LayoutNodeID]) {
+    let kids = (0..<count).map { _ in sized(tree, w, h) }
+    var s = Style()
+    s.flexWrap = .wrap
+    configure(&s)
+    return (tree.newNode(style: s, children: kids), kids)
+}
+
+/// A definite-width stack's `auto`-width child is **fit-content** on the inline
+/// axis — the rule ruling TX-H gave a column's cross axis, which `layOutStack`
+/// did not follow: it measured every content-sized child at `.maxContent`.
+///
+/// **What it catches, stated as an implementation:** that `.maxContent` probe.
+/// `.a` (min-content 50, max-content 200) then measures 200x20 and is centred
+/// at x = -40 in a 120-wide stack, where WebKit fits it to 120x40 at x = 0.
+///
+/// **`.m` pins the height, not the width.** Its `max-width: 70` binds under
+/// every candidate rule, so its width is 70 regardless; its height is 80 only
+/// if it is measured at that used 70 (one item per line). Measured at the
+/// fit-content width before the clamp it would be 40, at max-content 20.
+///
+/// **Offering the stack's width as `.definite` is not the fix, and this test
+/// sees it:** built as a mutant, `.a` answers its widest line, 100x40 at
+/// x = 10. `stackFitContentFloorMatchesWebKit` sees the same mutant drop the
+/// min-content floor; `stackMinContentContributionMatchesWebKit` does not see
+/// it at all (an intrinsic question offers no width to be definite about).
+///
+/// **Mutations, each run on the whole suite:** measuring `.a` at max-content
+/// again reddens all three tests in this group; measuring `.m`'s height at the
+/// width before its `max-width` clamp reddens this test and neither other.
+@Test func stackFitContentInlineMatchesWebKit() throws {
+    let golden = try loadGolden("stack_fit_content_inline")
+    let tree = LayoutTree(generation: 0)
+    let (a, ak) = wrapping(tree, count: 4, 50, 20)
+    let (m, mk) = wrapping(tree, count: 4, 50, 20) {
+        $0.maxSize = Size(width: px(70), height: .auto)
+    }
+    let root = stackNode(tree, [a, m], align: .center, justify: .center,
+                         size: Size(width: px(120), height: px(200)))
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree,
+                        ids: [root: "root",
+                              a: "a", ak[0]: "a1", ak[1]: "a2", ak[2]: "a3", ak[3]: "a4",
+                              m: "m", mk[0]: "m1", mk[1]: "m2", mk[2]: "m3", mk[3]: "m4"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// fit-content's `max(min-content, available)` floor on a stack child: a
+/// 30-wide stack, a child whose min-content is 50 — WebKit lays it out 50x40
+/// and lets it overflow.
+///
+/// **What it catches:** the max-content probe (100x20), and the tempting
+/// "fix" of offering the child the stack's width as a definite available space
+/// in place of fit-content, which loses the floor. `.start` on both axes is the
+/// grid analogue's limit; the fixture's own comment says why.
+@Test func stackFitContentFloorMatchesWebKit() throws {
+    let golden = try loadGolden("stack_fit_content_floor")
+    let tree = LayoutTree(generation: 0)
+    let (f, fk) = wrapping(tree, count: 2, 50, 20)
+    let root = stackNode(tree, [f], align: .flexStart, justify: .start,
+                         size: Size(width: px(30), height: px(100)))
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree,
+                        ids: [root: "root", f: "f", fk[0]: "f1", fk[1]: "f2"],
+                        golden: golden, tolerance: 0.1)
+}
+
+/// A stack's **min-content** width comes from its children's min-content
+/// widths — the intrinsic half of the same rule, which a definite-width-only
+/// fix does not reach.
+///
+/// **What it catches:** `layOutStack` asking a child `.maxContent` whatever
+/// the stack itself was asked. The stack is an `auto` item of a 100-wide row;
+/// CSS Sizing §4.5's automatic minimum asks it a min-content question with no
+/// width, and an answer of 200 (its child's max-content) floors the shrink, so
+/// the stack stays 200 wide — its child 200x20. WebKit's floor is 50, the stack
+/// shrinks to 100, and the child wraps to 100x40.
+@Test func stackMinContentContributionMatchesWebKit() throws {
+    let golden = try loadGolden("stack_fit_content_min_content_contribution")
+    let tree = LayoutTree(generation: 0)
+    let (w, wk) = wrapping(tree, count: 4, 50, 20)
+    let stack = stackNode(tree, [w], align: .flexStart, justify: .start)
+
+    var rootStyle = Style()
+    rootStyle.alignItems = .flexStart
+    rootStyle.size = Size(width: px(100), height: px(300))
+    let root = tree.newNode(style: rootStyle, children: [stack])
+
+    computeLayout(tree, root: root,
+                  available: AvailableSpaceSize(width: .definite(800), height: .definite(600)))
+    assertMatchesGolden(tree,
+                        ids: [root: "root", stack: "stack",
+                              w: "w", wk[0]: "w1", wk[1]: "w2", wk[2]: "w3", wk[3]: "w4"],
+                        golden: golden, tolerance: 0.1)
+}

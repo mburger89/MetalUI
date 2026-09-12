@@ -174,6 +174,67 @@ private func bgra(_ pixels: [UInt8], _ x: Int, _ y: Int, width: Int) -> (UInt8, 
     #expect(bgra(pixels, 50, 50, width: 100).3 > 200)
 }
 
+/// A zero-width border's COLOUR must not change a single pixel.
+///
+/// **This is the only shape that can see `rect_fragment`'s double-application
+/// of edge coverage, and the reason no existing test sees it is that both
+/// pixel tests above set `borderColor` equal to the background** —
+/// `cornerRadiusRoundsTheCorners` uses `.white`/`.white` and
+/// `aRectIsDrawnWhereItIntersectsItsMask` uses `color`/`color` — under which
+/// `mix(borderColor, background, innerAlpha)` is a no-op for every value of
+/// `innerAlpha`. `cornerRadiusRoundsTheCorners` additionally probes only (1,1)
+/// and (50,50), which are fully outside and fully inside the shape; no
+/// partial-coverage fragment exists at either.
+///
+/// With `borderWidths` all zero, `innerAlpha` is bit-identical to `outerAlpha`,
+/// so the `borderColor == background` arm yields `(C, 1)` and composites once,
+/// while the `.transparent` arm yields `(C*c, c)` and is then premultiplied and
+/// scaled by `outerAlpha` a second time — emitting `C*c³` against an alpha of
+/// `c²`. RGB therefore decays faster than alpha and the corner loses *colour*,
+/// not merely opacity: a grey fringe on a light ground.
+///
+/// **The two arms are measured to disagree before the fix** (the point of
+/// shape 15), which is why this asserts agreement between two rendered arms
+/// rather than against a hardcoded antialiasing constant. `> 20 && < 235`-style
+/// bands, as used by the clip-edge test, are far too loose to separate the two.
+@Test @MainActor func aZeroWidthBordersColorChangesNoPixel() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let renderer = try Renderer(device: device)
+
+    func render(borderColor: Hsla) throws -> [UInt8] {
+        let full = Bounds(origin: Point(x: ScaledPixels(0), y: ScaledPixels(0)),
+                          size: Size(width: ScaledPixels(100), height: ScaledPixels(100)))
+        var scene = Scene()
+        scene.insert(MUIRect(
+            bounds: full, contentMask: full,
+            background: .white, borderColor: borderColor,
+            cornerRadii: Corners(all: ScaledPixels(30)),
+            borderWidths: Edges(all: ScaledPixels(0)),
+            order: 0))
+        scene.finalize()
+        return try renderer.renderOffscreen(
+            scene, size: Size(width: DevicePixels(100), height: DevicePixels(100)))
+    }
+
+    let transparentBorder = try render(borderColor: .transparent)
+    let matchingBorder    = try render(borderColor: .white)
+
+    // Walk the top-left corner's diagonal, which is where partial coverage
+    // lives for a 30pt radius. Require that at least one probe is genuinely
+    // partial, or the comparison proves nothing.
+    var sawPartial = false
+    for d in 4...20 {
+        let a = bgra(transparentBorder, d, d, width: 100)
+        let b = bgra(matchingBorder, d, d, width: 100)
+        if b.3 > 10 && b.3 < 245 { sawPartial = true }
+        #expect(Int(a.3) == Int(b.3),
+                "alpha differs at (\(d),\(d)): transparent-border \(a.3) vs matching-border \(b.3)")
+        #expect(Int(a.0) == Int(b.0),
+                "red differs at (\(d),\(d)): transparent-border \(a.0) vs matching-border \(b.0)")
+    }
+    #expect(sawPartial, "no partially covered pixel on the probed diagonal — the test proves nothing")
+}
+
 @Test @MainActor func borderPaintsADistinctColorAtTheEdge() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let renderer = try Renderer(device: device)

@@ -315,6 +315,36 @@ extension Component {
 /// distribution. Each is documented alone and together they are silent, and a
 /// single-`Text` component is the most likely first component anyone writes.
 ///
+/// **A CALLER'S MODIFIER ON A COMPONENT NEVER ANIMATES. It snaps, even inside
+/// `withAnimation`.** This is a defect (review finding B-7), not a design
+/// choice, and it is pinned wrong on purpose. `requestGroupLayout` below runs
+/// `amend` and `pass.setStyle` only after `component.requestGroupLayout` has
+/// returned. By then each member element has already called
+/// `animated(_:_:for:pass:)` and stored its `$anim` baseline, so the baseline
+/// never holds the caller's value, and `setStyle` overwrites the interpolated
+/// result with the raw target on every frame.
+///
+/// Measured with `.linear(duration: 1)` and `.width(196)` changed to
+/// `.width(320)`, together with `.height(40)` to `.height(80)` and
+/// `.padding(4)` to `.padding(20)`: the node reads (320, 80, 20) at t = 0 and
+/// again at t = 0.5, where (196, 40, 4) and then (258, 60, 12) are correct.
+/// The same width declared inside the component animates, 196 then 258. This
+/// is not the `.auto` snap: the fixture's member declares pixel sizes.
+/// `everyRegisteringSiteAnimatesItsStyle`'s `Component` arm
+/// (`AnimationTests.swift`) pins both readings.
+///
+/// **The fix is blocked on `ElementGroup`, not on this type.**
+/// `requestGroupLayout` returns a flat `[LayoutNodeID]`, so nothing here can
+/// name a member's id or its `$anim` slot. That needs the associated-type
+/// change ruling TB-M names. Two cheaper fixes are unsound. Calling `animated`
+/// on the member's slot from here would rewrite its baseline with an empty
+/// `Decoration()`, because the member's `Decoration` is out of reach as well.
+/// Leaving an amendment on the pass for the next `animated` call would reach a
+/// grandchild first, since `Box.requestLayout` registers its children before
+/// itself, which contradicts CO-U's distribution to top-level nodes. To animate
+/// a component's size today, declare the value inside the component (a stored
+/// property its `content` reads) rather than as a modifier on it.
+///
 /// **Only `Style`-backed modifiers can work this way.** `LayoutTree.setStyle`
 /// reaches a node's `Style`; nothing reaches `Decoration` or `Handlers` per
 /// node, because those are per-ELEMENT state registered by each

@@ -104,17 +104,83 @@ extension Shaper {
     ///
     /// An empty string yields **no runs**, so a caller's `max` must start at 0
     /// rather than at the first run.
+    ///
+    /// **Creates a tokenizer per call, and must go on doing so.** This function
+    /// is `nonisolated` and called off the main actor
+    /// (`aCounterOnlyCountsCallsWithinItsOwnBinding` calls it from a
+    /// `Task.detached` and a `TaskGroup` child); a `CFStringTokenizer` is not
+    /// thread-safe, so sharing one here would be a data race. The per-frame
+    /// caller, `ShapingCache.minContentWidth(_:font:)`, is `@MainActor` and
+    /// uses ``unbreakableRunsReusingTokenizer(of:)`` instead.
     public static func unbreakableRuns(of string: String) -> [String] {
         // Counted only for a caller that bound a counter; see `runCallCounter`.
         Self.runCallCounter?.bump()
         let cf = string as CFString
         let length = CFStringGetLength(cf)
-        guard length > 0,
-              let tokenizer = CFStringTokenizerCreate(
+        guard length > 0 else { return [] }
+        Self.tokenizerCreationCounter?.bump()
+        guard let tokenizer = CFStringTokenizerCreate(
                 kCFAllocatorDefault, cf, CFRangeMake(0, length),
                 kCFStringTokenizerUnitLineBreak, nil)
         else { return [] }
+        return runs(walking: tokenizer, over: string)
+    }
 
+    /// ``unbreakableRuns(of:)``'s answer, from one main-actor tokenizer
+    /// re-pointed with `CFStringTokenizerSetString` rather than a new one per
+    /// call.
+    ///
+    /// **Why:** `CFStringTokenizerCreate` is a fixed setup cost that does not
+    /// scale with the string, so on the short strings a UI shows it is most of
+    /// what ``unbreakableRuns(of:)`` costs. It is paid only on a
+    /// `minContentWidth` miss — a warm frame over unchanged text makes no call
+    /// at all — so what this saves is the cold frame and each row a scroll
+    /// newly reveals. Pinned as a count, not a time:
+    /// `aMinContentMissReusesOneTokenizerRatherThanCreatingOnePerString` and
+    /// `aColdFrameCreatesAtMostOneLineBreakTokenizer` (40 creations for 40
+    /// strings before this existed, at most one after).
+    ///
+    /// **Bumps ``runCallCounter`` exactly as ``unbreakableRuns(of:)`` does, and
+    /// must.** `aWarmFrameTokenizesEachDistinctStringAtMostOnce`,
+    /// `aListsWorkIsTheSameFor160RowsAsFor40` and the `ShapingCache` sweep
+    /// tests count min-content tokenizer walks through that counter; a path
+    /// that skipped the bump would turn their assertions into `0 <= 40` and
+    /// `0 == 0`, green whatever the memo did.
+    ///
+    /// **Output identity with the per-call function is the property to
+    /// guard**, since the walk is shared and residual tokenizer state is the
+    /// only thing that differs: `theReusedTokenizerAnswersExactlyAsAFreshOneDoes`
+    /// compares the two across scripts, separators and interleaved calls.
+    ///
+    /// The tokenizer retains the last string it was pointed at until the next
+    /// call, so one string's storage outlives its caller. That is the whole
+    /// cost of holding it.
+    @MainActor
+    static func unbreakableRunsReusingTokenizer(of string: String) -> [String] {
+        Self.runCallCounter?.bump()
+        let cf = string as CFString
+        let length = CFStringGetLength(cf)
+        guard length > 0 else { return [] }
+        let tokenizer: CFStringTokenizer
+        if let reused = MainActorLineBreakTokenizer.shared {
+            CFStringTokenizerSetString(reused, cf, CFRangeMake(0, length))
+            tokenizer = reused
+        } else {
+            Self.tokenizerCreationCounter?.bump()
+            guard let created = CFStringTokenizerCreate(
+                    kCFAllocatorDefault, cf, CFRangeMake(0, length),
+                    kCFStringTokenizerUnitLineBreak, nil)
+            else { return [] }
+            MainActorLineBreakTokenizer.shared = created
+            tokenizer = created
+        }
+        return runs(walking: tokenizer, over: string)
+    }
+
+    /// The UAX #14 walk both entry points share: every token `tokenizer`
+    /// yields over `string`, trailing whitespace trimmed, blank runs dropped.
+    /// `tokenizer` must already be pointed at `string` over its whole length.
+    private static func runs(walking tokenizer: CFStringTokenizer, over string: String) -> [String] {
         let utf16 = Array(string.utf16)
         var runs: [String] = []
         while CFStringTokenizerAdvanceToNextToken(tokenizer) != [] {
@@ -128,12 +194,16 @@ extension Shaper {
         return runs
     }
 
-    /// Counts calls to ``unbreakableRuns(of:)`` **made while the calling task
-    /// has a ``RunCallCounter`` bound to** ``runCallCounter``. Internal and
-    /// always on, at the cost of one optional check: the function is the
-    /// single largest line item in a frame, and a count is the only assertion
-    /// that survives a change of machine. `ShapingCache`'s own `hits`/`misses`
-    /// are the precedent.
+    /// Counts calls to ``unbreakableRuns(of:)`` **and to its main-actor twin
+    /// ``unbreakableRunsReusingTokenizer(of:)``** — the one
+    /// `ShapingCache.minContentWidth(_:font:)` actually makes — **made while
+    /// the calling task has a ``RunCallCounter`` bound to**
+    /// ``runCallCounter``. Internal and always on, at the cost of one optional
+    /// check. The reason first given here, "the single largest line item in a
+    /// frame", was written before `minContentWidth` memoized the walk, after
+    /// which a warm frame makes no call at all; the counter stays because a
+    /// count is the only assertion that survives a change of machine.
+    /// `ShapingCache`'s own `hits`/`misses` are the precedent.
     ///
     /// **It was a bare `nonisolated(unsafe) static var` first, and that was a
     /// real data race** — written from every executor that ever tokenizes,
@@ -194,8 +264,9 @@ extension Shaper {
         private let lock = NSLock()
         private var n = 0
         func bump() { lock.lock(); defer { lock.unlock() }; n += 1 }
-        /// The number of ``Shaper/unbreakableRuns(of:)`` calls made while
-        /// this instance was bound to ``Shaper/runCallCounter``.
+        /// The number of bumps made while this instance was bound: tokenizer
+        /// walks when bound to ``Shaper/runCallCounter``, tokenizer creations
+        /// when bound to ``Shaper/tokenizerCreationCounter``.
         var count: Int { lock.lock(); defer { lock.unlock() }; return n }
         init() {}
     }
@@ -217,4 +288,25 @@ extension Shaper {
     /// original access level rather than making a new claim the way the
     /// `LayoutPass` narrowing did, and no test ever depended on the wider one.
     @TaskLocal static var runCallCounter: RunCallCounter?
+
+    /// Counts `CFStringTokenizerCreate` calls — in either entry point — made
+    /// while the calling task has a counter bound, on exactly the task-local
+    /// footing ``runCallCounter`` describes. A separate counter because the
+    /// two questions are separate: ``runCallCounter`` counts tokenizer
+    /// *walks*, which the min-content memo bounds, and this counts tokenizer
+    /// *creations*, which ``unbreakableRunsReusingTokenizer(of:)`` bounds.
+    /// Reuses ``RunCallCounter`` as its sink; `count` is just the bumps.
+    @TaskLocal static var tokenizerCreationCounter: RunCallCounter?
+}
+
+/// The one line-break tokenizer ``Shaper/unbreakableRunsReusingTokenizer(of:)``
+/// re-points. `@MainActor` because a `CFStringTokenizer` is not thread-safe;
+/// file-private, and deliberately **not** a stored property of the public
+/// `ShapingCache` — adding one there changes a public type's layout across a
+/// module boundary, CLAUDE.md's documented `swift package clean` hazard — and
+/// it needs no per-window lifetime: its answer depends on nothing but the
+/// string.
+@MainActor
+private enum MainActorLineBreakTokenizer {
+    static var shared: CFStringTokenizer?
 }

@@ -89,6 +89,16 @@ size. The stack's content size is the **maximum over children on each axis**
 independently; a stack with no children is 0×0, consistent with a childless
 `Box`.
 
+**What that means per axis, as implemented (ruling ST-H):** an `auto` inline
+axis (width) is fit-content against the stack's content-box width —
+`min(max(min-content, available), max-content)`, the same arithmetic a column
+item's cross size uses (ruling TX-H; both call `fitContentInlineSize`). With no
+width, the stack's own intrinsic question decides: min-content offers 0,
+max-content offers nothing. An `auto` block axis (height) is content height
+measured at the child's used width. Offering the width as a definite available
+space is not the same thing: `measureNode` then reports the child's content
+extent, not the offer.
+
 **`flexGrow`, `flexShrink` and `flexBasis` are ignored** on a stack's children.
 CSS agrees — they are flex-container properties. State this at the code, because
 a reader who sets `flexGrow(1)` on a stack child and sees nothing happen needs to

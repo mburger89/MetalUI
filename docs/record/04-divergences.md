@@ -92,7 +92,12 @@ necessarily come out ahead by one; read 18 before concluding it has.
   raised to 120 is untouched by either a 100 or a 130 automatic minimum, and
   only a fixture with a shrinking sibling can tell the two rules apart —
   measured, not assumed, after the plan's own claim that the first fixture
-  guarded this choice turned out false. **6** was ruling TX-H, an item's cross
+  guarded this choice turned out false. A second gap in the same formula — the
+  automatic minimum was never clamped by a definite `max-*` — was found by the
+  post-merge review and fixed without a divergence number:
+  `sizing_max_clamps_content_suggestion` (WebKit 50, engine 200 before) and
+  `sizing_max_below_floor_keeps_automatic_minimum` (the clamp must not take an
+  item below its padding and border). **6** was ruling TX-H, an item's cross
   size measured before §9.7 flexes it; fixed by re-running the fit-content
   cross measurement for any non-stretched item whose used main size differs
   from its hypothetical one, and pinned by
@@ -616,8 +621,22 @@ and the counter is 0 again. This framework, since 2026-09-01, does not.
 `StateTable.sweep()` retains an unmarked entry with its value and clears only
 `isLive`; the **reap** that would eventually discard it runs *only* on a sweep
 where `storage.count > StateTable.sweepThreshold` (**256**). A tree whose `storage.count` stays at or below
-**256** — which is the demo, and most applications — therefore never reaps
-anything at all. **`storage.count`, not the live count**: tombstones are still
+**256** therefore never reaps anything at all.
+
+> **Corrected 2026-09-10.** This sentence used to read "**256** — which is the
+> demo, and most applications — therefore never reaps". That is no longer true
+> and the reason is the animation milestone, not this one:
+> `animated(_:_:for:pass:)` mints a `$anim` entry on first sight of every
+> registering element **unconditionally** (`AnimatedStyle.swift:309`), so an
+> element costs a `StateTable` entry whether or not it declares `@State`.
+> Measured on the committed `demoLikeRows(_:)` fixture, whose rows carry no
+> `@State` at all: `storage.count == 2n + 7` — 87 at 40 rows, **257 at 125**,
+> 1007 at 500. The demo's list is 500 rows, so **the demo crosses the gate**.
+> Ruling `AN-O` anticipated the pressure but its stated remedy (peek before
+> writing) bounds `writeCount`, not `count`, because the first-sighting insert
+> is unconditional. The divergence itself is unchanged — retention below the
+> gate is still indefinite — but "most applications" sit below it is not a
+> claim this record can still make. **`storage.count`, not the live count**: tombstones are still
 entries, so an app that churns conditional subtrees crosses the gate without
 ever holding 257 live elements at once. `theColdFrameSpikeIsReapedRatherThanRetainedForever`
 reaps with **19** live entries, which is this distinction as a green test.

@@ -78,6 +78,12 @@ public enum AlignItems: Sendable, Equatable {
 /// stretching it anyway is the bug `stack_stretch_declared_size` in
 /// `StackFixtureTests.swift` pins. This applies to `AlignItems.stretch` too —
 /// both axes share the one rule.
+///
+/// **A stretched axis still obeys the item's own `minSize`/`maxSize`, and then
+/// its padding + border floor** (ruling BM-4) — clamp then floor, as WebKit's
+/// grid analogue measures it: an auto child with `max-height: 50` in a 300x200
+/// stack is 300x50, not 300x200. `stack_stretch_max`, `stack_stretch_min` and
+/// `stack_stretch_border_box_floor` pin the three halves.
 public enum JustifyItems: Sendable, Equatable { case start, center, end, stretch }
 
 public enum AlignSelf: Sendable, Equatable {

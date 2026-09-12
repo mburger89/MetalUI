@@ -105,8 +105,21 @@ public struct Animation: Sendable, Equatable {
 
     // MARK: - Duration curves
 
+    /// **`duration` must be finite — a `precondition`, on `timingCurve`'s own
+    /// footing.** `durationValue`'s `seconds > 0` guard snaps a zero, negative
+    /// or NaN duration to `to`, finished; `.infinity` passes that guard, and
+    /// then `elapsed >= seconds` is never true and `elapsed / seconds` is 0.
+    /// Measured on the unfixed source: `linear(duration: .infinity)` from 0 to
+    /// 100 sat at 0 with `isFinished == false` at elapsed 0, 1, 30 and 1e6 — a
+    /// field that never leaves `inFlight`, so a display link that never
+    /// pauses. `0` and negatives are deliberately still admitted (they mean
+    /// "no animation"); `.nan` traps because `easeIn` and its siblings, which
+    /// route through `timingCurve`, already did.
     public static func linear(duration: Double) -> Animation {
-        Animation(.duration(.linear, seconds: duration))
+        precondition(duration.isFinite,
+                     "Animation.linear's duration must be finite; got duration=\(duration). " +
+                     "0 or a negative duration snaps; .infinity would never finish.")
+        return Animation(.duration(.linear, seconds: duration))
     }
 
     /// CSS's `ease-in`: `cubic-bezier(0.42, 0.0, 1.0, 1.0)` — starts slow.
@@ -186,10 +199,23 @@ public struct Animation: Sendable, Equatable {
     /// either pathology reaching production is a window whose display link
     /// never pauses — M4's own exit criterion, sabotaged from call-site
     /// user code that looks entirely reasonable.
+    ///
+    /// **`duration` must be finite too, for the same reason reached through
+    /// the other parameter.** `springValue`'s `duration > 0` guard snaps a
+    /// zero, negative or NaN duration to `to`, finished; `.infinity` passes it
+    /// and makes `omega` 0. Measured on the unfixed source, from 0 to 100 at
+    /// elapsed 0, 1, 30 and 1e6: `bounce: 0` sat at 0 with `isFinished ==
+    /// false`, and `bounce: 0.2` returned NaN with `isFinished == false`, at
+    /// every sample. The precondition is `isFinite`, NOT `> 0` — `0` and
+    /// negatives are the snap and stay admitted, and `1e9` is a legitimate
+    /// (very slow) spring.
     public static func spring(duration: Double, bounce: Double) -> Animation {
         precondition(bounce > -1 && bounce < 1,
                      "Animation.spring(bounce:) must be strictly between -1 and 1; got \(bounce). " +
                      "0 is critically damped, 1 is undamped (never settles), and -1 divides by zero.")
+        precondition(duration.isFinite,
+                     "Animation.spring's duration must be finite; got duration=\(duration). " +
+                     "0 or a negative duration snaps; .infinity never settles.")
         return Animation(.spring(duration: duration, bounce: bounce))
     }
 

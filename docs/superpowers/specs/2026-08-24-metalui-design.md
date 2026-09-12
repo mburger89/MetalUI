@@ -840,7 +840,7 @@ shaping and rasterization and own everything above it.
   it, spacing visibly wobbles during horizontal scroll.
 - **Atlas key**: `(resolvedFontKey, glyphID, size, subpixelVariant, scaleFactor)`.
   **(measured)** `resolvedFontKey` identifies the *resolved* `CTFont` including variation coordinates
-  and matrix — **never a family or PostScript name**. Requesting `"SFMono-Regular"` by name on this
+  and matrix — **never a family or PostScript name**. *(Erratum 2026-09-10: it identifies the font for glyph identity, not its shaping behaviour — the UI font and `"System Font"` at one size share a key and shape non-Latin text differently; `twoRequestsWithEqualFontKeysShareOneShapeThoughTheyShapeDifferently`, pinned wrong on purpose.)* Requesting `"SFMono-Regular"` by name on this
   machine returned a font whose PostScript name is `Helvetica`; name-based keys collide across
   entirely different outlines.
 - **Grayscale AA only.** macOS retired LCD subpixel AA.
@@ -978,6 +978,24 @@ It covers every class listed, plus `SA`, which the hand-rolled subset explicitly
 ranges partition the string contiguously with full coverage — the shape an arithmetic re-wrap needs.
 Throughput `-O`: **93.6 ns/char**, ~22 µs per 231-character line, paid once and cacheable *because*
 it is width-independent.
+
+> **Correction, 2026-09-10 — this is not a throughput, and reading it as one understates short
+> strings by an order of magnitude.** The cost is **fixed + linear**, not linear. Re-measured with
+> the shipped `Shaper.unbreakableRuns` body under `xcrun swiftc -O`, best-of-2000 after 50 warm-ups:
+> `CFStringTokenizerCreate` alone is **~18.4 µs and flat in length** — 19.0 µs against a
+> 1-character string, 18.4 µs against a 1,000-character one — while the remainder (the token walk
+> plus the per-run `String` construction this function does) runs ~140 ns/char asymptotically.
+> Whole-function ns/char is therefore **21,708 at 1 char, 644 at 40, 220 at 231, 156 at 1,000** on
+> this machine: there is no single per-character number. The consequence the original framing hides
+> is that for short strings — the demo's list rows are ~40 characters — creation is ~72% of the
+> call, so hoisting one tokenizer and re-pointing it with `CFStringTokenizerSetString` is worth
+> ~3.4x there and much less on a long paragraph. `~22 µs per 231-character line` also does not
+> reproduce here (50.8 µs); treat the absolute figures as this machine's and the fixed/linear
+> *shape* as the transferable part. Ruling `TX-G` carries the same figure and the same correction.
+>
+> **Revised 2026-09-10:** the `93.6 ns/char` figure attributes a fixed per-call
+> `CFStringTokenizerCreate` cost to per-character throughput. Creation does not scale with the
+> string. The min-content path now re-points one main-actor tokenizer; see ruling `TX-G`'s revision.
 
 `NSString.enumerateSubstrings(.byWords)` remains wrong for the reasons this section gives, and
 measurably so: `well-known` → `["well","known"]`, hyphen dropped; `日本語` → `["日本","語"]`.
@@ -1457,7 +1475,8 @@ Ships incrementally: nodes and identity with **M3** (when interaction exists), t
 > - **Emission — built, minus one field.** `PrepaintPass.emitAXNode(_:at:id:children:)` emits during
 >   `prepaint` as specified, carrying role, label, value, traits, actions, frame and
 >   `logicalCount`. **`children` is always `[]` in production.** The sole production caller,
->   `Box.prepaint`, has no child ids to pass: `ElementGroup.requestGroupLayout` hands a container a
+>   `Frame.registerHandlers` (reached from `Box`, `Stack` and `Text`'s `prepaint`), has no child ids
+>   to pass: `ElementGroup.requestGroupLayout` hands a container a
 >   flat `[LayoutNodeID]`. Deriving order from the emitted keys instead is **provably ambiguous**,
 >   because `GlobalElementID.child(of:at:name:)` discards the index whenever a name is given, so two
 >   containers with the same named children in opposite orders produce an identical id set.

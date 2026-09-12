@@ -70,6 +70,68 @@ struct MeasurePerformanceTests {
         #expect(counter.count <= 40)
     }
 
+    /// **The cold frame — every `List` row built (ruling MP-I) — creates at
+    /// most one line-break tokenizer**, where it created one per min-content
+    /// miss: 40 on this harness before `ShapingCache.minContentWidth` re-pointed
+    /// a shared one. A warm frame makes no tokenizer call at all, so the cold
+    /// frame and newly revealed rows are the only places this saving exists;
+    /// hence a cold render here and not a warm one.
+    ///
+    /// `calls == 40` proves the frame reached the min-content branch through the
+    /// counted path — without it, a frame that never tokenized would read
+    /// `0 <= 1`. At most one rather than zero because the tokenizer is
+    /// process-wide and an earlier test may already have created it.
+    @Test
+    func aColdFrameCreatesAtMostOneLineBreakTokenizer() throws {
+        let states = StateTable()
+        let calls = Shaper.RunCallCounter()
+        let creations = Shaper.RunCallCounter()
+        Shaper.$runCallCounter.withValue(calls) {
+            Shaper.$tokenizerCreationCounter.withValue(creations) {
+                _ = Self.render({ demoLikeRows(40) }, states: states)
+            }
+        }
+        #expect(calls.count == 40)
+        #expect(creations.count <= 1)
+    }
+
+    /// Font resolution is memoized on the window's `ShapingCache`, so a warm
+    /// frame over the same `Text`s reaches the uncached
+    /// `FontResolver.resolve(family:size:)` **zero** times. Before the memo,
+    /// `Text.requestLayout` and `Text.paint` each called it, so every `Text`
+    /// the frame built paid two `CTFont` creations every frame.
+    ///
+    /// **One shared cache across both renders, deliberately** — the opposite of
+    /// the note on `aWarmFrameTokenizesEachDistinctStringAtMostOnce` above, and
+    /// for the reason that note gives: that test's instrument is per-frame and
+    /// must stay so; this one is exactly the cross-frame question, and a
+    /// `Window` owns one cache for its life.
+    ///
+    /// The cold arm reads **1**: every row asks for `(nil, 13)`, so one request
+    /// is shared across all 40 rows *and* across the layout and paint phases.
+    /// The `lookups` arm is the reachability control: it proves the warm frame
+    /// did build and paint `Text`s, so a zero is not a frame that built none.
+    @Test
+    func aWarmFrameReachesTheUncachedFontResolverZeroTimes() throws {
+        let states = StateTable()
+        let cache = ShapingCache()
+
+        let cold = FontResolver.CallCounter()
+        FontResolver.$resolveCallCounter.withValue(cold) {
+            _ = Self.render({ demoLikeRows(40) }, states: states, shapingCache: cache)
+        }
+
+        let lookupsBefore = cache.lookups
+        let warm = FontResolver.CallCounter()
+        FontResolver.$resolveCallCounter.withValue(warm) {
+            _ = Self.render({ demoLikeRows(40) }, states: states, shapingCache: cache)
+        }
+
+        #expect(cache.lookups > lookupsBefore)
+        #expect(warm.count == 0)
+        #expect(cold.count == 1)
+    }
+
     @Test
     func aListsWorkIsTheSameFor160RowsAsFor40() throws {
         let states40 = StateTable(), states160 = StateTable()

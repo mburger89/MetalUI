@@ -14,7 +14,8 @@ private func item(_ tree: LayoutTree, main: Double, cross: Double) -> LayoutNode
 
 private func line(_ mains: [Double]) -> [FlexItem] {
     mains.map {
-        FlexItem(node: LayoutNodeID(generation: 0, index: 0), baseSize: $0, hypotheticalMainSize: $0,
+        FlexItem(node: LayoutNodeID(generation: 0, index: 0), baseSize: $0, mainEdges: 0,
+                 hypotheticalMainSize: $0,
                  minMain: nil, maxMain: nil, targetMainSize: $0, crossSize: 10,
                  stretchEligible: false, minCross: nil, maxCross: nil,
                  frozen: false, marginMain: (0, 0), marginCross: (0, 0))

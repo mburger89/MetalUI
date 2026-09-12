@@ -92,22 +92,11 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // Before the children, so a child's own click target registers LATER
         // and therefore ranks above this one — `topmostOpaqueHitbox` breaks a
         // layer tie by registration index, and a child paints over its parent.
-        // No-op unless `onClick(_:)` was called; see `registerHandlers`.
+        // The hitbox is a no-op unless `onClick(_:)` was called. The same call
+        // registers focus and emits a declared `handlers.axNode` — see
+        // `Frame.registerHandlers`, which holds all three gates so that `Box`,
+        // `Stack` and `Text` cannot disagree about any of them.
         pass.registerHandlers(handlers, at: bounds, id: id)
-        // No-op unless something set `handlers.axNode` to something other than
-        // `AXNode()` — `AXNode.isEmpty`'s own doc names this as `Handlers`'
-        // "empty means not a hit target" rule, one type over. **`children` is
-        // always `[]` from this call site**: a generic `Content: ElementGroup`
-        // hands `requestGroupLayout` a flat `[LayoutNodeID]`, not a
-        // `GlobalElementID` per child (`ElementGroup.swift`), so this container
-        // has no way to name its own children's ids without a change to that
-        // protocol's associated types — out of this task's scope. Whoever
-        // assembles a real tree either extends `ElementGroup` for it or walks
-        // `GlobalElementID.parent` over the flat `Frame.axNodes` map; see this
-        // task's report.
-        if !handlers.axNode.isEmpty {
-            pass.emitAXNode(handlers.axNode, at: bounds, id: id, children: [])
-        }
         // `bounds` is this box's own rect and is deliberately not passed down:
         // the engine stores rects **absolute to the root**, so each child looks
         // its own up rather than being offset by its parent. Adding `bounds`
@@ -124,21 +113,13 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // paint over them. Reversing these two lines is caught by
         // `aContainerPaintsItsBackgroundBeneathItsChildren`.
         //
-        // **The pointer and keyboard states are consulted here and nowhere
-        // else.** `??` chains left to right, so a declared `focusBackground`
-        // wins over a declared `hoverBackground` and both win over the plain
-        // one; an element that declares neither takes the same single branch it
-        // always did, and an element that declares one but is neither hovered
-        // nor focused falls through to `background` rather than painting
-        // nothing. Both queries are keyed on this element's own
-        // `GlobalElementID` — `registerHandlers` returns no `HitboxID` for a
-        // conformer to keep, so the element-keyed `isHovered` overload is the
-        // only one `Box` can reach. See `PaintPass.isHovered(_:)`'s two
-        // overloads and `Frame.hoveredElement`.
-        let effective = (pass.isFocused(id) ? decoration.focusBackground : nil)
-            ?? (pass.isHovered(id) ? decoration.hoverBackground : nil)
-            ?? decoration.background
-        if let color = animatedColor(effective, for: id, pass: &pass) {
+        // The pointer and keyboard states are consulted inside
+        // `animatedBackground(_:for:pass:)`, which resolves the
+        // `focusBackground ?? hoverBackground ?? background` chain and animates
+        // the one resulting value. It is shared with `Stack.paint` and
+        // `Text.paint` — see its doc for the precedence and why only the
+        // element-keyed `isHovered` overload is reachable from here.
+        if let color = animatedBackground(decoration, for: id, pass: &pass) {
             pass.fill(bounds, color: color,
                       cornerRadii: Corners(all: decoration.cornerRadius))
         }
@@ -230,8 +211,10 @@ public struct Decoration: Sendable, Hashable {
     /// pointer and a user recovers it by moving, focus is where the keyboard is
     /// pointing and has no other indication. Reversing the two makes a focused
     /// element lose its only affordance whenever the pointer happens to rest on
-    /// it — which is exactly when a user is about to type. `Box.paint` is the
-    /// one site, and `focusOutranksHoverWhenAnElementIsBoth` is the pin.
+    /// it — which is exactly when a user is about to type.
+    /// `animatedBackground(_:for:pass:)` is the one site (shared by `Box`,
+    /// `Stack` and `Text`); `focusOutranksHoverWhenAnElementIsBoth` pins it on
+    /// `Box` and `everyBackgroundPaintingSiteHonoursHoverAndFocus` on all three.
     public var focusBackground: ColorToken?
 
     public init(background: ColorToken? = nil, cornerRadius: Pixels = Pixels(0),

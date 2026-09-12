@@ -117,13 +117,26 @@ extension Element {
 
     public mutating func prepaintGroup(layout: inout SingleElementLayout<Self>,
                                        pass: inout PrepaintPass) -> PrepaintState {
-        prepaint(layout.id, bounds: pass.bounds(of: layout.node),
-                 layout: &layout.state, pass: &pass)
+        // **Re-bind, because `State.Box` is a class and one element VALUE can
+        // be placed twice.** `Row { sep; sep }` copies the struct, and a copy
+        // shares the box by reference, so the second occurrence's `bind` in
+        // `requestGroupLayout` leaves the box pointing at ITS slot. Without
+        // this line the first occurrence reads the second's `@State` in every
+        // phase after layout — measured `[2, 2]` where `[1, 2]` is correct.
+        // `layout.id` is this occurrence's own id, stamped during layout, so
+        // re-binding to it is exact rather than a guess.
+        // Pinned by `oneElementValuePlacedTwiceDoesNotShareItsState`.
+        StateBinder.bind(self, table: pass.frame.stateTable, id: layout.id)
+        return prepaint(layout.id, bounds: pass.bounds(of: layout.node),
+                        layout: &layout.state, pass: &pass)
     }
 
     public mutating func paintGroup(layout: inout SingleElementLayout<Self>,
                                     prepaint: inout PrepaintState,
                                     pass: inout PaintPass) {
+        // Same reason as `prepaintGroup` above — paint is a third phase and the
+        // box is still whatever the last `bind` left it.
+        StateBinder.bind(self, table: pass.frame.stateTable, id: layout.id)
         paint(layout.id, bounds: pass.bounds(of: layout.node),
               layout: &layout.state, prepaint: &prepaint, pass: &pass)
     }
@@ -225,8 +238,13 @@ public struct Pair<First: ElementGroup, Second: ElementGroup>: ElementGroup {
 /// `StateTable.staleAfterGenerations` (**2**) generations.
 ///
 /// **The gate comes first, so state it first.** While `storage.count` stays at
-/// or below 256 — which is the demo and most applications — **nothing is ever
-/// reaped, and a removed branch's `@State` survives indefinitely**. The gate
+/// or below 256, **nothing is ever reaped, and a removed branch's `@State`
+/// survives indefinitely**. (**"which is the demo and most applications" was
+/// struck 2026-09-10**: since the animation milestone every registering element
+/// mints a `$anim` entry on first sight, unconditionally, so the demo's 500-row
+/// list alone puts the table at 1007. Measured on `demoLikeRows(_:)`, whose rows
+/// declare no `@State`: `storage.count == 2n + 7`, crossing at **125 rows**.
+/// A tree stays under the gate now only if it is genuinely small.) The gate
 /// counts *entries*, not live ones, and tombstones are entries: an app that
 /// churns conditional subtrees crosses it without ever holding 257 live
 /// elements at once (`theColdFrameSpikeIsReapedRatherThanRetainedForever`

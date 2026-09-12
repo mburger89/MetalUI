@@ -134,11 +134,18 @@ private func scrolledState(offset: Double, lastScrollTime: Double) -> StateTable
 /// viewport, `scrollable` is 0 and `travel`'s division by it would produce a
 /// NaN rect that still gets inserted into the scene rather than nothing at
 /// all.
+///
+/// **The scroll state is explicit and fresh (`age == 0`)** so that
+/// `guard scrollable > 0` is the only guard that can return here. Rendered
+/// against a default `ScrollState` — `lastScrollTime == -.infinity`, never
+/// scrolled — `guard alpha > 0` would return first and this would pass
+/// with the scrollable guard deleted.
 @Test @MainActor func contentThatFitsDrawsNoIndicator() throws {
     var view = ScrollView(.vertical, elementID: listID) {
         Box(style: fixedHeight(40))
     }
-    let (frame, _) = fullyRendered(&view, width: 120, height: 100)
+    let (frame, _) = fullyRendered(&view, width: 120, height: 100,
+                                   stateTable: scrolledState(offset: 0, lastScrollTime: 0))
     #expect(frame.scene.rects.isEmpty,
             "content shorter than the viewport has nothing to scroll, so no thumb and no draw call for one")
 }
@@ -158,7 +165,10 @@ private func scrolledState(offset: Double, lastScrollTime: Double) -> StateTable
         var view = ScrollView(.vertical, elementID: listID) {
             Box(style: fixedHeight(200))
         }
-        let (frame, _) = fullyRendered(&view, width: 120, height: 100)
+        // A fresh scroll (age 0): a never-scrolled default state paints no
+        // thumb at all, so there would be nothing here to measure.
+        let (frame, _) = fullyRendered(&view, width: 120, height: 100,
+                                       stateTable: scrolledState(offset: 0, lastScrollTime: 0))
         let rect = try #require(frame.scene.rects.first)
         #expect(abs(Double(rect.bounds.size.height) - 50) < 0.05,
                 "100 * (100/200) = 50 — a bare proportional size, not the floor")
@@ -179,7 +189,10 @@ private func scrolledState(offset: Double, lastScrollTime: Double) -> StateTable
         var view = ScrollView(.vertical, elementID: listID) {
             Box(style: fixedHeight(1000))
         }
-        let (frame, _) = fullyRendered(&view, width: 120, height: 100)
+        // A fresh scroll (age 0): a never-scrolled default state paints no
+        // thumb at all, so there would be nothing here to measure.
+        let (frame, _) = fullyRendered(&view, width: 120, height: 100,
+                                       stateTable: scrolledState(offset: 0, lastScrollTime: 0))
         let rect = try #require(frame.scene.rects.first)
         #expect(abs(Double(rect.bounds.size.height) - 20) < 0.05,
                 "100 * (100/1000) = 10 must be floored to 20, not left as a 10pt sliver")
@@ -257,9 +270,12 @@ private func wheel(at position: Point<Pixels>, deltaY: Float) -> InputEvent {
     }
 
     // A baseline tick far from zero. Nothing has scrolled yet — ScrollState's
-    // default `lastScrollTime` is 0 — so `age` here is enormous and the
-    // window must already be clean: a never-scrolled but scrollABLE list
-    // must not paint an indicator or request anything, either.
+    // default `lastScrollTime` is `-.infinity` — so `age` here is infinite and
+    // the window must already be clean: a never-scrolled but scrollABLE list
+    // must not paint an indicator or request anything, either. This tick is
+    // NOT the window's first frame's instant; that case (timestamp 0, where
+    // the old default of 0 gave `age == 0`) is
+    // `aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame`.
     platformWindow.simulateTick(timestamp: 100)
     #expect(!window.needsRedraw, "an idle, never-scrolled ScrollView must not keep the window dirty")
 
@@ -443,6 +459,62 @@ private func wheel(at position: Point<Pixels>, deltaY: Float, timestamp: Double)
     let framesAfterFade = window.framesDrawn
     platformWindow.simulateTick(timestamp: 120)
     #expect(window.framesDrawn == framesAfterFade, "idle stays idle: no further frame may draw")
+}
+
+// MARK: - 5c. The window's first frame is built before any tick
+//
+/// A never-scrolled, scrollABLE `ScrollView` paints no indicator and requests
+/// no frame on the window's **pre-tick** first frame — the one
+/// `App.openWindow` draws itself, before the display link has ever fired.
+///
+/// **Why every other idle test in this file cannot see it.** `Window.lastTick`
+/// is 0 until the first tick, so that frame's `PaintPass.timestamp` is 0, and
+/// `ScrollState.lastScrollTime` used to default to 0 as well: `age` came out
+/// exactly 0, deep inside the fully-opaque window, so every scrollable
+/// `ScrollView` painted its thumb at the token's full 0.35 on the first frame
+/// and called `requestAnotherFrame()`. The next frame is built at a real
+/// `targetTimestamp`, which is why it lasted one frame. The three tests in
+/// this file that assert "an idle, never-scrolled ScrollView must not keep the
+/// window dirty" all open at `simulateTick(timestamp: 100)`, where the old
+/// default gives `age == 100`, so all three were green against it.
+///
+/// **The positive control is the same window at the same instant.** After the
+/// first frame, a wheel event (stamped with the fake's `currentTime`, still 0)
+/// and a second pre-tick draw DO paint the thumb and keep the window dirty.
+/// Without that half, a fixture that could not scroll at all would pass the
+/// first half for the wrong reason — `guard scrollable > 0` returns just as
+/// early as `guard alpha > 0` does.
+@Test @MainActor func aNeverScrolledScrollViewPaintsNoIndicatorOnTheWindowsPreTickFirstFrame() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(),
+                              "no Metal device; run on macOS hardware")
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120, startsDisplayLink: true) {
+        ScrollView(.vertical, elementID: listID) {
+            Box(style: columnStyle()) {
+                Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
+                Box(style: fixedHeight(40)); Box(style: fixedHeight(40))
+                Box(style: fixedHeight(40))
+            }
+        }
+    }
+
+    // `App.openWindow`'s own pre-tick draw: no `simulateTick` has run.
+    let framesBefore = window.framesDrawn
+    window.drawFrameIfNeeded()
+    try #require(window.framesDrawn == framesBefore + 1, "set up: the pre-tick first frame must actually draw")
+    #expect(window.lastScene.rects.isEmpty,
+            "a never-scrolled ScrollView must not paint its indicator on the window's first frame")
+    #expect(!window.needsRedraw,
+            "and must not request another frame from it: nothing has scrolled, so there is nothing to fade")
+
+    // The control: a real scroll at the same instant does paint.
+    platformWindow.simulateInput(wheel(at: pt(60, 60), deltaY: -20))
+    try #require(window.needsRedraw, "set up: the scroll itself must dirty the window")
+    window.drawFrameIfNeeded()
+    let rect = try #require(window.lastScene.rects.first,
+                            "control: the same fixture, scrolled at the same instant, must paint the thumb — or it cannot scroll and the first half proves nothing")
+    #expect(abs(Double(rect.background.a) - 0.35) < 0.001,
+            "control: age 0 after a real scroll is the token's full 0.35")
+    #expect(window.needsRedraw, "control: a thumb that just appeared must request the frames that fade it")
 }
 
 // MARK: - 6. The fade is a RAMP, and it uses the scroll-indicator token

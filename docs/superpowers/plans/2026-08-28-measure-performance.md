@@ -18,7 +18,7 @@
 - **Any count a later loop indexes on must be `try #require`, not `#expect`** — `#expect` records and continues, so a short array sends the next loop past its own end and truncates the suite with no summary line.
 - **The harness asserts counts and complexity, never wall-clock.** Committed timing baselines are machine-specific and rot.
 - **A mutation that reddens nothing is a broken instrument or it is the finding.** Prove the mutant behaves differently before banking a coverage gap.
-- **Nothing may be keyed on a font family or PostScript name** (design spec §6.1/§3.2). `FontKey` identifies the resolved `CTFont`.
+- **Nothing may be keyed on a font family or PostScript name** (design spec §6.1/§3.2). `FontKey` identifies the resolved `CTFont`. *(Erratum 2026-09-10: it identifies the font for glyph identity, not its shaping behaviour — the UI font and `"System Font"` at one size share a key and shape non-Latin text differently; `twoRequestsWithEqualFontKeysShareOneShapeThoughTheyShapeDifferently`, pinned wrong on purpose.)*
 - **`MetalUILayout` must import only `MetalUICore`.** Verify with an anchored pattern.
 - Comments explain mechanism, not task or milestone history.
 - **Stale-incremental hazard:** adding a stored property to a public struct crossing module boundaries has produced a `SIGSEGV` with no summary line, or an assertion whose *expected* value contains something its own source could not construct. Run `swift package clean` before debugging either as a logic bug. `ScrollState` and `Scene` are both such structs.

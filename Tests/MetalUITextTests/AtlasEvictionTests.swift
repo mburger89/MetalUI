@@ -145,3 +145,79 @@ private func img() -> GlyphImage {
         atlas.beginFrame()
     }
 }
+
+// MARK: - One dictionary, generation folded into the value
+
+/// **A cache hit hashes its key once.** `packed(for:rasterize:)` runs for every
+/// glyph of every visible `Text` on every built frame, and its hit path used to
+/// be a `placed[key]` read followed by a `lastUsedGeneration[key] = …` write
+/// into a second dictionary keyed on the same `GlyphKey` — two full hashes of a
+/// `String`-bearing key per glyph, the second feeding only
+/// `evictUnusedSince(_:)`, which has no production caller. The generation now
+/// lives in `placed`'s value and the hit re-stamps it through
+/// `index(forKey:)`, `ShapingCache.shaped`'s pattern.
+///
+/// Structural, because a hash count is not observable from outside the type.
+/// What it pins: exactly ONE stored dictionary is keyed on `GlyphKey`, and that
+/// dictionary's value carries the generation a later hit re-stamped. The
+/// behaviour eviction reads is pinned separately, by the three tests above and
+/// `aWhitespaceGlyphIsStampedAndEvictedLikeAnyOther` below.
+@Test func theGenerationLivesInTheOneDictionaryThatHoldsTheGlyph() throws {
+    let atlas = GlyphAtlas(width: 128, height: 128)
+    let key = GlyphKey(font: FontResolver.resolve(family: nil, size: 13).key,
+                       glyph: 7, size: 13, subpixelVariant: 0, scaleFactor: 2)
+    atlas.beginFrame()
+    _ = atlas.slot(for: key, rasterize: { img() })
+    atlas.endFrame()
+    atlas.beginFrame()
+    atlas.endFrame()
+    atlas.beginFrame()
+    _ = atlas.slot(for: key, rasterize: { img() })   // a hit, in generation 3
+    atlas.endFrame()
+    try #require(atlas.currentGeneration == 3)
+
+    let glyphKeyed = Mirror(reflecting: atlas).children.filter {
+        String(describing: type(of: $0.value)).hasPrefix("Dictionary<GlyphKey,")
+    }
+    try #require(glyphKeyed.count == 1,
+                 "dictionaries keyed on GlyphKey: \(glyphKeyed.map { $0.label ?? "?" })")
+
+    let entries = Array(Mirror(reflecting: glyphKeyed[0].value).children)
+    try #require(entries.count == 1)
+    let pair = Array(Mirror(reflecting: entries[0].value).children)
+    let value = try #require(pair.first { $0.label == "value" }?.value)
+    let stamped = Mirror(reflecting: value).children.first { $0.label == "generation" }?.value as? Int
+    #expect(stamped == 3, "the hit did not re-stamp the entry's own generation")
+}
+
+/// **The empty-image branch stamps a generation too, and nothing else sees it.**
+/// A whitespace glyph gets a zero-area slot rather than a pixel one, through
+/// its own branch of `packed(for:rasterize:)`; every eviction test above packs
+/// an 8x8 bitmap and so never reaches that branch. Space B, drawn in the frame
+/// that just ended, must survive a sweep; space A, untouched since the frame
+/// before, must not.
+@Test func aWhitespaceGlyphIsStampedAndEvictedLikeAnyOther() {
+    let atlas = GlyphAtlas(width: 128, height: 128)
+    let font = FontResolver.resolve(family: nil, size: 13).key
+    let spaceA = GlyphKey(font: font, glyph: 3, size: 13, subpixelVariant: 0, scaleFactor: 2)
+    let spaceB = GlyphKey(font: font, glyph: 3, size: 13, subpixelVariant: 1, scaleFactor: 2)
+    let blank = { GlyphImage(width: 0, height: 0, bytes: []) }
+
+    atlas.beginFrame()
+    _ = atlas.slot(for: spaceA, rasterize: blank)
+    atlas.endFrame()
+    atlas.beginFrame()
+    _ = atlas.slot(for: spaceB, rasterize: blank)
+    atlas.endFrame()
+
+    atlas.evictUnusedSince(atlas.currentGeneration)
+
+    var aRasterizedAgain = false
+    var bRasterizedAgain = false
+    atlas.beginFrame()
+    _ = atlas.slot(for: spaceA, rasterize: { aRasterizedAgain = true; return blank() })
+    _ = atlas.slot(for: spaceB, rasterize: { bRasterizedAgain = true; return blank() })
+    atlas.endFrame()
+    #expect(aRasterizedAgain == true)
+    #expect(bRasterizedAgain == false)
+}

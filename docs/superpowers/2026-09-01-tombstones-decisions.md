@@ -631,6 +631,12 @@ demo's own row shape: `totalAXNodes=1, hitboxes=17` — **seventeen rows realize
 as hit targets, none as AX nodes.** `Box.prepaint` is the sole production
 `emitAXNode` caller and always passes `children: []`.
 
+**Amended 2026-09-10 (review finding B-14):** the sole caller is now
+`Frame.registerHandlers`, reached from `Box`, `Stack` and `Text`'s `prepaint`.
+Before that, `Stack` and `Text` registered handlers without emitting, so a declared
+node on either was dropped silently. `children: []` is unchanged, and so is this
+ruling's disposition.
+
 **So the count is exposed correctly and there is nothing to expose it with.**
 **Disposition: deferred with a named mechanism** (`TB-M`'s `ElementGroup`
 associated-type change), written at `AXNode`, at `List`'s type doc, and in

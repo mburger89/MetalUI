@@ -143,12 +143,49 @@ final class MetalHostView: NSView {
                                             modifiers: modifiers(event))))
     }
 
+    /// Points one line of a non-precise scroll device moves. AppKit's own
+    /// default: a fresh `NSScrollView` reports `verticalLineScroll` and
+    /// `horizontalLineScroll` of 10.0. The two tests that pin `scrollDelta`
+    /// (in `PlatformTests.swift`) take their expected values from
+    /// `NSScrollView` at test time, not from this constant.
+    nonisolated static let pointsPerScrollLine: CGFloat = 10
+
+    /// `NSEvent.scrollingDeltaX/Y` in points, whatever device produced them.
+    ///
+    /// **Those fields change unit with `hasPreciseScrollingDeltas`.** A precise
+    /// device (trackpad, Magic Mouse) reports points; a non-precise one (a
+    /// conventional wheel mouse) reports LINES. Measured by synthesizing
+    /// `CGEvent(scrollWheelEvent2Source:units:.line …)` and converting with
+    /// `NSEvent(cgEvent:)`: `hasPreciseScrollingDeltas` is false and
+    /// `scrollingDeltaY` is the raw line count, 1.0 for one line. The seam
+    /// used to copy that count into `ScrollEvent.delta` as points, so a wheel
+    /// mouse moved content about a tenth as far as `NSScrollView` does, and
+    /// every trackpad look passed because the precise arm was already right.
+    ///
+    /// Converted here, at the AppKit boundary, rather than by carrying the flag
+    /// on `ScrollEvent`: that type is public and crosses into `MetalUI`.
+    /// `event.deltaY` is not the answer either, since it reads 1.0 for a
+    /// one-line event and also for a 10-point precise one.
+    ///
+    /// **What is not measured:** a physical wheel's per-detent line count after
+    /// the window server's scroll acceleration. The synthesized event proves
+    /// the unit, not what one click of a real wheel produces.
+    ///
+    /// Pinned by `aNonPreciseScrollDeltaIsScaledFromLinesToPointsAndAPreciseOneIsNot`
+    /// (this function) and
+    /// `aWheelMouseEventReachesOnInputInPointsAndATrackpadEventIsUnchanged`
+    /// (the `scrollWheel(with:)` call site, with real `NSEvent`s).
+    nonisolated static func scrollDelta(x: CGFloat, y: CGFloat, precise: Bool) -> Point<Pixels> {
+        let scale: CGFloat = precise ? 1 : pointsPerScrollLine
+        return Point(x: Pixels(Float(x * scale)), y: Pixels(Float(y * scale)))
+    }
+
     override func scrollWheel(with event: NSEvent) {
         let momentum = event.momentumPhase != []
         _ = onInput?(.scrollWheel(ScrollEvent(
             position: point(event),
-            delta: Point(x: Pixels(Float(event.scrollingDeltaX)),
-                         y: Pixels(Float(event.scrollingDeltaY))),
+            delta: Self.scrollDelta(x: event.scrollingDeltaX, y: event.scrollingDeltaY,
+                                    precise: event.hasPreciseScrollingDeltas),
             modifiers: modifiers(event),
             isMomentum: momentum,
             timestamp: event.timestamp)))

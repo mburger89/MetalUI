@@ -17,31 +17,44 @@
 /// context (measured: `swift build` rejects the brief's un-annotated version
 /// with exactly that diagnostic).
 ///
-/// **Open question: what happens when one element VALUE is placed twice in a
-/// tree — `let c = Counter(); Box { c; c }` — rather than two separate
-/// values of the same type?** Both occurrences share one `Box` instance
-/// (`let box = Box()` is copied by reference, not reconstructed), so the
-/// second `bind` call overwrites the first `box.table`/`box.slotID` with its
-/// own slot id. A probe reading both counters after a few frames of
-/// `Row { c; c }.render` back-to-back three times read `[1, 1, 2, 2, 3, 3]`
-/// — correct-LOOKING, but not conclusive: both copies advance in lockstep in
-/// that probe (each `requestLayout` increments its own counter by the same
-/// amount), so a wrong slot assignment would still read the right NUMBER.
-/// Telling "both counters correctly share one entry because they are one
-/// value" from "the second bind silently clobbered the first, and they only
-/// look right because they happen to move together" needs a differential
-/// probe — e.g. two occurrences that increment by different amounts, or that
-/// are rendered on frames where only one of them runs its `requestLayout` —
-/// and none has been written. Recording this rather than guessing which way
-/// it resolves: reusing one element value is a shape the box design does not
-/// obviously handle either way, and naming the gap is worth more here than a
-/// claim that has not been checked.
+/// **Answered 2026-09-10: one element VALUE placed twice shares one box, and
+/// it was corrupting both reads and clicks.** The note that stood here called
+/// it an open question and asked for a differential probe — "two occurrences
+/// that increment by different amounts" — because a lockstep probe reading
+/// `[1, 1, 2, 2, 3, 3]` cannot tell a correct shared entry from a clobbered
+/// one. That probe is now written
+/// (`oneElementValuePlacedTwiceDoesNotShareItsState`) and it resolved both
+/// ways at once:
+///
+/// - **Reads were wrong and are now fixed.** `bind` ran only inside layout, so
+///   after the second occurrence bound, the first read the second's value in
+///   every later phase — measured `[2, 2]` where `[1, 2]` is correct.
+///   `ElementGroup.prepaintGroup`/`paintGroup` now re-bind to `layout.id`,
+///   which is each occurrence's own id.
+///
+/// - **Handlers are still wrong, and re-binding cannot fix them.** A closure
+///   registered by one occurrence captures this box by reference; one box
+///   holds one `slotID`; by the time a click arrives it holds whatever the last
+///   phase bound. Measured: occurrence 0 clicked once reads **1** while
+///   occurrence 1, never clicked, reads **102** — correct is 101 and 2. Pinned
+///   wrong on purpose by `aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt`
+///   and counted by `StateTable.aliasedStateBoxes`.
+///
+/// The real fix is a per-copy slot rather than a shared box, which the
+/// reflection-driven binding currently forbids: `StateBinder.bind` walks a
+/// `Mirror`, and `Mirror` cannot write a stored struct field. **Until then, do
+/// not place one element value twice — build two.**
+///
 @propertyWrapper
 @MainActor
 public struct State<Value> {
     final class Box {
         var table: StateTable?
         var slotID: GlobalElementID?
+        /// The `StateTable.generation` the current `slotID` was bound in, so a
+        /// SECOND binding to a DIFFERENT slot within one generation can be
+        /// told from the ordinary re-binding that happens once per phase.
+        var boundGeneration: UInt64?
     }
 
     let box = Box()
@@ -86,7 +99,21 @@ extension State {
         box.table = table
         let slotID = GlobalElementID.child(of: id, at: slot,
                                            name: ElementID("$state\(slot)"))
+        // **One element VALUE placed twice aliases one box.** `Box` is a class,
+        // so `Row { sep; sep }` gives two occurrences that share it; the second
+        // `bind` overwrites the first's slot. Re-binding per phase
+        // (`ElementGroup.prepaintGroup`/`paintGroup`) repairs the reads, but a
+        // handler registered by the first occurrence captured this same box and
+        // will still write the second's slot when it fires after the frame —
+        // measured: occurrence 0 clicked once, occurrence 1's slot moved.
+        // Counted rather than trapped: a trap here aborts the process, and the
+        // shape is silent corruption rather than a crash today.
+        if let previous = box.slotID, previous != slotID,
+           box.boundGeneration == table.generation {
+            table.noteAliasedStateBox()
+        }
         box.slotID = slotID
+        box.boundGeneration = table.generation
         table.mark(slotID)
     }
 }

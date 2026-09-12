@@ -140,3 +140,138 @@ import CoreText
 // Rewriting it would have kept a green assertion about a mechanism no longer in
 // the code. The requirement it was reaching for is M5's, and it now lives as a
 // requirement — with its measurements — at `FontResolver.resolve`.
+
+// MARK: - The precomputed hash
+
+/// **Hashing a `FontKey` feeds one `Int`.** Every `GlyphAtlas` lookup hashes a
+/// `GlyphKey`, which hashes its `FontKey`; a synthesized `hash(into:)` walks the
+/// PostScript name, the variation array and six matrix `Double`s on every one of
+/// them. The key's components are fixed at `init(resolved:)`, its only
+/// initialiser, so the hash is computed there once and `hash(into:)` combines
+/// only that.
+///
+/// The oracle is a `Hasher` fed the stored `Int` by this test, not the key's
+/// own `hash(into:)`: a `hash(into:)` that combined anything besides the stored
+/// value — the components as well, say — would disagree with it.
+@Test func aFontKeyHashesOnlyItsPrecomputedHash() throws {
+    for size in [13.0, 26.0] {
+        let key = FontResolver.resolve(family: nil, size: size).key
+        let stored = Mirror(reflecting: key).children
+            .first { $0.label == "precomputedHash" }?.value as? Int
+        let precomputed = try #require(stored,
+            "FontKey stores no precomputed hash, so every lookup re-hashes its components")
+        var oracle = Hasher()
+        oracle.combine(precomputed)
+        #expect(key.hashValue == oracle.finalize())
+    }
+}
+
+/// **The precomputed hash still sees every component.** `==` settles a
+/// collision correctly whatever the hash does, so a hash that dropped a
+/// component would redden no equality test anywhere — it would silently put
+/// every `wght` instance of the system font, or every oblique of a face, in one
+/// bucket. This pins the hash itself, on the same two differentials
+/// `everyComponentOfTheFontKeyDiscriminates` uses, plus size and name.
+@Test func theFontKeyHashItselfDistinguishesEveryComponent() {
+    let base = CTFontCreateUIFontForLanguage(.system, 13, nil)!
+    func varying(_ axis: Int, _ value: Double) -> CTFont {
+        var coordinates = (CTFontCopyVariation(base) as? [NSNumber: NSNumber]) ?? [:]
+        coordinates[NSNumber(value: axis)] = NSNumber(value: value)
+        let descriptor = CTFontDescriptorCreateCopyWithAttributes(
+            CTFontCopyFontDescriptor(base),
+            [kCTFontVariationAttribute: coordinates] as CFDictionary
+        )
+        return CTFontCreateWithFontDescriptor(descriptor, 13, nil)
+    }
+    let wght = 0x7767_6874  // 'wght'
+    var skew = CGAffineTransform(a: 1, b: 0, c: 0.25, d: 1, tx: 0, ty: 0)
+
+    let regular = FontKey(resolved: varying(wght, 400))
+    let bold = FontKey(resolved: varying(wght, 700))
+    let upright = FontKey(resolved: base)
+    let oblique = FontKey(resolved: CTFontCreateCopyWithAttributes(base, 13, &skew, nil))
+    let helvetica13 = FontResolver.resolve(family: "Helvetica", size: 13).key
+    let helvetica26 = FontResolver.resolve(family: "Helvetica", size: 26).key
+    let courier13 = FontResolver.resolve(family: "Courier", size: 13).key
+
+    #expect(regular.hashValue != bold.hashValue)            // variations
+    #expect(upright.hashValue != oblique.hashValue)         // matrix
+    #expect(helvetica13.hashValue != helvetica26.hashValue) // size
+    #expect(helvetica13.postScriptName != courier13.postScriptName)
+    #expect(helvetica13.hashValue != courier13.hashValue)   // name
+
+    // And equal keys resolved separately hash equally — `Hashable`'s contract,
+    // which a hash seeded from anything per-instance would break.
+    #expect(FontResolver.resolve(family: nil, size: 13).key.hashValue
+            == FontResolver.resolve(family: nil, size: 13).key.hashValue)
+}
+
+/// **`==` settles a hash collision on the components, never on the hash** —
+/// the half of the precomputed hash that no ordinary test can reach.
+///
+/// `FontKey` stores its hash and `==` uses it as an early reject. That pair is
+/// `GlobalElementID`'s, and CLAUDE.md records it as safe alone and unsafe
+/// together. Measured on this change, whole suite: with a real hash, an `==`
+/// that answered with the stored hash alone, or that skipped any one of the four
+/// component comparisons, reddened this test and no other — including
+/// `everyComponentOfTheFontKeyDiscriminates` and
+/// `everyComponentOfTheGlyphKeyDiscriminates`, which stayed green. Keys that
+/// differ already hash differently, so the early reject gives the right answer
+/// for the wrong reason. `GlobalElementID` records that spelling as
+/// unguardable, because `Hasher` is seeded per process and a collision cannot be
+/// written down.
+///
+/// A `FontKey` collision can be forged instead of found. The stored hash is a
+/// trivial `Int` at a fixed offset, so for each component this takes a pair of
+/// keys that differ in that component alone and copies the first key's hash
+/// into the second. The pair then collides by construction, and only the
+/// component comparison can tell them apart. The `#require`s make each pair
+/// differ, and prove the collision real, before anything is asserted about it.
+@Test func aForgedHashCollisionIsSettledByTheComponents() throws {
+    let base = CTFontCreateUIFontForLanguage(.system, 13, nil)!
+    func varying(_ axis: Int, _ value: Double) -> CTFont {
+        var coordinates = (CTFontCopyVariation(base) as? [NSNumber: NSNumber]) ?? [:]
+        coordinates[NSNumber(value: axis)] = NSNumber(value: value)
+        let descriptor = CTFontDescriptorCreateCopyWithAttributes(
+            CTFontCopyFontDescriptor(base),
+            [kCTFontVariationAttribute: coordinates] as CFDictionary
+        )
+        return CTFontCreateWithFontDescriptor(descriptor, 13, nil)
+    }
+    let wght = 0x7767_6874  // 'wght'
+    var skew = CGAffineTransform(a: 1, b: 0, c: 0.25, d: 1, tx: 0, ty: 0)
+    let helvetica13 = FontResolver.resolve(family: "Helvetica", size: 13).key
+
+    // Each pair differs in exactly the named component.
+    let pairs: [(component: String, first: FontKey, second: FontKey)] = [
+        ("variations", FontKey(resolved: varying(wght, 400)), FontKey(resolved: varying(wght, 700))),
+        ("matrix", FontKey(resolved: base),
+         FontKey(resolved: CTFontCreateCopyWithAttributes(base, 13, &skew, nil))),
+        ("size", helvetica13, FontResolver.resolve(family: "Helvetica", size: 26).key),
+        ("postScriptName", helvetica13, FontResolver.resolve(family: "Courier", size: 13).key),
+    ]
+    let offset = try #require(MemoryLayout<FontKey>.offset(of: \FontKey.precomputedHash))
+
+    for (component, first, second) in pairs {
+        try #require(first.postScriptName != second.postScriptName
+                     || first.size != second.size
+                     || first.variations != second.variations
+                     || first.matrix != second.matrix,
+                     "\(component): the pair does not differ")
+        try #require(first.hashValue != second.hashValue, "\(component): already collides")
+
+        var forged = second
+        withUnsafeMutableBytes(of: &forged) {
+            $0.storeBytes(of: first.precomputedHash, toByteOffset: offset, as: Int.self)
+        }
+        try #require(forged.hashValue == first.hashValue, "\(component): the forgery did not collide")
+
+        #expect(forged != first, "\(component): == answered from the hash")
+        #expect(Set([first, forged]).count == 2, "\(component): one Set entry for two keys")
+
+        // And through `GlyphKey`, which is what the atlas is keyed on.
+        let a = GlyphKey(font: first, glyph: 42, size: 13, subpixelVariant: 0, scaleFactor: 2)
+        let b = GlyphKey(font: forged, glyph: 42, size: 13, subpixelVariant: 0, scaleFactor: 2)
+        #expect(a != b, "\(component): GlyphKey == answered from the font's hash")
+    }
+}

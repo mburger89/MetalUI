@@ -176,7 +176,7 @@ private func glyph(order: MUIUInt) -> MUIGlyph {
 /// `aHigherLayerDrawsAfterALowerOneWhateverTheOrder` proves the same "layer
 /// beats order" property within one primitive type; this is the cross-type
 /// case, which alone exercises `finalize()`'s per-kind run-splitting
-/// (`rectCursor`/`glyphCursor`, `merged.filter` by kind) that a same-kind
+/// (each run's `start` within its own kind's array) that a same-kind
 /// fixture never reaches.
 ///
 /// **An earlier version of this test gave both primitives the SAME order

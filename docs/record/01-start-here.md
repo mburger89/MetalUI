@@ -2,7 +2,9 @@
 
 A GPU-accelerated UI framework for Swift, architecturally modeled on
 [gpui](https://github.com/zed-industries/zed/tree/main/crates/gpui) but written as
-idiomatic Swift. macOS and iOS.
+idiomatic Swift. **macOS only today**; the spec's iOS/iPadOS target is unmet.
+The platform seam is declared and unconformed — see CLAUDE.md's opening for
+the greps that establish it.
 
 ## Start here
 
@@ -41,8 +43,8 @@ idiomatic Swift. macOS and iOS.
   `withObservationTracking` (M4 spec 1), and `CO-n` to the `Component`
   milestone (M4 spec 2) (the
   last twelve are
-  **lettered** — `CS-A`…`CS-O`, `SI-A`…`SI-H`, `TX-A`…`TX-J`, `CL-A`…`CL-F`,
-  `ST-A`…`ST-G`, `AP-A`…`AP-M`, `MP-A`…`MP-N`, `IN-A`…`IN-W`, `SZ-A`…`SZ-O`
+  **lettered** — `CS-A`…`CS-O`, `SI-A`…`SI-H`, `TX-A`…`TX-K`, `CL-A`…`CL-F`,
+  `ST-A`…`ST-H`, `AP-A`…`AP-M`, `MP-A`…`MP-N`, `IN-A`…`IN-X`, `SZ-A`…`SZ-O`
   (**`SZ-A`…`SZ-N` until the sizing milestone's whole-branch fix wave added
   `SZ-O`, the propagation regression TX-H shipped** — same shape as the `MP-L`
   note below, so a citation of `SZ-O` is real) and **`TB-A`…`TB-AH`**, whose
@@ -472,6 +474,33 @@ idiomatic Swift. macOS and iOS.
   (`List`) and the real design question (`Deferred` returns `nodes[0]`, and a
   component contributes zero or many).
 
+  **A third composition, measured 2026-09-10 (review finding B-7): a caller's
+  modifier on a component NEVER animates.** `everyRegisteringSiteAnimatesItsStyle`
+  carries a `Component` arm with two halves. In the control half the width is
+  declared *inside* the component, and 196 → 320 under `withAnimation` reads
+  **196 at t = 0 and 258 at t = 0.5**. In the pinned half a caller writes
+  `.width(_:)`, `.height(_:)` and `.padding(_:)` on the component instead, and
+  (w, h, padding.left) reads **(320, 80, 20) at t = 0 and again at t = 0.5**,
+  where the correct readings are **(196, 40, 4) → (258, 60, 12)**. That half is
+  pinned wrong on purpose. It is not the `.auto` case-change snap, because the
+  member declares real pixel baselines. The mechanism is ordering:
+  `StyledComponent.requestGroupLayout` runs `amend` and `pass.setStyle` *after*
+  the member's own `animated(_:_:for:pass:)` has stored its `$anim` baseline, so
+  the baseline never holds the caller's value and `setStyle` overwrites the
+  interpolated result with the raw target on every frame. **Three mutations,
+  whole suite unfiltered:** **M1**, dropping the `setStyle` call, reddens the
+  pinned half plus five `ComponentTests` distribution tests. **M2**, running the
+  amended style through `animated` under a probe slot, makes the pinned half read
+  the correct values, and among the tests M1 reddens it reddens only that arm. So
+  a real fix trips the pin without breaking distribution. It was a probe, not a
+  fix: it adds an unreserved slot. **M3**, dropping `Box`'s `animated` call,
+  reddens the control half and not the pinned half, because the caller's value
+  never went through that call. **Blocker: ruling `TB-M`'s `ElementGroup`
+  associated-type change.** `requestGroupLayout` returns a flat
+  `[LayoutNodeID]`, so `StyledComponent` cannot name a member's id or its `$anim`
+  slot. The mutations and the two cheaper fixes that were rejected as unsound are
+  written out in the arm's own comment in `AnimationTests.swift`.
+
   **`Component` has NO production caller** — the demo was deliberately left
   alone (`CO-Y`), because `Sources/MetalUIDemo/main.swift` carries every past
   milestone's human-verification criteria and "no rect moved" is a weaker
@@ -612,7 +641,7 @@ idiomatic Swift. macOS and iOS.
   **`@State` inside an `AnyElement` is silently inert** and has its own row in
   the inert table. Decisions doc:
   `docs/superpowers/2026-08-29-input-decisions.md`, rulings prefixed `IN-`
-  (**lettered**, `IN-A`…`IN-W`, so a bare `IN-3` is a typo).
+  (**lettered**, `IN-A`…`IN-X`, so a bare `IN-3` is a typo).
 
 - **`@Observable` is a SECOND, independent dirty source, and the tracked region
   is the whole frame build.** As of 2026-09-02 (M4 spec 1),
@@ -700,6 +729,22 @@ idiomatic Swift. macOS and iOS.
   > Design spec §4.4 and ruling `RX-O` carry the same correction at their own
   > lines; the animation milestone's own record is
   > `docs/superpowers/2026-09-03-animation-decisions.md`.
+
+  > **An infinite duration held that flag true forever, until 2026-09-10 (review
+  > item B-12, the infinite-duration fix).** The evaluators' `> 0` guard snapped
+  > 0, negatives and NaN but let `.infinity` through, so `linear` and `spring`
+  > never reported `isFinished`, the field stayed in flight,
+  > `Frame.hasActiveAnimations` stayed true and the display link never paused.
+  > `duration` is now finite-preconditioned. That puts three exit tests in
+  > `AnimationDurationTrapTests.swift` beside the existing
+  > `bounceOutsideItsOpenDomainTraps` and `timingCurveTrapsOnANonFiniteArgument`:
+  > `linearTrapsOnANonFiniteDuration`, `springTrapsOnANonFiniteDuration` and
+  > `aHugeZeroOrNegativeDurationDoesNotTrap`. **The success arms check snap and
+  > in-flight behaviour inside the child process with `precondition`, not
+  > `#expect`.** An in-process version of those checks cut the suite short under
+  > the `> 0` mutation, trapping at `linear(duration: 0)` with no summary line
+  > (practices shape 13). An exit-test arm reports the same trap as one failed
+  > expectation.
 
   **`Window.pausesEntered` and `Window.observationDirtyings` are debug and test
   observability and deliberately have NO row in the inert table (ruling
@@ -880,8 +925,12 @@ idiomatic Swift. macOS and iOS.
   - **Nothing may be keyed on a font family or PostScript name** (spec §6.1 and
     §3.2 — a design decision, not a ruling): requesting `"SFMono-Regular"` by name on the
     machine this was measured on returns a font whose PostScript name is
-    `Helvetica`. `FontKey` identifies the *resolved* `CTFont`, variation
-    coordinates and matrix included, and the atlas key adds `size`,
+    `Helvetica`. `FontKey` is read off the *resolved* `CTFont`, variation
+    coordinates and matrix included — though not all of its shaping
+    behaviour, measured 2026-09-10: the UI font and `"System Font"` at 13pt
+    share a key and shape non-Latin text differently
+    (`twoRequestsWithEqualFontKeysShareOneShapeThoughTheyShapeDifferently`,
+    pinned wrong on purpose) — and the atlas key adds `size`,
     `subpixelVariant` and `scaleFactor`. A key collision is one of three
     failure modes **no assertion in this repo can see** (spec §4.2) — the
     others being a missing subpixel variant and eviction mid-frame — because

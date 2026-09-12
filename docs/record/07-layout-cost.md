@@ -88,6 +88,17 @@ in them reaches the memo. A tree of boxes costs today what it cost before, and
 anyone reading "the measure path got faster" as "these numbers got smaller"
 would be reading a text optimisation into a tree with no text in it.
 
+**2026-09-11, `perf: §9.7's freeze loop no longer allocates per item on every
+pass`:** `resolveFlexibleLengths` no longer builds per-pass `filter` arrays, an
+`items.map` or a violation dictionary. Measured by allocation count, not time: a
+two-pass line went from 269 allocations at 7 items and 2,330 at 67 to at most one
+per pass in the debug test build, and a standalone `-O` build makes exactly one
+per pass. Layout output is byte-identical (600 random trees, 29,587 nodes, and
+all goldens). **The per-node figures above were NOT re-taken after this change;**
+the round-2 review's replica estimate of a 9.7–11.7% `computeLayout` saving is
+unconfirmed in-tree. The next term in this function is `rawFactor`'s
+`tree.style(item.node)`, which returns a whole `Style` by value.
+
 **Where the milestone's change actually shows is a tree with `Text` in it, and
 the demo is the one to quote.** The whole `Frame.render` over
 `Sources/MetalUIDemo/main.swift`'s real element tree at 920x560, release, best
@@ -132,6 +143,62 @@ tokenizer, plus four boxes — and has nothing to do with input.
 **The flatness in row count is untouched, which is the property that mattered:**
 1.571 ms at 40 rows against 1.570 at 500.
 
+### Re-taken 2026-09-10 on `master` at `2457da8`, after the animation milestone
+
+**The table above is dated 2026-08-29 and predates M4 spec 3 entirely**, which
+is a gap nothing recorded until a whole-framework review went looking for it.
+Re-taken by this section's own method — the real `demoContent()` tree at
+920x560, scale factor 2, `.dark`, best of 200 warm renders after 10 warm-ups,
+both row counts in one process, **release**:
+
+| demo tree | 40 rows | 500 rows |
+|---|---|---|
+| best of 200 | **1.652 ms** | **1.637 ms** |
+| median of 200 | 1.676 ms | 1.652 ms |
+
+**Do NOT read the +5% against 1.571/1.570 as the animation milestone's cost.**
+This section already records a ~5% drift for the same tree on the same machine
+"one milestone and one harness apart" (the paragraph below this one), and +5.2%
+/ +4.3% is exactly that size. The harness here is a fresh one — the demo tree
+copied into the test target so `Frame.render` is reachable — so it is a third
+harness, not the second one rebuilt. **What this re-take establishes is the
+current number and that the flatness survived**, not a delta.
+
+Since 144208e (lane/text), font resolution is memoized per window on
+`ShapingCache.resolveFont(family:size:)`: a warm frame makes zero
+`FontResolver.resolve` calls (pinned by
+`aWarmFrameReachesTheUncachedFontResolverZeroTimes`; it was two per built `Text`
+before). The warm-frame milliseconds above predate this and were not re-taken.
+
+**The durable observable is a count, not a millisecond, and it is new.** The
+same harness reads `StateTable.count` after the 210th warm render:
+
+| rows | resident entries, warm |
+|---|---|
+| 40 | **165** |
+| 500 | **63** |
+
+**The 40-row tree holds nearly three times the entries of the 500-row one**,
+and that inversion is the animation milestone's footprint made visible:
+`animated(_:_:for:pass:)` mints a `$anim` entry on first sight of every
+registering element unconditionally (`AnimatedStyle.swift:309`), so entries now
+scale with *element* count, and only the 500-row tree ever exceeds
+`sweepThreshold` and gets reaped back down. Before M4 spec 3 the 40-row warm
+tree held a handful. See divergence 18's 2026-09-10 correction and
+`List.swift`'s, which measure the same mechanism from the `List` side
+(`storage.count == 2n + 7` on `demoLikeRows`, crossing at 125 rows).
+
+**Reproducing this needs a harness that does not exist in the tree.**
+`Frame.init`, `Frame.render` and `StateTable.count` are all internal, and
+`demoContent()` lives in an executable target nothing can import — so the
+measurement above was taken by copying `main.swift`'s tree into
+`Tests/MetalUITests/` temporarily and deleting it afterwards, which is what
+every previous re-take of this table also did by hand. **If this number is
+wanted on demand rather than by archaeology, the fix is to move `demoContent()`
+into a target the tests can import.** Until then, budget an hour for the copy
+and expect a fresh harness each time — which is itself a source of the ~5%
+drift this section keeps having to explain away.
+
 **The OLD arm reads 1.340/1.347 where the row above records 1.279/1.273 for the
 same tree.** ~5%, one milestone and one harness apart, on the same machine. The
 conclusion is unaffected either way, but the numbers to reproduce are the ones
@@ -144,6 +211,15 @@ optimises this starts there: it is the probe that fires unconditionally. The
 memo cache in `LayoutContext` is what keeps this a constant multiplier instead
 of the depth-exponential ~700x the design spec predicted without it, and
 `theCacheIsActuallyConsulted` is the only test that can see the cache working.
+
+**The column probe's cache key widened on 2026-09-10 (column-probe fix,
+lane/layout).** A column item's §4.5 probe is now asked at the item's used width
+instead of `.maxContent`. Probes of one subtree under different container widths
+therefore no longer share one cache entry. Counted, not timed: `measureNode` on a
+365-node branching tree of alternating columns and wrapping rows, with one
+`LayoutContext`, went from 1633 to 1723 misses and from 3879 to 4113 hits. The
+probe count per item is unchanged. The warm-frame figures above predate this and
+were not re-taken.
 
 **Measure on a BRANCHING tree, never a chain.** A chain has one child per level,
 so the three probes per item collapse onto the same few cache keys and the cost
@@ -168,6 +244,11 @@ command is in the Build section precisely so that stays cheap.
 once, so the first frame builds *every* row. MP-I already records that as 76 ms
 release / 188 ms debug at 500 rows; at 100,000 rows it scales roughly linearly
 to sixteen and a half seconds.
+
+As of f2afa55 (2026-09-10) a cold frame creates at most one line-break tokenizer
+instead of one per distinct `Text` string (40 → ≤1 on `demoLikeRows(40)`, a
+count). The cold-frame millisecond figures above predate this and were not
+re-taken under uncontended conditions.
 
 **So state M3's exit criterion at exactly its strength.** "A 100k-row
 virtualized list scrolling smoothly" is met for **scrolling** — steady-state
@@ -244,4 +325,24 @@ frame. The linked list is the right structure for the reason it was chosen (it
 removes a depth factor from a per-frame cost for one allocation's price), but
 nobody should expect a frame-time change from it while `computeLayout` costs
 ~40 us/node.
+
+### 2026-09-11 — closed-form answer for a childless node with no measure function (lane/layout, leaf-probe-shortcut)
+
+- `measureNode` returns `known ?? (0 + borderBoxFloor)` for such a node, which is
+  exactly what the full path computes.
+- **Work, counted:** a 4x5x3 empty-Box tree at three queries made 707 cache
+  misses, 540 of them the leaves' own, and makes 167 with the change. The count
+  is pinned by `aChildlessNodeWithNoMeasureFunctionIsNeverACacheMiss`.
+- **Output:** bit-identical across all 5,318 `computeLayout` results the whole
+  suite produces, and across 150 seeded random trees against a reference with a
+  `display: none` child under every leaf
+  (`theLeafShortcutMovesNoRectOnSeededRandomTrees`). No golden moved.
+- **Found by mutation:** ignoring `known` in the shortcut changes nothing
+  reachable through `computeLayout`, so only direct measurement pins it.
+  Dropping its `0 +` changes a stored pre-rounding width to -0.0 on a box whose
+  every edge is -0.0.
+- **Timings owed:** re-take this file's per-node table on an uncontended
+  machine, on record §07's canonical depth-12 branch-2 and depth-10 branch-3
+  trees and on a tree whose leaves are `Text`. The report's -9% to -36% came
+  from synthetic empty-Box trees and was not reproduced.
 

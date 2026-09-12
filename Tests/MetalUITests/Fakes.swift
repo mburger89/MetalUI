@@ -131,9 +131,16 @@ final class FakePlatformWindow: PlatformWindow {
     }
 
     /// Deliver an input event the way `MetalHostView` does, and return what the
-    /// window said about it. AppKit reads that answer to decide whether to keep
-    /// propagating the event, so a test that ignored the return value would not
-    /// notice a window that always claimed "unhandled".
+    /// window said about it.
+    ///
+    /// **This fake is the only reader of that answer.** In production it stops
+    /// at `PlatformWindow.onInput`: `AppKitWindow` forwards it one hop and every
+    /// `MetalHostView` event override discards it with `_ =` and calls no
+    /// `super`, so AppKit never sees it and an unhandled event does not continue
+    /// down the responder chain. The return value is still worth asserting —
+    /// it is what `Window`'s keymap/`onKey`/`onInput` routing decided, and a
+    /// test that ignored it would not notice a window that always claimed
+    /// "unhandled" — but no test passing here says anything about AppKit.
     ///
     /// **A `.scrollWheel` event whose `timestamp` is left at `ScrollEvent`'s
     /// default (`0`) is stamped with `currentTime` before delivery.** Real

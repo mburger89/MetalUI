@@ -1,0 +1,74 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* CSS Flexbox §4.5's content size suggestion on the COLUMN axis — the first
+     golden for it. In a column the main axis is the BLOCK axis, and an item's
+     min-content height depends on the width it is laid out at. WebKit measures
+     it at the width layout will give the item. The engine measured it at the
+     item's max-content width, where every wrapping item is one line tall.
+
+     Every `.a` is a wrapping row of four 50x20 boxes, and every `.b` is an
+     empty 40-tall div, so each 60-tall column overflows by 20 at least and both
+     items shrink. `.b`'s own floor is 0 (no content). `.a`'s floor is its
+     min-content height, and the floor is the only thing that can stop it
+     shrinking, so `.a`'s height reads the probe out directly:
+       probe at max-content width -> one line, floor 20, `.a` shrinks to 30
+       probe at the used width    -> the heights below
+
+     The five columns separate five readings of "the used width":
+       c1 plain, stretched to 120: two per line, 40 tall.
+       c2 `margin-left: 40px`: laid out at 80, one per line, 80 tall. Offering
+          the container's 120 without the margins gives a floor of 40 and
+          `.a` 40.
+       c3 `width: 80px`: 80 tall. Offering 120 and ignoring the declared width
+          gives 40.
+       c4 `align-items: center`: fit-content, which is 120 here, so 40 tall.
+       c5 `max-width: 80px`: stretch clamps to 80, so 80 tall. Offering 120
+          unclamped gives 40.
+     WebKit: `.a` 40 / 80 / 80 / 40 / 80. The engine gave 30 / 30 / 40 / 30 /
+     30. c3 starts from its declared 80, so shrinking stops at 40 before its
+     floor of 20 binds.
+
+     Two shapes are left out on purpose, because §9.2's flex base size in a
+     column ignores the item's cross margins and its cross min/max as well, so
+     they are wrong whatever this probe does: margins with `min-height: 0`
+     (WebKit 80, engine 40) and `min-width: 200px` (WebKit `.a` 20 / `.b` 40,
+     engine 30 / 30). A golden holding them would pin that second defect, not
+     this one.
+
+     Geometry: every edge is an integer, and 120 = 2 x 50 + 20 so the break
+     point is not borderline. */
+  #root { display: flex; align-items: flex-start; width: 600px; height: 60px; }
+  .col { display: flex; flex-direction: column; width: 120px; height: 60px; flex: none; }
+  .ctr { align-items: center; }
+  .a { display: flex; flex-wrap: wrap; }
+  .m { margin-left: 40px; }
+  .d { width: 80px; }
+  .x { max-width: 80px; }
+  .k { width: 50px; height: 20px; }
+  .b { height: 40px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="col" data-id="c1">
+      <div class="a" data-id="a1"><div class="k"></div><div class="k"></div><div class="k"></div><div class="k"></div></div>
+      <div class="b" data-id="b1"></div>
+    </div>
+    <div class="col" data-id="c2">
+      <div class="a m" data-id="a2"><div class="k"></div><div class="k"></div><div class="k"></div><div class="k"></div></div>
+      <div class="b" data-id="b2"></div>
+    </div>
+    <div class="col" data-id="c3">
+      <div class="a d" data-id="a3"><div class="k"></div><div class="k"></div><div class="k"></div><div class="k"></div></div>
+      <div class="b" data-id="b3"></div>
+    </div>
+    <div class="col ctr" data-id="c4">
+      <div class="a" data-id="a4"><div class="k"></div><div class="k"></div><div class="k"></div><div class="k"></div></div>
+      <div class="b" data-id="b4"></div>
+    </div>
+    <div class="col" data-id="c5">
+      <div class="a x" data-id="a5"><div class="k"></div><div class="k"></div><div class="k"></div><div class="k"></div></div>
+      <div class="b" data-id="b5"></div>
+    </div>
+  </div>
+</body></html>

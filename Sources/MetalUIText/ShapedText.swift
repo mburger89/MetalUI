@@ -62,7 +62,31 @@ public struct ShapedText {
 public enum Shaper {
     /// Shapes `string` in `font`, wrapping at `width`.
     ///
-    /// `width: nil` means "one line, no wrapping" — the max-content answer.
+    /// `width: nil` means "no soft wrapping" — the max-content answer: **one
+    /// line per hard line break, never one line for the whole string.**
+    ///
+    /// ## `nil` is the same loop at an infinite width
+    ///
+    /// **This used to build one `CTLine` for the whole string with
+    /// `CTLineCreateWithAttributedString`, and that was a defect the doc here
+    /// called intended.** A whole-string line lays every hard break's segments
+    /// side by side, while `CTTypesetterSuggestLineBreak` always breaks after
+    /// one — so `.maxContent` reported the **sum** of the segments where every
+    /// definite width reported the widest: `"Ready\nSet\nGo"` at 13pt measured
+    /// 75.004 unwrapped and 37.565 wrapped, one line against three. The
+    /// separators are CoreText's, measured: U+000A, U+000D, CR LF, U+2028,
+    /// U+2029, U+0085, U+000B and U+000C.
+    ///
+    /// **Why `.infinity` and not "a large width".** For a break-free string the
+    /// typesetter's one line at `.infinity` is byte-identical to the whole-string
+    /// line — glyphs, positions, advances, string indices, run status and
+    /// typographic bounds, over bidi, CJK, clusters and a 136,000-unit string
+    /// (`anUnwrappedBreakFreeStringIsTheLineCoreTextBuildsWhole`). A finite
+    /// stand-in is not: that same string soft-breaks at width `1e4` and at `1e5`.
+    ///
+    /// **A trailing break opens no empty last line** — `"Ready\n"` is one line
+    /// with the separator inside it. That is the typesetter's answer, and the
+    /// wrapping branch has always given it.
     ///
     /// ## Why this re-typesets per display line
     ///
@@ -114,18 +138,23 @@ public enum Shaper {
                 """)
         }
 
+        // No width is an infinite one: the loop below then breaks at hard line
+        // breaks only. See "`nil` is the same loop at an infinite width" above.
+        let lineWidth = width ?? .infinity
+
         var lines: [ShapedLine] = []
 
-        // An empty string is one empty line, on both branches. Without this the
-        // wrapping branch would return zero lines (its loop never runs) while
-        // the unwrapped branch returned one, so an empty `Text` would measure a
-        // line high unwrapped and nothing high wrapped. It also keeps
+        // An empty string is one empty line, whether or not a width was offered.
+        // Without this the loop never runs and returns zero lines, so an empty
+        // `Text` would measure nothing high — and before hard breaks moved the
+        // unwrapped case onto the loop, it measured a line high unwrapped and
+        // nothing high wrapped. It also keeps
         // `CTTypesetterCreateWithAttributedString` off an empty string.
-        if let width, attributed.length > 0 {
+        if attributed.length > 0 {
             let typesetter = CTTypesetterCreateWithAttributedString(attributed)
             var start: CFIndex = 0
             while start < attributed.length {
-                let count = CTTypesetterSuggestLineBreak(typesetter, start, width)
+                let count = CTTypesetterSuggestLineBreak(typesetter, start, lineWidth)
 
                 // **A hard error, not a skipped iteration** (spec §3.4). A
                 // zero-length break would leave `start` unmoved and the loop
@@ -135,16 +164,17 @@ public enum Shaper {
                 // later.
                 //
                 // **Why it cannot fire, structurally, which is stronger than any
-                // measurement:** `width` is preconditioned `> 0` nine lines
-                // above, so the widths a zero-length break is rumoured to need —
-                // 0 and negatives — are widths this call site can no longer
-                // pass. A **NaN** width is excluded by the same guard rather
-                // than by a second one, because `width > 0` is false for NaN;
-                // that is IEEE-754's doing, not a deliberate clause, and it is
-                // named here so a later rewrite to `!(width <= 0)` is visibly
-                // not equivalent. And `start < attributed.length` holds by the
-                // loop condition, which excludes the one argument CoreText is
-                // known to answer 0 for: `start == length`.
+                // measurement:** an offered `width` is preconditioned `> 0`
+                // above, and a `nil` one becomes `+infinity`, so the widths a
+                // zero-length break is rumoured to need — 0 and negatives — are
+                // widths this call site can no longer pass. A **NaN** width is
+                // excluded by the same guard rather than by a second one,
+                // because `width > 0` is false for NaN; that is IEEE-754's
+                // doing, not a deliberate clause, and it is named here so a
+                // later rewrite to `!(width <= 0)` is visibly not equivalent.
+                // And `start < attributed.length` holds by the loop condition,
+                // which excludes the one argument CoreText is known to answer 0
+                // for: `start == length`.
                 //
                 // **Measured too, over the range that remains:** at every start
                 // index of a mixed Latin/CJK/Arabic string and for eighteen
@@ -153,7 +183,8 @@ public enum Shaper {
                 // hyphen, U+FFFC, a ZWJ emoji sequence, Thai and Devanagari
                 // clusters), `CTTypesetterSuggestLineBreak` returns at least one
                 // UTF-16 unit — never 0. The review reproduced this at 84,300
-                // calls across ten fonts, fifty-two strings and fifteen widths.
+                // calls across ten fonts, fifty-two strings and fifteen widths,
+                // `+infinity` among them — the width a `nil` request now passes.
                 //
                 // So this is a **contract assertion, not a live guard**, and it
                 // earns its place precisely because Apple documents no minimum
@@ -165,7 +196,7 @@ public enum Shaper {
                 precondition(count > 0, """
                     CTTypesetterSuggestLineBreak returned a zero-length break at \
                     UTF-16 index \(start) of \(attributed.length) for width \
-                    \(width). Advancing by zero would not terminate.
+                    \(lineWidth). Advancing by zero would not terminate.
                     """)
 
                 let line = CTTypesetterCreateLine(
@@ -183,7 +214,7 @@ public enum Shaper {
         }
 
         // `lines` is non-empty on both branches — the `else` appends
-        // unconditionally, and the wrapping branch is gated on
+        // unconditionally, and the loop branch is gated on
         // `attributed.length > 0` with every iteration advancing `start` by a
         // positive `count`, so its loop runs at least once. `max()` returns an
         // Optional regardless, so the `?? 0` below spells that invariant rather

@@ -210,6 +210,22 @@ arithmetic against a synthetic delta whose sign the test itself chose. Only a
 human on a real trackpad can say which way the list actually moves. The human
 also reported that apparent tearing was the wrapping rather than real tearing.
 
+**Every scroll look recorded here was on a trackpad, and that hid a unit bug until
+the 2026-09-10 review.** `NSEvent.scrollingDeltaX/Y` is in points only when
+`hasPreciseScrollingDeltas` is true (trackpad, Magic Mouse); a conventional wheel
+mouse reports LINES. `MetalHostView.scrollWheel` copied the field as points, so a
+wheel moved content a tenth as far per line as `NSScrollView` (whose
+`verticalLineScroll`/`horizontalLineScroll` default to 10.0). It now converts at
+the AppKit boundary through `MetalHostView.scrollDelta(x:y:precise:)`, pinned by
+`aNonPreciseScrollDeltaIsScaledFromLinesToPointsAndAPreciseOneIsNot` (the
+function) and `aWheelMouseEventReachesOnInputInPointsAndATrackpadEventIsUnchanged`
+(real `NSEvent`s through the override). The unit is measured with synthesized
+`CGEvent(scrollWheelEvent2Source:units: .line …)` events converted with
+`NSEvent(cgEvent:)`: `hasPreciseScrollingDeltas` is false and `scrollingDeltaY` is
+the raw line count. **What a physical wheel produces per detent after the window
+server's scroll acceleration is not measured**, so how far one click moves the
+list on screen is still a look. It is open in the human-verification table.
+
 **What it did NOT establish, and these stay looks forever by construction**
 (`docs/superpowers/specs/2026-08-28-clipping-and-scroll-design.md` §9): clip-edge
 antialiasing *quality*, whether the fade *timing* feels right, and whether
@@ -625,6 +641,13 @@ rediscovering it.
    leaves the WINDOW**: `lastMousePosition` is deliberately sticky (ruling
    IN-K), so the expected answer is that the last-hovered button *stays* lit.
    That is a known limitation, not a bug to chase, and nobody has seen it.
+   **And press one button, drag onto the other without releasing, and hold:**
+   with no `mouseDragged` override the expected answer is that the pressed
+   button's highlight stays put and the other does not light until release.
+   That is what a replica probe measured for AppKit with MetalUI's tracking
+   options and for SwiftUI `onHover` (see the OPEN press-and-drag section in
+   the input decisions doc). The probe used synthetic events, so this look is
+   what confirms it on real hardware.
 3. **Report whether the focused counter panel is visibly distinguishable from
    the surrounding pane.** Press **Escape** to drop focus and **F** to take it
    back, and judge across the transition rather than from a still — the same
@@ -824,8 +847,10 @@ measured or verified here rather than supposed.
    tree *contains*; it settles nothing about what a screen reader *does with
    it*, and this entry must not be cited as though it did. The demo also
    declares no AX data of its own — `grep -n "axNode" Sources/MetalUIDemo/main.swift`
-   returns nothing, and `Box.prepaint` emits only when `handlers.axNode` is
-   non-empty (`Sources/MetalUI/Box.swift:102`) — so the only `AXNode` in the
+   returns nothing, and `Frame.registerHandlers` emits only when
+   `handlers.axNode` is non-empty (`Sources/MetalUI/Frame.swift`, the
+   `if !handlers.axNode.isEmpty` line; reached from `Box`, `Stack` and
+   `Text`'s `prepaint`) — so the only `AXNode` in the
    running tree is the one `List.requestLayout` writes for itself.
 3. **M3's own exit criterion — "a 100k-row virtualized list scrolling
    smoothly" — cannot be cleared by this demo either, and the reason is that
@@ -1088,10 +1113,36 @@ kind that the paint-phase colour helper reaches production.
 
 - **The spring's overshoot past 320pt was not separately confirmed.** Overshoot
   is what visibly distinguishes a spring from a fast fade, and it is why a spring
-  was chosen over a duration curve; it remains unobserved.
+  was chosen over a duration curve; it remains unobserved. (By a human. A script
+  measured it the same day; see below.)
 - **No second press was reported**, so the **reverse direction is unobserved**.
+  (By a human. A script measured it the same day; see below.)
 - Nothing here speaks to whether the easing *looks right* as a perceptual
   judgement, which is what spec §9's own "what no test here can see" names.
+
+**Measured by script on 2026-09-10, after the human look: both directions, and
+the overshoot.** The lead ran the release demo and drove it with AppleScript
+keystrokes (**A**), capturing each window with `screencapture -l` at ~9 Hz.
+Forward, the sidebar went **73pt → peak 114pt → settled 113pt**; in reverse,
+**113 → 73pt**. Width and colour both animated. The colour peaked at
+**(97, 167, 253)** against a **(96, 165, 250)** target, so it overshot too, as
+per-component RGB interpolation driven by a spring should. The captured widths
+are not the declared 196 ↔ 320: the demo's sidebar shrinks below its declaration
+(ruling `SZ-L`), so the on-screen travel is shorter than the declared one. The
+declared spring, `.spring(duration: 0.6, bounce: 0.2)` (omega 10.472, zeta 0.8),
+computed from `Animation.springValue` copied verbatim, **peaks at 321.88pt at
+t = 0.500 s**, 1.52% of the 124pt travel, and reports `isFinished` from
+t = 0.809 s. **What this adds:** the reverse direction animates, and the forward
+press overshoots its settled width on screen by 1pt, which is all a ~9 Hz capture
+can resolve. **What it does not add:** whether the motion *looks right*. That
+stays the human's question.
+
+**A caution for the next scripted look, from the same review.** A review
+sub-agent's drag probe drove the **real cursor** and posted **real clicks**
+through an HID event tap for about 15 seconds. (The replica probes recorded in
+the input decisions doc's OPEN press-and-drag section were posted to the same
+HID event tap.) **A scripted look must say whether it moves the user's live
+pointer, and say it before it runs.**
 
 **A systematic-debugging pass ran against the first report before the correction
 arrived, found no defect, and its trace is kept as confirmation** (re-verified
@@ -1107,7 +1158,9 @@ line by line at `b869253`):
   at a different time by a different agent.
 - `Column` delegates to `Box`, so the sidebar's background reaches `Box.paint`'s
   effective `focusBackground`/`hoverBackground`/`background` chain and therefore
-  `animatedColor`.
+  `animatedColor`. (Since 2026-09-10 the chain lives in
+  `animatedBackground(_:for:pass:)`, shared by `Box.paint`, `Stack.paint` and
+  `Text.paint`; the sidebar's path is unchanged.)
 
 **Decisions doc:** `docs/superpowers/2026-09-03-animation-decisions.md`, rulings
 prefixed `AN-` (**lettered**, `AN-A`…`AN-W`, so a bare `AN-3` is a typo); this

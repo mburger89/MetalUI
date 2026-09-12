@@ -707,7 +707,7 @@ Four corrections and one guard, all measured. The guard is the finding.
   (3 tests / 6 issues, 1 golden), so every row of the table above now names at
   least one fixture.
 
-- **§4.5's automatic minimum has no browser fixture on the COLUMN axis** — the
+- ~~**§4.5's automatic minimum has no browser fixture on the COLUMN axis** — the
   one cost of Task 6's `min-height: 0` re-cut, recorded rather than left to be
   rediscovered. `flex_auto_height_two_levels` reached site 2 in a column before
   the re-cut, and switching the automatic minimum off is exactly what made the
@@ -717,7 +717,17 @@ Four corrections and one guard, all measured. The guard is the finding.
   on the composite mutation, neither of which is a golden. A row-only
   implementation of §4.5 that transposes the axes on a column is the shape this
   no longer catches; `flex_row_reverse_margins` and
-  `flex_column_reverse_margins` are two files for the same reason.
+  `flex_column_reverse_margins` are two files for the same reason.~~
+  **Closed by the column-probe fix (lane/layout, b8241e4)**:
+  `sizing_column_content_suggestion` is the first column-axis golden for §4.5. It
+  also exposed a real defect this bullet predicted. The probe measured a column
+  item's min-content HEIGHT at max-content WIDTH, so a wrapping row in a 120x60
+  column floored at 20 and shrank to 30 where WebKit gives 40. The probe now uses
+  the item's used width: its declared width, or else
+  `clamp(containerCross - cross margins, minCross, maxCross)`. Still open: §9.2's
+  `flexBaseSize` offers the bare `containerCross` in a column.
+  `margin-left: 40px; min-height: 0` is 80 tall in WebKit and 40 in the engine,
+  and `min-width: 200px` gives WebKit 20/40 against the engine's 30/30.
 - **`measureNode`'s purity is not enforced by the type system.** A `setLayout`
   anywhere beneath it returns the right size and passes every golden;
   `measuringWritesNoLayout` is the only thing that sees it, and it asserts on

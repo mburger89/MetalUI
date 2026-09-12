@@ -151,6 +151,14 @@ final class StateTable {
     /// is compared against this to decide staleness.
     private(set) var generation: UInt64 = 0
 
+    /// How many times one `State.Box` was bound to two different slots inside
+    /// one generation — i.e. how many times one element VALUE was placed more
+    /// than once in a tree. A test observable; nothing in production reads it.
+    /// See `State.bind(to:id:slot:)` for why this is counted and not trapped.
+    private(set) var aliasedStateBoxes = 0
+
+    func noteAliasedStateBox() { aliasedStateBoxes += 1 }
+
     /// An entry survives being unmarked for this many generations before
     /// `sweep()` will reap it — same shape and same value as
     /// `ShapingCache.staleAfterGenerations` (`Sources/MetalUIText/ShapingCache.swift:141`),

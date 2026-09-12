@@ -327,13 +327,12 @@ final class ProbeModel {
     let rows = (0..<200).map { Row(id: $0, model: ProbeModel()) }
 
     // `startsDisplayLink: true` plus one simulated tick, matching
-    // `ScrollIndicatorTests`' own idiom: with no tick ever simulated,
-    // `Window.lastTick` and `ScrollState.lastScrollTime` both default to 0, so
-    // the indicator's `age = lastTick - lastScrollTime` is stuck at 0 — inside
-    // its fully-opaque window — and `Frame.wantsAnotherFrame` stays true
-    // forever, which is a property of an un-ticked fake window with a
-    // scrollable `ScrollView` in it and has nothing to do with this test's
-    // own subject.
+    // `ScrollIndicatorTests`' own idiom. With no tick ever simulated,
+    // `Window.lastTick` is 0, so a `ScrollState` scrolled at instant 0 would
+    // read age 0 and keep `Frame.wantsAnotherFrame` true. A never-scrolled one
+    // no longer does: `lastScrollTime` defaults to `-.infinity` since review
+    // item B-11. The tick is harmless either way, and none of this is this
+    // test's own subject.
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 64, startsDisplayLink: true) {
         ScrollView(.vertical, elementID: ElementID("list")) {
             List(rows, rowHeight: Pixels(20)) { row in
@@ -343,8 +342,7 @@ final class ProbeModel {
         }
     }
     window.drawFrameIfNeeded()
-    // Advances `lastTick` away from 0 — see the comment above, this is what
-    // lets the indicator's fade age actually move instead of pinning at 0.
+    // Advances `lastTick` away from 0 — see the comment above.
     platformWindow.simulateTick(timestamp: 100)
     try #require(!window.needsRedraw, "set up: the window must be clean")
 

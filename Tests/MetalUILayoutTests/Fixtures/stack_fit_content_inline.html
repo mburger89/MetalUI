@@ -1,0 +1,44 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; padding: 0; border: 0; }
+  body { margin: 0; }
+  /* A definite-width stack's `auto`-width child is FIT-CONTENT on the inline
+     axis, not max-content -- the same rule a column's `auto` cross size follows
+     (ruling TX-H, `flex_column_fit_content`), in the other container type.
+
+     `.a` is a wrapping flex row of four 50x20 items: min-content 50,
+     max-content 200. The stack is 120 wide, so fit-content answers the 120 it
+     is offered -- two items per line, 40 tall, centred at x = 0. An engine
+     that measures the child at max-content lays it out 200x20 and hangs 40
+     off each side (x = -40).
+
+     `.m` is the same wrapper capped at `max-width: 70px`. Its width is 70
+     under either rule (the cap binds both), so what it pins is the HEIGHT:
+     measured at its used 70 it wraps one item per line (80 tall); measured at
+     the width it had before the clamp it would be 40 (at 120) or 20 (at 200).
+
+     Neither child's min-content exceeds the grid's 120, so the one-cell
+     grid's single auto track is 120 whichever child is present: the two do
+     not couple, which a stack's children must not. `stack_fit_content_floor`
+     is the regime where they would.
+
+     `justify-items`/`align-items` are stated explicitly because grid defaults
+     both to stretch and this framework's Stack does not (spec section 2). */
+  #root { display: grid; justify-items: center; align-items: center;
+          width: 120px; height: 200px; }
+  #root > div { grid-area: 1 / 1; }
+  .wrapper { display: flex; flex-wrap: wrap; }
+  .m { max-width: 70px; }
+  .k { width: 50px; height: 20px; }
+</style></head><body>
+  <div id="root" data-id="root">
+    <div class="wrapper" data-id="a">
+      <div class="k" data-id="a1"></div><div class="k" data-id="a2"></div>
+      <div class="k" data-id="a3"></div><div class="k" data-id="a4"></div>
+    </div>
+    <div class="wrapper m" data-id="m">
+      <div class="k" data-id="m1"></div><div class="k" data-id="m2"></div>
+      <div class="k" data-id="m3"></div><div class="k" data-id="m4"></div>
+    </div>
+  </div>
+</body></html>

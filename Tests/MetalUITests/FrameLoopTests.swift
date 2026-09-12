@@ -275,8 +275,12 @@ private struct FrameCounter: Element, StyledElement {
 // ---------------------------------------------------------------------------
 
 /// Three claims that fail separately, which is why they are asserted separately:
-/// the handler is called with the event, its answer reaches AppKit, and the
-/// window repaints regardless of that answer.
+/// the handler is called with the event, its answer comes back out of
+/// `PlatformWindow.onInput`, and the window repaints regardless of that answer.
+///
+/// **"Comes back out of `PlatformWindow.onInput`" is as far as the answer
+/// goes.** The fake returns it to this test; production's `MetalHostView`
+/// discards it (`_ = onInput?(…)`, no `super` call), so AppKit never reads it.
 ///
 /// Dropping the forwarding and returning `false` left 297 tests green before
 /// this existed — and the demo's space-bar theme toggle, the only interactive
@@ -300,7 +304,7 @@ private struct FrameCounter: Element, StyledElement {
         .keyDown(KeyEvent(charactersIgnoringModifiers: " ", characters: " ",
                           timestamp: 0)))
     #expect(seen == [" "], "the event never reached the handler")
-    #expect(handled, "the handler's answer did not reach the host, so AppKit would keep propagating a consumed event")
+    #expect(handled, "the handler's answer did not come back out of PlatformWindow.onInput (production's MetalHostView discards it, so this fake is its only reader)")
     #expect(window.needsRedraw)
 
     // Unhandled events are forwarded too, and still repaint: the window cannot

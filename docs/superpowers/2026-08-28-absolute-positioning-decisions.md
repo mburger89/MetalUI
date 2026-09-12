@@ -213,6 +213,17 @@ is the only test that can see it.
 `finalize()` of the same scene, which is the shape of bug that survives an entire test
 suite.
 
+**Amended 2026-09-10 (lane renderer, item scene-arrays).** The storage changed shape,
+not meaning: `Scene` now holds four plain `[Int]` side tables (`rectSequence`,
+`glyphSequence`, `rectLayer`, `glyphLayer`) instead of two `[PrimitiveKind: [Int]]`
+dictionaries, and `finalize()` rebuilds all four in the same single walk that permutes
+`rects`/`glyphs`. The permutation discipline is unchanged. The exclusivity claim above
+is no longer true: leaving the layer tables unpermuted reddens
+`finalizingTwiceWithDistinctLayersStaysStable` AND
+`aSecondFinalizeReproducesTheCapturedOutput` (SceneFinalizeIdentityTests.swift);
+leaving the sequence tables unpermuted reddens `finalizingTwiceGivesTheSameDrawList`
+and that same test, and neither of the first two reddens the other's mutation.
+
 ## AP-H — `Deferred` is a portal: one hoist to one root layer, not a stacking-context system
 
 **The choice.** `Frame.pushLayer()` always pushes the same constant, `Frame.rootLayer = 1`.

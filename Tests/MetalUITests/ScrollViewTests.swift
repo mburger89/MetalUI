@@ -166,16 +166,29 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
     }
     .cornerRadius(Pixels(14))
 
-    let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1)
+    // A fresh scroll (age 0), seeded explicitly. Since `ScrollState.lastScrollTime`
+    // defaults to `-.infinity` (never scrolled), a default state paints no
+    // indicator at all; this test used to get its fourth rect only from the
+    // old age-0 default, which was the first-frame flash review item B-11
+    // removed.
+    let table = StateTable()
+    table.withState(GlobalElementID.child(of: nil, at: 0, name: nil), initial: ScrollState()) {
+        $0.lastScrollTime = 0
+    }
+    let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1,
+                      stateTable: table)
     frame.render(&view)
     let scene = frame.finalizedScene()
 
     // Four rects: the three rows, painted INSIDE the clipped block, plus the
     // scroll indicator — content overflows a 30pt viewport with three 20pt
-    // rows, so the indicator draws too. Spec §6/`ScrollView.paint`: the
-    // indicator paints OUTSIDE the clipped block, in viewport space, so it
-    // must NOT inherit `cornerRadius` — it is excluded from the loop below on
-    // that basis, not to dodge an inconvenient count.
+    // rows, so the indicator draws too. The indicator paints OUTSIDE the
+    // clipped block, in viewport space, and it DOES carry the viewport's
+    // corner radius, through its own `offsetBy: .zero` clip. An earlier
+    // version of this comment said it must not, which stopped being true with
+    // the rounded-corner clip fix. The loop below checks the rows, and the
+    // indicator's own radius is pinned after it, rather than being assumed
+    // away by `dropLast()`.
     try #require(scene.rects.count == 4,
                 "three rows plus the scroll indicator must all paint")
     for rect in scene.rects.dropLast() {
@@ -184,6 +197,9 @@ private func laidOut<E: Element>(_ element: inout E, width: Double, height: Doub
         #expect(rect.maskCornerRadii.bottomRight == 14)
         #expect(rect.maskCornerRadii.bottomLeft == 14)
     }
+    let indicator = try #require(scene.rects.last)
+    #expect(indicator.maskCornerRadii.topLeft == 14,
+            "the indicator's own viewport-space clip carries the scroller's corner radius")
 }
 
 /// The zero-default half of the same guard: a `ScrollView` with no
