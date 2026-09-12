@@ -279,3 +279,24 @@ private struct NativeProposalProbe: Element {
     #expect(rects[1].bounds.size.width == 50)
     #expect(rects[1].bounds.size.height == 40)
 }
+
+@MainActor
+@Test func nativeClipMasksOverflowingContentToItsOuterFrame() {
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    var root = NativeOverlay {
+        NativeRectangle(width: Pixels(50), height: Pixels(40), color: .accent)
+            .nativeFrame(width: Pixels(20), height: Pixels(10))
+            .nativeClip(cornerRadius: Pixels(3))
+    }
+
+    frame.render(&root)
+
+    let rect = frame.finalizedScene().rects[0]
+    #expect(rect.bounds.origin.x == 25)
+    #expect(rect.bounds.origin.y == 20)
+    #expect(rect.contentMask.origin.x == 40)
+    #expect(rect.contentMask.origin.y == 35)
+    #expect(rect.contentMask.size.width == 20)
+    #expect(rect.contentMask.size.height == 10)
+    #expect(rect.maskCornerRadii.topLeft == 3)
+}

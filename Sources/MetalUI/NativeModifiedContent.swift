@@ -14,6 +14,7 @@ public enum NativeLayoutModifier: Sendable {
     case padding(Edges<Pixels>)
     case fixedSize(horizontal: Bool = true, vertical: Bool = true)
     case background(ColorToken)
+    case clip(cornerRadius: Pixels = Pixels(0))
 }
 
 /// A typed native modifier wrapper, analogous to SwiftUI's `ModifiedContent`.
@@ -48,7 +49,15 @@ public struct NativeModifiedContent<Content: ElementGroup>: Element {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        content.prepaintGroup(layout: &layout.content, pass: &pass)
+        if case let .clip(cornerRadius) = modifier {
+            var result: Content.GroupPrepaint?
+            pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                         cornerRadii: Corners(all: cornerRadius)) {
+                result = content.prepaintGroup(layout: &layout.content, pass: &pass)
+            }
+            return result!
+        }
+        return content.prepaintGroup(layout: &layout.content, pass: &pass)
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -57,7 +66,14 @@ public struct NativeModifiedContent<Content: ElementGroup>: Element {
         if case let .background(token) = modifier {
             pass.fill(bounds, color: pass.theme[token], cornerRadii: Corners(all: Pixels(0)))
         }
-        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        if case let .clip(cornerRadius) = modifier {
+            pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                         cornerRadii: Corners(all: cornerRadius)) {
+                content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+            }
+        } else {
+            content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        }
     }
 
     private func nativeWrapperNode(for children: [LayoutNodeID], pass: inout LayoutPass) -> LayoutNodeID {
@@ -87,6 +103,8 @@ public struct NativeModifiedContent<Content: ElementGroup>: Element {
             // A background has no independent layout footprint. Returning the
             // content node lets the wrapper observe its resolved bounds during
             // paint while preserving modifier nesting in the element tree.
+            return child
+        case .clip:
             return child
         }
     }
@@ -123,5 +141,10 @@ extension ElementGroup {
     /// proposal, measurement, or placement.
     public func nativeBackground(_ token: ColorToken) -> NativeModifiedContent<Self> {
         NativeModifiedContent(content: self, modifier: .background(token))
+    }
+
+    /// Clips this native subtree to its resolved bounds.
+    public func nativeClip(cornerRadius: Pixels = Pixels(0)) -> NativeModifiedContent<Self> {
+        NativeModifiedContent(content: self, modifier: .clip(cornerRadius: cornerRadius))
     }
 }
