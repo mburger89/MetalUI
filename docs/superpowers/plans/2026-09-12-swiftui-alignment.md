@@ -146,7 +146,11 @@ modifier placement from names alone.
   modifier matrix.
 - Direct `width`/`height` still mutate style. Do not convert them before task
   3 establishes a composition representation that works across stored generic
-  element trees.
+  element trees **and** task 2 can propagate a frame's fixed proposal to its
+  child. A trial wrapper conversion preserved concrete types but left the old
+  CSS engine unable to offer that constraint to leaves; it broke list
+  virtualization, hit testing, and text measurement. Keep `.frame` as the
+  structural migration path until the native layout kernel owns proposals.
 
 ## Definition of done
 
