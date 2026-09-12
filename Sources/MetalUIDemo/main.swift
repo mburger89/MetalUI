@@ -882,8 +882,9 @@ func demoContent() -> some Element {
 /// Run `METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo` to open this
 /// instead of the established CSS-layout milestone demo. Its visible geometry
 /// is formed only by native proposal/layout/placement nodes: overlays, frames,
-/// padding, stacks, and a flexible spacer. The rectangles are intentionally
-/// simple until text and interactive styling cross the same boundary.
+/// padding, stacks, a flexible spacer, and ordered paint wrappers. The rounded
+/// panel exposes background, clip, and border composition without relying on
+/// legacy CSS decoration.
 @MainActor
 func nativeLayoutPreviewContent() -> some Element {
     NativeOverlay {
@@ -905,6 +906,9 @@ func nativeLayoutPreviewContent() -> some Element {
             .nativePadding(Edges(all: Pixels(36)))
         }
         .nativePadding(Edges(all: Pixels(48)))
+        .nativeBackground(.surface)
+        .nativeBorder(.separator, width: Pixels(1), cornerRadius: Pixels(16))
+        .nativeClip(cornerRadius: Pixels(16))
     }
 }
 
