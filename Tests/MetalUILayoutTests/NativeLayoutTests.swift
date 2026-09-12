@@ -1,4 +1,5 @@
 import Testing
+import MetalUICore
 @testable import MetalUILayout
 
 private final class NativeMeasureCounter: @unchecked Sendable {
@@ -156,6 +157,25 @@ private final class NativeMeasureCounter: @unchecked Sendable {
 
     #expect(measurement.size == SizeD(width: 40, height: 20))
     #expect(tree.layout(child) == LayoutRect(x: 10, y: 14, width: 30, height: 10))
+}
+
+@Test func aNativePaddingInsetsConcreteProposalsExpandsMeasurementsAndOffsetsBaselines() {
+    let tree = LayoutTree(generation: 0)
+    let child = tree.newNativeLeaf { proposal in
+        #expect(proposal == ProposedSize(width: 82, height: 64))
+        return LayoutMeasurement(size: SizeD(width: 30, height: 10), firstBaseline: 5)
+    }
+    let padding = tree.newNativePadding(child: child,
+                                        insets: Edges(top: 3, right: 7, bottom: 13, left: 11))
+
+    let measurement = tree.computeNativeLayout(
+        root: padding,
+        proposal: ProposedSize(width: 100, height: 80),
+        in: LayoutRect(x: 5, y: 9, width: 48, height: 26)
+    )
+
+    #expect(measurement == LayoutMeasurement(size: SizeD(width: 48, height: 26), firstBaseline: 8))
+    #expect(tree.layout(child) == LayoutRect(x: 16, y: 12, width: 30, height: 10))
 }
 
 /// A horizontal stack leaves its main axis unspecified for each child, forwards

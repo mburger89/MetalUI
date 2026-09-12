@@ -1,3 +1,5 @@
+import MetalUICore
+
 /// A handle to one node in one `LayoutTree`.
 ///
 /// **The `generation` is what makes it a handle rather than a bare index**
@@ -148,6 +150,20 @@ public final class LayoutTree {
                                        minHeight: minHeight, idealHeight: idealHeight,
                                        maxHeight: maxHeight,
                                        alignment: alignment)
+        return id
+    }
+
+    /// Registers native outer padding around exactly one native child.
+    ///
+    /// Padding reduces each concrete proposal before measuring the child, then
+    /// adds those insets back to the measured response and placement. An
+    /// unspecified axis remains unspecified, so padding never invents a
+    /// constraint that the parent did not offer.
+    public func newNativePadding(child: LayoutNodeID,
+                                 insets: Edges<Double>) -> LayoutNodeID {
+        _ = nativeNode(child)
+        let id = newNode(style: .default, children: [child])
+        nativeNodes[id.index] = .padding(insets: insets)
         return id
     }
 
@@ -314,6 +330,15 @@ public final class LayoutTree {
                 firstBaseline: child.firstBaseline.map { $0 + (frameHeight - child.size.height) * alignment.verticalFactor },
                 lastBaseline: child.lastBaseline.map { $0 + (frameHeight - child.size.height) * alignment.verticalFactor }
             )
+        case .padding(let insets):
+            let childProposal = paddingProposal(proposal, insets: insets)
+            let child = measureNative(children(id)[0], proposal: childProposal, cache: &cache)
+            result = LayoutMeasurement(
+                size: SizeD(width: child.size.width + insets.left + insets.right,
+                            height: child.size.height + insets.top + insets.bottom),
+                firstBaseline: child.firstBaseline.map { $0 + insets.top },
+                lastBaseline: child.lastBaseline.map { $0 + insets.top }
+            )
         case .linearStack(let axis, let spacing, _):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             let childMeasurements = children(id).map {
@@ -363,6 +388,16 @@ public final class LayoutTree {
                                        y: bounds.y + (bounds.height - measurement.size.height) * alignment.verticalFactor,
                                        width: measurement.size.width, height: measurement.size.height),
                         proposal: childProposal, cache: &cache)
+        case .padding(let insets):
+            let childProposal = paddingProposal(proposal, insets: insets)
+            let child = children(id)[0]
+            _ = measureNative(child, proposal: childProposal, cache: &cache)
+            placeNative(child,
+                        in: LayoutRect(x: bounds.x + insets.left,
+                                       y: bounds.y + insets.top,
+                                       width: Swift.max(0, bounds.width - insets.left - insets.right),
+                                       height: Swift.max(0, bounds.height - insets.top - insets.bottom)),
+                        proposal: childProposal, cache: &cache)
         case .linearStack(let axis, let spacing, let alignment):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             var cursor = axis == .horizontal ? bounds.x : bounds.y
@@ -404,6 +439,11 @@ public final class LayoutTree {
             return Swift.max(min ?? 0, Swift.min(child, max ?? .infinity))
         }
         return fixed
+    }
+
+    private func paddingProposal(_ parent: ProposedSize, insets: Edges<Double>) -> ProposedSize {
+        ProposedSize(width: parent.width.map { Swift.max(0, $0 - insets.left - insets.right) },
+                     height: parent.height.map { Swift.max(0, $0 - insets.top - insets.bottom) })
     }
 
     /// Native layout shares the legacy engine's root-absolute rounding contract.
@@ -454,6 +494,7 @@ private enum NativeNode {
     case frame(width: Double?, height: Double?, minWidth: Double?, idealWidth: Double?,
                maxWidth: Double?, minHeight: Double?, idealHeight: Double?,
                maxHeight: Double?, alignment: NativeAlignment)
+    case padding(insets: Edges<Double>)
     case linearStack(axis: NativeStackAxis, spacing: Double, alignment: NativeAlignment)
 }
 

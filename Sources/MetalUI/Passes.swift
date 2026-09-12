@@ -83,6 +83,12 @@ public struct LayoutPass {
                                  alignment: alignment)
     }
 
+    /// Registers native outer padding around one native child.
+    public func requestNativePadding(child: LayoutNodeID,
+                                     insets: Edges<Double>) -> LayoutNodeID {
+        frame.requestNativePadding(child: child, insets: insets)
+    }
+
     /// Registers a native linear stack for the proposal-layout migration.
     public func requestNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
                                          spacing: Double = 0,
