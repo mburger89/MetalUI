@@ -84,8 +84,10 @@ public struct LayoutPass {
 
     /// Registers a native linear stack for the proposal-layout migration.
     public func requestNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
-                                         spacing: Double = 0) -> LayoutNodeID {
-        frame.requestNativeLinearStack(children: children, axis: axis, spacing: spacing)
+                                         spacing: Double = 0,
+                                         alignment: NativeAlignment = .center) -> LayoutNodeID {
+        frame.requestNativeLinearStack(children: children, axis: axis, spacing: spacing,
+                                       alignment: alignment)
     }
 
     /// Reads back a node's current `Style`, so a caller that registered a node

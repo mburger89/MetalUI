@@ -189,6 +189,34 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     #expect(tree.layout(second) == LayoutRect(x: 48, y: 32, width: 50, height: 40))
 }
 
+@Test func aNativeLinearStackUsesItsAlignmentOnTheCrossAxisOnly() {
+    let tree = LayoutTree(generation: 0)
+    let horizontalChild = tree.newNativeLeaf { _ in
+        LayoutMeasurement(size: SizeD(width: 30, height: 10))
+    }
+    let horizontal = tree.newNativeLinearStack(children: [horizontalChild], axis: .horizontal,
+                                                alignment: .bottomTrailing)
+    let verticalChild = tree.newNativeLeaf { _ in
+        LayoutMeasurement(size: SizeD(width: 30, height: 10))
+    }
+    let vertical = tree.newNativeLinearStack(children: [verticalChild], axis: .vertical,
+                                              alignment: .bottomTrailing)
+
+    _ = tree.computeNativeLayout(
+        root: horizontal,
+        proposal: ProposedSize(width: 120, height: 80),
+        in: LayoutRect(x: 13, y: 17, width: 120, height: 80)
+    )
+    _ = tree.computeNativeLayout(
+        root: vertical,
+        proposal: ProposedSize(width: 120, height: 80),
+        in: LayoutRect(x: 13, y: 17, width: 120, height: 80)
+    )
+
+    #expect(tree.layout(horizontalChild) == LayoutRect(x: 13, y: 87, width: 30, height: 10))
+    #expect(tree.layout(verticalChild) == LayoutRect(x: 103, y: 17, width: 30, height: 10))
+}
+
 @Test func nativeLayoutRoundsStoredRectanglesAfterFractionalPlacement() {
     let tree = LayoutTree(generation: 0)
     let first = tree.newNativeLeaf { _ in

@@ -150,11 +150,18 @@ public final class LayoutTree {
     }
 
     /// Registers a native linear stack with explicit inter-item spacing.
+    ///
+    /// A linear stack uses the supplied alignment only on its cross axis:
+    /// horizontal stacks read its vertical component and vertical stacks read
+    /// its horizontal component. The default is SwiftUI's centred stack
+    /// alignment.
     public func newNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
-                                     spacing: Double = 0) -> LayoutNodeID {
+                                     spacing: Double = 0,
+                                     alignment: NativeAlignment = .center) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
         let id = newNode(style: .default, children: children)
-        nativeNodes[id.index] = .linearStack(axis: axis, spacing: spacing)
+        nativeNodes[id.index] = .linearStack(axis: axis, spacing: spacing,
+                                             alignment: alignment)
         return id
     }
 
@@ -305,7 +312,7 @@ public final class LayoutTree {
                 firstBaseline: child.firstBaseline.map { $0 + (frameHeight - child.size.height) * alignment.verticalFactor },
                 lastBaseline: child.lastBaseline.map { $0 + (frameHeight - child.size.height) * alignment.verticalFactor }
             )
-        case .linearStack(let axis, let spacing):
+        case .linearStack(let axis, let spacing, _):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             let childMeasurements = children(id).map {
                 measureNative($0, proposal: childProposal, cache: &cache)
@@ -353,7 +360,7 @@ public final class LayoutTree {
                                        y: bounds.y + (bounds.height - measurement.size.height) * alignment.verticalFactor,
                                        width: measurement.size.width, height: measurement.size.height),
                         proposal: childProposal, cache: &cache)
-        case .linearStack(let axis, let spacing):
+        case .linearStack(let axis, let spacing, let alignment):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             var cursor = axis == .horizontal ? bounds.x : bounds.y
             for child in children(id) {
@@ -362,11 +369,11 @@ public final class LayoutTree {
                 switch axis {
                 case .horizontal:
                     childBounds = LayoutRect(x: cursor,
-                                             y: bounds.y + (bounds.height - measurement.size.height) / 2,
+                                             y: bounds.y + (bounds.height - measurement.size.height) * alignment.verticalFactor,
                                              width: measurement.size.width, height: measurement.size.height)
                     cursor += measurement.size.width + spacing
                 case .vertical:
-                    childBounds = LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) / 2,
+                    childBounds = LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) * alignment.horizontalFactor,
                                              y: cursor,
                                              width: measurement.size.width, height: measurement.size.height)
                     cursor += measurement.size.height + spacing
@@ -444,7 +451,7 @@ private enum NativeNode {
     case frame(width: Double?, height: Double?, minWidth: Double?, idealWidth: Double?,
                maxWidth: Double?, minHeight: Double?, idealHeight: Double?,
                maxHeight: Double?, alignment: NativeAlignment)
-    case linearStack(axis: NativeStackAxis, spacing: Double)
+    case linearStack(axis: NativeStackAxis, spacing: Double, alignment: NativeAlignment)
 }
 
 private struct NativeMeasurementKey: Hashable {
