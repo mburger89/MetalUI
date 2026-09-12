@@ -67,6 +67,11 @@ public struct LayoutPass {
         frame.requestNativeOverlay(children: children, alignment: alignment)
     }
 
+    public func requestNativeOverlayAttachment(child: LayoutNodeID, overlay: LayoutNodeID,
+                                               alignment: NativeAlignment = .center) -> LayoutNodeID {
+        frame.requestNativeOverlayAttachment(child: child, overlay: overlay, alignment: alignment)
+    }
+
     /// Registers a native SwiftUI-style frame around one native child.
     public func requestNativeFrame(child: LayoutNodeID, width: Double? = nil,
                                    height: Double? = nil,

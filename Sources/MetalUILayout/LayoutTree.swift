@@ -127,6 +127,19 @@ public final class LayoutTree {
         return id
     }
 
+    /// Registers a SwiftUI-style overlay attachment around one primary child.
+    ///
+    /// Unlike a `ZStack`, the attachment is measured using the primary child's
+    /// resolved size and never contributes to the wrapper's own measurement.
+    public func newNativeOverlayAttachment(child: LayoutNodeID, overlay: LayoutNodeID,
+                                           alignment: NativeAlignment = .center) -> LayoutNodeID {
+        _ = nativeNode(child)
+        _ = nativeNode(overlay)
+        let id = newNode(style: .default, children: [child, overlay])
+        nativeNodes[id.index] = .overlayAttachment(alignment: alignment)
+        return id
+    }
+
     /// Registers a native fixed frame around exactly one native child.
     ///
     /// A fixed axis is proposed to the child and becomes the frame's measured
@@ -350,6 +363,12 @@ public final class LayoutTree {
                                 height: max(current.size.height, childMeasurement.size.height))
                 )
             }
+        case .overlayAttachment:
+            let child = measureNative(children(id)[0], proposal: proposal, cache: &cache)
+            _ = measureNative(children(id)[1],
+                              proposal: ProposedSize(width: child.size.width, height: child.size.height),
+                              cache: &cache)
+            result = child
         case .frame(let width, let height, let minWidth, let idealWidth, let maxWidth, let minHeight, let idealHeight, let maxHeight, let alignment):
             let childProposal = ProposedSize(width: framedProposal(proposal.width, fixed: width, ideal: idealWidth, min: minWidth, max: maxWidth),
                                              height: framedProposal(proposal.height, fixed: height, ideal: idealHeight, min: minHeight, max: maxHeight))
@@ -422,6 +441,19 @@ public final class LayoutTree {
                                            width: measurement.size.width, height: measurement.size.height),
                             proposal: proposal, cache: &cache)
             }
+        case .overlayAttachment(let alignment):
+            let primary = children(id)[0]
+            let overlay = children(id)[1]
+            let primaryMeasurement = measureNative(primary, proposal: proposal, cache: &cache)
+            placeNative(primary, in: bounds, proposal: proposal, cache: &cache)
+            let overlayProposal = ProposedSize(width: primaryMeasurement.size.width,
+                                               height: primaryMeasurement.size.height)
+            let overlayMeasurement = measureNative(overlay, proposal: overlayProposal, cache: &cache)
+            placeNative(overlay,
+                        in: LayoutRect(x: bounds.x + (bounds.width - overlayMeasurement.size.width) * alignment.horizontalFactor,
+                                       y: bounds.y + (bounds.height - overlayMeasurement.size.height) * alignment.verticalFactor,
+                                       width: overlayMeasurement.size.width, height: overlayMeasurement.size.height),
+                        proposal: overlayProposal, cache: &cache)
         case .frame(let width, let height, let minWidth, let idealWidth, let maxWidth, let minHeight, let idealHeight, let maxHeight, let alignment):
             let childProposal = ProposedSize(width: framedProposal(proposal.width, fixed: width, ideal: idealWidth, min: minWidth, max: maxWidth),
                                              height: framedProposal(proposal.height, fixed: height, ideal: idealHeight, min: minHeight, max: maxHeight))
@@ -597,6 +629,7 @@ public enum NativeAlignment: Sendable, Hashable {
 private enum NativeNode {
     case leaf(NativeMeasureFunction)
     case overlay(alignment: NativeAlignment)
+    case overlayAttachment(alignment: NativeAlignment)
     case frame(width: Double?, height: Double?, minWidth: Double?, idealWidth: Double?,
                maxWidth: Double?, minHeight: Double?, idealHeight: Double?,
                maxHeight: Double?, alignment: NativeAlignment)

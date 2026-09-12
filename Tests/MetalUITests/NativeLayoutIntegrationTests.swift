@@ -255,3 +255,27 @@ private struct NativeProposalProbe: Element {
     #expect(rects[0].background.h == Theme.light.surface.h)
     #expect(rects[1].background.h == Theme.light.accent.h)
 }
+
+@MainActor
+@Test func nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt() {
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    var root = NativeOverlay {
+        NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
+            .nativeOverlay(alignment: .bottomTrailing) {
+                NativeRectangle(width: Pixels(50), height: Pixels(40), color: .separator)
+            }
+    }
+
+    frame.render(&root)
+
+    let rects = frame.finalizedScene().rects
+    #expect(rects.count == 2)
+    #expect(rects[0].bounds.origin.x == 40)
+    #expect(rects[0].bounds.origin.y == 35)
+    #expect(rects[0].bounds.size.width == 20)
+    #expect(rects[0].bounds.size.height == 10)
+    #expect(rects[1].bounds.origin.x == 10)
+    #expect(rects[1].bounds.origin.y == 5)
+    #expect(rects[1].bounds.size.width == 50)
+    #expect(rects[1].bounds.size.height == 40)
+}

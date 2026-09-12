@@ -1070,6 +1070,11 @@ public final class Frame {
         tree.newNativeOverlay(children: children, alignment: alignment)
     }
 
+    func requestNativeOverlayAttachment(child: LayoutNodeID, overlay: LayoutNodeID,
+                                        alignment: NativeAlignment = .center) -> LayoutNodeID {
+        tree.newNativeOverlayAttachment(child: child, overlay: overlay, alignment: alignment)
+    }
+
     func requestNativeFrame(child: LayoutNodeID, width: Double? = nil,
                             height: Double? = nil,
                             minWidth: Double? = nil, idealWidth: Double? = nil,
