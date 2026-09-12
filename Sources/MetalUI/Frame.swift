@@ -1071,12 +1071,16 @@ public final class Frame {
 
     func requestNativeFrame(child: LayoutNodeID, width: Double? = nil,
                             height: Double? = nil,
-                            minWidth: Double? = nil, maxWidth: Double? = nil,
-                            minHeight: Double? = nil, maxHeight: Double? = nil,
+                            minWidth: Double? = nil, idealWidth: Double? = nil,
+                            maxWidth: Double? = nil,
+                            minHeight: Double? = nil, idealHeight: Double? = nil,
+                            maxHeight: Double? = nil,
                             alignment: NativeAlignment = .center) -> LayoutNodeID {
         tree.newNativeFrame(child: child, width: width, height: height,
-                            minWidth: minWidth, maxWidth: maxWidth,
-                            minHeight: minHeight, maxHeight: maxHeight,
+                            minWidth: minWidth, idealWidth: idealWidth,
+                            maxWidth: maxWidth,
+                            minHeight: minHeight, idealHeight: idealHeight,
+                            maxHeight: maxHeight,
                             alignment: alignment)
     }
 

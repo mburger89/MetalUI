@@ -69,12 +69,16 @@ public struct LayoutPass {
     /// Registers a native SwiftUI-style frame around one native child.
     public func requestNativeFrame(child: LayoutNodeID, width: Double? = nil,
                                    height: Double? = nil,
-                                   minWidth: Double? = nil, maxWidth: Double? = nil,
-                                   minHeight: Double? = nil, maxHeight: Double? = nil,
+                                   minWidth: Double? = nil, idealWidth: Double? = nil,
+                                   maxWidth: Double? = nil,
+                                   minHeight: Double? = nil, idealHeight: Double? = nil,
+                                   maxHeight: Double? = nil,
                                    alignment: NativeAlignment = .center) -> LayoutNodeID {
         frame.requestNativeFrame(child: child, width: width, height: height,
-                                 minWidth: minWidth, maxWidth: maxWidth,
-                                 minHeight: minHeight, maxHeight: maxHeight,
+                                 minWidth: minWidth, idealWidth: idealWidth,
+                                 maxWidth: maxWidth,
+                                 minHeight: minHeight, idealHeight: idealHeight,
+                                 maxHeight: maxHeight,
                                  alignment: alignment)
     }
 

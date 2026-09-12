@@ -127,18 +127,24 @@ public final class LayoutTree {
     ///
     /// A fixed axis is proposed to the child and becomes the frame's measured
     /// size; an optional axis forwards the parent's proposal and adopts the
-    /// child's response. Placement centres the child inside the resulting
-    /// frame, matching SwiftUI's default frame alignment.
+    /// child's response. An ideal axis is proposed only when its parent axis
+    /// is unspecified, so it remains a child-measurement preference rather
+    /// than a forced frame size. Placement centres the child inside the
+    /// resulting frame, matching SwiftUI's default frame alignment.
     public func newNativeFrame(child: LayoutNodeID, width: Double? = nil,
                                height: Double? = nil,
-                               minWidth: Double? = nil, maxWidth: Double? = nil,
-                               minHeight: Double? = nil, maxHeight: Double? = nil,
+                               minWidth: Double? = nil, idealWidth: Double? = nil,
+                               maxWidth: Double? = nil,
+                               minHeight: Double? = nil, idealHeight: Double? = nil,
+                               maxHeight: Double? = nil,
                                alignment: NativeAlignment = .center) -> LayoutNodeID {
         _ = nativeNode(child)
         let id = newNode(style: .default, children: [child])
         nativeNodes[id.index] = .frame(width: width, height: height,
-                                       minWidth: minWidth, maxWidth: maxWidth,
-                                       minHeight: minHeight, maxHeight: maxHeight,
+                                       minWidth: minWidth, idealWidth: idealWidth,
+                                       maxWidth: maxWidth,
+                                       minHeight: minHeight, idealHeight: idealHeight,
+                                       maxHeight: maxHeight,
                                        alignment: alignment)
         return id
     }
@@ -289,9 +295,9 @@ public final class LayoutTree {
                                 height: max(current.size.height, childMeasurement.size.height))
                 )
             }
-        case .frame(let width, let height, let minWidth, let maxWidth, let minHeight, let maxHeight, let alignment):
-            let childProposal = ProposedSize(width: framedProposal(proposal.width, fixed: width, min: minWidth, max: maxWidth),
-                                             height: framedProposal(proposal.height, fixed: height, min: minHeight, max: maxHeight))
+        case .frame(let width, let height, let minWidth, let idealWidth, let maxWidth, let minHeight, let idealHeight, let maxHeight, let alignment):
+            let childProposal = ProposedSize(width: framedProposal(proposal.width, fixed: width, ideal: idealWidth, min: minWidth, max: maxWidth),
+                                             height: framedProposal(proposal.height, fixed: height, ideal: idealHeight, min: minHeight, max: maxHeight))
             let child = measureNative(children(id)[0], proposal: childProposal, cache: &cache)
             let frameHeight = framedSize(child.size.height, fixed: height, min: minHeight, max: maxHeight)
             result = LayoutMeasurement(
@@ -337,9 +343,9 @@ public final class LayoutTree {
                                            width: measurement.size.width, height: measurement.size.height),
                             proposal: proposal, cache: &cache)
             }
-        case .frame(let width, let height, let minWidth, let maxWidth, let minHeight, let maxHeight, let alignment):
-            let childProposal = ProposedSize(width: framedProposal(proposal.width, fixed: width, min: minWidth, max: maxWidth),
-                                             height: framedProposal(proposal.height, fixed: height, min: minHeight, max: maxHeight))
+        case .frame(let width, let height, let minWidth, let idealWidth, let maxWidth, let minHeight, let idealHeight, let maxHeight, let alignment):
+            let childProposal = ProposedSize(width: framedProposal(proposal.width, fixed: width, ideal: idealWidth, min: minWidth, max: maxWidth),
+                                             height: framedProposal(proposal.height, fixed: height, ideal: idealHeight, min: minHeight, max: maxHeight))
             let child = children(id)[0]
             let measurement = measureNative(child, proposal: childProposal, cache: &cache)
             placeNative(child,
@@ -377,9 +383,10 @@ public final class LayoutTree {
         }
     }
 
-    private func framedProposal(_ parent: Double?, fixed: Double?, min: Double?, max: Double?) -> Double? {
-        guard fixed == nil, let parent else { return fixed }
-        return Swift.max(min ?? -.infinity, Swift.min(parent, max ?? .infinity))
+    private func framedProposal(_ parent: Double?, fixed: Double?, ideal: Double?, min: Double?, max: Double?) -> Double? {
+        guard fixed == nil else { return fixed }
+        guard let proposal = parent ?? ideal else { return nil }
+        return Swift.max(min ?? -.infinity, Swift.min(proposal, max ?? .infinity))
     }
 
     private func framedSize(_ child: Double, fixed: Double?, min: Double?, max: Double?) -> Double {
@@ -434,8 +441,9 @@ public enum NativeAlignment: Sendable, Hashable {
 private enum NativeNode {
     case leaf(NativeMeasureFunction)
     case overlay
-    case frame(width: Double?, height: Double?, minWidth: Double?, maxWidth: Double?,
-               minHeight: Double?, maxHeight: Double?, alignment: NativeAlignment)
+    case frame(width: Double?, height: Double?, minWidth: Double?, idealWidth: Double?,
+               maxWidth: Double?, minHeight: Double?, idealHeight: Double?,
+               maxHeight: Double?, alignment: NativeAlignment)
     case linearStack(axis: NativeStackAxis, spacing: Double)
 }
 

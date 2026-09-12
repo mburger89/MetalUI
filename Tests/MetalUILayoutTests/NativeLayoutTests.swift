@@ -115,6 +115,29 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     #expect(tree.layout(child) == LayoutRect(x: 15, y: -1, width: 20, height: 90))
 }
 
+/// An ideal frame dimension is the proposal used only when its parent leaves
+/// that axis unspecified. It does not force the frame's response: the child
+/// still answers the proposal and the frame then applies its min/max limits.
+@Test func aNativeFrameUsesIdealDimensionsOnlyForUnspecifiedAxes() {
+    let tree = LayoutTree(generation: 0)
+    let child = tree.newNativeLeaf { proposal in
+        #expect(proposal == ProposedSize(width: 80, height: 60))
+        return LayoutMeasurement(size: SizeD(width: 30, height: 10))
+    }
+    let frame = tree.newNativeFrame(child: child,
+                                    minWidth: 40, idealWidth: 90, maxWidth: 80,
+                                    minHeight: 20, idealHeight: 70, maxHeight: 70)
+
+    let measurement = tree.computeNativeLayout(
+        root: frame,
+        proposal: ProposedSize(width: nil, height: 60),
+        in: LayoutRect(x: 5, y: 9, width: 40, height: 20)
+    )
+
+    #expect(measurement.size == SizeD(width: 40, height: 20))
+    #expect(tree.layout(child) == LayoutRect(x: 10, y: 14, width: 30, height: 10))
+}
+
 /// A horizontal stack leaves its main axis unspecified for each child, forwards
 /// the parent's cross-axis proposal, sums widths plus gaps, and centres each
 /// unequal child vertically in the placement rectangle.
