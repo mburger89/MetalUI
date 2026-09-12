@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/maxburger/.nvm/versions/node/v24.18.0/lib/node_modules/claude-db/dist/hooks/session-start.js"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/maxburger/.nvm/versions/node/v24.18.0/lib/node_modules/claude-db/dist/hooks/session-end.js"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/maxburger/.nvm/versions/node/v24.18.0/lib/node_modules/claude-db/dist/hooks/user-prompt.js"
+          }
+        ]
+      }
+    ]
+  }
+}

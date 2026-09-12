@@ -599,6 +599,34 @@ private struct TwoAutoLeaves: Component {
             "leaf b's width gains 2x4 too — this is the assertion that separates distribution from wrapping")
 }
 
+/// A SwiftUI-style frame is deliberately unlike this framework's older
+/// distributing `.width(_:)`: it wraps the component's transparent body in
+/// one outer layout node. The body therefore keeps the sizes its author chose,
+/// while the caller controls the outer footprint and alignment.
+@MainActor
+@Test func aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren() {
+    let bareLog = ComponentLog()
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var bare = Row { TwoLeaves(log: bareLog) }
+    bareFrame.render(&bare)
+
+    let framedLog = ComponentLog()
+    let framedFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var framed = Row { TwoLeaves(log: framedLog).frame(width: px(100), height: px(40)) }
+    framedFrame.render(&framed)
+
+    #expect(framedFrame.tree.nodeCount == bareFrame.tree.nodeCount + 1,
+            "a frame must add its own layout node rather than amend each body node")
+
+    // The caller's frame is 100 points wide, but the component's two children
+    // retain their own 30- and 50-point widths. They are centred as a unit in
+    // the wrapper, so the body's leading edge moves by (100 - 80) / 2.
+    #expect(rect(framedLog.bounds["a"]!) == (10, 15, 30, 10))
+    #expect(rect(framedLog.bounds["b"]!) == (40, 5, 50, 30))
+    #expect(rect(bareLog.bounds["a"]!) == (0, 15, 30, 10))
+    #expect(rect(bareLog.bounds["b"]!) == (30, 5, 50, 30))
+}
+
 /// Spec §5's limit. Only `Style`-backed modifiers can be distributed, because
 /// `setStyle` reaches `LayoutTree` and nothing reaches `Decoration`/`Handlers`
 /// per node. So `background`, `onClick` and `focusable` are NOT offered on a
