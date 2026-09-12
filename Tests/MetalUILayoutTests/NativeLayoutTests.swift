@@ -126,3 +126,24 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     #expect(tree.layout(first) == LayoutRect(x: 58, y: 17, width: 30, height: 10))
     #expect(tree.layout(second) == LayoutRect(x: 48, y: 32, width: 50, height: 40))
 }
+
+@Test func nativeLayoutRoundsStoredRectanglesAfterFractionalPlacement() {
+    let tree = LayoutTree(generation: 0)
+    let first = tree.newNativeLeaf { _ in
+        LayoutMeasurement(size: SizeD(width: 30.4, height: 10.2))
+    }
+    let second = tree.newNativeLeaf { _ in
+        LayoutMeasurement(size: SizeD(width: 50.2, height: 39.8))
+    }
+    let stack = tree.newNativeLinearStack(children: [first, second], axis: .horizontal,
+                                           spacing: 7.5)
+
+    _ = tree.computeNativeLayout(
+        root: stack,
+        proposal: ProposedSize(width: 120.5, height: 80.3),
+        in: LayoutRect(x: 13.25, y: 17.5, width: 120.5, height: 80.3)
+    )
+
+    #expect(tree.layout(first) == LayoutRect(x: 13, y: 53, width: 31, height: 10))
+    #expect(tree.layout(second) == LayoutRect(x: 51, y: 38, width: 50, height: 40))
+}

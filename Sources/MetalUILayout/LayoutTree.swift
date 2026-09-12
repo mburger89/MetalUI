@@ -158,6 +158,7 @@ public final class LayoutTree {
         var cache: [NativeMeasurementKey: LayoutMeasurement] = [:]
         let result = measureNative(root, proposal: proposal, cache: &cache)
         placeNative(root, in: bounds, proposal: proposal, cache: &cache)
+        roundNativeStoredRects(root)
         return result
     }
 
@@ -366,6 +367,17 @@ public final class LayoutTree {
         switch axis {
         case .horizontal: ProposedSize(width: nil, height: parent.height)
         case .vertical: ProposedSize(width: parent.width, height: nil)
+        }
+    }
+
+    /// Native layout shares the legacy engine's root-absolute rounding contract.
+    /// Measurement stays fractional; only the stored rectangles seen by later
+    /// phases are rounded from cumulative edges.
+    private func roundNativeStoredRects(_ node: LayoutNodeID) {
+        setMeasuredWidth(node, layout(node).width)
+        setLayout(node, roundLayout([layout(node)])[0])
+        for child in children(node) {
+            roundNativeStoredRects(child)
         }
     }
 }
