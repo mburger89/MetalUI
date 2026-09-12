@@ -590,12 +590,12 @@ extension StyledElement {
 
     // MARK: Size
 
-    public func width(_ points: Pixels) -> Self {
-        modifying { $0.size.width = .length(.pixels(points)) }
+    public func width(_ points: Pixels) -> FrameModifier<Self> {
+        FrameModifier(content: self, width: points)
     }
 
-    public func height(_ points: Pixels) -> Self {
-        modifying { $0.size.height = .length(.pixels(points)) }
+    public func height(_ points: Pixels) -> FrameModifier<Self> {
+        FrameModifier(content: self, height: points)
     }
 
     /// A percentage of the **containing block's** corresponding axis.

@@ -240,7 +240,8 @@ struct CounterPanel: Element {
     /// `@ElementBuilder`'s `buildPartialBlock` would nest it, because the three
     /// children are assembled by hand below — a builder block cannot close over
     /// the two handlers *and* be written at the point the handlers exist.
-    typealias Chrome = Pair<Pair<Box<Text>, Box<Text>>, Box<Text>>
+    typealias Button = FrameModifier<FrameModifier<Box<Text>>>
+    typealias Chrome = Pair<Pair<Button, Button>, Button>
 
     private var built: Box<Chrome> = CounterPanel.chrome(count: 0, minus: {}, plus: {})
 
@@ -252,7 +253,7 @@ struct CounterPanel: Element {
     /// (`StyledElement.hoverBackground(_:)`). The two belong together here even
     /// though the framework keeps them separate.
     static func button(_ label: String,
-                       _ handler: @escaping @MainActor () -> Void) -> Box<Text> {
+                       _ handler: @escaping @MainActor () -> Void) -> Button {
         Box(decoration: Decoration(background: .surfaceSecondary,
                                    cornerRadius: Pixels(8))) {
             Text(label).font(size: 22)
