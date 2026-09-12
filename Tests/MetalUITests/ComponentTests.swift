@@ -627,6 +627,28 @@ private struct TwoAutoLeaves: Component {
     #expect(rect(bareLog.bounds["b"]!) == (30, 5, 50, 30))
 }
 
+/// A frame is a typed structural wrapper, not an implicit `AnyElement`.
+///
+/// The explicit stored type is the regression shape that direct conversion of
+/// legacy sizing modifiers broke: both wrapper layers must remain available to
+/// the generic `Row` builder, and the two different widths must nest rather
+/// than overwrite each other.
+@MainActor
+@Test func chainedFramesRemainConcreteAndNestTheirLayoutNodes() {
+    let log = ComponentLog()
+    let stored: FrameModifier<TwoLeaves> = TwoLeaves(log: log).frame(width: px(100), height: px(40))
+    var tree: Row<FrameModifier<FrameModifier<TwoLeaves>>> = Row {
+        stored.frame(width: px(120), height: px(40))
+    }
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+
+    frame.render(&tree)
+
+    #expect(frame.tree.nodeCount == 5, "row, two typed frame nodes, and two body leaves")
+    #expect(rect(log.bounds["a"]!) == (20, 15, 30, 10))
+    #expect(rect(log.bounds["b"]!) == (50, 5, 50, 30))
+}
+
 /// Padding on an ordinary element composes by wrapping, as it does in SwiftUI.
 /// A `Leaf` has no child layout to inset, so the old direct-style spelling left
 /// it at x = 0. A wrapper must add one node and offset the fixed-size leaf by
