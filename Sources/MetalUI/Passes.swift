@@ -61,9 +61,10 @@ public struct LayoutPass {
         frame.requestNativeLeaf(measure: measure)
     }
 
-    /// Registers the native overlay container used by the first migration slice.
-    public func requestNativeOverlay(children: [LayoutNodeID]) -> LayoutNodeID {
-        frame.requestNativeOverlay(children: children)
+    /// Registers a native `ZStack`-style overlay container.
+    public func requestNativeOverlay(children: [LayoutNodeID],
+                                     alignment: NativeAlignment = .center) -> LayoutNodeID {
+        frame.requestNativeOverlay(children: children, alignment: alignment)
     }
 
     /// Registers a native SwiftUI-style frame around one native child.

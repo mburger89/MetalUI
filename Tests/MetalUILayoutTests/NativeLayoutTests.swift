@@ -5,7 +5,7 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     var count = 0
 }
 
-@Test func aNativeOverlayForwardsOneProposalMeasuresTheLargestChildAndPlacesAtTheRootOrigin() {
+@Test func aNativeOverlayForwardsOneProposalMeasuresTheLargestChildAndCentresEachChild() {
     let tree = LayoutTree(generation: 0)
     let firstCalls = NativeMeasureCounter()
     let secondCalls = NativeMeasureCounter()
@@ -29,10 +29,30 @@ private final class NativeMeasureCounter: @unchecked Sendable {
 
     #expect(measurement.size == SizeD(width: 40, height: 50))
     #expect(tree.layout(overlay) == LayoutRect(x: 13, y: 17, width: 120, height: 80))
-    #expect(tree.layout(first) == LayoutRect(x: 13, y: 17, width: 40, height: 20))
-    #expect(tree.layout(second) == LayoutRect(x: 13, y: 17, width: 25, height: 50))
+    #expect(tree.layout(first) == LayoutRect(x: 53, y: 47, width: 40, height: 20))
+    #expect(tree.layout(second) == LayoutRect(x: 61, y: 32, width: 25, height: 50))
     #expect(firstCalls.count == 1)
     #expect(secondCalls.count == 1)
+}
+
+@Test func aNativeOverlayPlacesEveryChildAtTheRequestedAlignment() {
+    let tree = LayoutTree(generation: 0)
+    let first = tree.newNativeLeaf { _ in
+        LayoutMeasurement(size: SizeD(width: 30, height: 10))
+    }
+    let second = tree.newNativeLeaf { _ in
+        LayoutMeasurement(size: SizeD(width: 50, height: 40))
+    }
+    let overlay = tree.newNativeOverlay(children: [first, second], alignment: .bottomTrailing)
+
+    _ = tree.computeNativeLayout(
+        root: overlay,
+        proposal: ProposedSize(width: 120, height: 80),
+        in: LayoutRect(x: 13, y: 17, width: 120, height: 80)
+    )
+
+    #expect(tree.layout(first) == LayoutRect(x: 103, y: 87, width: 30, height: 10))
+    #expect(tree.layout(second) == LayoutRect(x: 83, y: 57, width: 50, height: 40))
 }
 
 /// A fixed frame changes the proposal seen by its child; it is not a CSS size

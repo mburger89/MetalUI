@@ -1065,8 +1065,9 @@ public final class Frame {
         tree.newNativeLeaf(measure: measure)
     }
 
-    func requestNativeOverlay(children: [LayoutNodeID]) -> LayoutNodeID {
-        tree.newNativeOverlay(children: children)
+    func requestNativeOverlay(children: [LayoutNodeID],
+                              alignment: NativeAlignment = .center) -> LayoutNodeID {
+        tree.newNativeOverlay(children: children, alignment: alignment)
     }
 
     func requestNativeFrame(child: LayoutNodeID, width: Double? = nil,

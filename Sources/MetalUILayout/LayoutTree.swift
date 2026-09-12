@@ -111,15 +111,17 @@ public final class LayoutTree {
         return id
     }
 
-    /// Registers the first native container: an unaligned overlay.
+    /// Registers a native overlay, equivalent to a SwiftUI `ZStack`.
     ///
     /// Every child must already be native. This makes the migration boundary
     /// structural: a native subtree cannot accidentally delegate one child back
-    /// into the CSS engine.
-    public func newNativeOverlay(children: [LayoutNodeID]) -> LayoutNodeID {
+    /// into the CSS engine. Every child receives the same proposal, then is
+    /// placed independently with the requested alignment.
+    public func newNativeOverlay(children: [LayoutNodeID],
+                                 alignment: NativeAlignment = .center) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
         let id = newNode(style: .default, children: children)
-        nativeNodes[id.index] = .overlay
+        nativeNodes[id.index] = .overlay(alignment: alignment)
         return id
     }
 
@@ -342,11 +344,12 @@ public final class LayoutTree {
         switch nativeNode(id) {
         case .leaf:
             return
-        case .overlay:
+        case .overlay(let alignment):
             for child in children(id) {
                 let measurement = measureNative(child, proposal: proposal, cache: &cache)
                 placeNative(child,
-                            in: LayoutRect(x: bounds.x, y: bounds.y,
+                            in: LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) * alignment.horizontalFactor,
+                                           y: bounds.y + (bounds.height - measurement.size.height) * alignment.verticalFactor,
                                            width: measurement.size.width, height: measurement.size.height),
                             proposal: proposal, cache: &cache)
             }
@@ -447,7 +450,7 @@ public enum NativeAlignment: Sendable, Hashable {
 
 private enum NativeNode {
     case leaf(NativeMeasureFunction)
-    case overlay
+    case overlay(alignment: NativeAlignment)
     case frame(width: Double?, height: Double?, minWidth: Double?, idealWidth: Double?,
                maxWidth: Double?, minHeight: Double?, idealHeight: Double?,
                maxHeight: Double?, alignment: NativeAlignment)
