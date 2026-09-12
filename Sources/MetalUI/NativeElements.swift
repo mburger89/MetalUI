@@ -233,6 +233,53 @@ public struct NativePadding<Content: ElementGroup>: Element {
     }
 }
 
+/// A native proposal-layout wrapper that preserves its content's intrinsic
+/// measurement on the selected axes.
+///
+/// This is the builder-style counterpart to ``ElementGroup/nativeFixedSize(horizontal:vertical:)``.
+/// It withholds the selected axis from its child proposal; it does not mutate
+/// the child's size after measurement.
+public struct NativeFixedSize<Content: ElementGroup>: Element {
+    public var content: Content
+    public var horizontal: Bool
+    public var vertical: Bool
+
+    public init(horizontal: Bool = true, vertical: Bool = true,
+                @ElementBuilder content: () -> Content) {
+        self.content = content()
+        self.horizontal = horizontal
+        self.vertical = vertical
+    }
+
+    public struct Layout {
+        var node: LayoutNodeID
+        var content: Content.GroupLayout
+    }
+
+    public mutating func requestLayout(_ id: GlobalElementID,
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
+                                                                   pass: &pass)
+        precondition(children.count == 1, "NativeFixedSize content must contribute one native node")
+        let node = pass.requestNativeFixedSize(child: children[0], horizontal: horizontal,
+                                               vertical: vertical)
+        return (node, Layout(node: node, content: contentLayout))
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout Layout,
+                                  pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        content.prepaintGroup(layout: &layout.content, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout Layout, prepaint: inout Content.GroupPrepaint,
+                               pass: inout PaintPass) {
+        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
+}
+
 /// A flexible native-layout spacer for use inside ``NativeRow``.
 public struct NativeSpacer: Element {
     public var minLength: Pixels?

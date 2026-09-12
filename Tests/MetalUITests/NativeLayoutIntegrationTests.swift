@@ -67,6 +67,27 @@ private struct NativeFillProbe: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
+private struct NativeProposalProbe: Element {
+    let expectedProposal: ProposedSize
+    let probe: NativeLayoutProbe
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        let node = pass.requestNativeLeaf { proposal in
+            #expect(proposal == expectedProposal)
+            return LayoutMeasurement(size: SizeD(width: 30, height: 10))
+        }
+        return (node, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                  pass: inout PrepaintPass) {
+        probe.prepaintBounds = bounds
+    }
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+               prepaint: inout Void, pass: inout PaintPass) {}
+}
+
 @MainActor
 @Test func aNativeRootRunsThroughTheFramePipelineWithoutInvokingFlexLayout() {
     let probe = NativeLayoutProbe()
@@ -173,4 +194,20 @@ private struct NativeFillProbe: Element {
     let framedNode = frame.tree.children(node)[0]
     #expect(frame.bounds(of: framedNode) == Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
                                              size: Size(width: Pixels(120), height: Pixels(80))))
+}
+
+@MainActor
+@Test func builderNativeFixedSizeWithholdsOnlyItsSelectedAxisFromTheChildProposal() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(120), height: Pixels(80)), scaleFactor: 1)
+    var root = NativeFrame(width: Pixels(120), height: Pixels(80)) {
+        NativeFixedSize(horizontal: true, vertical: false) {
+            NativeProposalProbe(expectedProposal: ProposedSize(width: nil, height: 80), probe: probe)
+        }
+    }
+
+    frame.render(&root)
+
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(45), y: Pixels(35)),
+                                           size: Size(width: Pixels(30), height: Pixels(10))))
 }
