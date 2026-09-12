@@ -1070,8 +1070,9 @@ public final class Frame {
     }
 
     func requestNativeFrame(child: LayoutNodeID, width: Double? = nil,
-                            height: Double? = nil) -> LayoutNodeID {
-        tree.newNativeFrame(child: child, width: width, height: height)
+                            height: Double? = nil,
+                            alignment: NativeAlignment = .center) -> LayoutNodeID {
+        tree.newNativeFrame(child: child, width: width, height: height, alignment: alignment)
     }
 
     func requestNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,

@@ -130,10 +130,11 @@ public final class LayoutTree {
     /// child's response. Placement centres the child inside the resulting
     /// frame, matching SwiftUI's default frame alignment.
     public func newNativeFrame(child: LayoutNodeID, width: Double? = nil,
-                               height: Double? = nil) -> LayoutNodeID {
+                               height: Double? = nil,
+                               alignment: NativeAlignment = .center) -> LayoutNodeID {
         _ = nativeNode(child)
         let id = newNode(style: .default, children: [child])
-        nativeNodes[id.index] = .frame(width: width, height: height)
+        nativeNodes[id.index] = .frame(width: width, height: height, alignment: alignment)
         return id
     }
 
@@ -283,14 +284,14 @@ public final class LayoutTree {
                                 height: max(current.size.height, childMeasurement.size.height))
                 )
             }
-        case .frame(let width, let height):
+        case .frame(let width, let height, let alignment):
             let childProposal = ProposedSize(width: width ?? proposal.width,
                                              height: height ?? proposal.height)
             let child = measureNative(children(id)[0], proposal: childProposal, cache: &cache)
             result = LayoutMeasurement(
                 size: SizeD(width: width ?? child.size.width, height: height ?? child.size.height),
-                firstBaseline: child.firstBaseline.map { $0 + (height.map { ($0 - child.size.height) / 2 } ?? 0) },
-                lastBaseline: child.lastBaseline.map { $0 + (height.map { ($0 - child.size.height) / 2 } ?? 0) }
+                firstBaseline: child.firstBaseline.map { $0 + (height.map { ($0 - child.size.height) * alignment.verticalFactor } ?? 0) },
+                lastBaseline: child.lastBaseline.map { $0 + (height.map { ($0 - child.size.height) * alignment.verticalFactor } ?? 0) }
             )
         case .linearStack(let axis, let spacing):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
@@ -330,14 +331,14 @@ public final class LayoutTree {
                                            width: measurement.size.width, height: measurement.size.height),
                             proposal: proposal, cache: &cache)
             }
-        case .frame(let width, let height):
+        case .frame(let width, let height, let alignment):
             let childProposal = ProposedSize(width: width ?? proposal.width,
                                              height: height ?? proposal.height)
             let child = children(id)[0]
             let measurement = measureNative(child, proposal: childProposal, cache: &cache)
             placeNative(child,
-                        in: LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) / 2,
-                                       y: bounds.y + (bounds.height - measurement.size.height) / 2,
+                        in: LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) * alignment.horizontalFactor,
+                                       y: bounds.y + (bounds.height - measurement.size.height) * alignment.verticalFactor,
                                        width: measurement.size.width, height: measurement.size.height),
                         proposal: childProposal, cache: &cache)
         case .linearStack(let axis, let spacing):
@@ -389,10 +390,33 @@ public enum NativeStackAxis: Sendable, Hashable {
     case vertical
 }
 
+/// A frame-local equivalent of SwiftUI's nine-point alignment vocabulary.
+public enum NativeAlignment: Sendable, Hashable {
+    case topLeading, top, topTrailing
+    case leading, center, trailing
+    case bottomLeading, bottom, bottomTrailing
+
+    var horizontalFactor: Double {
+        switch self {
+        case .topLeading, .leading, .bottomLeading: 0
+        case .top, .center, .bottom: 0.5
+        case .topTrailing, .trailing, .bottomTrailing: 1
+        }
+    }
+
+    var verticalFactor: Double {
+        switch self {
+        case .topLeading, .top, .topTrailing: 0
+        case .leading, .center, .trailing: 0.5
+        case .bottomLeading, .bottom, .bottomTrailing: 1
+        }
+    }
+}
+
 private enum NativeNode {
     case leaf(NativeMeasureFunction)
     case overlay
-    case frame(width: Double?, height: Double?)
+    case frame(width: Double?, height: Double?, alignment: NativeAlignment)
     case linearStack(axis: NativeStackAxis, spacing: Double)
 }
 

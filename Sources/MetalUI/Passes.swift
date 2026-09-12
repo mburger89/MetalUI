@@ -68,8 +68,9 @@ public struct LayoutPass {
 
     /// Registers a native SwiftUI-style frame around one native child.
     public func requestNativeFrame(child: LayoutNodeID, width: Double? = nil,
-                                   height: Double? = nil) -> LayoutNodeID {
-        frame.requestNativeFrame(child: child, width: width, height: height)
+                                   height: Double? = nil,
+                                   alignment: NativeAlignment = .center) -> LayoutNodeID {
+        frame.requestNativeFrame(child: child, width: width, height: height, alignment: alignment)
     }
 
     /// Registers a native linear stack for the proposal-layout migration.

@@ -76,6 +76,25 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     #expect(tree.layout(child) == LayoutRect(x: 40, y: 9, width: 30, height: 12))
 }
 
+@Test func aNativeFramePlacesItsChildAtTheRequestedAlignment() {
+    let tree = LayoutTree(generation: 0)
+    let child = tree.newNativeLeaf { proposal in
+        #expect(proposal == ProposedSize(width: 100, height: 50))
+        return LayoutMeasurement(size: SizeD(width: 30, height: 10), firstBaseline: 7)
+    }
+    let frame = tree.newNativeFrame(child: child, width: 100, height: 50,
+                                    alignment: .bottomTrailing)
+
+    let measurement = tree.computeNativeLayout(
+        root: frame,
+        proposal: ProposedSize(width: 180, height: 90),
+        in: LayoutRect(x: 13, y: 17, width: 100, height: 50)
+    )
+
+    #expect(measurement.firstBaseline == 47)
+    #expect(tree.layout(child) == LayoutRect(x: 83, y: 57, width: 30, height: 10))
+}
+
 /// A horizontal stack leaves its main axis unspecified for each child, forwards
 /// the parent's cross-axis proposal, sums widths plus gaps, and centres each
 /// unequal child vertically in the placement rectangle.
