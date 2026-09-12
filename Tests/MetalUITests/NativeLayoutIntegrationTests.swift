@@ -237,3 +237,21 @@ private struct NativeProposalProbe: Element {
     #expect(rects[1].bounds.size.height == 10)
     #expect(rects[1].background.h == Theme.light.accent.h)
 }
+
+@MainActor
+@Test func builderNativeBackgroundPaintsBeneathItsNativeChild() {
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1,
+                      theme: .light)
+    var root = NativeOverlay {
+        NativeBackground(.surface) {
+            NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
+        }
+    }
+
+    frame.render(&root)
+
+    let rects = frame.finalizedScene().rects
+    #expect(rects.count == 2)
+    #expect(rects[0].background.h == Theme.light.surface.h)
+    #expect(rects[1].background.h == Theme.light.accent.h)
+}

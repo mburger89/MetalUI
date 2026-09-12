@@ -233,6 +233,42 @@ public struct NativePadding<Content: ElementGroup>: Element {
     }
 }
 
+/// A builder-style native background that paints beneath its content without
+/// affecting that content's proposal, measurement, or placement.
+public struct NativeBackground<Content: ElementGroup>: Element {
+    public var content: Content
+    public var color: ColorToken
+
+    public init(_ color: ColorToken, @ElementBuilder content: () -> Content) {
+        self.content = content()
+        self.color = color
+    }
+
+    public struct Layout { var content: Content.GroupLayout }
+
+    public mutating func requestLayout(_ id: GlobalElementID,
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
+                                                                   pass: &pass)
+        precondition(children.count == 1, "NativeBackground content must contribute one native node")
+        return (children[0], Layout(content: contentLayout))
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout Layout,
+                                  pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        content.prepaintGroup(layout: &layout.content, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout Layout, prepaint: inout Content.GroupPrepaint,
+                               pass: inout PaintPass) {
+        pass.fill(bounds, color: pass.theme[color], cornerRadii: Corners(all: Pixels(0)))
+        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
+}
+
 /// A native proposal-layout wrapper that preserves its content's intrinsic
 /// measurement on the selected axes.
 ///
