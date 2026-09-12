@@ -7,15 +7,24 @@ import MetalUILayout
 /// content's style. Chained frames therefore remain a concrete structural tree:
 /// each wrapper receives its own child identity through `ElementGroup` and
 /// contributes its own layout node.
-public struct FrameModifier<Content: ElementGroup>: Element {
+public struct FrameModifier<Content: ElementGroup>: Element, StyledElement {
     public var content: Content
-    public var width: Pixels?
-    public var height: Pixels?
+    public var style: Style
+    public var decoration: Decoration
+    public var elementID: ElementID?
+    public var handlers: Handlers
 
     public init(content: Content, width: Pixels? = nil, height: Pixels? = nil) {
         self.content = content
-        self.width = width
-        self.height = height
+        var style = Style()
+        style.alignItems = .center
+        style.justifyContent = .center
+        if let width { style.size.width = .length(.pixels(width)) }
+        if let height { style.size.height = .length(.pixels(height)) }
+        self.style = style
+        self.decoration = Decoration()
+        self.elementID = nil
+        self.handlers = Handlers()
     }
 
     public struct Layout {
@@ -28,11 +37,7 @@ public struct FrameModifier<Content: ElementGroup>: Element {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
                                                                    pass: &pass)
-        var style = Style()
-        style.alignItems = .center
-        style.justifyContent = .center
-        if let width { style.size.width = .length(.pixels(width)) }
-        if let height { style.size.height = .length(.pixels(height)) }
+        (style, decoration) = animated(style, decoration, for: id, pass: &pass)
         let node = pass.requestNode(style: style, children: children)
         return (node, Layout(node: node, content: contentLayout))
     }
@@ -40,12 +45,16 @@ public struct FrameModifier<Content: ElementGroup>: Element {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        content.prepaintGroup(layout: &layout.content, pass: &pass)
+        pass.registerHandlers(handlers, at: bounds, id: id)
+        return content.prepaintGroup(layout: &layout.content, pass: &pass)
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
+        if let color = animatedBackground(decoration, for: id, pass: &pass) {
+            pass.fill(bounds, color: color, cornerRadii: Corners(all: decoration.cornerRadius))
+        }
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
     }
 }
