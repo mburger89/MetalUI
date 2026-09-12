@@ -1069,6 +1069,11 @@ public final class Frame {
         tree.newNativeOverlay(children: children)
     }
 
+    func requestNativeFrame(child: LayoutNodeID, width: Double? = nil,
+                            height: Double? = nil) -> LayoutNodeID {
+        tree.newNativeFrame(child: child, width: width, height: height)
+    }
+
     /// Reads back a node's current `Style` — `StyledComponent`'s read half of
     /// amend-in-place (`Component.swift`), the first production caller of
     /// `LayoutTree.setStyle`'s sibling `style(_:)`.

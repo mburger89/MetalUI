@@ -123,6 +123,20 @@ public final class LayoutTree {
         return id
     }
 
+    /// Registers a native fixed frame around exactly one native child.
+    ///
+    /// A fixed axis is proposed to the child and becomes the frame's measured
+    /// size; an optional axis forwards the parent's proposal and adopts the
+    /// child's response. Placement centres the child inside the resulting
+    /// frame, matching SwiftUI's default frame alignment.
+    public func newNativeFrame(child: LayoutNodeID, width: Double? = nil,
+                               height: Double? = nil) -> LayoutNodeID {
+        _ = nativeNode(child)
+        let id = newNode(style: .default, children: [child])
+        nativeNodes[id.index] = .frame(width: width, height: height)
+        return id
+    }
+
     /// Measures and places one all-native subtree into the existing rect store.
     ///
     /// `bounds` is root-absolute, matching the contract `Frame.bounds(of:)`
@@ -259,6 +273,15 @@ public final class LayoutTree {
                                 height: max(current.size.height, childMeasurement.size.height))
                 )
             }
+        case .frame(let width, let height):
+            let childProposal = ProposedSize(width: width ?? proposal.width,
+                                             height: height ?? proposal.height)
+            let child = measureNative(children(id)[0], proposal: childProposal, cache: &cache)
+            result = LayoutMeasurement(
+                size: SizeD(width: width ?? child.size.width, height: height ?? child.size.height),
+                firstBaseline: child.firstBaseline.map { $0 + (height.map { ($0 - child.size.height) / 2 } ?? 0) },
+                lastBaseline: child.lastBaseline.map { $0 + (height.map { ($0 - child.size.height) / 2 } ?? 0) }
+            )
         }
         cache[key] = result
         return result
@@ -268,14 +291,27 @@ public final class LayoutTree {
                              proposal: ProposedSize,
                              cache: inout [NativeMeasurementKey: LayoutMeasurement]) {
         setLayout(id, bounds)
-        guard case .overlay = nativeNode(id) else { return }
-
-        for child in children(id) {
-            let measurement = measureNative(child, proposal: proposal, cache: &cache)
+        switch nativeNode(id) {
+        case .leaf:
+            return
+        case .overlay:
+            for child in children(id) {
+                let measurement = measureNative(child, proposal: proposal, cache: &cache)
+                placeNative(child,
+                            in: LayoutRect(x: bounds.x, y: bounds.y,
+                                           width: measurement.size.width, height: measurement.size.height),
+                            proposal: proposal, cache: &cache)
+            }
+        case .frame(let width, let height):
+            let childProposal = ProposedSize(width: width ?? proposal.width,
+                                             height: height ?? proposal.height)
+            let child = children(id)[0]
+            let measurement = measureNative(child, proposal: childProposal, cache: &cache)
             placeNative(child,
-                        in: LayoutRect(x: bounds.x, y: bounds.y,
+                        in: LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) / 2,
+                                       y: bounds.y + (bounds.height - measurement.size.height) / 2,
                                        width: measurement.size.width, height: measurement.size.height),
-                        proposal: proposal, cache: &cache)
+                        proposal: childProposal, cache: &cache)
         }
     }
 }
@@ -285,6 +321,7 @@ public typealias NativeMeasureFunction = @Sendable (ProposedSize) -> LayoutMeasu
 private enum NativeNode {
     case leaf(NativeMeasureFunction)
     case overlay
+    case frame(width: Double?, height: Double?)
 }
 
 private struct NativeMeasurementKey: Hashable {

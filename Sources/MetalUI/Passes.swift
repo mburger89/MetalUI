@@ -66,6 +66,12 @@ public struct LayoutPass {
         frame.requestNativeOverlay(children: children)
     }
 
+    /// Registers a native SwiftUI-style frame around one native child.
+    public func requestNativeFrame(child: LayoutNodeID, width: Double? = nil,
+                                   height: Double? = nil) -> LayoutNodeID {
+        frame.requestNativeFrame(child: child, width: width, height: height)
+    }
+
     /// Reads back a node's current `Style`, so a caller that registered a node
     /// earlier in this same layout pass can amend rather than replace it.
     /// `StyledComponent`'s only production caller (`Component.swift`).
