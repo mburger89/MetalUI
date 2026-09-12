@@ -1074,6 +1074,11 @@ public final class Frame {
         tree.newNativeFrame(child: child, width: width, height: height)
     }
 
+    func requestNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
+                                  spacing: Double = 0) -> LayoutNodeID {
+        tree.newNativeLinearStack(children: children, axis: axis, spacing: spacing)
+    }
+
     /// Reads back a node's current `Style` — `StyledComponent`'s read half of
     /// amend-in-place (`Component.swift`), the first production caller of
     /// `LayoutTree.setStyle`'s sibling `style(_:)`.

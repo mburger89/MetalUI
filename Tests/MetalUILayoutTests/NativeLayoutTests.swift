@@ -75,3 +75,54 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     #expect(measurement.size == SizeD(width: 100, height: 12))
     #expect(tree.layout(child) == LayoutRect(x: 40, y: 9, width: 30, height: 12))
 }
+
+/// A horizontal stack leaves its main axis unspecified for each child, forwards
+/// the parent's cross-axis proposal, sums widths plus gaps, and centres each
+/// unequal child vertically in the placement rectangle.
+@Test func aNativeHorizontalStackForwardsItsCrossProposalMeasuresAndPlacesInOrder() {
+    let tree = LayoutTree(generation: 0)
+    let first = tree.newNativeLeaf { proposal in
+        #expect(proposal == ProposedSize(width: nil, height: 80))
+        return LayoutMeasurement(size: SizeD(width: 30, height: 10))
+    }
+    let second = tree.newNativeLeaf { proposal in
+        #expect(proposal == ProposedSize(width: nil, height: 80))
+        return LayoutMeasurement(size: SizeD(width: 50, height: 40))
+    }
+    let stack = tree.newNativeLinearStack(children: [first, second], axis: .horizontal,
+                                           spacing: 7)
+
+    let measurement = tree.computeNativeLayout(
+        root: stack,
+        proposal: ProposedSize(width: 120, height: 80),
+        in: LayoutRect(x: 13, y: 17, width: 120, height: 80)
+    )
+
+    #expect(measurement.size == SizeD(width: 87, height: 40))
+    #expect(tree.layout(first) == LayoutRect(x: 13, y: 52, width: 30, height: 10))
+    #expect(tree.layout(second) == LayoutRect(x: 50, y: 37, width: 50, height: 40))
+}
+
+@Test func aNativeVerticalStackForwardsItsCrossProposalMeasuresAndPlacesInOrder() {
+    let tree = LayoutTree(generation: 0)
+    let first = tree.newNativeLeaf { proposal in
+        #expect(proposal == ProposedSize(width: 120, height: nil))
+        return LayoutMeasurement(size: SizeD(width: 30, height: 10))
+    }
+    let second = tree.newNativeLeaf { proposal in
+        #expect(proposal == ProposedSize(width: 120, height: nil))
+        return LayoutMeasurement(size: SizeD(width: 50, height: 40))
+    }
+    let stack = tree.newNativeLinearStack(children: [first, second], axis: .vertical,
+                                           spacing: 5)
+
+    let measurement = tree.computeNativeLayout(
+        root: stack,
+        proposal: ProposedSize(width: 120, height: 80),
+        in: LayoutRect(x: 13, y: 17, width: 120, height: 80)
+    )
+
+    #expect(measurement.size == SizeD(width: 50, height: 55))
+    #expect(tree.layout(first) == LayoutRect(x: 58, y: 17, width: 30, height: 10))
+    #expect(tree.layout(second) == LayoutRect(x: 48, y: 32, width: 50, height: 40))
+}

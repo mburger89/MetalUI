@@ -72,6 +72,12 @@ public struct LayoutPass {
         frame.requestNativeFrame(child: child, width: width, height: height)
     }
 
+    /// Registers a native linear stack for the proposal-layout migration.
+    public func requestNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
+                                         spacing: Double = 0) -> LayoutNodeID {
+        frame.requestNativeLinearStack(children: children, axis: axis, spacing: spacing)
+    }
+
     /// Reads back a node's current `Style`, so a caller that registered a node
     /// earlier in this same layout pass can amend rather than replace it.
     /// `StyledComponent`'s only production caller (`Component.swift`).

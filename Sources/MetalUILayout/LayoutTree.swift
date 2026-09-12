@@ -137,6 +137,15 @@ public final class LayoutTree {
         return id
     }
 
+    /// Registers a native linear stack with explicit inter-item spacing.
+    public func newNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
+                                     spacing: Double = 0) -> LayoutNodeID {
+        for child in children { _ = nativeNode(child) }
+        let id = newNode(style: .default, children: children)
+        nativeNodes[id.index] = .linearStack(axis: axis, spacing: spacing)
+        return id
+    }
+
     /// Measures and places one all-native subtree into the existing rect store.
     ///
     /// `bounds` is root-absolute, matching the contract `Frame.bounds(of:)`
@@ -282,6 +291,24 @@ public final class LayoutTree {
                 firstBaseline: child.firstBaseline.map { $0 + (height.map { ($0 - child.size.height) / 2 } ?? 0) },
                 lastBaseline: child.lastBaseline.map { $0 + (height.map { ($0 - child.size.height) / 2 } ?? 0) }
             )
+        case .linearStack(let axis, let spacing):
+            let childProposal = stackChildProposal(for: axis, parent: proposal)
+            let childMeasurements = children(id).map {
+                measureNative($0, proposal: childProposal, cache: &cache)
+            }
+            let gaps = Double(max(0, childMeasurements.count - 1)) * spacing
+            switch axis {
+            case .horizontal:
+                result = LayoutMeasurement(
+                    size: SizeD(width: childMeasurements.reduce(gaps) { $0 + $1.size.width },
+                                height: childMeasurements.map(\.size.height).max() ?? 0)
+                )
+            case .vertical:
+                result = LayoutMeasurement(
+                    size: SizeD(width: childMeasurements.map(\.size.width).max() ?? 0,
+                                height: childMeasurements.reduce(gaps) { $0 + $1.size.height })
+                )
+            }
         }
         cache[key] = result
         return result
@@ -312,16 +339,49 @@ public final class LayoutTree {
                                        y: bounds.y + (bounds.height - measurement.size.height) / 2,
                                        width: measurement.size.width, height: measurement.size.height),
                         proposal: childProposal, cache: &cache)
+        case .linearStack(let axis, let spacing):
+            let childProposal = stackChildProposal(for: axis, parent: proposal)
+            var cursor = axis == .horizontal ? bounds.x : bounds.y
+            for child in children(id) {
+                let measurement = measureNative(child, proposal: childProposal, cache: &cache)
+                let childBounds: LayoutRect
+                switch axis {
+                case .horizontal:
+                    childBounds = LayoutRect(x: cursor,
+                                             y: bounds.y + (bounds.height - measurement.size.height) / 2,
+                                             width: measurement.size.width, height: measurement.size.height)
+                    cursor += measurement.size.width + spacing
+                case .vertical:
+                    childBounds = LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) / 2,
+                                             y: cursor,
+                                             width: measurement.size.width, height: measurement.size.height)
+                    cursor += measurement.size.height + spacing
+                }
+                placeNative(child, in: childBounds, proposal: childProposal, cache: &cache)
+            }
+        }
+    }
+
+    private func stackChildProposal(for axis: NativeStackAxis, parent: ProposedSize) -> ProposedSize {
+        switch axis {
+        case .horizontal: ProposedSize(width: nil, height: parent.height)
+        case .vertical: ProposedSize(width: parent.width, height: nil)
         }
     }
 }
 
 public typealias NativeMeasureFunction = @Sendable (ProposedSize) -> LayoutMeasurement
 
+public enum NativeStackAxis: Sendable, Hashable {
+    case horizontal
+    case vertical
+}
+
 private enum NativeNode {
     case leaf(NativeMeasureFunction)
     case overlay
     case frame(width: Double?, height: Double?)
+    case linearStack(axis: NativeStackAxis, spacing: Double)
 }
 
 private struct NativeMeasurementKey: Hashable {
