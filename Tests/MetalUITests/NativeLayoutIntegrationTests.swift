@@ -300,3 +300,26 @@ private struct NativeProposalProbe: Element {
     #expect(rect.contentMask.size.height == 10)
     #expect(rect.maskCornerRadii.topLeft == 3)
 }
+
+@MainActor
+@Test func nativeBorderPaintsOverContentWithoutChangingItsFrame() {
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 2,
+                      theme: .light)
+    var root = NativeOverlay {
+        NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
+            .nativeBorder(.separator, width: Pixels(2), cornerRadius: Pixels(3))
+    }
+
+    frame.render(&root)
+
+    let rects = frame.finalizedScene().rects
+    #expect(rects.count == 2)
+    #expect(rects[0].bounds.size.width == 40)
+    #expect(rects[0].bounds.size.height == 20)
+    #expect(rects[0].background.h == Theme.light.accent.h)
+    #expect(rects[1].background.a == 0)
+    #expect(rects[1].borderColor.h == Theme.light.separator.h)
+    #expect(rects[1].borderWidths.top == 4)
+    #expect(rects[1].borderWidths.right == 4)
+    #expect(rects[1].cornerRadii.topLeft == 6)
+}

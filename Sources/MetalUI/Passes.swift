@@ -536,8 +536,11 @@ public struct PaintPass {
     /// geometry a caller outside any `clipped` block would pass, and the two
     /// look identical to a caller either way, which is the point.
     public func fill(_ bounds: Bounds<Pixels>, color: Hsla,
-                     cornerRadii: Corners<Pixels> = Corners(all: Pixels(0))) {
-        frame.fill(bounds, color: color, cornerRadii: cornerRadii)
+                     cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
+                     borderColor: Hsla = .transparent,
+                     borderWidths: Edges<Pixels> = Edges(all: Pixels(0))) {
+        frame.fill(bounds, color: color, cornerRadii: cornerRadii,
+                   borderColor: borderColor, borderWidths: borderWidths)
     }
 
     /// Runs `body` with `bounds` intersected into the active clip and `offset`

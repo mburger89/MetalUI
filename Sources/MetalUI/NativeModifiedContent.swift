@@ -15,6 +15,7 @@ public enum NativeLayoutModifier: Sendable {
     case fixedSize(horizontal: Bool = true, vertical: Bool = true)
     case background(ColorToken)
     case clip(cornerRadius: Pixels = Pixels(0))
+    case border(ColorToken, width: Pixels, cornerRadius: Pixels = Pixels(0))
 }
 
 /// A typed native modifier wrapper, analogous to SwiftUI's `ModifiedContent`.
@@ -74,6 +75,10 @@ public struct NativeModifiedContent<Content: ElementGroup>: Element {
         } else {
             content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
         }
+        if case let .border(token, width, cornerRadius) = modifier {
+            pass.fill(bounds, color: .transparent, cornerRadii: Corners(all: cornerRadius),
+                      borderColor: pass.theme[token], borderWidths: Edges(all: width))
+        }
     }
 
     private func nativeWrapperNode(for children: [LayoutNodeID], pass: inout LayoutPass) -> LayoutNodeID {
@@ -105,6 +110,8 @@ public struct NativeModifiedContent<Content: ElementGroup>: Element {
             // paint while preserving modifier nesting in the element tree.
             return child
         case .clip:
+            return child
+        case .border:
             return child
         }
     }
@@ -146,5 +153,12 @@ extension ElementGroup {
     /// Clips this native subtree to its resolved bounds.
     public func nativeClip(cornerRadius: Pixels = Pixels(0)) -> NativeModifiedContent<Self> {
         NativeModifiedContent(content: self, modifier: .clip(cornerRadius: cornerRadius))
+    }
+
+    /// Draws a border over this native subtree without changing its layout.
+    public func nativeBorder(_ token: ColorToken, width: Pixels,
+                             cornerRadius: Pixels = Pixels(0)) -> NativeModifiedContent<Self> {
+        NativeModifiedContent(content: self,
+                              modifier: .border(token, width: width, cornerRadius: cornerRadius))
     }
 }

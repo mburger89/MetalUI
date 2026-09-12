@@ -1186,7 +1186,9 @@ public final class Frame {
     /// CLAUDE.md's percentage-inset constraint records. Storing the resolved
     /// edges on `LayoutTree` is what unblocks it.
     func fill(_ bounds: Bounds<Pixels>, color: Hsla,
-              cornerRadii: Corners<Pixels> = Corners(all: Pixels(0))) {
+              cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
+              borderColor: Hsla = .transparent,
+              borderWidths: Edges<Pixels> = Edges(all: Pixels(0))) {
         let translated = Bounds(
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
@@ -1196,9 +1198,12 @@ public final class Frame {
             contentMask: activeClip.scaled(by: scaleFactor),
             maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
             background: color,
-            borderColor: .transparent,
+            borderColor: borderColor,
             cornerRadii: cornerRadii.scaled(by: scaleFactor),
-            borderWidths: Edges(all: ScaledPixels(0)),
+            borderWidths: Edges(top: borderWidths.top.scaled(by: scaleFactor),
+                                right: borderWidths.right.scaled(by: scaleFactor),
+                                bottom: borderWidths.bottom.scaled(by: scaleFactor),
+                                left: borderWidths.left.scaled(by: scaleFactor)),
             order: 0), layer: activeLayer)
     }
 
