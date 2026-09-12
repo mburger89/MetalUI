@@ -177,6 +177,32 @@ private struct NativeProposalProbe: Element {
 }
 
 @MainActor
+@Test func chainedNativeFramesPreserveTheirDeclarationOrder() {
+    let firstProbe = NativeLayoutProbe()
+    let secondProbe = NativeLayoutProbe()
+    let firstFrame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    let secondFrame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    var first = NativeOverlay {
+        NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: firstProbe, name: "trailing")
+            .nativeFrame(width: Pixels(80), height: Pixels(50), alignment: .topLeading)
+            .nativeFrame(width: Pixels(40), height: Pixels(30), alignment: .bottomTrailing)
+    }
+    var second = NativeOverlay {
+        NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: secondProbe, name: "trailing")
+            .nativeFrame(width: Pixels(40), height: Pixels(30), alignment: .bottomTrailing)
+            .nativeFrame(width: Pixels(80), height: Pixels(50), alignment: .topLeading)
+    }
+
+    firstFrame.render(&first)
+    secondFrame.render(&second)
+
+    #expect(firstProbe.prepaintBounds == Bounds(origin: Point(x: Pixels(-10), y: Pixels(5)),
+                                                 size: Size(width: Pixels(20), height: Pixels(10))))
+    #expect(secondProbe.prepaintBounds == Bounds(origin: Point(x: Pixels(30), y: Pixels(35)),
+                                                  size: Size(width: Pixels(20), height: Pixels(10))))
+}
+
+@MainActor
 @Test func builderNativeFrameExposesTheSharedFlexibleSizingSurface() {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(120), height: Pixels(80)), scaleFactor: 1)
