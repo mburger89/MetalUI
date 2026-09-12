@@ -1,5 +1,6 @@
 import MetalUI
 import Observation
+import Foundation
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -876,15 +877,57 @@ func demoContent() -> some Element {
     .background(.background)
 }
 
+/// A deliberately all-native preview of the migration path.
+///
+/// Run `METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo` to open this
+/// instead of the established CSS-layout milestone demo. Its visible geometry
+/// is formed only by native proposal/layout/placement nodes: overlays, frames,
+/// padding, stacks, and a flexible spacer. The rectangles are intentionally
+/// simple until text and interactive styling cross the same boundary.
+@MainActor
+func nativeLayoutPreviewContent() -> some Element {
+    NativeOverlay {
+        NativeRectangle(width: Pixels(920), height: Pixels(560), color: .background)
+        NativeFrame(width: Pixels(640), height: Pixels(360)) {
+            NativeOverlay {
+                NativeRectangle(width: Pixels(640), height: Pixels(360), color: .surface)
+                NativePadding(Edges(all: Pixels(36))) {
+                    NativeColumn(spacing: Pixels(20), alignment: .leading) {
+                        NativeRow(spacing: Pixels(16)) {
+                            NativeRectangle(width: Pixels(72), height: Pixels(72), color: .accent)
+                            NativeRectangle(width: Pixels(420), height: Pixels(18), color: .surfaceSecondary)
+                        }
+                        NativeSpacer()
+                        NativeRow(spacing: Pixels(12)) {
+                            NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
+                            NativeRectangle(width: Pixels(168), height: Pixels(64), color: .accent)
+                            NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @MainActor
 func runDemo() throws {
     let app = try App()
 
+    let nativeLayoutPreview = ProcessInfo.processInfo.environment["METALUI_NATIVE_LAYOUT_PREVIEW"] == "1"
+
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
-    let window = try app.openWindow(title: "MetalUI — Milestones 1 to 3",
+    let window: Window
+    if nativeLayoutPreview {
+        window = try app.openWindow(title: "MetalUI — Native Layout Preview",
+                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    content: nativeLayoutPreviewContent)
+    } else {
+        window = try app.openWindow(title: "MetalUI — Milestones 1 to 3",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: demoContent)
+    }
 
     // **Every key this demo binds goes through the window's keymap**, and the
     // ad-hoc `onInput` switch that used to hold space and M is gone. That is
