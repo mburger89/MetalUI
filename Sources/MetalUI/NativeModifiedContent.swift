@@ -1,11 +1,11 @@
 import MetalUICore
 import MetalUILayout
 
-/// The native proposal-layout modifiers currently supported by MetalUI.
+/// The native proposal-layout and paint modifiers currently supported by MetalUI.
 ///
 /// This is intentionally a closed value set rather than a public protocol
 /// whose requirements expose `LayoutNodeID`. A caller composes typed values;
-/// only MetalUI translates them into native layout nodes during layout.
+/// only MetalUI translates their layout effects into native nodes during layout.
 public enum NativeLayoutModifier: Sendable {
     case frame(width: Pixels? = nil, height: Pixels? = nil,
                minWidth: Pixels? = nil, idealWidth: Pixels? = nil, maxWidth: Pixels? = nil,
@@ -13,6 +13,7 @@ public enum NativeLayoutModifier: Sendable {
                alignment: NativeAlignment = .center)
     case padding(Edges<Pixels>)
     case fixedSize(horizontal: Bool = true, vertical: Bool = true)
+    case background(ColorToken)
 }
 
 /// A typed native modifier wrapper, analogous to SwiftUI's `ModifiedContent`.
@@ -53,6 +54,9 @@ public struct NativeModifiedContent<Content: ElementGroup>: Element {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
+        if case let .background(token) = modifier {
+            pass.fill(bounds, color: pass.theme[token], cornerRadii: Corners(all: Pixels(0)))
+        }
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
     }
 
@@ -79,6 +83,11 @@ public struct NativeModifiedContent<Content: ElementGroup>: Element {
             )
         case let .fixedSize(horizontal, vertical):
             return pass.requestNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
+        case .background:
+            // A background has no independent layout footprint. Returning the
+            // content node lets the wrapper observe its resolved bounds during
+            // paint while preserving modifier nesting in the element tree.
+            return child
         }
     }
 }
@@ -108,5 +117,11 @@ extension ElementGroup {
     public func nativeFixedSize(horizontal: Bool = true, vertical: Bool = true)
         -> NativeModifiedContent<Self> {
         NativeModifiedContent(content: self, modifier: .fixedSize(horizontal: horizontal, vertical: vertical))
+    }
+
+    /// Paints a semantic token behind this native subtree without changing its
+    /// proposal, measurement, or placement.
+    public func nativeBackground(_ token: ColorToken) -> NativeModifiedContent<Self> {
+        NativeModifiedContent(content: self, modifier: .background(token))
     }
 }

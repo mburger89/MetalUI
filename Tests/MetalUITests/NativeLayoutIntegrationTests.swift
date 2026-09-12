@@ -211,3 +211,29 @@ private struct NativeProposalProbe: Element {
     #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(45), y: Pixels(35)),
                                            size: Size(width: Pixels(30), height: Pixels(10))))
 }
+
+@MainActor
+@Test func nativeBackgroundWrapsTheResolvedOuterBoundsAndPaintsBeforeItsContent() {
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1,
+                      theme: .light)
+    var root = NativeOverlay {
+        NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
+            .nativePadding(Edges(all: Pixels(5)))
+            .nativeBackground(.surface)
+    }
+
+    frame.render(&root)
+
+    let rects = frame.finalizedScene().rects
+    #expect(rects.count == 2)
+    #expect(rects[0].bounds.origin.x == 35)
+    #expect(rects[0].bounds.origin.y == 30)
+    #expect(rects[0].bounds.size.width == 30)
+    #expect(rects[0].bounds.size.height == 20)
+    #expect(rects[0].background.h == Theme.light.surface.h)
+    #expect(rects[1].bounds.origin.x == 40)
+    #expect(rects[1].bounds.origin.y == 35)
+    #expect(rects[1].bounds.size.width == 20)
+    #expect(rects[1].bounds.size.height == 10)
+    #expect(rects[1].background.h == Theme.light.accent.h)
+}
