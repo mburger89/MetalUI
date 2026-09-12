@@ -888,25 +888,23 @@ func demoContent() -> some Element {
 func nativeLayoutPreviewContent() -> some Element {
     NativeOverlay {
         NativeColorFill(.background)
-        NativePadding(Edges(all: Pixels(48))) {
-            NativeOverlay {
-                NativeColorFill(.surface)
-                NativePadding(Edges(all: Pixels(36))) {
-                    NativeColumn(spacing: Pixels(20), alignment: .leading) {
-                        NativeRow(spacing: Pixels(16)) {
-                            NativeRectangle(width: Pixels(72), height: Pixels(72), color: .accent)
-                            NativeRectangle(width: Pixels(420), height: Pixels(18), color: .surfaceSecondary)
-                        }
-                        NativeSpacer()
-                        NativeRow(spacing: Pixels(12)) {
-                            NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
-                            NativeRectangle(width: Pixels(168), height: Pixels(64), color: .accent)
-                            NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
-                        }
-                    }
+        NativeOverlay {
+            NativeColorFill(.surface)
+            NativeColumn(spacing: Pixels(20), alignment: .leading) {
+                NativeRow(spacing: Pixels(16)) {
+                    NativeRectangle(width: Pixels(72), height: Pixels(72), color: .accent)
+                    NativeRectangle(width: Pixels(420), height: Pixels(18), color: .surfaceSecondary)
+                }
+                NativeSpacer()
+                NativeRow(spacing: Pixels(12)) {
+                    NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
+                    NativeRectangle(width: Pixels(168), height: Pixels(64), color: .accent)
+                    NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
                 }
             }
+            .nativePadding(Edges(all: Pixels(36)))
         }
+        .nativePadding(Edges(all: Pixels(48)))
     }
 }
 

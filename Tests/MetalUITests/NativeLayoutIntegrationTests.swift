@@ -137,3 +137,20 @@ private struct NativeFillProbe: Element {
     #expect(NativeColorFill.measurement(for: ProposedSize(width: 240, height: 160)).size ==
             SizeD(width: 240, height: 160))
 }
+
+@MainActor
+@Test func nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder() {
+    let probe = NativeLayoutProbe()
+    let stored: NativeModifiedContent<NativeProbeLeaf> = NativeProbeLeaf(
+        size: SizeD(width: 20, height: 10), probe: probe, name: "trailing"
+    ).nativeFrame(width: Pixels(40), height: Pixels(30), alignment: .bottomTrailing)
+    var root: NativeModifiedContent<NativeModifiedContent<NativeProbeLeaf>> = stored
+        .nativePadding(Edges(all: Pixels(5)))
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+
+    frame.render(&root)
+
+    #expect(frame.tree.nodeCount == 3)
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(75), y: Pixels(65)),
+                                           size: Size(width: Pixels(20), height: Pixels(10))))
+}
