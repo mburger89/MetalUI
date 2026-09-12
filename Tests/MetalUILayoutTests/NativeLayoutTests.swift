@@ -159,6 +159,23 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     #expect(tree.layout(child) == LayoutRect(x: 10, y: 14, width: 30, height: 10))
 }
 
+@Test func aNativeFrameWithInfiniteMaximumExpandsToItsFiniteProposal() {
+    let tree = LayoutTree(generation: 0)
+    let child = tree.newNativeLeaf { proposal in
+        #expect(proposal == ProposedSize(width: 120, height: 80))
+        return LayoutMeasurement(size: SizeD(width: 30, height: 10))
+    }
+    let frame = tree.newNativeFrame(child: child, maxWidth: .infinity, maxHeight: .infinity)
+
+    let measurement = tree.computeNativeLayout(
+        root: frame, proposal: ProposedSize(width: 120, height: 80),
+        in: LayoutRect(x: 0, y: 0, width: 120, height: 80)
+    )
+
+    #expect(measurement.size == SizeD(width: 120, height: 80))
+    #expect(tree.layout(child) == LayoutRect(x: 45, y: 35, width: 30, height: 10))
+}
+
 @Test func aNativePaddingInsetsConcreteProposalsExpandsMeasurementsAndOffsetsBaselines() {
     let tree = LayoutTree(generation: 0)
     let child = tree.newNativeLeaf { proposal in
