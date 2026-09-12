@@ -134,14 +134,28 @@ public struct NativeFrame<Content: ElementGroup>: Element {
     public var content: Content
     public var width: Pixels?
     public var height: Pixels?
+    public var minWidth: Pixels?
+    public var idealWidth: Pixels?
+    public var maxWidth: Pixels?
+    public var minHeight: Pixels?
+    public var idealHeight: Pixels?
+    public var maxHeight: Pixels?
     public var alignment: NativeAlignment
 
     public init(width: Pixels? = nil, height: Pixels? = nil,
+                minWidth: Pixels? = nil, idealWidth: Pixels? = nil, maxWidth: Pixels? = nil,
+                minHeight: Pixels? = nil, idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
                 alignment: NativeAlignment = .center,
                 @ElementBuilder content: () -> Content) {
         self.content = content()
         self.width = width
         self.height = height
+        self.minWidth = minWidth
+        self.idealWidth = idealWidth
+        self.maxWidth = maxWidth
+        self.minHeight = minHeight
+        self.idealHeight = idealHeight
+        self.maxHeight = maxHeight
         self.alignment = alignment
     }
 
@@ -156,8 +170,13 @@ public struct NativeFrame<Content: ElementGroup>: Element {
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
                                                                    pass: &pass)
         precondition(children.count == 1, "NativeFrame content must contribute one native node")
-        let node = pass.requestNativeFrame(child: children[0], width: width.map { Double($0.value) },
-                                           height: height.map { Double($0.value) }, alignment: alignment)
+        let node = pass.requestNativeFrame(
+            child: children[0], width: width.map { Double($0.value) },
+            height: height.map { Double($0.value) }, minWidth: minWidth.map { Double($0.value) },
+            idealWidth: idealWidth.map { Double($0.value) }, maxWidth: maxWidth.map { Double($0.value) },
+            minHeight: minHeight.map { Double($0.value) }, idealHeight: idealHeight.map { Double($0.value) },
+            maxHeight: maxHeight.map { Double($0.value) }, alignment: alignment
+        )
         return (node, Layout(node: node, content: contentLayout))
     }
 

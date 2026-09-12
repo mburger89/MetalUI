@@ -154,3 +154,23 @@ private struct NativeFillProbe: Element {
     #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(75), y: Pixels(65)),
                                            size: Size(width: Pixels(20), height: Pixels(10))))
 }
+
+@MainActor
+@Test func builderNativeFrameExposesTheSharedFlexibleSizingSurface() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(120), height: Pixels(80)), scaleFactor: 1)
+    var root = NativeOverlay {
+        NativeFrame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity)) {
+            NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
+        }
+    }
+    let rootID = GlobalElementID.child(of: nil, at: 0, name: root.elementID)
+    var pass = LayoutPass(frame: frame)
+    let (node, _) = root.requestLayout(rootID, pass: &pass)
+
+    frame.computeRootLayout(root: node)
+
+    let framedNode = frame.tree.children(node)[0]
+    #expect(frame.bounds(of: framedNode) == Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                                             size: Size(width: Pixels(120), height: Pixels(80))))
+}
