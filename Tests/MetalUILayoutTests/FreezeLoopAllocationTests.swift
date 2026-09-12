@@ -155,6 +155,16 @@ private func shrinkContainer(fillers: Int) -> Double { 100 * Double(fillers + 1)
     try #require(calibration >= 16,
                  "the allocation counter saw \(calibration) of 16 buffers; nothing it reports can be trusted")
 
+    // TEMPORARY DIAGNOSTICS (2026-09-11): this test passes on the author's
+    // machine and fails on a GitHub macos-26-arm64 runner with the SAME Swift
+    // 6.3.3, reporting counts that rise with the items. `calibration` only
+    // requires `>= 16`, so an inflated counter passes it too. Counting a known
+    // 16 and a known 160 buffers separates the two explanations: a faithful
+    // counter reads about 16 and about 160, and an inflated one reads a
+    // multiple of each. Remove once the cause is known.
+    let calibration160 = try countAllocations { _ = allocateBuffers(160) }
+    print("FREEZE-ALLOC-DIAG known16=\(calibration) known160=\(calibration160)")
+
     let tree = LayoutTree(generation: 0)
     let passesPerLine = 2
 
@@ -178,6 +188,9 @@ private func shrinkContainer(fillers: Int) -> Double { 100 * Double(fillers + 1)
 
     let growFew = try grow(4), growMany = try grow(64)
     let shrinkFew = try shrink(4), shrinkMany = try shrink(64)
+
+    print("FREEZE-ALLOC-DIAG growFew=\(growFew) growMany=\(growMany)"
+          + " shrinkFew=\(shrinkFew) shrinkMany=\(shrinkMany) passes=\(passesPerLine)")
 
     #expect(growFew == growMany,
             "grow line (max violations): \(growFew) allocations at 7 items, \(growMany) at 67")
