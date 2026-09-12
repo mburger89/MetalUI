@@ -48,6 +48,7 @@ public final class LayoutTree {
     private var measures: [MeasureFunction?] = []
     private var layouts: [LayoutRect] = []
     private var measuredWidths: [Double] = []
+    private var nativeNodes: [Int: NativeNode] = [:]
 
     /// The stamp carried by every id this tree issues. Changed only by
     /// `reset(generation:)`, which is what makes the ids from before a reset
@@ -97,6 +98,44 @@ public final class LayoutTree {
         let id = newNode(style: style, children: [])
         measures[id.index] = measure
         return id
+    }
+
+    /// Registers a native leaf for the SwiftUI-style layout migration.
+    ///
+    /// Native nodes reuse this tree's generation-stamped ids and resolved-rect
+    /// storage. `Style.default` is temporary compatibility storage only: the
+    /// native engine never reads it.
+    func newNativeLeaf(measure: @escaping NativeMeasureFunction) -> LayoutNodeID {
+        let id = newNode(style: .default, children: [])
+        nativeNodes[id.index] = .leaf(measure)
+        return id
+    }
+
+    /// Registers the first native container: an unaligned overlay.
+    ///
+    /// Every child must already be native. This makes the migration boundary
+    /// structural: a native subtree cannot accidentally delegate one child back
+    /// into the CSS engine.
+    func newNativeOverlay(children: [LayoutNodeID]) -> LayoutNodeID {
+        for child in children { _ = nativeNode(child) }
+        let id = newNode(style: .default, children: children)
+        nativeNodes[id.index] = .overlay
+        return id
+    }
+
+    /// Measures and places one all-native subtree into the existing rect store.
+    ///
+    /// `bounds` is root-absolute, matching the contract `Frame.bounds(of:)`
+    /// already exposes to prepaint and paint. Measurements are cached only for
+    /// this call, keyed by both node and proposal; a later frame receives a new
+    /// tree and therefore a new cache.
+    @discardableResult
+    func computeNativeLayout(root: LayoutNodeID, proposal: ProposedSize,
+                             in bounds: LayoutRect) -> LayoutMeasurement {
+        var cache: [NativeMeasurementKey: LayoutMeasurement] = [:]
+        let result = measureNative(root, proposal: proposal, cache: &cache)
+        placeNative(root, in: bounds, proposal: proposal, cache: &cache)
+        return result
     }
 
     public func style(_ id: LayoutNodeID) -> Style { styles[slot(id)] }
@@ -172,6 +211,7 @@ public final class LayoutTree {
         measures.removeAll(keepingCapacity: true)
         layouts.removeAll(keepingCapacity: true)
         measuredWidths.removeAll(keepingCapacity: true)
+        nativeNodes.removeAll(keepingCapacity: true)
     }
 
     /// The storage index for `id`, after checking it belongs to this tree.
@@ -187,4 +227,62 @@ public final class LayoutTree {
                      """)
         return id.index
     }
+
+    private func nativeNode(_ id: LayoutNodeID) -> NativeNode {
+        let index = slot(id)
+        guard let node = nativeNodes[index] else {
+            preconditionFailure("native layout subtree contains a legacy node")
+        }
+        return node
+    }
+
+    private func measureNative(_ id: LayoutNodeID, proposal: ProposedSize,
+                               cache: inout [NativeMeasurementKey: LayoutMeasurement])
+        -> LayoutMeasurement {
+        let key = NativeMeasurementKey(id: id, proposal: proposal)
+        if let cached = cache[key] { return cached }
+
+        let result: LayoutMeasurement
+        switch nativeNode(id) {
+        case .leaf(let measure):
+            result = measure(proposal)
+        case .overlay:
+            result = children(id).reduce(LayoutMeasurement(size: .zero)) { current, child in
+                let childMeasurement = measureNative(child, proposal: proposal, cache: &cache)
+                return LayoutMeasurement(
+                    size: SizeD(width: max(current.size.width, childMeasurement.size.width),
+                                height: max(current.size.height, childMeasurement.size.height))
+                )
+            }
+        }
+        cache[key] = result
+        return result
+    }
+
+    private func placeNative(_ id: LayoutNodeID, in bounds: LayoutRect,
+                             proposal: ProposedSize,
+                             cache: inout [NativeMeasurementKey: LayoutMeasurement]) {
+        setLayout(id, bounds)
+        guard case .overlay = nativeNode(id) else { return }
+
+        for child in children(id) {
+            let measurement = measureNative(child, proposal: proposal, cache: &cache)
+            placeNative(child,
+                        in: LayoutRect(x: bounds.x, y: bounds.y,
+                                       width: measurement.size.width, height: measurement.size.height),
+                        proposal: proposal, cache: &cache)
+        }
+    }
+}
+
+typealias NativeMeasureFunction = @Sendable (ProposedSize) -> LayoutMeasurement
+
+private enum NativeNode {
+    case leaf(NativeMeasureFunction)
+    case overlay
+}
+
+private struct NativeMeasurementKey: Hashable {
+    let id: LayoutNodeID
+    let proposal: ProposedSize
 }
