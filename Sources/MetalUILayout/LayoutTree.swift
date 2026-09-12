@@ -105,7 +105,7 @@ public final class LayoutTree {
     /// Native nodes reuse this tree's generation-stamped ids and resolved-rect
     /// storage. `Style.default` is temporary compatibility storage only: the
     /// native engine never reads it.
-    func newNativeLeaf(measure: @escaping NativeMeasureFunction) -> LayoutNodeID {
+    public func newNativeLeaf(measure: @escaping NativeMeasureFunction) -> LayoutNodeID {
         let id = newNode(style: .default, children: [])
         nativeNodes[id.index] = .leaf(measure)
         return id
@@ -116,7 +116,7 @@ public final class LayoutTree {
     /// Every child must already be native. This makes the migration boundary
     /// structural: a native subtree cannot accidentally delegate one child back
     /// into the CSS engine.
-    func newNativeOverlay(children: [LayoutNodeID]) -> LayoutNodeID {
+    public func newNativeOverlay(children: [LayoutNodeID]) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
         let id = newNode(style: .default, children: children)
         nativeNodes[id.index] = .overlay
@@ -130,12 +130,17 @@ public final class LayoutTree {
     /// this call, keyed by both node and proposal; a later frame receives a new
     /// tree and therefore a new cache.
     @discardableResult
-    func computeNativeLayout(root: LayoutNodeID, proposal: ProposedSize,
-                             in bounds: LayoutRect) -> LayoutMeasurement {
+    public func computeNativeLayout(root: LayoutNodeID, proposal: ProposedSize,
+                                    in bounds: LayoutRect) -> LayoutMeasurement {
         var cache: [NativeMeasurementKey: LayoutMeasurement] = [:]
         let result = measureNative(root, proposal: proposal, cache: &cache)
         placeNative(root, in: bounds, proposal: proposal, cache: &cache)
         return result
+    }
+
+    /// Whether this node belongs to the native layout path.
+    public func isNativeLayoutNode(_ id: LayoutNodeID) -> Bool {
+        nativeNodes[slot(id)] != nil
     }
 
     public func style(_ id: LayoutNodeID) -> Style { styles[slot(id)] }
@@ -275,7 +280,7 @@ public final class LayoutTree {
     }
 }
 
-typealias NativeMeasureFunction = @Sendable (ProposedSize) -> LayoutMeasurement
+public typealias NativeMeasureFunction = @Sendable (ProposedSize) -> LayoutMeasurement
 
 private enum NativeNode {
     case leaf(NativeMeasureFunction)

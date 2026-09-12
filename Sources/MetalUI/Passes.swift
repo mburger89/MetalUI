@@ -51,6 +51,21 @@ public struct LayoutPass {
         frame.requestLeaf(style: style, measure: measure)
     }
 
+    /// Registers a leaf measured by the native SwiftUI-style layout path.
+    ///
+    /// The closure receives the parent's proposal rather than CSS known and
+    /// available spaces. A native root cannot contain a legacy child, so this
+    /// API establishes an explicit migration boundary instead of mixing the two
+    /// engines within one subtree.
+    public func requestNativeLeaf(measure: @escaping NativeMeasureFunction) -> LayoutNodeID {
+        frame.requestNativeLeaf(measure: measure)
+    }
+
+    /// Registers the native overlay container used by the first migration slice.
+    public func requestNativeOverlay(children: [LayoutNodeID]) -> LayoutNodeID {
+        frame.requestNativeOverlay(children: children)
+    }
+
     /// Reads back a node's current `Style`, so a caller that registered a node
     /// earlier in this same layout pass can amend rather than replace it.
     /// `StyledComponent`'s only production caller (`Component.swift`).

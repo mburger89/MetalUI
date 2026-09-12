@@ -1061,6 +1061,14 @@ public final class Frame {
         tree.newLeaf(style: style, measure: measure)
     }
 
+    func requestNativeLeaf(measure: @escaping NativeMeasureFunction) -> LayoutNodeID {
+        tree.newNativeLeaf(measure: measure)
+    }
+
+    func requestNativeOverlay(children: [LayoutNodeID]) -> LayoutNodeID {
+        tree.newNativeOverlay(children: children)
+    }
+
     /// Reads back a node's current `Style` — `StyledComponent`'s read half of
     /// amend-in-place (`Component.swift`), the first production caller of
     /// `LayoutTree.setStyle`'s sibling `style(_:)`.
@@ -1080,6 +1088,17 @@ public final class Frame {
     /// `prepaint`. Not reachable from any pass: elements contribute nodes, the
     /// frame runs the engine on the finished root.
     func computeRootLayout(root: LayoutNodeID) {
+        if tree.isNativeLayoutNode(root) {
+            _ = tree.computeNativeLayout(
+                root: root,
+                proposal: ProposedSize(width: Double(contentSize.width.value),
+                                       height: Double(contentSize.height.value)),
+                in: LayoutRect(x: 0, y: 0,
+                               width: Double(contentSize.width.value),
+                               height: Double(contentSize.height.value))
+            )
+            return
+        }
         computeLayout(
             tree,
             root: root,
