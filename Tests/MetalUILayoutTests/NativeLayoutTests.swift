@@ -196,6 +196,32 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     #expect(tree.layout(child) == LayoutRect(x: 5, y: 9, width: 30, height: 10))
 }
 
+@Test func aNativeLinearStackDividesConcreteSurplusBetweenSpacers() {
+    let tree = LayoutTree(generation: 0)
+    let leading = tree.newNativeLeaf { proposal in
+        #expect(proposal == ProposedSize(width: nil, height: 40))
+        return LayoutMeasurement(size: SizeD(width: 30, height: 10))
+    }
+    let spacer = tree.newNativeSpacer(minLength: 10)
+    let trailing = tree.newNativeLeaf { proposal in
+        #expect(proposal == ProposedSize(width: nil, height: 40))
+        return LayoutMeasurement(size: SizeD(width: 20, height: 10))
+    }
+    let stack = tree.newNativeLinearStack(children: [leading, spacer, trailing], axis: .horizontal,
+                                           spacing: 5)
+
+    let measurement = tree.computeNativeLayout(
+        root: stack,
+        proposal: ProposedSize(width: 100, height: 40),
+        in: LayoutRect(x: 0, y: 0, width: 100, height: 40)
+    )
+
+    #expect(measurement.size == SizeD(width: 100, height: 40))
+    #expect(tree.layout(leading) == LayoutRect(x: 0, y: 15, width: 30, height: 10))
+    #expect(tree.layout(spacer) == LayoutRect(x: 35, y: 0, width: 40, height: 40))
+    #expect(tree.layout(trailing) == LayoutRect(x: 80, y: 15, width: 20, height: 10))
+}
+
 /// A horizontal stack leaves its main axis unspecified for each child, forwards
 /// the parent's cross-axis proposal, sums widths plus gaps, and centres each
 /// unequal child vertically in the placement rectangle.

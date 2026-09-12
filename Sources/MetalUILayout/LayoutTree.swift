@@ -181,6 +181,17 @@ public final class LayoutTree {
         return id
     }
 
+    /// Registers a native flexible spacer with an optional minimum length.
+    ///
+    /// A spacer reports its minimum when its main axis is unspecified. Native
+    /// linear stacks recognise direct spacer children and divide any concrete
+    /// offered surplus among them during placement.
+    public func newNativeSpacer(minLength: Double? = nil) -> LayoutNodeID {
+        let id = newNode(style: .default, children: [])
+        nativeNodes[id.index] = .spacer(minLength: minLength ?? 0)
+        return id
+    }
+
     /// Registers a native linear stack with explicit inter-item spacing.
     ///
     /// A linear stack uses the supplied alignment only on its cross axis:
@@ -326,6 +337,11 @@ public final class LayoutTree {
         switch nativeNode(id) {
         case .leaf(let measure):
             result = measure(proposal)
+        case .spacer(let minLength):
+            result = LayoutMeasurement(size: SizeD(
+                width: spacerLength(for: proposal.width, minimum: minLength),
+                height: spacerLength(for: proposal.height, minimum: minLength)
+            ))
         case .overlay:
             result = children(id).reduce(LayoutMeasurement(size: .zero)) { current, child in
                 let childMeasurement = measureNative(child, proposal: proposal, cache: &cache)
@@ -365,16 +381,21 @@ public final class LayoutTree {
                 measureNative($0, proposal: childProposal, cache: &cache)
             }
             let gaps = Double(max(0, childMeasurements.count - 1)) * spacing
+            let hasSpacer = children(id).contains(where: isNativeSpacer)
             switch axis {
             case .horizontal:
+                let naturalWidth = childMeasurements.reduce(gaps) { $0 + $1.size.width }
                 result = LayoutMeasurement(
-                    size: SizeD(width: childMeasurements.reduce(gaps) { $0 + $1.size.width },
+                    size: SizeD(width: expandedStackMainSize(naturalWidth, proposal: proposal.width,
+                                                             hasSpacer: hasSpacer),
                                 height: childMeasurements.map(\.size.height).max() ?? 0)
                 )
             case .vertical:
+                let naturalHeight = childMeasurements.reduce(gaps) { $0 + $1.size.height }
                 result = LayoutMeasurement(
                     size: SizeD(width: childMeasurements.map(\.size.width).max() ?? 0,
-                                height: childMeasurements.reduce(gaps) { $0 + $1.size.height })
+                                height: expandedStackMainSize(naturalHeight, proposal: proposal.height,
+                                                              hasSpacer: hasSpacer))
                 )
             }
         }
@@ -387,7 +408,7 @@ public final class LayoutTree {
                              cache: inout [NativeMeasurementKey: LayoutMeasurement]) {
         setLayout(id, bounds)
         switch nativeNode(id) {
-        case .leaf:
+        case .leaf, .spacer:
             return
         case .overlay(let alignment):
             for child in children(id) {
@@ -429,9 +450,19 @@ public final class LayoutTree {
                         proposal: childProposal, cache: &cache)
         case .linearStack(let axis, let spacing, let alignment):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
+            let childMeasurements = children(id).map {
+                measureNative($0, proposal: childProposal, cache: &cache)
+            }
+            let naturalMain = stackMainSize(childMeasurements, axis: axis, spacing: spacing)
+            let spacerCount = children(id).filter(isNativeSpacer).count
+            let availableMain = axis == .horizontal ? bounds.width : bounds.height
+            let extraPerSpacer = spacerCount == 0 ? 0 : Swift.max(0, availableMain - naturalMain) / Double(spacerCount)
             var cursor = axis == .horizontal ? bounds.x : bounds.y
-            for child in children(id) {
-                let measurement = measureNative(child, proposal: childProposal, cache: &cache)
+            for (child, baseMeasurement) in zip(children(id), childMeasurements) {
+                let placementProposal = spacerProposal(for: child, base: baseMeasurement,
+                                                       parent: childProposal, axis: axis,
+                                                       extra: extraPerSpacer)
+                let measurement = measureNative(child, proposal: placementProposal, cache: &cache)
                 let childBounds: LayoutRect
                 switch axis {
                 case .horizontal:
@@ -445,7 +476,7 @@ public final class LayoutTree {
                                              width: measurement.size.width, height: measurement.size.height)
                     cursor += measurement.size.height + spacing
                 }
-                placeNative(child, in: childBounds, proposal: childProposal, cache: &cache)
+                placeNative(child, in: childBounds, proposal: placementProposal, cache: &cache)
             }
         }
     }
@@ -454,6 +485,40 @@ public final class LayoutTree {
         switch axis {
         case .horizontal: ProposedSize(width: nil, height: parent.height)
         case .vertical: ProposedSize(width: parent.width, height: nil)
+        }
+    }
+
+    private func isNativeSpacer(_ id: LayoutNodeID) -> Bool {
+        if case .spacer = nativeNode(id) { return true }
+        return false
+    }
+
+    private func spacerLength(for proposal: Double?, minimum: Double) -> Double {
+        guard let proposal, proposal.isFinite else { return minimum }
+        return Swift.max(minimum, proposal)
+    }
+
+    private func expandedStackMainSize(_ natural: Double, proposal: Double?, hasSpacer: Bool) -> Double {
+        guard hasSpacer, let proposal, proposal.isFinite else { return natural }
+        return Swift.max(natural, proposal)
+    }
+
+    private func stackMainSize(_ measurements: [LayoutMeasurement], axis: NativeStackAxis,
+                               spacing: Double) -> Double {
+        let gaps = Double(Swift.max(0, measurements.count - 1)) * spacing
+        switch axis {
+        case .horizontal: return measurements.reduce(gaps) { $0 + $1.size.width }
+        case .vertical: return measurements.reduce(gaps) { $0 + $1.size.height }
+        }
+    }
+
+    private func spacerProposal(for child: LayoutNodeID, base: LayoutMeasurement,
+                                parent: ProposedSize, axis: NativeStackAxis,
+                                extra: Double) -> ProposedSize {
+        guard isNativeSpacer(child) else { return parent }
+        switch axis {
+        case .horizontal: return ProposedSize(width: base.size.width + extra, height: parent.height)
+        case .vertical: return ProposedSize(width: parent.width, height: base.size.height + extra)
         }
     }
 
@@ -531,6 +596,7 @@ private enum NativeNode {
                maxHeight: Double?, alignment: NativeAlignment)
     case padding(insets: Edges<Double>)
     case fixedSize(horizontal: Bool, vertical: Bool)
+    case spacer(minLength: Double)
     case linearStack(axis: NativeStackAxis, spacing: Double, alignment: NativeAlignment)
 }
 

@@ -96,6 +96,11 @@ public struct LayoutPass {
         frame.requestNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
     }
 
+    /// Registers a native flexible spacer for a native linear stack.
+    public func requestNativeSpacer(minLength: Double? = nil) -> LayoutNodeID {
+        frame.requestNativeSpacer(minLength: minLength)
+    }
+
     /// Registers a native linear stack for the proposal-layout migration.
     public func requestNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
                                          spacing: Double = 0,

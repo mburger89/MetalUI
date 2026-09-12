@@ -1096,6 +1096,10 @@ public final class Frame {
         tree.newNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
     }
 
+    func requestNativeSpacer(minLength: Double? = nil) -> LayoutNodeID {
+        tree.newNativeSpacer(minLength: minLength)
+    }
+
     func requestNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
                                   spacing: Double = 0,
                                   alignment: NativeAlignment = .center) -> LayoutNodeID {
