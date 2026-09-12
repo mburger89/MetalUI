@@ -155,18 +155,26 @@ private func shrinkContainer(fillers: Int) -> Double { 100 * Double(fillers + 1)
     try #require(calibration >= 16,
                  "the allocation counter saw \(calibration) of 16 buffers; nothing it reports can be trusted")
 
-    // TEMPORARY DIAGNOSTICS (2026-09-11): this test passes on the author's
-    // machine and fails on a GitHub macos-26-arm64 runner with the SAME Swift
-    // 6.3.3, reporting counts that rise with the items. `calibration` only
-    // requires `>= 16`, so an inflated counter passes it too. Counting a known
-    // 16 and a known 160 buffers separates the two explanations: a faithful
-    // counter reads about 16 and about 160, and an inflated one reads a
-    // multiple of each. Remove once the cause is known.
-    let calibration160 = try countAllocations { _ = allocateBuffers(160) }
-    print("FREEZE-ALLOC-DIAG known16=\(calibration) known160=\(calibration160)")
-
     let tree = LayoutTree(generation: 0)
     let passesPerLine = 2
+
+    // **The toolchain's own floor, measured here rather than assumed.** Under
+    // Apple's swiftlang build of Swift (Xcode, and every GitHub macOS runner) a
+    // bare `for i in items.indices { sum += items[i].baseSize }` registers ONE
+    // allocation per element in a debug build; under a swift.org toolchain the
+    // same loop registers none. Measured 2026-09-11 with this counter on Swift
+    // 6.3.3 (swift-6.3.3-RELEASE) and 6.4 (swiftlang-6.4.0.34.1): 0 vs 67 at 67
+    // items, and 16 known buffers read as 16 and as 33. So on a swiftlang
+    // toolchain every loop in this function looks like an allocation per item,
+    // and an absolute bound measures the toolchain, not `resolveFlexibleLengths`.
+    func loopFloor(_ fillers: Int) throws -> Int {
+        let items = growLine(tree, fillers: fillers)
+        var sum = 0.0
+        _ = try countAllocations { for i in items.indices { sum += items[i].baseSize } }
+        let floor = try countAllocations { for i in items.indices { sum += items[i].baseSize } }
+        _ = sum
+        return floor
+    }
 
     func grow(_ fillers: Int) throws -> Int {
         var warm = growLine(tree, fillers: fillers)
@@ -185,19 +193,58 @@ private func shrinkContainer(fillers: Int) -> Double { 100 * Double(fillers + 1)
             resolveFlexibleLengths(tree, items: &items, containerMain: container, gap: 0)
         }
     }
+    /// The same line through the allocating spelling this change replaced, so
+    /// the comparison below is made with ONE instrument in ONE run.
+    func referenceGrow(_ fillers: Int) throws -> Int {
+        var branches = ReferenceBranches()
+        var warm = growLine(tree, fillers: fillers)
+        referenceResolveFlexibleLengths(tree, items: &warm, containerMain: 10_000,
+                                        gap: 0, branches: &branches)
+        var items = growLine(tree, fillers: fillers)
+        return try countAllocations {
+            referenceResolveFlexibleLengths(tree, items: &items, containerMain: 10_000,
+                                            gap: 0, branches: &branches)
+        }
+    }
 
+    let floorFew = try loopFloor(4), floorMany = try loopFloor(64)
     let growFew = try grow(4), growMany = try grow(64)
     let shrinkFew = try shrink(4), shrinkMany = try shrink(64)
+    let refFew = try referenceGrow(4), refMany = try referenceGrow(64)
 
-    print("FREEZE-ALLOC-DIAG growFew=\(growFew) growMany=\(growMany)"
-          + " shrinkFew=\(shrinkFew) shrinkMany=\(shrinkMany) passes=\(passesPerLine)")
+    // The instrument must see the shape it exists to measure: the spelling this
+    // change replaced allocates more as the line grows, on every toolchain.
+    try #require(refMany > refFew,
+                 "the allocating reference read \(refFew) at 7 items and \(refMany) at 67, so the counter cannot see this function's allocations at all")
 
-    #expect(growFew == growMany,
-            "grow line (max violations): \(growFew) allocations at 7 items, \(growMany) at 67")
-    #expect(shrinkFew == shrinkMany,
-            "shrink line (min violations): \(shrinkFew) allocations at 5 items, \(shrinkMany) at 65")
-    #expect(growMany <= passesPerLine, "grow line: \(growMany) allocations over \(passesPerLine) passes")
-    #expect(shrinkMany <= passesPerLine, "shrink line: \(shrinkMany) allocations over \(passesPerLine) passes")
+    // Portable half: the engine's spelling must cost far less than the one it
+    // replaced, and the saving must widen with the line.
+    #expect(growMany * 2 <= refMany,
+            "grow line at 67 items: engine \(growMany), allocating reference \(refMany)")
+    #expect(refMany - growMany > refFew - growFew,
+            "the saving must grow with the line: \(refFew - growFew) at 7 items, \(refMany - growMany) at 67")
+
+    if floorMany == 0 {
+        // Strict half, valid only where iteration itself allocates nothing.
+        #expect(growFew == growMany,
+                "grow line (max violations): \(growFew) allocations at 7 items, \(growMany) at 67")
+        #expect(shrinkFew == shrinkMany,
+                "shrink line (min violations): \(shrinkFew) allocations at 5 items, \(shrinkMany) at 65")
+        #expect(growMany <= passesPerLine,
+                "grow line: \(growMany) allocations over \(passesPerLine) passes")
+        #expect(shrinkMany <= passesPerLine,
+                "shrink line: \(shrinkMany) allocations over \(passesPerLine) passes")
+    } else {
+        // Say so out loud. A toolchain that hides the strict half must not look
+        // like one that passed it — this is the line to grep for in a CI log.
+        print("""
+            FREEZE-ALLOC: strict per-pass bound NOT CHECKED on this toolchain — a bare index \
+            loop allocates \(floorFew) at 7 items and \(floorMany) at 67, so every loop in \
+            resolveFlexibleLengths reads as one allocation per item. Relative half checked: \
+            engine \(growFew)/\(growMany) against reference \(refFew)/\(refMany). \
+            Run a swift.org toolchain for the strict half.
+            """)
+    }
 }
 
 /// Branch counts from `referenceResolveFlexibleLengths`, so the comparison

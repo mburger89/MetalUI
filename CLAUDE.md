@@ -530,6 +530,20 @@ Four guarantees lapse silently and must be required, non-gateable jobs. Record
   `--build-system native` is **deprecated** and prints so, which makes the
   honest fix — resolving the modules directory from the **test binary's** own
   location rather than from `#filePath` — a dated obligation.
+- **The freeze loop's allocation pin checks only half of itself on CI, and
+  says so in the log.** Under Apple's swiftlang toolchain — Xcode, and every
+  GitHub macOS runner — a bare `for i in items.indices { sum += items[i].x }`
+  registers **one allocation per element** in a debug build, where a swift.org
+  toolchain registers none (measured 2026-09-11: 0 vs 67 at 67 items; 16 known
+  buffers read as 16 and as 33). So an absolute per-pass bound there measures
+  the toolchain, not `resolveFlexibleLengths`.
+  `freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine` measures that floor in
+  the same run and keeps its strict bound only when the floor is 0, falling
+  back to a relative comparison against the allocating reference spelling.
+  **On a swiftlang toolchain a per-item regression of about one allocation is
+  invisible to it**; grep a CI log for `FREEZE-ALLOC: strict per-pass bound NOT
+  CHECKED`. Run the suite under a swift.org toolchain to get the strict half.
+
 - **Seven device-dependent window tests HARD-FAIL rather than skip** on a
   runner with no display device: `makeFakeWindowOnDefaultDevice`
   (`Tests/MetalUITests/Fakes.swift`) throws where the surrounding convention is
