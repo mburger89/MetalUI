@@ -627,6 +627,43 @@ private struct TwoAutoLeaves: Component {
     #expect(rect(bareLog.bounds["b"]!) == (30, 5, 50, 30))
 }
 
+/// Padding on an ordinary element composes by wrapping, as it does in SwiftUI.
+/// A `Leaf` has no child layout to inset, so the old direct-style spelling left
+/// it at x = 0. A wrapper must add one node and offset the fixed-size leaf by
+/// the requested padding without shrinking its 30 × 10 footprint.
+@MainActor
+@Test func paddingWrapsAnElementAndExpandsItsOuterFootprint() {
+    let bareLog = ComponentLog()
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var bare = Row { Leaf("leaf", log: bareLog).width(px(30)).height(px(10)) }
+    bareFrame.render(&bare)
+
+    let paddedLog = ComponentLog()
+    let paddedFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var padded = Row { Leaf("leaf", log: paddedLog).width(px(30)).height(px(10)).padding(px(4)) }
+    paddedFrame.render(&padded)
+
+    #expect(paddedFrame.tree.nodeCount == bareFrame.tree.nodeCount + 1)
+    #expect(rect(bareLog.bounds["leaf"]!) == (0, 15, 30, 10))
+    #expect(rect(paddedLog.bounds["leaf"]!) == (4, 15, 30, 10))
+}
+
+/// Each padding call creates a separate outer box, so distinct values add
+/// instead of the later call replacing the earlier one.
+@MainActor
+@Test func chainedPaddingCreatesNestedWrappers() {
+    let log = ComponentLog()
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var tree = Row {
+        Leaf("leaf", log: log).width(px(30)).height(px(10)).padding(px(4)).padding(px(8))
+    }
+    frame.render(&tree)
+
+    #expect(frame.tree.nodeCount == 4,
+            "row, two padding wrappers, and the leaf each contribute one node")
+    #expect(rect(log.bounds["leaf"]!) == (12, 15, 30, 10))
+}
+
 /// Spec §5's limit. Only `Style`-backed modifiers can be distributed, because
 /// `setStyle` reaches `LayoutTree` and nothing reaches `Decoration`/`Handlers`
 /// per node. So `background`, `onClick` and `focusable` are NOT offered on a
