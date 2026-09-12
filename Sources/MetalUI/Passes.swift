@@ -89,6 +89,13 @@ public struct LayoutPass {
         frame.requestNativePadding(child: child, insets: insets)
     }
 
+    /// Registers native fixed-size behavior around one native child.
+    public func requestNativeFixedSize(child: LayoutNodeID,
+                                       horizontal: Bool = true,
+                                       vertical: Bool = true) -> LayoutNodeID {
+        frame.requestNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
+    }
+
     /// Registers a native linear stack for the proposal-layout migration.
     public func requestNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
                                          spacing: Double = 0,

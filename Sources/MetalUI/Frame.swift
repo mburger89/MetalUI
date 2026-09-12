@@ -1090,6 +1090,12 @@ public final class Frame {
         tree.newNativePadding(child: child, insets: insets)
     }
 
+    func requestNativeFixedSize(child: LayoutNodeID,
+                                horizontal: Bool = true,
+                                vertical: Bool = true) -> LayoutNodeID {
+        tree.newNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
+    }
+
     func requestNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
                                   spacing: Double = 0,
                                   alignment: NativeAlignment = .center) -> LayoutNodeID {

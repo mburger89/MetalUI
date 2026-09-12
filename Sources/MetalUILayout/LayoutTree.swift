@@ -167,6 +167,20 @@ public final class LayoutTree {
         return id
     }
 
+    /// Registers native fixed-size behavior around exactly one native child.
+    ///
+    /// A fixed axis is deliberately left unspecified when measuring the child,
+    /// preserving that axis's intrinsic response instead of accepting the
+    /// parent's offered size. The wrapper reports that response unchanged.
+    public func newNativeFixedSize(child: LayoutNodeID,
+                                   horizontal: Bool = true,
+                                   vertical: Bool = true) -> LayoutNodeID {
+        _ = nativeNode(child)
+        let id = newNode(style: .default, children: [child])
+        nativeNodes[id.index] = .fixedSize(horizontal: horizontal, vertical: vertical)
+        return id
+    }
+
     /// Registers a native linear stack with explicit inter-item spacing.
     ///
     /// A linear stack uses the supplied alignment only on its cross axis:
@@ -339,6 +353,12 @@ public final class LayoutTree {
                 firstBaseline: child.firstBaseline.map { $0 + insets.top },
                 lastBaseline: child.lastBaseline.map { $0 + insets.top }
             )
+        case .fixedSize(let horizontal, let vertical):
+            result = measureNative(children(id)[0],
+                                   proposal: fixedSizeProposal(proposal,
+                                                               horizontal: horizontal,
+                                                               vertical: vertical),
+                                   cache: &cache)
         case .linearStack(let axis, let spacing, _):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             let childMeasurements = children(id).map {
@@ -398,6 +418,15 @@ public final class LayoutTree {
                                        width: Swift.max(0, bounds.width - insets.left - insets.right),
                                        height: Swift.max(0, bounds.height - insets.top - insets.bottom)),
                         proposal: childProposal, cache: &cache)
+        case .fixedSize(let horizontal, let vertical):
+            let childProposal = fixedSizeProposal(proposal, horizontal: horizontal,
+                                                  vertical: vertical)
+            let child = children(id)[0]
+            let measurement = measureNative(child, proposal: childProposal, cache: &cache)
+            placeNative(child,
+                        in: LayoutRect(x: bounds.x, y: bounds.y,
+                                       width: measurement.size.width, height: measurement.size.height),
+                        proposal: childProposal, cache: &cache)
         case .linearStack(let axis, let spacing, let alignment):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             var cursor = axis == .horizontal ? bounds.x : bounds.y
@@ -444,6 +473,12 @@ public final class LayoutTree {
     private func paddingProposal(_ parent: ProposedSize, insets: Edges<Double>) -> ProposedSize {
         ProposedSize(width: parent.width.map { Swift.max(0, $0 - insets.left - insets.right) },
                      height: parent.height.map { Swift.max(0, $0 - insets.top - insets.bottom) })
+    }
+
+    private func fixedSizeProposal(_ parent: ProposedSize, horizontal: Bool,
+                                   vertical: Bool) -> ProposedSize {
+        ProposedSize(width: horizontal ? nil : parent.width,
+                     height: vertical ? nil : parent.height)
     }
 
     /// Native layout shares the legacy engine's root-absolute rounding contract.
@@ -495,6 +530,7 @@ private enum NativeNode {
                maxWidth: Double?, minHeight: Double?, idealHeight: Double?,
                maxHeight: Double?, alignment: NativeAlignment)
     case padding(insets: Edges<Double>)
+    case fixedSize(horizontal: Bool, vertical: Bool)
     case linearStack(axis: NativeStackAxis, spacing: Double, alignment: NativeAlignment)
 }
 
