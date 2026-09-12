@@ -887,10 +887,10 @@ func demoContent() -> some Element {
 @MainActor
 func nativeLayoutPreviewContent() -> some Element {
     NativeOverlay {
-        NativeRectangle(width: Pixels(920), height: Pixels(560), color: .background)
-        NativeFrame(width: Pixels(640), height: Pixels(360)) {
+        NativeColorFill(.background)
+        NativePadding(Edges(all: Pixels(48))) {
             NativeOverlay {
-                NativeRectangle(width: Pixels(640), height: Pixels(360), color: .surface)
+                NativeColorFill(.surface)
                 NativePadding(Edges(all: Pixels(36))) {
                     NativeColumn(spacing: Pixels(20), alignment: .leading) {
                         NativeRow(spacing: Pixels(16)) {

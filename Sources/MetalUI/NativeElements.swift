@@ -270,3 +270,37 @@ public struct NativeRectangle: Element {
         pass.fill(bounds, color: pass.theme[color], cornerRadii: Corners(all: Pixels(0)))
     }
 }
+
+/// A semantic colour field that accepts every concrete proposal it receives.
+///
+/// This is the native equivalent of a SwiftUI `Color` used as a background:
+/// an overlay can offer it the window's current size and it responds with that
+/// size, rather than retaining an initial fixed canvas. Unspecified axes stay
+/// zero so the fill does not manufacture intrinsic size in a stack.
+public struct NativeColorFill: Element {
+    public var color: ColorToken
+
+    public init(_ color: ColorToken) {
+        self.color = color
+    }
+
+    public struct Layout { var node: LayoutNodeID }
+
+    public mutating func requestLayout(_ id: GlobalElementID,
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        let node = pass.requestNativeLeaf { Self.measurement(for: $0) }
+        return (node, Layout(node: node))
+    }
+
+    nonisolated static func measurement(for proposal: ProposedSize) -> LayoutMeasurement {
+        LayoutMeasurement(size: proposal.replacingUnspecifiedDimensions(by: .zero))
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout Layout, pass: inout PrepaintPass) {}
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout Layout, prepaint: inout Void, pass: inout PaintPass) {
+        pass.fill(bounds, color: pass.theme[color], cornerRadii: Corners(all: Pixels(0)))
+    }
+}

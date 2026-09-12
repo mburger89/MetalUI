@@ -48,6 +48,25 @@ private struct NativeProbeLeaf: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
+private struct NativeFillProbe: Element {
+    let probe: NativeLayoutProbe
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        let node = pass.requestNativeLeaf { proposal in
+            LayoutMeasurement(size: proposal.replacingUnspecifiedDimensions(by: .zero))
+        }
+        return (node, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                  pass: inout PrepaintPass) {
+        probe.prepaintBounds = bounds
+    }
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+               prepaint: inout Void, pass: inout PaintPass) {}
+}
+
 @MainActor
 @Test func aNativeRootRunsThroughTheFramePipelineWithoutInvokingFlexLayout() {
     let probe = NativeLayoutProbe()
@@ -97,4 +116,24 @@ private struct NativeProbeLeaf: Element {
     #expect(frame.tree.nodeCount == 6)
     #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(40), y: Pixels(60)),
                                            size: Size(width: Pixels(20), height: Pixels(10))))
+}
+
+@MainActor
+@Test func aNativeFillAcceptsEachWindowsCurrentProposal() {
+    let compactProbe = NativeLayoutProbe()
+    let expandedProbe = NativeLayoutProbe()
+    let compactFrame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    let expandedFrame = Frame(contentSize: Size(width: Pixels(240), height: Pixels(160)), scaleFactor: 1)
+    var compactRoot = NativeOverlay { NativeFillProbe(probe: compactProbe) }
+    var expandedRoot = NativeOverlay { NativeFillProbe(probe: expandedProbe) }
+
+    compactFrame.render(&compactRoot)
+    expandedFrame.render(&expandedRoot)
+
+    #expect(compactProbe.prepaintBounds == Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                                                  size: Size(width: Pixels(100), height: Pixels(80))))
+    #expect(expandedProbe.prepaintBounds == Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                                                   size: Size(width: Pixels(240), height: Pixels(160))))
+    #expect(NativeColorFill.measurement(for: ProposedSize(width: 240, height: 160)).size ==
+            SizeD(width: 240, height: 160))
 }
