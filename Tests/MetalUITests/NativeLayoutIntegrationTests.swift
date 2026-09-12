@@ -77,3 +77,24 @@ private struct NativeProbeLeaf: Element {
     #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(80), y: Pixels(15)),
                                            size: Size(width: Pixels(20), height: Pixels(10))))
 }
+
+@MainActor
+@Test func nativeCompositionUsesColumnFrameAndPaddingProposals() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    var root = NativeFrame(width: Pixels(100), height: Pixels(80)) {
+        NativePadding(Edges(top: Pixels(10), right: Pixels(20), bottom: Pixels(10), left: Pixels(20))) {
+            NativeColumn(spacing: Pixels(5)) {
+                NativeProbeLeaf(size: SizeD(width: 30, height: 10), probe: probe, name: "leading")
+                NativeSpacer(minLength: Pixels(10))
+                NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
+            }
+        }
+    }
+
+    frame.render(&root)
+
+    #expect(frame.tree.nodeCount == 6)
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(40), y: Pixels(60)),
+                                           size: Size(width: Pixels(20), height: Pixels(10))))
+}

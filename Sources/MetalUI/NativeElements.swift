@@ -49,6 +49,171 @@ public struct NativeRow<Content: ElementGroup>: Element {
     }
 }
 
+/// A native proposal-layout vertical stack.
+public struct NativeColumn<Content: ElementGroup>: Element {
+    public var content: Content
+    public var spacing: Pixels
+    public var alignment: NativeAlignment
+
+    public init(spacing: Pixels = Pixels(0), alignment: NativeAlignment = .center,
+                @ElementBuilder content: () -> Content) {
+        self.content = content()
+        self.spacing = spacing
+        self.alignment = alignment
+    }
+
+    public struct Layout {
+        var node: LayoutNodeID
+        var content: Content.GroupLayout
+    }
+
+    public mutating func requestLayout(_ id: GlobalElementID,
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
+                                                                   pass: &pass)
+        let node = pass.requestNativeLinearStack(children: children, axis: .vertical,
+                                                 spacing: Double(spacing.value),
+                                                 alignment: alignment)
+        return (node, Layout(node: node, content: contentLayout))
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout Layout,
+                                  pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        content.prepaintGroup(layout: &layout.content, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout Layout, prepaint: inout Content.GroupPrepaint,
+                               pass: inout PaintPass) {
+        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+/// A native proposal-layout overlay, analogous to SwiftUI's `ZStack`.
+public struct NativeOverlay<Content: ElementGroup>: Element {
+    public var content: Content
+    public var alignment: NativeAlignment
+
+    public init(alignment: NativeAlignment = .center,
+                @ElementBuilder content: () -> Content) {
+        self.content = content()
+        self.alignment = alignment
+    }
+
+    public struct Layout {
+        var node: LayoutNodeID
+        var content: Content.GroupLayout
+    }
+
+    public mutating func requestLayout(_ id: GlobalElementID,
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
+                                                                   pass: &pass)
+        let node = pass.requestNativeOverlay(children: children, alignment: alignment)
+        return (node, Layout(node: node, content: contentLayout))
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout Layout,
+                                  pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        content.prepaintGroup(layout: &layout.content, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout Layout, prepaint: inout Content.GroupPrepaint,
+                               pass: inout PaintPass) {
+        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+/// A native outer frame. Its content must contribute exactly one native node.
+public struct NativeFrame<Content: ElementGroup>: Element {
+    public var content: Content
+    public var width: Pixels?
+    public var height: Pixels?
+    public var alignment: NativeAlignment
+
+    public init(width: Pixels? = nil, height: Pixels? = nil,
+                alignment: NativeAlignment = .center,
+                @ElementBuilder content: () -> Content) {
+        self.content = content()
+        self.width = width
+        self.height = height
+        self.alignment = alignment
+    }
+
+    public struct Layout {
+        var node: LayoutNodeID
+        var content: Content.GroupLayout
+    }
+
+    public mutating func requestLayout(_ id: GlobalElementID,
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
+                                                                   pass: &pass)
+        precondition(children.count == 1, "NativeFrame content must contribute one native node")
+        let node = pass.requestNativeFrame(child: children[0], width: width.map { Double($0.value) },
+                                           height: height.map { Double($0.value) }, alignment: alignment)
+        return (node, Layout(node: node, content: contentLayout))
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout Layout,
+                                  pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        content.prepaintGroup(layout: &layout.content, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout Layout, prepaint: inout Content.GroupPrepaint,
+                               pass: inout PaintPass) {
+        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+/// Native outer padding around one native child.
+public struct NativePadding<Content: ElementGroup>: Element {
+    public var content: Content
+    public var insets: Edges<Pixels>
+
+    public init(_ insets: Edges<Pixels>, @ElementBuilder content: () -> Content) {
+        self.content = content()
+        self.insets = insets
+    }
+
+    public struct Layout {
+        var node: LayoutNodeID
+        var content: Content.GroupLayout
+    }
+
+    public mutating func requestLayout(_ id: GlobalElementID,
+                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
+                                                                   pass: &pass)
+        precondition(children.count == 1, "NativePadding content must contribute one native node")
+        let insets = Edges<Double>(top: Double(insets.top.value), right: Double(insets.right.value),
+                                   bottom: Double(insets.bottom.value), left: Double(insets.left.value))
+        let node = pass.requestNativePadding(child: children[0], insets: insets)
+        return (node, Layout(node: node, content: contentLayout))
+    }
+
+    public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                                  layout: inout Layout,
+                                  pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        content.prepaintGroup(layout: &layout.content, pass: &pass)
+    }
+
+    public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                               layout: inout Layout, prepaint: inout Content.GroupPrepaint,
+                               pass: inout PaintPass) {
+        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
+}
+
 /// A flexible native-layout spacer for use inside ``NativeRow``.
 public struct NativeSpacer: Element {
     public var minLength: Pixels?
