@@ -8,10 +8,13 @@ import MetalUILayout
 public struct NativeTappable<Content: ElementGroup>: Element {
     public var content: Content
     public var action: @MainActor () -> Void
+    public var hoverColor: ColorToken?
 
-    public init(content: Content, action: @escaping @MainActor () -> Void) {
+    public init(content: Content, hoverColor: ColorToken? = nil,
+                action: @escaping @MainActor () -> Void) {
         self.content = content
         self.action = action
+        self.hoverColor = hoverColor
     }
 
     public struct Layout { var content: Content.GroupLayout }
@@ -36,12 +39,18 @@ public struct NativeTappable<Content: ElementGroup>: Element {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
                                prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        if let hoverColor, pass.isHovered(id) {
+            pass.opacity(0.22) {
+                pass.fill(bounds, color: pass.theme[hoverColor])
+            }
+        }
     }
 }
 
 extension ElementGroup {
     /// Registers `action` when this native subtree is clicked.
-    public func nativeOnTap(_ action: @escaping @MainActor () -> Void) -> NativeTappable<Self> {
-        NativeTappable(content: self, action: action)
+    public func nativeOnTap(hoverColor: ColorToken? = nil,
+                            _ action: @escaping @MainActor () -> Void) -> NativeTappable<Self> {
+        NativeTappable(content: self, hoverColor: hoverColor, action: action)
     }
 }

@@ -899,7 +899,7 @@ private struct NativePreviewToggle: Component {
                                 color: isSelected ? .accent : .separator)
             }
             .nativeOpacity(0.72)
-            .nativeOnTap { isSelected.toggle() }
+            .nativeOnTap(hoverColor: .surface) { isSelected.toggle() }
     }
 }
 

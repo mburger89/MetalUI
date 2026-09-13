@@ -1,6 +1,8 @@
 import Testing
+import Metal
 import MetalUICore
 import MetalUILayout
+import MetalUIRender
 @testable import MetalUI
 
 private final class NativeLayoutProbe: @unchecked Sendable {
@@ -377,4 +379,35 @@ private struct NativeProposalProbe: Element {
 
     #expect(frame.topmostHitbox(at: Point(x: Pixels(50), y: Pixels(40))) != nil)
     #expect(frame.topmostHitbox(at: Point(x: Pixels(20), y: Pixels(20))) == nil)
+}
+
+/// The hover affordance belongs to the tappable wrapper rather than its native
+/// child: it is visible only after the real window pointer path has resolved
+/// that wrapper's hitbox. The cold/hovered comparison prevents an implementation
+/// that merely paints the affordance permanently from satisfying the test.
+@MainActor
+@Test func nativeOnTapPaintsItsHoverOverlayOnlyWhenThePointerIsOverItsResolvedBounds() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+        NativeOverlay {
+            NativeRectangle(width: Pixels(40), height: Pixels(40), color: .accent)
+                .nativeOnTap(hoverColor: .surface) {}
+        }
+    }
+
+    window.drawFrameIfNeeded()
+    #expect(window.lastScene.rects.count == 1,
+            "the resting native control paints only its content")
+
+    platformWindow.simulateInput(.mouseMoved(MouseEvent(position: Point(x: Pixels(50), y: Pixels(50)))))
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+
+    let overlay = try #require(window.lastScene.rects.last)
+    #expect(window.lastScene.rects.count == 2,
+            "the resolved hover adds one paint-only overlay above the content")
+    #expect(overlay.bounds.size.width == 40)
+    #expect(overlay.bounds.size.height == 40)
+    #expect(overlay.background.h == window.theme[.surface].h)
+    #expect(overlay.background.a == window.theme[.surface].a * 0.22)
 }
