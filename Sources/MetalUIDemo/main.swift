@@ -900,6 +900,7 @@ func nativeLayoutPreviewContent() -> some Element {
                 NativeRow(spacing: Pixels(12)) {
                     NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
                     NativeRectangle(width: Pixels(168), height: Pixels(64), color: .accent)
+                        .nativeOpacity(0.72)
                     NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
                 }
             }

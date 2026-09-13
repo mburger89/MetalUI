@@ -218,6 +218,12 @@ public final class Frame {
     /// closure form that pushes it keeps the stack balanced.
     private var layerStack: [Int] = []
 
+    /// Multiplicative opacity scopes used by native paint modifiers.
+    private var opacityStack: [Float] = []
+    var activeOpacity: Float { opacityStack.reduce(1, *) }
+    func pushOpacity(_ opacity: Float) { opacityStack.append(opacity) }
+    func popOpacity() { opacityStack.removeLast() }
+
     /// The layer currently in effect. `0` — ordinary paint order — when no
     /// `deferred` block is active, the same "nothing special" answer
     /// `activeClip` gives an empty `clipStack`.
@@ -1197,8 +1203,9 @@ public final class Frame {
             bounds: translated.scaled(by: scaleFactor),
             contentMask: activeClip.scaled(by: scaleFactor),
             maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
-            background: color,
-            borderColor: borderColor,
+            background: Hsla(h: color.h, s: color.s, l: color.l, a: color.a * activeOpacity),
+            borderColor: Hsla(h: borderColor.h, s: borderColor.s, l: borderColor.l,
+                              a: borderColor.a * activeOpacity),
             cornerRadii: cornerRadii.scaled(by: scaleFactor),
             borderWidths: Edges(top: borderWidths.top.scaled(by: scaleFactor),
                                 right: borderWidths.right.scaled(by: scaleFactor),
@@ -1266,7 +1273,8 @@ public final class Frame {
         scene.insert(MUIGlyph(bounds: placedBounds, slot: packed.slot,
                               contentMask: activeClip.scaled(by: scaleFactor),
                               maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
-                              color: color, order: 0), layer: activeLayer)
+                              color: Hsla(h: color.h, s: color.s, l: color.l,
+                                          a: color.a * activeOpacity), order: 0), layer: activeLayer)
     }
 
     /// This frame's primitives, in paint order. Call after `render`.

@@ -349,3 +349,18 @@ private struct NativeProposalProbe: Element {
     #expect(rects[1].borderWidths.right == 4)
     #expect(rects[1].cornerRadii.topLeft == 6)
 }
+
+@MainActor
+@Test func nativeOpacityMultipliesItsDescendantsPaintAlpha() {
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1,
+                      theme: .light)
+    var root = NativeOverlay {
+        NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
+            .nativeOpacity(0.35)
+    }
+
+    frame.render(&root)
+
+    let rect = frame.finalizedScene().rects[0]
+    #expect(rect.background.a == Theme.light.accent.a * 0.35)
+}

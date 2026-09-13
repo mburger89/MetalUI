@@ -543,6 +543,14 @@ public struct PaintPass {
                    borderColor: borderColor, borderWidths: borderWidths)
     }
 
+    /// Multiplies the opacity of every primitive emitted by `body`.
+    public func opacity(_ value: Float, _ body: () -> Void) {
+        precondition((0...1).contains(value), "opacity must be in 0...1")
+        frame.pushOpacity(value)
+        defer { frame.popOpacity() }
+        body()
+    }
+
     /// Runs `body` with `bounds` intersected into the active clip and `offset`
     /// added to the active translation. See `PrepaintPass.clipped(to:offsetBy:_:)`
     /// for why this exists on both passes and why a closure rather than

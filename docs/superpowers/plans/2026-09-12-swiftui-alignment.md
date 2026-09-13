@@ -141,6 +141,13 @@ modifier placement from names alone.
   `Column` defaults, `Stack` alignment, and theme propagation already contain
   measured SwiftUI-inspired work; they still belong in the inventory audit.
 - `.frame(width:height:)` has been added as an additive wrapper API.
+- The parallel native composition surface now has proposal-layout frames
+  (fixed, min/ideal/max and flexible axes), padding, fixed-size, background,
+  border, rounded clip and overlay attachment wrappers. Its frame and paint
+  ordering are covered by deterministic native tests, and the opt-in demo
+  exercises the paint wrappers. This is migration evidence for tasks 2–5, not
+  completion: the established public `.frame`, direct sizing APIs, and ordinary
+  legacy elements still route through the CSS-derived engine.
 - Ordinary element padding now wraps its content; `Component` padding remains
   a separately measured distribution case. Task 5 decides the complete
   modifier matrix.

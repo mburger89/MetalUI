@@ -16,6 +16,7 @@ public enum NativeLayoutModifier: Sendable {
     case background(ColorToken)
     case clip(cornerRadius: Pixels = Pixels(0))
     case border(ColorToken, width: Pixels, cornerRadius: Pixels = Pixels(0))
+    case opacity(Float)
 }
 
 /// A typed native modifier wrapper, analogous to SwiftUI's `ModifiedContent`.
@@ -64,6 +65,12 @@ public struct NativeModifiedContent<Content: ElementGroup>: Element {
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
+        if case let .opacity(value) = modifier {
+            pass.opacity(value) {
+                content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+            }
+            return
+        }
         if case let .background(token) = modifier {
             pass.fill(bounds, color: pass.theme[token], cornerRadii: Corners(all: Pixels(0)))
         }
@@ -113,6 +120,8 @@ public struct NativeModifiedContent<Content: ElementGroup>: Element {
             return child
         case .border:
             return child
+        case .opacity:
+            return child
         }
     }
 }
@@ -160,5 +169,9 @@ extension ElementGroup {
                              cornerRadius: Pixels = Pixels(0)) -> NativeModifiedContent<Self> {
         NativeModifiedContent(content: self,
                               modifier: .border(token, width: width, cornerRadius: cornerRadius))
+    }
+
+    public func nativeOpacity(_ value: Float) -> NativeModifiedContent<Self> {
+        NativeModifiedContent(content: self, modifier: .opacity(value))
     }
 }
