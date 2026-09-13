@@ -17,6 +17,7 @@ public enum NativeLayoutModifier: Sendable {
     case clip(cornerRadius: Pixels = Pixels(0))
     case border(ColorToken, width: Pixels, cornerRadius: Pixels = Pixels(0))
     case opacity(Float)
+    case allowsHitTesting(Bool)
 }
 
 /// A typed native modifier wrapper, analogous to SwiftUI's `ModifiedContent`.
@@ -51,6 +52,13 @@ public struct NativeModifiedContent<Content: ElementGroup>: Element {
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout,
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        if case let .allowsHitTesting(enabled) = modifier {
+            var result: Content.GroupPrepaint?
+            pass.allowsHitTesting(enabled) {
+                result = content.prepaintGroup(layout: &layout.content, pass: &pass)
+            }
+            return result!
+        }
         if case let .clip(cornerRadius) = modifier {
             var result: Content.GroupPrepaint?
             pass.clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
@@ -122,6 +130,8 @@ public struct NativeModifiedContent<Content: ElementGroup>: Element {
             return child
         case .opacity:
             return child
+        case .allowsHitTesting:
+            return child
         }
     }
 }
@@ -173,5 +183,11 @@ extension ElementGroup {
 
     public func nativeOpacity(_ value: Float) -> NativeModifiedContent<Self> {
         NativeModifiedContent(content: self, modifier: .opacity(value))
+    }
+
+    /// Controls whether pointer hit testing enters this native subtree.
+    /// Keyboard focus and key handlers remain available when it is disabled.
+    public func nativeAllowsHitTesting(_ enabled: Bool) -> NativeModifiedContent<Self> {
+        NativeModifiedContent(content: self, modifier: .allowsHitTesting(enabled))
     }
 }

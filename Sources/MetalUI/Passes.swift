@@ -395,6 +395,19 @@ public struct PrepaintPass {
         frame.registerHandlers(handlers, at: bounds, id: id)
     }
 
+    /// Runs `body` with pointer hitbox registration enabled or disabled.
+    ///
+    /// This scope deliberately leaves focus and keyboard registration live.
+    /// SwiftUI-style hit-testing modifiers answer whether pointer events enter
+    /// a subtree; they do not erase that subtree's keyboard behaviour.
+    public func allowsHitTesting(_ enabled: Bool, _ body: () -> Void) {
+        guard !enabled else {
+            body()
+            return
+        }
+        frame.withHitTestingDisabled(body)
+    }
+
     /// Records `node` as `id`'s accessibility node, resolving its `frame` to
     /// `bounds` and its `children` to the ids given — design spec §9.
     ///

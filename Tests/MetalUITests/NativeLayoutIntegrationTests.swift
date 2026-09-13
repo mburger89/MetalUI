@@ -10,6 +10,11 @@ private final class NativeLayoutProbe: @unchecked Sendable {
     var prepaintBounds: Bounds<Pixels>?
 }
 
+@MainActor
+private final class NativeTapProbe {
+    var count = 0
+}
+
 private struct NativeRoot: Element {
     let probe: NativeLayoutProbe
 
@@ -410,4 +415,31 @@ private struct NativeProposalProbe: Element {
     #expect(overlay.bounds.size.height == 40)
     #expect(overlay.background.h == window.theme[.surface].h)
     #expect(overlay.background.a == window.theme[.surface].a * 0.22)
+}
+
+/// A native hit-testing wrapper scopes through a nested gesture. It must remove
+/// the pointer target without suppressing paint or changing the native layout
+/// node; an outer wrapper that only ignores its own handlers would leave this
+/// descendant tappable.
+@MainActor
+@Test func nativeAllowsHitTestingFalsePreventsDescendantNativeTapDispatch() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let probe = NativeTapProbe()
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+        NativeOverlay {
+            NativeRectangle(width: Pixels(40), height: Pixels(40), color: .accent)
+                .nativeOnTap { probe.count += 1 }
+                .nativeAllowsHitTesting(false)
+        }
+    }
+
+    window.drawFrameIfNeeded()
+    #expect(window.lastHitboxes.isEmpty,
+            "a disabled native subtree registers no opaque pointer target")
+
+    let center = Point(x: Pixels(50), y: Pixels(50))
+    platformWindow.simulateInput(.mouseDown(MouseEvent(position: center)))
+    platformWindow.simulateInput(.mouseUp(MouseEvent(position: center)))
+    #expect(probe.count == 0,
+            "the gesture receives neither half of a click while hit testing is disabled")
 }

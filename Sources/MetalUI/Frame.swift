@@ -509,6 +509,18 @@ public final class Frame {
     /// `GlobalElementID` for anything that must outlive one.
     private(set) var hitboxes: [Hitbox] = []
 
+    /// Pointer-disable scopes are inherited by descendants during prepaint.
+    /// Keyboard registration stays outside this gate: disabling hit testing is
+    /// a pointer decision, not an instruction to discard a focused control's
+    /// key handler.
+    private var hitTestingDisabledDepth = 0
+
+    func withHitTestingDisabled(_ body: () -> Void) {
+        hitTestingDisabledDepth += 1
+        defer { hitTestingDisabledDepth -= 1 }
+        body()
+    }
+
     /// Records a hitbox at the rect it actually **paints** at: translated by
     /// the active offset, then intersected with the active clip, carrying the
     /// active layer.
@@ -640,7 +652,7 @@ public final class Frame {
             stateTable.withState(Self.focusRetentionSlot(for: focused),
                                  initial: true) { _ in }
         }
-        if handlers.isPointerTarget {
+        if hitTestingDisabledDepth == 0, handlers.isPointerTarget {
             _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
         }
         // **Accessibility rides here too, and it was not always here.** The

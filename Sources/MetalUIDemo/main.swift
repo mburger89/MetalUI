@@ -918,7 +918,12 @@ func nativeLayoutPreviewContent() -> some Element {
                 NativeRow(spacing: Pixels(12)) {
                     NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
                     NativePreviewToggle()
-                    NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
+                    // This dimmed control is intentionally inert: it exercises
+                    // `nativeAllowsHitTesting(false)` around an inner gesture.
+                    NativeRectangle(width: Pixels(168), height: Pixels(64), color: .accent)
+                        .nativeOpacity(0.35)
+                        .nativeOnTap {}
+                        .nativeAllowsHitTesting(false)
                 }
             }
             .nativePadding(Edges(all: Pixels(36)))
