@@ -185,9 +185,15 @@ extension ElementGroup {
         NativeModifiedContent(content: self, modifier: .opacity(value))
     }
 
-    /// Controls whether pointer hit testing enters this native subtree.
+    /// Controls whether pointer hit testing enters this proposal-layout subtree.
     /// Keyboard focus and key handlers remain available when it is disabled.
-    public func nativeAllowsHitTesting(_ enabled: Bool) -> NativeModifiedContent<Self> {
+    public func allowsHitTesting(_ enabled: Bool) -> NativeModifiedContent<Self> {
         NativeModifiedContent(content: self, modifier: .allowsHitTesting(enabled))
+    }
+
+    /// Temporary source-compatible spelling for the native migration surface.
+    @available(*, deprecated, renamed: "allowsHitTesting")
+    public func nativeAllowsHitTesting(_ enabled: Bool) -> NativeModifiedContent<Self> {
+        allowsHitTesting(enabled)
     }
 }

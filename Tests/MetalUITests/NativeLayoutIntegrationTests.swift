@@ -424,14 +424,14 @@ private struct NativeProposalProbe: Element {
 /// node; an outer wrapper that only ignores its own handlers would leave this
 /// descendant tappable.
 @MainActor
-@Test func nativeAllowsHitTestingFalsePreventsDescendantNativeTapDispatch() throws {
+@Test func allowsHitTestingFalsePreventsDescendantOnTapDispatch() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let probe = NativeTapProbe()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         NativeOverlay {
             NativeRectangle(width: Pixels(40), height: Pixels(40), color: .accent)
                 .onTap { probe.count += 1 }
-                .nativeAllowsHitTesting(false)
+                .allowsHitTesting(false)
         }
     }
 
