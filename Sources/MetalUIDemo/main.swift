@@ -886,6 +886,24 @@ func demoContent() -> some Element {
 /// panel exposes background, clip, and border composition without relying on
 /// legacy CSS decoration.
 @MainActor
+private struct NativePreviewToggle: Component {
+    @State private var isSelected = false
+
+    var elementID: ElementID? { ElementID("native-preview-toggle") }
+
+    var content: some ElementGroup {
+        NativeRectangle(width: Pixels(168), height: Pixels(64),
+                        color: isSelected ? .separator : .accent)
+            .nativeOverlay(alignment: .topTrailing) {
+                NativeRectangle(width: Pixels(20), height: Pixels(20),
+                                color: isSelected ? .accent : .separator)
+            }
+            .nativeOpacity(0.72)
+            .nativeOnTap { isSelected.toggle() }
+    }
+}
+
+@MainActor
 func nativeLayoutPreviewContent() -> some Element {
     NativeOverlay {
         NativeColorFill(.background)
@@ -899,11 +917,7 @@ func nativeLayoutPreviewContent() -> some Element {
                 NativeSpacer()
                 NativeRow(spacing: Pixels(12)) {
                     NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
-                    NativeRectangle(width: Pixels(168), height: Pixels(64), color: .accent)
-                        .nativeOverlay(alignment: .topTrailing) {
-                            NativeRectangle(width: Pixels(20), height: Pixels(20), color: .separator)
-                        }
-                        .nativeOpacity(0.72)
+                    NativePreviewToggle()
                     NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
                 }
             }

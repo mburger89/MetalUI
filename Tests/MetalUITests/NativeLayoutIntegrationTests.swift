@@ -364,3 +364,17 @@ private struct NativeProposalProbe: Element {
     let rect = frame.finalizedScene().rects[0]
     #expect(rect.background.a == Theme.light.accent.a * 0.35)
 }
+
+@MainActor
+@Test func nativeOnTapRegistersTheResolvedNativeBoundsAsAHittableTarget() {
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    var root = NativeOverlay {
+        NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
+            .nativeOnTap {}
+    }
+
+    frame.render(&root)
+
+    #expect(frame.topmostHitbox(at: Point(x: Pixels(50), y: Pixels(40))) != nil)
+    #expect(frame.topmostHitbox(at: Point(x: Pixels(20), y: Pixels(20))) == nil)
+}
