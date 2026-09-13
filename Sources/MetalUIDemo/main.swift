@@ -899,7 +899,7 @@ private struct NativePreviewToggle: Component {
                                 color: isSelected ? .accent : .separator)
             }
             .nativeOpacity(0.72)
-            .nativeOnTap(hoverColor: .surface) { isSelected.toggle() }
+            .onTap(hoverColor: .surface) { isSelected.toggle() }
     }
 }
 
@@ -922,7 +922,7 @@ func nativeLayoutPreviewContent() -> some Element {
                     // `nativeAllowsHitTesting(false)` around an inner gesture.
                     NativeRectangle(width: Pixels(168), height: Pixels(64), color: .accent)
                         .nativeOpacity(0.35)
-                        .nativeOnTap {}
+                        .onTap {}
                         .nativeAllowsHitTesting(false)
                 }
             }

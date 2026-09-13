@@ -1,11 +1,11 @@
 import MetalUICore
 import MetalUILayout
 
-/// A native-layout wrapper that makes its resolved bounds tappable.
+/// A proposal-layout wrapper that makes its resolved bounds tappable.
 ///
 /// It contributes no layout node: hit testing is registered in prepaint after
 /// native layout has resolved, matching the framework's three-phase contract.
-public struct NativeTappable<Content: ElementGroup>: Element {
+public struct OnTapModifier<Content: ElementGroup>: Element {
     public var content: Content
     public var action: @MainActor () -> Void
     public var hoverColor: ColorToken?
@@ -48,9 +48,24 @@ public struct NativeTappable<Content: ElementGroup>: Element {
 }
 
 extension ElementGroup {
-    /// Registers `action` when this native subtree is clicked.
+    /// Registers `action` when this proposal-layout subtree is clicked.
+    ///
+    /// This is the canonical public spelling for the replacement layout path.
+    /// During the migration it still requires an all-proposal-layout subtree;
+    /// applying it to a CSS-layout element fails at that deliberate boundary.
+    public func onTap(hoverColor: ColorToken? = nil,
+                      _ action: @escaping @MainActor () -> Void) -> OnTapModifier<Self> {
+        OnTapModifier(content: self, hoverColor: hoverColor, action: action)
+    }
+
+    /// Temporary source-compatible spelling for the native migration surface.
+    @available(*, deprecated, renamed: "onTap")
     public func nativeOnTap(hoverColor: ColorToken? = nil,
-                            _ action: @escaping @MainActor () -> Void) -> NativeTappable<Self> {
-        NativeTappable(content: self, hoverColor: hoverColor, action: action)
+                            _ action: @escaping @MainActor () -> Void) -> OnTapModifier<Self> {
+        onTap(hoverColor: hoverColor, action)
     }
 }
+
+/// Temporary source-compatible name for ``OnTapModifier``.
+@available(*, deprecated, renamed: "OnTapModifier")
+public typealias NativeTappable<Content: ElementGroup> = OnTapModifier<Content>

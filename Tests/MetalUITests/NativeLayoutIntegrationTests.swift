@@ -373,11 +373,13 @@ private struct NativeProposalProbe: Element {
 }
 
 @MainActor
-@Test func nativeOnTapRegistersTheResolvedNativeBoundsAsAHittableTarget() {
+@Test func onTapRegistersTheResolvedNativeBoundsAsAHittableTarget() {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    let stored: OnTapModifier<NativeRectangle> = NativeRectangle(
+        width: Pixels(20), height: Pixels(10), color: .accent
+    ).onTap {}
     var root = NativeOverlay {
-        NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
-            .nativeOnTap {}
+        stored
     }
 
     frame.render(&root)
@@ -391,12 +393,12 @@ private struct NativeProposalProbe: Element {
 /// that wrapper's hitbox. The cold/hovered comparison prevents an implementation
 /// that merely paints the affordance permanently from satisfying the test.
 @MainActor
-@Test func nativeOnTapPaintsItsHoverOverlayOnlyWhenThePointerIsOverItsResolvedBounds() throws {
+@Test func onTapPaintsItsHoverOverlayOnlyWhenThePointerIsOverItsResolvedBounds() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         NativeOverlay {
             NativeRectangle(width: Pixels(40), height: Pixels(40), color: .accent)
-                .nativeOnTap(hoverColor: .surface) {}
+                .onTap(hoverColor: .surface) {}
         }
     }
 
@@ -428,7 +430,7 @@ private struct NativeProposalProbe: Element {
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         NativeOverlay {
             NativeRectangle(width: Pixels(40), height: Pixels(40), color: .accent)
-                .nativeOnTap { probe.count += 1 }
+                .onTap { probe.count += 1 }
                 .nativeAllowsHitTesting(false)
         }
     }
