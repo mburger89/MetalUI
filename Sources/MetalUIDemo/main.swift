@@ -912,7 +912,8 @@ func nativeLayoutPreviewContent() -> some Element {
         ZStack {
             Color(.surface)
             VStack(spacing: Pixels(20), alignment: .leading) {
-                HStack(spacing: Pixels(16)) {
+                // Omitted spacing uses the recorded SwiftUI HStack default.
+                HStack {
                     Rectangle(width: Pixels(72), height: Pixels(72), color: .accent)
                     Rectangle(width: Pixels(420), height: Pixels(18), color: .surfaceSecondary)
                 }

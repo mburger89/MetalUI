@@ -127,6 +127,33 @@ private struct NativeProposalProbe: Element {
                                            size: Size(width: Pixels(20), height: Pixels(10))))
 }
 
+/// The default stack gap is a platform metric, not an accidental zero. The
+/// recorded SwiftUI HStack probe measures 8pt; the explicit-zero control makes
+/// a default implementation that simply forgot to set a gap visibly wrong.
+@MainActor
+@Test func hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt() {
+    let defaultProbe = NativeLayoutProbe()
+    let zeroProbe = NativeLayoutProbe()
+    let defaultFrame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(40)), scaleFactor: 1)
+    let zeroFrame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(40)), scaleFactor: 1)
+    var defaultStack = HStack {
+        NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: defaultProbe, name: "leading")
+        NativeProbeLeaf(size: SizeD(width: 30, height: 10), probe: defaultProbe, name: "trailing")
+    }
+    var zeroStack = HStack(spacing: Pixels(0)) {
+        NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: zeroProbe, name: "leading")
+        NativeProbeLeaf(size: SizeD(width: 30, height: 10), probe: zeroProbe, name: "trailing")
+    }
+
+    defaultFrame.render(&defaultStack)
+    zeroFrame.render(&zeroStack)
+
+    #expect(defaultProbe.prepaintBounds?.origin.x == Pixels(28),
+            "the default 8pt gap follows the 20pt leading item")
+    #expect(zeroProbe.prepaintBounds?.origin.x == Pixels(20),
+            "an explicit zero opts out of the platform default")
+}
+
 @MainActor
 @Test func nativeCompositionUsesColumnFrameAndPaddingProposals() {
     let probe = NativeLayoutProbe()
