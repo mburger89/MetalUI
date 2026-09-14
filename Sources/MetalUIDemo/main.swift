@@ -886,14 +886,15 @@ func demoContent() -> some Element {
 /// panel exposes background, clip, and border composition without relying on
 /// legacy CSS decoration.
 @MainActor
-private struct NativePreviewToggle: Component {
+private struct PreviewToggle: Component {
     @State private var isSelected = false
 
     var elementID: ElementID? { ElementID("native-preview-toggle") }
 
     var content: some ElementGroup {
-        Rectangle(width: Pixels(168), height: Pixels(64),
+        Rectangle(width: Pixels(168), height: Pixels(95),
                         color: isSelected ? .separator : .accent)
+            .aspectRatio(16.0 / 9.0)
             .overlay(alignment: .topTrailing) {
                 Rectangle(width: Pixels(20), height: Pixels(20),
                                 color: isSelected ? .accent : .separator)
@@ -903,7 +904,7 @@ private struct NativePreviewToggle: Component {
     }
 }
 
-extension NativePreviewToggle: ProposalElementGroup {}
+extension PreviewToggle: ProposalElementGroup {}
 
 @MainActor
 func nativeLayoutPreviewContent() -> some Element {
@@ -920,7 +921,7 @@ func nativeLayoutPreviewContent() -> some Element {
                 Spacer()
                 HStack(spacing: Pixels(12)) {
                     Rectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
-                    NativePreviewToggle()
+                    PreviewToggle()
                     // This dimmed control is intentionally inert: it exercises
                     // `allowsHitTesting(false)` around an inner gesture.
                     Rectangle(width: Pixels(168), height: Pixels(64), color: .accent)

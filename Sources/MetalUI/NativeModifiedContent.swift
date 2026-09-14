@@ -13,6 +13,7 @@ public enum LayoutModifier: Sendable {
                alignment: NativeAlignment = .center)
     case padding(Edges<Pixels>)
     case fixedSize(horizontal: Bool = true, vertical: Bool = true)
+    case aspectRatio(Double, contentMode: AspectRatioContentMode = .fit)
     case background(ColorToken)
     case clip(cornerRadius: Pixels = Pixels(0))
     case border(ColorToken, width: Pixels, cornerRadius: Pixels = Pixels(0))
@@ -119,6 +120,8 @@ public struct ModifiedContent<Content: ElementGroup>: Element {
             )
         case let .fixedSize(horizontal, vertical):
             return pass.requestNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
+        case let .aspectRatio(ratio, contentMode):
+            return pass.requestNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
         case .background:
             // A background has no independent layout footprint. Returning the
             // content node lets the wrapper observe its resolved bounds during
@@ -255,6 +258,18 @@ extension ProposalElementGroup {
                              minHeight: minHeight, idealHeight: idealHeight, maxHeight: maxHeight,
                              alignment: alignment)
         )
+    }
+
+    /// Constrains this proposal-layout subtree to a width-to-height ratio.
+    ///
+    /// A concrete parent proposal is inscribed by `.fit` or circumscribed by
+    /// `.fill`; a single proposed axis determines the other. The modifier
+    /// never reads the legacy CSS `Style.aspectRatio` field.
+    public func aspectRatio(_ ratio: Double,
+                            contentMode: AspectRatioContentMode = .fit) -> ModifiedContent<Self> {
+        precondition(ratio.isFinite && ratio > 0,
+                     "aspect ratio must be finite and greater than zero")
+        return ModifiedContent(content: self, modifier: .aspectRatio(ratio, contentMode: contentMode))
     }
 }
 

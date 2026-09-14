@@ -156,6 +156,10 @@ modifier placement from names alone.
   predecessors remain deprecated source-compatible migration aliases; the
   direct legacy `.frame(width:height:)` is still a distinct CSS-era path and
   needs its own replacement rather than being silently conflated with this one.
+- The proposal path also has an explicit `aspectRatio(_:contentMode:)` wrapper
+  with deterministic fit/fill proposal and placement tests. It is preliminary
+  task-7 migration evidence: advanced sizing still needs versioned SwiftUI
+  probes before its behaviour can be claimed as fully aligned.
 - Ordinary element padding now wraps its content; `Component` padding remains
   a separately measured distribution case. Task 5 decides the complete
   modifier matrix.

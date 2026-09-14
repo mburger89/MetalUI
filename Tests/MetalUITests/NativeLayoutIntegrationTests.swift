@@ -7,6 +7,7 @@ import MetalUIRender
 
 private final class NativeLayoutProbe: @unchecked Sendable {
     var measureCalls = 0
+    var proposals: [ProposedSize] = []
     var prepaintBounds: Bounds<Pixels>?
 }
 
@@ -42,7 +43,10 @@ private struct NativeProbeLeaf: Element {
     let name: String
 
     func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: size) }
+        let node = pass.requestNativeLeaf { proposal in
+            probe.proposals.append(proposal)
+            return LayoutMeasurement(size: size)
+        }
         return (node, ())
     }
 
@@ -245,6 +249,46 @@ private struct NativeProposalProbe: Element {
 
     frame.render(&root)
     #expect(probe.prepaintBounds?.size == Size(width: Pixels(30), height: Pixels(10)))
+}
+
+/// Aspect-ratio is a proposal modifier, not the inert legacy style field: the
+/// fit arm asks its child a ratio-correct question and reports the inscribed
+/// rectangle inside the window's 100 by 80 proposal.
+@MainActor
+@Test func aspectRatioFitInscribesTheParentProposalBeforeMeasuringItsChild() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    var root = ZStack {
+        NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
+            .aspectRatio(2)
+    }
+
+    frame.render(&root)
+
+    #expect(probe.proposals.contains(ProposedSize(width: 100, height: 50)),
+            "a 2:1 fit rectangle is inscribed in the 100 by 80 proposal")
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(0), y: Pixels(15)),
+                                           size: Size(width: Pixels(100), height: Pixels(50))))
+}
+
+/// Fill deliberately chooses the opposite constrained rectangle. This makes
+/// its observable overflow distinct from `.fit` and prevents both modes from
+/// accidentally collapsing to the same min-dimension implementation.
+@MainActor
+@Test func aspectRatioFillCircumscribesTheParentProposalBeforeMeasuringItsChild() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    var root = ZStack {
+        NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
+            .aspectRatio(2, contentMode: .fill)
+    }
+
+    frame.render(&root)
+
+    #expect(probe.proposals.contains(ProposedSize(width: 160, height: 80)),
+            "a 2:1 fill rectangle circumscribes the 100 by 80 proposal")
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(-30), y: Pixels(0)),
+                                           size: Size(width: Pixels(160), height: Pixels(80))))
 }
 
 @MainActor

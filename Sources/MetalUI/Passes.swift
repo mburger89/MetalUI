@@ -101,6 +101,12 @@ public struct LayoutPass {
         frame.requestNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
     }
 
+    /// Registers native aspect-ratio proposal behavior around one native child.
+    public func requestNativeAspectRatio(child: LayoutNodeID, ratio: Double,
+                                         contentMode: AspectRatioContentMode = .fit) -> LayoutNodeID {
+        frame.requestNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
+    }
+
     /// Registers a native flexible spacer for a native linear stack.
     public func requestNativeSpacer(minLength: Double? = nil) -> LayoutNodeID {
         frame.requestNativeSpacer(minLength: minLength)

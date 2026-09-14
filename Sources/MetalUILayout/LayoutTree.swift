@@ -194,6 +194,22 @@ public final class LayoutTree {
         return id
     }
 
+    /// Registers an aspect-ratio proposal wrapper around exactly one child.
+    ///
+    /// The wrapper derives a ratio-constrained proposal from its parent, then
+    /// reports and places that resolved rectangle. `.fit` inscribes the
+    /// rectangle inside a concrete proposal; `.fill` circumscribes it. An
+    /// unspecified parent axis is derived from its specified counterpart.
+    public func newNativeAspectRatio(child: LayoutNodeID, ratio: Double,
+                                     contentMode: AspectRatioContentMode = .fit) -> LayoutNodeID {
+        _ = nativeNode(child)
+        precondition(ratio.isFinite && ratio > 0,
+                     "aspect ratio must be finite and greater than zero")
+        let id = newNode(style: .default, children: [child])
+        nativeNodes[id.index] = .aspectRatio(ratio: ratio, contentMode: contentMode)
+        return id
+    }
+
     /// Registers a native flexible spacer with an optional minimum length.
     ///
     /// A spacer reports its minimum when its main axis is unspecified. Native
@@ -397,6 +413,19 @@ public final class LayoutTree {
                                                                horizontal: horizontal,
                                                                vertical: vertical),
                                    cache: &cache)
+        case .aspectRatio(let ratio, let contentMode):
+            let child = children(id)[0]
+            let intrinsic = measureNative(child, proposal: proposal, cache: &cache)
+            let size = aspectRatioSize(proposal: proposal, intrinsic: intrinsic.size,
+                                       ratio: ratio, contentMode: contentMode)
+            let constrained = measureNative(child,
+                                            proposal: ProposedSize(width: size.width, height: size.height),
+                                            cache: &cache)
+            result = LayoutMeasurement(
+                size: size,
+                firstBaseline: constrained.firstBaseline,
+                lastBaseline: constrained.lastBaseline
+            )
         case .linearStack(let axis, let spacing, _):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             let childMeasurements = children(id).map {
@@ -482,6 +511,17 @@ public final class LayoutTree {
             placeNative(child,
                         in: LayoutRect(x: bounds.x, y: bounds.y,
                                        width: measurement.size.width, height: measurement.size.height),
+                        proposal: childProposal, cache: &cache)
+        case .aspectRatio(let ratio, let contentMode):
+            let child = children(id)[0]
+            let intrinsic = measureNative(child, proposal: proposal, cache: &cache)
+            let size = aspectRatioSize(proposal: proposal, intrinsic: intrinsic.size,
+                                       ratio: ratio, contentMode: contentMode)
+            let childProposal = ProposedSize(width: size.width, height: size.height)
+            _ = measureNative(child, proposal: childProposal, cache: &cache)
+            placeNative(child,
+                        in: LayoutRect(x: bounds.x, y: bounds.y,
+                                       width: size.width, height: size.height),
                         proposal: childProposal, cache: &cache)
         case .linearStack(let axis, let spacing, let alignment):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
@@ -584,6 +624,36 @@ public final class LayoutTree {
                      height: vertical ? nil : parent.height)
     }
 
+    private func aspectRatioSize(proposal: ProposedSize, intrinsic: SizeD,
+                                 ratio: Double,
+                                 contentMode: AspectRatioContentMode) -> SizeD {
+        let width = proposal.width.flatMap { $0.isFinite ? $0 : nil }
+        let height = proposal.height.flatMap { $0.isFinite ? $0 : nil }
+        switch (width, height) {
+        case let (.some(width), .some(height)):
+            let proposedRatio = width / height
+            let usesWidth: Bool
+            switch contentMode {
+            case .fit: usesWidth = proposedRatio <= ratio
+            case .fill: usesWidth = proposedRatio >= ratio
+            }
+            return usesWidth
+                ? SizeD(width: width, height: width / ratio)
+                : SizeD(width: height * ratio, height: height)
+        case let (.some(width), .none):
+            return SizeD(width: width, height: width / ratio)
+        case let (.none, .some(height)):
+            return SizeD(width: height * ratio, height: height)
+        case (.none, .none):
+            guard intrinsic.width > 0, intrinsic.height > 0 else { return .zero }
+            let intrinsicRatio = intrinsic.width / intrinsic.height
+            if intrinsicRatio <= ratio {
+                return SizeD(width: intrinsic.width, height: intrinsic.width / ratio)
+            }
+            return SizeD(width: intrinsic.height * ratio, height: intrinsic.height)
+        }
+    }
+
     /// Native layout shares the legacy engine's root-absolute rounding contract.
     /// Measurement stays fractional; only the stored rectangles seen by later
     /// phases are rounded from cumulative edges.
@@ -601,6 +671,14 @@ public typealias NativeMeasureFunction = @Sendable (ProposedSize) -> LayoutMeasu
 public enum NativeStackAxis: Sendable, Hashable {
     case horizontal
     case vertical
+}
+
+/// The two proposal strategies accepted by ``ElementGroup/aspectRatio(_:contentMode:)``.
+public enum AspectRatioContentMode: Sendable, Hashable {
+    /// Inscribe the requested ratio inside the proposed rectangle.
+    case fit
+    /// Circumscribe the proposed rectangle with the requested ratio.
+    case fill
 }
 
 /// A frame-local equivalent of SwiftUI's nine-point alignment vocabulary.
@@ -635,6 +713,7 @@ private enum NativeNode {
                maxHeight: Double?, alignment: NativeAlignment)
     case padding(insets: Edges<Double>)
     case fixedSize(horizontal: Bool, vertical: Bool)
+    case aspectRatio(ratio: Double, contentMode: AspectRatioContentMode)
     case spacer(minLength: Double)
     case linearStack(axis: NativeStackAxis, spacing: Double, alignment: NativeAlignment)
 }

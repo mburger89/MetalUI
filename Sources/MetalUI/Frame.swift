@@ -1119,6 +1119,11 @@ public final class Frame {
         tree.newNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
     }
 
+    func requestNativeAspectRatio(child: LayoutNodeID, ratio: Double,
+                                  contentMode: AspectRatioContentMode = .fit) -> LayoutNodeID {
+        tree.newNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
+    }
+
     func requestNativeSpacer(minLength: Double? = nil) -> LayoutNodeID {
         tree.newNativeSpacer(minLength: minLength)
     }
