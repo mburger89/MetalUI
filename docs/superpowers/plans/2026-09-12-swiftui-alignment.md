@@ -159,10 +159,11 @@ modifier placement from names alone.
 - The native `HStack` and `VStack` defaults are both probe-backed at 8pt. The
   vertical probe uses a fitting `NSHostingView` with 10pt and 30pt children and
   measures 48pt; explicit-zero controls pin both defaults separately.
-- The proposal path also has an explicit `aspectRatio(_:contentMode:)` wrapper
-  with deterministic fit/fill proposal and placement tests. It is preliminary
-  task-7 migration evidence: advanced sizing still needs versioned SwiftUI
-  probes before its behaviour can be claimed as fully aligned.
+- The proposal path has an explicit `aspectRatio(_:contentMode:)` wrapper with
+  deterministic fit/fill proposal and placement tests. A macOS SwiftUI custom
+  `Layout` probe observes a 2:1 child offered 100×80 responding 100×50 for
+  `.fit` and 160×80 for `.fill`, matching the native tests. It is measured
+  task-7 migration evidence; advanced sizing beyond aspect ratio remains open.
 - Ordinary element padding now wraps its content; `Component` padding remains
   a separately measured distribution case. Task 5 decides the complete
   modifier matrix.

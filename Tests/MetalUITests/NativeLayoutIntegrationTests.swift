@@ -279,9 +279,10 @@ private struct NativeProposalProbe: Element {
     #expect(probe.prepaintBounds?.size == Size(width: Pixels(30), height: Pixels(10)))
 }
 
-/// Aspect-ratio is a proposal modifier, not the inert legacy style field: the
-/// fit arm asks its child a ratio-correct question and reports the inscribed
-/// rectangle inside the window's 100 by 80 proposal.
+/// The macOS SwiftUI probe records a 2:1 `.fit` child responding 100 by 50 to
+/// a 100 by 80 proposal. Aspect-ratio is therefore a proposal modifier, not
+/// the inert legacy style field: it asks its child that ratio-correct question
+/// and reports the inscribed rectangle.
 @MainActor
 @Test func aspectRatioFitInscribesTheParentProposalBeforeMeasuringItsChild() {
     let probe = NativeLayoutProbe()
@@ -299,9 +300,10 @@ private struct NativeProposalProbe: Element {
                                            size: Size(width: Pixels(100), height: Pixels(50))))
 }
 
-/// Fill deliberately chooses the opposite constrained rectangle. This makes
-/// its observable overflow distinct from `.fit` and prevents both modes from
-/// accidentally collapsing to the same min-dimension implementation.
+/// The companion macOS SwiftUI probe records a 2:1 `.fill` child responding
+/// 160 by 80 to the same proposal. This makes fill's observable overflow
+/// distinct from `.fit` and prevents the two modes from collapsing to one
+/// min-dimension implementation.
 @MainActor
 @Test func aspectRatioFillCircumscribesTheParentProposalBeforeMeasuringItsChild() {
     let probe = NativeLayoutProbe()
