@@ -158,6 +158,34 @@ private struct NativeProposalProbe: Element {
             "an explicit zero opts out of the platform default")
 }
 
+/// The companion macOS SwiftUI probe hosts 20 by 10 and 20 by 30 children in
+/// a fitting `VStack` and measures 20 by 48: the 8pt difference is the default
+/// vertical gap. The explicit-zero control keeps this from passing if both
+/// initializers happen to share an accidental value.
+@MainActor
+@Test func vStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt() {
+    let defaultProbe = NativeLayoutProbe()
+    let zeroProbe = NativeLayoutProbe()
+    let defaultFrame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    let zeroFrame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    var defaultStack = VStack {
+        NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: defaultProbe, name: "leading")
+        NativeProbeLeaf(size: SizeD(width: 20, height: 30), probe: defaultProbe, name: "trailing")
+    }
+    var zeroStack = VStack(spacing: Pixels(0)) {
+        NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: zeroProbe, name: "leading")
+        NativeProbeLeaf(size: SizeD(width: 20, height: 30), probe: zeroProbe, name: "trailing")
+    }
+
+    defaultFrame.render(&defaultStack)
+    zeroFrame.render(&zeroStack)
+
+    #expect(defaultProbe.prepaintBounds?.origin.y == Pixels(18),
+            "the default 8pt gap follows the 10pt leading item")
+    #expect(zeroProbe.prepaintBounds?.origin.y == Pixels(10),
+            "an explicit zero opts out of the platform default")
+}
+
 @MainActor
 @Test func nativeCompositionUsesColumnFrameAndPaddingProposals() {
     let probe = NativeLayoutProbe()

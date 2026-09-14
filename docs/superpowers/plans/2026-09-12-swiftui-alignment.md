@@ -156,6 +156,9 @@ modifier placement from names alone.
   predecessors remain deprecated source-compatible migration aliases; the
   direct legacy `.frame(width:height:)` is still a distinct CSS-era path and
   needs its own replacement rather than being silently conflated with this one.
+- The native `HStack` and `VStack` defaults are both probe-backed at 8pt. The
+  vertical probe uses a fitting `NSHostingView` with 10pt and 30pt children and
+  measures 48pt; explicit-zero controls pin both defaults separately.
 - The proposal path also has an explicit `aspectRatio(_:contentMode:)` wrapper
   with deterministic fit/fill proposal and placement tests. It is preliminary
   task-7 migration evidence: advanced sizing still needs versioned SwiftUI

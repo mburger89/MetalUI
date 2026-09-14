@@ -55,7 +55,7 @@ public struct VStack<Content: ElementGroup>: Element {
     public var spacing: Pixels
     public var alignment: NativeAlignment
 
-    public init(spacing: Pixels = Pixels(0), alignment: NativeAlignment = .center,
+    public init(spacing: Pixels = Pixels(8), alignment: NativeAlignment = .center,
                 @ElementBuilder content: () -> Content) {
         self.content = content()
         self.spacing = spacing
