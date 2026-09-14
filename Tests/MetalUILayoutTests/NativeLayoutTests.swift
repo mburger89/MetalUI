@@ -236,6 +236,28 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     #expect(tree.layout(content) == LayoutRect(x: 0, y: 0, width: 90, height: 160))
 }
 
+@Test func aNativeHorizontalScrollViewportLeavesItsWidthUnspecifiedForContent() {
+    let tree = LayoutTree(generation: 0)
+    let contentCalls = NativeMeasureCounter()
+    let content = tree.newNativeLeaf { proposal in
+        contentCalls.count += 1
+        #expect(proposal == ProposedSize(width: nil, height: 50))
+        return LayoutMeasurement(size: SizeD(width: proposal.width ?? 160,
+                                             height: proposal.height ?? 40))
+    }
+    let viewport = tree.newNativeScrollViewport(child: content, axis: .horizontal)
+
+    let measurement = tree.computeNativeLayout(
+        root: viewport,
+        proposal: ProposedSize(width: 90, height: 50),
+        in: LayoutRect(x: 0, y: 0, width: 90, height: 50)
+    )
+
+    #expect(contentCalls.count == 1)
+    #expect(measurement.size == SizeD(width: 90, height: 50))
+    #expect(tree.layout(content) == LayoutRect(x: 0, y: 0, width: 160, height: 50))
+}
+
 @Test func aNativeLinearStackDividesConcreteSurplusBetweenSpacers() {
     let tree = LayoutTree(generation: 0)
     let leading = tree.newNativeLeaf { proposal in
