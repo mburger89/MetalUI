@@ -181,9 +181,10 @@ modifier placement from names alone.
 - `ProposalScrollView` is the proposal-layout migration path for scrolling:
   it measures content with an unspecified scrolling axis, retains a concrete
   parent viewport proposal, and reuses MetalUI's clipped wheel-routing and
-  indicator behaviour. A macOS SwiftUI pixel probe measures direct vertical
-  content children with an 8pt gap, so multiple proposal children lower to the
-  corresponding native stack while a single composed child remains transparent.
+  indicator behaviour. macOS SwiftUI pixel probes measure direct content
+  children with an 8pt **vertical** gap for both scroll axes, so multiple
+  proposal children lower to a vertical native stack while a single composed
+  child remains transparent.
   The source-compatible CSS-era `ScrollView` remains in place until the public
   container migration can replace it without mixing layout engines.
 - A proposal frame now reports a clamped ideal dimension on an unspecified axis,

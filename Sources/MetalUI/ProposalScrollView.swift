@@ -46,18 +46,17 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
                                                                    pass: &pass)
-        // SwiftUI's `ScrollView` content builder presents direct children as a
-        // vertical or horizontal variadic layout. A local macOS probe with a
-        // 20pt red and 30pt blue child observed an 8pt gap (red, background,
-        // blue), the same default spacing as the corresponding proposal
-        // stack. Preserve an already-composed single child so wrappers remain
-        // layout-transparent; only a real group needs this implicit container.
+        // SwiftUI's `ScrollView` content builder presents direct children in a
+        // vertical variadic layout regardless of its scrolling axis. macOS
+        // pixel probes with 20pt red and 30pt blue children observed an 8pt
+        // gap (red, background, blue) for both axes. Horizontal content is an
+        // explicit `HStack`, which remains a single transparent child here.
         let contentAxis: ProposalStackAxis = axis == .vertical ? .vertical : .horizontal
         let contentNode: LayoutNodeID
         if children.count == 1 {
             contentNode = children[0]
         } else {
-            contentNode = pass.requestNativeLinearStack(children: children, axis: contentAxis,
+            contentNode = pass.requestNativeLinearStack(children: children, axis: .vertical,
                                                          spacing: 8)
         }
         let node = pass.requestNativeScrollViewport(
