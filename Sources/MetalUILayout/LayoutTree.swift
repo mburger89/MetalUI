@@ -269,14 +269,16 @@ public final class LayoutTree {
     ///
     /// `bounds` is root-absolute, matching the contract `Frame.bounds(of:)`
     /// already exposes to prepaint and paint. Measurements are cached only for
-    /// this call, keyed by both node and proposal; a later frame receives a new
-    /// tree and therefore a new cache.
+    /// this call, keyed by both node and proposal, in a `NativeLayoutRun` that
+    /// is created here and marked inactive on return; a later frame receives a
+    /// new tree and therefore a new run.
     @discardableResult
     public func computeNativeLayout(root: LayoutNodeID, proposal: ProposedSize,
                                     in bounds: LayoutRect) -> LayoutMeasurement {
-        var cache: [NativeMeasurementKey: LayoutMeasurement] = [:]
-        let result = measureNative(root, proposal: proposal, cache: &cache)
-        placeNative(root, in: bounds, proposal: proposal, cache: &cache)
+        let run = NativeLayoutRun(tree: self)
+        defer { run.isActive = false }
+        let result = measureNative(root, proposal: proposal, run: run)
+        placeNative(root, in: bounds, proposal: proposal, run: run)
         roundNativeStoredRects(root)
         return result
     }
@@ -385,10 +387,10 @@ public final class LayoutTree {
     }
 
     private func measureNative(_ id: LayoutNodeID, proposal: ProposedSize,
-                               cache: inout [NativeMeasurementKey: LayoutMeasurement])
+                               run: NativeLayoutRun)
         -> LayoutMeasurement {
         let key = NativeMeasurementKey(id: id, proposal: proposal)
-        if let cached = cache[key] { return cached }
+        if let cached = run.cache[key] { return cached }
 
         let result: LayoutMeasurement
         switch nativeNode(id) {
@@ -401,22 +403,22 @@ public final class LayoutTree {
             ))
         case .overlay:
             result = children(id).reduce(LayoutMeasurement(size: .zero)) { current, child in
-                let childMeasurement = measureNative(child, proposal: proposal, cache: &cache)
+                let childMeasurement = measureNative(child, proposal: proposal, run: run)
                 return LayoutMeasurement(
                     size: SizeD(width: max(current.size.width, childMeasurement.size.width),
                                 height: max(current.size.height, childMeasurement.size.height))
                 )
             }
         case .overlayAttachment:
-            let child = measureNative(children(id)[0], proposal: proposal, cache: &cache)
+            let child = measureNative(children(id)[0], proposal: proposal, run: run)
             _ = measureNative(children(id)[1],
                               proposal: ProposedSize(width: child.size.width, height: child.size.height),
-                              cache: &cache)
+                              run: run)
             result = child
         case .frame(let width, let height, let minWidth, let idealWidth, let maxWidth, let minHeight, let idealHeight, let maxHeight, let alignment):
             let childProposal = ProposedSize(width: framedProposal(proposal.width, fixed: width, ideal: idealWidth, min: minWidth, max: maxWidth),
                                              height: framedProposal(proposal.height, fixed: height, ideal: idealHeight, min: minHeight, max: maxHeight))
-            let child = measureNative(children(id)[0], proposal: childProposal, cache: &cache)
+            let child = measureNative(children(id)[0], proposal: childProposal, run: run)
             let frameWidth = framedSize(child.size.width, proposal: proposal.width,
                                         fixed: width, ideal: idealWidth, min: minWidth, max: maxWidth)
             let frameHeight = framedSize(child.size.height, proposal: proposal.height,
@@ -428,7 +430,7 @@ public final class LayoutTree {
             )
         case .padding(let insets):
             let childProposal = paddingProposal(proposal, insets: insets)
-            let child = measureNative(children(id)[0], proposal: childProposal, cache: &cache)
+            let child = measureNative(children(id)[0], proposal: childProposal, run: run)
             result = LayoutMeasurement(
                 size: SizeD(width: child.size.width + insets.left + insets.right,
                             height: child.size.height + insets.top + insets.bottom),
@@ -440,31 +442,31 @@ public final class LayoutTree {
                                    proposal: fixedSizeProposal(proposal,
                                                                horizontal: horizontal,
                                                                vertical: vertical),
-                                   cache: &cache)
+                                   run: run)
         case .aspectRatio(let ratio, let contentMode):
             let child = children(id)[0]
-            let intrinsic = measureNative(child, proposal: proposal, cache: &cache)
+            let intrinsic = measureNative(child, proposal: proposal, run: run)
             let size = aspectRatioSize(proposal: proposal, intrinsic: intrinsic.size,
                                        ratio: ratio, contentMode: contentMode)
             let constrained = measureNative(child,
                                             proposal: ProposedSize(width: size.width, height: size.height),
-                                            cache: &cache)
+                                            run: run)
             result = LayoutMeasurement(
                 size: size,
                 firstBaseline: constrained.firstBaseline,
                 lastBaseline: constrained.lastBaseline
             )
         case .layoutPriority:
-            result = measureNative(children(id)[0], proposal: proposal, cache: &cache)
+            result = measureNative(children(id)[0], proposal: proposal, run: run)
         case .scrollViewport(let axis):
             let content = measureNative(children(id)[0],
                                         proposal: scrollContentProposal(for: axis, parent: proposal),
-                                        cache: &cache)
+                                        run: run)
             result = LayoutMeasurement(size: scrollViewportSize(proposal: proposal, content: content.size))
         case .linearStack(let axis, let spacing, _):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             let childMeasurements = children(id).map {
-                measureNative($0, proposal: childProposal, cache: &cache)
+                measureNative($0, proposal: childProposal, run: run)
             }
             let gaps = Double(max(0, childMeasurements.count - 1)) * spacing
             let hasSpacer = children(id).contains(where: isNativeSpacer)
@@ -485,95 +487,95 @@ public final class LayoutTree {
                 )
             }
         }
-        cache[key] = result
+        run.cache[key] = result
         return result
     }
 
     private func placeNative(_ id: LayoutNodeID, in bounds: LayoutRect,
                              proposal: ProposedSize,
-                             cache: inout [NativeMeasurementKey: LayoutMeasurement]) {
+                             run: NativeLayoutRun) {
         setLayout(id, bounds)
         switch nativeNode(id) {
         case .leaf, .spacer:
             return
         case .overlay(let alignment):
             for child in children(id) {
-                let measurement = measureNative(child, proposal: proposal, cache: &cache)
+                let measurement = measureNative(child, proposal: proposal, run: run)
                 placeNative(child,
                             in: LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) * alignment.horizontalFactor,
                                            y: bounds.y + (bounds.height - measurement.size.height) * alignment.verticalFactor,
                                            width: measurement.size.width, height: measurement.size.height),
-                            proposal: proposal, cache: &cache)
+                            proposal: proposal, run: run)
             }
         case .overlayAttachment(let alignment):
             let primary = children(id)[0]
             let overlay = children(id)[1]
-            let primaryMeasurement = measureNative(primary, proposal: proposal, cache: &cache)
-            placeNative(primary, in: bounds, proposal: proposal, cache: &cache)
+            let primaryMeasurement = measureNative(primary, proposal: proposal, run: run)
+            placeNative(primary, in: bounds, proposal: proposal, run: run)
             let overlayProposal = ProposedSize(width: primaryMeasurement.size.width,
                                                height: primaryMeasurement.size.height)
-            let overlayMeasurement = measureNative(overlay, proposal: overlayProposal, cache: &cache)
+            let overlayMeasurement = measureNative(overlay, proposal: overlayProposal, run: run)
             placeNative(overlay,
                         in: LayoutRect(x: bounds.x + (bounds.width - overlayMeasurement.size.width) * alignment.horizontalFactor,
                                        y: bounds.y + (bounds.height - overlayMeasurement.size.height) * alignment.verticalFactor,
                                        width: overlayMeasurement.size.width, height: overlayMeasurement.size.height),
-                        proposal: overlayProposal, cache: &cache)
+                        proposal: overlayProposal, run: run)
         case .frame(let width, let height, let minWidth, let idealWidth, let maxWidth, let minHeight, let idealHeight, let maxHeight, let alignment):
             let childProposal = ProposedSize(width: framedProposal(proposal.width, fixed: width, ideal: idealWidth, min: minWidth, max: maxWidth),
                                              height: framedProposal(proposal.height, fixed: height, ideal: idealHeight, min: minHeight, max: maxHeight))
             let child = children(id)[0]
-            let measurement = measureNative(child, proposal: childProposal, cache: &cache)
+            let measurement = measureNative(child, proposal: childProposal, run: run)
             placeNative(child,
                         in: LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) * alignment.horizontalFactor,
                                        y: bounds.y + (bounds.height - measurement.size.height) * alignment.verticalFactor,
                                        width: measurement.size.width, height: measurement.size.height),
-                        proposal: childProposal, cache: &cache)
+                        proposal: childProposal, run: run)
         case .padding(let insets):
             let childProposal = paddingProposal(proposal, insets: insets)
             let child = children(id)[0]
-            _ = measureNative(child, proposal: childProposal, cache: &cache)
+            _ = measureNative(child, proposal: childProposal, run: run)
             placeNative(child,
                         in: LayoutRect(x: bounds.x + insets.left,
                                        y: bounds.y + insets.top,
                                        width: Swift.max(0, bounds.width - insets.left - insets.right),
                                        height: Swift.max(0, bounds.height - insets.top - insets.bottom)),
-                        proposal: childProposal, cache: &cache)
+                        proposal: childProposal, run: run)
         case .fixedSize(let horizontal, let vertical):
             let childProposal = fixedSizeProposal(proposal, horizontal: horizontal,
                                                   vertical: vertical)
             let child = children(id)[0]
-            let measurement = measureNative(child, proposal: childProposal, cache: &cache)
+            let measurement = measureNative(child, proposal: childProposal, run: run)
             placeNative(child,
                         in: LayoutRect(x: bounds.x, y: bounds.y,
                                        width: measurement.size.width, height: measurement.size.height),
-                        proposal: childProposal, cache: &cache)
+                        proposal: childProposal, run: run)
         case .aspectRatio(let ratio, let contentMode):
             let child = children(id)[0]
-            let intrinsic = measureNative(child, proposal: proposal, cache: &cache)
+            let intrinsic = measureNative(child, proposal: proposal, run: run)
             let size = aspectRatioSize(proposal: proposal, intrinsic: intrinsic.size,
                                        ratio: ratio, contentMode: contentMode)
             let childProposal = ProposedSize(width: size.width, height: size.height)
-            _ = measureNative(child, proposal: childProposal, cache: &cache)
+            _ = measureNative(child, proposal: childProposal, run: run)
             placeNative(child,
                         in: LayoutRect(x: bounds.x, y: bounds.y,
                                        width: size.width, height: size.height),
-                        proposal: childProposal, cache: &cache)
+                        proposal: childProposal, run: run)
         case .layoutPriority:
             let child = children(id)[0]
-            _ = measureNative(child, proposal: proposal, cache: &cache)
-            placeNative(child, in: bounds, proposal: proposal, cache: &cache)
+            _ = measureNative(child, proposal: proposal, run: run)
+            placeNative(child, in: bounds, proposal: proposal, run: run)
         case .scrollViewport(let axis):
             let child = children(id)[0]
             let childProposal = scrollContentProposal(for: axis, parent: proposal)
-            let measurement = measureNative(child, proposal: childProposal, cache: &cache)
+            let measurement = measureNative(child, proposal: childProposal, run: run)
             placeNative(child,
                         in: LayoutRect(x: bounds.x, y: bounds.y,
                                        width: measurement.size.width, height: measurement.size.height),
-                        proposal: childProposal, cache: &cache)
+                        proposal: childProposal, run: run)
         case .linearStack(let axis, let spacing, let alignment):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             let childMeasurements = children(id).map {
-                measureNative($0, proposal: childProposal, cache: &cache)
+                measureNative($0, proposal: childProposal, run: run)
             }
             let naturalMain = stackMainSize(childMeasurements, axis: axis, spacing: spacing)
             let spacerCount = children(id).filter(isNativeSpacer).count
@@ -590,7 +592,7 @@ public final class LayoutTree {
                 let constrainedProposal = stackPlacementProposal(placementProposal,
                                                                   axis: axis,
                                                                   allocatedMain: allocations[index])
-                let measurement = measureNative(child, proposal: constrainedProposal, cache: &cache)
+                let measurement = measureNative(child, proposal: constrainedProposal, run: run)
                 let childBounds: LayoutRect
                 switch axis {
                 case .horizontal:
@@ -604,7 +606,7 @@ public final class LayoutTree {
                                              width: measurement.size.width, height: measurement.size.height)
                     cursor += measurement.size.height + spacing
                 }
-                placeNative(child, in: childBounds, proposal: constrainedProposal, cache: &cache)
+                placeNative(child, in: childBounds, proposal: constrainedProposal, run: run)
             }
         }
     }
@@ -859,8 +861,3 @@ public typealias NativeStackAxis = ProposalStackAxis
 /// Temporary source-compatible name for ``ProposalAlignment``.
 @available(*, deprecated, renamed: "ProposalAlignment")
 public typealias NativeAlignment = ProposalAlignment
-
-private struct NativeMeasurementKey: Hashable {
-    let id: LayoutNodeID
-    let proposal: ProposedSize
-}
