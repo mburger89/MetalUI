@@ -181,6 +181,11 @@ modifier placement from names alone.
   and the offered value on each concrete axis. The existing explicit
   `Rectangle(width:height:color:)` initializer remains the fixed-size
   migration convenience.
+- Proposal containers and stored proposal wrappers now require
+  `ProposalElementGroup` content at construction. This keeps legacy CSS
+  elements out of `HStack`/`VStack`/`ZStack`, proposal frames and outer
+  wrappers before registration, rather than allowing a mixed tree to trap at
+  runtime; paired external compile guards cover every constructor.
 - Proposal `Color` follows the same measured SwiftUI 10pt unspecified-axis
   ideal while continuing to fill every concrete proposal; all four proposal
   combinations are pinned in its native integration test.

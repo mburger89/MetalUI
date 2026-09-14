@@ -133,6 +133,8 @@ private struct NativeFillProbe: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
+extension NativeFillProbe: ProposalElementGroup {}
+
 private struct NativeProposalProbe: Element {
     let expectedProposal: ProposedSize
     let probe: NativeLayoutProbe

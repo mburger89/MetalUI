@@ -5,7 +5,7 @@ import MetalUILayout
 ///
 /// Its overlay is measured against the primary content's resolved size and
 /// does not change the primary content's reported size.
-public struct OverlayModifier<Content: ElementGroup, Overlay: ElementGroup>: Element {
+public struct OverlayModifier<Content: ProposalElementGroup, Overlay: ProposalElementGroup>: Element {
     public var content: Content
     public var overlay: Overlay
     public var alignment: ProposalAlignment
@@ -70,5 +70,5 @@ extension ProposalElementGroup {
 
 /// Temporary source-compatible name for ``OverlayModifier``.
 @available(*, deprecated, renamed: "OverlayModifier")
-public typealias NativeOverlayModifier<Content: ElementGroup, Overlay: ElementGroup>
+public typealias NativeOverlayModifier<Content: ProposalElementGroup, Overlay: ProposalElementGroup>
     = OverlayModifier<Content, Overlay>

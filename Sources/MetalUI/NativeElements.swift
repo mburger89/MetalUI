@@ -8,7 +8,7 @@ import MetalUILayout
 /// structural: attempting to place a legacy element here traps when the layout
 /// pass registers the stack, instead of silently handing a CSS child to the
 /// native algorithm.
-public struct HStack<Content: ElementGroup>: Element {
+public struct HStack<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var spacing: Pixels
     public var alignment: ProposalAlignment
@@ -50,7 +50,7 @@ public struct HStack<Content: ElementGroup>: Element {
 }
 
 /// A native proposal-layout vertical stack.
-public struct VStack<Content: ElementGroup>: Element {
+public struct VStack<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var spacing: Pixels
     public var alignment: ProposalAlignment
@@ -92,7 +92,7 @@ public struct VStack<Content: ElementGroup>: Element {
 }
 
 /// A native proposal-layout overlay, analogous to SwiftUI's `ZStack`.
-public struct ZStack<Content: ElementGroup>: Element {
+public struct ZStack<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var alignment: ProposalAlignment
 
@@ -131,21 +131,21 @@ public struct ZStack<Content: ElementGroup>: Element {
 
 /// Temporary source-compatible name for ``HStack``.
 @available(*, deprecated, renamed: "HStack")
-public typealias NativeRow<Content: ElementGroup> = HStack<Content>
+public typealias NativeRow<Content: ProposalElementGroup> = HStack<Content>
 
 /// Temporary source-compatible name for ``VStack``.
 @available(*, deprecated, renamed: "VStack")
-public typealias NativeColumn<Content: ElementGroup> = VStack<Content>
+public typealias NativeColumn<Content: ProposalElementGroup> = VStack<Content>
 
 /// Temporary source-compatible name for ``ZStack``.
 @available(*, deprecated, renamed: "ZStack")
-public typealias NativeOverlay<Content: ElementGroup> = ZStack<Content>
+public typealias NativeOverlay<Content: ProposalElementGroup> = ZStack<Content>
 
 /// A proposal-layout frame whose content contributes exactly one native node.
 ///
 /// Prefer the `.frame(...)` modifier on a `ProposalElementGroup` when possible;
 /// this builder exists for the few declarations that need a stored wrapper.
-public struct ProposalFrame<Content: ElementGroup>: Element {
+public struct ProposalFrame<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var width: Pixels?
     public var height: Pixels?
@@ -210,10 +210,10 @@ public struct ProposalFrame<Content: ElementGroup>: Element {
 
 /// Temporary source-compatible name for ``ProposalFrame``.
 @available(*, deprecated, renamed: "ProposalFrame")
-public typealias NativeFrame<Content: ElementGroup> = ProposalFrame<Content>
+public typealias NativeFrame<Content: ProposalElementGroup> = ProposalFrame<Content>
 
 /// Native outer padding around one native child.
-public struct Padding<Content: ElementGroup>: Element {
+public struct Padding<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var insets: Edges<Pixels>
 
@@ -254,7 +254,7 @@ public struct Padding<Content: ElementGroup>: Element {
 
 /// A builder-style background that paints beneath its content without
 /// affecting that content's proposal, measurement, or placement.
-public struct Background<Content: ElementGroup>: Element {
+public struct Background<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var color: ColorToken
 
@@ -290,7 +290,7 @@ public struct Background<Content: ElementGroup>: Element {
 
 /// Temporary source-compatible name for ``Background``.
 @available(*, deprecated, renamed: "Background")
-public typealias NativeBackground<Content: ElementGroup> = Background<Content>
+public typealias NativeBackground<Content: ProposalElementGroup> = Background<Content>
 
 /// A native proposal-layout wrapper that preserves its content's intrinsic
 /// measurement on the selected axes.
@@ -298,7 +298,7 @@ public typealias NativeBackground<Content: ElementGroup> = Background<Content>
 /// This is the builder-style counterpart to ``ElementGroup/nativeFixedSize(horizontal:vertical:)``.
 /// It withholds the selected axis from its child proposal; it does not mutate
 /// the child's size after measurement.
-public struct FixedSize<Content: ElementGroup>: Element {
+public struct FixedSize<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var horizontal: Bool
     public var vertical: Bool
@@ -341,11 +341,11 @@ public struct FixedSize<Content: ElementGroup>: Element {
 
 /// Temporary source-compatible name for ``Padding``.
 @available(*, deprecated, renamed: "Padding")
-public typealias NativePadding<Content: ElementGroup> = Padding<Content>
+public typealias NativePadding<Content: ProposalElementGroup> = Padding<Content>
 
 /// Temporary source-compatible name for ``FixedSize``.
 @available(*, deprecated, renamed: "FixedSize")
-public typealias NativeFixedSize<Content: ElementGroup> = FixedSize<Content>
+public typealias NativeFixedSize<Content: ProposalElementGroup> = FixedSize<Content>
 
 /// A flexible proposal-layout spacer for use inside ``HStack``.
 public struct Spacer: Element {

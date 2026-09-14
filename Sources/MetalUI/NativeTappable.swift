@@ -5,7 +5,7 @@ import MetalUILayout
 ///
 /// It contributes no layout node: hit testing is registered in prepaint after
 /// native layout has resolved, matching the framework's three-phase contract.
-public struct OnTapModifier<Content: ElementGroup>: Element {
+public struct OnTapModifier<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var action: @MainActor () -> Void
     public var hoverColor: ColorToken?
@@ -68,4 +68,4 @@ extension ProposalElementGroup {
 
 /// Temporary source-compatible name for ``OnTapModifier``.
 @available(*, deprecated, renamed: "OnTapModifier")
-public typealias NativeTappable<Content: ElementGroup> = OnTapModifier<Content>
+public typealias NativeTappable<Content: ProposalElementGroup> = OnTapModifier<Content>

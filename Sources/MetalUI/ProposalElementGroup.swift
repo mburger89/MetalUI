@@ -12,17 +12,16 @@ extension Pair: ProposalElementGroup where First: ProposalElementGroup, Second: 
 extension OptionalGroup: ProposalElementGroup where Wrapped: ProposalElementGroup {}
 extension ArrayGroup: ProposalElementGroup where Group: ProposalElementGroup {}
 
-extension HStack: ProposalElementGroup where Content: ProposalElementGroup {}
-extension VStack: ProposalElementGroup where Content: ProposalElementGroup {}
-extension ZStack: ProposalElementGroup where Content: ProposalElementGroup {}
-extension ProposalFrame: ProposalElementGroup where Content: ProposalElementGroup {}
-extension Padding: ProposalElementGroup where Content: ProposalElementGroup {}
-extension Background: ProposalElementGroup where Content: ProposalElementGroup {}
-extension FixedSize: ProposalElementGroup where Content: ProposalElementGroup {}
+extension HStack: ProposalElementGroup {}
+extension VStack: ProposalElementGroup {}
+extension ZStack: ProposalElementGroup {}
+extension ProposalFrame: ProposalElementGroup {}
+extension Padding: ProposalElementGroup {}
+extension Background: ProposalElementGroup {}
+extension FixedSize: ProposalElementGroup {}
 extension Spacer: ProposalElementGroup {}
 extension Rectangle: ProposalElementGroup {}
 extension Color: ProposalElementGroup {}
-extension ModifiedContent: ProposalElementGroup where Content: ProposalElementGroup {}
-extension OnTapModifier: ProposalElementGroup where Content: ProposalElementGroup {}
-extension OverlayModifier: ProposalElementGroup
-    where Content: ProposalElementGroup, Overlay: ProposalElementGroup {}
+extension ModifiedContent: ProposalElementGroup {}
+extension OnTapModifier: ProposalElementGroup {}
+extension OverlayModifier: ProposalElementGroup {}

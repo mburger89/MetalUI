@@ -66,6 +66,75 @@ func proposalOnTapAcceptsProposalContentAndRejectsLegacyContent() throws {
             "rejected, but not because the proposal onTap boundary was absent:\n\(negative.output)")
 }
 
+/// Proposal containers and their stored wrapper forms all register native
+/// nodes. Their generic constraints must therefore reject a legacy subtree at
+/// construction time; checking each constructor independently prevents one
+/// unconstrained builder from reintroducing the runtime mixed-tree trap.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func proposalLayoutConstructorsRequireProposalContent() throws {
+    let positive = try typecheck("""
+        @MainActor func probe() {
+            _ = HStack { Rectangle(); Color(.accent) }
+            _ = VStack { Rectangle(); Color(.accent) }
+            _ = ZStack { Rectangle(); Color(.accent) }
+            _ = ProposalFrame { Rectangle() }
+            _ = Padding(Edges(all: Pixels(1))) { Rectangle() }
+            _ = Background(.accent) { Rectangle() }
+            _ = FixedSize { Rectangle() }
+            _ = ModifiedContent(content: Rectangle(), modifier: .padding(Edges(all: Pixels(1))))
+            _ = OnTapModifier(content: Rectangle()) {}
+            _ = OverlayModifier(content: Rectangle()) { Color(.accent) }
+        }
+        """, importing: "MetalUI")
+    #expect(positive.succeeded,
+            "every proposal builder must remain constructible with proposal content:\n\(positive.output)")
+
+    func assertRejectsLegacyContent(_ source: String) throws {
+        let result = try typecheck(source, importing: "MetalUI")
+        #expect(!result.succeeded,
+                "a legacy subtree must be rejected before native layout registration:\n\(result.output)")
+        #expect(result.messages.contains("ProposalElementGroup"),
+                "rejected, but not because the proposal-content constraint was missing:\n\(result.output)")
+    }
+
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = HStack { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = VStack { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = ZStack { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = ProposalFrame { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() {
+            _ = Padding(Edges(all: Pixels(1))) { Text("legacy") }
+        }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = Background(.accent) { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = FixedSize { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() {
+            _ = ModifiedContent(content: Text("legacy"), modifier: .padding(Edges(all: Pixels(1))))
+        }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = OnTapModifier(content: Text("legacy")) {} }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() {
+            _ = OverlayModifier(content: Text("legacy")) { Rectangle() }
+        }
+        """)
+}
+
 /// An element that replaces its own children **between `requestLayout` and
 /// `prepaint`**.
 ///

@@ -28,7 +28,7 @@ public enum LayoutModifier: Sendable {
 /// that structure concrete—`ModifiedContent<ModifiedContent<T>>`
 /// rather than silently introducing `AnyElement`—so identity and phase order
 /// remain observable and predictable.
-public struct ModifiedContent<Content: ElementGroup>: Element {
+public struct ModifiedContent<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var modifier: LayoutModifier
 
@@ -287,4 +287,4 @@ public typealias NativeLayoutModifier = LayoutModifier
 
 /// Temporary source-compatible name for ``ModifiedContent``.
 @available(*, deprecated, renamed: "ModifiedContent")
-public typealias NativeModifiedContent<Content: ElementGroup> = ModifiedContent<Content>
+public typealias NativeModifiedContent<Content: ProposalElementGroup> = ModifiedContent<Content>
