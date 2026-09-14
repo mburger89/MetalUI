@@ -15,10 +15,12 @@ extension ArrayGroup: ProposalElementGroup where Group: ProposalElementGroup {}
 extension HStack: ProposalElementGroup where Content: ProposalElementGroup {}
 extension VStack: ProposalElementGroup where Content: ProposalElementGroup {}
 extension ZStack: ProposalElementGroup where Content: ProposalElementGroup {}
+extension Padding: ProposalElementGroup where Content: ProposalElementGroup {}
+extension FixedSize: ProposalElementGroup where Content: ProposalElementGroup {}
 extension Spacer: ProposalElementGroup {}
 extension Rectangle: ProposalElementGroup {}
 extension Color: ProposalElementGroup {}
 extension ModifiedContent: ProposalElementGroup where Content: ProposalElementGroup {}
 extension OnTapModifier: ProposalElementGroup where Content: ProposalElementGroup {}
-extension NativeOverlayModifier: ProposalElementGroup
+extension OverlayModifier: ProposalElementGroup
     where Content: ProposalElementGroup, Overlay: ProposalElementGroup {}

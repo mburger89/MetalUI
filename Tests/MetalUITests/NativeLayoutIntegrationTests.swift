@@ -132,7 +132,7 @@ private struct NativeProposalProbe: Element {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
     var root = NativeFrame(width: Pixels(100), height: Pixels(80)) {
-        NativePadding(Edges(top: Pixels(10), right: Pixels(20), bottom: Pixels(10), left: Pixels(20))) {
+        Padding(Edges(top: Pixels(10), right: Pixels(20), bottom: Pixels(10), left: Pixels(20))) {
             VStack(spacing: Pixels(5)) {
                 NativeProbeLeaf(size: SizeD(width: 30, height: 10), probe: probe, name: "leading")
                 Spacer(minLength: Pixels(10))
@@ -267,11 +267,11 @@ private struct NativeProposalProbe: Element {
 }
 
 @MainActor
-@Test func builderNativeFixedSizeWithholdsOnlyItsSelectedAxisFromTheChildProposal() {
+@Test func builderFixedSizeWithholdsOnlyItsSelectedAxisFromTheChildProposal() {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(120), height: Pixels(80)), scaleFactor: 1)
     var root = NativeFrame(width: Pixels(120), height: Pixels(80)) {
-        NativeFixedSize(horizontal: true, vertical: false) {
+        FixedSize(horizontal: true, vertical: false) {
             NativeProposalProbe(expectedProposal: ProposedSize(width: nil, height: 80), probe: probe)
         }
     }

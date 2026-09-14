@@ -5,7 +5,7 @@ import MetalUILayout
 ///
 /// Its overlay is measured against the primary content's resolved size and
 /// does not change the primary content's reported size.
-public struct NativeOverlayModifier<Content: ElementGroup, Overlay: ElementGroup>: Element {
+public struct OverlayModifier<Content: ElementGroup, Overlay: ElementGroup>: Element {
     public var content: Content
     public var overlay: Overlay
     public var alignment: NativeAlignment
@@ -55,15 +55,20 @@ public struct NativeOverlayModifier<Content: ElementGroup, Overlay: ElementGroup
 extension ElementGroup {
     public func overlay<Overlay: ElementGroup>(alignment: NativeAlignment = .center,
                                                @ElementBuilder content: () -> Overlay)
-        -> NativeOverlayModifier<Self, Overlay> {
-        NativeOverlayModifier(content: self, alignment: alignment, overlay: content)
+        -> OverlayModifier<Self, Overlay> {
+        OverlayModifier(content: self, alignment: alignment, overlay: content)
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "overlay")
     public func nativeOverlay<Overlay: ElementGroup>(alignment: NativeAlignment = .center,
                                                       @ElementBuilder content: () -> Overlay)
-        -> NativeOverlayModifier<Self, Overlay> {
+        -> OverlayModifier<Self, Overlay> {
         overlay(alignment: alignment, content: content)
     }
 }
+
+/// Temporary source-compatible name for ``OverlayModifier``.
+@available(*, deprecated, renamed: "OverlayModifier")
+public typealias NativeOverlayModifier<Content: ElementGroup, Overlay: ElementGroup>
+    = OverlayModifier<Content, Overlay>

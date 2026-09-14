@@ -206,7 +206,7 @@ public struct NativeFrame<Content: ElementGroup>: Element {
 }
 
 /// Native outer padding around one native child.
-public struct NativePadding<Content: ElementGroup>: Element {
+public struct Padding<Content: ElementGroup>: Element {
     public var content: Content
     public var insets: Edges<Pixels>
 
@@ -225,7 +225,7 @@ public struct NativePadding<Content: ElementGroup>: Element {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
                                                                    pass: &pass)
-        precondition(children.count == 1, "NativePadding content must contribute one native node")
+        precondition(children.count == 1, "Padding content must contribute one native node")
         let insets = Edges<Double>(top: Double(insets.top.value), right: Double(insets.right.value),
                                    bottom: Double(insets.bottom.value), left: Double(insets.left.value))
         let node = pass.requestNativePadding(child: children[0], insets: insets)
@@ -287,7 +287,7 @@ public struct NativeBackground<Content: ElementGroup>: Element {
 /// This is the builder-style counterpart to ``ElementGroup/nativeFixedSize(horizontal:vertical:)``.
 /// It withholds the selected axis from its child proposal; it does not mutate
 /// the child's size after measurement.
-public struct NativeFixedSize<Content: ElementGroup>: Element {
+public struct FixedSize<Content: ElementGroup>: Element {
     public var content: Content
     public var horizontal: Bool
     public var vertical: Bool
@@ -309,7 +309,7 @@ public struct NativeFixedSize<Content: ElementGroup>: Element {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
                                                                    pass: &pass)
-        precondition(children.count == 1, "NativeFixedSize content must contribute one native node")
+        precondition(children.count == 1, "FixedSize content must contribute one native node")
         let node = pass.requestNativeFixedSize(child: children[0], horizontal: horizontal,
                                                vertical: vertical)
         return (node, Layout(node: node, content: contentLayout))
@@ -327,6 +327,14 @@ public struct NativeFixedSize<Content: ElementGroup>: Element {
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
     }
 }
+
+/// Temporary source-compatible name for ``Padding``.
+@available(*, deprecated, renamed: "Padding")
+public typealias NativePadding<Content: ElementGroup> = Padding<Content>
+
+/// Temporary source-compatible name for ``FixedSize``.
+@available(*, deprecated, renamed: "FixedSize")
+public typealias NativeFixedSize<Content: ElementGroup> = FixedSize<Content>
 
 /// A flexible proposal-layout spacer for use inside ``HStack``.
 public struct Spacer: Element {
