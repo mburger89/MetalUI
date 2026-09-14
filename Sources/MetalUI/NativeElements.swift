@@ -370,29 +370,54 @@ public struct Spacer: Element {
                                layout: inout Layout, prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-/// A fixed-size painted leaf for the native-layout migration path.
+/// A proposal-responsive rectangular shape for the native-layout migration.
 ///
-/// It is deliberately small: fixed dimensions and a semantic fill are enough
-/// to exercise native measurement, placement, and paint in a real frame while
-/// Text and the existing styled-element surface migrate separately.
+/// Its no-argument form follows SwiftUI's `Rectangle`: it responds with the
+/// concrete dimensions a parent proposes and uses a 10pt ideal on an
+/// unspecified axis. `init(width:height:color:)` remains the explicit fixed
+/// leaf convenience used by the existing migration preview and tests.
 public struct Rectangle: Element {
     public var width: Pixels
     public var height: Pixels
     public var color: ColorToken
+    private var respondsToProposal: Bool
 
     public init(width: Pixels, height: Pixels, color: ColorToken = .surface) {
         self.width = width
         self.height = height
         self.color = color
+        respondsToProposal = false
+    }
+
+    public init(color: ColorToken = .surface) {
+        width = Pixels(10)
+        height = Pixels(10)
+        self.color = color
+        respondsToProposal = true
     }
 
     public struct Layout { var node: LayoutNodeID }
 
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
-        let size = SizeD(width: Double(width.value), height: Double(height.value))
-        let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: size) }
+        let width = Double(width.value)
+        let height = Double(height.value)
+        let respondsToProposal = respondsToProposal
+        let node = pass.requestNativeLeaf { proposal in
+            Self.measurement(for: proposal, width: width, height: height,
+                             respondsToProposal: respondsToProposal)
+        }
         return (node, Layout(node: node))
+    }
+
+    nonisolated static func measurement(for proposal: ProposedSize, width: Double = 10,
+                                        height: Double = 10,
+                                        respondsToProposal: Bool = true) -> LayoutMeasurement {
+        guard respondsToProposal else {
+            return LayoutMeasurement(size: SizeD(width: width, height: height))
+        }
+        return LayoutMeasurement(size: SizeD(width: proposal.width ?? width,
+                                              height: proposal.height ?? height))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

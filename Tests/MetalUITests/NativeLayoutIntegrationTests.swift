@@ -414,6 +414,27 @@ extension NativeProposalProbe: ProposalElementGroup {}
             SizeD(width: 240, height: 160))
 }
 
+/// A macOS SwiftUI custom-Layout probe measures `Rectangle` as 10pt on an
+/// unspecified axis and exactly the parent's concrete proposal otherwise.
+@MainActor
+@Test func rectangleUsesSwiftUIShapeProposalSizing() {
+    #expect(Rectangle.measurement(for: ProposedSize(width: nil, height: nil)).size ==
+            SizeD(width: 10, height: 10))
+    #expect(Rectangle.measurement(for: ProposedSize(width: 100, height: 80)).size ==
+            SizeD(width: 100, height: 80))
+    #expect(Rectangle.measurement(for: ProposedSize(width: 100, height: nil)).size ==
+            SizeD(width: 100, height: 10))
+    #expect(Rectangle.measurement(for: ProposedSize(width: nil, height: 80)).size ==
+            SizeD(width: 10, height: 80))
+
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    var root = ZStack { Rectangle(color: .accent) }
+    frame.render(&root)
+    let rect = frame.finalizedScene().rects[0]
+    #expect(rect.bounds.size.width == 100)
+    #expect(rect.bounds.size.height == 80)
+}
+
 @MainActor
 @Test func nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder() {
     let probe = NativeLayoutProbe()

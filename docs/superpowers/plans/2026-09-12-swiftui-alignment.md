@@ -176,6 +176,11 @@ modifier placement from names alone.
   matching a macOS SwiftUI probe: a 20pt child in `.frame(idealWidth: 80)` is
   offered and reports 80pt, while a concrete parent proposal still takes
   precedence. Horizontal and vertical deterministic tests cover the result.
+- The canonical no-argument `Rectangle` is now proposal-responsive: a macOS
+  SwiftUI custom-Layout probe measures a 10pt ideal on each unspecified axis
+  and the offered value on each concrete axis. The existing explicit
+  `Rectangle(width:height:color:)` initializer remains the fixed-size
+  migration convenience.
 - Ordinary element padding now wraps its content; `Component` padding remains
   a separately measured distribution case. Task 5 decides the complete
   modifier matrix.
