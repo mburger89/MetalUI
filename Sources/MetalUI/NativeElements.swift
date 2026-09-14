@@ -141,8 +141,11 @@ public typealias NativeColumn<Content: ElementGroup> = VStack<Content>
 @available(*, deprecated, renamed: "ZStack")
 public typealias NativeOverlay<Content: ElementGroup> = ZStack<Content>
 
-/// A native outer frame. Its content must contribute exactly one native node.
-public struct NativeFrame<Content: ElementGroup>: Element {
+/// A proposal-layout frame whose content contributes exactly one native node.
+///
+/// Prefer the `.frame(...)` modifier on a `ProposalElementGroup` when possible;
+/// this builder exists for the few declarations that need a stored wrapper.
+public struct ProposalFrame<Content: ElementGroup>: Element {
     public var content: Content
     public var width: Pixels?
     public var height: Pixels?
@@ -181,7 +184,7 @@ public struct NativeFrame<Content: ElementGroup>: Element {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
                                                                    pass: &pass)
-        precondition(children.count == 1, "NativeFrame content must contribute one native node")
+        precondition(children.count == 1, "ProposalFrame content must contribute one native node")
         let node = pass.requestNativeFrame(
             child: children[0], width: width.map { Double($0.value) },
             height: height.map { Double($0.value) }, minWidth: minWidth.map { Double($0.value) },
@@ -204,6 +207,10 @@ public struct NativeFrame<Content: ElementGroup>: Element {
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
     }
 }
+
+/// Temporary source-compatible name for ``ProposalFrame``.
+@available(*, deprecated, renamed: "ProposalFrame")
+public typealias NativeFrame<Content: ElementGroup> = ProposalFrame<Content>
 
 /// Native outer padding around one native child.
 public struct Padding<Content: ElementGroup>: Element {
@@ -245,9 +252,9 @@ public struct Padding<Content: ElementGroup>: Element {
     }
 }
 
-/// A builder-style native background that paints beneath its content without
+/// A builder-style background that paints beneath its content without
 /// affecting that content's proposal, measurement, or placement.
-public struct NativeBackground<Content: ElementGroup>: Element {
+public struct Background<Content: ElementGroup>: Element {
     public var content: Content
     public var color: ColorToken
 
@@ -263,7 +270,7 @@ public struct NativeBackground<Content: ElementGroup>: Element {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
                                                                    pass: &pass)
-        precondition(children.count == 1, "NativeBackground content must contribute one native node")
+        precondition(children.count == 1, "Background content must contribute one native node")
         return (children[0], Layout(content: contentLayout))
     }
 
@@ -280,6 +287,10 @@ public struct NativeBackground<Content: ElementGroup>: Element {
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
     }
 }
+
+/// Temporary source-compatible name for ``Background``.
+@available(*, deprecated, renamed: "Background")
+public typealias NativeBackground<Content: ElementGroup> = Background<Content>
 
 /// A native proposal-layout wrapper that preserves its content's intrinsic
 /// measurement on the selected axes.

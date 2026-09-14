@@ -190,7 +190,7 @@ private struct NativeProposalProbe: Element {
 @Test func nativeCompositionUsesColumnFrameAndPaddingProposals() {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
-    var root = NativeFrame(width: Pixels(100), height: Pixels(80)) {
+    var root = ProposalFrame(width: Pixels(100), height: Pixels(80)) {
         Padding(Edges(top: Pixels(10), right: Pixels(20), bottom: Pixels(10), left: Pixels(20))) {
             VStack(spacing: Pixels(5)) {
                 NativeProbeLeaf(size: SizeD(width: 30, height: 10), probe: probe, name: "leading")
@@ -352,7 +352,7 @@ private struct NativeProposalProbe: Element {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(120), height: Pixels(80)), scaleFactor: 1)
     var root = ZStack {
-        NativeFrame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity)) {
+        ProposalFrame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity)) {
             NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
         }
     }
@@ -371,7 +371,7 @@ private struct NativeProposalProbe: Element {
 @Test func builderFixedSizeWithholdsOnlyItsSelectedAxisFromTheChildProposal() {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(120), height: Pixels(80)), scaleFactor: 1)
-    var root = NativeFrame(width: Pixels(120), height: Pixels(80)) {
+    var root = ProposalFrame(width: Pixels(120), height: Pixels(80)) {
         FixedSize(horizontal: true, vertical: false) {
             NativeProposalProbe(expectedProposal: ProposedSize(width: nil, height: 80), probe: probe)
         }
@@ -414,7 +414,7 @@ private struct NativeProposalProbe: Element {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1,
                       theme: .light)
     var root = ZStack {
-        NativeBackground(.surface) {
+        Background(.surface) {
             Rectangle(width: Pixels(20), height: Pixels(10), color: .accent)
         }
     }
