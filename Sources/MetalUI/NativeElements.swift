@@ -11,9 +11,9 @@ import MetalUILayout
 public struct HStack<Content: ElementGroup>: Element {
     public var content: Content
     public var spacing: Pixels
-    public var alignment: NativeAlignment
+    public var alignment: ProposalAlignment
 
-    public init(spacing: Pixels = Pixels(8), alignment: NativeAlignment = .center,
+    public init(spacing: Pixels = Pixels(8), alignment: ProposalAlignment = .center,
                 @ElementBuilder content: () -> Content) {
         self.content = content()
         self.spacing = spacing
@@ -53,9 +53,9 @@ public struct HStack<Content: ElementGroup>: Element {
 public struct VStack<Content: ElementGroup>: Element {
     public var content: Content
     public var spacing: Pixels
-    public var alignment: NativeAlignment
+    public var alignment: ProposalAlignment
 
-    public init(spacing: Pixels = Pixels(8), alignment: NativeAlignment = .center,
+    public init(spacing: Pixels = Pixels(8), alignment: ProposalAlignment = .center,
                 @ElementBuilder content: () -> Content) {
         self.content = content()
         self.spacing = spacing
@@ -94,9 +94,9 @@ public struct VStack<Content: ElementGroup>: Element {
 /// A native proposal-layout overlay, analogous to SwiftUI's `ZStack`.
 public struct ZStack<Content: ElementGroup>: Element {
     public var content: Content
-    public var alignment: NativeAlignment
+    public var alignment: ProposalAlignment
 
-    public init(alignment: NativeAlignment = .center,
+    public init(alignment: ProposalAlignment = .center,
                 @ElementBuilder content: () -> Content) {
         self.content = content()
         self.alignment = alignment
@@ -155,12 +155,12 @@ public struct ProposalFrame<Content: ElementGroup>: Element {
     public var minHeight: Pixels?
     public var idealHeight: Pixels?
     public var maxHeight: Pixels?
-    public var alignment: NativeAlignment
+    public var alignment: ProposalAlignment
 
     public init(width: Pixels? = nil, height: Pixels? = nil,
                 minWidth: Pixels? = nil, idealWidth: Pixels? = nil, maxWidth: Pixels? = nil,
                 minHeight: Pixels? = nil, idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
-                alignment: NativeAlignment = .center,
+                alignment: ProposalAlignment = .center,
                 @ElementBuilder content: () -> Content) {
         self.content = content()
         self.width = width

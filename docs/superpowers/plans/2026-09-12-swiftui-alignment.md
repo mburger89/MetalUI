@@ -150,7 +150,8 @@ modifier placement from names alone.
   legacy elements still route through the CSS-derived engine.
 - The proposal-layout preview and its new interaction/paint surface use the
   canonical SwiftUI-facing vocabulary: `HStack`, `VStack`, `ZStack`, `Spacer`,
-  `Rectangle`, `Color`, `ProposalFrame`, `Background`, `ModifiedContent`, `LayoutModifier`, `.onTap`,
+  `Rectangle`, `Color`, `ProposalFrame`, `Background`, `ProposalAlignment`,
+  `ProposalStackAxis`, `ProposalMeasureFunction`, `ModifiedContent`, `LayoutModifier`, `.onTap`,
   `.allowsHitTesting`, `.opacity`, `.padding`, `.background`, `.border`,
   `.clip`, `.fixedSize`, and `.overlay`. Their `Native…`/`native…`
   predecessors remain deprecated source-compatible migration aliases; the

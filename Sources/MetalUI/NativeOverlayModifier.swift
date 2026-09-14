@@ -8,9 +8,9 @@ import MetalUILayout
 public struct OverlayModifier<Content: ElementGroup, Overlay: ElementGroup>: Element {
     public var content: Content
     public var overlay: Overlay
-    public var alignment: NativeAlignment
+    public var alignment: ProposalAlignment
 
-    public init(content: Content, alignment: NativeAlignment = .center,
+    public init(content: Content, alignment: ProposalAlignment = .center,
                 @ElementBuilder overlay: () -> Overlay) {
         self.content = content
         self.overlay = overlay()
@@ -53,7 +53,7 @@ public struct OverlayModifier<Content: ElementGroup, Overlay: ElementGroup>: Ele
 }
 
 extension ElementGroup {
-    public func overlay<Overlay: ElementGroup>(alignment: NativeAlignment = .center,
+    public func overlay<Overlay: ElementGroup>(alignment: ProposalAlignment = .center,
                                                @ElementBuilder content: () -> Overlay)
         -> OverlayModifier<Self, Overlay> {
         OverlayModifier(content: self, alignment: alignment, overlay: content)
@@ -61,7 +61,7 @@ extension ElementGroup {
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "overlay")
-    public func nativeOverlay<Overlay: ElementGroup>(alignment: NativeAlignment = .center,
+    public func nativeOverlay<Overlay: ElementGroup>(alignment: ProposalAlignment = .center,
                                                       @ElementBuilder content: () -> Overlay)
         -> OverlayModifier<Self, Overlay> {
         overlay(alignment: alignment, content: content)

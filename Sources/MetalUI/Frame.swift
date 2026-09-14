@@ -1079,17 +1079,17 @@ public final class Frame {
         tree.newLeaf(style: style, measure: measure)
     }
 
-    func requestNativeLeaf(measure: @escaping NativeMeasureFunction) -> LayoutNodeID {
+    func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
         tree.newNativeLeaf(measure: measure)
     }
 
     func requestNativeOverlay(children: [LayoutNodeID],
-                              alignment: NativeAlignment = .center) -> LayoutNodeID {
+                              alignment: ProposalAlignment = .center) -> LayoutNodeID {
         tree.newNativeOverlay(children: children, alignment: alignment)
     }
 
     func requestNativeOverlayAttachment(child: LayoutNodeID, overlay: LayoutNodeID,
-                                        alignment: NativeAlignment = .center) -> LayoutNodeID {
+                                        alignment: ProposalAlignment = .center) -> LayoutNodeID {
         tree.newNativeOverlayAttachment(child: child, overlay: overlay, alignment: alignment)
     }
 
@@ -1099,7 +1099,7 @@ public final class Frame {
                             maxWidth: Double? = nil,
                             minHeight: Double? = nil, idealHeight: Double? = nil,
                             maxHeight: Double? = nil,
-                            alignment: NativeAlignment = .center) -> LayoutNodeID {
+                            alignment: ProposalAlignment = .center) -> LayoutNodeID {
         tree.newNativeFrame(child: child, width: width, height: height,
                             minWidth: minWidth, idealWidth: idealWidth,
                             maxWidth: maxWidth,
@@ -1128,9 +1128,9 @@ public final class Frame {
         tree.newNativeSpacer(minLength: minLength)
     }
 
-    func requestNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
+    func requestNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
                                   spacing: Double = 0,
-                                  alignment: NativeAlignment = .center) -> LayoutNodeID {
+                                  alignment: ProposalAlignment = .center) -> LayoutNodeID {
         tree.newNativeLinearStack(children: children, axis: axis, spacing: spacing,
                                   alignment: alignment)
     }

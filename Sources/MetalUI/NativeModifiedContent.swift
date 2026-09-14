@@ -10,7 +10,7 @@ public enum LayoutModifier: Sendable {
     case frame(width: Pixels? = nil, height: Pixels? = nil,
                minWidth: Pixels? = nil, idealWidth: Pixels? = nil, maxWidth: Pixels? = nil,
                minHeight: Pixels? = nil, idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
-               alignment: NativeAlignment = .center)
+               alignment: ProposalAlignment = .center)
     case padding(Edges<Pixels>)
     case fixedSize(horizontal: Bool = true, vertical: Bool = true)
     case aspectRatio(Double, contentMode: AspectRatioContentMode = .fit)
@@ -145,7 +145,7 @@ extension ElementGroup {
                             minWidth: Pixels? = nil, idealWidth: Pixels? = nil,
                             maxWidth: Pixels? = nil, minHeight: Pixels? = nil,
                             idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
-                            alignment: NativeAlignment = .center) -> ModifiedContent<Self> {
+                            alignment: ProposalAlignment = .center) -> ModifiedContent<Self> {
         ModifiedContent(
             content: self,
             modifier: .frame(width: width, height: height,
@@ -250,7 +250,7 @@ extension ProposalElementGroup {
                       minWidth: Pixels? = nil, idealWidth: Pixels? = nil,
                       maxWidth: Pixels? = nil, minHeight: Pixels? = nil,
                       idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
-                      alignment: NativeAlignment = .center) -> ModifiedContent<Self> {
+                      alignment: ProposalAlignment = .center) -> ModifiedContent<Self> {
         ModifiedContent(
             content: self,
             modifier: .frame(width: width, height: height,

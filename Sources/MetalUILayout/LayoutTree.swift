@@ -107,7 +107,7 @@ public final class LayoutTree {
     /// Native nodes reuse this tree's generation-stamped ids and resolved-rect
     /// storage. `Style.default` is temporary compatibility storage only: the
     /// native engine never reads it.
-    public func newNativeLeaf(measure: @escaping NativeMeasureFunction) -> LayoutNodeID {
+    public func newNativeLeaf(measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
         let id = newNode(style: .default, children: [])
         nativeNodes[id.index] = .leaf(measure)
         return id
@@ -120,7 +120,7 @@ public final class LayoutTree {
     /// into the CSS engine. Every child receives the same proposal, then is
     /// placed independently with the requested alignment.
     public func newNativeOverlay(children: [LayoutNodeID],
-                                 alignment: NativeAlignment = .center) -> LayoutNodeID {
+                                 alignment: ProposalAlignment = .center) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
         let id = newNode(style: .default, children: children)
         nativeNodes[id.index] = .overlay(alignment: alignment)
@@ -132,7 +132,7 @@ public final class LayoutTree {
     /// Unlike a `ZStack`, the attachment is measured using the primary child's
     /// resolved size and never contributes to the wrapper's own measurement.
     public func newNativeOverlayAttachment(child: LayoutNodeID, overlay: LayoutNodeID,
-                                           alignment: NativeAlignment = .center) -> LayoutNodeID {
+                                           alignment: ProposalAlignment = .center) -> LayoutNodeID {
         _ = nativeNode(child)
         _ = nativeNode(overlay)
         let id = newNode(style: .default, children: [child, overlay])
@@ -154,7 +154,7 @@ public final class LayoutTree {
                                maxWidth: Double? = nil,
                                minHeight: Double? = nil, idealHeight: Double? = nil,
                                maxHeight: Double? = nil,
-                               alignment: NativeAlignment = .center) -> LayoutNodeID {
+                               alignment: ProposalAlignment = .center) -> LayoutNodeID {
         _ = nativeNode(child)
         let id = newNode(style: .default, children: [child])
         nativeNodes[id.index] = .frame(width: width, height: height,
@@ -227,9 +227,9 @@ public final class LayoutTree {
     /// horizontal stacks read its vertical component and vertical stacks read
     /// its horizontal component. The default is SwiftUI's centred stack
     /// alignment.
-    public func newNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
+    public func newNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
                                      spacing: Double = 0,
-                                     alignment: NativeAlignment = .center) -> LayoutNodeID {
+                                     alignment: ProposalAlignment = .center) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
         let id = newNode(style: .default, children: children)
         nativeNodes[id.index] = .linearStack(axis: axis, spacing: spacing,
@@ -556,7 +556,7 @@ public final class LayoutTree {
         }
     }
 
-    private func stackChildProposal(for axis: NativeStackAxis, parent: ProposedSize) -> ProposedSize {
+    private func stackChildProposal(for axis: ProposalStackAxis, parent: ProposedSize) -> ProposedSize {
         switch axis {
         case .horizontal: ProposedSize(width: nil, height: parent.height)
         case .vertical: ProposedSize(width: parent.width, height: nil)
@@ -578,7 +578,7 @@ public final class LayoutTree {
         return Swift.max(natural, proposal)
     }
 
-    private func stackMainSize(_ measurements: [LayoutMeasurement], axis: NativeStackAxis,
+    private func stackMainSize(_ measurements: [LayoutMeasurement], axis: ProposalStackAxis,
                                spacing: Double) -> Double {
         let gaps = Double(Swift.max(0, measurements.count - 1)) * spacing
         switch axis {
@@ -588,7 +588,7 @@ public final class LayoutTree {
     }
 
     private func spacerProposal(for child: LayoutNodeID, base: LayoutMeasurement,
-                                parent: ProposedSize, axis: NativeStackAxis,
+                                parent: ProposedSize, axis: ProposalStackAxis,
                                 extra: Double) -> ProposedSize {
         guard isNativeSpacer(child) else { return parent }
         switch axis {
@@ -666,9 +666,11 @@ public final class LayoutTree {
     }
 }
 
-public typealias NativeMeasureFunction = @Sendable (ProposedSize) -> LayoutMeasurement
+/// Measures a proposal-layout leaf's response.
+public typealias ProposalMeasureFunction = @Sendable (ProposedSize) -> LayoutMeasurement
 
-public enum NativeStackAxis: Sendable, Hashable {
+/// The main axis used by a proposal-layout stack.
+public enum ProposalStackAxis: Sendable, Hashable {
     case horizontal
     case vertical
 }
@@ -682,7 +684,7 @@ public enum AspectRatioContentMode: Sendable, Hashable {
 }
 
 /// A frame-local equivalent of SwiftUI's nine-point alignment vocabulary.
-public enum NativeAlignment: Sendable, Hashable {
+public enum ProposalAlignment: Sendable, Hashable {
     case topLeading, top, topTrailing
     case leading, center, trailing
     case bottomLeading, bottom, bottomTrailing
@@ -705,18 +707,30 @@ public enum NativeAlignment: Sendable, Hashable {
 }
 
 private enum NativeNode {
-    case leaf(NativeMeasureFunction)
-    case overlay(alignment: NativeAlignment)
-    case overlayAttachment(alignment: NativeAlignment)
+    case leaf(ProposalMeasureFunction)
+    case overlay(alignment: ProposalAlignment)
+    case overlayAttachment(alignment: ProposalAlignment)
     case frame(width: Double?, height: Double?, minWidth: Double?, idealWidth: Double?,
                maxWidth: Double?, minHeight: Double?, idealHeight: Double?,
-               maxHeight: Double?, alignment: NativeAlignment)
+               maxHeight: Double?, alignment: ProposalAlignment)
     case padding(insets: Edges<Double>)
     case fixedSize(horizontal: Bool, vertical: Bool)
     case aspectRatio(ratio: Double, contentMode: AspectRatioContentMode)
     case spacer(minLength: Double)
-    case linearStack(axis: NativeStackAxis, spacing: Double, alignment: NativeAlignment)
+    case linearStack(axis: ProposalStackAxis, spacing: Double, alignment: ProposalAlignment)
 }
+
+/// Temporary source-compatible name for ``ProposalMeasureFunction``.
+@available(*, deprecated, renamed: "ProposalMeasureFunction")
+public typealias NativeMeasureFunction = ProposalMeasureFunction
+
+/// Temporary source-compatible name for ``ProposalStackAxis``.
+@available(*, deprecated, renamed: "ProposalStackAxis")
+public typealias NativeStackAxis = ProposalStackAxis
+
+/// Temporary source-compatible name for ``ProposalAlignment``.
+@available(*, deprecated, renamed: "ProposalAlignment")
+public typealias NativeAlignment = ProposalAlignment
 
 private struct NativeMeasurementKey: Hashable {
     let id: LayoutNodeID

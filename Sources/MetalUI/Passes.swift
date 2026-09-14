@@ -57,18 +57,18 @@ public struct LayoutPass {
     /// available spaces. A native root cannot contain a legacy child, so this
     /// API establishes an explicit migration boundary instead of mixing the two
     /// engines within one subtree.
-    public func requestNativeLeaf(measure: @escaping NativeMeasureFunction) -> LayoutNodeID {
+    public func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
         frame.requestNativeLeaf(measure: measure)
     }
 
     /// Registers a native `ZStack`-style overlay container.
     public func requestNativeOverlay(children: [LayoutNodeID],
-                                     alignment: NativeAlignment = .center) -> LayoutNodeID {
+                                     alignment: ProposalAlignment = .center) -> LayoutNodeID {
         frame.requestNativeOverlay(children: children, alignment: alignment)
     }
 
     public func requestNativeOverlayAttachment(child: LayoutNodeID, overlay: LayoutNodeID,
-                                               alignment: NativeAlignment = .center) -> LayoutNodeID {
+                                               alignment: ProposalAlignment = .center) -> LayoutNodeID {
         frame.requestNativeOverlayAttachment(child: child, overlay: overlay, alignment: alignment)
     }
 
@@ -79,7 +79,7 @@ public struct LayoutPass {
                                    maxWidth: Double? = nil,
                                    minHeight: Double? = nil, idealHeight: Double? = nil,
                                    maxHeight: Double? = nil,
-                                   alignment: NativeAlignment = .center) -> LayoutNodeID {
+                                   alignment: ProposalAlignment = .center) -> LayoutNodeID {
         frame.requestNativeFrame(child: child, width: width, height: height,
                                  minWidth: minWidth, idealWidth: idealWidth,
                                  maxWidth: maxWidth,
@@ -113,9 +113,9 @@ public struct LayoutPass {
     }
 
     /// Registers a native linear stack for the proposal-layout migration.
-    public func requestNativeLinearStack(children: [LayoutNodeID], axis: NativeStackAxis,
+    public func requestNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
                                          spacing: Double = 0,
-                                         alignment: NativeAlignment = .center) -> LayoutNodeID {
+                                         alignment: ProposalAlignment = .center) -> LayoutNodeID {
         frame.requestNativeLinearStack(children: children, axis: axis, spacing: spacing,
                                        alignment: alignment)
     }
