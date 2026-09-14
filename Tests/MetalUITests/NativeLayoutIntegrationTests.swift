@@ -264,6 +264,31 @@ extension NativeProposalProbe: ProposalElementGroup {}
 }
 
 @MainActor
+@Test func aWheelEventInsideAProposalScrollViewUpdatesItsOffset() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 120) {
+        ProposalScrollView(.vertical, elementID: ElementID("proposal-list")) {
+            VStack(spacing: Pixels(0)) {
+                Rectangle(width: Pixels(120), height: Pixels(40), color: .accent)
+                Rectangle(width: Pixels(120), height: Pixels(40), color: .accent)
+                Rectangle(width: Pixels(120), height: Pixels(40), color: .accent)
+                Rectangle(width: Pixels(120), height: Pixels(40), color: .accent)
+                Rectangle(width: Pixels(120), height: Pixels(40), color: .accent)
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    let region = try #require(window.lastScrollRegions.first)
+
+    platformWindow.simulateInput(.scrollWheel(ScrollEvent(
+        position: Point(x: Pixels(60), y: Pixels(60)),
+        delta: Point(x: Pixels(0), y: Pixels(-37))
+    )))
+
+    #expect(window.stateTable.peek(region.id, as: ScrollState.self)?.offset == 37)
+}
+
+@MainActor
 @Test func aPublicHStackFormsAnAllProposalLayoutSubtreeAndPlacesItsSpacer() {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(40)), scaleFactor: 1)

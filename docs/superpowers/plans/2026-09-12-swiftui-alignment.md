@@ -184,7 +184,8 @@ modifier placement from names alone.
   indicator behaviour. macOS SwiftUI pixel probes measure direct content
   children with an 8pt **vertical** gap for both scroll axes, so multiple
   proposal children lower to a vertical native stack while a single composed
-  child remains transparent.
+  child remains transparent. A fake-platform integration test proves a wheel
+  event reaches its registered proposal viewport and updates its stable offset.
   The source-compatible CSS-era `ScrollView` remains in place until the public
   container migration can replace it without mixing layout engines.
 - A proposal frame now reports a clamped ideal dimension on an unspecified axis,
