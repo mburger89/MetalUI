@@ -217,6 +217,12 @@ living in the datum `List` re-reads every frame — and it is written up in the
 `anOffScreenListRowsModelReadIsNotTracked`. A reader who finds it and reaches
 for label 19 should stop here.
 
+**Erratum 2026-09-14 (at `7cfcddc`; record §09):** "label 19 is still
+available" is stale. Label 19 has since been assigned to "One element VALUE
+placed twice shares one `@State` box" (`git show a15ec83:CLAUDE.md`, line 458).
+If SwiftUI turns out to differ here, the next unused label is needed (20 in that
+table, which has no higher one), not 19; labels 3, 5, 6, 7, 8, 12 and 17 are retired and never reused.
+
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
 than the hex implies.

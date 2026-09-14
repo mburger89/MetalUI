@@ -156,6 +156,15 @@ both row counts in one process, **release**:
 | best of 200 | **1.652 ms** | **1.637 ms** |
 | median of 200 | 1.676 ms | 1.652 ms |
 
+**Erratum 2026-09-14 (at `7cfcddc`; record §09): this table measures a
+`demoContent()` tree that has since changed shape.** `f1944f8` made
+`StyledElement.padding(_:)` return an outer `Box<Self>`, so every padded element
+in the demo gains a layout node and a registering element. That includes each
+built `List` row, which is `.padding(…)`'d. The code of `demoContent` did not
+change. By reading, the frame does more work per row and mints one more `$anim`
+entry per row. **Neither these timings nor the warm resident `StateTable`
+counts (165 / 63) have been re-taken.**
+
 **Do NOT read the +5% against 1.571/1.570 as the animation milestone's cost.**
 This section already records a ~5% drift for the same tree on the same machine
 "one milestone and one harness apart" (the paragraph below this one), and +5.2%

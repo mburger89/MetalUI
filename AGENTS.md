@@ -10,11 +10,22 @@ but has no non-macOS conformer, and `InputEvent` has no `.touch` case. The
 spec's §1 target of macOS **and iOS/iPadOS** is unmet, not delivered.
 
 **This file is the rules. The reasoning, the measurements and the history live
-in `docs/record/`** — the pre-2026-09-09 `AGENTS.md`, moved there verbatim
-(4,172 lines) and split by section. Every test name, ruling id, divergence
-label and grep cited there still resolves. When something here is not enough,
-read the matching record file before re-deriving it. New milestones append
-their record to `docs/record/` and put only the rule here.
+in `docs/record/`** — `01`–`08` began as the pre-2026-09-09 `CLAUDE.md`
+(4,172 lines, recoverable with `git show 6591360:CLAUDE.md`) split by section,
+but they have been edited since and carry 2026-09-14 errata, so they are no
+longer verbatim (`docs/record/README.md`). Their test names, ruling ids,
+divergence labels and greps were **not** re-checked after the 79
+SwiftUI-alignment commits (`a15ec83..7cfcddc`), which removed some (e.g. the
+two `padding` `ModifierCase` rows) and changed others
+(`Frame.computeRootLayout`); verify a citation before relying on it. When
+something here is not enough, read the matching record file before
+re-deriving it. New milestones append their record to `docs/record/` and put
+only the rule here.
+
+`AGENTS.md` is a byte-identical copy of this file for Codex. Edit `CLAUDE.md`,
+never `AGENTS.md`, then `cp CLAUDE.md AGENTS.md`; nothing regenerates it
+automatically (`.codex/` holds only session hooks), so check with `cmp
+CLAUDE.md AGENTS.md` before committing.
 
 ## Where things are
 
@@ -41,46 +52,68 @@ their record to `docs/record/` and put only the rule here.
   `docs/superpowers/2026-09-03-animation-decisions.md`. **Its `AN-` letters do
   NOT track its ledger's**, unlike `CO-A`…`CO-O`; that ledger lettered twice
   and half its rulings were about dispatch.
+- **SwiftUI alignment (in progress, `feat/review-fixes`):** plan
+  `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, inventory
+  `docs/superpowers/2026-09-12-swiftui-layout-replacement-inventory.md`, specs
+  `specs/2026-09-12-native-layout-kernel-design.md` and
+  `specs/2026-09-12-typed-modifier-composition-design.md`. Both specs describe
+  types that were never built (`NativeLayoutEngine`, `LayoutContext`-threaded
+  algorithms, `ModifiedElement`/`ElementModifier`); **the source is the
+  authority**. No decisions doc, no ruling prefix, no mutation record yet.
+  Record: `docs/record/09-swiftui-alignment.md`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests. Sixteen numbered shapes of test that cannot fail, seven ways a
   record goes wrong, all observed here.
-- **Full record:** `docs/record/README.md` indexes the eight sections.
+- **Full record:** `docs/record/README.md` indexes the sections; `01`–`08`
+  are the split pre-2026-09-09 file, `09` is the SwiftUI-alignment record.
 
 ## Build and test
 
 ```bash
 swift build
 swift test --no-parallel
-# suite total — swift test prints ONE summary line PER TEST TARGET (six); sum them:
+# suite total — sums every "Test run with N tests" line (one on this machine today; six in earlier readings here, cause of the change unrecorded):
 swift test --no-parallel 2>&1 | grep -oE "Test run with [0-9]+ tests" | grep -oE "[0-9]+" | paste -sd+ - | bc
 # the env-gated 100k-row cold-frame test (~42 s debug / ~17 s release):
 METALUI_RUN_100K_LIST_TEST=1 swift test --filter aListsWorkIsTheSameFor100kRowsAsFor500
 swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
+METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout preview window (value must be exactly "1")
 ```
 
-- **Counts, dated:** **923 tests**, **97** browser-fixture goldens, 35 `swiftc
-  -typecheck` guards, 0 `error:`, 0 `warning:` — re-measured 2026-09-11 on
-  `feat/review-fixes` at `7f58db9`, after `swift package clean`, in the main
-  checkout (where the guards resolve against the native `Modules` directory).
-  That branch landed 20 review-fix items: +59 tests and +10 WebKit goldens over
-  `fix/record-refresh`'s 864 / 87, which in turn had taken 861 to 864. The previous reading was 861 (47 + 448 + 50 + 6 + 288
-  + 22) on `feat/animation` at `b869253`; `master` at the Component milestone's
-  end was 811 / 87 / 34. **The per-target split is no longer printed on this
-  machine** — SwiftPM now emits ONE summary line for the whole run, not six, so
-  the parenthesised breakdown above cannot currently be re-taken and the sum
-  command in the Build section returns the total rather than six addends.
+- **Counts, dated:** **993 tests**, **97** browser-fixture goldens, **39**
+  `swiftc -typecheck` guards, 0 `error:`, 0 `warning:` — measured 2026-09-14
+  on `feat/review-fixes` at `7cfcddc` (`swift test --no-parallel`, one summary
+  line). Delta from the 2026-09-11 reading (923 / 97 / 35 at `7f58db9`): **+70
+  tests, 0 goldens, +4 guards**, all from the SwiftUI-alignment commits
+  (`a15ec83..7cfcddc`): 70 added `@Test`s and none removed (18 in
+  `NativeLayoutTests`, 41 in `NativeLayoutIntegrationTests`, 3 in
+  `ProposedSizeTests`, 4 in `ComponentTests`, 4 in `ElementGroupTrapTests`), and `ElementGroupTrapTests` went
+  from 1 guard to 5 (the four `proposal…` constructor/overload guards). Guards
+  per file: `PhaseSeparationTests` 19, `ErasureCompileGuards` 10,
+  `ElementGroupTrapTests` 5, `UnitSafetyTests` 2 (3 hits, one a comment),
+  `AXNodeTests` 3. Earlier: 861 (47 + 448 + 50 + 6 + 288 + 22) on
+  `feat/animation` at `b869253`; `master` at the Component milestone's end was
+  811 / 87 / 34. **The per-target split is no longer printed on this
+  machine** — SwiftPM now emits ONE summary line for the whole run, not six.
   A count is stale the moment a test lands; re-measure rather than trust.
   Two tests are gated and **count toward the total** while being skipped
   (`regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`).
   **`--build-system native` prints ONE summary line, not six** — it read the
   same 861 — and its lone `warning:` is SwiftPM's own deprecation notice, not a
   compiler warning.
-- **Read the printed counts, never the exit status.** The last summary line
-  alone reads 22 (`MetalUICoreTests`) on every healthy run.
-- **Goldens must not move** on any milestone that does not touch
-  `Sources/MetalUILayout/`; a moved golden means something reached the engine.
-  `find Tests -name "*.json" | wc -l` is the count. WebKit is the layout oracle;
-  the corpus has **no text fixture and must not gain one** (ruling TX-B).
+- **Read the printed counts, never the exit status.** Under the older
+  per-target output the last summary line alone read 22 (`MetalUICoreTests`)
+  on every healthy run.
+- **Goldens must not move** on any change that does not touch
+  `Sources/MetalUILayout/`; a moved golden means something reached the CSS
+  engine. `find Tests -name "*.json" | wc -l` is the count. WebKit is the
+  oracle **for the CSS engine only**. The proposal kernel's algorithms are not
+  run by any golden, but they live in `LayoutTree.swift` and share its storage
+  with the CSS engine — `newNode`, `reset(generation:)` (which now also clears
+  `nativeNodes`) and `roundLayout` (`Rounding.swift`, called by both
+  `FlexEngine.swift` and `roundNativeStoredRects`) — so a proposal-path edit
+  there **can** move a golden; run the fixtures. The corpus has **no text
+  fixture and must not gain one** (ruling TX-B).
 - **Guards:** count with per-file `grep -c canTypecheck` across
   `PhaseSeparationTests`, `ErasureCompileGuards`, `ElementGroupTrapTests`,
   `MetalUICoreTests/UnitSafetyTests` (one hit is a comment) and
@@ -136,14 +169,34 @@ joins it.** Consequences (record §01):
   Remedy: name the **trailing sibling**, not the conditional content. Not a
   divergence; it is the one notion of sameness `StateTable`, focus and hover
   share.
+- **`.padding(_:)` and `.frame(width:height:)` on a legacy element are
+  wrappers** (`Box<Self>`, `FrameModifier<Self>`): each takes the element's
+  cursor slot and pushes the element one id level down, so adding or removing
+  one re-seeds its `@State`, focus and `$anim`. **`.id()` must be the outermost
+  modifier** — `X().id("n").padding(4)` names the inner element under a
+  positional wrapper, and the trailing-sibling remedy above silently fails.
+  Unpinned in either order.
 - `GlobalElementID.cachedHash` and `==` are safe alone and unsafe together; do
   not simplify `==`'s chain walk on a green suite.
 - Prefer SwiftUI's answer where SwiftUI and CSS differ above the engine
-  (ruling EP-5); WebKit stays the oracle for the engine itself.
+  (ruling EP-5); WebKit stays the oracle for the CSS engine itself.
 
 **Containers.** `Column`/`Row` centre on the cross axis, `Box` stretches
 (EP-8, set in the inits, not in `Style`) — so a childless `Box` with no cross
-size paints nothing; declare a size or `.alignItems(.stretch)`. `Stack` layers
+size paints nothing; declare a size or `.alignItems(.stretch)`. **Modifier
+order now decides which box a modifier reaches**: since `.padding` returns an
+outer `Box`, a container modifier written after it (`.alignItems`, `.gap`,
+`.justifyContent`, `.background`) configures the one-child wrapper, and an item
+modifier written before it (`.flexGrow`, `.alignSelf`, `.margin`) lands on
+something that is no longer the parent's flex item. All of it compiles.
+Chained `.padding` accumulates (4 then 8 pads 12,
+`chainedPaddingCreatesNestedWrappers`). `.frame(width:height:)` is a centring
+flex container (`FrameModifier.swift:16-24`) that sizes itself and does **not
+stretch or impose** that size on its content: `Box().background(…)
+.frame(width: 40, height: 40)` paints a 0×0 box (by reading; untested). Its
+content box is still the child's available space, so a long `Text` or a
+shrinkable child is bounded by the frame's width (flex-shrink down to
+min-content; by reading). `Stack` layers
 (`Stack.swift`; `Column`/`Row` live in `Flex.swift`), last child on top; its
 paint order is invisible to every rect test. A `Stack` child's `auto` width is
 fit-content against the stack, as a column item's cross size is (ST-H, TX-H);
@@ -167,15 +220,27 @@ needs both.
 
 **`Component` is layout-transparent and identity-opaque.** It contributes no
 layout node, consumes one cursor index, and its `@State` hangs off its own id.
-Modifiers **distribute** to each top-level node (measured against SwiftUI,
-CO-U), so a caller's `.width(70)` overwrites internal sizing and `.padding()` on
-a single-`Text` component is inert while that leaf is content-sized (leaf box
-model, below). A caller's modifier
-also never animates (review finding B-7; see the Animation section's snap
-list). `.background()`
-deliberately does not compile on one (use a `Box`); there is no `.id()` —
-declare `var elementID`. `Deferred` and `List` reject a component. No
-production caller yet (CO-Y).
+Its `.padding`/`.width`/`.height` **distribute** to each top-level node
+(measured against SwiftUI, CO-U; `StyledComponent`), so a caller's `.width(70)`
+overwrites internal sizing, chained `.padding` replaces rather than
+accumulates, and `.padding()` on a single-`Text` component is inert while that
+leaf is content-sized (leaf box model, below). **The same spelling on an
+ordinary element wraps and accumulates** — two meanings by receiver type.
+`.frame(width:height:)` on a component wraps its body in one `FrameModifier`
+node without overwriting its children
+(`aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`). A caller's
+distributing modifier never animates (review finding B-7; see the Animation
+section's snap list). `Component` itself has no `.background()` (use a `Box`)
+and no `.id()` — declare `var elementID`. **Both holes have side doors, by
+reading only (no typecheck guard):** `anyComponent.frame(width:height:)` returns
+a `FrameModifier`, a `StyledElement`, so `.frame(…).background(…)` compiles on
+any component; and a component retro-conformed to `ProposalElementGroup` picks
+up that extension's `.background(ColorToken)`, `.padding(Edges<Pixels>)`,
+`.frame(…)` and the rest (`NativeModifiedContent.swift:187`), so on it
+`.padding(Pixels)` distributes while `.padding(Edges<Pixels>)` wraps.
+`Deferred` and `List` reject a component. No production caller yet (CO-Y); the demo's opt-in
+proposal preview has one (`PreviewToggle`, retro-conformed to
+`ProposalElementGroup`).
 
 **`@State` is a box seeded by reflection, per element per frame.** Slot ids
 are `.named("$state<mirror-index>")` under the element's id. Seven reserved
@@ -210,7 +275,11 @@ the closure returns). Same advice, two failure modes; unpinned by any test.
 `topmostOpaqueHitbox(in:at:)` — do not add a second copy. `onClick` is the
 only thing that makes an element an opaque pointer target; the keyboard gate
 (`onKey || isFocusable || actions || keyContext`) is separate and must stay
-so, or focusable rows stop scrolling. Hover resolves once at the
+so, or focusable rows stop scrolling. `PrepaintPass.allowsHitTesting(false)`
+(and the proposal `.allowsHitTesting(false)`) gates only `registerHandlers`'
+pointer hitbox (`Frame.hitTestingDisabledDepth`); **scroll regions and raw
+`insertHitbox` bypass it**, so a scroller inside still takes the wheel and the
+topmost-opaque slot. Hover resolves once at the
 prepaint/paint boundary. Handlers outlive the frame (`Window.lastHitboxes`), so
 `.onClick { window.x() }` is a retain cycle — capture weak or capture state.
 
@@ -220,7 +289,9 @@ prepaint/paint boundary. Handlers outlive the frame (`Window.lastHitboxes`), so
 `handlers.axNode` (nothing enforces the call;
 `onClickIsLiveOnEveryConformerThatCanRegisterOne` and
 `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` are the
-guards). `Handlers` is
+guards — **neither has a `FrameModifier` arm**, though it is a conformer that
+calls `registerHandlers`; nor does any animation or background-chain per-site
+guard). `Handlers` is
 not `Equatable`; `HandlerShape` in `ModifierTests.swift` must gain a field in
 the same change `Handlers` gains a member — it has fallen behind twice.
 
@@ -230,8 +301,9 @@ parent chain; an unhandled `Action` does not claim the keystroke. Focus on an
 unproduced element is retained through a `$focus` slot (needs one confirming
 frame), so a dismissed subtree's ancestors keep claiming its keystrokes and
 below-threshold retention is indefinite. Focus is drawn by `focusBackground`
-token swap; nothing above the renderer can draw a border (`Frame.fill`
-hard-codes zero widths). Focus outranks hover.
+token swap. `PaintPass.fill` now takes `borderColor:`/`borderWidths:` (the
+proposal `.border` uses them), but no legacy element or focus path passes a
+border. Focus outranks hover.
 
 **Text.** Never key a glyph, shape or metrics cache on a font family or
 PostScript name — `FontKey` reads its four components (PostScript name, size,
@@ -274,11 +346,12 @@ silhouettes. The glyph atlas is grow-only and silently drops glyphs when full;
 **Renderer.** No semaphore on the live path; the atlas texture is written only
 while `atlasTextureWasEncoded` is false, otherwise replaced — an invariant, not
 a lock, pinned by `aDirtyUploadAfterEncodingReplacesTheTextureRatherThanWritingIntoIt`.
-`Text.requestLayout`'s measure closure uses `MainActor.assumeIsolated` with no
-guard and is sound only because `computeLayout` runs on the caller's thread;
-moving layout off the main actor rewrites it first. The other two
-`assumeIsolated` calls (`Window.markDirtyFromObservation`, the demo's
-`atexit_b`) are guarded.
+Two measure closures use `MainActor.assumeIsolated` with no guard —
+`Text.requestLayout` (`Text.swift:237`) and `ProposalText`'s
+(`ProposalText.swift:49`) — sound only because `computeLayout` and
+`computeNativeLayout` run synchronously on the caller's thread; moving layout
+off the main actor rewrites both first. The other two `assumeIsolated` calls
+(`Window.markDirtyFromObservation`, the demo's `atexit_b`) are guarded.
 
 **Animation (M4 spec 3, complete — production animates; decisions doc `AN-`).**
 `withAnimation` writes **two** slots with one value. `pendingTransaction` is
@@ -303,20 +376,23 @@ a legitimate animation discarded, invisible to all 860 tests then passing.
 says "on the `Window`"; it is a module-global instead, because `withAnimation`
 has no window in scope — with two windows live the first to build wins.
 
-**Two helpers, two phases, seven registering points.** `AnimatedStyle.swift`'s
+**Two helpers, two phases, nine registering points.** `AnimatedStyle.swift`'s
 `animated(_:_:for:pass:)` runs in `requestLayout` and compares the resolved
 `Style`/`Decoration` against the element's `$anim` slot. **Colour is a second
 helper in a second phase** (`AnimatedColor.swift`), because two `ColorToken`s
 interpolate through their theme-resolved `Hsla` and **only `PaintPass` has a
-theme**. Layout sites: `Box`, `Stack`, `ScrollView` ×2. `Component` is not a
-site (it contributes no node); `everyRegisteringSiteAnimatesItsStyle` carries a
-`Component` arm whose control half animates and whose caller-modifier half is
-pinned wrong on purpose. Paint sites: `Box.paint`,
-`Stack.paint`, `Text.paint` — three of the **four** `pass.fill` sites; the
-fourth, `ScrollView`'s indicator, drives itself by dirtying and stays unwired.
+theme**. Layout sites: `Box`, `Stack`, `ScrollView` ×2, `FrameModifier`.
+`Component` is not a site (it contributes no node);
+`everyRegisteringSiteAnimatesItsStyle` carries a `Component` arm whose control
+half animates and whose caller-modifier half is pinned wrong on purpose. Paint
+sites: `Box.paint`, `Stack.paint`, `Text.paint`, `FrameModifier.paint`. Of the
+twelve library `pass.fill` sites the other eight never animate: the two scroll
+indicators (drive themselves by dirtying) and the six proposal-path fills.
 A site that skips its helper is silently unanimated with no diagnostic; the two
 per-site guards are `everyRegisteringSiteAnimatesItsStyle` and
-`everyBackgroundPaintingSiteAnimatesItsColour`. Neither of those guards can see
+`everyBackgroundPaintingSiteAnimatesItsColour`, and **neither has a
+`FrameModifier` arm** — deleting `FrameModifier.swift`'s `animated` or
+`animatedBackground` call is expected to redden nothing (not mutation-tested). Neither of those guards can see
 the hover/focus chain: the colour guard's arms declare no `onClick` or
 `focusable()`. The chain is pinned per site by
 `everyBackgroundPaintingSiteHonoursHoverAndFocus` and
@@ -324,8 +400,9 @@ the hover/focus chain: the colour guard's arms declare no `onClick` or
 (`BackgroundChainTests.swift`), whose arms are genuinely hovered and focused
 through a real `Window`.
 
-`animatedBackground(_:for:pass:)` (`AnimatedColor.swift`), called by all three
-background sites — `Box.paint`, `Stack.paint`, `Text.paint` — resolves the
+`animatedBackground(_:for:pass:)` (`AnimatedColor.swift`), called by all four
+background sites — `Box.paint`, `Stack.paint`, `Text.paint`,
+`FrameModifier.paint` — resolves the
 `focusBackground`/`hoverBackground`/`background` `??` chain and animates the
 result — **one value, not three fields**. Until 2026-09-10 the chain lived in
 `Box.paint` alone, so both modifiers compiled on `Stack` and `Text` and painted
@@ -346,7 +423,8 @@ a fade on a style-static element stops the instant input stops — and the idle
 guard is `needsRedraw || hasActiveAnimations`. It keeps the loop running
 **without** dirtying the window, so a window mid-fade reports
 `needsRedraw == false`. `Frame.wantsAnotherFrame` still means "mark the window
-dirty next frame" and its one caller is `ScrollView`'s indicator fade; **nothing
+dirty next frame" and its two callers are the `ScrollView` and
+`ProposalScrollView` indicator fades; **nothing
 raises both**, deliberately — two signals for one claim would have kept each
 other green under mutation.
 
@@ -363,11 +441,169 @@ after each member's `animated(_:_:for:pass:)` has stored its `$anim` baseline,
 and it cannot reach that slot until `ElementGroup` gains the associated type
 ruling TB-M names. To animate a component's size, declare it inside the
 component. Pinned wrong on purpose by `everyRegisteringSiteAnimatesItsStyle`'s
-`Component` arm.
-`aspectRatio` is deliberately never animated (it is inert; see the table).
+`Component` arm. `.frame(width:height:)` is not a distributing modifier: it is
+its own `FrameModifier` node with its own `$anim` slot, so by reading it
+animates on a component too (no test drives it).
+**Everything on the proposal path snaps**: no `HStack`/`VStack`/`ZStack`,
+`ModifiedContent` wrapper, `Background`, `Rectangle`, `Color`, `ProposalText`
+or `ProposalScrollView` calls either helper.
+`Style.aspectRatio` is deliberately never animated (it is inert; see the table).
 Constraints from its plan: no golden may move or be added, no test may sleep
 (drive `simulateTick(timestamp:)`), no Reduce Motion / exit transitions /
 transforms.
+
+## SwiftUI alignment — the proposal layout path (in progress)
+
+The plan intends to replace the CSS engine; today a SwiftUI-style
+propose/measure/place engine and API sit **beside** it. Record §09.
+
+**Two layout authorities, chosen by the window root alone.**
+`Frame.computeRootLayout` checks only `tree.isNativeLayoutNode(root)` (its doc
+comment still says "runs the flex engine"). A native root runs
+`LayoutTree.computeNativeLayout(root:proposal:in:)` with the content size as
+proposal and the window rect as bounds, **discarding the root's measurement**:
+the root is stored at the full window
+(`aNativeRootRunsThroughTheFramePipelineWithoutInvokingFlexLayout`, an overlay
+root) and a root stack packs from the leading edge rather than centring
+(`hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt`: a 58pt
+`HStack` root in a 100pt window puts its trailing item at x = 28). The
+kernel is a private closed `NativeNode` enum (11 cases) in `LayoutTree.swift`
+— no algorithm protocol, no `LayoutContext`; the 11 public
+`LayoutPass.requestNative*` methods register a leaf or a built-in algorithm, so
+an external custom **container** has no migration path. Each native node also
+appends a `Style.default` row to the legacy arrays. The `(node, proposal)`
+measurement cache lives for one `computeNativeLayout` call, with no counters
+(work cannot be counted yet), no depth guard and no `isLayingOut`. Rounding is
+the legacy `roundLayout`, cumulative-edge.
+
+**No mixing — enforced in one direction only.**
+- Native parent, legacy child: rejected at compile time by `Content:
+  ProposalElementGroup` on every proposal container and wrapper (guards
+  `proposalLayoutConstructorsRequireProposalContent`,
+  `proposalOverlayAcceptsProposalContentAndRejectsLegacyContent`,
+  `proposalOnTapAcceptsProposalContentAndRejectsLegacyContent` — the fourth
+  new guard, `proposalTextSelectsProposalModifiersWithoutMakingLegacyTextAmbiguous`,
+  is positive-only and rejects nothing), with
+  a runtime backstop in `LayoutTree.nativeNode(_:)`: `preconditionFailure("native
+  layout subtree contains a legacy node")`, unpinned. The overlay's `overlay:`
+  argument has no negative guard.
+- `ProposalElementGroup` is a **public, requirement-free marker**: any type can
+  declare it (the demo does for `PreviewToggle`, `PriorityPreviewPanel`) and
+  then trap at registration if it registers legacy nodes. Single-child wrappers
+  (`ProposalFrame`, `Padding`, `Background`, `FixedSize`, `ModifiedContent`,
+  `.overlay` — primary and overlay each — and `.onTap`'s `OnTapModifier`,
+  `NativeTappable.swift:27`) precondition exactly one node, so
+  `ProposalFrame { if flag { … } }` traps when `flag` is false.
+  `ProposalScrollView` does not: zero children lower to an empty vertical
+  stack. `EitherGroup` does not conform (so `if/else`
+  inside a proposal stack is expected not to compile — unverified).
+- **Legacy parent, native child compiles and fails silently**: `Column {
+  HStack { … } }` — `newNode` checks nothing, and the CSS engine sees a
+  `Style.default` subtree (native containers pass their children to
+  `newNode`, `LayoutTree.swift:124`, `:250`) whose native leaves are
+  measure-less `Style.default` nodes, so by reading content contributes 0 and
+  only a stretching parent's cross axis gives it any size. No trap, test or
+  guard. Keep a window's tree all-proposal or
+  all-legacy.
+
+**Vocabulary.** Proposal types (`MetalUI`): `HStack`/`VStack(spacing: 8,
+alignment: .center)`, `ZStack`, `Spacer(minLength:)`, `Rectangle(color:)`
+(proposal-responsive) and `Rectangle(width:height:color:)` (fixed), `Color`,
+`ProposalFrame` (not `Frame`: `public final class Frame` exists), `Padding`,
+`Background`, `FixedSize`, `ProposalScrollView`, `ProposalText`. Modifiers on
+`extension ProposalElementGroup` return `ModifiedContent` over a closed
+`LayoutModifier` enum — `.frame(width:height:minWidth:idealWidth:maxWidth:…
+alignment:)`, `.padding(Edges<Pixels>)`, `.fixedSize`, `.background`,
+`.clip(cornerRadius:)`, `.border`, `.opacity`, `.allowsHitTesting`,
+`.aspectRatio(_:contentMode:)`, `.layoutPriority` — plus `.overlay` and
+`.onTap(hoverColor:)`. Kernel types (`MetalUILayout`): `ProposedSize`,
+`LayoutMeasurement`, `ProposalAlignment` (nine), `ProposalStackAxis`,
+`AspectRatioContentMode`, `ProposalMeasureFunction`. **The `Native…` types
+and `native…` modifier methods are deprecated aliases** — 26
+`@available(*, deprecated` hits: 17 typealiases (14 in `MetalUI`, 3 in
+`LayoutTree.swift:852-861`) and 9 methods — except `nativeFrame(...)`, a live
+undeprecated duplicate of `.frame` used by six test call sites; deprecating it
+breaks the 0-warning baseline. **The kernel's own `Native` names are not
+aliases and are not deprecated**: the 11 `LayoutPass.requestNative*`
+(`Passes.swift:60-129`), the 11 `LayoutTree.newNative*`, `computeNativeLayout`
+and `isNativeLayoutNode` (`LayoutTree.swift:110-285`) are the primary API. Shared spellings
+resolve by receiver: `.frame(width:height:)` on a proposal value picks the
+proposal overload (`proposalLayoutFrameUsesTheTypedProposalWrapper`), on
+anything else `FrameModifier`; `.background(ColorToken)` exists on both
+`StyledElement` and `ProposalElementGroup` and is unambiguous only because no
+built-in type is both; `.padding` splits by argument type (there is no proposal
+`.padding(Pixels)`).
+
+**`Text.proposalLayout()`** returns a `ProposalText` carrying only the string,
+font family/size and foreground colour — a background, handlers, `elementID`
+and hover/focus colours are **silently dropped**. It measures by
+`shaped(wrappingAt: proposal.width)` (no tokenizer min-content), reports no
+baselines, and paints wrapped at `measuredWidth`, whose native recording no
+test pins.
+
+**`ProposalScrollView` vs `ScrollView`.** `ProposalScrollView` measures content
+with the scrolling axis unspecified, reports each finite proposal axis, and
+shares `ScrollView`'s wheel routing (`registerScrollRegion`, `ScrollState`
+under its bare id). Its prepaint clamp and its indicator (alpha fade,
+`requestAnotherFrame`, thumb maths, clip) are **private copies**
+(`ProposalScrollView.swift:93-165`), so a fix to `ScrollView`'s does not reach
+it. It takes `elementID:` in its
+init, has no `$anim-content`/`$anim-viewport` nodes and never animates;
+multiple direct children lower to a **vertical** stack at spacing 8 on either
+axis. `ScrollView` is unchanged and remains `List`'s only scroller. Divergence
+16 applies to `.onTap` inside a `ProposalScrollView` (by reading).
+
+**Probe-backed values.** SwiftUI macOS probes; **no probe source is saved in
+the repo** (prose in the plan and in test doc comments only), so none can be
+re-run, and most record no positive control.
+- `HStack`/`VStack` default spacing 8 — a hard-coded constant, probed for one
+  view pair (`hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt`,
+  `vStack…`); `ProposalScrollView` direct children 8pt vertical on both axes
+  (`aHorizontalProposalScrollViewAlsoStacksDirectChildrenVertically`).
+- `Rectangle()`/`Color` answer 10pt on an unspecified axis and the offer on a
+  concrete one (`rectangleUsesSwiftUIShapeProposalSizing`) — including
+  `.infinity` for an infinite offer.
+- A frame's `ideal` on an unspecified axis reports `clamp(ideal, min, max)`
+  (`anIdealFrameWidthBecomesItsOuterWidthWhenTheAxisIsUnspecified`, `…Height…`).
+- Priority, only when the stack overflows and has no spacer: descending groups
+  take their natural sum if it fits, else equal shares of the rest, and lower
+  groups get 0; shares are not redistributed (80/20 and 50/50:
+  `hStackHonoursHigherLayoutPriorityBeforeCompressingItsSibling`,
+  `hStackDividesAConstrainedProposalAmongEqualPriorityFlexibleChildren`).
+- `Spacer(minLength:)` is a floor even when the stack overflows
+  (`spacerMinimumLengthSurvivesAConstrainedStackProposal`); `nil` means 0,
+  unpinned and unprobed.
+- `.aspectRatio` fit/fill at 100×80 on 2:1 → 100×50 / 160×80
+  (`aspectRatioFitInscribesTheParentProposalBeforeMeasuringItsChild`, `…Fill…`);
+  single-axis and unspecified branches unpinned.
+
+**Unprobed kernel behaviour that fails silently** (by reading):
+- Only a type-recognised `Spacer` (bare or under one `.layoutPriority`) takes
+  surplus: two `Color`s in a 100pt `HStack` are 10pt each, `.frame(maxWidth:
+  .infinity)` in a stack does not expand (stack children get a nil main
+  offer), a padded or framed `Spacer` loses its flexibility, and a stack with
+  any spacer never compresses. A `Spacer` also claims the proposed cross axis.
+- A frame fills its offer only when `max == .infinity`; min 40 / max 80 at
+  100 around a 20pt child reports 40
+  (`aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum`).
+- A stack measures children at a nil main axis but places them at their
+  allocations, so wrapping text can outgrow the height the stack reported.
+- No input validation: NaN or negative proposals, min > max, fixed plus
+  min/max (fixed wins), negative spacing or insets all pass; only
+  `.aspectRatio` and `.layoutPriority` precondition, and `.opacity` out of
+  0…1 traps at **paint**.
+- **`OverlayModifier` starts the primary's and the overlay's cursors both at 0
+  under one id**, so their first elements share a `GlobalElementID`: hover,
+  press/release dispatch, `@State` slots and `ScrollState` are shared across
+  them (`NativeOverlayModifier.swift`, unpinned).
+- No built-in proposal type or modifier wrapper has `.id()`; only
+  `ProposalScrollView` takes an id, so the trailing-sibling remedy cannot name
+  a built-in proposal element. A custom element or `Component` conformed to
+  `ProposalElementGroup` can still declare `var elementID` (the demo's
+  `PreviewToggle` does, `main.swift:892`). `@State`
+  binds, but no built-in proposal element declares any; `.onTap` is the only
+  pointer handler (hover via `hoverColor`); nothing is focusable, handles keys
+  or emits an AX node. `.onTap` has no positive dispatch test.
 
 ## Practices — the short form
 
@@ -419,20 +655,25 @@ or any of text's three §4.2 failure modes; these are looks.
 
 | milestone | status |
 |---|---|
-| M0, M1 element pipeline, EP-8 centring, M2 text, clipping/scroll, Stack, absolute positioning (failures 1–2), measure performance (release), input/state, sizing | **closed** by a human look on the dated build |
+| M0, M1 element pipeline, EP-8 centring, M2 text, clipping/scroll, Stack, absolute positioning (failures 1–2), measure performance (release), input/state, sizing | **closed** by a human look on the dated build — every one of them **before** `.padding` became a wrapper (`f1944f8`) |
+| the legacy demo after `f1944f8` | **REGRESSED — measured 2026-09-14** by window capture of the release demo, `a15ec83` against `7cfcddc`, same 920×592 window (record §03). `.padding` now wraps, so the `.alignItems(.stretch)`/`.background`/`.flexGrow` written after it in six `demoContent` sites configure the wrapper: the header is an 84pt-wide centred card, 104pt tall (was full-width, 72pt) with its grow bar gone; the hairline is gone; the sidebar is 224pt wide (was 88pt after SZ-L's shrink) with its four bars gone and "Library" centred; the main pane's heading and list rows are centred, row backgrounds shrink to their text, and about one list row shows instead of three. Not a divergence: a defect in `f1944f8`'s migration or in `demoContent`, unfixed. Modal width (400pt by reading) not captured |
+| the proposal preview (`METALUI_NATIVE_LAYOUT_PREVIEW=1`): text rewraps with window width, the `layoutPriority(1)` panel keeps its width as the window narrows, wheel scrolls the `ProposalScrollView`, the toggle flips colour on click, the dimmed tap under `.allowsHitTesting(false)` does nothing | open, no look recorded |
 | absolute positioning failures 3–4 (modal stays put while scrolling; wheel over scrim must **not** scroll the list — inverted since IN-W) | open |
 | wheel-mouse scroll distance: run the demo with a **conventional (non-precise) wheel mouse**, not a trackpad or Magic Mouse, and scroll the 500-row list one detent at a time. Report roughly how far one click moves it, in rows (rows are 28pt): about a third of a row per click at a one-line detent means the conversion is live; a thirtieth of a row means it is not. Also report whether it feels comparable to scrolling a native app (e.g. a Finder list) with the same mouse | open. `MetalHostView.scrollDelta(x:y:precise:)` converts lines to points at 10pt per line (`NSScrollView`'s default), verified only with **synthesized** `CGEvent(...units: .line)` events. A real wheel's per-detent line count after the window server's acceleration is **unmeasured**, so the on-screen distance per click is not established. Record §03 |
 | measure performance in **debug**; row missing/blank at the bottom edge; reaching row 500; launch hitch | not reported either way |
 | tombstones-and-AX §7 item 9 (regression check; the demo cannot exercise its subject) | open, nobody has run the build |
 | reactivity §8 item 7: run the demo, idle 30 s, press **M** twice, quit with **Q**, report `frames drawn` / `pauses entered` / `observation dirtyings` — a measurement, not a judgement | open |
-| animation §9's "whether the motion looks right" (spec exit criterion 9): press **A**. The sidebar's width (196pt ↔ 320pt, the layout-phase helper) and its background (`.surface` ↔ `.accent`, the paint-phase helper) both read `DemoModel.animationDemoActive` inside one `withAnimation(.spring(duration: 0.6, bounce: 0.2))`, so one keystroke drives both and they can be reported separately | **run 2026-09-10, release, at `b869253` — BOTH animate; the paint-phase helper is confirmed live in production.** Read first as "width slides, colour snaps" and corrected on a second look, so the fade is **not obvious at a glance**. **Overshoot and reverse direction closed 2026-09-10 by a scripted measurement, not a human look** (the running release demo, scripted keystrokes, window captures): the forward press peaks at 114pt and settles at 113pt on screen — the declared 196→320 spring's 1.88pt overshoot at t = 0.500 s, computed from the real `springValue`, lands as a 2-device-pixel rebound because the sidebar is flex-shrunk (SZ-L); the colour overshoots too, (97,167,253) against a (96,165,250) target; and the reverse press animates width and colour 113→73pt. Record §03 |
+| animation §9's "whether the motion looks right" (spec exit criterion 9): press **A**. The sidebar's width (196pt ↔ 320pt, the layout-phase helper) and its background (`.surface` ↔ `.accent`, the paint-phase helper) both read `DemoModel.animationDemoActive` inside one `withAnimation(.spring(duration: 0.6, bounce: 0.2))`, so one keystroke drives both and they can be reported separately | **run 2026-09-10, release, at `b869253` — BOTH animate; the paint-phase helper is confirmed live in production.** Read first as "width slides, colour snaps" and corrected on a second look, so the fade is **not obvious at a glance**. **Overshoot and reverse direction closed 2026-09-10 by a scripted measurement, not a human look** (the running release demo, scripted keystrokes, window captures): the forward press peaks at 114pt and settles at 113pt on screen — the declared 196→320 spring's 1.88pt overshoot at t = 0.500 s, computed from the real `springValue`, lands as a 2-device-pixel rebound because the sidebar is flex-shrunk (SZ-L); the colour overshoots too, (97,167,253) against a (96,165,250) target; and the reverse press animates width and colour 113→73pt. Record §03. **These pixel readings describe the pre-`f1944f8` sidebar** (padding inside the 196pt column); the background now paints from the padding wrapper, so they need re-taking |
 | VoiceOver navigating the AX tree | permanently open until M4's bridge exists |
 
 Demo keys: **M** modal (translucent scrim, gated so other looks stay
 undimmed), **Space** theme, **F**/**Escape** focus the counter, **=**/**-**
 count (context `"Counter"`), **A** the animation look above, **Q** quit. The
-demo's sidebar shrinks below its 196pt declaration and WebKit does the
-identical thing (SZ-L); it is not a bug.
+same keymap is installed in the proposal preview window, where only **Space**
+and **Q** have a visible effect. The demo's sidebar shrinks below its 196pt
+declaration and WebKit does the identical thing (SZ-L); it is not a bug — as
+measured on the pre-wrap sidebar. At `7cfcddc` it no longer shrinks (224pt, see
+the regressed row above).
 Dark-on-dark dimming is hard to judge by eye — measure a "no scrim" report
 before believing it.
 
@@ -456,7 +697,7 @@ entries). Full entries with repro and pins in record §04.
 | 15 | unfixed defect | A `ScrollView` inside a scrolled `ScrollView` gets an empty content mask (`pushClip` ignores `activeOffset`). One-line fix, deferred to a paint milestone; pinned wrong on purpose. |
 | 16 | design | An `onClick` inside a `ScrollView` swallows the wheel over its rect. Fix named in `Window.applyScroll`'s doc (compare layers). Demo keeps its counter out of the list. |
 | 19 | unfixed defect | **One element VALUE placed twice shares one `@State` box.** `let sep = Ctr(); Row { sep; sep }` — reads were fixed 2026-09-10 by re-binding in `prepaintGroup`/`paintGroup`, but a **handler** registered by one occurrence still writes the other's slot, because the closure captures the class box and one box holds one slot. Measured: occurrence 0 clicked once reads 1, occurrence 1 never clicked reads 102. Pinned wrong on purpose; counted by `StateTable.aliasedStateBoxes`. Build two values, don't reuse one. |
-| 18 | vs SwiftUI | `@State` behind a removed `if` is retained, not reset; indefinitely below 256 entries — but 256 is easier to reach than it reads, since every registering element mints a `$anim` entry unconditionally (measured: a `List` is `2n + 7`, crossing at **125 rows**, so the demo's 500-row list sits at 1007). Reset explicitly or keep the value in data. Element-level consequence is unpinned. |
+| 18 | vs SwiftUI | `@State` behind a removed `if` is retained, not reset; indefinitely below 256 entries — but 256 is easier to reach than it reads, since every registering element mints a `$anim` entry unconditionally (measured on the committed `demoLikeRows(_:)` test fixture, which has no `.padding`: `2n + 7`, crossing at **125 rows**, 1007 at 500; the demo's own 500-row list is not that fixture and, since each row's `.padding` became a wrapper in `f1944f8`, holds more by an unmeasured amount). Reset explicitly or keep the value in data. Element-level consequence is unpinned. |
 
 ## Declared but inert — verify, do not remember
 
@@ -467,18 +708,22 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 | declared | reality |
 |---|---|
 | `AlignItems.baseline` / `AlignSelf.baseline` | falls back to the start edge in flex and in `Stack`; needs baselines in the measure protocol |
-| `aspectRatio`, `overflow` | zero reads (`overflow` has one write, in `ScrollView`, that nothing consumes) |
+| `Style.aspectRatio`, `Style.overflow` | zero reads (`overflow` has one write, in `ScrollView`, that nothing consumes). The proposal `.aspectRatio(_:contentMode:)` modifier is a different, live API — do not delete it with this row |
 | `margin: .auto` | resolves to 0 on both axes; unreachable from modifiers, reachable via `Style` |
-| `MUIRect.borderColor`/`borderWidths` | drawn by the shader, settable by nothing above the renderer; `borderWidth(_:)` shrinks the content box and paints nothing |
+| legacy `borderWidth(_:)` | shrinks the content box and paints nothing; no legacy element passes a border to `PaintPass.fill(borderColor:borderWidths:)`, which only the proposal `.border` uses (`Frame.fill`'s and `Box.swift`'s doc comments still say it cannot be set) |
 | `Position.relative`'s offset | makes a containing block, does not shift the box |
 | `Style.alignSelf` on a `Stack` child | ignored entirely |
-| `padding`/`border`/`margin` on a **leaf** (`Text`) | ignored on a **content-sized** leaf, including via a distributing `Component` modifier: no size moves, and it stays out of §9.7.4.c's shrink weight (`aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`). **Not inert once the leaf declares a main size**: ruling BM-4 puts the padding inside that base, so it comes off the shrink weight as CSS says — a 200 row of two `width: 200px` measured leaves, one with `padding: 0 40px`, lays out 125 / 75 (`aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`) |
+| `Style.padding`/`border`/`margin` on a **leaf** (`Text`) | **not** the `.padding(_:)` modifier on an element, which now wraps in a `Box`: it offsets and enlarges the outer footprint of a fixed-size custom `StyledElement` (`paddingWrapsAnElementAndExpandsItsOuterFootprint`, whose `Leaf` is not a `Text`); that it does the same for a `Text` is by reading, unpinned. Holds for `Style.padding` set directly, `.borderWidth`, `.margin`, and a `Component`'s distributed `.padding`: ignored on a **content-sized** leaf: no size moves, and it stays out of §9.7.4.c's shrink weight (`aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`). **Not inert once the leaf declares a main size**: ruling BM-4 puts the padding inside that base, so it comes off the shrink weight as CSS says — a 200 row of two `width: 200px` measured leaves, one with `padding: 0 40px`, lays out 125 / 75 (`aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`) |
 | `hidden()` on a subtree that draws or is focusable | layout filters it, paint does not: glyphs stack at the window's top-left; a hidden focusable still claims keystrokes. Use a builder `if` instead |
 | `AnyElement` | works when hand-written; the builder never produces one and must not |
 | `@State` inside `AnyElement` | silently inert |
 | `PaintPass.isActive` | correct, pinned, consulted by no built-in element — nothing paints a pressed state |
 | `PlatformWindow.onInput`'s `-> Bool` | `Window` computes it and `AppKitWindow` forwards it one hop; all seven `MetalHostView` event overrides discard it (`_ = onInput?(…)`, no `super`), so AppKit never sees it and an unhandled event never continues down the responder chain. Only the fake reads it. Do not wire `super.keyDown` in without an `NSMenu`: every unbound key beeps |
 | colour glyphs | tinted luminance silhouettes |
+| `HStack`/`VStack`'s `alignment:` main-axis half | a stack reads only the cross-axis factor of the nine-point `ProposalAlignment`: `HStack(alignment: .leading)` places exactly as `.center` (SwiftUI's typed alignments would not compile) |
+| `LayoutMeasurement.firstBaseline`/`lastBaseline` | no producer (`ProposalText` reports none) and no consumer; frame, padding, aspect-ratio, `.fixedSize`, `.layoutPriority` and the `.overlay` modifier (`overlayAttachment`, which returns its primary's measurement) carry them; `ZStack` (the `.overlay` node), linear stacks and the scroll viewport drop them (`LayoutTree.swift` `measureNative`). No baseline alignment exists |
+| `ProposedSize.zero` / `.infinity` | no container ever proposes them; nothing asks a child for its minimum or maximum |
+| `.allowsHitTesting(false)` over a scroller | gates click hitboxes only; a `ScrollView`/`ProposalScrollView` inside still scrolls and still wins topmost-opaque |
 | `GlyphAtlas.evictUnusedSince`, `LayoutTree.reset(generation:)` | zero callers; guards kept for whoever calls them |
 | `Frame.scrollRegions` / `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount` | test observables with no production reader |
 | `AXNode.children`, `AXNode.logicalCount`, `Frame.axNodes`/`axNode(for:)` | always empty / one writer no reader / built before the M4 bridge exists; `axNode(for:)` validity lags one frame |
@@ -503,23 +748,32 @@ at `2457da8` after the animation milestone; scrolling adds 0.1–0.3 ms. The
 already documents — do not read it as animation's cost**. Warm resident
 `StateTable` entries are **165 at 40 rows and 63 at 500**: the smaller tree
 holds more, because only the larger one crosses `sweepThreshold` and is reaped.
+**The frame times and these entry counts were taken on a copy of the
+pre-`f1944f8` `demoContent()`**; each demo list row's `.padding` now adds a
+registering `Box` (and a `$anim` entry) per built row, so they are stale by an
+unmeasured amount. (Divergence 18's `2n + 7` is unaffected: it was measured on
+the `demoLikeRows(_:)` fixture, which has no `.padding`; only its extrapolation
+to the demo is stale.) The proposal engine has no timing or work counts at all.
 The
 cold first frame builds every `List` row: ~76 ms release / ~188 ms debug at
 500, ~17 s release at 100k — M3's "100k scrolls smoothly" is met for scrolling
 and not for appearing. Identity path construction is ~0.4% of a frame. Hitbox
 registration is ~0.01 ms.
 
-## When CI lands
+## CI — what lapses silently
 
-Four guarantees lapse silently and must be required, non-gateable jobs. Record
-§08 has the mechanisms.
+CI exists: `.github/workflows/swift.yml` runs `swift build -v` and `swift test
+-v --no-parallel` on `macos-latest` for pushes and PRs to `master`, and none of
+the five guarantees below is a separate required job. Whether the typecheck
+guards run under that workflow's default build system is unmeasured. Record §08
+has the mechanisms.
 
 - The ABI probe **skips** without a Metal device.
 - `committedGoldensMatchTheBrowser` is the only live-WebKit consumer.
 - **Every typecheck guard skips when `.build` is not where `#filePath`
   resolution expects** — and that includes **the default build system**.
   `swiftbuild` writes modules flat into `.build/out/Products/Debug/` with no
-  `Modules` directory, so under it alone **all 35 guards skip**, the total does
+  `Modules` directory, so under it alone **all 39 guards skip**, the total does
   not move and the run passes. `--build-system native` writes
   `.build/<triple>/debug/Modules`, **and that directory survives**: once a
   checkout has ever been built that way the guards run under the default system

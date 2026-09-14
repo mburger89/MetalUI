@@ -15,6 +15,15 @@ milestone's before its whole-branch fix wave). Per rulings CS-M/CS-N/SI-H: a
 count is stale the moment a test is added, so it is taken at the latest commit
 rather than at the commit that first quoted it.
 
+**Erratum 2026-09-14 (at `7cfcddc`; record §09): the counts above are dated.**
+The latest measurement was taken by the orchestrator on `feat/review-fixes`:
+**993 tests**, **97** goldens, **39** typecheck guards, and 0 `error:` / 0
+`warning:` from `swift test --no-parallel`, which printed a single summary line.
+The intermediate reading was 923 / 97 / 35 at `7f58db9` (2026-09-11).
+`a15ec83..7cfcddc` added 70 `@Test`s and removed none. The 97 goldens did not
+move although `Sources/MetalUILayout/` changed; the new code is the proposal
+engine, and no fixture reaches it.
+
 **87 goldens is the `Component` milestone's exit criterion 4, as it was the
 reactivity milestone's 5 and the tombstones milestone's 2 — not a by-product any
 of the three times.** None of them touches the layout engine:
