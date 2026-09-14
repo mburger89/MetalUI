@@ -81,6 +81,7 @@ func proposalLayoutConstructorsRequireProposalContent() throws {
             _ = Padding(Edges(all: Pixels(1))) { Rectangle() }
             _ = Background(.accent) { Rectangle() }
             _ = FixedSize { Rectangle() }
+            _ = ProposalScrollView { VStack { Rectangle() } }
             _ = ModifiedContent(content: Rectangle(), modifier: .padding(Edges(all: Pixels(1))))
             _ = OnTapModifier(content: Rectangle()) {}
             _ = OverlayModifier(content: Rectangle()) { Color(.accent) }
@@ -119,6 +120,9 @@ func proposalLayoutConstructorsRequireProposalContent() throws {
         """)
     try assertRejectsLegacyContent("""
         @MainActor func probe() { _ = FixedSize { Text("legacy") } }
+        """)
+    try assertRejectsLegacyContent("""
+        @MainActor func probe() { _ = ProposalScrollView { Text("legacy") } }
         """)
     try assertRejectsLegacyContent("""
         @MainActor func probe() {

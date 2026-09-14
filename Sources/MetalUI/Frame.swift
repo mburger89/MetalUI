@@ -1132,6 +1132,11 @@ public final class Frame {
         tree.newNativeSpacer(minLength: minLength)
     }
 
+    func requestNativeScrollViewport(child: LayoutNodeID,
+                                     axis: ProposalStackAxis) -> LayoutNodeID {
+        tree.newNativeScrollViewport(child: child, axis: axis)
+    }
+
     func requestNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
                                   spacing: Double = 0,
                                   alignment: ProposalAlignment = .center) -> LayoutNodeID {

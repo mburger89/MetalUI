@@ -251,6 +251,20 @@ public final class LayoutTree {
         return id
     }
 
+    /// Registers a proposal-layout scrolling viewport around one native child.
+    ///
+    /// The content receives an unspecified proposal along the scrolling axis,
+    /// while the viewport adopts a concrete parent proposal when one exists.
+    /// Geometry stays untransformed here; the owning element applies its stored
+    /// scroll offset during prepaint and paint.
+    public func newNativeScrollViewport(child: LayoutNodeID,
+                                        axis: ProposalStackAxis) -> LayoutNodeID {
+        _ = nativeNode(child)
+        let id = newNode(style: .default, children: [child])
+        nativeNodes[id.index] = .scrollViewport(axis: axis)
+        return id
+    }
+
     /// Measures and places one all-native subtree into the existing rect store.
     ///
     /// `bounds` is root-absolute, matching the contract `Frame.bounds(of:)`
@@ -442,6 +456,11 @@ public final class LayoutTree {
             )
         case .layoutPriority:
             result = measureNative(children(id)[0], proposal: proposal, cache: &cache)
+        case .scrollViewport(let axis):
+            let content = measureNative(children(id)[0],
+                                        proposal: scrollContentProposal(for: axis, parent: proposal),
+                                        cache: &cache)
+            result = LayoutMeasurement(size: scrollViewportSize(proposal: proposal, content: content.size))
         case .linearStack(let axis, let spacing, _):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             let childMeasurements = children(id).map {
@@ -543,6 +562,14 @@ public final class LayoutTree {
             let child = children(id)[0]
             _ = measureNative(child, proposal: proposal, cache: &cache)
             placeNative(child, in: bounds, proposal: proposal, cache: &cache)
+        case .scrollViewport(let axis):
+            let child = children(id)[0]
+            let childProposal = scrollContentProposal(for: axis, parent: proposal)
+            let measurement = measureNative(child, proposal: childProposal, cache: &cache)
+            placeNative(child,
+                        in: LayoutRect(x: bounds.x, y: bounds.y,
+                                       width: measurement.size.width, height: measurement.size.height),
+                        proposal: childProposal, cache: &cache)
         case .linearStack(let axis, let spacing, let alignment):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             let childMeasurements = children(id).map {
@@ -587,6 +614,23 @@ public final class LayoutTree {
         case .horizontal: ProposedSize(width: nil, height: parent.height)
         case .vertical: ProposedSize(width: parent.width, height: nil)
         }
+    }
+
+    private func scrollContentProposal(for axis: ProposalStackAxis, parent: ProposedSize) -> ProposedSize {
+        switch axis {
+        case .horizontal: ProposedSize(width: nil, height: parent.height)
+        case .vertical: ProposedSize(width: parent.width, height: nil)
+        }
+    }
+
+    private func scrollViewportSize(proposal: ProposedSize, content: SizeD) -> SizeD {
+        SizeD(width: resolvedViewportDimension(proposal.width, content: content.width),
+              height: resolvedViewportDimension(proposal.height, content: content.height))
+    }
+
+    private func resolvedViewportDimension(_ proposal: Double?, content: Double) -> Double {
+        guard let proposal, proposal.isFinite else { return content }
+        return proposal
     }
 
     private func isNativeSpacer(_ id: LayoutNodeID) -> Bool {
@@ -800,6 +844,7 @@ private enum NativeNode {
     case aspectRatio(ratio: Double, contentMode: AspectRatioContentMode)
     case layoutPriority(Double)
     case spacer(minLength: Double)
+    case scrollViewport(axis: ProposalStackAxis)
     case linearStack(axis: ProposalStackAxis, spacing: Double, alignment: ProposalAlignment)
 }
 

@@ -955,6 +955,21 @@ func nativeLayoutPreviewContent() -> some Element {
                 Text("Native proposal text measures and wraps from the parent width.")
                     .proposalLayout()
                     .foregroundColor(.textPrimary)
+                // The viewport retains the parent height while its content is
+                // measured with an unspecified vertical proposal. Scroll with
+                // the wheel to exercise the native clip and input path.
+                ProposalScrollView(.vertical) {
+                    VStack(spacing: Pixels(8), alignment: .leading) {
+                        Text("Proposal scroll content stays intrinsically tall.")
+                            .proposalLayout()
+                            .foregroundColor(.textPrimary)
+                        Rectangle(width: Pixels(520), height: Pixels(48), color: .accent)
+                        Rectangle(width: Pixels(520), height: Pixels(48), color: .surfaceSecondary)
+                        Rectangle(width: Pixels(520), height: Pixels(48), color: .accent)
+                    }
+                }
+                .frame(height: Pixels(96), alignment: .topLeading)
+                .border(.separator, width: Pixels(1), cornerRadius: Pixels(8))
                 // Both panels prefer 480pt, more than the preview's available
                 // width. The accented panel keeps its ideal width first; the
                 // secondary panel receives the remaining proposal as the user

@@ -117,6 +117,14 @@ public struct LayoutPass {
         frame.requestNativeSpacer(minLength: minLength)
     }
 
+    /// Registers a clipped proposal-layout viewport around one native child.
+    /// The element owns clipping and the interactive scroll offset; this node
+    /// establishes only the parent-proposal/content-measurement relationship.
+    public func requestNativeScrollViewport(child: LayoutNodeID,
+                                            axis: ProposalStackAxis) -> LayoutNodeID {
+        frame.requestNativeScrollViewport(child: child, axis: axis)
+    }
+
     /// Registers a native linear stack for the proposal-layout migration.
     public func requestNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
                                          spacing: Double = 0,

@@ -173,6 +173,23 @@ extension NativeProposalProbe: ProposalElementGroup {}
 }
 
 @MainActor
+@Test func aProposalScrollViewMeasuresContentWithAnUnspecifiedScrollingAxis() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(90), height: Pixels(50)), scaleFactor: 1)
+    var root = ProposalScrollView(.vertical) {
+        VStack(spacing: Pixels(0)) {
+            NativeProbeLeaf(size: SizeD(width: 90, height: 160), probe: probe, name: "trailing")
+        }
+    }
+
+    frame.render(&root)
+
+    #expect(probe.proposals.contains(ProposedSize(width: 90, height: nil)))
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                                           size: Size(width: Pixels(90), height: Pixels(160))))
+}
+
+@MainActor
 @Test func aPublicHStackFormsAnAllProposalLayoutSubtreeAndPlacesItsSpacer() {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(40)), scaleFactor: 1)

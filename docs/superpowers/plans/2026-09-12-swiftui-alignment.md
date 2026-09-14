@@ -175,6 +175,12 @@ modifier placement from names alone.
 - A proposal `Spacer(minLength:)` retains that minimum when a stack receives a
   smaller main-axis proposal, matching a macOS SwiftUI probe: the stack reports
   its overflowing minimum rather than compressing the spacer away.
+- `ProposalScrollView` is the proposal-layout migration path for scrolling:
+  it measures content with an unspecified scrolling axis, retains a concrete
+  parent viewport proposal, and reuses MetalUI's clipped wheel-routing and
+  indicator behaviour. The source-compatible CSS-era `ScrollView` remains in
+  place until the public container migration can replace it without mixing
+  layout engines.
 - A proposal frame now reports a clamped ideal dimension on an unspecified axis,
   matching a macOS SwiftUI probe: a 20pt child in `.frame(idealWidth: 80)` is
   offered and reports 80pt, while a concrete parent proposal still takes
