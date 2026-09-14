@@ -175,6 +175,9 @@ modifier placement from names alone.
 - A proposal `Spacer(minLength:)` retains that minimum when a stack receives a
   smaller main-axis proposal, matching a macOS SwiftUI probe: the stack reports
   its overflowing minimum rather than compressing the spacer away.
+- All nine `ProposalAlignment` positions are deterministically covered at the
+  native overlay placement boundary; each named case has a distinct expected
+  position rather than relying on independent horizontal/vertical factor tests.
 - `ProposalScrollView` is the proposal-layout migration path for scrolling:
   it measures content with an unspecified scrolling axis, retains a concrete
   parent viewport proposal, and reuses MetalUI's clipped wheel-routing and
