@@ -412,6 +412,12 @@ extension NativeProposalProbe: ProposalElementGroup {}
                                                    size: Size(width: Pixels(240), height: Pixels(160))))
     #expect(Color.measurement(for: ProposedSize(width: 240, height: 160)).size ==
             SizeD(width: 240, height: 160))
+    #expect(Color.measurement(for: ProposedSize(width: nil, height: nil)).size ==
+            SizeD(width: 10, height: 10))
+    #expect(Color.measurement(for: ProposedSize(width: 240, height: nil)).size ==
+            SizeD(width: 240, height: 10))
+    #expect(Color.measurement(for: ProposedSize(width: nil, height: 160)).size ==
+            SizeD(width: 10, height: 160))
 }
 
 /// A macOS SwiftUI custom-Layout probe measures `Rectangle` as 10pt on an

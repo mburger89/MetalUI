@@ -181,6 +181,9 @@ modifier placement from names alone.
   and the offered value on each concrete axis. The existing explicit
   `Rectangle(width:height:color:)` initializer remains the fixed-size
   migration convenience.
+- Proposal `Color` follows the same measured SwiftUI 10pt unspecified-axis
+  ideal while continuing to fill every concrete proposal; all four proposal
+  combinations are pinned in its native integration test.
 - Ordinary element padding now wraps its content; `Component` padding remains
   a separately measured distribution case. Task 5 decides the complete
   modifier matrix.

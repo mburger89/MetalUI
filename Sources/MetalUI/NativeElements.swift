@@ -433,8 +433,8 @@ public struct Rectangle: Element {
 ///
 /// This is the native equivalent of a SwiftUI `Color` used as a background:
 /// an overlay can offer it the window's current size and it responds with that
-/// size, rather than retaining an initial fixed canvas. Unspecified axes stay
-/// zero so the fill does not manufacture intrinsic size in a stack.
+/// size, rather than retaining an initial fixed canvas. Like SwiftUI `Color`,
+/// an unspecified axis uses a 10pt ideal so it remains a useful stack child.
 public struct Color: Element {
     public var color: ColorToken
 
@@ -451,7 +451,8 @@ public struct Color: Element {
     }
 
     nonisolated static func measurement(for proposal: ProposedSize) -> LayoutMeasurement {
-        LayoutMeasurement(size: proposal.replacingUnspecifiedDimensions(by: .zero))
+        LayoutMeasurement(size: SizeD(width: proposal.width ?? 10,
+                                      height: proposal.height ?? 10))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
