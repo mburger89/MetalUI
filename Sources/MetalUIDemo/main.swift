@@ -968,6 +968,7 @@ func nativeLayoutPreviewContent() -> some Element {
                         Rectangle(width: Pixels(520), height: Pixels(48), color: .accent)
                     }
                 }
+                .cornerRadius(Pixels(8))
                 .frame(height: Pixels(96), alignment: .topLeading)
                 .border(.separator, width: Pixels(1), cornerRadius: Pixels(8))
                 // Both panels prefer 480pt, more than the preview's available

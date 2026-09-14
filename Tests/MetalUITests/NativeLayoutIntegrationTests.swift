@@ -207,6 +207,33 @@ extension NativeProposalProbe: ProposalElementGroup {}
 }
 
 @MainActor
+@Test func aProposalScrollViewsCornerRadiusMasksItsScrollingContent() throws {
+    let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1)
+    var root = ProposalScrollView(.vertical) {
+        VStack(spacing: Pixels(0)) {
+            Rectangle(width: Pixels(50), height: Pixels(20), color: .accent)
+            Rectangle(width: Pixels(50), height: Pixels(20), color: .surfaceSecondary)
+        }
+    }
+    .cornerRadius(Pixels(14))
+
+    frame.render(&root)
+
+    let rects = frame.finalizedScene().rects
+    try #require(rects.count == 2)
+    for rect in rects {
+        #expect(rect.contentMask.origin.x == 0)
+        #expect(rect.contentMask.origin.y == 0)
+        #expect(rect.contentMask.size.width == 50)
+        #expect(rect.contentMask.size.height == 30)
+        #expect(rect.maskCornerRadii.topLeft == 14)
+        #expect(rect.maskCornerRadii.topRight == 14)
+        #expect(rect.maskCornerRadii.bottomRight == 14)
+        #expect(rect.maskCornerRadii.bottomLeft == 14)
+    }
+}
+
+@MainActor
 @Test func aPublicHStackFormsAnAllProposalLayoutSubtreeAndPlacesItsSpacer() {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(40)), scaleFactor: 1)
