@@ -296,6 +296,14 @@ public final class LayoutTree {
         return result
     }
 
+    /// SKELETON (lane 2's red commit): delegates to `computeNativeLayout`, so it
+    /// writes rects. Replaced by the measure-only entry point in the next commit.
+    func measureNativeLayout(root: LayoutNodeID, proposal: ProposedSize) -> LayoutMeasurement {
+        computeNativeLayout(root: root, proposal: proposal,
+                            in: LayoutRect(x: 0, y: 0, width: proposal.width ?? 0,
+                                           height: proposal.height ?? 0))
+    }
+
     /// Whether this node belongs to the native layout path.
     public func isNativeLayoutNode(_ id: LayoutNodeID) -> Bool {
         nativeNodes[slot(id)] != nil
