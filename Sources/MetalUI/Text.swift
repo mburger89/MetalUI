@@ -18,7 +18,7 @@ import MetalUIText
 /// the narrowest glyph produces the same character-per-line answer, measured at
 /// 0.001, 0.5, 1 and 5 (see ``MetalUIText/Shaper/unbreakableRuns(of:)``).
 /// 0.5 is the value Task 2's positive control already uses.
-private let smallestWrapWidth = 0.5
+let smallestWrapWidth = 0.5
 
 /// Measures `string` the way spec §3.4's table says, for one axis' worth of
 /// question at a time.

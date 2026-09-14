@@ -3,6 +3,7 @@ import Metal
 import MetalUICore
 import MetalUILayout
 import MetalUIRender
+import MetalUIText
 @testable import MetalUI
 
 private final class NativeLayoutProbe: @unchecked Sendable {
@@ -441,6 +442,44 @@ extension NativeProposalProbe: ProposalElementGroup {}
     let rect = frame.finalizedScene().rects[0]
     #expect(rect.bounds.size.width == 100)
     #expect(rect.bounds.size.height == 80)
+}
+
+/// A macOS SwiftUI custom-Layout probe measures `Text` at its intrinsic width
+/// when width is unspecified, then rewraps it for a concrete width; the height
+/// proposal itself does not change that text measurement.
+@MainActor
+@Test func proposalTextUsesWidthDrivenSwiftUIMeasurement() {
+    let cache = ShapingCache()
+    let font = cache.resolveFont(family: nil, size: 13)
+    cache.registerFont(font)
+    let unwrapped = proposalTextMeasurement("SwiftUI proposal measurement", font: font, cache: cache,
+                                            proposal: .unspecified)
+    let wrapped = proposalTextMeasurement("SwiftUI proposal measurement", font: font, cache: cache,
+                                          proposal: ProposedSize(width: 30, height: nil))
+    let heightControl = proposalTextMeasurement("SwiftUI proposal measurement", font: font, cache: cache,
+                                                proposal: ProposedSize(width: 30, height: 12))
+
+    #expect(wrapped.size.width < unwrapped.size.width,
+            "a concrete proposal width must become the wrapping question")
+    #expect(wrapped.size.height > unwrapped.size.height,
+            "the narrower wrapped run must report its additional line height")
+    #expect(heightControl == wrapped,
+            "a height proposal does not truncate or scale a SwiftUI Text measurement")
+}
+
+/// The bridge is a native leaf, so it can live in a proposal HStack and retains
+/// the text renderer's glyph path rather than becoming a rectangle stand-in.
+@MainActor
+@Test func proposalTextParticipatesInANativeStackAndPaintsGlyphs() {
+    let frame = Frame(contentSize: Size(width: Pixels(220), height: Pixels(80)), scaleFactor: 1)
+    var root = HStack(spacing: Pixels(8)) {
+        Text("Proposal text").proposalLayout().foregroundColor(.accent)
+        Rectangle(width: Pixels(20), height: Pixels(10), color: .surface)
+    }
+
+    frame.render(&root)
+
+    #expect(!frame.finalizedScene().glyphs.isEmpty)
 }
 
 @MainActor

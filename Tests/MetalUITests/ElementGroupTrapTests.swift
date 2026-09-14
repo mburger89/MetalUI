@@ -135,6 +135,20 @@ func proposalLayoutConstructorsRequireProposalContent() throws {
         """)
 }
 
+/// A proposal Text adapter keeps the existing legacy `Text.background` member
+/// out of overload resolution while letting the converted value use the
+/// proposal wrapper's canonical modifier spelling.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func proposalTextSelectsProposalModifiersWithoutMakingLegacyTextAmbiguous() throws {
+    let result = try typecheck("""
+        @MainActor func probe() -> ModifiedContent<ProposalText> {
+            Text("proposal").proposalLayout().background(.accent)
+        }
+        """, importing: "MetalUI")
+    #expect(result.succeeded,
+            "proposal Text must select the proposal background wrapper without changing legacy Text:\n\(result.output)")
+}
+
 /// An element that replaces its own children **between `requestLayout` and
 /// `prepaint`**.
 ///

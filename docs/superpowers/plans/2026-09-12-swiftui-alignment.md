@@ -189,6 +189,11 @@ modifier placement from names alone.
 - Proposal `Color` follows the same measured SwiftUI 10pt unspecified-axis
   ideal while continuing to fill every concrete proposal; all four proposal
   combinations are pinned in its native integration test.
+- `Text.proposalLayout()` is the explicit bridge for proposal stacks while
+  legacy `Text` retains its existing styled modifiers. It uses the same font
+  resolution, shaping cache, width-driven wrapping, and glyph painting as
+  `Text`, without making `.background` overload resolution ambiguous during
+  the migration.
 - Ordinary element padding now wraps its content; `Component` padding remains
   a separately measured distribution case. Task 5 decides the complete
   modifier matrix.
