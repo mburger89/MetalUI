@@ -949,6 +949,12 @@ func nativeLayoutPreviewContent() -> some Element {
                     Rectangle(width: Pixels(72), height: Pixels(72), color: .accent)
                     Rectangle(width: Pixels(420), height: Pixels(18), color: .surfaceSecondary)
                 }
+                // The proposal Text bridge receives this VStack's concrete
+                // cross-axis width, so narrowing the window visibly rewraps
+                // glyphs rather than scaling a rectangle placeholder.
+                Text("Native proposal text measures and wraps from the parent width.")
+                    .proposalLayout()
+                    .foregroundColor(.textPrimary)
                 // Both panels prefer 480pt, more than the preview's available
                 // width. The accented panel keeps its ideal width first; the
                 // secondary panel receives the remaining proposal as the user
