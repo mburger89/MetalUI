@@ -725,7 +725,9 @@ shape to avoid, and the plan defers the decision to task 5.
 - **The default demo no longer looks the way record §03 and §07 measured it —
   predicted by reading below, then confirmed by a window capture on
   2026-09-14 (record §03's table: header an 84pt centred card, hairline and
-  sidebar bars gone, sidebar 224pt, list rows centred and shrunk).** `demoContent` did not change in this range; the diff to
+  sidebar bars gone, sidebar 224pt, list rows centred and shrunk), and fixed
+  the same day by reordering `demoContent`'s modifiers; the re-capture matches
+  `a15ec83` pixel for pixel.** `demoContent` did not change in this range; the diff to
   `main.swift` only adds the preview. Its padded containers now wrap:
   - The sidebar is `.width(…).padding(14).alignItems(.stretch).background(…)`
     (`main.swift:487`). So `.alignItems(.stretch)` and the background land on
@@ -744,7 +746,7 @@ shape to avoid, and the plan defers the decision to task 5.
     bands lose their full-width stretch the same way.
   - Each list row gains one registering `Box`.
 
-  **The only look since `f1944f8` is that 2026-09-14 capture.** The 2026-09-10 animation
+  **The only looks since `f1944f8` are those two 2026-09-14 captures.** The 2026-09-10 animation
   readings (114 / 113 / 73pt), SZ-L's sidebar numbers, §07's 1.652 / 1.637 ms
   warm frame and its 165 / 63 resident `StateTable` entries were all taken on
   the pre-wrap tree. See the errata in §03 and §07.

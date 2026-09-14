@@ -393,14 +393,26 @@ func demoContent() -> some Element {
                 .background(.surfaceSecondary)
                 .cornerRadius(Pixels(6))
         }
-        .height(Pixels(72))
-        .padding(Pixels(16))
         // Kept although ruling EP-8 now makes it the default, because it is the
         // one container here where centring is what the design *wants* — a 40pt
         // avatar and a 12pt bar on a common centre line — rather than something
         // it inherited. Both children declare a cross size, so this row needed
         // no change; every other container below did.
         .alignItems(.center)
+        // **Modifier order is load-bearing on every padded container in this
+        // file.** `.padding` returns an outer `Box` (a SwiftUI-style wrapper,
+        // `f1944f8`), so everything written before it configures the padded
+        // container and everything after it configures the wrapper. Container
+        // settings (`alignItems`) therefore go first; the flex-item size
+        // (`height`/`width`/`flexGrow`), background and corner radius go after,
+        // so the declared size still includes the padding and the background
+        // still covers it. The inner `.flexGrow(1)` makes the container fill
+        // the wrapper's main (row) axis — its cross axis already stretches.
+        // Written the other way round, this header rendered as an 84pt centred
+        // card with no bar (record §03, 2026-09-14).
+        .flexGrow(1)
+        .padding(Pixels(16))
+        .height(Pixels(72))
         .background(.surface)
         .cornerRadius(Pixels(14))
 
@@ -483,9 +495,10 @@ func demoContent() -> some Element {
             // pixel value rather than `.auto`, which is what lets the FIRST
             // press animate rather than snap (`AnimatedStyle.swift`'s own
             // documented `.auto` pitfall).
-            .width(demoModel.animationDemoActive ? Pixels(320) : Pixels(196))
-            .padding(Pixels(14))
             .alignItems(.stretch)
+            .flexGrow(1)
+            .padding(Pixels(14))
+            .width(demoModel.animationDemoActive ? Pixels(320) : Pixels(196))
             .background(demoModel.animationDemoActive ? .accent : .surface)
             .cornerRadius(Pixels(14))
 
@@ -745,8 +758,6 @@ func demoContent() -> some Element {
                                              rather than by the scroller.
                                              """)
                                     }
-                                    .width(Pixels(360))
-                                    .padding(Pixels(20))
                                     // The fifth `.alignItems(.stretch)` in this
                                     // file, and the only one not paying for a
                                     // childless `Box` measuring 0 (ruling
@@ -767,6 +778,9 @@ func demoContent() -> some Element {
                                     // one left edge, which is a look rather
                                     // than a workaround.
                                     .alignItems(.stretch)
+                                    .flexGrow(1)
+                                    .padding(Pixels(20))
+                                    .width(Pixels(360))
                                     .background(.surface)
                                     .cornerRadius(Pixels(16))
                                     // Absorbs its own clicks so the scrim's
@@ -832,18 +846,19 @@ func demoContent() -> some Element {
                             // enforces that they do, see `ScrollView.cornerRadius`'s
                             // doc comment — and this demo is where a mismatch
                             // would show.
-                            Box(decoration: Decoration(
-                                background: row.id.isMultiple(of: 2) ? .surface : .surfaceSecondary)
-                            ) {
+                            Box {
                                 Text("Row \(row.id + 1) of \(demoRowCount) — a scrollable list item")
                             }
-                            .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
-                                          bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
-                            .width(Pixels(420))
                             // Vertical centring within the row; horizontal
                             // stays flex-start, the ordinary reading direction
                             // for a list item's label.
                             .alignItems(.center)
+                            .flexGrow(1)
+                            .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
+                                          bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
+                            .width(Pixels(420))
+                            // On the padding wrapper, so it spans the padding.
+                            .background(row.id.isMultiple(of: 2) ? .surface : .surfaceSecondary)
                         }
                     }
                     .cornerRadius(Pixels(14))
@@ -855,8 +870,6 @@ func demoContent() -> some Element {
                 .background(.surface)
                 .cornerRadius(Pixels(14))
             }
-            .flexGrow(1)
-            .padding(Pixels(16))
             // The hero box declares its height and fills its width from
             // here, and so does the wrapping paragraph — which is what makes
             // it re-wrap on resize. (This used to name "the row of weights";
@@ -864,6 +877,9 @@ func demoContent() -> some Element {
             // `ScrollView` box above, which declares both of its axes and
             // takes nothing from this line.)
             .alignItems(.stretch)
+            .flexGrow(1)
+            .padding(Pixels(16))
+            .flexGrow(1)
             .background(.surface)
             .cornerRadius(Pixels(14))
         }
@@ -871,9 +887,10 @@ func demoContent() -> some Element {
         // Sidebar and main pane are full-height columns side by side.
         .alignItems(.stretch)
     }
-    .padding(Pixels(16))
     // Header, hairline and body are full-width bands stacked down the window.
     .alignItems(.stretch)
+    .flexGrow(1)
+    .padding(Pixels(16))
     .background(.background)
 }
 

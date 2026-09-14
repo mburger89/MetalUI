@@ -444,10 +444,11 @@ derived from source and not executed.
     padded element.
   - **Identity moves.** The padded element sits one identity level deeper, so
     `.id(_:)` must be outermost.
-  - **The default demo regressed** (window capture, 2026-09-14, record §03):
-    `demoContent` writes `.alignItems(.stretch)`/`.background` after `.padding`,
-    so its header, hairline, sidebar bars and list rows lost their stretch.
-    Fix the demo's modifier order or the migration before task 5 closes.
+  - **The default demo regressed, and was fixed by reordering** (window
+    captures, 2026-09-14, record §03): container modifiers plus an inner
+    `.flexGrow(1)` now precede `.padding`; size, background and corner radius
+    follow it. Any other legacy caller that padded a container needs the same
+    reorder, and nothing diagnoses one that does not.
   - **Tests updated.** `ModifierTests` dropped its two padding rows
     (`cases.count == 38`), and `ElementLayoutTests` was reordered and now
     expects 7 nodes.

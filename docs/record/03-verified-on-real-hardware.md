@@ -1191,6 +1191,20 @@ were not predicted. The modal (**M**, 400pt by reading) and the animation look
 (**A**) were not re-taken. This is a regression, not a divergence: either
 `f1944f8`'s migration or `demoContent`'s modifier order must change.
 
+**Fixed the same day.** Every padded container in `demoContent` (header, sidebar,
+modal panel, list row, main pane, root) now writes its container settings
+(`alignItems`) and an inner `.flexGrow(1)` **before** `.padding`, and its item
+size (`width`/`height`/`flexGrow`), background and corner radius **after** it.
+The inner `.flexGrow(1)` is needed because the wrapper is a row-direction `Box`:
+its cross axis already stretches the padded container, but its main axis would
+otherwise leave it at content width. The size written after `.padding` still
+includes the padding, as the old border-box size did (196 = 14 + 168 + 14). A
+list row's background moved from its `Decoration` onto the wrapper, so it
+spans the padding. Re-captured the same way: **35 of 1840×1184 pixels differ from
+`a15ec83`, every one at x ≤ 8, y ≤ 46** — desktop behind the window's rounded
+corner, not window content. The modal and the animation look were not
+re-taken.
+
 **A caution for the next scripted look, from the same review.** A review
 sub-agent's drag probe drove the **real cursor** and posted **real clicks**
 through an HID event tap for about 15 seconds. (The replica probes recorded in

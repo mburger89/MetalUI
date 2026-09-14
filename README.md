@@ -82,11 +82,6 @@ swift run -c release MetalUIDemo
 Demo keys: **M** modal, **Space** theme, **F**/**Escape** focus, **=**/**-**
 count, **A** animation, **Q** quit.
 
-> **Known regression on this branch:** since `.padding` became a wrapper
-> (`f1944f8`), the milestone demo's header, hairline, sidebar bars and list rows
-> have lost their full-width stretch. It renders, but centred and narrower than
-> intended. See `docs/record/03-verified-on-real-hardware.md`.
-
 To open the all-proposal-layout preview window instead (stacks, a spacer,
 priority panels, a `ProposalScrollView`, an `.onTap` toggle), run:
 
