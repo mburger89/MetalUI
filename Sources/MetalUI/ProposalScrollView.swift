@@ -46,12 +46,23 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         var cursor = 0
         let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
                                                                    pass: &pass)
-        precondition(children.count == 1,
-                     "ProposalScrollView content must contribute one native node")
-        let contentNode = children[0]
+        // SwiftUI's `ScrollView` content builder presents direct children as a
+        // vertical or horizontal variadic layout. A local macOS probe with a
+        // 20pt red and 30pt blue child observed an 8pt gap (red, background,
+        // blue), the same default spacing as the corresponding proposal
+        // stack. Preserve an already-composed single child so wrappers remain
+        // layout-transparent; only a real group needs this implicit container.
+        let contentAxis: ProposalStackAxis = axis == .vertical ? .vertical : .horizontal
+        let contentNode: LayoutNodeID
+        if children.count == 1 {
+            contentNode = children[0]
+        } else {
+            contentNode = pass.requestNativeLinearStack(children: children, axis: contentAxis,
+                                                         spacing: 8)
+        }
         let node = pass.requestNativeScrollViewport(
             child: contentNode,
-            axis: axis == .vertical ? .vertical : .horizontal
+            axis: contentAxis
         )
         return (node, Layout(node: node, contentNode: contentNode, content: contentLayout))
     }

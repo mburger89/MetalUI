@@ -207,6 +207,21 @@ extension NativeProposalProbe: ProposalElementGroup {}
 }
 
 @MainActor
+@Test func aProposalScrollViewStacksDirectChildrenWithSwiftUIsDefaultSpacing() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(90), height: Pixels(50)), scaleFactor: 1)
+    var root = ProposalScrollView(.vertical) {
+        NativeProbeLeaf(size: SizeD(width: 90, height: 20), probe: probe, name: "leading")
+        NativeProbeLeaf(size: SizeD(width: 90, height: 30), probe: probe, name: "trailing")
+    }
+
+    frame.render(&root)
+
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(0), y: Pixels(28)),
+                                           size: Size(width: Pixels(90), height: Pixels(30))))
+}
+
+@MainActor
 @Test func aProposalScrollViewsCornerRadiusMasksItsScrollingContent() throws {
     let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1)
     var root = ProposalScrollView(.vertical) {
