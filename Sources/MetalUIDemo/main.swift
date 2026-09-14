@@ -903,6 +903,8 @@ private struct NativePreviewToggle: Component {
     }
 }
 
+extension NativePreviewToggle: ProposalElementGroup {}
+
 @MainActor
 func nativeLayoutPreviewContent() -> some Element {
     ZStack {
@@ -932,6 +934,7 @@ func nativeLayoutPreviewContent() -> some Element {
         .background(.surface)
         .border(.separator, width: Pixels(1), cornerRadius: Pixels(16))
         .clip(cornerRadius: Pixels(16))
+        .frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity))
     }
 }
 

@@ -237,6 +237,27 @@ extension ElementGroup {
     }
 }
 
+extension ProposalElementGroup {
+    /// Applies SwiftUI-style proposal-layout frame constraints.
+    ///
+    /// Unlike the legacy CSS wrapper with the same spelling, this overload is
+    /// available only on a fully proposal-layout subtree and therefore owns
+    /// its child's measurement proposal, resolved size, and alignment.
+    public func frame(width: Pixels? = nil, height: Pixels? = nil,
+                      minWidth: Pixels? = nil, idealWidth: Pixels? = nil,
+                      maxWidth: Pixels? = nil, minHeight: Pixels? = nil,
+                      idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
+                      alignment: NativeAlignment = .center) -> ModifiedContent<Self> {
+        ModifiedContent(
+            content: self,
+            modifier: .frame(width: width, height: height,
+                             minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth,
+                             minHeight: minHeight, idealHeight: idealHeight, maxHeight: maxHeight,
+                             alignment: alignment)
+        )
+    }
+}
+
 /// Temporary source-compatible name for ``LayoutModifier``.
 @available(*, deprecated, renamed: "LayoutModifier")
 public typealias NativeLayoutModifier = LayoutModifier

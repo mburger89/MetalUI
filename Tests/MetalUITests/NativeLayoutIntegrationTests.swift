@@ -55,6 +55,8 @@ private struct NativeProbeLeaf: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
+extension NativeProbeLeaf: ProposalElementGroup {}
+
 private struct NativeFillProbe: Element {
     let probe: NativeLayoutProbe
 
@@ -180,6 +182,25 @@ private struct NativeProposalProbe: Element {
 
     #expect(frame.tree.nodeCount == 3)
     #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(75), y: Pixels(65)),
+                                           size: Size(width: Pixels(20), height: Pixels(10))))
+}
+
+/// A proposal-layout value selects the canonical frame overload rather than
+/// the CSS-era `FrameModifier`. The explicit stored type makes overload
+/// selection observable at compile time as well as checking the resulting
+/// placement at runtime.
+@MainActor
+@Test func proposalLayoutFrameUsesTheTypedProposalWrapper() {
+    let probe = NativeLayoutProbe()
+    let stored: ModifiedContent<NativeProbeLeaf> = NativeProbeLeaf(
+        size: SizeD(width: 20, height: 10), probe: probe, name: "trailing"
+    ).frame(width: Pixels(40), height: Pixels(30), alignment: .bottomTrailing)
+    var root = ZStack { stored }
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+
+    frame.render(&root)
+
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(50), y: Pixels(45)),
                                            size: Size(width: Pixels(20), height: Pixels(10))))
 }
 
