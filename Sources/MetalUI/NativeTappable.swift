@@ -47,12 +47,12 @@ public struct OnTapModifier<Content: ElementGroup>: Element {
     }
 }
 
-extension ElementGroup {
+extension ProposalElementGroup {
     /// Registers `action` when this proposal-layout subtree is clicked.
     ///
     /// This is the canonical public spelling for the replacement layout path.
-    /// During the migration it still requires an all-proposal-layout subtree;
-    /// applying it to a CSS-layout element fails at that deliberate boundary.
+    /// The proposal-only receiver keeps CSS-layout elements from entering a
+    /// mixed tree that would otherwise trap during layout registration.
     public func onTap(hoverColor: ColorToken? = nil,
                       _ action: @escaping @MainActor () -> Void) -> OnTapModifier<Self> {
         OnTapModifier(content: self, hoverColor: hoverColor, action: action)

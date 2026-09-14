@@ -42,6 +42,30 @@ func proposalOverlayAcceptsProposalContentAndRejectsLegacyContent() throws {
             "rejected, but not because the proposal overlay boundary was absent:\n\(negative.output)")
 }
 
+/// `onTap` has no layout footprint, but it still delegates registration to its
+/// content. Keeping the same proposal-only boundary as outer layout modifiers
+/// prevents an ordinary CSS element from failing later at runtime.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func proposalOnTapAcceptsProposalContentAndRejectsLegacyContent() throws {
+    let positive = try typecheck("""
+        @MainActor func probe() {
+            _ = Rectangle().onTap {}
+        }
+        """, importing: "MetalUI")
+    #expect(positive.succeeded,
+            "proposal content must retain the canonical onTap API:\n\(positive.output)")
+
+    let negative = try typecheck("""
+        @MainActor func probe() {
+            _ = Text("legacy").onTap {}
+        }
+        """, importing: "MetalUI")
+    #expect(!negative.succeeded,
+            "a legacy child must not enter the proposal onTap wrapper and trap while registering layout:\n\(negative.output)")
+    #expect(negative.messages.contains("onTap"),
+            "rejected, but not because the proposal onTap boundary was absent:\n\(negative.output)")
+}
+
 /// An element that replaces its own children **between `requestLayout` and
 /// `prepaint`**.
 ///
