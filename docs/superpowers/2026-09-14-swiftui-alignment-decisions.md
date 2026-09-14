@@ -140,7 +140,19 @@ positive control is arm B, where a second proposal costs one more call.
   forward to the first.
 - **The name.** A SwiftUI author types `Layout` and gets the nested struct.
 
-**Mutations:** owed by lane 1.
+**Mutations (lane 1, 2026-09-14, run at `00a1e22` in a detached `git worktree`
+off `feat/kernel-completion`, one at a time, full `swift test --build-system
+native --no-parallel` each, restore confirmed by `git status --short` clean;
+every run read `Test run with 1010 tests in 1 suite`, so none truncated).**
+- **Red before, on the skeleton** (`db6837e`: `.custom` measures `.zero`,
+  proxies answer 0/false/`.zero`, `place` does nothing): all ten kernel tests
+  in `ProposalLayoutTests.swift` and the integration test were red by
+  assertion (the three exit tests on `.failure → .exitCode(0)`); lines quoted
+  in that commit's message.
+- **The per-call memo the protocol leans on:** the proxy's `sizeThatFits`
+  clearing its own `(node, proposal)` entry before measuring reddens
+  `aSubviewMeasuresOncePerDistinctProposalWithinOneRun` alone (`log.counts`
+  `[1, 2, 3, 4]`, calls 4, against `[1, 1, 2, 2]` and 2).
 
 ---
 
@@ -168,7 +180,34 @@ built-in and the test reference. They can drift on any tree the equivalence test
 does not build. The reference is test-only, so drift misleads a reader of the
 reference and never a user.
 
-**Mutations:** owed by lane 1.
+**Mutations (lane 1, 2026-09-14, run at `00a1e22` in a detached `git worktree`
+off `feat/kernel-completion`, one at a time, full `swift test --build-system
+native --no-parallel` each, restore confirmed by `git status --short` clean;
+every run read `Test run with 1010 tests in 1 suite`, so none truncated).**
+- **Sufficiency.** `ReferenceLinearStack.swift` compiles with a plain
+  `import MetalUICore` / `import MetalUILayout`, and
+  `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects` reads every
+  stored rect and measured width equal to the built-in's. Its two positive
+  controls (`PriorityBlindLinearStack`, `SpacerBlindLinearStack`) are
+  `try #require`d to differ, and do.
+- **Geometry adjusted from the design** so no edge falls on x.5: B's 20×17 and
+  11×9 leaves became 20×18 and 11×8 (a 17-tall B centred a 10-tall leaf at
+  y + 3.5, and the min-0 spacer at y + 8.5). The three literal rects, derived by
+  hand in the test's doc comment before the run, are A's priority-0 leaf
+  (96, 19, 34, 11), B's second spacer (121, 46, 33, 0) and B's last leaf
+  (159, 42, 11, 8).
+- The spec's four mutations for this test: proxy `priority` returns 0 →
+  `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects` and
+  `aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules`; proxy
+  `isSpacer` stops recursing through `layoutPriority` (a spacer node directly
+  only) → the same two; the recorded child measured and placed at the parent's
+  proposal instead of the record's → the equivalence test,
+  `placingASubviewUsesItsAnswerToThePlacementProposalAndTheAnchor`,
+  `aSubviewPlacedTwiceKeepsItsLastPlacement` and
+  `aSubviewMeasuresOncePerDistinctProposalWithinOneRun`; `.custom`'s
+  `placeSubviews` handed bounds with x = 0 → the equivalence test,
+  `placingASubviewUsesItsAnswerToThePlacementProposalAndTheAnchor` and
+  `aProposalLayoutContainerRendersThroughTheFramePipeline`.
 
 ---
 
@@ -213,7 +252,26 @@ with `value of type 'MeasurementSubview' has no member 'place'`.
   write a rect from inside a sibling's measurement. The cached measurement would
   then disagree with the stored rect, with no diagnostic.
 
-**Mutations:** owed by lane 1.
+**Mutations (lane 1, 2026-09-14, run at `00a1e22` in a detached `git worktree`
+off `feat/kernel-completion`, one at a time, full `swift test --build-system
+native --no-parallel` each, restore confirmed by `git status --short` clean;
+every run read `Test run with 1010 tests in 1 suite`, so none truncated).**
+- Delete the token precondition in `PlacementSubview.place` →
+  `aPlacementSubviewUsedOutsideItsPlaceSubviewsCallTraps` (exits 0).
+- Delete the `measureDepth` precondition →
+  `aPlacementSubviewUsedDuringMeasurementTraps` (exits 0; the token check alone
+  passes there, as designed).
+- Delete the `isActive` precondition (`NativeLayoutRun.requireActive`) →
+  `aSubviewUsedAfterItsLayoutRunTraps` (exits 0).
+- Give `MeasurementSubview` a public `place(at:anchor:proposal:)` →
+  `aMeasurementSubviewCannotBePlaced` (the fixture compiles).
+- Give `MeasurementSubviews` a `public init()` →
+  `subviewProxiesCannotBeConstructedOutsideTheKernel` (its `MeasurementSubviews`
+  fixture compiles; the `PlacementSubview` fixture stays rejected).
+- **Diagnostics re-printed from the real build** are the substrings the passing
+  guards match: `value of type 'MeasurementSubview' has no member 'place'` and
+  `'MeasurementSubviews' initializer is inaccessible due to 'internal'
+  protection level` (likewise `'PlacementSubview'`).
 
 ---
 
@@ -293,7 +351,24 @@ non-spacer-expansion question.
 - **A layout that needs a child's baseline or identity cannot get one.** Adding a
   member later is additive.
 
-**Mutations:** owed by lane 1.
+**Mutations (lane 1, 2026-09-14, run at `00a1e22` in a detached `git worktree`
+off `feat/kernel-completion`, one at a time, full `swift test --build-system
+native --no-parallel` each, restore confirmed by `git status --short` clean;
+every run read `Test run with 1010 tests in 1 suite`, so none truncated).**
+- **The built-in rule change, red first** (`a5eeecd`):
+  `aLinearStackReadsPriorityThroughAnOverlayAttachment` read
+  `tree.layout(second) → (63, 27, 50, 10)` against (93, 27, 20, 10). With the
+  look-through the suite read 994 passed, **so no existing test relied on an
+  attachment hiding a priority** (this ruling's cost bullet, now measured).
+- Remove the attachment case from `nativeLayoutPriority` →
+  `aLinearStackReadsPriorityThroughAnOverlayAttachment` and
+  `aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules`; the
+  equivalence test stays green (its tree has no attachment).
+- Proxy `priority` looks through one wrapper of any kind →
+  `aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules` alone.
+- `isNativeSpacer` also recurses through `frame` →
+  `aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules` alone.
+- Proxy `priority` returns 0, and proxy `isSpacer` direct-only: see `SA-B`.
 
 ---
 
@@ -361,7 +436,23 @@ returns meets the token check, whichever child is being placed at the time.
   back through some other channel mid-call, sees the old rect. No public API
   reads a stored rect.
 
-**Mutations:** owed by lane 1.
+**Mutations (lane 1, 2026-09-14, run at `00a1e22` in a detached `git worktree`
+off `feat/kernel-completion`, one at a time, full `swift test --build-system
+native --no-parallel` each, restore confirmed by `git status --short` clean;
+every run read `Test run with 1010 tests in 1 suite`, so none truncated).**
+- Anchor factors transposed h↔v in the recorded-child rect →
+  `placingASubviewUsesItsAnswerToThePlacementProposalAndTheAnchor`, on exactly
+  its topTrailing arm (read (125, 105)) and leading arm (read (110, 125)); the
+  three equal-factor arms stay green, as designed.
+- Unplaced children left at the zero rect →
+  `anUnplacedSubviewIsCentredInItsParentAtTheParentsProposal`; placed at the
+  bounds origin instead of centred → the same test, on its fixed-child arm only
+  ((120, 70, 30, 30)); the proposal-echoing child fills the bounds either way.
+- `place` keeps the first record → `aSubviewPlacedTwiceKeepsItsLastPlacement`.
+- `place` measures and places the subtree eagerly on every call, the deferred
+  loop skipping recorded children → `aSubviewPlacedTwicePlacesItsSubtreeOnce`
+  (`log.placeRuns` 2 against 1).
+- Record's proposal ignored, and `bounds.x` dropped: see `SA-B`.
 
 ---
 
@@ -444,8 +535,39 @@ two container fixtures and the positive):
   Lane 2 pins the trap, and the hole itself stays. `SA-R` records why, and
   amends the plan's criterion to say so.
 
-**Mutations:** owed by lane 1, including the red run of each of the five new
-guards (39 → 44).
+**Mutations (lane 1, 2026-09-14, run at `00a1e22` in a detached `git worktree`
+off `feat/kernel-completion`, one at a time, full `swift test --build-system
+native --no-parallel` each, restore confirmed by `git status --short` clean;
+every run read `Test run with 1010 tests in 1 suite`, so none truncated).**
+- **Guards 39 → 44**, per-file `grep -c canTypecheck`: 19 + 10 + 5 + 3 + 5
+  (`ProposalLayoutCompileGuards`), plus `UnitSafetyTests`' 2 of its 3 hits. All
+  five new guards logged `started`/`passed` (not `skipped`) under
+  `--build-system native`, and each was mutated red once:
+  - `ProposalLayoutContainer`'s constraint relaxed to `Content: ElementGroup`
+    (conformance `where Content: ProposalElementGroup`) →
+    `aCustomLayoutContainerRejectsLegacyContent`, **on its container fixture
+    only** (2 issues: `succeeded: true`, and no `generic struct
+    'ProposalLayoutContainer' requires…`); both `callAsFunction` fixtures still
+    rejected;
+  - that **and** `callAsFunction`'s constraint relaxed → the same guard, on all
+    three fixtures (6 issues);
+  - `requestNativeLayout` renamed → `anExternalModuleCanBuildACustomLeafAndContainerFromPublicAPI`
+    (`value of type 'LayoutPass' has no member 'requestNativeLayout'`);
+  - `"-swift-version", "6"` deleted from `typecheckFile` →
+    `typecheckFileChecksInTheSwift6LanguageMode` (the fixture compiles, exit 0);
+  - `MeasurementSubview.place` added and `MeasurementSubviews.init()` made
+    public: see `SA-C`.
+- **The non-mutation, confirmed on the real build:** dropping only
+  `callAsFunction`'s explicit `Content: ProposalElementGroup` left the suite at
+  1010 passed, every guard green.
+- **The positive fixture needed one correction** before its first green run:
+  its generic container's `requestLayout` must be `mutating`, because
+  `requestGroupLayout` is (`cannot use mutating member on immutable value:
+  'self' is immutable`). The design skeleton's fixture text was not in the
+  record, so whether it had the same shape is unknown.
+- `aProposalLayoutContainerRendersThroughTheFramePipeline` (all three
+  spellings): `ProposalLayoutContainer.requestLayout` registering
+  `requestNativeOverlay` instead → that test alone.
 
 ---
 
@@ -1228,7 +1350,8 @@ registrars return a `ProposalNodeID` with no public initializer, and
   The plan's task 3 entry lists it as an open proof so that cannot happen
   silently.
 
-**Mutations:** owed by lane 1 (the guards) and lane 2 (the two traps).
+**Mutations:** lane 1's half done — the five guards and their red runs are
+under `SA-F` and `SA-C`. Owed by lane 2: the two run-time traps.
 
 ---
 
