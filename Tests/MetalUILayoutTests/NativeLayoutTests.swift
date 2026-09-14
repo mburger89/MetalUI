@@ -409,3 +409,54 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     #expect(tree.layout(first) == LayoutRect(x: 13, y: 53, width: 31, height: 10))
     #expect(tree.layout(second) == LayoutRect(x: 51, y: 38, width: 50, height: 40))
 }
+
+private final class NativeProposalLog: @unchecked Sendable {
+    var proposals: [ProposedSize] = []
+}
+
+/// A `layoutPriority` survives an `.overlay` attachment wrapped around it, as
+/// SwiftUI's does (probe L2, `docs/probes/swiftui-layout-protocol-contract.swift`;
+/// ruling SA-D). Before lane 1 of the kernel completion the built-in rule read
+/// only a `layoutPriority` node that IS the child, so the attachment hid it.
+///
+/// Hand-derived before the run. A horizontal stack, spacing 0, offered 100×30
+/// at bounds (13, 17, 100, 30), holds two leaves that answer
+/// `min(80, proposal.width ?? 80)` × 10. The first is under `layoutPriority(1)`
+/// and then an overlay attachment (a fixed 6×4 badge).
+/// - Natural widths 80 + 80 = 160 > 100, so the stack divides 100 by priority.
+/// - Reading priority 1 through the attachment: the first gets its ideal 80,
+///   the second the remaining 20. Reading 0 for both: 50 and 50.
+/// - Cross axis centred: y = 17 + (30 − 10) / 2 = 27.
+/// - The badge is measured at the primary's 80×10 and centred in it:
+///   x = 13 + (80 − 6) / 2 = 50, y = 27 + (10 − 4) / 2 = 30.
+@Test func aLinearStackReadsPriorityThroughAnOverlayAttachment() {
+    let tree = LayoutTree(generation: 0)
+    let firstLog = NativeProposalLog()
+    let secondLog = NativeProposalLog()
+    let first = tree.newNativeLeaf { proposal in
+        firstLog.proposals.append(proposal)
+        return LayoutMeasurement(size: SizeD(width: Swift.min(80, proposal.width ?? 80), height: 10))
+    }
+    let prioritized = tree.newNativeLayoutPriority(child: first, priority: 1)
+    let badge = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 6, height: 4)) }
+    let attached = tree.newNativeOverlayAttachment(child: prioritized, overlay: badge)
+    let second = tree.newNativeLeaf { proposal in
+        secondLog.proposals.append(proposal)
+        return LayoutMeasurement(size: SizeD(width: Swift.min(80, proposal.width ?? 80), height: 10))
+    }
+    let stack = tree.newNativeLinearStack(children: [attached, second], axis: .horizontal)
+
+    let measurement = tree.computeNativeLayout(
+        root: stack,
+        proposal: ProposedSize(width: 100, height: 30),
+        in: LayoutRect(x: 13, y: 17, width: 100, height: 30)
+    )
+
+    #expect(measurement.size == SizeD(width: 100, height: 10))
+    #expect(firstLog.proposals.contains(ProposedSize(width: 80, height: 30)))
+    #expect(secondLog.proposals.contains(ProposedSize(width: 20, height: 30)))
+    #expect(tree.layout(attached) == LayoutRect(x: 13, y: 27, width: 80, height: 10))
+    #expect(tree.layout(first) == LayoutRect(x: 13, y: 27, width: 80, height: 10))
+    #expect(tree.layout(badge) == LayoutRect(x: 50, y: 30, width: 6, height: 4))
+    #expect(tree.layout(second) == LayoutRect(x: 93, y: 27, width: 20, height: 10))
+}
