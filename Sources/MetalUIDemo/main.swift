@@ -906,6 +906,37 @@ private struct PreviewToggle: Component {
 
 extension PreviewToggle: ProposalElementGroup {}
 
+/// A private flexible leaf for the migration preview. Its ideal width makes
+/// the proposal stack's compression and `layoutPriority` visible as the window
+/// changes size; production elements will acquire their own proposal-aware
+/// measurements during the remaining migration work.
+private struct PriorityPreviewPanel: Element {
+    let idealWidth: Pixels
+    let color: ColorToken
+
+    struct Layout { var node: LayoutNodeID }
+
+    mutating func requestLayout(_ id: GlobalElementID,
+                                pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        let idealWidth = Double(idealWidth.value)
+        let node = pass.requestNativeLeaf { proposal in
+            LayoutMeasurement(size: SizeD(width: Swift.min(idealWidth, proposal.width ?? idealWidth),
+                                           height: 48))
+        }
+        return (node, Layout(node: node))
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Layout, pass: inout PrepaintPass) {}
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
+                        prepaint: inout Void, pass: inout PaintPass) {
+        pass.fill(bounds, color: pass.theme[color], cornerRadii: Corners(all: Pixels(8)))
+    }
+}
+
+extension PriorityPreviewPanel: ProposalElementGroup {}
+
 @MainActor
 func nativeLayoutPreviewContent() -> some Element {
     ZStack {
@@ -917,6 +948,15 @@ func nativeLayoutPreviewContent() -> some Element {
                 HStack {
                     Rectangle(width: Pixels(72), height: Pixels(72), color: .accent)
                     Rectangle(width: Pixels(420), height: Pixels(18), color: .surfaceSecondary)
+                }
+                // Both panels prefer 480pt, more than the preview's available
+                // width. The accented panel keeps its ideal width first; the
+                // secondary panel receives the remaining proposal as the user
+                // narrows the window.
+                HStack(spacing: Pixels(12)) {
+                    PriorityPreviewPanel(idealWidth: Pixels(480), color: .accent)
+                        .layoutPriority(1)
+                    PriorityPreviewPanel(idealWidth: Pixels(480), color: .surfaceSecondary)
                 }
                 Spacer()
                 HStack(spacing: Pixels(12)) {
