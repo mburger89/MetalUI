@@ -56,6 +56,32 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     #expect(tree.layout(second) == LayoutRect(x: 83, y: 57, width: 50, height: 40))
 }
 
+/// Every public proposal alignment must map to a distinct placement in a
+/// larger overlay. This is intentionally a nine-arm table: testing only the
+/// factors independently would let one enum case be routed to the wrong pair.
+@Test func everyProposalAlignmentPlacesAnOverlayChildAtItsNamedPosition() {
+    let cases: [(ProposalAlignment, LayoutRect)] = [
+        (.topLeading, LayoutRect(x: 13, y: 17, width: 20, height: 10)),
+        (.top, LayoutRect(x: 53, y: 17, width: 20, height: 10)),
+        (.topTrailing, LayoutRect(x: 93, y: 17, width: 20, height: 10)),
+        (.leading, LayoutRect(x: 13, y: 52, width: 20, height: 10)),
+        (.center, LayoutRect(x: 53, y: 52, width: 20, height: 10)),
+        (.trailing, LayoutRect(x: 93, y: 52, width: 20, height: 10)),
+        (.bottomLeading, LayoutRect(x: 13, y: 87, width: 20, height: 10)),
+        (.bottom, LayoutRect(x: 53, y: 87, width: 20, height: 10)),
+        (.bottomTrailing, LayoutRect(x: 93, y: 87, width: 20, height: 10)),
+    ]
+
+    for (alignment, expected) in cases {
+        let tree = LayoutTree(generation: 0)
+        let child = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 10)) }
+        let overlay = tree.newNativeOverlay(children: [child], alignment: alignment)
+        _ = tree.computeNativeLayout(root: overlay, proposal: ProposedSize(width: 100, height: 80),
+                                     in: LayoutRect(x: 13, y: 17, width: 100, height: 80))
+        #expect(tree.layout(child) == expected, "alignment: \(alignment)")
+    }
+}
+
 /// A fixed frame changes the proposal seen by its child; it is not a CSS size
 /// declaration applied after that child has already measured. The child returns
 /// a deliberately smaller response so the centred placement tests both axes.
