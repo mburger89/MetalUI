@@ -13,6 +13,35 @@ private let skipReason: Comment =
 
 private func px(_ v: Float) -> Pixels { Pixels(v) }
 
+/// The proposal overlay registers only native nodes, so it must reject a
+/// legacy child at the type boundary rather than build a mixed tree that traps
+/// during layout. The positive control proves this is a boundary, not a
+/// missing overlay API.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func proposalOverlayAcceptsProposalContentAndRejectsLegacyContent() throws {
+    let positive = try typecheck("""
+        @MainActor func probe() {
+            _ = Rectangle().overlay {
+                Color(.accent)
+            }
+        }
+        """, importing: "MetalUI")
+    #expect(positive.succeeded,
+            "proposal content must retain the canonical overlay API:\n\(positive.output)")
+
+    let negative = try typecheck("""
+        @MainActor func probe() {
+            _ = Text("legacy").overlay {
+                Rectangle()
+            }
+        }
+        """, importing: "MetalUI")
+    #expect(!negative.succeeded,
+            "a legacy child must not enter the proposal overlay and trap while registering layout:\n\(negative.output)")
+    #expect(negative.messages.contains("overlay"),
+            "rejected, but not because the proposal overlay boundary was absent:\n\(negative.output)")
+}
+
 /// An element that replaces its own children **between `requestLayout` and
 /// `prepaint`**.
 ///
