@@ -144,10 +144,10 @@ public final class LayoutTree {
     ///
     /// A fixed axis is proposed to the child and becomes the frame's measured
     /// size; an optional axis forwards the parent's proposal and adopts the
-    /// child's response. An ideal axis is proposed only when its parent axis
-    /// is unspecified, so it remains a child-measurement preference rather
-    /// than a forced frame size. Placement centres the child inside the
-    /// resulting frame, matching SwiftUI's default frame alignment.
+    /// child's response. When an ideal axis is used because its parent axis is
+    /// unspecified, the clamped ideal also becomes the frame's response.
+    /// Placement centres the child inside the resulting frame, matching
+    /// SwiftUI's default frame alignment.
     public func newNativeFrame(child: LayoutNodeID, width: Double? = nil,
                                height: Double? = nil,
                                minWidth: Double? = nil, idealWidth: Double? = nil,
@@ -226,8 +226,9 @@ public final class LayoutTree {
     /// Registers a native flexible spacer with an optional minimum length.
     ///
     /// A spacer reports its minimum when its main axis is unspecified. Native
-    /// linear stacks recognise direct spacer children and divide any concrete
-    /// offered surplus among them during placement.
+    /// linear stacks recognise it through a layout-priority wrapper as well as
+    /// directly, and divide any concrete offered surplus among them during
+    /// placement.
     public func newNativeSpacer(minLength: Double? = nil) -> LayoutNodeID {
         let id = newNode(style: .default, children: [])
         nativeNodes[id.index] = .spacer(minLength: minLength ?? 0)
