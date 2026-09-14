@@ -172,6 +172,9 @@ modifier placement from names alone.
   remaining 20pt; deterministic native tests cover both observations. This is
   deliberately the measured flexible-child slice of task 7, not a claim that
   arbitrary view compression, expansion, grids, or custom layouts are done.
+- A proposal `Spacer(minLength:)` retains that minimum when a stack receives a
+  smaller main-axis proposal, matching a macOS SwiftUI probe: the stack reports
+  its overflowing minimum rather than compressing the spacer away.
 - A proposal frame now reports a clamped ideal dimension on an unspecified axis,
   matching a macOS SwiftUI probe: a 20pt child in `.frame(idealWidth: 80)` is
   offered and reports 80pt, while a concrete parent proposal still takes

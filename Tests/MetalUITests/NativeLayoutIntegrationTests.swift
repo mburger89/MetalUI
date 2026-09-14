@@ -272,6 +272,25 @@ extension NativeProposalProbe: ProposalElementGroup {}
             "an explicit zero opts out of the platform default")
 }
 
+/// A macOS SwiftUI probe gives `HStack { 10pt; Spacer(minLength: 30); 10pt }`
+/// a 50pt response even when its parent offers 20pt. The spacer's minimum is
+/// a floor, not a request that stack compression may discard.
+@MainActor
+@Test func spacerMinimumLengthSurvivesAConstrainedStackProposal() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(20), height: Pixels(40)), scaleFactor: 1)
+    var root = HStack(spacing: Pixels(0)) {
+        NativeProbeLeaf(size: SizeD(width: 10, height: 10), probe: probe, name: "leading")
+        Spacer(minLength: Pixels(30))
+        NativeProbeLeaf(size: SizeD(width: 10, height: 10), probe: probe, name: "trailing")
+    }
+
+    frame.render(&root)
+
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(40), y: Pixels(15)),
+                                           size: Size(width: Pixels(10), height: Pixels(10))))
+}
+
 /// A macOS SwiftUI `Layout` probe with two 80pt-flexible children in a 100pt
 /// zero-gap HStack receives 50pt proposals for both children at equal priority.
 @MainActor
