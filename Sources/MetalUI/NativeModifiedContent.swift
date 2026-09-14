@@ -181,8 +181,15 @@ extension ElementGroup {
                               modifier: .border(token, width: width, cornerRadius: cornerRadius))
     }
 
-    public func nativeOpacity(_ value: Float) -> NativeModifiedContent<Self> {
+    /// Applies paint-only opacity to this proposal-layout subtree.
+    public func opacity(_ value: Float) -> NativeModifiedContent<Self> {
         NativeModifiedContent(content: self, modifier: .opacity(value))
+    }
+
+    /// Temporary source-compatible spelling for the native migration surface.
+    @available(*, deprecated, renamed: "opacity")
+    public func nativeOpacity(_ value: Float) -> NativeModifiedContent<Self> {
+        opacity(value)
     }
 
     /// Controls whether pointer hit testing enters this proposal-layout subtree.

@@ -898,7 +898,7 @@ private struct NativePreviewToggle: Component {
                 NativeRectangle(width: Pixels(20), height: Pixels(20),
                                 color: isSelected ? .accent : .separator)
             }
-            .nativeOpacity(0.72)
+            .opacity(0.72)
             .onTap(hoverColor: .surface) { isSelected.toggle() }
     }
 }
@@ -921,7 +921,7 @@ func nativeLayoutPreviewContent() -> some Element {
                     // This dimmed control is intentionally inert: it exercises
                     // `allowsHitTesting(false)` around an inner gesture.
                     NativeRectangle(width: Pixels(168), height: Pixels(64), color: .accent)
-                        .nativeOpacity(0.35)
+                        .opacity(0.35)
                         .onTap {}
                         .allowsHitTesting(false)
                 }

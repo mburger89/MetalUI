@@ -358,12 +358,12 @@ private struct NativeProposalProbe: Element {
 }
 
 @MainActor
-@Test func nativeOpacityMultipliesItsDescendantsPaintAlpha() {
+@Test func opacityMultipliesItsDescendantsPaintAlpha() {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1,
                       theme: .light)
     var root = NativeOverlay {
         NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
-            .nativeOpacity(0.35)
+            .opacity(0.35)
     }
 
     frame.render(&root)
