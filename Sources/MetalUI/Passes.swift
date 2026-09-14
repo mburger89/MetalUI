@@ -133,6 +133,17 @@ public struct LayoutPass {
                                        alignment: alignment)
     }
 
+    /// Registers a custom `ProposalLayout` algorithm over native children.
+    ///
+    /// The element-side mirror of `LayoutTree.newNativeLayout(_:children:)`.
+    /// `ProposalLayoutContainer` is the ready-made element over it; an element
+    /// with its own paint or input calls `content.requestGroupLayout` and then
+    /// this, as `HStack` calls `requestNativeLinearStack`.
+    public func requestNativeLayout(_ layout: some ProposalLayout,
+                                    children: [LayoutNodeID]) -> LayoutNodeID {
+        frame.requestNativeLayout(layout, children: children)
+    }
+
     /// Reads back a node's current `Style`, so a caller that registered a node
     /// earlier in this same layout pass can amend rather than replace it.
     /// `StyledComponent`'s only production caller (`Component.swift`).

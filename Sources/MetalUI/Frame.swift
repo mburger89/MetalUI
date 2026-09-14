@@ -1144,6 +1144,11 @@ public final class Frame {
                                   alignment: alignment)
     }
 
+    func requestNativeLayout(_ layout: some ProposalLayout,
+                             children: [LayoutNodeID]) -> LayoutNodeID {
+        tree.newNativeLayout(layout, children: children)
+    }
+
     /// Reads back a node's current `Style` — `StyledComponent`'s read half of
     /// amend-in-place (`Component.swift`), the first production caller of
     /// `LayoutTree.setStyle`'s sibling `style(_:)`.

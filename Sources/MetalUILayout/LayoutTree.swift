@@ -265,6 +265,19 @@ public final class LayoutTree {
         return id
     }
 
+    /// Registers a custom proposal-layout algorithm over native children.
+    ///
+    /// The one protocol-backed node kind; the eleven built-ins stay enum cases
+    /// (ruling SA-B). Every child must already be native, as for every other
+    /// native container.
+    public func newNativeLayout(_ layout: some ProposalLayout,
+                                children: [LayoutNodeID]) -> LayoutNodeID {
+        for child in children { _ = nativeNode(child) }
+        let id = newNode(style: .default, children: children)
+        nativeNodes[id.index] = .custom(layout)
+        return id
+    }
+
     /// Measures and places one all-native subtree into the existing rect store.
     ///
     /// `bounds` is root-absolute, matching the contract `Frame.bounds(of:)`
@@ -463,6 +476,8 @@ public final class LayoutTree {
                                         proposal: scrollContentProposal(for: axis, parent: proposal),
                                         run: run)
             result = LayoutMeasurement(size: scrollViewportSize(proposal: proposal, content: content.size))
+        case .custom:
+            result = LayoutMeasurement(size: .zero)
         case .linearStack(let axis, let spacing, _):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             let childMeasurements = children(id).map {
@@ -497,6 +512,8 @@ public final class LayoutTree {
         setLayout(id, bounds)
         switch nativeNode(id) {
         case .leaf, .spacer:
+            return
+        case .custom:
             return
         case .overlay(let alignment):
             for child in children(id) {
@@ -635,7 +652,7 @@ public final class LayoutTree {
         return proposal
     }
 
-    private func isNativeSpacer(_ id: LayoutNodeID) -> Bool {
+    func isNativeSpacer(_ id: LayoutNodeID) -> Bool {
         switch nativeNode(id) {
         case .spacer:
             return true
@@ -835,7 +852,10 @@ public enum ProposalAlignment: Sendable, Hashable {
     case leading, center, trailing
     case bottomLeading, bottom, bottomTrailing
 
-    var horizontalFactor: Double {
+    /// The fraction of the free width placed before a child: 0 leading,
+    /// 0.5 centred, 1 trailing. Public so an outside `ProposalLayout` that
+    /// takes an alignment can compute a cross-axis offset (ruling SA-F).
+    public var horizontalFactor: Double {
         switch self {
         case .topLeading, .leading, .bottomLeading: 0
         case .top, .center, .bottom: 0.5
@@ -843,7 +863,9 @@ public enum ProposalAlignment: Sendable, Hashable {
         }
     }
 
-    var verticalFactor: Double {
+    /// The fraction of the free height placed above a child: 0 top,
+    /// 0.5 centred, 1 bottom.
+    public var verticalFactor: Double {
         switch self {
         case .topLeading, .top, .topTrailing: 0
         case .leading, .center, .trailing: 0.5
@@ -866,6 +888,7 @@ private enum NativeNode {
     case spacer(minLength: Double)
     case scrollViewport(axis: ProposalStackAxis)
     case linearStack(axis: ProposalStackAxis, spacing: Double, alignment: ProposalAlignment)
+    case custom(any ProposalLayout)
 }
 
 /// Temporary source-compatible name for ``ProposalMeasureFunction``.
