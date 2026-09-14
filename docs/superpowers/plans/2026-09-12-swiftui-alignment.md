@@ -165,6 +165,13 @@ modifier placement from names alone.
   `Layout` probe observes a 2:1 child offered 100×80 responding 100×50 for
   `.fit` and 160×80 for `.fill`, matching the native tests. It is measured
   task-7 migration evidence; advanced sizing beyond aspect ratio remains open.
+- A proposal `HStack`/`VStack` now distributes a constrained main-axis proposal
+  by priority before compressing flexible children. The macOS SwiftUI custom
+  `Layout` probe gives two 80pt-flexible children 50pt each inside a 100pt
+  `HStack`, while a priority-one first child receives 80pt and its sibling the
+  remaining 20pt; deterministic native tests cover both observations. This is
+  deliberately the measured flexible-child slice of task 7, not a claim that
+  arbitrary view compression, expansion, grids, or custom layouts are done.
 - Ordinary element padding now wraps its content; `Component` padding remains
   a separately measured distribution case. Task 5 decides the complete
   modifier matrix.

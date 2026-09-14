@@ -107,6 +107,11 @@ public struct LayoutPass {
         frame.requestNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
     }
 
+    /// Registers native stack layout priority around one proposal-layout child.
+    public func requestNativeLayoutPriority(child: LayoutNodeID, priority: Double) -> LayoutNodeID {
+        frame.requestNativeLayoutPriority(child: child, priority: priority)
+    }
+
     /// Registers a native flexible spacer for a native linear stack.
     public func requestNativeSpacer(minLength: Double? = nil) -> LayoutNodeID {
         frame.requestNativeSpacer(minLength: minLength)

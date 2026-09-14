@@ -1124,6 +1124,10 @@ public final class Frame {
         tree.newNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
     }
 
+    func requestNativeLayoutPriority(child: LayoutNodeID, priority: Double) -> LayoutNodeID {
+        tree.newNativeLayoutPriority(child: child, priority: priority)
+    }
+
     func requestNativeSpacer(minLength: Double? = nil) -> LayoutNodeID {
         tree.newNativeSpacer(minLength: minLength)
     }

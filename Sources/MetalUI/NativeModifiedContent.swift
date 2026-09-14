@@ -14,6 +14,7 @@ public enum LayoutModifier: Sendable {
     case padding(Edges<Pixels>)
     case fixedSize(horizontal: Bool = true, vertical: Bool = true)
     case aspectRatio(Double, contentMode: AspectRatioContentMode = .fit)
+    case layoutPriority(Double)
     case background(ColorToken)
     case clip(cornerRadius: Pixels = Pixels(0))
     case border(ColorToken, width: Pixels, cornerRadius: Pixels = Pixels(0))
@@ -122,6 +123,8 @@ public struct ModifiedContent<Content: ElementGroup>: Element {
             return pass.requestNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
         case let .aspectRatio(ratio, contentMode):
             return pass.requestNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
+        case let .layoutPriority(priority):
+            return pass.requestNativeLayoutPriority(child: child, priority: priority)
         case .background:
             // A background has no independent layout footprint. Returning the
             // content node lets the wrapper observe its resolved bounds during
@@ -268,6 +271,13 @@ extension ProposalElementGroup {
         precondition(ratio.isFinite && ratio > 0,
                      "aspect ratio must be finite and greater than zero")
         return ModifiedContent(content: self, modifier: .aspectRatio(ratio, contentMode: contentMode))
+    }
+
+    /// Prioritizes this subtree when a native `HStack` or `VStack` must divide
+    /// less main-axis space than its children request.
+    public func layoutPriority(_ value: Double) -> ModifiedContent<Self> {
+        precondition(value.isFinite, "layout priority must be finite")
+        return ModifiedContent(content: self, modifier: .layoutPriority(value))
     }
 }
 

@@ -9,6 +9,7 @@ private final class NativeLayoutProbe: @unchecked Sendable {
     var measureCalls = 0
     var proposals: [ProposedSize] = []
     var prepaintBounds: Bounds<Pixels>?
+    var boundsByName: [String: Bounds<Pixels>] = [:]
 }
 
 @MainActor
@@ -60,6 +61,32 @@ private struct NativeProbeLeaf: Element {
 }
 
 extension NativeProbeLeaf: ProposalElementGroup {}
+
+/// A leaf whose width is its proposal capped at its ideal width. This mirrors
+/// the flexible probe used by the companion SwiftUI priority measurement.
+private struct NativeFlexibleProbe: Element {
+    let idealWidth: Double
+    let probe: NativeLayoutProbe
+    let name: String
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        let node = pass.requestNativeLeaf { proposal in
+            probe.proposals.append(proposal)
+            return LayoutMeasurement(size: SizeD(width: Swift.min(idealWidth, proposal.width ?? idealWidth), height: 10))
+        }
+        return (node, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                  pass: inout PrepaintPass) {
+        probe.boundsByName[name] = bounds
+    }
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+               prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+extension NativeFlexibleProbe: ProposalElementGroup {}
 
 private struct NativeFillProbe: Element {
     let probe: NativeLayoutProbe
@@ -158,6 +185,44 @@ extension NativeProposalProbe: ProposalElementGroup {}
             "the default 8pt gap follows the 20pt leading item")
     #expect(zeroProbe.prepaintBounds?.origin.x == Pixels(20),
             "an explicit zero opts out of the platform default")
+}
+
+/// A macOS SwiftUI `Layout` probe with two 80pt-flexible children in a 100pt
+/// zero-gap HStack receives 50pt proposals for both children at equal priority.
+@MainActor
+@Test func hStackDividesAConstrainedProposalAmongEqualPriorityFlexibleChildren() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(10)), scaleFactor: 1)
+    var root = HStack(spacing: Pixels(0)) {
+        NativeFlexibleProbe(idealWidth: 80, probe: probe, name: "first")
+        NativeFlexibleProbe(idealWidth: 80, probe: probe, name: "second")
+    }
+
+    frame.render(&root)
+
+    #expect(probe.boundsByName["first"] == Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                                                    size: Size(width: Pixels(50), height: Pixels(10))))
+    #expect(probe.boundsByName["second"] == Bounds(origin: Point(x: Pixels(50), y: Pixels(0)),
+                                                     size: Size(width: Pixels(50), height: Pixels(10))))
+}
+
+/// The same SwiftUI probe gives a priority-one child its 80pt ideal width
+/// before proposing the 20pt remainder to its default-priority sibling.
+@MainActor
+@Test func hStackHonoursHigherLayoutPriorityBeforeCompressingItsSibling() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(10)), scaleFactor: 1)
+    var root = HStack(spacing: Pixels(0)) {
+        NativeFlexibleProbe(idealWidth: 80, probe: probe, name: "first").layoutPriority(1)
+        NativeFlexibleProbe(idealWidth: 80, probe: probe, name: "second")
+    }
+
+    frame.render(&root)
+
+    #expect(probe.boundsByName["first"] == Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                                                    size: Size(width: Pixels(80), height: Pixels(10))))
+    #expect(probe.boundsByName["second"] == Bounds(origin: Point(x: Pixels(80), y: Pixels(0)),
+                                                     size: Size(width: Pixels(20), height: Pixels(10))))
 }
 
 /// The companion macOS SwiftUI probe hosts 20 by 10 and 20 by 30 children in

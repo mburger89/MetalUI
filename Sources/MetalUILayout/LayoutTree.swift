@@ -210,6 +210,19 @@ public final class LayoutTree {
         return id
     }
 
+    /// Registers a layout-priority wrapper around one proposal-layout child.
+    ///
+    /// Priority is consumed by a native linear stack when it divides a
+    /// constrained main-axis proposal. Outside such a stack it is layout
+    /// transparent, matching SwiftUI's modifier role.
+    public func newNativeLayoutPriority(child: LayoutNodeID, priority: Double) -> LayoutNodeID {
+        _ = nativeNode(child)
+        precondition(priority.isFinite, "layout priority must be finite")
+        let id = newNode(style: .default, children: [child])
+        nativeNodes[id.index] = .layoutPriority(priority)
+        return id
+    }
+
     /// Registers a native flexible spacer with an optional minimum length.
     ///
     /// A spacer reports its minimum when its main axis is unspecified. Native
@@ -426,6 +439,8 @@ public final class LayoutTree {
                 firstBaseline: constrained.firstBaseline,
                 lastBaseline: constrained.lastBaseline
             )
+        case .layoutPriority:
+            result = measureNative(children(id)[0], proposal: proposal, cache: &cache)
         case .linearStack(let axis, let spacing, _):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             let childMeasurements = children(id).map {
@@ -437,7 +452,7 @@ public final class LayoutTree {
             case .horizontal:
                 let naturalWidth = childMeasurements.reduce(gaps) { $0 + $1.size.width }
                 result = LayoutMeasurement(
-                    size: SizeD(width: expandedStackMainSize(naturalWidth, proposal: proposal.width,
+                    size: SizeD(width: resolvedStackMainSize(naturalWidth, proposal: proposal.width,
                                                              hasSpacer: hasSpacer),
                                 height: childMeasurements.map(\.size.height).max() ?? 0)
                 )
@@ -445,7 +460,7 @@ public final class LayoutTree {
                 let naturalHeight = childMeasurements.reduce(gaps) { $0 + $1.size.height }
                 result = LayoutMeasurement(
                     size: SizeD(width: childMeasurements.map(\.size.width).max() ?? 0,
-                                height: expandedStackMainSize(naturalHeight, proposal: proposal.height,
+                                height: resolvedStackMainSize(naturalHeight, proposal: proposal.height,
                                                               hasSpacer: hasSpacer))
                 )
             }
@@ -523,6 +538,10 @@ public final class LayoutTree {
                         in: LayoutRect(x: bounds.x, y: bounds.y,
                                        width: size.width, height: size.height),
                         proposal: childProposal, cache: &cache)
+        case .layoutPriority:
+            let child = children(id)[0]
+            _ = measureNative(child, proposal: proposal, cache: &cache)
+            placeNative(child, in: bounds, proposal: proposal, cache: &cache)
         case .linearStack(let axis, let spacing, let alignment):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             let childMeasurements = children(id).map {
@@ -532,12 +551,18 @@ public final class LayoutTree {
             let spacerCount = children(id).filter(isNativeSpacer).count
             let availableMain = axis == .horizontal ? bounds.width : bounds.height
             let extraPerSpacer = spacerCount == 0 ? 0 : Swift.max(0, availableMain - naturalMain) / Double(spacerCount)
+            let allocations = stackMainAllocations(children: children(id), measurements: childMeasurements,
+                                                   axis: axis, available: availableMain,
+                                                   spacing: spacing, hasSpacer: spacerCount > 0)
             var cursor = axis == .horizontal ? bounds.x : bounds.y
-            for (child, baseMeasurement) in zip(children(id), childMeasurements) {
+            for (index, (child, baseMeasurement)) in zip(children(id), childMeasurements).enumerated() {
                 let placementProposal = spacerProposal(for: child, base: baseMeasurement,
                                                        parent: childProposal, axis: axis,
                                                        extra: extraPerSpacer)
-                let measurement = measureNative(child, proposal: placementProposal, cache: &cache)
+                let constrainedProposal = stackPlacementProposal(placementProposal,
+                                                                  axis: axis,
+                                                                  allocatedMain: allocations[index])
+                let measurement = measureNative(child, proposal: constrainedProposal, cache: &cache)
                 let childBounds: LayoutRect
                 switch axis {
                 case .horizontal:
@@ -551,7 +576,7 @@ public final class LayoutTree {
                                              width: measurement.size.width, height: measurement.size.height)
                     cursor += measurement.size.height + spacing
                 }
-                placeNative(child, in: childBounds, proposal: placementProposal, cache: &cache)
+                placeNative(child, in: childBounds, proposal: constrainedProposal, cache: &cache)
             }
         }
     }
@@ -573,9 +598,9 @@ public final class LayoutTree {
         return Swift.max(minimum, proposal)
     }
 
-    private func expandedStackMainSize(_ natural: Double, proposal: Double?, hasSpacer: Bool) -> Double {
-        guard hasSpacer, let proposal, proposal.isFinite else { return natural }
-        return Swift.max(natural, proposal)
+    private func resolvedStackMainSize(_ natural: Double, proposal: Double?, hasSpacer: Bool) -> Double {
+        guard let proposal, proposal.isFinite else { return natural }
+        return hasSpacer ? Swift.max(natural, proposal) : Swift.min(natural, proposal)
     }
 
     private func stackMainSize(_ measurements: [LayoutMeasurement], axis: ProposalStackAxis,
@@ -594,6 +619,52 @@ public final class LayoutTree {
         switch axis {
         case .horizontal: return ProposedSize(width: base.size.width + extra, height: parent.height)
         case .vertical: return ProposedSize(width: parent.width, height: base.size.height + extra)
+        }
+    }
+
+    private func stackPlacementProposal(_ proposal: ProposedSize, axis: ProposalStackAxis,
+                                        allocatedMain: Double?) -> ProposedSize {
+        guard let allocatedMain else { return proposal }
+        switch axis {
+        case .horizontal: return ProposedSize(width: allocatedMain, height: proposal.height)
+        case .vertical: return ProposedSize(width: proposal.width, height: allocatedMain)
+        }
+    }
+
+    private func stackMainAllocations(children: [LayoutNodeID], measurements: [LayoutMeasurement],
+                                      axis: ProposalStackAxis, available: Double, spacing: Double,
+                                      hasSpacer: Bool) -> [Double?] {
+        let natural = stackMainSize(measurements, axis: axis, spacing: spacing)
+        guard !hasSpacer, available < natural else { return Array(repeating: nil, count: children.count) }
+        var allocations = Array<Double?>(repeating: nil, count: children.count)
+        var remaining = Swift.max(0, available - Double(Swift.max(0, children.count - 1)) * spacing)
+        let priorities = Set(children.map(nativeLayoutPriority)).sorted(by: >)
+        for priority in priorities {
+            let indices = children.indices.filter { nativeLayoutPriority(children[$0]) == priority }
+            let ideal = indices.reduce(0) { partial, index in
+                partial + stackMain(measurements[index], axis: axis)
+            }
+            if remaining >= ideal {
+                for index in indices { allocations[index] = stackMain(measurements[index], axis: axis) }
+                remaining -= ideal
+            } else {
+                let share = remaining / Double(indices.count)
+                for index in indices { allocations[index] = share }
+                remaining = 0
+            }
+        }
+        return allocations
+    }
+
+    private func nativeLayoutPriority(_ id: LayoutNodeID) -> Double {
+        if case let .layoutPriority(priority) = nativeNode(id) { return priority }
+        return 0
+    }
+
+    private func stackMain(_ measurement: LayoutMeasurement, axis: ProposalStackAxis) -> Double {
+        switch axis {
+        case .horizontal: measurement.size.width
+        case .vertical: measurement.size.height
         }
     }
 
@@ -716,6 +787,7 @@ private enum NativeNode {
     case padding(insets: Edges<Double>)
     case fixedSize(horizontal: Bool, vertical: Bool)
     case aspectRatio(ratio: Double, contentMode: AspectRatioContentMode)
+    case layoutPriority(Double)
     case spacer(minLength: Double)
     case linearStack(axis: ProposalStackAxis, spacing: Double, alignment: ProposalAlignment)
 }
