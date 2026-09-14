@@ -709,9 +709,27 @@ public final class LayoutTree {
         return allocations
     }
 
-    private func nativeLayoutPriority(_ id: LayoutNodeID) -> Double {
-        if case let .layoutPriority(priority) = nativeNode(id) { return priority }
-        return 0
+    /// The priority a native stack (and a `ProposalLayout` subview proxy) reads
+    /// for `id`: the value of a `layoutPriority` node that IS the child, looking
+    /// through any depth of overlay attachments to their primary child, else 0.
+    ///
+    /// **The attachment look-through matches SwiftUI** (probe L2, ruling SA-D):
+    /// `.overlay {}` does not lay its content out and leaves priority visible,
+    /// while `frame`, `padding`, `aspectRatio` and `fixedSize` hide it, as they
+    /// hide it in SwiftUI. MetalUI's paint-only proposal modifiers (`background`,
+    /// `clip`, `border`, `opacity`, `allowsHitTesting`, `onTap`) register no node,
+    /// so they need no case here. A single-child built-in stack does NOT pass
+    /// its child's priority through, where SwiftUI's does (probe L3, SA-N item 8).
+    /// Pinned by `aLinearStackReadsPriorityThroughAnOverlayAttachment`.
+    func nativeLayoutPriority(_ id: LayoutNodeID) -> Double {
+        switch nativeNode(id) {
+        case .layoutPriority(let priority):
+            return priority
+        case .overlayAttachment:
+            return nativeLayoutPriority(children(id)[0])
+        default:
+            return 0
+        }
     }
 
     private func stackMain(_ measurement: LayoutMeasurement, axis: ProposalStackAxis) -> Double {
