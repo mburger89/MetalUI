@@ -172,6 +172,10 @@ modifier placement from names alone.
   remaining 20pt; deterministic native tests cover both observations. This is
   deliberately the measured flexible-child slice of task 7, not a claim that
   arbitrary view compression, expansion, grids, or custom layouts are done.
+- A proposal frame now reports a clamped ideal dimension on an unspecified axis,
+  matching a macOS SwiftUI probe: a 20pt child in `.frame(idealWidth: 80)` is
+  offered and reports 80pt, while a concrete parent proposal still takes
+  precedence. Horizontal and vertical deterministic tests cover the result.
 - Ordinary element padding now wraps its content; `Component` padding remains
   a separately measured distribution case. Task 5 decides the complete
   modifier matrix.

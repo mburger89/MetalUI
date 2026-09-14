@@ -204,6 +204,44 @@ extension NativeProposalProbe: ProposalElementGroup {}
                                            size: Size(width: Pixels(20), height: Pixels(10))))
 }
 
+/// A macOS SwiftUI probe finds that an unspecified `.frame(idealWidth: 80)`
+/// proposes 80pt to a 20pt child and itself reports 80pt. HStack makes the
+/// otherwise-unspecified main-axis proposal observable through its sibling.
+@MainActor
+@Test func anIdealFrameWidthBecomesItsOuterWidthWhenTheAxisIsUnspecified() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(40)), scaleFactor: 1)
+    var root = HStack(spacing: Pixels(0)) {
+        ProposalFrame(idealWidth: Pixels(80)) {
+            NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "leading")
+        }
+        NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
+    }
+
+    frame.render(&root)
+
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(80), y: Pixels(15)),
+                                           size: Size(width: Pixels(20), height: Pixels(10))))
+}
+
+/// The companion SwiftUI probe reports the same rule for `.frame(idealHeight:)`.
+@MainActor
+@Test func anIdealFrameHeightBecomesItsOuterHeightWhenTheAxisIsUnspecified() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(40), height: Pixels(100)), scaleFactor: 1)
+    var root = VStack(spacing: Pixels(0)) {
+        ProposalFrame(idealHeight: Pixels(80)) {
+            NativeProbeLeaf(size: SizeD(width: 10, height: 20), probe: probe, name: "leading")
+        }
+        NativeProbeLeaf(size: SizeD(width: 10, height: 20), probe: probe, name: "trailing")
+    }
+
+    frame.render(&root)
+
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(15), y: Pixels(80)),
+                                           size: Size(width: Pixels(10), height: Pixels(20))))
+}
+
 /// The default stack gap is a platform metric, not an accidental zero. The
 /// recorded SwiftUI HStack probe measures 8pt; the explicit-zero control makes
 /// a default implementation that simply forgot to set a gap visibly wrong.

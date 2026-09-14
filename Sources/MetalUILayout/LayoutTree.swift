@@ -403,9 +403,9 @@ public final class LayoutTree {
                                              height: framedProposal(proposal.height, fixed: height, ideal: idealHeight, min: minHeight, max: maxHeight))
             let child = measureNative(children(id)[0], proposal: childProposal, cache: &cache)
             let frameWidth = framedSize(child.size.width, proposal: proposal.width,
-                                        fixed: width, min: minWidth, max: maxWidth)
+                                        fixed: width, ideal: idealWidth, min: minWidth, max: maxWidth)
             let frameHeight = framedSize(child.size.height, proposal: proposal.height,
-                                         fixed: height, min: minHeight, max: maxHeight)
+                                         fixed: height, ideal: idealHeight, min: minHeight, max: maxHeight)
             result = LayoutMeasurement(
                 size: SizeD(width: frameWidth, height: frameHeight),
                 firstBaseline: child.firstBaseline.map { $0 + (frameHeight - child.size.height) * alignment.verticalFactor },
@@ -680,8 +680,12 @@ public final class LayoutTree {
         return Swift.max(min ?? -.infinity, Swift.min(proposal, max ?? .infinity))
     }
 
-    private func framedSize(_ child: Double, proposal: Double?, fixed: Double?, min: Double?, max: Double?) -> Double {
+    private func framedSize(_ child: Double, proposal: Double?, fixed: Double?, ideal: Double?,
+                            min: Double?, max: Double?) -> Double {
         guard let fixed else {
+            if proposal == nil, let ideal {
+                return Swift.max(min ?? 0, Swift.min(ideal, max ?? .infinity))
+            }
             if max == .infinity, let proposal, proposal.isFinite {
                 return Swift.max(min ?? 0, proposal)
             }

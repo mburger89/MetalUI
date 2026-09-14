@@ -136,9 +136,9 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     #expect(tree.layout(child) == LayoutRect(x: 15, y: -1, width: 20, height: 90))
 }
 
-/// An ideal frame dimension is the proposal used only when its parent leaves
-/// that axis unspecified. It does not force the frame's response: the child
-/// still answers the proposal and the frame then applies its min/max limits.
+/// When a parent leaves an axis unspecified, SwiftUI's ideal frame dimension
+/// both becomes the child's proposal and the frame's outer response, subject
+/// to the frame's min/max limits. A concrete parent proposal still wins.
 @Test func aNativeFrameUsesIdealDimensionsOnlyForUnspecifiedAxes() {
     let tree = LayoutTree(generation: 0)
     let child = tree.newNativeLeaf { proposal in
@@ -155,7 +155,7 @@ private final class NativeMeasureCounter: @unchecked Sendable {
         in: LayoutRect(x: 5, y: 9, width: 40, height: 20)
     )
 
-    #expect(measurement.size == SizeD(width: 40, height: 20))
+    #expect(measurement.size == SizeD(width: 80, height: 20))
     #expect(tree.layout(child) == LayoutRect(x: 10, y: 14, width: 30, height: 10))
 }
 
