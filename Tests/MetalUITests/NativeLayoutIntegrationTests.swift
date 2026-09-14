@@ -186,6 +186,24 @@ extension NativeProposalProbe: ProposalElementGroup {}
                                            size: Size(width: Pixels(20), height: Pixels(10))))
 }
 
+/// Layout priority changes how a constrained stack divides flexible siblings;
+/// it must not make a `Spacer` stop claiming the remaining unconstrained space.
+@MainActor
+@Test func layoutPriorityPreservesASpacersFlexibleExpansion() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(40)), scaleFactor: 1)
+    var root = HStack(spacing: Pixels(5)) {
+        NativeProbeLeaf(size: SizeD(width: 30, height: 10), probe: probe, name: "leading")
+        Spacer(minLength: Pixels(10)).layoutPriority(1)
+        NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
+    }
+
+    frame.render(&root)
+
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(80), y: Pixels(15)),
+                                           size: Size(width: Pixels(20), height: Pixels(10))))
+}
+
 /// The default stack gap is a platform metric, not an accidental zero. The
 /// recorded SwiftUI HStack probe measures 8pt; the explicit-zero control makes
 /// a default implementation that simply forgot to set a gap visibly wrong.

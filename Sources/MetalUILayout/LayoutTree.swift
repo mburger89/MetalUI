@@ -589,8 +589,14 @@ public final class LayoutTree {
     }
 
     private func isNativeSpacer(_ id: LayoutNodeID) -> Bool {
-        if case .spacer = nativeNode(id) { return true }
-        return false
+        switch nativeNode(id) {
+        case .spacer:
+            return true
+        case .layoutPriority:
+            return isNativeSpacer(children(id)[0])
+        default:
+            return false
+        }
     }
 
     private func spacerLength(for proposal: Double?, minimum: Double) -> Double {
