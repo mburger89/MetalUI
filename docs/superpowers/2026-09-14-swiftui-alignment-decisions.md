@@ -9,7 +9,7 @@ starts here, at the design stage.**
 
 Prefixed **`SA-`** and **lettered** (`SA-A`, `SA-B`, …), per this repo's
 convention. **A bare `SA-3` is a typo, not a citation.** The next unused letter
-is `SA-R`.
+is `SA-T`.
 
 Read alongside:
 
@@ -36,6 +36,11 @@ Read alongside:
 - **`SA-O`**, **`SA-P`** and **`SA-Q`** are about method and the record: how
   the probes run, how sufficiency is proven, and which claims an earlier pass
   got wrong.
+- **`SA-R`** amends the plan's item (e) criterion; lane 1 carries it.
+- **`SA-S`** is the disposition of a critic's eighteen findings against
+  `3bb1ca1`: what each changed, or why it was rejected. It was written in a
+  third pass, after `SA-A`…`SA-Q`, and several of those rulings were revised in
+  place by it; each revised ruling says so.
 
 **Every ruling ends with a "Mutations" line reading _owed by lane N_.** The lane
 that implements a ruling replaces that line with the mutations it ran and the
@@ -59,6 +64,14 @@ worktree `/Users/maxburger/Developer/MetalUI-kernel`:**
 - **The mixing behaviour** and the two temporary preconditions (`SA-G`).
 - **The native depth bisection** (`SA-L`).
 - **The `@testable` scoping experiment** and the skeleton typecheck (`SA-P`).
+
+**Re-taken in a third pass the same day, after the critic's review** (`SA-S`):
+- **both probes, each run compiled and as a script**, with new arms: J's run
+  count and J2, K2, L2, L3, P8c. Every earlier recorded line reproduced;
+- **the lane 1 skeleton**, rebuilt with lane 3's frame split, and every guard
+  fixture re-typechecked at file scope in Swift 6 mode (`SA-P`);
+- **the suite, twice**: 993 with lane 2's re-entrancy checks and the frame
+  split applied temporarily, then 993 on clean sources (`SA-I`).
 
 **Carried, not re-taken.** Legacy `LayoutContext.maxDepth`'s ceilings (107
 levels on 1 MB, ~9.8 KB per level, debug) are quoted from its own doc comment
@@ -206,11 +219,16 @@ with `value of type 'MeasurementSubview' has no member 'place'`.
 
 ## SA-D — the proxy surface is priority, spacer-ness and a cached measurement, each by the built-in stack's own rule
 
+*Revised in the third pass (`SA-S` finding 1): `priority` now looks through
+overlay attachments, and the built-in rule changes with it.*
+
 **The choice.**
 
 - **`priority`** is the value of a `layoutPriority` node that **is** the
-  subview, else 0. The rule is `nativeLayoutPriority`'s
-  (`LayoutTree.swift:710-713`).
+  subview, looking through any depth of `.overlayAttachment` nodes to their
+  primary child, else 0. The rule is `nativeLayoutPriority`'s
+  (`LayoutTree.swift:710-713`), **which lane 1 changes to look through
+  attachments**, so the proxy and the built-in stack keep one rule.
 - **`isSpacer`** is true for a spacer node, directly or under any depth of
   `layoutPriority` nodes, and false through any other wrapper. The rule is
   `isNativeSpacer`'s (`:636-645`).
@@ -227,19 +245,51 @@ enough (`SA-B`).
 - **Arm E and the arm L control:** a custom layout reads `priority` 2.5 back as
   2.5.
 - **Arm L:** a `layoutPriority(2)` under `.frame` or `.padding` reads **0**, and
-  the same modifier applied outermost reads 2. SwiftUI's `priority` is the
-  outermost modifier's alone, which is the kernel's rule.
+  the same modifier applied outermost reads 2.
+- **Arm L2 (third pass)** refutes the second pass's generalisation, "SwiftUI's
+  `priority` is the outermost modifier's alone". Priority 2 is **hidden** (0) by
+  `.aspectRatio`, `.fixedSize` and `.frame(maxWidth:)`, and **survives** (2)
+  `.overlay {}` (also twice), `.background {}`, `.opacity`, `.onTapGesture`,
+  `.allowsHitTesting`, `.clipShape`, `.border`, `.offset` and `.id`. The line
+  is between modifiers that lay their content out and modifiers that do not.
+- **Mapped onto MetalUI's proposal modifiers.** `background`, `clip`, `border`,
+  `opacity`, `allowsHitTesting` and `onTap` register no node
+  (`NativeModifiedContent.swift`'s `nativeWrapperNode` returns the child), so
+  priority already survives them. `frame`, `padding`, `aspectRatio` and
+  `fixedSize` register a node, and hide it, as SwiftUI does. `.overlay`
+  registers an `overlayAttachment` node (`NativeOverlayModifier.swift:36`) and
+  hid it: `Rectangle().layoutPriority(2).overlay { … }` read 0 where SwiftUI
+  reads 2, in the built-in stack as well as in the proposed proxy. That one is
+  now fixed in both.
+- **Arm L3 (third pass):** inside a container priority is 0, **except** a
+  single-child `ZStack`, `HStack` or `VStack`, which reads its child's 2. A
+  two-child stack reads 0 whichever child carries it, and a single-child
+  **custom** layout reads 0. That exception is not adopted (`SA-N`); lane 1's
+  proxy test pins MetalUI's single-child stack reading 0, wrong on purpose.
 - **Arms E and E2:** SwiftUI exposes **no** spacer test. A `Spacer` reads
   priority −∞, but so does any view given `.layoutPriority(-.infinity)`. MetalUI
   exposes `isSpacer` because its stack reads spacer identity. SwiftUI's stack
   does not (it probes flexibility), and matching that is plan task 6's question,
   not this one's.
 
+**Why fix the attachment now rather than carry it.** The proxy's `priority` is
+new public API. If it shipped reading 0 through `.overlay`, correcting it in
+task 6 would change what every outside layout reads, a behaviour change for
+code this milestone invites people to write. The fix is one look-through in a
+shared helper, pinned by `aLinearStackReadsPriorityThroughAnOverlayAttachment`.
+`isNativeSpacer` is deliberately not given the same look-through: SwiftUI has
+no spacer test to probe, and an overlaid spacer's behaviour is task 6's
+non-spacer-expansion question.
+
 **What it costs if wrong.**
 
 - **`isSpacer` is a MetalUI-only notion.** If task 6 moves the built-in stack to
   flexibility probing, `isSpacer` becomes a public API with no built-in reader.
   It would then be carried or deprecated.
+- **The attachment look-through changes a shipped built-in rule.** A tree that
+  put a priority under `.overlay` and relied on it being ignored now allocates
+  differently. No existing test builds one (lane 1's red run confirms or
+  refutes that).
 - **A layout that needs a child's baseline or identity cannot get one.** Adding a
   member later is additive.
 
@@ -247,15 +297,19 @@ enough (`SA-B`).
 
 ---
 
-## SA-E — placement: position, anchor and proposal; last placement wins; an unplaced subview is centred at the parent's proposal
+## SA-E — placement: position, anchor and proposal; last placement wins; each subtree placed once, after `placeSubviews` returns; an unplaced subview is centred at the parent's proposal
+
+*Revised in the third pass (`SA-S` finding 2): `place` records, and the kernel
+places each subtree once afterwards. The second pass placed eagerly inside
+`place`.*
 
 **The choice.**
 
-- **Where a placed subview lands.** `place(at:anchor:proposal:)` stores the
-  subview at its answer to **`proposal`**, offset from `position` by
-  `anchor.factor × size`. It then places the subview's subtree with that
-  proposal.
-- **Placed twice:** the last placement wins.
+- **Where a placed subview lands.** `place(at:anchor:proposal:)` records a
+  placement. After `placeSubviews` returns, the kernel stores the subview at its
+  answer to **`proposal`**, offset from `position` by `anchor.factor × size`,
+  and places the subview's subtree with that proposal.
+- **Placed twice:** the last record wins, and the subtree is placed **once**.
 - **Never placed:** the subview is measured at the **parent's** proposal and
   placed centred in the parent's `bounds`.
 - **`bounds` is root-absolute**, the contract every stored rect already has.
@@ -267,20 +321,45 @@ enough (`SA-B`).
   `.center` at +100 with 30×20 lands at (110, 115, 30, 20), and
   `.bottomTrailing` at (95, 105, 30, 20). Both children are proposal-responsive,
   so a placement that ignored the proposal would differ.
+- **Arm K2 (third pass)**, two anchors whose factors differ by axis:
+  `.topTrailing` at +100 with 30×20 lands at (95, 125, 30, 20), and `.leading`
+  at (125, 115, 30, 20). K's three anchors have equal factors on both axes, so
+  only K2 can see a transposed factor pair.
 - **Arm J**, placed twice. The child lands at (100, 100, 40, 40), the second
   placement's position and proposal. The first placement is never seen by the
-  child.
-- **Arms I and I2**, never placed.
-  - I: a parent at (50, 50, 100, 100) proposed 200×200, with a `Color` child,
-    lands at (0, 0, 200, 200).
-  - I2: a parent at (120, 70, 100, 100) proposed 100×100, with a fixed 30×30
-    child, lands at (155, 105, 30, 30).
+  child: **its own `placeSubviews` ran once for the two `place` calls** (third
+  pass, counted). J2 is that counter's positive control: a resize that moves
+  the child brings the total to 2.
+- **K's log order (third pass).** Each child's own `placeSubviews` logs after
+  the parent's line, in the **reverse** of the order the parent called `place`.
+  An eager recursion inside `place` would log in call order. So SwiftUI places
+  subtrees after `placeSubviews` returns. MetalUI uses index order; nothing may
+  rely on either order.
+- **Arm I2**, never placed: a parent at (120, 70, 100, 100) proposed 100×100,
+  with a fixed 30×30 child, lands at (155, 105, 30, 30), centred on (170, 120).
+  That is neither the parent's origin nor the root origin.
+  - **Arm I is not cited as evidence for centring.** Its child at
+    (0, 0, 200, 200), inside a parent at (50, 50, 100, 100), is consistent with
+    centring but equally with a placement at the root origin.
   - I2 also printed a first pass with the parent at (0, 0) and the child at
     (0, 0, 30, 30), which is not centred. Why was not investigated (`SA-N`).
 
-**What it costs if wrong.** An author who forgets a subview gets a centred
-subview rather than a trap, the same silence SwiftUI gives. The alternative, a
-trap, would diverge from I/I2 for a mistake SwiftUI treats as legal.
+**Why deferred, not eager.** An eager `place` re-runs a subtree per call: a
+visible side effect in any custom child's `placeSubviews` that SwiftUI never
+produces (J), and 2^depth work in a chain of layouts that each re-place a child.
+Deferring also means a stashed `PlacementSubview` used after `placeSubviews`
+returns meets the token check, whichever child is being placed at the time.
+
+**What it costs if wrong.**
+
+- **A forgotten subview is silent.** An author who forgets a subview gets a
+  centred subview rather than a trap, the same silence SwiftUI gives. The
+  alternative, a trap, would diverge from I2 for a mistake SwiftUI treats as
+  legal.
+- **A measurement asked inside `placeSubviews` does not place.** An author who
+  expected `place` to measure and store immediately, and reads a stored rect
+  back through some other channel mid-call, sees the old rect. No public API
+  reads a stored rect.
 
 **Mutations:** owed by lane 1.
 
@@ -320,19 +399,40 @@ the spec's lane 1:
   compile-time replacement exists for legacy authors, and this milestone ports
   no legacy container.
 
-**Measurement.** Against the `SA-P` skeleton, one plain-import positive fixture
-compiled with exit 0. It declared a layout that reads `priority`, `isSpacer`,
-`sizeThatFits`, `place` and both factors; a leaf; and a generic container
-element. It used them as `HStack { Diagonal() { Leaf(); Spacer() }; Container { Leaf() }; Diagonal(alignment: .top) { Leaf() } }`,
+**Measurement.** Against the `SA-P` skeleton, re-taken in the third pass **at
+file scope with `-swift-version 6`**, one plain-import positive fixture
+compiled with exit 0. It declared, all `public` and at file scope, a layout that
+reads `priority`, `isSpacer`, `sizeThatFits`, `place` and both factors; a leaf
+with `extension Leaf: ProposalElementGroup {}`; and a generic container element
+with its own conformance extension. It used them inside one `VStack` as
+`HStack { Diagonal() { Leaf(); Spacer() }; Container { Leaf() }; Diagonal(alignment: .top) { Leaf() } }`,
 `ProposalLayoutContainer(Diagonal()) { Leaf() }` and
-`VStack { Diagonal { Leaf() }.padding(Edges(all: Pixels(3))) }`.
+`Diagonal { Leaf() }.padding(Edges(all: Pixels(3)))`.
 
-The negatives were:
+The second pass's run of the same fixture went through
+`typecheck(_:importing:)`'s wrapper in Swift 5 mode. Fed the third pass's
+file-scope fixture, that wrapper fails: `declaration is only valid at file
+scope` and `attribute 'public' can only be used in a non-local scope`. So the
+second pass's positive result was for local types, not for what an external
+module writes (`SA-S` finding 6).
+
+The negatives, file scope, Swift 6 mode:
 
 - `_ = MeasurementSubviews()` → `'MeasurementSubviews' initializer is inaccessible due to 'internal' protection level`
 - `_ = PlacementSubview()` → `'PlacementSubview' initializer is inaccessible due to 'internal' protection level`
-- `_ = L() { Text("legacy") }` → `instance method 'callAsFunction' requires that 'Text' conform to 'ProposalElementGroup'`
-- `_ = ProposalLayoutContainer(L()) { Text("legacy") }` → `generic struct 'ProposalLayoutContainer' requires that 'Text' conform to 'ProposalElementGroup'`
+- `subviews[0].place(at: Point(x: 0, y: 0), proposal: .unspecified)` inside `sizeThatFits` → `value of type 'MeasurementSubview' has no member 'place'`
+- `_ = Diagonal() { Text("legacy") }` and `_ = Diagonal { Text("legacy") }` → `instance method 'callAsFunction' requires that 'Text' conform to 'ProposalElementGroup'`
+- `_ = ProposalLayoutContainer(Diagonal()) { Text("legacy") }` → `generic struct 'ProposalLayoutContainer' requires that 'Text' conform to 'ProposalElementGroup'`
+
+**The constraint mutations, measured on the skeleton** (rebuild, then re-run the
+two container fixtures and the positive):
+
+| mutation | `Diagonal() { Text }` | `ProposalLayoutContainer(…) { Text }` | positive |
+|---|---|---|---|
+| none | fails | fails | exit 0 |
+| drop only `callAsFunction`'s explicit `Content: ProposalElementGroup` | **still fails**, same diagnostic: inferred from the return type | fails | exit 0 |
+| relax only the struct's constraint to `ElementGroup` | still fails, on the method's constraint | **compiles** | exit 0 |
+| relax both | **compiles** | **compiles** | exit 0 |
 
 **What it costs if wrong.**
 
@@ -341,10 +441,11 @@ The negatives were:
   SwiftUI's two-guide model later would break outside layouts.
 - **Leaving `ProposalElementGroup` requirement-free keeps one hole open.** A
   marker conformer that registers a legacy node compiles and traps at run time.
-  Lane 2 pins the trap, and the hole itself stays.
+  Lane 2 pins the trap, and the hole itself stays. `SA-R` records why, and
+  amends the plan's criterion to say so.
 
-**Mutations:** owed by lane 1, including the red run of each of the four new
-guards (39 → 43).
+**Mutations:** owed by lane 1, including the red run of each of the five new
+guards (39 → 44).
 
 ---
 
@@ -384,12 +485,27 @@ and it already exists.
 can still take a legacy style modifier. `StyledComponent` amends its top-level
 nodes with `setStyle`, and those nodes are native, so the width is silently
 inert.
-- **Measured compile:** `Toggle().width(Pixels(70))`, where
-  `Toggle: Component` has `Rectangle()` content, compiles as a standalone
-  expression. Placed inside `HStack` it is rejected: `generic struct 'HStack'
-  requires that 'StyledComponent<Toggle>' conform to 'ProposalElementGroup'`.
-- **The reachable path** is the root, and legacy containers, which the
-  `newNode` trap now closes.
+- **Measured compile (third pass, evidence 9 of the spec).** With `Toggle:
+  Component, ProposalElementGroup` over `Rectangle()` content:
+  - `Column { Toggle().width(Pixels(70)) }` compiles;
+  - as a root it does not: `return type of global function 'probe()' requires
+    that 'StyledComponent<Toggle>' conform to 'Element'`. **The second pass's
+    "the reachable path is the root" was wrong**: `StyledComponent` is only an
+    `ElementGroup`, and `Frame.render` needs an `Element`;
+  - `HStack { Toggle().width(Pixels(70)) }` is rejected: `generic struct
+    'HStack' requires that 'StyledComponent<Toggle>' conform to
+    'ProposalElementGroup'`;
+  - an external `Container<Content: ElementGroup>: Element` that declares
+    `ProposalElementGroup` unconditionally and calls `requestNativeLayout`
+    compiles, and so does `HStack { Container { Toggle().width(Pixels(70)) } }`.
+- **The reachable paths, and which trap fires on each.**
+  - **Inside a legacy container** (`Column { … }`): `StyledComponent` calls
+    `setStyle` on the native leaf before `Column` calls `newNode`, so the
+    `setStyle` trap fires first; without it, the `newNode` trap would fire next.
+  - **Inside an external container that declares the marker over
+    unconstrained content**: no legacy node is ever registered, so the
+    `setStyle` trap is the **only** trap on this path. Without it the width is
+    silently inert.
 
 **Measurements, run in this session.**
 
@@ -442,7 +558,13 @@ inert.
 5. **A different proposal is a different key.**
 6. **A layout's answer must be a function of its value, its proposal and its
    subviews' answers.** Impurity is not detected.
-7. **Mutation during a call traps.**
+7. **Mutation of the tree during a call traps**, through exactly these checks:
+   `setStyle`; every registration (`newNode`, `newLeaf`, every native
+   registrar); `reset(generation:)`; re-entry of either engine; `setLayout`
+   inside native measurement. **Not checked:** `setLayout` during placement
+   outside a measurement body, which the kernel's own placement uses. *Narrowed
+   in the third pass (`SA-S` finding 17): the second pass's "Mutation during a
+   call traps" claimed more than its checks covered.*
 
 **Why per call.**
 
@@ -477,7 +599,7 @@ are the recorded mutations (the spec's red-first note).
 
 ---
 
-## SA-I — ONE `isLayingOut` flag guards BOTH engines; native registration and a rect write from measurement also trap
+## SA-I — ONE `isLayingOut` flag guards BOTH engines; every registration, a reset, and a rect write from measurement also trap
 
 **The choice.**
 
@@ -486,7 +608,12 @@ are the recorded mutations (the spec's red-first note).
   now reach the native path: `setStyle` during layout, native re-entry, and
   legacy `computeLayout` called from a native measure closure. The reverse,
   native layout called from a legacy closure, traps too.
-- **Registration.** Every native registrar traps while `isLayingOut`.
+- **Registration.** Every registration traps while `isLayingOut`: `newNode`,
+  `newLeaf` and every native registrar, through one check in `appendNode`.
+  *Widened in the third pass from native registrars only (`SA-S` finding 17).*
+- **Reset.** `reset(generation:)` traps while `isLayingOut`. Mid-run it empties
+  the arrays the run is indexing, and the run then dies on an out-of-range
+  index with no message.
 - **Rect writes.** `setLayout` traps while a native measurement body is running.
 
 **Why one flag, not two.** The two engines write the same `layouts` array
@@ -494,15 +621,27 @@ through the same `setLayout`, and a legacy `measureNode` memoizes against the
 same `styles`. A second flag would let a native closure run legacy layout over
 the tree mid-run, which is exactly the hazard the first flag exists to stop.
 
-**Why the registration trap.** A measure closure that registers nodes
-mid-layout grows the arrays the run is indexing. That is harmless today by
-accident, and wrong the moment a registrar is given a live id.
+**Why the registration trap covers every registrar.** A measure closure that
+registers nodes mid-layout grows the arrays the run is indexing. That is
+harmless today by accident, and wrong the moment a registrar is given a live
+id. `newNode` and `newLeaf` grow the same arrays as a native registrar, so a
+check on native registrars alone would leave the stated reason unenforced.
 
 **Why the `setLayout` trap.** It is the only way clause 4 of `SA-H` can be
 enforced rather than merely true. A leaf closure holding the tree, through an
 `@unchecked Sendable` box, can call it today.
 
-**Measurement.** None new. Today's behaviour follows from reading:
+**Measurement (third pass).** The checks were applied temporarily, on top of
+the lane 1 skeleton and lane 3's frame split: `computeNativeLayout` bracketed
+by `beginLayout()`/`defer { endLayout() }`, and `precondition(!isLayingOut)` in
+`newNode` (reached by `newLeaf` and every native registrar today) and in
+`reset(generation:)`. `swift test --no-parallel` read `Test run with 993 tests
+in 1 suite passed`, 0 `error:`, 0 `warning:`, and `strings -a` found the
+experiment's message in the test binary. No existing test registers, resets or
+re-enters mid-layout, and none lays one tree out re-entrantly. Reverted; the
+clean re-run read 993.
+
+**Before the third pass** today's behaviour was known from reading only:
 
 - `isLayingOut` is set only at `FlexEngine.swift:102-103`;
 - `computeNativeLayout` (`LayoutTree.swift:274-282`) never calls
@@ -521,13 +660,17 @@ exists in `Sources/`, and a hosted subtree belongs in its own tree (`SA-G`).
 
 ---
 
-## SA-J — validation: reject ONLY what SwiftUI rejects or what makes MetalUI's answer non-finite; a measurement may be infinite, a stored rect may not, nothing may be NaN
+## SA-J — validation: reject ONLY what SwiftUI rejects or what makes a node non-finite at a proposal with no infinite axis; a measurement may be infinite, a stored rect may not, nothing may be NaN
 
 **The choice.**
 
-- **The rule.** A native registrar rejects a parameter only if SwiftUI rejects
-  it — by a diagnostic, a trap, a hang, or having no spelling for it — or if the
-  parameter would make MetalUI's answer non-finite.
+- **The rule.** A native registrar rejects a parameter only if (1) SwiftUI
+  rejects it — by a diagnostic, a trap, a hang, or having no spelling for it —
+  or (2) the parameter would make the node's measurement, or a rect it places,
+  **non-finite at a proposal with no infinite axis**. *Clause 2 was sharpened
+  in the third pass (`SA-S` finding 4): it read "would make MetalUI's answer
+  non-finite", which contradicted the corollary that a measurement may be
+  infinite.*
 - **Computed values** are checked at three kernel checkpoints:
   1. a NaN proposal at `measureNative` entry;
   2. a NaN measurement at its exit;
@@ -559,9 +702,9 @@ brackets; "diag" means SwiftUI logged "Invalid frame dimension" and/or
 | maxWidth +∞ | 100 at 100, 20 at nil, no diag (P4c) | **accept** |
 | maxWidth −10 / −∞ / NaN | diag (P4, P9) | reject |
 | idealWidth −10 / NaN | diag (P4b) | reject |
-| idealWidth +∞ | no diag; **inf at nil** (P4b), 20 at 100 (P4d) | reject: non-finite at the unspecified proposal |
+| idealWidth +∞ | no diag; **inf at nil** (P4b), 20 at 100 (P4d) | reject, clause 2: non-finite at the unspecified proposal, which has no infinite axis |
 | min > max, min > ideal, ideal > max | diag (P4, P4c) | reject |
-| fixed and flexible on one axis | no overload exists | reject: no spelling |
+| fixed and flexible together | no overload exists: `Color.red.frame(width: 10, minWidth: 5)` → `extra argument 'minWidth' in call`, and `minHeight` likewise (third pass) | reject **at compile time** in the element API, which splits into SwiftUI's two overloads (`SA-K` item 6); the kernel registrar keeps a precondition for one axis as a backstop |
 | Spacer minLength −30 | 10, no diag (P5) | **accept** |
 | Spacer minLength NaN / +∞ / −∞ | −inf / inf / −inf (P5, P9) | reject: non-finite |
 | layoutPriority ±∞ | orders like ±1: 80/20 and 20/80 (P7, P7b) | **accept** (`SA-K`) |
@@ -578,21 +721,28 @@ brackets; "diag" means SwiftUI logged "Invalid frame dimension" and/or
 
 **The corollary's reasoning.**
 
-- **Why a measurement may be infinite.** "An unconstrained answer to an unbounded
-  proposal" is legitimate: P6's `Color` offered ∞ answers ∞.
+- **Why a measurement may be infinite, and why that does not contradict
+  clause 2.** "An unconstrained answer to an unbounded proposal" is legitimate:
+  P6's `Color` offered ∞ answers ∞. User code may also answer ∞, and the kernel
+  cannot tell why. Clause 2 applies only to a **parameter** that produces a
+  non-finite value at a proposal with no infinite axis: there the value can
+  only have come from the parameter. The checkpoints then check computed values
+  for NaN (measurements) and for any non-finite field (rects) only.
 - **Why a stored rect may not.** Prepaint, paint, hit-testing and rounding all
   do arithmetic on it, and `round(inf) − round(inf)` is NaN.
 - **Why NaN is never acceptable.** It is unequal to itself. It misses the cache
   every time (record §09), and it poisons every comparison downstream.
 
-**The four rows decided on more than the first clause.**
+**The four rows decided by clause 2, not clause 1.**
 
-- **`idealWidth: +∞`** gets no SwiftUI diagnostic. It is rejected because the
+- **`idealWidth: +∞`** gets no SwiftUI diagnostic. Clause 2 rejects it: the
   unspecified proposal is the one every stack child and every scroll content
   receives on its main axis, so an infinite ideal becomes an infinite
   measurement in the most ordinary tree. Rejecting at registration names the
   parameter. Rejecting at checkpoint 3 would name a sibling's rect several nodes
-  away.
+  away. **Accepting it was considered and rejected**: nothing then stops the
+  infinite measurement from reaching a rect, and checkpoint 3 would trap there
+  with a message about the wrong node.
 - **Padding NaN** is finite in SwiftUI's measurement but traps SwiftUI's own
   placement (P2c).
 - **Padding −∞** is finite in measurement and non-finite in placement (P2c).
@@ -602,7 +752,9 @@ brackets; "diag" means SwiftUI logged "Invalid frame dimension" and/or
 
 - **A MetalUI app crashes where SwiftUI would log and draw something.** For a
   diagnosed frame dimension, SwiftUI clamps and continues (P3: width −10
-  answered 0×20).
+  answered 0×20). Every "diag" row in the table above is such a row: SwiftUI
+  accepts it at run time, and MetalUI does not. The critic's review named this;
+  it is kept (`SA-S` finding 4).
 - **The trade is deliberate.** A precondition names the parameter at
   registration. SwiftUI's diagnostic names nothing and draws a guess.
 - **If the crash proves too harsh,** relaxing a precondition to a clamp is
@@ -614,7 +766,9 @@ brackets; "diag" means SwiftUI logged "Invalid frame dimension" and/or
 
 ## SA-K — the relaxations and repairs `SA-J` forces on today's kernel
 
-**The choice.** Four source changes and one test re-fixture:
+**The choice.** Five source changes and one test re-fixture. *Items 2 and 5
+were revised, and item 6 added, in the third pass (`SA-S` findings 4, 7, 18 and
+the no-defect note).*
 
 1. **Priority.** `newNativeLayoutPriority` accepts ±∞: `isFinite` becomes
    `!isNaN`. It has **trapped on ±∞ since `d250743`**.
@@ -625,10 +779,16 @@ brackets; "diag" means SwiftUI logged "Invalid frame dimension" and/or
      `ratio != 0`.
    - `aspectRatioSize`'s two-axis branch compares `width / ratio <= height`
      (`.fit`) and `>=` (`.fill`).
-   - For ratio > 0 and height > 0 that is the same predicate as today's
-     `width / height <= ratio`.
    - For ratio −2 at 100×80, today's predicate picks the height branch and
      answers −160×80. P8 says 100×−50.
+   - **P8c (third pass) probes zero and negative axes for both signs.** Ratio 2
+     and −2, `.fit` and `.fill`, at 100×−10, 100×0, −100×80, 0×80, −100×−80
+     and −100×−10: the new predicate picks SwiftUI's branch in **24 of 24**
+     arms, today's in **12**.
+   - **So it is a repair for positive ratios too.** At 100×−10 with ratio 2
+     `.fit`, today's predicate answers 100×50 and SwiftUI answers −20×−10, the
+     new predicate's answer. The second pass argued equivalence only for
+     height > 0 and had not probed the rest.
 3. **Padding.** The measurement becomes `max(0, child + leading + trailing)` per
    axis. Today −15 on 20 answers −10, and P2 says 0. P2b's leading −30 /
    trailing 5 answers 0×20, which proves the clamp is per axis.
@@ -637,7 +797,32 @@ brackets; "diag" means SwiftUI logged "Invalid frame dimension" and/or
 5. **The re-fixture.** `aNativeFrameUsesIdealDimensionsOnlyForUnspecifiedAxes`
    (`NativeLayoutTests.swift:168`) declares ideal 90 > max 80, which `SA-J`
    rejects. It is re-fixtured to ideal 70, with expectations re-derived by hand:
-   proposal (70, 60), measurement 70×20, child rect `(10, 14, 30, 10)`.
+   measurement 70×20, child rect `(10, 14, 30, 10)`, and the leaf closure's
+   in-closure `#expect(proposal == …)` changes from (80, 60) to **(70, 60)**.
+   The critic confirmed the derivation and found that last expectation missing
+   from the second pass's text.
+6. **The frame element API splits into SwiftUI's two overloads.**
+   `ProposalElementGroup.frame` and `nativeFrame` become
+   `(width:height:alignment:)` and
+   `(minWidth:idealWidth:maxWidth:minHeight:idealHeight:maxHeight:alignment:)`;
+   `ProposalFrame` gets the two matching initializers; `LayoutModifier.frame`
+   loses its flexible parameters to a new `.flexibleFrame` case. The kernel's
+   `newNativeFrame` keeps one registrar and its one-axis precondition, as a
+   backstop for kernel callers.
+   - **Measured (third pass):** with the split applied temporarily the suite
+     compiled and read 993 passed, so no caller used a combined spelling. At
+     file scope in Swift 6 mode, the combined spellings fail with `extra
+     argument 'minWidth' in call` (modifier, `LayoutModifier` case,
+     `nativeFrame`), `extra argument 'minHeight' in call` (cross-axis), and
+     `extra arguments at positions #2, #3 in call` (`ProposalFrame`).
+     `Text("…").frame(width:)` still selects the legacy `FrameModifier`.
+   - **Why at compile time.** SwiftUI has no spelling for the combination, so
+     turning it into a run-time crash in MetalUI would be a failure SwiftUI
+     authors never meet. The typecheck guard
+     `aFixedAndAFlexibleFrameDimensionCannotBeCombined` pins it.
+   - **Cross-axis mixing is lost from the element API.** `frame(width: 40,
+     minHeight: 10)` was a legal MetalUI spelling, and SwiftUI has none; chain
+     two frames instead. No caller used it.
 
 **Why.** Each is the minimal change that makes the kernel accept what SwiftUI
 accepts, at SwiftUI's answer.
@@ -652,9 +837,12 @@ deliberately.
 
 **What it costs if wrong.**
 
-- **Item 2 changes the two-axis branch for every ratio.** The positive-ratio
-  equivalence rests on height > 0. At a zero-height proposal both predicates
-  pick the height branch and answer 0×0, by reading.
+- **Item 2 changes the two-axis branch for every ratio.** It changes answers
+  for positive ratios at negative or zero proposal axes, deliberately, to
+  SwiftUI's (P8c). A negative proposal is legal (P6), so a MetalUI tree that
+  offers one to an aspect ratio sees a new answer.
+- **Item 6 is source-breaking for any out-of-repo caller** that combined a
+  fixed and a flexible dimension in one `frame` call.
 - **Item 5 drops the only pin of the ideal-clamped-by-max arithmetic.** Once
   ordering is validated that arithmetic is unreachable, so nothing is lost
   unless validation is ever relaxed.
@@ -663,18 +851,36 @@ deliberately.
 
 ---
 
-## SA-L — a native depth guard of 64 levels: its own constant, the same number, one counter across measurement and placement
+## SA-L — a native depth guard counted in native nodes, sized by legacy's safety fraction (provisionally 96), one counter across measurement and placement
 
-**The choice.** `NativeLayoutRun.maxDepth = 64`.
+*Revised in the third pass (`SA-S` finding 5). The second pass chose 64 "for
+parity" with legacy; that parity claim was unmeasured and is withdrawn.*
+
+**The choice.** `NativeLayoutRun.maxDepth` = **the largest multiple of 8 not
+above 0.60 × the smallest native debug ceiling on a 1 MB thread**, across
+padding, frame, linearStack and the custom kind. From the three ceilings
+measured so far that is 0.60 × 171 = 102.6, so **96**; lane 3 bisects the custom
+kind, re-bisects the other three on its own build, and commits the formula's
+answer.
 
 - **One counter.** `run.depth` is entered at the top of `measureNative` and
   `placeNative` and left on return. Placement calls measurement from inside
   itself, so the one counter tracks the real combined stack.
-- **The message:** "native layout recursion exceeded 64 levels at node …".
+- **The message:** "native layout recursion exceeded \(maxDepth) levels at node …".
 - **It is its own constant, not `LayoutContext.maxDepth`,** because the two
-  engines' per-level costs differ.
-- **It is the same number,** so a tree the legacy engine accepts is not
-  rejected by its proposal port for depth alone.
+  engines' per-level costs differ, and because it counts a different unit.
+- **It is not the legacy number, and no parity is claimed.** Legacy stores
+  size, aspect ratio and padding in one node's `Style`. Natively `frame`,
+  `padding`, `aspectRatio`, `layoutPriority`, `fixedSize` and `.overlay` each
+  add a node, so one legacy level ported as `.padding(…).frame(width:)` is at
+  least three native levels. The second pass's sentence "a tree the legacy
+  engine accepts must not be rejected by its proposal port for depth alone" was
+  never measured, and this shape makes it false in general. How a real ported
+  tree's native depth compares with its legacy depth remains **unmeasured**.
+- **Why the same fraction.** 0.60 is what legacy judged safe for a 1 MB
+  secondary thread, and the native frames are smaller (≈5.3–6.0 KB against
+  ≈9.8 KB), so the same fraction buys more levels, and those levels are what a
+  ported tree spends its extra nodes on.
 
 **Measurement (debug; 1 MB `Thread`; one `swift test --skip-build` per candidate
 depth).** An uncommitted, env-gated probe test built N nested native nodes over
@@ -691,13 +897,13 @@ Those numbers are identical to the earlier pass's bisection, which searched 1 to
 40000. They put padding and frame at ≈5.3 KB per level and linearStack at
 ≈6.0 KB, against legacy's ≈9.8 KB (107 levels, carried from
 `LayoutContext.swift`). The legacy constant was chosen at 64/107 = 0.60 of the
-smallest real stack. Native's 64/171 = 0.37 is more headroom, not less.
+smallest real stack. At the same fraction the native linearStack allows
+0.60 × 171 = 102.6 levels.
 
 **Not measured:** release, and the custom kind. A `ProposalLayout` level adds an
-existential call and a proxy frame, so its ceiling is lower than the stack's. So
-lane 3 bisects the custom kind before committing, and keeps 64 only if
-64 ≤ 0.60 × the smallest ceiling. Otherwise it takes the largest multiple of 8
-under that bound.
+existential call and a proxy frame, so its ceiling may be lower than the
+stack's, and the run object changes every native frame's size. So lane 3
+bisects all four kinds on its own build before committing the number.
 
 **Why three trap tests, not one.** A tree deeper than the limit traps in
 measurement first. So a test through `computeNativeLayout` stays green if `enter`
@@ -711,10 +917,16 @@ is deleted from `measureNative` alone, because placement still traps.
 `LayoutContextTests.swift:150-173` records the same shape-4 hazard for legacy
 `placeNode`.
 
-**What it costs if wrong.** If the custom kind's ceiling is below 107 debug
-levels, 64 stops being 0.60-safe on a 1 MB main thread. Then a deep custom
-layout chain dies at SIGBUS with no attribution, the failure the guard exists to
-prevent. The bisection before committing is the defence.
+**What it costs if wrong.**
+
+- **Too high.** If a kind is left unbisected and its ceiling is below
+  maxDepth / 0.60, a deep chain of it dies at SIGBUS on a 1 MB thread with no
+  attribution, the failure the guard exists to prevent. Bisecting all four on
+  the lane's build is the defence.
+- **Too low for ported trees.** A legacy tree near legacy's 64 levels, ported
+  with a node per modifier, can exceed 96 native levels and trap where legacy
+  laid it out. The trap names the node; the fix is a measured, larger limit,
+  not a silent overflow.
 
 **Mutations:** owed by lane 3, including the custom-kind bisection result.
 
@@ -735,7 +947,11 @@ struct NativeLayoutWork: Equatable { var measureCalls = 0; var cacheHits = 0; va
 - **When the record is written.** Each native entry point assigns it from its
   own run on return.
 - **How it is proven.** `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal`
-  must redden under "disable the cache".
+  must redden under "disable the cache". Its `measureCalls`, `cacheHits` and
+  `cacheMisses` assertions all compare against **literals derived by hand
+  before the run**. *The second pass compared `measureCalls` with the sum of the
+  leaf closures' own call counts, which rises with it when the cache is
+  disabled, so that assertion could not redden (shape 15; `SA-S` finding 12).*
 
 **Why on the tree, when the legacy counters live on `LayoutContext`.**
 
@@ -808,12 +1024,28 @@ behaviour noticed and not explained. None blocks task 2.
    - P7 places each stack child twice per host layout.
    - An earlier build of the contract probe got **zero** measurement calls when
      its `Counted` layout wrapped `EmptyView()`.
+   - K's children place their subtrees in the reverse of the order the parent
+     called `place` (third pass). MetalUI places in index order (`SA-E`).
 7. **Moot after `SA-J`:** P4c's `ideal > max` answers the ideal (100), not the
    clamp.
+8. **A single-child built-in stack passes its child's priority through** (L3,
+   third pass). `ZStack { x.layoutPriority(2) }`, `HStack { … }` and
+   `VStack { … }` each read 2; with two children they read 0, and a
+   single-child custom layout reads 0. MetalUI's single-child stacks read 0.
+   Why SwiftUI's do was not investigated. Plan task 6, which owns the stack
+   algorithms. Lane 1's `aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules`
+   pins MetalUI's 0 wrong on purpose.
+9. **`.frame()` with no argument compiles silently** (third pass, after `SA-K`
+   item 6's split), and so does `.frame(alignment:)`. SwiftUI deprecates
+   `frame()`: `'frame()' is deprecated: Please pass one or more parameters.`
+   Plan task 4.
 
-**What it costs if wrong.** Items 1–4 are live SwiftUI divergences in shipped
-proposal elements until their tasks land. The one this milestone touches, item 4,
-is pinned wrong on purpose rather than left silent.
+**Fixed, not carried:** priority through `.overlay` (L2). The second pass's
+kernel read 0; `SA-D` now looks through overlay attachments.
+
+**What it costs if wrong.** Items 1–4 and 8 are live SwiftUI divergences in
+shipped proposal elements until their tasks land. The two this milestone
+touches, items 4 and 8, are pinned wrong on purpose rather than left silent.
 
 ---
 
@@ -867,17 +1099,28 @@ file cannot see an access-level property.
    `newNativeLayout` forwarding to an overlay, `requestNativeLayout`,
    `ProposalLayoutContainer`, `callAsFunction`, public factors) was added and
    built with `swift build --build-system native`.
-   - The fixtures were typechecked with `swiftc -typecheck -diagnostic-style=llvm
-     -I .build/arm64-apple-macosx/debug/Modules -I …/MetalUIShaderTypes.build`,
-     the flags `typecheck(_:importing:)` uses.
-   - The results are quoted in `SA-C` and `SA-F`.
-   - The skeleton was deleted and `LayoutTree.swift` restored with
-     `git checkout`.
+   - The second pass typechecked the fixtures with `swiftc -typecheck
+     -diagnostic-style=llvm -I .build/arm64-apple-macosx/debug/Modules -I
+     …/MetalUIShaderTypes.build`, the flags `typecheck(_:importing:)` uses,
+     **and its source shape**: the body wrapped in `func fixture() { … }`,
+     with no `-swift-version`, which is Swift 5 mode. That shape makes every
+     fixture type local and cannot hold a file-scope `extension`.
+   - **The third pass rebuilt the skeleton**, with lane 3's frame split added,
+     and typechecked every fixture **as a whole file, `public` declarations at
+     file scope, with `-swift-version 6`**. The positive fixture exits 0. A
+     `Sendable` violation in an external `ProposalLayout` is an error in that
+     mode and a warning (exit 0) in Swift 5 mode, so the mode is observable. The
+     results are quoted in `SA-C`, `SA-F` and `SA-K`, and lane 1 adds a
+     `typecheckFile` helper with exactly this shape.
+   - Each time, the skeleton was deleted and `Sources/` restored with
+     `git checkout` (`git status --short` clean of `Sources/`).
 
 **What it costs if wrong.** Neither instrument proves the **real**
 implementation. Lane 1 re-prints every diagnostic from the real build and
 mutates each new guard red once, because guards skip silently when the modules
-directory is absent.
+directory is absent. The new `typecheckFile` helper's own instrument guard
+(`typecheckFileChecksInTheSwift6LanguageMode`) must redden when its
+`-swift-version 6` is deleted.
 
 ---
 
@@ -914,3 +1157,121 @@ directory is absent.
 **What it costs if wrong.** Nothing further. These are corrections already
 applied. They are recorded because practices ("Seven ways a *record* goes
 wrong") are assembled from exactly this kind of entry.
+
+---
+
+## SA-R — plan item (e)'s "compile-time" criterion is AMENDED, not met: the migration story is compile-checked for every spelling an external module writes, and a marker conformer's promise stays a run-time trap until plan task 3
+
+**The finding it answers.** The inventory's "Completion criteria for task 1"
+asks for "a compile-time migration story for external custom elements", and
+keeps task 2 open partly because "Nothing checks that a marker conformer
+registers native nodes" (`2026-09-12-swiftui-layout-replacement-inventory.md:211-223`).
+The second pass moved (e) to Done while its spec said that exact gap "stays
+unchecked". The critic called that ticking it quietly (`SA-S` finding 3).
+
+**The choice.** Item (e) is delivered under an **explicitly amended criterion**,
+and the amendment is written into the inventory and the plan with this ruling's
+id.
+
+- **What is compile-checked** (lane 1's guards, file scope, Swift 6 mode):
+  - an external leaf, container algorithm and container element build from
+    public API alone;
+  - a measurement proxy cannot place;
+  - no proxy can be constructed outside the kernel;
+  - legacy content is rejected by `ProposalLayoutContainer` and by
+    `callAsFunction`, in every call spelling;
+  - a fixed and a flexible frame dimension cannot be combined (lane 3).
+- **What is run-time-checked, by traps with named messages** (lane 2):
+  - a `ProposalElementGroup` conformer that registers a legacy node, inside any
+    proposal container ("contains a legacy node");
+  - a marker conformer over unconstrained content that hosts a legacy style
+    modifier ("setStyle on a native layout node"; evidence 9 of the spec shows
+    it compiles).
+- **What is not delivered:** a compile-time check that a marker conformer
+  registers native nodes. It moves to plan task 3's open proofs.
+
+**Why not deliver the compile-time check here.** The only mechanism that makes
+the compiler see which engine a node belongs to is a **typed node id**: native
+registrars return a `ProposalNodeID` with no public initializer, and
+`ProposalElementGroup` gains a requirement that returns it.
+
+- **What it touches.** The eleven public `LayoutPass.requestNative*`
+  registrars change their return and child types. Every proposal element in
+  `Sources/` (`NativeElements.swift`, `NativeModifiedContent.swift`,
+  `NativeOverlayModifier.swift`, `NativeTappable.swift`,
+  `ProposalScrollView.swift`, `ProposalText.swift`) and the 41 integration
+  tests change with them. The builder groups (`Pair`, `OptionalGroup`,
+  `ArrayGroup`, `EmptyGroup`) and `Component` each need a conditional
+  implementation of the new requirement.
+- **Why it still leaves a hole.** `Element.requestLayout` keeps returning an
+  untyped `LayoutNodeID`, because `Frame` renders every root through it. A
+  conformer can therefore still declare its own `requestLayout` that registers
+  a legacy node, so the typed requirement must be what proposal containers
+  call. That is a second layout entry point on every proposal element.
+- **Why task 3 owns it.** A second, typed layout entry point on the element
+  protocols is a change to how elements compose, which is exactly plan task
+  3's "typed modifier-composition foundation". Doing it in task 2 would
+  redesign the element protocols ahead of the task that specifies them, and
+  would change every proposal element's public signature twice.
+- **This sketch is unmeasured** beyond `SA-P`'s result that an `internal`
+  initializer is inaccessible from a plain import. Task 3 must build it, not
+  assume it.
+
+**What it costs if wrong.**
+
+- **Task 2 closes with a known hole.** A marker conformer that lies compiles.
+  The trap fires on first layout inside a proposal container, with a message
+  naming the rule, and lane 2's tests pin both traps. A conformer that lies
+  and is never placed in a proposal container is harmless: it is a legacy
+  element.
+- **If task 3 does not take it,** the amendment becomes permanent by neglect.
+  The plan's task 3 entry lists it as an open proof so that cannot happen
+  silently.
+
+**Mutations:** owed by lane 1 (the guards) and lane 2 (the two traps).
+
+---
+
+## SA-S — the critic's eighteen findings against `3bb1ca1`, and what each became
+
+A critic reviewed the second pass's commit through two lenses, SwiftUI parity
+and testability, re-ran one probe and five typecheck checks of its own, and
+edited nothing. This third pass took each finding in turn, re-ran probes where
+the finding was about behaviour, and changed the spec, this doc and both probe
+files. **Every finding is applied, with two exceptions:** finding 3 is applied
+by amendment rather than by the check it first proposed, and the first part of
+finding 4 is rejected, with reasons. Finding 4 raised three separate points, so
+it has three rows.
+
+| # | finding (short) | disposition | what changed, and the evidence |
+|---|---|---|---|
+| 1 | Priority through modifiers differs from SwiftUI; probe L too narrow | **applied** | Probe arms L2 (fifteen modifiers) and L3 (containers) added and run both ways. `.overlay` was the one MetalUI modifier that hid priority where SwiftUI does not. `nativeLayoutPriority` and the proxy now look through overlay attachments (`SA-D`), pinned by a new built-in test and new proxy arms. L3's single-child-stack pass-through is carried, pinned wrong on purpose (`SA-N` item 8). |
+| 2 | Placing twice runs the subtree twice; arm I cannot discriminate | **applied** | `place` records; each subtree is placed once after `placeSubviews` returns (`SA-E`, spec kernel changes 5–6). Probe J now counts the child's `placeSubviews` runs (1) with J2 as the counter's control (2), and K's log order shows SwiftUI defers. New test `aSubviewPlacedTwicePlacesItsSubtreeOnce`, mutation "recurse eagerly inside `place`". Arm I is no longer cited for centring. |
+| 3 | Item (e) ticked though the compile-time gap is only a run-time trap | **applied by amendment** | Not a compile-time check: `SA-R` amends the criterion explicitly, gives the typed-node-id design and its cost, and assigns it to task 3. The plan and inventory edits quote `SA-R`. |
+| 4a | Every "diag" row is logged and drawn by SwiftUI, and MetalUI traps | **rejected** | Kept as deliberate: a precondition names the parameter at registration, and relaxing a trap later is additive where tightening a clamp is breaking. Recorded in `SA-J`'s costs. |
+| 4b | `idealWidth: +∞` rejection contradicts "a measurement may be infinite" | **applied, rejection kept** | `SA-J`'s clause 2 is sharpened to "non-finite at a proposal with no infinite axis", which names why ideal +∞ is rejected and scopes the corollary to computed values. Accepting it was considered and rejected (`SA-J`). |
+| 4c | Fixed + flexible has no SwiftUI spelling but is a MetalUI run-time crash | **applied** | The element API splits into SwiftUI's two overloads (`SA-K` item 6); a negative guard pins it; the kernel keeps its one-axis precondition as a backstop. Measured: SwiftUI's diagnostic, MetalUI's five diagnostics on the skeleton, and a 993 suite run with the split. |
+| 5 | Depth parity claim false | **applied** | Claim deleted. `maxDepth` now follows legacy's 0.60 safety fraction over native ceilings, provisionally 96, bisected on lane 3's build across four kinds (`SA-L`). |
+| 6 | Positive guard runs in Swift 5 mode inside a function wrapper | **applied** | Skeleton rebuilt; all fixtures re-typechecked at file scope with `-swift-version 6`; the wrapper's failure on the file-scope fixture and the mode's observable `Sendable` difference measured. Lane 1 adds `typecheckFile` and an instrument guard for it (`SA-P`). |
+| 7 | Aspect-ratio predicate unprobed at negative and zero axes | **applied** | Probe P8c, 24 arms: the new predicate matches 24, today's 12; it also repairs positive ratios. New acceptance test (`SA-K` item 2). |
+| 8 | Anchor test cannot see transposed factors | **applied** | Probe K2 (`.topTrailing` (95, 125), `.leading` (125, 115)) and the two arms in the test. |
+| 9 | Guard mutation "drop `callAsFunction`'s constraint" is a no-op | **applied** | Confirmed on the real skeleton, and the two real mutations measured: struct-only reddens the container fixture; both redden all three (`SA-F`). |
+| 10 | `measuringANativeTreeWritesNoRect`'s mutation truncates; side claim wrong | **applied** | Mutation is now "`measureNativeLayout` also calls `placeNative`"; the wrong side claim is replaced by the reason it was wrong. |
+| 11 | Dropping the `defer { endLayout() }` truncates the run | **applied** | Mutation (A), `endLayout()` directly after `beginLayout()`, leaves in-process callers working and names every exit test it reddens; (B)'s truncation is recorded as its expected outcome, with a filtered run for the test's own red. |
+| 12 | Work assertion (2) cannot redden under "disable the cache" | **applied** | Compared with a hand-derived literal (`SA-M`). |
+| 13 | Once-per-proposal test can go red on a correct kernel | **applied** | Its `placeSubviews` now places child 0 at (50, 50); expected count 2. |
+| 14 | `theProposalModifiersAcceptWhatTheKernelAccepts` not an exit test | **applied** | Declared exit `.success`. |
+| 15 | Style-on-component test names an impossible root; reachable path misstated | **applied** | Renamed `…TrapsAtRegistration`, hosted in `Column`, with the call order that makes the fragment discriminate. `SA-G`'s reachable paths rewritten from measured typechecks, including the external-container path where `setStyle` is the only trap. |
+| 16 | Undiscriminated validation clauses and NaN arms | **applied, refined** | Maximum rule is `>= 0`. The NaN arms keep their tests and get NaN-blind spellings (`!(x < 0)`…) as their own mutations, rather than only "delete the whole precondition". |
+| 17 | Clause 7 overclaims | **applied** | `!isLayingOut` extended to every registration (one check in `appendNode`) and to `reset(generation:)`, with three new trap tests; clause 7 lists exactly what is checked and what is not. A suite run with the checks applied to both engines read 993. |
+| 18 | Lane 3 edits a sentence `ProposedSize.swift` does not contain | **applied** | Removed from lane 3's files and `SA-K`; the sentence lives only in the 2026-09-12 spec, which lane 3's docs owed already supersede. |
+| — | No-defect note: the re-fixture's in-closure `#expect` must change too | **applied** | `SA-K` item 5 and the spec name the (80, 60) → (70, 60) change. |
+
+**Counts after this pass, as designed** (the lanes re-measure): tests 993 →
+1010 → 1032 → 1084; guards 39 → 44 → 44 → 45. The second pass's design gave
+1076 and 43.
+
+**What it costs if wrong.** This table is the record of a review. If a row says
+"applied" and the spec does not carry the change, the review's finding is
+silently lost. Each row names where the change lives so that can be checked.
+

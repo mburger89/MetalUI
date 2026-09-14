@@ -46,6 +46,12 @@
 // first run in this pass. `/usr/bin/swift <file>` was re-run on the final file
 // and matched every non-diagnostic line.
 //
+// P8c was ADDED by a third pass (2026-09-14, answering a critic's review) and
+// the whole file re-run both ways on the same toolchains: exit 0 both ways, the
+// compiled run still shows exactly 22 diagnostic lines (none in P8c), every line
+// above P8c is identical to the second pass's record, and `diff` of the
+// non-diagnostic lines of the two forms is empty.
+//
 //   RUN P1 control HStack(spacing: 10) {20;20}
 //   P1 control HStack(spacing: 10) {20;20}: 50.0x20.0
 //   RUN P1 HStack(spacing: -10) {20;20}
@@ -254,6 +260,54 @@
 //       placed inner at (-inf, -inf, 20.0, 20.0)
 //   RUN P4d frame(idealWidth: .infinity) offered 100
 //   P4d frame(idealWidth: .infinity) offered 100: 20.0x20.0
+//   RUN P8c Color.aspectRatio(2.0, .fit) offered 100.0x-10.0
+//   P8c Color.aspectRatio(2.0, .fit) offered 100.0x-10.0: -20.0x-10.0
+//   RUN P8c Color.aspectRatio(-2.0, .fit) offered 100.0x-10.0
+//   P8c Color.aspectRatio(-2.0, .fit) offered 100.0x-10.0: 100.0x-50.0
+//   RUN P8c Color.aspectRatio(2.0, .fill) offered 100.0x-10.0
+//   P8c Color.aspectRatio(2.0, .fill) offered 100.0x-10.0: 100.0x50.0
+//   RUN P8c Color.aspectRatio(-2.0, .fill) offered 100.0x-10.0
+//   P8c Color.aspectRatio(-2.0, .fill) offered 100.0x-10.0: 20.0x-10.0
+//   RUN P8c Color.aspectRatio(2.0, .fit) offered 100.0x0.0
+//   P8c Color.aspectRatio(2.0, .fit) offered 100.0x0.0: 0.0x0.0
+//   RUN P8c Color.aspectRatio(-2.0, .fit) offered 100.0x0.0
+//   P8c Color.aspectRatio(-2.0, .fit) offered 100.0x0.0: 100.0x-50.0
+//   RUN P8c Color.aspectRatio(2.0, .fill) offered 100.0x0.0
+//   P8c Color.aspectRatio(2.0, .fill) offered 100.0x0.0: 100.0x50.0
+//   RUN P8c Color.aspectRatio(-2.0, .fill) offered 100.0x0.0
+//   P8c Color.aspectRatio(-2.0, .fill) offered 100.0x0.0: -0.0x0.0
+//   RUN P8c Color.aspectRatio(2.0, .fit) offered -100.0x80.0
+//   P8c Color.aspectRatio(2.0, .fit) offered -100.0x80.0: -100.0x-50.0
+//   RUN P8c Color.aspectRatio(-2.0, .fit) offered -100.0x80.0
+//   P8c Color.aspectRatio(-2.0, .fit) offered -100.0x80.0: -100.0x50.0
+//   RUN P8c Color.aspectRatio(2.0, .fill) offered -100.0x80.0
+//   P8c Color.aspectRatio(2.0, .fill) offered -100.0x80.0: 160.0x80.0
+//   RUN P8c Color.aspectRatio(-2.0, .fill) offered -100.0x80.0
+//   P8c Color.aspectRatio(-2.0, .fill) offered -100.0x80.0: -160.0x80.0
+//   RUN P8c Color.aspectRatio(2.0, .fit) offered 0.0x80.0
+//   P8c Color.aspectRatio(2.0, .fit) offered 0.0x80.0: 0.0x0.0
+//   RUN P8c Color.aspectRatio(-2.0, .fit) offered 0.0x80.0
+//   P8c Color.aspectRatio(-2.0, .fit) offered 0.0x80.0: 0.0x-0.0
+//   RUN P8c Color.aspectRatio(2.0, .fill) offered 0.0x80.0
+//   P8c Color.aspectRatio(2.0, .fill) offered 0.0x80.0: 160.0x80.0
+//   RUN P8c Color.aspectRatio(-2.0, .fill) offered 0.0x80.0
+//   P8c Color.aspectRatio(-2.0, .fill) offered 0.0x80.0: -160.0x80.0
+//   RUN P8c Color.aspectRatio(2.0, .fit) offered -100.0x-80.0
+//   P8c Color.aspectRatio(2.0, .fit) offered -100.0x-80.0: -160.0x-80.0
+//   RUN P8c Color.aspectRatio(-2.0, .fit) offered -100.0x-80.0
+//   P8c Color.aspectRatio(-2.0, .fit) offered -100.0x-80.0: 160.0x-80.0
+//   RUN P8c Color.aspectRatio(2.0, .fill) offered -100.0x-80.0
+//   P8c Color.aspectRatio(2.0, .fill) offered -100.0x-80.0: -100.0x-50.0
+//   RUN P8c Color.aspectRatio(-2.0, .fill) offered -100.0x-80.0
+//   P8c Color.aspectRatio(-2.0, .fill) offered -100.0x-80.0: -100.0x50.0
+//   RUN P8c Color.aspectRatio(2.0, .fit) offered -100.0x-10.0
+//   P8c Color.aspectRatio(2.0, .fit) offered -100.0x-10.0: -100.0x-50.0
+//   RUN P8c Color.aspectRatio(-2.0, .fit) offered -100.0x-10.0
+//   P8c Color.aspectRatio(-2.0, .fit) offered -100.0x-10.0: 20.0x-10.0
+//   RUN P8c Color.aspectRatio(2.0, .fill) offered -100.0x-10.0
+//   P8c Color.aspectRatio(2.0, .fill) offered -100.0x-10.0: -20.0x-10.0
+//   RUN P8c Color.aspectRatio(-2.0, .fill) offered -100.0x-10.0
+//   P8c Color.aspectRatio(-2.0, .fill) offered -100.0x-10.0: -100.0x50.0
 //
 // P2c with --nan-padding, run separately in this pass: exit 133 (SIGTRAP), and
 // the last lines are
@@ -289,6 +343,17 @@
 //   for .fit and `>=` for .fill, and is NOT `width / height <= ratio` once the
 //   ratio is negative; maxWidth +inf (100 at a 100 proposal, the child's 20 at
 //   nil); idealWidth +inf under a CONCRETE proposal (P4d: the child's 20).
+// - P8c, the two-axis aspect-ratio branch at ZERO and NEGATIVE proposal axes,
+//   for ratio 2 AND -2, .fit and .fill (24 arms). Every one of the 24 answers is
+//   the branch `width / ratio <= height` picks for .fit (`>=` for .fill): the
+//   width branch answers (width, width / ratio), the height branch
+//   (height * ratio, height). The predicate `width / height <= ratio` agrees
+//   with only 12 of them, and it is wrong for a POSITIVE ratio too once an axis
+//   is negative or zero: 2 .fit at 100 x -10 answers -20 x -10 (height branch),
+//   where `width / height <= ratio` picks the width branch and gives 100 x 50;
+//   2 .fill at -100 x -80 answers -100 x -50; -2 .fit at 100 x 0 answers
+//   100 x -50. So SA-K's predicate is SwiftUI's on every proposal probed, not
+//   only for ratio > 0 and height > 0.
 // - P2b, where negative padding PLACES its child: always at the padding's own
 //   origin plus the leading/top inset (195 at -5, 185 at -15, 170 at leading
 //   -30), and always at the CHILD's own size (20x20), never at the padding's
@@ -481,6 +546,16 @@ struct Flex80: View {
     }
     // P4d an infinite ideal under a CONCRETE proposal. Control: P4b's nil arm (inf).
     run("P4d frame(idealWidth: .infinity) offered 100", ProposedViewSize(width: 100, height: 100)) { square().frame(idealWidth: .infinity) }
+    // P8c the two-axis branch at ZERO and NEGATIVE proposal axes, where
+    // `width / height <= ratio` and `width / ratio <= height` can disagree for a
+    // POSITIVE ratio. Control: P8's 2 .fit at 100x80 -> 100x50.
+    for (w, h) in [(100.0, -10.0), (100.0, 0.0), (-100.0, 80.0), (0.0, 80.0), (-100.0, -80.0), (-100.0, -10.0)] {
+        for mode in [ContentMode.fit, .fill] {
+            for ratio in [2.0, -2.0] {
+                run("P8c Color.aspectRatio(\(ratio), .\(mode == .fit ? "fit" : "fill")) offered \(w)x\(h)", ProposedViewSize(width: w, height: h)) { SwiftUI.Color.red.aspectRatio(ratio, contentMode: mode) }
+            }
+        }
+    }
 
 }
 
