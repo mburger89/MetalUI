@@ -88,6 +88,32 @@ private struct NativeFlexibleProbe: Element {
 
 extension NativeFlexibleProbe: ProposalElementGroup {}
 
+/// The vertical counterpart of ``NativeFlexibleProbe``. It is kept separate
+/// so each priority test makes the flexible axis explicit.
+private struct NativeVerticallyFlexibleProbe: Element {
+    let idealHeight: Double
+    let probe: NativeLayoutProbe
+    let name: String
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        let node = pass.requestNativeLeaf { proposal in
+            probe.proposals.append(proposal)
+            return LayoutMeasurement(size: SizeD(width: 10, height: Swift.min(idealHeight, proposal.height ?? idealHeight)))
+        }
+        return (node, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                  pass: inout PrepaintPass) {
+        probe.boundsByName[name] = bounds
+    }
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+               prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+extension NativeVerticallyFlexibleProbe: ProposalElementGroup {}
+
 private struct NativeFillProbe: Element {
     let probe: NativeLayoutProbe
 
@@ -223,6 +249,44 @@ extension NativeProposalProbe: ProposalElementGroup {}
                                                     size: Size(width: Pixels(80), height: Pixels(10))))
     #expect(probe.boundsByName["second"] == Bounds(origin: Point(x: Pixels(80), y: Pixels(0)),
                                                      size: Size(width: Pixels(20), height: Pixels(10))))
+}
+
+/// The vertical custom-Layout probe produces the same 50/50 allocation as
+/// HStack for equal-priority flexible children under a 100pt proposal.
+@MainActor
+@Test func vStackDividesAConstrainedProposalAmongEqualPriorityFlexibleChildren() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(10), height: Pixels(100)), scaleFactor: 1)
+    var root = VStack(spacing: Pixels(0)) {
+        NativeVerticallyFlexibleProbe(idealHeight: 80, probe: probe, name: "first")
+        NativeVerticallyFlexibleProbe(idealHeight: 80, probe: probe, name: "second")
+    }
+
+    frame.render(&root)
+
+    #expect(probe.boundsByName["first"] == Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                                                    size: Size(width: Pixels(10), height: Pixels(50))))
+    #expect(probe.boundsByName["second"] == Bounds(origin: Point(x: Pixels(0), y: Pixels(50)),
+                                                     size: Size(width: Pixels(10), height: Pixels(50))))
+}
+
+/// The vertical probe gives the priority-one first child its 80pt ideal height
+/// before it proposes the remaining 20pt to the default-priority sibling.
+@MainActor
+@Test func vStackHonoursHigherLayoutPriorityBeforeCompressingItsSibling() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(10), height: Pixels(100)), scaleFactor: 1)
+    var root = VStack(spacing: Pixels(0)) {
+        NativeVerticallyFlexibleProbe(idealHeight: 80, probe: probe, name: "first").layoutPriority(1)
+        NativeVerticallyFlexibleProbe(idealHeight: 80, probe: probe, name: "second")
+    }
+
+    frame.render(&root)
+
+    #expect(probe.boundsByName["first"] == Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
+                                                    size: Size(width: Pixels(10), height: Pixels(80))))
+    #expect(probe.boundsByName["second"] == Bounds(origin: Point(x: Pixels(0), y: Pixels(80)),
+                                                     size: Size(width: Pixels(10), height: Pixels(20))))
 }
 
 /// The companion macOS SwiftUI probe hosts 20 by 10 and 20 by 30 children in
