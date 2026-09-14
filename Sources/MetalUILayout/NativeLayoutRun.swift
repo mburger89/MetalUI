@@ -33,6 +33,12 @@ final class NativeLayoutRun {
     var measureDepth = 0
 
     init(tree: LayoutTree) { self.tree = tree }
+
+    /// Every subview-proxy member calls this first, so a proxy that escaped
+    /// its call traps with attribution instead of measuring a finished run.
+    func requireActive() {
+        precondition(isActive, "a layout subview outlived its layout run")
+    }
 }
 
 /// One cache entry's key: a node at one proposal. Proposal equality is

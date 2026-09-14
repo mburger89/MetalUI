@@ -399,12 +399,19 @@ public final class LayoutTree {
         return node
     }
 
-    private func measureNative(_ id: LayoutNodeID, proposal: ProposedSize,
-                               run: NativeLayoutRun)
+    /// One node's answer to one proposal, memoized in `run` (ruling SA-H).
+    ///
+    /// Internal rather than private so subview proxies (`ProposalLayout.swift`)
+    /// measure through the same cache. `run.measureDepth` is raised around
+    /// every body, built-in or custom, so a `PlacementSubview` used from inside
+    /// any measurement traps (ruling SA-C).
+    func measureNative(_ id: LayoutNodeID, proposal: ProposedSize,
+                       run: NativeLayoutRun)
         -> LayoutMeasurement {
         let key = NativeMeasurementKey(id: id, proposal: proposal)
         if let cached = run.cache[key] { return cached }
 
+        run.measureDepth += 1
         let result: LayoutMeasurement
         switch nativeNode(id) {
         case .leaf(let measure):
@@ -476,8 +483,9 @@ public final class LayoutTree {
                                         proposal: scrollContentProposal(for: axis, parent: proposal),
                                         run: run)
             result = LayoutMeasurement(size: scrollViewportSize(proposal: proposal, content: content.size))
-        case .custom:
-            result = LayoutMeasurement(size: .zero)
+        case .custom(let layout):
+            result = layout.sizeThatFits(proposal: proposal,
+                                         subviews: MeasurementSubviews(run: run, nodes: children(id)))
         case .linearStack(let axis, let spacing, _):
             let childProposal = stackChildProposal(for: axis, parent: proposal)
             let childMeasurements = children(id).map {
@@ -502,6 +510,7 @@ public final class LayoutTree {
                 )
             }
         }
+        run.measureDepth -= 1
         run.cache[key] = result
         return result
     }
@@ -513,8 +522,8 @@ public final class LayoutTree {
         switch nativeNode(id) {
         case .leaf, .spacer:
             return
-        case .custom:
-            return
+        case .custom(let layout):
+            placeCustom(id, layout: layout, in: bounds, proposal: proposal, run: run)
         case .overlay(let alignment):
             for child in children(id) {
                 let measurement = measureNative(child, proposal: proposal, run: run)
@@ -624,6 +633,46 @@ public final class LayoutTree {
                     cursor += measurement.size.height + spacing
                 }
                 placeNative(child, in: childBounds, proposal: constrainedProposal, run: run)
+            }
+        }
+    }
+
+    /// Places a `ProposalLayout` node's children (ruling SA-E).
+    ///
+    /// `placeSubviews` only records placements; each child's subtree is placed
+    /// here, once, after it returns, in index order. A recorded child is stored
+    /// at its answer to the record's proposal, offset from the record's
+    /// position by the anchor's factors times that answer; an unrecorded child
+    /// is measured at the parent's proposal and centred in `bounds` (probe I2).
+    private func placeCustom(_ id: LayoutNodeID, layout: any ProposalLayout,
+                             in bounds: LayoutRect, proposal: ProposedSize,
+                             run: NativeLayoutRun) {
+        let nodes = children(id)
+        let records = NativePlacementRecords(count: nodes.count)
+        let token = run.nextPlacementToken
+        run.nextPlacementToken += 1
+        let enclosing = run.activePlacement
+        run.activePlacement = token
+        layout.placeSubviews(in: bounds, proposal: proposal,
+                             subviews: PlacementSubviews(run: run, nodes: nodes, token: token,
+                                                         records: records))
+        run.activePlacement = enclosing
+
+        for (index, child) in nodes.enumerated() {
+            if let record = records.records[index] {
+                let size = measureNative(child, proposal: record.proposal, run: run).size
+                placeNative(child,
+                            in: LayoutRect(x: record.position.x - record.anchor.horizontalFactor * size.width,
+                                           y: record.position.y - record.anchor.verticalFactor * size.height,
+                                           width: size.width, height: size.height),
+                            proposal: record.proposal, run: run)
+            } else {
+                let size = measureNative(child, proposal: proposal, run: run).size
+                placeNative(child,
+                            in: LayoutRect(x: bounds.x + (bounds.width - size.width) * 0.5,
+                                           y: bounds.y + (bounds.height - size.height) * 0.5,
+                                           width: size.width, height: size.height),
+                            proposal: proposal, run: run)
             }
         }
     }

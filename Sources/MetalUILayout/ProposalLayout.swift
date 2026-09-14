@@ -42,10 +42,11 @@ public struct MeasurementSubviews: RandomAccessCollection {
         self.nodes = nodes
     }
 
-    public var startIndex: Int { 0 }
-    public var endIndex: Int { 0 }
+    public var startIndex: Int { run.requireActive(); return nodes.startIndex }
+    public var endIndex: Int { run.requireActive(); return nodes.endIndex }
     public subscript(position: Int) -> MeasurementSubview {
-        MeasurementSubview(run: run, node: nodes[position])
+        run.requireActive()
+        return MeasurementSubview(run: run, node: nodes[position])
     }
 }
 
@@ -60,10 +61,33 @@ public struct MeasurementSubview {
         self.node = node
     }
 
-    public var priority: Double { 0 }
-    public var isSpacer: Bool { false }
+    /// The value of a `layoutPriority` node that IS this subview, looking
+    /// through any depth of overlay attachments (`.overlay`) to their primary
+    /// child, else 0: the built-in stack's own rule (ruling SA-D). A priority
+    /// under `frame`, `padding`, `aspectRatio`, `fixedSize` or inside a
+    /// container reads 0, as in SwiftUI (probes L, L2), except that a
+    /// single-child stack also reads 0 where SwiftUI passes its child's through
+    /// (probe L3, carried as SA-N item 8).
+    public var priority: Double {
+        run.requireActive()
+        return run.tree.nativeLayoutPriority(node)
+    }
+
+    /// True for a spacer node, directly or under any depth of `layoutPriority`
+    /// nodes, and never through `frame`, padding, an overlay attachment or any
+    /// other wrapper: the built-in stack's `isNativeSpacer` rule (ruling SA-D).
+    /// SwiftUI exposes no such test (probes E, E2).
+    public var isSpacer: Bool {
+        run.requireActive()
+        return run.tree.isNativeSpacer(node)
+    }
+
+    /// This subview's answer to `proposal`, through the run's cache: its
+    /// measurement body runs once per distinct proposal per layout call
+    /// (ruling SA-H clause 2).
     public func sizeThatFits(_ proposal: ProposedSize) -> LayoutMeasurement {
-        LayoutMeasurement(size: .zero)
+        run.requireActive()
+        return run.tree.measureNative(node, proposal: proposal, run: run)
     }
 }
 
@@ -82,11 +106,12 @@ public struct PlacementSubviews: RandomAccessCollection {
         self.records = records
     }
 
-    public var startIndex: Int { 0 }
-    public var endIndex: Int { 0 }
+    public var startIndex: Int { run.requireActive(); return nodes.startIndex }
+    public var endIndex: Int { run.requireActive(); return nodes.endIndex }
     public subscript(position: Int) -> PlacementSubview {
-        PlacementSubview(run: run, node: nodes[position], index: position,
-                         token: token, records: records)
+        run.requireActive()
+        return PlacementSubview(run: run, node: nodes[position], index: position,
+                                token: token, records: records)
     }
 }
 
@@ -107,15 +132,50 @@ public struct PlacementSubview {
         self.records = records
     }
 
-    public var priority: Double { 0 }
-    public var isSpacer: Bool { false }
-    public func sizeThatFits(_ proposal: ProposedSize) -> LayoutMeasurement {
-        LayoutMeasurement(size: .zero)
+    /// The same rule as `MeasurementSubview.priority`.
+    public var priority: Double {
+        run.requireActive()
+        return run.tree.nativeLayoutPriority(node)
     }
 
+    /// The same rule as `MeasurementSubview.isSpacer`.
+    public var isSpacer: Bool {
+        run.requireActive()
+        return run.tree.isNativeSpacer(node)
+    }
+
+    /// The same cached measurement as `MeasurementSubview.sizeThatFits(_:)`.
+    /// Asking here places nothing.
+    public func sizeThatFits(_ proposal: ProposedSize) -> LayoutMeasurement {
+        run.requireActive()
+        return run.tree.measureNative(node, proposal: proposal, run: run)
+    }
+
+    /// Records a placement. After `placeSubviews` returns, the subview is
+    /// stored at its answer to `proposal`, offset from `position` by
+    /// `anchor`'s factors times that size (probes K, K2), and its subtree is
+    /// placed once. A later call for the same subview replaces the record
+    /// (probe J). Nothing is measured or placed by this call itself.
+    ///
+    /// **Why deferred** (ruling SA-E): an eager `place` would run a
+    /// twice-placed subtree's own `placeSubviews` twice, which SwiftUI never
+    /// does (probe J), and doubles the work per level of a chain of layouts
+    /// that each re-place a child.
+    ///
+    /// Traps when used outside its own `placeSubviews` call or while any
+    /// measurement body runs (ruling SA-C's dynamic backstop behind the static
+    /// one, `MeasurementSubview` having no `place`).
     public func place(at position: Point<Double>,
                       anchor: ProposalAlignment = .topLeading,
-                      proposal: ProposedSize) {}
+                      proposal: ProposedSize) {
+        run.requireActive()
+        precondition(token == run.activePlacement,
+                     "a PlacementSubview was used outside its placeSubviews call")
+        precondition(run.measureDepth == 0,
+                     "a PlacementSubview was used during measurement")
+        records.records[index] = NativePlacementRecord(position: position, anchor: anchor,
+                                                       proposal: proposal)
+    }
 }
 
 /// One recorded `place` call.
