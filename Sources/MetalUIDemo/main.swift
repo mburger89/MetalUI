@@ -892,10 +892,10 @@ private struct NativePreviewToggle: Component {
     var elementID: ElementID? { ElementID("native-preview-toggle") }
 
     var content: some ElementGroup {
-        NativeRectangle(width: Pixels(168), height: Pixels(64),
+        Rectangle(width: Pixels(168), height: Pixels(64),
                         color: isSelected ? .separator : .accent)
             .overlay(alignment: .topTrailing) {
-                NativeRectangle(width: Pixels(20), height: Pixels(20),
+                Rectangle(width: Pixels(20), height: Pixels(20),
                                 color: isSelected ? .accent : .separator)
             }
             .opacity(0.72)
@@ -905,22 +905,22 @@ private struct NativePreviewToggle: Component {
 
 @MainActor
 func nativeLayoutPreviewContent() -> some Element {
-    NativeOverlay {
-        NativeColorFill(.background)
-        NativeOverlay {
-            NativeColorFill(.surface)
-            NativeColumn(spacing: Pixels(20), alignment: .leading) {
-                NativeRow(spacing: Pixels(16)) {
-                    NativeRectangle(width: Pixels(72), height: Pixels(72), color: .accent)
-                    NativeRectangle(width: Pixels(420), height: Pixels(18), color: .surfaceSecondary)
+    ZStack {
+        Color(.background)
+        ZStack {
+            Color(.surface)
+            VStack(spacing: Pixels(20), alignment: .leading) {
+                HStack(spacing: Pixels(16)) {
+                    Rectangle(width: Pixels(72), height: Pixels(72), color: .accent)
+                    Rectangle(width: Pixels(420), height: Pixels(18), color: .surfaceSecondary)
                 }
-                NativeSpacer()
-                NativeRow(spacing: Pixels(12)) {
-                    NativeRectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
+                Spacer()
+                HStack(spacing: Pixels(12)) {
+                    Rectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
                     NativePreviewToggle()
                     // This dimmed control is intentionally inert: it exercises
                     // `allowsHitTesting(false)` around an inner gesture.
-                    NativeRectangle(width: Pixels(168), height: Pixels(64), color: .accent)
+                    Rectangle(width: Pixels(168), height: Pixels(64), color: .accent)
                         .opacity(0.35)
                         .onTap {}
                         .allowsHitTesting(false)

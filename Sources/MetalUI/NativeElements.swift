@@ -8,7 +8,7 @@ import MetalUILayout
 /// structural: attempting to place a legacy element here traps when the layout
 /// pass registers the stack, instead of silently handing a CSS child to the
 /// native algorithm.
-public struct NativeRow<Content: ElementGroup>: Element {
+public struct HStack<Content: ElementGroup>: Element {
     public var content: Content
     public var spacing: Pixels
     public var alignment: NativeAlignment
@@ -50,7 +50,7 @@ public struct NativeRow<Content: ElementGroup>: Element {
 }
 
 /// A native proposal-layout vertical stack.
-public struct NativeColumn<Content: ElementGroup>: Element {
+public struct VStack<Content: ElementGroup>: Element {
     public var content: Content
     public var spacing: Pixels
     public var alignment: NativeAlignment
@@ -92,7 +92,7 @@ public struct NativeColumn<Content: ElementGroup>: Element {
 }
 
 /// A native proposal-layout overlay, analogous to SwiftUI's `ZStack`.
-public struct NativeOverlay<Content: ElementGroup>: Element {
+public struct ZStack<Content: ElementGroup>: Element {
     public var content: Content
     public var alignment: NativeAlignment
 
@@ -128,6 +128,18 @@ public struct NativeOverlay<Content: ElementGroup>: Element {
         content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
     }
 }
+
+/// Temporary source-compatible name for ``HStack``.
+@available(*, deprecated, renamed: "HStack")
+public typealias NativeRow<Content: ElementGroup> = HStack<Content>
+
+/// Temporary source-compatible name for ``VStack``.
+@available(*, deprecated, renamed: "VStack")
+public typealias NativeColumn<Content: ElementGroup> = VStack<Content>
+
+/// Temporary source-compatible name for ``ZStack``.
+@available(*, deprecated, renamed: "ZStack")
+public typealias NativeOverlay<Content: ElementGroup> = ZStack<Content>
 
 /// A native outer frame. Its content must contribute exactly one native node.
 public struct NativeFrame<Content: ElementGroup>: Element {
@@ -316,8 +328,8 @@ public struct NativeFixedSize<Content: ElementGroup>: Element {
     }
 }
 
-/// A flexible native-layout spacer for use inside ``NativeRow``.
-public struct NativeSpacer: Element {
+/// A flexible proposal-layout spacer for use inside ``HStack``.
+public struct Spacer: Element {
     public var minLength: Pixels?
 
     public init(minLength: Pixels? = nil) {
@@ -344,7 +356,7 @@ public struct NativeSpacer: Element {
 /// It is deliberately small: fixed dimensions and a semantic fill are enough
 /// to exercise native measurement, placement, and paint in a real frame while
 /// Text and the existing styled-element surface migrate separately.
-public struct NativeRectangle: Element {
+public struct Rectangle: Element {
     public var width: Pixels
     public var height: Pixels
     public var color: ColorToken
@@ -379,7 +391,7 @@ public struct NativeRectangle: Element {
 /// an overlay can offer it the window's current size and it responds with that
 /// size, rather than retaining an initial fixed canvas. Unspecified axes stay
 /// zero so the fill does not manufacture intrinsic size in a stack.
-public struct NativeColorFill: Element {
+public struct Color: Element {
     public var color: ColorToken
 
     public init(_ color: ColorToken) {
@@ -406,3 +418,15 @@ public struct NativeColorFill: Element {
         pass.fill(bounds, color: pass.theme[color], cornerRadii: Corners(all: Pixels(0)))
     }
 }
+
+/// Temporary source-compatible name for ``Spacer``.
+@available(*, deprecated, renamed: "Spacer")
+public typealias NativeSpacer = Spacer
+
+/// Temporary source-compatible name for ``Rectangle``.
+@available(*, deprecated, renamed: "Rectangle")
+public typealias NativeRectangle = Rectangle
+
+/// Temporary source-compatible name for ``Color``.
+@available(*, deprecated, renamed: "Color")
+public typealias NativeColorFill = Color

@@ -148,6 +148,14 @@ modifier placement from names alone.
   exercises the paint wrappers. This is migration evidence for tasks 2–5, not
   completion: the established public `.frame`, direct sizing APIs, and ordinary
   legacy elements still route through the CSS-derived engine.
+- The proposal-layout preview and its new interaction/paint surface use the
+  canonical SwiftUI-facing vocabulary: `HStack`, `VStack`, `ZStack`, `Spacer`,
+  `Rectangle`, `Color`, `ModifiedContent`, `LayoutModifier`, `.onTap`,
+  `.allowsHitTesting`, `.opacity`, `.padding`, `.background`, `.border`,
+  `.clip`, `.fixedSize`, and `.overlay`. Their `Native…`/`native…`
+  predecessors remain deprecated source-compatible migration aliases; the
+  direct legacy `.frame(width:height:)` is still a distinct CSS-era path and
+  needs its own replacement rather than being silently conflated with this one.
 - Ordinary element padding now wraps its content; `Component` padding remains
   a separately measured distribution case. Task 5 decides the complete
   modifier matrix.

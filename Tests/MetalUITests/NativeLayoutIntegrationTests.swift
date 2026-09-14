@@ -109,12 +109,12 @@ private struct NativeProposalProbe: Element {
 }
 
 @MainActor
-@Test func aPublicNativeRowFormsAnAllNativeSubtreeAndPlacesItsSpacer() {
+@Test func aPublicHStackFormsAnAllProposalLayoutSubtreeAndPlacesItsSpacer() {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(40)), scaleFactor: 1)
-    var root = NativeRow(spacing: Pixels(5)) {
+    var root = HStack(spacing: Pixels(5)) {
         NativeProbeLeaf(size: SizeD(width: 30, height: 10), probe: probe, name: "leading")
-        NativeSpacer(minLength: Pixels(10))
+        Spacer(minLength: Pixels(10))
         NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
     }
 
@@ -131,9 +131,9 @@ private struct NativeProposalProbe: Element {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
     var root = NativeFrame(width: Pixels(100), height: Pixels(80)) {
         NativePadding(Edges(top: Pixels(10), right: Pixels(20), bottom: Pixels(10), left: Pixels(20))) {
-            NativeColumn(spacing: Pixels(5)) {
+            VStack(spacing: Pixels(5)) {
                 NativeProbeLeaf(size: SizeD(width: 30, height: 10), probe: probe, name: "leading")
-                NativeSpacer(minLength: Pixels(10))
+                Spacer(minLength: Pixels(10))
                 NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
             }
         }
@@ -152,8 +152,8 @@ private struct NativeProposalProbe: Element {
     let expandedProbe = NativeLayoutProbe()
     let compactFrame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
     let expandedFrame = Frame(contentSize: Size(width: Pixels(240), height: Pixels(160)), scaleFactor: 1)
-    var compactRoot = NativeOverlay { NativeFillProbe(probe: compactProbe) }
-    var expandedRoot = NativeOverlay { NativeFillProbe(probe: expandedProbe) }
+    var compactRoot = ZStack { NativeFillProbe(probe: compactProbe) }
+    var expandedRoot = ZStack { NativeFillProbe(probe: expandedProbe) }
 
     compactFrame.render(&compactRoot)
     expandedFrame.render(&expandedRoot)
@@ -162,7 +162,7 @@ private struct NativeProposalProbe: Element {
                                                   size: Size(width: Pixels(100), height: Pixels(80))))
     #expect(expandedProbe.prepaintBounds == Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
                                                    size: Size(width: Pixels(240), height: Pixels(160))))
-    #expect(NativeColorFill.measurement(for: ProposedSize(width: 240, height: 160)).size ==
+    #expect(Color.measurement(for: ProposedSize(width: 240, height: 160)).size ==
             SizeD(width: 240, height: 160))
 }
 
@@ -190,7 +190,7 @@ private struct NativeProposalProbe: Element {
 @Test func fixedSizeModifierWithholdsOnlyItsSelectedAxisFromTheChildProposal() {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
-    var root = NativeOverlay {
+    var root = ZStack {
         NativeProposalProbe(expectedProposal: ProposedSize(width: nil, height: 80), probe: probe)
             .fixedSize(horizontal: true, vertical: false)
     }
@@ -205,12 +205,12 @@ private struct NativeProposalProbe: Element {
     let secondProbe = NativeLayoutProbe()
     let firstFrame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
     let secondFrame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
-    var first = NativeOverlay {
+    var first = ZStack {
         NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: firstProbe, name: "trailing")
             .nativeFrame(width: Pixels(80), height: Pixels(50), alignment: .topLeading)
             .nativeFrame(width: Pixels(40), height: Pixels(30), alignment: .bottomTrailing)
     }
-    var second = NativeOverlay {
+    var second = ZStack {
         NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: secondProbe, name: "trailing")
             .nativeFrame(width: Pixels(40), height: Pixels(30), alignment: .bottomTrailing)
             .nativeFrame(width: Pixels(80), height: Pixels(50), alignment: .topLeading)
@@ -229,7 +229,7 @@ private struct NativeProposalProbe: Element {
 @Test func builderNativeFrameExposesTheSharedFlexibleSizingSurface() {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(120), height: Pixels(80)), scaleFactor: 1)
-    var root = NativeOverlay {
+    var root = ZStack {
         NativeFrame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity)) {
             NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
         }
@@ -265,8 +265,8 @@ private struct NativeProposalProbe: Element {
 @Test func nativeBackgroundWrapsTheResolvedOuterBoundsAndPaintsBeforeItsContent() {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1,
                       theme: .light)
-    var root = NativeOverlay {
-        NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
+    var root = ZStack {
+        Rectangle(width: Pixels(20), height: Pixels(10), color: .accent)
             .padding(Edges(all: Pixels(5)))
             .background(.surface)
     }
@@ -291,9 +291,9 @@ private struct NativeProposalProbe: Element {
 @Test func builderNativeBackgroundPaintsBeneathItsNativeChild() {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1,
                       theme: .light)
-    var root = NativeOverlay {
+    var root = ZStack {
         NativeBackground(.surface) {
-            NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
+            Rectangle(width: Pixels(20), height: Pixels(10), color: .accent)
         }
     }
 
@@ -308,10 +308,10 @@ private struct NativeProposalProbe: Element {
 @MainActor
 @Test func nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt() {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
-    var root = NativeOverlay {
-        NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
+    var root = ZStack {
+        Rectangle(width: Pixels(20), height: Pixels(10), color: .accent)
             .overlay(alignment: .bottomTrailing) {
-                NativeRectangle(width: Pixels(50), height: Pixels(40), color: .separator)
+                Rectangle(width: Pixels(50), height: Pixels(40), color: .separator)
             }
     }
 
@@ -332,8 +332,8 @@ private struct NativeProposalProbe: Element {
 @MainActor
 @Test func nativeClipMasksOverflowingContentToItsOuterFrame() {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
-    var root = NativeOverlay {
-        NativeRectangle(width: Pixels(50), height: Pixels(40), color: .accent)
+    var root = ZStack {
+        Rectangle(width: Pixels(50), height: Pixels(40), color: .accent)
             .nativeFrame(width: Pixels(20), height: Pixels(10))
             .clip(cornerRadius: Pixels(3))
     }
@@ -354,8 +354,8 @@ private struct NativeProposalProbe: Element {
 @Test func nativeBorderPaintsOverContentWithoutChangingItsFrame() {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 2,
                       theme: .light)
-    var root = NativeOverlay {
-        NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
+    var root = ZStack {
+        Rectangle(width: Pixels(20), height: Pixels(10), color: .accent)
             .border(.separator, width: Pixels(2), cornerRadius: Pixels(3))
     }
 
@@ -377,8 +377,8 @@ private struct NativeProposalProbe: Element {
 @Test func opacityMultipliesItsDescendantsPaintAlpha() {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1,
                       theme: .light)
-    var root = NativeOverlay {
-        NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
+    var root = ZStack {
+        Rectangle(width: Pixels(20), height: Pixels(10), color: .accent)
             .opacity(0.35)
     }
 
@@ -391,10 +391,10 @@ private struct NativeProposalProbe: Element {
 @MainActor
 @Test func onTapRegistersTheResolvedNativeBoundsAsAHittableTarget() {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
-    let stored: OnTapModifier<NativeRectangle> = NativeRectangle(
+    let stored: OnTapModifier<Rectangle> = Rectangle(
         width: Pixels(20), height: Pixels(10), color: .accent
     ).onTap {}
-    var root = NativeOverlay {
+    var root = ZStack {
         stored
     }
 
@@ -412,8 +412,8 @@ private struct NativeProposalProbe: Element {
 @Test func onTapPaintsItsHoverOverlayOnlyWhenThePointerIsOverItsResolvedBounds() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        NativeOverlay {
-            NativeRectangle(width: Pixels(40), height: Pixels(40), color: .accent)
+        ZStack {
+            Rectangle(width: Pixels(40), height: Pixels(40), color: .accent)
                 .onTap(hoverColor: .surface) {}
         }
     }
@@ -444,8 +444,8 @@ private struct NativeProposalProbe: Element {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let probe = NativeTapProbe()
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
-        NativeOverlay {
-            NativeRectangle(width: Pixels(40), height: Pixels(40), color: .accent)
+        ZStack {
+            Rectangle(width: Pixels(40), height: Pixels(40), color: .accent)
                 .onTap { probe.count += 1 }
                 .allowsHitTesting(false)
         }
