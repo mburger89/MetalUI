@@ -169,11 +169,11 @@ private struct NativeProposalProbe: Element {
 @MainActor
 @Test func nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder() {
     let probe = NativeLayoutProbe()
-    let stored: NativeModifiedContent<NativeProbeLeaf> = NativeProbeLeaf(
+    let stored: ModifiedContent<NativeProbeLeaf> = NativeProbeLeaf(
         size: SizeD(width: 20, height: 10), probe: probe, name: "trailing"
     ).nativeFrame(width: Pixels(40), height: Pixels(30), alignment: .bottomTrailing)
-    var root: NativeModifiedContent<NativeModifiedContent<NativeProbeLeaf>> = stored
-        .nativePadding(Edges(all: Pixels(5)))
+    var root: ModifiedContent<ModifiedContent<NativeProbeLeaf>> = stored
+        .padding(Edges(all: Pixels(5)))
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
 
     frame.render(&root)
@@ -181,6 +181,22 @@ private struct NativeProposalProbe: Element {
     #expect(frame.tree.nodeCount == 3)
     #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(75), y: Pixels(65)),
                                            size: Size(width: Pixels(20), height: Pixels(10))))
+}
+
+/// The canonical fixed-size modifier withholds only the selected proposal axis
+/// from its child. This is distinct from a frame: it changes the child's
+/// measurement question, not the outer bounds it is eventually placed into.
+@MainActor
+@Test func fixedSizeModifierWithholdsOnlyItsSelectedAxisFromTheChildProposal() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
+    var root = NativeOverlay {
+        NativeProposalProbe(expectedProposal: ProposedSize(width: nil, height: 80), probe: probe)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    frame.render(&root)
+    #expect(probe.prepaintBounds?.size == Size(width: Pixels(30), height: Pixels(10)))
 }
 
 @MainActor
@@ -251,8 +267,8 @@ private struct NativeProposalProbe: Element {
                       theme: .light)
     var root = NativeOverlay {
         NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
-            .nativePadding(Edges(all: Pixels(5)))
-            .nativeBackground(.surface)
+            .padding(Edges(all: Pixels(5)))
+            .background(.surface)
     }
 
     frame.render(&root)
@@ -294,7 +310,7 @@ private struct NativeProposalProbe: Element {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
     var root = NativeOverlay {
         NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
-            .nativeOverlay(alignment: .bottomTrailing) {
+            .overlay(alignment: .bottomTrailing) {
                 NativeRectangle(width: Pixels(50), height: Pixels(40), color: .separator)
             }
     }
@@ -319,7 +335,7 @@ private struct NativeProposalProbe: Element {
     var root = NativeOverlay {
         NativeRectangle(width: Pixels(50), height: Pixels(40), color: .accent)
             .nativeFrame(width: Pixels(20), height: Pixels(10))
-            .nativeClip(cornerRadius: Pixels(3))
+            .clip(cornerRadius: Pixels(3))
     }
 
     frame.render(&root)
@@ -340,7 +356,7 @@ private struct NativeProposalProbe: Element {
                       theme: .light)
     var root = NativeOverlay {
         NativeRectangle(width: Pixels(20), height: Pixels(10), color: .accent)
-            .nativeBorder(.separator, width: Pixels(2), cornerRadius: Pixels(3))
+            .border(.separator, width: Pixels(2), cornerRadius: Pixels(3))
     }
 
     frame.render(&root)

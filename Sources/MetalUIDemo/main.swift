@@ -894,7 +894,7 @@ private struct NativePreviewToggle: Component {
     var content: some ElementGroup {
         NativeRectangle(width: Pixels(168), height: Pixels(64),
                         color: isSelected ? .separator : .accent)
-            .nativeOverlay(alignment: .topTrailing) {
+            .overlay(alignment: .topTrailing) {
                 NativeRectangle(width: Pixels(20), height: Pixels(20),
                                 color: isSelected ? .accent : .separator)
             }
@@ -926,12 +926,12 @@ func nativeLayoutPreviewContent() -> some Element {
                         .allowsHitTesting(false)
                 }
             }
-            .nativePadding(Edges(all: Pixels(36)))
+            .padding(Edges(all: Pixels(36)))
         }
-        .nativePadding(Edges(all: Pixels(48)))
-        .nativeBackground(.surface)
-        .nativeBorder(.separator, width: Pixels(1), cornerRadius: Pixels(16))
-        .nativeClip(cornerRadius: Pixels(16))
+        .padding(Edges(all: Pixels(48)))
+        .background(.surface)
+        .border(.separator, width: Pixels(1), cornerRadius: Pixels(16))
+        .clip(cornerRadius: Pixels(16))
     }
 }
 

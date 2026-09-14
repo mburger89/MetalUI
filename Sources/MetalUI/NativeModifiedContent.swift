@@ -6,7 +6,7 @@ import MetalUILayout
 /// This is intentionally a closed value set rather than a public protocol
 /// whose requirements expose `LayoutNodeID`. A caller composes typed values;
 /// only MetalUI translates their layout effects into native nodes during layout.
-public enum NativeLayoutModifier: Sendable {
+public enum LayoutModifier: Sendable {
     case frame(width: Pixels? = nil, height: Pixels? = nil,
                minWidth: Pixels? = nil, idealWidth: Pixels? = nil, maxWidth: Pixels? = nil,
                minHeight: Pixels? = nil, idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
@@ -20,17 +20,17 @@ public enum NativeLayoutModifier: Sendable {
     case allowsHitTesting(Bool)
 }
 
-/// A typed native modifier wrapper, analogous to SwiftUI's `ModifiedContent`.
+/// A typed proposal-layout modifier wrapper, analogous to SwiftUI's `ModifiedContent`.
 ///
 /// Each value owns one content subtree and one layout modifier. Chaining keeps
-/// that structure concrete—`NativeModifiedContent<NativeModifiedContent<T>>`
+/// that structure concrete—`ModifiedContent<ModifiedContent<T>>`
 /// rather than silently introducing `AnyElement`—so identity and phase order
 /// remain observable and predictable.
-public struct NativeModifiedContent<Content: ElementGroup>: Element {
+public struct ModifiedContent<Content: ElementGroup>: Element {
     public var content: Content
-    public var modifier: NativeLayoutModifier
+    public var modifier: LayoutModifier
 
-    public init(content: Content, modifier: NativeLayoutModifier) {
+    public init(content: Content, modifier: LayoutModifier) {
         self.content = content
         self.modifier = modifier
     }
@@ -142,8 +142,8 @@ extension ElementGroup {
                             minWidth: Pixels? = nil, idealWidth: Pixels? = nil,
                             maxWidth: Pixels? = nil, minHeight: Pixels? = nil,
                             idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
-                            alignment: NativeAlignment = .center) -> NativeModifiedContent<Self> {
-        NativeModifiedContent(
+                            alignment: NativeAlignment = .center) -> ModifiedContent<Self> {
+        ModifiedContent(
             content: self,
             modifier: .frame(width: width, height: height,
                              minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth,
@@ -152,55 +152,95 @@ extension ElementGroup {
         )
     }
 
-    /// Applies native outer padding.
-    public func nativePadding(_ insets: Edges<Pixels>) -> NativeModifiedContent<Self> {
-        NativeModifiedContent(content: self, modifier: .padding(insets))
+    /// Applies proposal-layout outer padding.
+    public func padding(_ insets: Edges<Pixels>) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, modifier: .padding(insets))
     }
 
-    /// Requests native fixed-size behaviour on either axis.
+    /// Temporary source-compatible spelling for the native migration surface.
+    @available(*, deprecated, renamed: "padding")
+    public func nativePadding(_ insets: Edges<Pixels>) -> ModifiedContent<Self> {
+        padding(insets)
+    }
+
+    /// Requests proposal-layout fixed-size behaviour on either axis.
+    public func fixedSize(horizontal: Bool = true, vertical: Bool = true)
+        -> ModifiedContent<Self> {
+        ModifiedContent(content: self, modifier: .fixedSize(horizontal: horizontal, vertical: vertical))
+    }
+
+    /// Temporary source-compatible spelling for the native migration surface.
+    @available(*, deprecated, renamed: "fixedSize")
     public func nativeFixedSize(horizontal: Bool = true, vertical: Bool = true)
-        -> NativeModifiedContent<Self> {
-        NativeModifiedContent(content: self, modifier: .fixedSize(horizontal: horizontal, vertical: vertical))
+        -> ModifiedContent<Self> {
+        fixedSize(horizontal: horizontal, vertical: vertical)
     }
 
     /// Paints a semantic token behind this native subtree without changing its
     /// proposal, measurement, or placement.
-    public func nativeBackground(_ token: ColorToken) -> NativeModifiedContent<Self> {
-        NativeModifiedContent(content: self, modifier: .background(token))
+    public func background(_ token: ColorToken) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, modifier: .background(token))
+    }
+
+    /// Temporary source-compatible spelling for the native migration surface.
+    @available(*, deprecated, renamed: "background")
+    public func nativeBackground(_ token: ColorToken) -> ModifiedContent<Self> {
+        background(token)
     }
 
     /// Clips this native subtree to its resolved bounds.
-    public func nativeClip(cornerRadius: Pixels = Pixels(0)) -> NativeModifiedContent<Self> {
-        NativeModifiedContent(content: self, modifier: .clip(cornerRadius: cornerRadius))
+    public func clip(cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, modifier: .clip(cornerRadius: cornerRadius))
+    }
+
+    /// Temporary source-compatible spelling for the native migration surface.
+    @available(*, deprecated, renamed: "clip")
+    public func nativeClip(cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<Self> {
+        clip(cornerRadius: cornerRadius)
     }
 
     /// Draws a border over this native subtree without changing its layout.
-    public func nativeBorder(_ token: ColorToken, width: Pixels,
-                             cornerRadius: Pixels = Pixels(0)) -> NativeModifiedContent<Self> {
-        NativeModifiedContent(content: self,
+    public func border(_ token: ColorToken, width: Pixels,
+                       cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<Self> {
+        ModifiedContent(content: self,
                               modifier: .border(token, width: width, cornerRadius: cornerRadius))
     }
 
+    /// Temporary source-compatible spelling for the native migration surface.
+    @available(*, deprecated, renamed: "border")
+    public func nativeBorder(_ token: ColorToken, width: Pixels,
+                             cornerRadius: Pixels = Pixels(0)) -> ModifiedContent<Self> {
+        border(token, width: width, cornerRadius: cornerRadius)
+    }
+
     /// Applies paint-only opacity to this proposal-layout subtree.
-    public func opacity(_ value: Float) -> NativeModifiedContent<Self> {
-        NativeModifiedContent(content: self, modifier: .opacity(value))
+    public func opacity(_ value: Float) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, modifier: .opacity(value))
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "opacity")
-    public func nativeOpacity(_ value: Float) -> NativeModifiedContent<Self> {
+    public func nativeOpacity(_ value: Float) -> ModifiedContent<Self> {
         opacity(value)
     }
 
     /// Controls whether pointer hit testing enters this proposal-layout subtree.
     /// Keyboard focus and key handlers remain available when it is disabled.
-    public func allowsHitTesting(_ enabled: Bool) -> NativeModifiedContent<Self> {
-        NativeModifiedContent(content: self, modifier: .allowsHitTesting(enabled))
+    public func allowsHitTesting(_ enabled: Bool) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, modifier: .allowsHitTesting(enabled))
     }
 
     /// Temporary source-compatible spelling for the native migration surface.
     @available(*, deprecated, renamed: "allowsHitTesting")
-    public func nativeAllowsHitTesting(_ enabled: Bool) -> NativeModifiedContent<Self> {
+    public func nativeAllowsHitTesting(_ enabled: Bool) -> ModifiedContent<Self> {
         allowsHitTesting(enabled)
     }
 }
+
+/// Temporary source-compatible name for ``LayoutModifier``.
+@available(*, deprecated, renamed: "LayoutModifier")
+public typealias NativeLayoutModifier = LayoutModifier
+
+/// Temporary source-compatible name for ``ModifiedContent``.
+@available(*, deprecated, renamed: "ModifiedContent")
+public typealias NativeModifiedContent<Content: ElementGroup> = ModifiedContent<Content>

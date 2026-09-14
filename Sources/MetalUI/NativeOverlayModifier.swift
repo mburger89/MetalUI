@@ -53,9 +53,17 @@ public struct NativeOverlayModifier<Content: ElementGroup, Overlay: ElementGroup
 }
 
 extension ElementGroup {
+    public func overlay<Overlay: ElementGroup>(alignment: NativeAlignment = .center,
+                                               @ElementBuilder content: () -> Overlay)
+        -> NativeOverlayModifier<Self, Overlay> {
+        NativeOverlayModifier(content: self, alignment: alignment, overlay: content)
+    }
+
+    /// Temporary source-compatible spelling for the native migration surface.
+    @available(*, deprecated, renamed: "overlay")
     public func nativeOverlay<Overlay: ElementGroup>(alignment: NativeAlignment = .center,
                                                       @ElementBuilder content: () -> Overlay)
         -> NativeOverlayModifier<Self, Overlay> {
-        NativeOverlayModifier(content: self, alignment: alignment, overlay: content)
+        overlay(alignment: alignment, content: content)
     }
 }
