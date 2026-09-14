@@ -289,6 +289,28 @@ extension NativeProposalProbe: ProposalElementGroup {}
 }
 
 @MainActor
+@Test func aProposalScrollViewClampsAnOffsetPastItsContentEndOnPrepaint() {
+    let rootID = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let table = StateTable()
+    table.withState(rootID, initial: ScrollState()) { $0.offset = 999 }
+    let frame = Frame(contentSize: Size(width: Pixels(50), height: Pixels(30)), scaleFactor: 1,
+                      stateTable: table)
+    var root = ProposalScrollView(.vertical) {
+        VStack(spacing: Pixels(0)) {
+            Rectangle(width: Pixels(50), height: Pixels(40), color: .accent)
+            Rectangle(width: Pixels(50), height: Pixels(40), color: .accent)
+            Rectangle(width: Pixels(50), height: Pixels(40), color: .accent)
+            Rectangle(width: Pixels(50), height: Pixels(40), color: .accent)
+            Rectangle(width: Pixels(50), height: Pixels(40), color: .accent)
+        }
+    }
+
+    frame.render(&root)
+
+    #expect(table.peek(rootID, as: ScrollState.self)?.offset == 170)
+}
+
+@MainActor
 @Test func aPublicHStackFormsAnAllProposalLayoutSubtreeAndPlacesItsSpacer() {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(40)), scaleFactor: 1)
