@@ -139,7 +139,7 @@ public struct ModifiedContent<Content: ElementGroup>: Element {
     }
 }
 
-extension ElementGroup {
+extension ProposalElementGroup {
     /// Applies a native SwiftUI-style outer frame.
     public func nativeFrame(width: Pixels? = nil, height: Pixels? = nil,
                             minWidth: Pixels? = nil, idealWidth: Pixels? = nil,
@@ -238,9 +238,7 @@ extension ElementGroup {
     public func nativeAllowsHitTesting(_ enabled: Bool) -> ModifiedContent<Self> {
         allowsHitTesting(enabled)
     }
-}
 
-extension ProposalElementGroup {
     /// Applies SwiftUI-style proposal-layout frame constraints.
     ///
     /// Unlike the legacy CSS wrapper with the same spelling, this overload is

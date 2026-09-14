@@ -101,6 +101,8 @@ private struct NativeProposalProbe: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
+extension NativeProposalProbe: ProposalElementGroup {}
+
 @MainActor
 @Test func aNativeRootRunsThroughTheFramePipelineWithoutInvokingFlexLayout() {
     let probe = NativeLayoutProbe()
