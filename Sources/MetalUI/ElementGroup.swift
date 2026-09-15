@@ -143,7 +143,7 @@ extension Element {
         // `layout.id` is this occurrence's own id, stamped during layout, so
         // re-binding to it is exact rather than a guess.
         // Pinned by `oneElementValuePlacedTwiceDoesNotShareItsState`.
-        StateBinder.bind(self, table: pass.frame.stateTable, id: layout.id)
+        StateBinder.bind(self, in: pass.frame, id: layout.id)
         return prepaint(layout.id, bounds: pass.bounds(of: layout.node),
                         layout: &layout.state, pass: &pass)
     }
@@ -153,7 +153,7 @@ extension Element {
                                     pass: inout PaintPass) {
         // Same reason as `prepaintGroup` above — paint is a third phase and the
         // box is still whatever the last `bind` left it.
-        StateBinder.bind(self, table: pass.frame.stateTable, id: layout.id)
+        StateBinder.bind(self, in: pass.frame, id: layout.id)
         paint(layout.id, bounds: pass.bounds(of: layout.node),
               layout: &layout.state, prepaint: &prepaint, pass: &pass)
     }

@@ -135,20 +135,140 @@ public final class Frame {
     /// the default below is the only value the engine has ever seen.
     let rootFontSize: Double
 
-    /// The active theme (spec §7.9), fixed for the whole frame.
+    /// The theme in effect at the element being visited (spec §7.9): the
+    /// nearest `.theme(_:)` scope's, else the root's (ruling EV-G).
     ///
-    /// A `let`, so the two halves of one frame cannot resolve the same token
-    /// differently: a theme swapped mid-paint would give the first half of the
-    /// tree light colours and the second half dark ones, and every rect would
-    /// still be individually correct. `Window` swaps the theme *between* frames
-    /// and marks §4.4's dirty flag.
+    /// **Scoped now, and still fixed per scope for the whole frame.** It used
+    /// to be a `let`, so the two halves of one frame could not resolve the same
+    /// token differently. That property survives scoping: the root theme is a
+    /// `let` (`rootTheme`), and a scope computes its values once, in layout,
+    /// and re-pushes the stored result in prepaint and paint (ruling EV-V), so
+    /// one element reads one theme in every phase. `Window` still swaps the
+    /// root theme *between* frames and marks §4.4's dirty flag.
+    ///
+    /// Read **in place** from `environmentTop`, not through
+    /// `environmentSnapshot()`, so it costs no copy and is not counted
+    /// (ruling EV-O).
     ///
     /// Reachable from `PaintPass` only. Nothing in layout or prepaint consumes a
     /// colour — `LayoutPass` contributes `Style`, which has no colour field at
     /// all, and `PrepaintPass` reads resolved rects — so exposing it there would
-    /// be an API with no reader. Adding it to another pass is one forwarding
-    /// property when a phase acquires a use for it.
-    let theme: Theme
+    /// be an API with no reader. `EnvironmentValues.theme` is internal for the
+    /// same reason.
+    var theme: Theme { environmentTop.theme }
+
+    /// The theme this frame was built with — `Window.theme`, handed in through
+    /// `init`. The root environment's `theme` is stamped from this and from
+    /// nothing else (ruling EV-H), so an in-module write to
+    /// `rootEnvironment.theme` is silently re-stamped.
+    private let rootTheme: Theme
+
+    // MARK: - Environment (rulings EV-A, EV-H, EV-O, EV-U, EV-V)
+
+    /// The environment in effect at the element being visited.
+    ///
+    /// Starts as `rootEnvironment` and is replaced only inside
+    /// `withEnvironment`, which restores it when its body returns — so the
+    /// call stack is the stack, and an unbalanced push is not expressible
+    /// (the discipline `clipStack` and `scrollContextStack` use). Read in place
+    /// by `theme`; handed out as a copy only by `environmentSnapshot()`.
+    private(set) var environmentTop: EnvironmentValues
+
+    private var storedRootEnvironment: EnvironmentValues
+
+    /// True from `render`'s first line to its last, and nowhere else (ruling
+    /// EV-Z). Not cleared in a `defer`, for the reason `render`'s atlas bracket
+    /// gives: the only way out of `render` early is a trap, which aborts.
+    private var isRendering = false
+
+    /// The values every scope starts from: `Window.environment`, set by
+    /// `Window.drawFrameIfNeeded` on the line after it builds this frame. A
+    /// `Frame` built without a window (every test) keeps `EnvironmentValues()`,
+    /// whose locale is the root locale `Locale(identifier: "")` (ruling EV-Y).
+    ///
+    /// **The setter re-stamps two fields** (rulings EV-H, EV-U): `theme`
+    /// from the `theme:` this frame was built with, and `pixelLength` from its
+    /// scale factor. `Window.theme` stays the root theme's only source, and no
+    /// value can lie about the device, so `window.environment.theme = .dark` —
+    /// which compiles inside the module — changes nothing.
+    ///
+    /// **It also resets the top, so it traps while `render` runs** (ruling
+    /// EV-Z). From inside a phase it would replace every open scope's values
+    /// for the rest of that scope's content, and a scope's restoring `defer`
+    /// would then put the enclosing values back — silently. Set it before a
+    /// render or between two renders. Pinned by
+    /// `aRootEnvironmentWriteDuringARenderTraps` (one arm per phase) and
+    /// `aRootEnvironmentWriteBeforeAndBetweenRendersDoesNotTrap`.
+    var rootEnvironment: EnvironmentValues {
+        get { storedRootEnvironment }
+        set {
+            precondition(!isRendering,
+                         "Frame.rootEnvironment set during render: it would replace every open scope's values (ruling EV-Z)")
+            var values = newValue
+            values.theme = rootTheme
+            values.pixelLength = Self.pixelLength(forScaleFactor: scaleFactor)
+            storedRootEnvironment = values
+            environmentTop = values
+        }
+    }
+
+    /// One device pixel in points, or 1 when the surface has not reported a
+    /// usable scale — a 0 or NaN from a backend still configuring itself would
+    /// otherwise hand every reader an infinity.
+    private static func pixelLength(forScaleFactor scale: Float) -> Double {
+        guard scale.isFinite, scale > 0 else { return 1 }
+        return 1 / Double(scale)
+    }
+
+    /// A writer's values: `write` applied to a copy of the **current top**, so
+    /// a transform composes with what it inherits and a nearer writer wins
+    /// (ruling EV-A). Called once per scope per frame, by
+    /// `EnvironmentScope.requestGroupLayout` only (ruling EV-V).
+    ///
+    /// **A `.transform` cannot change `theme` or `pixelLength`**: both are put
+    /// back from the top it copied, after the transform runs, because
+    /// `.environment(\.self, EnvironmentValues())` compiles outside the module
+    /// and would otherwise reset them (ruling EV-U). `.theme` is the one write
+    /// that sets a theme.
+    func scopedValues(applying write: EnvironmentWrite) -> EnvironmentValues {
+        environmentTransformCount += 1
+        var values = environmentTop
+        switch write {
+        case .transform(let transform):
+            transform(&values)
+            values.theme = environmentTop.theme
+            values.pixelLength = environmentTop.pixelLength
+        case .theme(let theme):
+            values.theme = theme
+        }
+        return values
+    }
+
+    /// Runs `body` with `values` as the top, restoring the previous top when it
+    /// returns. The saved top lives in this call's own local, so nesting is the
+    /// call stack.
+    func withEnvironment<R>(_ values: EnvironmentValues, _ body: () -> R) -> R {
+        environmentPushCount += 1
+        let saved = environmentTop
+        environmentTop = values
+        defer { environmentTop = saved }
+        return body()
+    }
+
+    /// A copy of the top, for a public reader: `pass.environment`, or a bind of
+    /// a type that declares an `@Environment`. The framework's own reads
+    /// (`theme`) read the top in place and do not come through here.
+    func environmentSnapshot() -> EnvironmentValues {
+        environmentSnapshotCount += 1
+        return environmentTop
+    }
+
+    /// Test observables for ruling EV-O. A tree with no writer pushes 0 and
+    /// transforms 0; W writers push 3W and transform W per frame; a tree with
+    /// no reader snapshots 0, however large. No production reader.
+    private(set) var environmentPushCount = 0
+    private(set) var environmentSnapshotCount = 0
+    private(set) var environmentTransformCount = 0
 
     /// Layout nodes for this frame.
     ///
@@ -586,12 +706,46 @@ public final class Frame {
     /// consumes the point. Non-opaque would mean a modal scrim could not
     /// swallow clicks aimed at what it covers, which is the sibling property of
     /// the wheel swallow this milestone's exit criterion 4 is about.
+    ///
+    /// **The disabled gate is here too, and only here** (rulings EV-E, EV-F,
+    /// EV-T). `environmentTop.isEnabled` is read once, in place, and when it is
+    /// false:
+    ///
+    /// - **no hitbox is registered**, whatever `handlers` holds. A click over
+    ///   the disabled target therefore reaches whatever enabled hitbox lies
+    ///   under it — an enabled ancestor with an `onClick` (aligned with SwiftUI,
+    ///   probe `swiftui-disabled-ancestor-and-order.swift` N1/N2) or an enabled
+    ///   sibling drawn under it (a divergence, SwiftUI's shape blocks, P2f; the
+    ///   same difference every non-clickable MetalUI overlay already has). With
+    ///   no hitbox the target is neither hovered nor `isActive`, and a press or
+    ///   a release made while it was disabled fails `Window.dispatchClick`'s
+    ///   `hit.id == pressed` (probe R), with no `Window` edit.
+    /// - **no focus registration**: not `isFocusable`, `actions`, `onKey` or
+    ///   `keyContext`. A focus request on it is cleared at the prepaint/paint
+    ///   boundary, a focused element that becomes disabled loses focus, and a
+    ///   disabled ancestor's raw `onKey` does not see a key (the last two are
+    ///   divergences from probe K2/K6, ruling EV-F).
+    /// - **no `$focus` retention write** — while `focusedElementProducedThisFrame`
+    ///   stays ungated (see that write's own paragraph below).
+    /// - **the declared AX node gains `.disabled`**.
+    ///
+    /// Every caller reaches it: `Box` (and so `Column`/`Row`), `Stack`, `Text`,
+    /// `FrameModifier` and `OnTapModifier` (`grep -rn "registerHandlers(" Sources`),
+    /// `List` rows through their elements and `Component` through its members.
+    /// A raw `PrepaintPass.insertHitbox` is NOT gated: an element using the
+    /// primitive reads `pass.environment.isEnabled` itself.
     func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
                           id: GlobalElementID) {
-        // The keyboard side first, and unconditionally: focus registration is
-        // not gated on the pointer gate below, and an element can ask for one
-        // without the other. `register` gates itself on `isKeyTarget`.
-        focusRegistry.register(handlers, id: id)
+        // Read in place, not through `environmentSnapshot()`, so the gate costs
+        // no counted snapshot (ruling EV-O).
+        let enabled = environmentTop.isEnabled
+        // The keyboard side first: focus registration is not gated on the
+        // pointer gate below, and an element can ask for one without the
+        // other. `register` gates itself on `isKeyTarget`; a disabled element
+        // does not reach it at all (ruling EV-F).
+        if enabled {
+            focusRegistry.register(handlers, id: id)
+        }
         // **Independent of `isKeyTarget`/`isFocusable` — this is "was the
         // currently-focused id produced this frame at all", not "did it ask
         // to stay focused".** `Box.prepaint`, `Stack.prepaint` and
@@ -631,7 +785,19 @@ public final class Frame {
             // focusable. The consequence is a wrongly-sticky focus on an
             // element that has never been a key target — not a clobber, not a
             // crash, and not reachable without an explicit `Window.focus` call
-            // on a non-focusable element.
+            // on an ENABLED, produced, non-focusable element.
+            //
+            // **`.disabled` does not reach it** (ruling EV-F, critic finding 7):
+            // every `.focusable()` element under `.disabled` is non-focusable,
+            // so without the `if enabled` below a focus request on one would
+            // write the slot, and removing the element and focusing its id
+            // again would stick. The write is gated on `enabled` alone — not on
+            // `isKeyTarget`, which is the general fix below and a focus-contract
+            // change — and `focusedElementProducedThisFrame` above stays
+            // ungated, so the pre-existing hazard is exactly as reachable as it
+            // was. Pinned both ways by
+            // `aFocusRequestWhileDisabledLeavesNoRetentionSlot`: its disabled arm
+            // leaves no slot, its instrument arm (enabled, not focusable) sticks.
             //
             // **Deliberately not fixed, and the reason is the SHAPE of the fix
             // rather than its size.** The obvious patch — gate this write on
@@ -649,10 +815,17 @@ public final class Frame {
             // contract rather than a patch, and it does not go in unreviewed in
             // the last commit before a merge — the same judgement
             // `Window.applyScroll` was given during the input milestone.
-            stateTable.withState(Self.focusRetentionSlot(for: focused),
-                                 initial: true) { _ in }
+            if enabled {
+                stateTable.withState(Self.focusRetentionSlot(for: focused),
+                                     initial: true) { _ in }
+            }
         }
-        if hitTestingDisabledDepth == 0, handlers.isPointerTarget {
+        // Disabled: NO hitbox — not a blocker with empty handlers, and no
+        // derived id (ruling EV-E, third pass). A blocker would eat an enabled
+        // ancestor's click (against probe N1/N2), and one under this id would
+        // let a press made while disabled click on a release after
+        // re-enabling (against probe R, ruling EV-T).
+        if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
             _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
         }
         // **Accessibility rides here too, and it was not always here.** The
@@ -682,8 +855,15 @@ public final class Frame {
         // ids without a change to that protocol's associated types (ruling
         // `TB-M`). Whoever assembles a real tree either extends `ElementGroup`
         // for it or walks `GlobalElementID.parent` over the flat `axNodes` map.
+        //
+        // **A disabled element's declared node gains `.disabled`** (ruling
+        // EV-E). Presence and role still come from the ungated `handlers`: a
+        // disabled button is still a button. The accessibility bridge's record
+        // takes `isEnabled: enabled` at merge (ruling EV-W item 4).
         if !handlers.axNode.isEmpty {
-            emitAXNode(handlers.axNode, at: bounds, id: id, children: [])
+            var node = handlers.axNode
+            if !enabled { node.traits.insert(.disabled) }
+            emitAXNode(node, at: bounds, id: id, children: [])
         }
     }
 
@@ -1054,7 +1234,12 @@ public final class Frame {
         self.stateTable = stateTable
         self.shapingCache = shapingCache
         self.glyphAtlas = glyphAtlas
-        self.theme = theme
+        self.rootTheme = theme
+        var root = EnvironmentValues()
+        root.theme = theme
+        root.pixelLength = Self.pixelLength(forScaleFactor: scaleFactor)
+        self.storedRootEnvironment = root
+        self.environmentTop = root
         self.timestamp = timestamp
         self.mousePosition = mousePosition
         self.activeElement = activeElement
@@ -1334,6 +1519,7 @@ public final class Frame {
     /// one contributes its own positional component instead of stopping the
     /// path. See `ElementGroup.swift` for the cursor that supplies the index.
     func render<E: Element>(_ element: inout E) {
+        isRendering = true
         // The root is the only id with no parent, and the only one this file
         // builds. `at: 0` is not inert: an unnamed root element takes
         // `.positional(0)`, which is what gives a `Row { … }` rendered straight
@@ -1346,7 +1532,7 @@ public final class Frame {
         // never runs for the root at all — so this is a second, independent
         // seeding site. A root element with `@State` would otherwise never be
         // bound to a table or an id.
-        StateBinder.bind(element, table: stateTable, id: rootID)
+        StateBinder.bind(element, in: self, id: rootID)
 
         // Unlike the atlas's bracket below, this one wraps layout as well as
         // paint: a `Text`'s `MeasureFunction` shapes during `requestLayout`
@@ -1430,6 +1616,7 @@ public final class Frame {
         // not "reserved") depends on sweep ordering, and a future edit should
         // not preserve their `isLive` lines *for* this reason.
         stateTable.sweep()
+        isRendering = false
     }
 }
 

@@ -108,6 +108,31 @@ public final class Window {
         }
     }
 
+    /// The root environment every scope in this window starts from (ruling
+    /// EV-H): `isEnabled`, `layoutDirection`, `locale`, `dynamicTypeSize` and
+    /// custom keys, at `EnvironmentValues()`'s defaults (with the current
+    /// locale, below) until set.
+    ///
+    /// **Every write dirties the window, a no-op included.** Unlike `theme`
+    /// above there is no equality guard, and there cannot be one:
+    /// `EnvironmentValues` stores custom keys as `Any`. Constraining keys to
+    /// `Equatable` would diverge from SwiftUI's unconstrained `Value`. So write
+    /// from input, never from a phase — a phase-time write every frame keeps
+    /// the display link awake, `@State`'s rule. Pinned as a stated cost by
+    /// `theWindowsEnvironmentReachesTheFrameAndASetRepaints`.
+    ///
+    /// **Two fields are not taken from here.** The frame re-stamps `theme`
+    /// from `theme` above and `pixelLength` from the surface's scale factor, so
+    /// `window.environment.theme = .dark` — which compiles inside this module —
+    /// changes nothing (`Frame.rootEnvironment`).
+    ///
+    /// **Starts at `EnvironmentValues()` with `Locale.current` stamped over its
+    /// bare locale** (ruling EV-Y): a bare value holds `Locale(identifier: "")`,
+    /// as SwiftUI's does, and a window stamps the user's, as a SwiftUI host does.
+    public var environment = EnvironmentValues.windowDefault() {
+        didSet { setNeedsRedraw() }
+    }
+
     /// Raw input, for whatever no element claimed.
     ///
     /// **The window's fallback, not its first look — and that sentence is the
@@ -837,6 +862,7 @@ public final class Window {
                           activeElement: active,
                           focusedElement: focusHandedIn,
                           transaction: transaction)
+        frame.rootEnvironment = environment
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three

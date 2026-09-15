@@ -1104,15 +1104,15 @@ func runDemo() throws {
     atexit_b { MainActor.assumeIsolated { printReactivitySummary() } }
 
     window.keymap = Keymap {
-        Binding("=", Increment(), context: "Counter")
-        Binding("shift-+", Increment(), context: "Counter")
-        Binding("-", Decrement(), context: "Counter")
-        Binding("f", FocusCounter())
-        Binding("escape", ClearFocus())
-        Binding("space", ToggleTheme())
-        Binding("m", ToggleModal())
-        Binding("a", ToggleAnimationDemo())
-        Binding("q", QuitDemo())
+        KeyBinding("=", Increment(), context: "Counter")
+        KeyBinding("shift-+", Increment(), context: "Counter")
+        KeyBinding("-", Decrement(), context: "Counter")
+        KeyBinding("f", FocusCounter())
+        KeyBinding("escape", ClearFocus())
+        KeyBinding("space", ToggleTheme())
+        KeyBinding("m", ToggleModal())
+        KeyBinding("a", ToggleAnimationDemo())
+        KeyBinding("q", QuitDemo())
     }
 
     // **The window's fallback, which is what makes a binding work with nothing
