@@ -585,3 +585,118 @@ fixture shape.
 E22's spelling **was** typechecked, the same way as the after-scope fixture:
 `HStack(spacing: Pixels(0)) { Pair(Rectangle(…), Rectangle(…)).environment(\.probe, 1); Rectangle(…) }`
 returned as `some Element` compiles with no diagnostic at `f4dcad8`.
+
+### Lane 2b — hardening lane 2 (`EV-B`, `EV-C`, `EV-J`, `EV-U`, `EV-X`, `EV-Y`, `EV-Z`), 2026-09-15
+
+**Where.** Worktree `/Users/maxburger/Developer/MetalUI-environment`, branch
+`feat/environment`, from `8d0d3fe`. No other agent was live in this worktree.
+Every run below used `--build-system native`; logs in the session scratchpad
+under `ev2b/` (this session's own directory, not shared with the lane 2
+harness's `mut/summary.txt`). macOS 26.6.2, Apple Swift 6.4, `Locale.current`
+`en_US`.
+
+#### What changed
+
+- `EnvironmentValues.swift`: `init()` sets `locale = Locale(identifier: "")`;
+  new internal `static func windowDefault()` (the bare value with
+  `Locale.current` stamped). Doc comments on the type (the `EV-U` paragraph now
+  says the `theme` half is MetalUI's own key and the `pixelLength` half a
+  divergence), `init` (bare defaults, V0/V2, not probe C's), `locale` and
+  `pixelLength` (no "as SwiftUI's is"; X1/X2 named).
+- `EnvironmentProperty.swift`: the unbound-read doc names the root locale.
+- `EnvironmentScope.swift`: the "where it can go" doc says `.frame` may follow
+  a scope and sits outside it (`EV-X`).
+- `Window.swift`: the initial value expression only
+  (`EnvironmentValues.windowDefault()`), plus doc sentences.
+- `Frame.swift`: `private var isRendering`, set on `render`'s first line and
+  cleared on its last (after `stateTable.sweep()`); the `rootEnvironment`
+  setter begins with the `EV-Z` precondition; its doc replaces "set it before
+  `render`, never during".
+- **One deviation from the spec's wording**: the helper is `internal`, not
+  "private static" — a `private` member of `EnvironmentValues.swift` cannot be
+  called from `Window.swift`.
+- Tests: E12 extended in place (13/14pt after-`.theme` arm, 15/16pt disagreeing
+  spelling); E22, E23, E24 in `EnvironmentTests.swift`; `NativeEnvRecorder`
+  records its id in `prepaint`; E8's doc names the root locale; E11's doc names
+  the marker-shape port owed at integration. New `EnvironmentTrapTests.swift`
+  (T1, T2). G6 appended to `EnvironmentCompileGuards.swift`.
+
+#### Red first (commit `d271a64`)
+
+Full suite, native build: **`Test run with 1118 tests in 1 suite failed with 9
+issues`**, 0 `error:`, 0 `warning:`. Each failure line, at `d271a64`:
+
+- E24 `EnvironmentTests.swift:834` `(EnvironmentValues().locale → en_US) ==
+  (Locale(identifier: "") → )`; `:835` `"en_US" == ""`; `:848`
+  `(log.paint["reset"]?.locale.identifier → "en_US") == ""`.
+- T1 `EnvironmentTrapTests.swift:69`, `:77`, `:85` `.failure → .exitCode(0)`
+  (layout, prepaint, paint); `:74`, `:82`, `:90` the stderr is empty.
+
+**Passed on arrival, as the spec states**: E12's new arm (instrument pin),
+E22, E23 (transparency on the shared entry), T2 (positive control), G6 (the
+writers are public), and E24's window arm (ii) (lane 2's `init` already read
+`Locale.current`).
+
+**A first-run failure that was the fixture's, not the source's.** The very
+first red run read 10 issues: G6 also failed, with `cannot find 'Locale' in
+scope` at both of its `Locale(identifier:)` spellings. `import MetalUI` does
+not re-export Foundation. The fixture gained `import Foundation` before the
+commit; G6 then passed, as a positive guard over public API must.
+
+#### Suite (implementation commit `de84219`)
+
+- `swift test --no-parallel --build-system native`: **`Test run with 1118
+  tests in 1 suite passed`**, 0 `error:`, 0 `warning:` (this run printed no
+  deprecation line matching `warning:`).
+- `swift test --no-parallel` (default build system), afterwards: **1118 tests
+  passed**, 0 `error:`, 0 `warning:`.
+- Goldens: **97**; `git diff --stat f64e58a -- '*.json'` empty. No file under
+  `Sources/MetalUILayout/` changed.
+- Guards: **53** by the per-file count (`PhaseSeparationTests` 19,
+  `ErasureCompileGuards` 10, `ProposalLayoutCompileGuards` 6,
+  `ElementGroupTrapTests` 5, `UnitSafetyTests` 3 hits = 2, `AXNodeTests` 3,
+  `EnvironmentCompileGuards` 8). G6 printed `passed` on the native build, and
+  `failed` under each of its three mutations, so it runs.
+
+#### Mutations
+
+Fourteen runs, one at a time, full suite, `git checkout -- Sources Tests` and
+`git status --short` empty after each (all fourteen read 0 lines). Readings and
+reddened tests are under each ruling's Mutations line in the decisions doc
+(`EV-B` proposal path, `EV-C` G6, `EV-X` lane 2b half, `EV-Y`, `EV-Z`). What
+the batch taught beyond them:
+
+- **The spec's `EV-X` hoist overload is a void instrument for every
+  after-scope arm.** The suite read 1118 passed, 0 issues. A separate
+  `swiftc -typecheck` against the mutated native modules showed why: the
+  overload wins an unconstrained `Box().theme(.dark).frame(…)` (it converts to
+  `EnvironmentScope<FrameModifier<…>>`), but when `.background` follows, the
+  solver picks `ElementGroup.frame` instead, since only a `StyledElement` has
+  `.background`. Against unmutated modules the same conversion fails (the
+  positive control). Respelled as `FrameModifier` pushing its content scope's
+  stored values around its own registration and fill, it reddens exactly E12's
+  14pt slot. Lane 3's D2 after-`.disabled` arm has the same shape; the spec's
+  D2 row now says to use the respelling.
+- **`EV-Z` (b), the push-counter precondition, reddened T1 as well as T2** —
+  not predicted. `RootWriter` sits under no scope, so the counter is 0 when it
+  writes. That is the ruling's rejected alternative failing where the ruling
+  said: a root-level write during render.
+- **`EV-Y` (b) reddened both of E14's default-locale expectations** (`:797`
+  window, `:802` recorder), not one.
+- **E4(a) needed no second spelling this time**: the native/legacy split by
+  `Content.self is any ProposalElementGroup.Type` was used from the start, so
+  no run was truncated by SA-G's trap.
+- **E22 and E23 see the shared entry only.** Their mutations prove the
+  instruments; the typed proposal entry does not exist on this branch, and the
+  re-run against it is the integration step's (`EV-W` item 1).
+
+#### Deferred, or not done by this lane
+
+- `.disabled(_:)`, the gate, D1–D16, G6's `.disabled` arm and `EV-X`'s lane 3
+  half (D2's after arm under the respelled hoist): lane 3.
+- The window capture and merge re-measure: lane 4.
+- E11, E22 and E23 are in the marker shape the modifier-composition merge
+  rejects; porting them and re-running their mutations is owed to the
+  integration step (`EV-W` item 1).
+- CLAUDE.md's divergence text for `pixelLength` (`EV-U`) and the counts are
+  owed to the integration step; CLAUDE.md was not edited.

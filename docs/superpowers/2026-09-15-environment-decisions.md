@@ -191,6 +191,13 @@ entry**, which is the coverage that matters (`EV-W` item 1).
 - **E4(c), forward under `.child(of: parent, at: cursor, name: nil)` with a fresh cursor**: the same 4 issues in the same 2 tests.
 - **E5, a value-keyed writer.** The spec's spelling — an `Equatable` overload of `environment(_:_:)` returning `EitherGroup` — **does not compile against this test file** (`EitherGroup` has no `content`, and is not `ProposalElementGroup`), so nothing ran. Second attempt, an `EitherGroup`-shaped branch inside the scope keyed on `String(describing:)` of the scope's values against the top's: **a broken instrument** — E5 stayed green while E4 and E10 reddened, because a write that stores `probe = 0` adds a custom-key entry, so the two descriptions always differ and the branch never flips. Third, the id keyed by the scope's values (`.named("value:" + String(describing: values))`): 5 issues in 3 tests — `changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter` reads 0, not 2 (`:347`), plus E4's three ids and E10's count. That is the one E5 was written for.
 
+**Mutations, proposal path** (lane 2b, 2026-09-15, each run alone on a `--build-system native` build in this worktree against the full suite — 1118 tests, every run printed its summary line — restored with `git checkout -- Sources Tests` and `git status --short` empty before the next; line numbers are at `de84219`). Each ran against the **shared** `requestGroupLayout`, which serves both paths today, so it proves E22 and E23 can see, not that the typed entry is covered; **the integration step re-runs all four against the typed `requestProposalGroupLayout`** (`EV-W` item 1):
+
+- **E4(a) with a native wrapper** (legacy content wrapped in `requestNode(style: Style(), children:)`, proposal content in `requestNativeOverlay(children:)`, chosen by `Content.self is any ProposalElementGroup.Type`): 2 issues in 2 tests — `anEnvironmentScopeContributesNoLayoutNodeAndConsumesNoIndex` (`EnvironmentTests.swift:274`, the row has 2 children) and **`aScopeOverProposalContentContributesNoNodeAndConsumesNoIndex`** (`:418`, the `HStack` has 2 children). No truncated run: native content never met a legacy wrapper.
+- **E4(b), `cursor += 1` before forwarding**: 7 issues in 3 tests — E4's three ids (`:278`), E10 reads 1 (`:373`), and **E22's three ids** (`:422`).
+- **E4(c), forward under `.child(of: parent, at: cursor, name: nil)` with a fresh cursor**: the same 7 issues in the same 3 tests.
+- **E5, the scope's id keyed by its values** (`ElementID("value:" + String(describing: values))` as the content's parent): 7 issues in 5 tests — `changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter` reads 0 (`:349`), **`aProposalStateCounterKeepsItsCountAcrossAChangingScope` reads 0** (`:493`), E4's A and B ids (`:278`, two issues; C sits outside the scope), E22's A and B ids (`:422`, two), and E10 (`:373`).
+
 ## EV-C — the public shape copies SwiftUI's names; passes can read, only modifiers can write
 
 **What.** The spec gives exact signatures. In summary:
@@ -261,6 +268,14 @@ fixture. **Mutations owed by lane 2b**, each alone, each must print `failed`
 for G6: (a) `.theme(_:)` made internal; (b) `locale` given `internal(set)`;
 (c) `Window.environment` given `internal(set)`. Lane 3 owes (d): `.disabled`
 made internal.
+
+**Mutations, G6** (lane 2b, 2026-09-15, each run alone on a `--build-system native` build in this worktree against the full suite — 1118 tests, every run printed its summary line — restored with `git checkout -- Sources Tests` and `git status --short` empty before the next; line numbers are at `de84219`). G6 printed `passed`, not `skipped`, on the unmutated native build, and `failed` under each mutation below, so it runs:
+
+- **(a) `.theme(_:)` made internal**: 1 issue, only `theEnvironmentsPublicWritersCompileFromOutsideTheModule` (`EnvironmentCompileGuards.swift:285`); fixture message `'theme' is inaccessible due to 'internal' protection level`. Every other test is `@testable` and stayed green — shape 16, as the finding said.
+- **(b) `locale` given `internal(set)`**: 1 issue, only G6 (`:285`); two messages — `cannot convert value of type 'any KeyPath<EnvironmentValues, Locale> & Sendable' to expected argument type 'WritableKeyPath<EnvironmentValues, Locale>'` (the `.environment(\.locale, …)` spelling) and `'locale' setter is inaccessible` (the member assignment), so both spellings are live.
+- **(c) `Window.environment` given `internal(set)`**: 1 issue, only G6 (`:285`); three `'environment' setter is inaccessible` messages, one per assignment in the fixture.
+
+**A first draft of G6 failed for a fixture reason, not a source one**: `cannot find 'Locale' in scope` twice. `import MetalUI` does not re-export Foundation, so an external caller naming `Locale` imports Foundation itself; the fixture now does.
 
 ## EV-D — `isEnabled` composes as an AND under `.disabled`, a raw write overrides, and the gate reads the value
 
@@ -1173,6 +1188,8 @@ SwiftUI would read 1; the pin that flips is E19's `pixelLength` half.
 - **E19, the two re-stamping assignments in `scopedValues` dropped**: 4 issues, only `aWholeValueWriteCannotResetTheThemeOrThePixelLength` — both arms paint light and read `pixelLength` 1.0 (`:613`, `:614`, `:627`, `:628`).
 - **G3(b)**'s premise half (see `EV-J`) records that the `\.self` route compiles.
 
+**Lane 2b (relabel, no behaviour, no mutation).** The source doc comments that called the `pixelLength` re-stamp an alignment ("as SwiftUI's is", "the defaults match probe C") are rewritten at `de84219`: `EnvironmentValues`' type doc states the two halves as above, `pixelLength`'s doc names the divergence and X1/X2, and `init`'s doc names V0/V2 as the bare defaults (`EV-J`, `EV-Y`).
+
 ## EV-V — a scope runs its transform once per frame, in layout; prepaint and paint re-push the stored result
 
 **What.** `EnvironmentScope.requestGroupLayout` calls
@@ -1426,6 +1443,13 @@ outer rect dark (lane 2b), and D2's after-`.disabled` arm reads 0 (lane 3). The
 overload must win overload resolution for the fixture's spelling; confirm with
 the arm's reading, not by inspection.
 
+**Mutations, lane 2b half** (lane 2b, 2026-09-15, each run alone on a `--build-system native` build in this worktree against the full suite — 1118 tests, every run printed its summary line — restored with `git checkout -- Sources Tests` and `git status --short` empty before the next; line numbers are at `de84219`):
+
+- **The overload as written above is VOID for E12's spelling — a broken instrument, recorded.** It compiled, and the suite read **1118 tests, 0 issues**. Not because the arm is blind: the overload **loses overload resolution** whenever a `StyledElement` modifier follows the frame. Measured with `swiftc -typecheck` against the mutated native modules: an unconstrained `let x = Box().theme(.dark).frame(width: Pixels(14), height: Pixels(10))` does pick the overload (it converts to `EnvironmentScope<FrameModifier<Box<EmptyGroup>>>`, exit 0), while the same chain followed by `.background(.surface)` also typechecks — the solver falls back to `ElementGroup.frame`, because `.background` exists only on `StyledElement` and `EnvironmentScope` is not one. Positive control: against the **unmutated** modules the conversion fails with `cannot convert value of type 'FrameModifier<EnvironmentScope<Box<EmptyGroup>>>'`. **Lane 3's D2 after-`.disabled` arm (`.frame(…).onClick`) has the same shape and must use the respelling below.**
+- **Respelled, so the frame layer does land inside the scope**: `FrameModifier.prepaint` registers its handlers, and `FrameModifier.paint` resolves and fills its background, inside `pass.frame.withEnvironment(values)` whenever its content's layout is an `EnvironmentScopeLayout` (read through a mutation-local protocol). 1 issue, only `aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope` at `EnvironmentTests.swift:650`: the 14pt frame layer paints `Theme.dark.surface`. The 13pt, 15pt and 16pt slots stayed as expected, so the reading is the after-scope arm and nothing else.
+
+_Lane 3 half still owed_: D2's after-`.disabled` arm under the respelled hoist.
+
 ## EV-Y — `EnvironmentValues()` holds SwiftUI's bare defaults; the WINDOW stamps the current locale
 
 **What.** `EnvironmentValues.init()` sets `locale` to `Locale(identifier: "")`,
@@ -1454,10 +1478,12 @@ a `\.self` reset would silently keep the user's locale where SwiftUI's drops it.
 root locale where it read the user's; with no consumer that changes no pixel.
 Pinned by E24.
 
-**Mutations.** _owed by lane 2b_: (a) `init` reads `Locale.current` → E24's bare
-arm and its window `\.self` arm redden; (b) `Window.environment`'s initial value
-without the stamp → E24's window arm and E14's default-locale expectation
-redden.
+**Mutations** (lane 2b, 2026-09-15, each run alone on a `--build-system native` build in this worktree against the full suite — 1118 tests, every run printed its summary line — restored with `git checkout -- Sources Tests` and `git status --short` empty before the next; line numbers are at `de84219`):
+
+- **(a) `init` reads `Locale.current`**: 3 issues, only `aBareEnvironmentValuesHoldsTheRootLocaleAndAWindowStampsTheCurrentOne` — the bare arm (i) reads `en_US` (`EnvironmentTests.swift:834`, `:835`) and the window `\.self` arm (iii) reads `en_US` (`:848`). As predicted.
+- **(b) `Window.environment`'s initial value is `EnvironmentValues()`, unstamped**: 4 issues in 2 tests — E24's window arm (ii) reads '' (`:845`, `:847`) and `theWindowsEnvironmentReachesTheFrameAndASetRepaints` reads '' at **both** its default-locale expectations, the window's (`:797`) and its recorder's (`:802`).
+
+The red run before the implementation (`d271a64`) is (a)'s reading exactly: `:834`, `:835`, `:848`.
 
 ## EV-Z — `Frame.rootEnvironment` cannot be set while the frame renders
 
@@ -1498,11 +1524,13 @@ render a scoped tree, set again, render again — so a precondition written as
 **Cost if wrong.** An in-module caller that wanted a mid-frame root change
 traps. None exists (`grep -rn "rootEnvironment =" Sources` finds `Window` only).
 
-**Mutations.** _owed by lane 2b_: (a) delete the precondition → the failure arm
-reddens; (b) precondition on `environmentPushCount == 0` instead → the success
-arm reddens; (c) clear the flag at the top of `paint` instead of the end of
-`render` → a variant of the failure arm that writes in `paint` reddens (the
-failure test carries one arm per phase).
+**Mutations** (lane 2b, 2026-09-15, each run alone on a `--build-system native` build in this worktree against the full suite — 1118 tests, every run printed its summary line — restored with `git checkout -- Sources Tests` and `git status --short` empty before the next; line numbers are at `de84219`). The exit tests' own lines are in `EnvironmentTrapTests.swift`:
+
+- **(a) the precondition deleted**: 6 issues, only `aRootEnvironmentWriteDuringARenderTraps` — each of the three arms exits 0 (`:69`, `:77`, `:85`) and its stderr lacks the message (`:74`, `:82`, `:90`).
+- **(b) `precondition(environmentPushCount == 0, …)` instead**: 7 issues in 2 tests — `aRootEnvironmentWriteBeforeAndBetweenRendersDoesNotTrap` dies of `SIGTRAP` (`:139`) on the second root write, as predicted; **and all six of T1's issues**, which the spec did not predict: `RootWriter` sits in no scope, so no push has happened when it writes and the counter precondition never fires. That is `EV-Z`'s rejected "depth counter" alternative failing exactly where the ruling says it would — a write at root level during render.
+- **(c) `isRendering = false` just before `element.paint`**: 2 issues, only T1's paint arm (`:85` exits 0, `:90` no message); the layout and prepaint arms still trap. One arm per phase is what sees it.
+
+The red run before the implementation (`d271a64`) is (a)'s reading exactly.
 
 ---
 
