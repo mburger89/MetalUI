@@ -3,6 +3,7 @@ import Metal
 import MetalUICore
 import MetalUILayout
 import MetalUIRender
+import Darwin
 @testable import MetalUI
 
 // Lane 2 ("`ModifiedElement`") of
@@ -546,4 +547,173 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
     #expect(pLiveAtZero && pLiveAtOne, "P's $anim slot: \(pLiveAtZero), \(pLiveAtOne)")
     #expect(!p0LiveAtZero && p0LiveAtOne, "P/0's $anim slot: \(p0LiveAtZero), \(p0LiveAtOne)")
     #expect(log.taps["leaf"] == 0, "the wrapped element resets; read \(String(describing: log.taps["leaf"]))")
+}
+
+// MARK: - MC-K: allocations at 1, 2 and 3 layers
+
+private typealias MallocLogger = @convention(c) (UInt32, UInt, UInt, UInt, UInt, UInt32) -> Void
+
+/// `MALLOC_LOG_TYPE_ALLOCATE` from libmalloc.
+private let mallocLogTypeAllocate: UInt32 = 2
+
+nonisolated(unsafe) private var allocationsSeen = 0
+nonisolated(unsafe) private var countedThread: pthread_t?
+nonisolated(unsafe) private var chainedLogger: MallocLogger?
+
+/// Runs inside malloc on every thread; must not allocate.
+nonisolated(unsafe) private let countingLogger: MallocLogger = { type, a1, a2, a3, result, skip in
+    if type & mallocLogTypeAllocate != 0,
+       let thread = countedThread, pthread_equal(thread, pthread_self()) != 0 {
+        allocationsSeen += 1
+    }
+    chainedLogger?(type, a1, a2, a3, result, skip)
+}
+
+/// `FreezeLoopAllocationTests.swift`'s counter, copied (the two test targets
+/// cannot share a private helper): heap allocations `body` makes on the calling
+/// thread, through libmalloc's `malloc_logger` hook.
+private func countAllocations(_ body: () -> Void) throws -> Int {
+    let symbol = try #require(
+        dlsym(UnsafeMutableRawPointer(bitPattern: -2), "malloc_logger"),
+        "libmalloc no longer exports malloc_logger: replace this instrument, do not skip it")
+    let slot = symbol.assumingMemoryBound(to: MallocLogger?.self)
+
+    _ = countingLogger
+    _ = mallocLogTypeAllocate
+    chainedLogger = slot.pointee
+    allocationsSeen = 0
+    countedThread = pthread_self()
+
+    slot.pointee = countingLogger
+    body()
+    slot.pointee = chainedLogger
+
+    countedThread = nil
+    return allocationsSeen
+}
+
+/// Allocates exactly `count` distinct, non-empty buffers, for calibration.
+@inline(never)
+private func allocateBuffers(_ count: Int) -> Int {
+    var total = 0
+    for i in 0..<count {
+        let buffer = ContiguousArray<Double>(repeating: Double(i), count: 16 + i)
+        total &+= buffer.count
+    }
+    return total
+}
+
+private let allocationChains = 500
+
+@MainActor @inline(never)
+private func buildNested(_ layers: Int, _ id: GlobalElementID, _ pass: inout LayoutPass) {
+    switch layers {
+    case 1:
+        var e = Box(style: paddingStyle(1), content: Box())
+        _ = e.requestLayout(id, pass: &pass)
+    case 2:
+        var e = Box(style: paddingStyle(2), content: Box(style: paddingStyle(1), content: Box()))
+        _ = e.requestLayout(id, pass: &pass)
+    default:
+        var e = Box(style: paddingStyle(3), content:
+            Box(style: paddingStyle(2), content: Box(style: paddingStyle(1), content: Box())))
+        _ = e.requestLayout(id, pass: &pass)
+    }
+}
+
+@MainActor @inline(never)
+private func buildFlat(_ layers: Int, _ id: GlobalElementID, _ pass: inout LayoutPass) {
+    let e1 = Edges<Length>(all: .pixels(px(1)))
+    let e2 = Edges<Length>(all: .pixels(px(2)))
+    let e3 = Edges<Length>(all: .pixels(px(3)))
+    switch layers {
+    case 1:
+        var e = Box().padding(e1)
+        _ = e.requestLayout(id, pass: &pass)
+    case 2:
+        var e = Box().padding(e1).padding(e2)
+        _ = e.requestLayout(id, pass: &pass)
+    default:
+        var e = Box().padding(e1).padding(e2).padding(e3)
+        _ = e.requestLayout(id, pass: &pass)
+    }
+}
+
+/// Allocations for 500 frame-builds (construction AND `requestLayout`) of one
+/// arm, in a fresh `Frame` warmed with 1500 builds of the same arm, every build
+/// under the same id so the `$anim` slots are overwritten rather than grown.
+@MainActor
+private func chainAllocations(_ build: (Int, GlobalElementID, inout LayoutPass) -> Void,
+                              layers: Int) throws -> Int {
+    let frame = Frame(contentSize: Size(width: px(200), height: px(200)), scaleFactor: 1,
+                      stateTable: StateTable())
+    var pass = LayoutPass(frame: frame)
+    let id = GlobalElementID.child(of: nil, at: 0, name: nil)
+    for _ in 0..<(3 * allocationChains) { build(layers, id, &pass) }
+    return try countAllocations {
+        for _ in 0..<allocationChains { build(layers, id, &pass) }
+    }
+}
+
+/// **A modifier chain allocates a bounded amount over hand-built nested
+/// `Box`es, per frame build, at 1, 2 and 3 layers** (ruling MC-K).
+///
+/// Each arm counts 500 builds — construction AND `requestLayout`, since a
+/// content closure rebuilds the chain every frame — of `Box().padding(…)`
+/// chains against `Box(style:content:)` nested to the same depth with the same
+/// styles, each in a fresh `Frame` warmed with 1500 builds of the same arm.
+///
+/// Measured on this lane's implementation, swift.org Swift 6.3.3, debug test
+/// build, per 500 builds (record §10): nested 17 002 / 27 001 / 37 004, flat
+/// 17 002 / 28 501 / 39 504 — per chain +0, +3, +5, which is exactly the
+/// design model's difference (`LayerAllocationModel.swift`). The bounds are
+/// those measured differences.
+///
+/// **Mutations, each reddening its arm** (MC-K's Mutations line): a
+/// `requestLayout`-local array holding every layer (`inner + [outermost]`)
+/// reddens the one-layer arm; one extra array per `requestLayout` over the
+/// inner layers (`let _ = inner.map { $0.style }`) reddens the two- and
+/// three-layer arms and not the one-layer arm, whose `inner` is empty.
+///
+/// **On a swiftlang toolchain the strict half is not checked**, as in
+/// `freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine`: a bare index loop
+/// allocates per element there, and this function's layer loops would read as
+/// the toolchain's cost. The log says so (`MC-K-ALLOC: … NOT CHECKED`).
+@Test @MainActor func aModifierChainAllocatesABoundedAmountOverNestedBoxes() throws {
+    let calibration = try countAllocations { _ = allocateBuffers(16) }
+    try #require(calibration >= 16,
+                 "the allocation counter saw \(calibration) of 16 buffers; nothing it reports can be trusted")
+
+    let items = Array(repeating: 1.0, count: 67)
+    var sum = 0.0
+    _ = try countAllocations { for i in items.indices { sum += items[i] } }
+    let loopFloor = try countAllocations { for i in items.indices { sum += items[i] } }
+    _ = sum
+
+    var nested: [Int] = [], flat: [Int] = []
+    for layers in 1...3 {
+        nested.append(try chainAllocations(buildNested, layers: layers))
+        flat.append(try chainAllocations(buildFlat, layers: layers))
+    }
+    let readings = "per \(allocationChains) builds, layers 1/2/3: nested \(nested), flat \(flat)"
+    print("MC-K-ALLOC: \(readings); calibration \(calibration); loop floor \(loopFloor)")
+
+    // The instrument must see this function's allocations at all: a deeper
+    // nested tree costs more on every toolchain.
+    try #require(nested[2] > nested[1] && nested[1] > nested[0],
+                 "the counter cannot see a deeper tree's allocations: \(readings)")
+
+    #expect(flat[0] <= nested[0], "a one-layer chain must allocate no more than one Box: \(readings)")
+    if loopFloor == 0 {
+        #expect(flat[1] - nested[1] <= 3 * allocationChains,
+                "a two-layer chain may cost at most 3 allocations over nested boxes: \(readings)")
+        #expect(flat[2] - nested[2] <= 5 * allocationChains,
+                "a three-layer chain may cost at most 5 allocations over nested boxes: \(readings)")
+    } else {
+        print("""
+            MC-K-ALLOC: two- and three-layer bounds NOT CHECKED on this toolchain — a bare \
+            index loop allocates \(loopFloor) over 67 items. \(readings). Run a swift.org \
+            toolchain for the strict half.
+            """)
+    }
 }
