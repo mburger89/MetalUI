@@ -70,6 +70,8 @@ private extension AccessibilityNodeID {
 
 @MainActor private final class Tally {
     var count = 0
+    var first = 0
+    var last = 0
     var directions: [AccessibilityAdjustmentDirection] = []
 }
 
@@ -100,6 +102,34 @@ private struct Item: Identifiable { let id: Int }
     #expect(activeTable.peek(axSlot, as: AXNode.self) == nil, "and it writes no $ax retention slot")
     #expect(activeTable.count == idleTable.count,
             "a client must not change what the state table retains")
+}
+
+/// Each live handler **alone** makes an undeclared element record: a click
+/// target, a focusable element, an adjustable element. A plain sized box
+/// records nothing.
+///
+/// Every other fixture that uses `focusable()` or an adjustment also declares
+/// an `AXNode` or an `onClick`, so dropping either term from the synthesis
+/// condition reddened nothing (hunting mutants H05, H06; record, lane 1).
+@Test @MainActor func eachLiveHandlerAloneMakesAnUndeclaredElementRecord() throws {
+    let column = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let (frame, tree) = collect(Column {
+        Box().width(px(10)).height(px(10)).onClick {}
+        Box().width(px(10)).height(px(10)).focusable()
+        Box().width(px(10)).height(px(10)).onAction(AccessibilityAdjustment.self) { _ in }
+        Box().width(px(10)).height(px(10))
+    })
+    let recorded = frame.axEmissions.map(\.id)
+    #expect(recorded == (0..<3).map { GlobalElementID.child(of: column, at: $0, name: nil) },
+            "click, focus and adjustment each record; the plain fourth box does not")
+    #expect(frame.axNodes.isEmpty, "control: nothing here declared a node")
+    try #require(tree.nodes.count == 3)
+    let focusable = AccessibilityNodeID(GlobalElementID.child(of: column, at: 1, name: nil))
+    let adjustable = AccessibilityNodeID(GlobalElementID.child(of: column, at: 2, name: nil))
+    #expect(tree.nodes[focusable]?.isFocusable == true)
+    #expect(tree.nodes[adjustable]?.actions == [.increment, .decrement])
+    #expect(tree.nodes.values.allSatisfy { $0.label == nil && $0.value == nil },
+            "a synthesized node declared no label, and publishes none rather than an empty one")
 }
 
 /// Three drawn frames of a tree that would record (a `List` and a sized click
@@ -159,21 +189,33 @@ private struct Item: Identifiable { let id: Int }
 
 /// `TB-M`'s counterexample: named children in either order give the same key
 /// set, and record order still tells them apart.
+///
+/// **Six children in two unsorted orders, one the other's reverse.** With two,
+/// a mutant iterating the record dictionary's keys (M08) matched declaration
+/// order by chance in both arms and survived twice: `Dictionary` order is
+/// per-process, so a two-child fixture's kill was luck. Six give 720 orders; a
+/// hash order matching one arm matches the other only if it is its own reverse.
 @Test @MainActor func childrenFollowDeclarationOrderWhereIDsAloneCannot() throws {
-    func container(swapped: Bool) -> some Element {
-        let x = declared(Box().width(px(10)).height(px(10)).id("x"), AXNode(label: "x"))
-        let y = declared(Box().width(px(10)).height(px(10)).id("y"), AXNode(label: "y"))
-        return declared(Box {
-            if swapped { y; x } else { x; y }
-        }.width(px(100)).height(px(50)), AXNode(role: .container, label: "c"))
+    func child(_ name: String) -> Box<EmptyGroup> {
+        declared(Box().width(px(10)).height(px(10)).id(name), AXNode(label: name))
     }
-    for swapped in [false, true] {
-        let (_, tree) = collect(container(swapped: swapped))
-        let c = try #require(tree.id(labelled: "c"))
+    func container(reversed: Bool) -> some Element {
+        declared(Box {
+            if reversed {
+                child("b"); child("e"); child("c"); child("f"); child("a"); child("d")
+            } else {
+                child("d"); child("a"); child("f"); child("c"); child("e"); child("b")
+            }
+        }.width(px(100)).height(px(50)), AXNode(role: .container, label: "container"))
+    }
+    let declaredOrder = ["d", "a", "f", "c", "e", "b"]
+    for reversed in [false, true] {
+        let (_, tree) = collect(container(reversed: reversed))
+        let c = try #require(tree.id(labelled: "container"))
         #expect(tree.roots == [c])
         let labels = try #require(tree.nodes[c]).children.map { tree.nodes[$0]?.label }
-        #expect(labels == (swapped ? ["y", "x"] : ["x", "y"]),
-                "children must follow declaration order (swapped: \(swapped))")
+        #expect(labels == (reversed ? declaredOrder.reversed() : declaredOrder),
+                "children must follow declaration order (reversed: \(reversed))")
     }
 }
 
@@ -193,15 +235,23 @@ private struct Item: Identifiable { let id: Int }
 }
 
 /// `Deferred` content is hoisted, so it is a root even when an emitting
-/// ancestor declares it (AB-V).
+/// ancestor declares it (AB-V) — and leaving the portal restores the ancestor's
+/// portal, so a sibling declared after the `Deferred` is that ancestor's child.
+///
+/// **The trailing sibling is the leaving half's only pin**: with the portal
+/// never popped, `after` keeps the `Deferred`'s ordinal, finds no ancestor in
+/// it, and becomes a root.
 @Test @MainActor func portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor() throws {
     let (_, tree) = collect(declared(Box {
         Deferred { declared(Box().width(px(30)).height(px(10)), AXNode(label: "Tip")) }
+        declared(Box().width(px(10)).height(px(10)), AXNode(label: "after"))
     }.width(px(40)).height(px(20)), AXNode(role: .button, label: "B")))
     let button = try #require(tree.id(labelled: "B"))
     let tip = try #require(tree.id(labelled: "Tip"))
+    let after = try #require(tree.id(labelled: "after"))
     #expect(tree.roots == [button, tip])
-    #expect(tree.nodes[button]?.children == [])
+    #expect(tree.nodes[button]?.children == [after],
+            "content declared after a Deferred is back in its ancestor's portal")
 }
 
 // MARK: - Roles, labels, values, traits (AB-F, AB-L)
@@ -298,12 +348,21 @@ private struct Item: Identifiable { let id: Int }
     var relabelled = tree
     relabelled.nodes[target]?.label = "moved"
     #expect(!relabelled.hasSameStructure(as: tree), "a label is structure")
+    var reordered = tree
+    reordered.roots.reverse()
+    try #require(reordered.roots != tree.roots, "control: two roots, so reversing them changes the order")
+    #expect(!reordered.hasSameStructure(as: tree), "root order is structure")
+    var refocused = tree
+    refocused.focused = target
+    try #require(tree.focused == nil, "control: nothing was focused")
+    #expect(!refocused.hasSameStructure(as: tree), "focus is structure")
 }
 
 // MARK: - Actions (AB-H, AB-I)
 
 /// A press runs `onClick` through the last frame's hitboxes; a node with no
-/// click handler advertises no press and refuses one.
+/// click handler advertises no press and refuses one; a duplicated id's press
+/// runs its last registration.
 @Test @MainActor func aPressRequestRunsOnClickThroughTheLastFramesHitboxes() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let tally = Tally()
@@ -312,6 +371,10 @@ private struct Item: Identifiable { let id: Int }
             declared(Box().width(px(40)).height(px(20)).onClick { tally.count += 1 },
                      AXNode(role: .button, label: "clickable"))
             declared(Box().width(px(40)).height(px(20)), AXNode(role: .button, label: "inert"))
+            declared(Box().width(px(40)).height(px(20)).id("dup").onClick { tally.first += 1 },
+                     AXNode(role: .button, label: "dup-first"))
+            declared(Box().width(px(40)).height(px(20)).id("dup").onClick { tally.last += 1 },
+                     AXNode(role: .button, label: "dup-last"))
         }
     }
     platform.simulateAccessibilityRequest(.activate)
@@ -329,6 +392,13 @@ private struct Item: Identifiable { let id: Int }
 
     #expect(!platform.simulateAccessibilityRequest(.press(inert)))
     #expect(tally.count == 1)
+
+    // Two siblings sharing an `.id` publish one node; a press on it runs the
+    // LAST registration's handler, as click dispatch ranks a later hitbox above
+    // an earlier one (hunting mutant H02 took the first).
+    let dup = try #require(tree.id(labelled: "dup-last"))
+    #expect(platform.simulateAccessibilityRequest(.press(dup)))
+    #expect(tally.last == 1 && tally.first == 0)
 }
 
 /// A test-local wrapper that disables hit testing for its one child, the way
@@ -411,7 +481,9 @@ private struct HitTestingDisabled<Content: Element>: Element {
 
     #expect(tree.nodes[adjustable]?.actions == [.increment, .decrement])
     #expect(tree.nodes[plain]?.actions == [])
+    try #require(!window.needsRedraw)
     #expect(platform.simulateAccessibilityRequest(.increment(adjustable)))
+    #expect(window.needsRedraw, "an adjustment may have changed anything, so the window is dirtied")
     #expect(platform.simulateAccessibilityRequest(.decrement(adjustable)))
     #expect(tally.directions == [.increment, .decrement])
 
@@ -505,23 +577,27 @@ private struct PressToRename: Component {
 // MARK: - What is and is not published (AB-O, AB-L)
 
 /// `display: none` content records nothing; a zero-height node is published;
-/// two siblings sharing an `.id` publish one node, once.
+/// two siblings sharing an `.id` publish one node, once, at the first
+/// occurrence's position with the last occurrence's content. The two
+/// occurrences straddle the divider, so first and last position publish
+/// different root orders.
 ///
 /// The hidden box is also focusable and focused: `hidden()` does not stop
 /// focus (CLAUDE.md's inert table), so the frame keeps that focus, and the
 /// published `focused` must still be `nil` because its node was not published.
+/// The hidden box is itself a click target, so the suppression scope's `nil`
+/// exception is observable: excepting the hidden element would publish it as a
+/// root (hunting mutant H14).
 @Test @MainActor func hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce() throws {
     let column = GlobalElementID.child(of: nil, at: 0, name: nil)
     let hiddenBox = GlobalElementID.child(of: column, at: 0, name: nil)
     let hiddenFocusable = GlobalElementID.child(of: hiddenBox, at: 0, name: nil)
     let (frame, tree) = collect(Column {
         Box { declared(Box().width(px(10)).height(px(10)).focusable(), AXNode(label: "in")) }
-            .width(px(20)).height(px(20)).hidden()
+            .width(px(20)).height(px(20)).hidden().onClick {}
+        declared(Box().width(px(10)).height(px(10)).id("x"), AXNode(label: "x-first"))
         declared(Box().width(px(20)).height(px(0)), AXNode(label: "divider"))
-        Row {
-            declared(Box().width(px(10)).height(px(10)).id("x"), AXNode(label: "x-first"))
-            declared(Box().width(px(10)).height(px(10)).id("x"), AXNode(label: "x-last"))
-        }
+        declared(Box().width(px(10)).height(px(10)).id("x"), AXNode(label: "x-last"))
     }, focusedElement: hiddenFocusable)
     #expect(frame.axNodes.values.contains { $0.label == "in" },
             "control: the hidden node is still emitted as today; only the record is suppressed")
@@ -534,7 +610,8 @@ private struct PressToRename: Component {
 
     let x = try #require(tree.id(labelled: "x-last"), "one node per id, with its last content")
     #expect(!tree.nodes.values.contains { $0.label == "x-first" })
-    #expect(tree.roots == [divider, x], "published once, at its first position")
+    #expect(tree.roots == [x, divider],
+            "published once, at its first position: before the divider its two occurrences straddle")
 }
 
 /// A `List` publishes a table whose row count is its logical count, even when a
