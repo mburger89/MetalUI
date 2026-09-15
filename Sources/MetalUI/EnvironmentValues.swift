@@ -70,6 +70,17 @@ public struct EnvironmentValues {
     }
 
     /// Whether controls below accept interaction. `true` by default.
+    ///
+    /// **The gate reads this value, not the modifier that wrote it** (ruling
+    /// EV-D, probe P8/P9): `.disabled(_:)` ANDs it with what it inherits, and a
+    /// raw `.environment(\.isEnabled, true)` below a disabled scope
+    /// re-enables. `Frame.registerHandlers` reads it at registration, and when
+    /// it is `false` the element registers no hitbox (a click reaches what is
+    /// under it; it is neither hovered nor pressed), no focus, action handlers,
+    /// raw `onKey` or `keyContext`, writes no `$focus` slot, and its declared
+    /// AX node carries `.disabled` (rulings EV-E, EV-F, EV-T). A raw
+    /// `PrepaintPass.insertHitbox` is not gated; an element using it reads this
+    /// itself.
     public var isEnabled: Bool = true
 
     /// Carried and readable; nothing mirrors under `.rightToLeft` yet (ruling

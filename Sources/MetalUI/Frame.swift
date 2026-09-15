@@ -706,12 +706,46 @@ public final class Frame {
     /// consumes the point. Non-opaque would mean a modal scrim could not
     /// swallow clicks aimed at what it covers, which is the sibling property of
     /// the wheel swallow this milestone's exit criterion 4 is about.
+    ///
+    /// **The disabled gate is here too, and only here** (rulings EV-E, EV-F,
+    /// EV-T). `environmentTop.isEnabled` is read once, in place, and when it is
+    /// false:
+    ///
+    /// - **no hitbox is registered**, whatever `handlers` holds. A click over
+    ///   the disabled target therefore reaches whatever enabled hitbox lies
+    ///   under it — an enabled ancestor with an `onClick` (aligned with SwiftUI,
+    ///   probe `swiftui-disabled-ancestor-and-order.swift` N1/N2) or an enabled
+    ///   sibling drawn under it (a divergence, SwiftUI's shape blocks, P2f; the
+    ///   same difference every non-clickable MetalUI overlay already has). With
+    ///   no hitbox the target is neither hovered nor `isActive`, and a press or
+    ///   a release made while it was disabled fails `Window.dispatchClick`'s
+    ///   `hit.id == pressed` (probe R), with no `Window` edit.
+    /// - **no focus registration**: not `isFocusable`, `actions`, `onKey` or
+    ///   `keyContext`. A focus request on it is cleared at the prepaint/paint
+    ///   boundary, a focused element that becomes disabled loses focus, and a
+    ///   disabled ancestor's raw `onKey` does not see a key (the last two are
+    ///   divergences from probe K2/K6, ruling EV-F).
+    /// - **no `$focus` retention write** — while `focusedElementProducedThisFrame`
+    ///   stays ungated (see that write's own paragraph below).
+    /// - **the declared AX node gains `.disabled`**.
+    ///
+    /// Every caller reaches it: `Box` (and so `Column`/`Row`), `Stack`, `Text`,
+    /// `FrameModifier` and `OnTapModifier` (`grep -rn "registerHandlers(" Sources`),
+    /// `List` rows through their elements and `Component` through its members.
+    /// A raw `PrepaintPass.insertHitbox` is NOT gated: an element using the
+    /// primitive reads `pass.environment.isEnabled` itself.
     func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
                           id: GlobalElementID) {
-        // The keyboard side first, and unconditionally: focus registration is
-        // not gated on the pointer gate below, and an element can ask for one
-        // without the other. `register` gates itself on `isKeyTarget`.
-        focusRegistry.register(handlers, id: id)
+        // Read in place, not through `environmentSnapshot()`, so the gate costs
+        // no counted snapshot (ruling EV-O).
+        let enabled = environmentTop.isEnabled
+        // The keyboard side first: focus registration is not gated on the
+        // pointer gate below, and an element can ask for one without the
+        // other. `register` gates itself on `isKeyTarget`; a disabled element
+        // does not reach it at all (ruling EV-F).
+        if enabled {
+            focusRegistry.register(handlers, id: id)
+        }
         // **Independent of `isKeyTarget`/`isFocusable` — this is "was the
         // currently-focused id produced this frame at all", not "did it ask
         // to stay focused".** `Box.prepaint`, `Stack.prepaint` and
@@ -751,7 +785,19 @@ public final class Frame {
             // focusable. The consequence is a wrongly-sticky focus on an
             // element that has never been a key target — not a clobber, not a
             // crash, and not reachable without an explicit `Window.focus` call
-            // on a non-focusable element.
+            // on an ENABLED, produced, non-focusable element.
+            //
+            // **`.disabled` does not reach it** (ruling EV-F, critic finding 7):
+            // every `.focusable()` element under `.disabled` is non-focusable,
+            // so without the `if enabled` below a focus request on one would
+            // write the slot, and removing the element and focusing its id
+            // again would stick. The write is gated on `enabled` alone — not on
+            // `isKeyTarget`, which is the general fix below and a focus-contract
+            // change — and `focusedElementProducedThisFrame` above stays
+            // ungated, so the pre-existing hazard is exactly as reachable as it
+            // was. Pinned both ways by
+            // `aFocusRequestWhileDisabledLeavesNoRetentionSlot`: its disabled arm
+            // leaves no slot, its instrument arm (enabled, not focusable) sticks.
             //
             // **Deliberately not fixed, and the reason is the SHAPE of the fix
             // rather than its size.** The obvious patch — gate this write on
@@ -769,10 +815,17 @@ public final class Frame {
             // contract rather than a patch, and it does not go in unreviewed in
             // the last commit before a merge — the same judgement
             // `Window.applyScroll` was given during the input milestone.
-            stateTable.withState(Self.focusRetentionSlot(for: focused),
-                                 initial: true) { _ in }
+            if enabled {
+                stateTable.withState(Self.focusRetentionSlot(for: focused),
+                                     initial: true) { _ in }
+            }
         }
-        if hitTestingDisabledDepth == 0, handlers.isPointerTarget {
+        // Disabled: NO hitbox — not a blocker with empty handlers, and no
+        // derived id (ruling EV-E, third pass). A blocker would eat an enabled
+        // ancestor's click (against probe N1/N2), and one under this id would
+        // let a press made while disabled click on a release after
+        // re-enabling (against probe R, ruling EV-T).
+        if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
             _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
         }
         // **Accessibility rides here too, and it was not always here.** The
@@ -802,8 +855,15 @@ public final class Frame {
         // ids without a change to that protocol's associated types (ruling
         // `TB-M`). Whoever assembles a real tree either extends `ElementGroup`
         // for it or walks `GlobalElementID.parent` over the flat `axNodes` map.
+        //
+        // **A disabled element's declared node gains `.disabled`** (ruling
+        // EV-E). Presence and role still come from the ungated `handlers`: a
+        // disabled button is still a button. The accessibility bridge's record
+        // takes `isEnabled: enabled` at merge (ruling EV-W item 4).
         if !handlers.axNode.isEmpty {
-            emitAXNode(handlers.axNode, at: bounds, id: id, children: [])
+            var node = handlers.axNode
+            if !enabled { node.traits.insert(.disabled) }
+            emitAXNode(node, at: bounds, id: id, children: [])
         }
     }
 

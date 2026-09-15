@@ -421,6 +421,12 @@ public struct PrepaintPass {
     /// `Handlers` and would otherwise have no way to make it do anything —
     /// which is precisely CLAUDE.md's declared-and-inert shape, arrived at by
     /// access control instead of by omission.
+    ///
+    /// **Under `.disabled(true)` it registers no hitbox and no focus**, whatever
+    /// `handlers` holds, and a declared AX node gains `.disabled` — the one
+    /// disabled gate, read from `environment.isEnabled` (rulings EV-E, EV-F;
+    /// see `Frame.registerHandlers`). An element calling it needs no check of
+    /// its own.
     public func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
                                  id: GlobalElementID) {
         frame.registerHandlers(handlers, at: bounds, id: id)
