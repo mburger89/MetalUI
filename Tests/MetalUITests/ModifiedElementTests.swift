@@ -298,7 +298,11 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             .padding(4).id("mid")
             .frame(width: 60, height: 40)
             .background(.surface).onClick {}
-            .padding(8)
+            // `Edges`, not `Pixels`: under test 1's mutation (a concrete
+            // nesting `padding(_: Pixels)` on `ModifiedElement`) a `Pixels`
+            // padding on a chain nests and this return type stops compiling,
+            // which would take the whole target down instead of reddening.
+            .padding(Edges(all: .pixels(px(8))))
             .background(.separator).onClick {}
     }
     func genericChain(_ log: LayerLog) -> ModifiedElement<LayerLeaf> {
