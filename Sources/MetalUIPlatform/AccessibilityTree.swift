@@ -90,10 +90,21 @@ public struct AccessibilityGeometry: Equatable {
     /// rect a hitbox registers at. Used only for hit testing (AB-W); zero-area
     /// when the node is scrolled fully out of its viewport.
     public var visibleFrame: Bounds<Pixels>
+    /// The paint layer the node recorded on: 0 outside every `Deferred`,
+    /// `Frame.rootLayer` inside one — `Hitbox.layer`'s value. The hit test's
+    /// primary key, so portal content outranks what it covers wherever it was
+    /// declared (AB-W).
+    public var layer: Int
+    /// The node's position in the frame's record order (first occurrence,
+    /// AB-O): pre-order, so a descendant outranks its ancestor and a later
+    /// sibling an earlier one. The hit test's tiebreak within a layer (AB-W).
+    public var order: Int
 
-    public init(frame: Bounds<Pixels>, visibleFrame: Bounds<Pixels>) {
+    public init(frame: Bounds<Pixels>, visibleFrame: Bounds<Pixels>, layer: Int = 0, order: Int = 0) {
         self.frame = frame
         self.visibleFrame = visibleFrame
+        self.layer = layer
+        self.order = order
     }
 }
 

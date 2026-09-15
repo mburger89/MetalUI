@@ -12,6 +12,11 @@ final class MetalHostView: NSView {
     var onGeometryChange: (() -> Void)?
     var onAppearanceChange: (() -> Void)?
 
+    /// The accessibility bridge this view answers clients from
+    /// (`AppKitAccessibility.swift`). Strong: the bridge holds this view weakly
+    /// (ruling AB-D's ownership table).
+    var accessibilityBridge: AppKitAccessibilityBridge?
+
     private let surface: MetalLayerSurface
 
     init(surface: MetalLayerSurface) {
@@ -216,7 +221,7 @@ final class MetalHostView: NSView {
 @MainActor
 final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     private let window: NSWindow
-    private let hostView: MetalHostView
+    let hostView: MetalHostView
     private let metalSurface: MetalLayerSurface
     private var displayLink: CADisplayLink?
     private var tick: ((Double) -> Void)?
@@ -233,9 +238,14 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     private(set) var publishedAccessibilityTree = AccessibilityTree.empty
     func publishAccessibilityTree(_ tree: AccessibilityTree) { publishedAccessibilityTree = tree }
 
-    init(device: any MTLDevice, title: String, size: Size<Pixels>) throws {
+    let accessibilityBridge: AppKitAccessibilityBridge
+
+    init(device: any MTLDevice, title: String, size: Size<Pixels>,
+         accessibilitySignal: any AccessibilityClientSignal) throws {
         metalSurface = MetalLayerSurface(device: device)
         hostView = MetalHostView(surface: metalSurface)
+        accessibilityBridge = AppKitAccessibilityBridge(signal: accessibilitySignal,
+                                                        poster: SystemAccessibilityNotificationPoster())
 
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0,
@@ -369,13 +379,21 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
 public final class AppKitPlatform: Platform {
     private let device: any MTLDevice
     private var windows: [AppKitWindow] = []
+    private let makeAccessibilitySignal: @MainActor () -> any AccessibilityClientSignal
 
-    public init(device: any MTLDevice) {
+    public convenience init(device: any MTLDevice) {
+        self.init(device: device, accessibilitySignal: { VoiceOverSignal() })
+    }
+
+    init(device: any MTLDevice,
+         accessibilitySignal: @escaping @MainActor () -> any AccessibilityClientSignal) {
         self.device = device
+        self.makeAccessibilitySignal = accessibilitySignal
     }
 
     public func openWindow(title: String, size: Size<Pixels>) throws -> any PlatformWindow {
-        let window = try AppKitWindow(device: device, title: title, size: size)
+        let window = try AppKitWindow(device: device, title: title, size: size,
+                                      accessibilitySignal: makeAccessibilitySignal())
         windows.append(window)
         window.makeKeyAndVisible()
         return window

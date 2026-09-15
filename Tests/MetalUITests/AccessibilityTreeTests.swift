@@ -216,6 +216,12 @@ private struct Item: Identifiable { let id: Int }
         let labels = try #require(tree.nodes[c]).children.map { tree.nodes[$0]?.label }
         #expect(labels == (reversed ? declaredOrder.reversed() : declaredOrder),
                 "children must follow declaration order (reversed: \(reversed))")
+        // Lane 2 (AB-W): `order` is the record position the hit test breaks
+        // layer ties on, so it rises through pre-order — the container first,
+        // then its children in declaration order. A builder filling 0 reddens.
+        let ordered = [c] + (try #require(tree.nodes[c])).children
+        let orders = ordered.map { tree.geometry[$0]?.order }
+        #expect(orders == Array(0..<7), "order must rise through record order (reversed: \(reversed))")
     }
 }
 
@@ -252,6 +258,12 @@ private struct Item: Identifiable { let id: Int }
     #expect(tree.roots == [button, tip])
     #expect(tree.nodes[button]?.children == [after],
             "content declared after a Deferred is back in its ancestor's portal")
+    // Lane 2 (AB-W): the hit test ranks on the layer first, so portal content
+    // carries `Frame.rootLayer` and what it covers carries 0. A geometry
+    // filling 0 for the layer reddens the tip.
+    #expect(try #require(tree.geometry[tip]).layer == Frame.rootLayer)
+    #expect(try #require(tree.geometry[button]).layer == 0)
+    #expect(try #require(tree.geometry[after]).layer == 0, "leaving the portal leaves its layer")
 }
 
 // MARK: - Roles, labels, values, traits (AB-F, AB-L)
