@@ -904,6 +904,17 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
     window.drawFrameIfNeeded()
     #expect(log.paint["window"]?.locale.identifier == Locale.current.identifier)
     #expect(log.paint["reset"]?.locale.identifier == "")
+
+    // (iv) and (v), added at integration (EV-Y's two unpinned claims; the
+    // second verification round's mutants m1 and m2 left the suite green).
+    // A `Frame` built without a window roots at the bare locale...
+    let windowless = EnvLog()
+    var bare = Row { EnvRecorder(label: "w", log: windowless) }
+    frame().render(&bare)
+    #expect(windowless.paint["w"]?.locale.identifier == "", "a windowless Frame roots at EnvironmentValues()")
+    // ...and an `@Environment` that was never bound reads the bare default.
+    let unbound = Environment(\.locale)
+    #expect(unbound.wrappedValue.identifier == "", "an unbound @Environment reads EnvironmentValues()'s locale")
 }
 
 // MARK: - E15, E20: work counts (EV-O, EV-V)

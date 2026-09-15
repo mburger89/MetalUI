@@ -661,13 +661,15 @@ private struct PressToRename: Component {
 /// (AB-O, AB-Z item 4). `x.padding(4).hidden().padding(4)` hides the middle
 /// layer, while `prepaintGroup` reads the outermost layer's style.
 ///
-/// **Green on this branch by construction, and written for the merge.** Here
-/// each `.padding` is a nested `Box`, and the middle `Box`'s own
-/// `prepaintGroup` suppresses. After the modifier-composition merge the same
-/// spelling is one three-layer `ModifiedElement` whose `prepaint` registers its
-/// layers in a loop without passing through `prepaintGroup`; this test is red
-/// there until that loop carries the check. The control, `.padding(4).padding(4)`,
-/// records the box.
+/// **Written on `feat/ax-bridge` for the merge, and red on it** (measured at
+/// integration: 2 issues, :682 and :683, at the merge commit). There each
+/// `.padding` was a nested `Box` whose own `prepaintGroup` suppressed; after the
+/// modifier-composition merge the same spelling is one `ModifiedElement` whose
+/// inner layers get no `prepaintGroup`. Green since
+/// `ModifiedElement.prepaintLayer` wraps each inner layer in
+/// `Frame.suppressingAccessibilityIfHidden` (MC-B's per-layer mirroring);
+/// deleting that wrap reddens exactly these two lines. The control,
+/// `.padding(4).padding(4)`, records the box.
 @Test @MainActor func aHiddenInnerModifierLayerSuppressesEverythingInsideIt() throws {
     func target() -> Box<EmptyGroup> {
         declared(Box().width(px(10)).height(px(10)).onClick {}, AXNode(label: "in"))

@@ -904,8 +904,9 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// **D12 cannot see the accessibility-bridge merge**: it reads a frame that is
 /// not collecting for the bridge, so it stays green whatever the bridge's
 /// record says about `isEnabled`. That is the joint test's job,
-/// `aDisabledClickableElementPublishesDisabledWithNoPressAndRefusesAPress`,
-/// written at integration (ruling EV-W item 4).
+/// `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`
+/// (`TrackInteractionTests.swift`), written at integration (ruling EV-W item 4;
+/// it supersedes the third pass's name for it).
 @MainActor
 @Test func aDisabledElementsAXNodeCarriesTheDisabledTrait() throws {
     func traits(_ d: Bool) throws -> Set<AXTrait> {
@@ -925,4 +926,42 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 
     #expect(try !traits(false).contains(.disabled), "control: an enabled element's node has no .disabled trait")
     #expect(try traits(true).contains(.disabled), "a disabled element's node carries .disabled")
+}
+
+// MARK: - Scroll regions are outside the gate
+
+/// **A `.disabled` `ScrollView` still scrolls on the wheel**, pinned as it
+/// stands at integration (environment track, second verification round):
+/// `Frame.registerScrollRegion` inserts its hitbox directly, not through
+/// `registerHandlers`, so the disabled gate never sees it. SwiftUI's answer is
+/// **unmeasured** (ruling EV-Q's task-10 item); this pins MetalUI's, so a change
+/// either way is a decision rather than an accident. Control: the same scroller
+/// enabled reads the same offset, and a wheel that misses reads 0, so the
+/// instrument can tell a scroll from none.
+@MainActor
+@Test func aDisabledScrollViewStillScrollsOnTheWheel() throws {
+    let device = try device()
+    func offset(disabled: Bool, at point: Point<Pixels>) throws -> Double {
+        let (window, platform) = try makeFakeWindow(device: device, size: 200) {
+            Row {
+                Box {
+                    ScrollView(.vertical, elementID: ElementID("list")) { Box().width(px(40)).height(px(400)) }
+                        .disabled(disabled)
+                }
+                .width(px(120)).height(px(120))
+            }
+        }
+        window.drawFrameIfNeeded()
+        platform.simulateInput(.scrollWheel(ScrollEvent(position: point, delta: Point(x: px(0), y: px(-37)))))
+        window.drawFrameIfNeeded()
+        let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+        let box = GlobalElementID.child(of: root, at: 0, name: nil)
+        let scroller = GlobalElementID.child(of: box, at: 0, name: ElementID("list"))
+        return window.stateTable.peek(scroller, as: ScrollState.self)?.offset ?? 0
+    }
+    let missed = try offset(disabled: false, at: pt(180, 190))
+    let enabled = try offset(disabled: false, at: pt(20, 100))
+    try #require(missed == 0 && enabled > 0, "the instrument: a miss reads \(missed), a hit \(enabled)")
+    let disabled = try offset(disabled: true, at: pt(20, 100))
+    #expect(disabled == enabled, "a disabled ScrollView scrolls as an enabled one does (unpinned choice, EV-Q)")
 }
