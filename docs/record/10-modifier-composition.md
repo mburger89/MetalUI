@@ -692,6 +692,59 @@ and a duplicate-parent check (hole 4), each measured here to truncate the suite
 rather than redden a test, so whoever adds one converts the pinning test to an
 exit test first.
 
+#### Lane 3 verifier-fix round, 2026-09-15 (from `c922457`)
+
+One agent in the worktree. **The verifier's major finding:** lane 3's typed
+builder-group entries are copies of the untyped ones. These are `ArrayGroup`'s,
+`OptionalGroup`'s and `Pair`'s `requestProposalGroupLayout`, plus `Component`'s
+typed default. Only `Pair`'s was pinned: the verifier's P2, P3 and P4 each left
+1112 tests green.
+
+**Fixed** by the three tests in `ProposalGroupEntryTests.swift` (new, test-only
+apart from a doc comment in `ProposalElementGroup.swift`). They were green on
+arrival against correct code. Their red runs are the three mutations, each
+taken over the whole suite and each reddening only its own test. The readings
+are under `MC-H`'s "Verifier round on lane 3":
+
+| mutation | run | reddened |
+|---|---|---|
+| P3, `ArrayGroup` appends only the first group's nodes | 1115, 1 issue | `aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot` (loop x `[0, 0, 0]`) |
+| P2, `OptionalGroup` loses `wrapped = inner` | 1115, 1 issue | `anElementInsideAnIfInsideAProposalContainerKeepsItsLayoutTimeWrites` (`"if": false`) |
+| P4, `Component` content at `innerCursor = 1` | 1115, 6 issues | `aProposalComponentsContentIsPositionZeroUnderItsOwnID` (ids wrong, slots `nil`) |
+
+**Suite after the round**, `swift test --build-system native --no-parallel`:
+`Test run with 1115 tests in 1 suite passed after 27.835 seconds`, with 0
+`error:` and 0 `warning:`. There are 97 goldens, and
+`git diff --stat f64e58a -- '*.json'` is empty. The guard count is unchanged at
+53, since no guard was added.
+
+**Minor finding, still deferred:** the two demo window captures. The session
+was re-checked at the start of this round and is still locked with the display
+asleep (`CGSSessionScreenIsLocked` 1, `CGDisplayIsAsleep` 1), so neither window
+can be captured without input. They stay owed under `MC-S` item 7.
+
+**Re-taken before commit, at `6a0169c`** (so with lane 2 round 2's test, 1116).
+A lane 3 re-dispatch found this round complete and uncommitted, re-ran it and
+committed it. Clean runs: `swift test --build-system native --no-parallel` gave
+`Test run with 1116 tests in 1 suite passed after 31.410 seconds`, and
+`swift test --no-parallel` gave `… passed after 29.327 seconds`. Both logs have
+0 `error:` and 0 `warning:`, and guard 2's "initializer is inaccessible due to
+'internal'" diagnostic is printed in each. There are 53 guards and 97 goldens,
+and the json diff against `f64e58a` is empty.
+
+The three mutations were re-run by a script: backup, one exact-anchor
+replacement, the whole native suite, then restore. After each run no `MUTATION`
+marker remained and `git status` showed only this round's files. Each reddened
+only its own test:
+
+- **P3:** `failed after 30.377 seconds with 1 issue`; loop x
+  `[0.0, 0.0, 0.0]`.
+- **P2:** `… 29.528 seconds with 1 issue`; `"if": false`.
+- **P4:** `… 30.598 seconds with 6 issues`; slots `nil nil`.
+
+The session was still locked (`IOConsoleLocked` true; `screencapture -x
+-R0,0,50,50` gave "could not create image from rect"), so the captures stay owed.
+
 #### Lane 2 verifier-fix round 2, 2026-09-15 (from `c922457`)
 
 One agent in the worktree, with lane 3's verifier-fix round present and

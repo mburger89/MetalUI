@@ -33,7 +33,16 @@ public protocol ProposalElementGroup: ElementGroup {
 // MARK: - The builder's products, on the typed entry
 //
 // Each mirrors its untyped `requestGroupLayout` in `ElementGroup.swift` line for
-// line, calling the typed entry on its members.
+// line, calling the typed entry on its members. **They are copies, so each is
+// pinned on its own**: the untyped entries' tests never reach them, and until
+// the verifier round on lane 3, three of the four could lose a load-bearing line
+// with the whole suite green (ruling MC-H). `Pair`'s node order is pinned by the
+// native layout tests, `ArrayGroup`'s appends by
+// `aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot`,
+// `OptionalGroup`'s `wrapped = inner` by
+// `anElementInsideAnIfInsideAProposalContainerKeepsItsLayoutTimeWrites`, and
+// `Component`'s typed default (`ProposalNodeID.swift`) by
+// `aProposalComponentsContentIsPositionZeroUnderItsOwnID`.
 
 extension EmptyGroup: ProposalElementGroup {
     public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,

@@ -1279,6 +1279,70 @@ the other's; H1 reddens both and the legacy `@State` tests; H4 reddens `b`.
 `Component.swift`'s untyped copy was not mutated here (its two pins are named
 in `MC-M`).
 
+**Verifier round on lane 3: nothing pinned the builder groups' typed entries,
+which are copies.** The helper removed the copied *identity* lines. But lane 3
+also added a typed `requestProposalGroupLayout` to `Pair`, `OptionalGroup` and
+`ArrayGroup` (`ProposalElementGroup.swift`) and to `Component`
+(`ProposalNodeID.swift`). Every `for`, `if` and component inside a proposal
+container now runs those instead of the untyped entries, so the untyped
+entries' tests never reach them. That is the copy hazard this ruling was
+written against, one level up.
+
+The verifier mutated each copy over the whole suite under
+`--build-system native`:
+
+- **P1** (`Pair`'s node order) reddened 16 native and proposal layout tests.
+- **P2, P3 and P4** each read `Test run with 1112 tests in 1 suite passed`.
+
+**Not fixed by sharing one implementation** between the typed and untyped
+entries. That would edit the untyped bodies in `ElementGroup.swift` and
+`Component.swift`, both shared with the parallel tracks, and the tests below
+already make a drifted copy fail loudly.
+
+**Fixed by three tests** in the new
+`Tests/MetalUITests/ProposalGroupEntryTests.swift`. Each runs through a real
+`Frame` and has its own control that must disagree:
+
+- **`aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot`** renders
+  `HStack(spacing: 0) { for … }` and compares it with the same three leaves
+  written as separate statements. The statements' x origins are `#require`d to
+  be 10 apart first.
+- **`anElementInsideAnIfInsideAProposalContainerKeepsItsLayoutTimeWrites`** sets
+  a stored flag in `requestProposalLayout` and reads it back in prepaint. Its
+  controls: the same element outside the `if` reads `true`, and an element that
+  makes no write reads `false`.
+- **`aProposalComponentsContentIsPositionZeroUnderItsOwnID`** uses two
+  components whose leaves' `@State` start at 7 and 20 and increment once during
+  layout. Each leaf's `$state0` slot at `.child(of: component, at: 0)` must read
+  8 and 21, respectively, and be live.
+
+**Their mutations.** Each ran over the whole suite
+(`swift test --build-system native --no-parallel`, 1115 tests), and each
+reddened only its own test:
+
+- **P3** (`ArrayGroup`'s typed entry appends only the first group's nodes):
+  `Test run with 1115 tests in 1 suite failed after 27.964 seconds with 1
+  issue`. The failure is the loop test at `:115`, where the loop's x origins
+  read `[0, 0, 0]` against `[0, 10, 20]`. The two unappended leaves prepaint at
+  a zero-sized rect at the origin. `nodeCount` still reads 4, because orphans
+  are counted, so the test observes the rects, not the count.
+- **P2** (`OptionalGroup`'s typed entry loses `wrapped = inner`):
+  `failed after 28.614 seconds with 1 issue`. The `if` arm reads `false`, while
+  `"plain"` still reads `true` and `"no write"` still reads `false`.
+- **P4** (`Component`'s typed default starts its content at `innerCursor = 1`):
+  `failed after 28.637 seconds with 6 issues`. The component test reads both
+  ids wrong, and both expected slots are `nil` and not live.
+
+**What it costs if wrong, added:**
+
+- **The typed copies can still drift** in a line none of these pins observes.
+  One example, by reading and not mutated: `ArrayGroup`'s `layouts.append`,
+  where a drift would trip the count precondition in its later phases rather
+  than fail a test named for it.
+- **`if`/`else` does not compile inside a proposal container.** `EitherGroup`
+  has no typed entry and never had the marker. That has been true since
+  `f64e58a` and is not a lane 3 regression.
+
 ---
 
 ## MC-I — `ModifiedElement` is a registering site in both phases and gets an arm in all six per-site guards, each arm exercising an INNER layer as well as the outermost; every per-site list that named `FrameModifier` changes its arm, never deletes it
