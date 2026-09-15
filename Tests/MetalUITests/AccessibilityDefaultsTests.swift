@@ -344,7 +344,7 @@ private extension AccessibilityTree {
             "a focusable grandchild keeps the button's children")
 
     // **A button below a kept node that is not a button still combines**
-    // (the verifier's surviving mutant V01 stopped the walk at the first kept
+    // (the verifier's surviving mutant L3V01 stopped the walk at the first kept
     // non-button). The demo's `CounterPanel` shape: a focusable container
     // holding click targets that wrap texts. Each inner button folds its own
     // text, and a declared label wins over it.
@@ -375,9 +375,9 @@ private extension AccessibilityTree {
 /// measured its 200pt viewport. The window at offset 0 is rows 0..<10 (200 / 28
 /// = 7.1, rounded up, plus 2 of overscan).
 ///
-/// **Added against the verifier's surviving mutants** V01 (step C does not
-/// recurse below a kept non-button), V02 (step C gates on `isClickable`) and
-/// V05 (`windowIsBounded` ignores `rowHeight`).
+/// **Added against the verifier's surviving mutants** L3V01 (step C does not
+/// recurse below a kept non-button), L3V02 (step C gates on `isClickable`) and
+/// L3V05 (`windowIsBounded` ignores `rowHeight`).
 @Test @MainActor func combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows() throws {
     func secondFrame<E: Element>(_ make: () -> E) throws -> AccessibilityTree {
         let stateTable = StateTable()

@@ -19,7 +19,10 @@ The integration step, not this track, links this file from
 `docs/record/README.md` and CLAUDE.md.
 
 **Status: lanes 1 (tree and seam), 2 (AppKit bridge) and 3 (defaults,
-modifiers, `List`) implemented; the human VoiceOver look is open.** The
+modifiers, `List`) implemented, and each verified by an independent verifier
+round (lane 2 twice, lane 3 twice); the track ends at `531b6fc` plus this
+record's commit. The human VoiceOver look is open, so plan task 12 is not
+complete (see "For the integrator", the last section).** The
 design was revised after one critic round, and again after a second critic
 round that followed lane 1 (its section is after lane 1's). Each lane appends
 its own section below:
@@ -682,6 +685,115 @@ unfiltered): `swift build --build-tests` printed 0 `error:` and 0 `warning:`;
 platform tests. Goldens: 97, and `git diff --stat f64e58a -- '*.json'` is
 empty.
 
+### Second verifier round on lane 2 (2026-09-15, at `f419b4f`)
+
+A second, independent verifier took lane 2 as recorded above. **Verdict: ok,
+with five minor issues, none fixed on this branch** (lane 3 started from the
+same commit; the issues are owed, below and in "For the integrator").
+
+**Suite.** After `swift build --build-system native` (0 `error:`, 0
+`warning:`), at `f419b4f`: `Test run with 1125 tests in 1 suite passed after
+27.539 seconds`, 0 `error:` and 0 `warning:` in the build and test logs;
+re-taken after every mutation and after deleting its scratch test file:
+`Test run with 1125 tests in 1 suite passed after 26.579 seconds`, again 0/0.
+Goldens 97, `git diff --stat f64e58a -- '*.json'` empty. Lane 2 adds 20 tests
+in `AppKitAccessibilityTests.swift` and 3 in `AccessibilityEndToEndTests.swift`
+and no typecheck guard (no `canTypecheck` line in the diff), so there was no
+guard to mutate. **Red first, checked:** the skeleton commit `b7474f9` has
+inert bodies and no `MetalHostView` override, which fits the recorded red
+lines (the outside hit test answering `NSWindow`).
+
+**Method.** 39 mutations, each built with `--build-tests`, run against the three
+accessibility test files (41 tests), and restored with `git checkout`. **Every
+survivor was then re-run on the full unfiltered suite** (1133 tests, with the
+verifier's temporary scratch tests), where the only failures were those scratch
+tests, which proves each mutant behaves differently. The scratch file was
+deleted and the worktree left clean at `f419b4f`.
+
+**Labels.** The verifier's own `C01`…`C24` and `N01`…`N54` collide with the
+second critic probe's arms C0–C7 and with lane 3's N-rows below, so they are
+spelled `L2C` and `L2N` here. There is no L2C19.
+
+| # | mutation | reddens |
+|---|---|---|
+| L2C01 | `publish` creates an element for every node | `aFocusedElementQueryDoesNotActivate`, `destroyedIsPostedOnlyForElementsAClientWasHanded`, `elementsAreCreatedOnlyWhenAClientReadsThem`, `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged` |
+| L2C02 | skip `element.detach` on removal | `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes` |
+| L2C03 | `.button` role maps to `.group` | `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick`, `rolesLabelsValuesAndTraitsMapOneToOne` |
+| L2C04 | `screenFrame` drops `convertToScreen` | `aGeometryOnlyChangeTouchesNoElementAndPostsNothing`, `aTableReportsItsRowCountAndItsRowsTheirIndices`, `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes`, `anElementsFrameIsItsHostRectInScreenCoordinatesReadAtQueryTime` |
+| L2C05 | `allows(action)` ignores `node.actions` | `onlyAdvertisedActionsAreAllowedAndPerformingSendsTheRequest` |
+| L2C06 | perform returns `true` whatever the window answers | `onlyAdvertisedActionsAreAllowedAndPerformingSendsTheRequest` |
+| L2C07 | increment sends `.decrement` | `onlyAdvertisedActionsAreAllowedAndPerformingSendsTheRequest` |
+| L2C08 | `isFocused` always `false` | `focusIsReportedFromTheTreeAndAFocusRequestIsSent` |
+| L2C09 | the focus setter sends nothing | `focusIsReportedFromTheTreeAndAFocusRequestIsSent` |
+| L2C10 | `rowCount` is `children.count` | `aTableReportsItsRowCountAndItsRowsTheirIndices` |
+| L2C11 | hit test on the unclipped frame | `hitTestingUsesVisibleFramesSoAClippedRowNeverWins` |
+| L2C12 | hit test ranks by order only (ignores layer) | `hitTestingUsesVisibleFramesSoAClippedRowNeverWins` |
+| L2C13 | the host's `accessibilityChildren` does not activate | `aFocusedElementQueryDoesNotActivate`, `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick`, `aTreePublishedBeforeActivationAnswersItsParentsAfterIt`, `layoutChangedIsPostedOncePerClientRead`, `nothingIsPostedBeforeActivation` |
+| L2C14 | the focused-element query activates | `aFocusedElementQueryDoesNotActivate` |
+| L2C15 | the bridge ignores the signal | `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery`, `elementsAreCreatedOnlyWhenAClientReadsThem` |
+| L2C16 | `publish` posts before activation (no `isActive` guard) | `aFocusedElementQueryDoesNotActivate`, `nothingIsPostedBeforeActivation` |
+| L2C17 | a geometry-only publish takes the structural path | `aGeometryOnlyChangeTouchesNoElementAndPostsNothing` |
+| L2C18 | `.layoutChanged` not coalesced by client read | `layoutChangedIsPostedOncePerClientRead` |
+| L2C20 | `.valueChanged` vends and posts for unvended ids | `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged` |
+| L2C21 | `AppKitWindow.publishAccessibilityTree` does not forward | `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick` |
+| L2C22 | `Window`'s press does not call `onClick` | `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aPressIsRefusedWhereHitTestingIsDisabled`, `aPressRequestRunsOnClickThroughTheLastFramesHitboxes`, `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick`, `anUnchangedFrameIsNotRepublished` |
+| L2C23 | `mainActorAnswer` drops the `Thread.isMainThread` check | `anOffMainThreadQueryAnswersNothingAndDoesNotTrap` |
+| L2C24 | `accessibilityRows` keeps non-row children | `aTableReportsItsRowCountAndItsRowsTheirIndices` |
+| L2N01 | `hasSameStructure` ignores `focused` | `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame`, `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged` |
+| L2N41 | the host's hit test answers `nil`, not the host, when nothing is hit | `hitTestingUsesVisibleFramesSoAClippedRowNeverWins` |
+| L2N50 | `onRequest`'s `didSet` does not clear `activationIsPending` | `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery` |
+| L2N53 | `focusedElement` drops the `isActive` guard | `aFocusedElementQueryDoesNotActivate` |
+| L2N54 | a focus change posts only if the new focus was already vended | `nothingIsPostedBeforeActivation` |
+| L2N04 | `AccessibilityTreeChanges` drops the `nodes.count` comparison | **green, equivalent** (predicted and so read): an added or removed id is already found by the pre-order walk |
+| L2N03 | `structureChanged` ignores `old.roots != new.roots` | **green, a gap**: reordering the roots alone posts no `.layoutChanged`. Only scratch `zzRootReorderPostsLayoutChanged` failed |
+| L2N09 | `requestFocus` uses `bridge`, not `liveBridge` | **green, a gap**: a detached element still sends `.focus`. Only scratch `zzDetachedElementSendsNoFocusRequest` failed |
+| L2N14 | visible rows check height only | **green, a gap**: a zero-width visible frame counts as visible. Only scratch `zzZeroWidthVisibleRowIsNotVisible` failed |
+| L2N15 | hit test `x > origin` (min-x edge excluded) | **green, a gap**. Only scratch `zzHitTestIncludesMinEdges` failed |
+| L2N15y | hit test `y > origin` (min-y edge excluded) | **green, a gap**. Only scratch `zzHitTestIncludesMinEdges` failed |
+| L2N21 | `accessibilityRows`/`VisibleRows` do not note a client read | **green, a gap**: a rows read does not re-arm `.layoutChanged`. Only scratch `zzRowsReadRearmsLayoutChanged` failed |
+| L2N33 | the selector gate's `default:` answers `false`, not `nil` | **green, a gap**: every ungated selector disallowed. Only scratch `zzOrdinaryAttributesAreAllowedBySelectorGate` failed (3 issues) |
+| L2N33b | the selector gate returns `answer ?? false`, not `?? super` | **green, a gap**, as L2N33 |
+| L2N37 | `element.node` drops `!isDetached` | **green, a gap**: once its id returns, a detached element reads the **new** node. Only scratch `zzDetachedElementKeepsLastLabelWhenIdReturns` failed |
+| L2N30 | public `AppKitPlatform(device:)` builds a silent signal, not `VoiceOverSignal` | **green, a gap**. Only scratch `zzProductionPlatformUsesVoiceOverSignal` (the bridge's private signal read through `Mirror`) failed |
+
+**28 of 39 reddened; one survivor is equivalent; ten are confirmed gaps in the
+committed tests.** The verifier's issues, each minor, and the change each
+requires (none made here):
+
+1. **The selector gate's fall-through is unpinned** (L2N33, L2N33b). Every
+   attribute other than press/increment/decrement and the table/row selectors
+   depends on `default: nil` reaching `super.isAccessibilitySelectorAllowed`.
+   The in-process tests call `accessibilityLabel()` and the like directly, which
+   never consults the gate. Whether the real AX server consults it for those
+   attributes is **unmeasured**: the verifier's two-process probe hit the limit
+   `appkit-accessibility-activation-clients.swift` already records (a script
+   process's elements resolve to `AXApplication`). *Change:* in an existing test
+   (the button in `onlyAdvertisedActionsAreAllowedAndPerformingSendsTheRequest`),
+   assert the label, role, parent and children selectors are allowed; mutate the
+   default once.
+2. **Production's signal is unpinned** (L2N30). Every test builds the platform
+   through the internal `init(device:accessibilitySignal:)`, so wiring the
+   public init to a silent signal would remove `AB-B`'s second trigger with the
+   suite green. *Change:* a test that opens a window through
+   `AppKitPlatform(device:)` and checks the bridge's signal `is VoiceOverSignal`
+   (internal `private(set)` or `Mirror`), independent of whether VoiceOver runs.
+3. **Two notification claims in lane 2's own docs are unpinned** (L2N03, L2N21):
+   `AccessibilityTreeChanges.structureChanged`'s doc says a roots-only change is
+   structural, and `rows(visibleOnly:)` notes a client read. *Change:* two arms
+   in `layoutChangedIsPostedOncePerClientRead`, roots-only reorder and a
+   rows-only read, each after an unread structural publish.
+4. **Two halves of `AB-D`'s detached contract are unpinned** (L2N09, L2N37): a
+   detached element "refuses everything" but can still send `.focus`, and it
+   "keeps describing what it last was" but reads the new node once its id
+   returns. *Change:* in `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes`,
+   `b.setAccessibilityFocused(true)` after detach sends nothing, and the old `b`
+   still reads `"b2"` after the id returns with a different label.
+5. **Boundaries are pinned on one side** (L2N14, L2N15, L2N15y): the half-open
+   hit test only on the max edges, the visible-row filter only for zero height.
+   *Change:* min-x and min-y edge points in
+   `hitTestingUsesVisibleFramesSoAClippedRowNeverWins`, and a zero-width,
+   full-height visible row in `aTableReportsItsRowCountAndItsRowsTheirIndices`.
+
 ### Lane 3 — defaults, modifiers, `List` (2026-09-15)
 
 Commits on `feat/ax-bridge`: `2e5ca0a` (15 tests, red, with an inert modifier
@@ -789,7 +901,7 @@ an active scroller-less list that must go clean after frame 0.
 **Third round, the whole table re-taken at `ecb0504`: 57 rows** (the second
 round's 52, plus N64, N65, N67, N69, N70). **No survivor among those 57**, which
 is not the same as covering step C and the window guard: the verifier round
-below found three hunting mutants (V01, V02, V05) that this table did not
+below found three hunting mutants (L3V01, L3V02, L3V05) that this table did not
 contain and that all survived. Every run built and
 printed `Test run with 1140 tests`. Against the second round, 49 rows redden
 exactly the same tests; N52 and N60 are now killed; N07 (a clickable text
@@ -863,23 +975,31 @@ guard.** Lane 3's verifier re-took N23, N26, N29, N30, N46, N52, N60 and N69
 (each reddened the tests above) and ran hunting mutants of its own, all on
 the unfiltered suite, each shown to change a published value by a probe before
 being banked as a gap. Three survived at `Test run with 1140 tests in 1 suite
-passed`:
+passed`.
 
-- **V01**: step C does not recurse below a node that is not a folding button.
+**Labels.** This verifier numbered its mutants V01…, colliding with the lane-2
+verifier's V-rows above ("there is no V05" is true of that table only). They
+are spelled **`L3V`** here, in `AB-AG` item 7 and in the test comments of
+`AccessibilityDefaultsTests.swift`; commit `531b6fc`'s subject, which cannot
+be changed, still reads "(V01, V02, V05)" and means these three. The second
+lane-2 verifier's rows ("Second verifier round on lane 2", above lane 3's
+section) are likewise spelled `L2C`/`L2N`.
+
+- **L3V01**: step C does not recurse below a node that is not a folding button.
   No fixture had a combining button whose parent is a published node, which is
   the demo's own `CounterPanel` shape. On
   `Row { Box{Text("-")}.onClick{}.accessibilityLabel("Decrement"); Box{Text("go")}.onClick{} }.focusable()`
   the mutant publishes `button label=nil` holding `staticText "go"` where the
   implementation publishes `button label="go"` with no children.
-- **V02**: step C gates on `record.isClickable` rather than the published role.
+- **L3V02**: step C gates on `record.isClickable` rather than the published role.
   A clickable `List` then folds every row into its label
   (`table label="Row 0, Row 1, … Row 9" kids=0`, against `table kids=10`).
-- **V05**: `windowIsBounded` drops `&& rowHeight.value > 0`. A 50-row list at
+- **L3V05**: `windowIsBounded` drops `&& rowHeight.value > 0`. A 50-row list at
   `rowHeight` 0 in a measured 200pt scroller then publishes 50 rows and 50 texts
   on its second frame, where the implementation publishes none: `AB-X`'s
   frame-0 flood, on every frame.
 
-The verifier's V07 (distribution not overwriting a clickable child's label)
+The verifier's L3V07 (distribution not overwriting a clickable child's label)
 reddened `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`.
 
 **Fixed by the implementer's verifier-fix pass.** An arm in
@@ -895,19 +1015,19 @@ as the control, `label nil`, 10 rows with their texts), and `rowHeight` 0
 (table with `rowCount 50` as the control, no rows, no static text).
 `scrolledList` gained `rowHeight`, `clickableRows` and `clickableList`
 parameters, defaulted to the old fixture. The mutants were applied by a script
-as text replacements (V05's target checked to leave `visibleRange`'s own
+as text replacements (L3V05's target checked to leave `visibleRange`'s own
 `rowHeight.value > 0` guard, the one remaining occurrence), each run as the
 unfiltered suite and restored from a copy:
 
 | # | mutation | reddens |
 |---|---|---|
-| V01 | step C does not recurse below a non-folding node | `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` |
-| V02 | step C gates on `isClickable`, not the role | `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` (`list.label → "Row 0, …, Row 9"`, `listRowIDs.count → 0`) |
-| V05 | `windowIsBounded` ignores `rowHeight` | `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` (`zero.children` → 50 ids, texts published) |
+| L3V01 | step C does not recurse below a non-folding node | `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` |
+| L3V02 | step C gates on `isClickable`, not the role | `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` (`list.label → "Row 0, …, Row 9"`, `listRowIDs.count → 0`) |
+| L3V05 | `windowIsBounded` ignores `rowHeight` | `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` (`zero.children` → 50 ids, texts published) |
 
 Pristine before the mutants and again after: `Test run with 1141 tests in 1
 suite passed` (1140 + the new test), 0 `error:`, 0 `warning:` in each log.
-Only V01, V02 and V05 were re-run in this pass; the 57-row table above was not
+Only L3V01, L3V02 and L3V05 were re-run in this pass; the 57-row table above was not
 re-taken, since no source line changed beyond `Resolving.isInteractive`'s doc
 comment (which said the opposite of what the property returns, and now reads
 "has a derived action or is focusable: what stops a button folding its
@@ -971,6 +1091,56 @@ instrument was used (`AB-M`).
 - **Proposal-path emission, scroll areas, `Stack` order, modal isolation, task
   9's button half, system settings, iOS**: `AB-Q`, unchanged.
 - **The human VoiceOver look** below stays open: items 1–9 for a person to run.
+
+### Second verifier round on lane 3 (2026-09-15, at `531b6fc`)
+
+An independent verifier re-took lane 3 after the fix pass above. **Verdict: ok;
+all five issues of the first lane-3 round resolved; one new minor issue, the
+label collision, fixed by this record's commit.**
+
+**Suite.** At `531b6fc`, with the changed sources and tests touched first so
+they recompiled: `swift build --build-system native` and `swift build
+--build-tests` both 0 `error:`, 0 `warning:`; unfiltered `swift test
+--no-parallel`: `Test run with 1141 tests in 1 suite passed` (1140 +
+`combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`), 0
+`error:`, 0 `warning:`. Goldens: 97, `git diff --stat f64e58a -- '*.json'`
+empty. No sleep in the changed test file.
+
+**Mutations.** 12, each on the **unfiltered** suite with the previous lane-3
+verifier's script, restored with `git checkout`; every one built and every one
+reddened at least one named test. Worktree clean afterwards (`git status
+--short` empty, HEAD `531b6fc`).
+
+| # | mutation | reddens |
+|---|---|---|
+| L3V01 | step C does not recurse below a non-folding node | `aClickableContainerCombinesItsTextsIntoOneButtonLabel` (its new focusable-panel arm), `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` |
+| L3V02 | step C gates on `state[id]!.record.isClickable`, not `role(of:) == .button` | `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` (its clickable-list arm) |
+| L3V05 | `windowIsBounded` drops `&& rowHeight.value > 0` | `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` (its `rowHeight`-0 arm) |
+| L3V07 | distribution does not overwrite a clickable child's label | `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` |
+| N23 | drop the unbounded suppression | `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` |
+| N26 | uncap the retry | `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` |
+| N29 | the innermost suppression scope's exception decides | `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` |
+| N30 | forget the `logicalIndex` strip | `aClientDoesNotChangeStateRetention`, `synthesizedNodesCostNothingWhileNoClientIsActive` |
+| N46 | combination looks at direct children only | `aClickableContainerCombinesItsTextsIntoOneButtonLabel` |
+| N52 | a list with no scroll context also asks for a retry | `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` |
+| N60 | only focusability makes a descendant interactive | `aClickableContainerCombinesItsTextsIntoOneButtonLabel` |
+| N69 | an unbounded list excepts nothing from its suppression | `aLabelledListIsStillATable`, `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`, `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` |
+
+Against the lane-3 table above, N23 and N69 now also redden the new test; the
+other N-rows redden exactly what that table names.
+
+**The first round's issues, each checked.** L3V01, L3V02 and L3V05 redden as
+the table says; `AB-AG` item 7 records the role gate as deliberate; the retry
+cap's starvation is recorded with its 0-rows-against-10 measurement and the
+per-id fix, as an `AB-AG` hazard and in the deferred list; the
+`Resolving.isInteractive` doc comment matches the property; the "57 rows, no
+survivor" claim is qualified. **The starvation numbers were not re-run in this
+pass**; they match the first lane-3 verifier's own independent measurement.
+
+**The new issue, fixed here.** The lane-3 verifier's V01/V02/V05/V07 collided
+with the lane-2 verifier table's V-rows ("there is no V05"). Qualified as
+`L3V` in this record, `AB-AG` item 7 and three test comments; see the label
+note in the first lane-3 verifier section.
 
 ### Human VoiceOver look — script (open)
 
@@ -1088,3 +1258,300 @@ item 1 before opening it.
 
 **Also report:** macOS version, VoiceOver verbosity setting if changed, and
 whether the build was release.
+
+### The track at its end (`531b6fc` plus this record's commit)
+
+**Commits on `feat/ax-bridge`, from `f64e58a`**, oldest first:
+
+| stage | commits |
+|---|---|
+| design, critic rounds | `2042a54` (design), `7db89ef` (first critic round, `AB-T`…`AB-Z`), `18e5183` (second critic round, `AB-AB`…`AB-AD`) |
+| lane 1, tree and seam | `bc3fbdc` (red), `78bc8ea` (implementation), `f7555e1`, `c6922f7` (tests), `53d3bf6` (record, `AB-AA`), `71805eb` (tests against hunting mutants), `6bd208c` (hidden root fix, `AB-AD`) |
+| lane 2, AppKit bridge | `b7474f9` (red), `7dfdc6d` (implementation, `AB-AE`), `dbfa314` (tests against L44, L49, L50), `b9e258e` (record, `AB-AF`), `9901f15` (tests against the first verifier's V-rows), `f419b4f` (record) |
+| lane 3, defaults, modifiers, `List` | `2e5ca0a` (red), `aa5d055` (implementation, `AB-F`/`AB-G`/`AB-T`/`AB-X`/`AB-Y`), `15f0dd2`, `ecb0504` (tests against N46, N49, N09v, N52, N60), `4d97ba6` (record, `AB-AG`), `531b6fc` (tests against L3V01, L3V02, L3V05) |
+| this record | the verifier verdicts above, the label qualification, the sections below; docs and three test comments only |
+
+**Counts, re-taken for this commit** (default build system, unfiltered, in
+this worktree, on `531b6fc` plus this commit's edits, of which the only non-doc
+change is three test comments): `swift build --build-tests` printed 0 `error:`
+and 0 `warning:`; `swift test --no-parallel`: **`Test run with 1141 tests in 1
+suite passed after 25.861 seconds`**, 0 `error:`, 0 `warning:` in the test log.
+Goldens: `find Tests -name "*.json" | wc -l` reads **97**, and
+`git diff --stat f64e58a -- '*.json'` is empty. **Typecheck guards: none
+added** (`git diff f64e58a HEAD | grep -c '^+.*canTypecheck'` reads 0), so no
+guard needed a red mutation. 1141 = 1084 at `f64e58a` + 57.
+
+**Tests added, per file** (no existing test file gained a test; `grep -ci sleep`
+reads 0 in each):
+
+| file | tests | lane | notes |
+|---|---|---|---|
+| `Tests/MetalUITests/AccessibilityTreeTests.swift` (new) | 18 | 1 | records, hierarchy, portals, `display: none`, the scroll-translated frame, request routing, the inactive-window cost pin; two lane-1 tests gained `layer`/`order` pins in lane 2 |
+| `Tests/MetalUIPlatformTests/AppKitAccessibilityTests.swift` (new) | 20 | 2 | the bridge over a host view, driven through the real `NSAccessibility` methods in-process; **one exit test**, `anOffMainThreadQueryAnswersNothingAndDoesNotTrap` (`#expect(processExitsWith:)`) |
+| `Tests/MetalUITests/AccessibilityEndToEndTests.swift` (new) | 3 | 2 | a real `AppKitWindow` under `Window`, including the arm-Q pin `aKeyWindowReceivingEventsIsNeverActivatedWithoutAClient` and the adoption pin `aHeldElementWhoseIDIsAdoptedPressesTheAdopter` |
+| `Tests/MetalUITests/AccessibilityDefaultsTests.swift` (new) | 16 | 3 | text, button, distribution, combination, `List` rows and retry, cost counts |
+| `Tests/MetalUITests/Fakes.swift` (shared, +15 lines) | 0 | 1 | `FakePlatformWindow` implements the two new seam requirements, records `publishedAccessibilityTrees`, and gains `simulateAccessibilityRequest(_:)` |
+
+**Sources.** New: `Sources/MetalUI/AXEmission.swift`,
+`AccessibilityAdjustment.swift`, `AccessibilityModifiers.swift`,
+`AccessibilityTreeBuilder.swift`, `WindowAccessibility.swift`;
+`Sources/MetalUIPlatform/AccessibilityTree.swift`,
+`AccessibilityTreeChanges.swift`, `AppKit/AppKitAccessibility.swift`. Shared,
+edited: `Frame.swift`, `Window.swift`, `Passes.swift`, `ElementGroup.swift`,
+`List.swift`, `Text.swift`, `NativeTappable.swift`, `AXNode.swift`,
+`Platform.swift` (+2 requirements), `AppKitPlatform.swift`, the demo's
+`main.swift` (three labels). **`Handlers.swift` is untouched**, so
+`HandlerShape` needs no field.
+
+**Probes** (each with its output in its header; all listed at the top of this
+file): three SwiftUI probes (the design session, the first critic round's
+R-arms and Q, the second's C/P/E arms) and five AppKit probes (override
+spellings with a negative control; the signal's isolation read by `grep -c
+'warning:'`; out-of-process activation clients; override isolation compiled
+to SIL with three controls; the thread an out-of-process request arrives on).
+
+**Mutation evidence, by round.** Lane 1: 35 rows, then the whole table
+re-taken as 44 (M01–M40 and four hunting H-rows; M33 the one survivor, owned
+and later killed by lane 3). Lane 2:
+51 rows (L44, L49, L50 survived and were pinned), 52 re-taken with no
+survivor, the first verifier's 15 V-rows (all pinned) and the 52 re-taken
+again, then the second verifier's 39 rows (**ten confirmed gaps, unpinned**).
+Lane 3: 46, 52 and 57 rows (survivors pinned between rounds), the first
+verifier's L3V01/L3V02/L3V05 (pinned) and L3V07, then the second verifier's
+12, all killed.
+
+### Hazards, in one place
+
+1. **`AccessibilityRequest` is ambiguous beside `import AppKit`**
+   (`AB-AF` item 1): `Accessibility.framework` exports `AXRequest` under that
+   Swift name. Any client file importing `AppKit` and `MetalUI` must qualify
+   it. Tests use a typealias.
+2. **Every AppKit accessibility override is nonisolated** (`AB-AE`). A body
+   that reads main-actor state must go through `mainActorAnswer(_:fallback:_:)`;
+   off the main thread it answers the fallback (an empty window), not a trap.
+   `-typecheck` does not print the `sending 'self'` diagnostic a naive helper
+   produces; compile the probe with `-emit-sil`. `-warnings-as-errors` exits 0
+   on the `#ActorIsolatedCall` group, so read `grep -c 'warning:'`, not the
+   exit status.
+3. **The retry cap starves a list shown beside one that always asks**
+   (`AB-AG`): 0 rows until unrelated input dirties the window. Measured,
+   unfixed, unpinned; the named fix keys the cap per list id.
+4. **Distribution reads the gated registries** (`AB-AG`): after the environment
+   merge, a **disabled** focusable or adjustable labelled container distributes
+   its label. Unpinned.
+5. **Declared nodes write `$ax` every frame, client or not** (`AB-U` exempts
+   only synthesized records): the demo's three labels move its warm resident
+   `StateTable` counts, and every `accessibilityLabel`/`accessibilityValue`
+   adds a slot toward `TB-AH`'s 256-entry threshold. Synthesized records must
+   never write one, or VoiceOver changes `@State` retention (N31, lane 3).
+6. **Geometry is not structure** (`AB-K`). Comparing frames in
+   `hasSameStructure` rebuilds the element map on every animation tick (M13,
+   L30, N36 redden it).
+7. **The one notion of sameness reaches VoiceOver** (`AB-H`'s hazard): when an
+   `if` hides a clickable element before an unnamed clickable sibling, the
+   element VoiceOver holds adopts the sibling, and a press runs the sibling's
+   `onClick` (`aHeldElementWhoseIDIsAdoptedPressesTheAdopter`). Same remedy:
+   name the trailing sibling.
+8. **`.layoutChanged` is coalesced window-wide, once per client read.** Whether
+   that is too coarse after a long fling is script item 6; per-container
+   coalescing is the named fix.
+9. **Machine-dependent tests** (`AB-AC`): the arm-Q pin assumes no
+   out-of-process AX client queries the test window (a mouse-follow utility
+   reaches the hit-test trigger, measured) and falls back to calling
+   `mouseDown`/`mouseUp` directly because the inactive test app swallows
+   synthesized clicks; `theVoiceOverSignalDeliversTheCurrentValueSynchronouslyOnce`
+   compares against the machine's `isVoiceOverEnabled`. The platform tests
+   `try #require(MTLCreateSystemDefaultDevice())`.
+10. **KVC reads of SwiftUI's nodes can crash a probe** (`NSUnknownKeyException`
+    on `accessibilityRows`), while `responds(to:)` is true for everything
+    (`AB-S`). A probe also sees nothing until it sets `AXEnhancedUserInterface`,
+    and a script `NSApplication` must call `finishLaunching()` before an
+    out-of-process client can reach it (`-25204`).
+11. **Mutation-runner hazards, both hit.** A `git checkout`-restoring runner
+    deleted an uncommitted fix (lane 1: commit before running one); a runner
+    written into a shared scratchpad directory overwrote an earlier session's
+    runner (lane 2: one directory per runner). Dictionary-order mutants
+    (M08, L01) redden different tests per process.
+12. **Incremental link failure** after turning a stored property on
+    `AppKitWindow` into a computed one (`Undefined symbols … direct field
+    offset`), fixed by `swift package clean` (`AB-AF` item 2): a third shape of
+    CLAUDE.md's Build-section hazard.
+
+### Deferred and owed, in one place
+
+- **The human VoiceOver look**: the script above, items 1–9, not run.
+- **The second lane-2 verifier's ten gaps**: its five test changes, listed in
+  that section. Minor; no source change needed.
+- **The `AccessibilityRequest` rename** (candidate `AccessibilityClientRequest`).
+- **The retry cap per list id** (hazard 3), and a pin for it.
+- **The merge contract** (`AB-Z`, spec "Merge contract"): the combined
+  `Frame.registerHandlers` with the environment track's gate (synthesis reads
+  the **ungated** `handlers`); the joint disabled test
+  `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`
+  with its four mutations, written by the integration step; `ModifiedElement`'s
+  layer loop carrying the `display: none` check; `ElementGroup`'s bind line
+  first, then this track's suppression block; two joint checks that must pass
+  **unchanged** (`aHiddenInnerModifierLayerSuppressesEverythingInsideIt`, and
+  arms 2–5 of `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`).
+- **Demo `StateTable` figures** (165 at 40 rows, 63 at 500): re-take from
+  record §07's harness. Not measured here.
+- **Out of scope, with owners** (`AB-Q`): proposal-path emission (tasks 6, 7,
+  11); scroll areas and scrolling to unrealized rows (task 10); `Stack`
+  front-to-back order (`AB-P`); modal isolation and press occlusion (task 12's
+  interaction half); hidden/children-combination modifiers, traits, custom and
+  declared actions, `Button` (task 9); system settings (task 13); iOS (task 14);
+  reading `Frame.axNode(for:)`; writing `AXNode.children`; row indices for
+  third-party virtualized containers.
+- **Unmeasured:** the real `VoiceOverSignal`'s KVO flip; whether every AppKit
+  accessibility entry point arrives on the main thread (one observed); whether
+  the AX server consults `isAccessibilitySelectorAllowed` for ordinary
+  attributes; whether VoiceOver announces position from `AXRowCount`/`AXIndex`;
+  the inactive path's added cost (by reading only, no allocation instrument,
+  `AB-M`).
+
+### For the integrator
+
+**Verdict.** All three lanes verified ok (lane 2 by two verifier rounds, lane 3
+by two). Suite at this commit: 1141 tests passed, 0 `error:`, 0 `warning:`;
+97 goldens unchanged against `f64e58a`; no typecheck guard added. Open: the
+human VoiceOver look, the second lane-2 verifier's five minor test changes, and
+the merge contract's joint work.
+
+**Plan, task 12 (`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`):
+do not tick.** The entry's own text asks for gesture composition, button
+semantics, disabled behaviour, keyboard focus, pointer hit testing and content
+shapes (task 9's half, not this track), and for the bridge to be **validated
+with VoiceOver**, which nobody has done. Add under the entry, unticked:
+"Accessibility bridge half delivered on `feat/ax-bridge` (`AB-A`…`AB-AG`,
+record §12): NSAccessibility elements keyed by id, roles/labels/values/traits,
+screen frames, hierarchy, focus, press/increment/decrement, coalesced
+notifications, `List` as `AXTable` with `AXRowCount`. Open: the VoiceOver
+script (record §12), the interaction half (task 9), the joint disabled test."
+
+**CLAUDE.md — rules only.**
+
+- **Opening paragraph:** the platform seam's "15 requirements" becomes **17**:
+  `PlatformWindow` gains `onAccessibilityRequest` and
+  `publishAccessibilityTree(_:)`, with **no default implementations**
+  (`AB-R`), so a non-macOS conformer must implement both.
+- **Where things are:** add the prefix row `AB-` | accessibility bridge
+  (plan task 12, bridge half) | lettered (`AB-A`…`AB-AG`, next is `AB-AH`);
+  the spec `specs/2026-09-15-accessibility-bridge-design.md` and its decisions
+  doc.
+- **Build and test:** the dated counts gain this track's +57 tests (1084 →
+  1141 on this branch alone); goldens and guards unchanged. Add to the
+  `swift package clean` bullet: turning a stored property on a public class
+  into a computed one fails the incremental link (`Undefined symbols … direct
+  field offset`).
+- **New architecture paragraph, "Accessibility is a tree pushed through a
+  two-requirement seam, and it costs nothing without a client"**, stating:
+  - Nothing is recorded until a client activates the window — a host-view
+    query **other than** the focused-element query, or VoiceOver running
+    (`AB-B`) — and activation is sticky. An inactive frame pays, by reading,
+    a `Bool` read and one `handlers.axNode` copy per `registerHandlers` call
+    and a few `Bool` stores per frame and per `List` (`AB-M`, `AB-AG` item 5).
+  - **Synthesized nodes are records (`Frame.axEmissions`), never
+    `Frame.axNodes` and never a `$ax` slot** (`AB-U`); only declared nodes
+    (`accessibilityLabel`/`accessibilityValue`, `List`) emit, every frame,
+    client or not.
+  - **Geometry is not structure** (`AB-K`): an animation tick publishes
+    geometry only, posts nothing and touches no element; do not compare frames
+    in `hasSameStructure`.
+  - Elements are created only when a client reads them, one per id while
+    published, detached on first absence and never revived (`AB-D`, `AB-X`);
+    notifications post only for vended elements, and `.layoutChanged` once per
+    client read.
+  - **Every `NSAccessibility` override is nonisolated in practice** (`AB-AE`):
+    answer through `mainActorAnswer(_:fallback:_:)`, never a bare
+    `assumeIsolated`; its `-typecheck` probe proves nothing, compile to SIL.
+  - A press runs `onClick` through the last frame's hitboxes, so it is refused
+    under `allowsHitTesting(false)`; `onTap` publishes nothing but still
+    presses (`AB-H`, `AB-Y`). Increment/decrement are the
+    `AccessibilityAdjustment` action. Focus is `Window.focus` only; nothing
+    focused reports the host view (`AB-J`).
+  - Hit testing ranks `(layer, order)` on the **clipped** `visibleFrame`,
+    half-open, as click dispatch does (`AB-W`); `accessibilityFrame()` is the
+    **unclipped** frame converted at read time (`AB-E`).
+  - Labels: a plain container or wrapper **distributes** its label and value to
+    its children, outer declaration winning; a click target is a button that
+    folds its non-interactive descendants' texts, joined `", "`; a focusable or
+    adjustable labelled container keeps its node (`AB-F`, `AB-G`, `AB-T`).
+  - A conformer that paints text passes `accessibleText:` through the internal
+    `registerHandlers` overload, or it is silent; a layer with
+    `display: none` suppresses everything inside it (`AB-O`, `AB-AD`).
+  - `AccessibilityRequest` is ambiguous in any file importing `AppKit`; qualify
+    it until renamed.
+- **`List` paragraph:** replace "Rows emit no AX nodes; the `List` emits one
+  with `logicalCount`" with: rows emit no `axNodes`; while a client is active
+  the `List` publishes an `AXTable` whose `AXRowCount` is `logicalCount`, and
+  each **realized** row a `.row` with `AXIndex` = its logical index; rows
+  outside the window are not elements; **an unbounded window (no scroll
+  context, a scroller with no measured viewport, or `rowHeight <= 0`)
+  publishes no rows**, and one inside a scroller asks for one more frame,
+  capped window-wide (`AB-L`, `AB-X`).
+- **`StyledElement` paragraph:** "that one call registers the hitbox, focus,
+  AND a declared `handlers.axNode`" gains "AND, while a client is active, the
+  element's accessibility record" — skipping the call now also makes the
+  element invisible to VoiceOver.
+- **Proposal bullet ("nothing is focusable, handles keys or emits an AX
+  node"):** add "and nothing publishes to accessibility; `onTap` still
+  presses" (`AB-Q`, `AB-Y`).
+- **Human verification table:** replace "VoiceOver navigating the AX tree |
+  permanently open until M4's bridge exists" with "accessibility bridge:
+  record §12's VoiceOver script, items 1–9 (activation in both orders, static
+  text, buttons, the list by ear and by Inspector, focus, frames while
+  scrolling, theme and modal, animation noise, identity adoption) | open,
+  nobody has run it".
+- **Declared-but-inert table:** replace the row "`AXNode.children`,
+  `AXNode.logicalCount`, `Frame.axNodes`/`axNode(for:)`" with
+  "`AXNode.children`, `AXNode.actions`, `Frame.axNodes`/`axNode(for:)`,
+  `AXEmission.synthesizes` | always `[]` (hierarchy comes from records,
+  `AB-C`) / declared, never read (`AB-H`) / no production reader, the bridge
+  reads records / no reader". `AXNode.logicalCount` leaves the table (read as
+  `AXRowCount`). **Do not add** the second critic round's "lane 1 alone is
+  inert" row: lane 2 lands with it.
+- **Known divergences table** (next free labels; record §04 gets the full
+  entries from the rulings cited):
+  - vs SwiftUI: `onClick` is pressable through accessibility; a SwiftUI tap
+    gesture is not, even with `.isButton` (`AB-G`, arms 7, 8).
+  - vs SwiftUI: under `allowsHitTesting(false)` a button publishes with no
+    `.press` and refuses one; SwiftUI still presses (`AB-H`, P0/P1; pin
+    `aPressIsRefusedWhereHitTestingIsDisabled`).
+  - vs SwiftUI: a button over an interactive descendant stays an unlabelled
+    button with its children; SwiftUI collapses it (`AB-G`, R7).
+  - vs SwiftUI: a focusable or adjustable labelled container keeps a labelled
+    group; SwiftUI distributes the label and copies the adjustable action to
+    each child (`AB-T`, C1, C5, C5i; pin: arm 7 of
+    `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`).
+  - vs SwiftUI: nothing focused reports the host view; SwiftUI reports the
+    first focusable node (`AB-J`, arm 13).
+  - vs SwiftUI: a `List` is an `AXTable` of realized rows; SwiftUI publishes an
+    `AXOutline` (`AB-L`, R16); rows beyond the window are unreachable.
+  - vs SwiftUI: a labelled generic node is `AXGroup`, not `AXUnknown` (`AB-F`,
+    10b, R6, R11).
+  - vs SwiftUI: `Stack` publishes declaration order, not front to back (`AB-P`,
+    arm 4). Unpinned.
+- **Performance section:** mark the warm resident `StateTable` counts (165 at
+  40 rows, 63 at 500) **stale** until re-taken: the demo's three labels write
+  `$ax` slots every frame.
+- **When CI lands:** the arm-Q pin assumes no out-of-process accessibility
+  client on the runner, and the signal test reads the runner's
+  `isVoiceOverEnabled` (`AB-AC`).
+
+**README.** Replace "Not done: the accessibility bridge (AX nodes are built,
+nothing consumes them yet)" with: a macOS `NSAccessibility` bridge publishes
+text, click targets (as buttons), focusable and adjustable elements, and
+`List` as a table, with `accessibilityLabel`, `accessibilityValue` and
+`accessibilityAdjustableAction`; **not yet validated with VoiceOver**, and the
+proposal-path elements publish nothing. The proposal bullet's "no … AX nodes"
+stays true.
+
+**Record.** `docs/record/README.md` links this file as §12. Record §05 takes
+the inert-table change above; §04 the divergence entries; §03 the VoiceOver
+script's row; §06 the incremental-link hazard.
+
+**Decisions doc.** No ruling changed at integration. The second lane-2
+verifier's gaps are recorded here and in `AB-AF` item 10; if the integration
+step makes its five test changes, it re-runs L2N03, L2N09, L2N14, L2N15,
+L2N15y, L2N21, L2N30, L2N33, L2N33b and L2N37 on the unfiltered suite and
+records what each reddens.

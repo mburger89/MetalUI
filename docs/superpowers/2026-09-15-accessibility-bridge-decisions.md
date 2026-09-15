@@ -1824,6 +1824,16 @@ mutation table are in `docs/record/12-accessibility-bridge.md`.
    The coverage line below overstated `AB-E` until this item: L10, L11 and L31
    pin the conversion and when it is taken, not which rect is converted.
    Item 4 above (parents rebuilt while inactive) was unpinned until V03.
+10. **A second lane-2 verifier (at `f419b4f`) found ten more rules unguarded,
+    none pinned on this branch** (record, "Second verifier round on lane 2",
+    rows `L2C01`…`L2C24` and `L2N01`…`L2N54`; 39 mutations, 28 killed, one
+    equivalent, L2N04). The gaps: the selector gate's fall-through to `super`
+    (L2N33, L2N33b), production's `VoiceOverSignal` wiring (L2N30), a roots-only
+    reorder and a rows read as notification triggers (L2N03, L2N21), a detached
+    element's focus request and its last-known node once its id returns
+    (L2N09, L2N37), and the min edges of the hit test and the zero-width
+    visible row (L2N14, L2N15, L2N15y). The record lists the five test changes
+    that close them. No rule changes: each rule is as ruled, only unpinned.
 
 **Lane 2's mutation evidence, by ruling** (52 rows, all killed at both
 re-takes, plus the verifier round's 15 V-rows, all killed; the tables, with the
@@ -1945,22 +1955,22 @@ and was re-spelled), `15f0dd2` (52 rows; N52 and N60 survived) and `ecb0504`
    The 57-row table had no survivor, but it had no mutant for three rules, and
    the verifier's hunting mutants on each survived the unfiltered suite, each
    first shown to change a published value:
-   - **V01**, step C not recursing below a kept node that is not a folding
+   - **L3V01**, step C not recursing below a kept node that is not a folding
      button. No fixture put a combining button under a published node, though
      the demo's `CounterPanel` (a focusable container of click targets over
      texts) is exactly that shape. Pinned by a new arm in
      `aClickableContainerCombinesItsTextsIntoOneButtonLabel` and by the list
      arm below.
-   - **V02**, step C gating on clickability instead of the published `.button`
+   - **L3V02**, step C gating on clickability instead of the published `.button`
      role. **The gate is the role deliberately**: a clickable `List` is a
      table (`AB-L`), and gating on clickability folds its rows into one label.
-   - **V05**, `windowIsBounded` ignoring a non-positive `rowHeight` (item 5's
+   - **L3V05**, `windowIsBounded` ignoring a non-positive `rowHeight` (item 5's
      spelling). Without the clause, a zero-`rowHeight` list in a measured
      scroller publishes every row on every frame.
-   `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` pins V01
-   (click targets inside a bounded list's rows), V02 (a clickable list keeps its
-   10 rows) and V05 (`rowHeight` 0 publishes no row). V01 reddens both tests;
-   V02 and V05 redden the new one. `Resolving.isInteractive`'s doc comment,
+   `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` pins L3V01
+   (click targets inside a bounded list's rows), L3V02 (a clickable list keeps its
+   10 rows) and L3V05 (`rowHeight` 0 publishes no row). L3V01 reddens both tests;
+   L3V02 and L3V05 redden the new one. `Resolving.isInteractive`'s doc comment,
    which described the negation of the property, was corrected.
 
 **Hazards left for the integration step.**

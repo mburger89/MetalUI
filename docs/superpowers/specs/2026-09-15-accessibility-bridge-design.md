@@ -5,8 +5,13 @@
 semantics, disabled behaviour and content shapes wait for task 9 and are not
 here.
 
-**Status (2026-09-15): lanes 1, 2 and 3 implemented; the human VoiceOver look
-is open.** Written
+**Status (2026-09-15): lanes 1, 2 and 3 implemented and verified (lane 2 and
+lane 3 each by two independent verifier rounds; the track ends at `531b6fc`
+plus the record's closing commit, 1141 tests, 97 goldens unchanged). Open: the
+human VoiceOver look (script in the record), ten unpinned lane-2 rules the
+second verifier found (record), and the merge contract's joint work below. Plan
+task 12 is not complete: its interaction half waits for task 9, and the bridge
+is not yet validated with VoiceOver.** Written
 against `f64e58a` on `feat/ax-bridge`, revised after one critic round, and
 revised again after a second critic round that followed lane 1. Lane 1's
 deviations from the text below are marked **"Lane 1 as built"** in place and
