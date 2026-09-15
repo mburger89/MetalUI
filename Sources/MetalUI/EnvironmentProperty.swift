@@ -18,8 +18,9 @@
 /// shape declares an `@Environment`, once per bind (ruling EV-O).
 ///
 /// **A wrapper that was never bound reads the key's default, silently**, and
-/// builds a fresh `EnvironmentValues()` — reading `Locale.current` — on every
-/// access. There is no diagnostic, because the legitimate unbound reads (a
+/// builds a fresh `EnvironmentValues()` on every access — so its locale is the
+/// root locale `Locale(identifier: "")`, not the window's `Locale.current`
+/// (ruling EV-Y). There is no diagnostic, because the legitimate unbound reads (a
 /// handler closure after the frame reading an `AnyElement`-wrapped element, a
 /// value built outside any frame) look identical to a forgotten bind. **Inside
 /// `AnyElement` it is always unbound**, for `@State`'s reason: `Mirror` cannot

@@ -176,19 +176,34 @@ public final class Frame {
 
     private var storedRootEnvironment: EnvironmentValues
 
+    /// True from `render`'s first line to its last, and nowhere else (ruling
+    /// EV-Z). Not cleared in a `defer`, for the reason `render`'s atlas bracket
+    /// gives: the only way out of `render` early is a trap, which aborts.
+    private var isRendering = false
+
     /// The values every scope starts from: `Window.environment`, set by
     /// `Window.drawFrameIfNeeded` on the line after it builds this frame. A
-    /// `Frame` built without a window (every test) keeps `EnvironmentValues()`.
+    /// `Frame` built without a window (every test) keeps `EnvironmentValues()`,
+    /// whose locale is the root locale `Locale(identifier: "")` (ruling EV-Y).
     ///
     /// **The setter re-stamps two fields** (rulings EV-H, EV-U): `theme`
     /// from the `theme:` this frame was built with, and `pixelLength` from its
     /// scale factor. `Window.theme` stays the root theme's only source, and no
     /// value can lie about the device, so `window.environment.theme = .dark` —
-    /// which compiles inside the module — changes nothing. It also resets the
-    /// top: set it before `render`, never during.
+    /// which compiles inside the module — changes nothing.
+    ///
+    /// **It also resets the top, so it traps while `render` runs** (ruling
+    /// EV-Z). From inside a phase it would replace every open scope's values
+    /// for the rest of that scope's content, and a scope's restoring `defer`
+    /// would then put the enclosing values back — silently. Set it before a
+    /// render or between two renders. Pinned by
+    /// `aRootEnvironmentWriteDuringARenderTraps` (one arm per phase) and
+    /// `aRootEnvironmentWriteBeforeAndBetweenRendersDoesNotTrap`.
     var rootEnvironment: EnvironmentValues {
         get { storedRootEnvironment }
         set {
+            precondition(!isRendering,
+                         "Frame.rootEnvironment set during render: it would replace every open scope's values (ruling EV-Z)")
             var values = newValue
             values.theme = rootTheme
             values.pixelLength = Self.pixelLength(forScaleFactor: scaleFactor)
@@ -1444,6 +1459,7 @@ public final class Frame {
     /// one contributes its own positional component instead of stopping the
     /// path. See `ElementGroup.swift` for the cursor that supplies the index.
     func render<E: Element>(_ element: inout E) {
+        isRendering = true
         // The root is the only id with no parent, and the only one this file
         // builds. `at: 0` is not inert: an unnamed root element takes
         // `.positional(0)`, which is what gives a `Row { … }` rendered straight
@@ -1540,6 +1556,7 @@ public final class Frame {
         // not "reserved") depends on sweep ordering, and a future edit should
         // not preserve their `isLive` lines *for* this reason.
         stateTable.sweep()
+        isRendering = false
     }
 }
 

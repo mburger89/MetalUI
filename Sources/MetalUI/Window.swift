@@ -110,7 +110,8 @@ public final class Window {
 
     /// The root environment every scope in this window starts from (ruling
     /// EV-H): `isEnabled`, `layoutDirection`, `locale`, `dynamicTypeSize` and
-    /// custom keys, at `EnvironmentValues()`'s defaults until set.
+    /// custom keys, at `EnvironmentValues()`'s defaults (with the current
+    /// locale, below) until set.
     ///
     /// **Every write dirties the window, a no-op included.** Unlike `theme`
     /// above there is no equality guard, and there cannot be one:
@@ -124,7 +125,11 @@ public final class Window {
     /// from `theme` above and `pixelLength` from the surface's scale factor, so
     /// `window.environment.theme = .dark` — which compiles inside this module —
     /// changes nothing (`Frame.rootEnvironment`).
-    public var environment = EnvironmentValues() {
+    ///
+    /// **Starts at `EnvironmentValues()` with `Locale.current` stamped over its
+    /// bare locale** (ruling EV-Y): a bare value holds `Locale(identifier: "")`,
+    /// as SwiftUI's does, and a window stamps the user's, as a SwiftUI host does.
+    public var environment = EnvironmentValues.windowDefault() {
         didSet { setNeedsRedraw() }
     }
 

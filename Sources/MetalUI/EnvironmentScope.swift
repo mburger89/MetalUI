@@ -41,9 +41,19 @@ public struct EnvironmentScopeLayout<ContentLayout> {
 /// **Where it can and cannot go** (ruling EV-B). Over any `ElementGroup`: a
 /// legacy element, proposal content, a `Component`, a builder group. Not as a
 /// window root, `Deferred` content or a `List` row, each of which requires an
-/// `Element` — write the scope outside instead. And not before a
-/// `StyledElement` modifier: write `.padding(4).theme(.dark)`, not
-/// `.theme(.dark).padding(4)`.
+/// `Element` — write the scope outside instead. Not directly before `.padding`
+/// or a handler modifier: `.theme(.dark).padding(4)` and
+/// `.theme(.dark).onClick {}` do not compile; write `.padding(4).theme(.dark)`.
+///
+/// **`.frame(width:height:)` may follow a scope**, because it is declared on
+/// `ElementGroup` and returns a `StyledElement`, so any `StyledElement`
+/// modifier may follow *it*. **Such a modifier sits OUTSIDE the scope**, as in
+/// SwiftUI (ruling EV-X, probe `swiftui-disabled-ancestor-and-order.swift` O2,
+/// O3, O6): in `X().theme(.dark).frame(width: 20, height: 20).background(.surface)`
+/// the frame layer paints with the enclosing theme, and only `X` paints dark.
+/// Nothing implements this: the frame layer registers and paints in its own
+/// phases, outside its content's push. Pinned by the after-`.theme` arm of
+/// `aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope`.
 public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
     var content: Content
     let write: EnvironmentWrite

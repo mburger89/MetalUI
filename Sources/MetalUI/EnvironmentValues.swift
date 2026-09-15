@@ -32,14 +32,41 @@ public protocol EnvironmentKey {
 /// `theme` is `internal`, so neither has a writable key path outside the
 /// module — but `\.self` does, and `.environment(\.self, EnvironmentValues())`
 /// would reset both. `Frame.scopedValues(applying:)` and
-/// `Frame.rootEnvironment` re-stamp them after every write instead.
+/// `Frame.rootEnvironment` re-stamp them after every write instead. The two
+/// halves are different claims:
+///
+/// - **`theme` is MetalUI's own key.** SwiftUI has none; `.theme(_:)` is its
+///   only writer by design (ruling EV-G), and the re-stamp is what makes that
+///   true.
+/// - **`pixelLength` is SwiftUI's key, and keeping it is a DIVERGENCE.** In
+///   SwiftUI a `\.self` reset in a 2x window reads `pixelLength` 1 (probe
+///   `swiftui-environment-pixel-length.swift` X2). Here it keeps the device's
+///   value, because there is no `displayScale` for a reset value to agree with
+///   (rulings EV-J, EV-U).
 public struct EnvironmentValues {
-    /// Every field at its default: enabled, left-to-right, `Locale.current`,
-    /// `.large`, a `pixelLength` of 1, the light theme, and every custom key at
-    /// its `defaultValue`. The defaults match probe C (ruling EV-H); a `Frame`
-    /// stamps the real `pixelLength` and theme over the last two.
+    /// Every field at SwiftUI's **bare** default (ruling EV-Y): enabled,
+    /// left-to-right, the root locale `Locale(identifier: "")`, `.large`, a
+    /// `pixelLength` of 1, the light theme, and every custom key at its
+    /// `defaultValue` — what a bare SwiftUI `EnvironmentValues()` holds
+    /// (probe `swiftui-environment-pixel-length.swift` V0, V2).
+    ///
+    /// **Not a window's defaults.** A hosted SwiftUI view reads the user's
+    /// locale and the display's scale (scoping probe C, pixel-length probe X0)
+    /// because its host stamps them over the bare value. Here too: a `Window`
+    /// stamps `Locale.current` into its `environment`, and a `Frame` stamps
+    /// `pixelLength` and the theme. A `Frame` built without a window keeps the
+    /// root locale.
     public init() {
-        locale = Locale.current
+        locale = Locale(identifier: "")
+    }
+
+    /// The root value `Window.environment` starts from: `EnvironmentValues()`
+    /// with `Locale.current` stamped over the bare locale, as a SwiftUI host
+    /// does (ruling EV-Y, pixel-length probe X0).
+    static func windowDefault() -> EnvironmentValues {
+        var values = EnvironmentValues()
+        values.locale = Locale.current
+        return values
     }
 
     /// Whether controls below accept interaction. `true` by default.
@@ -49,7 +76,9 @@ public struct EnvironmentValues {
     /// EV-K).
     public var layoutDirection: LayoutDirection = .leftToRight
 
-    /// `Locale.current`, read in `init()`. **No built-in consumer**: `Text`'s
+    /// `Locale(identifier: "")` in a bare value, as in SwiftUI (V0, V2);
+    /// `Locale.current` under a window, which stamps it into
+    /// `Window.environment` (ruling EV-Y). **No built-in consumer**: `Text`'s
     /// tokenizer and typesetter never receive it (ruling EV-H, pinned by
     /// `aLocaleChangesNoTextMeasurement`).
     public var locale: Locale
@@ -60,11 +89,15 @@ public struct EnvironmentValues {
 
     /// One device pixel, in points: `1 / scaleFactor` of the frame's surface.
     ///
-    /// **Read-only from outside the module**, as SwiftUI's is (ruling EV-J),
-    /// and re-stamped after every write so `\.self` cannot reset it (EV-U).
-    /// There is deliberately no `displayScale`: `PaintPass.fill` takes points
-    /// and scales once, and a value in this unit draws a hairline correctly as
-    /// written. **No internal reader**; it exists for element authors.
+    /// **Read-only from outside the module, and re-stamped after every write,
+    /// so no scope can change it — a DIVERGENCE** (rulings EV-J, EV-U). SwiftUI's
+    /// `pixelLength` is get-only too, but it is derived from a writable
+    /// `displayScale`: `.environment(\.displayScale, 3)` on a 2x display reads
+    /// 1/3 (probe `swiftui-environment-pixel-length.swift` X1), and a `\.self`
+    /// reset reads 1 (X2). Here there is deliberately no `displayScale`:
+    /// `PaintPass.fill` takes points and scales once, and a value in this unit
+    /// draws a hairline correctly as written. **No internal reader**; it exists
+    /// for element authors.
     public internal(set) var pixelLength: Double = 1
 
     /// The theme tokens resolve against. **Internal, and paint-only**: the only
