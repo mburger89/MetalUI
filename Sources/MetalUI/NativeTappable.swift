@@ -32,7 +32,11 @@ public struct OnTapModifier<Content: ProposalElementGroup>: Element {
                                   pass: inout PrepaintPass) -> Content.GroupPrepaint {
         var handlers = Handlers()
         handlers.onClick = action
-        pass.registerHandlers(handlers, at: bounds, id: id)
+        // Routes a press like any hitbox, but synthesizes no accessibility node
+        // (ruling AB-Y): its proposal-path content records nothing and cannot be
+        // labelled, so it would publish an unlabelled button.
+        pass.registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                              synthesizesAccessibility: false)
         return content.prepaintGroup(layout: &layout.content, pass: &pass)
     }
 

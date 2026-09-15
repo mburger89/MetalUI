@@ -714,7 +714,13 @@ public final class Frame {
         // `GlobalElementID.parent` over this frame's `axEmissions`, whose
         // record order — which `axNodes`' keys cannot carry — is declaration
         // order.
-        if !handlers.axNode.isEmpty {
+        //
+        // **A row hint is not a declaration** (ruling AB-L): `logicalIndex` is
+        // stripped before the test, so a `List` row that carries only its index
+        // emits nothing here and writes no `$ax` slot (AB-U).
+        var declaration = handlers.axNode
+        declaration.logicalIndex = nil
+        if !declaration.isEmpty {
             emitAXNode(handlers.axNode, at: bounds, id: id, children: [])
         }
         // **A client's record, separate from the emission above and never a
@@ -727,7 +733,7 @@ public final class Frame {
         // stays true whether or not a client is active.
         if collectsAccessibility, !isAccessibilitySuppressed(for: id) {
             let adjustable = handlers.actions[ObjectIdentifier(AccessibilityAdjustment.self)] != nil
-            let hasSomethingToSay = !handlers.axNode.isEmpty
+            let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
                 || (synthesizesAccessibility
                     && (handlers.onClick != nil || handlers.isFocusable || adjustable
                         || accessibleText != nil))
@@ -789,13 +795,30 @@ public final class Frame {
     /// frame. See `AXEmission`.
     private(set) var axEmissions: [AXEmission] = []
 
+    /// Set by a collecting `List` whose window is unbounded only because its
+    /// scroller has not measured a viewport yet (ruling AB-X rule 3). `Window`
+    /// hands it to `WindowAccessibility.frameDidRender`, which dirties the window
+    /// only when the previous drawn frame did not ask too.
+    private(set) var wantsAccessibilityRetry = false
+
+    /// Ask for one more frame so an accessibility client sees what this frame
+    /// could not publish. A no-op unless collecting.
+    ///
+    /// **Not `requestAnotherFrame()`**: `wantsAnotherFrame` is honoured on every
+    /// frame, so a scroller that never measures a viewport (zero height) would
+    /// keep the display link awake forever. This one is capped by its reader.
+    func requestAccessibilityRetry() {
+        guard collectsAccessibility else { return }
+        wantsAccessibilityRetry = true
+    }
+
     /// The exceptions of the open suppression scopes, outermost first.
     private var accessibilitySuppressionExceptions: [GlobalElementID?] = []
 
     /// Runs `body` with accessibility records suppressed for everything except
     /// `exception` — for a subtree a client must not see even though it runs
-    /// `prepaint` (`display: none`, ruling AB-O; a `List`'s unbounded first
-    /// window, AB-X, lane 3). Closure form for `clipped(to:offsetBy:)`'s
+    /// `prepaint` (`display: none`, ruling AB-O; a `List`'s unbounded window,
+    /// which excepts the list's own node, AB-X). Closure form for `clipped(to:offsetBy:)`'s
     /// reason: an unbalanced scope is not expressible. A no-op while not
     /// collecting.
     func withAccessibilitySuppressed<R>(except exception: GlobalElementID?, _ body: () -> R) -> R {

@@ -247,10 +247,15 @@ private struct Item: Identifiable { let id: Int }
 /// **The trailing sibling is the leaving half's only pin**: with the portal
 /// never popped, `after` keeps the `Deferred`'s ordinal, finds no ancestor in
 /// it, and becomes a root.
+///
+/// **`after` is focusable since lane 3** (ruling AB-AG): a button whose
+/// descendants are all non-interactive folds them into its label and publishes
+/// no children (AB-G), which would hide the very child this test reads. An
+/// interactive descendant keeps the button's children.
 @Test @MainActor func portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor() throws {
     let (_, tree) = collect(declared(Box {
         Deferred { declared(Box().width(px(30)).height(px(10)), AXNode(label: "Tip")) }
-        declared(Box().width(px(10)).height(px(10)), AXNode(label: "after"))
+        declared(Box().width(px(10)).height(px(10)).focusable(), AXNode(label: "after"))
     }.width(px(40)).height(px(20)), AXNode(role: .button, label: "B")))
     let button = try #require(tree.id(labelled: "B"))
     let tip = try #require(tree.id(labelled: "Tip"))

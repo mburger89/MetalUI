@@ -906,13 +906,18 @@ public final class Window {
         hasActiveAnimations = frame.hasActiveAnimations
 
         // After the focus read-back, so a published focus is the frame's
-        // decision (AB-J). Builds only while a client is active (AB-B).
-        accessibility.frameDidRender(
+        // decision (AB-J). Builds only while a client is active (AB-B). A
+        // `List` still waiting for its viewport asks for one more frame, which
+        // this honours at most once per run of asking frames (AB-X rule 3).
+        if accessibility.frameDidRender(
             emissionCount: frame.axEmissions.count,
+            retry: frame.wantsAccessibilityRetry,
             AccessibilityTreeBuilder.build(emissions: frame.axEmissions, focused: focusedElement,
                                            hitboxes: frame.hitboxes,
                                            focusRegistry: frame.focusRegistry),
-            to: platformWindow)
+            to: platformWindow) {
+            setNeedsRedraw()
+        }
 
         // **Before `encode`, and the ordering is the whole point.** Paint has
         // just packed whatever glyphs this frame needed and the scene holds

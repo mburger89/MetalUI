@@ -434,8 +434,8 @@ public struct PrepaintPass {
 
     /// `registerHandlers` with what only an in-module conformer can say to an
     /// accessibility client: a text leaf's string, and whether it synthesizes a
-    /// node at all (ruling AB-Y). No caller on lane 1; lane 3's `Text.prepaint`
-    /// and `OnTapModifier.prepaint` are its two. See `Frame.registerHandlers`.
+    /// node at all (ruling AB-Y). Its two callers are `Text.prepaint` and
+    /// `OnTapModifier.prepaint`. See `Frame.registerHandlers`.
     func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
                           id: GlobalElementID, accessibleText: String? = nil,
                           synthesizesAccessibility: Bool = true) {

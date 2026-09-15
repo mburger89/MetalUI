@@ -5,7 +5,8 @@ import MetalUIPlatform
 /// published, and the counters the bridge's cost claims are made in (rulings
 /// AB-B, AB-M).
 ///
-/// **Nothing here runs per frame while inactive except one `Int` store.**
+/// **Nothing here runs per frame while inactive except one `Int` and one `Bool`
+/// store** (the record count and the retry flag, AB-X rule 3).
 /// `Window` builds each frame with `collectsAccessibility: isActive`, so an
 /// inactive frame records nothing, and `frameDidRender` returns before its
 /// autoclosure is evaluated.
@@ -39,18 +40,33 @@ final class WindowAccessibility {
         return true
     }
 
-    /// Called by `Window.drawFrameIfNeeded` after every drawn frame.
+    /// Whether the previous drawn frame asked for an accessibility retry.
+    private var lastFrameRetried = false
+
+    /// Called by `Window.drawFrameIfNeeded` after every drawn frame. Returns
+    /// whether the window should be dirtied for one more frame.
+    ///
+    /// **`retry` is honoured only when the previous drawn frame did not ask**
+    /// (ruling AB-X rule 3): a `List` whose scroller never measures a viewport
+    /// asks on every frame, and answering every time would be a display link
+    /// that never pauses. One extra frame per run of asking frames. `retry` is
+    /// `false` on every frame that did not collect, so an inactive window never
+    /// retries.
     func frameDidRender(emissionCount: Int,
+                        retry: Bool,
                         _ tree: @autoclosure () -> AccessibilityTree,
-                        to platformWindow: any PlatformWindow) {
+                        to platformWindow: any PlatformWindow) -> Bool {
         lastEmissionCount = emissionCount
-        guard isActive else { return }
+        let dirties = retry && !lastFrameRetried
+        lastFrameRetried = retry
+        guard isActive else { return dirties }
         let built = tree()
         buildCount += 1
-        guard built != lastPublished else { return }
+        guard built != lastPublished else { return dirties }
         lastPublished = built
         publishCount += 1
         platformWindow.publishAccessibilityTree(built)
+        return dirties
     }
 }
 

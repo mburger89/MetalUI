@@ -16,19 +16,21 @@ import MetalUIPlatform
 /// pre-order and so declaration order (AB-C).
 struct AXEmission {
     let id: GlobalElementID
-    /// `handlers.axNode` as written.
+    /// `handlers.axNode` as written, `logicalIndex` included.
     let declared: AXNode
-    /// The string of a text leaf. **No producer and no reader on lane 1**: lane 3
-    /// passes `Text`'s string through `registerHandlers(…accessibleText:)` and
-    /// the builder's text resolution reads it.
+    /// The non-empty string of a text leaf, from `Text.prepaint` through
+    /// `registerHandlers(…accessibleText:)`; read by the builder's text
+    /// resolution (AB-F).
     let text: String?
     /// `handlers.onClick != nil`. Distinct from "pressable": a click target under
     /// `allowsHitTesting(false)` is still a button, and has no `.press` (AB-H).
     let isClickable: Bool
     /// `true` on this branch; the environment track's merge fills it (AB-Z).
     let isEnabled: Bool
-    /// `false` for `OnTapModifier` (AB-Y). **No producer and no reader on
-    /// lane 1**; lane 3 passes it and reads it.
+    /// `false` for `OnTapModifier` (AB-Y). Its producer is that modifier; **it
+    /// has no reader**: a conformer that does not synthesize records only when
+    /// it declared something, which the gate in `Frame.registerHandlers` already
+    /// decides, so the builder has nothing left to ask it.
     let synthesizes: Bool
     /// 0 outside every `Deferred`; otherwise that portal's per-frame ordinal
     /// (AB-V). A parent must share it.
