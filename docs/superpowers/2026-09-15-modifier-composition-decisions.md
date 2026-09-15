@@ -412,7 +412,8 @@ guard 7).
 
 - the wrapped element's `GlobalElementID` and bounds;
 - each layer's hitbox: id, bounds, registration order;
-- the scene's rects in emission order, with bounds and colour;
+- the scene's rects in emission order, with bounds, colour and all four corner
+  radii (radii added in lane 2's verifier round, below);
 - `Frame.tree.nodeCount`;
 - for each layer id, `StateTable.isLive(animRetentionSlot(for:))`.
 
@@ -422,6 +423,8 @@ guard 7).
 | observation | disagreeing oracle |
 |---|---|
 | rects | paddings 4 and 8 swapped |
+| rects' corner radii | the padding-4 layer's radius and the outermost's exchanged; also required EQUAL to the oracle with radii zeroed |
+| the inner layers' fill order | the oracle's rect list with the two inner fills (entries 1, 2) exchanged, after `try #require(oracle.rects.count == 4)` |
 | ids (the wrapped element's, the hitboxes') | `.id("mid")` moved to another layer |
 | the hitbox list | one layer's `onClick` dropped |
 | `$anim` liveness, node count | one layer fewer |
@@ -514,10 +517,36 @@ same observations:
   registration): tests 4 and 2 and lane 1's test 8 (hitbox ids not
   `[padding, leaf]`; the in-leaf click logged `["outer"]`), 5 issues;
 - **fills painted after the content**: tests 4 and 2 and test 8
-  (`.surface` emitted at index 1, after `.accent`), 4 issues;
+  (`.surface` emitted at index 1, after `.accent`), 4 issues. **This is not
+  the inner paint loop reversed** — that mutation (N8, below) was green on the
+  whole suite until the verifier round;
 - **inner layers skipping `animated`**: tests 4 and 2, test 5 (`P/0`'s `$anim`
   slot not live at generation 1), lane 1 test 5, and the style guard's inner
   arm, 7 issues.
+
+**Verifier round, two holes closed** (found by the verifier's mutations at
+`6d0ea97`, each of which left all 1103 tests green). Until then every oracle
+chain had ONE inner layer with a background, and `RectShape` compared bounds
+and colour but not radii:
+
+- **N8, the inner-layer paint loop run innermost-first**
+  (`for k in inner.indices` for `.reversed()` in `ModifiedElement.paint`): a
+  deeper layer's fill lands under its container's, visibly. Pinned now by the
+  padding-4 layer gaining `.background(.surfaceSecondary)`, so two inner layers
+  fill. Whole suite, 1103 tests, 3 issues: `aGenericWrapOverAChainIsIdenticalToTheFlatChain`
+  (flat and generic) and `aModifierChainIsIdenticalToHandBuiltNestedBoxes`,
+  both at the `rects` comparison. The mutant emits 76×56 r9, **28×28 r3,
+  60×40 r5**, 20×20 against the oracle's 76×56 r9, 60×40 r5, 28×28 r3, 20×20.
+- **N3, an inner layer's fill painted with the OUTERMOST layer's radius**
+  (`inner[k].decoration.cornerRadius` → `outermost.decoration.cornerRadius`).
+  Pinned now by `RectShape.radii` (all four corners) in both oracle files and
+  radii 3 / 5 / 9 on padding 4 / frame / padding 8. Whole suite, 1103 tests, 3
+  issues, the same two tests: the mutant reads radii 9, **9, 9**, 0 against
+  9, 5, 3, 0.
+
+Both tests gained two disagreeing oracles for these (table above), and every
+existing arm carries the same new declarations so each arm still differs from
+the oracle only in what it is named for.
 
 **The skeleton's red run** (`e9248c3`, 1102 tests, 40 issues): test 2, 14
 issues (leaf id, bounds, hitboxes `[P8 36×36, leaf]` against the oracle's
@@ -1791,7 +1820,13 @@ spec is corrected at each line these items make false.
    byte, and was shown able to disagree. **Owed:** the capture of the release
    demo against `f64e58a`'s release build, by the method `MC-J` names, once
    the display is available; `mc-base`'s release build is in the session
-   scratchpad, not in the repository, and must be rebuilt if gone.
+   scratchpad, not in the repository, and must be rebuilt if gone. **The
+   stand-in exercises only ONE-layer legacy chains:** every legacy `.padding`
+   in `Sources/MetalUIDemo/main.swift` is a single layer, and its `.frame`
+   calls are the native overloads, so no multi-layer `ModifiedElement` reaches
+   the demo (verifier round; tests 4 and 2 cover multi-layer chains). Still
+   locked at the verifier-fix round (`IOConsoleLocked` and
+   `CGSSessionScreenIsLocked` true), so the capture remains owed.
 6. **A parallel-run hazard, measured and not fixed.** `ModifiedElementTests.swift`
    copies `FreezeLoopAllocationTests.swift`'s counter, and both install
    libmalloc's process-wide `malloc_logger` hook. Run concurrently they can
@@ -1799,7 +1834,10 @@ spec is corrected at each line these items make false.
    `#require` failed in a filtered run without `--no-parallel`). A shared,
    locked counter needs a `MetalUITestSupport` dependency that
    `MetalUILayoutTests` does not have (a `Package.swift` change), so it is
-   named here, in the test's doc comment and in record §10 instead.
+   named here, in the test's doc comment and in record §10 instead. Not fixed
+   in the verifier round either: the two tests live in different targets, so
+   `.serialized` on one suite cannot order them against the other; carrying it
+   into `CLAUDE.md`'s When-CI-lands list is the integration step's.
 7. **The style guard's inner arm reads the inner node as the outer node's only
    child in the layout tree**, not through `ModifiedElement.Layout`, so the
    reading does not depend on the bookkeeping under test; and its helper returns

@@ -164,6 +164,8 @@ private struct HitboxShape: Equatable, CustomStringConvertible {
 private struct RectShape: Equatable {
     var x: Float, y: Float, width: Float, height: Float
     var h: Float, s: Float, l: Float, a: Float
+    /// All four corners, `topLeft, topRight, bottomRight, bottomLeft`.
+    var radii: [Float]
 
     init(_ rect: MUIRect) {
         x = rect.bounds.origin.x
@@ -174,6 +176,15 @@ private struct RectShape: Equatable {
         s = rect.background.s
         l = rect.background.l
         a = rect.background.a
+        radii = [rect.cornerRadii.topLeft, rect.cornerRadii.topRight,
+                 rect.cornerRadii.bottomRight, rect.cornerRadii.bottomLeft]
+    }
+
+    /// This shape with its radii zeroed, to show an oracle differs in radii alone.
+    var withoutRadii: RectShape {
+        var copy = self
+        copy.radii = [0, 0, 0, 0]
+        return copy
     }
 }
 
@@ -300,30 +311,34 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
 /// appending one; the content laid out under the outermost id; inner layers
 /// skipping `animated`, `registerHandlers`, or taking the outermost id; `.id`
 /// moved to the wrong layer; layers registered innermost-first or after their
-/// contents; fills painted after the content.
+/// contents; fills painted after the content; and, since lane 2's verifier
+/// round — which gave the padding-4 layer a background and every layer its own
+/// corner radius, and `RectShape` the radii — the inner paint loop run
+/// innermost-first (N8) and an inner fill given the outermost layer's radius
+/// (N3). Before that round both left the whole suite green.
 @Test @MainActor func aGenericWrapOverAChainIsIdenticalToTheFlatChain() throws {
     func flatChain(_ log: LayerLog) -> ModifiedElement<LayerLeaf> {
         LayerLeaf("leaf", log: log)
             .background(.accent).onClick {}
-            .padding(4).id("mid")
+            .padding(4).id("mid").background(.surfaceSecondary).cornerRadius(3)
             .frame(width: 60, height: 40)
-            .background(.surface).onClick {}
+            .background(.surface).cornerRadius(5).onClick {}
             // `Edges`, not `Pixels`: under test 1's mutation (a concrete
             // nesting `padding(_: Pixels)` on `ModifiedElement`) a `Pixels`
             // padding on a chain nests and this return type stops compiling,
             // which would take the whole target down instead of reddening.
             .padding(Edges(all: .pixels(px(8))))
-            .background(.separator).onClick {}
+            .background(.separator).cornerRadius(9).onClick {}
     }
     func genericChain(_ log: LayerLog) -> ModifiedElement<LayerLeaf> {
         wrapInPadding8(
             LayerLeaf("leaf", log: log)
                 .background(.accent).onClick {}
-                .padding(4).id("mid")
+                .padding(4).id("mid").background(.surfaceSecondary).cornerRadius(3)
                 .frame(width: 60, height: 40)
-                .background(.surface).onClick {}
+                .background(.surface).cornerRadius(5).onClick {}
         )
-        .background(.separator).onClick {}
+        .background(.separator).cornerRadius(9).onClick {}
     }
     let probeLog = LayerLog()
     let flatValue = flatChain(probeLog), genericValue = genericChain(probeLog)
@@ -340,9 +355,9 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
                 Box(style: frameStyle(width: 60, height: 40), content:
                     Box(style: paddingStyle(4), content:
                         LayerLeaf("leaf", log: log).background(.accent).onClick {}
-                    ).id("mid")
-                ).background(.surface).onClick {}
-            ).background(.separator).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}
         }
     }
     let paddingsSwapped = try observe { log in
@@ -351,9 +366,9 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
                 Box(style: frameStyle(width: 60, height: 40), content:
                     Box(style: paddingStyle(8), content:
                         LayerLeaf("leaf", log: log).background(.accent).onClick {}
-                    ).id("mid")
-                ).background(.surface).onClick {}
-            ).background(.separator).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}
         }
     }
     let idMoved = try observe { log in
@@ -362,9 +377,9 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
                 Box(style: frameStyle(width: 60, height: 40), content:
                     Box(style: paddingStyle(4), content:
                         LayerLeaf("leaf", log: log).background(.accent).onClick {}
-                    )
-                ).background(.surface).onClick {}
-            ).background(.separator).onClick {}.id("mid")
+                    ).background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}.id("mid")
         }
     }
     let clickDropped = try observe { log in
@@ -373,9 +388,9 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
                 Box(style: frameStyle(width: 60, height: 40), content:
                     Box(style: paddingStyle(4), content:
                         LayerLeaf("leaf", log: log).background(.accent).onClick {}
-                    ).id("mid")
-                ).background(.surface)
-            ).background(.separator).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5)
+            ).background(.separator).cornerRadius(9).onClick {}
         }
     }
     let layerFewer = try observe { log in
@@ -383,8 +398,22 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
             Box(style: paddingStyle(8), content:
                 Box(style: paddingStyle(4), content:
                     LayerLeaf("leaf", log: log).background(.accent).onClick {}
-                ).id("mid")
-            ).background(.separator).onClick {}
+                ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+            ).background(.separator).cornerRadius(9).onClick {}
+        }
+    }
+
+    // The radii-swapped oracle: the padding-4 layer's radius and the outermost
+    // layer's exchanged, every other declaration unchanged.
+    let radiiSwapped = try observe { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                Box(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(4), content:
+                        LayerLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(9)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(3).onClick {}
         }
     }
 
@@ -397,6 +426,18 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
     try #require(layerFewer.layerIDs != oracle.layerIDs && layerFewer.animLive != oracle.animLive,
                  "the $anim liveness comparison cannot fail")
     try #require(layerFewer.nodeCount != oracle.nodeCount, "the node count comparison cannot fail")
+    // Inner layers' corner radii and the order of their fills. The chain has
+    // TWO inner layers with backgrounds (padding 4, the frame), each with a
+    // radius unlike the outermost's, so a fill painted with the outermost
+    // layer's radius, or the inner fills emitted innermost-first, both move
+    // `rects`.
+    try #require(oracle.rects.count == 4, "outer, frame, padding-4 and leaf fills; read \(oracle.rects.count)")
+    try #require(radiiSwapped.rects != oracle.rects, "the corner-radius comparison cannot fail")
+    try #require(radiiSwapped.rects.map(\.withoutRadii) == oracle.rects.map(\.withoutRadii),
+                 "the radii-swapped oracle must differ from the oracle in radii alone")
+    var innerFillsSwapped = oracle.rects
+    innerFillsSwapped.swapAt(1, 2)
+    try #require(innerFillsSwapped != oracle.rects, "the inner-fill order comparison cannot fail")
     try #require(oracle.animLive == [true, true, true], "every layer holds a live $anim slot")
     try #require(oracle.hitboxes.count == 3)
 

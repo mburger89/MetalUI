@@ -373,6 +373,8 @@ private struct HitboxShape: Equatable, CustomStringConvertible {
 private struct RectShape: Equatable {
     var x: Float, y: Float, width: Float, height: Float
     var h: Float, s: Float, l: Float, a: Float
+    /// All four corners, `topLeft, topRight, bottomRight, bottomLeft`.
+    var radii: [Float]
 
     init(_ rect: MUIRect) {
         x = rect.bounds.origin.x
@@ -383,6 +385,15 @@ private struct RectShape: Equatable {
         s = rect.background.s
         l = rect.background.l
         a = rect.background.a
+        radii = [rect.cornerRadii.topLeft, rect.cornerRadii.topRight,
+                 rect.cornerRadii.bottomRight, rect.cornerRadii.bottomLeft]
+    }
+
+    /// This shape with its radii zeroed, to show an oracle differs in radii alone.
+    var withoutRadii: RectShape {
+        var copy = self
+        copy.radii = [0, 0, 0, 0]
+        return copy
     }
 }
 
@@ -490,8 +501,13 @@ private func frameStyle(width: Float, height: Float) -> Style {
 /// `Box`es** — ruling MC-B's oracle, written before lane 2's `ModifiedElement`
 /// exists, so that lane 2 staying green is the migration proof.
 ///
-/// The chain carries four layers (padding 4 named `"mid"`, a 60×40 frame,
-/// padding 8), three backgrounds and three click handlers. The oracle is one
+/// The chain carries three layers around the leaf (padding 4 named `"mid"`, a
+/// 60×40 frame, padding 8), four backgrounds and three click handlers. **Two
+/// INNER layers fill** (padding 4 `.surfaceSecondary` r3, the frame `.surface`
+/// r5) and the outermost fills `.separator` r9, so the order of inner fills and
+/// each inner layer's own radius are both observable; `RectShape` compares all
+/// four corner radii (lane 2's verifier round: before it, with one inner fill
+/// and no radii, mutations N3 and N8 below left the whole suite green). The oracle is one
 /// `Box(style:decoration:content:)` per layer with the same style, and the
 /// layer's own `Self`-returning modifiers applied to that `Box`. **The oracle
 /// side never runs a modifier-wrapper's code** (`.padding`/`.frame`), so a
@@ -510,7 +526,10 @@ private func frameStyle(width: Float, height: Float) -> Style {
 ///   `BoxWithoutAnimated`, which must read `[true, false, true]` against the
 ///   oracle's `[true, true, true]` (critic round 2, finding 6: the layer-fewer
 ///   oracle differs only in length, so it never showed the comparison can see
-///   one dead slot).
+///   one dead slot);
+/// - corner radii: padding 4's radius and the outermost's exchanged, required
+///   to differ and to be EQUAL once radii are zeroed;
+/// - inner fill order: the oracle's rects with the two inner fills exchanged.
 ///
 /// Green on arrival. Mutation (lane 1, on `FrameModifier` at `2571d4a`, record
 /// §10): `FrameModifier.prepaint` registering its handlers after its content.
@@ -519,7 +538,10 @@ private func frameStyle(width: Float, height: Float) -> Style {
 /// id; inner layers skipping `animated` or `registerHandlers`; inner layers
 /// taking the outermost id; `.id` on the wrong layer; layers registered
 /// innermost-first or after their contents; fills after the content; content
-/// painted once per inner layer; layer styles minted outermost-first.
+/// painted once per inner layer; layer styles minted outermost-first; and,
+/// since the verifier round, the inner paint loop run innermost-first (N8) and
+/// an inner fill given the outermost layer's radius (N3), each 3 issues across
+/// this test and lane 2's test 2.
 ///
 /// **What it cannot see:** a cursor offset beneath the named padding-4 layer.
 /// A name replaces the index, so `FrameModifier`'s content cursor starting at
@@ -530,11 +552,11 @@ private func frameStyle(width: Float, height: Float) -> Style {
         Row {
             CountingLeaf("leaf", log: log)
                 .background(.accent).onClick {}
-                .padding(4).id("mid")
+                .padding(4).id("mid").background(.surfaceSecondary).cornerRadius(3)
                 .frame(width: 60, height: 40)
-                .background(.surface).onClick {}
+                .background(.surface).cornerRadius(5).onClick {}
                 .padding(8)
-                .background(.separator).onClick {}
+                .background(.separator).cornerRadius(9).onClick {}
         }
     }
     let oracle = try observe { log in
@@ -543,9 +565,9 @@ private func frameStyle(width: Float, height: Float) -> Style {
                 Box(style: frameStyle(width: 60, height: 40), content:
                     Box(style: paddingStyle(4), content:
                         CountingLeaf("leaf", log: log).background(.accent).onClick {}
-                    ).id("mid")
-                ).background(.surface).onClick {}
-            ).background(.separator).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}
         }
     }
     let paddingsSwapped = try observe { log in
@@ -554,9 +576,9 @@ private func frameStyle(width: Float, height: Float) -> Style {
                 Box(style: frameStyle(width: 60, height: 40), content:
                     Box(style: paddingStyle(8), content:
                         CountingLeaf("leaf", log: log).background(.accent).onClick {}
-                    ).id("mid")
-                ).background(.surface).onClick {}
-            ).background(.separator).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}
         }
     }
     let idMoved = try observe { log in
@@ -565,9 +587,9 @@ private func frameStyle(width: Float, height: Float) -> Style {
                 Box(style: frameStyle(width: 60, height: 40), content:
                     Box(style: paddingStyle(4), content:
                         CountingLeaf("leaf", log: log).background(.accent).onClick {}
-                    )
-                ).background(.surface).onClick {}
-            ).background(.separator).onClick {}.id("mid")
+                    ).background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}.id("mid")
         }
     }
     let clickDropped = try observe { log in
@@ -576,9 +598,9 @@ private func frameStyle(width: Float, height: Float) -> Style {
                 Box(style: frameStyle(width: 60, height: 40), content:
                     Box(style: paddingStyle(4), content:
                         CountingLeaf("leaf", log: log).background(.accent).onClick {}
-                    ).id("mid")
-                ).background(.surface)
-            ).background(.separator).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5)
+            ).background(.separator).cornerRadius(9).onClick {}
         }
     }
     let animSkipped = try observe { log in
@@ -587,9 +609,9 @@ private func frameStyle(width: Float, height: Float) -> Style {
                 BoxWithoutAnimated(style: frameStyle(width: 60, height: 40), content:
                     Box(style: paddingStyle(4), content:
                         CountingLeaf("leaf", log: log).background(.accent).onClick {}
-                    ).id("mid")
-                ).background(.surface).onClick {}
-            ).background(.separator).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(9).onClick {}
         }
     }
     let layerFewer = try observe { log in
@@ -597,8 +619,22 @@ private func frameStyle(width: Float, height: Float) -> Style {
             Box(style: paddingStyle(8), content:
                 Box(style: paddingStyle(4), content:
                     CountingLeaf("leaf", log: log).background(.accent).onClick {}
-                ).id("mid")
-            ).background(.separator).onClick {}
+                ).id("mid").background(.surfaceSecondary).cornerRadius(3)
+            ).background(.separator).cornerRadius(9).onClick {}
+        }
+    }
+
+    // The radii-swapped oracle: the padding-4 layer's radius and the outermost
+    // layer's exchanged, every other declaration unchanged.
+    let radiiSwapped = try observe { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                Box(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(4), content:
+                        CountingLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).id("mid").background(.surfaceSecondary).cornerRadius(9)
+                ).background(.surface).cornerRadius(5).onClick {}
+            ).background(.separator).cornerRadius(3).onClick {}
         }
     }
 
@@ -615,6 +651,18 @@ private func frameStyle(width: Float, height: Float) -> Style {
     try #require(animSkipped.layerIDs == oracle.layerIDs, "the equal-count oracle must keep every layer id")
     try #require(animSkipped.animLive == [true, false, true],
                  "a layer that skips animated() must read dead at its own depth; read \(animSkipped.animLive)")
+    // Inner layers' corner radii and the order of their fills. The chain has
+    // TWO inner layers with backgrounds (padding 4, the frame), each with a
+    // radius unlike the outermost's, so a fill painted with the outermost
+    // layer's radius, or the inner fills emitted innermost-first, both move
+    // `rects`.
+    try #require(oracle.rects.count == 4, "outer, frame, padding-4 and leaf fills; read \(oracle.rects.count)")
+    try #require(radiiSwapped.rects != oracle.rects, "the corner-radius comparison cannot fail")
+    try #require(radiiSwapped.rects.map(\.withoutRadii) == oracle.rects.map(\.withoutRadii),
+                 "the radii-swapped oracle must differ from the oracle in radii alone")
+    var innerFillsSwapped = oracle.rects
+    innerFillsSwapped.swapAt(1, 2)
+    try #require(innerFillsSwapped != oracle.rects, "the inner-fill order comparison cannot fail")
     // And the oracle itself has the shape the comparison is about.
     try #require(oracle.animLive == [true, true, true], "every layer holds a live $anim slot")
     try #require(oracle.hitboxes.count == 3)

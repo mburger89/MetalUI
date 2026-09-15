@@ -381,7 +381,7 @@ line; issue lines are quoted in the rulings.
 | L2 | `.id` lands on the wrong layer | 1103, 9 issues | test 2; lane 1 test 4 |
 | L3 | layers registered innermost-first, before the content | 1103, 3 issues | test 2; lane 1 test 4 |
 | L4 | a layer registers after everything inside it | 1103, 5 issues | test 2; lane 1 tests 4, 8 |
-| L5 | fills painted after the content | 1103, 4 issues | test 2; lane 1 tests 4, 8 |
+| L5 | fills painted after the content (NOT the inner loop reversed; see N8) | 1103, 4 issues | test 2; lane 1 tests 4, 8 |
 | L6 | content painted once per inner layer | 1103, 4 issues | test 2; lane 1 tests 4, 7 (chain arm `[1, 1, 3]`) |
 | L7 | layer styles minted outermost-first | 1103, 25 issues | tests 2, 5; lane 1 tests 4, 10 (O1/O2 swapped); the style, AX and both `BackgroundChainTests` guards; `chainedFramesRemainConcreteAndNestTheirLayoutNodes`; the allocation test |
 | K1 | a `requestLayout`-local array of every layer | 1103, 3 issues | the allocation test's three arms (one-layer 18 002 vs 17 002) |
@@ -469,9 +469,54 @@ element that a layer would need (they enter the id and bind `@State`); the
 AB-O mirroring's future shape around `prepaintLayer`; `Component.swift`'s stale
 `Box.swift` line citations (`MC-R` item 9).
 
-**Deferred by lane 2.** The default demo's window capture (`MC-R` item 5). A
+**Deferred by lane 2.** The default demo's window capture (`MC-R` item 5; the offscreen stand-in sees one-layer chains only). A
 shared, locked allocation counter for the two `malloc_logger` tests (`MC-R`
 item 6). Everything `MC-L` already defers.
+
+#### Lane 2 verifier-fix round, 2026-09-15 (from `6d0ea97`)
+
+The verifier's mutations at `6d0ea97` found two changes to `ModifiedElement`
+that left the whole suite green (1103 tests passed each time): **N8**, the
+inner-layer paint loop run innermost-first, and **N3**, an inner layer's fill
+given the outermost layer's corner radius. Its scratch tests showed each
+mutant really differs from nested `Box`es. Both are closed in the test files
+only; no `Sources/` change.
+
+- **Tests changed** (`aModifierChainIsIdenticalToHandBuiltNestedBoxes`, lane 1
+  test 4, and `aGenericWrapOverAChainIsIdenticalToTheFlatChain`, lane 2 test 2,
+  identically): `RectShape` gains `radii` (all four corners) and
+  `withoutRadii`; the chain and every arm gain `.background(.surfaceSecondary)
+  .cornerRadius(3)` on padding 4, `.cornerRadius(5)` on the frame and
+  `.cornerRadius(9)` on padding 8; two disagreeing checks are `try #require`d —
+  a `radiiSwapped` arm (3 and 9 exchanged) that differs from the oracle and
+  equals it with radii zeroed, and the oracle's rects with entries 1 and 2
+  exchanged, after `oracle.rects.count == 4`.
+- **Green unmutated:** `swift build --build-system native --build-tests`, then
+  `--filter` over the two tests: `Test run with 2 tests in 0 suites passed`.
+- **Red under the mutants, whole suite** (`mut.py` in the scratchpad: `cp`
+  backup, one anchor replaced exactly once with a `// MC2-MUTATION` marker,
+  `swift test --build-system native --no-parallel`, restore; `git status
+  --short` showed only the two test files and the marker grep read 0):
+
+| # | mutation | summary | tests reddened | reading |
+|---|---|---|---|---|
+| N3 | inner fill `cornerRadii: Corners(all: outermost.decoration.cornerRadius)` | 1103, 3 issues, 0 `error:` | test 2 (flat and generic); lane 1 test 4 | chain radii 9, 9, 9, 0; oracle 9, 5, 3, 0 |
+| N8 | `ModifiedElement.paint`'s inner loop `for k in inner.indices` (not `.reversed()`) | 1103, 3 issues, 0 `error:` | the same | chain 76×56, **28×28, 60×40**, 20×20; oracle 76×56, 60×40, 28×28, 20×20 |
+
+- **Spec corrected:** lane 1 test 8's row named "the layer loop reversed in
+  prepaint, and separately in paint", which its one-padding-layer chain cannot
+  see; the row now names L4 and L5 and says where L3 and N8 are caught.
+- **Final runs** (tests and docs as committed): `swift test --build-system
+  native --no-parallel`: `Test run with 1103 tests in 1 suite passed after
+  32.942 seconds`, 0 `error:`, 0 `warning:`; `swift test --no-parallel`:
+  `Test run with 1103 tests in 1 suite passed after 28.320 seconds`, 0
+  `error:`, 0 `warning:`. Counts unchanged (no test added): tests 1103, guards
+  47, goldens 97, `git diff --stat f64e58a -- '*.json'` empty.
+- **Not done:** the release-window capture (`MC-R` item 5) — still locked:
+  `ioreg` reports `IOConsoleLocked` and `CGSSessionScreenIsLocked` true. The
+  offscreen stand-in exercises only one-layer chains (every legacy `.padding`
+  in the demo is a single layer). The `malloc_logger` parallel hazard (`MC-R`
+  item 6) stays for the integration step.
 
 ### For the integration step
 
