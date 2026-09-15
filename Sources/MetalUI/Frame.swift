@@ -730,7 +730,8 @@ public final class Frame {
     /// - **the declared AX node gains `.disabled`**.
     ///
     /// Every caller reaches it: `Box` (and so `Column`/`Row`), `Stack`, `Text`,
-    /// `FrameModifier` and `OnTapModifier` (`grep -rn "registerHandlers(" Sources`),
+    /// `ModifiedElement` (each layer) and `OnTapModifier`
+    /// (`grep -rn "registerHandlers(" Sources`, five callers),
     /// `List` rows through their elements and `Component` through its members.
     /// A raw `PrepaintPass.insertHitbox` is NOT gated: an element using the
     /// primitive reads `pass.environment.isEnabled` itself.
