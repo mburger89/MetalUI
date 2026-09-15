@@ -10,7 +10,7 @@ import MetalUIRender
 // task 3's four open proofs measured on the wrappers as they stand:
 //
 // - `OverlayModifier` gives its primary and its overlay distinct identities
-//   (ruling MC-E), tests 1-3 and 9;
+//   (ruling MC-E, as revised by MC-P), tests 1-3 and 9;
 // - a modifier chain is observationally identical to hand-built nested `Box`es
 //   (ruling MC-B), test 4 — the oracle lane 2's `ModifiedElement` must match;
 // - `@State` survives frames under a legacy and a proposal modifier chain
@@ -236,16 +236,19 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 
 // MARK: - 1-3: the overlay's identity (ruling MC-E)
 
-/// **The overlay and its primary are two identities, and the overlay's index
-/// continues the primary's cursor.** `Frame` only.
+/// **The overlay and its primary are two identities, and the overlay numbers
+/// from 0 under an overlay-side id no cursor can produce.** `Frame` only.
 ///
-/// The first arm's overlay sits at index 1 under the modifier's id, the
-/// primary at 0. The second arm's primary is an `HStack` of two leaves: the
-/// overlay is still index 1, because the stack is ONE element however many
-/// nodes it holds — a cursor counts elements, not nodes.
+/// The primary sits at `.child(of: modifier, at: 0)`; the overlay at
+/// `.child(of: .child(of: modifier, at: -1), at: 0)` (ruling MC-P). The second
+/// arm's primary is an `HStack` of two leaves and the overlay's id is the same
+/// shape: nothing about the primary enters it.
 ///
-/// Red before the fix, measured (record §10): with the overlay's cursor
-/// starting at its own 0, the first arm's two ids compare equal.
+/// Red before the first fix, measured (record §10): with the overlay's cursor
+/// starting at its own 0 under the modifier's id, the first arm's two ids
+/// compare equal. Red under MC-E's threaded cursor (`6ff2d31`), measured
+/// (record §10): the overlay reads `.positional(1)` directly under the
+/// modifier in both arms.
 @Test @MainActor func theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities() throws {
     do {
         let log = CompositionLog()
@@ -258,9 +261,12 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         Frame(contentSize: Size(width: px(100), height: px(100)), scaleFactor: 1).render(&root)
         let primary = try #require(log.ids["primary"])
         let overlay = try #require(log.ids["overlay"])
+        let modifier = try #require(primary.parent)
         #expect(primary != overlay, "the primary and the overlay share one identity")
-        #expect(overlay == GlobalElementID.child(of: primary.parent, at: 1, name: nil),
-                "the overlay's index must continue where the primary's stopped; got \(overlay.component)")
+        #expect(primary == GlobalElementID.child(of: modifier, at: 0, name: nil))
+        #expect(overlay == GlobalElementID.child(of: GlobalElementID.child(of: modifier, at: -1, name: nil),
+                                                 at: 0, name: nil),
+                "the overlay must number from 0 under the overlay-side id; got \(overlay.component) under \(String(describing: overlay.parent?.component))")
     }
     do {
         let log = CompositionLog()
@@ -277,8 +283,9 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         let a = try #require(log.ids["a"])
         let overlay = try #require(log.ids["overlay"])
         let modifier = try #require(a.parent?.parent)
-        #expect(overlay == GlobalElementID.child(of: modifier, at: 1, name: nil),
-                "a two-node primary is still one element and one index; got \(overlay.component)")
+        #expect(overlay == GlobalElementID.child(of: GlobalElementID.child(of: modifier, at: -1, name: nil),
+                                                 at: 0, name: nil),
+                "the overlay's id must not depend on the primary; got \(overlay.component) under \(String(describing: overlay.parent?.component))")
     }
 }
 
@@ -423,6 +430,51 @@ private func paddingStyle(_ points: Float) -> Style {
     return style
 }
 
+/// `Box`'s three phases, copied, **minus its `animated(_:_:for:pass:)` call** —
+/// the disagreeing oracle for test 4's `$anim` observation at an equal layer
+/// count (critic round 2, finding 6). A layer count that differs already
+/// changes `animLive`'s length; only this wrapper shows that the comparison sees
+/// ONE inner layer that skipped the helper, lane 2's likeliest bug.
+private struct BoxWithoutAnimated<Content: ElementGroup>: StyledElement {
+    var style: Style
+    var decoration = Decoration()
+    var elementID: ElementID?
+    var handlers = Handlers()
+    var content: Content
+
+    init(style: Style, content: Content) {
+        self.style = style
+        self.content = content
+    }
+
+    struct Layout {
+        var node: LayoutNodeID
+        var content: Content.GroupLayout
+    }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        // `Box.requestLayout` calls `animated(style, decoration, for: id, pass:)` here.
+        let node = pass.requestNode(style: style, children: children)
+        return (node, Layout(node: node, content: contentLayout))
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
+                           pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        pass.registerHandlers(handlers, at: bounds, id: id)
+        return content.prepaintGroup(layout: &layout.content, pass: &pass)
+    }
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
+                        prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
+        if let color = animatedBackground(decoration, for: id, pass: &pass) {
+            pass.fill(bounds, color: color, cornerRadii: Corners(all: decoration.cornerRadius))
+        }
+        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
+}
+
 /// `FrameModifier.init`'s style, written out independently of it.
 private func frameStyle(width: Float, height: Float) -> Style {
     var style = Style()
@@ -451,7 +503,12 @@ private func frameStyle(width: Float, height: Float) -> Style {
 ///   padding-4 layer (the one it follows in the chain, ruling MC-C) to the
 ///   outermost padding-8 layer;
 /// - the hitbox list: the frame layer's `onClick` dropped;
-/// - `$anim` liveness and node count: the frame layer omitted.
+/// - `$anim` liveness and node count: the frame layer omitted;
+/// - `$anim` liveness at an EQUAL layer count: the frame layer built as a
+///   `BoxWithoutAnimated`, which must read `[true, false, true]` against the
+///   oracle's `[true, true, true]` (critic round 2, finding 6: the layer-fewer
+///   oracle differs only in length, so it never showed the comparison can see
+///   one dead slot).
 ///
 /// Green on arrival. Mutation (today's code, record §10): `FrameModifier.prepaint`
 /// registering its handlers after its content.
@@ -516,6 +573,17 @@ private func frameStyle(width: Float, height: Float) -> Style {
             ).background(.separator).onClick {}
         }
     }
+    let animSkipped = try observe { log in
+        Row {
+            Box(style: paddingStyle(8), content:
+                BoxWithoutAnimated(style: frameStyle(width: 60, height: 40), content:
+                    Box(style: paddingStyle(4), content:
+                        CountingLeaf("leaf", log: log).background(.accent).onClick {}
+                    ).id("mid")
+                ).background(.surface).onClick {}
+            ).background(.separator).onClick {}
+        }
+    }
     let layerFewer = try observe { log in
         Row {
             Box(style: paddingStyle(8), content:
@@ -536,6 +604,9 @@ private func frameStyle(width: Float, height: Float) -> Style {
     try #require(layerFewer.layerIDs != oracle.layerIDs && layerFewer.animLive != oracle.animLive,
                  "the $anim liveness comparison cannot fail")
     try #require(layerFewer.nodeCount != oracle.nodeCount, "the node count comparison cannot fail")
+    try #require(animSkipped.layerIDs == oracle.layerIDs, "the equal-count oracle must keep every layer id")
+    try #require(animSkipped.animLive == [true, false, true],
+                 "a layer that skips animated() must read dead at its own depth; read \(animSkipped.animLive)")
     // And the oracle itself has the shape the comparison is about.
     try #require(oracle.animLive == [true, true, true], "every layer holds a live $anim slot")
     try #require(oracle.hitboxes.count == 3)
@@ -771,27 +842,29 @@ private func frameStyle(width: Float, height: Float) -> Style {
     #expect(log.events == ["inner"], "a click inside the leaf ran \(log.events)")
 }
 
-// MARK: - 9: the overlay index moves with its primary (ruling MC-E's counterexample)
+// MARK: - 9: the overlay's identity is independent of its primary's shape (ruling MC-P)
 
-/// **An overlay's identity follows the number of indices its primary consumed.**
+/// **An overlay's identity does not depend on how many indices its primary
+/// consumed**, as SwiftUI's does not (`docs/probes/swiftui-overlay-primary-shape.swift`,
+/// arms P1-P5 against controls A, B and Q: the overlay keeps its state through
+/// a flip of its primary's shape).
 ///
-/// The primary is `{ if flag { EmptyProposalComponent() }; Rectangle(60×60) }`:
+/// The primary is `{ if flag { EmptyProposalComponent() }; CountingProposalLeaf("p") }`:
 /// one node either way, but two indices or one, since an empty `Component`
-/// consumes an index and contributes no node. So the overlay's index moves
-/// between 2 and 1 as `flag` toggles, and its `@State` is read from a
-/// different entry. This is record §01's trailing-sibling rule applied to an
-/// overlay (ruling MC-E); its remedy is the same.
+/// consumes an index and contributes no node (ruling MC-E's counterexample).
 ///
-/// Readings pinned as measured (record §10), at each step: the overlay's id
-/// component, its `taps`, and whether the index-2 occurrence's `$state0` slot
-/// is live. Three clicks with `flag` true give index 2 and 3 taps; `flag` false
-/// gives index 1 and 0 taps, the index-2 slot not live; `flag` true again gives
-/// index 2 and 3 taps, retained below the sweep threshold (divergence 18,
-/// ruling TB-AH).
+/// **In-test positive control, the probe's P5:** the primary leaf `p`'s id
+/// component must read `.positional(1)`, `.positional(0)`, `.positional(1)` —
+/// proof the flip really moved an index inside the primary. The overlay's
+/// readings are then pinned unchanged across the three steps: `.positional(0)`
+/// under the `-1` overlay-side id, 3 taps, its `$state0` slot live.
 ///
-/// Mutation (after the fix, record §10): the overlay under a reserved name
-/// instead of the threaded index (ruling MC-E's rejected alternative).
-@Test @MainActor func anOverlaysIdentityFollowsTheIndicesItsPrimaryConsumed() throws {
+/// Red under ruling MC-E's threaded cursor (`6ff2d31`, restored as a mutation,
+/// record §10): the overlay reads index 2 with 3 taps, then index 1 with 0
+/// taps, then index 2 with 3 taps (retained below the sweep threshold,
+/// divergence 18) — the reading lane 1 first pinned as the trailing-sibling
+/// rule, which SwiftUI does not have.
+@Test @MainActor func anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = CompositionLog()
     let flag = Flag()
@@ -799,7 +872,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
         ZStack(alignment: .topLeading) {
             group {
                 if flag.value { EmptyProposalComponent() }
-                Rectangle(width: 60, height: 60)
+                CountingProposalLeaf("p", log: log, width: 60, height: 60)
             }
             .overlay(alignment: .topLeading) {
                 CountingProposalLeaf("o", log: log, width: 10, height: 10)
@@ -808,18 +881,20 @@ private func frameStyle(width: Float, height: Float) -> Style {
     }
     window.drawFrameIfNeeded()
     try #require(log.bounds["o"] == Bounds(origin: pt(0, 0), size: Size(width: px(10), height: px(10))))
-    let modifier = try #require(log.ids["o"]?.parent)
-    let indexTwoSlot = GlobalElementID.child(of: GlobalElementID.child(of: modifier, at: 2, name: nil),
-                                             at: 0, name: ElementID("$state0"))
+    let modifier = try #require(log.ids["p"]?.parent)
+    let overlayID = GlobalElementID.child(of: GlobalElementID.child(of: modifier, at: -1, name: nil),
+                                          at: 0, name: nil)
+    let overlaySlot = GlobalElementID.child(of: overlayID, at: 0, name: ElementID("$state0"))
 
     struct Reading: Equatable {
-        var component: PathComponent?
+        var primary: PathComponent?
+        var overlay: GlobalElementID?
         var taps: Int?
-        var indexTwoLive: Bool
+        var overlayLive: Bool
     }
     func reading() -> Reading {
-        Reading(component: log.ids["o"]?.component, taps: log.taps["o"],
-                indexTwoLive: window.stateTable.isLive(indexTwoSlot))
+        Reading(primary: log.ids["p"]?.component, overlay: log.ids["o"], taps: log.taps["o"],
+                overlayLive: window.stateTable.isLive(overlaySlot))
     }
 
     for _ in 0..<3 {
@@ -838,9 +913,15 @@ private func frameStyle(width: Float, height: Float) -> Style {
     window.drawFrameIfNeeded()
     let third = reading()
 
-    #expect(first == Reading(component: .positional(2), taps: 3, indexTwoLive: true), "\(first)")
-    #expect(second == Reading(component: .positional(1), taps: 0, indexTwoLive: false), "\(second)")
-    #expect(third == Reading(component: .positional(2), taps: 3, indexTwoLive: true), "\(third)")
+    // The control: the flip moved the primary leaf's index.
+    try #require([first.primary, second.primary, third.primary] == [.positional(1), .positional(0), .positional(1)],
+                 "the primary's shape did not flip: \([first.primary, second.primary, third.primary])")
+
+    let kept = Reading(primary: nil, overlay: overlayID, taps: 3, overlayLive: true)
+    func overlayHalf(_ r: Reading) -> Reading { Reading(primary: nil, overlay: r.overlay, taps: r.taps, overlayLive: r.overlayLive) }
+    #expect(overlayHalf(first) == kept, "\(first)")
+    #expect(overlayHalf(second) == kept, "\(second)")
+    #expect(overlayHalf(third) == kept, "\(third)")
 }
 
 // MARK: - 10: modifier order against SwiftUI (ruling MC-L)
@@ -861,6 +942,14 @@ private struct Placement: Equatable, CustomStringConvertible {
 /// `Row`. O1/O2 and O3/O4 hold the same modifiers in different orders and are
 /// `try #require`d to disagree first, so an instrument blind to order cannot
 /// pass.
+///
+/// **Scope, and only this scope** (critic round 2, finding 7): a fixed 20×20
+/// leaf, BOTH frame axes given, every frame at least as large as its content,
+/// under an unconstrained `.flexStart` parent. NOT covered, and by reading the
+/// legacy frame node stretches or shrinks where a SwiftUI frame stays fixed:
+/// a nil axis (`.frame(width: 60)`), a frame smaller than its content, a frame
+/// under a stretching `Box` parent (EP-8), a frame in a shrinking row (SZ-L).
+/// Those are plan task 4's (legacy `.frame` semantics), not proven here.
 ///
 /// Green, as measured by the design review's deleted scratch test. Mutation
 /// (today's code, record §10): `FrameModifier.init` dropping

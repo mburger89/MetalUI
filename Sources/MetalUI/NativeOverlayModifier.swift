@@ -23,38 +23,52 @@ public struct OverlayModifier<Content: ProposalElementGroup, Overlay: ProposalEl
         var overlay: Overlay.GroupLayout
     }
 
-    /// **One cursor is threaded through the primary and then the overlay**, as
-    /// `Pair` threads it and every legacy container does (ruling MC-E): the
-    /// primary's elements take indices from 0 under this modifier's id, and the
-    /// overlay's continue where the primary's stopped.
+    /// **The primary's elements number from 0 under this modifier's id; the
+    /// overlay's number from 0 under a child id no cursor can produce,
+    /// `.child(of: id, at: -1, name: nil)`** (ruling MC-P, which replaces MC-E's
+    /// threaded cursor). So the overlay's identity is independent of the
+    /// primary's shape, as SwiftUI's is.
     ///
-    /// **Until 2026-09-15 the overlay started a second cursor at 0**, so a
-    /// one-element primary and a one-element overlay received the SAME id, and
-    /// with it one `@State` slot, one hitbox id and one `$anim` slot. Measured
-    /// through a real `Window`: an overlay never clicked read the primary's 3
-    /// taps, and with the pointer over the primary only, both painted their
-    /// hover fills (60pt and 10pt wide).
+    /// **Until 2026-09-15 the overlay started a second cursor at 0 under the
+    /// same id**, so a one-element primary and a one-element overlay received
+    /// the SAME id, and with it one `@State` slot, one hitbox id and one `$anim`
+    /// slot. Measured through a real `Window`: an overlay never clicked read the
+    /// primary's 3 taps, and with the pointer over the primary only, both
+    /// painted their hover fills (60pt and 10pt wide).
     ///
-    /// **The cost of threading:** the overlay's index depends on how many
-    /// indices the primary consumed, which its node count does not fix — an
-    /// empty `Component` consumes an index and contributes no node. A primary
-    /// `{ if flag { EmptyComponent() }; Rectangle() }` moves the overlay between
-    /// index 2 and 1 as `flag` toggles, and its state is read from a different
-    /// entry. That is record §01's trailing-sibling rule; keep the primary's
-    /// index-consuming shape fixed, or name the overlay's element.
+    /// **The first fix threaded ONE cursor through both (`6ff2d31`), and that
+    /// diverged from SwiftUI.** The overlay's index then depended on how many
+    /// indices the primary consumed, which its node count does not fix: an
+    /// empty `Component` consumes an index and contributes no node, so a
+    /// primary `{ if flag { EmptyComponent() }; Rectangle() }` moved the
+    /// overlay between index 2 and 1 as `flag` toggled, and it read 3, 0, 3
+    /// taps. SwiftUI keeps an overlay's state through such a flip — ZStack,
+    /// Group, multi-view-body and `EmptyView` primaries alike
+    /// (`docs/probes/swiftui-overlay-primary-shape.swift`, with controls).
+    ///
+    /// **Why `-1` and not a reserved name or a level on both sides.** A
+    /// `.positional(-1)` component is unreachable from any cursor (cursors
+    /// start at 0 and only grow), so it cannot collide with a primary element
+    /// however many indices the primary consumes, and it adds no name to
+    /// CLAUDE.md's seven unguarded reserved names. Putting the primary under an
+    /// intermediate id too would move every overlaid primary one level deeper
+    /// and re-seed its state (the demo preview's `PreviewToggle` among them).
     ///
     /// Pinned by `theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities`,
     /// `aTapOnAnOverlaysPrimaryWritesOnlyThePrimarysState`,
-    /// `hoveringAnOverlaysPrimaryDoesNotHoverTheOverlay` and, for the index
-    /// shift, `anOverlaysIdentityFollowsTheIndicesItsPrimaryConsumed`
-    /// (`ModifierCompositionProofTests.swift`); all four are red with the
-    /// second cursor restored.
+    /// `hoveringAnOverlaysPrimaryDoesNotHoverTheOverlay` and, for the primary's
+    /// shape, `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`
+    /// (`ModifierCompositionProofTests.swift`). The shared-cursor-at-0 mutation
+    /// reddens all four; the threaded cursor reddens the first and the last.
     public mutating func requestLayout(_ id: GlobalElementID,
                                        pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
-        var cursor = 0
-        let (contentNodes, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
+        var contentCursor = 0
+        let (contentNodes, contentLayout) = content.requestGroupLayout(under: id, at: &contentCursor,
                                                                         pass: &pass)
-        let (overlayNodes, overlayLayout) = overlay.requestGroupLayout(under: id, at: &cursor,
+        var overlayCursor = 0
+        let overlaySide = GlobalElementID.child(of: id, at: -1, name: nil)
+        let (overlayNodes, overlayLayout) = overlay.requestGroupLayout(under: overlaySide,
+                                                                        at: &overlayCursor,
                                                                         pass: &pass)
         precondition(contentNodes.count == 1 && overlayNodes.count == 1,
                      "a native overlay modifier requires one primary and one overlay node")
