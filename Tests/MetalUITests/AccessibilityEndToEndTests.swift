@@ -104,6 +104,11 @@ private func elements(_ list: [Any]?) -> [NSAccessibilityElement] {
 /// activation trigger (measured by `docs/probes/appkit-accessibility-activation-clients.swift`).
 /// With such a client running and the pointer over this test's window, this
 /// test reddens for a reason that is not a bridge defect.
+///
+/// **Whether AppKit delivers the synthesized clicks also depends on the
+/// environment** (the app's activation state); the test routes each click to the
+/// host view itself only when `sendEvent` did not, so either way the control
+/// sees each event exactly once.
 @Test @MainActor func aKeyWindowReceivingEventsIsNeverActivatedWithoutAClient() throws {
     let (window, appKit, nsWindow) = try makeAppKitWindow {
         Column { Box().width(px(40)).height(px(20)).onClick {} }
@@ -140,14 +145,18 @@ private func elements(_ list: [Any]?) -> [NSAccessibilityElement] {
         let event = try #require(NSEvent.mouseEvent(
             with: type, location: inside, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
             windowNumber: nsWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
+        let delivered = inputs.count
         nsWindow.sendEvent(event)
-        // **AppKit swallows a synthesized mouse event here** (measured: in the
-        // test process the app is not active and the window is not key, so
-        // `sendEvent` spends the click on activation and the host view's
+        // **AppKit usually swallows a synthesized mouse event here** (measured:
+        // in the test process the app is not active and the window is not key,
+        // so `sendEvent` spends the click on activation and the host view's
         // `mouseDown` never runs, while the key event below does arrive). The
-        // AppKit path is still taken above; the override is then called directly
-        // so the host view's own mouse handling really runs.
-        if type == .leftMouseDown { appKit.hostView.mouseDown(with: event) } else { appKit.hostView.mouseUp(with: event) }
+        // AppKit path is still taken above; the override is called directly
+        // ONLY when AppKit did not deliver, so an environment where it does (an
+        // active app, e.g. under Xcode) sees each event once, not twice.
+        if inputs.count == delivered {
+            if type == .leftMouseDown { appKit.hostView.mouseDown(with: event) } else { appKit.hostView.mouseUp(with: event) }
+        }
     }
     let key = try #require(NSEvent.keyEvent(
         with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,

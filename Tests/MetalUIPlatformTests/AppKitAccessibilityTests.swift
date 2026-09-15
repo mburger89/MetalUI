@@ -240,15 +240,27 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
 }
 
 /// A vended element keeps its object across a label change, and is detached —
-/// parentless, refusing, still describing itself — when its id is gone; a
-/// returning id gets a new object (AB-D, arm 12).
+/// parentless, childless, refusing, still describing what it LAST was — when its
+/// id is gone; a returning id gets a new object (AB-D, arm 12).
+///
+/// **`b` has a child that outlives it, and a label that changes while vended.**
+/// Without the child, "a detached element has no children" agrees with reading
+/// them from the live tree; without the rename, "what it last was" agrees with
+/// "what it was when created" (verifier's H06 and H07, both green before).
 @Test @MainActor func aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes() throws {
     let h = try makeHarness(signal: true)
     defer { h.nsWindow.close() }
-    func tree(aLabel: String, withB: Bool) -> AccessibilityTree {
-        var entries = ["a": Entry(node: node(.button, aLabel, actions: [.press]), frame: rect(4, 6, 40, 20))]
-        if withB { entries["b"] = Entry(node: node(.button, "b", actions: [.press]), frame: rect(12, 50, 30, 18)) }
-        return makeTree(roots: withB ? ["a", "b"] : ["a"], entries)
+    func tree(aLabel: String, bLabel: String = "b", withB: Bool) -> AccessibilityTree {
+        var entries = [
+            "a": Entry(node: node(.button, aLabel, actions: [.press]), frame: rect(4, 6, 40, 20)),
+            "bc": Entry(node: node(.staticText, "bc"), frame: rect(14, 52, 20, 12)),
+        ]
+        if withB {
+            entries["b"] = Entry(node: node(.button, bLabel, children: ["bc"], actions: [.press]),
+                                 frame: rect(12, 50, 30, 18))
+        }
+        // Without `b`, its child is re-published as a root: the id outlives it.
+        return makeTree(roots: withB ? ["a", "b"] : ["a", "bc"], entries)
     }
     h.bridge.publish(tree(aLabel: "a", withB: true))
     let first = elements(h.host.accessibilityChildren())
@@ -256,23 +268,28 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     let (a, b) = (first[0], first[1])
     let bFrame = b.accessibilityFrame()
     #expect(bFrame == h.screenRect(12, 50, 30, 18), "control: b's frame is live before removal")
+    let bc = try #require(elements(b.accessibilityChildren()).first, "control: b has a child while attached")
+    #expect(bc.accessibilityParent() as AnyObject === b, "a nested element's parent is its parent's element")
 
-    h.bridge.publish(tree(aLabel: "a2", withB: true))
+    h.bridge.publish(tree(aLabel: "a2", bLabel: "b2", withB: true))
     let second = elements(h.host.accessibilityChildren())
     try #require(second.count == 2)
     #expect(second[0] === a && second[1] === b, "a label change keeps the objects")
     #expect(a.accessibilityLabel() == "a2")
+    try #require(b.accessibilityLabel() == "b2", "control: b was renamed while vended, before removal")
 
-    h.bridge.publish(tree(aLabel: "a2", withB: false))
+    h.bridge.publish(tree(aLabel: "a2", bLabel: "b2", withB: false))
     #expect(b.accessibilityParent() == nil, "a detached element has no parent")
-    #expect(!elements(h.host.accessibilityChildren()).contains { $0 === b })
+    let roots = elements(h.host.accessibilityChildren())
+    #expect(!roots.contains { $0 === b })
+    try #require(roots.count == 2 && roots[1] === bc, "control: b's child is still published, now as a root")
     #expect(a.accessibilityParent() as AnyObject === h.host, "control: the survivor keeps its parent")
     let requestsBefore = h.log.requests.count
     #expect(!b.isAccessibilitySelectorAllowed(#selector(NSAccessibilityElement.accessibilityPerformPress)))
     #expect(b.accessibilityPerformPress() == false)
     #expect(h.log.requests.count == requestsBefore, "a detached element sends no request")
-    #expect(b.accessibilityLabel() == "b", "it keeps describing what it was")
-    #expect(b.accessibilityChildren()?.isEmpty ?? true)
+    #expect(b.accessibilityLabel() == "b2", "it keeps describing what it LAST was, not what it was at creation")
+    #expect(b.accessibilityChildren()?.isEmpty ?? true, "a detached element has no children, though its child lives")
     #expect(b.accessibilityFrame() == bFrame, "its last rect, still converted through the live host view")
 
     h.bridge.publish(tree(aLabel: "a2", withB: true))
@@ -386,24 +403,41 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
 /// A table's row count is its logical count; its rows are its `.row` children,
 /// visible where their visible frame has area; a row's index is its logical
 /// index, not its position.
+///
+/// **The table also has a non-row child** (`sort`), so "rows are the `.row`
+/// children" disagrees with "rows are the children" (verifier's H13).
 @Test @MainActor func aTableReportsItsRowCountAndItsRowsTheirIndices() throws {
     let h = try makeHarness(signal: true)
     defer { h.nsWindow.close() }
     h.bridge.publish(makeTree(roots: ["table"], [
-        "table": Entry(node: node(.table, "table", children: ["r40", "r41", "r42"], rowCount: 500),
+        "table": Entry(node: node(.table, "table", children: ["sort", "r40", "r41", "r42"], rowCount: 500),
                        frame: rect(0, -1120, 200, 14_000), visible: rect(0, 0, 200, 100)),
+        "sort": Entry(node: node(.button, "sort", actions: [.press]), frame: rect(150, 2, 40, 16)),
         "r40": Entry(node: node(.row, "r40", rowIndex: 40), frame: rect(0, -8, 200, 28), visible: rect(0, 0, 200, 0)),
         "r41": Entry(node: node(.row, "r41", rowIndex: 41), frame: rect(0, 20, 200, 28)),
         "r42": Entry(node: node(.row, "r42", rowIndex: 42), frame: rect(0, 48, 200, 28)),
     ]))
     let table = try #require(elements(h.host.accessibilityChildren()).first)
     #expect(table.accessibilityRowCount() == 500)
+    let children = elements(table.accessibilityChildren())
+    try #require(children.map { $0.accessibilityLabel() } == ["sort", "r40", "r41", "r42"],
+                 "control: the non-row child is a child")
     let rows = elements(table.accessibilityRows())
-    try #require(rows.count == 3)
+    try #require(rows.count == 3, "a table's rows are its .row children only")
     #expect(rows.map { $0.accessibilityLabel() } == ["r40", "r41", "r42"])
     #expect(rows.map { $0.accessibilityIndex() } == [40, 41, 42])
     #expect(elements(table.accessibilityVisibleRows()).map { $0.accessibilityLabel() } == ["r41", "r42"],
             "a row with a zero-height visible frame is not visible")
+    for element in children {
+        #expect(element.accessibilityParent() as AnyObject === table, "a row's parent is the table element")
+    }
+
+    // An attached element's frame is its UNCLIPPED frame, not its visible one
+    // (AB-E, SwiftUI arm R17). The overscan row is the fixture where the two
+    // differ: frame y -8 height 28, visible height 0 (verifier's H10).
+    try #require(rows[0].accessibilityLabel() == "r40")
+    #expect(rows[0].accessibilityFrame() == h.screenRect(0, -8, 200, 28))
+    #expect(table.accessibilityFrame() == h.screenRect(0, -1120, 200, 14_000))
 
     // Every element implements the table and row accessors, so the selector
     // gate is what keeps a row from advertising a row count and a table from
@@ -415,6 +449,11 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     #expect(!table.isAccessibilitySelectorAllowed(index))
     #expect(rows[0].isAccessibilitySelectorAllowed(index))
     #expect(!rows[0].isAccessibilitySelectorAllowed(rowCount) && !rows[0].isAccessibilitySelectorAllowed(rowsSelector))
+    // A role that is neither: without it, "index only on a row" agrees with
+    // "index on everything but a table" (verifier's H16).
+    let sort = children[0]
+    #expect(!sort.isAccessibilitySelectorAllowed(index), "a button advertises no row index")
+    #expect(!sort.isAccessibilitySelectorAllowed(rowCount) && !sort.isAccessibilitySelectorAllowed(rowsSelector))
 }
 
 // MARK: - Hit testing (AB-W)
@@ -436,15 +475,36 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
         "rowChild": Entry(node: node(.staticText, "rowChild"), frame: rect(0, 22, 200, 24)),
     ]
     h.bridge.publish(makeTree(roots: ["header", "table"], entries))
-    _ = h.host.accessibilityChildren()
+    let top = elements(h.host.accessibilityChildren())
+    try #require(top.map { $0.accessibilityLabel() } == ["header", "table"])
+
+    // The parent half of the hierarchy, two nesting depths below a root
+    // (verifier's H01, H02: every other parent assertion read a root).
+    let table = top[1]
+    let tableChildren = elements(table.accessibilityChildren())
+    try #require(tableChildren.map { $0.accessibilityLabel() } == ["overscan", "row"])
+    let row = tableChildren[1]
+    let rowChild = try #require(elements(row.accessibilityChildren()).first)
+    try #require(rowChild.accessibilityLabel() == "rowChild")
+    #expect(table.accessibilityParent() as AnyObject === h.host, "control: a root's parent is the host")
+    #expect(row.accessibilityParent() as AnyObject === table, "depth 1: a row's parent is its table's element")
+    #expect(rowChild.accessibilityParent() as AnyObject === row, "depth 2: a row child's parent is its row's element")
 
     #expect(label(h.host.accessibilityHitTest(h.screenPoint(5, 15))) == "header",
             "the table and its overscan row contain this point only in their unclipped frames")
-    #expect(label(h.host.accessibilityHitTest(h.screenPoint(10, 40))) == "rowChild",
-            "the deepest, latest visible element wins within a layer")
+    #expect(h.host.accessibilityHitTest(h.screenPoint(10, 40)) as AnyObject === rowChild,
+            "the deepest, latest visible element wins within a layer, as the object the tree vended")
     #expect(label(h.host.accessibilityHitTest(h.screenPoint(100, 110))) == "table", "control: the table itself")
     #expect(h.host.accessibilityHitTest(h.screenPoint(150, 170)) as AnyObject === h.host,
             "outside everything: the host view")
+    // Visible frames are half-open, as `Bounds.contains` is (verifier's H04).
+    // The row's max-y edge (20 + 28) is shared with the space below it, and
+    // every frame's max-x edge is 200.
+    #expect(label(h.host.accessibilityHitTest(h.screenPoint(10, 48))) == "table",
+            "a row's bottom edge belongs to what is below it, not to the row")
+    #expect(label(h.host.accessibilityHitTest(h.screenPoint(10, 47))) == "row", "control: just inside the row")
+    #expect(h.host.accessibilityHitTest(h.screenPoint(200, 40)) as AnyObject === h.host,
+            "the right edge of 200pt-wide frames is outside them")
 
     // Modal arm: a portal panel recorded BEFORE the table (a `Deferred`
     // declared above the list), on the root layer.
@@ -476,6 +536,42 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     _ = h.host.accessibilityHitTest(h.screenPoint(20, 20))
     #expect(h.log.requests == [.activate])
     #expect(h.bridge.isActive)
+}
+
+/// A nested tree published BEFORE activation answers its parents after the
+/// activating query, with no publish in between (AB-AF item 4: the parent map is
+/// rebuilt on every structural publish, active or not; verifier's H03).
+@Test @MainActor func aTreePublishedBeforeActivationAnswersItsParentsAfterIt() throws {
+    let h = try makeHarness(signal: false)
+    defer { h.nsWindow.close() }
+    h.bridge.publish(makeTree(roots: ["outer"], [
+        "outer": Entry(node: node(.group, "outer", children: ["inner"]), frame: rect(0, 0, 120, 100)),
+        "inner": Entry(node: node(.group, "inner", children: ["leaf"]), frame: rect(10, 12, 90, 70)),
+        "leaf": Entry(node: node(.staticText, "leaf"), frame: rect(20, 24, 30, 14)),
+    ]))
+    try #require(!h.bridge.isActive && h.log.requests.isEmpty, "precondition: published while inactive")
+
+    let outer = try #require(elements(h.host.accessibilityChildren()).first)
+    try #require(h.log.requests == [.activate], "precondition: that query activated")
+    let inner = try #require(elements(outer.accessibilityChildren()).first)
+    let leaf = try #require(elements(inner.accessibilityChildren()).first)
+    try #require(inner.accessibilityLabel() == "inner" && leaf.accessibilityLabel() == "leaf")
+    #expect(outer.accessibilityParent() as AnyObject === h.host, "control: the root's parent is the host")
+    #expect(inner.accessibilityParent() as AnyObject === outer)
+    #expect(leaf.accessibilityParent() as AnyObject === inner)
+}
+
+/// `VoiceOverSignal` delivers the current value once, synchronously, inside
+/// `observe` — what AB-AB's "a window opened under a running screen reader is
+/// active before its initializer returns" rests on. Machine-independent: it
+/// compares against the value read on this machine, whatever that is
+/// (verifier's H15). The KVO flip itself stays unmeasured (human script item 1).
+@Test @MainActor func theVoiceOverSignalDeliversTheCurrentValueSynchronouslyOnce() {
+    let signal = VoiceOverSignal()
+    var delivered: [Bool] = []
+    signal.observe { delivered.append($0) }
+    #expect(delivered == [NSWorkspace.shared.isVoiceOverEnabled])
+    withExtendedLifetime(signal) {}
 }
 
 /// The focused-element query is what a focus-polling utility reaches from
@@ -667,6 +763,22 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     _ = stable.accessibilityChildren()
     h.bridge.publish(retyped)
     #expect(h.poster.count(.layoutChanged) == 4, "a role change alone is a layout change")
+
+    // A hit test and a focused-element query are reads too (the bridge's
+    // `clientHasReadSinceLayoutChanged`); every arm above re-armed through a
+    // children list (verifier's H11, H12). Each arm is preceded by an unread
+    // structural publish, so the flag is known clear when it starts.
+    h.bridge.publish(tree(leaves: 14))
+    try #require(h.poster.count(.layoutChanged) == 4, "precondition: the flag is clear")
+    _ = h.host.accessibilityHitTest(h.screenPoint(50, 5))
+    h.bridge.publish(tree(leaves: 15))
+    #expect(h.poster.count(.layoutChanged) == 5, "a hit test re-arms one more")
+
+    h.bridge.publish(tree(leaves: 16))
+    try #require(h.poster.count(.layoutChanged) == 5, "precondition: the flag is clear")
+    _ = h.host.accessibilityFocusedUIElement
+    h.bridge.publish(tree(leaves: 17))
+    #expect(h.poster.count(.layoutChanged) == 6, "a focused-element query re-arms one more")
 }
 
 /// Label, value, row count and focus changes each post once, on the element
@@ -675,7 +787,9 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     let h = try makeHarness(signal: true)
     defer { h.nsWindow.close() }
     struct State {
-        var aLabel = "a", bValue = "b-value", rowCount = 500, focused = "a", unreadLabel = "u"
+        var aLabel = "a", bValue = "b-value", rowCount = 500
+        var focused: String? = "a"
+        var unreadLabel = "u", unreadValue = "u-value", unreadRowCount = 7
     }
     func tree(_ s: State) -> AccessibilityTree {
         makeTree(roots: ["a", "b", "table", "f", "g"], [
@@ -684,7 +798,8 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
             "table": Entry(node: node(.table, "table", rowCount: s.rowCount), frame: rect(0, 40, 20, 20)),
             "f": Entry(node: node(.button, "f", isFocusable: true), frame: rect(0, 60, 20, 20)),
             "g": Entry(node: node(.group, "g", children: ["u"]), frame: rect(0, 80, 20, 20)),
-            "u": Entry(node: node(.staticText, s.unreadLabel), frame: rect(0, 80, 20, 20)),
+            "u": Entry(node: node(.table, s.unreadLabel, value: s.unreadValue, rowCount: s.unreadRowCount),
+                       frame: rect(2, 82, 16, 16)),
         ], focused: s.focused)
     }
     var state = State()
@@ -719,10 +834,22 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     h.bridge.publish(tree(state))
     expectOnePost(.focusedUIElementChanged, on: f, "a focus change posts on the NEW focus")
 
+    state.focused = nil
+    h.bridge.publish(tree(state))
+    expectOnePost(.focusedUIElementChanged, on: h.host, "focus clearing posts once, on the host view")
+
+    // One arm per change kind, so each is the only change in its publish
+    // (verifier's H08: only the label arm existed).
     state.unreadLabel = "u-renamed"
     h.bridge.publish(tree(state))
-    #expect(h.poster.posts.isEmpty, "a node no client was handed announces nothing")
-    #expect(h.bridge.createdElementCount == created, "and nothing is created to announce it")
+    #expect(h.poster.posts.isEmpty, "a label change on a node no client was handed announces nothing")
+    state.unreadValue = "u-value-2"
+    h.bridge.publish(tree(state))
+    #expect(h.poster.posts.isEmpty, "nor does a value change")
+    state.unreadRowCount = 8
+    h.bridge.publish(tree(state))
+    #expect(h.poster.posts.isEmpty, "nor does a row count change")
+    #expect(h.bridge.createdElementCount == created, "and nothing is created to announce any of them")
 }
 
 // MARK: - Isolation (AB-AE)
