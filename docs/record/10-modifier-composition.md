@@ -226,6 +226,65 @@ stdout identical (`cmp`).
 cursor produces `-1`; the parent walkers' tolerance of the synthetic overlay
 ancestor.
 
+#### Verifier-fix round after lane 1, 2026-09-15 (from `14d53d9`)
+
+The lane-1 verifier could run nothing (Bash was blocked partway) and returned
+two blockers and three minors. What was done:
+
+- **Blocker, uncommitted lane-2 edits in the worktree.** `git status --short`
+  at the start of this round showed the eight lane-2 paths the verifier listed
+  (`Box.swift`, `ElementGroup.swift`, `FrameModifier.swift` deleted,
+  `main.swift`, `ComponentTests.swift`, `NativeLayoutIntegrationTests.swift`
+  modified; `ModifiedElement.swift`, `ModifiedElementTests.swift` untracked);
+  no process was running in this worktree. They were set aside, not
+  discarded: `git stash push -u -m "lane-2 WIP (ModifiedElement) set aside for
+  lane-1 verification fixes, 2026-09-15"`, with a `git diff` patch and copies
+  of the two untracked files in the session scratchpad first. **The stash is
+  left in place** (`git stash list`); lane 2 resumes with `git stash pop`.
+  Every measurement below is lane 1's tree with no lane-2 edit in it.
+- **Blocker, nothing was run.** Re-taken in this round, on this tree:
+  `swift build --build-system native` (so the guards run against current
+  modules), then `swift test --no-parallel`: `Test run with 1095 tests in 1
+  suite passed after 25.587 seconds`, 0 `error:`, 0 `warning:` (1094 plus
+  test 11). Goldens 97, `git diff --stat f64e58a -- '*.json'` empty. Guards
+  by `grep -c canTypecheck`: 19, 10, 5, 3 (one a comment), 3, 6 — 45, no
+  guard added. Overlay mutations, each applied to
+  `NativeOverlayModifier.swift`, run with `--filter
+  ModifierCompositionProofTests` (11 tests), the file restored from a copy and
+  `git status --short` showing only the test file afterwards:
+
+  | mutation | issues | tests reddened |
+  |---|---|---|
+  | R2 overlay under the modifier's own id, cursor at 0 | 12 | test 1 at `:266`, `:268`, `:287`; test 2 at `:320`, `:325`, `:326`; test 3 at `:357`, `:362`; test 9 at `:933-935`; test 11 at `:1092` (its structural `#expect`) |
+  | R1 `MC-E`'s threaded cursor (`overlaySide = id`, `at: &contentCursor`) | 6 | test 1 at `:268`, `:287`; test 9 at `:933-935`; test 11 at `:1092` only — its bubble assertion stays green, as it should: the overlay is still a descendant of the holder. Tests 2 and 3 green. One `warning:` (the unused `overlayCursor`), mutant only |
+  | M12 overlay-side id detached, `.child(of: nil, at: -1)` | 7 | test 1 at `:268`, `:287`; test 9 at `:933-935` (`overlayLive: false`); **test 11 at `:1092` and `:1110`: events `["overlay saw x"]`, the holder never saw the key** |
+
+  **Line numbers moved by +1 from this round on** (one header line added):
+  the `:267`/`:286`/`:932-934` citations in the critic round's table are
+  correct at `39f6237` and read `:268`/`:287`/`:933-935` here. M2-M11 and
+  R3-R5 were **not** re-taken in this round.
+- **Minor, red-run line numbers.** No code change; cite R1/R2 at `39f6237`
+  (critic round) or this round, not lane 1's `6d89906` red run at
+  `:836-838`, as test 9's red-first evidence.
+- **Minor, the synthetic ancestor's walkers.** Added test 11,
+  `aKeyAFocusedOverlayDeclinesBubblesThroughTheOverlaySideIDToItsHolder`: a
+  node-less `KeyHandling` wrapper (`OnTapModifier`'s shape) holds a primary
+  whose overlay is a focusable `KeyHandling` claiming only `o`; the holder
+  claims `x`. Real `Window`, `Window.focus`, a confirming frame, `keyDown`
+  through `simulateInput`. Green on arrival (a coverage gap, not a defect);
+  the M12 row above is its red. Its structural check is an `#expect`, not a
+  `#require`, so a detached id reports the behavioural failure too rather than
+  stopping at the structure. **Still owed:** an AX-emitting arm, at merge with
+  `feat/ax-bridge` (MC-P's cost list). For the sweep, `grep -n parent
+  Sources/MetalUI/StateTable.swift` finds only a comment (`:37`), so nothing
+  there walks ancestry — a grep, not a run; test 9's `overlayLive`
+  is the run evidence that the overlay's slots stay live.
+- **Minor, stale MARK.** `// MARK: - 1-3: the overlay's identity (ruling MC-E
+  as revised by MC-P)`; the file header now lists test 11.
+
+No `Sources/` file changed in this round, so the demo capture was not
+re-taken.
+
 ### For the integration step
 
 Collected here so the merge does not have to re-derive them:

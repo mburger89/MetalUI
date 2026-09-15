@@ -1470,11 +1470,19 @@ overlay.requestGroupLayout(under: overlaySide, at: &overlayCursor, pass: &pass)
   (`Focus.swift:134-142`), whose doc already says an id with no produced
   element "is harmless: `dispatchKey` finds no handler" for it — the same
   footing as `ScrollView`'s `$anim-content`/`$anim-viewport` named children.
-  By reading, not run.
+  **Run since, in the lane-1 verifier-fix round (record §10):**
+  `aKeyAFocusedOverlayDeclinesBubblesThroughTheOverlaySideIDToItsHolder`
+  focuses a focusable overlay under a holder with `onKey` through a real
+  `Window`; the overlay claims its own key and a key it declines reaches the
+  holder. A detached overlay-side id (`.child(of: nil, at: -1)`) reddens its
+  bubble assertion.
 - **The AX bridge's parent walk** (`feat/ax-bridge:Sources/MetalUI/AccessibilityTreeBuilder.swift:30-41`,
   "the nearest `GlobalElementID.parent` ancestor that recorded") steps over the
   synthetic ancestor, which records nothing, to the overlay modifier's nearest
-  recording ancestor. For integration: by reading, not run.
+  recording ancestor. For integration: by reading, not run. **Owed at merge
+  with `feat/ax-bridge`:** an AX-emitting arm beside test 11 (an overlay
+  declaring `handlers.axNode`, asserting its bridge parent is the holder's
+  node), since this branch has no bridge to run it against.
 
 **For CLAUDE.md, owned by integration:** the identity section gains "an
 overlay's elements number under a synthetic `.positional(-1)` child of the
@@ -1482,7 +1490,8 @@ modifier, so its state is independent of the primary's shape (MC-P, SwiftUI
 parity)"; lane 1's record line "the overlay's index now depends on its
 primary's index count" is withdrawn.
 
-**Mutations:** R1-R3 above.
+**Mutations:** R1-R3 above; R1, R2 and the detached-id mutation re-taken
+against test 11 in record §10's verifier-fix round.
 
 ---
 

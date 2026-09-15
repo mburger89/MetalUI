@@ -10,7 +10,8 @@ import MetalUIRender
 // task 3's four open proofs measured on the wrappers as they stand:
 //
 // - `OverlayModifier` gives its primary and its overlay distinct identities
-//   (ruling MC-E, as revised by MC-P), tests 1-3 and 9;
+//   (ruling MC-E, as revised by MC-P), tests 1-3 and 9, and a key an overlay
+//   declines still bubbles through the overlay-side id to its holder, test 11;
 // - a modifier chain is observationally identical to hand-built nested `Box`es
 //   (ruling MC-B), test 4 — the oracle lane 2's `ModifiedElement` must match;
 // - `@State` survives frames under a legacy and a proposal modifier chain
@@ -234,7 +235,7 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
         && rect.background.l == want.l && rect.background.a == want.a
 }
 
-// MARK: - 1-3: the overlay's identity (ruling MC-E)
+// MARK: - 1-3: the overlay's identity (ruling MC-E as revised by MC-P)
 
 /// **The overlay and its primary are two identities, and the overlay numbers
 /// from 0 under an overlay-side id no cursor can produce.** `Frame` only.
@@ -1003,4 +1004,110 @@ private struct Placement: Equatable, CustomStringConvertible {
     #expect(o2 == Placement(width: 76, height: 76, x: 28, y: 28), "O2 \(o2)")
     #expect(o3 == Placement(width: 56, height: 56, x: 18, y: 18), "O3 \(o3)")
     #expect(o4 == Placement(width: 64, height: 64, x: 22, y: 22), "O4 \(o4)")
+}
+
+// MARK: - 11: a key the overlay declines bubbles to its holder (ruling MC-P)
+
+/// A proposal wrapper that contributes no layout node (`OnTapModifier`'s shape)
+/// and registers `isFocusable` and an `onKey` that claims only `claims`,
+/// writing every keystroke it sees into `log.events`.
+private struct KeyHandling<Content: ProposalElementGroup>: Element, ProposalElementGroup {
+    var name: String
+    var log: CompositionLog
+    var focusable: Bool
+    var claims: String
+    var content: Content
+
+    init(_ name: String, log: CompositionLog, focusable: Bool = false, claims: String,
+         @ElementBuilder content: () -> Content) {
+        self.name = name
+        self.log = log
+        self.focusable = focusable
+        self.claims = claims
+        self.content = content()
+    }
+
+    struct Layout { var content: Content.GroupLayout }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+        var cursor = 0
+        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        precondition(children.count == 1, "KeyHandling wraps one native node")
+        return (children[0], Layout(content: contentLayout))
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
+                           pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        log.ids[name] = id
+        var handlers = Handlers()
+        handlers.isFocusable = focusable
+        let (log, name, claims) = (log, name, claims)
+        handlers.onKey = { key in
+            log.events.append("\(name) saw \(key.characters)")
+            return key.characters == claims
+        }
+        pass.registerHandlers(handlers, at: bounds, id: id)
+        return content.prepaintGroup(layout: &layout.content, pass: &pass)
+    }
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
+                        prepaint: inout Content.GroupPrepaint, pass: inout PaintPass) {
+        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+    }
+}
+
+/// **A focused overlay that declines a key hands it to the element holding the
+/// overlay**, through the synthetic `.child(of: modifier, at: -1)` ancestor
+/// that no element is produced at (ruling MC-P). Real `Window`, `Window.focus`,
+/// a confirming frame, then `keyDown` through `simulateInput`.
+///
+/// `focusChain(from:)` walks `GlobalElementID.parent` and `dispatchKey` skips a
+/// level with no registered handler, so the overlay-side id is skipped, not a
+/// dead end. Asserted: the overlay claims `o` and nothing above it sees it;
+/// `x` is seen by the overlay, then by the holder, which claims it, and the
+/// focus is still the overlay after both frames.
+///
+/// Green on arrival (a coverage gap the lane-1 verifier named, not a defect).
+/// Mutation, measured (record §10): numbering the overlay under
+/// `.child(of: nil, at: -1)` — an overlay-side id detached from the modifier —
+/// reddens this test's holder assertion.
+@Test @MainActor func aKeyAFocusedOverlayDeclinesBubblesThroughTheOverlaySideIDToItsHolder() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let log = CompositionLog()
+    let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
+        ZStack {
+            KeyHandling("holder", log: log, claims: "x") {
+                CountingProposalLeaf("primary", log: log, width: 60, height: 60)
+                    .overlay(alignment: .topLeading) {
+                        KeyHandling("overlay", log: log, focusable: true, claims: "o") {
+                            CountingProposalLeaf("overlayLeaf", log: log, width: 10, height: 10)
+                        }
+                    }
+            }
+        }
+    }
+    window.drawFrameIfNeeded()
+    let holder = try #require(log.ids["holder"])
+    let overlay = try #require(log.ids["overlay"])
+    #expect(overlay.parent?.parent?.parent == holder,
+                 "the overlay-side id must sit under the modifier, which sits under the holder")
+
+    window.focus(overlay)
+    window.drawFrameIfNeeded()
+    try #require(window.focusedElement == overlay)
+
+    func key(_ c: String) -> InputEvent {
+        .keyDown(KeyEvent(charactersIgnoringModifiers: c, characters: c, modifiers: [], timestamp: 0))
+    }
+    log.events.removeAll()
+    platformWindow.simulateInput(key("o"))
+    window.drawFrameIfNeeded()
+    #expect(log.events.filter { $0.contains(" saw ") } == ["overlay saw o"], "the overlay claims o; events \(log.events)")
+
+    log.events.removeAll()
+    platformWindow.simulateInput(key("x"))
+    window.drawFrameIfNeeded()
+    #expect(log.events.filter { $0.contains(" saw ") } == ["overlay saw x", "holder saw x"],
+            "an unclaimed key must bubble past the overlay-side id to the holder; events \(log.events)")
+    #expect(window.focusedElement == overlay, "focus moved off the overlay")
 }
