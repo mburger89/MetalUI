@@ -4,7 +4,21 @@
 (`plans/2026-09-12-swiftui-alignment.md`, "Build a typed modifier-composition
 foundation", and its four open proofs).
 
-**Status (2026-09-15): lanes 1, 2 and 3 done.** Designed
+**Status (2026-09-15): COMPLETE, verified, awaiting integration.** All three
+lanes were re-verified by independent verifiers, and each returned `ok: true`:
+lane 1 at `c922457` (12 mutations), lane 2 at `6a0169c` (3) and lane 3 at
+`dbc2bc9` (18). One mutant stayed green, V-LS. It refuted this spec's claim
+that `ProposalElement` must restate `associatedtype LayoutState`: that is true
+of the skeleton, not of `MetalUI`, and the claim is now scoped at every copy.
+Final counts: 1116 tests, 53 guards, 97 goldens unmoved, 0 `error:` / 0
+`warning:` under both build systems. **Owed:** the release-window captures of
+the default demo and the preview against `f64e58a` (`MC-J`). The screen was
+locked at every lane and every verification, and byte-identical offscreen scene
+dumps stand in. Record §10's "Final verification" and "For the integrator"
+sections hold the verifiers' tables and the text each owned document should
+carry.
+
+**Lane history (2026-09-15): lanes 1, 2 and 3 done.** Designed
 against `f64e58a` on `feat/modifier-composition`, in the worktree
 `/Users/maxburger/Developer/MetalUI-modifier-composition`, and revised after
 design review. **Lane 1** landed as `6d89906` (its ten tests, four red),
@@ -557,7 +571,7 @@ public struct ProposalNodeID: Hashable, Sendable {
 
 @MainActor
 public protocol ProposalElement: Element, ProposalElementGroup {
-    associatedtype LayoutState            // restated: inference fails without it (MC-G)
+    associatedtype LayoutState            // restated: the skeleton fails without it; the real module does not (MC-G, V-LS)
     mutating func requestProposalLayout(_ id: GlobalElementID,
                                         pass: inout LayoutPass) -> (ProposalNodeID, LayoutState)
 }

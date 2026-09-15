@@ -69,10 +69,14 @@ public struct ProposalNodeID: Hashable, Sendable {
 /// container already traps (ruling SA-G).
 @MainActor
 public protocol ProposalElement: Element, ProposalElementGroup {
-    /// Restated from `Element`, and required: without it Swift does not infer
-    /// `Element.LayoutState` through the default `requestLayout` below, and every
-    /// conformer fails with "does not conform to protocol 'Element'" (measured on
-    /// `TypedNodeKit.swift`, ruling MC-G).
+    /// Restated from `Element`. It was required in the `TypedNodeKit.swift`
+    /// skeleton, whose conformers failed with "does not conform to protocol
+    /// 'Element'" without it (ruling MC-G). **It is not required in this module:**
+    /// deleting it here built and passed the whole suite, and a plain-import
+    /// external `ProposalElement` still typechecked (the lane 3 verifier's V-LS,
+    /// at `dbc2bc9`). Why the two differ is unmeasured (the verifier's guess: real
+    /// conformers name `LayoutState` in `prepaint`/`paint`). Kept as harmless; no
+    /// case in this module that needs it has been measured.
     associatedtype LayoutState
 
     /// Registers this element's native nodes and returns its one outermost node.

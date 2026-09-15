@@ -141,7 +141,8 @@ public func typecheck(_ body: String, importing module: String) throws -> Typech
 ///
 /// Added by the kernel completion's lane 1 (ruling SA-P) for the proposal-layout
 /// migration guards, whose positive fixture declares
-/// `extension Leaf: ProposalElementGroup {}` and so cannot be a local type.
+/// `extension Leaf: ProposalElementGroup {}` (its spelling until ruling MC-G made
+/// the leaf a `ProposalElement`) and so cannot be a local type.
 /// The language mode is observable and guarded:
 /// `typecheckFileChecksInTheSwift6LanguageMode` fails a non-`Sendable` stored
 /// property in a `ProposalLayout`, which Swift 5 mode only warns about.

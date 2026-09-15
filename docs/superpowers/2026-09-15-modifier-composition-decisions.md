@@ -941,7 +941,7 @@ public protocol ProposalElementGroup: ElementGroup {
 }
 
 public protocol ProposalElement: Element, ProposalElementGroup {
-    associatedtype LayoutState          // restated: required, see below
+    associatedtype LayoutState          // restated: required in the skeleton only, see below
     mutating func requestProposalLayout(_ id: GlobalElementID,
                                         pass: inout LayoutPass) -> (ProposalNodeID, LayoutState)
 }
@@ -974,11 +974,18 @@ takes `ProposalNodeID` children. Proposal containers and wrappers call
 `CombinedKit.swift` repeats all nine with lane 2's `LayerBase` added: same
 results.
 
-**A finding the design depends on.** Without restating `associatedtype
-LayoutState` in `ProposalElement`, the skeleton module itself fails to build:
-`error: type 'Leaf' does not conform to protocol 'Element'`. Swift does not
-infer `Element.LayoutState` through the default `requestLayout` that
-`ProposalElement`'s extension supplies.
+**A finding about the skeleton, not the module** (heading was "A finding the
+design depends on" until the final verification). Without restating
+`associatedtype LayoutState` in `ProposalElement`, the skeleton module itself
+fails to build: `error: type 'Leaf' does not conform to protocol 'Element'`.
+In the skeleton, Swift does not infer `Element.LayoutState` through the default
+`requestLayout` that `ProposalElement`'s extension supplies. **Refuted for
+`MetalUI` itself, 2026-09-15, at `dbc2bc9`:** the lane 3 verifier's mutation
+V-LS deleted the restatement from `ProposalNodeID.swift`. `MetalUI` rebuilt,
+the whole native suite passed (1116 tests), and guard 5's plain-import external
+`Container: ProposalElement` fixture still printed `succeeded=true`. Why the
+module and the skeleton differ is unmeasured. The restatement stays because it
+is harmless, and nothing depends on it. Record §10, "Final verification".
 
 **What stays open, precisely.** Seven holes (hole 7 added after lane 1's critic
 round, `MC-Q` finding 8). None is closed by an access-control or type-system
@@ -1336,12 +1343,35 @@ reddened only its own test:
 **What it costs if wrong, added:**
 
 - **The typed copies can still drift** in a line none of these pins observes.
-  One example, by reading and not mutated: `ArrayGroup`'s `layouts.append`,
-  where a drift would trip the count precondition in its later phases rather
-  than fail a test named for it.
+  One example is `ArrayGroup`'s `layouts.append`. It was first argued by
+  reading that a drift there would trip the count precondition in a later phase
+  "rather than fail a test named for it". **Measured at `dbc2bc9` by the final
+  verifier (V-P5), and the wording was wrong:** with the line deleted, the
+  suite traps INSIDE the test named for it,
+  `aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot`, at
+  `ElementGroup.swift:559` ("ArrayGroup prepaint: the phase state has a
+  different member count"). It **truncates the whole suite** after 941 passes,
+  with no summary line (shape 13's symptom, a precondition rather than an
+  index). To make that mutant redden rather than truncate, convert the test to
+  an exit test.
 - **`if`/`else` does not compile inside a proposal container.** `EitherGroup`
   has no typed entry and never had the marker. That has been true since
   `f64e58a` and is not a lane 3 regression.
+
+**Re-taken at `dbc2bc9`, after this round's tests landed** (final verifier,
+whole native suite, 1116 tests). The `b320ee7` readings above are that commit's
+and are **not current**. Three rows changed because the new
+`ProposalGroupEntryTests` also see the helper:
+
+- **H1**: 25 issues (was 21). It adds `aProposalComponentsContentIsPositionZeroUnderItsOwnID`.
+- **H2**: 5 issues (was 1, "test 6 alone"). It reddens
+  `stateSurvivesFramesUnderAProposalModifierChain` AND
+  `aProposalComponentsContentIsPositionZeroUnderItsOwnID`.
+- **H4**: 32 issues (was 26). It adds the loop test and the component test.
+- **H3**: 2 issues, test 6 alone, as before.
+
+The differential still holds for test 6 (H2 reddens its layout-time `a`, H3 its
+`c`), but H2 is no longer test 6's alone.
 
 ---
 

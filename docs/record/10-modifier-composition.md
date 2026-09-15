@@ -22,7 +22,7 @@ No source change was committed. What was run, and where its output lives:
 | whole suite with only that fix, `swift test --build-system native --no-parallel` | `Test run with 1085 tests in 1 suite passed` (1084 + the scratch test); no `error:`, no `warning:` | `MC-E` |
 | scratch test `scratchMeasureOrphanLegacyNode` (deleted) | a marker conformer registering an unattached legacy node beside a native leaf renders with no trap: prepaint bounds 10×10, 1 rect | `MC-G` hole 2 |
 | typecheck skeleton `docs/probes/modifier-composition-skeletons/FlatChainOverloads.swift` | chains infer `ModifiedElement<Text>`, `ModifiedElement<Two>`, `Row<ModifiedElement<Text>>`; a contextual nested annotation also typechecks. **Superseded at design review**: this overload shape's type-checking time is exponential | the file's header; `MC-A`, `MC-B` |
-| typecheck skeleton `TypedNodeKit.swift` + eight clients, plain import, Swift 6 | five lies rejected with named diagnostics; `liar4` and an overriding `requestLayout` compile; `ProposalElement` must restate `associatedtype LayoutState` | the file's header; `MC-G` |
+| typecheck skeleton `TypedNodeKit.swift` + eight clients, plain import, Swift 6 | five lies rejected with named diagnostics; `liar4` and an overriding `requestLayout` compile; `ProposalElement` must restate `associatedtype LayoutState` (in the skeleton; refuted for `MetalUI` itself by the final verifier, V-LS) | the file's header; `MC-G` |
 
 **Restores.** `NativeOverlayModifier.swift` was restored from a `cp` backup
 after the fix trial. `git status --short` then showed only the untracked probe
@@ -145,6 +145,15 @@ after every run).
 M1-M6 and M8 were taken before `2571d4a`, which changed only four count
 assertions in `NativeLayoutIntegrationTests.swift`; none of those runs reached
 them (each printed its summary line).
+
+**Historical rows, added at the final verification.** M2, M3, M8 and M11 here,
+and R4 in the critic round's table below, mutate `FrameModifier`, which lane 2
+deleted in `5fe5a30`, so they cannot be re-taken. Lane 2's T/I/L table holds
+their current equivalents. M9 no longer reddens test 8 at `HEAD`, because
+`.padding` is not a `Box` any more (test 8's doc comment says so). The final
+verifier's M9 reddens `aNestedHandlerWinsOverItsContainerWhichDoesNotAlsoFire`,
+`aGenericWrapOverAChainIsIdenticalToTheFlatChain` and test 4's oracle side.
+Read this table as lane 1's tree at `6ff2d31`/`2571d4a`, not as current.
 
 **Counts at `2571d4a`.** Tests 1094 (1084 + 10). Guards 45: `grep -c
 canTypecheck` reads 19 (`PhaseSeparationTests`), 10 (`ErasureCompileGuards`),
@@ -801,9 +810,12 @@ The verifier at `c922457` found one major and three lane-2 minors:
   with one a comment, 3, 2), unchanged; goldens 97, `git diff --stat f64e58a
   -- '*.json'` empty. No `Sources/` change.
 
-### For the integration step
+### Merge notes collected by the lanes
 
-Collected here so the merge does not have to re-derive them:
+Collected here by each lane as it landed, so the merge does not have to
+re-derive them. The final "For the integrator" section below says what each
+owned document should read. Where an item here disagrees with that section,
+the later section wins.
 
 - **`FrameModifier` is deleted by lane 2** (`e9248c3`). `CLAUDE.md`'s Animation section
   counts registering sites and `pass.fill` sites; record §09's "It is live in
@@ -924,3 +936,479 @@ Collected here so the merge does not have to re-derive them:
   the proposal path's native fills (`NativeElements.swift`,
   `NativeModifiedContent.swift`, `NativeTappable.swift`,
   `ProposalScrollView.swift`) are outside that count, by grep.
+
+### Final verification, 2026-09-15, at `dbc2bc9`
+
+Each lane was re-verified by an independent verifier. **All three returned
+`ok: true`.** None of them edited `Sources/` or `Tests/`. Each applied its
+mutations with a script that took a backup, replaced one exact anchor carrying
+a unique marker, ran the whole suite and restored the file. After every run,
+`git status` showed only pre-existing work and the marker grep was empty.
+
+| lane | verified at | suite | goldens | mutations | green mutants |
+|---|---|---|---|---|---|
+| 1, proofs and the overlay fix | `c922457` plus lane 3's then-uncommitted verifier-fix work (committed since as `dbc2bc9`), left untouched: `git diff` was byte-identical to a patch saved before any run, and `cmp` matched the untracked test | `swift build --build-system native`, then `swift test --no-parallel`: `Test run with 1115 tests in 1 suite passed after 26.997 seconds.`, 0 `error:`, 0 `warning:` | 97; json diff against `f64e58a` empty | 12, all reddened | none |
+| 2, `ModifiedElement` | `6a0169c`, plus the same lane 3 work | native: `… 1116 tests … passed after 27.927 seconds`; default: `… passed after 28.975 seconds`; 0 `error:`, 0 `warning:` in each; both `ModifiedElementCompileGuards` diagnostics printed; `MC-K-ALLOC` nested [17002, 27001, 37004], flat [17002, 28501, 39504], calibration 16, loop floor 0 | 97; empty | 3, all reddened | none |
+| 3, typed `ProposalNodeID` | `dbc2bc9`, clean tree | native: `… 1116 tests … passed after 28.509 seconds`; default: `… passed after 28.420 seconds`; 0 `error:`, 0 `warning:`; all 12 `PROPOSAL-NODE-ID GUARD` diagnostics printed; only the two gated tests skipped | 97; empty | 18, 17 reddened | **V-LS** (a refuted doc claim, not a coverage gap; below) |
+
+**Lane 1's verifier, mutation table** (whole suite, 1115 tests; line numbers at
+`c922457`):
+
+| # | mutation | issues | tests reddened |
+|---|---|---|---|
+| R2 | overlay under the modifier's own id, cursor at 0 (the original collision) | 12 | `theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities` (`:277`, `:279`, `:298`); `aTapOnAnOverlaysPrimaryWritesOnlyThePrimarysState` (`:331` overlay taps 3, `:336` primary 4, `:337` overlay 4); `hoveringAnOverlaysPrimaryDoesNotHoverTheOverlay` (`:368`, `:373` fills [60, 10]); `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed` (`:1022-1024`); `aKeyAFocusedOverlayDeclinesBubblesThroughTheOverlaySideIDToItsHolder` (`:1182`) |
+| R1 | `MC-E`'s threaded cursor restored | 6 | test 1 (`:279`, `:298`); test 9 (positional 2/1/2, taps 3/0/3, `overlayLive` false); test 11 (`:1182`, the structural check only); tests 2 and 3 green, as recorded |
+| R3 | overlay side `.named("$overlay")` | 5 | test 1 (both arms); test 9 (path and id only, taps 3 at every step) |
+| M12 | overlay-side id detached, `.child(of: nil, at: -1)` | 7 | test 1 (both arms); test 9 (`:1022-1024`); test 11 (`:1182` and the bubble assertion `:1200`, events `["overlay saw x"]`) |
+| new | `OverlayModifier.prepaint` prepaints the overlay before the primary | 6 | test 2 (`:336`, `:337`: a click on the overlay reached the primary); test 3 (`:373` fills [60]); test 9 (taps 0) |
+| new | `OverlayModifier.paint` paints the overlay before the primary | 8 | `nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt` (`NativeLayoutIntegrationTests` `:852-859`, rects swapped). **No lane 1 test sees paint order**; this existing test does |
+| M7 | `OverlayModifier.paint` skips `overlay.paintGroup` | 8 | test 2 (`:331`, `:337` nil); test 3 (`:373` []); test 7 (`:831` [1, 1, 0]); test 9 (taps nil); `nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt` (`:851` count 1, stopped by its `#require`). No truncation: `2571d4a` holds |
+| M4 | `ModifiedContent`'s content cursor starts at 1 | 3 | test 6 (`:796-798`, `positional(1)`) |
+| M5 | `allowsHitTesting` branch calls `prepaintGroup` twice | 2 | test 7 (true and false arms [1, 2, 1]) |
+| M6 | `clip` paint branch loses its `else` | 1 | test 7 (clip [1, 1, 2]) |
+| M9 | `Box.prepaint` registers handlers after its content | 5 | `aNestedHandlerWinsOverItsContainerWhichDoesNotAlsoFire` (`InputDispatchTests` `:210`, `:216`); `aGenericWrapOverAChainIsIdenticalToTheFlatChain` (`:447`); test 4 (`:683`, the oracle side). **Test 8 stays green at `HEAD`**: `.padding` is a `ModifiedElement` now, and its doc comment already says the mutation applied "when `.padding` was a `Box`" |
+| R5 | test 4's disagreeing oracle `BoxWithoutAnimated` calls `animated` | 1 | test 4 (`:663`, `#require` `animSkipped.animLive` [true, true, true]) |
+
+The verifier also re-ran three SwiftUI probes with `/usr/bin/swift`. Each
+exited 0 and matched its recorded header:
+
+- `swiftui-overlay-primary-shape.swift`: controls A 1,1,1; B 2,3,4; P5 `c`
+  9/absent/11 with `o` 10,10,10; Q 12,13,14; P1–P4 kept.
+- `swiftui-modifier-order.swift`: K0–K2 and O1–O4 equal to test 10's expected
+  numbers.
+- `swiftui-modifier-identity.swift`: E/G overlay kept.
+
+**Lane 2's verifier, mutation table** (whole suite, native):
+
+| # | mutation | tests reddened |
+|---|---|---|
+| V1 | `(inner[k].style, inner[k].decoration) = animated(` → `(inner[k].style, _) = animated(` | `decorationSubstitutionReachesTheElementOnBoxAndStack` |
+| V11 | `(outermost.style, outermost.decoration) = animated(` → `(outermost.style, _) = animated(` | `decorationSubstitutionReachesTheElementOnBoxAndStack` |
+| V9 | `ModifiedElement.elementID`'s `get { outermost.elementID }` → `get { nil }` | `anIDAfterAChainsLastWrapperNamesTheOutermostLayer`, `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` |
+
+`ModifiedElement.swift`'s md5 was unchanged before and after these runs.
+
+**Lane 3's verifier, mutation table** (whole native suite, 1116 tests; logs and
+`results.txt` in the session scratchpad, `v3/`):
+
+| # | mutation | result |
+|---|---|---|
+| V-G2 | `ProposalNodeID.init` `public` | `aProposalNodeIDCannotBeMintedOutsideMetalUI`, 1 issue |
+| V-G4 | `requestNativeFrame(child: LayoutNodeID, …)` overload | `aNativeRegistrarRejectsALegacyChild`, 1 |
+| V-G5 | `requestNativeLayout(_:children: [LayoutNodeID])` overload | `aProposalLayoutContainerOnlyAcceptsTypedChildren`, 1 |
+| V-G1b | trapping default `requestProposalGroupLayout` on `extension ProposalElementGroup where Self: Element` | `aMarkerConformerThatRegistersALegacyNodeDoesNotCompile`, 2 |
+| V-G3 | unconstrained trapping `extension Component` typed default | `aComponentOnlyTakesTheProposalMarkerWithProposalContent`, 1 |
+| V-G6 | guard 6's positive built `withTypedEntry: false` | `aProposalGroupWhoseEntryPointsDisagreeStillCompiles`, 1 |
+| V-H1 | helper's `StateBinder.bind` deleted | 25 issues: `stateSurvivesFramesUnderAProposalModifierChain`, `aProposalComponentsContentIsPositionZeroUnderItsOwnID`, `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected`, `stateSurvivesAcrossFramesForTheSameElement`, `stateInsideAComponentsContentIsAlsoSeeded`, `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`, `oneElementValuePlacedTwiceDoesNotShareItsState`, `aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt`, `aListRowsStateSurvivesABoundedExcursionButNotALongerOne`, `theResidentEntrySetStaysBoundedWhileScrolling10kRows` |
+| V-H2 | `ProposalElement`'s typed default bypasses the helper | 5 issues: `stateSurvivesFramesUnderAProposalModifierChain`, `aProposalComponentsContentIsPositionZeroUnderItsOwnID` |
+| V-H3 | `Component`'s typed default bypasses the helper | `stateSurvivesFramesUnderAProposalModifierChain`, 2 |
+| V-H4 | helper's `cursor += 1` deleted | 32 issues: test 6, the loop and component tests, test 9, `theIndexSpaceIsFlatRatherThanNested`, `twoUnnamedSiblingsDoNotShareOneStateEntry`, `reorderingAnUnnamedListKeepsStateWithThePositionNotTheItem`, `aPressOnOneElementReleasedOnAnotherIsNotAClick`, `hoveringOneClickTargetDoesNotHoverItsSibling` and 6 more |
+| V-P1 | `Pair`'s typed entry returns `secondNodes + firstNodes` | 31 issues, 17 native/proposal layout tests, among them `aPublicHStackFormsAnAllProposalLayoutSubtreeAndPlacesItsSpacer`, `hStackHonoursHigherLayoutPriorityBeforeCompressingItsSibling`, `aProposalLayoutContainerRendersThroughTheFramePipeline`, the loop test |
+| V-P1b | `Pair`'s first half laid out on a copy of the cursor | 7: test 6, the component test, test 9 |
+| V-P2 | `OptionalGroup`'s typed entry loses `wrapped = inner` | `anElementInsideAnIfInsideAProposalContainerKeepsItsLayoutTimeWrites`, 1 |
+| V-P3 | `ArrayGroup`'s typed entry appends only the first group's nodes | the loop test, 1 |
+| V-P4 | `Component`'s typed default content at `innerCursor = 1` | the component test, 6 |
+| V-P5 | `ArrayGroup`'s typed entry's `layouts.append` deleted | **no summary line**: truncated after 941 passes, trapped inside the loop test at `ElementGroup.swift:559`, "ArrayGroup prepaint: the phase state has a different member count" |
+| V-T9 | test 9's trapping arm `reusesStoredID: false` | `aTypedNodeIDStoredFromAnEarlierFrameTraps`, 2 |
+| **V-LS** | `associatedtype LayoutState` restatement removed from `ProposalElement` | **none**: `ProposalNodeID.swift` recompiled, 1116 passed, and guard 5's plain-import `Container: ProposalElement` fixture still printed `succeeded=true` |
+
+**The verifiers' issues, and what was done.** All were minor.
+
+| issue | disposition |
+|---|---|
+| lane 3's verifier-fix work uncommitted while lanes 1 and 2 were verified | committed as `dbc2bc9` before lane 3's verification; the worktree is clean |
+| release-window captures of the default demo and the preview against `f64e58a` never taken (`IOConsoleLocked` true at every verification) | **still owed**; for the integrator below. Lane 1's risk to the default demo is nil by grep: its only change is `NativeOverlayModifier.swift`, and the demo's one `.overlay` is inside `PreviewToggle` (`main.swift:919`), which only the preview renders |
+| lane 1's `FrameModifier` mutation rows read as current | marked historical under lane 1's table above |
+| `MC-O` item 5's shape-13 sweep of other test files not done | **carried**. A first-pass heuristic, run while writing this record and **not inspected**, finds 7 candidate sites (an `#expect(… .count == n)` followed within six lines by `[i]` on the same name): `OracleTests.swift:35`, `PlatformTests.swift:21`, `PipelineTests.swift:112`, `ThemeTests.swift:110`, `:166`, `AtlasTests.swift:53`, `ShapingTests.swift:25`. It misses any other spelling |
+| V-LS: the restatement was called "required" in four places, but that was measured only on the skeleton | **scoped at every copy**: the doc comment in `ProposalNodeID.swift`, `MC-G` (and its code sample's comment), spec line 560, and this record's design-session table. The restatement stays because it is harmless. Why the module and the skeleton differ is unmeasured |
+| `MC-H`'s "by reading" claim about `ArrayGroup`'s `layouts.append` is wrong as worded | **corrected in `MC-H`** with V-P5's measurement: the mutant truncates the suite inside the test named for it |
+| `MC-H`'s H1/H2/H4 readings, dated `b320ee7`, no longer describe `HEAD` | **dated re-take added to `MC-H`**: H1 25, H2 5 (not "test 6 alone"), H4 32 |
+| `Typecheck.swift:142-144` still describes the SA-P fixture as `extension Leaf: ProposalElementGroup {}` | **fixed**, with the same parenthetical `ProposalLayoutCompileGuards.swift` carries |
+
+**Re-taken after those edits** (two doc comments, in `ProposalNodeID.swift` and
+`Typecheck.swift`, plus docs). The native build log shows `Compiling MetalUI
+ProposalNodeID.swift` and `Compiling MetalUITestSupport Typecheck.swift`, and an
+immediate rebuild compiled nothing, so the runs saw the edited text.
+
+- `swift test --build-system native --no-parallel`: `Test run with 1116 tests
+  in 1 suite passed after 32.573 seconds.` 0 `error:`, 0 `warning:`, and 12
+  `PROPOSAL-NODE-ID GUARD` lines.
+- `swift test --no-parallel`: `… 1116 tests … passed after 28.932 seconds.` 0
+  `error:`, 0 `warning:`.
+- Goldens: 97, and `git diff --stat f64e58a -- '*.json'` is empty.
+- Guards: 53 by per-file `grep -c canTypecheck`: `PhaseSeparationTests` 19,
+  `ErasureCompileGuards` 10, `ProposalNodeIDCompileGuards` 6,
+  `ProposalLayoutCompileGuards` 6, `ElementGroupTrapTests` 5, `UnitSafetyTests`
+  3 (one a comment), `AXNodeTests` 3, `ModifiedElementCompileGuards` 2, plus
+  the declaration in `Typecheck.swift`.
+
+### What landed, in one place
+
+**Commits**, `f64e58a..HEAD`, in order:
+
+| commit | what |
+|---|---|
+| `1c6f686`, `8cdb25e` | design: spec, rulings `MC-A`…`MC-N`, probes and skeletons; design review applied |
+| `6d89906`, `6ff2d31`, `2571d4a`, `ec65da6` | lane 1: ten proofs (red), overlay fix, shape-13 fix, record |
+| `661efd9`, `39f6237`, `14d53d9` | critic round: the overlay-side id (`MC-P`), printable test 9 readings, `MC-Q` |
+| `b675451` | lane 1 verifier-fix round: test 11 |
+| `e9248c3`, `5fe5a30`, `49270c7`, `c52f782`, `6d0ea97` | lane 2: skeleton and tests (red), `ModifiedElement`, test spelling, record, final runs |
+| `40566de` | lane 2 verifier-fix round: inner-layer fill order and corner radii |
+| `41a8634`, `f9e2c62`, `b320ee7`, `c922457` | lane 3: guards (red), typed id and helper, test 6 made layout-visible, record |
+| `6a0169c` | lane 2 verifier-fix round 2: `Decoration` write-backs, outermost `.id` |
+| `dbc2bc9` | lane 3 verifier-fix round: the typed builder-group entries |
+| this commit | final verification, two doc comments, spec Status, `MC-G`/`MC-H` corrections |
+
+**Tests and guards added, per file** (1084 → 1116; 45 → 53 guards):
+
+| file | adds | names |
+|---|---|---|
+| `ModifierCompositionProofTests.swift` (lane 1) | 11 tests | `theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities`, `aTapOnAnOverlaysPrimaryWritesOnlyThePrimarysState`, `hoveringAnOverlaysPrimaryDoesNotHoverTheOverlay`, `aModifierChainIsIdenticalToHandBuiltNestedBoxes`, `stateSurvivesFramesUnderALegacyModifierChain`, `stateSurvivesFramesUnderAProposalModifierChain`, `everyModifierWrapperDelegatesEachPhaseExactlyOnce`, `aModifierChainRegistersAndPaintsOuterLayersFirst`, `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`, `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`, `aKeyAFocusedOverlayDeclinesBubblesThroughTheOverlaySideIDToItsHolder` |
+| `ModifiedElementTests.swift` (lane 2) | 7 tests | `legacyModifierChainsInferOneConcreteType`, `aGenericWrapOverAChainIsIdenticalToTheFlatChain`, `anIDAfterAChainsLastWrapperNamesTheOutermostLayer`, `addingALayerAtRunTimeResetsTheWrappedElementsState`, `changingALayersValueKeepsTheWrappedElementsState`, `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`, `aModifierChainAllocatesABoundedAmountOverNestedBoxes` |
+| `ModifiedElementCompileGuards.swift` (lane 2) | 2 guards (`typecheckFile`) | `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget` (passes `-Xfrontend -solver-scope-threshold=1000`), `aNestedModifiedElementCannotBeSpelled` |
+| `ProposalNodeIDCompileGuards.swift` (lane 3) | 6 guards (`typecheckFile`) | `aMarkerConformerThatRegistersALegacyNodeDoesNotCompile`, `aProposalNodeIDCannotBeMintedOutsideMetalUI`, `aComponentOnlyTakesTheProposalMarkerWithProposalContent`, `aNativeRegistrarRejectsALegacyChild`, `aProposalLayoutContainerOnlyAcceptsTypedChildren`, `aProposalGroupWhoseEntryPointsDisagreeStillCompiles` |
+| `ProposalNodeIDTests.swift` (lane 3) | 3 tests | `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected`, `aNativeNodeRegisteredTwiceIsNotRejected`, `aTypedNodeIDStoredFromAnEarlierFrameTraps` (an exit test) |
+| `ProposalGroupEntryTests.swift` (lane 3 verifier round) | 3 tests | `aForLoopInsideAProposalContainerPlacesEveryIterationInItsOwnSlot`, `anElementInsideAnIfInsideAProposalContainerKeepsItsLayoutTimeWrites`, `aProposalComponentsContentIsPositionZeroUnderItsOwnID` |
+| existing files, arms only (no test added) | `ModifiedElement` inner and outermost arms in the seven per-site guards (`MC-I`) | `AXEmitSiteTests`, `AnimationTests` (the style, colour and `Decoration` arms), `BackgroundChainTests` (two), `InputDispatchTests`; `FrameModifier` spellings changed in `ComponentTests`, `NativeLayoutIntegrationTests`, `NativeBoundaryIntegrationTests`, `ProposalLayoutCompileGuards`, `ProposalLayoutIntegrationTests`, `ProposalModifierValidationTests` |
+
+**Sources.**
+
+- New: `ModifiedElement.swift`, `GroupMember.swift` and `ProposalNodeID.swift`.
+- Deleted: `FrameModifier.swift`.
+- Edited: `Box.swift` (the `padding` signatures), `ElementGroup.swift`
+  (`LayerBase`, `_wrap`, the helper call), `NativeOverlayModifier.swift`,
+  `Passes.swift` (typed registrars), `ProposalElementGroup.swift` (the
+  requirement and the builder-group entries), every proposal element and
+  wrapper, and two preview declarations in the demo.
+
+**Probes** (`docs/probes/`), each with a positive control and its output in its
+header:
+
+- `swiftui-modifier-identity.swift`
+- `swiftui-modifier-order.swift`
+- `swiftui-overlay-primary-shape.swift`
+- the `modifier-composition-skeletons/` kits, clients and scripts
+  (`TypedNodeKit`, `LayerBaseKit`, `CombinedKit`, `LayerAllocationModel`,
+  `FlatChainOverloads`, which is superseded, `chain-typecheck-timing.py` and
+  `chain-solver-scope-guard.sh`).
+
+**What stayed green throughout:**
+
+- Every golden: 97, with no json diff against `f64e58a` at any lane.
+- Lane 1's oracle, `aModifierChainIsIdenticalToHandBuiltNestedBoxes`, through
+  lane 2's type change.
+- `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`, through lane 2.
+- Every pre-existing test. None was deleted, and every `FrameModifier` arm was
+  converted rather than removed.
+- The offscreen scene dumps of the default demo and the preview: byte-identical
+  to `f64e58a` at `49270c7` and `f9e2c62`.
+
+### Hazards this track introduced or exposed
+
+1. **`_wrap` forwarding hole** (`MC-A`). An `ElementGroup` conformer that
+   declares `LayerBase` and forwards `_wrap` compiles, and its `.padding`
+   silently drops the receiver. No access-control spelling closes it.
+2. **`MC-G`'s seven holes in the typed id:**
+   - two entry points can disagree;
+   - a side-effect legacy node beside a typed node is not rejected;
+   - `unsafeBitCast` and `@testable` can mint an id;
+   - one typed id can be used twice (no trap; it is drawn where it was last
+     placed);
+   - a legacy style modifier on a proposal `Component` compiles, then traps;
+   - a side-effect legacy subtree is not rejected;
+   - a typed id stored from an earlier frame traps, through C-3.
+3. **Closing hole 2 or hole 4 with a precondition truncates the suite** (T7,
+   T8) unless its pinning test is first made an exit test.
+4. **The typed builder-group entries are copies of the untyped ones.** Each is
+   pinned on its own. Deleting `ArrayGroup`'s `layouts.append` truncates the
+   suite (V-P5).
+5. **A group-entry `@State` bind is visible only to a layout-time read**
+   (`MC-H`). `prepaintGroup` and `paintGroup` re-bind, so a paint-only test of
+   the bind cannot fail (H2 at `f9e2c62`).
+6. **A candidate divergence** (`MC-C`). A layer added to a chain at run time
+   is adopted by the new outermost layer, which keeps the old outermost id,
+   its `$anim` baseline and its hitbox id.
+7. **Multi-layer chains cost allocations** (`MC-K`): +3 per 2-layer chain and
+   +5 per 3-layer chain per build (swift.org 6.3.3 debug), or +4/+7 under
+   swiftlang 6.4. The cost is pinned.
+8. **Two `malloc_logger` tests** corrupt each other's counts without
+   `--no-parallel` (`MC-R` item 6, measured once).
+9. **A guard depends on a frontend flag.** The solver-budget guard passes
+   `-solver-scope-threshold`, which CI's toolchain must accept.
+10. **Every multi-child native registrar allocates one array per call**
+    (`MC-S` item 8). Not run; by reading.
+
+### Deferred
+
+- **Owed now:**
+  - both release-window captures against `f64e58a`, by `MC-J`'s method;
+  - the shape-13 sweep (`MC-O` item 5; candidates above);
+  - a shared, locked `malloc_logger` counter (`MC-R` item 6);
+  - an AX-emitting arm for test 11, at the AX-bridge merge;
+  - `EnvironmentScope` arms and AB-O per-layer mirroring, at the environment
+    and AX merges.
+- **Owned by later tasks,** as `MC-L` lists them:
+  - task 4: `width`/`height`/min/max as layers, legacy `.frame` semantics
+    outside test 10's scope, and inline storage for multi-layer chains;
+  - task 5: `Component` distribution, B-7, hole 5 and paint-only layers;
+  - task 6: hole 4, the one-node traps, and a separate test that two
+    `ProposalScrollView`s in an overlay keep separate `ScrollState`;
+  - task 7: unifying `ModifiedElement` with `ModifiedContent`, holes 1–3, 6
+    and 7, and `_wrap`;
+  - tasks 6/8: an `EitherGroup` typed entry;
+  - task 8: divergence 19;
+  - task 12: proposal `.id()`, focus and AX;
+  - task 13: proposal animation.
+
+### For the integrator
+
+**Verdict: all three lanes verified `ok: true`** (lane 1 at `c922457`, lane 2
+at `6a0169c`, lane 3 at `dbc2bc9`). This track adds no divergence, and the
+release-window captures are still owed. Re-take the counts after merging with
+the other two tracks. The figures here are this branch's alone: **1116 tests,
+97 goldens, 53 guards, 0 `error:` / 0 `warning:`**, at this commit.
+
+**`CLAUDE.md` (rules only; mirror each change in `AGENTS.md`, which is byte-identical
+to `CLAUDE.md` on this branch, `cmp`):**
+
+1. **Ruling table.** Add a row: `` | `MC-` | modifier composition
+   (`MC-A`…`MC-S`, next is `MC-T`) | lettered | ``. Add `MC-3` to the
+   bare-typo sentence.
+2. **Counts.** Change 1084/45 to this branch's 1116/53 (+32 tests: lane 1 +11,
+   lane 2 +9, lane 3 +12; +8 guards), then re-take after the merge.
+   - Add to the guard files: `ModifiedElementCompileGuards` 2 and
+     `ProposalNodeIDCompileGuards` 6.
+   - Change "the six in `ProposalLayoutCompileGuards` use `typecheckFile`" to
+     "the fourteen in `ProposalLayoutCompileGuards`,
+     `ModifiedElementCompileGuards` and `ProposalNodeIDCompileGuards` use
+     `typecheckFile`".
+   - In "When CI lands", change "all 45 guards skip" to 53.
+3. **Identity.** Replace the wrapper bullet with:
+   > "`.padding(_:)` and `.frame(width:height:)` on a legacy element return
+   > ONE flat `ModifiedElement<LayerBase>` (`MC-A`). Each modifier appends a
+   > layer, and each layer is one node and one id level. The outermost layer
+   > takes the parent's cursor slot. Each inner layer is `positional(0)` (or
+   > its name) under the next one out, and the content numbers from 0 under
+   > the innermost layer (`MC-C`), which is the path nested `Box`es produced.
+   > `.id()` names the layer it follows, so **`.id()` must still be the
+   > outermost modifier** (`anIDAfterAChainsLastWrapperNamesTheOutermostLayer`;
+   > lane 1 test 4's id oracle). Changing the layer COUNT resets the wrapped
+   > element's `@State`, focus and `$anim`. Changing a layer's VALUES does not.
+   > A layer added at run time is adopted by the new outermost layer, which
+   > keeps the old outermost id, `$anim` baseline and hitbox id. A stored type
+   > spells one level, `ModifiedElement<Text>`: the nested spelling does not
+   > compile (guard)."
+
+   Add a bullet:
+   > "**An `.overlay`'s primary numbers from 0 under the modifier's id; the
+   > overlay numbers from 0 under `.child(of: id, at: -1)`** (`MC-P`), so the
+   > overlay's state does not depend on the primary's shape, as in SwiftUI
+   > (`swiftui-overlay-primary-shape.swift`). No cursor produces `-1`; do not
+   > give it another meaning."
+4. **Containers.** Change `(FrameModifier.swift:16-24)` to "a frame layer
+   (`ModifiedElement.swift`'s `frame`, `justifyContent = .center`)". Keep the
+   sentence about modifier order around `.padding`: a `Self`-returning modifier
+   after a wrapper still configures the outermost layer.
+5. **`Component`.**
+   - Change "wraps its body in one `FrameModifier` node" to "in one
+     `ModifiedElement` layer".
+   - Change "returns a `FrameModifier`, a `StyledElement`" to "returns a
+     `ModifiedElement`, a `StyledElement`".
+   - Add: "a `Component` over proposal content declares
+     `some ProposalElementGroup`; `some ElementGroup` does not compile inside a
+     proposal container (guard 3)".
+   - Distribution and B-7 are unchanged.
+6. **`@State`.** Add:
+   > "`Element.prepaintGroup`/`paintGroup` re-bind `@State`, so the group
+   > entry's bind (`GroupMember.swift`, the one helper the untyped default and
+   > both typed defaults call, `MC-H`) is observable only by a LAYOUT-time
+   > read. A test of an entry's bind must read during layout."
+7. **`StyledElement`.** Delete "neither has a `FrameModifier` arm … nor does
+   any animation or background-chain per-site guard". Replace it with:
+   "`ModifiedElement` has an inner-layer and an outermost-layer arm in every
+   per-site guard (`MC-I`)."
+8. **Animation.**
+   - "nine registering points" stays nine.
+   - Layout sites: `Box`, `Stack`, `ScrollView` ×2, `ModifiedElement` (one
+     `animated` call per layer).
+   - Paint sites: `Box.paint`, `Stack.paint`, `Text.paint`,
+     `ModifiedElement.paint` (the outermost layer's `animatedBackground` and
+     the inner layers').
+   - Change "twelve library `pass.fill` sites … the other eight" to "thirteen
+     library `pass.fill` sites, five of which animate
+     (`ModifiedElement.paint` holds two); the other eight never animate".
+   - Delete "**neither has a `FrameModifier` arm** — deleting … is expected to
+     redden nothing". Mutations I1, I2, V1 and V11 redden the guards.
+   - "called by all four background sites … `FrameModifier.paint`" becomes
+     `ModifiedElement.paint`.
+   - Change "its own `FrameModifier` node with its own `$anim` slot, so by
+     reading it animates on a component too" to "its own `ModifiedElement`
+     layer …", still by reading.
+9. **Proposal path, migration and boundary.** Replace "`ProposalElementGroup`
+   stays a requirement-free marker … Its compile-time check is plan task 3's
+   (`SA-R`)" with:
+   > "`ProposalElementGroup` has one requirement,
+   > `requestProposalGroupLayout(under:at:pass:) -> ([ProposalNodeID],
+   > GroupLayout)`. `ProposalNodeID`'s initializer is internal. An element
+   > conforms as a `ProposalElement` writing
+   > `requestProposalLayout(_:pass:) -> (ProposalNodeID, LayoutState)`, and
+   > the native registrars take and return `ProposalNodeID` (`MC-G`). Five
+   > lies are compile errors, each guarded. **Seven holes stay** (`MC-G`):
+   > - two entry points can disagree;
+   > - a side-effect legacy node or subtree beside a typed node is not
+   >   rejected;
+   > - `unsafeBitCast` or `@testable` can mint an id;
+   > - one id used twice does not trap;
+   > - a legacy style modifier on a proposal `Component` compiles, then traps;
+   > - an id stored from an earlier frame traps (C-3).
+   >
+   > **A precondition closing the orphan or duplicate hole truncates the suite**
+   > unless its pinning test becomes an exit test first. **The builder groups'
+   > typed entries are line-for-line copies of the untyped ones**, each
+   > pinned on its own; a new group gets its own pin."
+
+   In the Migration bullets, the registrars now return `ProposalNodeID`.
+
+   In the shared-spelling sentence, change "on anything else `FrameModifier`"
+   to "on anything else `ModifiedElement`".
+10. **Unprobed kernel behaviour.** Delete the `OverlayModifier` "cursors both
+    at 0 under one id" bullet. It is fixed (`661efd9`) and pinned by four
+    tests.
+11. **Practices.** Add:
+    > "**A copy of a pinned implementation is unpinned.** Mutate each copy on
+    > its own. Three typed builder-group entries left the whole suite green
+    > (P2–P4) until each had its own test."
+12. **Human verification table.** Add a row:
+    > "modifier composition (plan task 3): release-window capture of the
+    > default demo AND the `METALUI_NATIVE_LAYOUT_PREVIEW=1` window against a
+    > build of `f64e58a`, by `MC-J`'s method (`CGWindowListCopyWindowInfo`
+    > bounds, `screencapture -x -R…`, no input) | **open**: the session was
+    > locked at every lane. Offscreen scene dumps (every `MUIRect`, `MUIGlyph`
+    > and hitbox, light and dark, three frames) are byte-identical to
+    > `f64e58a` for both; they cannot see input-driven state or the renderer.
+    > Record §10"
+
+    In the animation row, change "the background now paints from the padding
+    wrapper" to "from the padding layer (`ModifiedElement`)".
+13. **"When CI lands".** Add:
+    > "`aTwentyFourModifierChainTypechecksWithinASolverWorkBudget` passes
+    > `-Xfrontend -solver-scope-threshold=1000`; a toolchain that drops the
+    > flag fails or skips it. `aModifierChainAllocatesABoundedAmountOverNestedBoxes`
+    > and the freeze-loop test both install `malloc_logger`, so they need
+    > `--no-parallel`."
+
+**Declared-but-inert table**, in `CLAUDE.md`:
+
+- **Add a row:**
+  > "`ElementGroup.LayerBase` / `_wrap(_:)` on a custom conformer | a
+  > conformer that declares `LayerBase` and forwards `_wrap` to another value
+  > compiles, and its `.padding`/`.frame` silently drop the receiver (`MC-A`);
+  > no access-control spelling closes it"
+- **Edit the leaf-padding row:** change "which now wraps in a `Box`" to "which
+  now wraps in a `ModifiedElement` layer".
+- **Performance paragraph:** change "each demo list row's `.padding` now adds a
+  registering `Box`" to "adds a registering `ModifiedElement` layer". The
+  `$anim` entry per layer is unchanged.
+
+**Divergence table.** No change is required. **Divergence 18's row:** "each
+row's `.padding` became a wrapper" stays true (now a `ModifiedElement` layer).
+If the integrator keeps `MC-C`'s candidate, add it as `design` under the next
+unused number (20 on this branch):
+> "A layer added to a legacy modifier chain at run time is adopted by the new
+> outermost layer (old outermost id, `$anim` baseline, hitbox id), while the
+> wrapped element moves one level down and resets. SwiftUI's modifiers carry no
+> such state. Pinned by `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`."
+
+**The plan's task 3 entry: tick it.** The task's own text is met:
+
+- a wrapper representation that nests without growing concrete types;
+- identity, `@State`, handler registration, phase order and stored subtrees
+  preserved, each measured against a hand-built-`Box` oracle;
+- all four open proofs closed.
+
+The window captures are this track's verification brief, not the task's text,
+and are carried by name. Proposed text under the unchanged body:
+
+> *Closed 2026-09-15 on `feat/modifier-composition` (`1c6f686..`this commit).*
+> Spec `specs/2026-09-15-modifier-composition-design.md`; rulings `MC-A`…`MC-S`
+> in `../2026-09-15-modifier-composition-decisions.md`; probes in
+> `docs/probes/`; record §10. Each lane was written red first and re-verified
+> by an independent verifier: 33 mutations, 32 reddened (one by truncating
+> the suite), and the green one refuted a doc claim. Suite 1116 tests (1084 + 11 + 9 + 12), 97 goldens
+> unmoved, 53 guards (45 + 2 + 6), 0 `error:` / 0 `warning:`.
+> - **The representation — done** (lane 2, `MC-A`…`MC-C`, `MC-K`).
+>   `ModifiedElement<Content>` is one flat type for legacy `.padding` and
+>   `.frame`, reached through one overload per modifier via
+>   `ElementGroup.LayerBase`. `FrameModifier` is deleted. It is observationally
+>   identical to nested `Box`es. The solver work is bounded (guard) and the
+>   allocations are counted.
+> - **`@State` across chained modifiers — done** on both paths (lane 1 tests
+>   5–6, `MC-D`).
+> - **Once-per-phase delegation — done** for every wrapper (tests 7–8,
+>   `MC-F`).
+> - **The overlay id — measured red, then fixed** (`6d89906`, `661efd9`,
+>   `MC-P`). The overlay numbers under `.child(of: id, at: -1)`, independent of
+>   the primary's shape, as SwiftUI's is (probe).
+> - **`SA-R`'s compile-time check — done** (lane 3, `MC-G`, `MC-H`).
+>   `ProposalNodeID` has an internal initializer and is returned by
+>   `ProposalElementGroup.requestProposalGroupLayout`. Five lies are compile
+>   errors (six guards). Seven holes are named, each pinned or cited.
+>
+> **Carried, not blocking:**
+> - release-window captures of the default demo and the preview against
+>   `f64e58a` (offscreen dumps byte-identical);
+> - the `_wrap` hole;
+> - `MC-C`'s candidate divergence;
+> - the shape-13 sweep;
+> - a shared `malloc_logger` counter.
+>
+> **Owned by later tasks** (`MC-L`):
+> - task 4: `width`/`height`/min/max as layers and legacy `.frame` semantics;
+> - task 5: `Component` distribution, B-7, hole 5 and paint-only layers;
+> - task 6: hole 4 and the one-node traps;
+> - task 7: unification with `ModifiedContent`, holes 1–3, 6 and 7, and
+>   `_wrap`.
+
+In the plan's "Current starting point", these lines describe `FrameModifier`
+as current (`:129`, `:276-289`) and become history. `:134-135` (the overlay
+collision) is closed.
+
+**README:**
+
+- **"Don't mix the two".** Change "a public marker protocol with no
+  requirements … compiles, then traps at runtime" to: "a protocol whose
+  requirement returns a `ProposalNodeID` only `MetalUI` can create, so a type
+  that registers legacy nodes through it does not compile. Seven named holes
+  remain (`MC-G`), such as a legacy node registered as a side effect".
+- **Change "wraps its receiver in an outer `Box`"** to: "wraps its receiver in
+  a `ModifiedElement` layer (one flat type however many `.padding`/`.frame`
+  calls you chain)".
+- **The suite count sentence** (993 / 39 at `7cfcddc`): re-take it after the
+  merge.
+- **The typed modifier composition spec link:** add
+  `specs/2026-09-15-modifier-composition-design.md` as the design that shipped
+  for the legacy path.
+
+**Other owned documents:**
+
+- `docs/record/README.md`: add a row, `` | `10-modifier-composition.md` | plan
+  task 3: `ModifiedElement`, the overlay-side id, the typed `ProposalNodeID`;
+  lanes, red runs, verifier mutation tables | ``.
+- The SA decisions doc, `SA-R`: add a status line, "**Delivered 2026-09-15 by
+  `MC-G`** (`feat/modifier-composition`, `f9e2c62`): a marker conformer that
+  registers a legacy node is a compile error, with seven named holes".
+- Record §09:
+  - hazard 3 (the overlay id collision) is closed, by `6ff2d31` and then
+    `661efd9`;
+  - under "Owed before this work is cited as done", "`FrameModifier` arms"
+    lapses (`FrameModifier` is deleted and `ModifiedElement` has arms) and "a
+    test for the overlay id collision" is done;
+  - the sentence "It is live in three places the per-site guards were written
+    to watch" now names `ModifiedElement`.
+- Other tracks' `FrameModifier` arms (the environment D2 "frame" arm, the
+  AX-bridge in-scope emit site, the shared arm lists): convert each to a
+  two-layer `ModifiedElement`, never delete one (`MC-I`). The remaining merge
+  obligations (`EnvironmentScope`'s typed entry and its `[1, 1, 1]` arms,
+  AB-O's per-layer mirroring, the `NativeTappable.swift` textual conflict, and
+  the `11-environment.md:258-259` correction) are itemised under "Merge notes
+  collected by the lanes" above.
