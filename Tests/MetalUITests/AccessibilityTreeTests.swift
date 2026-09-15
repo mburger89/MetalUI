@@ -36,12 +36,13 @@ private func rect(_ x: Float, _ y: Float, _ w: Float, _ h: Float) -> Bounds<Pixe
 /// Renders `element` into a collecting `Frame` and builds the tree the way
 /// `Window.drawFrameIfNeeded` does.
 @MainActor private func collect<E: Element>(_ element: E, stateTable: StateTable = StateTable(),
-                                           width: Float = 300, height: Float = 300)
+                                           width: Float = 300, height: Float = 300,
+                                           focusedElement: GlobalElementID? = nil)
     -> (Frame, AccessibilityTree) {
     var element = element
     let frame = Frame(contentSize: Size(width: px(width), height: px(height)), scaleFactor: 1,
                       stateTable: stateTable, theme: Theme.forAppearance(.light),
-                      collectsAccessibility: true)
+                      focusedElement: focusedElement, collectsAccessibility: true)
     frame.render(&element)
     let tree = AccessibilityTreeBuilder.build(emissions: frame.axEmissions,
                                               focused: frame.focusedElement,
@@ -505,19 +506,28 @@ private struct PressToRename: Component {
 
 /// `display: none` content records nothing; a zero-height node is published;
 /// two siblings sharing an `.id` publish one node, once.
+///
+/// The hidden box is also focusable and focused: `hidden()` does not stop
+/// focus (CLAUDE.md's inert table), so the frame keeps that focus, and the
+/// published `focused` must still be `nil` because its node was not published.
 @Test @MainActor func hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce() throws {
+    let column = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let hiddenBox = GlobalElementID.child(of: column, at: 0, name: nil)
+    let hiddenFocusable = GlobalElementID.child(of: hiddenBox, at: 0, name: nil)
     let (frame, tree) = collect(Column {
-        Box { declared(Box().width(px(10)).height(px(10)), AXNode(label: "in")) }
+        Box { declared(Box().width(px(10)).height(px(10)).focusable(), AXNode(label: "in")) }
             .width(px(20)).height(px(20)).hidden()
         declared(Box().width(px(20)).height(px(0)), AXNode(label: "divider"))
         Row {
             declared(Box().width(px(10)).height(px(10)).id("x"), AXNode(label: "x-first"))
             declared(Box().width(px(10)).height(px(10)).id("x"), AXNode(label: "x-last"))
         }
-    })
+    }, focusedElement: hiddenFocusable)
     #expect(frame.axNodes.values.contains { $0.label == "in" },
             "control: the hidden node is still emitted as today; only the record is suppressed")
     #expect(!tree.nodes.values.contains { $0.label == "in" }, "display: none content is not published")
+    try #require(frame.focusedElement == hiddenFocusable, "control: the hidden focusable box kept focus")
+    #expect(tree.focused == nil, "focus on an element that published no node is not published")
 
     let divider = try #require(tree.id(labelled: "divider"))
     #expect(tree.geometry[divider]?.frame.size.height == 0, "a zero-height node is published (arm R6)")
