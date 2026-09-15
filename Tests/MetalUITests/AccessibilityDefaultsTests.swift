@@ -294,6 +294,15 @@ private extension AccessibilityTree {
     #expect(interactive.nodes[kept]?.label == nil, "an interactive descendant stops the combination")
     #expect(interactive.nodes[kept]?.children.count == 3)
 
+    // A click target is interactive too, not only a focusable box (surviving
+    // mutant N60 counted focusability alone): the inner button keeps its own
+    // node and the outer one its children.
+    let (_, clickableChild) = collect(Row { Text("A"); Text("B").onClick {} }
+        .width(px(60)).height(px(20)).onClick {})
+    let outer = try #require(clickableChild.roots.first)
+    #expect(clickableChild.nodes[outer]?.label == nil, "a clickable descendant stops the combination")
+    #expect(clickableChild.childNodes(of: outer).map(\.role) == [.staticText, .button])
+
     func combine<C: ElementGroup>(@ElementBuilder _ content: () -> C) throws -> AccessibilityNode {
         let (_, tree) = collect(Row(content: content).width(px(60)).height(px(20)).onClick {})
         try #require(tree.nodes.count == 1)
@@ -404,6 +413,8 @@ private extension AccessibilityTree {
 /// `setNeedsRedraw()` between frames 0 and 1. The cap arm is a scroller of
 /// height 0, which never measures a viewport: one retry, then clean. The
 /// inactive arm is the 200pt window with no client: frame 0 leaves it clean.
+/// The no-context arm is an active list outside any scroller: unbounded for
+/// good, so it never asks.
 ///
 /// The two published trees go into a real bridge: no element is created and
 /// nothing is destroyed across them.
@@ -458,6 +469,19 @@ private extension AccessibilityTree {
     idle.drawFrameIfNeeded()
     try #require(idle.framesDrawn == 1)
     #expect(!idle.needsRedraw, "inactive arm: rendering is unchanged, the window goes clean")
+
+    // No scroll context: nothing the next frame learns could bound the window,
+    // so the list never asks (surviving mutant N52 asked once).
+    let (unscrolled, unscrolledPlatform) = try makeFakeWindow(device: device, size: 200) {
+        Box { List((0..<50).map(Item.init), rowHeight: px(28)) { _ in Box().width(px(20)).height(px(28)) } }
+            .width(px(200)).height(px(200))
+    }
+    unscrolledPlatform.simulateAccessibilityRequest(.activate)
+    unscrolled.drawFrameIfNeeded()
+    try #require(unscrolled.framesDrawn == 1)
+    let unscrolledTable = try #require(unscrolledPlatform.publishedAccessibilityTrees.last?.all(.table).first)
+    #expect(unscrolledTable.node.children.isEmpty, "control: its window is unbounded, so no rows")
+    #expect(!unscrolled.needsRedraw, "no-context arm: a list outside a scroller does not retry")
 }
 
 /// Scrolling a list a client has read posts one `.layoutChanged`, destroys each
