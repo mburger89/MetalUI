@@ -9,7 +9,7 @@ replacement's reason depends on it.
 
 Prefixed **`MC-`** and **lettered** (`MC-A`, `MC-B`, …), per this repo's
 convention. **A bare `MC-3` is a typo, not a citation.** The next unused letter
-is **`MC-O`**.
+is **`MC-P`**.
 
 Read alongside:
 
@@ -36,6 +36,8 @@ Read alongside:
 - **`MC-L`** — deferred, with owners. **`MC-M`** — method: what was measured,
   where, and what was only read. **`MC-N`** — the design review, finding by
   finding.
+- **`MC-O`** — lane 1's departures from the spec, and the suite truncation its
+  mutations found.
 
 **Every ruling ends with a "Mutations" line reading _owed by lane N_.** The lane
 that implements a ruling replaces it with the mutations it ran and the tests
@@ -334,7 +336,30 @@ inner layers share the outer layer's id: one `$anim` slot, one hitbox id, and a
 wrapped element re-seeded one level up. Every existing padding and frame test
 asserts rects and node counts, and all of them would stay green.
 
-**Mutations:** owed by lanes 1 and 2.
+**Mutations:** lane 1 done, at `6ff2d31`/`2571d4a`, each a whole-suite run of
+1094 (`--build-system native --no-parallel`), restored from a `cp` backup with
+`git status --short` empty after each. Test 4 is
+`aModifierChainIsIdenticalToHandBuiltNestedBoxes`.
+
+- **The four disagreeing oracles** are `try #require`d to differ inside test 4,
+  on every run; the green run is their measurement.
+- **`FrameModifier.prepaint` registering its handlers after its content**
+  reddens test 4 alone (1 issue: hitbox order `[P8, leaf, frame]` against
+  `[P8, frame, leaf]`).
+- **`FrameModifier.prepaint` calling its content twice** reddens test 4 (a
+  duplicate leaf hitbox) and test 7's legacy-frame and chain arms.
+- **`Box.prepaint` registering after its content** reddens test 4, test 8 and
+  the existing `aNestedHandlerWinsOverItsContainerWhichDoesNotAlsoFire`.
+- **`FrameModifier.init` dropping `justifyContent = .center`** reddens test 4
+  (leaf bounds, hitboxes, rects), test 10 and the existing
+  `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren` and
+  `chainedFramesRemainConcreteAndNestTheirLayoutNodes`.
+- **A differential, not a gap to close here:** `FrameModifier`'s content cursor
+  starting at 1 reddens test 5 and NOT test 4. Test 4's padding-4 layer is
+  named `"mid"`, and a name replaces the index, so a cursor offset beneath a
+  named layer is invisible to test 4's id observation (`MC-O` item 6).
+
+Lane 2's mutations are owed by lane 2.
 
 ---
 
@@ -456,7 +481,18 @@ All three are pinned (spec, lane 2 tests 3, 4 and 5).
   binding for every proposal element in a container. The demo's
   `PreviewToggle` would stop toggling, with the suite green.
 
-**Mutations:** owed by lane 1 (today's code) and lanes 2 and 3 (their code).
+**Mutations:** lane 1 done, at `6ff2d31`, whole suite (1094) per mutation:
+
+- `FrameModifier.requestLayout`'s content cursor starting at 1 reddens
+  `stateSurvivesFramesUnderALegacyModifierChain` (1 issue: padding 4 reads
+  `.positional(1)`);
+- `ModifiedContent.requestLayout`'s cursor starting at 1 reddens
+  `stateSurvivesFramesUnderAProposalModifierChain` (3 issues: the leaf, the
+  padding and the frame each read `.positional(1)`).
+
+Neither mutation changes a `taps` reading: a cursor offset moves an id
+consistently across frames, so the state still accumulates. The id
+assertions are what see it. Lanes 2 and 3 owe their own.
 
 ---
 
@@ -539,7 +575,33 @@ and anything overlaid share hover, press dispatch, `@State`, `ScrollState` and
 `$anim` between primary and overlay. The preview does not show it only because
 its overlay `Rectangle` holds no state and registers no hitbox.
 
-**Mutations:** owed by lane 1.
+**Mutations:** lane 1 done. The fix is `6ff2d31`; the red run is `6d89906`.
+
+- **Red run** (the tests at `6d89906`, before the fix; whole suite: `Test run
+  with 1094 tests in 1 suite failed after 25.299 seconds with 11 issues`),
+  reddening exactly the four overlay tests:
+  - `theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities`: "Expectation
+    failed: (primary → MetalUI.GlobalElementID) != (overlay →
+    MetalUI.GlobalElementID)", plus both index-1 assertions;
+  - `aTapOnAnOverlaysPrimaryWritesOnlyThePrimarysState`: "(log.taps["overlay"]
+    → 3) == 0", then primary 4 and overlay 4 after the overlay's click;
+  - `hoveringAnOverlaysPrimaryDoesNotHoverTheOverlay`: "(hoverFillWidths() →
+    [60.0, 10.0]) == ([60] → [60.0])", and the same two fills at (25, 25);
+  - `anOverlaysIdentityFollowsTheIndicesItsPrimaryConsumed`: all three
+    readings `positional(0)`, 3 taps, index-2 slot not live.
+- **The fix, whole suite:** `Test run with 1094 tests in 1 suite passed`.
+- **The second cursor restored as a mutation** on the fixed tree reproduces the
+  red run exactly (11 issues, the same four tests).
+- **The rejected alternative as a mutation** (the overlay laid out under a
+  reserved `.named("$overlay")` id with its own cursor) reddens
+  `theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities` (index 0 in both
+  arms) and `anOverlaysIdentityFollowsTheIndicesItsPrimaryConsumed` (index 0 and
+  3 taps at all three steps — the state kept across the flip). Tests 2 and 3
+  stay green under it, since its ids are still distinct: the differential is
+  that only tests 1 and 9 see WHERE the overlay's identity comes from.
+- **Test 9's readings, measured on its first run after the fix, equal the
+  prediction:** `(positional(2), 3 taps, index-2 slot live)`, then
+  `(positional(1), 0, not live)`, then `(positional(2), 3, live)`.
 
 ---
 
@@ -587,7 +649,27 @@ closure and force-unwrap the result (`result!`). A refactor that calls it twice,
 or not at all, would double-register or drop every hitbox below. The plan
 records "No test checks once-per-phase delegation" as open.
 
-**Mutations:** owed by lane 1 (today's wrappers) and lane 2 (`ModifiedElement`).
+**Mutations:** lane 1 done, whole suite (1094) per mutation, test 7 being
+`everyModifierWrapperDelegatesEachPhaseExactlyOnce` and test 8
+`aModifierChainRegistersAndPaintsOuterLayersFirst`:
+
+| mutation | commit | reddens (arm and reading) |
+|---|---|---|
+| `allowsHitTesting` branch calls `prepaintGroup` twice | `6ff2d31` | test 7: `allowsHitTesting(true)` and `(false)`, each `[1, 2, 1]` |
+| `clip` paint branch loses its `else` | `6ff2d31` | test 7: `clip` `[1, 1, 2]` |
+| `OverlayModifier.paint` skips `overlay.paintGroup` | `2571d4a` | test 7: `overlay, overlay side` `[1, 1, 0]`; tests 2, 3 and 9 (the overlay never logs); the existing `nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt` |
+| `FrameModifier.prepaint` calls its content twice | `6ff2d31` | test 7: `legacy frame` and `legacy three-modifier chain`, each `[1, 2, 1]`; test 4 |
+| `Box.prepaint` registers after its content | `2571d4a` | test 8: hitbox order and the in-leaf click (ran `outer`); test 4; the existing `aNestedHandlerWinsOverItsContainerWhichDoesNotAlsoFire` |
+
+**The overlay-paint mutation first truncated the suite** (at `6ff2d31`: no
+summary line, "Fatal error: Index out of range"). The existing
+`nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt` indexed
+`rects[1]` after its `#expect(rects.count == 2)` failed (practices shape 13).
+`2571d4a` makes that count, and the same shape in three sibling tests, a
+`try #require`, and the row above is the re-run (`MC-O` item 5).
+
+The control arm reads `[2, 2, 2]` on every run. Lane 2's mutations are owed by
+lane 2.
 
 ---
 
@@ -1040,7 +1122,7 @@ two.
 | two chained modifiers have two structural identities and preserve distinct `@State` slots | `MC-D`, lane 1 tests 5–6 |
 | once-per-phase delegation | `MC-F`, lane 1 tests 7–8 |
 | explicit `AnyElement` remains opt-in; no ordinary modifier path introduces it | lane 2 test 1 (no type name contains `AnyElement`; exact `ModifiedElement<…>` names) |
-| frame ordering changes the measured/placed result where SwiftUI does | lane 1 test 10, against `swiftui-modifier-order.swift` (seven arms, measured equal on today's code; stays green through lane 2) |
+| frame ordering changes the measured/placed result where SwiftUI does | lane 1 test 10, `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`, against `swiftui-modifier-order.swift`: all seven arms (K0-K2, O1-O4) committed and green at `6d89906`, with O1 ≠ O2 and O3 ≠ O4 `#require`d first; `FrameModifier.init` dropping `justifyContent = .center` reddens it (O1-O4's leaf x reads 8, 8, 12, 12 against 20, 28, 18, 22). It must stay green through lane 2 |
 
 ---
 
@@ -1115,3 +1197,62 @@ with its reason.
 - `MC-G`'s delivery of the compile-time check.
 
 **Mutations:** not applicable.
+
+---
+
+## MC-O — lane 1's departures from the spec, and a suite truncation its mutations found: six items, none changing a ruling's substance
+
+Written by lane 1 (commits `6d89906`, `6ff2d31`, `2571d4a`), 2026-09-15. The spec
+is corrected at each line these items make false.
+
+1. **Test 4's id-moving oracle moves the name from the padding-4 layer, not
+   from "the frame layer".** In the chain
+   `….padding(4).id("mid").frame(…)`, `.id` follows `.padding(4)`, so by
+   `MC-C`'s "`.id(_:)` names the layer it follows" it names the padding-4
+   layer, and the oracle mirrors it there. The spec's table said the name moves
+   "from the frame layer", which names a layer the chain never puts it on. The
+   disagreeing oracle moves `"mid"` from the padding-4 layer to the outermost
+   padding-8 layer, and is `#require`d to differ in the leaf's id and the
+   hitbox ids.
+2. **Tests 4, 7 and 10 render through `Frame` directly, not a `Window`.** None
+   needs pointer state. Test 4 therefore reads `Frame.hitboxes`, which is the
+   array `Window.drawFrameIfNeeded` copies into `lastHitboxes`, and
+   `Frame.scene.rects` in emission order.
+3. **Test 10 also pins K0 and K2**, the probe's own controls, beside K1 and
+   O1-O4.
+4. **The log class is `CompositionLog`, not `PhaseLog`.** `PipelineTests.swift`
+   already declares an internal `PhaseLog`; a `private` one in another file of
+   the same target fails to build ("invalid redeclaration of 'PhaseLog'").
+5. **A shape-13 truncation, fixed outside the lane's file list.** Mutating
+   `OverlayModifier.paint` to skip `overlay.paintGroup` (`MC-F`) ended the run
+   with "Fatal error: Index out of range" and no summary line.
+   `nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt`
+   (`NativeLayoutIntegrationTests.swift`) indexed `rects[1]` after
+   `#expect(rects.count == 2)` recorded a failure. Three sibling tests in that
+   file had the same shape
+   (`nativeBackgroundWrapsTheResolvedOuterBoundsAndPaintsBeforeItsContent`,
+   `builderNativeBackgroundPaintsBeneathItsNativeChild`,
+   `nativeBorderPaintsOverContentWithoutChangingItsFrame`). All four now
+   `try #require` the count (`2571d4a`, test-only, eight lines). Re-run, the
+   mutation reports `Test run with 1094 tests … with 8 issues`.
+   - **Why here:** a wrong implementation truncating the suite is exactly what
+     lane 2's mutation runs over `OverlayModifier`'s neighbours would otherwise
+     hit again.
+   - **Not swept:** other files' `#expect(… .count …)` followed by indexing.
+     Only the file this mutation reached was adjudicated.
+6. **Test 4 cannot see a cursor offset beneath a named layer.** Measured:
+   `FrameModifier`'s content cursor starting at 1 reddens test 5 and not
+   test 4. The padding-4 layer's name replaces its index, so the leaf's id and
+   every hitbox id are unchanged. That is `MC-C`'s name-replaces-position rule
+   working, not a broken instrument. Test 5, whose chain is unnamed, carries
+   the cursor. By reading, not run: lane 2's "every inner layer takes the
+   outermost id" mutation stays visible to test 4, because it changes the
+   leaf's depth and the layer ids, not an index beneath the name.
+
+**What it costs if wrong.** Item 1: an oracle that put `"mid"` on the frame
+layer would differ from the chain, and test 4 would be red on arrival rather
+than green. Item 5: none in behaviour; four tests stop
+at the count instead of reporting per-field failures after it.
+
+**Mutations:** item 5's is the overlay-paint row of `MC-F`; item 6's is the
+cursor bullet of `MC-B`.

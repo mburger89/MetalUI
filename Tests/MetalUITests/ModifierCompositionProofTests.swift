@@ -455,6 +455,11 @@ private func frameStyle(width: Float, height: Float) -> Style {
 ///
 /// Green on arrival. Mutation (today's code, record §10): `FrameModifier.prepaint`
 /// registering its handlers after its content.
+///
+/// **What it cannot see:** a cursor offset beneath the named padding-4 layer.
+/// A name replaces the index, so `FrameModifier`'s content cursor starting at
+/// 1 leaves every id here unchanged and this test green; the unnamed chain in
+/// `stateSurvivesFramesUnderALegacyModifierChain` reddens (ruling MC-O item 6).
 @Test @MainActor func aModifierChainIsIdenticalToHandBuiltNestedBoxes() throws {
     let chain = try observe { log in
         Row {

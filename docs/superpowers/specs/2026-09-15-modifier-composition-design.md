@@ -4,10 +4,13 @@
 (`plans/2026-09-12-swiftui-alignment.md`, "Build a typed modifier-composition
 foundation", and its four open proofs).
 
-**Status (2026-09-15): design only, revised after design review.** Written
+**Status (2026-09-15): lane 1 done; lanes 2 and 3 not started.** Designed
 against `f64e58a` on `feat/modifier-composition`, in the worktree
-`/Users/maxburger/Developer/MetalUI-modifier-composition`. No source has
-changed. Rulings are prefixed **`MC-`** and lettered, in
+`/Users/maxburger/Developer/MetalUI-modifier-composition`, and revised after
+design review. **Lane 1** landed as `6d89906` (its ten tests, four red),
+`6ff2d31` (the overlay fix) and `2571d4a` (a shape-13 fix its mutations found):
+1094 tests, 45 guards, 97 goldens; its measurements are in record §10 and its
+departures from this text in `MC-O`. Rulings are prefixed **`MC-`** and lettered, in
 `docs/superpowers/2026-09-15-modifier-composition-decisions.md`; a bare `MC-3`
 is a typo. The track's record is `docs/record/10-modifier-composition.md`.
 
@@ -89,7 +92,7 @@ All by reading, except where marked as measured.
   outer size and leaf origin through today's `Box`/`FrameModifier` as in
   SwiftUI.
 - **`OverlayModifier` gives primary and overlay one id — measured**
-  (`MC-E`):
+  (`MC-E`; fixed by lane 1 at `6ff2d31`):
   - an overlay never clicked read the primary's 3 taps;
   - hovering the primary painted both hover fills.
 - **`ProposalElementGroup` has no requirements**, so a conformer registering a
@@ -149,7 +152,9 @@ No other source changes in this lane.
 - `Sources/MetalUI/NativeOverlayModifier.swift` (edit, above).
 - `Tests/MetalUITests/ModifierCompositionProofTests.swift` (new). Private
   helpers:
-  - **`PhaseLog`**, a `@MainActor final class`. It records:
+  - **`CompositionLog`** (named `PhaseLog` in the first draft, which
+    `PipelineTests.swift` already declares; `MC-O` item 4), a
+    `@MainActor final class`. It records:
     - per-name counts of `requestLayout`/`prepaint`/`paint`;
     - per-name `GlobalElementID` (last prepaint);
     - per-name `taps` read in paint;
@@ -197,7 +202,7 @@ real comparison runs:
 | observation | disagreeing oracle | required to differ |
 |---|---|---|
 | rects (order, bounds, colour) | paddings 4 and 8 swapped | the rect list |
-| wrapped element id, hitbox ids | `.id("mid")` moved from the frame layer to the outermost padding-8 layer | the leaf's id and the hitbox id list |
+| wrapped element id, hitbox ids | `.id("mid")` moved from the padding-4 layer it follows (`MC-C`) to the outermost padding-8 layer (`MC-O` item 1) | the leaf's id and the hitbox id list |
 | hitbox list (ids, bounds, order) | the middle layer's `onClick` dropped | the hitbox list, in count |
 | `$anim` liveness per layer id | the `.frame` layer omitted (one layer fewer) | the set of layer ids with a live `$anim` slot, and `tree.nodeCount` |
 
@@ -211,7 +216,7 @@ real comparison runs:
 | 6 | `stateSurvivesFramesUnderAProposalModifierChain` (`MC-D`) | window. `HStack { CountingProposalLeaf("a").padding(…).frame(width: 40, height: 40).background(.surface); CountingProposalLeaf("b"); CountingProposalComponent("c") }`. After 3 clicks on a, 2 clicks on c, then 2 frames: a reads 3, b reads 0, c reads 2. `a` and its two nearest ancestors each have component `.positional(0)`, and its third ancestor is the `HStack`'s child at index 0 | green on arrival | **today:** `ModifiedContent.requestLayout`'s cursor starts at 1. **Lane 3:** its `MC-H` mutations |
 | 7 | `everyModifierWrapperDelegatesEachPhaseExactlyOnce` (`MC-F`) | one arm per wrapper and code path, as listed in `MC-F`, each reading `[1, 1, 1]`. The control arm `Pair(leaf, leaf)` reads `[2, 2, 2]`. Counts are `try #require`d | green on arrival | **today**, each separately, with the arm it reddens: the `allowsHitTesting` branch calls `prepaintGroup` twice (that arm); the `clip` paint branch loses its `else` (that arm); `OverlayModifier.paint` skips `overlay.paintGroup` (the overlay-side arm); `FrameModifier.prepaint` calls content twice. **Lane 2:** `ModifiedElement.paint` calls content once per layer |
 | 8 | `aModifierChainRegistersAndPaintsOuterLayersFirst` (`MC-F`) | The chain `leaf.background(.accent).onClick{"inner"}.padding(4).background(.surface).onClick{"outer"}`. Hitbox order is `[outer, leaf]`. `.surface` is emitted before `.accent`. A click in the padding ring logs `outer`; one inside the leaf logs `inner` | green on arrival | **today:** `Box.prepaint` registers after content. **Lane 2:** the layer loop reversed in prepaint, and separately in paint |
-| 9 | `anOverlaysIdentityFollowsTheIndicesItsPrimaryConsumed` (`MC-E`) | window, 100×100. The primary is an `@ElementBuilder` block `{ if flag { EmptyProposalComponent() }; Rectangle(width: 60, height: 60) }`, which has one node either way. Overlay: `CountingProposalLeaf("o")` at `.topLeading`, 10×10. The steps: with `flag` true, 3 clicks at (5, 5); then `flag` false, one frame; then `flag` true, one frame. Recorded readings at each step: the overlay's id component, its `taps`, and `StateTable.isLive` of the index-2 slot. **Predicted by reading, and measured by this lane:** index 2 with 3 taps; then index 1 with 0 taps; then index 2 with 3 taps again, since the entry was retained below the sweep threshold (divergence 18, `TB-AH`). The test pins the measured values. It is the trailing-sibling rule of record §01, applied to an overlay | green on arrival after the fix (before it, the overlay's index is always 0, so every reading is index 0 with 3 taps) | give the overlay a reserved name instead of the threaded index (`MC-E`'s rejected alternative): it reads 3 taps after the flip |
+| 9 | `anOverlaysIdentityFollowsTheIndicesItsPrimaryConsumed` (`MC-E`) | window, 100×100. The primary is an `@ElementBuilder` block `{ if flag { EmptyProposalComponent() }; Rectangle(width: 60, height: 60) }`, which has one node either way. Overlay: `CountingProposalLeaf("o")` at `.topLeading`, 10×10. The steps: with `flag` true, 3 clicks at (5, 5); then `flag` false, one frame; then `flag` true, one frame. Recorded readings at each step: the overlay's id component, its `taps`, and `StateTable.isLive` of the index-2 slot. **Predicted by reading, and measured equal by lane 1:** index 2 with 3 taps (slot live); then index 1 with 0 taps (index-2 slot not live); then index 2 with 3 taps again (live), since the entry was retained below the sweep threshold (divergence 18, `TB-AH`). The test pins the measured values. It is the trailing-sibling rule of record §01, applied to an overlay | green on arrival after the fix (before it, the overlay's index is always 0, so every reading is index 0 with 3 taps) | give the overlay a reserved name instead of the threaded index (`MC-E`'s rejected alternative): it reads 3 taps after the flip |
 | 10 | `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes` (`MC-L`) | a 20×20 `CountingLeaf`, outer width read from a 1pt sibling in a `Row` and outer height from one in a `Column`, both `.alignItems(.flexStart)`. Expected, from `swiftui-modifier-order.swift`: K1 `.padding(8)` 36×36 at (8, 8); O1 `.padding(8).frame(60×60)` 60×60 at (20, 20); O2 `.frame(60×60).padding(8)` 76×76 at (28, 28); O3 `.padding(4).frame(40×40).padding(8)` 56×56 at (18, 18); O4 `.frame(40×40).padding(4).padding(8)` 64×64 at (22, 22). `try #require` that O1 ≠ O2 and O3 ≠ O4 before comparing with SwiftUI's numbers | **green, measured** by a deleted scratch test at `f64e58a` (all seven equal) | **today:** `FrameModifier.init` drops `justifyContent = .center` (O1's x moves). **Lane 2:** `requestLayout` mints layer nodes outermost-first around the content (O1 and O2 swap) |
 
 **Mutation discipline.**
@@ -226,7 +231,16 @@ real comparison runs:
 
 ### Expected counts
 
-1084 → **1094** tests; guards unchanged at 45; goldens 97, unmoved.
+1084 → **1094** tests; guards unchanged at 45; goldens 97, unmoved. **Measured
+by lane 1** at `2571d4a`: `Test run with 1094 tests in 1 suite passed`, 0
+`error:`, 0 `warning:`; `grep -c canTypecheck` per file sums to 45 (one hit in
+`UnitSafetyTests.swift` is a comment); `git diff --stat f64e58a -- '*.json'`
+empty.
+
+**Files beyond this list** (`MC-O`): `NativeLayoutIntegrationTests.swift`,
+four `#expect(rects.count == 2)` made `try #require` (`2571d4a`). Tests 4, 7
+and 10 render through `Frame` rather than a `Window`, and test 10 also pins K0
+and K2 (`MC-O` items 2-3).
 
 ### Docs owed by lane 1 (track files only)
 

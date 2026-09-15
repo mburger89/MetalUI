@@ -2,9 +2,9 @@
 
 The record for plan task 3. Spec
 `docs/superpowers/specs/2026-09-15-modifier-composition-design.md`; rulings
-`MC-A`…`MC-N` in
+`MC-A`…`MC-O` in
 `docs/superpowers/2026-09-15-modifier-composition-decisions.md` (next unused
-`MC-O`). The track runs in its own worktree,
+`MC-P`). The track runs in its own worktree,
 `/Users/maxburger/Developer/MetalUI-modifier-composition`, beside two parallel
 tracks, and is merged by an integration step that owns `CLAUDE.md`, the plan,
 `docs/record/README.md` and the SA decisions doc. **Nothing in this file has
@@ -71,6 +71,98 @@ with the tests each reddened, the suite/guard/golden counts it re-took, and, for
 lanes 2 and 3, the demo captures (`MC-J`): image dimensions, differing-pixel
 count and coordinates, and the logged pointer position.*
 
+#### Lane 1 — proofs, and the overlay fix, 2026-09-15
+
+**Commits.**
+
+| commit | what |
+|---|---|
+| `6d89906` | `Tests/MetalUITests/ModifierCompositionProofTests.swift`: the ten tests, red first |
+| `6ff2d31` | `Sources/MetalUI/NativeOverlayModifier.swift`: one cursor through primary and overlay, with its doc comment (`MC-E`) |
+| `2571d4a` | `Tests/MetalUITests/NativeLayoutIntegrationTests.swift`: four indexed rect counts made `try #require` (`MC-O` item 5) |
+
+Every run below is `swift test --build-system native --no-parallel`, whole
+suite, one agent in the worktree, read by its `Test run with N tests` line.
+
+**Red run, at `6d89906`** (tests committed, fix not yet applied): `Test run with
+1094 tests in 1 suite failed after 25.299 seconds with 11 issues.` The failing
+tests were exactly the four overlay tests; tests 4-8 and 10 were green on
+arrival. The issue lines, verbatim apart from truncation:
+
+- `theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities()` at `:261`:
+  "Expectation failed: (primary → MetalUI.GlobalElementID) != (overlay →
+  MetalUI.GlobalElementID)"; at `:262`: "(overlay → MetalUI.GlobalElementID) ==
+  (GlobalElementID.child(of: primary.parent, at: 1, name: nil) → …)"; at `:280`
+  (the `HStack` arm): "(overlay → …) == (GlobalElementID.child(of: modifier, at:
+  1, name: nil) → …)".
+- `aTapOnAnOverlaysPrimaryWritesOnlyThePrimarysState()` at `:312`:
+  "(log.taps["overlay"] → 3) == 0"; at `:317`: "(log.taps["primary"] → 4) ==
+  3"; at `:318`: "(log.taps["overlay"] → 4) == 1".
+- `hoveringAnOverlaysPrimaryDoesNotHoverTheOverlay()` at `:349`:
+  "(hoverFillWidths() → [60.0, 10.0]) == ([60] → [60.0])"; at `:354`:
+  "(hoverFillWidths() → [60.0, 10.0]) == ([10] → [10.0])".
+- `anOverlaysIdentityFollowsTheIndicesItsPrimaryConsumed()` at `:836-838`: all
+  three readings "Reading(component: Optional(MetalUI.PathComponent.positional(0)),
+  taps: Optional(3), indexTwoLive: false)".
+
+A second, identical red run was taken by accident at the same commit (an edit
+to the source had not applied): the same 11 issues.
+
+**Green, at `6ff2d31`:** `Test run with 1094 tests in 1 suite passed after
+25.380 seconds.` No `error:`, no `warning:`.
+
+**Test 9's measured readings** (first run after the fix, unchanged since):
+
+| step | overlay id component | overlay `taps` | index-2 `$state0` slot live |
+|---|---|---|---|
+| `flag` true, 3 clicks at (5, 5) | `.positional(2)` | 3 | true |
+| `flag` false, one frame | `.positional(1)` | 0 | false |
+| `flag` true, one frame | `.positional(2)` | 3 | true |
+
+They equal the spec's prediction.
+
+**Mutations.** Each applied by a script that `cp`-backs up the file, replaces
+one anchor that must occur exactly once, appends a `// MUTATION <label>`
+marker, runs the whole suite, restores from the backup, and prints
+`git status --short` (empty after every run) and a grep for the marker (empty
+after every run).
+
+| # | mutation | at | summary line | tests reddened |
+|---|---|---|---|---|
+| M1 | overlay's second cursor restored | `6ff2d31` | 1094, 11 issues | tests 1, 2, 3, 9 (= the red run) |
+| M2 | `FrameModifier.prepaint` registers after its content | `6ff2d31` | 1094, 1 issue | test 4 (hitbox order) |
+| M3 | `FrameModifier` content cursor starts at 1 | `6ff2d31` | 1094, 1 issue | test 5 (padding 4 reads `.positional(1)`); **not** test 4 (`MC-O` item 6) |
+| M4 | `ModifiedContent` content cursor starts at 1 | `6ff2d31` | 1094, 3 issues | test 6 (three components `.positional(1)`) |
+| M5 | `allowsHitTesting` branch prepaints content twice | `6ff2d31` | 1094, 2 issues | test 7: `allowsHitTesting(true)`, `(false)` read `[1, 2, 1]` |
+| M6 | `clip` paint branch loses its `else` | `6ff2d31` | 1094, 1 issue | test 7: `clip` reads `[1, 1, 2]` |
+| M7 | `OverlayModifier.paint` skips `overlay.paintGroup` | `6ff2d31` | **none: "Fatal error: Index out of range"**, `swiftpm-testing-helper` exited with signal 5 | before the crash: tests 2, 3, 7, 9; the crash was `nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt` indexing after a failed count |
+| M7b | M7 again, after `2571d4a` | `2571d4a` | 1094, 8 issues | test 7: `overlay, overlay side` `[1, 1, 0]`; tests 2, 3, 9; `nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt` (`rects.count → 1`) |
+| M8 | `FrameModifier.prepaint` calls its content twice | `6ff2d31` | 1094, 3 issues | test 7: `legacy frame`, `legacy three-modifier chain` `[1, 2, 1]`; test 4 (a duplicate leaf hitbox) |
+| M9 | `Box.prepaint` registers after its content | `2571d4a` | 1094, 5 issues | test 8 (hitbox order; the in-leaf click ran `outer`); test 4; `aNestedHandlerWinsOverItsContainerWhichDoesNotAlsoFire` |
+| M10 | overlay under a reserved `.named("$overlay")` id, own cursor | `2571d4a` | 1094, 5 issues | test 1 (index 0, both arms); test 9 (index 0, 3 taps at every step); tests 2 and 3 stay green |
+| M11 | `FrameModifier.init` drops `justifyContent = .center` | `2571d4a` | 1094, 11 issues | test 10 (O1-O4 leaf x 8, 8, 12, 12); test 4; `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`; `chainedFramesRemainConcreteAndNestTheirLayoutNodes` |
+
+M1-M6 and M8 were taken before `2571d4a`, which changed only four count
+assertions in `NativeLayoutIntegrationTests.swift`; none of those runs reached
+them (each printed its summary line).
+
+**Counts at `2571d4a`.** Tests 1094 (1084 + 10). Guards 45: `grep -c
+canTypecheck` reads 19 (`PhaseSeparationTests`), 10 (`ErasureCompileGuards`),
+5 (`ElementGroupTrapTests`), 3 (`UnitSafetyTests`, one a comment), 3
+(`AXNodeTests`), 6 (`ProposalLayoutCompileGuards`), and 1 in
+`Typecheck.swift` (the declaration). Lane 1 adds no guard. Goldens 97 (`find
+Tests -name '*.json' | wc -l`); `git diff --stat f64e58a -- '*.json'` empty.
+
+**Final run, after the docs commit's one test doc-comment edit:** `Test run with
+1094 tests in 1 suite passed` under `--build-system native`, and again under the
+default build system (`swift test --no-parallel`); 0 `error:` and 0 `warning:`
+in each log.
+
+**Deferred by lane 1.** Nothing from its spec section. Owed elsewhere: the
+proposal `@State` test's `MC-H` mutations (lane 3); every lane-2 mutation named
+in the spec's lane 1 table (lane 2); a sweep of other test files for the
+shape-13 count-then-index pattern (`MC-O` item 5, not taken).
+
 ### For the integration step
 
 Collected here so the merge does not have to re-derive them:
@@ -80,9 +172,18 @@ Collected here so the merge does not have to re-derive them:
   three places the per-site guards were written to watch" and "Owed before
   this work is cited as done: `FrameModifier` arms" both change.
 - **Record §09's hazard 3 (the overlay id collision) is closed by lane 1**
-  (`MC-E`), and plan task 3's open-proof bullet "`OverlayModifier` gives its
-  primary element and its overlay element the same id, by reading" is
-  measured and fixed.
+  (`MC-E`, `6ff2d31`), and plan task 3's open-proof bullet "`OverlayModifier`
+  gives its primary element and its overlay element the same id, by reading"
+  is measured and fixed. The other two open proofs lane 1 closes on today's
+  code: "No test checks `@State` across chained modifiers" (tests 5-6, `MC-D`)
+  and "No test checks once-per-phase delegation" (tests 7-8, `MC-F`).
+- **The overlay's index now depends on its primary's index count** (`MC-E`,
+  pinned by `anOverlaysIdentityFollowsTheIndicesItsPrimaryConsumed`): record
+  §01's trailing-sibling rule, applied to an overlay, for CLAUDE.md's identity
+  section.
+- **A practices-doc instance** (shape 13, `MC-O` item 5): a mutation truncated
+  the suite through a count `#expect` followed by indexing in
+  `NativeLayoutIntegrationTests.swift`; four instances fixed at `2571d4a`.
 - **`SA-R`'s amended criterion is met by lane 3** (`MC-G`), with **six**
   named holes (the design review added holes 4, 5 and 6). The SA decisions doc
   is not edited by this track.
