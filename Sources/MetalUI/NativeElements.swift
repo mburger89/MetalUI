@@ -145,6 +145,11 @@ public typealias NativeOverlay<Content: ProposalElementGroup> = ZStack<Content>
 ///
 /// Prefer the `.frame(...)` modifier on a `ProposalElementGroup` when possible;
 /// this builder exists for the few declarations that need a stored wrapper.
+///
+/// **Two initializers, SwiftUI's two `frame` overloads**, so a fixed and a
+/// flexible dimension cannot be passed together (ruling SA-K item 6). The
+/// stored properties stay one set; the kernel validates them when the frame
+/// registers (ruling SA-J).
 public struct ProposalFrame<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var width: Pixels?
@@ -157,14 +162,23 @@ public struct ProposalFrame<Content: ProposalElementGroup>: Element {
     public var maxHeight: Pixels?
     public var alignment: ProposalAlignment
 
+    /// A fixed frame: SwiftUI's `frame(width:height:alignment:)`.
     public init(width: Pixels? = nil, height: Pixels? = nil,
-                minWidth: Pixels? = nil, idealWidth: Pixels? = nil, maxWidth: Pixels? = nil,
-                minHeight: Pixels? = nil, idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
                 alignment: ProposalAlignment = .center,
                 @ElementBuilder content: () -> Content) {
         self.content = content()
         self.width = width
         self.height = height
+        self.alignment = alignment
+    }
+
+    /// A flexible frame: SwiftUI's
+    /// `frame(minWidth:idealWidth:maxWidth:minHeight:idealHeight:maxHeight:alignment:)`.
+    public init(minWidth: Pixels? = nil, idealWidth: Pixels? = nil, maxWidth: Pixels? = nil,
+                minHeight: Pixels? = nil, idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
+                alignment: ProposalAlignment = .center,
+                @ElementBuilder content: () -> Content) {
+        self.content = content()
         self.minWidth = minWidth
         self.idealWidth = idealWidth
         self.maxWidth = maxWidth

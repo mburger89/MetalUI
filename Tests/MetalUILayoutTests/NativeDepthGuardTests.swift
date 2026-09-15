@@ -22,8 +22,9 @@ import MetalUICore
 // **Every layout runs on an explicitly-sized 4 MB `Thread`**, for the reason
 // `layingOutATreeDeeperThanTheLimitTraps` gives: `maxDepth` is a statement
 // about the stacks the framework runs on, and an exit-test task's own stack is
-// not one of them. `maxDepth + 1` levels at ≈6 KB each (debug, SA-L) is well
-// under 1 MB, so 4 MB overflows at none of these depths.
+// not one of them. `maxDepth + 1` = 89 levels at ≤ ≈6.8 KB each (debug, the
+// bisection table on `NativeLayoutRun.maxDepth`) is ≈0.6 MB, so 4 MB overflows
+// at none of these depths.
 //
 // **The fragment is `"native layout recursion exceeded"`**, because legacy's
 // `"layout recursion exceeded"` is a substring of it.

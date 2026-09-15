@@ -6,11 +6,19 @@ import MetalUILayout
 /// This is intentionally a closed value set rather than a public protocol
 /// whose requirements expose `LayoutNodeID`. A caller composes typed values;
 /// only MetalUI translates their layout effects into native nodes during layout.
+///
+/// **`frame` and `flexibleFrame` are two cases, not one**, so that
+/// `ModifiedContent(content:modifier:)` can no more combine a fixed and a
+/// flexible frame dimension than the `frame` modifiers can: SwiftUI has no
+/// spelling for the combination (ruling SA-K item 6).
 public enum LayoutModifier: Sendable {
+    /// SwiftUI's `frame(width:height:alignment:)`.
     case frame(width: Pixels? = nil, height: Pixels? = nil,
-               minWidth: Pixels? = nil, idealWidth: Pixels? = nil, maxWidth: Pixels? = nil,
-               minHeight: Pixels? = nil, idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
                alignment: ProposalAlignment = .center)
+    /// SwiftUI's `frame(minWidth:idealWidth:maxWidth:minHeight:idealHeight:maxHeight:alignment:)`.
+    case flexibleFrame(minWidth: Pixels? = nil, idealWidth: Pixels? = nil, maxWidth: Pixels? = nil,
+                       minHeight: Pixels? = nil, idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
+                       alignment: ProposalAlignment = .center)
     case padding(Edges<Pixels>)
     case fixedSize(horizontal: Bool = true, vertical: Bool = true)
     case aspectRatio(Double, contentMode: AspectRatioContentMode = .fit)
@@ -103,11 +111,15 @@ public struct ModifiedContent<Content: ProposalElementGroup>: Element {
                      "a native outer modifier must wrap exactly one native layout node")
         let child = children[0]
         switch modifier {
-        case let .frame(width, height, minWidth, idealWidth, maxWidth,
-                        minHeight, idealHeight, maxHeight, alignment):
+        case let .frame(width, height, alignment):
             return pass.requestNativeFrame(
                 child: child,
                 width: width.map { Double($0.value) }, height: height.map { Double($0.value) },
+                alignment: alignment
+            )
+        case let .flexibleFrame(minWidth, idealWidth, maxWidth, minHeight, idealHeight, maxHeight, alignment):
+            return pass.requestNativeFrame(
+                child: child,
                 minWidth: minWidth.map { Double($0.value) }, idealWidth: idealWidth.map { Double($0.value) },
                 maxWidth: maxWidth.map { Double($0.value) },
                 minHeight: minHeight.map { Double($0.value) }, idealHeight: idealHeight.map { Double($0.value) },
@@ -143,18 +155,25 @@ public struct ModifiedContent<Content: ProposalElementGroup>: Element {
 }
 
 extension ProposalElementGroup {
-    /// Applies a native SwiftUI-style outer frame.
+    /// Applies a native SwiftUI-style fixed outer frame. The same as
+    /// `frame(width:height:alignment:)`; split from the flexible spelling for
+    /// the same reason (ruling SA-K item 6).
     public func nativeFrame(width: Pixels? = nil, height: Pixels? = nil,
-                            minWidth: Pixels? = nil, idealWidth: Pixels? = nil,
+                            alignment: ProposalAlignment = .center) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, modifier: .frame(width: width, height: height, alignment: alignment))
+    }
+
+    /// Applies a native SwiftUI-style flexible outer frame. The same as
+    /// `frame(minWidth:idealWidth:maxWidth:minHeight:idealHeight:maxHeight:alignment:)`.
+    public func nativeFrame(minWidth: Pixels? = nil, idealWidth: Pixels? = nil,
                             maxWidth: Pixels? = nil, minHeight: Pixels? = nil,
                             idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
                             alignment: ProposalAlignment = .center) -> ModifiedContent<Self> {
         ModifiedContent(
             content: self,
-            modifier: .frame(width: width, height: height,
-                             minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth,
-                             minHeight: minHeight, idealHeight: idealHeight, maxHeight: maxHeight,
-                             alignment: alignment)
+            modifier: .flexibleFrame(minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth,
+                                     minHeight: minHeight, idealHeight: idealHeight, maxHeight: maxHeight,
+                                     alignment: alignment)
         )
     }
 
@@ -242,22 +261,39 @@ extension ProposalElementGroup {
         allowsHitTesting(enabled)
     }
 
-    /// Applies SwiftUI-style proposal-layout frame constraints.
+    /// Applies a SwiftUI-style fixed proposal-layout frame.
     ///
     /// Unlike the legacy CSS wrapper with the same spelling, this overload is
     /// available only on a fully proposal-layout subtree and therefore owns
     /// its child's measurement proposal, resolved size, and alignment.
+    ///
+    /// **SwiftUI's two `frame` overloads, not one.** A fixed and a flexible
+    /// dimension cannot be passed together, on one axis or across both,
+    /// because SwiftUI has no overload that spells it (`extra argument
+    /// 'minWidth' in call`; ruling SA-K item 6). Chain two frames instead.
+    /// Pinned by the typecheck guard `aFixedAndAFlexibleFrameDimensionCannotBeCombined`.
+    /// The kernel validates each dimension when the frame registers (ruling
+    /// SA-J): a negative, NaN or infinite fixed dimension traps.
     public func frame(width: Pixels? = nil, height: Pixels? = nil,
-                      minWidth: Pixels? = nil, idealWidth: Pixels? = nil,
+                      alignment: ProposalAlignment = .center) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, modifier: .frame(width: width, height: height, alignment: alignment))
+    }
+
+    /// Applies SwiftUI-style flexible proposal-layout frame constraints.
+    ///
+    /// The kernel validates the constraints when the frame registers (ruling
+    /// SA-J): a NaN or +∞ minimum, a negative or NaN maximum, a negative, NaN
+    /// or +∞ ideal, and min > ideal > max orderings trap; a negative minimum
+    /// and an infinite maximum are accepted.
+    public func frame(minWidth: Pixels? = nil, idealWidth: Pixels? = nil,
                       maxWidth: Pixels? = nil, minHeight: Pixels? = nil,
                       idealHeight: Pixels? = nil, maxHeight: Pixels? = nil,
                       alignment: ProposalAlignment = .center) -> ModifiedContent<Self> {
         ModifiedContent(
             content: self,
-            modifier: .frame(width: width, height: height,
-                             minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth,
-                             minHeight: minHeight, idealHeight: idealHeight, maxHeight: maxHeight,
-                             alignment: alignment)
+            modifier: .flexibleFrame(minWidth: minWidth, idealWidth: idealWidth, maxWidth: maxWidth,
+                                     minHeight: minHeight, idealHeight: idealHeight, maxHeight: maxHeight,
+                                     alignment: alignment)
         )
     }
 
@@ -266,17 +302,25 @@ extension ProposalElementGroup {
     /// A concrete parent proposal is inscribed by `.fit` or circumscribed by
     /// `.fill`; a single proposed axis determines the other. The modifier
     /// never reads the legacy CSS `Style.aspectRatio` field.
+    ///
+    /// **The kernel's rule, checked at construction** so the two layers cannot
+    /// disagree (ruling SA-K item 4): the ratio must be finite and non-zero; a
+    /// negative ratio is accepted, as SwiftUI accepts it (P8).
     public func aspectRatio(_ ratio: Double,
                             contentMode: AspectRatioContentMode = .fit) -> ModifiedContent<Self> {
-        precondition(ratio.isFinite && ratio > 0,
-                     "aspect ratio must be finite and greater than zero")
+        precondition(ratio.isFinite && ratio != 0,
+                     "aspect ratio must be finite and non-zero (SA-J), got \(ratio)")
         return ModifiedContent(content: self, modifier: .aspectRatio(ratio, contentMode: contentMode))
     }
 
     /// Prioritizes this subtree when a native `HStack` or `VStack` must divide
     /// less main-axis space than its children request.
+    ///
+    /// **The kernel's rule, checked at construction** (ruling SA-K item 4): NaN
+    /// traps, as SwiftUI hangs on it (P7); ±∞ is accepted and orders like any
+    /// finite priority.
     public func layoutPriority(_ value: Double) -> ModifiedContent<Self> {
-        precondition(value.isFinite, "layout priority must be finite")
+        precondition(!value.isNaN, "layout priority must not be NaN (SA-J)")
         return ModifiedContent(content: self, modifier: .layoutPriority(value))
     }
 }

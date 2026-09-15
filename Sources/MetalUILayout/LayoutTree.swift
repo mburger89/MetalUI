@@ -61,7 +61,18 @@ public final class LayoutTree {
     /// footing).
     private var activeNativeRun: NativeLayoutRun?
 
-    /// SKELETON (lane 3, red run): never assigned yet.
+    /// The work the most recent `computeNativeLayout` or `measureNativeLayout`
+    /// call did: leaf-closure and custom `sizeThatFits` calls, cache hits and
+    /// cache misses (ruling SA-M). **Assigned, never accumulated**, when the
+    /// call returns.
+    ///
+    /// **The counts live on the tree; the cache never does.** The record holds
+    /// no `LayoutNodeID` and answers no layout question, so it is outside ruling
+    /// C-3's objection to state outliving a run. It is here because only the
+    /// tree is reachable after `Frame.render`. A test observable with no
+    /// production reader, pinned by
+    /// `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` and
+    /// `nativeLayoutWorkIsPerCall`.
     private(set) var lastNativeLayoutWork = NativeLayoutWork()
 
     /// The stamp carried by every id this tree issues. Changed only by
@@ -195,6 +206,24 @@ public final class LayoutTree {
     /// unspecified, the clamped ideal also becomes the frame's response.
     /// Placement centres the child inside the resulting frame, matching
     /// SwiftUI's default frame alignment.
+    ///
+    /// **Validation (ruling SA-J)**, per axis, each a trap naming the
+    /// parameter:
+    /// - a fixed dimension must be finite and non-negative (SwiftUI logs
+    ///   "Invalid frame dimension", P3); zero is accepted;
+    /// - a minimum must not be NaN or +∞ (P4, P4b); a negative one, −∞
+    ///   included, is accepted and answers the child's size (P9);
+    /// - a maximum must be non-negative (P4, P9); +∞ is accepted (P4c);
+    /// - an ideal must be finite and non-negative. +∞ gets no SwiftUI
+    ///   diagnostic, but answers ∞ at the unspecified proposal every stack child
+    ///   receives (P4b), so it is rejected here, where the message can name it;
+    /// - min ≤ ideal ≤ max where both are given ("Contradictory frame
+    ///   constraints", P4, P4c);
+    /// - a fixed dimension with a flexible one on the SAME axis traps. SwiftUI
+    ///   has no spelling for it, and neither does MetalUI's element API, which
+    ///   splits `frame` into SwiftUI's two overloads (SA-K item 6); this one
+    ///   signature keeps the check as a backstop for kernel callers. A fixed
+    ///   dimension on one axis and a flexible one on the other is accepted.
     public func newNativeFrame(child: LayoutNodeID, width: Double? = nil,
                                height: Double? = nil,
                                minWidth: Double? = nil, idealWidth: Double? = nil,
@@ -203,6 +232,8 @@ public final class LayoutTree {
                                maxHeight: Double? = nil,
                                alignment: ProposalAlignment = .center) -> LayoutNodeID {
         _ = nativeNode(child)
+        Self.validateFrameAxis("width", "Width", fixed: width, min: minWidth, ideal: idealWidth, max: maxWidth)
+        Self.validateFrameAxis("height", "Height", fixed: height, min: minHeight, ideal: idealHeight, max: maxHeight)
         let id = appendNode(style: .default, children: [child])
         nativeNodes[id.index] = .frame(width: width, height: height,
                                        minWidth: minWidth, idealWidth: idealWidth,
@@ -219,9 +250,17 @@ public final class LayoutTree {
     /// adds those insets back to the measured response and placement. An
     /// unspecified axis remains unspecified, so padding never invents a
     /// constraint that the parent did not offer.
+    ///
+    /// **Every inset must be finite** (ruling SA-J): SwiftUI answers inf×inf
+    /// for +∞ (P2), traps placing the child for NaN, and places it at −∞ for
+    /// −∞ (P2c). **A negative inset is accepted**, and the measured response is
+    /// clamped at 0 per axis, as SwiftUI's is (P2, P2b; ruling SA-K item 3).
     public func newNativePadding(child: LayoutNodeID,
                                  insets: Edges<Double>) -> LayoutNodeID {
         _ = nativeNode(child)
+        precondition(insets.top.isFinite && insets.right.isFinite
+                        && insets.bottom.isFinite && insets.left.isFinite,
+                     "padding insets must be finite (SA-J), got \(insets)")
         let id = appendNode(style: .default, children: [child])
         nativeNodes[id.index] = .padding(insets: insets)
         return id
@@ -247,11 +286,16 @@ public final class LayoutTree {
     /// reports and places that resolved rectangle. `.fit` inscribes the
     /// rectangle inside a concrete proposal; `.fill` circumscribes it. An
     /// unspecified parent axis is derived from its specified counterpart.
+    ///
+    /// **The ratio must be finite and non-zero** (ruling SA-J): SwiftUI answers
+    /// nan for NaN and ±∞, and 0 answers 0×inf on a one-axis proposal (P8, P9).
+    /// **A negative ratio is accepted**, as SwiftUI accepts it (P8, P8b; ruling
+    /// SA-K item 2): −2 `.fit` at 100×80 answers 100×−50.
     public func newNativeAspectRatio(child: LayoutNodeID, ratio: Double,
                                      contentMode: AspectRatioContentMode = .fit) -> LayoutNodeID {
         _ = nativeNode(child)
-        precondition(ratio.isFinite && ratio > 0,
-                     "aspect ratio must be finite and greater than zero")
+        precondition(ratio.isFinite && ratio != 0,
+                     "aspect ratio must be finite and non-zero (SA-J), got \(ratio)")
         let id = appendNode(style: .default, children: [child])
         nativeNodes[id.index] = .aspectRatio(ratio: ratio, contentMode: contentMode)
         return id
@@ -262,9 +306,14 @@ public final class LayoutTree {
     /// Priority is consumed by a native linear stack when it divides a
     /// constrained main-axis proposal. Outside such a stack it is layout
     /// transparent, matching SwiftUI's modifier role.
+    ///
+    /// **NaN traps** (ruling SA-J): SwiftUI hangs on it (P7). **±∞ is
+    /// accepted** and orders like any finite priority, +∞ first and −∞ last
+    /// (P7, P7b; ruling SA-K item 1): the stack's `Set(...).sorted(by: >)`
+    /// already sorts them correctly.
     public func newNativeLayoutPriority(child: LayoutNodeID, priority: Double) -> LayoutNodeID {
         _ = nativeNode(child)
-        precondition(priority.isFinite, "layout priority must be finite")
+        precondition(!priority.isNaN, "layout priority must not be NaN (SA-J)")
         let id = appendNode(style: .default, children: [child])
         nativeNodes[id.index] = .layoutPriority(priority)
         return id
@@ -276,7 +325,14 @@ public final class LayoutTree {
     /// linear stacks recognise it through a layout-priority wrapper as well as
     /// directly, and divide any concrete offered surplus among them during
     /// placement.
+    ///
+    /// **A given minimum must be finite** (ruling SA-J): SwiftUI answers −inf
+    /// for NaN and ±inf for ±∞ (P5, P9). A negative minimum is accepted:
+    /// `Spacer(minLength: −30)` between two 20s answers 10 (P5).
     public func newNativeSpacer(minLength: Double? = nil) -> LayoutNodeID {
+        if let minLength {
+            precondition(minLength.isFinite, "spacer minLength must be finite (SA-J), got \(minLength)")
+        }
         let id = appendNode(style: .default, children: [])
         nativeNodes[id.index] = .spacer(minLength: minLength ?? 0)
         return id
@@ -288,10 +344,15 @@ public final class LayoutTree {
     /// horizontal stacks read its vertical component and vertical stacks read
     /// its horizontal component. The default is SwiftUI's centred stack
     /// alignment.
+    ///
+    /// **Spacing must be finite** (ruling SA-J): SwiftUI answers nan and ±inf
+    /// (P1, P9). **Negative spacing is accepted, unclamped**: `{20; 20}` at −10
+    /// answers 30, and at −100 answers −60, as SwiftUI does (P1).
     public func newNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
                                      spacing: Double = 0,
                                      alignment: ProposalAlignment = .center) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
+        precondition(spacing.isFinite, "linear stack spacing must be finite (SA-J), got \(spacing)")
         let id = appendNode(style: .default, children: children)
         nativeNodes[id.index] = .linearStack(axis: axis, spacing: spacing,
                                              alignment: alignment)
@@ -342,6 +403,13 @@ public final class LayoutTree {
     /// closure or custom layout that restyles, registers into, resets or
     /// re-lays-out this tree traps, and so does a rect written from inside
     /// measurement. A rect written from a custom `placeSubviews` is NOT checked.
+    ///
+    /// **Validated at three checkpoints** (ruling SA-J): a NaN proposal traps
+    /// at every measurement's entry, a NaN measurement at its exit, and a
+    /// non-finite rect before it is stored, `bounds` included. A measurement
+    /// may be infinite; a stored rect may not; nothing may be NaN. Recursion
+    /// deeper than `NativeLayoutRun.maxDepth` native levels traps with the node
+    /// named (ruling SA-L). The work done is left in `lastNativeLayoutWork`.
     @discardableResult
     public func computeNativeLayout(root: LayoutNodeID, proposal: ProposedSize,
                                     in bounds: LayoutRect) -> LayoutMeasurement {
@@ -352,6 +420,7 @@ public final class LayoutTree {
         defer {
             run.isActive = false
             activeNativeRun = nil
+            lastNativeLayoutWork = run.work
         }
         let result = measureNative(root, proposal: proposal, run: run)
         placeNative(root, in: bounds, proposal: proposal, run: run)
@@ -363,8 +432,10 @@ public final class LayoutTree {
     /// width (ruling SA-H clause 4).
     ///
     /// The contract's "measurement never writes a rect" needs an entry point
-    /// that does nothing else, and this is it. Same run lifetime and the same
-    /// `isLayingOut` bracket as `computeNativeLayout`.
+    /// that does nothing else, and this is it. Same run lifetime, the same
+    /// `isLayingOut` bracket, the same checkpoints 1 and 2 and depth guard as
+    /// `computeNativeLayout`, and it too leaves its work in
+    /// `lastNativeLayoutWork`.
     func measureNativeLayout(root: LayoutNodeID, proposal: ProposedSize) -> LayoutMeasurement {
         beginLayout()
         defer { endLayout() }
@@ -373,6 +444,7 @@ public final class LayoutTree {
         defer {
             run.isActive = false
             activeNativeRun = nil
+            lastNativeLayoutWork = run.work
         }
         return measureNative(root, proposal: proposal, run: run)
     }
@@ -510,16 +582,33 @@ public final class LayoutTree {
     /// every body, built-in or custom, so a `PlacementSubview` used from inside
     /// any measurement traps (ruling SA-C), and so does `setLayout` (ruling
     /// SA-H clause 4).
+    ///
+    /// **Entered in the depth guard before anything else** (ruling SA-L), a
+    /// cache hit included, and left on return. **Checkpoint 1** traps on a NaN
+    /// proposal axis before the lookup, so the key never holds a NaN (SA-H
+    /// clause 3). **Checkpoint 2** traps on a NaN size or baseline after the
+    /// body, before the answer is cached; an infinite answer passes (ruling
+    /// SA-J). Every lookup counts a hit or a miss, and every leaf closure or
+    /// custom `sizeThatFits` counts a call (ruling SA-M).
     func measureNative(_ id: LayoutNodeID, proposal: ProposedSize,
                        run: NativeLayoutRun)
         -> LayoutMeasurement {
+        run.enter(id)
+        defer { run.leave() }
+        precondition(!(proposal.width?.isNaN ?? false) && !(proposal.height?.isNaN ?? false),
+                     "native layout received a NaN proposal \(proposal) at node \(id) (SA-J)")
         let key = NativeMeasurementKey(id: id, proposal: proposal)
-        if let cached = run.cache[key] { return cached }
+        if let cached = run.cache[key] {
+            run.work.cacheHits += 1
+            return cached
+        }
+        run.work.cacheMisses += 1
 
         run.measureDepth += 1
         let result: LayoutMeasurement
         switch nativeNode(id) {
         case .leaf(let measure):
+            run.work.measureCalls += 1
             result = measure(proposal)
         case .spacer(let minLength):
             result = LayoutMeasurement(size: SizeD(
@@ -556,9 +645,13 @@ public final class LayoutTree {
         case .padding(let insets):
             let childProposal = paddingProposal(proposal, insets: insets)
             let child = measureNative(children(id)[0], proposal: childProposal, run: run)
+            // Clamped at 0 per axis, as SwiftUI's response is: −15 on 20 answers
+            // 0, and leading −30 / trailing 5 on 20 answers 0×20 (P2, P2b;
+            // ruling SA-K item 3). Unchanged for non-negative insets over a
+            // non-negative child.
             result = LayoutMeasurement(
-                size: SizeD(width: child.size.width + insets.left + insets.right,
-                            height: child.size.height + insets.top + insets.bottom),
+                size: SizeD(width: Swift.max(0, child.size.width + insets.left + insets.right),
+                            height: Swift.max(0, child.size.height + insets.top + insets.bottom)),
                 firstBaseline: child.firstBaseline.map { $0 + insets.top },
                 lastBaseline: child.lastBaseline.map { $0 + insets.top }
             )
@@ -589,6 +682,7 @@ public final class LayoutTree {
                                         run: run)
             result = LayoutMeasurement(size: scrollViewportSize(proposal: proposal, content: content.size))
         case .custom(let layout):
+            run.work.measureCalls += 1
             result = layout.sizeThatFits(proposal: proposal,
                                          subviews: MeasurementSubviews(run: run, nodes: children(id)))
         case .linearStack(let axis, let spacing, _):
@@ -616,13 +710,30 @@ public final class LayoutTree {
             }
         }
         run.measureDepth -= 1
+        precondition(!result.size.width.isNaN && !result.size.height.isNaN
+                        && !(result.firstBaseline?.isNaN ?? false)
+                        && !(result.lastBaseline?.isNaN ?? false),
+                     "native layout produced a NaN measurement \(result) at node \(id) (SA-J)")
         run.cache[key] = result
         return result
     }
 
+    /// Stores `id` at `bounds` and places its subtree.
+    ///
+    /// **Entered in the depth guard** like `measureNative`, on the same counter,
+    /// so the guard tracks the real stack across placement and the measurement
+    /// it calls (ruling SA-L). **Checkpoint 3** traps on any non-finite field
+    /// of `bounds` before it is stored: root bounds, a proxy's position and a
+    /// child's infinite answer all arrive here (ruling SA-J). Negative widths
+    /// and heights pass.
     private func placeNative(_ id: LayoutNodeID, in bounds: LayoutRect,
                              proposal: ProposedSize,
                              run: NativeLayoutRun) {
+        run.enter(id)
+        defer { run.leave() }
+        precondition(bounds.x.isFinite && bounds.y.isFinite
+                        && bounds.width.isFinite && bounds.height.isFinite,
+                     "native layout would store a non-finite rect \(bounds) at node \(id) (SA-J)")
         setLayout(id, bounds)
         switch nativeNode(id) {
         case .leaf, .spacer:
@@ -930,6 +1041,38 @@ public final class LayoutTree {
         return fixed
     }
 
+    /// One axis of `newNativeFrame`'s validation (ruling SA-J); `axis` and
+    /// `Axis` spell the parameter names the messages carry.
+    private static func validateFrameAxis(_ axis: String, _ Axis: String, fixed: Double?,
+                                          min: Double?, ideal: Double?, max: Double?) {
+        if let fixed {
+            precondition(fixed >= 0 && fixed.isFinite,
+                         "frame \(axis) must be finite and non-negative (SA-J), got \(fixed)")
+            precondition(min == nil && ideal == nil && max == nil,
+                         "frame \(axis) cannot be combined with min\(Axis), ideal\(Axis) or max\(Axis) (SA-J)")
+        }
+        if let min {
+            precondition(!min.isNaN && min != .infinity,
+                         "frame min\(Axis) must not be NaN or +infinity (SA-J), got \(min)")
+        }
+        if let max {
+            precondition(max >= 0, "frame max\(Axis) must be non-negative (SA-J), got \(max)")
+        }
+        if let ideal {
+            precondition(ideal >= 0 && ideal.isFinite,
+                         "frame ideal\(Axis) must be finite and non-negative (SA-J), got \(ideal)")
+        }
+        if let min, let max {
+            precondition(min <= max, "frame min\(Axis) must not exceed max\(Axis) (SA-J), got \(min) > \(max)")
+        }
+        if let min, let ideal {
+            precondition(min <= ideal, "frame min\(Axis) must not exceed ideal\(Axis) (SA-J), got \(min) > \(ideal)")
+        }
+        if let ideal, let max {
+            precondition(ideal <= max, "frame ideal\(Axis) must not exceed max\(Axis) (SA-J), got \(ideal) > \(max)")
+        }
+    }
+
     private func paddingProposal(_ parent: ProposedSize, insets: Edges<Double>) -> ProposedSize {
         ProposedSize(width: parent.width.map { Swift.max(0, $0 - insets.left - insets.right) },
                      height: parent.height.map { Swift.max(0, $0 - insets.top - insets.bottom) })
@@ -948,11 +1091,16 @@ public final class LayoutTree {
         let height = proposal.height.flatMap { $0.isFinite ? $0 : nil }
         switch (width, height) {
         case let (.some(width), .some(height)):
-            let proposedRatio = width / height
+            // `width / ratio` is the height the width branch would give. `.fit`
+            // takes that branch when it fits the proposed height, `.fill` when it
+            // covers it. For a positive ratio and positive axes this is the old
+            // `width / height <= ratio`; unlike it, it picks SwiftUI's branch for
+            // a negative ratio and at zero or negative axes, 24 of 24 P8c arms
+            // against 12 (ruling SA-K item 2).
             let usesWidth: Bool
             switch contentMode {
-            case .fit: usesWidth = proposedRatio <= ratio
-            case .fill: usesWidth = proposedRatio >= ratio
+            case .fit: usesWidth = width / ratio <= height
+            case .fill: usesWidth = width / ratio >= height
             }
             return usesWidth
                 ? SizeD(width: width, height: width / ratio)
