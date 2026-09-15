@@ -27,6 +27,17 @@ public protocol PlatformWindow: AnyObject {
     var onAppearanceChange: ((Appearance) -> Void)? { get set }
     var onClose: (() -> Void)? { get set }
 
+    /// Fired by the platform when an accessibility client asks for something
+    /// (`AccessibilityTree.swift`, ruling AB-A). Answers whether it was handled.
+    ///
+    /// **No default implementation, for either requirement** (AB-R): a
+    /// conformer that forgets one fails to compile rather than compiling into a
+    /// window a screen reader cannot see.
+    var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)? { get set }
+    /// Replaces the tree the platform exposes. Called only after `.activate`,
+    /// and only when the tree differs from the last one published (AB-M).
+    func publishAccessibilityTree(_ tree: AccessibilityTree)
+
     /// Begin delivering frame ticks. The callback runs on the main actor and
     /// receives the display link's timestamp in seconds.
     ///

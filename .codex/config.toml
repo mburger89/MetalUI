@@ -1,0 +1,3 @@
+[mcp_servers.memory]
+command = "node"
+args = ["/Users/maxburger/.nvm/versions/node/v24.18.0/lib/node_modules/claude-db/dist/mcp/server.js"]

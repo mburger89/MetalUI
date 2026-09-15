@@ -47,6 +47,11 @@ borderWidths: 0`; the blocker is the resolved *width*, not the colour, and it is
 recorded at `Frame.fill`. The renderer primitive still supports borders — M0's
 demo is the proof — but nothing above the renderer can ask for one.
 
+**Erratum 2026-09-14 (at `7cfcddc`; record §09):** "no element can draw a
+border" is no longer true. `Frame.fill` takes `borderColor:`/`borderWidths:`
+(`7c71996`), and the proposal-path `.border` modifier draws one. Legacy
+elements still pass none, and `borderWidth(_:)` still paints nothing.
+
 **What the human check establishes is a property of `AppKitPlatform`, not of
 what the demo draws — and no test can establish it.** `MetalLayerSurface` vends drawables whether its `CAMetalLayer` is
 attached to the view or orphaned, so reversing the `layer` / `wantsLayer`
@@ -169,6 +174,16 @@ is called from (the demo's `atexit_b` hook), and exactly one by nothing.**
 That last one is `Text.requestLayout` and it is the only live trap; the other
 two are recorded so that a reader greping for `assumeIsolated` finds an
 explanation at each hit rather than one unexplained and one documented.
+
+**Erratum 2026-09-14 (at `7cfcddc`; record §09): there are FOUR call sites
+again, and TWO are unguarded.** `ProposalText.requestLayout`'s native measure
+closure (`Sources/MetalUI/ProposalText.swift:49`, commit `4bda3d3`) wraps its
+body in `MainActor.assumeIsolated` with no guard. It is sound only because
+`LayoutTree.computeNativeLayout` runs synchronously inside the `@MainActor`
+`Frame.computeRootLayout`, which is the argument above, applied to the second
+engine. `Text.requestLayout` is now at `Text.swift:237`, not `:217`. "Exactly one
+by nothing" and "the only live trap" are false. Moving either engine off the
+main actor means rewriting both closures first.
 
 **Clipping and scroll verified on 2026-08-28 — this milestone's exit criterion,
 and it took three looks to close.** A human ran `swift run MetalUIDemo` and
@@ -603,6 +618,14 @@ only on a click — is a human observation and nothing else. And the demo's
 "this thing has the keyboard" is a judgement about two dark greys, which is the
 same kind of judgement the scrim entry above records a first pass getting
 backwards until it was measured.
+
+**Erratum 2026-09-14 (at `7cfcddc`; record §09):** "because `Frame.fill` can
+draw no border" is no longer true, as the erratum near the top of this file
+already says of its first copy. `Frame.fill` takes `borderColor:` and
+`borderWidths:` (`Frame.swift:1222-1223`, `7c71996`), and the proposal-path
+`.border` modifier passes them (`NativeModifiedContent.swift:96-97`). The
+demo's focus affordance is still the token swap, because no legacy
+`Box`/`Decoration` path passes a border.
 
 **The five items below are kept as written, as the standing script for the next
 run rather than as an open request.** They were answered in the general once
@@ -1137,6 +1160,51 @@ press overshoots its settled width on screen by 1pt, which is all a ~9 Hz captur
 can resolve. **What it does not add:** whether the motion *looks right*. That
 stays the human's question.
 
+**Erratum 2026-09-14 (at `7cfcddc`; record §09): these readings describe a demo
+tree that no longer exists.** `f1944f8` made `StyledElement.padding(_:)` return
+an outer `Box<Self>`. The sidebar's
+`.width(…).padding(Pixels(14)).alignItems(.stretch).background(…)` therefore
+now applies its stretch, background and corner radius to the padding wrapper,
+not the `Column`. `demoContent` itself was not edited. By reading, the four
+childless bars lose their width (the `Column` keeps EP-8's centring). The
+declared outer width also grows from 196 to 224pt, before SZ-L's shrink. **Not
+rendered, not measured:** the 73 / 114 / 113pt figures, the colour samples and
+SZ-L's sidebar widths all predate the change, and no look has been taken since.
+
+**Look taken 2026-09-14: the default demo regressed.** Two release builds —
+`a15ec83` in a scratch `git worktree` and `7cfcddc` in the main checkout — were
+launched in turn and their 920×592 windows captured with `screencapture -R`
+(no input sent, the pointer not moved). Measured at 2 device pixels per point:
+
+| | `a15ec83` | `7cfcddc` |
+|---|---|---|
+| header | full-width card (888pt), 72pt tall, avatar + grow bar | centred card **84pt** wide, **104pt** tall, avatar only |
+| hairline | visible, full width | **absent** |
+| sidebar | 88pt (SZ-L shrink), four bars | **224pt**, no bars, "Library" centred |
+| main pane | heading and paragraph left-aligned | heading **centred**; paragraph wraps narrower |
+| list | rows 420pt wide with row backgrounds, ~3 rows visible | rows **centred**, background shrinks to the text (~219pt), ~1 row visible |
+
+Every predicted consequence in the erratum above and in record §09 item 9
+(sidebar bars, hairline, header 72 → 104pt, row backgrounds, centred bands)
+was observed; the sidebar's no-longer-shrinking width and the centred heading
+were not predicted. The modal (**M**, 400pt by reading) and the animation look
+(**A**) were not re-taken. This is a regression, not a divergence: either
+`f1944f8`'s migration or `demoContent`'s modifier order must change.
+
+**Fixed the same day.** Every padded container in `demoContent` (header, sidebar,
+modal panel, list row, main pane, root) now writes its container settings
+(`alignItems`) and an inner `.flexGrow(1)` **before** `.padding`, and its item
+size (`width`/`height`/`flexGrow`), background and corner radius **after** it.
+The inner `.flexGrow(1)` is needed because the wrapper is a row-direction `Box`:
+its cross axis already stretches the padded container, but its main axis would
+otherwise leave it at content width. The size written after `.padding` still
+includes the padding, as the old border-box size did (196 = 14 + 168 + 14). A
+list row's background moved from its `Decoration` onto the wrapper, so it
+spans the padding. Re-captured the same way: **35 of 1840×1184 pixels differ from
+`a15ec83`, every one at x ≤ 8, y ≤ 46** — desktop behind the window's rounded
+corner, not window content. The modal and the animation look were not
+re-taken.
+
 **A caution for the next scripted look, from the same review.** A review
 sub-agent's drag probe drove the **real cursor** and posted **real clicks**
 through an HID event tap for about 15 seconds. (The replica probes recorded in
@@ -1156,6 +1224,13 @@ line by line at `b869253`):
   `ScrollView.swift:441` (the indicator, deliberately unwired) and
   `Text.swift:301` — matching Task 5's review's independent enumeration, taken
   at a different time by a different agent.
+  **Erratum 2026-09-14 (at `7cfcddc`; record §09):** "exactly four" is dated
+  `b869253` and false today. `grep -rn "pass.fill(" Sources` returns **13**:
+  twelve in the library and one in the demo. The eight new library sites are:
+  - `FrameModifier`, which animates;
+  - `OnTapModifier`'s hover, `ModifiedContent`'s background and border,
+    `Background`, `Rectangle` and `Color`, none of which animates;
+  - `ProposalScrollView`'s indicator, which drives itself by dirtying.
 - `Column` delegates to `Box`, so the sidebar's background reaches `Box.paint`'s
   effective `focusBackground`/`hoverBackground`/`background` chain and therefore
   `animatedColor`. (Since 2026-09-10 the chain lives in
@@ -1165,3 +1240,15 @@ line by line at `b869253`):
 **Decisions doc:** `docs/superpowers/2026-09-03-animation-decisions.md`, rulings
 prefixed `AN-` (**lettered**, `AN-A`…`AN-W`, so a bare `AN-3` is a typo); this
 entry is `AN-R`.
+
+---
+
+## 2026-09-15: rows added at the task 3/9/12 integration
+
+- **VoiceOver** — "permanently open until M4's bridge exists" is replaced by
+  the bridge's script (record §12, items 1–9). Open; nobody has run it.
+- **Release-window captures of the default demo and the preview against
+  `f64e58a`** (`MC-J`, `EV-P`). Open: the console was locked at every track and
+  at integration (a full `screencapture -x` wrote an all-black 4112×2658 PNG).
+  An offscreen `FakePlatformWindow` pixel comparison stands in and reads 0
+  differing pixels in ten images; what it cannot see is listed in record §13.

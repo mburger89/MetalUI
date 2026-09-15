@@ -196,23 +196,27 @@ import MetalUILayout
 /// width therefore fills `List`'s own width, which is the shape a list's rows
 /// are expected to have.
 ///
-/// **Exposes its full logical count to accessibility (design spec §9), but
-/// not its realized children — read this before wondering why VoiceOver
-/// finds no rows.** Every `List` emits its own `AXNode` (`role: .container`
-/// by default) unconditionally, carrying `logicalCount = data.count`
-/// regardless of how many rows this frame actually built — that half of §9's
-/// "3 of 500" is real (Task 7, `AXNodeTests.swift`). **The "3" half is not**:
-/// `AXNode.children` is always `[]` in production (see its own doc for why —
-/// `ElementGroup` hands a container a flat `[LayoutNodeID]`, not per-child
-/// ids, and reconstructing order from `Frame.axNodes`' own keys is provably
-/// ambiguous), and `List`'s row-wrapping `Box`es carry no `AXNode` of their
-/// own unless a caller's row element sets one. Measured on a production
-/// 500-row `List` (rows built as ordinary `Box { Text(...) }`, with or
-/// without `.onClick`): `Frame.axNodes` holds exactly **one** entry — the
-/// `List`'s own container — with **zero** row nodes. An M4 accessibility
-/// bridge reading a `List` today gets the 500 and nothing to attach it to;
-/// closing that needs the same `ElementGroup` change named above and is
-/// deferred outside this milestone.
+/// **Exposes its full logical count to accessibility (design spec §9), and,
+/// to an active client only, its realized rows with their indices.** Every
+/// `List` emits its own `AXNode` (`role: .container` by default)
+/// unconditionally, carrying `logicalCount = data.count` regardless of how
+/// many rows this frame actually built (Task 7, `AXNodeTests.swift`).
+/// `Frame.axNodes` still holds exactly **one** entry for a production list —
+/// its own — and `AXNode.children` is still `[]` (see its own doc).
+///
+/// **The "3" half reaches a client another way** (rulings AB-C, AB-L, AB-X).
+/// While a client is active and the window is bounded, each realized row `Box`
+/// carries the internal `AXNode.logicalIndex`, a hint `Frame.registerHandlers`
+/// strips before it decides whether to emit, so it records for the client and
+/// writes neither `axNodes` nor a `$ax` slot. `AccessibilityTreeBuilder`
+/// publishes the list as a table whose row count is `data.count`, **whatever
+/// role or label a caller declared**, and each row as a `.row` child with its
+/// index, hierarchy coming from record order rather than from `children`.
+/// While the window is **unbounded** (no vertical scroll context, or the
+/// scroller's first frame), the list publishes its table and **no rows**, and
+/// on that first frame asks for exactly one more frame so the realized window
+/// follows; see `prepaint`. Rows outside the window are not elements, so a
+/// client cannot move to them (AB-Q item 2).
 public struct List<Data: RandomAccessCollection, Row: Element>: Element, StyledElement
 where Data.Element: Identifiable {
     public var style: Style
@@ -248,6 +252,16 @@ where Data.Element: Identifiable {
     /// always overwrites it before `prepaint`/`paint` read it on every
     /// correctly-ordered frame.
     private var box: Box<Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>>
+
+    /// Whether this frame's window came from the viewport rather than from one
+    /// of `visibleRange`'s escape hatches, which build every row. Threaded from
+    /// `requestLayout` to `prepaint` like `box` (ruling AB-X rule 1).
+    private var windowIsBounded = false
+
+    /// Whether the window is unbounded only because the enclosing vertical
+    /// scroller has not measured a viewport yet — every `ScrollView`'s first
+    /// frame (MP-I). The one unbounded case the next frame can fix (AB-X rule 3).
+    private var windowAwaitsViewport = false
 
     public init(_ data: Data, rowHeight: Pixels,
                 @ElementBuilder row: @escaping (Data.Element) -> Row) {
@@ -338,16 +352,28 @@ where Data.Element: Identifiable {
 
         let count = data.count
         let window = visibleRange(count: count, pass: pass)
+        // The same test `visibleRange`'s guard makes, kept rather than inferred
+        // from `window`: a short list's real window can equal `0..<count`.
+        let context = pass.scrollContext
+        windowIsBounded = context.map { $0.axis == .vertical && $0.viewportExtent > 0 } == true
+            && rowHeight.value > 0
+        windowAwaitsViewport = context.map { $0.axis == .vertical && !($0.viewportExtent > 0) } == true
+        // A row's logical index, for an accessibility client, only while one is
+        // active and only for a bounded window (AB-L, AB-X): an unbounded window
+        // publishes no rows at all, so indices there would be written for nothing.
+        let indexesRows = windowIsBounded && pass.collectsAccessibility
 
         let windowStart = data.index(data.startIndex, offsetBy: window.lowerBound)
         let windowEnd = data.index(data.startIndex, offsetBy: window.upperBound)
 
-        let rows: [Box<Row>] = data[windowStart..<windowEnd].map { datum in
+        let rows: [Box<Row>] = data[windowStart..<windowEnd].enumerated().map { offset, datum in
             // `String(describing:)` is the collision the type doc names —
             // distinct `datum.id`s that describe the same string land here as
             // the same `GlobalElementID`.
-            Box(style: rowStyle, content: { row(datum) })
+            var rowBox = Box(style: rowStyle, content: { row(datum) })
                 .id(String(describing: datum.id))
+            if indexesRows { rowBox.handlers.axNode.logicalIndex = window.lowerBound + offset }
+            return rowBox
         }
 
         // Places the window: a plain `Box` sized to exactly the rows skipped,
@@ -379,12 +405,14 @@ where Data.Element: Identifiable {
         // windowing is active) — the two are asserted as different numbers
         // by `AXNodeTests.swift`'s `aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount`.
         // Unconditional, unlike every other declared `AXNode` field: nothing
-        // gates this behind a caller opting in (there is no public modifier
-        // for `.axNode` at all yet — see `AXNode.swift`'s own doc), because
-        // the exit criterion is that a `List` always exposes this, not that
-        // one CAN. A role is set only when the caller declared none, so a
-        // future `.axNode(_:)` modifier's own `role`/`label` are not
-        // silently overwritten here.
+        // gates this behind a caller opting in (no public modifier sets a
+        // count or a role; `accessibilityLabel`/`accessibilityValue` set only
+        // their own field), because the exit criterion is that a `List`
+        // always exposes this, not that one CAN. A role is set only when the
+        // caller declared nothing, so `List(…).accessibilityLabel("Contacts")`
+        // keeps its label and a `generic` role — which is why the accessibility
+        // builder makes any node with a `logicalCount` a table whatever its
+        // role (ruling AB-L, arm R16).
         var listHandlers = handlers
         if listHandlers.axNode.isEmpty {
             listHandlers.axNode = AXNode(role: .container)
@@ -400,7 +428,23 @@ where Data.Element: Identifiable {
                                   layout: inout Box<Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>>.Layout,
                                   pass: inout PrepaintPass)
         -> Pair<Box<EmptyGroup>, ArrayGroup<Box<Row>>>.GroupPrepaint {
-        box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+        // **An unbounded window publishes the table and no rows** (ruling AB-X
+        // rule 1): it built every row, and a client active at frame 0 would
+        // otherwise be handed a row and a text per datum, then see them all
+        // destroyed on the next frame. The list's own node is the scope's
+        // exception, so the row count still publishes. Records only — the rows
+        // still register hitboxes, focus and declared nodes as always.
+        guard pass.collectsAccessibility, !windowIsBounded else {
+            return box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+        }
+        // Nothing else would draw the frame that bounds the window: `ScrollView`
+        // stores its measured viewport through `withState`, which fires no
+        // `onWrite` (AB-X rule 3). A list with no scroll context never asks.
+        if windowAwaitsViewport { pass.frame.requestAccessibilityRetry() }
+        let frame = pass.frame
+        return frame.withAccessibilitySuppressed(except: id) {
+            box.prepaint(id, bounds: bounds, layout: &layout, pass: &pass)
+        }
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

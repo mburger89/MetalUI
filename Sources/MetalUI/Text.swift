@@ -18,7 +18,7 @@ import MetalUIText
 /// the narrowest glyph produces the same character-per-line answer, measured at
 /// 0.001, 0.5, 1 and 5 (see ``MetalUIText/Shaper/unbreakableRuns(of:)``).
 /// 0.5 is the value Task 2's positive control already uses.
-private let smallestWrapWidth = 0.5
+let smallestWrapWidth = 0.5
 
 /// Measures `string` the way spec §3.4's table says, for one axis' worth of
 /// question at a time.
@@ -298,10 +298,19 @@ public struct Text: Element, StyledElement {
     /// be missing here**: only `Box.prepaint` emitted, so a node declared on a
     /// `Text` was dropped silently. The `text` arm of
     /// `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` pins it.
-    /// Nothing derives a label from the string; a caller declares one.
+    ///
+    /// **The string reaches an accessibility client** (ruling AB-F): while a
+    /// client is active the frame records it beside the handlers, and
+    /// `AccessibilityTreeBuilder` publishes it as the text's value, or as a
+    /// button's label. Nothing derives an `AXNode` from it, so `Frame.axNodes`
+    /// and `StateTable` are the same whether or not a client is active (AB-U).
+    /// **An empty string is no text** (arms E0–E2): SwiftUI omits `Text("")`
+    /// and publishes `Text(" ")`.
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout, pass: inout PrepaintPass) {
-        pass.registerHandlers(handlers, at: bounds, id: id)
+        pass.registerHandlers(handlers, at: bounds, id: id,
+                              accessibleText: string.isEmpty ? nil : string,
+                              synthesizesAccessibility: true)
     }
 
     /// Emits the background, then one sprite per inked glyph.

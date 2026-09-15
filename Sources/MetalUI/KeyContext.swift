@@ -60,7 +60,7 @@ public struct ContextPredicate {
     /// Parses `source`, or returns `nil` if it is malformed.
     ///
     /// An empty or whitespace-only string is malformed. "No predicate at all"
-    /// is spelled by passing no context to a `Binding`, which is a different
+    /// is spelled by passing no context to a `KeyBinding`, which is a different
     /// thing from a predicate that failed to parse: the first always matches,
     /// the second never does.
     public static func parse(_ source: String) -> ContextPredicate? {

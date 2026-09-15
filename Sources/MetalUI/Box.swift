@@ -628,14 +628,25 @@ extension StyledElement {
         modifying { $0.maxSize.height = .length(.pixels(points)) }
     }
 
-    // MARK: Box model (spec §5.2 — border-box, so these sit *inside* the size)
+    // MARK: Box model
 
-    public func padding(_ points: Pixels) -> Self {
-        modifying { $0.padding = Edges(all: .pixels(points)) }
+    /// Adds padding outside this element, as a SwiftUI modifier does.
+    ///
+    /// The engine's `Style.padding` remains border-box padding, but the public
+    /// modifier applies it to a new outer layer of a `ModifiedElement` (MC-A).
+    /// A fixed-size child keeps its declared size; its caller sees an outer
+    /// footprint enlarged by the padding. Repeating the modifier adds a layer,
+    /// so padding composes, and the chain's type stays `ModifiedElement<Base>`.
+    public func padding(_ points: Pixels) -> ModifiedElement<LayerBase> {
+        padding(Edges(all: .pixels(points)))
     }
 
-    public func padding(_ edges: Edges<Length>) -> Self {
-        modifying { $0.padding = edges }
+    /// The per-edge form of `padding(_:)`; edges are applied to the new outer
+    /// layer rather than overwriting this element's own style.
+    public func padding(_ edges: Edges<Length>) -> ModifiedElement<LayerBase> {
+        var style = Style()
+        style.padding = edges
+        return _wrap(ModifierLayer(style: style))
     }
 
     /// Item margins. Takes `Length`, so `.auto` is unspellable — see

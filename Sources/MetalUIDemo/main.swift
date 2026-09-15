@@ -1,5 +1,6 @@
 import MetalUI
 import Observation
+import Foundation
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -284,7 +285,10 @@ struct CounterPanel: Element {
 
         return Box(style: row,
                    decoration: Decoration(background: .surface, cornerRadius: Pixels(12)),
-                   content: Pair(Pair(button("-", minus), readout), button("+", plus)))
+                   // Labelled for an accessibility client (ruling AB-G): an
+                   // unlabelled square would combine its text into "-" and "+".
+                   content: Pair(Pair(button("-", minus).accessibilityLabel("Decrement"), readout),
+                                 button("+", plus).accessibilityLabel("Increment")))
             // **The focus affordance, and the only one this framework has.**
             // `Frame.fill` hard-codes zero border widths, so nothing above the
             // renderer can draw a ring; a token swap is what is reachable.
@@ -392,14 +396,27 @@ func demoContent() -> some Element {
                 .background(.surfaceSecondary)
                 .cornerRadius(Pixels(6))
         }
-        .height(Pixels(72))
-        .padding(Pixels(16))
         // Kept although ruling EP-8 now makes it the default, because it is the
         // one container here where centring is what the design *wants* — a 40pt
         // avatar and a 12pt bar on a common centre line — rather than something
         // it inherited. Both children declare a cross size, so this row needed
         // no change; every other container below did.
         .alignItems(.center)
+        // **Modifier order is load-bearing on every padded container in this
+        // file.** `.padding` adds an outer wrapper layer (SwiftUI-style,
+        // `f1944f8`; a `ModifiedElement` layer since ruling MC-A, no longer a
+        // `Box`), so everything written before it configures the padded
+        // container and everything after it configures the wrapper. Container
+        // settings (`alignItems`) therefore go first; the flex-item size
+        // (`height`/`width`/`flexGrow`), background and corner radius go after,
+        // so the declared size still includes the padding and the background
+        // still covers it. The inner `.flexGrow(1)` makes the container fill
+        // the wrapper's main (row) axis — its cross axis already stretches.
+        // Written the other way round, this header rendered as an 84pt centred
+        // card with no bar (record §03, 2026-09-14).
+        .flexGrow(1)
+        .padding(Pixels(16))
+        .height(Pixels(72))
         .background(.surface)
         .cornerRadius(Pixels(14))
 
@@ -482,9 +499,10 @@ func demoContent() -> some Element {
             // pixel value rather than `.auto`, which is what lets the FIRST
             // press animate rather than snap (`AnimatedStyle.swift`'s own
             // documented `.auto` pitfall).
-            .width(demoModel.animationDemoActive ? Pixels(320) : Pixels(196))
-            .padding(Pixels(14))
             .alignItems(.stretch)
+            .flexGrow(1)
+            .padding(Pixels(14))
+            .width(demoModel.animationDemoActive ? Pixels(320) : Pixels(196))
             .background(demoModel.animationDemoActive ? .accent : .surface)
             .cornerRadius(Pixels(14))
 
@@ -744,8 +762,6 @@ func demoContent() -> some Element {
                                              rather than by the scroller.
                                              """)
                                     }
-                                    .width(Pixels(360))
-                                    .padding(Pixels(20))
                                     // The fifth `.alignItems(.stretch)` in this
                                     // file, and the only one not paying for a
                                     // childless `Box` measuring 0 (ruling
@@ -766,6 +782,9 @@ func demoContent() -> some Element {
                                     // one left edge, which is a look rather
                                     // than a workaround.
                                     .alignItems(.stretch)
+                                    .flexGrow(1)
+                                    .padding(Pixels(20))
+                                    .width(Pixels(360))
                                     .background(.surface)
                                     .cornerRadius(Pixels(16))
                                     // Absorbs its own clicks so the scrim's
@@ -797,6 +816,14 @@ func demoContent() -> some Element {
                                 // dismisses, which is also how a human tells
                                 // the hitbox is really there.
                                 .onClick { demoModel.showModal = false }
+                                // A button to an accessibility client (AB-G).
+                                // The panel inside is interactive (its
+                                // click-absorbing `onClick {}`), so the scrim
+                                // keeps its children. The panel itself stays
+                                // UNlabelled on purpose: its combined label is
+                                // the modal's text, which a label would hide
+                                // (AB-Y).
+                                .accessibilityLabel("Close modal")
                             }
                         }
 
@@ -831,18 +858,19 @@ func demoContent() -> some Element {
                             // enforces that they do, see `ScrollView.cornerRadius`'s
                             // doc comment — and this demo is where a mismatch
                             // would show.
-                            Box(decoration: Decoration(
-                                background: row.id.isMultiple(of: 2) ? .surface : .surfaceSecondary)
-                            ) {
+                            Box {
                                 Text("Row \(row.id + 1) of \(demoRowCount) — a scrollable list item")
                             }
-                            .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
-                                          bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
-                            .width(Pixels(420))
                             // Vertical centring within the row; horizontal
                             // stays flex-start, the ordinary reading direction
                             // for a list item's label.
                             .alignItems(.center)
+                            .flexGrow(1)
+                            .padding(Edges(top: .pixels(Pixels(0)), right: .pixels(Pixels(12)),
+                                          bottom: .pixels(Pixels(0)), left: .pixels(Pixels(12))))
+                            .width(Pixels(420))
+                            // On the padding wrapper, so it spans the padding.
+                            .background(row.id.isMultiple(of: 2) ? .surface : .surfaceSecondary)
                         }
                     }
                     .cornerRadius(Pixels(14))
@@ -854,8 +882,6 @@ func demoContent() -> some Element {
                 .background(.surface)
                 .cornerRadius(Pixels(14))
             }
-            .flexGrow(1)
-            .padding(Pixels(16))
             // The hero box declares its height and fills its width from
             // here, and so does the wrapping paragraph — which is what makes
             // it re-wrap on resize. (This used to name "the row of weights";
@@ -863,6 +889,9 @@ func demoContent() -> some Element {
             // `ScrollView` box above, which declares both of its axes and
             // takes nothing from this line.)
             .alignItems(.stretch)
+            .flexGrow(1)
+            .padding(Pixels(16))
+            .flexGrow(1)
             .background(.surface)
             .cornerRadius(Pixels(14))
         }
@@ -870,21 +899,158 @@ func demoContent() -> some Element {
         // Sidebar and main pane are full-height columns side by side.
         .alignItems(.stretch)
     }
-    .padding(Pixels(16))
     // Header, hairline and body are full-width bands stacked down the window.
     .alignItems(.stretch)
+    .flexGrow(1)
+    .padding(Pixels(16))
     .background(.background)
+}
+
+/// A deliberately all-native preview of the migration path.
+///
+/// Run `METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo` to open this
+/// instead of the established CSS-layout milestone demo. Its visible geometry
+/// is formed only by native proposal/layout/placement nodes: overlays, frames,
+/// padding, stacks, a flexible spacer, and ordered paint wrappers. The rounded
+/// panel exposes background, clip, and border composition without relying on
+/// legacy CSS decoration.
+@MainActor
+private struct PreviewToggle: Component {
+    @State private var isSelected = false
+
+    var elementID: ElementID? { ElementID("native-preview-toggle") }
+
+    // `some ProposalElementGroup`, not `some ElementGroup`: the opaque type must
+    // say its content is proposal content, or the marker below does not conform
+    // (ruling MC-G).
+    var content: some ProposalElementGroup {
+        Rectangle(width: Pixels(168), height: Pixels(95),
+                        color: isSelected ? .separator : .accent)
+            .aspectRatio(16.0 / 9.0)
+            .overlay(alignment: .topTrailing) {
+                Rectangle(width: Pixels(20), height: Pixels(20),
+                                color: isSelected ? .accent : .separator)
+            }
+            .opacity(0.72)
+            .onTap(hoverColor: .surface) { isSelected.toggle() }
+    }
+}
+
+extension PreviewToggle: ProposalElementGroup {}
+
+/// A private flexible leaf for the migration preview. Its ideal width makes
+/// the proposal stack's compression and `layoutPriority` visible as the window
+/// changes size; production elements will acquire their own proposal-aware
+/// measurements during the remaining migration work.
+private struct PriorityPreviewPanel: ProposalElement {
+    let idealWidth: Pixels
+    let color: ColorToken
+
+    struct Layout { var node: LayoutNodeID }
+
+    mutating func requestProposalLayout(_ id: GlobalElementID,
+                                        pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
+        let idealWidth = Double(idealWidth.value)
+        let node = pass.requestNativeLeaf { proposal in
+            LayoutMeasurement(size: SizeD(width: Swift.min(idealWidth, proposal.width ?? idealWidth),
+                                           height: 48))
+        }
+        return (node, Layout(node: node.layoutNodeID))
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
+                           layout: inout Layout, pass: inout PrepaintPass) {}
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,
+                        prepaint: inout Void, pass: inout PaintPass) {
+        pass.fill(bounds, color: pass.theme[color], cornerRadii: Corners(all: Pixels(8)))
+    }
+}
+
+
+@MainActor
+func nativeLayoutPreviewContent() -> some Element {
+    ZStack {
+        Color(.background)
+        ZStack {
+            Color(.surface)
+            VStack(spacing: Pixels(20), alignment: .leading) {
+                // Omitted spacing uses the recorded SwiftUI HStack default.
+                HStack {
+                    Rectangle(width: Pixels(72), height: Pixels(72), color: .accent)
+                    Rectangle(width: Pixels(420), height: Pixels(18), color: .surfaceSecondary)
+                }
+                // The proposal Text bridge receives this VStack's concrete
+                // cross-axis width, so narrowing the window visibly rewraps
+                // glyphs rather than scaling a rectangle placeholder.
+                Text("Native proposal text measures and wraps from the parent width.")
+                    .proposalLayout()
+                    .foregroundColor(.textPrimary)
+                // The viewport retains the parent height while its content is
+                // measured with an unspecified vertical proposal. Scroll with
+                // the wheel to exercise the native clip and input path.
+                ProposalScrollView(.vertical) {
+                    VStack(spacing: Pixels(8), alignment: .leading) {
+                        Text("Proposal scroll content stays intrinsically tall.")
+                            .proposalLayout()
+                            .foregroundColor(.textPrimary)
+                        Rectangle(width: Pixels(520), height: Pixels(48), color: .accent)
+                        Rectangle(width: Pixels(520), height: Pixels(48), color: .surfaceSecondary)
+                        Rectangle(width: Pixels(520), height: Pixels(48), color: .accent)
+                    }
+                }
+                .cornerRadius(Pixels(8))
+                .frame(height: Pixels(96), alignment: .topLeading)
+                .border(.separator, width: Pixels(1), cornerRadius: Pixels(8))
+                // Both panels prefer 480pt, more than the preview's available
+                // width. The accented panel keeps its ideal width first; the
+                // secondary panel receives the remaining proposal as the user
+                // narrows the window.
+                HStack(spacing: Pixels(12)) {
+                    PriorityPreviewPanel(idealWidth: Pixels(480), color: .accent)
+                        .layoutPriority(1)
+                    PriorityPreviewPanel(idealWidth: Pixels(480), color: .surfaceSecondary)
+                }
+                Spacer()
+                HStack(spacing: Pixels(12)) {
+                    Rectangle(width: Pixels(168), height: Pixels(64), color: .surfaceSecondary)
+                    PreviewToggle()
+                    // This dimmed control is intentionally inert: it exercises
+                    // `allowsHitTesting(false)` around an inner gesture.
+                    Rectangle(width: Pixels(168), height: Pixels(64), color: .accent)
+                        .opacity(0.35)
+                        .onTap {}
+                        .allowsHitTesting(false)
+                }
+            }
+            .padding(Edges(all: Pixels(36)))
+        }
+        .padding(Edges(all: Pixels(48)))
+        .background(.surface)
+        .border(.separator, width: Pixels(1), cornerRadius: Pixels(16))
+        .clip(cornerRadius: Pixels(16))
+        .frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity))
+    }
 }
 
 @MainActor
 func runDemo() throws {
     let app = try App()
 
+    let nativeLayoutPreview = ProcessInfo.processInfo.environment["METALUI_NATIVE_LAYOUT_PREVIEW"] == "1"
+
     // Non-square on purpose, and wider than tall: a square window cannot show a
     // width/height transposition.
-    let window = try app.openWindow(title: "MetalUI — Milestones 1 to 3",
+    let window: Window
+    if nativeLayoutPreview {
+        window = try app.openWindow(title: "MetalUI — Native Layout Preview",
+                                    size: Size(width: Pixels(920), height: Pixels(560)),
+                                    content: nativeLayoutPreviewContent)
+    } else {
+        window = try app.openWindow(title: "MetalUI — Milestones 1 to 3",
                                     size: Size(width: Pixels(920), height: Pixels(560)),
                                     content: demoContent)
+    }
 
     // **Every key this demo binds goes through the window's keymap**, and the
     // ad-hoc `onInput` switch that used to hold space and M is gone. That is
@@ -949,15 +1115,15 @@ func runDemo() throws {
     atexit_b { MainActor.assumeIsolated { printReactivitySummary() } }
 
     window.keymap = Keymap {
-        Binding("=", Increment(), context: "Counter")
-        Binding("shift-+", Increment(), context: "Counter")
-        Binding("-", Decrement(), context: "Counter")
-        Binding("f", FocusCounter())
-        Binding("escape", ClearFocus())
-        Binding("space", ToggleTheme())
-        Binding("m", ToggleModal())
-        Binding("a", ToggleAnimationDemo())
-        Binding("q", QuitDemo())
+        KeyBinding("=", Increment(), context: "Counter")
+        KeyBinding("shift-+", Increment(), context: "Counter")
+        KeyBinding("-", Decrement(), context: "Counter")
+        KeyBinding("f", FocusCounter())
+        KeyBinding("escape", ClearFocus())
+        KeyBinding("space", ToggleTheme())
+        KeyBinding("m", ToggleModal())
+        KeyBinding("a", ToggleAnimationDemo())
+        KeyBinding("q", QuitDemo())
     }
 
     // **The window's fallback, which is what makes a binding work with nothing

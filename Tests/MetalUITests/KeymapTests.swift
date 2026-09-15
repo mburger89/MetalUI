@@ -194,8 +194,8 @@ private func evaluate(_ source: String, _ stack: [KeyContext]) throws -> Bool {
 /// will write.
 @Test func aKeymapCanBeWrittenAsABlockOfBindings() throws {
     let keymap = Keymap {
-        Binding("cmd-i", Increment())
-        Binding("cmd-d", Decrement(), context: "Editor")
+        KeyBinding("cmd-i", Increment())
+        KeyBinding("cmd-d", Decrement(), context: "Editor")
     }
     // `try #require`, not `#expect` — taxonomy shape 13. `#expect` records and
     // continues, so a `buildBlock` that dropped a binding would send the two
@@ -209,7 +209,7 @@ private func evaluate(_ source: String, _ stack: [KeyContext]) throws -> Bool {
 }
 
 /// A named key resolves to the character `charactersIgnoringModifiers` actually
-/// reports for it — otherwise `Binding("cmd-enter", …)` would be an API that
+/// reports for it — otherwise `KeyBinding("cmd-enter", …)` would be an API that
 /// compiles and never fires.
 @Test func aNamedKeyResolvesToItsCharacter() throws {
     #expect(try #require(Keystroke("space")).key == " ")
@@ -280,7 +280,7 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 }
 
 @Test func aOneStrokeBindingResolvesToItsAction() throws {
-    let keymap = Keymap([Binding("cmd-i", Increment())])
+    let keymap = Keymap([KeyBinding("cmd-i", Increment())])
     var pending: PendingStroke?
     guard case .action(let action) = try match(keymap, "cmd-i", at: 0, pending: &pending) else {
         Issue.record("expected an action"); return
@@ -292,7 +292,7 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// A keystroke nothing is bound to resolves to nothing — which is what lets it
 /// fall through to the raw `onKey` bubble.
 @Test func anUnboundKeystrokeMatchesNothing() throws {
-    let keymap = Keymap([Binding("cmd-i", Increment())])
+    let keymap = Keymap([KeyBinding("cmd-i", Increment())])
     var pending: PendingStroke?
     guard case .none = try match(keymap, "cmd-x", at: 0, pending: &pending) else {
         Issue.record("expected no match"); return
@@ -307,7 +307,7 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// **A binding with no context fires with nothing focused** — the empty chain
 /// case, and the one the counter demo relies on.
 @Test func aContextFreeBindingFiresWithAnEmptyFocusChain() throws {
-    let keymap = Keymap([Binding("cmd-i", Increment())])
+    let keymap = Keymap([KeyBinding("cmd-i", Increment())])
     var pending: PendingStroke?
     guard case .action = try match(keymap, "cmd-i", at: 0, contexts: [], pending: &pending) else {
         Issue.record("a context-free binding must fire with nothing focused"); return
@@ -315,7 +315,7 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 }
 
 @Test func aBindingWhoseContextIsAbsentDoesNotFire() throws {
-    let keymap = Keymap([Binding("cmd-i", Increment(), context: "Editor")])
+    let keymap = Keymap([KeyBinding("cmd-i", Increment(), context: "Editor")])
     var pending: PendingStroke?
     guard case .none = try match(keymap, "cmd-i", at: 0,
                                  contexts: [ctx("Terminal")], pending: &pending) else {
@@ -337,8 +337,8 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
     // `Pane` workspace.
     let chain: [KeyContext?] = [nil, ctx("Editor"), ctx("Pane")]
 
-    let innerLast = Keymap([Binding("cmd-k", Outer(), context: "Pane"),
-                            Binding("cmd-k", Inner(), context: "Editor")])
+    let innerLast = Keymap([KeyBinding("cmd-k", Outer(), context: "Pane"),
+                            KeyBinding("cmd-k", Inner(), context: "Editor")])
     var pending: PendingStroke?
     guard case .action(let a) = try match(innerLast, "cmd-k", at: 0,
                                           contexts: chain, pending: &pending) else {
@@ -346,8 +346,8 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
     }
     #expect(a is Inner, "the Editor binding is contributed innermost")
 
-    let innerFirst = Keymap([Binding("cmd-k", Inner(), context: "Editor"),
-                             Binding("cmd-k", Outer(), context: "Pane")])
+    let innerFirst = Keymap([KeyBinding("cmd-k", Inner(), context: "Editor"),
+                             KeyBinding("cmd-k", Outer(), context: "Pane")])
     guard case .action(let b) = try match(innerFirst, "cmd-k", at: 0,
                                           contexts: chain, pending: &pending) else {
         Issue.record("expected an action"); return
@@ -358,8 +358,8 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// A context-free binding is the **outermost** of all, so a contextual one
 /// beats it — otherwise a global fallback would shadow every specialisation.
 @Test func aContextualBindingBeatsAContextFreeOne() throws {
-    let keymap = Keymap([Binding("cmd-k", Inner(), context: "Editor"),
-                         Binding("cmd-k", Outer())])
+    let keymap = Keymap([KeyBinding("cmd-k", Inner(), context: "Editor"),
+                         KeyBinding("cmd-k", Outer())])
     var pending: PendingStroke?
     guard case .action(let a) = try match(keymap, "cmd-k", at: 0,
                                           contexts: [ctx("Editor")], pending: &pending) else {
@@ -381,7 +381,7 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// deleting that guard leaves all 725 tests green, and this is the test that
 /// stopped being true.
 @Test func aNegatedPredicateDoesNotFireWhileItsExcludedContextIsInTheChain() throws {
-    let keymap = Keymap([Binding("cmd-i", Increment(), context: "!Modal")])
+    let keymap = Keymap([KeyBinding("cmd-i", Increment(), context: "!Modal")])
     var pending: PendingStroke?
 
     guard case .none = try match(keymap, "cmd-i", at: 0,
@@ -399,8 +399,8 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// A malformed predicate never matches and never traps — and the binding it
 /// sits on is simply inert, while its neighbours keep working.
 @Test func aBindingWithAMalformedPredicateIsInertRatherThanFatal() throws {
-    let keymap = Keymap([Binding("cmd-i", Increment(), context: "&& ||"),
-                         Binding("cmd-d", Decrement())])
+    let keymap = Keymap([KeyBinding("cmd-i", Increment(), context: "&& ||"),
+                         KeyBinding("cmd-d", Decrement())])
     var pending: PendingStroke?
     guard case .none = try match(keymap, "cmd-i", at: 0,
                                  contexts: [ctx("Editor")], pending: &pending) else {
@@ -415,7 +415,7 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 // MARK: - Two-stroke sequences (framework spec §8.3)
 
 @Test func aTwoStrokeSequenceFiresOnTheSecondStroke() throws {
-    let keymap = Keymap([Binding("ctrl-k ctrl-f", Increment())])
+    let keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment())])
     var pending: PendingStroke?
 
     guard case .pending = try match(keymap, "ctrl-k", at: 10, pending: &pending) else {
@@ -435,7 +435,7 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// `ctrl-k` would also reach the raw `onKey` bubble while the sequence is
 /// still in flight.
 @Test func aPrefixStrokeClaimsTheKeystroke() throws {
-    let keymap = Keymap([Binding("ctrl-k ctrl-f", Increment())])
+    let keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment())])
     var pending: PendingStroke?
     guard case .pending = try match(keymap, "ctrl-k", at: 0, pending: &pending) else {
         Issue.record("expected .pending"); return
@@ -448,7 +448,7 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// The second stroke arrives 1.5 s after the first *on the event's own clock*,
 /// so the sequence must not complete.
 @Test func aPrefixOlderThanOneSecondIsDroppedNotDispatched() throws {
-    let keymap = Keymap([Binding("ctrl-k ctrl-f", Increment())])
+    let keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment())])
     var pending: PendingStroke?
     guard case .pending = try match(keymap, "ctrl-k", at: 100, pending: &pending) else {
         Issue.record("expected .pending"); return
@@ -477,7 +477,7 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// is exact in binary floating point, so the boundary case is deterministic
 /// rather than a near-miss.
 @Test func theTimeoutIsExactlyOneSecondOnBothSidesOfTheBoundary() throws {
-    let keymap = Keymap([Binding("ctrl-k ctrl-f", Increment())])
+    let keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment())])
     var pending: PendingStroke?
 
     _ = try match(keymap, "ctrl-k", at: 0, pending: &pending)
@@ -504,8 +504,8 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// swallows the second stroke along with the stale prefix passes the test
 /// above and eats a keypress.
 @Test func aStalePrefixLetsTheArrivingKeystrokeActAsAFreshFirstStroke() throws {
-    let keymap = Keymap([Binding("ctrl-k ctrl-f", Increment()),
-                         Binding("ctrl-f", Decrement())])
+    let keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment()),
+                         KeyBinding("ctrl-f", Decrement())])
     var pending: PendingStroke?
     guard case .pending = try match(keymap, "ctrl-k", at: 100, pending: &pending) else {
         Issue.record("expected .pending"); return
@@ -525,7 +525,7 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// timing the gap with `Date()` or a display-link tick sees ~0 and completes
 /// the sequence.
 @Test func theTimeoutReadsTheEventsTimestampNotElapsedRealTime() throws {
-    let keymap = Keymap([Binding("ctrl-k ctrl-f", Increment())])
+    let keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment())])
     var pending: PendingStroke?
     _ = try match(keymap, "ctrl-k", at: 0, pending: &pending)
     let result = try match(keymap, "ctrl-f", at: 5, pending: &pending)
@@ -546,8 +546,8 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// A second stroke that completes nothing is likewise processed as a fresh
 /// first stroke rather than swallowed.
 @Test func aSecondStrokeThatCompletesNothingIsProcessedAsAFreshFirstStroke() throws {
-    let keymap = Keymap([Binding("ctrl-k ctrl-f", Increment()),
-                         Binding("cmd-d", Decrement())])
+    let keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment()),
+                         KeyBinding("cmd-d", Decrement())])
     var pending: PendingStroke?
     _ = try match(keymap, "ctrl-k", at: 0, pending: &pending)
     guard case .action(let action) = try match(keymap, "cmd-d", at: 0.1,
@@ -561,8 +561,8 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// An exact one-stroke binding wins over a prefix of the same spelling —
 /// otherwise the one-stroke binding would be unreachable.
 @Test func anExactOneStrokeMatchWinsOverAPrefix() throws {
-    let keymap = Keymap([Binding("ctrl-k ctrl-f", Increment()),
-                         Binding("ctrl-k", Decrement())])
+    let keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment()),
+                         KeyBinding("ctrl-k", Decrement())])
     var pending: PendingStroke?
     guard case .action(let action) = try match(keymap, "ctrl-k", at: 0, pending: &pending) else {
         Issue.record("the exact binding must fire"); return
@@ -575,8 +575,8 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// **inert** — the same answer as a malformed one, and it takes no neighbour
 /// with it.
 @Test func aSequenceOfMoreThanTwoStrokesIsInert() throws {
-    let keymap = Keymap([Binding("ctrl-k ctrl-f ctrl-g", Increment()),
-                         Binding("ctrl-k", Decrement())])
+    let keymap = Keymap([KeyBinding("ctrl-k ctrl-f ctrl-g", Increment()),
+                         KeyBinding("ctrl-k", Decrement())])
     var pending: PendingStroke?
     guard case .action(let action) = try match(keymap, "ctrl-k", at: 0, pending: &pending) else {
         Issue.record("the two-stroke-or-fewer neighbour still fires"); return
@@ -593,8 +593,8 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// notices: `"ctrl-f"` alone would fire and the sequence the user was halfway
 /// through would be unreachable.
 @Test func aCompletionBeatsASingleStrokeBindingOnTheSecondStroke() throws {
-    let keymap = Keymap([Binding("ctrl-k ctrl-f", Increment()),
-                         Binding("ctrl-f", Decrement())])
+    let keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment()),
+                         KeyBinding("ctrl-f", Decrement())])
     var pending: PendingStroke?
     _ = try match(keymap, "ctrl-k", at: 0, pending: &pending)
     guard case .action(let action) = try match(keymap, "ctrl-f", at: 0.1,
@@ -616,7 +616,7 @@ private func match(_ keymap: Keymap, _ spelling: String, at timestamp: Double,
 /// A two-stroke binding's context is evaluated on the **second** stroke, and a
 /// sequence whose context is absent completes into nothing.
 @Test func aTwoStrokeBindingHonoursItsContext() throws {
-    let keymap = Keymap([Binding("ctrl-k ctrl-f", Increment(), context: "Editor")])
+    let keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment(), context: "Editor")])
     var pending: PendingStroke?
     guard case .pending = try match(keymap, "ctrl-k", at: 0,
                                     contexts: [ctx("Editor")], pending: &pending) else {
@@ -665,7 +665,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
             .focusable()
             .onAction(Increment.self) { _ in log.names.append("element") }
     }
-    window.keymap = Keymap([Binding("cmd-i", Increment())])
+    window.keymap = Keymap([KeyBinding("cmd-i", Increment())])
     window.drawFrameIfNeeded()
     window.focus(rootID("a"))
 
@@ -688,7 +688,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
         .id("root")
         .onAction(Increment.self) { _ in log.names.append("root-increment") }
     }
-    window.keymap = Keymap([Binding("cmd-i", Increment())])
+    window.keymap = Keymap([KeyBinding("cmd-i", Increment())])
     window.drawFrameIfNeeded()
     let root = rootID("root")
     window.focus(GlobalElementID.child(of: root, at: 0, name: ElementID("leaf")))
@@ -713,7 +713,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
             .onKey { _ in log.names.append("raw"); return true }
             .onAction(Increment.self) { _ in log.names.append("action") }
     }
-    window.keymap = Keymap([Binding("cmd-i", Increment())])
+    window.keymap = Keymap([KeyBinding("cmd-i", Increment())])
     window.drawFrameIfNeeded()
     window.focus(rootID("a"))
 
@@ -739,7 +739,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
             .focusable()
             .onKey { _ in log.names.append("raw"); return true }
     }
-    window.keymap = Keymap([Binding("cmd-i", Increment())])
+    window.keymap = Keymap([KeyBinding("cmd-i", Increment())])
     window.drawFrameIfNeeded()
     window.focus(rootID("a"))
 
@@ -764,7 +764,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 100) {
         Box().width(px(40)).height(px(40)).id("a")
     }
-    window.keymap = Keymap([Binding("cmd-i", Increment())])
+    window.keymap = Keymap([KeyBinding("cmd-i", Increment())])
     window.onAction = { action in
         guard action is Increment else { return false }
         log.names.append("window")
@@ -792,7 +792,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
         .id("pane")
         .keyContext("Editor", ["mode": "code"])
     }
-    window.keymap = Keymap([Binding("cmd-i", Increment(),
+    window.keymap = Keymap([KeyBinding("cmd-i", Increment(),
                                     context: "Editor && mode == code")])
     window.drawFrameIfNeeded()
     let pane = rootID("pane")
@@ -839,8 +839,8 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
         log.names.append(action is Increment ? "increment" : "decrement")
         return true
     }
-    window.keymap = Keymap([Binding("cmd-i", Decrement()),
-                            Binding("ctrl-k ctrl-f", Increment())])
+    window.keymap = Keymap([KeyBinding("cmd-i", Decrement()),
+                            KeyBinding("ctrl-k ctrl-f", Increment())])
     window.drawFrameIfNeeded()
 
     // One press and one release of a bound keystroke is ONE action.
@@ -869,13 +869,13 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
         log.names.append(action is Increment ? "increment" : "decrement")
         return true
     }
-    window.keymap = Keymap([Binding("ctrl-k ctrl-f", Increment()),
-                            Binding("ctrl-f", Decrement())])
+    window.keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment()),
+                            KeyBinding("ctrl-f", Decrement())])
     window.drawFrameIfNeeded()
 
     platformWindow.simulateInput(keyDown("k", .control, at: 0))
-    window.keymap = Keymap([Binding("ctrl-k ctrl-f", Increment()),
-                            Binding("ctrl-f", Decrement())])
+    window.keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment()),
+                            KeyBinding("ctrl-f", Decrement())])
     platformWindow.simulateInput(keyDown("f", .control, at: 0.1))
     #expect(log.names == ["decrement"],
             "the prefix was dropped, so the second stroke is a fresh first one")
@@ -898,7 +898,7 @@ private func keyUp(_ characters: String, _ modifiers: Modifiers = [],
             .onKey { _ in log.names.append("raw"); return true }
             .onAction(Increment.self) { _ in log.names.append("action") }
     }
-    window.keymap = Keymap([Binding("ctrl-k ctrl-f", Increment())])
+    window.keymap = Keymap([KeyBinding("ctrl-k ctrl-f", Increment())])
     window.drawFrameIfNeeded()
     window.focus(rootID("a"))
 

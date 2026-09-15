@@ -3,7 +3,7 @@ import MetalUICore
 import MetalUILayout
 @testable import MetalUI
 
-// The public modifier surface: `StyledElement`'s thirty-seven and `Box`'s one.
+// The direct-style modifier surface: `StyledElement`'s thirty-seven and `Box`'s one.
 
 /// An `Action` for the `onAction(_:_:)` row below. Its identity is all that
 /// matters — the row asserts that exactly one entry landed in
@@ -100,7 +100,7 @@ private struct ModifierCase {
                             inout HandlerShape) -> Void
 }
 
-/// Every public modifier writes its own field, and only its own field.
+/// Every direct-style modifier writes its own field, and only its own field.
 ///
 /// **Every value below is distinct, and none is a default.** Both halves are
 /// load-bearing and both are taxonomy shape 1 ("uniform values on both sides of
@@ -172,16 +172,8 @@ private struct ModifierCase {
                      effect: { s, _, _, _ in s.maxSize.height = .length(.pixels(px(18))) }),
 
         // MARK: Box model
-        ModifierCase(name: "padding(_ points:)",
-                     apply: { $0.padding(px(19)) },
-                     effect: { s, _, _, _ in s.padding = Edges(all: .pixels(px(19))) }),
-        ModifierCase(name: "padding(_ edges:)",
-                     apply: { $0.padding(Edges(top: .pixels(px(21)), right: .pixels(px(22)),
-                                               bottom: .pixels(px(23)), left: .pixels(px(24)))) },
-                     effect: { s, _, _, _ in
-                         s.padding = Edges(top: .pixels(px(21)), right: .pixels(px(22)),
-                                           bottom: .pixels(px(23)), left: .pixels(px(24)))
-                     }),
+        // `padding` deliberately does not appear here: it is a SwiftUI-style
+        // wrapper modifier now, not a direct write into its receiver's Style.
         ModifierCase(name: "margin(_ points:)",
                      apply: { $0.margin(px(25)) },
                      effect: { s, _, _, _ in s.margin = Edges(all: .length(.pixels(px(25)))) }),
@@ -294,7 +286,7 @@ private struct ModifierCase {
                      effect: { s, _, _, _ in s.flexDirection = .columnReverse }),
     ]
 
-    #expect(cases.count == 40)
+    #expect(cases.count == 38)
 
     for c in cases {
         var expectedStyle = Style()

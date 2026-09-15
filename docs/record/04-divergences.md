@@ -217,6 +217,12 @@ living in the datum `List` re-reads every frame — and it is written up in the
 `anOffScreenListRowsModelReadIsNotTracked`. A reader who finds it and reaches
 for label 19 should stop here.
 
+**Erratum 2026-09-14 (at `7cfcddc`; record §09):** "label 19 is still
+available" is stale. Label 19 has since been assigned to "One element VALUE
+placed twice shares one `@State` box" (`git show a15ec83:CLAUDE.md`, line 458).
+If SwiftUI turns out to differ here, the next unused label is needed (20 in that
+table, which has no higher one), not 19; labels 3, 5, 6, 7, 8, 12 and 17 are retired and never reused.
+
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
 than the hex implies.
@@ -705,3 +711,29 @@ a different observable: a focused element removed behind an `if` keeps focus
 indefinitely below threshold, and its still-produced ancestors keep claiming its
 keystrokes.
 
+
+---
+
+## 2026-09-15: divergences 20–34 (tasks 3, 9 and 12, integrated)
+
+Added to `CLAUDE.md`'s table at integration (record §13). Labels 20 onward were
+never used before. Each entry's full mechanism, probe arms and pins live in the
+ruling it cites; they are not repeated here.
+
+| # | kind | ruling (decisions doc) | pin |
+|---|---|---|---|
+| 20 | design | `MC-C` (modifier composition) | `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`; `aLayerAddedAtRunTimeKeepsTheOutermostAccessibilityNodeAndRepublishesTheWrappedOne` |
+| 21 | vs SwiftUI | `EV-F` (a), probe K2 | `aFocusedElementThatBecomesDisabledLosesFocusAtOnce` |
+| 22 | vs SwiftUI | `EV-F` (b), probe K6 | `aDisabledAncestorsRawKeyHandlerDoesNotSeeAKey`, `aDisabledPaneContributesNoKeyContext` |
+| 23 | vs SwiftUI | `EV-E`, probes P2f/P2g | `aDisabledClickTargetPassesTheClickToWhatIsUnderIt` |
+| 24 | vs SwiftUI | `EV-J`, `EV-U`, pixel-length X1/X2 | — |
+| 25 | vs SwiftUI | `EV-K`, probe H | E17, pinned wrong on purpose |
+| 26 | vs SwiftUI | probe K5 (environment track) | — (pre-existing, measured) |
+| 27 | vs SwiftUI | `AB-G`, arms 7, 8 | — |
+| 28 | vs SwiftUI | `AB-H`, P0/P1 | `aPressIsRefusedWhereHitTestingIsDisabled` |
+| 29 | vs SwiftUI | `AB-G`, R7 | — |
+| 30 | vs SwiftUI | `AB-T`, C1, C5, C5i | arm 7 of `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` |
+| 31 | vs SwiftUI | `AB-J`, arm 13 | — |
+| 32 | vs SwiftUI | `AB-L`, R16 | — |
+| 33 | vs SwiftUI | `AB-F`, 10b, R6, R11 | — |
+| 34 | vs SwiftUI | `AB-P`, arm 4 | unpinned |

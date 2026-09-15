@@ -25,6 +25,14 @@
 /// (`Window.applyScroll`), so a list of focusable rows would stop scrolling.
 /// Pinned by `focusabilityAndKeyHandlingRegisterNoPointerHitbox`.
 ///
+/// **Both gates sit behind a third, and that one IS shared: the environment's
+/// `isEnabled`** (rulings EV-E, EV-F). `Frame.registerHandlers` reads it once;
+/// under `.disabled(true)` neither gate is consulted — no hitbox, whatever
+/// `isPointerTarget` says, and no focus registration, whatever `isKeyTarget`
+/// says. The two stay separate for an ENABLED element, which is the case the
+/// paragraph above is about. The handlers themselves are untouched: re-enabling
+/// registers the same set on the next frame (`reEnablingRestoresClicksButNotFocus`).
+///
 /// **Bubble-only, and today that means "the topmost opaque handler wins".**
 /// Design spec §3.5 cuts the capture phase, because an opaque hitbox already
 /// swallows, which is the case framework spec §8.2 names capture for. What is

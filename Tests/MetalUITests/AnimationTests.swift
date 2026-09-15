@@ -1025,6 +1025,51 @@ import MetalUIRender
                     """)
         }
     }
+
+    // MARK: ModifiedElement — the inner layer as well as the outermost
+
+    // Ruling MC-I (modifier-composition lane 2). `.padding`/`.frame` chains are
+    // ONE `ModifiedElement` whose `requestLayout` loops over its layers, each
+    // registering its own node through `animated(...)` under its own id. A
+    // two-layer chain, read back at BOTH nodes: an implementation that wires
+    // only the outermost layer — the one `StyledElement`'s accessors reach —
+    // passes an arm on a one-layer chain. The inner node is read as the outer
+    // node's only child in the tree, not through `ModifiedElement.Layout`, so
+    // the reading does not depend on the code under test's own bookkeeping.
+    // Paddings differ per layer (4 → 20 inner, 8 → 40 outer), so a transposed
+    // or shared baseline is a mismatch rather than a coincidence.
+    do {
+        let table = StateTable()
+        let id = eid("modified")
+
+        /// `nil` when the outer layer's node does not have exactly one child.
+        func paddings(inner: Float, outer: Float, at t: Double) -> (inner: Length, outer: Length)? {
+            var pass = LayoutPass(frame: animFrame(table, timestamp: t))
+            var chain = Box().width(Pixels(10)).height(Pixels(10))
+                .padding(Edges(all: .pixels(Pixels(inner))))
+                .padding(Edges(all: .pixels(Pixels(outer))))
+            let (node, _) = chain.requestLayout(id, pass: &pass)
+            let children = pass.frame.tree.children(node)
+            guard children.count == 1 else { return nil }
+            return (pass.style(children[0]).padding.left, pass.style(node).padding.left)
+        }
+
+        try #require(paddings(inner: 4, outer: 8, at: 0) != nil,
+                     "ModifiedElement: the outer layer's node must have exactly one child")
+        var start: (inner: Length, outer: Length)?
+        withAnimation(.linear(duration: 1)) {
+            start = paddings(inner: 20, outer: 40, at: 0)
+        }
+        let mid = try #require(paddings(inner: 20, outer: 40, at: 0.5))
+        #expect(start?.inner == .pixels(4) && mid.inner == .pixels(12), """
+                ModifiedElement INNER layer: registering site does not animate — expected 4 then \
+                12, got \(String(describing: start?.inner)) then \(mid.inner)
+                """)
+        #expect(start?.outer == .pixels(8) && mid.outer == .pixels(24), """
+                ModifiedElement outermost layer: registering site does not animate — expected 8 \
+                then 24, got \(String(describing: start?.outer)) then \(mid.outer)
+                """)
+    }
 }
 
 // MARK: - Task 4 fix round 1: the `Decoration` half was unguarded at every site
@@ -1110,6 +1155,54 @@ import MetalUIRender
         #expect(stack3.decoration.cornerRadius.value == 10, """
                 Stack: decoration substitution does not reach the element — expected the \
                 halfway value 10, got \(stack3.decoration.cornerRadius.value)
+                """)
+    }
+
+    // MARK: ModifiedElement (ruling MC-I; verifier finding on lane 2)
+
+    // The legacy `.padding` wrapper was `Box<Self>` and ran Box's write-back,
+    // guarded by the Box arm above. Since lane 2 it is a `ModifiedElement`
+    // layer, a different code path with TWO write-backs — the inner layers'
+    // and the outermost's — and dropping either returned `Decoration`
+    // (`(inner[k].style, _) = animated(…)`, `(outermost.style, _) = animated(…)`)
+    // reddened 0 of 1115 before this arm existed. `paint` reads
+    // `inner[k].decoration` and `outermost.decoration` later the same frame,
+    // so this reads those two back after a real `requestLayout`. The two
+    // layers animate to different radii (20 and 40), so a layer reading the
+    // other's value, or a shared baseline, is a mismatch.
+    do {
+        let table = StateTable()
+        let id = eid("modified-decoration")
+
+        func radii(inner: Float, outer: Float,
+                   at t: Double) -> (layers: Int, inner: Float, outer: Float) {
+            var pass = LayoutPass(frame: animFrame(table, timestamp: t))
+            var chain = Box().width(Pixels(10)).height(Pixels(10))
+                .padding(4).cornerRadius(Pixels(inner))
+                .padding(8).cornerRadius(Pixels(outer))
+            _ = chain.requestLayout(id, pass: &pass)
+            return (chain.layerCount,
+                    chain.inner.first?.decoration.cornerRadius.value ?? -1,
+                    chain.outermost.decoration.cornerRadius.value)
+        }
+
+        let baseline = radii(inner: 0, outer: 0, at: 0)
+        try #require(baseline.layers == 2,
+                     "ModifiedElement: the decoration arm must exercise a two-layer chain")
+        var start: (layers: Int, inner: Float, outer: Float)?
+        withAnimation(.linear(duration: 1)) {
+            start = radii(inner: 20, outer: 40, at: 0)
+        }
+        let mid = radii(inner: 20, outer: 40, at: 0.5)
+        #expect(start?.inner == 0 && mid.inner == 10, """
+                ModifiedElement INNER layer: decoration substitution does not reach the \
+                element — expected 0 then 10, got \(String(describing: start?.inner)) then \
+                \(mid.inner)
+                """)
+        #expect(start?.outer == 0 && mid.outer == 20, """
+                ModifiedElement outermost layer: decoration substitution does not reach the \
+                element — expected 0 then 20, got \(String(describing: start?.outer)) then \
+                \(mid.outer)
                 """)
     }
 }
@@ -2692,6 +2785,26 @@ final class AnimationDriveModel {
         var t = Text("hi").background(token)
         t.elementID = ElementID("site")
         return t
+    }
+    // Ruling MC-I: a `.padding`/`.frame` chain is ONE `ModifiedElement` that
+    // paints each layer's background in a loop, so it gets two arms over a
+    // two-layer chain — the background on the INNER layer (the outermost
+    // declares none, so the first rect is the inner layer's) and on the
+    // outermost. Wiring only the outermost layer, the one `StyledElement`'s
+    // accessors reach, passes the second arm and not the first.
+    try check("ModifiedElement inner layer") { token in
+        var m = Box().width(Pixels(40)).height(Pixels(40))
+            .padding(Edges(all: .pixels(Pixels(4)))).background(token)
+            .padding(Edges(all: .pixels(Pixels(8))))
+        m.elementID = ElementID("site")
+        return m
+    }
+    try check("ModifiedElement outermost layer") { token in
+        var m = Box().width(Pixels(40)).height(Pixels(40))
+            .padding(Edges(all: .pixels(Pixels(4))))
+            .padding(Edges(all: .pixels(Pixels(8)))).background(token)
+        m.elementID = ElementID("site")
+        return m
     }
 }
 

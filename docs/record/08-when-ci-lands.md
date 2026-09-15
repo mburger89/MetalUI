@@ -1,5 +1,27 @@
 ## When CI lands
 
+**Erratum 2026-09-14 (at `7cfcddc`; record §09), three corrections.** (a) **CI has
+landed.** `.github/workflows/swift.yml` (`00f6b2c`, 2026-09-10, an ancestor of
+`a15ec83`) runs `swift build -v` and `swift test -v --no-parallel` on
+`macos-latest` for pushes and pull requests to `master`. None of the guarantees
+below is a separate required job. Under that workflow's default build system,
+whether any typecheck guard executes at all is **unmeasured**; item 3's
+swiftbuild paragraph predicts that none does. (b) **The guard count's eighth
+move: 39** = 19 + 10 + **5** + 2 + 3. `ElementGroupTrapTests` went from 1 to 5
+with four proposal-surface guards. **Only one of the four was written in the
+change that introduced its hazard** (the text bridge's, `4bda3d3`): the overlay,
+tap and constructor wrappers first shipped over unconstrained
+`Content: ElementGroup` (`fdf5ce0`, `140d2d2`, `1823698`) and gained their
+guards later, in `16744b9`, `21b8fcc` and `b8ba46d` — the first break in the
+"written in the change that could have introduced the hazard" pattern this file
+records for every earlier move. Per-file `grep -c canTypecheck` across the five
+guard files reads 40, one hit being `UnitSafetyTests`' comment. Every "35" below
+is dated `b869253`, and every "34" (item 3's opening line included) is the
+Component milestone's count at suite 811, as item 3's note on the fifth and sixth moves says.
+(c) **The list below is short one item.** Item 5, the freeze loop's allocation
+pin, was added to `CLAUDE.md` on 2026-09-11 and never reached this file; it is
+appended at the end, so "Three guarantees" below now reads five.
+
 Three guarantees silently lapse under plausible configurations and must be
 required, non-gateable jobs. All three are detailed in the decisions docs:
 
@@ -253,3 +275,43 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    all in `AnimationTests.swift`. **This count is dated like every other count in
    this file** — it is a property of how the fixture is written, not of the
    suite, so re-take it by greping for the helper rather than trusting the seven.
+
+5. **The freeze loop's allocation pin checks only half of itself on a swiftlang
+   toolchain, and says so in the log.** (Added 2026-09-14, at `7cfcddc`, from
+   `CLAUDE.md`'s "When CI lands" bullet as it stood at `a15ec83` and from the
+   test source; the measurements below are the test's own comment, not re-taken
+   here.) Under Apple's swiftlang build of Swift — Xcode, and every GitHub macOS
+   runner — a bare `for i in items.indices { sum += items[i].baseSize }`
+   registers **one allocation per element** in a debug build, where a swift.org
+   toolchain registers none: measured 2026-09-11 on Swift 6.3.3
+   (swift-6.3.3-RELEASE) and 6.4 (swiftlang-6.4.0.34.1), 0 vs 67 at 67 items,
+   and 16 known buffers read as 16 and as 33
+   (`Tests/MetalUILayoutTests/FreezeLoopAllocationTests.swift:161-169`). So an
+   absolute per-pass bound there measures the toolchain, not
+   `resolveFlexibleLengths`.
+   `freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine` (`:153`, final shape
+   from `37f8d3e`) measures that floor in the same run (`loopFloor`), always
+   checks a relative half against the allocating reference spelling
+   (`referenceResolveFlexibleLengths`: `growMany * 2 <= refMany`, and the saving
+   must widen with the line), and checks the strict half — equal counts at
+   7 and 67 items, at most `passesPerLine` (2) per line — **only when the floor
+   at 67 items is 0** (`if floorMany == 0`). Otherwise it prints, and asserts
+   nothing strict:
+   `FREEZE-ALLOC: strict per-pass bound NOT CHECKED on this toolchain` (`:241`).
+   **On a swiftlang toolchain a per-item regression of about one allocation is
+   invisible to it**; grep a CI log for that line, and run the suite under a
+   swift.org toolchain to get the strict half. The workflow in (a) runs on
+   `macos-latest`, so by reading its runs take the relative half only; no CI log
+   was read for this entry, so whether the line is printed there is
+   **unverified**.
+
+---
+
+## 2026-09-15: items added at the task 3/9/12 integration
+
+The guard count the default-build-system skip hides is now 61. New items, in
+`CLAUDE.md`'s CI section: the solver-threshold flag of
+`aTwentyFourModifierChainTypechecksWithinASolverWorkBudget`; two `malloc_logger`
+tests needing `--no-parallel`; E24's hard failure on a root-locale runner; the
+accessibility arm-Q pin and signal test depending on the runner's accessibility
+clients and `isVoiceOverEnabled` (`AB-AC`).

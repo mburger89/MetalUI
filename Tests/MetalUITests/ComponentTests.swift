@@ -599,6 +599,97 @@ private struct TwoAutoLeaves: Component {
             "leaf b's width gains 2x4 too — this is the assertion that separates distribution from wrapping")
 }
 
+/// A SwiftUI-style frame is deliberately unlike this framework's older
+/// distributing `.width(_:)`: it wraps the component's transparent body in
+/// one outer layout node. The body therefore keeps the sizes its author chose,
+/// while the caller controls the outer footprint and alignment.
+@MainActor
+@Test func aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren() {
+    let bareLog = ComponentLog()
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var bare = Row { TwoLeaves(log: bareLog) }
+    bareFrame.render(&bare)
+
+    let framedLog = ComponentLog()
+    let framedFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var framed = Row { TwoLeaves(log: framedLog).frame(width: px(100), height: px(40)) }
+    framedFrame.render(&framed)
+
+    #expect(framedFrame.tree.nodeCount == bareFrame.tree.nodeCount + 1,
+            "a frame must add its own layout node rather than amend each body node")
+
+    // The caller's frame is 100 points wide, but the component's two children
+    // retain their own 30- and 50-point widths. They are centred as a unit in
+    // the wrapper, so the body's leading edge moves by (100 - 80) / 2.
+    #expect(rect(framedLog.bounds["a"]!) == (10, 15, 30, 10))
+    #expect(rect(framedLog.bounds["b"]!) == (40, 5, 50, 30))
+    #expect(rect(bareLog.bounds["a"]!) == (0, 15, 30, 10))
+    #expect(rect(bareLog.bounds["b"]!) == (30, 5, 50, 30))
+}
+
+/// A frame is a typed structural wrapper, not an implicit `AnyElement`.
+///
+/// The explicit stored type is the regression shape that direct conversion of
+/// legacy sizing modifiers broke: both wrapper layers must remain available to
+/// the generic `Row` builder, and the two different widths must nest rather
+/// than overwrite each other.
+///
+/// **The TYPE is flat and the NODES still nest** (ruling MC-A): the second
+/// `.frame` adds a layer to the same `ModifiedElement<TwoLeaves>` rather than a
+/// type level, and each layer still registers its own node.
+@MainActor
+@Test func chainedFramesRemainConcreteAndNestTheirLayoutNodes() {
+    let log = ComponentLog()
+    let stored: ModifiedElement<TwoLeaves> = TwoLeaves(log: log).frame(width: px(100), height: px(40))
+    var tree: Row<ModifiedElement<TwoLeaves>> = Row {
+        stored.frame(width: px(120), height: px(40))
+    }
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+
+    frame.render(&tree)
+
+    #expect(frame.tree.nodeCount == 5, "row, two typed frame nodes, and two body leaves")
+    #expect(rect(log.bounds["a"]!) == (20, 15, 30, 10))
+    #expect(rect(log.bounds["b"]!) == (50, 5, 50, 30))
+}
+
+/// Padding on an ordinary element composes by wrapping, as it does in SwiftUI.
+/// A `Leaf` has no child layout to inset, so the old direct-style spelling left
+/// it at x = 0. A wrapper must add one node and offset the fixed-size leaf by
+/// the requested padding without shrinking its 30 × 10 footprint.
+@MainActor
+@Test func paddingWrapsAnElementAndExpandsItsOuterFootprint() {
+    let bareLog = ComponentLog()
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var bare = Row { Leaf("leaf", log: bareLog).width(px(30)).height(px(10)) }
+    bareFrame.render(&bare)
+
+    let paddedLog = ComponentLog()
+    let paddedFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var padded = Row { Leaf("leaf", log: paddedLog).width(px(30)).height(px(10)).padding(px(4)) }
+    paddedFrame.render(&padded)
+
+    #expect(paddedFrame.tree.nodeCount == bareFrame.tree.nodeCount + 1)
+    #expect(rect(bareLog.bounds["leaf"]!) == (0, 15, 30, 10))
+    #expect(rect(paddedLog.bounds["leaf"]!) == (4, 15, 30, 10))
+}
+
+/// Each padding call creates a separate outer box, so distinct values add
+/// instead of the later call replacing the earlier one.
+@MainActor
+@Test func chainedPaddingCreatesNestedWrappers() {
+    let log = ComponentLog()
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var tree = Row {
+        Leaf("leaf", log: log).width(px(30)).height(px(10)).padding(px(4)).padding(px(8))
+    }
+    frame.render(&tree)
+
+    #expect(frame.tree.nodeCount == 4,
+            "row, two padding wrappers, and the leaf each contribute one node")
+    #expect(rect(log.bounds["leaf"]!) == (12, 15, 30, 10))
+}
+
 /// Spec §5's limit. Only `Style`-backed modifiers can be distributed, because
 /// `setStyle` reaches `LayoutTree` and nothing reaches `Decoration`/`Handlers`
 /// per node. So `background`, `onClick` and `focusable` are NOT offered on a
