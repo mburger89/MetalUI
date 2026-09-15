@@ -232,3 +232,56 @@ func aProposalContainerRejectsAScopeOverLegacyContent() throws {
     #expect(result.messages.contains("ProposalElementGroup"),
             "rejected, but not for the ProposalElementGroup requirement:\n\(result.output)")
 }
+
+// MARK: - Lane 2b: the public writers (EV-C)
+
+/// **G6 — every public environment writer compiles from outside the module**
+/// (ruling EV-C, shape 16).
+///
+/// Every other environment test is `@testable`, and G1+–G4 only read or spell
+/// `.environment(_:_:)`, so `.theme(_:)`, `.transformEnvironment`,
+/// `.dynamicTypeSize(_:)`, `Window.environment`'s setter,
+/// `DynamicTypeSize.isAccessibilitySize` and the setters of `isEnabled`,
+/// `layoutDirection`, `locale` and `dynamicTypeSize` could each be narrowed
+/// with the suite green. This fixture calls each of them through a plain
+/// `import MetalUI`, in the Swift 6 language mode, in three spellings: the
+/// modifiers, a key-path write through `.environment(\.field, …)`, and a member
+/// assignment on `Window.environment` and on a local `EnvironmentValues`.
+/// Lane 3 adds `.disabled(true)` to the chain.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func theEnvironmentsPublicWritersCompileFromOutsideTheModule() throws {
+    // `Locale` is Foundation's, and an external module names it only by
+    // importing Foundation: `import MetalUI` alone reports "cannot find
+    // 'Locale' in scope" (measured on this fixture's first draft).
+    let result = try typecheckFile("import Foundation\n" + probeKeySource + """
+
+        @MainActor
+        func content() -> some ElementGroup {
+            Box()
+                .environment(\\.isEnabled, false)
+                .environment(\\.layoutDirection, .rightToLeft)
+                .environment(\\.locale, Locale(identifier: "de_DE"))
+                .environment(\\.dynamicTypeSize, .accessibility1)
+                .environment(\\.probe, 1)
+                .transformEnvironment(\\.probe) { $0 += 1 }
+                .dynamicTypeSize(.xLarge)
+                .theme(.dark)
+        }
+
+        @MainActor
+        func f(_ w: Window) {
+            w.environment = EnvironmentValues()
+            w.environment.isEnabled = false
+            var e = EnvironmentValues()
+            e.isEnabled = false
+            e.layoutDirection = .rightToLeft
+            e.locale = Locale(identifier: "de_DE")
+            e.dynamicTypeSize = .accessibility2
+            e[ProbeKey.self] = 3
+            w.environment = e
+            _ = DynamicTypeSize.accessibility2.isAccessibilitySize
+        }
+        """, importing: "MetalUI")
+    #expect(result.succeeded,
+            "every public environment writer must compile outside the module:\n\(result.output)")
+}

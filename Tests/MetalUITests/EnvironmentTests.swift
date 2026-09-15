@@ -9,7 +9,8 @@ import MetalUIShaderTypes
 
 // Plan task 9, lane 2: scoped environment values
 // (`docs/superpowers/specs/2026-09-15-environment-design.md`, tests E1–E21;
-// rulings `EV-A`…`EV-C`, `EV-G`…`EV-M`, `EV-O`, `EV-P`, `EV-U`, `EV-V`).
+// rulings `EV-A`…`EV-C`, `EV-G`…`EV-M`, `EV-O`, `EV-P`, `EV-U`, `EV-V`), and
+// lane 2b's E12 arm and E22–E24 (rulings `EV-B`, `EV-X`, `EV-Y`).
 //
 // **This file imports `Metal`, so it must declare no `Dimension`-typed
 // fixture** (`Fakes.swift`'s note on `AnimationTests.swift`): Foundation's
@@ -96,6 +97,7 @@ private struct NativeEnvRecorder: Element {
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
                   pass: inout PrepaintPass) {
         log.prepaint[label] = pass.environment
+        log.ids[label] = id
     }
 
     func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -372,6 +374,125 @@ private struct CountingComponent: Component {
             "a scope must not reset the component's @State; got \(scoped.content.content.count)")
 }
 
+// MARK: - E22, E23: transparency on the proposal path (EV-B, lane 2b)
+
+/// **E22.** E4 on the proposal path: a scope over proposal content inside an
+/// `HStack` contributes no node and consumes no index — the stack still has
+/// three children, and A, B and C keep the ids they have without the scope.
+///
+/// **Passes on arrival, stated** (ruling EV-B): today one
+/// `requestGroupLayout` serves both paths, so E4 already covers this. It exists
+/// for the modifier-composition merge, where the proposal path gets its own
+/// typed entry, hand-written at integration; a `cursor += 1` or a fresh child
+/// id there would redden none of E4, E5 or E10. Its mutations were run here
+/// against the shared entry to prove the instrument sees, and are **re-run at
+/// integration against the typed entry** (ruling EV-W item 1).
+///
+/// The bare stack's child count is `try #require`d first: if the explicit
+/// `Pair` flattened differently from the scoped spelling, the comparison of
+/// counts would say nothing.
+@MainActor
+@Test func aScopeOverProposalContentContributesNoNodeAndConsumesNoIndex() throws {
+    let bareLog = EnvLog()
+    let bareNodes = NodeLog()
+    var bare = NodeProbe(inner: HStack(spacing: px(0)) {
+        Pair(NativeEnvRecorder(label: "A", log: bareLog), NativeEnvRecorder(label: "B", log: bareLog))
+        NativeEnvRecorder(label: "C", log: bareLog)
+    }, label: "stack", log: bareNodes)
+    let bareFrame = frame()
+    bareFrame.render(&bare)
+    let bareStack = try #require(bareNodes.nodes["stack"])
+    try #require(bareFrame.tree.children(bareStack).count == 3)
+
+    let scopedLog = EnvLog()
+    let scopedNodes = NodeLog()
+    var scoped = NodeProbe(inner: HStack(spacing: px(0)) {
+        Pair(NativeEnvRecorder(label: "A", log: scopedLog), NativeEnvRecorder(label: "B", log: scopedLog))
+            .environment(\.probe, 1)
+        NativeEnvRecorder(label: "C", log: scopedLog)
+    }, label: "stack", log: scopedNodes)
+    let scopedFrame = frame()
+    scopedFrame.render(&scoped)
+
+    let stack = try #require(scopedNodes.nodes["stack"])
+    #expect(scopedFrame.tree.children(stack).count == 3)
+    for label in ["A", "B", "C"] {
+        let scopedID = try #require(scopedLog.ids[label])
+        let bareID = try #require(bareLog.ids[label])
+        #expect(scopedID == bareID, "\(label)'s id moved under the scope")
+    }
+    try #require(scopedLog.paint["A"]?.probe == 1, "the scope must reach its proposal content")
+}
+
+@MainActor
+private final class NativeCounterLog {
+    var readings: [Int] = []
+    var bounds: Bounds<Pixels>?
+}
+
+/// E11's shape — an `Element` with the `ProposalElementGroup` marker and a
+/// native leaf — as a click counter: `@State var n`, incremented by an
+/// `onClick` registered through `pass.registerHandlers`, logged in paint.
+private struct NativeClickCounter: Element {
+    @State var n = 0
+    let log: NativeCounterLog
+
+    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        let node = pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }
+        return (node, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                  pass: inout PrepaintPass) {
+        log.bounds = bounds
+        let state = _n
+        var handlers = Handlers()
+        handlers.onClick = { state.wrappedValue += 1 }
+        pass.registerHandlers(handlers, at: bounds, id: id)
+    }
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+               prepaint: inout Void, pass: inout PaintPass) {
+        log.readings.append(n)
+    }
+}
+
+extension NativeClickCounter: ProposalElementGroup {}
+
+/// **E23.** E5 on the proposal path: a `@State` counter under a scope whose
+/// value changes keeps its count — probe D1, where SwiftUI's counter survives
+/// a changing environment value.
+///
+/// **Passes on arrival, as E5 did**: nothing can lose the state until a scope
+/// mints an identity level. Its mutation — the scope's id keyed by its values —
+/// reads 0. Re-run at integration against the typed entry (ruling EV-W
+/// item 1). The click lands at the centre of the bounds the counter reported,
+/// not at a computed guess, and two clicks must count 2 before the value moves.
+@MainActor
+@Test func aProposalStateCounterKeepsItsCountAcrossAChangingScope() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let model = EnvModel()
+    let log = NativeCounterLog()
+    let (window, platform) = try makeFakeWindow(device: device) {
+        HStack { NativeClickCounter(log: log).environment(\.probe, model.value) }
+    }
+
+    window.drawFrameIfNeeded()
+    let bounds = try #require(log.bounds)
+    let centre = Point(x: bounds.origin.x + bounds.size.width / 2,
+                       y: bounds.origin.y + bounds.size.height / 2)
+    click(platform, at: centre)
+    window.drawFrameIfNeeded()
+    click(platform, at: centre)
+    window.drawFrameIfNeeded()
+    try #require(log.readings.last == 2, "the control: two clicks count 2")
+
+    model.value = 7
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    #expect(log.readings.last == 2, "a changed environment value reset the proposal state below it")
+}
+
 // MARK: - E6–E9: @Environment binding (EV-M)
 
 /// **E6.** An `@Environment` property is bound to the nearest scope in every
@@ -416,7 +537,8 @@ private struct CountingComponent: Component {
 ///
 /// **This is one case of the general rule: an `@Environment` that was never
 /// bound returns the key's default silently**, with no diagnostic, and builds
-/// a fresh `EnvironmentValues()` (reading `Locale.current`) on every access.
+/// a fresh `EnvironmentValues()` on every access — whose locale is
+/// `Locale(identifier: "")`, not the window's `Locale.current` (ruling EV-Y).
 /// Legitimate unbound reads — a handler reading an erased element after the
 /// frame, a value built outside any frame — look identical to a forgotten
 /// bind, which is why no diagnostic was designed. It flips when `AnyElement`
@@ -464,6 +586,12 @@ private struct EnvComponent: Component {
 /// (ruling EV-W): when `ProposalElementGroup` gains
 /// `requestProposalGroupLayout`, a bare forwarding implementation skips the
 /// layout-phase push, and only the first slot of each triple sees it.
+///
+/// **Written in the marker shape that merge rejects** (an `Element` plus an
+/// empty `ProposalElementGroup` conformance). The integration step ports it,
+/// E22 and E23 to `ProposalElement`, keeps this test's layout reading inside
+/// `requestProposalLayout`, and re-runs the mutations against the typed entry
+/// (ruling EV-W item 1).
 @MainActor
 @Test func proposalContentReadsTheEnvironmentThroughAScopeInEveryPhase() {
     let log = EnvLog()
@@ -486,6 +614,16 @@ private struct EnvComponent: Component {
 /// **E12.** A scoped theme repaints only its subtree, and a `Deferred` declared
 /// inside a scope keeps it: a portal escapes clip, offset and layer, not scope
 /// (probe F1).
+///
+/// **The after-`.theme` arm (lane 2b, ruling EV-X).** A modifier written after
+/// a scope sits outside it: in `surfaceBox(13).theme(.dark).frame(14×10).background(.surface)`
+/// the 13pt box paints dark and the 14pt frame layer paints **light**, the
+/// enclosing theme — SwiftUI's O6 (a background after an `.environment` writer
+/// reads the default) and F2. `.frame(width:height:)` is an `ElementGroup`
+/// extension, so this compiles although `.padding` directly on a scope does
+/// not. **The disagreeing spelling** moves `.theme(.dark)` after the frame's
+/// background (15pt and 16pt), and both read dark — so the arm is shown to
+/// tell inside the scope from outside it, not to read light everywhere.
 @MainActor
 @Test func aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope() throws {
     let f = frame()
@@ -493,6 +631,8 @@ private struct EnvComponent: Component {
         surfaceBox(10).theme(.dark)
         surfaceBox(11)
         Deferred { surfaceBox(12) }.theme(.dark)
+        surfaceBox(13).theme(.dark).frame(width: px(14), height: px(10)).background(.surface)
+        surfaceBox(15).frame(width: px(16), height: px(10)).background(.surface).theme(.dark)
     }
     f.render(&root)
 
@@ -504,6 +644,13 @@ private struct EnvComponent: Component {
     #expect(try colour(10) == Theme.dark.surface)
     #expect(try colour(11) == Theme.light.surface)
     #expect(try colour(12) == Theme.dark.surface)
+
+    // EV-X: inside the scope dark, the frame layer written after it light.
+    #expect(try colour(13) == Theme.dark.surface)
+    #expect(try colour(14) == Theme.light.surface, "a modifier after a scope must sit outside it (EV-X)")
+    // The disagreeing spelling: the same layers, the scope written last.
+    #expect(try colour(15) == Theme.dark.surface)
+    #expect(try colour(16) == Theme.dark.surface)
 }
 
 /// **E13.** The frame's root environment carries its theme and scale, and an
@@ -665,6 +812,40 @@ private func centrePixel(_ platform: FakePlatformWindow) -> [UInt8] {
     let unchanged = window.environment
     window.environment = unchanged
     #expect(window.needsRedraw == true, "a no-op write is pinned to dirty the window (EV-H)")
+}
+
+/// **E24.** A bare `EnvironmentValues()` holds SwiftUI's **bare** locale,
+/// `Locale(identifier: "")`, and a window stamps `Locale.current` over it
+/// (ruling EV-Y) — probe `swiftui-environment-pixel-length.swift` V0/V2 (bare:
+/// '' and `== Locale(identifier: "")` true) against X0 and scoping probe C (a
+/// hosted window: `en_US`), and X2 (a `\.self` reset in a window reads '').
+///
+/// - (i) the bare value. The `try #require` makes the comparison
+///   discriminate: on a machine whose current locale were the root locale,
+///   every arm would pass for either implementation.
+/// - (ii) a fresh window's root, and a reader with no writer under it.
+/// - (iii) in the same window, a `\.self` reset reads '' while its unscoped
+///   sibling still reads the window's — so the recorder is shown to see the
+///   difference between the two sources.
+@MainActor
+@Test func aBareEnvironmentValuesHoldsTheRootLocaleAndAWindowStampsTheCurrentOne() throws {
+    try #require(Locale.current != Locale(identifier: ""))
+    try #require(Locale.current.identifier != "")
+    #expect(EnvironmentValues().locale == Locale(identifier: ""))
+    #expect(EnvironmentValues().locale.identifier == "")
+
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let log = EnvLog()
+    let (window, _) = try makeFakeWindow(device: device) {
+        Row {
+            EnvRecorder(label: "window", log: log)
+            EnvRecorder(label: "reset", log: log).environment(\.self, EnvironmentValues())
+        }
+    }
+    #expect(window.environment.locale == Locale.current)
+    window.drawFrameIfNeeded()
+    #expect(log.paint["window"]?.locale.identifier == Locale.current.identifier)
+    #expect(log.paint["reset"]?.locale.identifier == "")
 }
 
 // MARK: - E15, E20: work counts (EV-O, EV-V)
