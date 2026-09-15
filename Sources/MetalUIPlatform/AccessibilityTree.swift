@@ -124,8 +124,14 @@ public struct AccessibilityTree: Equatable {
     }
 
     /// `roots`, `nodes` and `focused` equal; `geometry` ignored (AB-K).
+    ///
+    /// **What a platform uses to tell an animation tick or a scroll that moved
+    /// no id from a change a client must hear about.** `Window` compares whole
+    /// trees with `==` (geometry included) to decide whether to publish at all
+    /// (AB-M); the platform then asks this to decide whether the publish is a
+    /// stored assignment or a diff with notifications.
     public func hasSameStructure(as other: AccessibilityTree) -> Bool {
-        false // SKELETON (lane 1, red run)
+        roots == other.roots && focused == other.focused && nodes == other.nodes
     }
 }
 
