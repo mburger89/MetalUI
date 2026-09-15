@@ -71,6 +71,16 @@ private final class CompositionLog {
     var bounds: [String: Bounds<Pixels>] = [:]
     /// The `@State` value (or a component's displayed value) read in paint.
     var taps: [String: Int] = [:]
+    /// The same value read during LAYOUT, by `CountingProposalLeaf` only.
+    ///
+    /// **Separate from `taps` because an element's `@State` is bound again
+    /// before prepaint and paint** (`Element.prepaintGroup`/`paintGroup`'s
+    /// re-bind), so a paint-time read and a handler registered in prepaint work
+    /// even if the group entry never bound the element: measured in lane 3,
+    /// `ProposalElement`'s typed default bypassing `enteringGroupMember` left
+    /// test 6 green on `taps` alone. Only a layout-time read depends on the
+    /// entry's bind (ruling MC-H).
+    var layoutTaps: [String: Int] = [:]
     /// Phase and handler events, in the order they happened.
     var events: [String] = []
 
@@ -163,6 +173,7 @@ private struct CountingProposalLeaf: ProposalElement {
     mutating func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
         log.layout[name, default: 0] += 1
         log.events.append("layout \(name)")
+        log.layoutTaps[name] = displayed ?? taps
         let size = SizeD(width: width, height: height)
         return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: size) }, ())
     }
@@ -762,6 +773,11 @@ private func frameStyle(width: Float, height: Float) -> Style {
     #expect(log.taps["a"] == 3, "a read \(String(describing: log.taps["a"]))")
     #expect(log.taps["b"] == 0, "b read \(String(describing: log.taps["b"]))")
     #expect(log.taps["c"] == 2, "c read \(String(describing: log.taps["c"]))")
+    // The same values read during layout, which only the group entry's bind can
+    // serve (`CompositionLog.layoutTaps`).
+    #expect(log.layoutTaps["a"] == 3, "a read \(String(describing: log.layoutTaps["a"])) during layout")
+    #expect(log.layoutTaps["b"] == 0, "b read \(String(describing: log.layoutTaps["b"])) during layout")
+    #expect(log.layoutTaps["c"] == 2, "c read \(String(describing: log.layoutTaps["c"])) during layout")
 
     let leaf = try #require(log.ids["a"])
     let padding = try #require(leaf.parent)
