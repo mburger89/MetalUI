@@ -657,7 +657,8 @@ extension NativeProposalProbe: ProposalElementGroup {}
 }
 
 /// A proposal-layout value selects the canonical frame overload rather than
-/// the CSS-era `FrameModifier`. The explicit stored type makes overload
+/// the CSS-era legacy `.frame` (a `ModifiedElement` layer, ruling MC-A). The
+/// explicit stored type makes overload
 /// selection observable at compile time as well as checking the resulting
 /// placement at runtime.
 @MainActor

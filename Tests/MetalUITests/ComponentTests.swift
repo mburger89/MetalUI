@@ -633,11 +633,15 @@ private struct TwoAutoLeaves: Component {
 /// legacy sizing modifiers broke: both wrapper layers must remain available to
 /// the generic `Row` builder, and the two different widths must nest rather
 /// than overwrite each other.
+///
+/// **The TYPE is flat and the NODES still nest** (ruling MC-A): the second
+/// `.frame` adds a layer to the same `ModifiedElement<TwoLeaves>` rather than a
+/// type level, and each layer still registers its own node.
 @MainActor
 @Test func chainedFramesRemainConcreteAndNestTheirLayoutNodes() {
     let log = ComponentLog()
-    let stored: FrameModifier<TwoLeaves> = TwoLeaves(log: log).frame(width: px(100), height: px(40))
-    var tree: Row<FrameModifier<FrameModifier<TwoLeaves>>> = Row {
+    let stored: ModifiedElement<TwoLeaves> = TwoLeaves(log: log).frame(width: px(100), height: px(40))
+    var tree: Row<ModifiedElement<TwoLeaves>> = Row {
         stored.frame(width: px(120), height: px(40))
     }
     let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)

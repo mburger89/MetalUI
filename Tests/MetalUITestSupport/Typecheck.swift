@@ -146,11 +146,28 @@ public func typecheck(_ body: String, importing module: String) throws -> Typech
 /// `typecheckFileChecksInTheSwift6LanguageMode` fails a non-`Sendable` stored
 /// property in a `ProposalLayout`, which Swift 5 mode only warns about.
 public func typecheckFile(_ source: String, importing module: String) throws -> TypecheckResult {
+    try typecheckFile(source, importing: module, frontendArguments: [])
+}
+
+/// `typecheckFile(_:importing:)` with each of `frontendArguments` passed to the
+/// compiler frontend as `-Xfrontend <argument>`, after `-swift-version 6`.
+///
+/// Added by the modifier-composition track's lane 2 (ruling MC-A, as revised
+/// after lane 1's critic round, MC-Q finding 3) for a guard that bounds the
+/// constraint solver's WORK on one expression with
+/// `-solver-scope-threshold=<n>`: past the bound `swiftc` reports "the compiler
+/// is unable to type-check this expression in reasonable time", a count of
+/// solver scopes rather than the wall-clock time-out a plain build would rely
+/// on. The two-argument form forwards here with no arguments, so no existing
+/// guard's command line changed.
+public func typecheckFile(_ source: String, importing module: String,
+                          frontendArguments: [String]) throws -> TypecheckResult {
     try runTypecheck(source: """
         import \(module)
 
         \(source)
-        """, importing: module, extraArguments: ["-swift-version", "6"])
+        """, importing: module,
+        extraArguments: ["-swift-version", "6"] + frontendArguments.flatMap { ["-Xfrontend", $0] })
 }
 
 private func runTypecheck(source contents: String, importing module: String,

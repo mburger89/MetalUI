@@ -400,8 +400,9 @@ func demoContent() -> some Element {
         // no change; every other container below did.
         .alignItems(.center)
         // **Modifier order is load-bearing on every padded container in this
-        // file.** `.padding` returns an outer `Box` (a SwiftUI-style wrapper,
-        // `f1944f8`), so everything written before it configures the padded
+        // file.** `.padding` adds an outer wrapper layer (SwiftUI-style,
+        // `f1944f8`; a `ModifiedElement` layer since ruling MC-A, no longer a
+        // `Box`), so everything written before it configures the padded
         // container and everything after it configures the wrapper. Container
         // settings (`alignItems`) therefore go first; the flex-item size
         // (`height`/`width`/`flexGrow`), background and corner radius go after,

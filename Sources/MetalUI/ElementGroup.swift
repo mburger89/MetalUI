@@ -81,6 +81,20 @@ public protocol ElementGroup {
     mutating func paintGroup(layout: inout GroupLayout,
                              prepaint: inout GroupPrepaint,
                              pass: inout PaintPass)
+
+    /// The type a legacy wrapper modifier (`.padding`, `.frame`) wraps: `Self`
+    /// for every conformer but `ModifiedElement`, whose layers wrap its content,
+    /// so a chain stays ONE `ModifiedElement<Base>` however long it grows
+    /// (ruling MC-A, `ModifiedElement.swift`).
+    associatedtype LayerBase: ElementGroup = Self
+
+    /// Framework entry point for `.padding`/`.frame`: adds one outer layer.
+    /// **Not for conformers to implement.** A conformer that declares
+    /// `LayerBase` and forwards this to another value compiles, and its
+    /// `.padding` then silently drops the receiver — a hole no access-control
+    /// spelling closes, since a requirement is as visible as its protocol
+    /// (ruling MC-A).
+    func _wrap(_ layer: ModifierLayer) -> ModifiedElement<LayerBase>
 }
 
 // MARK: - Every element is a group of one
