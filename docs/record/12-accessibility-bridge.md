@@ -571,6 +571,117 @@ L34–L36). No allocation instrument was used (`AB-M`).
   spy's `mouseDown` records nothing). Lane 2's end-to-end version found that in
   the test process they do not, and routes them to the view directly (L44).
 
+### Verifier round on lane 2 (2026-09-15, at `b9e258e`)
+
+A verifier re-ran the suite (1123 passed), all 52 L-rows (all killed; L01's
+extra test is dictionary order, as above), and 18 hunting mutations of its own,
+H01–H18. H05, H17 and H18 reddened; **fifteen left the suite green**
+(fourteen pinned below; H14 deliberately not, see the end of this section). Its
+issues were two majors (nested parents; unclipped versus visible frames) and
+four minors. Every one was fixed with tests only — **no source line changed**
+— in `9901f15`. The mutations below are the verifier's, re-spelled from its
+descriptions, **renumbered V** because lane 1's table already uses H02–H14.
+V-numbers match the verifier's H-numbers; V08b is added. Each ran on the whole
+unfiltered suite with the runner described above (a new scratchpad directory,
+so no earlier runner was overwritten), at `9901f15`, **1125 tests**.
+
+**Test changes, by issue.**
+
+1. *Nested parents (major).* `hitTestingUsesVisibleFramesSoAClippedRowNeverWins`
+   walks host → table → row → row child and asserts each `accessibilityParent`
+   `===` the element above it (two depths below a root), and that the hit test
+   returns that same row-child object. `aTableReportsItsRowCount…` asserts
+   every table child's parent is the table. New
+   `aTreePublishedBeforeActivationAnswersItsParentsAfterIt` publishes a
+   three-deep tree while inactive, activates with a children read, and reads
+   the parents with no publish in between (`AB-AF` item 4).
+2. *Unclipped frame (major).* `aTableReportsItsRowCount…` reads the overscan
+   row's `accessibilityFrame` (frame y −8 height 28, visible height 0) and the
+   table's (14,000pt tall, visible 100pt).
+3. *Notifications (minor).* `labelValueRowCountAndFocusChanges…` gains a
+   focus-clears arm (one post, on the host) and changes the unread node's value
+   and row count, each alone in its publish, beside its label.
+   `layoutChangedIsPostedOncePerClientRead` gains a hit-test arm and a
+   focused-element arm, each preceded by an unread structural publish with a
+   `#require` that the flag is clear.
+4. *Detached state (minor).* In `aVendedElementKeeps…`, `b` has a child `bc`
+   that is re-published as a root when `b` goes, and `b` is renamed `b2`
+   while vended; the detached `b` must read `b2` and no children while `bc` is
+   still published.
+5. *Gates and filters (minor).* The table fixture gains a `.button` child
+   (`sort`), which is a child and not a row, and refuses the index, row-count
+   and rows selectors. The hit test gains two half-open edge points and a
+   just-inside control: (10, 48) on the row's max-y edge answers `table`,
+   (10, 47) answers `row`, and (200, 40) on every frame's max-x edge answers
+   the host. New `theVoiceOverSignalDeliversTheCurrentValueSynchronouslyOnce`
+   compares one synchronous delivery against `NSWorkspace.shared.isVoiceOverEnabled`
+   as read on the machine, so it holds with VoiceOver on or off. The KVO flip
+   stays unmeasured. The hit test keeps its own inline comparisons rather than
+   calling `Bounds.contains`; the edge points pin the half-open rule instead.
+6. *Arm Q's second environment dependency (minor).* The test now calls
+   `mouseDown`/`mouseUp` directly **only when `sendEvent` did not deliver**
+   (`inputs` unchanged), so an environment where AppKit delivers the click sees
+   each event once, and the exact-sequence `#require` stays. The doc names this
+   dependency beside the AX-client one. **Not measured in an environment that
+   delivers**: in this process AppKit still swallows both clicks, so only the
+   fallback branch ran. A mutation forcing the direct call cannot behave
+   differently in a process where AppKit delivers nothing, so it was not run
+   and nothing is banked for this change.
+
+The verifier's H05, H17 and H18 had already reddened tests and were not re-run;
+there is no V05, V14, V17 or V18.
+
+| # | mutation | reddens |
+|---|---|---|
+| V01 | a non-root answers the host view (`_ = bridge.parents[id]; return bridge.hostView`) | `aTableReportsItsRowCount…`, `aTreePublishedBeforeActivation…`, `aVendedElementKeeps…`, `hitTestingUsesVisibleFrames…` |
+| V02 | `publish` never calls `rebuildParents()` | the same four |
+| V03 | `rebuildParents()` only after the `isActive` guard | `aTreePublishedBeforeActivation…` |
+| V04 | hit test closed on both max edges (`<=`) | `hitTestingUsesVisibleFrames…` (2 issues) |
+| V06 | a detached element's children read from `bridge`, not `liveBridge` | `aVendedElementKeeps…` |
+| V07 | `detach` does not replace `lastNode` | `aVendedElementKeeps…` |
+| V08 | `.valueChanged` vends and posts for unread ids | `labelValueRowCountAndFocusChanges…` |
+| V08b | `.rowCountChanged` vends and posts for unread ids | `labelValueRowCountAndFocusChanges…` |
+| V09 | focus clearing posts nothing | `labelValueRowCountAndFocusChanges…` |
+| V10 | an attached element's frame converts `visibleFrame` | `aTableReportsItsRowCount…` |
+| V11 | the host's hit test does not note a read | `layoutChangedIsPostedOncePerClientRead` |
+| V12 | the host's focused-element query does not note a read | `layoutChangedIsPostedOncePerClientRead` |
+| V13 | `accessibilityRows` keeps non-row children | `aTableReportsItsRowCount…` |
+| V15 | `VoiceOverSignal` never delivers its initial value | `theVoiceOverSignalDelivers…` |
+| V16 | the index selector allowed on every non-table role | `aTableReportsItsRowCount…` |
+
+**Deliberately unpinned: the verifier's H14** (the host's hit test before
+activation answers from the stored tree instead of the host view). In
+production `Window` publishes only while active, so before activation the
+stored tree is empty and both answers are the host view; the difference is
+reachable only by a hand-published tree, which is a test harness shape.
+
+**The 52 L-rows, re-taken at `9901f15`** (every fixture they read changed
+shape; same runner, same directory, logs `L01.log`…`L52.log`, the V-rows'
+logs keep the verifier's `H` names): **all 52 killed, no survivor**, every run
+printing `Test run with 1125 tests`. Against the `dbfa314` table above, 48 rows
+redden exactly the tests it names. The four that differ each redden a
+superset, bar L01, which is dictionary order again:
+
+- L01 reddens `aHeldElementWhose…`, `labelValueRowCount…`, `rolesLabels…` and
+  `theHostViewIsAGroup…` — gaining `aHeldElementWhose…` and losing
+  `aVendedElementKeeps…`, `focusIsReported…` and `onlyAdvertisedActions…`. A
+  per-process hash seed decides which fixtures happen to publish more than one
+  root in an order that disagrees with declaration.
+- L02 (a root answers nil for its parent) also reddens
+  `aTreePublishedBeforeActivation…` and `hitTestingUsesVisibleFrames…` — the
+  parent walks added for V01.
+- L03 (swap label and value) also reddens `aTreePublishedBeforeActivation…`,
+  which identifies its elements by label.
+- L10 (drop the flip) also reddens `aTableReportsItsRowCount…`, which now reads
+  unclipped frames (V10).
+
+**Green at `9901f15`**, after `swift package clean` (default build system,
+unfiltered): `swift build --build-tests` printed 0 `error:` and 0 `warning:`;
+`Test run with 1125 tests in 1 suite passed after 24.148 seconds`, 0 `error:`,
+0 `warning:` in the test log. 1125 = 1123 + the verifier round's two new
+platform tests. Goldens: 97, and `git diff --stat f64e58a -- '*.json'` is
+empty.
+
 ### Human VoiceOver look — script (open)
 
 Nothing in the suite hears VoiceOver.

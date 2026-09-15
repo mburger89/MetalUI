@@ -1810,13 +1810,29 @@ mutation table are in `docs/record/12-accessibility-bridge.md`.
    changed no count any fixture read. The design's own arm Q probe never checked
    that its mouse events arrived either.
 
-**Lane 2's mutation evidence, by ruling** (52 rows, all killed at the re-take;
-the table, with the tests each reddens, is in the record): `AB-N` L01, L02;
-`AB-F` role and trait mapping L03–L05; `AB-X` lazy creation L06, L25, L27,
-L32, L33; `AB-D` identity and detach L07–L09, L45, L46; `AB-E` frames L10, L11,
-L31; `AB-H` gating L12, L13, L52; `AB-J` L14, L15; `AB-L` L16–L18, L51; `AB-W`
-L19–L22, L40, L41; `AB-B` and `AB-AB` activation L23–L29, L43, L44; `AB-K`
-L29–L39, L48–L50; `AB-AC` and the seam L42, L43; `AB-AE` L47.
+9. **The lane-2 verifier's hunting mutations left fifteen rules unguarded;
+   fourteen are now pinned** (record, "Verifier round on lane 2", V01–V16,
+   numbered after the verifier's own H01–H16, plus an added V08b; its H14 —
+   the host's pre-activation hit test — stays unpinned because production
+   cannot reach the difference). The two that mattered: the **parent half of the
+   hierarchy** was pinned only for roots and detached elements — deleting the
+   `parents` map, or answering the host view for every node, left 1123 tests
+   green — and **`AB-E`'s choice of the unclipped frame over `visibleFrame`**
+   was pinned only by fixtures whose two rects are equal (taxonomy shape 1).
+   The coverage line below overstated `AB-E` until this item: L10, L11 and L31
+   pin the conversion and when it is taken, not which rect is converted.
+   Item 4 above (parents rebuilt while inactive) was unpinned until V03.
+
+**Lane 2's mutation evidence, by ruling** (52 rows, all killed at both
+re-takes, plus the verifier round's 15 V-rows, all killed; the tables, with the
+tests each reddens, are in the record): `AB-N` L01, L02, and nested parents
+V01, V02; `AB-F` role and trait mapping L03–L05; `AB-X` lazy creation L06, L25,
+L27, L32, L33, V08, V08b; `AB-D` identity and detach L07–L09, L45, L46, V06,
+V07; `AB-E` the conversion and its read-time timing L10, L11, L31, and **which
+rect (unclipped, not visible) V10 alone**; `AB-H` gating L12, L13, L52, V16;
+`AB-J` L14, L15; `AB-L` L16–L18, L51, V13; `AB-W` L19–L22, L40, L41, V04;
+`AB-B` and `AB-AB` activation L23–L29, L43, L44, V15; `AB-K` L29–L39, L48–L50,
+V09, V11, V12; `AB-AC` and the seam L42, L43; `AB-AF` item 4 V03; `AB-AE` L47.
 
 **Why.** Each is the smallest change that builds against the SDK and the
 fields that exist, or makes a mutation the spec relies on observable.
