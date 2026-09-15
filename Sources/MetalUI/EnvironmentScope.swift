@@ -57,21 +57,29 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], EnvironmentScopeLayout<Content.GroupLayout>) {
-        // SHELL: no write applied, nothing pushed.
-        let values = pass.frame.environmentTop
-        let (nodes, layout) = content.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+        // The ONLY place the write runs (ruling EV-V). `parent` and `cursor`
+        // are forwarded unchanged: a scope is not a level in the tree.
+        let values = pass.frame.scopedValues(applying: write)
+        let (nodes, layout) = pass.frame.withEnvironment(values) {
+            content.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
+        }
         return (nodes, EnvironmentScopeLayout(values: values, content: layout))
     }
 
     public mutating func prepaintGroup(layout: inout EnvironmentScopeLayout<Content.GroupLayout>,
                                        pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        content.prepaintGroup(layout: &layout.content, pass: &pass)
+        // The values layout stored, not the write run again (ruling EV-V).
+        pass.frame.withEnvironment(layout.values) {
+            content.prepaintGroup(layout: &layout.content, pass: &pass)
+        }
     }
 
     public mutating func paintGroup(layout: inout EnvironmentScopeLayout<Content.GroupLayout>,
                                     prepaint: inout Content.GroupPrepaint,
                                     pass: inout PaintPass) {
-        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        pass.frame.withEnvironment(layout.values) {
+            content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+        }
     }
 }
 

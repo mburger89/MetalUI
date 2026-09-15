@@ -69,13 +69,12 @@ extension State: BindableState {}
 @MainActor
 enum StateBinder {
     /// What a type declares, found once by reflection: the ordinals of its
-    /// `State` wrappers and of its `Environment` wrappers among its `Mirror`
-    /// children, both in ASCENDING order. `bindOrdinals` walks `all`, the two
-    /// merged, in one forward pass over the children.
+    /// `State` and `Environment` wrappers among its `Mirror` children, in
+    /// ASCENDING order — `bindOrdinals` relies on that order to consume them in
+    /// one forward pass — and whether any of them is an `Environment`.
     private struct Shape {
-        var state: [Int] = []
-        var environment: [Int] = []
-        var all: [Int] = []
+        var ordinals: [Int] = []
+        var hasEnvironment = false
     }
 
     private static var shapes: [ObjectIdentifier: Shape] = [:]
@@ -105,9 +104,9 @@ enum StateBinder {
     static func bind<E>(_ element: E, in frame: Frame, id: GlobalElementID) {
         let key = ObjectIdentifier(E.self)
         if let shape = shapes[key] {
-            guard !shape.all.isEmpty else { return }
-            let snapshot: EnvironmentValues? = nil // SHELL
-            bindOrdinals(shape.all, in: element, table: frame.stateTable,
+            guard !shape.ordinals.isEmpty else { return }
+            let snapshot = shape.hasEnvironment ? frame.environmentSnapshot() : nil
+            bindOrdinals(shape.ordinals, in: element, table: frame.stateTable,
                          environment: snapshot, id: id)
             return
         }
@@ -116,16 +115,16 @@ enum StateBinder {
         // rather than a `reflect` pass followed by a separate `bindOrdinals`
         // pass over the same value.
         var shape = Shape()
-        let snapshot: EnvironmentValues? = nil // SHELL
+        var snapshot: EnvironmentValues?
         for (index, child) in Mirror(reflecting: element).children.enumerated() {
             if let bindable = child.value as? BindableState {
-                shape.state.append(index)
-                shape.all.append(index)
+                shape.ordinals.append(index)
                 bindable.bind(to: frame.stateTable, id: id, slot: index)
             } else if let bindable = child.value as? BindableEnvironment {
-                shape.environment.append(index)
-                shape.all.append(index)
-                _ = bindable; _ = snapshot // SHELL
+                shape.ordinals.append(index)
+                shape.hasEnvironment = true
+                if snapshot == nil { snapshot = frame.environmentSnapshot() }
+                bindable.bind(snapshot!)
             }
         }
         shapes[key] = shape

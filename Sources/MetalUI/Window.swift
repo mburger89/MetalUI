@@ -857,6 +857,7 @@ public final class Window {
                           activeElement: active,
                           focusedElement: focusHandedIn,
                           transaction: transaction)
+        frame.rootEnvironment = environment
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
