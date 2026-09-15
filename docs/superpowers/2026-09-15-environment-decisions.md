@@ -717,7 +717,28 @@ therefore exactly the time between these two tasks.
 **Cost if wrong.** An external keymap written with `Binding(…)` breaks at task 10
 instead of now. The warning in between is the notice.
 
-**Mutations.** _owed by lane 1._
+**Mutations** (lane 1, on a `--build-system native` build in this worktree; the
+guard is `theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding`, and
+each run below printed `passed`/`failed` for it, never `skipped`):
+
+- **Red on arrival**, guard written, `Binding` still the struct: `messages → ""`,
+  failing `contains("'Binding' is deprecated")` (`EnvironmentCompileGuards.swift:48`)
+  and `contains("KeyBinding")` (`:50`); `succeeded` held.
+- **(a) no alias** (the struct renamed, typealias not yet written):
+  `succeeded → false`, `messages → "cannot find 'Binding' in scope"`; all three
+  expectations failed (`:46`, `:48`, `:50`).
+- **(b) `@available` line deleted**: `messages → ""`; `:48` and `:50` failed.
+- **(c) `@available(*, deprecated)` without `renamed:`**:
+  `messages → "'Binding' is deprecated [#DeprecatedDeclaration]"`; only `:50`
+  failed. This is why the guard asserts both substrings: (c) is a deprecation
+  that no longer tells the caller where to go.
+- **Not mutated**: the respelled `KeymapTests` (the file's existing mutation
+  records stand). Before the rename they failed to compile with 44 distinct
+  `cannot find 'KeyBinding' in scope` errors.
+
+The swiftc diagnostic the guard matches, taken verbatim from the fixture outside
+the harness: `warning: 'Binding' is deprecated: renamed to 'KeyBinding'
+[#DeprecatedDeclaration]`, plus `note: use 'KeyBinding' instead`.
 
 ## EV-O — environment work is counted, and scales with writers and readers, not with their descendants
 

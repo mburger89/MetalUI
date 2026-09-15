@@ -28,7 +28,7 @@ public struct Keystroke: Equatable, Sendable {
     /// **`nil` for anything else, rather than a `Keystroke` that never
     /// matches.** An unknown modifier name, a trailing separator or a
     /// multi-character key that is not a known name are all failures a caller
-    /// can see — `Binding("cmd-enterr", …)` would otherwise be a binding that
+    /// can see — `KeyBinding("cmd-enterr", …)` would otherwise be a binding that
     /// compiles, parses and silently never fires, which is exactly the shape
     /// CLAUDE.md's declared-but-inert table exists to prevent.
     public init?(_ spelling: String) {
@@ -111,15 +111,15 @@ public struct Keystroke: Equatable, Sendable {
 /// predicate (framework spec §8.3).
 ///
 /// ```swift
-/// Binding("cmd-c",         Copy(),           context: "Editor")
-/// Binding("ctrl-k ctrl-f", FormatDocument(), context: "Editor && mode == code")
+/// KeyBinding("cmd-c",         Copy(),           context: "Editor")
+/// KeyBinding("ctrl-k ctrl-f", FormatDocument(), context: "Editor && mode == code")
 /// ```
 ///
 /// **The spelling stays a `String` rather than being parsed in `init`**, so a
-/// `Binding` is a plain value with no failable initializer and a keymap can be
+/// `KeyBinding` is a plain value with no failable initializer and a keymap can be
 /// written as a literal list. A spelling that does not parse makes *that*
 /// binding inert and nothing else — same rule as a malformed `context`.
-public struct Binding {
+public struct KeyBinding {
     /// One or two `-`-separated strokes, separated from each other by a space:
     /// `"cmd-c"`, `"ctrl-k ctrl-f"`.
     public var spelling: String
@@ -145,12 +145,26 @@ public struct Binding {
     }
 }
 
+/// The keymap entry's pre-task-9 name, kept compiling for one release (ruling
+/// EV-N).
+///
+/// **Renamed because a SwiftUI-like `Binding` needs the name** (plan task 10;
+/// ruling CO-Z recorded the collision): `@Binding var x` fails with a confusing
+/// error while a non-wrapper holds it, and a SwiftUI reader takes
+/// `Binding("m", ToggleModal())` for a value binding.
+///
+/// **Task 10 deletes this alias**, together with its guard
+/// `theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding`, in the
+/// change that declares `Binding<Value>`: a module cannot hold both.
+@available(*, deprecated, renamed: "KeyBinding")
+public typealias Binding = KeyBinding
+
 /// A window's key bindings.
 ///
 /// ```swift
 /// window.keymap = Keymap {
-///     Binding("cmd-i", Increment())
-///     Binding("cmd-k", Format(), context: "Editor")
+///     KeyBinding("cmd-i", Increment())
+///     KeyBinding("cmd-k", Format(), context: "Editor")
 /// }
 /// ```
 ///
@@ -159,12 +173,12 @@ public struct Binding {
 /// key press, so the cost is not worth a structure that would have to be
 /// invalidated whenever the list changed.
 public struct Keymap {
-    public var bindings: [Binding]
-    public init(_ bindings: [Binding] = []) { self.bindings = bindings }
-    public init(@KeymapBuilder _ bindings: () -> [Binding]) { self.bindings = bindings() }
+    public var bindings: [KeyBinding]
+    public init(_ bindings: [KeyBinding] = []) { self.bindings = bindings }
+    public init(@KeymapBuilder _ bindings: () -> [KeyBinding]) { self.bindings = bindings() }
 }
 
-/// Lets a `Keymap` be written as a block of `Binding`s, which is the spelling
+/// Lets a `Keymap` be written as a block of `KeyBinding`s, which is the spelling
 /// framework spec §8.3 uses.
 ///
 /// **`buildBlock` only.** `buildOptional`, `buildEither` and `buildArray` would
@@ -175,7 +189,7 @@ public struct Keymap {
 /// in the same change.
 @resultBuilder
 public enum KeymapBuilder {
-    public static func buildBlock(_ bindings: Binding...) -> [Binding] { bindings }
+    public static func buildBlock(_ bindings: KeyBinding...) -> [KeyBinding] { bindings }
 }
 
 /// The first stroke of a two-stroke sequence, held until the second arrives or
@@ -232,7 +246,7 @@ let twoStrokeTimeout: Double = 1
 /// 2. **A live prefix is offered the completion first.** If some binding's two
 ///    strokes are the held prefix followed by this event, it fires.
 /// 3. **An exact one-stroke binding beats a prefix.** Reversing 3 and 4 makes
-///    `Binding("ctrl-k", …)` unreachable whenever any `"ctrl-k …"` sequence
+///    `KeyBinding("ctrl-k", …)` unreachable whenever any `"ctrl-k …"` sequence
 ///    exists.
 /// 4. **Otherwise a first stroke is recorded** and the keystroke is claimed.
 ///
@@ -323,9 +337,9 @@ private func contextStacks(_ levels: [KeyContext?]) -> [[KeyContext]] {
 /// **last**, the conventional "a later keymap overrides an earlier one".
 private func bestBinding(_ keymap: Keymap, stacks: [[KeyContext]],
                          where isCandidate: ([Keystroke]) -> Bool)
-    -> (binding: Binding, strokes: [Keystroke])?
+    -> (binding: KeyBinding, strokes: [Keystroke])?
 {
-    var best: (binding: Binding, strokes: [Keystroke])?
+    var best: (binding: KeyBinding, strokes: [Keystroke])?
     var bestDepth = Int.max
     for binding in keymap.bindings {
         guard let strokes = binding.strokes, isCandidate(strokes) else { continue }

@@ -267,3 +267,44 @@ which starts from a value with `pixelLength = 0.5` and `theme = 7`.
   inertness, not alignment.
 - **The suite, goldens and guards were not re-run**: nothing in `Sources/` or
   `Tests/` changed since the first pass's baseline.
+
+### Lane 1 — `KeyBinding` (`EV-N`), 2026-09-15
+
+**Where.** Worktree `/Users/maxburger/Developer/MetalUI-environment`, branch
+`feat/environment`, on `e9afded`. No other agent was live in the worktree.
+
+**What changed.** `public struct Binding` → `KeyBinding` in `Keymap.swift`, with
+`@available(*, deprecated, renamed: "KeyBinding") public typealias Binding`.
+`Keymap.bindings`, both `Keymap` inits, `KeymapBuilder.buildBlock` and the private
+`bestBinding` tuple are retyped. Doc comments spelling `Binding` are respelled in
+`Keymap.swift` and `KeyContext.swift:63`. The demo's nine keymap lines
+(`main.swift:1104-1112`) and all 45 hits in `KeymapTests.swift` (44 calls, one
+doc comment) spell `KeyBinding`. The English-word and `@Binding` mentions the
+spec lists were left alone.
+
+**Red first** (commit `14c1fbb`):
+
+- G5 alone, before the rename: `Expectation failed: (result.messages → "").contains("'Binding' is deprecated")`
+  at `EnvironmentCompileGuards.swift:48`, and the same for `"KeyBinding"` at `:50`.
+  `succeeded` held: the old struct compiles.
+- `KeymapTests` respelled: 44 distinct `error: cannot find 'KeyBinding' in scope`.
+
+**Mutations of G5.** All four runs (red, a, b, c) are recorded under `EV-N`. Each
+reddened a different subset of the three expectations; (c), a deprecation with
+no `renamed:`, reddens only the `"KeyBinding"` expectation.
+
+**Suite**, after `swift package clean`, build and test output in one file:
+
+- `swift build --build-system native --build-tests` then
+  `swift test --no-parallel --build-system native`:
+  `Test run with 1085 tests in 1 suite passed`, **0 `warning:`**, **0 `error:`**.
+  Two tests skipped, both the documented gated ones (`regenerateAllGoldens`,
+  `aListsWorkIsTheSameFor100kRowsAsFor500`). G5 printed `passed`.
+- `swift test --no-parallel` (default build system), the same checkout
+  afterwards: `1085 tests`, **0 `warning:`**, **0 `error:`**, G5 `passed` —
+  against the native build's leftover `Modules`, which were current (CLAUDE.md,
+  "When CI lands").
+- **The deprecation warning does not reach the suite log**: the child `swiftc`
+  writes it into the helper's pipe. Checked by the 0 above, not assumed.
+- Goldens: **97**; `git diff --name-only f64e58a -- Tests` lists no `.json`.
+- Guards: **46** (`EnvironmentCompileGuards` 1 over the design baseline's 45).

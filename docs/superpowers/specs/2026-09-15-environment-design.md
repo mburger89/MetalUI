@@ -252,7 +252,7 @@ spells `KeyBinding`.
 
 | test | file | red before | mutation that must redden it |
 |---|---|---|---|
-| `G5` `theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding` — a plain-import `typecheck` fixture: `let k = Keymap([Binding("cmd-k", A())])`, where `A: Action`. Asserts `succeeded` **and** `messages.contains("KeyBinding")` (the deprecation warning's rename text). | new `Tests/MetalUITests/EnvironmentCompileGuards.swift` | `KeyBinding` does not exist, so `messages` has no "KeyBinding" | (a) delete the typealias → `succeeded` false; (b) drop `@available(deprecated…)` → `messages` lacks "KeyBinding" |
+| `G5` `theDeprecatedBindingSpellingStillCompilesAndPointsAtKeyBinding` — a plain-import `typecheck` fixture: `let k = Keymap([Binding("cmd-k", A())])`, where `A: Action`. Asserts `succeeded`, `messages.contains("'Binding' is deprecated")` **and** `messages.contains("KeyBinding")` (the deprecation warning's rename text). | new `Tests/MetalUITests/EnvironmentCompileGuards.swift` | `KeyBinding` does not exist, so `messages` has no "KeyBinding" | (a) delete the typealias → `succeeded` false; (b) drop `@available(deprecated…)` → `messages` lacks "KeyBinding"; (c) drop only `renamed:` → `messages` lacks "KeyBinding" (lane 1 ran all three; results under `EV-N`) |
 | every existing `KeymapTests` test, respelled | `KeymapTests.swift` | does not compile before the rename | not a new mutation: the file's existing mutation records stand |
 
 **Warnings.** After lane 1, `grep -c "warning:"` over the build and test log
