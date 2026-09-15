@@ -1,49 +1,36 @@
-// TYPECHECK SKELETON (not a SwiftUI probe): can a typed native node id with no
-// public initializer, returned by a protocol requirement, make the compiler
-// reject a `ProposalElementGroup` conformer that registers a legacy node?
-// Evidence for ruling MC-G in
-// docs/superpowers/2026-09-15-modifier-composition-decisions.md (plan task 3's
-// open proof carried by SA-R). A two-module model of MetalUI's element
-// protocols: this file is module `Kit`; each `typed-client-*.swift` is a
-// separate module that imports it PLAINLY (no @testable), as an external
-// author would (SA-P's instrument rule).
+// TYPECHECK SKELETON (not a SwiftUI probe): do lane 2's `ElementGroup.LayerBase`
+// (MC-A as revised) and lane 3's typed native node id (MC-G) coexist on ONE
+// `ElementGroup`? TypedNodeKit.swift with LayerBaseKit.swift's associated type,
+// `_wrap` requirement, `ModifiedElement` and one `padding` overload spliced into
+// it (the splice is mechanical: everything below `LayoutNodeID` is
+// TypedNodeKit's, with the protocol body and the four declarations after it
+// added). Written at design review (ruling MC-N, findings 1 and 8).
 //
-// HOW TO RUN, from this directory, with an output directory of your choice:
+// HOW TO RUN, from this directory:
 //
 //   OUT=$(mktemp -d)
 //   xcrun swiftc -swift-version 6 -parse-as-library -emit-module -emit-library \
-//       -module-name Kit TypedNodeKit.swift -emit-module-path $OUT/Kit.swiftmodule -o $OUT/libKit.dylib
-//   for f in typed-client-*.swift; do echo "== $f"; \
+//       -module-name Kit CombinedKit.swift -emit-module-path $OUT/Kit.swiftmodule -o $OUT/libKit.dylib
+//   for f in typed-client-*.swift combined-client-layered.swift; do echo "== $f"; \
 //       xcrun swiftc -swift-version 6 -typecheck -I $OUT $f 2>&1 | grep error: | head -1; done
 //
-// RECORDED 2026-09-15 by the modifier-composition design session, macOS 26.6.2,
-// Swift 6 mode. The first recording named "xcrun swiftc = Apple Swift 6.3.3";
-// at design review the same day `xcrun swiftc` reported Apple Swift 6.4
-// (swiftlang-6.4.0.33.1) and PATH `swiftc` (swiftly) 6.3.3, so which one the
-// first run used is not established. RE-RUN under BOTH at design review: the
-// eight results below are identical under each. CombinedKit.swift repeats them
-// with lane 2's `LayerBase` added:
+// RECORDED 2026-09-15, macOS 26.6.2, xcrun swiftc = Apple Swift 6.4
+// (swiftlang-6.4.0.33.1), Swift 6 mode. Kit build exit 0. Every
+// `typed-client-*` printed exactly TypedNodeKit.swift's recorded diagnostic
+// (honest, liar4, opaqueOK: none; liar1, liar3, opaque: "does not conform to
+// protocol 'ProposalElementGroup'"; liar2: "'ProposalNodeID' initializer is
+// inaccessible due to 'internal' protection level"; liar5: "generic struct
+// 'ProposalFrame' requires that 'Legacy' conform to 'ProposalElementGroup'"),
+// and `combined-client-layered` (a legacy element, a proposal Component and a
+// ProposalElement each taking two chained `padding`s, stored under the flat
+// type) typechecked with no diagnostic.
 //
-//   honest    exit 0 (a leaf, a container over a Pair, a Component retro-conformed)
-//   liar1     error: type 'Liar' does not conform to protocol 'ProposalElementGroup'
-//             (today's marker liar: Element + marker, legacy node, no typed entry)
-//   liar2     error: 'ProposalNodeID' initializer is inaccessible due to 'internal' protection level
-//   liar3     error: type 'LegacyComp' does not conform to protocol 'ProposalElementGroup'
-//             (a Component whose content is legacy)
-//   liar4     exit 0 -- THE RESIDUAL HOLE: a group that writes both entry points
-//             itself, legacy nodes from one and zero typed nodes from the other
-//   liar5     error: generic struct 'ProposalFrame' requires that 'Legacy' conform to 'ProposalElementGroup'
-//   opaque    error: type 'OpaqueComp' does not conform to protocol 'ProposalElementGroup'
-//             (`var content: some ElementGroup` hides that the content is proposal)
-//   opaqueOK  exit 0 (`some ProposalElementGroup`; and `Both`, a ProposalElement that
-//             ALSO overrides the legacy `requestLayout`, compiles -- second hole)
+// So `ProposalElement` needs NO second restated associated type for
+// `LayerBase`: its default `Self` resolves without inference. TypedNodeKit's
+// `LayoutState` restatement is still required and is still here.
 //
-// A FINDING THE DESIGN DEPENDS ON: `ProposalElement` must RESTATE
-// `associatedtype LayoutState`. Without that line this file itself fails to
-// build: "error: type 'Leaf' does not conform to protocol 'Element'" (and the
-// same for 'ProposalFrame<Content>'), because Swift does not infer Element's
-// `LayoutState` through the default `requestLayout` that ProposalElement's
-// extension provides.
+// TypedNodeKit.swift itself was also re-run the same day under both
+// `xcrun swiftc` (6.4) and PATH `swiftc` (swift.org 6.3.3): same eight results.
 
 public struct LayoutNodeID: Hashable, Sendable { let index: Int; init(_ i: Int) { index = i } }
 public struct GlobalElementID: Hashable { let path: [Int]
@@ -66,6 +53,32 @@ public struct LayoutPass {
 @MainActor public protocol ElementGroup {
     associatedtype GroupLayout
     mutating func requestGroupLayout(under parent: GlobalElementID?, at cursor: inout Int, pass: inout LayoutPass) -> ([LayoutNodeID], GroupLayout)
+    associatedtype LayerBase: ElementGroup = Self
+    func _wrap(_ layer: ModifierLayer) -> ModifiedElement<LayerBase>
+}
+public struct ModifierLayer: Sendable { var padding: Double; init(padding: Double) { self.padding = padding } }
+public struct ModifiedElement<Content: ElementGroup>: Element {
+    public typealias LayerBase = Content
+    public var content: Content
+    var outermost: ModifierLayer
+    var inner: [ModifierLayer]
+    init(content: Content, layer: ModifierLayer) { self.content = content; outermost = layer; inner = [] }
+    public var layerCount: Int { inner.count + 1 }
+    public func _wrap(_ l: ModifierLayer) -> ModifiedElement<Content> { var c = self; c.inner.append(c.outermost); c.outermost = l; return c }
+    public mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Content.GroupLayout) {
+        var cursor = 0
+        var node: LayoutNodeID
+        let (children, l) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        node = pass.requestNode(children: children)
+        for _ in inner { node = pass.requestNode(children: [node]) }
+        return (node, l)
+    }
+}
+extension ElementGroup where LayerBase == Self {
+    public func _wrap(_ l: ModifierLayer) -> ModifiedElement<Self> { ModifiedElement(content: self, layer: l) }
+}
+extension ElementGroup {
+    public func padding(_ p: Double) -> ModifiedElement<LayerBase> { _wrap(ModifierLayer(padding: p)) }
 }
 @MainActor public protocol Element: ElementGroup {
     associatedtype LayoutState

@@ -1,3 +1,13 @@
+// SUPERSEDED FOR MC-A (design review, 2026-09-15, ruling MC-N finding 1). The
+// overload shape below -- protocol overloads redeclared concretely on
+// `ModifiedElement` -- infers the flat type, but its type-checking time grows
+// exponentially with chain length: 16 modifiers took 44.9 s and 24 failed with
+// "unable to type-check this expression in reasonable time"
+// (chain-typecheck-timing.py). MC-A now uses ONE overload through
+// `ElementGroup.LayerBase` (LayerBaseKit.swift), which also makes the nested
+// shape this file's second finding reaches unspellable. Kept as the record of
+// the first design; its recorded output below is still what it prints.
+//
 // TYPECHECK SKELETON (not a SwiftUI probe): does a FLAT legacy modifier
 // wrapper keep one concrete type across a chain, given that `StyledElement`'s
 // protocol-extension `padding` and `ElementGroup`'s `frame` also return
