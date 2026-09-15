@@ -814,12 +814,15 @@ public final class Frame {
     }
 
     /// A record's geometry: `bounds` translated exactly as `insertHitbox`
-    /// translates it, and that rect intersected with the active clip — the
-    /// rect a hitbox would register at (AB-E, AB-W).
+    /// translates it, that rect intersected with the active clip — the rect a
+    /// hitbox would register at — and the hitbox's layer (AB-E, AB-W). The
+    /// record's `order` is not known here: `AccessibilityTreeBuilder` fills it
+    /// from the record's first position.
     private func accessibilityGeometry(for bounds: Bounds<Pixels>) -> AccessibilityGeometry {
         let translated = translatedByActiveOffset(bounds)
         return AccessibilityGeometry(frame: translated,
-                                     visibleFrame: Self.intersect(activeClip, translated))
+                                     visibleFrame: Self.intersect(activeClip, translated),
+                                     layer: activeLayer)
     }
 
     /// `bounds` moved by the active scroll translation — what `insertHitbox`,

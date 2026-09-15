@@ -697,3 +697,45 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     #expect(h.poster.posts.isEmpty, "a node no client was handed announces nothing")
     #expect(h.bridge.createdElementCount == created, "and nothing is created to announce it")
 }
+
+// MARK: - Isolation (AB-AE)
+
+/// AppKit's NSAccessibility overrides are nonisolated, so a query can in
+/// principle arrive off the main thread. Answered there, it gets "nothing" — no
+/// label, no children, no action, nothing allowed — and the process survives;
+/// the same element answers on the main thread (the control, in the same child
+/// process).
+///
+/// **An exit test, because the failure is a trap**: the spelling this replaces,
+/// `MainActor.assumeIsolated` with no thread check, kills the process, and a
+/// crash in the suite's own process is a truncated run rather than a red test
+/// (practices doc, shape 11).
+@Test func anOffMainThreadQueryAnswersNothingAndDoesNotTrap() async {
+    await #expect(processExitsWith: .success) {
+        let held = await MainActor.run { () -> MainThreadAnswer<(AppKitAccessibilityElement, AppKitAccessibilityBridge)> in
+            let bridge = AppKitAccessibilityBridge(signal: ScriptedAccessibilitySignal(true),
+                                                   poster: RecordingAccessibilityPoster())
+            bridge.onRequest = { _ in true }
+            bridge.publish(makeTree(roots: ["n"], [
+                "n": Entry(node: node(.button, "live", children: ["c"], actions: [.press]), frame: rect(0, 0, 20, 20)),
+                "c": Entry(node: node(.staticText, "child"), frame: rect(0, 0, 10, 10)),
+            ]))
+            let element = bridge.element(for: nid("n"))
+            // The control: on the main thread the element answers.
+            precondition(element.accessibilityLabel() == "live")
+            precondition(element.accessibilityChildren()?.count == 1)
+            precondition(element.isAccessibilitySelectorAllowed(#selector(NSAccessibilityElement.accessibilityPerformPress)))
+            precondition(element.accessibilityPerformPress())
+            return MainThreadAnswer(value: (element, bridge))
+        }
+        let offMain = await Task.detached { () -> (Bool, String?, Int?, Bool, Bool) in
+            let element = held.value.0
+            return (pthread_main_np() != 0, element.accessibilityLabel(), element.accessibilityChildren()?.count,
+                    element.isAccessibilitySelectorAllowed(#selector(NSAccessibilityElement.accessibilityPerformPress)),
+                    element.accessibilityPerformPress())
+        }.value
+        precondition(offMain.0 == false, "the query really ran off the main thread")
+        precondition(offMain.1 == nil && offMain.2 == 0 && offMain.3 == false && offMain.4 == false)
+        _ = held
+    }
+}

@@ -60,7 +60,7 @@ enum AccessibilityTreeBuilder {
         var geometry: [AccessibilityNodeID: AccessibilityGeometry] = [:]
         nodes.reserveCapacity(order.count)
         geometry.reserveCapacity(order.count)
-        for id in order {
+        for (position, id) in order.enumerated() {
             let record = records[id]!
             let declared = record.declared
             var actions: AccessibilityActions = []
@@ -80,8 +80,12 @@ enum AccessibilityTreeBuilder {
                 actions: actions,
                 children: children[id] ?? [],
                 rowCount: declared.logicalCount)
-            // 6. Geometry is the record's.
-            geometry[nodeID] = record.geometry
+            // 6. Geometry is the record's (its last content), with `order` its
+            //    FIRST position: the key the AppKit hit test breaks layer ties
+            //    on, as click dispatch breaks them on registration order (AB-W).
+            var placed = record.geometry
+            placed.order = position
+            geometry[nodeID] = placed
         }
 
         // 4. The window's focus after the frame's read-back, if it published.

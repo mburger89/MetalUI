@@ -221,6 +221,8 @@ final class MetalHostView: NSView {
 @MainActor
 final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     private let window: NSWindow
+    /// Internal, not private, so platform and end-to-end tests can ask it what
+    /// an accessibility client would.
     let hostView: MetalHostView
     private let metalSurface: MetalLayerSurface
     private var displayLink: CADisplayLink?
@@ -231,15 +233,23 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     var onAppearanceChange: ((Appearance) -> Void)?
     var onClose: (() -> Void)?
 
-    /// Lane 1 of the accessibility bridge stores the tree and exposes nothing:
-    /// `MetalHostView` is still a plain `NSView`, so no client can read it or
-    /// send a request yet. Lane 2 forwards both to `AppKitAccessibilityBridge`.
-    var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)?
-    private(set) var publishedAccessibilityTree = AccessibilityTree.empty
-    func publishAccessibilityTree(_ tree: AccessibilityTree) { publishedAccessibilityTree = tree }
+    /// Both accessibility requirements forward to the bridge, which answers
+    /// clients on the host view (`AppKitAccessibility.swift`, lane 2 of the
+    /// accessibility bridge). Assigning the handler delivers an activation the
+    /// signal reported before anyone listened (AB-B).
+    var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)? {
+        get { accessibilityBridge.onRequest }
+        set { accessibilityBridge.onRequest = newValue }
+    }
+    func publishAccessibilityTree(_ tree: AccessibilityTree) { accessibilityBridge.publish(tree) }
 
+    /// Owned here and by the host view; it holds the host view weakly (AB-D).
     let accessibilityBridge: AppKitAccessibilityBridge
 
+    /// `accessibilitySignal` is `VoiceOverSignal()` in production; a test passes
+    /// a scripted one through `AppKitPlatform(device:accessibilitySignal:)`
+    /// (AB-AC). It is observed synchronously here, so a running screen reader
+    /// activates the bridge before `Window.init` has assigned a handler.
     init(device: any MTLDevice, title: String, size: Size<Pixels>,
          accessibilitySignal: any AccessibilityClientSignal) throws {
         metalSurface = MetalLayerSurface(device: device)
@@ -277,6 +287,8 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
 
         super.init()
         window.delegate = self
+        accessibilityBridge.hostView = hostView
+        hostView.accessibilityBridge = accessibilityBridge
         hostView.onInput = { [weak self] event in self?.onInput?(event) ?? false }
         hostView.onGeometryChange = { [weak self] in self?.syncSurfaceGeometry() }
         hostView.onAppearanceChange = { [weak self] in
@@ -381,10 +393,16 @@ public final class AppKitPlatform: Platform {
     private var windows: [AppKitWindow] = []
     private let makeAccessibilitySignal: @MainActor () -> any AccessibilityClientSignal
 
+    /// Windows opened by this platform observe `NSWorkspace.isVoiceOverEnabled`
+    /// as their accessibility signal (AB-B).
     public convenience init(device: any MTLDevice) {
         self.init(device: device, accessibilitySignal: { VoiceOverSignal() })
     }
 
+    /// The test path (AB-AC): `App.openWindow` cannot pass a signal, so a test
+    /// that must not depend on whether VoiceOver runs on the machine builds the
+    /// platform with a scripted one and constructs `Window` over the window it
+    /// opens.
     init(device: any MTLDevice,
          accessibilitySignal: @escaping @MainActor () -> any AccessibilityClientSignal) {
         self.device = device
