@@ -9,7 +9,7 @@ starts here, at the design stage.**
 
 Prefixed **`SA-`** and **lettered** (`SA-A`, `SA-B`, …), per this repo's
 convention. **A bare `SA-3` is a typo, not a citation.** The next unused letter
-is `SA-U`.
+is `SA-V`.
 
 Read alongside:
 
@@ -1000,7 +1000,56 @@ brackets; "diag" means SwiftUI logged "Invalid frame dimension" and/or
 - **If the crash proves too harsh,** relaxing a precondition to a clamp is
   additive. Tightening a clamp back into a crash later would break callers.
 
-**Mutations:** owed by lane 3.
+**Mutations (lane 3, 2026-09-14, run at `71c8b1c` in a detached `git worktree`
+off `feat/kernel-completion`, one at a time, full `swift test --build-system
+native --no-parallel` each, restore confirmed by `git status --short` clean
+each time; every run read `Test run with 1084 tests in 1 suite`, so none
+truncated. Every mutation edits a function body or adds a method, so the
+builds were incremental; the implementation's own suite run was cleaned).**
+- **Red before** (`408dfc3`, the skeleton, 53 filtered tests, 90 issues): the
+  30 new-rule trap tests read `.failure → .exitCode(0)` with an empty stderr.
+  `aNaNLayoutPriorityTraps` and the four ratio traps already trapped under the
+  old rules and were red **on their fragment only** (`SA-U` item 1).
+- Stack spacing `!= .infinity` → `aNaNStackSpacingTraps`,
+  `aNegativeInfiniteStackSpacingTraps`.
+- Padding precondition deleted → the three padding traps.
+- Fixed dimension: NaN-blind `!(x < 0) && x != .infinity` →
+  `aNaNFixedFrameDimensionTraps`; `>= 0` half dropped →
+  `aNegativeFixedFrameDimensionTraps`; `isFinite` half dropped →
+  `anInfiniteFixedFrameDimensionTraps`.
+- Minimum: `!isNaN` dropped → `aNaNFrameMinimumTraps`; `!= .infinity` dropped
+  → `anInfiniteFrameMinimumTraps`.
+- Maximum: NaN-blind `!(max < 0)` → `aNaNFrameMaximumTraps`; deleted → that
+  and `aNegativeFrameMaximumTraps`.
+- Ideal: NaN-blind → `aNaNFrameIdealTraps`; `>= 0` dropped →
+  `aNegativeFrameIdealTraps`; `isFinite` dropped → `anInfiniteFrameIdealTraps`.
+- Each ordering check deleted → its own test alone
+  (`aFrameMinimumAboveItsMaximumTraps`, `aFrameMinimumAboveItsIdealTraps`,
+  `aFrameIdealAboveItsMaximumTraps`); the combination check deleted →
+  `aFixedFrameDimensionCombinedWithAFlexibleOneTraps`.
+- Spacer precondition deleted → the three spacer traps.
+- Priority precondition deleted → `aNaNLayoutPriorityTraps`.
+- Ratio `ratio != 0` alone → `aNaNAspectRatioTraps`, `anInfiniteAspectRatioTraps`
+  and `aNegativeInfiniteAspectRatioTraps`; `!ratio.isNaN && ratio != .infinity`
+  → `aNegativeInfiniteAspectRatioTraps` **and `aZeroAspectRatioTraps`** (that
+  spelling also admits 0).
+- Checkpoint 1 deleted → `aNaNRootProposalTraps`, `aNaNSubviewProposalTraps`.
+  Checkpoint 2 deleted → `aNaNMeasurementTraps`, `aNaNCustomMeasurementTraps`.
+  Checkpoint 3 deleted → `aNonFiniteRootBoundsTraps`,
+  `anInfiniteStoredRectTraps`, `aNonFinitePlacementPositionTraps`.
+- Checkpoint 3's non-finite test moved to checkpoint 2 →
+  `anInfiniteMeasurementIsAcceptedUntilItBecomesARect` and the three
+  checkpoint-3 traps.
+- Negative proposal axes rejected at checkpoint 1 →
+  `aNegativeProposalIsAccepted`, and also `aNegativeSpacerMinimumIsAccepted`,
+  `aNegativeAspectRatioIsAcceptedOnEveryProposedBranch`,
+  `aspectRatioUsesSwiftUIsBranchAtZeroAndNegativeProposalAxes` and
+  `theProposalModifiersAcceptWhatTheKernelAccepts`, each of which hands a child
+  a negative proposal.
+- Negative spacing rejected, and gaps clamped at 0, each →
+  `negativeStackSpacingAnswersSwiftUIsUnclampedSum`. A negative minimum
+  rejected → `negativeAndNegativeInfiniteFrameMinimumsAndAnInfiniteMaximumAreAccepted`.
+  `minLength` clamped at 0 → `aNegativeSpacerMinimumIsAccepted`.
 
 ---
 
@@ -1087,11 +1136,48 @@ deliberately.
   ordering is validated that arithmetic is unreachable, so nothing is lost
   unless validation is ever relaxed.
 
-**Mutations:** owed by lane 3.
+**Mutations (lane 3, 2026-09-14, run at `71c8b1c` in a detached `git worktree`
+off `feat/kernel-completion`, one at a time, full `swift test --build-system
+native --no-parallel` each, restore confirmed by `git status --short` clean
+each time; every run read `Test run with 1084 tests in 1 suite`, so none
+truncated. Every mutation edits a function body or adds a method, so the
+builds were incremental; the implementation's own suite run was cleaned).**
+- **Red before** (`408dfc3`): `infiniteLayoutPrioritiesAreAcceptedAndOrderLikeFinitePriorities`,
+  `aNegativeAspectRatioIsAcceptedOnEveryProposedBranch`,
+  `aspectRatioUsesSwiftUIsBranchAtZeroAndNegativeProposalAxes`,
+  `negativePaddingIsAcceptedAndItsResponseClampsPerAxis` and
+  `theProposalModifiersAcceptWhatTheKernelAccepts` read `.success →
+  .signal(SIGTRAP → 5)`; `aFixedAndAFlexibleFrameDimensionCannotBeCombined`
+  read `TypecheckResult(succeeded: true, output: "")` on all five fixtures.
+  The re-fixtured `aNativeFrameUsesIdealDimensionsOnlyForUnspecifiedAxes` was
+  green at ideal 70 before and after, as item 5's derivation says.
+- Item 1, ±∞ mapped to 0 at registration →
+  `infiniteLayoutPrioritiesAreAcceptedAndOrderLikeFinitePriorities` and
+  `theProposalModifiersAcceptWhatTheKernelAccepts`.
+- Item 2, the old `width / height <= ratio` (and `>=`) restored →
+  `aNegativeAspectRatioIsAcceptedOnEveryProposedBranch`,
+  `aspectRatioUsesSwiftUIsBranchAtZeroAndNegativeProposalAxes` and
+  `theProposalModifiersAcceptWhatTheKernelAccepts`.
+- Item 3, the clamp removed, and both axes clamped together, each →
+  `negativePaddingIsAcceptedAndItsResponseClampsPerAxis`.
+- Item 4, the modifiers' old preconditions restored (`> 0`, `isFinite`) →
+  `theProposalModifiersAcceptWhatTheKernelAccepts`.
+- Item 6, a nine-parameter `frame` restored beside the two overloads (the
+  library and every test still built) → `aFixedAndAFlexibleFrameDimensionCannotBeCombined`
+  on its first two fixtures (`succeeded: true`, 4 issues); the
+  `ProposalFrame`, `LayoutModifier` and `nativeFrame` fixtures stayed rejected.
+- **Diagnostics re-printed from the real build** are the guard's substrings:
+  `extra argument 'minWidth' in call`, `extra argument 'minHeight' in call`,
+  `extra arguments at positions #2, #3 in call` (`ProposalFrame`). Guards
+  44 → 45; the new guard logged `started`/`passed` under `--build-system native`.
 
 ---
 
-## SA-L — a native depth guard counted in native nodes, sized by legacy's safety fraction (provisionally 96), one counter across measurement and placement
+## SA-L — a native depth guard counted in native nodes, sized by legacy's safety fraction (provisionally 96; 88 as bisected by lane 3), one counter across measurement and placement
+
+*Lane 3 re-bisected all four kinds on its own build and committed **88**; see
+the Mutations line below. The 96 in this ruling's body is the design pass's
+provisional figure, left as written.*
 
 *Revised in the third pass (`SA-S` finding 5). The second pass chose 64 "for
 parity" with legacy; that parity claim was unmeasured and is withdrawn.*
@@ -1168,7 +1254,42 @@ is deleted from `measureNative` alone, because placement still traps.
   laid it out. The trap names the node; the fix is a measured, larger limit,
   not a silent overflow.
 
-**Mutations:** owed by lane 3, including the custom-kind bisection result.
+**Mutations (lane 3, 2026-09-14, run at `71c8b1c` in a detached `git worktree`
+off `feat/kernel-completion`, one at a time, full `swift test --build-system
+native --no-parallel` each, restore confirmed by `git status --short` clean
+each time; every run read `Test run with 1084 tests in 1 suite`, so none
+truncated. Every mutation edits a function body or adds a method, so the
+builds were incremental; the implementation's own suite run was cleaned).**
+- **The bisection, on this lane's build** (debug, 1 MB `Thread`, one `swift test
+  --skip-build` per candidate depth between 50 and 600, both boundaries
+  re-confirmed, from an uncommitted env-gated probe with `maxDepth` raised out
+  of the way; the first failing depth dies with no summary line, and the stack
+  kind's 152 completes on a 4 MB thread):
+  ```
+  kind=padding kb=1024 maxOK=169 firstFail=170
+  kind=frame kb=1024 maxOK=168 firstFail=169
+  kind=stack kb=1024 maxOK=151 firstFail=152
+  kind=custom kb=1024 maxOK=156 firstFail=157
+  ```
+  Every kind lost 17–25 levels against the design pass's 193/193/171, which
+  bisected before the run carried the guard, the checkpoints and the counters.
+  **So `maxDepth` is 88, not the provisional 96**: the smallest ceiling is the
+  stack's 151, and 0.60 × 151 = 90.6. At 96 the guard would still have fired
+  below every ceiling (96 < 151), but at a 0.64 margin, not legacy's 0.60.
+  The custom kind (a one-child layout measuring and placing through the proxy)
+  is not the smallest. The table is on `NativeLayoutRun.maxDepth`.
+- **Red before** (`408dfc3`, `maxDepth` declared, never enforced): the three
+  trap tests read `.failure → .exitCode(0)`; `aNativeTreeAtTheDepthLimitDoesNotTrap`
+  green, as designed.
+- `enter` deleted from both `measureNative` and `placeNative` →
+  `layingOutANativeTreeDeeperThanTheLimitTraps`,
+  `measuringANativeTreeDeeperThanTheLimitTraps` and
+  `aPlacementOnlyChainOfCustomLayoutsDeeperThanTheLimitTraps`.
+- From `measureNative` only → `measuringANativeTreeDeeperThanTheLimitTraps`;
+  the other two stayed green (placement still traps).
+- From `placeNative` only → `aPlacementOnlyChainOfCustomLayoutsDeeperThanTheLimitTraps`;
+  the other two stayed green (measurement still traps).
+- `depth < maxDepth` → `aNativeTreeAtTheDepthLimitDoesNotTrap`.
 
 ---
 
@@ -1231,7 +1352,31 @@ Without the cache, placement re-measures each subtree.
   hand first, the test is shape 12 and cannot fail for a mis-keyed cache. The
   spec forbids it.
 
-**Mutations:** owed by lane 3.
+**Mutations (lane 3, 2026-09-14, run at `71c8b1c` in a detached `git worktree`
+off `feat/kernel-completion`, one at a time, full `swift test --build-system
+native --no-parallel` each, restore confirmed by `git status --short` clean
+each time; every run read `Test run with 1084 tests in 1 suite`, so none
+truncated. Every mutation edits a function body or adds a method, so the
+builds were incremental; the implementation's own suite run was cleaned).**
+- **Red before** (`408dfc3`, `lastNativeLayoutWork` never written):
+  `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` read
+  `(work.measureCalls → 0) == 16`, `(work.cacheHits → 0) == 27` and
+  `(work.cacheMisses → 0) == 25`, with (1) and (4) green as designed;
+  `nativeLayoutWorkIsPerCall` read `(first.cacheMisses → 0) > 0`. The literals
+  were derived by hand in the test's doc comment before the first run.
+- Disable the cache (delete the hit branch) → the branching test on (1) (e.g.
+  `(log.calls → 10) == (log.proposals.count → 2)`), (2) (`62`) and (3) (hits
+  `0`, misses `89`), plus eight existing tests that count closure calls
+  (`aSubviewMeasuresOncePerDistinctProposalWithinOneRun`,
+  `aNativeOverlayForwardsOneProposalMeasuresTheLargestChildAndCentresEachChild`,
+  `aSecondComputeNativeLayoutCallReMeasuresEveryLeaf` and others).
+- Key on node only (proposal replaced by `.unspecified`) → the branching test
+  on (2), (3) and (4) (a3 stored at `(81, 13, 30, 8)`), and seventeen other
+  layout and integration tests.
+- Count a hit before checking the key → the branching test on (3) alone
+  (`cacheHits → 52`).
+- Accumulate into `lastNativeLayoutWork` → `nativeLayoutWorkIsPerCall`
+  (`measureCalls: 32, cacheHits: 54, cacheMisses: 50` against 16/27/25).
 
 ---
 
@@ -1569,3 +1714,38 @@ can catch.
 
 **Mutations:** the runs that forced items 1, 2 and 4 are under `SA-G` and
 `SA-H`.
+
+---
+
+## SA-U — lane 3's tests as built differ from the spec in four places
+
+*Written by lane 3 during implementation, 2026-09-14. The spec's lane 3 text is
+corrected in place to match.*
+
+1. **The priority and ratio trap tests were not green on arrival.** The spec
+   said `aNaNLayoutPriorityTraps` and the four ratio traps pass before the
+   change because the old rules already reject their inputs. The processes did
+   trap, but under the old messages ("layout priority must be finite", "aspect
+   ratio must be finite and greater than zero"), and each test asserts its new
+   rule's fragment, so all five were red on the fragment alone. Their rules'
+   own red runs are the mutations under `SA-J`.
+2. **`maxDepth` is 88** (`SA-L`): the provisional 96 was computed from
+   ceilings the lane's own per-frame cost lowered.
+3. **The branching work tree is pinned down further than the spec's sketch**,
+   so its literals could be derived by hand: branch (i) has spacing 2, so the
+   priority-0 leaves are compressed to a non-zero 27 (at spacing 0 the only
+   compressed leaf gets 0, a weak rect assertion); priority 0 is expressed by
+   the absence of a `layoutPriority` node; leaf sizes are in the test's doc
+   comment. The derived counts are 16 calls, 27 hits and 25 misses.
+4. **The modifier acceptance test lives in its own file,**
+   `Tests/MetalUITests/ProposalModifierValidationTests.swift`, the spec's
+   unnamed fifth file. It probes rendered bounds through leaves carrying the
+   modifiers, and renders `Rectangle().layoutPriority(.infinity)` and
+   `Rectangle().aspectRatio(-2)` in the same tree.
+
+**What it costs if wrong.** Item 3's tree is one of many that would satisfy the
+spec; a different tree gives different literals, so the numbers are this
+tree's, not the kernel's in general.
+
+**Mutations:** item 1's are under `SA-J`, item 2's bisection under `SA-L`,
+item 3's under `SA-M`, item 4's under `SA-K`.

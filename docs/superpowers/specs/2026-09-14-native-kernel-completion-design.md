@@ -926,7 +926,9 @@ maxWidth: 80`, and ideal > max is rejected. Re-fixture it with `idealWidth: 70`.
   takes **the largest multiple of 8 not above 0.60 × the smallest native
   ceiling**, measured the same way. From evidence 5's ceilings (padding and
   frame 193, linearStack 171) that is 0.60 × 171 = 102.6, so **96**, before the
-  custom kind is bisected (below).
+  custom kind is bisected (below). **As built: 88** (`SA-U` item 2). Lane 3's
+  build bisected padding 169, frame 168, linearStack 151 and custom 156, so
+  0.60 × 151 = 90.6.
 - **No parity is claimed.** An earlier draft said "a tree the legacy engine
   accepts must not be rejected by its proposal port for depth alone". That was
   never measured, and it is not true in general. Legacy stores size, aspect
@@ -939,7 +941,8 @@ maxWidth: 80`, and ideal > max is rejected. Re-fixture it with `idealWidth: 70`.
 - **Its doc table records the debug ceilings on a 1 MB thread:**
   padding/frame 193 (≈5.3 KB/level) and linearStack 171 (≈6.0 KB/level),
   against legacy's 107 (≈9.8 KB), plus the custom kind's once bisected.
-  Release is unmeasured.
+  Release is unmeasured. *As built, the table carries lane 3's re-bisection
+  (padding 169, frame 168, linearStack 151, custom 156; ≈6.1–6.8 KB/level).*
 - **One counter covers both recursions.** `run.depth` is entered at the top of
   `measureNative`, before checkpoint 1 and the cache lookup, and at the top of
   `placeNative`. It is left on return.
@@ -993,8 +996,8 @@ fragment of its parameter's message.
 | ideal (`>= 0 && isFinite`) | `aNegativeFrameIdealTraps`, `aNaNFrameIdealTraps`, `anInfiniteFrameIdealTraps`. The NaN arm's mutation is the NaN-blind spelling, as for the fixed dimension. |
 | ordering and combination | `aFrameMinimumAboveItsMaximumTraps`, `aFrameMinimumAboveItsIdealTraps`, `aFrameIdealAboveItsMaximumTraps`, `aFixedFrameDimensionCombinedWithAFlexibleOneTraps` (kernel registrar only; the element API cannot spell it) |
 | spacer (`isFinite`) | `aNaNSpacerMinimumTraps`, `anInfiniteSpacerMinimumTraps`, `aNegativeInfiniteSpacerMinimumTraps` |
-| priority | `aNaNLayoutPriorityTraps` (**green on arrival**: today's `isFinite` rejects it too; the mutation is "delete the precondition") |
-| ratio (`isFinite && != 0`) | `aZeroAspectRatioTraps`, `aNaNAspectRatioTraps`, `anInfiniteAspectRatioTraps` (all three **green on arrival**, since today's rule is `> 0`; the mutation `ratio != 0` alone reddens NaN and ∞), `aNegativeInfiniteAspectRatioTraps` (green on arrival; the mutation `!ratio.isNaN && ratio != .infinity` reddens it) |
+| priority | `aNaNLayoutPriorityTraps` (the old `isFinite` rejects it too, but under the old message, so it is red before **on its fragment only**, `SA-U` item 1; the rule's mutation is "delete the precondition") |
+| ratio (`isFinite && != 0`) | `aZeroAspectRatioTraps`, `aNaNAspectRatioTraps`, `anInfiniteAspectRatioTraps` (the old `> 0` rule traps on all three, under the old message, so they are red before **on their fragment only**, `SA-U` item 1; the mutation `ratio != 0` alone reddens NaN and ∞), `aNegativeInfiniteAspectRatioTraps` (likewise; the mutation `!ratio.isNaN && ratio != .infinity` reddens it, and the zero arm too) |
 | checkpoints | `aNaNRootProposalTraps` (1), `aNaNSubviewProposalTraps` (1, from a custom layout's proxy), `aNaNMeasurementTraps` (2, from a leaf), `aNaNCustomMeasurementTraps` (2, from a custom `sizeThatFits`), `aNonFiniteRootBoundsTraps` (3), `anInfiniteStoredRectTraps` (3: a custom layout places a leaf that answers ∞ at an ∞ proposal), `aNonFinitePlacementPositionTraps` (3: `place(at: Point(x: .infinity, y: 0), …)`) |
 
 `Tests/MetalUILayoutTests/NativeValidationAcceptanceTests.swift` (new).
@@ -1031,7 +1034,8 @@ overloads. Its first two fixtures then compile, so the guard reddens.
 - Each trap test runs its layout on an explicit 4 MB `Thread`
   (`LayoutContextTests.swift:177-189` says why) and asserts the fragment.
 - `maxDepth + 1` levels fit in 4 MB several times over: at most 97 levels of
-  at most ≈6.0 KB each is ≈0.6 MB (evidence 5).
+  at most ≈6.0 KB each is ≈0.6 MB (evidence 5). *As built: 89 levels of at
+  most ≈6.8 KB, ≈0.6 MB (`SA-U` item 2).*
 
 | test | red before | mutation after |
 |---|---|---|
@@ -1047,7 +1051,8 @@ overloads. Its first two fixtures then compile, so the guard reddens.
 | `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` (tree below) | red by assertion against a zero-filled `NativeLayoutWork` for (2) and (3). (1) is green on arrival because the cache exists, and its doc comment says so. | **"disable the cache"** (delete the hit branch) must redden (1), (2) and (3). "Key on node only" must redden (4). "Count a hit before checking the key" must redden (3). |
 | `nativeLayoutWorkIsPerCall`: two calls on one tree at the same proposal; the second call's counters equal the first's, not double them | green on arrival once (1)–(3) exist; the red run is the mutation | accumulate into `lastNativeLayoutWork` instead of assigning it |
 
-**The branching tree.**
+**The branching tree.** *As built it is pinned further, `SA-U` item 3: branch
+(i) has spacing 2, and the literals are 16 calls, 27 hits, 25 misses.*
 - **Root:** a vertical stack of three branches, offered (100, 200) at bounds
   (7, 11, 100, 200).
 - **Branch (i):** a horizontal stack that **overflows**. It holds four capped
@@ -1092,7 +1097,8 @@ branches three ways at the root and again inside each branch, never a chain
   guard.
 - **`Tests/MetalUILayoutTests/NativeLayoutTests.swift`:** the one re-fixtured
   test.
-- **The five new test files above.**
+- **The five new test files above.** The modifier acceptance test's file is
+  `Tests/MetalUITests/ProposalModifierValidationTests.swift` (`SA-U` item 4).
 
 Test count: **+52** (35 traps, 10 acceptance, 4 depth, 2 work, 1 guard), one
 existing test re-fixtured. Guard count: **44 → 45**.
