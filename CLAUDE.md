@@ -121,8 +121,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout previe
   with the CSS engine — `newNode`, `reset(generation:)` (which now also clears
   `nativeNodes`) and `roundLayout` (`Rounding.swift`, called by both
   `FlexEngine.swift` and `roundNativeStoredRects`), plus the `SA-G`/`SA-I`
-  preconditions in `newNode`, `appendNode`, `setStyle`, `reset` and
-  `computeLayout` — so a proposal-path edit there **can** move a golden; run
+  preconditions in `newNode`, `appendNode`, `setStyle`, `reset` and (in
+  `FlexEngine.swift`) `computeLayout` — so a proposal-path edit there **can**
+  move a golden; run
   the fixtures. The corpus has **no text
   fixture and must not gain one** (ruling TX-B).
 - **Guards:** count with per-file `grep -c canTypecheck` across
@@ -499,8 +500,9 @@ arrays, through the private `appendNode`. Rounding is the legacy
 or `ProposalLayoutContainer(layout) { … }` (also `MyLayout { … }`).
 - **Measurement cannot place.** `MeasurementSubview` has no `place`, and no
   proxy can be constructed publicly; both are compile-time. A stashed
-  `PlacementSubview` traps outside its own `placeSubviews` or during any
-  measurement body. Any proxy traps after its run ends.
+  `PlacementSubview`'s `place` traps outside its own `placeSubviews` or during
+  any measurement body; its `priority`, `isSpacer` and `sizeThatFits` check
+  only that the run is live. Any proxy traps after its run ends.
 - **`place(at:anchor:proposal:)` only records.** After `placeSubviews`
   returns, each subview is stored at its answer to the recorded proposal, and
   its subtree is placed once, in index order. The last record wins. An unplaced

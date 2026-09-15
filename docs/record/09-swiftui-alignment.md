@@ -872,14 +872,17 @@ control. The table quotes what was written, not what was verified.
   that size (§6);
 - whether `.opacity(0)` still hit-tests.
 
-*2026-09-14 (task 2's probes, `SA-N`).* Three of these are now probed, and
-**all three disagree with the kernel**: a finite `maxWidth` frame **grows** to
-the proposal (80, not 40); `Spacer()` has an **8pt** default minimum between two
-views; and (§6's neighbour) `aspectRatio` at nil×nil answers the child's own
-size. Also carried: padding places its child at the child's own size; a
-single-child stack passes its child's priority through; `.frame()` with no
-argument is deprecated in SwiftUI. Owners: plan tasks 4–7. Whether a root is
-centred and whether `.opacity(0)` hit-tests stay unprobed.
+*2026-09-14 (task 2's probes, `SA-N`).* Two of these are now probed, and
+**both disagree with the kernel**: a finite `maxWidth` frame **grows** to
+the proposal (80, not 40); and `Spacer()` has an **8pt** default minimum between
+two views (the `nil` `minLength` half of §4's item). A third probed finding is
+§6's neighbour, not an item above, and disagrees too: `aspectRatio` at nil×nil
+answers the child's own size. Also carried: padding places its child at the
+child's own size; a single-child stack passes its child's priority through;
+`.frame()` with no argument is deprecated in SwiftUI. Owners: plan tasks 4–7.
+Whether `Spacer` claims the cross axis, whether a child smaller than its
+aspect-ratio size is placed at that size, whether a root is centred and whether
+`.opacity(0)` hit-tests stay unprobed.
 
 ### Hazards this range introduced, in one place
 
@@ -1151,7 +1154,8 @@ diagnostics; compile and run with `OS_ACTIVITY_DT_MODE=1` for those).
   and flexible frames, `Spacer` minimum, proposals, priority and aspect ratio.
 
 What they found that task 2 does not fix is `SA-N`; see "Unprobed, and
-material" above for the three earlier open questions they settled.
+material" above for the two earlier open questions they settled (and the
+neighbouring aspect-ratio one).
 
 ### Lane 1 — protocol (items a and e; `SA-A`…`SA-F`, `SA-R`)
 
@@ -1208,7 +1212,8 @@ byte-identical between `db6837e` and `HEAD`):
 - **B1:** `measureDepth` raised only around `.custom`'s `sizeThatFits`, not
   around leaf closures or built-in bodies. Lane 2's
   `writingARectDuringNativeMeasurementTraps` later pinned the **leaf** half
-  (its mutation M12 below); the **built-in body** half is not known to be
+  (the "leaf raises `measureDepth` only after its closure" row of lane 2's
+  table below); the **built-in body** half is not known to be
   pinned by any test.
 
 ### Lane 2 — boundaries (items b and c; `SA-G`…`SA-I`, `SA-T`)
@@ -1339,10 +1344,11 @@ cites P4/P9 for "20 at a 100 proposal", but the probe records minWidth −10 and
 | (b) an invalidation contract | **done** | lane 2; `SA-H` |
 | (c) an adapter; native-under-legacy not rejected | **rejection done; adapter ruled out, not built** | lane 2; `SA-G` |
 | (d) validation, depth guard, work counters | **done** | lane 3; `SA-J`…`SA-M` |
-| (e) compile-time migration story | **done under `SA-R`'s amended criterion** | lane 1's six guards; the marker-conformance compile-time check moved to plan task 3 |
+| (e) compile-time migration story | **done under `SA-R`'s amended criterion** | lane 1's four migration guards (its fifth is the `typecheckFile` instrument guard; the file's sixth is lane 3's frame split); the marker-conformance compile-time check moved to plan task 3 |
 
-**Carried, not blocking task 2:** the six green mutations above (F1, B1's
-built-in half, X1/X2, the padding right edge, checkpoints 2 and 3's unpinned
-fields, `measureNativeLayout`'s work record) and the loose P4/P9 citation;
+**Carried, not blocking task 2:** the nine green mutations above (F1, B1's
+built-in half, X1, X2, the padding right edge, checkpoint 2's height and
+`lastBaseline` halves, checkpoint 3's rect height, `measureNativeLayout`'s work
+record) and the loose P4/P9 citation;
 `SA-N`'s probed divergences (tasks 4–7); the overlay id collision (§3 hazard
 3), which no lane touched; no human look at the preview window.

@@ -90,7 +90,9 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
     counted on a branching tree.
   - **The migration story for external custom elements — done under `SA-R`'s
     amended criterion** (`00a1e22`, lane 1). It is compile-checked for every
-    spelling an external module writes (six file-scope, Swift 6 guards). A
+    spelling an external module writes: four of lane 1's five file-scope,
+    Swift 6 guards, the fifth being the `typecheckFile` instrument guard (the
+    sixth guard in that file is lane 3's frame-split guard). A
     `ProposalElementGroup` conformer that registers a legacy node is a
     run-time trap, not a compile error; that check moves to task 3's open
     proofs.
@@ -197,6 +199,9 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   `layoutPriority`. Grids, custom layouts and expansion of non-spacer children
   are absent. The default demo root and every legacy element still use
   `FlexEngine`. The 97 goldens are unchanged.
+  *Corrected 2026-09-14 (task 2, `00a1e22`):* custom layouts now exist on the
+  proposal kernel as `ProposalLayout` (`SA-A`…`SA-F`); grids and expansion of
+  non-spacer children are still absent.
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

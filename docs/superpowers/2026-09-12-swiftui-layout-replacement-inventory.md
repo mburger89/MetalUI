@@ -78,6 +78,11 @@ custom layout algorithm, so an external custom **container** has no migration
 path yet. An external custom leaf does: `pass.requestNativeLeaf` plus a
 `ProposalElementGroup` conformance, as the demo's `PriorityPreviewPanel` does
 (`Sources/MetalUIDemo/main.swift:913-938`).
+*Corrected 2026-09-14 (`00a1e22`, `SA-A`…`SA-F`):* a custom algorithm now
+registers through `ProposalLayout` (`newNativeLayout` /
+`LayoutPass.requestNativeLayout` / `ProposalLayoutContainer`), stored as a
+twelfth `NativeNode` case, `custom`; an external custom container's migration
+path is the table under "Completion criteria for task 1" below.
 
 The root switch reads only the root. Every native node still also occupies a
 `Style.default` slot in the legacy arrays (`LayoutTree.swift:111`).
