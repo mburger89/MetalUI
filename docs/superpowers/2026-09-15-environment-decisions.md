@@ -535,12 +535,18 @@ Consequences:
 1. The task brief requires disabled to suppress focus.
 2. K2 delivers keys to a control that reports itself disabled, which contradicts
    K4 inside SwiftUI itself.
-3. Retaining focus needs a new signal. `Frame` would have to know that the id was
-   focused **in the previous frame** and was not merely requested since.
-   `Window.focus(_:)` writes the same `focusedElement` field either way. That is
-   a change to the focus contract in `Frame`/`Window`. It was handed to task 12,
-   but the accessibility-bridge spec (task 12's other half) says disabled
-   behaviour waits for task 9, so it is **unowned** (`EV-Q`, `EV-W`).
+3. Retaining focus needs to know that the id was focusable **in the previous
+   frame** and was not merely requested since; `Window.focus(_:)` writes the
+   same `focusedElement` field either way. (**Corrected after lane 3's
+   verification:** this said `Frame` has no such signal, and that "cannot" was
+   never measured. `Window.lastFocusRegistry` already holds the previous
+   frame's registry. The verifier handed it to `Frame` and kept focus for an id
+   disabled this frame and focusable in that registry — five lines in
+   `Frame.swift` and `Window.swift` — and it reddened D6 alone; see Mutations.
+   Retention is a small change, **rejected on reason 1, not for lack of a
+   signal**.) It was handed to task 12, but the accessibility-bridge spec (task
+   12's other half) says disabled behaviour waits for task 9, so it is
+   **unowned** (`EV-Q`, `EV-W`).
 
 **The `$focus` slot write is gated on `isEnabled` (critic finding 7).**
 `Frame.swift:621-651` documents a known hazard: the slot write is not gated on
@@ -569,8 +575,10 @@ K3 (enabled shortcut), K5 (enabled parent, `.ignored`, child listed).
 **Cost if wrong.** An app that disables a focused control while it works, for
 example during a submit, loses focus and does not regain it on re-enable;
 SwiftUI would restore it. A disabled pane's raw `onKey` shortcut stops working
-while disabled; SwiftUI would still run it. The remedies are a previous-frame
-focus signal and keeping `onKey` in a copy of the handlers, and the pins to flip
+while disabled; SwiftUI would still run it. The remedies are keeping focus for
+an id that `Window.lastFocusRegistry` held as focusable (measured: about five
+lines, reddening D6 alone) and keeping `onKey` in a copy of the handlers, and
+the pins to flip
 are `aFocusedElementThatBecomesDisabledLosesFocusAtOnce` and
 `aDisabledAncestorsRawKeyHandlerDoesNotSeeAKey`.
 
@@ -592,10 +600,19 @@ are `aFocusedElementThatBecomesDisabledLosesFocusAtOnce` and
   `:680`, `:688`, D13 `:717`, D14 `:777`. **This spelling is not the
   SwiftUI-aligned alternative the divergence rejects**: a focus request on a
   disabled element makes its id `focusedElement` before registration, so it
-  acquires focus too, against K1. Keeping focus only for an element that was
-  focused while enabled needs the previous-frame signal this ruling says
-  `Frame` lacks, so no mutation here separates D6 from D5; that is recorded, not
-  banked as D6-specific coverage.
+  acquires focus too, against K1. _(Superseded by the next bullet: lane 3 said
+  that keeping focus only for a previously focused element needs a signal
+  `Frame` lacks, so no mutation separates D6 from D5. That was not measured, and
+  it is refuted.)_
+- **The SwiftUI-aligned retention, separating D6 from D5** (lane 3's verifier,
+  2026-09-15, same worktree, full suite, `--build-system native`): `Window`
+  hands `lastFocusRegistry` (the previous frame's registry) to the `Frame`
+  before `renderRoot`; `registerHandlers` records the ids of disabled elements;
+  `resolveFocus` keeps focus when the focused id is disabled this frame and was
+  focusable in the previous registry. Five lines. **1133 tests, 2 issues, both
+  in `aFocusedElementThatBecomesDisabledLosesFocusAtOnce`** (`:499`, `:503`);
+  D5, D11, D13 and D14 stay green. So D6 has D6-specific mutation coverage, and
+  the divergence costs about five lines to remove.
 - **Keep only `onKey`** (a disabled element registers `Handlers()` carrying its
   `onKey`): 2 issues in 1 test — D8 `:608` (parent 1), `:609` (window 0).
 - **Keep only `actions`**: 2 issues in 1 test — D7 `:556` (parent 1), `:557`
@@ -1392,8 +1409,12 @@ arms below; **2** loud (the `ElementGroup.swift` conflict against the bridge;
 against composition still future, a compile error when its lane 3 lands);
 **3** landed and **loud, measured**; **4** now a textual conflict and **still
 SILENT**; **5** loud, unchanged (the one `Window.swift` hunk); **6** unchanged. The bridge moved again during lane 4, to `b9e258e`. That commit
-changes docs only and none of their environment lines, and `merge-tree` gives
-the same conflicts, so this table holds there too.
+changes docs only and no merge-contract or disabled-gate line (its one new
+`isEnabled` mention is the bridge's own translator mutation row, L05, unrelated),
+and `merge-tree` gives the same conflicts, so this table holds there too.
+**Heads moved again after lane 4** (lane 4's verifier): `feat/modifier-composition`
+is at `40566de` (tests and docs only since `6d0ea97`), and `merge-tree` against
+it still exits 0 (tree `7153201`). Re-take at the integration step's own heads.
 
 0. **Integration precondition: lane 3 lands first** (critic finding 9). At
    `f4dcad8`, `.environment(\.isEnabled, false)` and
@@ -1515,6 +1536,13 @@ the same conflicts, so this table holds there too.
      "focus registration ungated" mutation (8 tests red, `EV-F`). **Every
      resolution that compiles keeps `isEnabled: true`.** A textual conflict
      is not a loud collision.
+   - **Lane 4's verifier measured the silence** instead of reading it. On a
+     scratch merge with `b9e258e`, resolved as this item prescribes, the
+     suite passed **1172 tests with the bridge's `isEnabled: true`, and 1172
+     again with `isEnabled: enabled`**. The instrument control, `isEnabled:
+     !enabled`, reddened `declaredRolesLabelsValuesAndTraitsReachThePublishedNode`
+     (`AccessibilityTreeTests.swift:295`), so some test reads the field and the
+     silence is real. Only the joint test below can see it.
    - **The merged method** (the gate lives in the **5-argument implementation**;
      the 3-argument overload stays a bare forward with no logic):
      ```swift
@@ -1677,6 +1705,16 @@ claimed nothing could follow a scope; `.frame(width:height:)` is an
 extends E12 with the `.theme` arm and lane 3's D2 carries the `.disabled` arm,
 each with a disagreeing inside-the-scope spelling.
 
+**Over proposal content, more modifiers follow a scope** (lane 2b's verifier,
+`swiftc -typecheck` against the native modules). `Box().theme(.dark).padding(4)`
+is rejected with "referencing instance method 'padding' on 'EnvironmentScope'
+requires that 'Box<EmptyGroup>' conform to 'ProposalElementGroup'": that names
+the proposal `.padding(_ insets:)` (`NativeModifiedContent.swift:181`), which a
+scope over proposal content satisfies, and the proposal flexible frame is in the
+same position. **Whether such a padding or frame sits inside or outside the
+scope is not measured, and no arm pins it.** Owed to the integration step with
+the typed composition entry (`EV-W` item 1).
+
 **Cost if wrong.** If a modifier after a scope should see it, a caller's
 `.frame(…).onClick` on a disabled control would stay dead, where SwiftUI's fires.
 The pins that flip are E12's after-`.theme` arm and D2's after-`.disabled` arm.
@@ -1708,8 +1746,14 @@ the arm's reading, not by inspection.
   passed, 0 issues. The respelled hoist reddens the same arm, so the arm is not
   blind; the overload changed no behaviour, consistent with lane 2b's measured
   fallback (`.onClick` exists only on `StyledElement`, so the solver picks
-  `ElementGroup.frame`). The fallback was **not** re-measured with `swiftc` for
-  this spelling.
+  `ElementGroup.frame`). **Measured by lane 3's verifier** with
+  `swiftc -typecheck` against the mutated native modules:
+  `Box().disabled(true).frame(width:height:).onClick {}` has type
+  `FrameModifier<EnvironmentScope<Box<EmptyGroup>>>`, while the same chain
+  without `.onClick` has type `EnvironmentScope<FrameModifier<Box<EmptyGroup>>>`.
+  Control: against the unmutated modules both chains have type
+  `FrameModifier<EnvironmentScope<…>>`. So the void run is the solver's
+  fallback, not a blind arm.
 
 ## EV-Y — `EnvironmentValues()` holds SwiftUI's bare defaults; the WINDOW stamps the current locale
 
@@ -1738,6 +1782,14 @@ a `\.self` reset would silently keep the user's locale where SwiftUI's drops it.
 **Cost if wrong.** A test-built `Frame` or an unbound `@Environment` reads the
 root locale where it read the user's; with no consumer that changes no pixel.
 Pinned by E24.
+
+**CI hazard (lane 2b's verifier).** E24 opens with
+`try #require(Locale.current != Locale(identifier: ""))` so that its
+comparison discriminates. A failed `#require` is a **failure, not a skip**:
+on a runner whose current locale is the root locale (an unset `LANG`, some CI
+images), E24 hard-fails. It passes here (`en_US`). The fix, if a runner hits
+it, is an `.enabled(if:)` trait with a skip reason; until then it is recorded
+in record 11 and owed to CLAUDE.md's "When CI lands".
 
 **Mutations** (lane 2b, 2026-09-15, each run alone on a `--build-system native` build in this worktree against the full suite — 1118 tests, every run printed its summary line — restored with `git checkout -- Sources Tests` and `git status --short` empty before the next; line numbers are at `de84219`):
 

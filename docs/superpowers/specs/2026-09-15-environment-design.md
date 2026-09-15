@@ -3,6 +3,19 @@
 **Milestone:** plan task 9 of `plans/2026-09-12-swiftui-alignment.md`, "Expand
 the environment and control-state model", on `feat/environment`.
 
+**Status (2026-09-15, record): implemented and verified; handed to the
+integration step.** All four lanes are built, and lanes 2b, 3 and 4 were each
+re-checked by an independent verifier, all ok: 1133 tests, 97 goldens unmoved,
+53 guards, 0 `error:`/`warning:` under both build systems. The verifiers
+refuted two statements this spec and the decisions doc carried, both now
+corrected in place: D6 **can** be separated from D5 (`Window.lastFocusRegistry`
+is the previous-frame signal; `EV-F`), and `.padding` after a scope does compile
+over proposal content (`EV-X`). **Still owed, and not delivered by this
+branch:** the release-window capture (`EV-P`), `EV-W` items 1 and 4 on the
+merged tree, and the plan's "control state" (`controlActiveState`,
+`controlSize`) and "scale" (`displayScale`) — so plan task 9 is **not** to be
+ticked yet. Record 11, "For the integrator", is the hand-off.
+
 **Status (2026-09-15, lane 3): lanes 1, 2, 2b and 3 implemented** (`a3c92a7`,
 `a4ef92d`, recorded at `f4dcad8`; lane 2b red `d271a64`, green `de84219`;
 lane 3 red `2de4eef`, green `6957464`); **lane 4 done, with its window
@@ -534,7 +547,7 @@ scope cannot be a root (`EV-B`).
 | D3 | `aDisabledClickTargetPassesTheClickToWhatIsUnderIt` (third pass, re-derived; `EV-E`). **(ancestor, aligned, probe N1/N2)** `Row { Box { Box().width(px(20)).height(px(20)).onClick { rec("child") }.disabled(true) }.width(px(40)).height(px(40)).onClick { rec("parent") } }` clicked at the child's centre → child 0, parent 1; **control** (child enabled) → child 1, parent 0 (N0/N3). **(sibling, a pre-existing divergence, P2f/P2m)** `ZStack { Rectangle(width: px(40), height: px(40)).onTap { rec("under") }; Rectangle(width: px(40), height: px(40)).onTap { rec("over") }.disabled(true) }` → under 1, over 0; **control** (over enabled) → under 0, over 1; **reference** `.allowsHitTesting(false)` instead of `.disabled(true)` → under 1, the same as the disabled arm. The doc states the sibling reading diverges from SwiftUI, whose shape blocks, and why it is not new: an enabled MetalUI `Box` with no `onClick` over a clickable sibling already passes the click | parent 0 and under 0 under the second pass's blocker; with no gate, child 1 and over 1 | `EV-E` (a) a blocker under a derived id → parent 0 and under 0; (b) the blocker under the element's own id → the same, plus D15/D16. (lane 3: the sibling rectangles are 100×100, placement-independent. (a) also reddens D16's consequence arm — the blocker is the hovered hitbox, not the parent) |
 | D4 | `theGateReadsTheEnvironmentValueNotTheModifier`. Probe P8/P9: `.onClick` box under `.environment(\.isEnabled, true)` inside `.disabled(true)` → fires 1; under `.environment(\.isEnabled, false)` with no `.disabled` → 0. | P9 arm fires | gate on a `Frame.disabledDepth` counter that only `.disabled` increments → P8 reads 0 and P9 reads 1 |
 | D5 | `aDisabledElementCannotAcquireFocus`. Probe K1: `window.focus(id)` on a `.focusable().onKey{…}` box inside `.disabled(true)`; draw → `window.focusedElement == nil`; a key event → `onKey` count 0. The **control** without `.disabled` → focused and count 1. | stays focused | register the ungated `handlers` → focused |
-| D6 | `aFocusedElementThatBecomesDisabledLosesFocusAtOnce`. **A divergence pin** (`EV-F`, probe K2 measured the opposite). Focus an enabled focusable box; draw; flip `model.disabled`; draw → `focusedElement == nil`; flip back; draw → still nil. The doc quotes K2. | stays focused | register `handlers` for a disabled element whose id is `focusedElement` → focus retained. This is exactly the SwiftUI-aligned alternative the divergence rejects. (lane 3: as spelled it also reddens D5, D11, D13 and D14 — a focus request makes the id `focusedElement` before registration, so the element acquires focus too. The alternative that keeps only a previously-held focus needs a signal `Frame` lacks, so no mutation separates D6 from D5 — decisions doc, `EV-F`) |
+| D6 | `aFocusedElementThatBecomesDisabledLosesFocusAtOnce`. **A divergence pin** (`EV-F`, probe K2 measured the opposite). Focus an enabled focusable box; draw; flip `model.disabled`; draw → `focusedElement == nil`; flip back; draw → still nil. The doc quotes K2. | stays focused | register `handlers` for a disabled element whose id is `focusedElement` → focus retained. This is exactly the SwiftUI-aligned alternative the divergence rejects. (lane 3: as spelled it also reddens D5, D11, D13 and D14 — a focus request makes the id `focusedElement` before registration, so the element acquires focus too. The alternative that keeps only a previously-held focus needs a signal `Frame` lacks, so no mutation separates D6 from D5 — decisions doc, `EV-F`) (lane 3's verifier: **refuted.** `Window.lastFocusRegistry` is that signal; handing it to `Frame` and keeping focus for an id disabled now and focusable last frame reddens D6 alone, `:499`/`:503` — decisions doc, `EV-F`) |
 | D7 | `aDisabledElementsActionHandlerDoesNotClaimAKeymapAction`. A **context-free** `KeyBinding("cmd-i", Increment())`; a parent `Box` with `onAction(Increment.self)`, inside `.disabled(true)`, holding a child focusable box inside `.environment(\.isEnabled, true)`; `window.onAction` records. Focus the child; send cmd-I → the parent handler 0, `window.onAction` 1. The **control** is the parent enabled: parent 1, window 0. The doc pins the routing as MetalUI's (unprobed): an action nobody enabled claims reaches `Window.onAction`, like any unclaimed action; a **context-scoped** binding under a disabled pane does not match at all (D9) | parent 1 | register `handlers` → parent 1 |
 | D8 | `aDisabledAncestorsRawKeyHandlerDoesNotSeeAKey`. **A divergence pin** (`EV-F`; probe K6 shows SwiftUI's disabled parent's `.onKeyPress` runs). The parent `onKey` returns true and records, inside `.disabled(true)`; the focused child is re-enabled and its `onKey` returns false. A key → parent 0, and the event reaches `window.onInput`. The control (parent enabled) → parent 1. | parent 1 | keep `onKey` for a disabled element → parent 1 |
 | D9 | `aDisabledPaneContributesNoKeyContext`. MetalUI's choice, **SwiftUI has no comparable concept** (`EV-S`). `KeyBinding("cmd-k", A(), context: "Pane")`; the pane `.keyContext("Pane")` inside `.disabled(true)` holds a re-enabled focused child with `onAction(A.self)` → the child handler 0 **and** `window.onAction` 0 (the binding does not match). The control (pane enabled) → child 1 | child 1 | keep `keyContext` for a disabled element → child 1 |
@@ -801,7 +814,10 @@ against `feat/ax-bridge` at `53d3bf6` and `feat/modifier-composition` at
   - Demo keys: none change.
   - Counts.
 - **`docs/record/README.md`.** Index `11-environment.md`.
-- **The plan.** Tick task 9, with its carried items (`EV-Q`), and note in task 10
+- **The plan.** ~~Tick task 9, with its carried items (`EV-Q`)~~ (record: **do
+  not tick yet** — the plan's own text names "control state" apart from enabled
+  state and "scale", and `controlActiveState`/`controlSize`/`displayScale` are
+  not delivered; record 11, "For the integrator", item 3). Note in task 10
   that the `Binding` alias must be deleted in the change that adds `Binding`.
 - **`PhaseSeparationTests.swift`'s theme section comment.** It stays true; add
   one sentence pointing at `G1−` for the environment spelling. This is a test

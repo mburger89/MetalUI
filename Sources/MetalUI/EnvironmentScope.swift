@@ -41,9 +41,12 @@ public struct EnvironmentScopeLayout<ContentLayout> {
 /// **Where it can and cannot go** (ruling EV-B). Over any `ElementGroup`: a
 /// legacy element, proposal content, a `Component`, a builder group. Not as a
 /// window root, `Deferred` content or a `List` row, each of which requires an
-/// `Element` — write the scope outside instead. Not directly before `.padding`
-/// or a handler modifier: `.theme(.dark).padding(4)` and
-/// `.theme(.dark).onClick {}` do not compile; write `.padding(4).theme(.dark)`.
+/// `Element` — write the scope outside instead. Over **legacy** content, not
+/// directly before `.padding` or a handler modifier: `.theme(.dark).padding(4)`
+/// and `.theme(.dark).onClick {}` do not compile; write
+/// `.padding(4).theme(.dark)`. Over **proposal** content the proposal
+/// `.padding(_:)` does compile after a scope; whether it sits inside or outside
+/// the scope is not measured (ruling EV-X).
 ///
 /// **`.frame(width:height:)` may follow a scope**, because it is declared on
 /// `ElementGroup` and returns a `StyledElement`, so any `StyledElement`

@@ -478,8 +478,10 @@ private func isFilled(_ rect: MUIRect, with token: ColorToken, in theme: Theme) 
 /// **SwiftUI measured the opposite** (probe `swiftui-disabled-interaction.swift`
 /// K2: "focused before=1 after=1 onKeyPress after disabling=1 isEnabled seen by
 /// the focused view after disabling=0", and "re-enabled: focused=1"). Kept
-/// because the brief requires disabled to suppress focus, and retaining it
-/// needs a previous-frame focus signal `Frame` does not have (EV-F, EV-Q).
+/// because the brief requires disabled to suppress focus — not for lack of a
+/// signal: `Window.lastFocusRegistry` holds the previous frame's registry, and
+/// keeping focus for an id disabled now and focusable there is about five
+/// lines, which redden this test alone (EV-F's Mutations, EV-Q).
 @MainActor
 @Test func aFocusedElementThatBecomesDisabledLosesFocusAtOnce() throws {
     let device = try device()
