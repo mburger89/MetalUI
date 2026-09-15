@@ -6,24 +6,34 @@ semantics, disabled behaviour and content shapes wait for task 9 and are not
 here.
 
 **Status (2026-09-15): lane 1 implemented; lanes 2 and 3 designed.** Written
-against `f64e58a` on `feat/ax-bridge` and revised after one critic round. Lane
-1's deviations from the text below are marked **"Lane 1 as built"** in place and
-ruled in `AB-AA`; its red runs and mutations are in the record. Rulings are
+against `f64e58a` on `feat/ax-bridge`, revised after one critic round, and
+revised again after a second critic round that followed lane 1. Lane 1's
+deviations from the text below are marked **"Lane 1 as built"** in place and
+ruled in `AB-AA`; its red runs and mutations are in the record. Changes the
+second round made are marked **"Second critic round"** in place. Rulings are
 prefixed **`AB-`** and lettered, in
 `docs/superpowers/2026-09-15-accessibility-bridge-decisions.md`; a bare `AB-3`
-is a typo, not a citation. That doc's last section maps each of the critic's
-fourteen findings to the ruling that applies or rejects it.
+is a typo, not a citation. That doc's last two sections map each critic's
+findings (fourteen, then fifteen) to the ruling that applies or rejects them.
 
-**SwiftUI evidence** is two committed probes, each carrying its recorded output
-in its header:
+**SwiftUI evidence** is three committed probes, each carrying its recorded
+output in its header:
 
 - `docs/probes/swiftui-accessibility-bridge.swift`. "Arm N" means its arm N.
-- `docs/probes/swiftui-accessibility-bridge-rules.swift`, the critic round.
-  "Arm Rn" or "arm Q" means its arms.
+- `docs/probes/swiftui-accessibility-bridge-rules.swift`, the first critic
+  round. "Arm Rn" or "arm Q" means its arms.
+- `docs/probes/swiftui-accessibility-bridge-critic2.swift`, the second critic
+  round. "Arm Cn", "Pn" or "En" means its arms.
 
-A third file, `docs/probes/appkit-accessibility-overrides-typecheck.swift`, is
-the re-runnable typecheck of every AppKit spelling lane 2 uses, with a negative
-control.
+**AppKit evidence** is three more:
+
+- `docs/probes/appkit-accessibility-overrides-typecheck.swift`: the
+  re-runnable typecheck of every AppKit override spelling lane 2 uses, with a
+  negative control;
+- `docs/probes/appkit-voiceover-signal-isolation.swift`: the signal's
+  isolation (`AB-AB`), read by grepping for `warning:`;
+- `docs/probes/appkit-accessibility-activation-clients.swift`: what an
+  out-of-process client reaches on a host view (`AB-B`).
 
 ## What exists today, and what is wrong with it
 
@@ -306,6 +316,11 @@ inside `pass.frame.withAccessibilitySuppressed(except: nil)`. This is the
 "one check in `Element`'s group walk" that `Box.focusable()`'s doc names, and
 it is applied to accessibility only.
 
+**Second critic round (`AB-AD`).** `Frame.render` applies the same check to the
+root's `prepaint`, which does not go through `prepaintGroup`. After the
+modifier-composition merge, `ModifiedElement`'s layer loop applies it at its
+first hidden layer (`AB-Z` item 4).
+
 ### `Sources/MetalUI/Passes.swift` (+~8 lines)
 
 - `LayoutPass.collectsAccessibility` and `PrepaintPass.collectsAccessibility`,
@@ -453,6 +468,33 @@ did not name survived or a named one could not redden its test:
 - `anInactiveWindowBuildsAndPublishesNothing` compiles against the red
   skeleton and is green there; its evidence is its two mutations.
 
+**Second critic round: 18 tests.** Committed after lane 1's record, and
+re-taken against all 39 mutations in the record:
+
+- `eachLiveHandlerAloneMakesAnUndeclaredElementRecord` (new): a click target,
+  a focusable box and an adjustable box, none declaring a node, each record; a
+  plain sized box does not. Hunting mutants H05 and H06 (drop the focusable or
+  the adjustment term from synthesis) survived every earlier fixture.
+- `childrenFollowDeclarationOrderWhereIDsAloneCannot` uses six children in two
+  orders, one the other's reverse (M08 survived the two-child fixture twice).
+- `portalContentIsARoot…` adds a sibling declared after the `Deferred`, which
+  is the ancestor's child only if the portal is popped.
+- `aPressRequestRuns…` adds two siblings sharing an `.id`: a press runs the
+  last registration (H02).
+- `hiddenContentIsNot…`'s hidden box is itself a click target, so excepting it
+  from its own suppression is observable (H14), and the duplicated id
+  straddles the divider.
+- `aNodeInsideAScrolledScrollView…` also pins root order and focus as
+  structure; `anIncrementRequest…` pins that an adjustment dirties.
+- **`aHiddenRootPublishesNothing`** (new, `AB-AD`): `Frame.render` over a
+  collecting frame whose root is `Box { declared, sized, clickable box }.hidden()`
+  records nothing; the same root without `hidden()` records the inner box. Red
+  before `Frame.render`'s check.
+- **`aHiddenInnerModifierLayerSuppressesEverythingInsideIt`** (new, `AB-Z` item
+  4): a declared, sized, clickable box written `.padding(4).hidden().padding(4)`
+  records nothing, and `.padding(4).padding(4)` records it. Green on this
+  branch by construction; it is the modifier-composition merge's check.
+
 **Footing.** Frame-level tests use `Frame.render` over a bare `Frame`, which is
 `AXEmitSiteTests`' footing and needs no Metal device. Window-level tests use
 `makeFakeWindow`.
@@ -482,6 +524,18 @@ lookup of a node a later assertion reads is `try #require`d.
 
 ## Lane 2 — AppKit bridge
 
+### Lane 1 files lane 2 extends (second critic round, `AB-W`)
+
+- `AccessibilityGeometry` gains `public var layer: Int` and
+  `public var order: Int`, defaulted to 0 in its initializer.
+- `Frame.accessibilityGeometry(for:)` fills `layer` from `activeLayer`.
+- `AccessibilityTreeBuilder` fills `order` from the kept record's index in its
+  `order` array (first occurrence).
+- A lane-1 test pins both: `portalContentIsARoot…`'s tip has `layer ==
+  Frame.rootLayer` and the button `layer == 0`, and `order` rises through
+  `childrenFollowDeclarationOrder…`'s six children. Mutations: fill `layer`
+  with 0; fill `order` with 0.
+
 ### New file `Sources/MetalUIPlatform/AccessibilityTreeChanges.swift`
 
 A pure structural diff. It is neutral, so it is testable without AppKit and
@@ -510,11 +564,20 @@ struct AccessibilityTreeChanges: Equatable {
 
 /// Whether a screen reader is known to be running (AB-B's second trigger).
 @MainActor protocol AccessibilityClientSignal: AnyObject {
-    /// Calls `handler` with the current value at once, then on every change.
+    /// Calls `handler` with the current value before returning, then on every
+    /// change, possibly after a main-actor hop (AB-AB).
     func observe(_ handler: @escaping @MainActor (Bool) -> Void)
 }
 @MainActor final class VoiceOverSignal: AccessibilityClientSignal
-    // NSWorkspace.shared.observe(\.isVoiceOverEnabled, options: [.initial, .new])
+    // AB-AB, exactly the spelling docs/probes/appkit-voiceover-signal-isolation.swift
+    // typechecks with 0 `warning:` lines:
+    //   observation = NSWorkspace.shared.observe(\.isVoiceOverEnabled, options: [.new]) { _, change in
+    //       let value = change.newValue ?? false
+    //       Task { @MainActor in handler(value) }
+    //   }
+    //   handler(NSWorkspace.shared.isVoiceOverEnabled)      // synchronous, after observing
+    // No MainActor.assumeIsolated. NOT `.initial` inside the KVO closure: that
+    // spelling warns [#ActorIsolatedCall], and -warnings-as-errors exits 0 on it.
 
 @MainActor final class AppKitAccessibilityBridge {
     weak var hostView: NSView?
@@ -558,16 +621,19 @@ extension MetalHostView {
     override func isAccessibilityElement() -> Bool          // true
     override func accessibilityRole() -> NSAccessibility.Role?   // .group
     override func accessibilityChildren() -> [Any]?          // activate; roots
-    override func accessibilityHitTest(_ point: NSPoint) -> Any?  // activate; deepest visible
-    override var accessibilityFocusedUIElement: Any? { get } // activate; focused or self
+    override func accessibilityHitTest(_ point: NSPoint) -> Any?  // activate; greatest (layer, order) visible
+    override var accessibilityFocusedUIElement: Any? { get } // does NOT activate (AB-B); focused or self
 }
 ```
 
-Every override spelling above, and the `NSWorkspace` observation, compile in
+Every override spelling above compiles in
 `docs/probes/appkit-accessibility-overrides-typecheck.swift`, with
 `xcrun swiftc -typecheck -swift-version 6 -warnings-as-errors`: exit 0. Its
 negative control, `accessibilityFocusedUIElement` spelled as a method, fails
-with "method does not override any method from its superclass".
+with "method does not override any method from its superclass". **That probe
+never calls a signal handler, so its exit status says nothing about the
+signal's isolation** (second critic round): the signal's spelling is checked by
+`appkit-voiceover-signal-isolation.swift`, by grepping for `warning:`.
 
 **Ownership (`AB-D`).**
 
@@ -581,19 +647,36 @@ with "method does not override any method from its superclass".
 
 A detached element is retained only by whichever client still holds it, and
 there is no cycle. `MetalHostView` gains that one stored property in its class
-body. `AppKitWindow` owns the bridge, built with `VoiceOverSignal()` and
+body. `AppKitWindow` owns the bridge, built with its signal and
 `SystemAccessibilityNotificationPoster()`, and sets it on the host view.
 `onAccessibilityRequest` and `publishAccessibilityTree` forward to the bridge.
-`AppKitWindow.init` gains an internal `accessibilitySignal:` parameter,
-defaulting to `VoiceOverSignal()`, so tests can force it `false`. `hostView`
-loses `private` so platform tests can reach it.
+`hostView` loses `private` so platform tests can reach it.
+
+**How a test forces the signal (`AB-AC`, second critic round).**
+
+- `AppKitWindow.init(device:title:size:accessibilitySignal:)`, internal; the
+  existing three-argument init is removed rather than kept beside it.
+- `AppKitPlatform` gains an internal
+  `init(device:accessibilitySignal: @escaping @MainActor () -> any AccessibilityClientSignal)`;
+  the public `init(device:)` delegates with `{ VoiceOverSignal() }`, and
+  `openWindow` passes `accessibilitySignal()` through.
+- `App.openWindow` is unchanged and cannot pass one, so the end-to-end tests
+  build `AppKitPlatform(device:accessibilitySignal:)` themselves, open the
+  platform window, and construct `Window(platformWindow:renderer:startsDisplayLink:content:)`
+  over it, as `makeFakeWindow` does.
 
 **Behaviour.**
 
 - **Activation (`AB-B`).** There are two triggers, and either sends
   `.activate` exactly once per bridge:
-  - any of the three host entry points;
-  - the signal reporting `true`, at creation (`.initial`) or later.
+  - the host's `accessibilityChildren` or `accessibilityHitTest`;
+    **`accessibilityFocusedUIElement` is not a trigger** (second critic round:
+    a focus-polling utility reaches it, measured);
+  - the signal reporting `true`: synchronously during `observe` at bridge
+    creation, or later through its hop (`AB-AB`). **At creation nobody is
+    listening yet** (`Window.init` assigns `onAccessibilityRequest` after
+    `AppKitWindow.init` built the bridge), so the bridge records `isActive` and
+    sends the pending `.activate` from `onRequest`'s `didSet`, once.
 - **Lazy identity (`AB-D`, `AB-X`).**
   - **Created on read.** An element is created the first time the bridge hands
     it to a client: through the host's children, hit test or focused element,
@@ -628,8 +711,10 @@ loses `private` so platform tests can reach it.
   - `accessibilityRows` is its `.row` children.
   - `accessibilityVisibleRows` is those whose `visibleFrame` has non-zero area.
   - A `.row` answers `accessibilityIndex` from `rowIndex`.
-- **Hit test (`AB-W`).** The deepest element whose **`visibleFrame`** contains
-  the point, with the later sibling winning a tie. If none does, the host view.
+- **Hit test (`AB-W`).** Among every published element whose
+  **`visibleFrame`** contains the point, the one with the greatest
+  `(geometry.layer, geometry.order)`: click dispatch's own ranking. If none
+  does, the host view. Before activation it activates and answers the host view.
 - **Publish (`AB-K`).**
   1. If `!isActive`, store the tree and return.
   2. If `tree.hasSameStructure(as: old)`, store it,
@@ -669,9 +754,10 @@ loses `private` so platform tests can reach it.
 | `onlyAdvertisedActionsAreAllowedAndPerformingSendsTheRequest` — a `[.press]` node and a `[]` node. The selector is allowed or refused per node. Press on the first sends `.press(id)` and returns the closure's answer: `true`, then `false` when the closure returns `false`. Press on the second sends nothing. Increment and decrement likewise | fails to compile | allow every selector; return `true` regardless of the closure |
 | `focusIsReportedFromTheTreeAndAFocusRequestIsSent` — `focused = b`: the host's `accessibilityFocusedUIElement` is `b`'s element, and `b.isAccessibilityFocused()`. `setAccessibilityFocused(true)` on `a` sends `.focus(a)`. `focused = nil`: the host returns itself | fails to compile | report the first focusable node (SwiftUI's answer, arm 13; `AB-J`); send nothing from the setter |
 | `aTableReportsItsRowCountAndItsRowsTheirIndices` — a table with `rowCount = 500` and rows at indices 40, 41, 42, where 40's `visibleFrame` has zero height: row count 500; rows 3; visible rows 2; indices 40, 41, 42 | fails to compile | report `children.count` as the row count; report the position in `children` as the index; report all rows as visible |
-| `hitTestingUsesVisibleFramesSoAClippedRowNeverWins` (`AB-W`) — the shape a scrolled `List` really publishes: root header `frame = visibleFrame = (0, 0, 200, 20)`; root table, declared after it, with the unclipped `frame (0, -8, 200, 14000)` and `visibleFrame (0, 20, 200, 100)`; its overscan row `frame (0, -8, 200, 28)` with a zero-height `visibleFrame`; its second row `(0, 20, 200, 28)`, fully visible, holding a child. A point at `(5, 15)` returns the header; a point in the second row's child returns the child; a point outside everything returns the host | fails to compile | hit-test on `frame` (the later root, the table, contains `(5, 15)` and its overscan row wins); return the first match; stop at roots |
-| `aHostQueryActivatesExactlyOnce` — signal `false`. Call `accessibilityChildren()`, `accessibilityHitTest` and `accessibilityFocusedUIElement` twice each: one `.activate` | fails: nothing sends it | drop the sticky flag (six requests) |
-| `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery` (`AB-B`) — signal `true` at creation: one `.activate` before any query. Signal `false` at creation: none; flip it `true`: one; flip `false` then `true` again: still one | fails to compile | ignore the signal (zero); send on every `true` (two) |
+| `hitTestingUsesVisibleFramesSoAClippedRowNeverWins` (`AB-W`) — the shape a scrolled `List` really publishes: root header `frame = visibleFrame = (0, 0, 200, 20)`, `order 0`; root table, declared after it, with the unclipped `frame (0, -8, 200, 14000)` and `visibleFrame (0, 20, 200, 100)`; its overscan row `frame (0, -8, 200, 28)` with a zero-height `visibleFrame`; its second row `(0, 20, 200, 28)`, fully visible, holding a child; `order` rising in that pre-order. A point at `(5, 15)` returns the header; a point in the second row's child returns the child; a point outside everything returns the host. **Modal arm (second critic round):** add a root modal panel `(0, 30, 200, 40)` with `layer 1` and **`order 1`, recorded before the table** (a `Deferred` declared above the list in tree order), and a child label inside it: a point inside both the panel's label and the second row's child returns the **modal's label**, and a point in the second row's child **above** the panel (y between 20 and 30) still returns the row's child | fails to compile | hit-test on `frame` (the later root, the table, contains `(5, 15)` and its overscan row wins); return the first match; stop at roots; **rank by `order` alone, or by depth** (the deeper, later row child beats the modal) |
+| `aHostQueryActivatesExactlyOnce` — signal `false`. Call `accessibilityChildren()` and `accessibilityHitTest` twice each: one `.activate` | fails: nothing sends it | drop the sticky flag (four requests) |
+| `aFocusedElementQueryDoesNotActivate` (`AB-B`, second critic round) — signal `false`. Read `accessibilityFocusedUIElement` three times: zero requests, and each read answers the host view. **Control:** then `accessibilityChildren()`: one `.activate` | fails to compile | activate from `accessibilityFocusedUIElement` (three requests before the control) |
+| `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery` (`AB-B`, `AB-AB`) — a scripted signal that, like `VoiceOverSignal`, calls its handler **synchronously inside `observe`**. `true` at creation: `isActive` is already `true` when the initializer returns, and assigning `onRequest` afterwards (as `Window.init` does, after `AppKitWindow.init` built the bridge) delivers exactly one `.activate` **synchronously, before any query and with no run-loop turn**. `false` at creation: none; flip it `true`: one; flip `false` then `true` again: still one | fails to compile | ignore the signal (zero); send on every `true` (two); deliver the initial value through a `Task` (zero at assignment); drop the send at `onRequest` assignment (zero: the initial `true` arrived before anyone listened) |
 | `nothingIsPostedBeforeActivation` — signal `false`. Publish two different trees without any host query: the recorder is empty. Query once, publish a third: posts appear | fails to compile | post regardless of `isActive` |
 | `aGeometryOnlyChangeTouchesNoElementAndPostsNothing` (`AB-K`) — vend every element, move every frame by 5 points and republish, then republish the identical tree: 0 posts, `structuralPublishCount` unchanged, `geometryPublishCount == 2`, the same element objects, and each element's `accessibilityFrame()` reflects the moved rect | fails to compile | treat geometry as structure (posts `.layoutChanged`, count moves); cache frames in elements at publish (the rect does not move) |
 | `destroyedIsPostedOnlyForElementsAClientWasHanded` (`AB-X`) — a tree of 3 roots, each with 10 leaves. Read the host's children and the first root's children. Remove every leaf: exactly 10 `.uiElementDestroyed`, on the 10 vended objects. Nothing for the 20 never read | fails to compile | post destroyed per removed id (30); create elements for removed ids to post on |
@@ -683,8 +769,9 @@ loses `private` so platform tests can reach it.
 
 | test | red before | mutation |
 |---|---|---|
-| `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick` — `App.openWindow` (unique title, **not closed**, `FrameLoopTests`' rule) with the accessibility signal forced `false`, over a `Column` holding a 40×20 `Box` declaring `AXNode(role: .button, label: "Increment")` with an `onClick` counter. Find the `NSWindow` by title. Ask its content view for `accessibilityChildren()`, which activates. `drawFrameIfNeeded()`, then ask again: one child, role `.button`, label `"Increment"`. `accessibilityPerformPress()` returns `true`, the counter reads 1, and the window is dirty | fails: no children | leave `AppKitWindow.publishAccessibilityTree` storing rather than forwarding; drop the `onAccessibilityRequest` forward |
-| `aKeyWindowReceivingEventsIsNeverActivatedWithoutAClient` (`AB-B`, arm Q) — the same window setup, signal forced `false`, a recorder on `onAccessibilityRequest` installed after `Window.init`'s. `makeKeyAndOrderFront`, `makeFirstResponder(hostView)`. Send a synthesized left mouse down and up and a key down through `window.sendEvent`. Resize. Draw 5 frames. Result: zero `.activate`, `accessibility.buildCount == 0` | green on arrival; this pins arm Q's AppKit answer | send `.activate` from `MetalHostView.keyDown` or `mouseDown` |
+| `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick` — **`AppKitPlatform(device:accessibilitySignal: { scripted false })`** (`AB-AC`), a unique title, `Window(platformWindow:renderer:startsDisplayLink: false, content:)` over a `Column` holding a 40×20 `Box` declaring `AXNode(role: .button, label: "Increment")` with an `onClick` counter. Reach the host view through the platform window. Ask it for `accessibilityChildren()`, which activates. `drawFrameIfNeeded()`, then ask again: one child, role `.button`, label `"Increment"`. `accessibilityPerformPress()` returns `true`, the counter reads 1, and the window is dirty | fails: no children | leave `AppKitWindow.publishAccessibilityTree` storing rather than forwarding; drop the `onAccessibilityRequest` forward |
+| `aKeyWindowReceivingEventsIsNeverActivatedWithoutAClient` (`AB-B`, arm Q) — the same construction, signal forced `false`, a recorder on `onAccessibilityRequest` installed after `Window.init`'s. `makeKeyAndOrderFront`, `makeFirstResponder(hostView)`. Send a synthesized left mouse down and up and a key down through `window.sendEvent`. Resize. Draw 5 frames. Result: zero `.activate`, `accessibility.buildCount == 0`. **Depends on the machine** (`AB-AC`): an out-of-process mouse-follow utility with the pointer over the window reaches the hit-test trigger; the doc and failure message say so and name `appkit-accessibility-activation-clients.swift` | green on arrival; this pins arm Q's AppKit answer | send `.activate` from `MetalHostView.keyDown` or `mouseDown` |
+| `aHeldElementWhoseIDIsAdoptedPressesTheAdopter` (`AB-H`'s recorded hazard, second critic round) — the same construction over `Column { if model.showFirst { declared "First" 40×20 box, onClick → first += 1 }; declared "Second" 40×20 box, onClick → second += 1 }`, `showFirst` true. Activate, draw, and hold the element for the column's child 0 (`"First"`). Set `showFirst = false`, draw. **Arm 1, unnamed:** the held element is not detached, its label reads `"Second"`, and `accessibilityPerformPress()` returns `true` with `first == 0` and **`second == 1`**. **Arm 2, the remedy:** the same with `.id("second")` on the trailing box: the held element is detached, its press returns `false`, and both counters read 0. `try #require` the held element before the change in both arms | fails to compile | detach an element whose label changed across a publish (arm 1 press refused); skip detaching (arm 2 press runs `second`) |
 
 ---
 
@@ -699,7 +786,9 @@ never a declaration and never writes `$ax` (`AB-L`, `AB-U`). Run
 
 ### `Frame.registerHandlers` callers
 
-- `Text.prepaint` calls the internal overload with `accessibleText: string`.
+- `Text.prepaint` calls the internal overload with
+  `accessibleText: string.isEmpty ? nil : string` (second critic round, `AB-F`,
+  arms E0–E2: SwiftUI omits `Text("")` and publishes `Text(" ")`).
 - `OnTapModifier.prepaint` (`NativeTappable.swift`, one line) calls it with
   `synthesizesAccessibility: false` (`AB-Y`).
 - `Box`, `Stack`, `ScrollView` and `FrameModifier` are untouched.
@@ -713,7 +802,10 @@ Walk top-down. A kept node is a **distributor** when all of these hold:
 
 - its declared role is `generic`;
 - it has no `logicalCount` and no `logicalIndex`;
-- it is not clickable, not focusable and not adjustable;
+- it is not clickable, not focusable and not adjustable (**focusable and
+  adjustable are a recorded divergence**, second critic round: SwiftUI
+  distributes from both and copies the adjustable action to each child, arms
+  C1, C5, C5i; `AB-T` gives the reasons);
 - it declared a label or a value;
 - it has at least one kept child.
 
@@ -748,6 +840,11 @@ else if role == .generic and clickable:
   not focusable) publishes **no children**.
   - If its label is `nil`, it takes `label = descendants' (label ?? value)
     joined by ", "` in tree order.
+  - If its value is `nil`, it takes `value = descendants' value, for each
+    descendant that has BOTH a label and a value, joined by ", "`, or `nil`
+    when none has (second critic round, `AB-G`; arms C3, C6, C7, and C4 for
+    the label-only half). A plain text's value is its string and already went
+    to the label.
   - Arm 6: `Button { HStack { Text A; Text B } }` is one `AXButton` labelled
     `A, B` with zero children.
   - Arm R5: a labelled button also has zero children.
@@ -773,6 +870,25 @@ else if role == .generic and clickable:
   `box.prepaint` inside `pass.frame.withAccessibilitySuppressed(except: id)`.
   Frame 0 then publishes the table and its row count, with **no rows and no
   row text**. The next frame publishes the realized window.
+- **That next frame must be produced (`AB-X` rule 3, second critic round).**
+  `requestLayout` also stores `private var windowAwaitsViewport: Bool`: the
+  window is unbounded **because** `pass.scrollContext` is vertical with
+  `viewportExtent == 0`. `prepaint`, when collecting and that flag is set,
+  calls `pass.frame.requestAccessibilityRetry()`. Nothing else in `List` or
+  `ScrollView` would dirty the window: `ScrollView` stores the viewport through
+  `withState`, which fires no `onWrite`.
+
+### `Sources/MetalUI/Frame.swift` and `WindowAccessibility.swift` (lane 3, +~12 lines, `AB-X` rule 3)
+
+- `Frame`: `private(set) var wantsAccessibilityRetry = false` and
+  `func requestAccessibilityRetry()`, a no-op unless `collectsAccessibility`.
+  **Not** `requestAnotherFrame()`: `wantsAnotherFrame` is honoured on every
+  frame, so a zero-height scroller would keep the display link awake forever.
+- `WindowAccessibility.frameDidRender` gains `retry: Bool` and returns whether
+  the window should be dirtied: `retry && !lastFrameRetried`, then
+  `lastFrameRetried = retry`. `Window` passes `frame.wantsAccessibilityRetry`
+  and calls `setNeedsRedraw()` on `true`. One extra frame per run of unbounded
+  frames, never a loop.
 
 ### New file `Sources/MetalUI/AccessibilityModifiers.swift`
 
@@ -806,6 +922,12 @@ extension StyledElement {
   reads the modal's text, and pressing it does nothing. A label would hide that
   text (`AB-Y` records why, and the script lists it).
 - The row string is **not** changed (`AB-Y`); the script accounts for it.
+- **The demo's state-table figures move** (second critic round). The two
+  labels and the scrim label are **declared** nodes, so each writes a `$ax`
+  slot every frame, active or not (`AB-U` exempts only synthesized records).
+  CLAUDE.md's warm resident `StateTable` counts (165 at 40 rows, 63 at 500)
+  are therefore stale after lane 3; the record owes the integration step a
+  re-take, from the same harness §07 names.
 
 ### Lane 3 tests — `Tests/MetalUITests/AccessibilityDefaultsTests.swift` (new)
 
@@ -814,15 +936,15 @@ looked-up node.
 
 | test | red before | mutation that must redden it after |
 |---|---|---|
-| `aTextIsPublishedAsStaticTextWhoseValueIsItsString` (arms 1, 3) — `Column { Text("A"); Text("B") }`: two roots, `.staticText`, `value` `"A"`/`"B"`, `label == nil`, no column node | fails: no nodes | put the string in `label`; give `Column` a node |
+| `aTextIsPublishedAsStaticTextWhoseValueIsItsString` (arms 1, 3, E0–E2) — `Column { Text("A"); Text("B") }`: two roots, `.staticText`, `value` `"A"`/`"B"`, `label == nil`, no column node. **Empty arm (second critic round):** `Column { Text(""); Text("B") }` publishes one root, `"B"`; `Column { Text(" "); Text("B") }` publishes two, the first with `value " "` | fails: no nodes | put the string in `label`; give `Column` a node; pass `accessibleText: string` for an empty string (the empty arm gains a root) |
 | `labelAndValueFollowSwiftUIsStaticTextRules` (arms 10a, 11, R1, R2, R12) — four arms. (1) `Text("Hello").accessibilityLabel("Greeting")` gives `value "Greeting"`, `label nil`. (2) **`Text("vol").accessibilityValue("5")` gives `label "vol"`, `value "5"`**, the value-only case. (3) `Text("vol").accessibilityLabel("L").accessibilityValue("5")` gives `"L"`/`"5"`. (4) `Text("vol").onClick{}.accessibilityValue("5")` gives `.button`, `"vol"`/`"5"` | does not compile | **delete the `label = label ?? text` branch** (arm 2 reads `label nil`); skip the label-to-value move (arm 1); apply it when a value is present (arm 3 reads `value "L"`) |
 | `aClickableTextIsAButtonLabelledByItsString` — `Text("Go").onClick{}`: `.button`, `label "Go"`, `value nil`, `.press` | fails | keep role `.text` for a clickable text |
-| `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` (`AB-T`; arms R3, R4, R5, R8, R10, R15, R18) — seven arms. (1) `Column { Text("A"); Text("B") }.accessibilityLabel("L")`: two `.staticText` with `value "L"`, no group. (2) `Text("Go").padding(4).accessibilityLabel("X")`: one `.staticText` with `value "X"`, no group. (3) `Text("Go").accessibilityLabel("In").padding(4).accessibilityLabel("Out")`: `value "Out"`. (4) `Text("Go").frame(width: 120).accessibilityLabel("X")`: `value "X"`. (5) `Row { Text("Go") }.width(40).height(20).onClick{}.padding(4).accessibilityLabel("X")`: one `.button`, `label "X"`, no children. (6) `Column { Text("A"); Text("B") }.accessibilityValue("V")`: labels `"A"`/`"B"`, values `"V"`. (7) **controls**: `Column { Text("A") }.width(40).height(20).focusable().accessibilityLabel("L")` stays a labelled `.group` with one child, and `Box().width(20).height(0).accessibilityLabel("L")` is a labelled `.group` | fails: no nodes | publish the label on the wrapper (arms 1–5 gain a group); let the inner declaration win (arm 3 reads `"In"`); distribute from a focusable node (control 7 loses its group) |
-| `aClickableContainerCombinesItsTextsIntoOneButtonLabel` (arms 6, R7) — `Row { Text("A"); Text("B") }.width(60).height(20).onClick{}` gives one `.button`, `label "A, B"`, `children == []`. The same with `Box().width(10).height(10).focusable()` as a third child gives an unlabelled button with **three** children (the divergence from arm R7) | fails | join with `" "`; keep children when combining; combine across an interactive descendant |
+| `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` (`AB-T`; arms R3, R4, R5, R8, R10, R15, R18) — seven arms. (1) `Column { Text("A"); Text("B") }.accessibilityLabel("L")`: two `.staticText` with `value "L"`, no group. (2) `Text("Go").padding(4).accessibilityLabel("X")`: one `.staticText` with `value "X"`, no group. (3) `Text("Go").accessibilityLabel("In").padding(4).accessibilityLabel("Out")`: `value "Out"`. (4) `Text("Go").frame(width: 120).accessibilityLabel("X")`: `value "X"`. (5) `Row { Text("Go") }.width(40).height(20).onClick{}.padding(4).accessibilityLabel("X")`: one `.button`, `label "X"`, no children. (6) `Column { Text("A"); Text("B") }.accessibilityValue("V")`: labels `"A"`/`"B"`, values `"V"`. (7) **a divergence pin and a control** (second critic round): `Column { Text("A") }.width(40).height(20).focusable().accessibilityLabel("L")` stays a labelled `.group` with one child, **the opposite of SwiftUI's arm C1** (and an adjustable arm, `accessibilityAdjustableAction`, likewise, against C5/C5i), its doc citing both; and the control `Box().width(20).height(0).accessibilityLabel("L")` is a labelled `.group` | fails: no nodes | publish the label on the wrapper (arms 1–5 gain a group); let the inner declaration win (arm 3 reads `"In"`); distribute from a focusable node (the divergence pin loses its group) |
+| `aClickableContainerCombinesItsTextsIntoOneButtonLabel` (arms 6, R7, C3, C4, C6, C7) — `Row { Text("A"); Text("B") }.width(60).height(20).onClick{}` gives one `.button`, `label "A, B"`, `value nil`, `children == []`. The same with `Box().width(10).height(10).focusable()` as a third child gives an unlabelled button with **three** children (the divergence from arm R7). **Value arms (second critic round):** `Row { Text("vol").accessibilityValue("5"); Text("B") }…onClick{}` gives `label "vol, B"`, `value "5"` (C3); `Row { Text("A"); Text("vol").accessibilityValue("5") }` gives `"A, vol"`/`"5"` (C7); both texts valued `"1"`/`"2"` gives `"a, b"`/`"1, 2"` (C6); `Row { Text("A").accessibilityLabel("X"); Text("B") }` gives `"X, B"`/`nil` (C4) | fails | join with `" "`; keep children when combining; combine across an interactive descendant; **drop the value half** (C3 reads `nil`); **take a plain text's value into the button's value** (the first arm reads `"A, B"`) |
 | `aDeferredInsideAClickableBoxIsNotFoldedIntoItsLabel` (`AB-V`) — `Row { Text("A"); Deferred { Text("Tip") } }.width(60).height(20).onClick{}`: the button's label is `"A"`, and `"Tip"` is a root `.staticText` | fails | ignore `portal` (label `"A, Tip"`) |
 | `theAdjustableActionModifierRegistersTheAdjustmentHandler` (arm 11) — `Text("vol").accessibilityAdjustableAction { … }`: published actions `[.increment, .decrement]`; `.increment(id)` runs the closure with `.increment` | does not compile | register the handler under a different `Action` type; pass a constant direction |
 | `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices` (`AB-L`) — a 500-row `List`, `rowHeight` 28, in a 200pt `ScrollView`, offset seeded to 28 × 40, drawn twice. The list node is `.table`, `rowCount 500`. Its children are `.row`s whose `rowIndex` equals the realized window's indices, the first `>= 38`, and each row's text is its child. **Labelled arm (arm R16):** the same with `accessibilityLabel("Contacts")` on the `List`: still `.table`, `rowCount 500`, `label "Contacts"`, the same rows | fails: rows emit nothing | `logicalIndex = offset` (no `lowerBound`); drop `rowCount`; distribute the list's label (the labelled arm loses its table) |
-| `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` (`AB-X`) — a fake window over a 5,000-row `List` in a 200pt `ScrollView`, `.activate` **before the first draw**. Frame 0: `lastEmissionCount` is at most 3; the published table has `rowCount 5000` and **0** children. Frame 1: children equal the realized window's size (at most 12 at 28pt rows with overscan 2). The trees go into an `AppKitAccessibilityBridge` over a plain `NSView` in an `NSWindow` (no Metal): across frames 0 and 1, `createdElementCount == 0` and **0** `.uiElementDestroyed` | fails: rows emit nothing | drop the unbounded suppression (frame 0 records about 10,000); create elements eagerly in `publish` (about 10,000 destroyed posts on frame 1 once suppression is also dropped) |
+| `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` (`AB-X`) — a fake window over a 5,000-row `List` in a 200pt `ScrollView`, `.activate` **before the first draw**. Frame 0 (`drawFrameIfNeeded()`): `lastEmissionCount` is at most 3; the published table has `rowCount 5000` and **0** children; **`window.needsRedraw` is `true`**. Frame 1 is drawn with `drawFrameIfNeeded()` **and no `setNeedsRedraw()` or input between frames 0 and 1** (second critic round): children equal the realized window's size (at most 12 at 28pt rows with overscan 2), and `needsRedraw` is `false` after it. **Cap arm:** the same `List` in a `ScrollView` of height 0: frame 0 leaves it dirty, frame 1 is drawn, and after frame 1 `needsRedraw` is `false` (no loop). **Inactive arm:** the 200pt window with no `.activate`: after frame 0, `needsRedraw` is `false` (rendering is unchanged). The trees go into an `AppKitAccessibilityBridge` over a plain `NSView` in an `NSWindow` (no Metal): across frames 0 and 1, `createdElementCount == 0` and **0** `.uiElementDestroyed` | fails: rows emit nothing | drop the unbounded suppression (frame 0 records about 10,000); create elements eagerly in `publish` (about 10,000 destroyed posts on frame 1 once suppression is also dropped); **drop the retry** (frame 1 is never drawn: `drawFrameIfNeeded` returns without drawing and the table still has 0 children); **uncap it** (the cap arm is still dirty after frame 1); **retry while not collecting** (the inactive arm is dirty) |
 | `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` (`AB-K`, `AB-X`) — the same harness over a 500-row `List`, active and drawn until bounded. Read the host's children and the table's rows (vending about 12 rows). Then scroll 20pt per frame for 60 frames through `simulateInput`. `buildCount` rose by exactly 60. `.layoutChanged` total **1**. `.uiElementDestroyed` equals the number of rows vended at the start (each once; 1,200pt carries every one out). No title or value posts. `createdElementCount` unchanged after the initial read | fails | post `.layoutChanged` per structural publish (about 43); post destroyed per departing id (about 43 + text children) |
 | `anAnimationWithAClientActivePostsNothingAndTouchesNoElement` (`AB-K`) — active, a declared 40×20 box whose width animates to 120 inside `withAnimation`, all elements vended, 30 `simulateTick`s. Posts **0**. `structuralPublishCount` unchanged. `geometryPublishCount` equals `publishCount`'s rise, and both are greater than 0 and at most 30. The vended element is the same object, and its `accessibilityFrame()` width reads the last published width | fails | treat geometry as structure |
 | `aClientDoesNotChangeStateRetention` (`AB-U`) — a `Column` of 130 `Text`s and 10 sized `onClick` boxes, drawn 3 frames in two fake windows, one active and one not: equal `window.stateTable.count` | green before (nothing records); its red evidence is the mutation, see the note | write the `$ax` slot for synthesized records (the active count rises by 140) |
@@ -845,24 +967,36 @@ VoiceOver, because the suite cannot hear what VoiceOver says.
 ## Merge contract (`AB-Z`)
 
 Three tracks edit shared functions. The integration step applies these combined
-forms. Each is written so either merge order produces it.
+forms. Each is written so either merge order produces it. **Rewritten in the
+second critic round** against `feat/environment` at `f4dcad8` (its lane 3 as
+redesigned at `e9afded`) and `feat/modifier-composition` at `ec65da6`; the
+first version was written against `bbd4d66` and `1c6f686`.
 
 ### `Frame.registerHandlers`, merged with the environment track's lane 3
 
-`Frame.registerHandlers` is merged with the environment track's lane 3
-(`MetalUI-environment`, `specs/2026-09-15-environment-design.md`, "Lane 3").
+The environment track's gate is taken **exactly as its spec's "Lane 3" block
+writes it** (`EV-F`, `EV-T`, and its finding 7's gated `$focus` write). This
+track's record path is added after it, and **synthesis reads the ungated
+`handlers`** (`EV-W` item 4).
 
 ```swift
 func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>, id: GlobalElementID,
-                      accessibleText: String? = nil, synthesizesAccessibility: Bool = true) {
-    let enabled = environment.isEnabled                                   // environment
-    var keyboard = handlers
-    if !enabled { keyboard.isFocusable = false; keyboard.actions = [:] }  // environment (EV-F)
-    focusRegistry.register(keyboard, id: id)
-    // focusedElementProducedThisFrame / $focus write: unchanged, ungated
+                      accessibleText: String?, synthesizesAccessibility: Bool) {
+    let enabled = environmentTop.isEnabled                                // environment: in place
+    if enabled { focusRegistry.register(handlers, id: id) }               // environment (EV-F): a disabled
+                                                                          // element is out of the keyboard —
+                                                                          // no focus, actions, onKey, keyContext
+    if let focused = focusedElement, id == focused {
+        focusedElementProducedThisFrame = true                            // unchanged, ungated
+        if enabled { /* the existing $focus slot write */ }               // environment (EV-F, its finding 7)
+    }
     if hitTestingDisabledDepth == 0, handlers.isPointerTarget {
-        _ = insertHitbox(bounds, id: id, opaque: true,
-                         handlers: enabled ? handlers : Handlers())       // environment (EV-E)
+        if enabled {
+            _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
+        } else {                                                          // environment (EV-E, EV-T):
+            _ = insertHitbox(bounds, id: .child(of: id, at: 0, name: ElementID("$disabled")),
+                             opaque: true, handlers: Handlers())          // DERIVED id, empty handlers
+        }
     }
     var declaration = handlers.axNode
     declaration.logicalIndex = nil                                        // this track (AB-L)
@@ -872,10 +1006,11 @@ func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>, id: Globa
         emitAXNode(node, at: bounds, id: id, children: [])
     }
     if collectsAccessibility, !isAccessibilitySuppressed(for: id) {       // this track
-        let adjustable = keyboard.actions[ObjectIdentifier(AccessibilityAdjustment.self)] != nil
+        // UNGATED `handlers` (EV-W item 4): a disabled control is still published.
+        let adjustable = handlers.actions[ObjectIdentifier(AccessibilityAdjustment.self)] != nil
         let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
             || (synthesizesAccessibility
-                && (handlers.onClick != nil || keyboard.isFocusable || adjustable || accessibleText != nil))
+                && (handlers.onClick != nil || handlers.isFocusable || adjustable || accessibleText != nil))
         if hasSomethingToSay {
             axEmissions.append(AXEmission(id: id, declared: handlers.axNode, text: accessibleText,
                                           isClickable: handlers.onClick != nil, isEnabled: enabled,
@@ -889,35 +1024,66 @@ func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>, id: Globa
 
 **What the merge must preserve.**
 
-- **`.disabled` comes from `record.isEnabled`, not only from the declared
-  trait.** So a synthesized button under `.disabled(true)` publishes
-  `isEnabled == false`, which `AB-F` names and which otherwise has no producer.
-- **Adjustability reads `keyboard.actions`, the stripped set.** A disabled
-  adjustable element advertises nothing. The builder's
-  `focusRegistry.actionHandler` agrees, because the registry saw `keyboard`.
-- **`.press` is derived from `hitboxes`.** A disabled element's hitbox carries
-  `Handlers()`, so it has no `onClick`, so no `.press`, and
-  `handleAccessibilityRequest(.press)` finds nothing and returns `false`.
+- **Published, and marked disabled.** A disabled element that is only
+  clickable, only focusable or only adjustable records, and the builder
+  publishes `isEnabled == false` from `record.isEnabled`. SwiftUI publishes a
+  disabled control (arm P2: `AXButton`, `enabled=0`).
+- **Its actions and focusability are the gated ones, with no builder edit.**
+  - `.press` comes from `hitboxes`. The blocker sits under the derived id with
+    `Handlers()`, so no entry for `id` has an `onClick`:
+    `actions` has no `.press`, and `handleAccessibilityRequest(.press(id))`
+    returns `false`.
+  - `.increment`/`.decrement` come from `focusRegistry.actionHandler`. A
+    disabled element is not registered, so they are absent and the requests
+    return `false`.
+  - `isFocusable` comes from `focusRegistry.isFocusable`, `false` for the same
+    reason, and `.focus(id)` returns `false`.
+- **The environment track's own spec** names our first version's
+  `AXNode.synthesized(declared:handlers:text:)`, which no longer exists: its
+  "trait after synthesis" is this form's `isEnabled: enabled` on the record.
 
 **Joint test, written by the integration step** (`.disabled` does not exist on
-this branch): `aDisabledClickableElementPublishesDisabledWithNoPressAndRefusesAPress`.
+this branch):
+`aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`.
+An active fake window, root `Row { … }` (a scope cannot be a root, `EV-B`),
+three arms, each with a control identical minus `.disabled(true)`:
 
-- Fixture: an active fake window; `Box().width(40).height(20).onClick { n += 1 }.disabled(true)`.
-- Result: one published `.button`, `isEnabled == false`, `actions == []`;
-  `.press(id)` returns `false`; `n == 0`.
-- Control: the same box without `.disabled` has `isEnabled`, `.press`, and a
-  press that returns `true` with `n == 1`.
-- Mutations that must redden it:
-  - build the record's `isEnabled` as `true`;
-  - read `handlers.actions` instead of `keyboard.actions`;
-  - insert the enabled `handlers` into the hitbox.
+| arm | fixture | disabled | control |
+|---|---|---|---|
+| clickable only | `Box().width(40).height(20).onClick { n += 1 }.disabled(true)` | one `.button`, `isEnabled false`, `actions []`; `.press(id)` → `false`, `n == 0` | `isEnabled`, `.press`; press → `true`, `n == 1` |
+| focusable only | `Box().width(40).height(20).focusable().disabled(true)` | **published** (a node exists for the id), `isEnabled false`, `isFocusable false`; `.focus(id)` → `false`, `window.focusedElement == nil` | `isFocusable`; `.focus(id)` → `true`, focused |
+| adjustable only | `Box().width(40).height(20).onAction(AccessibilityAdjustment.self) { k += 1 }.disabled(true)` | **published**, `isEnabled false`, `actions []`; `.increment(id)` → `false`, `k == 0` | `[.increment, .decrement]`; `.increment` → `true`, `k == 1` |
 
-### `Frame.init` and the `Frame(…)` call in `Window`
+Mutations that must redden it, each separately:
 
-Both tracks add a defaulted parameter. The merged signature takes both, in
-either order, with defaults: `environment:` and `collectsAccessibility:`. The
-`Window` call passes both. `Passes.swift`: both tracks add internal accessors to
-`LayoutPass`/`PrepaintPass`. They are distinct names and purely additive.
+- build the record's `isEnabled` as `true` (all three disabled arms read enabled);
+- synthesize from a gated set, `if enabled` around the synthesized terms (the
+  focusable-only and adjustable-only arms publish nothing);
+- register the ungated `handlers` with the focus registry when disabled (the
+  focusable arm is focusable; the adjustable arm advertises actions);
+- register the blocker under `id` with the enabled `handlers` (the clickable
+  arm is pressable).
+
+### `Frame.init`, and `Window`'s `Frame(…)` call
+
+The environment track adds **no** init parameter (`EV-H`). This track's
+`collectsAccessibility:` lands alone. `Window` gains that track's one statement
+after the `Frame(…)` expression: an adjacent-line textual conflict only.
+`Passes.swift`: both tracks add internal or public accessors to
+`LayoutPass`/`PrepaintPass`, with distinct names, purely additive.
+`Frame.render`: the environment track edits its root `StateBinder.bind` call;
+this track's `AB-AD` edits its root `prepaint` call a few lines below. Keep
+both.
+
+### `ElementGroup.swift`
+
+The environment track replaces
+`StateBinder.bind(self, table: pass.frame.stateTable, id: layout.id)` with
+`StateBinder.bind(self, in: pass.frame, id: layout.id)` in
+`Element.prepaintGroup`: **the line directly above** this track's
+`display: none` block. Keep both, the bind first. The modifier-composition
+track's lane 3 edits `Element`'s default `requestGroupLayout`, a different
+function; its lane 2 adds two protocol requirements, additively.
 
 ### Modifier composition (`MetalUI-modifier-composition`)
 
@@ -925,6 +1091,31 @@ either order, with defaults: `environment:` and `collectsAccessibility:`. The
   Wherever this spec or `AB-C` names `FrameModifier` as a conformer, read
   `ModifiedElement`: every layer calls `registerHandlers` with its own id, and
   only the outermost layer carries the handlers `StyledElement` writes.
+- **`ModifiedElement`'s layer loop must carry `AB-O`'s check** (second critic
+  round). Its `prepaint` registers layers k = n-1 down to 0 in its own body,
+  then calls `content.prepaintGroup` once, so `Element.prepaintGroup`'s
+  `display: none` test sees only the outermost layer's node. The combined
+  `prepaint`:
+
+  ```swift
+  // k = n-1 … 0, outermost first; `hidden` is the first k whose style is display: none
+  let hidden = pass.collectsAccessibility
+      ? (0..<n).reversed().first { pass.frame.style(node[$0]).display == .none } : nil
+  for k in stride(from: n - 1, to: hidden ?? -1, by: -1) { register(k) }
+  if let hidden {
+      pass.frame.withAccessibilitySuppressed(except: nil) {
+          for k in stride(from: hidden, through: 0, by: -1) { register(k) }
+          content.prepaintGroup(…)
+      }
+  } else {
+      content.prepaintGroup(…)
+  }
+  ```
+
+  Registration order is unchanged (outermost first), so `MC-F`'s order test is
+  unaffected. **Joint check:** lane 1's
+  `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`, green on this branch
+  with nested `Box`es, must pass after the merge **unchanged**.
 - **`.padding`/`.frame` become `ModifiedElement`.** A label written through
   `handling` lands on the outermost layer, the arm R4 situation. `AB-T`'s
   distribution makes that correct whatever the representation.
@@ -938,14 +1129,14 @@ either order, with defaults: `environment:` and `collectsAccessibility:`. The
 
 ## Test and count accounting
 
-About 47 new tests:
+About 52 new tests (second critic round):
 
 | where | tests |
 |---|---|
-| lane 1 | 15 (as built) |
-| lane 2, platform | 16 |
-| lane 2, end-to-end | 2 |
-| lane 3 | 15 |
+| lane 1 | 18 (15 as built, one added against hunting mutants, two in the second critic round) |
+| lane 2, platform | 17 (`aFocusedElementQueryDoesNotActivate` added) |
+| lane 2, end-to-end | 3 (`aHeldElementWhoseIDIsAdoptedPressesTheAdopter` added) |
+| lane 3 | 15 (arms added, no new tests) |
 | integration, the joint disabled test | 1 |
 
 Counts are design-time and go stale the moment a test lands; the record

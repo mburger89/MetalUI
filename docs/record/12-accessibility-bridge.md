@@ -8,13 +8,18 @@
 - Probes:
   - `docs/probes/swiftui-accessibility-bridge.swift`;
   - `docs/probes/swiftui-accessibility-bridge-rules.swift`;
-  - `docs/probes/appkit-accessibility-overrides-typecheck.swift`.
+  - `docs/probes/swiftui-accessibility-bridge-critic2.swift`;
+  - `docs/probes/appkit-accessibility-overrides-typecheck.swift`;
+  - `docs/probes/appkit-voiceover-signal-isolation.swift`;
+  - `docs/probes/appkit-accessibility-activation-clients.swift`.
 
 The integration step, not this track, links this file from
 `docs/record/README.md` and CLAUDE.md.
 
 **Status: lane 1 (tree and seam) implemented; lanes 2 and 3 designed.** The
-design was revised after one critic round. Each lane appends its own section below:
+design was revised after one critic round, and again after a second critic
+round that followed lane 1 (its section is after lane 1's). Each lane appends
+its own section below:
 
 - the red run;
 - the green run;
@@ -202,6 +207,179 @@ reader), distinct ordinals for nested portals, a hidden root element, and the
 `logicalIndex` strip and `.row` role (lane 3). `AppKitWindow` only stores the
 published tree; lane 2 forwards it. No human look is owed by lane 1.
 
+### Second critic round (2026-09-15, after lane 1)
+
+The critic raised fifteen findings against the design and lane 1 as recorded
+above. The decisions doc's "Second critic round" section maps each to what was
+done; nothing was rejected outright, and four were settled by recording a
+divergence or a hazard instead of changing behaviour (findings 3, 4, 13, and
+the machine dependency in 6). What is worth keeping here is method.
+
+**The critic's arms reproduced exactly, and three were added.** C0–C5, P0–P2
+and E0–E2 were re-run from the critic's scratch files before any was believed,
+committed as `swiftui-accessibility-bridge-critic2.swift`, and read what the
+critic reported. The session added:
+
+- **C5i**, which settled finding 4's weight: SwiftUI does not just move the
+  label off an adjustable container, it copies the **adjustable action** onto
+  each child (increment on either child runs the one closure). A MetalUI
+  "fix" that distributed only the label would have matched SwiftUI's
+  `AXStaticText` lines and silently lost the action.
+- **C6 and C7**, which turned finding 12's "propagate the value" into a rule:
+  two values join with `", "`, and the value follows the text carrying it, not
+  the first position.
+
+**An exit status that could not fail (finding 5).** The critic found that the
+signal's first spelling warns and that `-warnings-as-errors` still exits 0 on
+that diagnostic group. Reproduced, and the probe now shows both halves side by
+side: `-D SPEC_SHAPE` prints the `#ActorIsolatedCall` warning with exit 0,
+while `-D UNUSED_CONTROL` turns an ordinary unused-variable warning into an
+error with exit 1. So the committed overrides probe's "exit 0" was never
+evidence about isolation, and the new probe is read by `grep -c 'warning:'`.
+
+**The two-process probe's first harness could not see anything.** Its first
+run read `[]` in every phase, which would have read as "no client reaches the
+host view". Every client request had failed with `-25204`
+(`kAXErrorCannotComplete`): a script-hosted `NSApplication` that never called
+`finishLaunching()` is not registered with the accessibility server. With that
+line, the passive phase and a window listing still read `[]`, while a
+focused-element query and a position query reach the spy. The tree-walk phases
+never reached the spy (the script process could not make its window key, and
+the client's elements resolved to `AXApplication`); the probe's header records
+that limit rather than a positive control it did not get.
+
+**Uncommitted lane-1 test changes (finding 10).** The worktree held an
+uncommitted rewrite of `AccessibilityTreeTests.swift`, made after lane 1's last
+commit: a new `eachLiveHandlerAloneMakesAnUndeclaredElementRecord` against
+hunting mutants H05 and H06, a duplicated-id press arm (H02), a clickable
+hidden box (H14), a six-child order fixture (M08), a popLayer arm, root order
+and focus as structure, and the adjustment's dirtying. No build or test process
+was running. It was run unfiltered as found (native build system:
+`Test run with 1100 tests in 1 suite passed`), committed as `71805eb`, and the
+**whole** mutation table below was re-taken against it rather than the rows it
+touched.
+
+**Hidden root (finding 14), red then green.** `aHiddenRootPublishesNothing`
+on `71805eb` plus the test (native build system, filtered for the red line
+only):
+
+```
+Expectation failed: (hiddenFrame.axEmissions → [2 records: the root 20×20 and "in" 10×10]).isEmpty → false
+Expectation failed: (hidden.nodes.isEmpty → false) && (hidden.roots.isEmpty → <not evaluated>)
+```
+
+(The first line's record dump is abbreviated here; it printed both
+`AXEmission`s in full.) `AB-AA`'s "unreachable, a hidden root draws nothing"
+was wrong on its own terms: the root prepaints at 20×20. Fixed in
+`Frame.render`, `6bd208c`. `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`
+was green on arrival, as designed; M20 below proves it is not vacuous here.
+
+**A mutation-runner hazard, hit once.** The runner restores each mutated file
+with `git checkout -- <file>`. Run once while `Frame.swift` held the
+**uncommitted** AB-AD fix, it restored `Frame.swift` to `HEAD` and silently
+deleted the fix; the next commit then carried only the tests, and a second
+batch ran without the fix (every row it produced named
+`aHiddenRootPublishesNothing`, which gave it away). That commit was amended to
+include the fix, and the batch discarded and re-taken. **Commit before running
+a `git checkout`-restoring mutation runner**, or restore from a copy, as the
+environment track's spec says.
+
+#### Lane 1 mutations, re-taken (second critic round)
+
+Each applied by a script as an exact text replacement to committed source
+(`71805eb` for M01–M39, H02–H14; `6bd208c` for M40 and the M20/M08 repeats),
+built with `swift build --build-system native --build-tests`, run as the
+**unfiltered** suite with `swift test --build-system native --skip-build
+--no-parallel`, the failing test names parsed from the log, and restored with
+`git checkout`, with `git status --porcelain -- Sources Tests Package.swift`
+checked clean after each. No other agent was live in this worktree; other
+tracks' builds were running elsewhere on the machine, which affects no count
+here. Every build succeeded, and every run printed its summary line (1100
+tests, or 1102 at `6bd208c`).
+
+| # | mutation | reddens |
+|---|---|---|
+| M01 | record regardless of `collectsAccessibility` | `aFrameThatDoesNotCollect…`, `anInactiveWindowBuildsAndPublishesNothing` |
+| M02 | also route a synthesized record through `emitAXNode` | `aFrameThatDoesNotCollect…`, `eachLiveHandlerAlone…` |
+| M03 | `Window` builds every frame with `collectsAccessibility: true` | `anInactiveWindowBuildsAndPublishesNothing` |
+| M04 | drop the `isActive` guard in `frameDidRender` | `anInactiveWindowBuildsAndPublishesNothing` |
+| M05 | `.activate` does not dirty | `anActivationRequestDirties…` |
+| M06 | `activate()` answers `true` every time | `anActivationRequestDirties…` |
+| M07 | reverse record order in the parent pass | `childrenFollowDeclarationOrder…`, `hiddenContentIsNotPublished…`, `portalContentIsARoot…` |
+| M08 | parent pass iterates the record dictionary's keys | `childrenFollowDeclarationOrder…`, `portalContentIsARoot…`. **Repeated twice at `6bd208c`** (dictionary order is per process): `childrenFollowDeclarationOrder…` alone; then `childrenFollowDeclarationOrder…`, `hiddenContentIsNotPublished…`, `portalContentIsARoot…`. The six-child test reddened in **3 of 3** runs, where the two-child fixture had survived 2 of 2 |
+| M09 | parent is `id.parent` or nothing, no walk | `aNodesParentIsItsNearestEmittingAncestor`, `childrenFollowDeclarationOrder…` |
+| M10 | parent walk ignores portals | `portalContentIsARoot…` |
+| M11 | `emitAXNode` stores untranslated bounds | `aNodeInsideAScrolledScrollView…` |
+| M12 | `visibleFrame` is the unclipped frame | `aNodeInsideAScrolledScrollView…` |
+| M13 | `hasSameStructure` also compares geometry | `aNodeInsideAScrolledScrollView…` |
+| M14 | `.press` answers `true` without running `onClick` | `aPressIsRefused…`, `aPressRequestRuns…`, `anUnchangedFrameIsNotRepublished` |
+| M15 | advertise `.press` on every node | `aPressIsRefused…`, `aPressRequestRuns…`, `anIncrementRequest…`, `declaredRolesLabelsValuesAndTraits…`, `eachLiveHandlerAlone…` |
+| M16 | derive `.press` from `record.isClickable`, not hitboxes | `aPressIsRefusedWhereHitTestingIsDisabled`. **SwiftUI's side of `AB-H`'s recorded divergence (arm P1)**: that test is a divergence pin |
+| M17 | build `focused` from the handed-in focus | `publishedFocusIs…` |
+| M18 | `.focus` skips the `isFocusable` check | `publishedFocusIs…` |
+| M19 | publish without the `!=` check | `anUnchangedFrameIsNotRepublished` |
+| M20 | no `display: none` suppression in `prepaintGroup` | `hiddenContentIsNotPublished…`. **Re-run at `6bd208c`:** also `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`, so the merge's check is live on this branch |
+| M21 | drop zero-area records | `hiddenContentIsNotPublished…` |
+| M22 | no seen-set (one entry per record) | `hiddenContentIsNotPublished…` |
+| M23 | swap increment and decrement | `anIncrementRequest…` |
+| M24 | advertise adjustment on every node | `aPressIsRefused…`, `aPressRequestRuns…`, `anIncrementRequest…`, `declaredRolesLabelsValuesAndTraits…` |
+| M25 | `.table` only from a `container` with `logicalCount` | `aLabelledListIsStillATable` |
+| M26 | `.text` maps to `.group` | `declaredRolesLabelsValuesAndTraits…` |
+| M27 | ignore `.disabled` | `declaredRolesLabelsValuesAndTraits…` |
+| M28 | ignore `.selected` | `declaredRolesLabelsValuesAndTraits…` |
+| M29 | a clickable `container` becomes `.button` | `declaredRolesLabelsValuesAndTraits…` |
+| M30 | publish `focused` even when that id published nothing | `hiddenContentIsNotPublished…` |
+| M31 | `isFocusable` always `false` | `eachLiveHandlerAlone…`, `publishedFocusIs…` |
+| M32 | `hasSameStructure` ignores `nodes` | `aNodeInsideAScrolledScrollView…` |
+| M33 | suppression ignores the scope's exception (always suppressed) | **green (1100 passed)**, still. No lane-1 caller passes a non-nil exception; lane 3's `activatingBeforeTheFirstFrame…` owns it (`AB-AA`) |
+| M34 | never increment the portal ordinal (every portal is 0) | `portalContentIsARoot…` |
+| M35 | `value` copies `label` | `declaredRolesLabelsValuesAndTraits…` |
+| H02 | a press runs the **first** hitbox for the id | `aPressRequestRuns…` |
+| H05 | drop `isFocusable` from the synthesis condition | `eachLiveHandlerAlone…` |
+| H06 | drop the adjustment term from the synthesis condition | `eachLiveHandlerAlone…` |
+| H14 | `prepaintGroup` excepts the hidden element itself (`except: layout.id`) | `hiddenContentIsNotPublished…` |
+| M36 | `hasSameStructure` ignores `roots` | `aNodeInsideAScrolledScrollView…` |
+| M37 | `hasSameStructure` ignores `focused` | `aNodeInsideAScrolledScrollView…` |
+| M38 | `popLayer` never pops the portal stack | `portalContentIsARoot…` |
+| M39 | an adjustment does not dirty the window | `anIncrementRequest…` |
+| M40 | no `display: none` check at `Frame.render`'s root (at `6bd208c`) | `aHiddenRootPublishesNothing` |
+
+**Against the first table.** Rows that changed: M02, M15 and M31 also redden
+the new `eachLiveHandlerAlone…`; M08 is now a clean kill; M30 reddens on its
+own rather than only after `AB-AA`; M20 reddens the merge check. Every
+first-table row still reddens at least what it named. H02, H05, H06 and H14
+are the hunting mutants the uncommitted tests were written against, each named
+in a test comment and each now killed. M33 is the only survivor.
+
+**Green, and counts, at `6bd208c`.**
+
+- Default build system (`swift test --no-parallel`, unfiltered):
+  `Test run with 1102 tests in 1 suite passed after 23.273 seconds`,
+  0 `error:`, 0 `warning:`.
+- Native build system, unfiltered: `Test run with 1102 tests in 1 suite
+  passed`, 0 `error:`, 0 `warning:`.
+- 1102 = 1099 at lane 1's record, + `eachLiveHandlerAlone…` (`71805eb`),
+  + `aHiddenRootPublishesNothing` and
+  `aHiddenInnerModifierLayerSuppressesEverythingInsideIt` (`6bd208c`).
+- Goldens: `find Tests -name "*.json" | wc -l` reads 97, and
+  `git diff --stat f64e58a -- '*.json'` is empty.
+- Typecheck guards: none added.
+
+**Owed to the integration step, from this round** (it owns CLAUDE.md and record
+§05):
+
+- **An inert-table row if lane 2 slips.** On lane 1 alone the bridge is inert in
+  production: `AppKitWindow.publishAccessibilityTree` only stores the tree,
+  nothing in AppKit sends `.activate`, and `AccessibilityAdjustment` has no
+  AppKit effect. Row: "`PlatformWindow.publishAccessibilityTree` /
+  `onAccessibilityRequest` on `AppKitWindow` — stores the tree, sends nothing;
+  no client can activate a window until lane 2's host-view overrides land".
+  Delete it when lane 2 merges.
+- **`AXNode.actions`** stays a declared-but-inert field (`AB-H`).
+- **Demo `StateTable` figures.** Lane 3's demo labels are declared nodes and
+  write `$ax` slots, so CLAUDE.md's warm resident counts (165 at 40 rows, 63 at
+  500) go stale when lane 3 lands; re-take them from record §07's harness.
+
 ### Human VoiceOver look — script (open)
 
 Nothing in the suite hears VoiceOver.
@@ -235,7 +413,14 @@ item 1 before opening it.
 
 **Items.**
 
-1. **Activation (`AB-B`).** There are two orders.
+1. **Activation (`AB-B`).** **First, before anything else:** list every
+   running app that uses the Accessibility permission (System Settings →
+   Privacy & Security → Accessibility shows the ones allowed; report which of
+   them are running), and quit them all: window managers, text expanders,
+   grammar and dictation tools, clipboard and launcher utilities. A utility
+   with the pointer over the demo window activates it through the hit-test
+   trigger (measured, `AB-B`), which would confound both orders below. Report
+   the list and that they were quit. Then there are two orders.
    - **(a) Demo first.** With the demo already open and idle, start VoiceOver.
      Within two seconds, does VoiceOver announce content inside the window, not
      just its title?
@@ -294,6 +479,16 @@ item 1 before opening it.
 8. **Noise (`AB-K`).** Press **A** (the animation look) while VoiceOver's
    cursor is in the sidebar. Does VoiceOver repeat anything during the 0.6 s
    spring? Silence is the expected answer.
+
+9. **Identity adoption (`AB-H`'s recorded hazard).** This needs a tree whose
+   `if` hides a clickable element **before** an unnamed clickable sibling; the
+   demo has none, so run it only if a later task adds one, and otherwise
+   report "not exercisable in the demo". With VoiceOver on the trailing
+   element's predecessor (the one the `if` hides), make the `if` false, then
+   press VO-Space without moving. **Expected, and not a defect:** the element
+   VoiceOver holds now reads the trailing element's label, and the press runs
+   the trailing element's action. Report what is spoken after the change and
+   what the press did.
 
 **Also report:** macOS version, VoiceOver verbosity setting if changed, and
 whether the build was release.

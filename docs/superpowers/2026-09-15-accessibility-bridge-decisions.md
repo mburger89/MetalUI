@@ -4,7 +4,7 @@ Rulings for the accessibility-bridge half of plan task 12
 (`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`). They are prefixed
 **`AB-`** and **lettered** (`AB-A`, `AB-B`, …), with two-letter tails after
 `AB-Z`. **A bare `AB-3` is a typo, not a citation.** The next unused letter is
-`AB-AB`.
+`AB-AE`.
 
 Read alongside:
 
@@ -16,6 +16,12 @@ Read alongside:
   probe. "Arm Rn" and "arm Q" mean its arms.
 - `docs/probes/appkit-accessibility-overrides-typecheck.swift`: the
   re-runnable typecheck of the AppKit spellings, with a negative control.
+- `docs/probes/swiftui-accessibility-bridge-critic2.swift`: the second critic
+  round's SwiftUI arms. "Arm Cn", "arm Pn" and "arm En" mean its arms.
+- `docs/probes/appkit-voiceover-signal-isolation.swift`: the isolation of the
+  VoiceOver signal (`AB-AB`), read by grepping for `warning:`.
+- `docs/probes/appkit-accessibility-activation-clients.swift`: a two-process
+  probe of what an out-of-process client reaches on a host view (`AB-B`).
 - `docs/record/12-accessibility-bridge.md`: this track's record, including the
   human VoiceOver script.
 - Rulings this track leans on: `TB-M` (children stay a field; order is not
@@ -26,15 +32,17 @@ Read alongside:
 
 ## How to read the letters
 
-**Written at design time (2026-09-15, at `f64e58a`), before any lane runs, and
-revised the same day after one critic round.** Each ruling gives:
+**Written at design time (2026-09-15, at `f64e58a`), before any lane runs,
+revised the same day after one critic round, and revised again after a second
+critic round that followed lane 1.** Each ruling gives:
 
 - what was decided;
 - why;
 - the evidence, and which kind it is: a probe arm, a measurement, or a reading;
 - what it costs if wrong.
 
-A ruling the critic round changed says so under **Revised**. Implementation
+A ruling a critic round changed says so under **Revised** (first round) or
+**Revised (second critic round)**. Implementation
 lanes append their red runs and mutation records under the ruling they
 exercise, the way `SA-J`…`SA-M` carry theirs.
 
@@ -45,7 +53,7 @@ exercise, the way `SA-J`…`SA-M` carry theirs.
 - `AB-N`…`AB-P`: smaller shape decisions, and one recorded divergence.
 - `AB-Q`: scope and deferrals. `AB-R`: the seam has no defaults. `AB-S`: what
   the probes can and cannot prove.
-- `AB-T`…`AB-Z`: added by the critic round. They cover:
+- `AB-T`…`AB-Z`: added by the first critic round. They cover:
   - distribution;
   - records instead of emissions;
   - portals;
@@ -53,7 +61,11 @@ exercise, the way `SA-J`…`SA-M` carry theirs.
   - unbounded lists and lazy elements;
   - `OnTapModifier`;
   - the merge contract.
-- **"Critic round"** at the end maps each finding to what was done.
+- `AB-AA`: lane 1 as built.
+- `AB-AB`…`AB-AD`: added by the second critic round: the VoiceOver signal's
+  isolation, how a test forces that signal, and a hidden root.
+- **"Critic round"** and **"Second critic round"** at the end map each finding
+  to what was done.
 
 ---
 
@@ -96,12 +108,14 @@ from structure** (`AB-K`).
 **What.** A window records and publishes nothing until the first of two
 triggers sends `.activate`:
 
-1. **A query.** The host view's first accessibility query:
-   `accessibilityChildren`, `accessibilityHitTest` or
-   `accessibilityFocusedUIElement`.
-2. **The VoiceOver signal.** `NSWorkspace.shared.isVoiceOverEnabled` observed
-   `true`, through KVO with `.initial`: at bridge creation if VoiceOver is
-   already running, or when it starts.
+1. **A tree query.** The host view's first `accessibilityChildren` or
+   `accessibilityHitTest`. **`accessibilityFocusedUIElement` is not a trigger**
+   (second critic round): before activation it answers the host view and sends
+   nothing.
+2. **The VoiceOver signal.** `NSWorkspace.shared.isVoiceOverEnabled` reported
+   `true`: read synchronously at bridge creation, so a window opened under a
+   running VoiceOver is active before its first frame, and observed through KVO
+   for a later start (`AB-AB` fixes the isolation).
 
 `Window` then marks itself dirty, and every later frame is built with
 `collectsAccessibility = true`. It never deactivates.
@@ -120,6 +134,17 @@ signalled.
 Other clients never set it, including Switch Control, Voice Control,
 Accessibility Inspector and third-party AX utilities. The only client-agnostic
 signal observable on our own view is the query.
+
+**Why the focused-element query is not a trigger.** It is the one query a
+client that is not reading the window makes: a text-expansion, grammar or
+window-management utility polls the frontmost app's focused element to find a
+text field. The two-process probe measured that such a poll, made from another
+process with VoiceOver off, **does** reach the content view's
+`accessibilityFocusedUIElement`. As a trigger it would therefore turn on
+per-frame collection, for the window's lifetime, for users of those utilities
+who run no screen reader. Dropping it costs a client whose very first request
+is the focused element one empty answer: its next tree query activates the
+window, and `.layoutChanged` follows (`AB-K`).
 
 **Why add the VoiceOver trigger.** It answers the commonest real case, VoiceOver
 already running when the window opens, without the empty first read and its
@@ -144,22 +169,45 @@ attribute SwiftUI reacts to (arm 2) is still not observable.
   delivers its initial value, `false`, on a machine without VoiceOver running.
   **Unmeasured:** that the value flips when VoiceOver starts. That is item 1 of
   the human script.
+- **The two-process probe** (`appkit-accessibility-activation-clients.swift`,
+  VoiceOver off, the client trusted). With the window idle for 4 s, the spy
+  logs nothing (`passive: []`), and listing the app's windows reaches nothing
+  (`windows: []`). An out-of-process `kAXFocusedUIElementAttribute` on the
+  application reaches `["focused", "isElement"]`. An
+  `AXUIElementCopyElementAtPosition` over the window reaches
+  `["hitTest", "children", "role", "isElement"]`. **Limit:** the script process
+  could not make its window key, and the client could not walk into the
+  window's children (its elements resolved to `AXApplication`), so this probe
+  says nothing about a tree walk. Arm Q's in-process control does.
 - **Pins.** Lane 2's `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery`
-  (scripted signal). End-to-end `aKeyWindowReceivingEventsIsNeverActivatedWithoutAClient`
-  pins arm Q against the real host view.
+  (scripted signal) and `aFocusedElementQueryDoesNotActivate`. End-to-end
+  `aKeyWindowReceivingEventsIsNeverActivatedWithoutAClient` pins arm Q against
+  the real host view, with the signal forced `false` (`AB-AC`).
 
 **Revised (critic finding 13).** The first version had only the query trigger.
 It dismissed the application attribute as unobservable without weighing the
 public `NSWorkspace` property.
+
+**Revised (second critic round, findings 5 and 9).** The focused-element query
+was a trigger; the two-process probe measured that a focus-polling utility
+reaches it, so it no longer is. The signal's first spelling emitted a
+concurrency warning; `AB-AB` gives the adopted one.
 
 **Cost if wrong.**
 
 - **The first read.** A non-VoiceOver client whose first read is taken as final
   sees an empty window. The fallback is to answer the first query synchronously
   from the last frame's hitboxes.
-- **In-process queries.** Anything in-process that queries the host view (a
-  test, a debugging tool) turns collection on for the window's lifetime. That is
-  a cost, not a defect.
+- **In-process queries.** Anything in-process that asks the host view for its
+  children or a hit test (a test, a debugging tool) turns collection on for the
+  window's lifetime.
+- **Mouse-follow utilities, measured.** A utility that asks for the element
+  under the pointer reaches `accessibilityHitTest`, which **is** still a
+  trigger: with the pointer over a MetalUI window, it activates that window for
+  good. That is kept because Accessibility Inspector's hover and VoiceOver's
+  mouse-follow use the same query, and a hit-test-first client would otherwise
+  see only the host view. How many such utilities users run is unmeasured;
+  human script item 1 lists what was running.
 - **VoiceOver running elsewhere.** A VoiceOver user pays collection in every
   MetalUI window, including windows VoiceOver is not reading: the population
   SwiftUI also pays for.
@@ -339,6 +387,11 @@ this is not expected. No test covers a portal inside a scroller.
 | only a label | that label as its **value**, no label | 10a, R4 |
 | **a value** | label = the declared label, or its own string; value = the value | 11, R1, R2, R18 |
 
+**An empty string is no text** (arms E0–E2). `Text("")` passes
+`accessibleText: nil`, so on its own it records nothing and publishes nothing,
+and it adds no empty entry to a button's combined label. `Text(" ")` is not
+empty and is published, as SwiftUI publishes it.
+
 **Role map.**
 
 | condition | role |
@@ -367,6 +420,12 @@ this is not expected. No test covers a portal inside a scroller.
 - **Arm R18:** a value distributed onto `Text("A")` gives `label=A value=V`.
 - **Arm R12, for a clickable node:** `Button("vol").accessibilityValue("5")`
   gives `label=vol value=5`.
+
+**Revised (second critic round, finding 11).** The empty-string rule is new:
+the first spec's synthesis condition was `accessibleText != nil`, which would
+have published `Text("")` as an empty `.staticText`. Arm E1,
+`VStack { Text(""); Text B }`, publishes one child; E2 (`Text(" ")`) publishes
+two; E0 is the control.
 
 **Revised (critic finding 1).** The first version's third bullet read "a label
 and a value publish both unchanged". Its pseudocode had no branch for a value
@@ -397,8 +456,15 @@ than an item, labelled leaves take an extra keystroke. The fix is one map entry.
 - **A clickable `Text`** is a button labelled by its string, unless it declares
   a label.
 - **A button whose kept descendants are all non-interactive publishes no
-  children.** If it has no label, it takes their resolved labels (or values),
-  joined with `", "`.
+  children.** Each descendant, after its own text rules, contributes in tree
+  order:
+  - to the **label**, its label, or its value when it has no label;
+  - to the **value**, its value, **only when it also has a label** (a plain
+    text's value is its string, which already went to the label).
+
+  If the button has no label, it takes the label contributions joined with
+  `", "`. If it has no value, it takes the value contributions joined with
+  `", "`, or `nil` when there are none.
 - **A button with an interactive descendant** keeps its children and its own
   label, `nil` included.
 - **Portal content is not a descendant**, because it is a root (`AB-V`).
@@ -419,6 +485,17 @@ than an item, labelled leaves take an extra keystroke. The fix is one map entry.
   `A, B`, with zero children.
 - **Arm R5:** a padded, labelled `Button` is `AXButton label=X` with zero
   children.
+- **Arms C3, C4, C6, C7, the value.**
+
+  | arm | button content | publishes |
+  |---|---|---|
+  | C3 | `Text("vol").accessibilityValue("5"); Text B` | `label="vol, B" value=5` |
+  | C7 | `Text A; Text("vol").accessibilityValue("5")` | `label="A, vol" value=5` |
+  | C6 | `Text("a").accessibilityValue("1"); Text("b").accessibilityValue("2")` | `label="a, b" value="1, 2"` |
+  | C4 | `Text("A").accessibilityLabel("X"); Text B` | `label="X, B" value=nil` |
+
+  C4 is the rule's other half: a labelled text with no declared value resolves
+  to `value=X`, `label=nil` (`AB-F`), so it contributes to the label only.
 
 **Divergence, recorded and deliberate: tap gestures are pressable here.**
 
@@ -441,6 +518,12 @@ for two reasons:
 
 - collapsing would force choosing one of two handlers for one element's press;
 - MetalUI has no `Toggle` whose semantics could absorb the button.
+
+**Revised (second critic round, finding 12).** The first rule joined
+`label ?? value` into the label and gave the button no value, which drops C3's
+`5`. The value half is new, and C6 and C7 (added by the design session) settle
+how two values join and that the value follows the text carrying it, not the
+first position.
 
 **Revised (critic finding 2).** The first version claimed the
 interactive-descendant rule had no probe arm. Arm R7 now measures SwiftUI doing
@@ -472,8 +555,9 @@ where SwiftUI reads one checkbox.
   dispatch".
 - `lastHitboxes` is the record click dispatch already resolves against, so a
   press is refused exactly where a click would find nothing.
-  `allowsHitTesting(false)` removes both. After the environment merge, so does
-  `.disabled(true)` (`AB-Z`).
+  `allowsHitTesting(false)` removes both (a recorded divergence, below). After
+  the environment merge, so does `.disabled(true)` (`AB-Z`), which agrees with
+  SwiftUI (arm P2: `enabled=0`, press `false`, closure run 0 times).
 - Advertising an action with no handler would tell VoiceOver a control works
   when it does nothing.
 
@@ -488,6 +572,52 @@ where SwiftUI reads one checkbox.
   `aPressRequestRunsOnClickThroughTheLastFramesHitboxes` now gives its
   non-clickable box a declared node. Without one, the box published nothing, and
   "it has no `.press`" was vacuous (critic finding 8).
+
+**Divergence, recorded (second critic round, finding 3; arms P0, P1).**
+`Button("Go"){…}.allowsHitTesting(false)` in SwiftUI is still `AXButton
+label=Go`, and its press returns `true` with the closure run once, exactly as
+the control `Button("Go")` (P0). MetalUI refuses the press and runs nothing
+(`aPressIsRefusedWhereHitTestingIsDisabled`, now a divergence pin), and
+`AB-AA` item 3 publishes such an element as a button with no `.press`, a state
+SwiftUI never produces. Kept, for three reasons:
+
+- **Nothing else stores the handler.** `Frame.registerHandlers` puts an
+  `onClick` only into the hitbox list, and only outside
+  `allowsHitTesting(false)`. Following SwiftUI would mean a second per-frame
+  store of click handlers while collecting, and a second gate for the
+  environment merge's `.disabled`, which today rides the same hitbox (`AB-Z`).
+- **No legacy spelling reaches it.** The legacy path has no
+  `allowsHitTesting` modifier; the only production caller is the demo's inert
+  `.onTap {}.allowsHitTesting(false)`, and `OnTapModifier` publishes nothing
+  (`AB-Y`), so no published node is affected today.
+- **The owner is known.** Task 9's `Button` decides what a pressable control
+  is; this divergence is re-weighed there.
+
+Mutation M16 ("derive `.press` from `record.isClickable`") is the SwiftUI-side
+half of this choice, and it reddens exactly that pin.
+
+**Recorded hazard: a press can run a different element's `onClick` after
+identity adoption (second critic round, finding 13).** `AB-D` keeps an element
+object for as long as its id is published. MetalUI's identity is structural
+(CLAUDE.md): when an `if` before a sibling vanishes, the trailing sibling
+adopts the vanished id. An element VoiceOver is holding for that id is
+therefore **not detached**; it now reads the adopter's label (one
+`.titleChanged`), and a later VO-Space sends `.press(id)`, which runs the
+**adopter's** `onClick`. This is CLAUDE.md's "a release can run the wrong
+`onClick`", with seconds, not milliseconds, between announcement and press. It
+is kept, not fixed:
+
+- **Detaching on a label or role change was weighed and rejected.** Arm 12
+  measures SwiftUI keeping an element across a label change (`Count 0` →
+  `Count 1`); detaching would make every counter's element invalid on every
+  increment, and VoiceOver would lose its place on the control it just pressed.
+- **The remedy is the identity rule's own**: name the trailing sibling. Its id
+  then never belonged to the vanished element, the held element is detached,
+  and the press is refused.
+- **Pinned** by lane 2's end-to-end
+  `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, whose two arms disagree: the
+  unnamed sibling's press runs the adopter's closure; the named sibling's is
+  refused. Human script item 9 is the look.
 
 **Not checked: occlusion.** A click lands on the topmost opaque hitbox. A press
 goes to the named element even under a `Deferred` scrim. That is deferred with
@@ -764,6 +894,18 @@ window.
 - **No area filter.** A zero-width or zero-height node **is** published.
 - **Duplicated ids.** The builder keeps one record per id, at its first
   position with its last content.
+- **Every place a `prepaint` runs for a node that is not its group walk's
+  outermost** carries the same check (second critic round):
+  - **the window root**, in `Frame.render` (`AB-AD`);
+  - **after the modifier-composition merge, `ModifiedElement`'s layer loop.**
+    `x.padding(4).hidden().padding(4)` gives the **middle** layer
+    `display: none`, while `prepaintGroup` reads only the outermost node. The
+    loop opens `withAccessibilitySuppressed(except: nil)` at the first
+    (outermost-first) layer whose style is `display: none`, around that layer,
+    every layer inside it and the content (`AB-Z`). On this branch that
+    spelling is nested `Box`es and is suppressed already; lane 1's
+    `aHiddenInnerModifierLayerSuppressesEverythingInsideIt` is green here and
+    is the merge's check.
 
 **Why.**
 
@@ -789,6 +931,10 @@ window.
 - **Duplicated ids:** reading. Lane 1's
   `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`
   pins all three.
+
+**Revised (second critic round, findings 2 and 14).** The check lived only in
+`Element.prepaintGroup`. A hidden root and a hidden inner `ModifiedElement`
+layer both escape it; the two sites above close them.
 
 **Revised (critic finding 2, arm R6).** The first version filtered zero-area
 nodes. That silenced a labelled divider, which SwiftUI publishes. It also
@@ -890,6 +1036,12 @@ probe compiles spellings only.
    one machine**. A system service that queries every window
    (unmeasured) would activate MetalUI windows, and it is also the population
    SwiftUI pays for.
+8. **The two-process probe** (second critic round) measures an out-of-process
+   client's focused-element and position queries reaching a host view. It
+   could not make its window key or walk into it, so it says nothing about a
+   tree walk. A process listing on the probe machine found none of the common
+   third-party AX utilities running; which utilities users run, and how often
+   they query, is not measured.
 
 **Cost if wrong.** A ruling built on an arm that reads differently under
 VoiceOver. The human script's items check exactly the rulings that lean
@@ -943,9 +1095,46 @@ divergence).
 | R5 | `Button{Text Go}.padding().accessibilityLabel("X")` | one `AXButton label=X` |
 | R8 | `Text("Go").accessibilityLabel("In").padding().accessibilityLabel("Out")` | `value=Out` |
 
-**Not measured, and a MetalUI rule.** A focusable or clickable generic node
-keeps its label instead of distributing it: it is itself a navigable element.
-Lane 3's control arm pins that.
+**Divergence, recorded (second critic round, finding 4; arms C1, C2, C5, C5i).**
+MetalUI does not distribute from a focusable or adjustable node: it publishes
+a labelled `.group` with its children. SwiftUI distributes from both, and
+takes the action with the label:
+
+| arm | declaration | SwiftUI publishes |
+|---|---|---|
+| C0 (= R3, control) | `VStack { Text A; Text B }.accessibilityLabel("L")` | two `AXStaticText value=L` |
+| C1 | the same with `.focusable()` | two `AXStaticText value=L`, no group |
+| C5 | the same with `.accessibilityAdjustableAction {}` | two `AXStaticText value=L`, no group |
+| C5i | increment on each of C5's two children | `true` both times; the one closure runs twice |
+| C2 | the same with `.onTapGesture {}` | two `AXStaticText value=L`, no group |
+
+So SwiftUI copies the adjustable action onto every child. MetalUI keeps the
+node, for two reasons:
+
+- **Actions route by the node's own id.** `AB-H`/`AB-I` advertise an
+  adjustment exactly where the id's own handler is registered, and `Window`
+  dispatches `.increment(id)` to that id's handler only. Copying the action to
+  children would need the builder to publish a forwarding map and the window
+  to honour it: machinery lane 3 does not budget, for a spelling no demo
+  element uses.
+- **Focus needs a node to land on.** `AB-J` publishes `focused` only for an id
+  that published a node. A distributed focusable container would leave
+  `Window.focus` on it unreportable, and `.focus(id)` would have no element to
+  come from.
+
+A **clickable** generic node is not a distributor either, but that is not this
+divergence: a MetalUI click target is a button (`AB-G`), and a SwiftUI
+`Button` keeps its label (arm R5). C2's `onTapGesture` distributes in SwiftUI
+because a tap gesture is not a button there (arm 7), which is `AB-G`'s own
+recorded divergence.
+
+Lane 3's arm 7 of `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`
+was called a control; it is **a divergence pin**, and its doc cites C1 and C5.
+
+**Cost of the divergence.** VoiceOver reads a focusable or adjustable labelled
+container as "L, group" with two children, where SwiftUI reads "L" twice with
+the action on each. If the human look finds the group unusable, the forwarding
+map is the named fix.
 
 **Cost if wrong.**
 
@@ -1031,10 +1220,22 @@ as `AB-P`.
 
 **What.** `AccessibilityGeometry.visibleFrame` is the record's translated rect
 intersected with `Frame.activeClip`, the rect `insertHitbox` already computes.
-The AppKit bridge's hit test returns the deepest element whose `visibleFrame`
-contains the point, the later sibling winning a tie, and considers every
-element, not only descendants of containing parents. `accessibilityFrame()`
-still reports the unclipped `frame` (`AB-E`).
+`accessibilityFrame()` still reports the unclipped `frame` (`AB-E`).
+
+**The hit test ranks exactly as click dispatch does** (second critic round).
+`AccessibilityGeometry` also carries:
+
+- `layer`: `Frame.activeLayer` at the record, the key `Hitbox.layer` sorts on
+  first (0 outside every `Deferred`, `Frame.rootLayer` inside one);
+- `order`: the record's position in the frame's record order (its first
+  occurrence, `AB-O`), the key `topmostOpaqueHitbox` breaks layer ties on.
+
+Among every published element whose `visibleFrame` contains the point, the one
+with the greatest `(layer, order)` wins, so portal content outranks what it
+covers wherever it was declared, and within a layer the later record wins.
+Record order is pre-order, so a descendant outranks its ancestor and a later
+sibling outranks an earlier one, which is what "deepest, later sibling wins"
+meant. If nothing contains the point, the host view.
 
 **Why.**
 
@@ -1047,18 +1248,34 @@ still reports the unclipped `frame` (`AB-E`).
   clipped.
 
 **Evidence.** Reading: `Frame.insertHitbox`'s `Self.intersect(activeClip,
-translated)`, and `List.visibleRange`'s overscan. Lane 2's
+translated)`; `Hitbox.layer`'s doc ("Primary sort key, ahead of registration
+order, so a `Deferred` subtree receives events above the siblings it paints
+over"); and `List.visibleRange`'s overscan. Lane 2's
 `hitTestingUsesVisibleFramesSoAClippedRowNeverWins` uses exactly that shape,
-with the list's unclipped frame containing the point.
+with the list's unclipped frame containing the point, and a modal arm.
+
+**Why not "later root first, then depth"** (the critic's suggested order).
+`Deferred` content records where it is declared, so a modal declared before a
+list in tree order is an **earlier** root than the list, and root order would
+let the covered row win. Depth has a second problem: a `List` row's text sits
+two or three levels below the table root, deeper than a shallow modal. The
+`(layer, order)` key is the one click dispatch already trusts.
 
 **Revised (critic finding 10).**
 
+**Revised (second critic round, finding 7).** "Deepest element wins" ignored
+portals: with a `Deferred` modal over a `List`, the covered row's text is
+deeper than the modal and would have won, so VoiceOver's mouse-follow would
+announce what a click cannot reach.
+
 **Cost if wrong.** A partially visible element can be hit only over its visible
-part. That is the part the user can point at.
+part. That is the part the user can point at. `layer` and `order` are geometry:
+they change only with a structural change, so they add no publishes of their
+own.
 
-## AB-X — an unbounded `List` window publishes no rows; elements are created only when read
+## AB-X — an unbounded `List` window publishes no rows and asks for one more frame; elements are created only when read
 
-**What.** Two rules, one instrument.
+**What.** Three rules.
 
 1. **`List` suppresses its descendants' records while its window is
    unbounded.** An unbounded window is `visibleRange`'s `0..<count`, returned
@@ -1067,8 +1284,29 @@ part. That is the part the user can point at.
    row count.
 2. **The AppKit bridge creates an element only when a client is handed it**,
    and posts `.uiElementDestroyed` only for such elements.
+3. **A collecting `List` whose window is unbounded under a vertical scroll
+   context asks for one more frame, and only one** (second critic round).
+   `requestLayout` stores `windowAwaitsViewport`: the window is unbounded
+   because `pass.scrollContext` is vertical with `viewportExtent == 0`. In
+   `prepaint`, when `pass.collectsAccessibility` and that flag is set, it calls
+   `Frame.requestAccessibilityRetry()`. `WindowAccessibility.frameDidRender`
+   dirties the window when the frame asked **and the previous drawn frame did
+   not**, so a scroller that never measures a viewport (zero height) costs one
+   extra frame per run of unbounded frames, not a frame forever. A `List` with
+   no scroll context never asks: nothing it could learn next frame would bound
+   it (the documented blank-list requirement).
 
-**Why.**
+**Why rule 3.** `ScrollView` stores the measured `viewportExtent` through
+`pass.withState`, and `StateTable.withState` does not fire `onWrite`
+(`StateTable.swift:329-337`); the scroll indicator requests a frame only while
+its fade is live, which on a first frame it is not (`lastScrollTime` is
+`-infinity`). So a window drawn once while idle **stays unbounded**, and while
+a client is active it publishes a table with a row count and **no rows**, until
+unrelated input dirties it. VoiceOver already running at launch (`AB-B`'s
+signal trigger) is exactly that case. A retry separate from
+`Frame.requestAnotherFrame()` keeps the cap: `wantsAnotherFrame` is honoured on
+every frame, which a zero-height scroller would turn into a display link that
+never pauses.
 
 - **Frame 0 builds every row (`MP-I`).** A client already running when the
   window opens activates at or before frame 0. That is the VoiceOver trigger
@@ -1083,17 +1321,30 @@ part. That is the part the user can point at.
 **Evidence.**
 
 - **Reading:** `List.visibleRange`, and `MP-I`'s record of the first frame.
+- **Reading, rule 3:** `ScrollView.swift:513-519` (the extent written through
+  `withState`), `StateTable.withState` (no `onWrite`), and
+  `ScrollView.paintIndicator` (its `guard alpha > 0` before
+  `requestAnotherFrame()`).
 - **Pins:** lane 3's `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`
-  (5,000 rows, activated before the first draw), and lane 2's
-  `elementsAreCreatedOnlyWhenAClientReadsThem` and
+  (5,000 rows, activated before the first draw, **frame 1 reached only through
+  the list's own retry**: the test never calls `setNeedsRedraw()` between
+  frames 0 and 1), with a zero-height-scroller arm for the cap and an inactive
+  arm; and lane 2's `elementsAreCreatedOnlyWhenAClientReadsThem` and
   `destroyedIsPostedOnlyForElementsAClientWasHanded`.
 
 **Revised (critic finding 4).** No test in the first version activated before
 the first frame.
 
+**Revised (second critic round, finding 8).** Rule 3 is new. The first version
+assumed "the next frame publishes the realized window" without anything
+producing that frame, and its planned test could only see frame 1 by forcing a
+redraw, which hid the gap.
+
 **Cost if wrong.** A client that reads the window during frame 0's gap sees a
 table with a row count and no rows, for one frame. The `.layoutChanged` that
-follows is posted, because that read sets the flag.
+follows is posted, because that read sets the flag. If a real scroller ever
+needs **two** frames to measure its viewport, the cap leaves its list unbounded
+until input; the zero-height arm is the instrument that would have to change.
 
 ## AB-Y — `OnTapModifier` synthesizes nothing; the demo's row text and modal panel stay as they are
 
@@ -1143,48 +1394,113 @@ task 11, which is a real gap in the proposal-path demo. Script item 7 names it.
 
 ## AB-Z — the merge contract with the environment and modifier-composition tracks
 
-**What.** The spec's **"Merge contract"** section fixes three things:
+**What.** The spec's **"Merge contract"** section fixes four things, written
+against the other tracks' **current** designs: `feat/environment` at
+`f4dcad8` (its spec's "Lane 3" and "Owed to the integration step", unchanged
+in substance since the redesign at `e9afded`) and
+`feat/modifier-composition` at `ec65da6` (its spec's lane 2 "Phases" and
+"Merge notes").
 
-- **`Frame.registerHandlers`.** The combined form merges the environment track's
-  lane 3 `.disabled` gate with this track's record path.
-- **`Frame.init` and the `Window` call.** Both parameters are defaulted
-  (`environment:` and `collectsAccessibility:`).
-- **`ModifiedElement`.** How `.padding`/`.frame` become `ModifiedElement`, and
-  how `FrameModifier` is deleted, without breaking any rule here.
+1. **`Frame.registerHandlers`.** The combined form takes the environment
+   track's lane 3 gate **as that track now specifies it**, unmodified:
+   - a disabled element is **not registered with the focus registry at all**
+     (`if enabled { focusRegistry.register(handlers, id: id) }`), which removes
+     its focusability, its actions, its raw `onKey` and its `keyContext`
+     together (`EV-F`);
+   - the `$focus` slot write is gated on `enabled`;
+     `focusedElementProducedThisFrame` stays ungated;
+   - a disabled pointer target registers a blocker hitbox with `Handlers()`
+     **under the derived id** `.child(of: id, at: 0, name: ElementID("$disabled"))`
+     (`EV-T`), not under `id`;
+   - a declared node gains `.disabled` before `emitAXNode`.
 
-The integration step writes one joint test,
-`aDisabledClickableElementPublishesDisabledWithNoPressAndRefusesAPress`, with
-three named mutations.
+   Into that it puts this track's record path, and **synthesis reads the
+   ungated `handlers`** (`EV-W` item 4): a disabled element that is only
+   clickable, only focusable or only adjustable still records and publishes,
+   with the record's `isEnabled = false`. **Actions and focusability come from
+   the gated registries**, which the builder already reads: `.press` from
+   `hitboxes` (the blocker's derived id never matches), `.increment`/`.decrement`
+   from `focusRegistry.actionHandler` and `isFocusable` from
+   `focusRegistry.isFocusable` (a disabled element is in neither).
+2. **`Frame.init` and `Window`'s `Frame(…)` call.** The environment track adds
+   **no** init parameter (`EV-H`), so this track's `collectsAccessibility:`
+   lands alone. `Window` gains that track's one statement after the `Frame(…)`
+   expression: an adjacent-line textual conflict only.
+3. **`ElementGroup.swift`.** The environment track replaces
+   `StateBinder.bind(self, table: pass.frame.stateTable, id: layout.id)` with
+   `StateBinder.bind(self, in: pass.frame, id: layout.id)` in
+   `Element.prepaintGroup`: **the line directly above** this track's
+   `display: none` block. Resolution: keep both, the bind first. The
+   modifier-composition track's lane 3 edits `Element`'s default
+   `requestGroupLayout`, a different function.
+4. **`ModifiedElement`.** `.padding`/`.frame` become `ModifiedElement` and
+   `FrameModifier.swift` is deleted. Its `prepaint` registers layers k = n-1…0
+   in a loop inside its own body, not through `prepaintGroup`, so `AB-O`'s check
+   does not reach an inner layer. **The loop must open
+   `pass.frame.withAccessibilitySuppressed(except: nil)` at the first
+   (outermost-first) layer whose style has `display == .none`**, around that
+   layer's registration, every inner layer's, and `content.prepaintGroup`.
 
-**Why.** Both other tracks edit the same lines, and a naive merge fails in both
-directions:
+**Joint checks.**
 
-- **Environment.** Its `if !handlers.axNode.isEmpty { …traits.insert(.disabled) }`
-  replaces the very block this track extends. Taking theirs drops records.
-  Taking ours drops `.disabled`, so `AB-F`'s `isEnabled = false` has no producer
-  for a synthesized button. Adjustability read from the unstripped
-  `handlers.actions` would advertise actions a disabled element refuses.
-- **Modifier composition** deletes `FrameModifier.swift`, which this track's
-  first spec named as a conformer. It moves labels to the outermost layer
-  (`AB-T`). It edits `AXEmitSiteTests.swift`.
+- **Written now, on this branch, green here:** lane 1's
+  `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`. Its spelling,
+  `declared-box.padding(4).hidden().padding(4)`, is nested `Box`es on this
+  branch and a three-layer `ModifiedElement` after the merge, so the merge
+  cannot pass it without item 4.
+- **Written by the integration step** (`.disabled` does not exist here):
+  `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`,
+  three arms (clickable only, focusable only, adjustable only), each with an
+  enabled control. The spec gives its fixture and mutations.
+- The environment track's D12 gains its collecting-frame arm, as that track
+  already lists.
+
+**Why.**
+
+- **Environment.** Both tracks edit `registerHandlers`' body. Taking theirs
+  drops records; taking ours drops the gate. The first version of this ruling
+  was written against `bbd4d66`, before that track's redesign, and differed
+  from its current lane 3 in five places (below).
+- **Synthesis on the ungated handlers.** SwiftUI publishes a disabled control:
+  arm P2, `Button("Go").disabled(true)`, is `AXButton`, `enabled=0`, press
+  `false`, closure run 0 times. Synthesizing from a gated set would publish
+  nothing for a disabled element that is only focusable or only adjustable,
+  and a screen-reader user would not learn the control exists.
+- **Modifier composition.** Its layer loop is the one place a `prepaint` runs
+  for a non-outermost node without passing through `prepaintGroup`.
 
 **Evidence.**
 
-- **Reading, across worktrees, read-only:**
-  - `MetalUI-environment` at `bbd4d66`,
-    `specs/2026-09-15-environment-design.md`, "Lane 3";
-  - `MetalUI-modifier-composition` at `1c6f686`,
-    `specs/2026-09-15-modifier-composition-design.md`, lane 2.
-- **Environment test to cross-check:** its D12 test
-  (`aDisabledElementsAXNodeCarriesTheDisabledTrait`) stays true under the
-  combined form, because declared nodes still take the trait.
-- **The missing overload:** `Text.prepaint` calls `PrepaintPass.registerHandlers`,
-  so the spec now lists the internal `Passes.swift` overload (critic finding
-  12).
+- **Reading, across worktrees, read-only, through `git show`:**
+  - `feat/environment` at `f4dcad8`: `specs/2026-09-15-environment-design.md`
+    "Lane 3" (the `registerHandlers` block) and "Owed to the integration
+    step"; decisions `EV-F`, `EV-H`, `EV-T`, `EV-W`;
+  - `feat/modifier-composition` at `ec65da6`:
+    `specs/2026-09-15-modifier-composition-design.md` lane 2 "Phases" (the
+    layer loop) and "Merge notes".
+- **Arm P2** (`swiftui-accessibility-bridge-critic2.swift`).
+- **The `hidden()` spelling**, by reading: `hidden()` writes the outermost
+  layer's `display`, so `.padding(4).hidden().padding(4)` hides the middle one.
 
-**Cost if wrong.** The joint test is red after the merge, which is its job.
-If the integration step skips it, a disabled synthesized button reads as
-enabled and pressable, while a press silently does nothing.
+**Revised (second critic round, findings 1 and 2).** The first version:
+
+- stripped `isFocusable` and `actions` from a disabled element's registration,
+  where the environment track now skips registration entirely and so also
+  strips `onKey` and `keyContext`;
+- inserted the blocker hitbox under `id`, where `EV-T` uses a derived id;
+- called the `$focus` write "unchanged, ungated", where it is now gated;
+- said both tracks add a defaulted `Frame.init` parameter, where `EV-H`
+  removed the environment track's;
+- read adjustability and focusability for synthesis from the stripped set,
+  contradicting `EV-W` item 4: under it a disabled element that was only
+  focusable or only adjustable published nothing;
+- did not list the `ElementGroup.swift` adjacent-line collision, or
+  `ModifiedElement`'s layer loop escaping `AB-O`.
+
+**Cost if wrong.** The joint tests are red after the merge, which is their job.
+If the integration step skips the disabled one, a disabled synthesized button
+reads as enabled and pressable while a press silently does nothing. If it skips
+item 4, hidden inner layers publish at their zero-size rects.
 
 ## AB-AA — lane 1 as built: four corrections to the spec, and three strengthened tests
 
@@ -1210,6 +1526,11 @@ red lines and the full mutation table are in `docs/record/12-accessibility-bridg
 4. **The `Frame` overload's two parameters are required;** only the
    `PrepaintPass` overload defaults them, so no call site can resolve the
    three-argument spelling ambiguously.
+
+**Superseded in part by the second critic round.** An uncommitted rewrite of
+lane 1's tests, found in the worktree after this ruling's record, was committed
+(`71805eb`) and the whole mutation table re-taken against it (record, "Second
+critic round"); the hidden-root claim below is withdrawn (`AB-AD`).
 
 **Three tests strengthened, one added**, each because a mutation survived or a
 named one could not redden its own test (shape: "a mutation that reddens
@@ -1246,12 +1567,116 @@ fields that exist, or makes a mutation the spec relies on observable.
   a child of the outer portal's content is unpinned.
 - **A hidden root.** `Frame.render` calls the root's `prepaint` directly, not
   through `prepaintGroup`, so a root element with `display: none` is not
-  suppressed. Unreachable from `Window` in any real tree (a hidden root draws
-  nothing at all), recorded so nobody reads the check as universal.
+  suppressed. ~~Unreachable from `Window` in any real tree (a hidden root draws
+  nothing at all)~~ **Withdrawn by the second critic round (finding 14):** that
+  claim was not measured, and CLAUDE.md's inert table says `hidden()` filters
+  layout but not paint, so a hidden root still prepaints and records. Fixed
+  under `AB-AD`.
 
 **Cost if wrong.** Item 1: if lane 3 forgets the strip, a `List` row writes a
 `$ax` slot per row while a client is active — lane 3's
 `aClientDoesNotChangeStateRetention` is the guard.
+
+## AB-AB — the VoiceOver signal delivers its first value synchronously and later ones through a main-actor `Task`; no `assumeIsolated`
+
+**What.** `VoiceOverSignal.observe(_:)`, on the main actor:
+
+1. installs `NSWorkspace.shared.observe(\.isVoiceOverEnabled, options: [.new])`,
+   whose change handler reads `change.newValue ?? false` into a `Bool` and
+   delivers it with `Task { @MainActor in handler(value) }`;
+2. **then** calls `handler(NSWorkspace.shared.isVoiceOverEnabled)` directly,
+   before returning.
+
+No `MainActor.assumeIsolated`. The protocol's doc says "calls `handler` with the
+current value before returning, then on every change, possibly after a
+main-actor hop". The bridge treats a repeated `true` as a no-op (activation is
+sticky, `AB-B`).
+
+**Why.**
+
+- **The first spelling warned.** Calling the `@MainActor` handler from inside
+  the KVO closure emits `warning: call to main actor-isolated parameter
+  'handler' in a synchronous nonisolated context [#ActorIsolatedCall]`. The
+  suite's constraint is 0 `warning:`.
+- **`-warnings-as-errors` does not catch it,** so an exit status proves
+  nothing. The probe greps for `warning:`, with an unused-variable control that
+  the flag does turn into an error (exit 1).
+- **`assumeIsolated` would trap** if a `.new` change arrived off the main
+  thread. Nothing documents the delivery thread of this KVO property, and
+  CLAUDE.md records the suite SIGTRAPping on exactly that collapse.
+- **An all-`Task` hop would make the initial value asynchronous.**
+  `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery` requires one
+  `.activate` before any query, and a window opened under a running VoiceOver
+  should collect from its first frame (`AB-X` rule 3 covers the list's case).
+- **Order.** Observing first and reading second means a flip between the two
+  is delivered late rather than lost.
+
+**Evidence.** Measured: `docs/probes/appkit-voiceover-signal-isolation.swift`.
+
+| build | result |
+|---|---|
+| adopted spelling | 0 `warning:` lines, exit 0 |
+| `-D SPEC_SHAPE` (the spec's first spelling) | the `#ActorIsolatedCall` warning, **exit 0** |
+| `-D UNUSED_CONTROL` | `error: … never used [#NoUsage]`, exit 1 |
+| `/usr/bin/swift`, adopted spelling | `initial values delivered before observe returned: [false]` |
+
+**Cost if wrong.** If KVO delivers a change synchronously on the main thread
+and a test depends on it arriving before the next statement, that test needs a
+run-loop turn. No test does: every lane-2 test uses the scripted signal
+(`AB-AC`), and the real signal's flip is human script item 1.
+
+## AB-AC — a test forces the signal through an internal `AppKitPlatform` initializer; the arm-Q pin depends on the machine's AX clients
+
+**What.**
+
+- `AppKitPlatform` gains an **internal**
+  `init(device:accessibilitySignal: @escaping @MainActor () -> any AccessibilityClientSignal)`.
+  The public `init(device:)` delegates to it with `{ VoiceOverSignal() }`.
+- `openWindow` passes `accessibilitySignal()` to an internal
+  `AppKitWindow.init(device:title:size:accessibilitySignal:)`, which builds its
+  bridge with it.
+- Lane 2's end-to-end tests do not go through `App.openWindow`, which has no
+  way to pass it. They build `AppKitPlatform(device:accessibilitySignal:)` with
+  a scripted `false` signal, open the platform window, and construct
+  `Window(platformWindow:renderer:startsDisplayLink:content:)` over it (internal,
+  reached with `@testable import MetalUI`, exactly as `makeFakeWindow` does),
+  with `@testable import MetalUIPlatform` for the initializer.
+- `aKeyWindowReceivingEventsIsNeverActivatedWithoutAClient` states in its doc
+  that it **depends on no out-of-process client querying the window** while it
+  runs. A mouse-follow utility with the pointer over the test window reaches
+  the hit-test trigger (`AB-B`, measured), and the test's failure message names
+  that and the probe.
+
+**Why.** The first spec named an `AppKitWindow` parameter but no path from a
+test to it: `App.openWindow` → `AppKitPlatform.openWindow`
+(`AppKitPlatform.swift:377`) → `AppKitWindow(device:title:size:)`. Both
+end-to-end tests would have run against the real `VoiceOverSignal`, and
+failed on any machine running VoiceOver.
+
+**Evidence.** Reading: `AppKitPlatform.swift:369-385`, `App.swift:49-60`,
+`Tests/MetalUITests/Fakes.swift` (`makeFakeWindow` builds `Window` directly).
+
+**Cost if wrong.** A second construction path. `App.openWindow` also wires
+`onClose` to terminate the process; the tests' path does not, so the platform
+tests' rule applies: these windows may be closed.
+
+## AB-AD — a hidden window root is suppressed in `Frame.render`
+
+**What.** `Frame.render` runs the root element's `prepaint` inside
+`withAccessibilitySuppressed(except: nil)` when collecting and the root's layout
+node has `display == .none`: the same check `Element.prepaintGroup` applies to
+every other element (`AB-O`).
+
+**Why.** `Frame.render` calls the root's `prepaint` directly. `hidden()` filters
+layout, not prepaint (CLAUDE.md's inert table), so `Window(root: Box { … }.hidden())`
+compiles, prepaints, and would publish every record inside it. `AB-AA` called
+that unreachable without measuring it.
+
+**Evidence.** Measured: `aHiddenRootPublishesNothing`, red before the fix; the
+red line and the mutation are in the record.
+
+**Cost if wrong.** None known. The check costs one `Style` read per collecting
+frame.
 
 ---
 
@@ -1277,3 +1702,34 @@ session added R8–R18.
 | 12 | merge collisions with environment and modifier composition | **Applied.** Merged `registerHandlers` stated, with `.disabled` from the record and adjustability from stripped actions; `Frame.init`/`Passes` merge noted; `FrameModifier` → `ModifiedElement` reading; the missing overload listed (`AB-Z`). **Deferred to the integration step, with its full spec:** the joint disabled test, because `.disabled` does not exist on this branch |
 | 13 | `NSWorkspace.isVoiceOverEnabled` not weighed; AppKit's own queries unpinned | **Applied.** Adopted as a second trigger (`AB-B`, arm R13); scripted-signal test; real-key-window zero-activation end-to-end test (arm Q) |
 | 14 | device require, detached frames and ownership, unre-runnable typecheck, focus divergence, the scroll test not compiling | **Applied.** `try #require(MTLCreateSystemDefaultDevice())`; detached frame and ownership graph (`AB-D`); `docs/probes/appkit-accessibility-overrides-typecheck.swift` with a negative control; divergence recorded (`AB-J`); the scroll test written first as a Frame-only test compiling on `f64e58a` over 400pt of content in a 100pt viewport |
+
+## Second critic round (2026-09-15) — findings applied and rejected
+
+A second critic reviewed the design and lane 1 at `53d3bf6`, re-ran the rules
+probe (all 62 lines matched its header) and the overrides typecheck (exit 0),
+and ran new SwiftUI and AppKit arms in its scratchpad. Every arm it cited was
+re-run by the design session and committed with its output before a ruling
+cites it: `swiftui-accessibility-bridge-critic2.swift` (C0–C5, P0–P2, E0–E2,
+plus the session's C5i, C6, C7) and `appkit-voiceover-signal-isolation.swift`
+(the warning). Its `axwindow.swift` check (an `NSAccessibilityElement` derives
+its window from an overridden parent) is not committed, because no ruling
+cites it.
+
+| # | finding | done |
+|---|---|---|
+| 1 | `AB-Z` written against the environment track's superseded design; synthesis contradicts `EV-W` item 4 | **Applied.** `AB-Z` and the spec's merge contract rewritten against `f4dcad8`: registration skipped when disabled, derived-id blocker, gated `$focus` write, no `Frame.init` parameter. Synthesis reads the ungated handlers; actions and focusability come from the gated registries with no builder edit. The joint test gains focusable-only and adjustable-only arms, with four mutations. Arm P2 committed |
+| 2 | `display: none` on an inner `ModifiedElement` layer escapes `AB-O`; `ElementGroup.swift` collision unlisted | **Applied.** The layer loop's suppression is specified, with a code shape (`AB-Z` item 4, `AB-O`); `aHiddenInnerModifierLayerSuppressesEverythingInsideIt` written now, green here, reddened by M20; the adjacent `StateBinder.bind` line listed (`AB-Z` item 3) |
+| 3 | `allowsHitTesting(false)` removing the press is the opposite of SwiftUI | **Applied as a recorded divergence**, not a behaviour change (`AB-H`, arms P0/P1): no store holds the handler outside the hitbox list, no legacy spelling reaches it, and task 9 owns the question. `aPressIsRefusedWhereHitTestingIsDisabled` is now named a divergence pin; M16 is SwiftUI's side |
+| 4 | distribution exclusions for focusable/adjustable unprobed and opposite to SwiftUI | **Applied as a recorded divergence** (`AB-T`, arms C1, C2, C5, and the session's C5i, which showed SwiftUI copies the adjustable action to each child). Actions route by the node's own id, and focus needs a node; lane 3's arm 7 renamed a divergence pin |
+| 5 | `VoiceOverSignal` as spelled warns, and the probe's exit code could not catch it | **Applied.** `AB-AB`: synchronous initial read after observing, later changes through a main-actor `Task`, no `assumeIsolated`; the probe calls the handler, is read by grep, and carries the spec's first spelling as a negative control and an unused-variable control. Pending activation is delivered when `onRequest` is assigned (the bridge exists before `Window.init` wires it), with a mutation for that |
+| 6 | end-to-end tests cannot force the signal `false` | **Applied.** `AB-AC`: an internal `AppKitPlatform(device:accessibilitySignal:)`, the tests build `Window(platformWindow:…)` over it; the arm-Q test's machine dependency stated in its doc and failure message |
+| 7 | "deepest element wins" ignores portals | **Applied, with a different key than suggested.** `AB-W`: geometry carries `layer` and `order`, and the hit test takes the greatest `(layer, order)`, click dispatch's own ranking. "Later root first" was rejected because a `Deferred` declared before a list is an earlier root. Modal arm added |
+| 8 | activating before the first frame can leave a `List` with no rows indefinitely | **Applied, first option, with a cap.** `AB-X` rule 3: a collecting `List` awaiting its viewport requests one retry frame; `WindowAccessibility` honours it only if the previous frame did not. The test no longer forces a redraw, and gains a zero-height cap arm and an inactive arm |
+| 9 | the focused-element trigger fires for non-VoiceOver users; unmeasured | **Applied: measured, then dropped.** The two-process probe shows an out-of-process focused-element query reaches `accessibilityFocusedUIElement`; it is no longer a trigger (`AB-B`). The same probe shows a position query reaches `accessibilityHitTest`, which stays a trigger, with the cost recorded. Script item 1 now lists and quits AX utilities first |
+| 10 | uncommitted test changes contradict the record | **Applied: committed and re-taken.** Suite run as found (1100 passed), committed as `71805eb`; all 39 mutations (M01–M35, H02, H05, H06, H14, M36–M39) re-run unfiltered, plus M40 and two M08 repeats; the record's table replaced. M33 is the only survivor, owned by lane 3 as before |
+| 11 | `Text("")` would publish; SwiftUI omits it | **Applied.** `accessibleText: string.isEmpty ? nil : string`; empty and blank arms (E0–E2) in lane 3's first test, with a mutation (`AB-F`) |
+| 12 | button combination drops descendants' value | **Applied as a rule change.** `AB-G`: a descendant with both a label and a value contributes its value; values join with `", "`. Arms C3, C4 and the session's C6, C7; four value arms and two mutations in lane 3 |
+| 13 | a press can run a different element's `onClick` after identity adoption | **Applied as a recorded hazard, pinned** (`AB-H`). Detaching on a label change rejected (arm 12, and every counter's element would die on each press). Lane 2's end-to-end `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, two disagreeing arms; script item 9 |
+| 14 | "a hidden root draws nothing, unreachable" is unmeasured and contradicts CLAUDE.md | **Applied: measured and fixed.** `aHiddenRootPublishesNothing` red (two records, the root at 20×20), fixed in `Frame.render` (`AB-AD`, `6bd208c`), M40 reddens it; `AB-AA`'s claim withdrawn in place |
+| 15 | lane 1 alone is inert in production; demo state counts will move | **Applied as record entries** owed to the integration step: an inert-table row to delete when lane 2 merges, and a re-take of CLAUDE.md's warm resident `StateTable` counts after lane 3 (the spec's demo section says why) |
+
