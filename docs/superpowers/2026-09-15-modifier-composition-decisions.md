@@ -1292,7 +1292,15 @@ in `MC-M`).
   (`BackgroundChainTests.swift`);
 - `onClickIsLiveOnEveryConformerThatCanRegisterOne` (`InputDispatchTests.swift`);
 - `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`
-  (`AXEmitSiteTests.swift`).
+  (`AXEmitSiteTests.swift`);
+- **added by lane 2's second verifier-fix round, a seventh:**
+  `decorationSubstitutionReachesTheElementOnBoxAndStack`
+  (`AnimationTests.swift`). The legacy `.padding` wrapper was `Box<Self>`, whose
+  `Decoration` write-back that guard's Box arm pins; lane 2 moved the wrapper to
+  `ModifiedElement.requestLayout`, which has two write-backs (inner layers',
+  outermost's), and dropping either reddened 0 of 1115 (verifier V1, V11). The
+  arm reads `inner[0].decoration` and `outermost.decoration` back after a real
+  `requestLayout` of a two-layer chain animating to radii 20 and 40.
 
 **Added at design review (`MC-N` finding 3): the other tracks' lists.** Two
 parallel tracks name `FrameModifier` as a site:
@@ -1353,6 +1361,13 @@ green there, as the likeliest wrong implementation would leave them.
   `BackgroundChainTests` guards), as well as lane 1's test 10 (O1 76×76, O2
   60×60: swapped), `chainedFramesRemainConcreteAndNestTheirLayoutNodes`,
   test 5 and the allocation test, 25 issues.
+- **An inner layer's animated `Decoration` dropped**
+  (`(inner[k].style, _) = animated(`), and separately **the outermost
+  layer's** (`(outermost.style, _) = animated(`): each 1115 tests, 1 issue,
+  only `decorationSubstitutionReachesTheElementOnBoxAndStack` — its INNER
+  expectation read `Optional(20.0) then 20.0` for 0 then 10, its outermost
+  expectation `Optional(40.0) then 40.0` for 0 then 20. Before that arm
+  existed both left the suite green (lane 2 verifier, at `c922457`).
 
 
 ---
@@ -1977,12 +1992,25 @@ spec is corrected at each line these items make false.
    `height` at `:597`, both before and after this lane). The lane's `Box.swift`
    edit did not move them, and `Component.swift` is a shared file the spec
    leaves unedited, so they are left for integration.
+10. **The allocation test was not red on arrival** (added by lane 2's second
+    verifier-fix round). CLAUDE.md asks for performance tests written first and
+    red on arrival; `aModifierChainAllocatesABoundedAmountOverNestedBoxes`
+    arrived green in the implementation commit `5fe5a30`, not in the red
+    commit `e9248c3`; whether the skeleton would have reddened it was never
+    run. Its ability to fail was shown afterwards, by mutation, and those runs
+    stand in for the red run:
+    **K1** (a `requestLayout`-local array of every layer) — 1103 tests, 3
+    issues, all three arms (one layer 18 002 against 17 002); **K2** (one extra
+    array over the inner layers per `requestLayout`) — 1103 tests, 2 issues,
+    the two- and three-layer arms only (record §10's lane 2 table), re-taken
+    by the verifier at `c922457` (1115 tests, 2 issues, this test only).
 
 **What it costs if wrong.** Item 1: none in behaviour; a reader looking for one
 red commit carrying every red finds S2's in record §10 instead. Item 5: a
 renderer-level or window-level difference in the default demo would go unseen
 until the owed capture. Item 6: an intermittent red in an unfiltered parallel
-run.
+run. Item 10: none beyond the practice — an allocation bound first shown
+able to fail by mutation, not by a red commit.
 
 **Mutations:** the items' runs are the Mutations lines of `MC-A`, `MC-B`,
 `MC-C`, `MC-I` and `MC-K`.

@@ -452,6 +452,57 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
     }
 }
 
+// MARK: - 2b: `.id` on a chain's outermost layer (ruling MC-C)
+
+/// **`.id(_:)` written after a chain's LAST wrapper names the outermost layer,
+/// exactly as it names the outermost of hand-built nested `Box`es** — the name
+/// record §01's "name the trailing sibling" remedy puts on a sibling that
+/// happens to be a modifier chain. The chain follows an unnamed sibling in a
+/// `Row`, as a trailing sibling would.
+///
+/// Test 2 names an INNER layer only, so before this test the outermost name was
+/// seen by one incidental reader: the verifier's V9 (`ModifiedElement.elementID`'s
+/// getter returning `nil`) reddened only
+/// `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`, whose arm
+/// happens to look the chain up by name. The disagreeing oracle — the same
+/// nested `Box`es with the outermost name dropped, which is what V9 produces —
+/// is `try #require`d to differ first. Mutation runs in record §10.
+@Test @MainActor func anIDAfterAChainsLastWrapperNamesTheOutermostLayer() throws {
+    func chain(_ log: LayerLog) -> ModifiedElement<LayerLeaf> {
+        LayerLeaf("leaf", log: log).onClick {}
+            .padding(4).onClick {}
+            .padding(Edges(all: .pixels(px(8)))).onClick {}
+            .id("outer")
+    }
+    func nested(_ log: LayerLog, named: Bool) -> Box<Box<LayerLeaf>> {
+        let outer = Box(style: paddingStyle(8), content:
+            Box(style: paddingStyle(4), content:
+                LayerLeaf("leaf", log: log).onClick {}
+            ).onClick {}
+        ).onClick {}
+        return named ? outer.id("outer") : outer
+    }
+    let probe = chain(LayerLog())
+    try #require(probe.layerCount == 2 && probe.outermost.elementID == ElementID("outer"),
+                 "layers \(probe.layerCount), outermost name \(String(describing: probe.outermost.elementID))")
+
+    let flat = try observe { log in Row { LayerLeaf("sibling", log: log); chain(log) } }
+    let oracle = try observe { log in Row { LayerLeaf("sibling", log: log); nested(log, named: true) } }
+    let unnamed = try observe { log in Row { LayerLeaf("sibling", log: log); nested(log, named: false) } }
+
+    try #require(unnamed.leafID != oracle.leafID, "the leaf id comparison cannot fail")
+    try #require(unnamed.layerIDs != oracle.layerIDs, "the layer id comparison cannot fail")
+    try #require(unnamed.hitboxes.map(\.id) != oracle.hitboxes.map(\.id),
+                 "the hitbox id comparison cannot fail")
+    try #require(oracle.layerIDs.count == 2 && oracle.layerIDs[1].component == .named(ElementID("outer")),
+                 "the oracle's outermost layer carries the name; read \(oracle.layerIDs.map(\.component))")
+
+    #expect(flat.leafID == oracle.leafID, "leaf id under \(flat.layerIDs.map(\.component)) vs \(oracle.layerIDs.map(\.component))")
+    #expect(flat.layerIDs == oracle.layerIDs, "layer ids \(flat.layerIDs.map(\.component)) vs \(oracle.layerIDs.map(\.component))")
+    #expect(flat.hitboxes == oracle.hitboxes, "hitboxes \(flat.hitboxes) vs \(oracle.hitboxes)")
+    #expect(flat.animLive == oracle.animLive, "$anim liveness \(flat.animLive) vs \(oracle.animLive)")
+}
+
 // MARK: - 3-5: a chain whose length or values change at run time (ruling MC-C)
 
 /// `LayerLeaf().padding(4)`, with a padding-8 layer added when `adding`. One

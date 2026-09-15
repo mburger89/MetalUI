@@ -692,6 +692,62 @@ and a duplicate-parent check (hole 4), each measured here to truncate the suite
 rather than redden a test, so whoever adds one converts the pinning test to an
 exit test first.
 
+#### Lane 2 verifier-fix round 2, 2026-09-15 (from `c922457`)
+
+One agent in the worktree, with lane 3's verifier-fix round present and
+uncommitted (`ProposalElementGroup.swift`, this file, the decisions doc and an
+untracked `ProposalGroupEntryTests.swift`); none of it is lane 2's and none of
+it was staged here. Counts below include that untracked test. The session was
+still locked (`ioreg`: `IOConsoleLocked` true; `screencapture -x
+-R0,0,50,50` → "could not create image from rect").
+
+The verifier at `c922457` found one major and three lane-2 minors:
+
+| # | finding | outcome |
+|---|---|---|
+| major | dropping an inner layer's (V1) or the outermost layer's (V11) animated `Decoration` in `ModifiedElement.requestLayout` left 1115 green; an animated `cornerRadius` on a `.padding`/`.frame` layer snaps | **fixed** — a `ModifiedElement` arm in `decorationSubstitutionReachesTheElementOnBoxAndStack`; `MC-I`'s list is now seven |
+| minor | the allocation test was not red on arrival | **recorded** as `MC-R` item 10, with K1/K2 standing in |
+| minor | `.id` on a chain's OUTERMOST layer seen only by the AX guard (V9) | **fixed** — `anIDAfterAChainsLastWrapperNamesTheOutermostLayer` (`ModifiedElementTests.swift`) |
+| minor | release-window capture owed | **still owed**: locked, as above |
+
+- **The decoration arm.** A two-layer chain
+  `Box().width(10).height(10).padding(4).cornerRadius(r₁).padding(8).cornerRadius(r₂)`
+  through a real `LayoutPass`, baseline radii 0/0, then 20/40 inside
+  `withAnimation(.linear(duration: 1))` at t = 0 and again at t = 0.5; it reads
+  `inner[0].decoration` and `outermost.decoration` back (what `paint` reads
+  later the same frame) and `#require`s `layerCount == 2`. Different targets
+  per layer, so a swapped or shared baseline is a mismatch.
+- **The id test.** `Row { sibling; chain.id("outer") }` against the same Row
+  of nested `Box`es with `.id("outer")` on the outermost; the disagreeing
+  oracle drops that name (V9's effect) and is `try #require`d to differ in
+  leaf id, layer ids and hitbox ids. Its layer-count precondition reads
+  `outermost.elementID` directly, not the getter under test, so V9 reddens the
+  expectations rather than the precondition (a first version read the getter
+  and stopped at the `#require`).
+- **Green unmutated:** filtered, `Test run with 2 tests in 0 suites passed`.
+- **Red under the mutants, whole suite** (`swift test --build-system native
+  --no-parallel`; one anchor replaced exactly once with a `/* MC2-MUTATION */`
+  marker, backup in the scratchpad, restored; `git diff --stat -- Sources/`
+  afterwards showed only lane 3's `ProposalElementGroup.swift`):
+
+| # | mutation | summary | tests reddened | reading |
+|---|---|---|---|---|
+| V1 | `(inner[k].style, _) = animated(` | 1115, 1 issue | `decorationSubstitutionReachesTheElementOnBoxAndStack` only | INNER: expected 0 then 10, got `Optional(20.0) then 20.0` |
+| V11 | `(outermost.style, _) = animated(` | 1115, 1 issue | the same only | outermost: expected 0 then 20, got `Optional(40.0) then 40.0` |
+| V9 | `ModifiedElement.elementID`'s `get { nil }` | 1116, 5 issues | `anIDAfterAChainsLastWrapperNamesTheOutermostLayer` (3: leaf id, layer ids, hitboxes — `positional(1)` where the oracle has `named("outer")`), `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` (2) | — |
+
+- **Final runs** (tests and docs as committed, plus lane 3's uncommitted
+  files): `swift test --build-system native --no-parallel`: `Test run with
+  1116 tests in 1 suite passed after 26.883 seconds`, 0 `error:`, 0
+  `warning:`, both `ModifiedElementCompileGuards` diagnostics printed (MC-A
+  positive succeeded, negative "unable to type-check"; MC-B annotated
+  succeeded=false), `MC-K-ALLOC` nested [17002, 27001, 37004], flat [17002,
+  28501, 39504], loop floor 0. `swift test --no-parallel`: `Test run with 1116
+  tests in 1 suite passed after 27.304 seconds`, 0 `error:`, 0 `warning:`.
+  Tests 1115 → 1116; guards 53 (`grep -c canTypecheck`: 19, 10, 6, 6, 5, 3
+  with one a comment, 3, 2), unchanged; goldens 97, `git diff --stat f64e58a
+  -- '*.json'` empty. No `Sources/` change.
+
 ### For the integration step
 
 Collected here so the merge does not have to re-derive them:
@@ -808,7 +864,8 @@ Collected here so the merge does not have to re-derive them:
   sites are gone; `ModifiedElement` is ONE layout site (`animated` per layer in
   `requestLayout`) and ONE background site (`animatedBackground` per layer in
   `paint`), each looping over its layers, with inner- and outermost-layer arms
-  in all six guards. The legacy path's `pass.fill` sites CLAUDE.md counts become
+  in all seven guards (`MC-I`; the seventh, the `Decoration` write-back, added
+  by lane 2's second verifier-fix round). The legacy path's `pass.fill` sites CLAUDE.md counts become
   `Box.paint`, `Stack.paint`, `Text.paint`, `ModifiedElement.paint` (two calls,
   the outermost layer's and the inner layers') and `ScrollView`'s indicator;
   the proposal path's native fills (`NativeElements.swift`,

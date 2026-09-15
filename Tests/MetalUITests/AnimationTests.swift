@@ -1157,6 +1157,54 @@ import MetalUIRender
                 halfway value 10, got \(stack3.decoration.cornerRadius.value)
                 """)
     }
+
+    // MARK: ModifiedElement (ruling MC-I; verifier finding on lane 2)
+
+    // The legacy `.padding` wrapper was `Box<Self>` and ran Box's write-back,
+    // guarded by the Box arm above. Since lane 2 it is a `ModifiedElement`
+    // layer, a different code path with TWO write-backs — the inner layers'
+    // and the outermost's — and dropping either returned `Decoration`
+    // (`(inner[k].style, _) = animated(…)`, `(outermost.style, _) = animated(…)`)
+    // reddened 0 of 1115 before this arm existed. `paint` reads
+    // `inner[k].decoration` and `outermost.decoration` later the same frame,
+    // so this reads those two back after a real `requestLayout`. The two
+    // layers animate to different radii (20 and 40), so a layer reading the
+    // other's value, or a shared baseline, is a mismatch.
+    do {
+        let table = StateTable()
+        let id = eid("modified-decoration")
+
+        func radii(inner: Float, outer: Float,
+                   at t: Double) -> (layers: Int, inner: Float, outer: Float) {
+            var pass = LayoutPass(frame: animFrame(table, timestamp: t))
+            var chain = Box().width(Pixels(10)).height(Pixels(10))
+                .padding(4).cornerRadius(Pixels(inner))
+                .padding(8).cornerRadius(Pixels(outer))
+            _ = chain.requestLayout(id, pass: &pass)
+            return (chain.layerCount,
+                    chain.inner.first?.decoration.cornerRadius.value ?? -1,
+                    chain.outermost.decoration.cornerRadius.value)
+        }
+
+        let baseline = radii(inner: 0, outer: 0, at: 0)
+        try #require(baseline.layers == 2,
+                     "ModifiedElement: the decoration arm must exercise a two-layer chain")
+        var start: (layers: Int, inner: Float, outer: Float)?
+        withAnimation(.linear(duration: 1)) {
+            start = radii(inner: 20, outer: 40, at: 0)
+        }
+        let mid = radii(inner: 20, outer: 40, at: 0.5)
+        #expect(start?.inner == 0 && mid.inner == 10, """
+                ModifiedElement INNER layer: decoration substitution does not reach the \
+                element — expected 0 then 10, got \(String(describing: start?.inner)) then \
+                \(mid.inner)
+                """)
+        #expect(start?.outer == 0 && mid.outer == 20, """
+                ModifiedElement outermost layer: decoration substitution does not reach the \
+                element — expected 0 then 20, got \(String(describing: start?.outer)) then \
+                \(mid.outer)
+                """)
+    }
 }
 
 // MARK: - Task 4 fix round 2: ruling U's own two mechanisms
