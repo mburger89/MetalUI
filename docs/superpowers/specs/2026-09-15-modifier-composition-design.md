@@ -14,6 +14,22 @@ departures from this text in `MC-O`. Rulings are prefixed **`MC-`** and lettered
 `docs/superpowers/2026-09-15-modifier-composition-decisions.md`; a bare `MC-3`
 is a typo. The track's record is `docs/record/10-modifier-composition.md`.
 
+**The critic round after lane 1** (eight findings, `MC-Q`) changed, at
+`661efd9`/`39f6237` and this docs commit:
+
+- **the overlay's identity** (`MC-P`, replacing `MC-E`'s threaded cursor): the
+  overlay numbers under `.child(of: id, at: -1)`, independent of the primary's
+  shape, as a new SwiftUI probe shows SwiftUI's is; lane 1 tests 1 and 9
+  inverted, test 9 renamed;
+- **lane 1 test 4** gains an equal-layer-count `$anim` disagreeing oracle, and
+  test 10's doc its scope;
+- **lane 2 test 6** becomes a solver-work-budget typecheck guard, and **test 5**
+  must animate inside the `withAnimation` body and `#require` a mid-flight
+  reading;
+- **lane 3** gains test 9 (`MC-G` hole 7, a stored typed id);
+- **the merge notes**: `feat/environment` at `f4dcad8` as committed, AB-O's
+  per-layer obligation, the `NativeTappable.swift` conflict.
+
 **The design review** (twelve findings) is dispositioned finding by finding in
 `MC-N`. It changed three things of substance:
 
@@ -25,7 +41,7 @@ is a typo. The track's record is `docs/record/10-modifier-composition.md`.
 - **New tests and named holes:**
   - three new tests, one each for:
     - a layer added at run time (`MC-C`);
-    - the overlay's index shifting (`MC-E`);
+    - the overlay's index shifting (`MC-E`; inverted after lane 1's critic round to the overlay's identity NOT shifting, `MC-P`);
     - modifier order against SwiftUI (`MC-L`);
   - a disagreeing oracle per observation (`MC-B`);
   - three more named holes in `MC-G`, two of them newly measured.
@@ -41,9 +57,9 @@ lane 2 test 1 and lane 1 test 10 (`MC-L`).
 
 | lane | closes | one line |
 |---|---|---|
-| 1. **proofs** | open proofs 1–3 on today's code; the overlay collision fixed | end-to-end `@State` tests across chains on both paths; one once-per-phase test over every wrapper; the overlay collision measured red, then fixed with one cursor; a hand-built-`Box` oracle for lane 2, with one disagreeing oracle per observation; modifier order pinned to SwiftUI's measured numbers |
+| 1. **proofs** | open proofs 1–3 on today's code; the overlay collision fixed | end-to-end `@State` tests across chains on both paths; one once-per-phase test over every wrapper; the overlay collision measured red, then fixed (first with one threaded cursor, since `MC-P` with an overlay-side id that keeps SwiftUI's independence from the primary's shape); a hand-built-`Box` oracle for lane 2, with one disagreeing oracle per observation; modifier order pinned to SwiftUI's measured numbers |
 | 2. **representation** | the task's wrapper representation | `ModifiedElement<Content>`: one flat type for legacy `.padding` and `.frame`, one overload per modifier through `ElementGroup.LayerBase`; `FrameModifier` deleted; the oracle stays green; per-site guard arms; allocations counted at 1, 2 and 3 layers; the default demo captured against a build of `f64e58a` |
-| 3. **typed node id** | open proof 4 (`SA-R`) | `ProposalNodeID` with an internal init, returned by a new `ProposalElementGroup` requirement; five lies become compile errors; one shared member-entry helper instead of copied defaults; six named holes, each pinned or cited |
+| 3. **typed node id** | open proof 4 (`SA-R`) | `ProposalNodeID` with an internal init, returned by a new `ProposalElementGroup` requirement; five lies become compile errors; one shared member-entry helper instead of copied defaults; seven named holes, each pinned or cited |
 
 **Why this order.**
 
@@ -92,7 +108,9 @@ All by reading, except where marked as measured.
   outer size and leaf origin through today's `Box`/`FrameModifier` as in
   SwiftUI.
 - **`OverlayModifier` gives primary and overlay one id — measured**
-  (`MC-E`; fixed by lane 1 at `6ff2d31`):
+  (`MC-E`; fixed by lane 1 at `6ff2d31` with a threaded cursor, and re-fixed at
+  `661efd9` with an overlay-side id, `MC-P`, after the threaded cursor was
+  measured to reset the overlay's state where SwiftUI keeps it):
   - an overlay never clicked read the primary's 3 taps;
   - hovering the primary painted both hover fills.
 - **`ProposalElementGroup` has no requirements**, so a conformer registering a
@@ -109,6 +127,11 @@ All by reading, except where marked as measured.
 
 - `docs/probes/swiftui-modifier-identity.swift`: arms T, A–H (`MC-A`, `MC-C`,
   `MC-E`).
+- `docs/probes/swiftui-overlay-primary-shape.swift`: controls A, B, P5, Q and
+  arms P1–P4 (`MC-P`).
+- `docs/probes/modifier-composition-skeletons/chain-solver-scope-guard.sh`: the
+  solver-scope thresholds and the lane 2 test 6 guard's shape (`MC-A`, `MC-Q`
+  finding 3).
 - `docs/probes/swiftui-modifier-order.swift`: arms K0–K2, O1–O4, and the
   matching MetalUI numbers from a deleted scratch test (`MC-L`, lane 1 test 10).
 - `docs/probes/modifier-composition-skeletons/`:
@@ -134,7 +157,13 @@ All by reading, except where marked as measured.
 
 ### Source change
 
-`Sources/MetalUI/NativeOverlayModifier.swift`, `requestLayout`:
+`Sources/MetalUI/NativeOverlayModifier.swift`, `requestLayout`.
+
+**Superseded after lane 1's critic round by `MC-P` (`661efd9`):** the primary
+keeps its cursor from 0 under `id`; the overlay gets its own cursor from 0
+under `GlobalElementID.child(of: id, at: -1, name: nil)`. The doc comment
+records the collision, the threaded cursor's divergence with the probe's
+numbers, why `-1`, and the four pinning tests. As lane 1 first built it:
 
 - delete `var overlayCursor = 0`, and pass `&contentCursor` to
   `overlay.requestGroupLayout`;
@@ -205,19 +234,20 @@ real comparison runs:
 | wrapped element id, hitbox ids | `.id("mid")` moved from the padding-4 layer it follows (`MC-C`) to the outermost padding-8 layer (`MC-O` item 1) | the leaf's id and the hitbox id list |
 | hitbox list (ids, bounds, order) | the middle layer's `onClick` dropped | the hitbox list, in count |
 | `$anim` liveness per layer id | the `.frame` layer omitted (one layer fewer) | the set of layer ids with a live `$anim` slot, and `tree.nodeCount` |
+| `$anim` liveness at an EQUAL layer count (`MC-Q` finding 6) | the frame layer built as a test-local `BoxWithoutAnimated` (`Box`'s phases minus `animated`) | `animLive` reads `[true, false, true]` against `[true, true, true]`, with the layer ids equal |
 
 | # | test | pins | before | mutation that must redden it |
 |---|---|---|---|---|
-| 1 | `theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities` | `Frame` only. First arm: `ZStack { primary(60).overlay(.topLeading) { overlay(10) } }`. The ids differ, and `overlay.id == .child(of: primary.id.parent, at: 1, name: nil)`. Second arm, with an `HStack { A; B }` primary: `overlay.id == .child(of: A.id.parent!.parent, at: 1, name: nil)`. The index is still 1, because the stack is one element however many nodes it holds | **red, measured**: ids equal | restore a second cursor starting at 0 |
+| 1 | `theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities` | `Frame` only. First arm: `ZStack { primary(60).overlay(.topLeading) { overlay(10) } }`. The ids differ; `primary.id == .child(of: modifier, at: 0)`; **since `MC-P`** `overlay.id == .child(of: .child(of: modifier, at: -1), at: 0)` (as lane 1 first built it: `.child(of: modifier, at: 1)`). Second arm, with an `HStack { A; B }` primary: the overlay's id has the same `-1` shape under `A.id.parent!.parent` | **red, measured**: ids equal | restore a second cursor starting at 0 (R2); **also** `MC-E`'s threaded cursor (R1) and a reserved `$overlay` name (R3), each reddening both arms |
 | 2 | `aTapOnAnOverlaysPrimaryWritesOnlyThePrimarysState` | real `Window`, 100×100. Three clicks at (70, 70) hit the primary only; one click at (25, 25) hits the overlay. The primary reads 3 and the overlay reads 1 | **red, measured**: the overlay reads 3 after the primary's clicks | same |
 | 3 | `hoveringAnOverlaysPrimaryDoesNotHoverTheOverlay` | With the pointer at (70, 70), exactly one hover fill is painted, 60pt wide. At (25, 25), exactly one, 10pt wide | **red, measured**: two fills, `[60, 10]` | same |
-| 4 | `aModifierChainIsIdenticalToHandBuiltNestedBoxes` (`MC-B`) | The chain `leaf.background(.accent).onClick{}.padding(4).id("mid").frame(width: 60, height: 40).background(.surface).onClick{}.padding(8).background(.separator).onClick{}`, in a `Row`, against hand-built `Box(style:decoration:content:)` values, one per wrapper, with the same styles, handlers and `.id`. It compares: the leaf's id and bounds; `lastHitboxes` ids, bounds and order; the scene's rect order, bounds and colour; `tree.nodeCount`; and `isLive(animRetentionSlot(for:))` per layer id. The four disagreeing oracles in the table above are each `try #require`d first | green on arrival | **today:** `FrameModifier.prepaint` registers its handlers after its content. **Lane 2**, each run separately: the layer loop runs innermost-first in prepaint; every inner layer takes the outermost id; `.id` lands on the wrong layer |
+| 4 | `aModifierChainIsIdenticalToHandBuiltNestedBoxes` (`MC-B`) | The chain `leaf.background(.accent).onClick{}.padding(4).id("mid").frame(width: 60, height: 40).background(.surface).onClick{}.padding(8).background(.separator).onClick{}`, in a `Row`, against hand-built `Box(style:decoration:content:)` values, one per wrapper, with the same styles, handlers and `.id`. It compares: the leaf's id and bounds; `lastHitboxes` ids, bounds and order; the scene's rect order, bounds and colour; `tree.nodeCount`; and `isLive(animRetentionSlot(for:))` per layer id. The five disagreeing oracles in the table above are each `try #require`d first. **It does not compare accessibility records or anything else `Element`'s group defaults do per element** (`MC-B`; the AB-O merge obligation below) | green on arrival | **today:** `FrameModifier.prepaint` registers its handlers after its content; `FrameModifier.requestLayout` skips `animated` (R4, also reddens test 5). **Lane 2**, each run separately: the layer loop runs innermost-first in prepaint; every inner layer takes the outermost id; `.id` lands on the wrong layer; **one inner layer skips `animated`** |
 | 5 | `stateSurvivesFramesUnderALegacyModifierChain` (`MC-D`) | window. `Row { CountingLeaf().padding(4).frame(width: 60, height: 40).padding(8) }`: 3 clicks, then 2 more frames; it reads 3. The leaf and its two nearest ancestors each have component `.positional(0)`. Its third ancestor equals `.child(of: rootID, at: 0, name: nil)`, where `rootID = .child(of: nil, at: 0, name: nil)` is the `Row`'s. Each of the three ancestors has a live `$anim` slot | green on arrival | **today:** `FrameModifier.requestLayout`'s cursor starts at 1. **Lane 2:** content laid out under the outermost layer's id |
 | 6 | `stateSurvivesFramesUnderAProposalModifierChain` (`MC-D`) | window. `HStack { CountingProposalLeaf("a").padding(…).frame(width: 40, height: 40).background(.surface); CountingProposalLeaf("b"); CountingProposalComponent("c") }`. After 3 clicks on a, 2 clicks on c, then 2 frames: a reads 3, b reads 0, c reads 2. `a` and its two nearest ancestors each have component `.positional(0)`, and its third ancestor is the `HStack`'s child at index 0 | green on arrival | **today:** `ModifiedContent.requestLayout`'s cursor starts at 1. **Lane 3:** its `MC-H` mutations |
 | 7 | `everyModifierWrapperDelegatesEachPhaseExactlyOnce` (`MC-F`) | one arm per wrapper and code path, as listed in `MC-F`, each reading `[1, 1, 1]`. The control arm `Pair(leaf, leaf)` reads `[2, 2, 2]`. Counts are `try #require`d | green on arrival | **today**, each separately, with the arm it reddens: the `allowsHitTesting` branch calls `prepaintGroup` twice (that arm); the `clip` paint branch loses its `else` (that arm); `OverlayModifier.paint` skips `overlay.paintGroup` (the overlay-side arm); `FrameModifier.prepaint` calls content twice. **Lane 2:** `ModifiedElement.paint` calls content once per layer |
 | 8 | `aModifierChainRegistersAndPaintsOuterLayersFirst` (`MC-F`) | The chain `leaf.background(.accent).onClick{"inner"}.padding(4).background(.surface).onClick{"outer"}`. Hitbox order is `[outer, leaf]`. `.surface` is emitted before `.accent`. A click in the padding ring logs `outer`; one inside the leaf logs `inner` | green on arrival | **today:** `Box.prepaint` registers after content. **Lane 2:** the layer loop reversed in prepaint, and separately in paint |
-| 9 | `anOverlaysIdentityFollowsTheIndicesItsPrimaryConsumed` (`MC-E`) | window, 100×100. The primary is an `@ElementBuilder` block `{ if flag { EmptyProposalComponent() }; Rectangle(width: 60, height: 60) }`, which has one node either way. Overlay: `CountingProposalLeaf("o")` at `.topLeading`, 10×10. The steps: with `flag` true, 3 clicks at (5, 5); then `flag` false, one frame; then `flag` true, one frame. Recorded readings at each step: the overlay's id component, its `taps`, and `StateTable.isLive` of the index-2 slot. **Predicted by reading, and measured equal by lane 1:** index 2 with 3 taps (slot live); then index 1 with 0 taps (index-2 slot not live); then index 2 with 3 taps again (live), since the entry was retained below the sweep threshold (divergence 18, `TB-AH`). The test pins the measured values. It is the trailing-sibling rule of record §01, applied to an overlay | green on arrival after the fix (before it, the overlay's index is always 0, so every reading is index 0 with 3 taps) | give the overlay a reserved name instead of the threaded index (`MC-E`'s rejected alternative): it reads 3 taps after the flip |
-| 10 | `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes` (`MC-L`) | a 20×20 `CountingLeaf`, outer width read from a 1pt sibling in a `Row` and outer height from one in a `Column`, both `.alignItems(.flexStart)`. Expected, from `swiftui-modifier-order.swift`: K1 `.padding(8)` 36×36 at (8, 8); O1 `.padding(8).frame(60×60)` 60×60 at (20, 20); O2 `.frame(60×60).padding(8)` 76×76 at (28, 28); O3 `.padding(4).frame(40×40).padding(8)` 56×56 at (18, 18); O4 `.frame(40×40).padding(4).padding(8)` 64×64 at (22, 22). `try #require` that O1 ≠ O2 and O3 ≠ O4 before comparing with SwiftUI's numbers | **green, measured** by a deleted scratch test at `f64e58a` (all seven equal) | **today:** `FrameModifier.init` drops `justifyContent = .center` (O1's x moves). **Lane 2:** `requestLayout` mints layer nodes outermost-first around the content (O1 and O2 swap) |
+| 9 | **`anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`** (`MC-P`; lane 1 built it as `anOverlaysIdentityFollowsTheIndicesItsPrimaryConsumed` under `MC-E`) | window, 100×100. The primary is an `@ElementBuilder` block `{ if flag { EmptyProposalComponent() }; CountingProposalLeaf("p", 60×60) }`, which has one node either way. Overlay: `CountingProposalLeaf("o")` at `.topLeading`, 10×10. The steps: with `flag` true, 3 clicks at (5, 5); then `flag` false, one frame; then `flag` true, one frame. **Control (the probe's P5), `#require`d:** `p`'s component reads `.positional(1)`, `(0)`, `(1)`. **Pinned at all three steps:** the overlay's path `[.positional(0), .positional(-1)]`, its exact id, 3 taps, its `$state0` slot live — SwiftUI's P1–P4 | **as lane 1 first pinned it (`MC-E`, measured):** index 2 / 3 taps / index-2 slot live, then index 1 / 0 / not live, then index 2 / 3 / live. **Since `MC-P`:** green at `661efd9`/`39f6237` | `MC-E`'s threaded cursor (R1): index 2/1/2, taps 3/0/3. The original shared id (R2). A reserved `$overlay` name (R3): path and id only, taps stay 3 |
+| 10 | `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes` (`MC-L`) | **Scope (`MC-Q` finding 7): a fixed leaf, both axes given, frames no smaller than content, an unconstrained `.flexStart` parent; a nil axis, a smaller frame, a stretching `Box` parent (EP-8) and a shrinking row (SZ-L) are task 4's.** A 20×20 `CountingLeaf`, outer width read from a 1pt sibling in a `Row` and outer height from one in a `Column`, both `.alignItems(.flexStart)`. Expected, from `swiftui-modifier-order.swift`: K1 `.padding(8)` 36×36 at (8, 8); O1 `.padding(8).frame(60×60)` 60×60 at (20, 20); O2 `.frame(60×60).padding(8)` 76×76 at (28, 28); O3 `.padding(4).frame(40×40).padding(8)` 56×56 at (18, 18); O4 `.frame(40×40).padding(4).padding(8)` 64×64 at (22, 22). `try #require` that O1 ≠ O2 and O3 ≠ O4 before comparing with SwiftUI's numbers | **green, measured** by a deleted scratch test at `f64e58a` (all seven equal) | **today:** `FrameModifier.init` drops `justifyContent = .center` (O1's x moves). **Lane 2:** `requestLayout` mints layer nodes outermost-first around the content (O1 and O2 swap) |
 
 **Mutation discipline.**
 
@@ -332,6 +362,14 @@ Let n be the layer count and `L[k]` the layer at depth k, 0 innermost.
 - **`prepaint`:** for k = n-1 down to 0,
   `pass.registerHandlers(L[k].handlers, at: pass.bounds(of: node[k]), id: id(L[k]))`;
   then `content.prepaintGroup` once.
+  - **Write it so that layer k's registration AND everything inside it can be
+    wrapped in one scoped call** (recursion over k, or equivalent), because
+    `Element.prepaintGroup` wraps a whole element's prepaint that way and the
+    AX-bridge track adds exactly such a wrap (AB-O, `MC-B`, merge notes). A
+    nested `Box` receives `Element`'s group defaults at every level; a layer
+    does not, so **any hook in those defaults is mirrored per layer** — on
+    this branch the defaults only enter the id and bind/re-bind `@State`,
+    and layers hold no `@State`.
 - **`paint`:** for k = n-1 down to 0, if
   `animatedBackground(L[k].decoration, for: id(L[k]), pass:)` returns a colour,
   fill `bounds(of: node[k])` with `Corners(all: L[k].decoration.cornerRadius)`;
@@ -355,7 +393,13 @@ Let n be the layer count and `L[k]` the layer at depth k, 0 innermost.
   comments, which today say "applies that style to a new outer box".
 - `Tests/MetalUITests/ModifiedElementTests.swift` (new).
 - `Tests/MetalUITests/ModifiedElementCompileGuards.swift` (new): plain import,
-  file scope, Swift 6 mode, `typecheckFile`.
+  file scope, Swift 6 mode, `typecheckFile`. Holds guard 7 and, since `MC-Q`
+  finding 3, test 6.
+- `Tests/MetalUITestSupport/Typecheck.swift` (**shared test support,
+  additive**): `typecheckFile(_:importing:frontendArguments:)`, passing each
+  argument as `-Xfrontend <arg>` after `-swift-version 6`. The existing
+  two-argument `typecheckFile` stays and forwards with `[]`, so no existing
+  guard changes.
 - `Tests/MetalUITests/ComponentTests.swift`:
   `chainedFramesRemainConcreteAndNestTheirLayoutNodes` stores
   `ModifiedElement<TwoLeaves>` and `Row<ModifiedElement<TwoLeaves>>`. The node
@@ -387,8 +431,8 @@ the red runs below on the skeleton.
 | 2 | `aGenericWrapOverAChainIsIdenticalToTheFlatChain` (`MC-B`) | `func wrap<T: StyledElement>(_ t: T) -> ModifiedElement<T.LayerBase> { t.padding(8) }` applied to `leaf.padding(4).frame(…)`, against the flat `leaf.padding(4).frame(…).padding(8)`. `try #require` that the two type names are EQUAL, and that the layer counts are 3 and 3. Then every observation from lane 1 test 4 is compared, with its disagreeing oracles | **red**: type names differ; the nested value registers one wrapper node where the flat one registers two | `ModifiedElement._wrap` replaces `outermost` instead of appending (a layer is lost) |
 | 3 | `addingALayerAtRunTimeResetsTheWrappedElementsState` (`MC-C`) | window. `generation` is captured by the content closure: `var c = CountingLeaf().padding(4); if generation > 0 { c = c.padding(8) }`. Three clicks at generation 0, flip, one frame: it reads **0** | **red**: the skeleton lays content out under the outermost id whatever the count, so it reads 3 | content laid out under the outermost id |
 | 4 | `changingALayersValueKeepsTheWrappedElementsState` (`MC-C`) | the same, with `.padding(generation == 0 ? 4 : 12).frame(width: generation == 0 ? 60 : 80, height: 40)`: it reads **3** | green on the skeleton | name each layer by its style, e.g. `ElementID("\(style.padding)")` when `elementID` is nil |
-| 5 | `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer` (`MC-C`, candidate divergence) | window, a 20×20 `CountingLeaf`. Generation 0 is `.padding(4)`; generation 1, flipped inside `withAnimation(.linear(duration: 1))`, is `.padding(4).padding(8)`. The outermost id is P. Driven by `simulateTick(timestamp:)`, the leaf's x reads, **as predicted by reading and to be replaced by the measured values**, **8** at t = 0 (the padding-8 layer starts from P's old baseline of 4; the new inner layer at P/0 snaps to 4), **10** at t = 0.5, and **12** once settled. P's `$anim` slot is live at both generations. P/0's is not live at generation 0 and is live at generation 1. The leaf's `taps` reads 0 (test 3's half) | **red**: the skeleton registers one layer (x reads 4, then 8) | give the outermost layer an id keyed on the layer count (`name: ElementID("\(n)")`): x reads 12 at t = 0 |
-| 6 | `aTwentyFourModifierChainTypechecksAsOneType` (`MC-A`) | a stored 24-modifier chain of integer-literal `.padding(i).frame(width: i)` pairs on `Leaf`, ending `.background(flag ? .accent : .surface)`. Its type name is `"ModifiedElement<Leaf>"` | **red**: nested type name | redeclare `padding(_ points:)`, `padding(_ edges:)` and `frame` concretely on `ModifiedElement`, returning `ModifiedElement<Content>` (the first design). **Expected: the test target fails to build** with "unable to type-check this expression in reasonable time", as the model did at 24 integer-literal modifiers. The error line is recorded |
+| 5 | `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer` (`MC-C`, candidate divergence) | window, a 20×20 `CountingLeaf`. Generation 0 is `.padding(4)`; generation 1 is `.padding(4).padding(8)`. **The change is made INSIDE the animation body** (`MC-Q` finding 4): `withAnimation(.linear(duration: 1)) { generation.value = 1; window.setNeedsRedraw() }` — or a `@State`/`@Observable` write there. `withAnimation` rolls its parked transaction back when no redraw was requested inside its body and none was already pending (`Animation.swift:717-720`), so `withAnimation { generation.value = 1 }; window.setNeedsRedraw()` **snaps**, and a snap reads x = 12 at t = 0, which is exactly this row's named mutation's reading. The outermost id is P. Driven by `simulateTick(timestamp:)`, **before any value is pinned, `try #require` that the t = 0.5 reading lies strictly between the t = 0 reading and the settled one** (a snap cannot pass). Then the leaf's x reads, **as predicted by reading and to be replaced by the measured values**, **8** at t = 0 (the padding-8 layer starts from P's old baseline of 4; the new inner layer at P/0 snaps to 4), **10** at t = 0.5, and **12** once settled. P's `$anim` slot is live at both generations. P/0's is not live at generation 0 and is live at generation 1. The leaf's `taps` reads 0 (test 3's half) | **red**: the skeleton registers one layer (x reads 4, then 8) | give the outermost layer an id keyed on the layer count (`name: ElementID("\(n)")`): x reads 12 at t = 0, and the betweenness `#require` fails. **Also run:** move `setNeedsRedraw()` out of the body; the `#require` must fail (the instrument's check) |
+| 6 | guard **`aTwentyFourModifierChainTypechecksWithinASolverWorkBudget`** (`MC-A`; **was a run-time type-name test with a compiler time-out as its only red, replaced after `MC-Q` finding 3**) | `ModifiedElementCompileGuards.swift`, `typecheckFile(_:importing:frontendArguments: ["-solver-scope-threshold=T"])`. **Positive fixture:** `@MainActor func probeBody(flag: Bool) -> some Element { Leaf().padding(1).frame(width: 1)…padding(12).frame(width: 12).background(flag ? .accent : .surface) }` (24 integer-literal modifiers on a fixture-local legacy leaf) is accepted. **In-test negative:** the same file plus a fixture-local `extension ModifiedElement { public func padding(_: Pixels) -> ModifiedElement<Content> { fatalError() }; public func padding(_: Edges<Length>) -> … ; public func frame(width: Pixels? = nil, height: Pixels? = nil) -> … }` (the first design's concrete overloads) is rejected with "unable to type-check this expression in reasonable time". `#require` that the two disagree; print both diagnostics. **T is set from a measurement against the real module:** binary-search the positive fixture's minimum passing threshold under both toolchains (`chain-solver-scope-guard.sh`'s `minpass`, pointed at the real modules directory), record it, and take T ≈ 5× that minimum, provided the negative still fails at T; if it does not, record the numbers and fall back to a recorded build sentinel with no mutation claim. Model numbers: minimum 190, negative fails at every threshold up to 10⁶, T = 1000, ~0.1 s per fixture, identical on 6.4 and 6.3.3 | **green on the skeleton, by the model** (a nested chain's solver work is linear too: 172 scopes at 24 in the model, the same as the chosen design's); its red run is the mutation, taken once | move the negative fixture's three concrete overloads into `ModifiedElement.swift` (the first design): the positive fixture reddens with the "unable to type-check" diagnostic at T, deterministically. Record the line. Type names stay test 1's |
 | 7 | guard `aNestedModifiedElementCannotBeSpelled` (`MC-B`) | Three fixtures. `let _: ModifiedElement<ModifiedElement<Leaf>> = Leaf().padding(4).padding(8)` is rejected, fragment "cannot assign value of type". `func wrap<T: StyledElement>(_ t: T) -> ModifiedElement<T> { t.padding(8) }` is rejected, fragment "cannot convert return expression". The positive fixture, `-> ModifiedElement<T.LayerBase>`, is accepted. Each real diagnostic is printed before asserting on it, and `#require` checks that the negatives and the positive disagree | **red**: the first negative compiles on the skeleton | test 1's mutation (the concrete nesting overload) |
 | — | lane 1 tests 4, 5, 7, 8, 10 | the migration proof | green before (on `Box`/`FrameModifier`); must stay green | their lane-2 mutations in lane 1's table |
 | — | six guard arms (`MC-I`) | the inner and the outer layer each: animate style; animate colour; honour and fade hover/focus; fire `onClick`; emit a declared AX node | red on the skeleton for the inner layer | outermost-only `animated`; outermost-only `animatedBackground`; outermost-only `registerHandlers` (the onClick, AX and hover arms) |
@@ -442,13 +486,14 @@ baseline is not affected.
 
 ### Expected counts
 
-1094 → **1101** tests (**1102** with the allocation test): six tests and one
-guard. Guards 45 → **46**. Goldens 97.
+1094 → **1101** tests (**1102** with the allocation test): five tests and two
+guards (test 6 is now a guard). Guards 45 → **47**. Goldens 97.
 
 ### Docs owed by lane 2 (track files and the lines it makes false)
 
 - `MC-A`, `MC-B`, `MC-C`, `MC-I`, `MC-K` Mutations lines; `MC-A`'s real-module
-  type-check measurement; `MC-J`'s capture result.
+  type-check measurement **and test 6's real-module minimum threshold under
+  both toolchains**; `MC-J`'s capture result.
 - Source doc comments the change makes false, corrected at the line (practices
   record-mechanism 1):
   - `Box.swift`'s `padding` docs;
@@ -608,6 +653,7 @@ public protocol ProposalElementGroup: ElementGroup {
 | 6 | guard `aProposalGroupWhoseEntryPointsDisagreeStillCompiles` (**pinned wrong on purpose**, `MC-G` hole 1) | Two fixtures against the real module. The **positive** is `liar4`'s shape (both entry points written, legacy nodes from one, zero typed nodes from the other): it typechecks. The **in-test negative** is the same fixture with its `requestProposalGroupLayout` deleted: it is rejected with "does not conform to protocol 'ProposalElementGroup'". `#require` that the two disagree, so a broken instrument cannot pass, and print both results | **red**: the requirement does not exist, so the negative compiles and the `#require` fails | **after lane 3 lands:** delete the positive fixture's `requestProposalGroupLayout`, making it identical to the negative. The positive assertion reddens. Record that red line. It exists to be inverted by whoever closes the hole |
 | 7 | `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` (**pinned wrong on purpose**, `MC-G` holes 2 and 6) | Two arms, each a `ProposalElement` inside `VStack { HStack { it }; Rectangle(width: 5, height: 5, color: .accent) }`, 140×90. **Arm a:** its typed entry calls `pass.requestNode(style: Style(), children: [])`, discards the result, and returns a typed leaf. It renders: prepaint bounds 10×10, 1 rect. **Arm b:** its typed entry lays out a discarded `Box { StatefulLegacyLeaf() }.background(.accent)` through `requestGroupLayout(under: id, at: &c)` (the leaf writes its `@State` from 7 to 8 in `requestLayout`), then returns a typed leaf. Measured at `f64e58a` in the `HStack`-only form: no trap; the leaf's `$state0` slot reads 8 and is live; the orphan `Box`'s `$anim` slot is live; nothing of the orphan subtree is painted; `nodeCount` is 5 (2 orphan nodes). The test pins the measured values in its own `VStack` form | **green, as measured** (`MC-G`) | an orphan check in `LayoutPass.requestNode` during native registration reddens arm a. Nothing is available for arm b short of unregistered-state detection; the doc comment says so |
 | 8 | `aNativeNodeRegisteredTwiceIsNotRejected` (**pinned wrong on purpose**, `MC-G` hole 4) | Each arm in `VStack { HStack { it } }`, 140×90. **Arm a:** one typed leaf (10×10) passed twice to `requestNativeLinearStack(children: [leaf, leaf], axis: .horizontal)`. **Arm b:** one typed leaf handed to two frames (30×30 `.topLeading`, 50×50 `.bottomTrailing`) in one horizontal stack. Measured at `f64e58a` with untyped ids, which the typed ids wrap unchanged: arm a gives stack bounds (60, 0, 20×10), leaf bounds (70, 0, 10×10), measure calls 1, `nodeCount` 4; arm b gives stack (30, 0, 80×50), leaf (100, 40, 10×10), measure calls 2, `nodeCount` 6 | **green, as measured** | a duplicate-parent precondition in `LayoutTree.appendNode` closes the hole. It **traps** this test's process, so whoever closes it converts the test to an exit test; the doc comment says so |
+| 9 | `aTypedNodeIDStoredFromAnEarlierFrameTraps` (`MC-G` hole 7, **added after `MC-Q` finding 8**) | exit test (`#expect(processExitsWith: .failure)`, stderr fragment "outlived the tree that issued it"). A `@MainActor final class` box captured by the content closure; a `ProposalElement` whose typed entry stores its `ProposalNodeID` in the box on frame 1 and returns the stored one on frame 2, inside `HStack`, through a real `Frame` each frame. **Control:** the same element returning a fresh id on frame 2 exits with success | does not compile before lane 3 (no typed id) | the element returns a fresh id on frame 2 as well: the child exits 0 and the failure expectation reddens. Record which registrar's child loop reports the trap (by reading, `LayoutTree.appendNode` → `slot`) |
 | — | lane 1 test 6 | the typed defaults bind state and advance the cursor, through the helper (`MC-H`) | green | four mutations, each run separately: delete `StateBinder.bind` from the helper (a and c read 0, and legacy `@State` tests redden too); `ProposalElement`'s typed default computes its id with `.child` directly instead of calling the helper (a reads 0); `Component`'s typed default does the same (c reads 0); delete the helper's `cursor += 1` (a and b share an id) |
 | — | `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer` (existing, rewritten helper) | the run-time backstop survives | green | its existing mutation: delete `newNativeLinearStack`'s child loop (`SA-T` item 1) |
 | — | `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration` (existing) | `MC-G` hole 5: `Toggle().width(Pixels(70))` still compiles after lane 3 and still traps | green | its existing mutation (the `setStyle` check deleted) |
@@ -623,8 +669,8 @@ public protocol ProposalElementGroup: ElementGroup {
 
 ### Expected counts
 
-1101 (or 1102) → **1109** (or 1110) tests: five new guards, the hole guard,
-and tests 7 and 8. Guards 46 → **52**, re-counted by `grep -c canTypecheck`
+1101 (or 1102) → **1110** (or 1111) tests: five new guards, the hole guard,
+and tests 7, 8 and 9. Guards 47 → **53**, re-counted by `grep -c canTypecheck`
 per file, not from this number. Goldens 97.
 
 ### Docs owed by lane 3
@@ -640,7 +686,7 @@ per file, not from this number. Goldens 97.
   - `ElementGroup.swift`'s doc on `Element`'s default, and `AnyElement`'s
     "Identical to `Element`'s default for the CURSOR", which name the lines
     the helper replaces.
-- Record §10: that `SA-R`'s amended criterion is now met, with `MC-G`'s six
+- Record §10: that `SA-R`'s amended criterion is now met, with `MC-G`'s seven
   holes. Editing the SA doc itself is the integration step's.
 
 ---
@@ -690,42 +736,102 @@ per file, not from this number. Goldens 97.
   `Handlers.swift`, `Frame.swift`, `Window.swift`, `Platform.swift`,
   `Tests/MetalUITests/Fakes.swift`.
 
-### Collisions with the environment track (`feat/environment`, spec `2026-09-15-environment-design.md`)
+### Collisions with the environment track (`feat/environment` at `f4dcad8`, as committed)
+
+**Revised after lane 1's critic round (`MC-Q` finding 5).** The first version
+was written against that track's spec, not its commits.
 
 1. **`EnvironmentScope`'s proposal conformance stops compiling.**
-   - **What breaks.** That spec declares
-     `extension EnvironmentScope: ProposalElementGroup where Content: ProposalElementGroup {}`.
-     With lane 3's requirement, that is a compile error at merge ("does not
-     conform"). That much is loud.
-   - **The silent half.** The typed `requestProposalGroupLayout` that the merge
-     must write has to wrap its content call in `pass.frame.withEnvironment`,
-     as the untyped one does. If it does not, every value read **during
-     layout** on the proposal path silently falls back to the default. The
-     environment track's E11 reads only in paint and cannot see that.
-   - **Owed by integration, and not writable here, since the API does not exist
-     on this branch:** `aProposalContainerReadsTheEnvironmentDuringLayout`.
-     - A `ProposalElement` recorder logs `pass.environment.probe` inside
-       `requestProposalLayout`.
-     - Arm 1, `HStack { recorder.environment(\.probe, 7) }`, reaches
-       `EnvironmentScope`'s **typed** entry and reads 7.
-     - Arm 2, `HStack { recorder }.environment(\.probe, 7)` under a legacy
-       root, reaches its untyped entry and reads 7.
-     - A control with no writer reads 0.
-     - **Mutation:** the typed entry without `withEnvironment` reddens arm 1
-       only.
-2. **`StateBinder.bind` gains `environment:`.** That spec edits "the five call
-   sites": three in `ElementGroup.swift`, one in `Component.swift` and one in
-   `Frame.render`.
-   - **Lane 3 does not add call sites.** Both typed defaults and `Element`'s
+   - **What breaks.** `feat/environment:Sources/MetalUI/EnvironmentScope.swift`
+     declares `extension EnvironmentScope: ProposalElementGroup where Content: ProposalElementGroup {}`
+     and its doc names this merge as an obligation (ruling EV-W). With lane
+     3's requirement, that is a compile error ("does not conform"). Loud.
+   - **The silent half.** The typed `requestProposalGroupLayout` the merge
+     writes must go through the same resolve-once-then-push path as its
+     untyped `requestGroupLayout` (`pass.frame.scopedValues(applying:)`, then
+     `pass.frame.withEnvironment(values) { … }`, storing `values` in the
+     layout for the later phases, EV-V). A bare forward skips the layout-phase
+     push, and layout-time reads on the proposal path silently read the
+     parent's values.
+   - **The test already exists on that branch:** E11,
+     `proposalContentReadsTheEnvironmentThroughAScopeInEveryPhase`
+     (`feat/environment:Tests/MetalUITests/EnvironmentTests.swift:468`). It
+     reads layout, prepaint and paint (`[7, 7, 7]`) under an `HStack` and
+     under a `ProposalScrollView`, and its doc names the layout slot as the one
+     a merge could break. **Its mutation at merge:** the typed entry as a bare
+     forward reddens the layout slot of both triples. The test the first
+     version of these notes invented (`aProposalContainerReadsTheEnvironmentDuringLayout`)
+     is withdrawn.
+2. **`StateBinder.bind` is `bind(_:in:id:)` on that branch**
+   (`feat/environment:Sources/MetalUI/StateReflection.swift:104`): the frame is
+   passed, not a `table:` and an `environment:`, and by EV-W no overload keeps
+   the old `bind(_:table:id:)` spelling and the frame never gains a default.
+   - **Lane 3 adds no call sites.** Both typed defaults and `Element`'s
      untyped default go through `GroupMember.swift`'s one helper (`MC-H`).
-   - **The same five sites remain.** `ElementGroup.swift:112` moves into the
-     helper.
-   - **At merge:** a textual conflict at `ElementGroup.swift:112`, since both
-     sides edit that line, and a compile error in `GroupMember.swift` until
-     the helper's bind passes `environment:`. Neither is silent. Resolve by
-     passing `pass.frame.environment` inside the helper.
-   - **`Component.swift:130` stays the one copy** outside the helper, and the
-     environment track edits it directly.
+   - **The same five sites remain** (`ElementGroup.swift:112,129,139`,
+     `Component.swift:130`, `Frame.swift:1349` at `f64e58a`);
+     `ElementGroup.swift:112` moves into the helper.
+   - **At merge:** a textual conflict at `ElementGroup.swift:112`, and a
+     compile error in `GroupMember.swift` until the helper calls
+     `StateBinder.bind(element, in: pass.frame, id: id)`. Neither is silent.
+   - **`Component.swift:130` stays the one copy** outside the helper; the
+     environment track has already edited it.
+   - **That track's record is behind this one:**
+     `feat/environment:docs/record/11-environment.md:258-259` still says this
+     spec adds "two `StateBinder.bind` call sites (`MC-H`)", which
+     `8cdb25e`'s helper superseded. Integration corrects it; this track does
+     not edit another track's record.
+3. **`EnvironmentScope` is a phase-delegating wrapper on both paths and has no
+   arm in `everyModifierWrapperDelegatesEachPhaseExactlyOnce`** (lane 1 test
+   7). `MC-F`'s rule makes an armless wrapper a gap. **Owed at merge:** two
+   arms, `Row { CountingLeaf("x").environment(\.probe, 1) }` (legacy) and
+   `HStack { CountingProposalLeaf("x").environment(\.probe, 1) }` (proposal,
+   through the typed entry), each `[1, 1, 1]`. **Mutation:** the typed entry
+   calls `content.requestProposalGroupLayout` twice (proposal arm reads
+   `[2, 1, 1]`, or traps a one-node precondition, which the arm's `try #require`
+   of the count must survive).
+
+### AB-O and every per-element hook in `Element`'s group defaults (AX-bridge track)
+
+**Added after lane 1's critic round (`MC-Q` finding 2).**
+
+- **The hazard.** `feat/ax-bridge:Sources/MetalUI/ElementGroup.swift:130-140`
+  (ruling AB-O) suppresses a `display: none` node's subtree from accessibility
+  inside `Element.prepaintGroup`, once per ELEMENT. Nested `Box`es pass that
+  check at every level; `ModifiedElement`'s layers are not elements and do
+  not. After merge, `Text("x").padding(4).hidden().frame(width: 60)` — whose
+  hidden padding layer is inner after `.frame` wraps — publishes the text
+  where nested boxes hide it. `MC-B`'s oracle (test 4) cannot see it: it
+  compares no accessibility records.
+- **The rule for integration:** **any hook added to `Element`'s default
+  `requestGroupLayout`, `prepaintGroup` or `paintGroup` is mirrored per layer
+  in `ModifiedElement`.** On this branch those defaults enter the id and
+  bind/re-bind `@State`; layers hold no `@State`, so nothing is mirrored yet.
+- **AB-O's mirroring.** Move AB-O's check into one internal helper, e.g.
+  `Frame.prepaintingNode(_ node: LayoutNodeID, _ body: () -> R) -> R`
+  (suppress when collecting and the node's style is `display: none`), called
+  by `Element.prepaintGroup` around `prepaint(…)` and by
+  `ModifiedElement.prepaint` around layer k's registration and everything
+  inside it (lane 2 writes the loop so that wrap is possible).
+- **The owed test:** `anInnerHiddenLayerHidesItsSubtreeFromAccessibilityAsNestedBoxesDo`,
+  in an active fake window, compares `Frame.axEmissions` ids for
+  `Row { Text("x").onClick {}.padding(4).hidden().frame(width: 60) }` against
+  the hand-built `Box(frameStyle, content: Box(paddingStyle, content: Text("x").onClick {}).hidden())`;
+  `#require` first that a disagreeing oracle (the same boxes without
+  `.hidden()`) publishes the text, then expect the chain to publish nothing
+  the boxes do not. **Mutation:** remove the per-layer call in
+  `ModifiedElement.prepaint`; the chain publishes the text.
+- **Also named in `feat/ax-bridge`'s spec:** `FrameModifier` as an emit site
+  and "untouched" (below).
+
+### `NativeTappable.swift`: lane 3 against AX lane 3
+
+Lane 3 rewrites `OnTapModifier`'s layout entry to the typed one and returns its
+child's typed id (`NativeTappable.swift`). AX-bridge lane 3 edits
+`OnTapModifier.prepaint` in the same file (one line, passing
+`synthesizesAccessibility: false`, ruling AB-Y;
+`feat/ax-bridge:docs/superpowers/specs/2026-09-15-accessibility-bridge-design.md:703`).
+Different functions, same file: expect a textual conflict; keep both.
 
 ### `FrameModifier` is deleted by lane 2; three places in the other tracks name it
 
@@ -759,7 +865,16 @@ arm is never deleted.**
 - a Component-section note that a caller's `.frame` now returns
   `ModifiedElement`;
 - `SA-R`'s status;
-- the overlay collision's removal from record §09's hazards;
+- the overlay collision's removal from record §09's hazards, and the
+  identity-section note that an overlay numbers under a synthetic
+  `.positional(-1)` child of its modifier, so its state is independent of the
+  primary's shape (`MC-P`, SwiftUI parity; lane 1's "index depends on the
+  primary" note is withdrawn);
+- the rule that `Element`'s group-default hooks are mirrored per layer
+  (AB-O above);
 - the candidate divergence from lane 2 test 5 (`MC-C`), if kept;
-- `MC-G`'s holes, and the `_wrap` hole (`MC-A`), for the declared-but-inert
-  and holes lists.
+- `MC-G`'s seven holes, and the `_wrap` hole (`MC-A`), for the
+  declared-but-inert and holes lists;
+- the guard count (47 after lane 2, 53 after lane 3, re-counted) and that lane
+  2's test 6 guard reads `-solver-scope-threshold`, a frontend flag CI's
+  toolchain must still accept.

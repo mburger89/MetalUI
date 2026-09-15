@@ -3,13 +3,14 @@
 These are the rulings for plan task 3, "Build a typed modifier-composition
 foundation" (`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`). They are
 written at design time, on `feat/modifier-composition` at `f64e58a`, before any
-lane runs, and **revised at design review** (`MC-N`). A revised ruling says so
+lane runs, **revised at design review** (`MC-N`), and **revised again after
+lane 1's critic round** (`MC-P`, `MC-Q`). A revised ruling says so
 in its heading's first paragraph and keeps what it replaced where the
 replacement's reason depends on it.
 
 Prefixed **`MC-`** and **lettered** (`MC-A`, `MC-B`, …), per this repo's
 convention. **A bare `MC-3` is a typo, not a citation.** The next unused letter
-is **`MC-P`**.
+is **`MC-R`**.
 
 Read alongside:
 
@@ -38,6 +39,9 @@ Read alongside:
   finding.
 - **`MC-O`** — lane 1's departures from the spec, and the suite truncation its
   mutations found.
+- **`MC-P`** — the overlay's identity, revised: an overlay-side id no cursor
+  can produce, replacing `MC-E`'s threaded cursor. **`MC-Q`** — the critic
+  round after lane 1, finding by finding.
 
 **Every ruling ends with a "Mutations" line reading _owed by lane N_.** The lane
 that implements a ruling replaces it with the mutations it ran and the tests
@@ -90,6 +94,25 @@ installed: `xcrun swiftc` and `/usr/bin/swift` are Apple Swift 6.4
     `zzScratchOrphanLegacySubtree` (`MC-G` holes 4 and 6).
 
   `git status --short` was empty after each deletion.
+
+**Critic round after lane 1, 2026-09-15** (`MC-P`, `MC-Q`), at `ec65da6`, then
+`661efd9` (the overlay change, tests, probe) and `39f6237` (test 9's printable
+readings); the docs commit follows. The
+worktree held a paused lane-2 skeleton (uncommitted); it was saved with `git
+stash push -u` plus a copy in the scratchpad before any build, and restored
+after the last run. `swift package clean` before the first recorded run.
+
+- **`swiftui-overlay-primary-shape.swift`** (the critic's arms A, B, P1-P4 plus
+  controls P5 and Q), both forms: byte-identical stdout (`cmp`), exit 0,
+  empty stderr.
+- **`chain-solver-scope-guard.sh`**: minimum passing
+  `-solver-scope-threshold` for the three designs at 8/16/24 modifiers, and the
+  guard's two-module shape, under `/usr/bin/xcrun swiftc` 6.4 and PATH
+  `swiftc` 6.3.3: identical numbers.
+- **Whole-suite runs** (`swift test --build-system native --no-parallel`): the
+  green run after the overlay change, and five mutations (`R1`-`R5`), each
+  restored from a `cp` backup with `git status --short` empty and the marker
+  grep empty after each.
 
 **Carried, not re-taken:** the suite count 1084, 45 guards and 97 goldens at
 `553b980` (plan task 2's entry). `f64e58a` differs from `553b980` in docs only.
@@ -266,8 +289,19 @@ another value, and its `.padding` then silently drops the receiver.
   rules what that does and pins it.
 - **The `_wrap` hole above.**
 - **If the single-overload design regresses to the first design's shape**, a
-  24-modifier chain stops compiling. Lane 2 test 6 is that chain, so the
-  regression is a build failure, not a slow build.
+  24-modifier chain's solver work goes exponential. **Revised after lane 1's
+  critic round (`MC-Q` finding 3):** the first draft relied on the chain
+  failing to compile, but that cut-off is a compiler time-out that varies by
+  run (the reviewer's error at 16 `Pixels`; this session's success at 44.9 s),
+  and a build failure takes down the whole test target rather than reddening
+  one test. Lane 2 test 6 is now a **typecheck guard with a solver work
+  budget** (`-Xfrontend -solver-scope-threshold`), which is deterministic,
+  identical on both toolchains and about 0.1 s per fixture
+  (`chain-solver-scope-guard.sh`: the chosen design needs 7n + 4 scopes in the
+  model, the first design 1321 at 8 modifiers and 338 601 at 16). The guard
+  carries an in-test negative — the first design's concrete overloads declared
+  in the fixture file — which reproduces the blow-up against a module that has
+  only the chosen design.
 
 **Mutations:** owed by lane 2. Lane 2 also owes the real-module type-check
 measurement (spec, lane 2).
@@ -336,6 +370,24 @@ inner layers share the outer layer's id: one `$anim` slot, one hitbox id, and a
 wrapped element re-seeded one level up. Every existing padding and frame test
 asserts rects and node counts, and all of them would stay green.
 
+**What "every observable" does NOT cover (added after lane 1's critic round,
+`MC-Q` finding 2).** The oracle compares ids, bounds, hitboxes, rects, node
+count and `$anim` liveness. It compares **nothing that `Element`'s group
+defaults (`requestGroupLayout`/`prepaintGroup`/`paintGroup`) do per element**,
+because a nested `Box` is an element and gets those defaults at every level,
+while a `ModifiedElement` layer is not an element and gets them once for the
+whole chain. On this branch those defaults do three things: enter the id,
+bind `@State` and re-bind it in the later phases. Layers hold no `@State`, so
+none of the three applies per layer, and the oracle loses nothing today. **The
+AX-bridge track adds a fourth** (`feat/ax-bridge:Sources/MetalUI/ElementGroup.swift:130-140`,
+ruling AB-O): inside `Element.prepaintGroup`, a `display: none` node's subtree
+is suppressed from accessibility. A layer does not pass that check, so after
+merge `Text("x").padding(4).hidden().frame(width: 60)` (the padding layer is
+inner and hidden) would publish the text where nested boxes hide it, with this
+oracle green. It is a merge obligation, not a change on this branch, because
+the check does not exist here (spec merge notes, "AB-O and per-layer group
+hooks").
+
 **Mutations:** lane 1 done, at `6ff2d31`/`2571d4a`, each a whole-suite run of
 1094 (`--build-system native --no-parallel`), restored from a `cp` backup with
 `git status --short` empty after each. Test 4 is
@@ -354,6 +406,17 @@ asserts rects and node counts, and all of them would stay green.
   (leaf bounds, hitboxes, rects), test 10 and the existing
   `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren` and
   `chainedFramesRemainConcreteAndNestTheirLayoutNodes`.
+- **The equal-layer-count `$anim` oracle** (added after lane 1's critic round,
+  `MC-Q` finding 6; mutations at `39f6237`, record §10 R4/R5). Test 4 builds
+  the frame layer as a test-local `BoxWithoutAnimated` (`Box`'s phases minus
+  `animated(_:_:for:pass:)`) and `#require`s `[true, false, true]` against the
+  oracle's `[true, true, true]`.
+  - `FrameModifier.requestLayout` skipping `animated` (R4) reddens test 4
+    (`chain.animLive → [true, false, true]`) **and** test 5 (its per-ancestor
+    `$anim` liveness), 2 issues.
+  - `BoxWithoutAnimated` calling `animated` (R5) reddens test 4's `#require`
+    alone (`animSkipped.animLive → [true, true, true]`), 1 issue: the
+    disagreeing oracle disagrees only through the missing call.
 - **A differential, not a gap to close here:** `FrameModifier`'s content cursor
   starting at 1 reddens test 5 and NOT test 4. Test 4's padding-4 layer is
   named `"mid"`, and a name replaces the index, so a cursor offset beneath a
@@ -498,6 +561,16 @@ assertions are what see it. Lanes 2 and 3 owe their own.
 
 ## MC-E — `OverlayModifier` threads ONE cursor through primary and overlay, as `Pair` does; the collision is measured end to end first, and the fix is one line
 
+**SUPERSEDED IN ITS CHOICE by `MC-P`** (after lane 1's critic round, `MC-Q`
+finding 1). The measurement of the collision below stands. The threaded cursor
+does not: a SwiftUI probe with controls shows an overlay keeps its state
+through a flip of its primary's shape, where the threaded cursor reset it.
+Two claims below are **struck**: "MetalUI after the fix agrees" (it agreed only
+on arms E-G, none of which changes the primary's shape) and the remedy "name
+the overlay's element" (proposal content has no `.id()` until task 12, so it
+could only be taken by wrapping the overlay in a `Component` that declares
+`elementID`). The rest is kept as the record `MC-P`'s reasons depend on.
+
 **Measured before any change (scratch test through a real `Window`).**
 `ZStack { Leaf(60).overlay(alignment: .topLeading) { Leaf(10) } }` in a
 100×100 window. Each leaf:
@@ -531,7 +604,8 @@ group", record §09 hazard 3).
 
 - **A reserved name for the overlay slot** (`.named("$overlay")`).
   - **For:** it would keep the overlay's index independent of the primary's
-    shape, avoiding the shift below.
+    shape, avoiding the shift below. (`MC-P` takes that property by another
+    spelling.)
   - **Against:** it would be an eighth reserved name. CLAUDE.md records seven,
     none guarded against a user `.id` that describes to one
     (`theSevenRetentionSlotsAreMutuallyDistinct` covers retention slots only).
@@ -552,13 +626,16 @@ consumes the same number of indices. **That is false.**
   When `flag` toggles, the overlay's index moves between 2 and 1. Its state is
   then read from a different entry: fresh, or retained from earlier (divergence
   18).
-- **This is not a defect of the fix.** It is the trailing-sibling rule of
+- ~~**This is not a defect of the fix.** It is the trailing-sibling rule of
   record §01 applied to an overlay, and every legacy container already behaves
-  so.
+  so.~~ **Struck (`MC-P`):** the trailing-sibling rule governs siblings in ONE
+  container; SwiftUI does not apply it across a primary and its overlay, which
+  are separate positions.
 - **Lane 1 test 9 pins it.** Its readings are predicted by reading and replaced
   by the measured ones.
-- **Remedy for authors:** the same as record §01's. Keep the primary's
-  index-consuming shape fixed, or name the overlay's element.
+- ~~**Remedy for authors:** the same as record §01's. Keep the primary's
+  index-consuming shape fixed, or name the overlay's element.~~ **Struck
+  (`MC-P`).**
 
 **SwiftUI, same probe.**
 
@@ -566,7 +643,9 @@ consumes the same number of indices. **That is false.**
   attached view its own state, distinct from the primary's and kept across an
   update.
 - **H (two `HStack` siblings)** is the control for "distinct".
-- **MetalUI after the fix agrees.**
+- ~~**MetalUI after the fix agrees.**~~ **Struck (`MC-P`):** it agreed on E-G,
+  which never change the primary's shape; it disagreed on the shape flip
+  `swiftui-overlay-primary-shape.swift` measures.
 - **No arm can show shared state**, since SwiftUI never shares it here, so the
   instrument's "same" reading comes from arm A, across time.
 
@@ -576,6 +655,10 @@ and anything overlaid share hover, press dispatch, `@State`, `ScrollState` and
 its overlay `Rectangle` holds no state and registers no hitbox.
 
 **Mutations:** lane 1 done. The fix is `6ff2d31`; the red run is `6d89906`.
+**These are lane 1's runs against `MC-E`'s design, kept as record.** Since
+`MC-P` (`661efd9`), test 9 is `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`,
+tests 1 and 9 pin the overlay-side id, and the threaded cursor below is
+mutation R1; `MC-P` has the current runs.
 
 - **Red run** (the tests at `6d89906`, before the fix; whole suite: `Test run
   with 1094 tests in 1 suite failed after 25.299 seconds with 11 issues`),
@@ -673,7 +756,7 @@ lane 2.
 
 ---
 
-## MC-G — `SA-R`'s compile-time check is DELIVERED: a typed `ProposalNodeID` with an internal initializer, returned by a new requirement on `ProposalElementGroup`; five lies become compile errors, and six named holes stay, each pinned or cited
+## MC-G — `SA-R`'s compile-time check is DELIVERED: a typed `ProposalNodeID` with an internal initializer, returned by a new requirement on `ProposalElementGroup`; five lies become compile errors, and seven named holes stay, each pinned or cited
 
 **Revised at design review (`MC-N` findings 7 and 8).** Two changes:
 
@@ -736,8 +819,9 @@ LayoutState` in `ProposalElement`, the skeleton module itself fails to build:
 infer `Element.LayoutState` through the default `requestLayout` that
 `ProposalElement`'s extension supplies.
 
-**What stays open, precisely.** Six holes. None is closed by an access-control
-or type-system check available in this design.
+**What stays open, precisely.** Seven holes (hole 7 added after lane 1's critic
+round, `MC-Q` finding 8). None is closed by an access-control or type-system
+check available in this design.
 
 1. **Two entry points can disagree** (`liar4`, `Both`).
    - **Where it can hurt.** The untyped entry is reached only by `Frame`'s root
@@ -806,6 +890,18 @@ or type-system check available in this design.
    So an orphaned registration keeps state entries alive and animation
    baselines moving for elements that never paint. Pinned wrong on purpose
    (spec lane 3, test 7 arm b).
+7. **A typed id can be stored and returned in a later frame.** `ProposalNodeID`
+   is `Hashable, Sendable` and storable, so a conformer can cache one from an
+   earlier frame and return it or pass it to a registrar. The type check
+   passes. **The backstop is a run-time trap, not a compile-time check**, by
+   reading: every `Frame` builds a `LayoutTree` with a fresh generation
+   (`Frame.swift:1049`, ruling C-3), and every registration's children pass
+   through `LayoutTree.slot`, whose precondition rejects an id from another
+   generation ("the id outlived the tree that issued it",
+   `LayoutTree.swift:560-567`). Pinned at the kernel today by
+   `adoptingAChildFromAnotherTreeTraps` (`LayoutTreeTests.swift`); lane 3 pins
+   it end to end through a native registrar with an exit test (spec lane 3,
+   test 9).
 
 **Why deliver it here, when `SA-R` feared a second entry point.** `SA-R`
 deferred it because a second, typed entry point is "a change to how elements
@@ -832,8 +928,8 @@ the untyped `requestLayout` comes from the default.
   layout-time reads fall back silently. The spec's merge notes name the
   integration test.
 - **If the holes above are later mistaken for closed**, a lying conformer that
-  compiles is again a run-time trap, or, for holes 4 and 6, silently wrong
-  output. They are named here and pinned so they cannot be.
+  compiles is again a run-time trap (holes 3, 5 and 7), or, for holes 4 and 6,
+  silently wrong output. They are named here and pinned so they cannot be.
 
 **Mutations:** owed by lane 3.
 
@@ -1104,13 +1200,16 @@ as covering it.
 | a public, user-definable modifier protocol; the `_wrap` hole (`MC-A`) | `MC-A` | task 7 or later |
 | `EitherGroup: ProposalElementGroup` (record §09 boundary 4) | not composition of modifiers | tasks 6/8 |
 | one-node wrapper traps on 0 or 2+ nodes (boundary 2) | a typed id fixes the kind, not the count | task 6 |
-| `MC-G` holes 1–4 and 6 | hole 3: no mechanism within public Swift; holes 1, 2 and 6 need the legacy root switch gone; hole 4 needs a duplicate-parent check in the kernel | task 7 (hole 4: task 6) |
+| `MC-G` holes 1–4, 6 and 7 | holes 3 and 7: no mechanism within public Swift (7's backstop is C-3's trap); holes 1, 2 and 6 need the legacy root switch gone; hole 4 needs a duplicate-parent check in the kernel | task 7 (hole 4: task 6) |
 | proposal `.id()`, focus, AX | interaction | task 12 |
 | animation on proposal wrappers, and wrappers joining transactions | | task 13 |
 | divergence 19 (one value placed twice) and `@State` inside `AnyElement` | not modifier composition | task 8 |
 | a separate test that two `ProposalScrollView`s in an overlay keep separate `ScrollState` | closed by `MC-E`'s mechanism, not separately pinned | task 6 |
 | deprecating `nativeFrame(…)` | breaks the 0-warning baseline (record §09) | integration step |
-| `aProposalContainerReadsTheEnvironmentDuringLayout` (spec merge notes) | the environment API does not exist on this branch | integration step |
+| ~~`aProposalContainerReadsTheEnvironmentDuringLayout`~~ — **withdrawn after lane 1's critic round (`MC-Q` finding 5):** the environment track already has it as `proposalContentReadsTheEnvironmentThroughAScopeInEveryPhase` (`feat/environment:Tests/MetalUITests/EnvironmentTests.swift:468`, E11, ruling EV-W), reading layout, prepaint and paint `[7, 7, 7]` under an `HStack` and a `ProposalScrollView` | the typed `EnvironmentScope` entry is written at merge; EV-W's test is its check | integration step |
+| `EnvironmentScope` arms in `everyModifierWrapperDelegatesEachPhaseExactlyOnce` (legacy and proposal) | the wrapper does not exist on this branch | integration step |
+| per-layer mirroring of AB-O's `display: none` accessibility suppression in `ModifiedElement.prepaint`, and its test | the check does not exist on this branch (`MC-B`'s "does NOT cover") | integration step |
+| legacy `.frame` against SwiftUI outside test 10's scope: a nil axis, a frame smaller than its content, under a stretching `Box` (EP-8), in a shrinking row (SZ-L) | legacy `.frame` semantics are task 4's; by reading the legacy frame node stretches or shrinks where a SwiftUI frame stays fixed | task 4 |
 | CLAUDE.md / AGENTS.md / plan / record README updates: guard count, "registering points", `FrameModifier` mentions, the candidate divergence (`MC-C`), the holes | owned by the integration step | integration |
 
 **The superseded typed-modifier spec's required proofs**, and where each now
@@ -1122,7 +1221,7 @@ two.
 | two chained modifiers have two structural identities and preserve distinct `@State` slots | `MC-D`, lane 1 tests 5–6 |
 | once-per-phase delegation | `MC-F`, lane 1 tests 7–8 |
 | explicit `AnyElement` remains opt-in; no ordinary modifier path introduces it | lane 2 test 1 (no type name contains `AnyElement`; exact `ModifiedElement<…>` names) |
-| frame ordering changes the measured/placed result where SwiftUI does | lane 1 test 10, `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`, against `swiftui-modifier-order.swift`: all seven arms (K0-K2, O1-O4) committed and green at `6d89906`, with O1 ≠ O2 and O3 ≠ O4 `#require`d first; `FrameModifier.init` dropping `justifyContent = .center` reddens it (O1-O4's leaf x reads 8, 8, 12, 12 against 20, 28, 18, 22). It must stay green through lane 2 |
+| frame ordering changes the measured/placed result where SwiftUI does | **closed for a narrow scope only** (qualifier added after lane 1's critic round, `MC-Q` finding 7): a fixed 20×20 leaf, both frame axes given, frames at least as large as the content, under an unconstrained `.flexStart` parent. Lane 1 test 10, `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`, against `swiftui-modifier-order.swift`: all seven arms (K0-K2, O1-O4) committed and green at `6d89906`, with O1 ≠ O2 and O3 ≠ O4 `#require`d first; `FrameModifier.init` dropping `justifyContent = .center` reddens it (O1-O4's leaf x reads 8, 8, 12, 12 against 20, 28, 18, 22). It must stay green through lane 2. **Not closed, and handed to task 4 by name:** a nil axis (`.frame(width: 60)`, which lane 2 test 1 uses), a frame smaller than its content, a frame under a stretching `Box` (EP-8), a frame in a shrinking row (SZ-L) — the row above |
 
 ---
 
@@ -1132,7 +1231,9 @@ two.
   - every table row in `MC-A` (timing, inference, reachability), `MC-C`'s
     SwiftUI arms, `MC-E`, `MC-G` (skeletons and holes 2, 4 and 6), and
     `MC-K`'s model;
-  - lane 1 test 10's numbers, on SwiftUI and on today's MetalUI.
+  - lane 1 test 10's numbers, on SwiftUI and on today's MetalUI;
+  - after lane 1's critic round: the overlay primary-shape probe, the
+    solver-scope thresholds, and `MC-P`'s end-to-end readings and mutations.
 
   The runs are listed under "Where each number was measured".
 - **By reading, not run:**
@@ -1144,6 +1245,9 @@ two.
   - that no stored type in `Sources/` spells a `.padding`/`.frame` chain
     (grep);
   - `MC-C`'s adoption prediction (8 / 10 / 12). Lane 2 test 5 measures it;
+  - `MC-G` hole 7's trap path (`Frame.swift:1049`, `LayoutTree.slot`); lane 3
+    test 9 measures it;
+  - `MC-B`'s AB-O gap: read from `feat/ax-bridge` at `53d3bf6`, not run;
   - lane 1 test 9's predicted readings;
   - that `Component.swift`'s untyped default is pinned by the two tests `MC-H`
     names (from their doc comments' recorded mutations).
@@ -1154,7 +1258,9 @@ two.
   - lane 3's tests 7 and 8, green as measured.
 - **Instrument checks:**
   - **The SwiftUI probes' controls are their positive controls:** identity
-    probe A and B; order probe K0–K2, whose outer sizes and origins differ.
+    probe A and B; order probe K0–K2, whose outer sizes and origins differ;
+    overlay primary-shape probe A, B, P5 (the flip happened) and Q (a reset
+    inside an overlay is visible).
   - **The skeletons' negative clients** each printed the specific diagnostic,
     not just a non-zero exit (practices shape 16's "print the real diagnostic
     before trusting it").
@@ -1256,3 +1362,148 @@ at the count instead of reporting per-field failures after it.
 
 **Mutations:** item 5's is the overlay-paint row of `MC-F`; item 6's is the
 cursor bullet of `MC-B`.
+
+---
+
+## MC-P — `OverlayModifier` numbers the primary from 0 under its own id and the overlay from 0 under `.child(of: id, at: -1, name: nil)`, an overlay-side id no cursor can produce; the overlay's identity is independent of the primary's shape, as SwiftUI's is (replaces `MC-E`'s threaded cursor)
+
+Written after lane 1's critic round (`MC-Q` finding 1), 2026-09-15, commit
+`661efd9`.
+
+**What SwiftUI does, measured** (`docs/probes/swiftui-overlay-primary-shape.swift`,
+both forms byte-identical). A conditional in the primary flips true, false,
+true; the number is the overlay's state serial per step:
+
+| arm | primary | overlay serial per step |
+|---|---|---|
+| A (control) | plain probe, input changes | 1, 1, 1 — kept |
+| B (control) | `.id(generation)` | 2, 3, 4 — new |
+| P1 | `ZStack { if; Color }` | 5, 5, 5 |
+| P2 | `Group { if; Color }` | 6, 6, 6 |
+| P3 | a multi-view `body` | 7, 7, 7 |
+| P4 | `Group { if EmptyView; Color }` | 8, 8, 8 |
+| P5 (control) | `ZStack { if Probe c; Color }` | c: 9, absent, 11 (the flip happened); o: 10, 10, 10 |
+| Q (control) | overlay content itself flips `if`/`else` | 12, 13, 14 — a reset inside an overlay is visible |
+
+Every arm evaluated each probe once per step (`n=1`).
+
+**What MetalUI did under `MC-E`, measured** (test 9 with the threaded cursor
+restored as mutation R1, record §10): the overlay read `.positional(2)` with 3
+taps, then `.positional(1)` with **0**, then `.positional(2)` with 3 (retained,
+divergence 18).
+
+**The choice.**
+
+```swift
+var contentCursor = 0
+content.requestGroupLayout(under: id, at: &contentCursor, pass: &pass)
+var overlayCursor = 0
+let overlaySide = GlobalElementID.child(of: id, at: -1, name: nil)
+overlay.requestGroupLayout(under: overlaySide, at: &overlayCursor, pass: &pass)
+```
+
+- **The primary does not move.** Its elements keep `MC-E`'s ids
+  (`.child(of: id, at: 0…)`), so no primary's state re-seeds, the demo
+  preview's `PreviewToggle` included.
+- **The overlay moves one level**, to `.child(of: .child(of: id, at: -1), at: 0…)`.
+  Its state entries at `MC-E`'s ids are abandoned once, on the first frame of
+  a build carrying this change. No persisted state crosses a launch, so that
+  is a within-session concern only, and no release has shipped `MC-E`.
+- **`-1` is unreachable from any cursor.** Every cursor starts at 0 and only
+  grows (`Element`, `Pair`, `EitherGroup`'s `+= 2`, `ArrayGroup`), so however
+  many indices the primary consumes it cannot land on the overlay side.
+- **No reserved name is added.** CLAUDE.md's seven reserved names are
+  unguarded against a `List` datum or `.id` that describes to one; a
+  `.positional(-1)` component cannot be described by a name at all, since
+  names are `.named`.
+
+**Alternatives, and why not.**
+
+- **`MC-E`'s threaded cursor** — diverges from SwiftUI (table above). Kept as
+  mutation R1.
+- **A reserved name** (`.named("$overlay")`) — the same independence, at the
+  cost of an eighth unguarded reserved name. Kept as mutation R3: test 9's
+  taps stay 3 under it, and only the id assertions of tests 1 and 9 see which
+  spelling is used.
+- **An intermediate id on both sides** (`EitherGroup`'s shape) — re-seeds
+  every overlaid primary's state (`MC-E`).
+- **Keeping `MC-E` and recording a divergence** (the critic's option b) —
+  rejected: the parity answer costs one line and one level on the overlay
+  side only, and `MC-E`'s case against its closest alternative (a reserved
+  name) does not apply to `-1`.
+
+**Tests** (`ModifierCompositionProofTests.swift`):
+
+- **Test 1** `theOverlaysPrimaryAndOverlayElementsHaveDistinctIdentities` pins
+  primary `== .child(of: modifier, at: 0)` and overlay
+  `== .child(of: .child(of: modifier, at: -1), at: 0)`, and the same overlay
+  shape under a two-leaf `HStack` primary.
+- **Test 9**, renamed from `anOverlaysIdentityFollowsTheIndicesItsPrimaryConsumed`
+  to **`anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`**, and
+  inverted: its primary's plain `Rectangle` became a `CountingProposalLeaf("p")`
+  so the test carries the probe's P5 control, `#require`-ing that `p` reads
+  `.positional(1)`, `(0)`, `(1)` across the flip. The overlay then reads, at
+  all three steps: path `[.positional(0), .positional(-1)]`, the exact expected
+  id, 3 taps, its `$state0` slot live.
+- **Tests 2 and 3** are unchanged and stay green.
+
+**Measured** (whole suite, `--build-system native --no-parallel`, record §10):
+
+| run | at | summary | reddens |
+|---|---|---|---|
+| green | `661efd9`, after `swift package clean` | 1094 passed | — |
+| green | `39f6237` | 1094 passed | — |
+| R1: `MC-E`'s threaded cursor restored | `39f6237` | 1094, 5 issues | test 1 (both arms); test 9 (index 2/1/2, taps 3/0/3, slot not live) |
+| R2: the original shared id (overlay under `id` with a cursor at 0) | `39f6237` | 1094, 11 issues | tests 1, 2, 3, 9 |
+| R3: overlay side `.named("$overlay")` | `39f6237` | 1094, 5 issues | test 1 (both arms); test 9 on path and id only (taps 3 at every step) |
+
+**What it costs if wrong.**
+
+- **If `-1` were ever produced by a cursor** (a container that counts down, or
+  an index computed as `cursor - 1`), an overlay could collide with that
+  element. No such cursor exists in `Sources/` today (grep for
+  `positional(` and `at: -`). Test 1 pins the spelling, not the absence of
+  such a container.
+- **Anything that walks `GlobalElementID.parent` and expects every ancestor to
+  be an element** now meets one synthetic ancestor above an overlay. The one
+  walker in `Sources/` on this branch is `focusChain(from:)`
+  (`Focus.swift:134-142`), whose doc already says an id with no produced
+  element "is harmless: `dispatchKey` finds no handler" for it — the same
+  footing as `ScrollView`'s `$anim-content`/`$anim-viewport` named children.
+  By reading, not run.
+- **The AX bridge's parent walk** (`feat/ax-bridge:Sources/MetalUI/AccessibilityTreeBuilder.swift:30-41`,
+  "the nearest `GlobalElementID.parent` ancestor that recorded") steps over the
+  synthetic ancestor, which records nothing, to the overlay modifier's nearest
+  recording ancestor. For integration: by reading, not run.
+
+**For CLAUDE.md, owned by integration:** the identity section gains "an
+overlay's elements number under a synthetic `.positional(-1)` child of the
+modifier, so its state is independent of the primary's shape (MC-P, SwiftUI
+parity)"; lane 1's record line "the overlay's index now depends on its
+primary's index count" is withdrawn.
+
+**Mutations:** R1-R3 above.
+
+---
+
+## MC-Q — critic round after lane 1, 2026-09-15: each finding and what was done with it
+
+Eight findings against `ec65da6`. Seven applied, one partly applied with the
+rest rejected for a stated reason. Lane 2's paused skeleton was stashed and
+restored around this round and was not edited.
+
+| # | finding | disposition |
+|---|---|---|
+| 1 | `MC-E` pins overlay behaviour SwiftUI does not have, and calls it parity | **Applied, option (a).** The critic's probe was committed with two added controls (P5, Q) and a per-arm evaluation count, run in both forms. The overlay now numbers under `.child(of: id, at: -1)` (`MC-P`); tests 1 and 9 are inverted (9 renamed and given the P5 control); `MC-E`'s parity sentence, trailing-sibling sentence and remedy are struck in place; the source doc comment is rewritten. Measured green, and red under R1 (threaded), R2 (shared) and R3 (reserved name). |
+| 2 | After merge, an inner `hidden()` layer stops hiding its subtree from accessibility | **Applied in part; the rest rejected with a reason.** Applied: `MC-B` now states what "every observable" does not cover (per-element group-default hooks) and why nothing is lost on this branch; the spec's merge notes gain the rule "any hook added to `Element`'s default `requestGroupLayout`/`prepaintGroup`/`paintGroup` is mirrored per layer in `ModifiedElement`", the concrete AB-O mirroring (one helper shared with `Element.prepaintGroup`, wrapping layer k's registration and everything inside it), and the owed integration test comparing `Frame.axEmissions` for `Text("x").padding(4).hidden().frame(width: 60)` against hand-built boxes, with its mutation. **Rejected: implementing the per-layer suppression and its shared helper on this branch.** AB-O's check, `Frame.collectsAccessibility`, `withAccessibilitySuppressed` and `axEmissions` do not exist here; a helper written now would be an identity wrapper with no behaviour, no test able to redden and a textual conflict with AB-O's own edit to the same function at merge — a declared-but-inert seam. Lane 2's spec asks only that the per-layer loop be written so each layer's registration and everything inside it can be wrapped in one scoped call. |
+| 3 | Lane 2 test 6 cannot reliably catch a return to the first `MC-A` design | **Applied.** `-solver-scope-threshold` exists on both toolchains; `chain-solver-scope-guard.sh` measures the model's thresholds (identical on both) and the guard's two-module shape with an in-file negative (0.1 s each). Test 6 becomes the guard `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget`: positive at threshold T, in-test negative (the first design's overloads in the fixture) rejected with "unable to type-check", `#require`d to disagree; T set by lane 2 from the real module's measured minimum; red once by moving the concrete overloads into `ModifiedElement.swift`. `Typecheck.swift` gains an additive frontend-arguments parameter. Type names stay in test 1. |
+| 4 | Lane 2 test 5 could pin a snap | **Applied.** The spec now requires the generation change to be a write plus `setNeedsRedraw()` INSIDE the `withAnimation` body, cites the rollback at `Animation.swift:717-720`, and requires a `try #require` that the t = 0.5 reading lies strictly between the t = 0 and settled readings before any value is pinned. |
+| 5 | The merge notes are stale against `feat/environment` at `f4dcad8` | **Applied.** `bind(_:in:id:)` (`StateReflection.swift:104`, no `environment:` parameter, no default by EV-W); the invented `aProposalContainerReadsTheEnvironmentDuringLayout` withdrawn in favour of E11 `proposalContentReadsTheEnvironmentThroughAScopeInEveryPhase` (`EnvironmentTests.swift:468`); the environment record's stale "two `StateBinder.bind` call sites" (`docs/record/11-environment.md:258-259`) named for integration (not edited: another track's file); `EnvironmentScope` arms owed in test 7 on both paths; the `NativeTappable.swift` conflict with AX lane 3's `OnTapModifier.prepaint` edit named. |
+| 6 | Test 4's `$anim` check was never shown to detect a missing slot | **Applied.** `BoxWithoutAnimated`, a test-local copy of `Box`'s phases minus `animated`, is the equal-count disagreeing oracle, `#require`d to read `[true, false, true]`. R4 (`FrameModifier` skips `animated`) reddens test 4 and test 5; R5 (the wrapper calls `animated`) reddens the `#require` alone. |
+| 7 | `MC-L` marks frame ordering closed on a narrow probe | **Applied.** The scope is stated in `MC-L`'s row and in test 10's doc comment; the uncovered cases are a new `MC-L` row owned by task 4. |
+| 8 | `MC-G`'s holes omit a stored typed id | **Applied, as hole 7** (not folded into hole 3, which is about minting, not reuse): a run-time trap by reading, pinned at the kernel today, and end to end by a new lane 3 exit test (test 9). |
+
+**What this round did not change:** `MC-A`'s representation, `MC-C`, `MC-D`,
+`MC-F`, `MC-H`, `MC-I`, `MC-J`, `MC-K`, lane order.
+
+**Mutations:** `MC-P`'s R1-R3 and `MC-B`'s R4-R5.
