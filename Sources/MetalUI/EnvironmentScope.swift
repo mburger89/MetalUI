@@ -107,7 +107,7 @@ public struct EnvironmentScope<Content: ElementGroup>: ElementGroup {
 /// `aScopeOverProposalContentContributesNoNodeAndConsumesNoIndex` and
 /// `aProposalStateCounterKeepsItsCountAcrossAChangingScope`; calling the content
 /// twice reddens the proposal `EnvironmentScope` arm of
-/// `everyModifierWrapperDelegatesEachPhaseExactlyOnce` (record §11, integration).
+/// `everyModifierWrapperDelegatesEachPhaseExactlyOnce` (record §13).
 extension EnvironmentScope: ProposalElementGroup where Content: ProposalElementGroup {
     public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
                                                     at cursor: inout Int,

@@ -1401,6 +1401,22 @@ task 11, which is a real gap in the proposal-path demo. Script item 7 names it.
 
 ## AB-Z — the merge contract with the environment and modifier-composition tracks
 
+**Integration status (2026-09-15, record §13).** Reconciled to the environment
+track's `EV-W` item 4, which supersedes this contract on the `$disabled` blocker
+hitbox, its mutation, the `keyboard` copy with stripped `isFocusable`/`actions`,
+the ungated `$focus` write and the `environment:` init parameter — none of those
+exists on the merged tree. A disabled element registers no hitbox and nothing in
+the focus registry; presence and role read the ungated `handlers`, actions read
+the gated registrations, and the record carries `isEnabled: enabled`. The joint
+test is `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`
+(`TrackInteractionTests.swift`, five arms with its mutations in record §13).
+Item 4 (`ModifiedElement`) was **not** delivered by either track:
+`aHiddenInnerModifierLayerSuppressesEverythingInsideIt` was red at the merge
+commit (2 issues) and is green since `Frame.suppressingAccessibilityIfHidden`
+wraps each inner layer (`fba579e`) — a per-layer wrap rather than the
+"outermost-first hidden layer opens one scope" this item sketched; the two are
+equivalent because nested suppression scopes with `except: nil` compose.
+
 **What.** The spec's **"Merge contract"** section fixes four things, written
 against the other tracks' **current** designs: `feat/environment` at
 `f4dcad8` (its spec's "Lane 3" and "Owed to the integration step", unchanged

@@ -1384,6 +1384,14 @@ count.
 
 ## EV-W — collisions with the parallel tracks: which are loud, which are SILENT, and what the integration step must do about each
 
+**Integration status (2026-09-15, record §13).** Items 1, 2, 4 and 5 resolved
+as written; item 3's doc relabelled. Item 1: the typed entry, the fixture port,
+E11's arm 2 and control, and the two wrapper arms are in; its five mutations
+re-run on the merged tree and each reddens. Item 4: the merged method is as
+given, with `isEnabled: enabled`; the joint test is written (five arms, adding a
+modifier-layer outer and inner arm) and its mutations run. `EV-X`'s proposal
+side is measured: outside (`aProposalModifierWrittenAfterAScopeSitsOutsideIt`).
+
 **What.** This track is merged with `feat/modifier-composition` and
 `feat/ax-bridge`. **Third pass (critic findings 2, 6, 9):** the second pass wrote
 this list against those tracks' *design* commits (`1c6f686`, `2042a54`), and
@@ -1843,6 +1851,10 @@ the arm's reading, not by inspection.
   fallback, not a blind arm.
 
 ## EV-Y — `EnvironmentValues()` holds SwiftUI's bare defaults; the WINDOW stamps the current locale
+
+**Integration status (2026-09-15, record §13):** both claims the second round
+found unpinned are now pinned. E24 gained a windowless-`Frame` arm and an
+unbound-`@Environment` arm; m1 reddens `EnvironmentTests.swift:914`, m2 `:917`.
 
 **What.** `EnvironmentValues.init()` sets `locale` to `Locale(identifier: "")`,
 not `Locale.current`. `Window.environment`'s initial value is

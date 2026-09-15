@@ -5,8 +5,9 @@ A GPU-accelerated UI framework for Swift, architecturally modeled on
 as idiomatic Swift. **macOS only today** — `Package.swift` declares
 `platforms: [.macOS(.v14)]`, `grep -rn UIKit Sources/ Tests/` returns zero
 hits, and `App.swift:37` constructs `AppKitPlatform` unguarded. The platform
-seam exists (`PlatformWindow`, `Platform`, `RenderSurface` — 15 requirements)
-but has no non-macOS conformer, and `InputEvent` has no `.touch` case. The
+seam exists (`PlatformWindow`, `Platform`, `RenderSurface` — 17 requirements;
+`PlatformWindow`'s `onAccessibilityRequest` and `publishAccessibilityTree(_:)`
+have **no default implementations**, `AB-R`) but has no non-macOS conformer, and `InputEvent` has no `.touch` case. The
 spec's §1 target of macOS **and iOS/iPadOS** is unmet, not delivered.
 
 **This file is the rules. The reasoning, the measurements and the history live
@@ -44,8 +45,11 @@ CLAUDE.md AGENTS.md` before committing.
   | `TB-`, `RX-`, `CO-` | tombstones (`TB-A`…`TB-AH`), reactivity (`RX-A`…`RX-R`), Component (`CO-A`…`CO-Z`, next is `CO-AA`) | lettered, two-letter tails are deliberate |
   | `AN-` | animation (`AN-A`…`AN-W`, next is `AN-X`) | lettered |
   | `SA-` | SwiftUI alignment, native kernel completion (`SA-A`…`SA-U`, next is `SA-V`) | lettered |
+  | `MC-` | modifier composition, plan task 3 (`MC-A`…`MC-S`, next is `MC-T`) | lettered |
+  | `EV-` | environment and disabled state, plan task 9 (`EV-A`…`EV-Z`, next is `EV-AA`) | lettered |
+  | `AB-` | accessibility bridge, plan task 12's bridge half (`AB-A`…`AB-AG`, next is `AB-AH`) | lettered |
 
-  A bare `CS-3`, `TB-3`, `CO-3`, `AN-3`, `SA-3` etc. is a typo, not a citation. Sweep
+  A bare `CS-3`, `TB-3`, `CO-3`, `AN-3`, `SA-3`, `MC-3`, `EV-3`, `AB-3` etc. is a typo, not a citation. Sweep
   for stray citations case-insensitively. The animation milestone (M4 spec 3,
   on `feat/animation`) is specced at
   `docs/superpowers/specs/2026-09-03-animation-design.md`, planned at
@@ -69,11 +73,23 @@ CLAUDE.md AGENTS.md` before committing.
   how to run them (`SA-O`). The earlier range `a15ec83..7cfcddc` has no
   decisions doc and no mutation record. Record:
   `docs/record/09-swiftui-alignment.md`.
+- **Tasks 3, 9 and 12 (three parallel tracks, integrated 2026-09-15 on
+  `integrate/tasks-3-9-12`)**, each with a spec in `specs/`, a decisions doc
+  in `docs/superpowers/` and a record file:
+  - modifier composition (task 3, `MC-`): `specs/2026-09-15-modifier-composition-design.md`,
+    `2026-09-15-modifier-composition-decisions.md`, record §10;
+  - environment (task 9, `EV-`): `specs/2026-09-15-environment-design.md`,
+    `2026-09-15-environment-decisions.md`, record §11;
+  - accessibility bridge (task 12, `AB-`): `specs/2026-09-15-accessibility-bridge-design.md`,
+    `2026-09-15-accessibility-bridge-decisions.md`, record §12;
+  - the integration itself (merge resolutions, the interaction fix, the
+    cross-track tests and the demo stand-in): record §13.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests. Sixteen numbered shapes of test that cannot fail, seven ways a
   record goes wrong, all observed here.
 - **Full record:** `docs/record/README.md` indexes the sections; `01`–`08`
-  are the split pre-2026-09-09 file, `09` is the SwiftUI-alignment record.
+  are the split pre-2026-09-09 file, `09` is the SwiftUI-alignment record,
+  `10`–`12` the task 3/9/12 tracks and `13` their integration.
 
 ## Build and test
 
@@ -88,18 +104,19 @@ swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout preview window (value must be exactly "1")
 ```
 
-- **Counts, dated:** **1084 tests**, **97** browser-fixture goldens, **45**
-  `swiftc -typecheck` guards, 0 `error:`, 0 `warning:` — measured 2026-09-14
-  on `feat/kernel-completion` at `553b980`, unfiltered `swift test
-  --no-parallel` after `swift build --build-system native` (one summary line;
-  only the two gated tests skipped; all six new guards logged `passed`).
-  Delta from `34e2841` (993 / 97 / 39, as at `7cfcddc`): **+91 tests, 0
-  goldens, +6 guards**,
-  all additions, from task 2's three lanes — protocol +17 (1010), boundaries
-  +22 (1032), robustness +52 (1084); record §09. Guards per file:
-  `PhaseSeparationTests` 19, `ErasureCompileGuards` 10,
-  `ElementGroupTrapTests` 5, `ProposalLayoutCompileGuards` 6,
-  `UnitSafetyTests` 2 (3 hits, one a comment), `AXNodeTests` 3. Before that:
+- **Counts, dated:** **1226 tests**, **97** browser-fixture goldens, **61**
+  `swiftc -typecheck` guards, 0 `error:`, 0 `warning:` — measured 2026-09-15
+  on `integrate/tasks-3-9-12` at `2456c69`, unfiltered `swift test
+  --build-system native --no-parallel` after `swift build --build-system native
+  --build-tests` (one summary line; only the two gated tests skipped), and again
+  1226 / 0 / 0 under the default build system. Delta from 1084 / 97 / 45:
+  **+142 tests** (composition +32, environment +49, bridge +57, integration +4),
+  **0 goldens, +16 guards** (composition +8, environment +8); record §13.
+  Guards per file: `PhaseSeparationTests` 19, `ErasureCompileGuards` 10,
+  `EnvironmentCompileGuards` 8, `ProposalNodeIDCompileGuards` 6,
+  `ProposalLayoutCompileGuards` 6, `ElementGroupTrapTests` 5, `AXNodeTests` 3,
+  `UnitSafetyTests` 2 (3 hits, one a comment), `ModifiedElementCompileGuards` 2.
+  Before that: 1084 / 97 / 45 at `553b980` (2026-09-14, task 2). Before that:
   923 / 97 / 35 at `7f58db9` (2026-09-11). Earlier: 861 (47 + 448 + 50 + 6 + 288 + 22) on
   `feat/animation` at `b869253`; `master` at the Component milestone's end was
   811 / 87 / 34. **The per-target split is no longer printed on this
@@ -128,13 +145,18 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout previe
   fixture and must not gain one** (ruling TX-B).
 - **Guards:** count with per-file `grep -c canTypecheck` across
   `PhaseSeparationTests`, `ErasureCompileGuards`, `ElementGroupTrapTests`,
-  `ProposalLayoutCompileGuards`, `MetalUICoreTests/UnitSafetyTests` (one hit
-  is a comment) and `MetalUITests/AXNodeTests`.
+  `ProposalLayoutCompileGuards`, `ModifiedElementCompileGuards`,
+  `ProposalNodeIDCompileGuards`, `EnvironmentCompileGuards`,
+  `MetalUICoreTests/UnitSafetyTests` (one hit is a comment) and
+  `MetalUITests/AXNodeTests`.
   `Tests/MetalUITestSupport/Typecheck.swift` also matches and holds only the
-  declaration — count guards, not files. **Two helpers:** the 39 older guards
-  use `typecheck(_:importing:)`, which wraps the fixture in a function in
+  declaration — count guards, not files. **Two helpers:** 40 guards (the 39
+  older ones and one of `EnvironmentCompileGuards`') use
+  `typecheck(_:importing:)`, which wraps the fixture in a function in
   Swift 5 mode, so every fixture type is local and no `public` or file-scope
-  `extension` compiles; the six in `ProposalLayoutCompileGuards` use
+  `extension` compiles; the other 21 — `ProposalLayoutCompileGuards`'
+  six, `ModifiedElementCompileGuards`' two, `ProposalNodeIDCompileGuards`' six
+  and seven of `EnvironmentCompileGuards`' — use
   `typecheckFile(_:importing:)` (whole file, `-swift-version 6`), pinned by
   its own instrument guard `typecheckFileChecksInTheSwift6LanguageMode`. A
   guard about what an **external module** can write uses `typecheckFile`
@@ -154,7 +176,9 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout previe
   that crosses a module boundary leaves incremental builds disagreeing about
   layout — observed with `Scene` twice and `Display`, and a hazard again when
   `Scene`'s storage and `FontKey` (`MetalUIText` → `MetalUI`) changed on
-  2026-09-10, both cleaned before testing (record §06). Symptoms: SIGSEGV or a
+  2026-09-10, both cleaned before testing (record §06). Turning a stored
+  property on a public class into a computed one fails the incremental **link**
+  instead (`Undefined symbols … direct field offset`; record §12). Symptoms: SIGSEGV or a
   truncated run with no summary line, or an assertion whose *expected* side
   holds a value its own source cannot produce. Clean before debugging.
 - **Targets:** eight one-way-dependent non-test targets (`MetalUICore`,
@@ -189,13 +213,25 @@ joins it.** Consequences (record §01):
   Remedy: name the **trailing sibling**, not the conditional content. Not a
   divergence; it is the one notion of sameness `StateTable`, focus and hover
   share.
-- **`.padding(_:)` and `.frame(width:height:)` on a legacy element are
-  wrappers** (`Box<Self>`, `FrameModifier<Self>`): each takes the element's
-  cursor slot and pushes the element one id level down, so adding or removing
-  one re-seeds its `@State`, focus and `$anim`. **`.id()` must be the outermost
-  modifier** — `X().id("n").padding(4)` names the inner element under a
-  positional wrapper, and the trailing-sibling remedy above silently fails.
-  Unpinned in either order.
+- **`.padding(_:)` and `.frame(width:height:)` on a legacy element return ONE
+  flat `ModifiedElement<LayerBase>`** (`MC-A`). Each modifier appends a layer;
+  each layer is one node and one id level. The outermost layer takes the
+  parent's cursor slot, each inner layer is `positional(0)` (or its name) under
+  the next one out, and the content numbers from 0 under the innermost layer
+  (`MC-C`) — the path nested `Box`es produced. `.id()` names the layer it
+  follows, so **`.id()` must still be the outermost modifier**
+  (`anIDAfterAChainsLastWrapperNamesTheOutermostLayer`). Changing the layer
+  COUNT resets the wrapped element's `@State`, focus, `$anim` and its
+  accessibility element; changing a layer's VALUES does not. A layer added at
+  run time is adopted by the new outermost layer, which keeps the old outermost
+  id, `$anim` baseline, hitbox id and accessibility node (divergence 20). A
+  stored type spells one level, `ModifiedElement<Text>`; the nested spelling
+  does not compile (guard).
+- **An `.overlay`'s primary numbers from 0 under the modifier's id; the overlay
+  numbers from 0 under `.child(of: id, at: -1)`** (`MC-P`), so the overlay's
+  state does not depend on the primary's shape, as in SwiftUI
+  (`docs/probes/swiftui-overlay-primary-shape.swift`). No cursor produces `-1`;
+  do not give it another meaning.
 - `GlobalElementID.cachedHash` and `==` are safe alone and unsafe together; do
   not simplify `==`'s chain walk on a green suite.
 - Prefer SwiftUI's answer where SwiftUI and CSS differ above the engine
@@ -204,14 +240,16 @@ joins it.** Consequences (record §01):
 **Containers.** `Column`/`Row` centre on the cross axis, `Box` stretches
 (EP-8, set in the inits, not in `Style`) — so a childless `Box` with no cross
 size paints nothing; declare a size or `.alignItems(.stretch)`. **Modifier
-order now decides which box a modifier reaches**: since `.padding` returns an
-outer `Box`, a container modifier written after it (`.alignItems`, `.gap`,
+order now decides which box a modifier reaches**: since `.padding` adds an
+outer layer, a container modifier written after it (`.alignItems`, `.gap`,
 `.justifyContent`, `.background`) configures the one-child wrapper, and an item
 modifier written before it (`.flexGrow`, `.alignSelf`, `.margin`) lands on
 something that is no longer the parent's flex item. All of it compiles.
 Chained `.padding` accumulates (4 then 8 pads 12,
-`chainedPaddingCreatesNestedWrappers`). `.frame(width:height:)` is a centring
-flex container (`FrameModifier.swift:16-24`) that sizes itself and does **not
+`chainedPaddingCreatesNestedWrappers`); a `Self`-returning modifier after a
+wrapper configures the outermost layer. `.frame(width:height:)` is a centring
+flex container (a frame layer, `ModifiedElement.swift`'s `frame`,
+`justifyContent = .center`) that sizes itself and does **not
 stretch or impose** that size on its content: `Box().background(…)
 .frame(width: 40, height: 40)` paints a 0×0 box (by reading; untested). Its
 content box is still the child's available space, so a long `Text` or a
@@ -229,8 +267,13 @@ the last degrades to a blank list (divergence 14). Frame 0 builds every row
 (MP-I: ~76 ms release at 500 rows, ~17 s at 100k). A row scrolled out for more
 than two generations loses `@State` and focus once the table exceeds 256
 entries (TB-AH); values a long scroll must keep belong in the data. Rows emit no
-AX nodes; the `List` emits one with `logicalCount`. Off-screen rows' model reads
-are not tracked (RX-P, not a divergence).
+`axNodes`; while an accessibility client is active the `List` publishes an
+`AXTable` whose `AXRowCount` is `logicalCount`, and each **realized** row a
+`.row` with `AXIndex` = its logical index; rows outside the window are not
+elements. **An unbounded window (no scroll context, a scroller with no measured
+viewport, or `rowHeight <= 0`) publishes no rows**, and one inside a scroller
+asks for one more frame, capped window-wide (`AB-L`, `AB-X`). Off-screen rows'
+model reads are not tracked (RX-P, not a divergence).
 
 **`Deferred` is a portal: one child, no layout node, hoists to the root layer
 and resets clip and scroll offset together** (AP-I). No z-index. Absolute
@@ -246,18 +289,21 @@ overwrites internal sizing, chained `.padding` replaces rather than
 accumulates, and `.padding()` on a single-`Text` component is inert while that
 leaf is content-sized (leaf box model, below). **The same spelling on an
 ordinary element wraps and accumulates** — two meanings by receiver type.
-`.frame(width:height:)` on a component wraps its body in one `FrameModifier`
-node without overwriting its children
+`.frame(width:height:)` on a component wraps its body in one `ModifiedElement`
+layer without overwriting its children
 (`aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`). A caller's
 distributing modifier never animates (review finding B-7; see the Animation
 section's snap list). `Component` itself has no `.background()` (use a `Box`)
 and no `.id()` — declare `var elementID`. **Both holes have side doors, by
 reading only (no typecheck guard):** `anyComponent.frame(width:height:)` returns
-a `FrameModifier`, a `StyledElement`, so `.frame(…).background(…)` compiles on
+a `ModifiedElement`, a `StyledElement`, so `.frame(…).background(…)` compiles on
 any component; and a component retro-conformed to `ProposalElementGroup` picks
 up that extension's `.background(ColorToken)`, `.padding(Edges<Pixels>)`,
 `.frame(…)` and the rest (`NativeModifiedContent.swift:187`), so on it
 `.padding(Pixels)` distributes while `.padding(Edges<Pixels>)` wraps.
+A `Component` over proposal content declares `some ProposalElementGroup`;
+`some ElementGroup` does not conform to the marker (guard 3,
+`ProposalNodeIDCompileGuards`).
 `Deferred` and `List` reject a component. No production caller yet (CO-Y); the demo's opt-in
 proposal preview has one (`PreviewToggle`, retro-conformed to
 `ProposalElementGroup`).
@@ -275,7 +321,11 @@ Seeding marks, so a declared,
 unread `@State` is never swept. **A write marks the window dirty via
 `StateTable.onWrite`; write from input, never from a phase** — a phase-time
 `@State` write keeps the link awake forever. `@State` inside `AnyElement` is
-inert (see the inert table).
+inert (see the inert table). **`Element.prepaintGroup`/`paintGroup` re-bind
+`@State`**, so the group entry's bind (`GroupMember.swift`'s
+`enteringGroupMember`, the one helper the untyped default and both typed
+defaults call, `MC-H`) is observable only by a LAYOUT-time read; a test of an
+entry's bind must read during layout.
 
 **`@Observable` is a second dirty source: the whole frame build is tracked.**
 Any model read in content, `requestLayout`, `prepaint` or `paint` is a
@@ -305,15 +355,114 @@ prepaint/paint boundary. Handlers outlive the frame (`Window.lastHitboxes`), so
 
 **`StyledElement` has four requirements — `style`, `decoration`, `elementID`,
 `handlers`** — and a conformer must also call `registerHandlers` in its own
-`prepaint` — that one call registers the hitbox, focus, AND a declared
-`handlers.axNode` (nothing enforces the call;
-`onClickIsLiveOnEveryConformerThatCanRegisterOne` and
-`aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` are the
-guards — **neither has a `FrameModifier` arm**, though it is a conformer that
-calls `registerHandlers`; nor does any animation or background-chain per-site
-guard). `Handlers` is
+`prepaint` — that one call registers the hitbox, focus, a declared
+`handlers.axNode`, AND, while an accessibility client is active, the element's
+accessibility record; it is also where the disabled gate lives (nothing
+enforces the call; skipping it makes the element ungated and invisible to
+VoiceOver. `onClickIsLiveOnEveryConformerThatCanRegisterOne`,
+`aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` and
+`everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled` are the guards).
+`ModifiedElement` has an inner-layer and an outermost-layer arm in every
+per-site guard (`MC-I`). **Any hook added to `Element`'s group defaults
+(`requestGroupLayout`/`prepaintGroup`/`paintGroup`) must be mirrored per layer
+in `ModifiedElement`** (`MC-B`): a layer gets no group default of its own. The
+one such hook today, `AB-O`'s `display: none` suppression, was missed by both
+tracks and caught only by the merged suite (record §13). `Handlers` is
 not `Equatable`; `HandlerShape` in `ModifierTests.swift` must gain a field in
 the same change `Handlers` gains a member — it has fallen behind twice.
+
+**Environment (task 9, `EV-`).** `EnvironmentScope` (`.environment(_:_:)`,
+`.transformEnvironment`, `.disabled`, `.dynamicTypeSize`, `.theme`) is layout-
+and identity-transparent: no node, no cursor index, no id, so a changing value
+keeps the `@State` below it. Nearest writer wins; `.transformEnvironment`
+composes with the inherited value; nothing cascades.
+- A scope's transform runs **once per frame, in layout**; prepaint and paint
+  re-push the stored result, so all three phases read identical values
+  (`EV-V`). Its typed `requestProposalGroupLayout` is a copy of the untyped
+  entry and pinned on its own (record §13).
+- Every value is readable in every phase through `pass.environment`, so there
+  is **no phase-only query and no `PhaseSeparationTests` guard** — except
+  `theme`: `PaintPass.theme` only, unreachable through any public key path,
+  `\.self` included.
+- `@Environment` is bound like `@State`, by reflection, per element per phase,
+  to a snapshot; unbound it reads `EnvironmentValues()`'s defaults silently
+  (locale `''`); inside `AnyElement` it is inert. A type declaring it must be
+  main-actor isolated (every `Element` and `Component` is).
+- `Window.environment` is the root. **Every write dirties, a no-op included**
+  — write from input, never from a phase. `theme` and `pixelLength` are
+  re-stamped from `Window.theme` and the surface scale, so writing either
+  through `window.environment` or `rootEnvironment` does nothing.
+  `Frame.rootEnvironment` traps if set during `render` (`EV-Z`). A `Frame`
+  built without a window roots at `EnvironmentValues()` (locale `''`); `Window`
+  stamps `Locale.current` (pinned, `EV-Y`).
+- **A modifier written after a scope sits outside it** (`EV-X`), on both
+  paths: `.disabled(true).frame(…).onClick {}` fires, and a proposal
+  `.padding`/flexible frame/`.onTap` after a scope paints and registers with
+  the enclosing values (`aProposalModifierWrittenAfterAScopeSitsOutsideIt`).
+  Over legacy content `.padding` and handler modifiers do not compile directly
+  on a scope. A `Deferred` inside a scope keeps its declaring scope's values.
+
+**`.disabled(d)` is `transformEnvironment(\.isEnabled) { $0 = $0 && !d }`** — a
+raw `.environment(\.isEnabled, true)` overrides it, and the gate reads the
+value, not the modifier (`EV-D`). **One gate, in `Frame.registerHandlers`'
+5-argument implementation** (the 3-argument overload is a bare forward: `Text`
+and `OnTapModifier` reach the 5-argument one directly, so a gate in the
+3-argument method leaves them ungated). A disabled element registers **no
+hitbox** (neither hovered nor pressed; its click reaches an enabled ancestor or
+an enabled sibling under it), **nothing in the focus registry** (no
+`isFocusable`, `actions`, raw `onKey` or `keyContext`), no `$focus` slot, and
+its declared AX node gains `.disabled`. For an accessibility client it is still
+published — presence and role read the ungated `handlers` — with
+`isEnabled` false and no actions, and every request is refused
+(`aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`).
+A click needs the target enabled at press and at release. **Scroll regions are
+outside the gate**: a `.disabled` `ScrollView` still scrolls on the wheel
+(`aDisabledScrollViewStillScrollsOnTheWheel`; SwiftUI unmeasured, `EV-Q`). A
+site that registers handlers without that method is ungated with no diagnostic;
+a new site gains an arm in the D2 guard in the same change. `KeyBinding` is the
+keymap's type; `Binding` is a deprecated alias that plan task 10 deletes **in
+the change that introduces a SwiftUI `Binding`**.
+
+**Accessibility is a tree pushed through a two-requirement seam, and it costs
+nothing without a client** (task 12's bridge half, `AB-`).
+- Nothing is recorded until a client activates the window — a host-view query
+  **other than** the focused-element query, or VoiceOver running (`AB-B`) —
+  and activation is sticky. An inactive frame pays, by reading, a `Bool` read
+  and one `handlers.axNode` copy per `registerHandlers` call and a few `Bool`
+  stores per frame and per `List` (`AB-M`).
+- **Synthesized nodes are records (`Frame.axEmissions`), never `Frame.axNodes`
+  and never a `$ax` slot** (`AB-U`); only declared nodes
+  (`accessibilityLabel`/`accessibilityValue`, `List`) emit, every frame, client
+  or not.
+- **Geometry is not structure** (`AB-K`): an animation tick publishes geometry
+  only, posts nothing and touches no element; do not compare frames in
+  `hasSameStructure`.
+- Elements are created only when a client reads them, one per id while
+  published, detached on first absence and never revived (`AB-D`, `AB-X`);
+  notifications post only for vended elements, `.layoutChanged` once per client
+  read.
+- **Every `NSAccessibility` override is nonisolated in practice** (`AB-AE`):
+  answer through `mainActorAnswer(_:fallback:_:)`, never a bare
+  `assumeIsolated`; its `-typecheck` probe proves nothing, compile to SIL.
+- A press runs `onClick` through the last frame's hitboxes, so it is refused
+  under `allowsHitTesting(false)` and when disabled; `onTap` publishes nothing
+  but still presses (`AB-H`, `AB-Y`). Increment/decrement are the
+  `AccessibilityAdjustment` action. Focus is `Window.focus` only; nothing
+  focused reports the host view (`AB-J`).
+- Hit testing ranks `(layer, order)` on the **clipped** `visibleFrame`,
+  half-open, as click dispatch does (`AB-W`); `accessibilityFrame()` is the
+  **unclipped** frame converted at read time (`AB-E`).
+- Labels: a plain container or wrapper **distributes** its label and value to
+  its children, outer declaration winning; a click target is a button that
+  folds its non-interactive descendants' texts, joined `", "`; a focusable or
+  adjustable labelled container keeps its node (`AB-F`, `AB-G`, `AB-T`).
+- A conformer that paints text passes `accessibleText:` through the internal
+  `registerHandlers` overload, or it is silent. A layer with `display: none`
+  suppresses everything inside it — one check,
+  `Frame.suppressingAccessibilityIfHidden`, called by `Element.prepaintGroup`
+  and by each inner `ModifiedElement` layer (`AB-O`, `AB-AD`, record §13).
+- `AccessibilityRequest` is ambiguous in any file importing `AppKit`; qualify
+  it (`MetalUIPlatform.AccessibilityRequest`) until renamed.
 
 **Focus: `Window.focus(_:)` is the only mover; clicking does not focus.** Keys
 resolve against the `Keymap` first, then bubble raw `onKey` up the focused id's
@@ -401,18 +550,22 @@ has no window in scope — with two windows live the first to build wins.
 `Style`/`Decoration` against the element's `$anim` slot. **Colour is a second
 helper in a second phase** (`AnimatedColor.swift`), because two `ColorToken`s
 interpolate through their theme-resolved `Hsla` and **only `PaintPass` has a
-theme**. Layout sites: `Box`, `Stack`, `ScrollView` ×2, `FrameModifier`.
+theme**. Layout sites: `Box`, `Stack`, `ScrollView` ×2, `ModifiedElement`
+(one `animated` call per layer).
 `Component` is not a site (it contributes no node);
 `everyRegisteringSiteAnimatesItsStyle` carries a `Component` arm whose control
 half animates and whose caller-modifier half is pinned wrong on purpose. Paint
-sites: `Box.paint`, `Stack.paint`, `Text.paint`, `FrameModifier.paint`. Of the
-twelve library `pass.fill` sites the other eight never animate: the two scroll
-indicators (drive themselves by dirtying) and the six proposal-path fills.
+sites: `Box.paint`, `Stack.paint`, `Text.paint`, `ModifiedElement.paint` (the
+outermost layer's `animatedBackground` and the inner layers'). Of the thirteen
+library `pass.fill` sites five animate (`ModifiedElement.paint` holds two); the
+other eight never animate: the two scroll indicators (drive themselves by
+dirtying) and the six proposal-path fills.
 A site that skips its helper is silently unanimated with no diagnostic; the two
 per-site guards are `everyRegisteringSiteAnimatesItsStyle` and
-`everyBackgroundPaintingSiteAnimatesItsColour`, and **neither has a
-`FrameModifier` arm** — deleting `FrameModifier.swift`'s `animated` or
-`animatedBackground` call is expected to redden nothing (not mutation-tested). Neither of those guards can see
+`everyBackgroundPaintingSiteAnimatesItsColour`; both carry `ModifiedElement`
+inner- and outermost-layer arms, and deleting either layer's `animated` or
+`animatedBackground` reddens them (record §10, mutations I1, I2, V1, V11).
+Neither of those guards can see
 the hover/focus chain: the colour guard's arms declare no `onClick` or
 `focusable()`. The chain is pinned per site by
 `everyBackgroundPaintingSiteHonoursHoverAndFocus` and
@@ -422,7 +575,7 @@ through a real `Window`.
 
 `animatedBackground(_:for:pass:)` (`AnimatedColor.swift`), called by all four
 background sites — `Box.paint`, `Stack.paint`, `Text.paint`,
-`FrameModifier.paint` — resolves the
+`ModifiedElement.paint` — resolves the
 `focusBackground`/`hoverBackground`/`background` `??` chain and animates the
 result — **one value, not three fields**. Until 2026-09-10 the chain lived in
 `Box.paint` alone, so both modifiers compiled on `Stack` and `Text` and painted
@@ -462,7 +615,7 @@ and it cannot reach that slot until `ElementGroup` gains the associated type
 ruling TB-M names. To animate a component's size, declare it inside the
 component. Pinned wrong on purpose by `everyRegisteringSiteAnimatesItsStyle`'s
 `Component` arm. `.frame(width:height:)` is not a distributing modifier: it is
-its own `FrameModifier` node with its own `$anim` slot, so by reading it
+its own `ModifiedElement` layer with its own `$anim` slot, so by reading it
 animates on a component too (no test drives it).
 **Everything on the proposal path snaps**: no `HStack`/`VStack`/`ZStack`,
 `ModifiedContent` wrapper, `Background`, `Rectangle`, `Color`, `ProposalText`
@@ -509,7 +662,8 @@ or `ProposalLayoutContainer(layout) { … }` (also `MyLayout { … }`).
   subview is centred at the parent's proposal.
 - **Proxies expose `priority`, `isSpacer` and a cached `sizeThatFits`**, each
   by the built-in stack's own rule.
-- **Migration** (`SA-F`, under `SA-R`'s amended criterion):
+- **Migration** (`SA-F`, under `SA-R`'s amended criterion; every registrar
+  now returns `ProposalNodeID`):
   - a leaf uses `requestNativeLeaf`;
   - an algorithm uses `ProposalLayout`;
   - a container with its own paint or input uses `requestGroupLayout` +
@@ -526,9 +680,22 @@ or `ProposalLayoutContainer(layout) { … }` (also `MyLayout { … }`).
   `Component` reaches this);
 - `computeLayout` on a native root.
 
-Migration is root by root. `ProposalElementGroup` stays a requirement-free
-marker: a conformer that registers a legacy node compiles, and traps inside
-any proposal container. Its compile-time check is plan task 3's (`SA-R`).
+Migration is root by root. **`ProposalElementGroup` has one requirement**,
+`requestProposalGroupLayout(under:at:pass:) -> ([ProposalNodeID], GroupLayout)`,
+and `ProposalNodeID`'s initializer is internal (`MC-G`, delivering `SA-R`). An
+element conforms as a `ProposalElement` writing
+`requestProposalLayout(_:pass:) -> (ProposalNodeID, LayoutState)`, and the
+native registrars take and return `ProposalNodeID`. Five lies are compile
+errors, each guarded (`ProposalNodeIDCompileGuards`). **Seven holes stay**
+(`ProposalNodeID.swift`'s header): two entry points can disagree; a legacy node
+or subtree registered on the side of a typed entry is not rejected;
+`unsafeBitCast` or `@testable` can mint an id; one id used twice does not trap;
+a legacy style modifier on a proposal `Component` compiles, then traps; an id
+stored from an earlier frame traps (C-3). **A precondition closing the orphan
+or duplicate hole truncates the suite** unless its pinning test becomes an exit
+test first. **The builder groups' typed entries are line-for-line copies of the
+untyped ones** (and so is `EnvironmentScope`'s), each pinned on its own; a new
+group gets its own pin.
 Single-child proposal wrappers (`ProposalFrame`, `Padding`, `Background`,
 `FixedSize`, `ModifiedContent`, both `.overlay` slots, `OnTapModifier`)
 precondition exactly one node, so `ProposalFrame { if flag { … } }` traps when
@@ -608,7 +775,7 @@ including the custom-layout registrar), `computeNativeLayout` and
 `isNativeLayoutNode` are the primary API. Shared spellings
 resolve by receiver: `.frame(width:height:)` on a proposal value picks the
 proposal overload (`proposalLayoutFrameUsesTheTypedProposalWrapper`), on
-anything else `FrameModifier`; `.background(ColorToken)` exists on both
+anything else `ModifiedElement`; `.background(ColorToken)` exists on both
 `StyledElement` and `ProposalElementGroup` and is unambiguous only because no
 built-in type is both; `.padding` splits by argument type (there is no proposal
 `.padding(Pixels)`).
@@ -683,10 +850,6 @@ rulings above and `SA-N`'s findings below, not this list.
   allocations, so wrapping text can outgrow the height the stack reported.
 - `.opacity` out of 0…1 traps at **paint**, not at registration (outside
   `SA-J`'s scope).
-- **`OverlayModifier` starts the primary's and the overlay's cursors both at 0
-  under one id**, so their first elements share a `GlobalElementID`: hover,
-  press/release dispatch, `@State` slots and `ScrollState` are shared across
-  them (`NativeOverlayModifier.swift`, unpinned).
 - No built-in proposal type or modifier wrapper has `.id()`; only
   `ProposalScrollView` takes an id, so the trailing-sibling remedy cannot name
   a built-in proposal element. A custom element or `Component` conformed to
@@ -694,7 +857,8 @@ rulings above and `SA-N`'s findings below, not this list.
   `PreviewToggle` does, `main.swift:892`). `@State`
   binds, but no built-in proposal element declares any; `.onTap` is the only
   pointer handler (hover via `hoverColor`); nothing is focusable, handles keys
-  or emits an AX node. `.onTap` has no positive dispatch test.
+  or emits an AX node, and nothing publishes to accessibility — `onTap` still
+  presses (`AB-Q`, `AB-Y`). `.onTap` has no positive dispatch test.
 
 ## Practices — the short form
 
@@ -736,6 +900,13 @@ ones that cost a round of rework each. History in record §02.
   not.
 - **Write typecheck guards in the change that introduces the hazard.** The
   guard count and the suite count are independent.
+- **A copy of a pinned implementation is unpinned.** Mutate each copy on its
+  own. Three typed builder-group entries left the whole suite green (`MC-H`,
+  P2–P4) until each had its own test.
+- **Parallel tracks each owe tests for the merge, and only the merged suite
+  runs them.** Merge red first where a track wrote such a test; the
+  `AB-O` × `ModifiedElement` interaction was invisible on both branches
+  (record §13).
 
 ## Human verification — what is closed and what stays open
 
@@ -754,8 +925,9 @@ or any of text's three §4.2 failure modes; these are looks.
 | measure performance in **debug**; row missing/blank at the bottom edge; reaching row 500; launch hitch | not reported either way |
 | tombstones-and-AX §7 item 9 (regression check; the demo cannot exercise its subject) | open, nobody has run the build |
 | reactivity §8 item 7: run the demo, idle 30 s, press **M** twice, quit with **Q**, report `frames drawn` / `pauses entered` / `observation dirtyings` — a measurement, not a judgement | open |
-| animation §9's "whether the motion looks right" (spec exit criterion 9): press **A**. The sidebar's width (196pt ↔ 320pt, the layout-phase helper) and its background (`.surface` ↔ `.accent`, the paint-phase helper) both read `DemoModel.animationDemoActive` inside one `withAnimation(.spring(duration: 0.6, bounce: 0.2))`, so one keystroke drives both and they can be reported separately | **run 2026-09-10, release, at `b869253` — BOTH animate; the paint-phase helper is confirmed live in production.** Read first as "width slides, colour snaps" and corrected on a second look, so the fade is **not obvious at a glance**. **Overshoot and reverse direction closed 2026-09-10 by a scripted measurement, not a human look** (the running release demo, scripted keystrokes, window captures): the forward press peaks at 114pt and settles at 113pt on screen — the declared 196→320 spring's 1.88pt overshoot at t = 0.500 s, computed from the real `springValue`, lands as a 2-device-pixel rebound because the sidebar is flex-shrunk (SZ-L); the colour overshoots too, (97,167,253) against a (96,165,250) target; and the reverse press animates width and colour 113→73pt. Record §03. **These pixel readings describe the pre-`f1944f8` sidebar** (padding inside the 196pt column); the background now paints from the padding wrapper, so they need re-taking |
-| VoiceOver navigating the AX tree | permanently open until M4's bridge exists |
+| animation §9's "whether the motion looks right" (spec exit criterion 9): press **A**. The sidebar's width (196pt ↔ 320pt, the layout-phase helper) and its background (`.surface` ↔ `.accent`, the paint-phase helper) both read `DemoModel.animationDemoActive` inside one `withAnimation(.spring(duration: 0.6, bounce: 0.2))`, so one keystroke drives both and they can be reported separately | **run 2026-09-10, release, at `b869253` — BOTH animate; the paint-phase helper is confirmed live in production.** Read first as "width slides, colour snaps" and corrected on a second look, so the fade is **not obvious at a glance**. **Overshoot and reverse direction closed 2026-09-10 by a scripted measurement, not a human look** (the running release demo, scripted keystrokes, window captures): the forward press peaks at 114pt and settles at 113pt on screen — the declared 196→320 spring's 1.88pt overshoot at t = 0.500 s, computed from the real `springValue`, lands as a 2-device-pixel rebound because the sidebar is flex-shrunk (SZ-L); the colour overshoots too, (97,167,253) against a (96,165,250) target; and the reverse press animates width and colour 113→73pt. Record §03. **These pixel readings describe the pre-`f1944f8` sidebar** (padding inside the 196pt column); the background now paints from the padding layer (`ModifiedElement`), so they need re-taking |
+| accessibility bridge: record §12's VoiceOver script, items 1–9 (activation in both orders, static text, buttons, the list by ear and by Inspector, focus, frames while scrolling, theme and modal, animation noise, identity adoption) | open, nobody has run it |
+| tasks 3, 9, 12 integrated: release-window capture of the default demo AND the `METALUI_NATIVE_LAYOUT_PREVIEW=1` window against a build of `f64e58a`, by `MC-J`'s method (`CGWindowListCopyWindowInfo` bounds, `screencapture -x -R…`, no input) | **open**: the session was locked at every track and at integration. Stand-in: offscreen `FakePlatformWindow` pixels of `demoContent()` (light/dark, f0/f3, modal, settled **A**) and the preview, merged vs `f64e58a`, **0 differing pixels in all ten**, with a paint-order instrument that differs (record §13). It cannot see the drawable, the real window, input, hover, focus or a mid-flight animation |
 
 Demo keys: **M** modal (translucent scrim, gated so other looks stay
 undimmed), **Space** theme, **F**/**Escape** focus the counter, **=**/**-**
@@ -770,7 +942,7 @@ before believing it.
 
 ## Known divergences — expected, measured, not defects
 
-Twelve entries; labels are stable ids. Retired and never reused: 3, 5, 6
+Twenty-seven entries; labels are stable ids. Retired and never reused: 3, 5, 6
 (sizing, fixed), 7 (renumbering), 8 (`Text.paint` wrap, fixed), 12 and 17
 (tombstones, closed for a **bounded** two-generation window above 256
 entries). Full entries with repro and pins in record §04.
@@ -788,7 +960,22 @@ entries). Full entries with repro and pins in record §04.
 | 15 | unfixed defect | A `ScrollView` inside a scrolled `ScrollView` gets an empty content mask (`pushClip` ignores `activeOffset`). One-line fix, deferred to a paint milestone; pinned wrong on purpose. |
 | 16 | design | An `onClick` inside a `ScrollView` swallows the wheel over its rect. Fix named in `Window.applyScroll`'s doc (compare layers). Demo keeps its counter out of the list. |
 | 19 | unfixed defect | **One element VALUE placed twice shares one `@State` box.** `let sep = Ctr(); Row { sep; sep }` — reads were fixed 2026-09-10 by re-binding in `prepaintGroup`/`paintGroup`, but a **handler** registered by one occurrence still writes the other's slot, because the closure captures the class box and one box holds one slot. Measured: occurrence 0 clicked once reads 1, occurrence 1 never clicked reads 102. Pinned wrong on purpose; counted by `StateTable.aliasedStateBoxes`. Build two values, don't reuse one. |
-| 18 | vs SwiftUI | `@State` behind a removed `if` is retained, not reset; indefinitely below 256 entries — but 256 is easier to reach than it reads, since every registering element mints a `$anim` entry unconditionally (measured on the committed `demoLikeRows(_:)` test fixture, which has no `.padding`: `2n + 7`, crossing at **125 rows**, 1007 at 500; the demo's own 500-row list is not that fixture and, since each row's `.padding` became a wrapper in `f1944f8`, holds more by an unmeasured amount). Reset explicitly or keep the value in data. Element-level consequence is unpinned. |
+| 20 | design | A layer added to a legacy modifier chain at run time is adopted by the new outermost layer (old outermost id, `$anim` baseline, hitbox id, accessibility node), while the wrapped element moves one level down and resets (`MC-C`). SwiftUI's modifiers carry no such state. Pinned by `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer` and, for accessibility, `aLayerAddedAtRunTimeKeepsTheOutermostAccessibilityNodeAndRepublishesTheWrappedOne`. |
+| 21 | vs SwiftUI | A focused element that becomes disabled loses focus at once and re-enabling does not restore it; SwiftUI keeps it (probe K2, `EV-F`). Pinned by `aFocusedElementThatBecomesDisabledLosesFocusAtOnce`. |
+| 22 | vs SwiftUI | A disabled ancestor's raw `onKey` and `keyContext` are removed; SwiftUI runs a disabled parent's `.onKeyPress` (K6, `EV-F`). Pinned by `aDisabledAncestorsRawKeyHandlerDoesNotSeeAKey`, `aDisabledPaneContributesNoKeyContext`. |
+| 23 | vs SwiftUI | A disabled click target passes the click to an enabled sibling under it, where SwiftUI's shape blocks (P2f/P2g, `EV-E`) — the difference every non-clickable MetalUI overlay already has. Pinned by `aDisabledClickTargetPassesTheClickToWhatIsUnderIt`. |
+| 24 | vs SwiftUI | No `displayScale`; `pixelLength` is tied to the device, so no scope changes it and a `\.self` reset does not reset it (`EV-J`, `EV-U`). |
+| 25 | vs SwiftUI | `layoutDirection` is carried and no container mirrors (probe H, `EV-K`). Pinned wrong on purpose by E17. |
+| 26 | vs SwiftUI | Key handlers bubble outward from the focused element; SwiftUI runs an ancestor's `.onKeyPress` first (K5). Pre-existing, measured in task 9. |
+| 27 | vs SwiftUI | `onClick` is pressable through accessibility; a SwiftUI tap gesture is not, even with `.isButton` (`AB-G`, arms 7, 8). |
+| 28 | vs SwiftUI | Under `allowsHitTesting(false)` a button publishes with no `.press` and refuses one; SwiftUI still presses (`AB-H`, P0/P1). Pinned by `aPressIsRefusedWhereHitTestingIsDisabled`. |
+| 29 | vs SwiftUI | A button over an interactive descendant stays an unlabelled button with its children; SwiftUI collapses it (`AB-G`, R7). |
+| 30 | vs SwiftUI | A focusable or adjustable labelled container keeps a labelled group; SwiftUI distributes the label and copies the adjustable action to each child (`AB-T`, C1, C5, C5i). Pinned by arm 7 of `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`. |
+| 31 | vs SwiftUI | Nothing focused reports the host view; SwiftUI reports the first focusable node (`AB-J`, arm 13). |
+| 32 | vs SwiftUI | A `List` is an `AXTable` of realized rows; SwiftUI publishes an `AXOutline` (`AB-L`, R16); rows beyond the window are unreachable. |
+| 33 | vs SwiftUI | A labelled generic node is `AXGroup`, not `AXUnknown` (`AB-F`, 10b, R6, R11). |
+| 34 | vs SwiftUI | `Stack` publishes declaration order, not front to back (`AB-P`, arm 4). Unpinned. |
+| 18 | vs SwiftUI | `@State` behind a removed `if` is retained, not reset; indefinitely below 256 entries — but 256 is easier to reach than it reads, since every registering element mints a `$anim` entry unconditionally (measured on the committed `demoLikeRows(_:)` test fixture, which has no `.padding`: `2n + 7`, crossing at **125 rows**, 1007 at 500; the demo's own 500-row list is not that fixture and, since each row's `.padding` became a wrapper in `f1944f8` (now a `ModifiedElement` layer), holds more by an unmeasured amount). Reset explicitly or keep the value in data. Element-level consequence is unpinned. |
 
 ## Declared but inert — verify, do not remember
 
@@ -804,7 +991,7 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 | legacy `borderWidth(_:)` | shrinks the content box and paints nothing; no legacy element passes a border to `PaintPass.fill(borderColor:borderWidths:)`, which only the proposal `.border` uses (`Frame.fill`'s and `Box.swift`'s doc comments still say it cannot be set) |
 | `Position.relative`'s offset | makes a containing block, does not shift the box |
 | `Style.alignSelf` on a `Stack` child | ignored entirely |
-| `Style.padding`/`border`/`margin` on a **leaf** (`Text`) | **not** the `.padding(_:)` modifier on an element, which now wraps in a `Box`: it offsets and enlarges the outer footprint of a fixed-size custom `StyledElement` (`paddingWrapsAnElementAndExpandsItsOuterFootprint`, whose `Leaf` is not a `Text`); that it does the same for a `Text` is by reading, unpinned. Holds for `Style.padding` set directly, `.borderWidth`, `.margin`, and a `Component`'s distributed `.padding`: ignored on a **content-sized** leaf: no size moves, and it stays out of §9.7.4.c's shrink weight (`aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`). **Not inert once the leaf declares a main size**: ruling BM-4 puts the padding inside that base, so it comes off the shrink weight as CSS says — a 200 row of two `width: 200px` measured leaves, one with `padding: 0 40px`, lays out 125 / 75 (`aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`) |
+| `Style.padding`/`border`/`margin` on a **leaf** (`Text`) | **not** the `.padding(_:)` modifier on an element, which now wraps in a `ModifiedElement` layer: it offsets and enlarges the outer footprint of a fixed-size custom `StyledElement` (`paddingWrapsAnElementAndExpandsItsOuterFootprint`, whose `Leaf` is not a `Text`); that it does the same for a `Text` is by reading, unpinned. Holds for `Style.padding` set directly, `.borderWidth`, `.margin`, and a `Component`'s distributed `.padding`: ignored on a **content-sized** leaf: no size moves, and it stays out of §9.7.4.c's shrink weight (`aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`). **Not inert once the leaf declares a main size**: ruling BM-4 puts the padding inside that base, so it comes off the shrink weight as CSS says — a 200 row of two `width: 200px` measured leaves, one with `padding: 0 40px`, lays out 125 / 75 (`aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`) |
 | `hidden()` on a subtree that draws or is focusable | layout filters it, paint does not: glyphs stack at the window's top-left; a hidden focusable still claims keystrokes. Use a builder `if` instead |
 | `AnyElement` | works when hand-written; the builder never produces one and must not |
 | `@State` inside `AnyElement` | silently inert |
@@ -817,7 +1004,15 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 | `.allowsHitTesting(false)` over a scroller | gates click hitboxes only; a `ScrollView`/`ProposalScrollView` inside still scrolls and still wins topmost-opaque |
 | `GlyphAtlas.evictUnusedSince`, `LayoutTree.reset(generation:)` | zero callers; guards kept for whoever calls them |
 | `Frame.scrollRegions` / `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount`, `LayoutTree.lastNativeLayoutWork` | test observables with no production reader |
-| `AXNode.children`, `AXNode.logicalCount`, `Frame.axNodes`/`axNode(for:)` | always empty / one writer no reader / built before the M4 bridge exists; `axNode(for:)` validity lags one frame |
+| `AXNode.children`, `AXNode.actions`, `Frame.axNodes`/`axNode(for:)`, `AXEmission.synthesizes` | always `[]` (hierarchy comes from records, `AB-C`) / declared, never read (`AB-H`) / no production reader, the bridge reads records; `axNode(for:)` validity lags one frame / no reader |
+| `ElementGroup.LayerBase` / `_wrap(_:)` on a custom conformer | a conformer that declares `LayerBase` and forwards `_wrap` to another value compiles, and its `.padding`/`.frame` silently drop the receiver (`MC-A`); no access-control spelling closes it |
+| `EnvironmentValues.layoutDirection` | carried; no layout reads it (divergence 25) |
+| `EnvironmentValues.locale` | carried; no tokenizer, typesetter or formatter receives it |
+| `EnvironmentValues.dynamicTypeSize` | carried; no text size moves (aligned with SwiftUI on macOS, `EV-I`) |
+| `EnvironmentValues.pixelLength` | no internal reader |
+| `@Environment` inside `AnyElement`; an unbound `@Environment` | inert / reads `EnvironmentValues()`'s defaults silently |
+| an in-module write to `theme`/`pixelLength` through `window.environment` or `Frame.rootEnvironment` | re-stamped every frame; does nothing |
+| `.disabled` on a `ScrollView` | the wheel still scrolls: its scroll region bypasses the gate (pinned as it stands) |
 
 ## Performance — the numbers to reason from
 
@@ -834,15 +1029,16 @@ fell from 707 to 167. The µs/node figures above predate this and have **not**
 been re-taken (the only timing available was on a contended machine). `Text`
 leaves never take this path. The demo's warm
 release frame is **1.652 ms at 40 rows and 1.637 at 500**, re-taken 2026-09-10
-at `2457da8` after the animation milestone; scrolling adds 0.1–0.3 ms. The
+at `2457da8` after the animation milestone (stale; see below); scrolling adds 0.1–0.3 ms. The
 +5% against the superseded 1.571/1.570 is **within the ~5% harness drift §07
 already documents — do not read it as animation's cost**. Warm resident
 `StateTable` entries are **165 at 40 rows and 63 at 500**: the smaller tree
 holds more, because only the larger one crosses `sweepThreshold` and is reaped.
 **The frame times and these entry counts were taken on a copy of the
 pre-`f1944f8` `demoContent()`**; each demo list row's `.padding` now adds a
-registering `Box` (and a `$anim` entry) per built row, so they are stale by an
-unmeasured amount. (Divergence 18's `2n + 7` is unaffected: it was measured on
+registering `ModifiedElement` layer (and a `$anim` entry) per built row, and
+since the accessibility bridge the demo's three labels write `$ax` slots every
+frame, so they are stale by an unmeasured amount. (Divergence 18's `2n + 7` is unaffected: it was measured on
 the `demoLikeRows(_:)` fixture, which has no `.padding`; only its extrapolation
 to the demo is stale.) The proposal engine has no timing. Count its work with
 `LayoutTree.lastNativeLayoutWork` (`SA-M`): on the branching tree in
@@ -857,7 +1053,7 @@ registration is ~0.01 ms.
 
 CI exists: `.github/workflows/swift.yml` runs `swift build -v` and `swift test
 -v --no-parallel` on `macos-latest` for pushes and PRs to `master`, and none of
-the five guarantees below is a separate required job. Whether the typecheck
+the guarantees below is a separate required job. Whether the typecheck
 guards run under that workflow's default build system is unmeasured. Record §08
 has the mechanisms.
 
@@ -866,7 +1062,7 @@ has the mechanisms.
 - **Every typecheck guard skips when `.build` is not where `#filePath`
   resolution expects** — and that includes **the default build system**.
   `swiftbuild` writes modules flat into `.build/out/Products/Debug/` with no
-  `Modules` directory, so under it alone **all 45 guards skip**, the total does
+  `Modules` directory, so under it alone **all 61 guards skip**, the total does
   not move and the run passes. `--build-system native` writes
   `.build/<triple>/debug/Modules`, **and that directory survives**: once a
   checkout has ever been built that way the guards run under the default system
@@ -890,6 +1086,19 @@ has the mechanisms.
   **On a swiftlang toolchain a per-item regression of about one allocation is
   invisible to it**; grep a CI log for `FREEZE-ALLOC: strict per-pass bound NOT
   CHECKED`. Run the suite under a swift.org toolchain to get the strict half.
+
+- `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget` passes
+  `-Xfrontend -solver-scope-threshold=1000`; a toolchain that drops the flag
+  fails or skips it. `aModifierChainAllocatesABoundedAmountOverNestedBoxes` and
+  the freeze-loop test both install `malloc_logger`, so they need
+  `--no-parallel`.
+- `aBareEnvironmentValuesHoldsTheRootLocaleAndAWindowStampsTheCurrentOne`
+  (E24) **hard-fails on a runner whose current locale is the root locale**
+  (unset `LANG`): its discriminating precondition is a `try #require`, not a
+  skip.
+- The accessibility arm-Q pin (`aKeyWindowReceivingEventsIsNeverActivatedWithoutAClient`)
+  assumes no out-of-process accessibility client on the runner, and the signal
+  test reads the runner's `isVoiceOverEnabled` (`AB-AC`).
 
 - **Seven device-dependent window tests HARD-FAIL rather than skip** on a
   runner with no display device: `makeFakeWindowOnDefaultDevice`

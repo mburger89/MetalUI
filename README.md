@@ -45,10 +45,11 @@ Limits of the proposal path, as of 2026-09-14:
 
 - **Don't mix the two.** Proposal containers require `ProposalElementGroup`
   content, so the built-in legacy elements fail to compile inside them
-  (`HStack { Text("x") }` is rejected). That boundary is a public marker
-  protocol with no requirements, though. A type that declares it but registers
-  legacy layout nodes compiles, then traps at runtime ("native layout subtree
-  contains a legacy node"). The other direction is not guarded: a proposal
+  (`HStack { Text("x") }` is rejected). That boundary is a protocol whose
+  requirement returns a `ProposalNodeID` only `MetalUI` can create, so a type
+  that registers legacy nodes through it does not compile. Seven named holes
+  remain (ruling `MC-G`), such as a legacy node registered as a side effect,
+  which still traps at runtime. The other direction is not guarded: a proposal
   subtree inside `Column` compiles and nothing traps, but it is unsupported and
   what it draws is unmeasured.
 - **Conditionals are partial.** `EitherGroup` does not conform to
@@ -102,9 +103,9 @@ swift build
 swift test --no-parallel
 ```
 
-At `7cfcddc` (2026-09-14) the suite reports **993 tests**. That total includes
-**97** layout goldens generated from WebKit and **39** `swiftc -typecheck`
-guards.
+At `2456c69` (2026-09-15, after integrating plan tasks 3, 9 and 12) the suite
+reports **1226 tests**. That total includes **97** layout goldens generated from
+WebKit and **61** `swiftc -typecheck` guards.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them.
@@ -153,9 +154,16 @@ Reading `model.count` inside `content` is what subscribes the window to it:
 the whole frame build is tracked, so the next mutation redraws without an
 explicit invalidation call.
 
-On an ordinary element, `.padding` **wraps** its receiver in an outer `Box`, so
-modifiers written after it configure that wrapper. That is why `.padding` comes
-last above.
+On an ordinary element, `.padding` **wraps** its receiver in a
+`ModifiedElement` layer (one flat type however many `.padding`/`.frame` calls
+you chain), so modifiers written after it configure that wrapper. That is why
+`.padding` comes last above.
+
+Environment values are scoped with `.environment(_:_:)`,
+`.transformEnvironment`, `.disabled`, `.dynamicTypeSize` and `.theme`, read
+with `@Environment` or `pass.environment`, and rooted at `Window.environment`.
+A modifier written after a scope sits outside it, as in SwiftUI. The keymap's
+type is `KeyBinding` (`Binding` is a deprecated alias).
 
 A counter in the proposal vocabulary. Every ancestor up to the window root must
 be a proposal element as well. Nested in a legacy container it still compiles,
@@ -247,13 +255,20 @@ input and focus, `@State` and `@Observable` reactivity, windowed `List`,
 `Component`, animation.
 
 In progress: SwiftUI behavioural alignment. The replacement inventory is
-published, and the proposal-layout kernel and a first proposal surface exist
-beside the legacy engine. No legacy container has been ported yet, and this
-milestone has no decisions document.
+published; the proposal-layout kernel (task 2), typed modifier composition
+(task 3), scoped environment values with a disabled state (task 9, with carried
+items) and a macOS accessibility bridge (task 12's bridge half) exist beside
+the legacy engine. No legacy container has been ported yet. The decisions
+documents are prefixed `SA-`, `MC-`, `EV-` and `AB-`.
 
-Not done: the accessibility bridge (AX nodes are built, nothing consumes them
-yet), iOS, Reduce Motion, exit transitions, transforms, and text colour
-animation.
+The accessibility bridge publishes text, click targets (as buttons), focusable
+and adjustable elements, and `List` as a table, through `NSAccessibility`, with
+`accessibilityLabel`, `accessibilityValue` and `accessibilityAdjustableAction`.
+It is **not yet validated with VoiceOver**, and proposal-path elements publish
+nothing.
+
+Not done: VoiceOver validation, iOS, Reduce Motion, exit transitions,
+transforms, and text colour animation.
 
 ## Documentation
 
@@ -265,7 +280,9 @@ animation.
   eight sections split from the old `CLAUDE.md` (measurements, layout cost
   tables, what has been verified on real hardware, and what has not), plus
   [`09-swiftui-alignment.md`](docs/record/09-swiftui-alignment.md) for the
-  proposal-layout work.
+  proposal-layout work, `10`–`12` for tasks 3, 9 and 12, and
+  [`13-integration-tasks-3-9-12.md`](docs/record/13-integration-tasks-3-9-12.md)
+  for their integration.
 - [`docs/superpowers/`](docs/superpowers/) — a decisions document per
   completed milestone, each ruling with its reasoning and what it costs if wrong.
 - SwiftUI alignment:
@@ -277,7 +294,10 @@ animation.
     closed set of algorithms, not the protocol the spec describes
   - [typed modifier composition spec](docs/superpowers/specs/2026-09-12-typed-modifier-composition-design.md),
     which also differs from what shipped (`ModifiedContent` with a closed
-    `LayoutModifier`)
+    `LayoutModifier`); the design that shipped for the legacy path is the
+    [modifier composition spec](docs/superpowers/specs/2026-09-15-modifier-composition-design.md)
+  - [environment spec](docs/superpowers/specs/2026-09-15-environment-design.md)
+    and [accessibility bridge spec](docs/superpowers/specs/2026-09-15-accessibility-bridge-design.md)
 - [`docs/practices/verifying-tests-can-fail.md`](docs/practices/verifying-tests-can-fail.md)
   — sixteen numbered shapes of test that cannot fail, every one observed here.
 

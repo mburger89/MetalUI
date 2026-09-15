@@ -740,3 +740,15 @@ whose *expected* side contains a value its own construction could not have
 produced. Try `swift package clean` before debugging the "impossible" result as a
 logic bug.
 
+
+---
+
+## 2026-09-15: counts after integrating tasks 3, 9 and 12
+
+1226 tests / 97 goldens / 61 guards / 0 `error:` / 0 `warning:` at `2456c69`
+on `integrate/tasks-3-9-12`, both build systems (record §13 has the per-file
+guard split and the per-merge climb: 1084 → 1116 → 1165 → 1166 → 1223 red →
+1223 → 1224 → 1225 → 1226). A new incremental-build hazard from the
+accessibility bridge (record §12): turning a stored property on a public class
+into a computed one fails the incremental **link** (`Undefined symbols … direct
+field offset`); clean before debugging.

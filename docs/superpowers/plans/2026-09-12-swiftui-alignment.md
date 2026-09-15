@@ -116,7 +116,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   Not in this task: replacing `Style` resolution and the legacy engine
   (task 7).
 
-- [ ] **3. Build a typed modifier-composition foundation.**
+- [x] **3. Build a typed modifier-composition foundation.**
   Introduce a modifier wrapper representation that can nest without forcing
   callers to expose ever-growing concrete types such as `Box<Box<Box<Text>>>`.
   It must preserve structural identity, `@State`, handler registration,
@@ -143,6 +143,42 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
     with no public initializer, returned by a new requirement.
 
   See the typed-modifier spec's Status.
+
+  *Closed 2026-09-15 on `feat/modifier-composition` (`1c6f686..f4bf879`),
+  integrated on `integrate/tasks-3-9-12` (record §13).* Spec
+  `specs/2026-09-15-modifier-composition-design.md`; rulings `MC-A`…`MC-S` in
+  `../2026-09-15-modifier-composition-decisions.md`; probes in `docs/probes/`;
+  record §10. Each lane was written red first and re-verified by an
+  independent verifier: 33 mutations, 32 reddened (one by truncating the suite),
+  and the green one refuted a doc claim. On its branch: 1116 tests, 97 goldens
+  unmoved, 53 guards. After the three-track integration: 1226 / 97 / 61.
+  - **The representation — done** (lane 2, `MC-A`…`MC-C`, `MC-K`).
+    `ModifiedElement<Content>` is one flat type for legacy `.padding` and
+    `.frame`, reached through one overload per modifier via
+    `ElementGroup.LayerBase`. `FrameModifier` is deleted. It is observationally
+    identical to nested `Box`es; the solver work is bounded (guard) and the
+    allocations are counted. **One per-element hook was not mirrored per layer
+    and only the integration found it:** `AB-O`'s `display: none`
+    accessibility suppression (red at the bridge merge, fixed in `fba579e`).
+  - **`@State` across chained modifiers — done** on both paths (`MC-D`).
+  - **Once-per-phase delegation — done** for every wrapper (`MC-F`), with
+    `EnvironmentScope` arms added at integration.
+  - **The overlay id — measured red, then fixed** (`6d89906`, `661efd9`,
+    `MC-P`): the overlay numbers under `.child(of: id, at: -1)`, independent of
+    the primary's shape, as SwiftUI's is (probe).
+  - **`SA-R`'s compile-time check — done** (lane 3, `MC-G`, `MC-H`).
+    `ProposalNodeID` has an internal initializer and is returned by
+    `ProposalElementGroup.requestProposalGroupLayout`. Five lies are compile
+    errors (six guards). Seven holes are named, each pinned or cited.
+
+  **Carried, not blocking:** release-window captures of the default demo and
+  the preview against `f64e58a` (an offscreen pixel stand-in reads 0 differing
+  pixels, record §13); the `_wrap` hole; the shape-13 sweep; a shared
+  `malloc_logger` counter. **Owned by later tasks** (`MC-L`): task 4 —
+  `width`/`height`/min/max as layers and legacy `.frame` semantics; task 5 —
+  `Component` distribution, B-7, hole 5 and paint-only layers; task 6 — hole 4
+  and the one-node traps; task 7 — unification with `ModifiedContent`, holes
+  1–3, 6 and 7, and `_wrap`.
 
 - [ ] **4. Finish frame and sizing semantics.**
   Specify and implement `.frame(width:height:alignment:)`, optional axes,
@@ -215,10 +251,27 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   Add read/write environment modifiers with nearest-ancestor precedence; do
   not recreate a CSS cascade. Resolve the existing `Binding` naming collision
   before introducing SwiftUI-like bindings.
+  *Progress 2026-09-15, still open* (`feat/environment`, rulings `EV-A`…`EV-Z`,
+  record §11; integrated, record §13). Delivered: `EnvironmentScope` with
+  nearest-writer precedence and no cascade (`.environment`,
+  `.transformEnvironment`, `.theme`, `.dynamicTypeSize`), `@Environment`,
+  `Window.environment`; enabled state (`.disabled`, one gate in
+  `Frame.registerHandlers`, reaching accessibility); layout direction (carried,
+  no container mirrors, `EV-K`); locale (carried, no consumer); dynamic type
+  (`dynamicTypeSize`); platform metrics (`pixelLength`); and the `Binding`
+  collision resolved as `KeyBinding` with a deprecated alias. **Not delivered:
+  "control state" apart from enabled state** (`controlActiveState`,
+  `controlSize` are `EV-Q` items for task 12) **and "scale"** (`displayScale`
+  is not exposed, `EV-J`, divergence 24). The release-window capture is untaken.
+  Tick when control state and scale land, or when this text is amended to drop
+  them.
 
 - [ ] **10. Align data-driven controls and scrolling.**
   Define `ForEach`/identified-data semantics, bindings, common controls and
-  selection. Rework `List` and `ScrollView` limitations that make ordinary
+  selection. *Note 2026-09-15 (task 9):* the deprecated `Binding` alias (for
+  `KeyBinding`) is deleted in the change that introduces a SwiftUI `Binding`;
+  wheel scrolling under `.disabled` (SwiftUI unmeasured; MetalUI's `ScrollView`
+  still scrolls, pinned as it stands) is `EV-Q`'s item for this task. Rework `List` and `ScrollView` limitations that make ordinary
   SwiftUI layouts blank or state-destructive, while retaining virtualization as
   an internal implementation choice. Specify scroll position, indicators and
   programmatic scrolling.
@@ -235,6 +288,17 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   focus, pointer hit testing and content shapes. Deliver the missing native
   accessibility bridge and validate it with VoiceOver; until then MetalUI
   cannot claim complete SwiftUI-level application behaviour.
+  *Progress 2026-09-15, still open.* Accessibility bridge half delivered on
+  `feat/ax-bridge` (`AB-A`…`AB-AG`, record §12; integrated, record §13):
+  NSAccessibility elements keyed by id, roles/labels/values/traits, screen
+  frames, hierarchy, focus, press/increment/decrement, coalesced notifications,
+  `List` as `AXTable` with `AXRowCount`; disabled elements publish disabled with
+  no actions (the joint test, written at integration). Disabled behaviour is
+  task 9's `.disabled` gate. **Open:** the VoiceOver script (record §12), which
+  nobody has run; gesture composition, button semantics, content shapes and the
+  rest of the interaction half; focus retention on disable (divergence 21), raw
+  keys on a disabled ancestor (22) and a disabled look are unowned;
+  `controlActiveState`/`controlSize` (`EV-Q`).
 
 - [ ] **13. Complete transaction and animation semantics.**
   Make modifier wrappers participate in transactions at their correct phase,
@@ -272,6 +336,10 @@ derived from source and not executed.
 - Structural identity, component flattening/distribution, centred `Row` and
   `Column` defaults, `Stack` alignment, and theme propagation already contain
   measured SwiftUI-inspired work; they still belong in the inventory audit.
+- *History (2026-09-15): the `FrameModifier` bullets below describe `7cfcddc`.
+  Task 3 deleted `FrameModifier`; `.frame`/`.padding` now add a
+  `ModifiedElement` layer with arms in every per-site guard, and the overlay
+  collision is fixed (`MC-P`).*
 - `.frame(width:height:)` has been added as an additive wrapper API on every
   `ElementGroup`. It returns `FrameModifier<Self>` (`FrameModifier.swift:63-67`).
   - `FrameModifier` is a full `StyledElement` that registers a CSS node

@@ -1412,3 +1412,14 @@ collision) is closed.
   AB-O's per-layer mirroring, the `NativeTappable.swift` textual conflict, and
   the `11-environment.md:258-259` correction) are itemised under "Merge notes
   collected by the lanes" above.
+
+---
+
+## Integration (2026-09-15)
+
+Merged on `integrate/tasks-3-9-12` with the other two tracks. What the merge
+needed, the interaction it exposed (a hidden inner `ModifiedElement` layer no
+longer suppressing accessibility, `AB-O`), the cross-track tests and their
+mutations, and the offscreen pixel stand-in for the demo capture are in
+record §13 (`13-integration-tasks-3-9-12.md`). Counts after integration:
+1226 tests, 97 goldens, 61 guards.

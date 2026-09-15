@@ -304,3 +304,14 @@ required, non-gateable jobs. All three are detailed in the decisions docs:
    `macos-latest`, so by reading its runs take the relative half only; no CI log
    was read for this entry, so whether the line is printed there is
    **unverified**.
+
+---
+
+## 2026-09-15: items added at the task 3/9/12 integration
+
+The guard count the default-build-system skip hides is now 61. New items, in
+`CLAUDE.md`'s CI section: the solver-threshold flag of
+`aTwentyFourModifierChainTypechecksWithinASolverWorkBudget`; two `malloc_logger`
+tests needing `--no-parallel`; E24's hard failure on a root-locale runner; the
+accessibility arm-Q pin and signal test depending on the runner's accessibility
+clients and `isVoiceOverEnabled` (`AB-AC`).

@@ -881,7 +881,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
     // `EnvironmentScope`, one arm per path (the environment track's `EV-W`
     // item 1, added at integration). Mutation: the typed
     // `requestProposalGroupLayout` calling its content twice reads
-    // `[2, 1, 1]` on the proposal arm (record §11, "Integration").
+    // `[2, 1, 1]` on the proposal arm (record §13).
     try once("EnvironmentScope, legacy") { log in
         Row { CountingLeaf("x", log: log).environment(\.layoutDirection, .rightToLeft) }
     }

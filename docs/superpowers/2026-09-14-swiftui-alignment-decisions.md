@@ -1573,6 +1573,11 @@ wrong") are assembled from exactly this kind of entry.
 
 ## SA-R — plan item (e)'s "compile-time" criterion is AMENDED, not met: the migration story is compile-checked for every spelling an external module writes, and a marker conformer's promise stays a run-time trap until plan task 3
 
+**Status: delivered 2026-09-15 by `MC-G`** (`feat/modifier-composition`,
+`f9e2c62`; integrated on `integrate/tasks-3-9-12`, record §13): a marker
+conformer that registers a legacy node is a compile error, with seven named
+holes (`Sources/MetalUI/ProposalNodeID.swift`'s header).
+
 **The finding it answers.** The inventory's "Completion criteria for task 1"
 asks for "a compile-time migration story for external custom elements", and
 keeps task 2 open partly because "Nothing checks that a marker conformer

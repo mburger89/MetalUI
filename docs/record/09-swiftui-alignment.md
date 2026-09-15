@@ -268,7 +268,10 @@ axes (`:17-28`), and it registers one `requestNode` around its content's nodes.
 Pins: `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren` (on a
 `Component`, one extra node, children keep their own sizes) and
 `chainedFramesRemainConcreteAndNestTheirLayoutNodes` (node count 5). **It is
-live in three places the per-site guards were written to watch:**
+live in three places the per-site guards were written to watch:** (*2026-09-15:
+`FrameModifier` is deleted; the same three places now live in
+`ModifiedElement`, once per layer, and every per-site guard has its arms,
+`MC-I`.*)
 
 - `animated(…)` in `requestLayout` (`:40`), a fifth layout site;
 - `registerHandlers` in `prepaint` (`:48`);
@@ -925,6 +928,10 @@ is missed. **All are by reading unless marked.**
    The marker stays opt-in and unchecked at compile time; that check is plan
    task 3's (`SA-R`). The single-node wrapper traps and the overlay's
    `overlay:` probe are unchanged.
+   *2026-09-15 (integration, record §13):* **delivered by `MC-G`**
+   (`feat/modifier-composition`, `f9e2c62`) — the marker has a requirement
+   returning `ProposalNodeID`, so a marker conformer that registers a legacy
+   node is a compile error, with seven named holes (`ProposalNodeID.swift`).
 3. **`OverlayModifier` gives its primary and its overlay the same child id.** It
    calls `requestGroupLayout(under: id, …)` twice, with two cursors that both
    start at 0 (`NativeOverlayModifier.swift:28-33`), so both first elements are
@@ -937,6 +944,8 @@ is missed. **All are by reading unless marked.**
    Nothing tests a stateful or tappable element on both sides; the preview puts
    a plain `Rectangle` in the overlay. Legacy containers thread one cursor
    through the whole group.
+   *2026-09-15:* **closed** by `6ff2d31` and then `661efd9` (`MC-P`): the overlay
+   numbers under `.child(of: id, at: -1)`, pinned by four tests (record §10).
 4. **Every stored rect may differ from the node's own measurement.** Root nodes
    get the window. Padding stores bounds minus insets, not its child's measured
    size (`:535-540`). AspectRatio stores the ratio size. `layoutPriority` and an
@@ -945,6 +954,9 @@ is missed. **All are by reading unless marked.**
 5. **Nothing animates on the proposal path, and `FrameModifier` animates with no
    guard watching.** Together these break the Animation section's per-site
    accounting in both directions (§2, §3).
+   *2026-09-15:* the second half lapsed — `FrameModifier` is deleted and
+   `ModifiedElement` has inner- and outermost-layer arms in every per-site guard
+   (`MC-I`, record §10). The first half stands.
 6. **`.allowsHitTesting(false)` does not gate scroll regions** (§3, §8).
 7. **A second unguarded `assumeIsolated`** (§7).
 8. **The legacy `.padding` wrap**: identity, modifier order, the source break,
@@ -1056,10 +1068,13 @@ unticked.
   no source*);
 - a mutation pass over the kernel that names the tests it reddens (*done for
   task 2's claims only*);
-- `FrameModifier` arms in the five per-conformer and per-site guards;
+- `FrameModifier` arms in the five per-conformer and per-site guards
+  (*lapsed 2026-09-15: `FrameModifier` is deleted and `ModifiedElement` has
+  arms, `MC-I`*);
 - a positive `.onTap` dispatch test;
 - a test for the overlay id collision (*the native-under-legacy direction
-  now has its traps, 2026-09-14*);
+  now has its traps, 2026-09-14; the collision itself is fixed and pinned,
+  `MC-P`, 2026-09-15*);
 - a human look at both the default demo and the preview.
 
 ---

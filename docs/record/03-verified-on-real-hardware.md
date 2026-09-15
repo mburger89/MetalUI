@@ -1240,3 +1240,15 @@ line by line at `b869253`):
 **Decisions doc:** `docs/superpowers/2026-09-03-animation-decisions.md`, rulings
 prefixed `AN-` (**lettered**, `AN-A`…`AN-W`, so a bare `AN-3` is a typo); this
 entry is `AN-R`.
+
+---
+
+## 2026-09-15: rows added at the task 3/9/12 integration
+
+- **VoiceOver** — "permanently open until M4's bridge exists" is replaced by
+  the bridge's script (record §12, items 1–9). Open; nobody has run it.
+- **Release-window captures of the default demo and the preview against
+  `f64e58a`** (`MC-J`, `EV-P`). Open: the console was locked at every track and
+  at integration (a full `screencapture -x` wrote an all-black 4112×2658 PNG).
+  An offscreen `FakePlatformWindow` pixel comparison stands in and reads 0
+  differing pixels in ten images; what it cannot see is listed in record §13.

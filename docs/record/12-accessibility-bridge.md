@@ -1555,3 +1555,14 @@ verifier's gaps are recorded here and in `AB-AF` item 10; if the integration
 step makes its five test changes, it re-runs L2N03, L2N09, L2N14, L2N15,
 L2N15y, L2N21, L2N30, L2N33, L2N33b and L2N37 on the unfiltered suite and
 records what each reddens.
+
+---
+
+## Integration (2026-09-15)
+
+Merged on `integrate/tasks-3-9-12` with the other two tracks. What the merge
+needed, the interaction it exposed (a hidden inner `ModifiedElement` layer no
+longer suppressing accessibility, `AB-O`), the cross-track tests and their
+mutations, and the offscreen pixel stand-in for the demo capture are in
+record §13 (`13-integration-tasks-3-9-12.md`). Counts after integration:
+1226 tests, 97 goldens, 61 guards.

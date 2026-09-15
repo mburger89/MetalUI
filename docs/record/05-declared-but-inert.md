@@ -136,3 +136,24 @@ grep -rn "aspectRatio" Sources/ | grep -v "var aspectRatio"
 implement yet, add one — silence at a declaration reads as "implemented", and that
 is taxonomy shape 4 in the practices doc.
 
+
+---
+
+## 2026-09-15: rows changed at the task 3/9/12 integration
+
+Record §13; mechanisms in the cited rulings.
+
+- **Replaced:** "`AXNode.children`, `AXNode.logicalCount`, `Frame.axNodes`/`axNode(for:)`"
+  became "`AXNode.children`, `AXNode.actions`, `Frame.axNodes`/`axNode(for:)`,
+  `AXEmission.synthesizes`". `logicalCount` is now read (as `AXRowCount`,
+  `AB-L`). Checked at integration: `AccessibilityTreeBuilder` builds actions
+  from hitboxes and the focus registry and never reads `declared.actions`;
+  `synthesizes` has no reader outside its initializer.
+- **Added:** `ElementGroup.LayerBase`/`_wrap(_:)` on a custom conformer (`MC-A`);
+  `EnvironmentValues.layoutDirection`, `.locale`, `.dynamicTypeSize`,
+  `.pixelLength` (`EV-I`, `EV-K`, `EV-J`); `@Environment` inside `AnyElement`
+  and unbound; an in-module write to `theme`/`pixelLength` through the root
+  (re-stamped, `EV-H`, `EV-U`); `.disabled` on a `ScrollView` (the scroll region
+  bypasses the gate; pinned as it stands by `aDisabledScrollViewStillScrollsOnTheWheel`).
+- **Edited:** the leaf-padding row's "wraps in a `Box`" now reads "wraps in a
+  `ModifiedElement` layer".

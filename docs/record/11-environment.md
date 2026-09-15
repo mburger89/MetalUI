@@ -2039,3 +2039,14 @@ add one sentence: environment values are scoped with `.environment(_:_:)`,
 **5. `docs/record/README.md`.** Index `11-environment.md` as "plan task 9:
 scoped environment, the disabled gate, `KeyBinding`; four lanes, two verifier
 rounds, and the merge obligations".
+
+---
+
+## Integration (2026-09-15)
+
+Merged on `integrate/tasks-3-9-12` with the other two tracks. What the merge
+needed, the interaction it exposed (a hidden inner `ModifiedElement` layer no
+longer suppressing accessibility, `AB-O`), the cross-track tests and their
+mutations, and the offscreen pixel stand-in for the demo capture are in
+record §13 (`13-integration-tasks-3-9-12.md`). Counts after integration:
+1226 tests, 97 goldens, 61 guards.

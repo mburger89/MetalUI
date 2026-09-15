@@ -10,8 +10,8 @@ import MetalUIShaderTypes
 // The integration of plan tasks 3, 9 and 12 (`feat/modifier-composition`,
 // `feat/environment`, `feat/ax-bridge`): behaviour that belongs to no single
 // track because it exists only where two of them meet. Each test names the
-// merge obligation it discharges and is recorded, with its mutations, in the
-// "Integration" section of the record file of the track that owed it.
+// merge obligation it discharges and is recorded, with its mutations, in
+// `docs/record/13-integration-tasks-3-9-12.md`.
 //
 // **This file imports `Metal`, so it must declare no `Dimension`-typed
 // fixture** (`Fakes.swift`'s note on `AnimationTests.swift`).

@@ -637,7 +637,7 @@ private struct EnvComponent: Component {
 /// nested in an outer `HStack` because `Frame.render` takes an `Element` and a
 /// scope is only an `ElementGroup`. Mutation at integration: the typed entry
 /// without `withEnvironment` reddens the layout slot of both the `hstack` and
-/// `scroll` arms and of arm 2 (record §11, "Integration").
+/// `scroll` arms and of arm 2 (record §13).
 @MainActor
 @Test func proposalContentReadsTheEnvironmentThroughAScopeInEveryPhase() {
     let log = EnvLog()
