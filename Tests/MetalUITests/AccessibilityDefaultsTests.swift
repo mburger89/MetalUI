@@ -181,7 +181,12 @@ private extension AccessibilityTree {
     #expect(button.actions == [.press])
 }
 
-/// A clickable `Text` is a button labelled by its string (arm 5).
+/// A clickable `Text` is a button labelled by its string (arm 5), unless it
+/// declares a label (AB-G).
+///
+/// **The declared-label arm was added against surviving mutant N49** (the
+/// string overriding a declared label): no other fixture declares a label on a
+/// clickable text.
 @Test @MainActor func aClickableTextIsAButtonLabelledByItsString() throws {
     let (_, tree) = collect(Column { Text("Go").onClick {} })
     try #require(tree.nodes.count == 1)
@@ -189,6 +194,11 @@ private extension AccessibilityTree {
     #expect(go.role == .button)
     #expect(go.label == "Go" && go.value == nil)
     #expect(go.actions == [.press])
+
+    let (_, labelled) = collect(Column { Text("Go").onClick {}.accessibilityLabel("Start") })
+    let start = try #require(labelled.rootNodes.first)
+    #expect(start.role == .button && start.label == "Start" && start.value == nil,
+            "a declared label wins over the string")
 }
 
 // MARK: - Distribution (AB-T)
@@ -231,11 +241,14 @@ private extension AccessibilityTree {
     let pressable = try #require(button.rootNodes.first)
     #expect(pressable.role == .button && pressable.label == "X" && pressable.children.isEmpty)
 
-    // (6) R18
-    let (_, valued) = collect(Column { Text("A"); Text("B") }.accessibilityValue("V"))
+    // (6) R18. The first text declares its own value, so the outer value must
+    // overwrite it (surviving mutant N09v let the inner value win; R15 is the
+    // label's side of the same rule).
+    let (_, valued) = collect(Column { Text("A").accessibilityValue("own"); Text("B") }
+        .accessibilityValue("V"))
     try #require(valued.roots.count == 2, "arm 6")
     #expect(valued.rootNodes.map(\.label) == ["A", "B"])
-    #expect(valued.rootNodes.map(\.value) == ["V", "V"])
+    #expect(valued.rootNodes.map(\.value) == ["V", "V"], "the outer value wins")
 
     // (7) Divergence pins (C1, C5) and the no-child control (R6, R11).
     let (_, focusable) = collect(Column { Text("A") }.width(px(40)).height(px(20)).focusable()
@@ -294,6 +307,26 @@ private extension AccessibilityTree {
     #expect(c6.label == "a, b" && c6.value == "1, 2", "arm C6")
     let c4 = try combine { Text("A").accessibilityLabel("X"); Text("B") }
     #expect(c4.label == "X, B" && c4.value == nil, "arm C4: a labelled text contributes to the label only")
+
+    // **Descendants, not children** (surviving mutant N46 looked one level
+    // down). A kept, non-interactive node with children of its own sits between
+    // the button and its texts: the public API reaches that shape through a
+    // `List` table inside a click target; a declared `.container` (`@testable`)
+    // stands in for it here. Its texts still join the label, and a focusable
+    // box beneath it still stops the fold.
+    let (_, nested) = collect(Row {
+        Column { Text("A"); Text("B") }.handling { $0.axNode.role = .container }
+    }.width(px(60)).height(px(20)).onClick {})
+    let deep = try #require(nested.rootNodes.first)
+    #expect(deep.role == .button && deep.label == "A, B" && deep.children.isEmpty,
+            "a grandchild text contributes to the label")
+    let (_, nestedInteractive) = collect(Row {
+        Column { Text("A"); Box().width(px(10)).height(px(10)).focusable() }
+            .handling { $0.axNode.role = .container }
+    }.width(px(60)).height(px(20)).onClick {})
+    let unfolded = try #require(nestedInteractive.rootNodes.first)
+    #expect(unfolded.label == nil && unfolded.children.count == 1,
+            "a focusable grandchild keeps the button's children")
 }
 
 /// Portal content is a root, so it is never folded into a button's label
