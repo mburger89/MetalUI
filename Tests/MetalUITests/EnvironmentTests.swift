@@ -10,7 +10,8 @@ import MetalUIShaderTypes
 // Plan task 9, lane 2: scoped environment values
 // (`docs/superpowers/specs/2026-09-15-environment-design.md`, tests E1–E21;
 // rulings `EV-A`…`EV-C`, `EV-G`…`EV-M`, `EV-O`, `EV-P`, `EV-U`, `EV-V`), and
-// lane 2b's E12 arm and E22–E24 (rulings `EV-B`, `EV-X`, `EV-Y`).
+// lane 2b's E12 arm and E22–E24 (rulings `EV-B`, `EV-X`, `EV-Y`), and lane 3's
+// D10 arm of E5 (the rest of lane 3 is in `DisabledTests.swift`).
 //
 // **This file imports `Metal`, so it must declare no `Dimension`-typed
 // fixture** (`Fakes.swift`'s note on `AnimationTests.swift`): Foundation's
@@ -311,6 +312,7 @@ private struct ClickCounter: Element {
 @MainActor
 private final class EnvModel {
     var value = 0
+    var flag = false
 }
 
 @MainActor
@@ -324,8 +326,14 @@ private func click(_ platform: FakePlatformWindow, at point: Point<Pixels>) {
 ///
 /// **Passes on arrival for this arm, stated and accepted**: before the
 /// mechanism exists there is nothing that could lose state. It exists for its
-/// mutation — a value-keyed `EitherGroup` writer resets `n`. Lane 3 adds a
-/// `.disabled(model.flag)` arm to this same test (spec D10).
+/// mutation — a value-keyed `EitherGroup` writer resets `n`.
+///
+/// **The `.disabled(model.flag)` arm (lane 3, spec D10; rulings EV-B, EV-D,
+/// EV-E).** The same counter under `.disabled(model.flag)` keeps `n` across a
+/// flip to disabled and back, and a click while disabled does not increment
+/// it; a click after re-enabling does (the control that the click point still
+/// lands). Every draw after a model change is forced, so a reading is never a
+/// stale frame's.
 @MainActor
 @Test func changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
@@ -347,6 +355,36 @@ private func click(_ platform: FakePlatformWindow, at point: Point<Pixels>) {
     window.setNeedsRedraw()
     window.drawFrameIfNeeded()
     #expect(log.readings.last == 2, "a changed environment value reset the state below it")
+
+    // D10: the `.disabled` arm.
+    let disabledLog = CounterLog()
+    let (disabledWindow, disabledPlatform) = try makeFakeWindow(device: device) {
+        Row { ClickCounter(log: disabledLog).disabled(model.flag) }
+    }
+    disabledWindow.drawFrameIfNeeded()
+    click(disabledPlatform, at: centre)
+    disabledWindow.drawFrameIfNeeded()
+    click(disabledPlatform, at: centre)
+    disabledWindow.drawFrameIfNeeded()
+    try #require(disabledLog.readings.last == 2, "the control: two enabled clicks count 2")
+
+    model.flag = true
+    disabledWindow.setNeedsRedraw()
+    disabledWindow.drawFrameIfNeeded()
+    #expect(disabledLog.readings.last == 2, "disabling reset the state below the writer")
+    click(disabledPlatform, at: centre)
+    disabledWindow.setNeedsRedraw()
+    disabledWindow.drawFrameIfNeeded()
+    #expect(disabledLog.readings.last == 2, "a click while disabled incremented the counter")
+
+    model.flag = false
+    disabledWindow.setNeedsRedraw()
+    disabledWindow.drawFrameIfNeeded()
+    #expect(disabledLog.readings.last == 2, "re-enabling reset the state below the writer")
+    click(disabledPlatform, at: centre)
+    disabledWindow.setNeedsRedraw()
+    disabledWindow.drawFrameIfNeeded()
+    #expect(disabledLog.readings.last == 3, "re-enabled, a click counts again")
 }
 
 /// A component whose own `@State` counts materializations of its content.

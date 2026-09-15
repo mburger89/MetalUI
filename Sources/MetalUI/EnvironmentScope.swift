@@ -125,6 +125,25 @@ extension ElementGroup {
         EnvironmentScope(content: self, write: .transform { transform(&$0[keyPath: keyPath]) })
     }
 
+    /// Disables interaction with this content and everything below it when
+    /// `disabled` is true.
+    ///
+    /// **An AND with what it inherits, not a plain write** (ruling EV-D, probe
+    /// `swiftui-environment-scoping.swift` B): `.disabled(false)` inside a
+    /// disabled ancestor stays disabled (B3, B6), while a raw
+    /// `.environment(\.isEnabled, true)` written below one re-enables (B5).
+    ///
+    /// What "disabled" does is decided in one place, `Frame.registerHandlers`,
+    /// which reads the resulting `isEnabled` (rulings EV-E, EV-F, EV-T): no
+    /// hitbox, so a click reaches an enabled ancestor or what lies under the
+    /// target; no focus, action handlers, raw `onKey` or `keyContext`; and the
+    /// `.disabled` trait on a declared accessibility node. A modifier written
+    /// AFTER the scope sits outside it: `X().disabled(true).frame(width: 40,
+    /// height: 40).onClick {}` fires (ruling EV-X, probe O2).
+    public func disabled(_ disabled: Bool) -> EnvironmentScope<Self> {
+        transformEnvironment(\.isEnabled) { $0 = $0 && !disabled }
+    }
+
     /// Sets `dynamicTypeSize`. Carried; changes no built-in text size, as in
     /// SwiftUI on macOS (ruling EV-I).
     public func dynamicTypeSize(_ size: DynamicTypeSize) -> EnvironmentScope<Self> {

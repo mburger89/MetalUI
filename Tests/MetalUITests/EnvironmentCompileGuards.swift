@@ -247,7 +247,8 @@ func aProposalContainerRejectsAScopeOverLegacyContent() throws {
 /// `import MetalUI`, in the Swift 6 language mode, in three spellings: the
 /// modifiers, a key-path write through `.environment(\.field, …)`, and a member
 /// assignment on `Window.environment` and on a local `EnvironmentValues`.
-/// Lane 3 adds `.disabled(true)` to the chain.
+/// Lane 3 added `.disabled(_:)` to the chain (ruling EV-D): the gate reads the
+/// value, but the modifier is how a caller outside the module writes it.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func theEnvironmentsPublicWritersCompileFromOutsideTheModule() throws {
     // `Locale` is Foundation's, and an external module names it only by
@@ -266,6 +267,7 @@ func theEnvironmentsPublicWritersCompileFromOutsideTheModule() throws {
                 .transformEnvironment(\\.probe) { $0 += 1 }
                 .dynamicTypeSize(.xLarge)
                 .theme(.dark)
+                .disabled(true)
         }
 
         @MainActor
