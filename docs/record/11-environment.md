@@ -15,13 +15,19 @@ keymap's `Binding` renamed `KeyBinding` behind a deprecated alias. **The design
 was reviewed by two critics (18 and 11 findings, all dispositioned), then built
 in four lanes, each verified by an independent agent that re-ran the suite,
 re-took the red run and ran mutations of its own.** All four verdicts were ok.
-The window capture the brief asked for was **not taken** (the session was
-locked); an offscreen stand-in and E18 stand in for it, and the capture is owed.
+**A second verification round then re-checked lanes 2b, 3 and 4 at `e709dc5`
+and `d18f2ce`, and all three verdicts were ok again.** It found no defect in
+the code. It did find four new minor issues: two claims under `EV-Y` that no
+test pins; a disabled `ScrollView` that still scrolls; merge-tree tree ids that
+cannot be reproduced; and line numbers in `DisabledTests.swift` that have
+shifted. The window capture the brief asked for was **not taken** (the session
+was locked). An offscreen stand-in and E18 stand in for it, and the capture is
+still owed.
 
 The per-lane entries below are the log, in the order they were written. The
-summary sections at the end — "Verification of lanes 2b, 3 and 4", "Hazards in
-one place", "What remains open" and "For the integrator" — are the part to read
-first.
+summary sections at the end are the part to read first: "Verification of lanes
+2b, 3 and 4", "Second verification round", "Hazards in one place", "What
+remains open" and "For the integrator".
 
 ### Commits, in order
 
@@ -42,7 +48,9 @@ first.
 | `6957464` | 3, green | the disabled gate in `Frame.registerHandlers` |
 | `ba9f4cb` | 3, docs | lane 3's red run and 19 mutation runs |
 | `cbe5fc0`, `19749c7` | 4, docs | capture not taken; offscreen stand-in; `EV-W` re-measured |
-| this commit | record | verifier readings folded in, refuted claims corrected, "For the integrator" |
+| `e709dc5` | record | verifier readings folded in, refuted claims corrected, "For the integrator" |
+| `d18f2ce` | 4, re-run, docs | capture still not taken; `EV-W` measured on built merges at `aa5d055` and `6a0169c` |
+| this commit | record, second round | second verification round folded in; `EV-Y` narrowed; the unpinned wheel scroll added to `EV-E`/`EV-Q`; spec Status |
 
 The record commit also corrects three doc comments and two decision texts the
 verifiers refuted (below): `EnvironmentScope.swift`'s "does not compile",
@@ -1373,8 +1381,19 @@ Merge base `f64e58a` for both pairs.
 
 | pair | `git merge-tree --write-tree --name-only` | conflicting | auto-merged (touched by both) |
 |---|---|---|---|
-| × `feat/ax-bridge` `aa5d055` | `df46e83…`, exit 1 | `ElementGroup.swift` (1 hunk), `Frame.swift` (2 hunks in `registerHandlers`), `Window.swift` (1 hunk) | `Passes.swift`, `Sources/MetalUIDemo/main.swift` |
-| × `feat/modifier-composition` `6a0169c` | `90ddf94…`, exit 1 (**was exit 0**) | **`ElementGroup.swift` (1 hunk, new)** | `Passes.swift`, `Sources/MetalUIDemo/main.swift` |
+| × `feat/ax-bridge` `aa5d055` | `df46e83…`*, exit 1 | `ElementGroup.swift` (1 hunk), `Frame.swift` (2 hunks in `registerHandlers`), `Window.swift` (1 hunk) | `Passes.swift`, `Sources/MetalUIDemo/main.swift` |
+| × `feat/modifier-composition` `6a0169c` | `90ddf94…`*, exit 1 (**was exit 0**) | **`ElementGroup.swift` (1 hunk, new)** | `Passes.swift`, `Sources/MetalUIDemo/main.swift` |
+
+\* _(Second verification round.)_ **These tree ids cannot be reproduced from
+the commit ids alone.** With conflicts, the written tree contains the conflict
+markers, and those markers carry the ref labels the command was given.
+`git merge-tree --write-tree e709dc5 aa5d055` gives `ea59709…`, and the same
+against `6a0169c` gives `0225719…`. The exit status, conflicting files and hunk
+counts are identical to those above. The refs spelled in this run were not
+recorded. The same applies to every exit-1 tree id in this file (`198b021…`,
+`df6a60c…`, `6147237…`, `65dacb3…`). Only the exit status and the file and hunk
+lists carry meaning. An exit-0 tree has no markers, so its id is reproducible,
+and `b970fff…` was used as such by `commit-tree`.
 
 **The composition merge, built.** The one hunk is `Element.requestGroupLayout`:
 lane 2's `child(of:)` + `StateBinder.bind(self, in: pass.frame, id:)` +
@@ -1539,6 +1558,164 @@ no deprecation line in the log. Guards **53** (19, 10, 6, 5, 3 hits = 2, 3, 8);
   `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`.
   The integrator relabels it when writing the joint test.
 
+### Second verification round (2026-09-15), at `e709dc5` and `d18f2ce`
+
+Three more independent verifiers took lanes 2b, 3 and 4 again after the first
+round's record commit and lane 4's re-run. Each left the worktree clean.
+Mutations were reverted with `git checkout`, and scratch tests and scratch
+clones were deleted. **All three verdicts: ok, goldens unchanged.** Every
+line number in this section is at the commit it names.
+
+**Suite, all three.** First `swift build --build-system native`, then the
+unfiltered `swift test --no-parallel --build-system native`. The three runs
+printed `Test run with 1133 tests in 1 suite passed after 32.092 seconds`
+(2b), `27.113 seconds` (3) and `26.997 seconds` (4, at `d18f2ce`), each with 0
+`error:` and 0 `warning:`. The lane 2b and lane 3 verifiers also ran the
+default build system, which printed 1133 passed with 0 `error:` and 0
+`warning:`; its guards ran against the leftover native modules. The lane 4
+verifier confirmed that `.build/…/debug/Modules` exists. Only `regenerateAllGoldens` and
+`aListsWorkIsTheSameFor100kRowsAsFor500` were skipped; every lane 2b test
+(G6, E12, E22, E23, E24, T1, T2) printed `passed`. Goldens: 97.
+`git diff --stat f64e58a -- '*.json' Sources/MetalUILayout` is empty.
+Guards by the per-file grep: 19 + 10 + 6 + 5 + (3 − 1) + 3 + 8 = **53**.
+
+#### Lane 2b, at `e709dc5`
+
+- **Red-first holds.** `git diff 8d0d3fe d271a64 -- Sources` is empty, and the
+  green commit `de84219` touches no file under `Tests`. `EV-Y` (a) and `EV-Z`
+  (a) together put the source back in its state before the implementation.
+  They read 3 + 6 = 9 issues at the recorded lines (shifted by lane 3), which
+  matches the red run of 1118 tests with 9 issues.
+- **Probes re-run**, both exited 0, and the output matched the recorded
+  headers line for line: `swiftui-environment-pixel-length.swift` (V0–V2,
+  X0–X3) and `swiftui-disabled-ancestor-and-order.swift` (N, O).
+
+| mutation | reddened |
+|---|---|
+| `EV-Y` (a): `init` sets `locale = Locale.current` | E24 `aBareEnvironmentValuesHoldsTheRootLocaleAndAWindowStampsTheCurrentOne` `EnvironmentTests.swift:872`, `:873`, `:886` |
+| `EV-Y` (b): `Window.environment` starts as `EnvironmentValues()`, unstamped | E24 `:883`, `:885`; E14 `theWindowsEnvironmentReachesTheFrameAndASetRepaints` `:835`, `:840` |
+| `EV-Z` (a): the `rootEnvironment` precondition deleted | T1 `aRootEnvironmentWriteDuringARenderTraps` `EnvironmentTrapTests.swift:69`, `:74`, `:77`, `:82`, `:85`, `:90` |
+| `EV-Z` (b): `precondition(environmentPushCount == 0)` instead of `!isRendering` | T2 `aRootEnvironmentWriteBeforeAndBetweenRendersDoesNotTrap` `:139`; T1, all six lines |
+| `EV-Z` (c): `isRendering = false` just before `element.paint` | T1's paint arm only, `:85`, `:90` |
+| `EV-Z`, verifier's: the precondition message changed to "root write while busy" | T1's stderr assertions only, `:74`, `:82`, `:90`. So the stderr check reads the message |
+| `EV-Z`, verifier's: `isRendering` never cleared at the end of `render` | T2 `:139` |
+| G6 (a): `.theme(_:)` internal | G6 `theEnvironmentsPublicWritersCompileFromOutsideTheModule` `EnvironmentCompileGuards.swift:287` ("'theme' is inaccessible") |
+| G6 (b): `locale` `internal(set)` | G6 `:287`, with key-path and member-setter messages |
+| G6 (c): `Window.environment` `internal(set)` | G6 `:287`, with three setter-inaccessible messages |
+| G6, verifier's, seven runs filtered to G6, each alone: `transformEnvironment` internal; `dynamicTypeSize(_:)` internal; `isAccessibilitySize` internal; `layoutDirection`, `dynamicTypeSize` and `isEnabled` `internal(set)`; the custom-key subscript `internal(set)` | G6, in each of the seven, with the matching fixture diagnostic |
+| E4(a): the scope wraps its content in `requestNativeOverlay` (proposal) or `requestNode` (legacy) | E4 `anEnvironmentScopeContributesNoLayoutNodeAndConsumesNoIndex` `:275`; E22 `aScopeOverProposalContentContributesNoNodeAndConsumesNoIndex` `:456` |
+| E4(b): `cursor += 1` before forwarding | E4 `:279` ×3; `anEnvironmentScopeOverAComponentKeepsItsIdentityAndState` `:411`; E22 `:460` ×3 |
+| E5: content forwarded under a child id named `"value:" + String(describing: values)` | E23 `aProposalStateCounterKeepsItsCountAcrossAChangingScope` `:531`; E5 `changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter` `:357`, `:374`, `:378`; E4 `:279` ×2; E22 `:460` ×2; `:411`; D6 `aFocusedElementThatBecomesDisabledLosesFocusAtOnce` `DisabledTests.swift:501`, `:505` |
+| `EV-X`, respelled hoist: `FrameModifier` registers and fills inside its content scope's stored values | E12 `aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope` `:688` (the 14pt frame layer only); D2 `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled` `DisabledTests.swift:367` (the after arm) |
+| **`EV-Y` m1, verifier's: `Frame.init` roots at `EnvironmentValues.windowDefault()`** | **nothing, 1133 passed** |
+| **`EV-Y` m2, verifier's: an unbound `@Environment` falls back to `EnvironmentValues.windowDefault()`** (`EnvironmentProperty.swift:48`) | **nothing, 1133 passed** |
+
+**m1 and m2 are gaps in coverage, not void instruments, measured.** A
+temporary test, since removed, rendered `EnvRecorder` in `frame()` and read
+`Environment(\.locale).wrappedValue` unbound. It passed unmutated. Under m1 it
+failed at `(log.paint["w"]?.locale.identifier → "en_US") == ""`, and under m2
+at `(unbound.wrappedValue.identifier → "en_US") == ""`. `EV-Y` makes four
+claims, and E24 pins only two of them: the bare value and the window's root.
+The two it does not pin are that a windowless `Frame` reads '' and that an
+unbound `@Environment` reads ''. Those two also appear in doc comments at
+`Frame.swift:186-187` and `EnvironmentProperty.swift:21-22`. **Applied by this
+commit:** `EV-Y`'s "Pinned by E24" is narrowed, and m1 and m2 are recorded
+under it. No test or source was changed.
+
+Two issues were already recorded: E24 hard-fails on a runner whose locale is
+the root locale (`EV-Y`, CI), and E11, E22 and E23 exercise only the shared
+entry (`EV-W` item 1).
+
+#### Lane 3, at `e709dc5`
+
+- **Red-first equivalent.** `let enabled = true` in `Frame.registerHandlers`
+  keeps the `.disabled` shell and turns the gate off, which is the red
+  commit's state. It read **1133 tests, 41 issues**, the implementer's red
+  list line for line. D1 and G6 stayed green.
+- **Probes re-run**, both exited 0 with no diff:
+  `swiftui-disabled-ancestor-and-order.swift` (N, O) and
+  `swiftui-disabled-interaction.swift` (P, K, R; 43 recorded output lines).
+
+| mutation | reddened |
+|---|---|
+| `EV-D` (a): `.disabled` as a plain write (`$0 = !disabled`) | D1 `disabledComposesAsAnAndAndARawWriteOverridesIt` `:213` |
+| `EV-D` (b): `.environment(\.isEnabled, v)` special-cased to an AND | D1 `:213`; D4 `theGateReadsTheEnvironmentValueNotTheModifier` `:235`; D7 `:549`, D8 `:600`, D9 `:646`, each at its `try #require` instrument |
+| D4, counter gate (a `disabledDepth` raised only by `.disabled`; the gate reads `disabledDepth == 0`) | D4 `:235`, `:245`; D1 `:213`; D7 `:549`; D8 `:600`; D9 `:646` |
+| `EV-E` (c): `enabled` deleted from the hitbox gate (27 issues) | D2 `:298` ×11 (box, column, row, stack, text, padding-frame, proposal, component, list-row, list, inside; after arm `:367` green); D3 `:417`, `:429`; D15 `:816`, `:817`, `:818`; D16 `:865`, `:866`, `:894`, `:895`; D4 `:245`; D11 `:684`, `:689`; D14 `:778`; E5 `EnvironmentTests.swift:378`, `:383`, `:387` |
+| `EV-E` (b) / `EV-T`: a blocker with empty `Handlers()` under the element's own id (7 issues) | D15 `:816` (R1); D3 `:417`, `:429`; D16 `:865`, `:866`, `:894`, `:895` |
+| `EV-E` (a): a blocker under `.child(of: id, at: 0, name: "$disabled")` | D3 `:417`, `:429`; D16 `:894` |
+| `EV-F`: `focusRegistry.register` ungated (13 issues) | D5 `:471`, `:472`; D6 `:501`, `:505`; D7 `:558`, `:559`; D8 `:610`, `:611`; D9 `:655`; D11 `:682`, `:690`; D13 `:719`; D14 `:779` |
+| `EV-F`: a disabled element keeps only `onKey` | D8 `:610`, `:611` |
+| `EV-F`: keeps only `actions` | D7 `:558`, `:559` |
+| `EV-F`: keeps only `keyContext` | D9 `:655` |
+| `EV-F`: the `$focus` slot write ungated | D13 `:741` |
+| `EV-F` / D6: the SwiftUI-aligned retention (five lines, `Window.lastFocusRegistry`) | D6 `:501`, `:505` only; D5, D11, D13 and D14 green |
+| D12: the `.disabled` trait insert deleted | D12 `aDisabledElementsAXNodeCarriesTheDisabledTrait` `:927` |
+| D12, control: the trait inserted unconditionally | D12 `:926`, the control arm |
+| D14: `PrepaintPass.deferred` runs its body under `frame.rootEnvironment` | D14 `:778`, `:779` |
+| `EV-X`, respelled hoist in `FrameModifier.prepaint` | D2 `:367`, the after arm only |
+| G6: `disabled(_:)` internal | G6 `EnvironmentCompileGuards.swift:287` ("'disabled' is inaccessible") |
+
+**New, and applied by this commit: a `.disabled(true)` `ScrollView` still
+scrolls on the wheel.** `Frame.registerScrollRegion` calls `insertHitbox`
+directly, outside `registerHandlers` and its gate. The verifier measured this
+with a scratch test, since deleted:
+`Row { Box { ScrollView(.vertical, elementID: "list") { Box 40×400 }.disabled(d) }.width(120).height(120) }`,
+with one −37 wheel event at (20, 60). The stored `ScrollState` offset read
+**37.0 for `d = false` and 37.0 for `d = true`**. Three other scratch arms fired
+0 while their controls fired 1: a disabled ancestor of a `List` row's
+`onClick`, a clickable child of a `ScrollView`, and a nested proposal `onTap`.
+No test pins the scroll either way, and SwiftUI's answer is unmeasured. It is
+now in `EV-E`'s "No wheel swallowed" bullet and `EV-Q`'s wheel row. No code was
+changed.
+
+**Line numbers moved.** `e709dc5` lengthened D6's doc comment, so every
+`DisabledTests.swift` line after `:478` sits 2 lines lower at `e709dc5` than at
+`2de4eef`/`6957464`/`ba9f4cb`. Lane 3's entry above, its first-round table and
+`EV-D`/`EV-E`/`EV-F`/`EV-T`/`EV-X`'s Mutations lines cite the older lines, and
+they are correct at the commits they name. For example, D6 `:499`/`:503` is
+now `:501`/`:505`, D13 `:739` is now `:741`, and D12 `:925` is now `:927`.
+
+#### Lane 4, at `d18f2ce`
+
+This lane changed docs only, so it had no new guard to mutate and no red
+commit to judge. The verifier rebuilt both merges in scratch clones (not git
+worktrees) under its scratchpad, and removed them afterwards:
+
+- **`e709dc5` × `aa5d055`**, resolved as `EV-W` item 4 says: **1189 passed**,
+  0 `warning:`, 53 guards.
+- **`e709dc5` × `6a0169c`**: `GroupMember` respelled, `EV-W` item 1's typed
+  entry pasted verbatim, and the E11 and E23 fixtures ported. **1162 passed**,
+  0 `warning:`, 61 guards.
+- `git merge-tree` against all four heads (`aa5d055`, `15f0dd2`, `6a0169c`,
+  `dbc2bc9`) reported exactly the recorded conflicts: bridge `ElementGroup` (1
+  hunk), `Frame` (2) and `Window` (1); composition `ElementGroup` (1).
+  `Passes.swift` and the demo auto-merged. Between the old and moved heads,
+  only tests, docs and one comment differ. `git diff ba9f4cb e709dc5 --
+  Sources Tests` is two doc comments.
+
+| mutation | reddened |
+|---|---|
+| bridge merge: the record literal `isEnabled: true` → `isEnabled: enabled` | nothing, **as `EV-W` item 4 says: silent** |
+| bridge merge, control: `isEnabled: !enabled` | `declaredRolesLabelsValuesAndTraitsReachThePublishedNode` `AccessibilityTreeTests.swift:300` |
+| bridge merge: `Frame.swift` hunk 2 taken from the bridge (no `.disabled` insert), `enabled` still declared | D12 `DisabledTests.swift:927` |
+| bridge merge: the gate moved to the 3-argument overload (via a `mutantGate`) | D2 `:298`, arms "text" and "proposal"; D3 `aDisabledClickTargetPassesTheClickToWhatIsUnderIt` `:429` |
+| composition merge, typed entry: no `withEnvironment` push (M1) | E11 `proposalContentReadsTheEnvironmentThroughAScopeInEveryPhase` `EnvironmentTests.swift:639` (hstack `[0, 7, 7]`), `:645` (scroll `[0, 7, 7]`) |
+| composition merge, verifier's M2 variant: `cursor += 1` **after** forwarding | E22 `:459` ×1 (C only). The recorded before-forwarding spelling gives ×3 |
+| composition merge, verifier's M4 variant: value-keyed parent **with** a cursor bump | E22 `:459` ×3 (the recorded no-bump version gives ×2); E23 `:529` (`readings.last` 0 ≠ 2) |
+| composition merge: typed entry forwards twice, no wrapper arms (M5) | nothing, as recorded |
+| M5 after adding the two owed `EnvironmentScope` arms to `everyModifierWrapperDelegatesEachPhaseExactlyOnce` | `ModifierCompositionProofTests.swift:831`, read `[2, 1, 1]` |
+| the two wrapper arms, no mutation (control) | nothing |
+| composition merge, loud half: typed entry absent and `GroupMember.swift:39` still spelled `table:` | build: `EnvironmentScope.swift:108:1` does not conform to `ProposalElementGroup`; `GroupMember.swift:39:25` argument label, `:39:53` `StateTable` to `Frame`; with the entry pasted, the test build fails at `EnvironmentTests.swift:95:16`, `:480:16`, `:110:1` (`NativeEnvRecorder`), `:498:1` (`NativeClickCounter`) |
+
+Line numbers on the composition merge are the ported scratch file's.
+
+**Three minor issues.** First, the capture is still not taken (`EV-P`); the
+spec already records that obligation. Second, the recorded exit-1 tree ids
+cannot be reproduced; they now carry a footnote in the table above. Third,
+D12's doc comment (`DisabledTests.swift:907`) still names the superseded joint
+test. That comment is in `Tests/`, so it is left for the integrator.
+
 ### What stayed green
 
 - **All 97 goldens, byte-identical to `f64e58a`**, and nothing under
@@ -1587,8 +1764,10 @@ Each is described above or in its ruling. **Measured** unless marked.
    still cannot reset them (E19).
 8. **`Frame.rootEnvironment` traps if set during `render`** (`EV-Z`, T1/T2).
 9. **An `@Environment` never bound reads `EnvironmentValues()`'s defaults
-   silently** — locale '' (`EV-Y`), not the user's — and inside `AnyElement` it
-   is inert (E8).
+   silently**: its locale is '' (`EV-Y`), not the user's. Inside `AnyElement`
+   it is inert (E8). **Neither the unbound '' nor a windowless `Frame`'s '' is
+   pinned.** The second round's mutations m1 and m2 each left 1133 tests
+   passing, although both change behaviour.
 10. **Two merge collisions are silent** (`EV-W` items 1 and 4): the typed
     proposal entry must push the scope (E11/E22/E23 stop compiling and must be
     ported and their mutations re-run), and the bridge's `isEnabled: true`
@@ -1604,6 +1783,15 @@ Each is described above or in its ruling. **Measured** unless marked.
     macOS, E16), `pixelLength` has no internal reader.
 13. **The `Binding` alias must be deleted in the same change that adds a
     SwiftUI `Binding`** (task 10), or the two collide.
+14. **A `.disabled` `ScrollView` still scrolls on the wheel.** Its scroll
+    region is registered by `Frame.registerScrollRegion`, outside the gate.
+    Measured (offset 37.0 disabled and enabled alike), unpinned, and SwiftUI's
+    answer is unmeasured.
+15. **`DisabledTests.swift` line numbers after `:478` are +2 at `e709dc5`**
+    against every lane 3 citation, which was taken at `2de4eef`–`ba9f4cb`.
+16. **Exit-1 `git merge-tree` tree ids in this file cannot be reproduced**:
+    they depend on the ref labels in the conflict markers. Compare exit status
+    and conflicting files instead.
 
 ### What remains open
 
@@ -1626,6 +1814,9 @@ Each is described above or in its ruling. **Measured** unless marked.
   (unmeasured: the probe's enabled control failed).
 - **Unprobed in SwiftUI**: hover and pressed appearance under `.disabled`
   (`EV-T`'s hover half is MetalUI's choice).
+- **Unpinned, measured**: `EV-Y`'s windowless-`Frame` locale '' and unbound
+  `@Environment` locale '' (m1, m2 green), and a `.disabled` `ScrollView`
+  scrolling on the wheel.
 
 ### For the integrator
 
@@ -1636,7 +1827,11 @@ this branch's.
 **1. Merge, and check what does not fail by itself.**
 
 - **Precondition** (`EV-W` item 0): met at `6957464`.
-- **Re-run `git merge-tree` at your own heads.** Last read (lane 4 re-run):
+- **Re-run `git merge-tree` at your own heads, and compare exit status and
+  conflicting files, not tree ids.** An exit-1 tree id depends on the ref
+  labels in the conflict markers, so the ids in this record cannot be
+  reproduced (second round). Last read (lane 4 re-run, confirmed by the second
+  round at all four heads):
   `feat/ax-bridge` `aa5d055`, then `15f0dd2` (exit 1: `ElementGroup.swift`, `Frame.swift` ×2
   hunks in `registerHandlers`, `Window.swift`; `Passes.swift` and the demo
   auto-merge); `feat/modifier-composition` `6a0169c`, then `dbc2bc9` (**exit 1**:
@@ -1669,7 +1864,10 @@ this branch's.
   (measured, lane 4 re-run). Hunk 2 now carries `AB-L`'s `declaration`; keep
   it, and insert the trait on a copy of `handlers.axNode` inside
   `if !declaration.isEmpty` (dropping the insert reddens D12). Relabel D12's
-  doc comment to the bridge's joint-test name.
+  doc comment (`DisabledTests.swift:907`) to the bridge's joint-test name. The
+  second round rebuilt this resolution at `aa5d055`: 1189 passed, 53 guards,
+  `isEnabled: enabled` silent, `!enabled` reddens
+  `AccessibilityTreeTests.swift:300`.
 - **Modifier composition lane 3, LANDED at `6a0169c`** (`EV-W` item 1; the
   loud half and the sufficiency of what follows were measured on a scratch merge
   in the lane 4 re-run: 1162 passed after the port, M1–M4 redden E11/E22/E23,
@@ -1684,7 +1882,26 @@ this branch's.
   `everyModifierWrapperDelegatesEachPhaseExactlyOnce`, each `[1, 1, 1]`, with
   the mutation "the typed entry calls content twice". Measure, and pin, which
   side of a scope a proposal `.padding`/flexible frame written after it sits on
-  (`EV-X`).
+  (`EV-X`). The second round rebuilt this merge at `6a0169c` (1162 passed, 61
+  guards). Its variants add two readings: `cursor += 1` **after** forwarding
+  reddens E22 ×1, not ×3, and a value-keyed parent **with** a cursor bump
+  reddens E22 ×3 and E23. Either spelling is an acceptable instrument.
+- **Pin, or narrow, what `EV-Y` claims (second round).** Mutations m1
+  (`Frame.init` roots at `windowDefault()`) and m2 (an unbound `@Environment`
+  falls back to `windowDefault()`) each left the suite green, although both
+  change behaviour. Choose one:
+  - extend E24 with a windowless-`Frame` arm and an unbound-`@Environment`
+    arm, both behind its existing `Locale.current != ''` `#require`, and re-run
+    m1 and m2 red; or
+  - keep `EV-Y`'s narrowed text (applied on this branch) and the two doc
+    comments (`Frame.swift:186-187`, `EnvironmentProperty.swift:21-22`) as
+    unpinned claims.
+- **Decide the disabled `ScrollView` (second round).** `.disabled(true)` does
+  not stop wheel scrolling, because `Frame.registerScrollRegion` inserts its
+  hitbox outside the gate. This was measured and is unpinned, and SwiftUI's
+  answer is unmeasured. Either pin it as it stands, with an enabled control,
+  or gate the scroll region and pin that. Carry it into the inert table either
+  way (below).
 - **`FrameModifier` → `ModifiedElement`** (`EV-W` item 3, loud, measured):
   relabel `Frame.registerHandlers`' doc; `grep -rn "registerHandlers(" Sources`
   should still find five callers. D2's padding-frame and inside arms are the
@@ -1718,6 +1935,9 @@ this branch's.
     `pixelLength` are re-stamped from `Window.theme` and the surface scale, so
     a write to either through `window.environment` or `rootEnvironment` does
     nothing. `Frame.rootEnvironment` traps if set during `render` (`EV-Z`).
+  - A `Frame` built without a window roots at `EnvironmentValues()` (locale
+    ''); `Window` stamps `Locale.current`. Unpinned unless E24 is extended
+    (above).
   - **A modifier written after a scope sits outside it** (`EV-X`):
     `.disabled(true).frame(…).onClick {}` fires. Over legacy content,
     `.padding` and handler modifiers do not compile directly on a scope; over
@@ -1733,6 +1953,9 @@ this branch's.
     registry** (no `isFocusable`, `actions`, raw `onKey` or `keyContext`), no
     `$focus` slot, and its declared AX node gains `.disabled`. A click needs the
     target enabled at press and at release.
+  - **Scroll regions are outside the gate**: a `.disabled` `ScrollView` still
+    scrolls on the wheel (`Frame.registerScrollRegion`; measured, unpinned
+    unless pinned at integration).
   - A site that registers handlers without that method is ungated with no
     diagnostic; `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled` is
     the per-site guard, and a new site gains an arm in the same change.
@@ -1764,13 +1987,16 @@ this branch's.
   `pixelLength` (no internal reader); `@Environment` inside `AnyElement`; an
   unbound `@Environment` (reads defaults silently); an in-module write to
   `theme`/`pixelLength` through `window.environment` or `rootEnvironment`
-  (re-stamped).
+  (re-stamped); `.disabled` on a `ScrollView` (the wheel still scrolls; its
+  scroll region bypasses the gate).
 - **Build and test — guards:** the per-file guard list gains
   `MetalUITests/EnvironmentCompileGuards` (8 guards). **Counts on this branch:
   1133 tests, 97 goldens, 53 guards, 0 `error:`, 0 `warning:`** (both build
   systems); the composition merge measured 1152 / 55 at `6d0ea97` and 1162 / 61
   at `6a0169c` (after the scratch port), the bridge merge 1172 at `b9e258e` and
-  1189 / 53 at `aa5d055`. Re-take on the merged tree.
+  1189 / 53 at `aa5d055`. The second verification round reproduced 1133 / 97 /
+  53 at `e709dc5` and `d18f2ce`, and 1162 / 61 and 1189 / 53 on its own
+  rebuilds of the two merges. Re-take on the merged tree.
 - **When CI lands — add:** `aBareEnvironmentValuesHoldsTheRootLocaleAndAWindowStampsTheCurrentOne`
   (E24) **hard-fails on a runner whose current locale is the root locale**
   (unset `LANG`): its discriminating precondition is a `try #require`, not a
@@ -1798,7 +2024,9 @@ not exposed, `EV-J`, a divergence). The brief's before/after window capture is
 also untaken. Record task 9 as implemented with carried items (`EV-Q`, the
 capture), and tick it only when control state and scale land or the plan's text
 is amended to drop them. Under task 10, note that the `Binding` alias is
-deleted in the change that adds `Binding`. Under task 12, note that focus
+deleted in the change that adds `Binding`, and that wheel scrolling under
+`.disabled` (SwiftUI unmeasured; MetalUI's `ScrollView` still scrolls) is
+`EV-Q`'s task 10 item. Under task 12, note that focus
 retention on disable, raw keys on a disabled ancestor and a disabled look are
 unowned.
 
@@ -1809,5 +2037,5 @@ add one sentence: environment values are scoped with `.environment(_:_:)`,
 `@Environment` or `pass.environment`, and rooted at `Window.environment`.
 
 **5. `docs/record/README.md`.** Index `11-environment.md` as "plan task 9:
-scoped environment, the disabled gate, `KeyBinding`; four lanes with verifier
-readings, and the merge obligations".
+scoped environment, the disabled gate, `KeyBinding`; four lanes, two verifier
+rounds, and the merge obligations".

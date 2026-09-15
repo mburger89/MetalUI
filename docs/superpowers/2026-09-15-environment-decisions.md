@@ -422,6 +422,12 @@ siblings.**
 - **No wheel swallowed.** A disabled `onClick` inside a `ScrollView` no longer
   swallows the wheel over its rect: divergence 16 needs a hitbox, and there is
   none. SwiftUI's wheel under `.disabled` stays unmeasured (`EV-Q`).
+  _(Record, second verification round:)_ **The gate does not stop a disabled
+  `ScrollView` from scrolling.** `Frame.registerScrollRegion` calls
+  `insertHitbox` directly, outside `registerHandlers` and its gate. Lane 3's
+  verifier measured it with a scratch test, since deleted: a `.disabled(true)`
+  `ScrollView` took one −37 wheel event and its stored offset read 37.0,
+  exactly as the `.disabled(false)` control did. No test pins this either way.
 - **The press/release rule still holds** (`EV-T`): probe R's R1 and R2 still
   fail `dispatchClick`'s `hit.id == pressed`.
 
@@ -1136,7 +1142,7 @@ integration step assigns it (`EV-W`).
 | Raw key handlers on a disabled element (`EV-F` divergence 1) | probe K2, K6 | **unowned**, same reason |
 | Key handler ORDER: SwiftUI runs an ancestor's `.onKeyPress` before the focused view's; MetalUI bubbles outward from the focused element | probe K5, K7 | **unowned**; a pre-existing difference, not introduced here |
 | A disabled "look" (dimming) | **unprobed** | **unowned**, same reason as focus retention |
-| Wheel scrolling under `.disabled` | **unmeasured** in SwiftUI: the probe's enabled control failed (header "S"). MetalUI: a disabled target registers no hitbox, so it swallows no wheel (`EV-E`) | task 10 |
+| Wheel scrolling under `.disabled` | **unmeasured** in SwiftUI: the probe's enabled control failed (header "S"). MetalUI: a disabled target registers no hitbox, so it swallows no wheel (`EV-E`). **A `.disabled` `ScrollView` still scrolls**, because its scroll region is registered outside the gate (`Frame.registerScrollRegion`). This was measured by lane 3's verifier (offset 37.0 disabled and enabled alike) and is **unpinned** | task 10 |
 | A hit shape separate from `onClick`, so a disabled (or any non-clickable) overlay can block a sibling under it as SwiftUI's shape does (`EV-E` sibling divergence) | P2f, P2g, P2m | **unowned**; a pre-existing difference of the hitbox model |
 | `.padding` and handler modifiers written directly on a scope (`EV-B`, `EV-X`). `.frame(width:height:)` already follows a scope, and any `StyledElement` modifier after it | compile-time limit; typecheck in record 11, third pass | **unowned**: named task 3, but the modifier-composition spec never mentions `EnvironmentScope` |
 | A scope as window root or as `Deferred`/`List` element content (`EV-B`) | compile-time limits | task 3 (same caveat) |
@@ -1862,7 +1868,14 @@ a `\.self` reset would silently keep the user's locale where SwiftUI's drops it.
 
 **Cost if wrong.** A test-built `Frame` or an unbound `@Environment` reads the
 root locale where it read the user's; with no consumer that changes no pixel.
-Pinned by E24.
+**E24 pins only two of this ruling's claims**: a bare `EnvironmentValues()`
+holds '' and a window's root holds `Locale.current` (with its `\.self` reset
+reading ''). _(Narrowed by record, second verification round: this said
+"Pinned by E24" for the whole ruling.)_ **The other two are unpinned,
+measured**: that a `Frame` built without a window reads '', and that an unbound
+`@Environment` reads ''. The same two claims sit in doc comments on
+`Frame.rootEnvironment` (`Frame.swift:186-187`) and at
+`EnvironmentProperty.swift:21-22`. See mutations m1 and m2 below.
 
 **CI hazard (lane 2b's verifier).** E24 opens with
 `try #require(Locale.current != Locale(identifier: ""))` so that its
@@ -1878,6 +1891,14 @@ in record 11 and owed to CLAUDE.md's "When CI lands".
 - **(b) `Window.environment`'s initial value is `EnvironmentValues()`, unstamped**: 4 issues in 2 tests — E24's window arm (ii) reads '' (`:845`, `:847`) and `theWindowsEnvironmentReachesTheFrameAndASetRepaints` reads '' at **both** its default-locale expectations, the window's (`:797`) and its recorder's (`:802`).
 
 The red run before the implementation (`d271a64`) is (a)'s reading exactly: `:834`, `:835`, `:848`.
+
+**Mutations, second verification round** (lane 2b's verifier at `e709dc5`, full unfiltered suite under `--build-system native`, 1133 tests; line numbers at `e709dc5`, where E24 sits at `:870`):
+
+- **(a) again**: `aBareEnvironmentValuesHoldsTheRootLocaleAndAWindowStampsTheCurrentOne` `EnvironmentTests.swift:872`, `:873`, `:886`.
+- **(b) again**: E24 `:883`, `:885`; `theWindowsEnvironmentReachesTheFrameAndASetRepaints` `:835`, `:840`.
+- **m1, `Frame.init` roots at `EnvironmentValues.windowDefault()`** (a windowless frame reads `Locale.current`): **1133 passed, nothing reddened.**
+- **m2, an unbound `@Environment` falls back to `EnvironmentValues.windowDefault()`** (`EnvironmentProperty.swift:48`): **1133 passed, nothing reddened.**
+- **Both mutants do change behaviour.** The verifier checked this with a temporary test, since removed. It rendered `EnvRecorder` in `frame()` and read `Environment(\.locale).wrappedValue` unbound. The test passed unmutated. Under m1 it failed at `(log.paint["w"]?.locale.identifier → "en_US") == ""`, and under m2 at `(unbound.wrappedValue.identifier → "en_US") == ""`. So both greens are gaps in coverage, not void instruments. The integration step either extends E24 with a windowless-`Frame` arm and an unbound-`@Environment` arm, both behind the same `Locale.current != ''` `#require`, or leaves this narrowing standing.
 
 ## EV-Z — `Frame.rootEnvironment` cannot be set while the frame renders
 

@@ -3,6 +3,20 @@
 **Milestone:** plan task 9 of `plans/2026-09-12-swiftui-alignment.md`, "Expand
 the environment and control-state model", on `feat/environment`.
 
+**Status (2026-09-15, record, second verification round): implemented,
+verified twice, handed to the integration step; plan task 9 NOT to be
+ticked.** A second round of independent verifiers re-checked lanes 2b, 3 and
+4 at `e709dc5`/`d18f2ce`. All three were ok: 1133 tests, 97 goldens unmoved,
+53 guards, 0 `error:`/`warning:`, and the three probes the rulings rest on
+re-ran identically. The two merges were rebuilt, giving 1189 tests at
+`aa5d055` and 1162 at `6a0169c` after the port. The round found no code
+defect. It found two things now recorded, with no source changed. First,
+`EV-Y` claims more than E24 pins: a windowless `Frame`'s and an unbound
+`@Environment`'s root locale are unpinned, measured by two green mutants.
+Second, a `.disabled` `ScrollView` still scrolls on the wheel, because its
+scroll region bypasses the gate; that is unpinned (`EV-E`, `EV-Q`). Owed
+items are unchanged, and record 11's "For the integrator" is the hand-off.
+
 **Status (2026-09-15, record): implemented and verified; handed to the
 integration step.** All four lanes are built, and lanes 2b, 3 and 4 were each
 re-checked by an independent verifier, all ok: 1133 tests, 97 goldens unmoved,
