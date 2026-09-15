@@ -4,7 +4,7 @@ Rulings for the accessibility-bridge half of plan task 12
 (`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`). They are prefixed
 **`AB-`** and **lettered** (`AB-A`, `AB-B`, …), with two-letter tails after
 `AB-Z`. **A bare `AB-3` is a typo, not a citation.** The next unused letter is
-`AB-AE`.
+`AB-AG`.
 
 Read alongside:
 
@@ -22,6 +22,9 @@ Read alongside:
   VoiceOver signal (`AB-AB`), read by grepping for `warning:`.
 - `docs/probes/appkit-accessibility-activation-clients.swift`: a two-process
   probe of what an out-of-process client reaches on a host view (`AB-B`).
+- `docs/probes/appkit-accessibility-override-isolation.swift` and
+  `appkit-accessibility-override-isolation-typecheck.swift`: the overrides'
+  isolation and the thread a client's request arrives on (`AB-AE`).
 - `docs/record/12-accessibility-bridge.md`: this track's record, including the
   human VoiceOver script.
 - Rulings this track leans on: `TB-M` (children stay a field; order is not
@@ -64,6 +67,8 @@ exercise, the way `SA-J`…`SA-M` carry theirs.
 - `AB-AA`: lane 1 as built.
 - `AB-AB`…`AB-AD`: added by the second critic round: the VoiceOver signal's
   isolation, how a test forces that signal, and a hidden root.
+- `AB-AE`, `AB-AF`: lane 2 as built — the overrides' isolation, and the
+  corrections and hazards it found.
 - **"Critic round"** and **"Second critic round"** at the end map each finding
   to what was done.
 
@@ -1677,6 +1682,147 @@ red line and the mutation are in the record.
 
 **Cost if wrong.** None known. The check costs one `Style` read per collecting
 frame.
+
+## AB-AE — AppKit's accessibility overrides are nonisolated: every override answers through a main-thread helper with a fallback
+
+**Added by lane 2's implementer (2026-09-15).** The design did not see this.
+
+**What.**
+
+- `NSAccessibility` (the protocol) and `NSAccessibilityElement` carry no
+  main-actor annotation, so **every override lane 2 writes is nonisolated** —
+  on `AppKitAccessibilityElement` and on `MetalHostView` (an `NSView`) alike —
+  even inside a `@MainActor` class.
+- Every override body therefore runs through
+  `mainActorAnswer(_ object:fallback:_ body: @MainActor (Object) -> T)`
+  (`AppKitAccessibility.swift`): on the main thread it runs `body` with the
+  object inside `MainActor.assumeIsolated`; **off the main thread it answers
+  `fallback` and runs nothing** — no label, no children, no element, no
+  action, no activation.
+- The element's logic lives in `@MainActor` members; each override is a
+  one-line hand-off. The object is a **parameter**, and both it and the answer
+  cross the `assumeIsolated` boundary in `MainThreadAnswer`, an
+  `@unchecked Sendable` box that is built and unwrapped on the main thread.
+
+**Why.**
+
+- **The first build warned dozens of times**
+  (`main actor-isolated property … can not be referenced from a nonisolated
+  context`), against a 0-`warning:` constraint. The committed overrides probe
+  typechecked **constant** bodies, so it could not see it.
+- **`assumeIsolated` requires a `Sendable` result**; an override returns `Any?`
+  or `[Any]?` (probe control `UNBOXED`: `type 'T' does not conform to the
+  'Sendable' protocol`).
+- **Capturing `self` in the body is rejected**, and only at SIL: `sending
+  'self' risks causing data races` (control `CAPTURE`). Under `-typecheck` that
+  control reads **0 diagnostics**: the committed probe's blind spot, one
+  compiler stage later. The typecheck probe is read under `-emit-sil`.
+- **A fallback, not a trap.** An out-of-process client's hit test arrived on
+  the main thread in three of three runs (arm B), so the fallback is expected
+  never to run. But the arm observed one entry point; nothing documents the
+  rest, `assumeIsolated` alone traps off the main thread (CLAUDE.md records the
+  suite SIGTRAPping on that collapse elsewhere), and `DispatchQueue.main.sync`
+  deadlocks against a main thread waiting on its caller.
+
+**Evidence.** Measured, both probes with their output in their headers:
+
+| probe arm | result |
+|---|---|
+| `appkit-accessibility-override-isolation-typecheck.swift`, `NONE` (adopted spelling), `-emit-sil` | 0 diagnostics |
+| same, `NEGATIVE` (body reads main-actor state directly) | `warning: main actor-isolated property 'label' can not be referenced from a nonisolated context` |
+| same, `CAPTURE` | `error: sending 'self' risks causing data races`; **0 under `-typecheck`** |
+| same, `UNBOXED` | `error: type 'T' does not conform to the 'Sendable' protocol` |
+| `appkit-accessibility-override-isolation.swift` arm B (two processes, client trusted) | `position: ["hitTest@main"]`, three runs |
+| same, arm C (`offmain`) | main thread `label=live children=1`; background `label=nil children=0`; `no trap` |
+
+**Pin.** `anOffMainThreadQueryAnswersNothingAndDoesNotTrap`
+(`AppKitAccessibilityTests.swift`), an **exit test** because the failure it
+guards is a trap: in a child process, the control on the main thread reads
+the live label, one child, an allowed and successful press; the same element
+from `Task.detached` reads `nil`, 0 children, press not allowed, press
+`false`, and the child exits 0. Its mutation (L47, record) is removing the
+thread check.
+
+**Cost if wrong.**
+
+- **If AppKit ever calls an override off the main thread** (a threaded
+  accessibility mode, a future OS), that client reads an empty window rather
+  than a crashed app. A client that trusts such an answer sees nothing; the
+  fix would be a synchronous hop, with its deadlock weighed then.
+- **Test count.** Lane 2's platform file has **18** tests, not the spec's 17.
+
+## AB-AF — lane 2 as built: corrections to the spec, and two hazards for the integration step
+
+**Added by lane 2's implementer (2026-09-15), after its red and green runs.**
+The spec's lane-2 section carries a "Lane 2 as built" note; red lines and the
+mutation table are in `docs/record/12-accessibility-bridge.md`.
+
+**What.**
+
+1. **`AccessibilityRequest` collides with `Accessibility.framework`.** That
+   framework exports `AXRequest` to Swift as `AccessibilityRequest`, and
+   `AppKit` brings it in. Any file importing both `AppKit` and
+   `MetalUIPlatform` — including through `MetalUI`, which `@_exported`-imports
+   `MetalUIPlatform` — gets `'AccessibilityRequest' is ambiguous for type
+   lookup` on the bare name (measured: the first build of lane 2's tests). The
+   source module is unaffected (its own type shadows the import), and so is
+   every existing file (none spells the name beside `AppKit`). Lane 2's tests
+   use a `private typealias Request = MetalUIPlatform.AccessibilityRequest`.
+   **Not renamed here:** the type is lane 1's public seam in shared
+   `Platform.swift`, and a rename is the integration step's call (candidate:
+   `AccessibilityClientRequest`).
+2. **`swift package clean` was needed mid-lane.** Turning
+   `AppKitWindow.onAccessibilityRequest` from a stored into a computed property
+   left the incremental test link failing with `Undefined symbols … direct
+   field offset for MetalUIPlatform.AppKitWindow.onAccessibilityRequest`. A
+   clean build fixed it: CLAUDE.md's Build-section hazard, a third shape.
+3. **An element's `lastNode`/`lastGeometry` are seeded at creation** from the
+   tree it was created against, and replaced at detach by the last tree that
+   held the id. The spec named the fields without a source for their first
+   value.
+4. **`parents` is rebuilt on every structural publish, active or not.** The
+   spec's step 1 returned before it while inactive; a tree stored before
+   activation would then have been read with a stale parent map by the
+   activating query. No element can exist before activation, so nothing else
+   differs.
+5. **`isAccessibilitySelectorAllowed` also gates table and row attributes by
+   role**: `accessibilityRowCount`/`Rows`/`VisibleRows` only on a `.table`,
+   `accessibilityIndex` only on a `.row`. Every element subclass implements
+   all of them, so without the gate a button would advertise `AXRowCount 0`.
+   Pinned in `aTableReportsItsRowCountAndItsRowsTheirIndices`.
+6. **A detached element's press is refused twice over.** The spec's mutation
+   for the end-to-end adoption test, "skip detaching (arm 2 press runs
+   `second`)", cannot run `second`: a press for the vanished id reaches
+   `Window`, finds no hitbox with that id, and returns `false`. The test's arm 2
+   is reddened by its `accessibilityParent() == nil` assertion instead
+   (record, L46).
+
+7. **The spec's parenthetical for "never reset the read flag" was the other
+   mutant.** Never resetting posts `.layoutChanged` on every structural publish
+   (L35: 11 after the ten unread publishes); "the third step posts 0" is what a
+   children read that does not re-arm the flag does (L36). Both redden
+   `layoutChangedIsPostedOncePerClientRead`.
+8. **Three tests were strengthened after the first mutation round**, each
+   against a survivor shown to change behaviour first: the arm-Q test's
+   synthesized mouse events never reached the host view in the test process
+   (the app is inactive, so AppKit spends the click on activation; L44), and
+   `AccessibilityTreeChanges` ignoring children order (L49) or roles (L50)
+   changed no count any fixture read. The design's own arm Q probe never checked
+   that its mouse events arrived either.
+
+**Lane 2's mutation evidence, by ruling** (52 rows, all killed at the re-take;
+the table, with the tests each reddens, is in the record): `AB-N` L01, L02;
+`AB-F` role and trait mapping L03–L05; `AB-X` lazy creation L06, L25, L27,
+L32, L33; `AB-D` identity and detach L07–L09, L45, L46; `AB-E` frames L10, L11,
+L31; `AB-H` gating L12, L13, L52; `AB-J` L14, L15; `AB-L` L16–L18, L51; `AB-W`
+L19–L22, L40, L41; `AB-B` and `AB-AB` activation L23–L29, L43, L44; `AB-K`
+L29–L39, L48–L50; `AB-AC` and the seam L42, L43; `AB-AE` L47.
+
+**Why.** Each is the smallest change that builds against the SDK and the
+fields that exist, or makes a mutation the spec relies on observable.
+
+**Cost if wrong.** Item 1: an app that imports `AppKit` and spells
+`AccessibilityRequest` must qualify it until the rename.
 
 ---
 

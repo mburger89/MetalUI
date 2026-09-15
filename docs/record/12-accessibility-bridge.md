@@ -3,7 +3,7 @@
 **This is the track's record, on `feat/ax-bridge` from `f64e58a`.**
 
 - Spec: `docs/superpowers/specs/2026-09-15-accessibility-bridge-design.md`.
-- Rulings: `AB-A`…`AB-Z` in
+- Rulings: `AB-A`…`AB-AF` in
   `docs/superpowers/2026-09-15-accessibility-bridge-decisions.md`.
 - Probes:
   - `docs/probes/swiftui-accessibility-bridge.swift`;
@@ -11,12 +11,15 @@
   - `docs/probes/swiftui-accessibility-bridge-critic2.swift`;
   - `docs/probes/appkit-accessibility-overrides-typecheck.swift`;
   - `docs/probes/appkit-voiceover-signal-isolation.swift`;
-  - `docs/probes/appkit-accessibility-activation-clients.swift`.
+  - `docs/probes/appkit-accessibility-activation-clients.swift`;
+  - `docs/probes/appkit-accessibility-override-isolation.swift` and
+    `appkit-accessibility-override-isolation-typecheck.swift` (lane 2).
 
 The integration step, not this track, links this file from
 `docs/record/README.md` and CLAUDE.md.
 
-**Status: lane 1 (tree and seam) implemented; lanes 2 and 3 designed.** The
+**Status: lanes 1 (tree and seam) and 2 (AppKit bridge) implemented; lane 3
+designed.** The
 design was revised after one critic round, and again after a second critic
 round that followed lane 1 (its section is after lane 1's). Each lane appends
 its own section below:
@@ -379,6 +382,194 @@ in a test comment and each now killed. M33 is the only survivor.
 - **Demo `StateTable` figures.** Lane 3's demo labels are declared nodes and
   write `$ax` slots, so CLAUDE.md's warm resident counts (165 at 40 rows, 63 at
   500) go stale when lane 3 lands; re-take them from record §07's harness.
+
+### Lane 2 — AppKit bridge (2026-09-15)
+
+Commits on `feat/ax-bridge`: `b7474f9` (tests, red, with a compiling
+skeleton), `7dfdc6d` (implementation, `AB-AE`), `dbfa314` (three tests
+strengthened against surviving mutants). Rulings added: `AB-AE` (the overrides
+are nonisolated), `AB-AF` (lane 2 as built). No other agent was live in this
+worktree.
+
+**What landed.** `Sources/MetalUIPlatform/AccessibilityTreeChanges.swift` (the
+neutral structural diff) and `Sources/MetalUIPlatform/AppKit/AppKitAccessibility.swift`
+(the poster and signal seams, `VoiceOverSignal`, `AppKitAccessibilityBridge`,
+`AppKitAccessibilityElement`, the `MetalHostView` overrides, and
+`mainActorAnswer`). Shared-file edits: `AccessibilityGeometry` gains `layer`
+and `order` (`AccessibilityTree.swift`); `Frame.accessibilityGeometry` fills
+`layer` (one argument); `AccessibilityTreeBuilder` fills `order` (four lines);
+`AppKitPlatform.swift` gains the host view's stored bridge, `AppKitWindow`'s
+bridge and forwards, `hostView` made internal, and the internal
+`AppKitPlatform(device:accessibilitySignal:)`. `Platform.swift`, `Window.swift`,
+`Passes.swift`, `ElementGroup.swift`, `Handlers.swift` and `Fakes.swift` are
+untouched by lane 2.
+
+**Red run on the skeleton commit** (`swift test --skip-build --no-parallel
+--filter` over the 20 lane-2 tests and the two lane-1 tests that gained
+`layer`/`order` pins): `Test run with 22 tests in 0 suites failed after 0.335
+seconds with 40 issues`. One line per test (the first issue; all were
+recorded):
+
+| test | red line |
+|---|---|
+| `theHostViewIsAGroupWhoseChildrenAreThePublishedRoots` | `(h.host → MetalHostView).isAccessibilityElement()` false; `accessibilityRole() → "AXUnknown"`; `(children.count → 0) == 6` |
+| `rolesLabelsValuesAndTraitsMapOneToOne` | `(top.count → 0) == 5` |
+| `elementsAreCreatedOnlyWhenAClientReadsThem` | `h.bridge.isActive → false` |
+| `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes` | `(first.count → 0) == 2` |
+| `anElementsFrameIsItsHostRectInScreenCoordinatesReadAtQueryTime` | `elements(h.host.accessibilityChildren()) → []).first → nil` |
+| `onlyAdvertisedActionsAreAllowedAndPerformingSendsTheRequest` | `(top.count → 0) == 3` |
+| `focusIsReportedFromTheTreeAndAFocusRequestIsSent` | `(top.count → 0) == 2` |
+| `aTableReportsItsRowCountAndItsRowsTheirIndices` | `…accessibilityChildren()) → []).first → nil` |
+| `hitTestingUsesVisibleFramesSoAClippedRowNeverWins` | seven issues; e.g. `hitTest(screenPoint(5, 15)) → nil == "header"`, and the outside point answered **`<NSWindow>`**, not the host: a plain `NSView` is not an element, so it forwards to its window |
+| `aHostQueryActivatesExactlyOnce` | `(h.log.requests → []) == [.activate]` |
+| `aFocusedElementQueryDoesNotActivate` | `accessibilityFocusedUIElement → <NSWindow> === h.host` (three reads), and the control's `[] == [.activate]` |
+| `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery` | `appKit.accessibilityBridge.isActive → false`; `(delivered → []) == [.activate]` |
+| `nothingIsPostedBeforeActivation` | `(h.poster.count(.layoutChanged) → 0) == 1` (the control half) |
+| `aGeometryOnlyChangeTouchesNoElementAndPostsNothing` | `…accessibilityChildren()) → []).first → nil` |
+| `destroyedIsPostedOnlyForElementsAClientWasHanded` | `(roots.count → 0) == 3` |
+| `layoutChangedIsPostedOncePerClientRead` | the `#require` on the first root read → `nil` |
+| `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged` | `(top.count → 0) == 5` |
+| `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick` | `window.accessibility.isActive → false`; `(children.count → 0) == 1` |
+| `aKeyWindowReceivingEventsIsNeverActivatedWithoutAClient` | **green**, as the spec says it must be: arm Q's AppKit answer. Its evidence is L43 and L44 below |
+| `aHeldElementWhoseIDIsAdoptedPressesTheAdopter` | `(before.count → 0) == 2` |
+| `childrenFollowDeclarationOrderWhereIDsAloneCannot` (lane-1 pin) | `(orders → [0, 0, 0, 0, 0, 0, 0]) == Array(0..<7)`, both arms |
+| `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor` (lane-1 pin) | `try #require(tree.geometry[tip]).layer == Frame.rootLayer` |
+
+**The first green build was not green: every override is nonisolated
+(`AB-AE`).** The implementation's first build printed dozens of
+`warning: main actor-isolated property … can not be referenced from a
+nonisolated context`, on the element and on `MetalHostView` alike: AppKit's
+`NSAccessibility` protocol and `NSAccessibilityElement` carry no main-actor
+annotation, and the design's overrides probe had typechecked constant bodies.
+The obvious helper, a `@MainActor () -> T` closure run under
+`MainActor.assumeIsolated`, failed twice more: `T` must be `Sendable`
+(`[Any]?` is not), and a closure capturing `self` is rejected with
+`sending 'self' risks causing data races` — **a SIL diagnostic that
+`-typecheck` does not print**, so the new typecheck probe is compiled with
+`-emit-sil`, where its `CAPTURE` control reads 2 diagnostics and under
+`-typecheck` reads 0. The adopted `mainActorAnswer(_:fallback:_:)` takes the
+object as a parameter, boxes it and the answer, and returns the fallback off
+the main thread. A two-process run (client trusted, three runs) saw an
+out-of-process hit test arrive on the main thread; the fallback stays because
+one entry point is not all of them. The 18th platform test,
+`anOffMainThreadQueryAnswersNothingAndDoesNotTrap`, is an exit test, added
+with the helper; its red evidence is L47.
+
+**Two more things the first build found (`AB-AF`).**
+
+- `'AccessibilityRequest' is ambiguous for type lookup in this context` in both
+  new test files: `Accessibility.framework` exports `AXRequest` under that Swift
+  name, and `AppKit` imports it. Any client file importing `AppKit` and `MetalUI`
+  hits it on the bare name. Tests use a typealias; the rename is the
+  integration step's.
+- Making `AppKitWindow.onAccessibilityRequest` computed left the incremental
+  link failing with `Undefined symbols … direct field offset for
+  MetalUIPlatform.AppKitWindow.onAccessibilityRequest`; `swift package clean`
+  fixed it (CLAUDE.md's Build-section hazard).
+
+**Green, at `7dfdc6d`** (default build system, unfiltered, after a clean):
+`Test run with 1123 tests in 1 suite passed after 24.191 seconds`, 0 `error:`,
+0 `warning:`. 1123 = 1102 at lane 1's last record + 18 platform + 3
+end-to-end. **Re-taken at `dbfa314`** (the strengthened tests; default build
+system, unfiltered): `Test run with 1123 tests in 1 suite passed after 25.973
+seconds`, 0 `error:`, 0 `warning:`. Goldens: `find Tests -name "*.json" | wc -l`
+reads 97 and `git diff --stat f64e58a -- '*.json'` is empty. Typecheck guards:
+none added (the new probe is a `docs/probes` file, not a suite guard).
+
+**Mutations.** Each applied by a script as an exact text replacement to
+committed source, built with `swift build --build-tests`, run as the
+**unfiltered** suite with `swift test --skip-build --no-parallel`, the failing
+test names parsed from the log, and restored with `git checkout`, with
+`git status --porcelain -- Sources Tests Package.swift` checked clean after
+each. Every build succeeded and every run printed its summary line (1123
+tests).
+
+**First round, at `7dfdc6d`**: 51 mutations (L01–L51). **Three survived** — L44 (`mouseDown` activates), L49 (`AccessibilityTreeChanges` ignores children), L50 (it ignores roles) — each confirmed a real behaviour change before it was banked: L44's mutant activates on any view `mouseDown`, yet the arm-Q test's control, added to find out, showed its mouse events had **never reached the view** (`inputs → ["key"]`: in the test process the app is inactive and the window not key, so `sendEvent` spent the click on activation); L49 and L50 change what posts `.layoutChanged`, and no arm changed only children order or only a role. Tests strengthened in `dbfa314` (the arm-Q test routes mouse events to the view after `sendEvent`, with a control; `layoutChangedIsPostedOncePerClientRead` gains reorder-only and role-only arms; the table test pins `AB-AF` item 5 and gains L52). Every other first-round row reddened at least what the re-take below names. **Hazard hit:** this round's runner was written into a scratchpad directory holding an earlier session's lane-1 runner, and overwrote its `run.py`, `defs.py` and `muts.json` (their logs survive; lane 1's table above was already recorded from them). The re-take ran from a directory of its own.
+
+**Re-take, whole table, at `dbfa314`** (all 52, including every row the first round had already killed — practices doc, record failure 3). **No survivor.** Counts at 1123 tests throughout.
+
+| # | mutation | reddens |
+|---|---|---|
+| L01 | host roots in dictionary order | `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes`, `focusIsReportedFromTheTreeAndAFocusRequestIsSent`, `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged`, `onlyAdvertisedActionsAreAllowedAndPerformingSendsTheRequest`, `rolesLabelsValuesAndTraitsMapOneToOne`, `theHostViewIsAGroupWhoseChildrenAreThePublishedRoots` (dictionary order is per process: the first round also reddened `aHeldElementWhose…`; this run did not) |
+| L02 | a root answers nil for its parent | `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes`, `theHostViewIsAGroupWhoseChildrenAreThePublishedRoots` |
+| L03 | swap label and value | `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick`, `aTableReportsItsRowCountAndItsRowsTheirIndices`, `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes`, `anOffMainThreadQueryAnswersNothingAndDoesNotTrap`, `hitTestingUsesVisibleFramesSoAClippedRowNeverWins`, `rolesLabelsValuesAndTraitsMapOneToOne`, `theHostViewIsAGroupWhoseChildrenAreThePublishedRoots` |
+| L04 | staticText maps to group | `rolesLabelsValuesAndTraitsMapOneToOne` |
+| L05 | ignore isEnabled | `rolesLabelsValuesAndTraitsMapOneToOne` |
+| L06 | create elements in publish | `destroyedIsPostedOnlyForElementsAClientWasHanded`, `elementsAreCreatedOnlyWhenAClientReadsThem`, `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged` |
+| L07 | recreate every element on publish | `aGeometryOnlyChangeTouchesNoElementAndPostsNothing`, `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes`, `destroyedIsPostedOnlyForElementsAClientWasHanded`, `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged` |
+| L08 | detach does not mark detached | `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes`. The spec named this "skip `isDetached` (the parent stays the host)" |
+| L09 | a detached frame is .zero while the host is alive | `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes` |
+| L10 | drop the flip (minY + y) | `aGeometryOnlyChangeTouchesNoElementAndPostsNothing`, `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes`, `anElementsFrameIsItsHostRectInScreenCoordinatesReadAtQueryTime` |
+| L11 | cache the screen rect on first read | `anElementsFrameIsItsHostRectInScreenCoordinatesReadAtQueryTime` |
+| L12 | allow every action | `onlyAdvertisedActionsAreAllowedAndPerformingSendsTheRequest` |
+| L13 | perform returns true regardless of the closure | `onlyAdvertisedActionsAreAllowedAndPerformingSendsTheRequest` |
+| L14 | with nothing focused, report the first focusable node | `focusIsReportedFromTheTreeAndAFocusRequestIsSent` |
+| L15 | the focus setter sends nothing | `focusIsReportedFromTheTreeAndAFocusRequestIsSent` |
+| L16 | row count is children.count | `aTableReportsItsRowCountAndItsRowsTheirIndices` |
+| L17 | row index is the position among its siblings | `aTableReportsItsRowCountAndItsRowsTheirIndices` |
+| L18 | every row is visible | `aTableReportsItsRowCountAndItsRowsTheirIndices` |
+| L19 | hit-test on the unclipped frame | `hitTestingUsesVisibleFramesSoAClippedRowNeverWins` |
+| L20 | hit test returns the first match | `hitTestingUsesVisibleFramesSoAClippedRowNeverWins` |
+| L21 | hit test considers roots only | `hitTestingUsesVisibleFramesSoAClippedRowNeverWins` |
+| L22 | hit test ranks by order alone | `hitTestingUsesVisibleFramesSoAClippedRowNeverWins` |
+| L23 | drop the sticky activation flag | `aHostQueryActivatesExactlyOnce`, `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery` |
+| L24 | the focused-element query activates | `aFocusedElementQueryDoesNotActivate` |
+| L25 | ignore the signal | `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery`, `elementsAreCreatedOnlyWhenAClientReadsThem` |
+| L26 | send .activate on every true | `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery` |
+| L27 | deliver the signal through a Task | `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery`, `elementsAreCreatedOnlyWhenAClientReadsThem` |
+| L28 | drop the pending send at onRequest assignment | `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery` |
+| L29 | post regardless of isActive | `aFocusedElementQueryDoesNotActivate`, `nothingIsPostedBeforeActivation` |
+| L30 | geometry is structure | `aGeometryOnlyChangeTouchesNoElementAndPostsNothing` |
+| L31 | frames come from the geometry at element creation | `aGeometryOnlyChangeTouchesNoElementAndPostsNothing` |
+| L32 | post destroyed per removed id, on a fresh object | `destroyedIsPostedOnlyForElementsAClientWasHanded` |
+| L33 | post destroyed per removed id, vending it | `destroyedIsPostedOnlyForElementsAClientWasHanded` |
+| L34 | layoutChanged on every structural publish | `layoutChangedIsPostedOncePerClientRead` |
+| L35 | never reset the read flag | `layoutChangedIsPostedOncePerClientRead`: 11 posts after the ten unread publishes. **The spec's parenthetical for its "never reset the read flag", "the third step posts 0", describes L36, not this** |
+| L36 | an element children read does not re-arm | `layoutChangedIsPostedOncePerClientRead`: the third step posts 0 more, the spec's parenthetical |
+| L37 | label changes post valueChanged | `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged` |
+| L38 | focus posts on the old element | `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged` |
+| L39 | label changes post for unvended ids | `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged` |
+| L40 | Frame fills layer with 0 | `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor` |
+| L41 | the builder fills order with 0 | `childrenFollowDeclarationOrderWhereIDsAloneCannot` |
+| L42 | AppKitWindow stores rather than forwards the tree | `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick` |
+| L43 | AppKitWindow drops the request handler | `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aKeyWindowReceivingEventsIsNeverActivatedWithoutAClient`, `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick`, `aRunningScreenReaderActivatesTheWindowBeforeAnyQuery` |
+| L44 | mouseDown activates | `aKeyWindowReceivingEventsIsNeverActivatedWithoutAClient`. **Survived the first round** (`inputs` never saw the mouse events: AppKit spent the click activating the inactive test app); killed after the test routes them to the view, with a control |
+| L45 | detach an element whose label changed | `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes`, `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged` |
+| L46 | skip detaching (dropped from the map only) | `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aVendedElementKeepsItsIdentityAndIsDetachedWhenItsIDGoes`. The element is dropped from the map but not detached. **The spec expected arm 2's press to run `second`; it cannot**: `Window` finds no hitbox for the vanished id and refuses. Arm 2 reddens on `accessibilityParent() == nil` (`AB-AF` item 6) |
+| L47 | no thread check before assumeIsolated | `anOffMainThreadQueryAnswersNothingAndDoesNotTrap`: the child process traps, and the exit test reports it |
+| L48 | removed ids in dictionary order | `destroyedIsPostedOnlyForElementsAClientWasHanded` |
+| L49 | structureChanged ignores children | `layoutChangedIsPostedOncePerClientRead`. **Survived the first round**; killed by the reorder-only arm added in `dbfa314` |
+| L50 | structureChanged ignores roles | `layoutChangedIsPostedOncePerClientRead`. **Survived the first round**; killed by the role-only arm added in `dbfa314` |
+| L51 | rowCount changes are not diffed | `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged` |
+| L52 | row selectors allowed on every role | `aTableReportsItsRowCountAndItsRowsTheirIndices`. Added with the selector-gate pin in `dbfa314`; not in the first round |
+
+
+**Performance, by count.** Lane 2 adds nothing to an inactive window's frame:
+`Window` publishes only while active (lane 1's `anInactiveWindowBuildsAndPublishesNothing`),
+and the bridge's work is bounded by what a client read. Pinned counts:
+`createdElementCount` 0 after publishing 1,001 nodes, 1 after the host read,
+1,001 after the table read and unchanged on a second read
+(`elementsAreCreatedOnlyWhenAClientReadsThem`, L06); 0 posts, 0 structural
+publishes and 2 geometry publishes across a moved-then-repeated tree, with the
+same element objects (`aGeometryOnlyChange…`, L30, L31); exactly 10 destroyed
+posts for 10 vended of 30 removed (`destroyedIsPosted…`, L32, L33, L48); one
+`.layoutChanged` across 10 unread structural publishes (`layoutChangedIsPosted…`,
+L34–L36). No allocation instrument was used (`AB-M`).
+
+**Deferred from lane 2, with owners.**
+
+- **The `AccessibilityRequest` rename** (`AB-AF` item 1): the integration step.
+- **The inert-table row "lane 1 alone is inert"** (second critic round, above)
+  can be deleted when this lane merges: `AppKitWindow` now forwards both seam
+  requirements and the host view activates.
+- **Not wired or not measured here:** VoiceOver itself (the human script
+  below, still open); the real `VoiceOverSignal`'s KVO flip (script item 1);
+  whether every AppKit accessibility entry point arrives on the main thread
+  (`AB-AE`: one observed); lane 3's defaults, so on this branch only declared
+  nodes, `List` and live-handler synthesis publish, and a `Text` is silent.
+- **The design's arm Q probe never confirmed its mouse events arrived** (its
+  spy's `mouseDown` records nothing). Lane 2's end-to-end version found that in
+  the test process they do not, and routes them to the view directly (L44).
 
 ### Human VoiceOver look — script (open)
 

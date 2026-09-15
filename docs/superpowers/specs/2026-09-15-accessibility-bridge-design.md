@@ -5,12 +5,14 @@
 semantics, disabled behaviour and content shapes wait for task 9 and are not
 here.
 
-**Status (2026-09-15): lane 1 implemented; lanes 2 and 3 designed.** Written
+**Status (2026-09-15): lanes 1 and 2 implemented; lane 3 designed.** Written
 against `f64e58a` on `feat/ax-bridge`, revised after one critic round, and
 revised again after a second critic round that followed lane 1. Lane 1's
 deviations from the text below are marked **"Lane 1 as built"** in place and
 ruled in `AB-AA`; its red runs and mutations are in the record. Changes the
-second round made are marked **"Second critic round"** in place. Rulings are
+second round made are marked **"Second critic round"** in place. Lane 2's
+deviations are marked **"Lane 2 as built"** and ruled in `AB-AE` and `AB-AF`.
+Rulings are
 prefixed **`AB-`** and lettered, in
 `docs/superpowers/2026-09-15-accessibility-bridge-decisions.md`; a bare `AB-3`
 is a typo, not a citation. That doc's last two sections map each critic's
@@ -25,7 +27,7 @@ output in its header:
 - `docs/probes/swiftui-accessibility-bridge-critic2.swift`, the second critic
   round. "Arm Cn", "Pn" or "En" means its arms.
 
-**AppKit evidence** is three more:
+**AppKit evidence** is five more (the last two added by lane 2, `AB-AE`):
 
 - `docs/probes/appkit-accessibility-overrides-typecheck.swift`: the
   re-runnable typecheck of every AppKit override spelling lane 2 uses, with a
@@ -33,7 +35,11 @@ output in its header:
 - `docs/probes/appkit-voiceover-signal-isolation.swift`: the signal's
   isolation (`AB-AB`), read by grepping for `warning:`;
 - `docs/probes/appkit-accessibility-activation-clients.swift`: what an
-  out-of-process client reaches on a host view (`AB-B`).
+  out-of-process client reaches on a host view (`AB-B`);
+- `docs/probes/appkit-accessibility-override-isolation-typecheck.swift`: the
+  overrides' isolation, compiled to SIL, with three controls;
+- `docs/probes/appkit-accessibility-override-isolation.swift`: the thread an
+  out-of-process request arrives on, and the helper's off-main fallback.
 
 ## What exists today, and what is wrong with it
 
@@ -626,6 +632,32 @@ extension MetalHostView {
 }
 ```
 
+**Lane 2 as built (`AB-AE`, `AB-AF`).**
+
+- **Every override above is nonisolated**, because AppKit's `NSAccessibility`
+  protocol and `NSAccessibilityElement` carry no main-actor annotation. Each
+  body runs through `mainActorAnswer(_:fallback:_:)`, which answers on the main
+  thread and returns a fallback, running nothing, off it. The element's logic
+  is in `@MainActor` members the overrides hand `self` to. The typecheck probe
+  below could not see this: its bodies were constants.
+- **`AccessibilityRequest` is ambiguous** in any file that imports `AppKit`
+  beside `MetalUIPlatform` (`Accessibility.framework` exports the same Swift
+  name); tests qualify it. A rename is left to the integration step.
+- `isAccessibilitySelectorAllowed` also offers row attributes only on tables
+  and rows; `parents` is rebuilt on every structural publish, active or not;
+  an element's last node and geometry are seeded at creation.
+- **18 platform tests**: `anOffMainThreadQueryAnswersNothingAndDoesNotTrap`, an
+  exit test, is added.
+- **Two mutation predictions below were wrong, measured.** In
+  `layoutChangedIsPostedOncePerClientRead`, "the third step posts 0" is the
+  mutant whose children read does not re-arm the flag; never resetting it posts
+  11 at the second step. In `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`,
+  skipping the detach cannot make arm 2's press run `second`: `Window` finds no
+  hitbox for the vanished id; the arm reddens on its parent assertion instead.
+- **The arm-Q end-to-end test calls the host view's `mouseDown`/`mouseUp`
+  after `sendEvent`**, with a control that every event arrived: in the test
+  process AppKit spends a synthesized click on activating the inactive app.
+
 Every override spelling above compiles in
 `docs/probes/appkit-accessibility-overrides-typecheck.swift`, with
 `xcrun swiftc -typecheck -swift-version 6 -warnings-as-errors`: exit 0. Its
@@ -1134,7 +1166,7 @@ About 52 new tests (second critic round):
 | where | tests |
 |---|---|
 | lane 1 | 18 (15 as built, one added against hunting mutants, two in the second critic round) |
-| lane 2, platform | 17 (`aFocusedElementQueryDoesNotActivate` added) |
+| lane 2, platform | 18 as built (`aFocusedElementQueryDoesNotActivate` added in design; `anOffMainThreadQueryAnswersNothingAndDoesNotTrap` added by `AB-AE`) |
 | lane 2, end-to-end | 3 (`aHeldElementWhoseIDIsAdoptedPressesTheAdopter` added) |
 | lane 3 | 15 (arms added, no new tests) |
 | integration, the joint disabled test | 1 |
