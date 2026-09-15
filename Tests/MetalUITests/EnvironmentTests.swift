@@ -629,16 +629,36 @@ private struct EnvComponent: Component {
 /// **Ported at the modifier-composition merge** (ruling EV-W item 1): its
 /// recorder is a `ProposalElement` whose layout reading sits inside
 /// `requestProposalLayout`, so the layout slot is served by
-/// `EnvironmentScope`'s typed `requestProposalGroupLayout`.
+/// `EnvironmentScope`'s typed `requestProposalGroupLayout`. This test **is**
+/// the composition track's owed `aProposalContainerReadsTheEnvironmentDuringLayout`
+/// (that name is deliberately not added): its arm 2 puts the scope outside an
+/// inner `HStack` rather than around the leaf, and its no-writer control reads
+/// the key's default, so a recorder that always reads 7 cannot pass. Arm 2 is
+/// nested in an outer `HStack` because `Frame.render` takes an `Element` and a
+/// scope is only an `ElementGroup`. Mutation at integration: the typed entry
+/// without `withEnvironment` reddens the layout slot of both the `hstack` and
+/// `scroll` arms and of arm 2 (record §11, "Integration").
 @MainActor
 @Test func proposalContentReadsTheEnvironmentThroughAScopeInEveryPhase() {
     let log = EnvLog()
+    var control = HStack {
+        NativeEnvRecorder(label: "control", log: log)
+    }
+    frame(100, 50).render(&control)
+    #expect(log.probes("control") == [0, 0, 0], "no writer reads the key's default")
+
     var stack = HStack {
         Rectangle(width: px(5), height: px(5))
         NativeEnvRecorder(label: "hstack", log: log).environment(\.probe, 7)
     }
     frame(100, 50).render(&stack)
     #expect(log.probes("hstack") == [7, 7, 7])
+
+    var outside = HStack {
+        HStack { NativeEnvRecorder(label: "outside", log: log) }.environment(\.probe, 7)
+    }
+    frame(100, 50).render(&outside)
+    #expect(log.probes("outside") == [7, 7, 7], "the scope outside an inner HStack")
 
     var scroll = ProposalScrollView(.vertical) {
         NativeEnvRecorder(label: "scroll", log: log).environment(\.probe, 7)

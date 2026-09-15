@@ -878,6 +878,17 @@ private func frameStyle(width: Float, height: Float) -> Style {
         ZStack { Rectangle(width: 30, height: 30).overlay { CountingProposalLeaf("x", log: log) } }
     }
 
+    // `EnvironmentScope`, one arm per path (the environment track's `EV-W`
+    // item 1, added at integration). Mutation: the typed
+    // `requestProposalGroupLayout` calling its content twice reads
+    // `[2, 1, 1]` on the proposal arm (record §11, "Integration").
+    try once("EnvironmentScope, legacy") { log in
+        Row { CountingLeaf("x", log: log).environment(\.layoutDirection, .rightToLeft) }
+    }
+    try once("EnvironmentScope, proposal") { log in
+        HStack { CountingProposalLeaf("x", log: log).environment(\.layoutDirection, .rightToLeft) }
+    }
+
     // The builder wrappers.
     try once("ProposalFrame") { log in
         HStack { ProposalFrame(width: 30, height: 30) { CountingProposalLeaf("x", log: log) } }
