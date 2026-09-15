@@ -104,3 +104,137 @@ private final class TapLog {
     #expect(after == 1, "an onTap written after .disabled sits outside it and must fire")
     #expect(before == 0, "the disagreeing spelling: .disabled written last suppresses the tap")
 }
+
+// MARK: - Disabled state reaches accessibility (environment EV-W item 4, bridge AB-Z)
+
+@MainActor
+private final class Counts {
+    var presses = 0
+    var adjustments = 0
+}
+
+@MainActor private func drawUntilClean(_ window: Window, limit: Int = 5) {
+    for _ in 0..<limit where window.needsRedraw { window.drawFrameIfNeeded() }
+}
+
+private struct Published {
+    var node: AccessibilityNode
+    var id: AccessibilityNodeID
+    var window: Window
+    var platform: FakePlatformWindow
+}
+
+/// One activated fake window over `content`, drawn until clean; its one
+/// published node.
+@MainActor private func publish<Root: Element>(_ name: String, device: any MTLDevice,
+                                               _ content: @escaping @MainActor () -> Root) throws -> Published {
+    let (window, platform) = try makeFakeWindow(device: device, size: 200, content: content)
+    platform.simulateAccessibilityRequest(.activate)
+    drawUntilClean(window)
+    let tree = try #require(platform.publishedAccessibilityTrees.last, "\(name): nothing published")
+    try #require(tree.nodes.count == 1, "\(name): one published node, read \(tree.nodes.count)")
+    let (id, node) = try #require(tree.nodes.first)
+    return Published(node: node, id: id, window: window, platform: platform)
+}
+
+/// A click-target arm: `make(false, _)` is the control, `make(true, _)` the
+/// disabled half.
+@MainActor private func clickable<Root: Element>(_ name: String, device: any MTLDevice,
+                                                 _ make: @escaping @MainActor (Bool, Counts) -> Root) throws {
+    let onCounts = Counts(), offCounts = Counts()
+    let on = try publish(name, device: device) { make(false, onCounts) }
+    let off = try publish(name, device: device) { make(true, offCounts) }
+
+    try #require(on.node.role == .button && on.node.isEnabled && on.node.actions == [.press],
+                 "\(name) control: an enabled pressable button, read \(on.node)")
+    try #require(on.platform.simulateAccessibilityRequest(.press(on.id)), "\(name) control: the press is accepted")
+    try #require(onCounts.presses == 1, "\(name) control: the press ran the handler")
+
+    #expect(off.node.role == .button, "\(name): a disabled button is still a button")
+    #expect(!off.node.isEnabled, "\(name): published enabled")
+    #expect(off.node.actions == [], "\(name): advertises \(off.node.actions)")
+    #expect(!off.platform.simulateAccessibilityRequest(.press(off.id)), "\(name): the press was accepted")
+    #expect(offCounts.presses == 0, "\(name): the handler ran")
+}
+
+/// **The joint test the two tracks named and neither could write**: a disabled
+/// element is still published, as disabled, and advertises and accepts none of
+/// the actions its gated registrations would have given it (rulings EV-W item
+/// 4, which supersedes `AB-Z` on the blocker hitbox, the `keyboard` copy, the
+/// ungated `$focus` write and the `environment:` parameter).
+///
+/// **Presence and role read the ungated `handlers`; actions read the gated
+/// registrations** — `.press` from the hitboxes, `isFocusable` and
+/// `.increment`/`.decrement` from the focus registry — so there is no code of
+/// its own to strip them. Five arms, each against a control identical but for
+/// `.disabled(true)`, under a `Row` root in an activated fake window:
+///
+/// - **clickable**: one `.button`, `isEnabled` false, `actions` empty; `.press`
+///   returns false and the handler does not run;
+/// - **focusable**: published, `isEnabled` false, `isFocusable` false; `.focus`
+///   returns false and nothing is focused;
+/// - **adjustable**: published, `isEnabled` false, `actions` empty;
+///   `.increment` returns false and the handler does not run;
+/// - **outer modifier layer** (the composition merge): the `onClick` on the
+///   `ModifiedElement`'s outermost layer, `….padding(2).onClick {}`;
+/// - **inner modifier layer**: `….padding(2).onClick {}.padding(2)`, the click
+///   target on an inner layer, which reaches `registerHandlers` through
+///   `ModifiedElement.prepaintLayer` and no `Element.prepaintGroup`.
+@MainActor
+@Test func aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+
+    try clickable("clickable", device: device) { d, counts in
+        Row { Box().width(px(40)).height(px(20)).onClick { counts.presses += 1 }.disabled(d) }
+    }
+    try clickable("outer modifier layer", device: device) { d, counts in
+        Row { Box().width(px(40)).height(px(20)).padding(px(2)).onClick { counts.presses += 1 }.disabled(d) }
+    }
+    try clickable("inner modifier layer", device: device) { d, counts in
+        Row {
+            Box().width(px(40)).height(px(20)).padding(px(2)).onClick { counts.presses += 1 }
+                .padding(px(2)).disabled(d)
+        }
+    }
+
+    // Focusable only.
+    do {
+        let on = try publish("focusable", device: device) { Row { Box().width(px(40)).height(px(20)).focusable().disabled(false) } }
+        let off = try publish("focusable", device: device) { Row { Box().width(px(40)).height(px(20)).focusable().disabled(true) } }
+        try #require(on.node.isEnabled && on.node.isFocusable, "focusable control: read \(on.node)")
+        try #require(on.platform.simulateAccessibilityRequest(.focus(on.id)), "focusable control: the request is accepted")
+        drawUntilClean(on.window)
+        try #require(on.window.focusedElement != nil, "focusable control: something is focused")
+
+        #expect(!off.node.isEnabled, "focusable: published enabled")
+        #expect(!off.node.isFocusable, "focusable: published focusable")
+        #expect(!off.platform.simulateAccessibilityRequest(.focus(off.id)), "focusable: the focus request was accepted")
+        drawUntilClean(off.window)
+        #expect(off.window.focusedElement == nil, "focusable: something is focused")
+    }
+
+    // Adjustable only.
+    do {
+        let onCounts = Counts(), offCounts = Counts()
+        let on = try publish("adjustable", device: device) {
+            Row {
+                Box().width(px(40)).height(px(20))
+                    .onAction(AccessibilityAdjustment.self) { _ in onCounts.adjustments += 1 }.disabled(false)
+            }
+        }
+        let off = try publish("adjustable", device: device) {
+            Row {
+                Box().width(px(40)).height(px(20))
+                    .onAction(AccessibilityAdjustment.self) { _ in offCounts.adjustments += 1 }.disabled(true)
+            }
+        }
+        try #require(on.node.isEnabled && on.node.actions.contains(.increment), "adjustable control: read \(on.node)")
+        try #require(on.platform.simulateAccessibilityRequest(.increment(on.id)), "adjustable control: accepted")
+        try #require(onCounts.adjustments == 1, "adjustable control: the handler ran")
+
+        #expect(!off.node.isEnabled, "adjustable: published enabled")
+        #expect(off.node.actions == [], "adjustable: advertises \(off.node.actions)")
+        #expect(!off.platform.simulateAccessibilityRequest(.increment(off.id)), "adjustable: the increment was accepted")
+        #expect(offCounts.adjustments == 0, "adjustable: the handler ran")
+    }
+}
