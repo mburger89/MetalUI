@@ -100,7 +100,11 @@ private let firstDesignOverloads = """
 ///
 /// Red once, by mutation (record §10): the three overloads above moved into
 /// `ModifiedElement.swift` — the first design — make the POSITIVE fixture
-/// fail at this threshold with the "unable to type-check" diagnostic.
+/// fail at this threshold with "fixture.swift:21:5: error: the compiler is
+/// unable to type-check this expression in reasonable time", so the two
+/// fixtures agree and the `#require` reddens. A single concrete nesting
+/// `padding(_: Pixels) -> ModifiedElement<Self>` on `ModifiedElement` (lane 2
+/// test 1's mutation) reddens it the same way.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func aTwentyFourModifierChainTypechecksWithinASolverWorkBudget() throws {
     let budget = ["-solver-scope-threshold=\(solverScopeThreshold)"]
@@ -130,8 +134,13 @@ func aTwentyFourModifierChainTypechecksWithinASolverWorkBudget() throws {
 ///
 /// Three fixtures: two negatives and the positive they must disagree with.
 ///
-/// Red once (record §10): on a skeleton without `typealias LayerBase =
-/// Content`, whose chains nest, the first negative compiles.
+/// Red once (record §10, ruling MC-R): on a skeleton without `typealias
+/// LayerBase = Content` or the appending `_wrap`, whose chains nest, the
+/// annotated negative compiles and the positive's `use()` does not, so the
+/// `#require` reddens. The generic nested negative stays rejected even there
+/// (`T.LayerBase` is abstract), so it is the annotated negative that sees
+/// nesting. Test 1's mutation (a concrete nesting `padding(_: Pixels)`)
+/// reddens it the same way on the implementation.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func aNestedModifiedElementCannotBeSpelled() throws {
     let annotated = try typecheckFile(leafSource + """

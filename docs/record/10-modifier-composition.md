@@ -285,11 +285,190 @@ two blockers and three minors. What was done:
 No `Sources/` file changed in this round, so the demo capture was not
 re-taken.
 
+#### Lane 2 — `ModifiedElement`, 2026-09-15 (from `b675451`)
+
+One agent in the worktree. The lane-2 skeleton was restored from `git stash pop`
+(the verifier round had left it stashed). The session was locked with the
+display asleep for the whole lane. Toolchains as above: the suite and PATH
+`swiftc` are swift.org 6.3.3; `xcrun` is Apple Swift 6.4.
+
+**Commits.**
+
+| commit | what |
+|---|---|
+| `e9248c3` | skeleton `ModifiedElement.swift` (flat type, outermost-only phases), `FrameModifier.swift` deleted, `Box.swift`'s two `padding` signatures and docs, `ElementGroup.swift`'s `LayerBase`/`_wrap`; `ModifiedElementTests.swift` tests 1–5; `ModifiedElementCompileGuards.swift` guards 6 and 7; `Typecheck.swift`'s `typecheckFile(_:importing:frontendArguments:)`; six `MC-I` arms; `ComponentTests`, `NativeLayoutIntegrationTests` and `main.swift` doc/type lines — red |
+| `5fe5a30` | `ModifiedElement`'s real phases; `aModifierChainAllocatesABoundedAmountOverNestedBoxes` |
+| `49270c7` | test 2's flat padding-8 spelled with `Edges` (`MC-R` item 3) |
+| docs commit | doc comments at the lines the mutations taught (`ModifiedElementTests`, `ModifiedElementCompileGuards`, `ModifierCompositionProofTests`); spec; `MC-A`/`MC-B`/`MC-C`/`MC-I`/`MC-J`/`MC-K` Mutations lines; `MC-R`; this section |
+
+**Red run on skeleton S1** (`e9248c3`, `swift test --build-system native
+--no-parallel`): `Test run with 1102 tests in 1 suite failed after 27.193
+seconds with 40 issues.` Issue lines, abbreviated:
+
+- `aGenericWrapOverAChainIsIdenticalToTheFlatChain` (test 2), 14 issues at
+  `:389-395` for both chains: leaf id; leaf bounds (8, 90) 20×20; hitboxes
+  `[positional(0)@0,82 36x36, positional(0)@8,90 20x20]` against the oracle's
+  `[@0,72 76x56, @8,80 60x40, @28,90 20x20]`; rects; `nodeCount → 3 == 5`;
+  layer ids; `animLive → [true]` against `[true, true, true]`.
+- `addingALayerAtRunTimeResetsTheWrappedElementsState` (test 3) at `:439`
+  (the content did not move a level) and `:441` `(log.taps["leaf"] → 3) == 0`.
+- `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer` (test 5) at `:543-548`:
+  `atStart → 4.0 == 8`, `halfway → 6.0 == 10`, `settled → 8.0 == 12`,
+  `p0LiveAtOne → false`, `taps → 3 == 0`.
+- `legacyModifierChainsInferOneConcreteType` (test 1) at `:278`
+  `(frame.tree.nodeCount → 3) == 4` — only its node-count half; its type names
+  were green on the flat skeleton.
+- The six `MC-I` inner arms: `AXEmitSiteTests.swift:147` (no node emitted);
+  `AnimationTests.swift:1064` `(start?.inner == .pixels(4) → false)`;
+  `AnimationTests.swift:2697` `(frame.scene.rects → []).first → nil`;
+  `BackgroundChainTests.swift:49` (no 40×40 rect), in both guards;
+  `InputDispatchTests.swift:367` `(log.names → []) == (["modified inner layer"])`.
+- Lane 1's `aModifierChainIsIdenticalToHandBuiltNestedBoxes` (7 issues, the
+  same observations), `stateSurvivesFramesUnderALegacyModifierChain` at `:658`
+  (no third ancestor), `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes` at
+  `:998` (`o3 → 36.0x36.0 at (8.0, 8.0)) != (o4 → …)` — its `#require`).
+- Existing: `chainedFramesRemainConcreteAndNestTheirLayoutNodes`
+  `(nodeCount → 4) == 5`; `chainedPaddingCreatesNestedWrappers`
+  `(nodeCount → 3) == 4` and the leaf at (8, 15) against (12, 15).
+
+A first S1 run read the same 40 issues with one `warning: no calls to throwing
+functions occur within 'try' expression` in the new style arm; the arm was
+rewritten twice (`MC-R` item 7) before the recorded run.
+
+**Skeleton S2** (uncommitted; `MC-R` item 1): `swift build --build-system
+native --build-tests` failed at `ComponentTests.swift:644:53` ("cannot convert
+result builder result type 'ModifiedElement<ModifiedElement<TwoLeaves>>' to
+return type 'ModifiedElement<TwoLeaves>'") and at `ModifiedElementTests.swift`
+`:271:69`, `:273:52`, `:301:37`, `:311:33`, `:408:23` (each "cannot assign
+value of type" / "cannot convert return expression of type" a nested
+`ModifiedElement`). With that file moved aside and the stored type patched,
+`--filter ModifiedElementCompileGuards`: `Test run with 2 tests in 0 suites
+failed … with 1 issue`, at `ModifiedElementCompileGuards.swift:155`
+(`genericFlat.succeeded != genericNested.succeeded → false`); printed
+"annotated succeeded=true messages=[]", "generic nested succeeded=false
+messages=[cannot convert return expression of type 'ModifiedElement<T.LayerBase>'
+to return type 'ModifiedElement<T>']", and the positive's `use()` rejected with
+"cannot convert return expression of type 'ModifiedElement<ModifiedElement<Leaf>>'
+to return type 'ModifiedElement<Leaf>'". Guard 6 green on S2. Both files
+restored from `cp` copies; `git status --short` showed only the lane's
+uncommitted files, no marker.
+
+**Green**, after `swift package clean` (a public type deleted, two requirements
+added): `Test run with 1102 tests in 1 suite passed after 26.876 seconds`, 0
+`error:`, 0 `warning:` besides SwiftPM's deprecation notice; both guards'
+printed diagnostics present. With the allocation test (`5fe5a30`): `Test run
+with 1103 tests in 1 suite passed after 27.608 seconds`.
+
+**Mutations** (`49270c7`, each `swift test --build-system native --no-parallel`
+whole suite by `mutate.py` in the scratchpad: `cp` backup, each anchor replaced
+exactly once, a `// MC2-MUTATION <label>` marker, restore; `git status --short`
+empty and the marker grep empty after all 19). Every run printed its summary
+line; issue lines are quoted in the rulings.
+
+| # | mutation | summary | tests reddened |
+|---|---|---|---|
+| T1 | concrete `padding(_: Pixels) -> ModifiedElement<Self>` on `ModifiedElement` | 1103, 4 issues | test 1 (`ModifiedElement<ModifiedElement<ChainComp>>`); guard 7; guard 6 (the positive now exceeds 1000 scopes) |
+| T2 | `_wrap` replaces `outermost` instead of appending | 1103, 29 issues | tests 1, 2, 3, 5; lane 1 tests 4, 5, 10; all six `MC-I` guards; `chainedFramesRemainConcreteAndNestTheirLayoutNodes`, `chainedPaddingCreatesNestedWrappers` |
+| T3 | content laid out under the outermost id | 1103, 17 issues | tests 2, 3, 5; lane 1 tests 4, 5; the style guard's inner arm |
+| T4 | unnamed inner layer named by its style | 1103, 17 issues | tests 2, 4, 5; lane 1 tests 4, 5; the style and AX guards; the allocation test |
+| T5 | outermost id keyed on the layer count | 1103, 12 issues | test 5 (betweenness `#require` at `:545`); tests 2, 3; lane 1 tests 4, 5 |
+| T5b | test 5's `setNeedsRedraw()` moved out of the `withAnimation` body | 1103, 1 issue | test 5 alone (`:545`) |
+| T6 | the first design's three overloads in `ModifiedElement.swift` | 1103, 1 issue | guard 6 alone ("fixture.swift:21:5: error: the compiler is unable to type-check this expression in reasonable time") |
+| I1 | inner layers skip `animated` | 1103, 7 issues | the style guard (inner); tests 2, 5; lane 1 tests 4, 5 |
+| I2 | inner layers resolve the background token without `animatedBackground` | 1103, 15 issues | `everyBackgroundPaintingSiteAnimatesItsColour`, `…HonoursHoverAndFocus`, `…FadesItsResolvedHoverAndFocusColour` |
+| I3 | inner layers skip `registerHandlers` | 1103, 7 issues | the click, AX and both `BackgroundChainTests` guards; tests 2; lane 1 test 4 |
+| L1 | inner layers take the outermost id | 1103, 13 issues | tests 2, 5; lane 1 tests 4, 5; the style, AX and hover-fade guards |
+| L2 | `.id` lands on the wrong layer | 1103, 9 issues | test 2; lane 1 test 4 |
+| L3 | layers registered innermost-first, before the content | 1103, 3 issues | test 2; lane 1 test 4 |
+| L4 | a layer registers after everything inside it | 1103, 5 issues | test 2; lane 1 tests 4, 8 |
+| L5 | fills painted after the content | 1103, 4 issues | test 2; lane 1 tests 4, 8 |
+| L6 | content painted once per inner layer | 1103, 4 issues | test 2; lane 1 tests 4, 7 (chain arm `[1, 1, 3]`) |
+| L7 | layer styles minted outermost-first | 1103, 25 issues | tests 2, 5; lane 1 tests 4, 10 (O1/O2 swapped); the style, AX and both `BackgroundChainTests` guards; `chainedFramesRemainConcreteAndNestTheirLayoutNodes`; the allocation test |
+| K1 | a `requestLayout`-local array of every layer | 1103, 3 issues | the allocation test's three arms (one-layer 18 002 vs 17 002) |
+| K2 | one extra array over the inner layers per `requestLayout` | 1103, 2 issues | the allocation test's two- and three-layer arms only |
+
+**Test 5's measured readings**, implementation: x = 8 at t = 0, 10 at t = 0.5,
+12 settled; `P`'s `$anim` slot live at both generations; `P/0`'s not live at
+generation 0, live at generation 1; taps 0. The prediction exactly.
+
+**Solver-scope threshold** (guard 6), binary search of the positive fixture
+against the real module: **186** under PATH `swiftc` 6.3.3 (package modules)
+and under `xcrun swiftc` 6.4 (a scratch-path `MetalUI` built by 6.4). The
+negative (`+ firstDesignOverloads`) exited 1 at 500, 1000, 2000 and 5000 under
+both. At the default threshold the negative took 5.79 s and failed; the
+positive 0.15 s. At 1000: positive rc 0, 0.16 s; negative rc 1, 0.16 s,
+"neg.swift:22:5: error: the compiler is unable to type-check this expression in
+reasonable time".
+
+**Type-check time** (`-warn-long-expression-type-checking=100`,
+`-warn-long-function-bodies=100`, parallel builds): `f64e58a`'s demo and this
+lane's demo print no warning; this lane's tests print 44 distinct lines and
+`b675451`'s tests 35, none an expression containing a `.padding`/`.frame`
+chain. Chain-containing function bodies: `aModifierChainIsIdenticalToHandBuiltNestedBoxes`
+207 → 228 ms, `everyRegisteringSiteAnimatesItsStyle` 100/110 → 128/136 ms (an
+arm added), `stateSurvivesFramesUnderAProposalModifierChain` 100 → 112 ms; new:
+`aGenericWrapOverAChainIsIdenticalToTheFlatChain` 184 ms,
+`aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer` 122 ms. Unrelated bodies
+moved by similar amounts (`NestedClipTests` 127 → 181 ms), so this is
+contention, not a measured regression (`MC-A`).
+
+**Allocations** (`MC-K`): per 500 builds, 6.3.3: nested 17 002 / 27 001 /
+37 004, flat 17 002 / 28 501 / 39 504 (+0, +3, +5 per chain); 6.4: nested
+17 502 / 27 501 / 37 504, flat 17 502 / 29 501 / 41 004 (+0, +4, +7), the
+strict half reported NOT CHECKED (loop floor 67). **Parallel hazard**, measured:
+`xcrun swift test --scratch-path … --filter
+"aModifierChainAllocatesABoundedAmountOverNestedBoxes|freezeLoopAllocationsDoNotGrow"`
+WITHOUT `--no-parallel` failed `freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine`
+at its calibration `#require`; with `--no-parallel` both passed. One whole-suite
+run without `--no-parallel` (6.3.3): `Test run with 1103 tests in 1 suite
+passed after 12.820 seconds` (`MC-R` item 6).
+
+**The default demo (`MC-J`): the window capture was NOT taken.**
+
+- Baseline: `git archive f64e58a` into the scratchpad (`mc-base`; the shader
+  header symlink present), `swift build -c release --product MetalUIDemo`:
+  "Build of product 'MetalUIDemo' complete! (35.33s)".
+- Launched (no input sent, pointer not moved; pointer (1090.18, 339.99) before
+  each launch): window 828×533 at (614, 259), not frontmost.
+  `screencapture -x -R614,259,828,533` → "could not create image from rect";
+  `screencapture -x -o -l<id>` → "could not create image from window"; a full
+  `screencapture -x` wrote a 4112×2658 all-black PNG. `CGSSessionScreenIsLocked`
+  1, `CGDisplayIsAsleep` 1, `CGPreflightScreenCaptureAccess` true; re-checked
+  later in the lane, unchanged. No capture of either build exists.
+- **Stand-in: offscreen scene dumps.** Scratch copies of `f64e58a` and
+  `49270c7`, each `main.swift` given `@testable import MetalUI`,
+  `import MetalUIText`, `import MetalUIRender` and its final `try runDemo()`
+  replaced by a harness rendering `demoContent()` through `Frame` (920×560,
+  scale 2, three frames each under light and dark, one shared state table,
+  shaping cache and atlas) and printing every `MUIRect`, `MUIGlyph` and hitbox.
+  Debug builds. Output: 18 838 lines each, `cmp` identical. Frame 0: 2036
+  nodes, 518 rects, 15 711 glyphs, 3 hitboxes; frames after: 60 nodes, 24
+  rects, 493 glyphs, 3 hitboxes. Disagreeing control: `49270c7`'s copy with
+  `ModifiedElement.paint`'s fills emitted after its content → 87 differing diff
+  lines; restored → identical again.
+- **Owed:** the release-window capture against `f64e58a`, by `MC-J`'s method,
+  when a display is available.
+
+**Counts at the docs commit.** Tests 1103 (1095 + 5 tests + 2 guards + the
+allocation test). Guards 47: `grep -c canTypecheck` reads 19, 10, 5, 3 (one a
+comment), 3, 6, 2 (`ModifiedElementCompileGuards`), plus the declaration in
+`Typecheck.swift`. Goldens 97; `git diff --stat f64e58a -- '*.json'` empty.
+The final runs are below.
+
+**Not run, by reading only:** that `Element`'s group defaults do nothing per
+element that a layer would need (they enter the id and bind `@State`); the
+AB-O mirroring's future shape around `prepaintLayer`; `Component.swift`'s stale
+`Box.swift` line citations (`MC-R` item 9).
+
+**Deferred by lane 2.** The default demo's window capture (`MC-R` item 5). A
+shared, locked allocation counter for the two `malloc_logger` tests (`MC-R`
+item 6). Everything `MC-L` already defers.
+
 ### For the integration step
 
 Collected here so the merge does not have to re-derive them:
 
-- **`FrameModifier` is deleted by lane 2.** `CLAUDE.md`'s Animation section
+- **`FrameModifier` is deleted by lane 2** (`e9248c3`). `CLAUDE.md`'s Animation section
   counts registering sites and `pass.fill` sites; record §09's "It is live in
   three places the per-site guards were written to watch" and "Owed before
   this work is cited as done: `FrameModifier` arms" both change.
@@ -360,6 +539,23 @@ Collected here so the merge does not have to re-derive them:
 - **A new hole** (`MC-A`): an `ElementGroup` conformer that declares
   `LayerBase` and forwards `_wrap` compiles, and its `.padding` drops the
   receiver.
-- **`MC-K`'s named cost, for task 4:** about +3 allocations per 2-layer chain
-  and +5 per 3-layer chain per frame build, over nested boxes, in the model's
-  debug build. Lane 2 re-measures this in the real build.
+- **`MC-K`'s named cost, for task 4:** +3 allocations per 2-layer chain and +5
+  per 3-layer chain per frame build over nested boxes, **measured by lane 2 in
+  the real debug test build** (swift.org 6.3.3; +4 and +7 under swiftlang 6.4),
+  equal to the model's. Pinned by `aModifierChainAllocatesABoundedAmountOverNestedBoxes`.
+- **Owed by lane 2, for whoever has a display:** the default demo's
+  release-window capture against `f64e58a` (`MC-J`, `MC-R` item 5); an
+  offscreen scene comparison stood in, byte-identical.
+- **A parallel-run hazard** (`MC-R` item 6): two tests now install libmalloc's
+  process-wide `malloc_logger`; without `--no-parallel` they can corrupt each
+  other's counts (measured once).
+- **Lane 2's per-site accounting.** `FrameModifier`'s layout and background
+  sites are gone; `ModifiedElement` is ONE layout site (`animated` per layer in
+  `requestLayout`) and ONE background site (`animatedBackground` per layer in
+  `paint`), each looping over its layers, with inner- and outermost-layer arms
+  in all six guards. The legacy path's `pass.fill` sites CLAUDE.md counts become
+  `Box.paint`, `Stack.paint`, `Text.paint`, `ModifiedElement.paint` (two calls,
+  the outermost layer's and the inner layers') and `ScrollView`'s indicator;
+  the proposal path's native fills (`NativeElements.swift`,
+  `NativeModifiedContent.swift`, `NativeTappable.swift`,
+  `ProposalScrollView.swift`) are outside that count, by grep.

@@ -10,7 +10,7 @@ replacement's reason depends on it.
 
 Prefixed **`MC-`** and **lettered** (`MC-A`, `MC-B`, …), per this repo's
 convention. **A bare `MC-3` is a typo, not a citation.** The next unused letter
-is **`MC-R`**.
+is **`MC-S`**.
 
 Read alongside:
 
@@ -42,6 +42,9 @@ Read alongside:
 - **`MC-P`** — the overlay's identity, revised: an overlay-side id no cursor
   can produce, replacing `MC-E`'s threaded cursor. **`MC-Q`** — the critic
   round after lane 1, finding by finding.
+- **`MC-R`** — lane 2's departures from the spec: two skeletons, the counts'
+  base, the demo capture that could not be taken and what stood in for it, and
+  a parallel-run hazard.
 
 **Every ruling ends with a "Mutations" line reading _owed by lane N_.** The lane
 that implements a ruling replaces it with the mutations it ran and the tests
@@ -113,6 +116,29 @@ after the last run. `swift package clean` before the first recorded run.
   green run after the overlay change, and five mutations (`R1`-`R5`), each
   restored from a `cp` backup with `git status --short` empty and the marker
   grep empty after each.
+
+**Lane 2, 2026-09-15** (`e9248c3` red, `5fe5a30` implementation, `49270c7`
+test spelling; `MC-R`), one agent in the worktree, the display asleep and the
+session locked throughout:
+
+- **Whole-suite runs** (`swift test --build-system native --no-parallel`): the
+  red run on the skeleton, the green run after `swift package clean`, and 19
+  mutations run by a script (`cp` backup, one anchor replaced exactly once, a
+  `// MC2-MUTATION` marker, the suite, the restore; `git status --short` and
+  the marker grep empty after every run).
+- **The solver-scope minimum** of the real module, binary-searched with
+  `swiftc -typecheck -Xfrontend -solver-scope-threshold=N` under PATH `swiftc`
+  6.3.3 against `.build/arm64-apple-macosx/debug/Modules`, and under `xcrun
+  swiftc` 6.4 against a `MetalUI` built by `xcrun swift build --build-system
+  native --target MetalUI` into a scratch path.
+- **Type-check-time builds** with `-warn-long-expression-type-checking=100` and
+  `-warn-long-function-bodies=100`: `f64e58a`'s demo, `b675451`'s tests
+  (pre-lane) and this lane's demo and tests, each from a scratch copy or
+  scratch path, in parallel builds (the times carry that contention).
+- **The allocation test** under 6.3.3 (suite) and 6.4 (`xcrun swift test
+  --no-parallel --scratch-path`, filtered).
+- **An offscreen scene comparison of the default demo** in place of the window
+  capture (`MC-J`, `MC-R` item 5).
 
 **Carried, not re-taken:** the suite count 1084, 45 guards and 97 goldens at
 `553b980` (plan task 2's entry). `f64e58a` differs from `553b980` in docs only.
@@ -303,8 +329,58 @@ another value, and its `.padding` then silently drops the receiver.
   in the fixture file — which reproduces the blow-up against a module that has
   only the chosen design.
 
-**Mutations:** owed by lane 2. Lane 2 also owes the real-module type-check
-measurement (spec, lane 2).
+**Mutations:** lane 2, at `49270c7`, each a whole-suite run of 1103
+(`--build-system native --no-parallel`), restored with `git status --short`
+empty (record §10 has every run's summary line and issue lines).
+
+- **Test 1's mutation**, a concrete
+  `extension ModifiedElement { public func padding(_ points: Pixels) -> ModifiedElement<Self> }`,
+  builds and reddens `legacyModifierChainsInferOneConcreteType`
+  (`name(componentChain) → "ModifiedElement<ModifiedElement<ChainComp>>"`),
+  `aNestedModifiedElementCannotBeSpelled` (the annotated negative compiles) and
+  `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget` (the positive
+  fixture now fails at 1000 with "unable to type-check"), 4 issues. So one
+  extra concrete overload is already enough to leave the solver budget.
+- **The first design's three overloads moved into `ModifiedElement.swift`**
+  (guard 6's named mutation) reddens the guard alone: "fixture.swift:21:5:
+  error: the compiler is unable to type-check this expression in reasonable
+  time", positive and negative both rejected, the `#require` fails; 1 issue.
+  The test target itself still built: nothing in `Tests/` or `Sources/` spells
+  a chain long enough to hit the default solver limit.
+- **`_wrap` replacing `outermost` instead of appending** reddens 15 tests, 29
+  issues, among them test 2 and test 1 (layer counts), lane 1's tests 4, 5
+  and 10, all six `MC-I` guards' inner arms, and the existing
+  `chainedFramesRemainConcreteAndNestTheirLayoutNodes` and
+  `chainedPaddingCreatesNestedWrappers`.
+
+**The real module's type-check time** (spec lane 2's recorded measurement, not
+a test). With `-warn-long-expression-type-checking=100` and
+`-warn-long-function-bodies=100`:
+
+- `f64e58a`'s `MetalUIDemo`: **no warning** at all.
+- This lane's `MetalUIDemo`: **no warning** at all.
+- This lane's tests: 44 distinct warning lines, **none of them an expression**
+  containing a `.padding` or `.frame` chain (the three `expression took`
+  lines are in `GeneratorTests`, `RoundingTests` and a `#expect` expansion).
+  Function bodies that contain a chain and were warned:
+  `aModifierChainIsIdenticalToHandBuiltNestedBoxes` 228 ms (207 ms in the
+  pre-lane `b675451` build, where the chain was `Box`/`FrameModifier`),
+  `everyRegisteringSiteAnimatesItsStyle` 128/136 ms (100/110 ms pre-lane; this
+  lane adds an arm with two chains), `stateSurvivesFramesUnderAProposalModifierChain`
+  112 ms (100 ms; a proposal chain), and two new tests with no pre-lane
+  counterpart, `aGenericWrapOverAChainIsIdenticalToTheFlatChain` 184 ms and
+  `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer` 122 ms. Both builds ran
+  parallel compile jobs, and unrelated bodies moved by similar amounts between
+  them (`ThemeTests.theSubscriptReturnsEachTokensOwnProperty` 172 → 166 ms,
+  `NestedClipTests` 127 → 181 ms), so **these are within the harness's
+  contention, not a measured regression**. The model's expectation, none
+  attributable to a chain, holds.
+
+**Test 6's threshold, from the real module.** The positive fixture's minimum
+passing `-solver-scope-threshold` is **186 under both 6.3.3 and 6.4** (the model
+read 190). The guard uses **1000** (5.4×). The in-test negative fails at 500,
+1000, 2000 and 5000 under both. At 1000 each fixture takes about 0.16 s. The
+fallback to a build sentinel was not needed.
 
 ---
 
@@ -422,7 +498,33 @@ hooks").
   named `"mid"`, and a name replaces the index, so a cursor offset beneath a
   named layer is invisible to test 4's id observation (`MC-O` item 6).
 
-Lane 2's mutations are owed by lane 2.
+**Lane 2's mutations** (at `49270c7`, whole suite, record §10), each reddening
+lane 1's test 4 (`aModifierChainIsIdenticalToHandBuiltNestedBoxes`) and lane 2's
+test 2 (`aGenericWrapOverAChainIsIdenticalToTheFlatChain`), which compare the
+same observations:
+
+- **every inner layer taking the outermost id** (7 tests, 13 issues: also
+  test 5, lane 1 test 5, and the style, AX and hover-fade inner arms);
+- **`.id` landing on the wrong layer** (`_wrap` moving the old outermost
+  layer's name back out to the new one): tests 4 and 2 alone, 9 issues;
+- **layers registered innermost-first, all before the content**: tests 4 and
+  2 alone, 3 issues — lane 1's test 8 has one padding layer and cannot see a
+  layer-order reversal;
+- **a layer registering after everything inside it** (a `defer` around the
+  registration): tests 4 and 2 and lane 1's test 8 (hitbox ids not
+  `[padding, leaf]`; the in-leaf click logged `["outer"]`), 5 issues;
+- **fills painted after the content**: tests 4 and 2 and test 8
+  (`.surface` emitted at index 1, after `.accent`), 4 issues;
+- **inner layers skipping `animated`**: tests 4 and 2, test 5 (`P/0`'s `$anim`
+  slot not live at generation 1), lane 1 test 5, and the style guard's inner
+  arm, 7 issues.
+
+**The skeleton's red run** (`e9248c3`, 1102 tests, 40 issues): test 2, 14
+issues (leaf id, bounds, hitboxes `[P8 36×36, leaf]` against the oracle's
+three, rects, `nodeCount` 3 against 5, layer ids, `animLive` `[true]`), and lane
+1's test 4, 7 issues, the same observations. Test 2's type-name and
+layer-count `#require`s were green there, because the committed skeleton's
+type was already flat (`MC-R` item 1).
 
 ---
 
@@ -502,7 +604,33 @@ counterpart, and is now named, pinned and offered as a candidate divergence.
 
 All three are pinned (spec, lane 2 tests 3, 4 and 5).
 
-**Mutations:** owed by lane 2.
+**Mutations:** lane 2 (at `49270c7`, whole suite, record §10).
+
+- **Measured, replacing the prediction:** test 5 read x = **8 at t = 0, 10 at
+  t = 0.5, 12 settled**, `P`'s `$anim` slot live at both generations, `P/0`'s
+  not live at generation 0 and live at generation 1, taps reset to 0 — the
+  predicted values exactly. The candidate divergence stands as written.
+- **Content laid out under the outermost id** (`requestGroupLayout(under:
+  id, …)`) reddens test 3 (the content's grandparent is not the old parent;
+  taps read 3), test 5 (taps 3), lane 1's test 5 (the leaf's third ancestor is
+  missing), tests 4 and 2, and the style guard's inner arm (`start.inner`
+  reads 4 but the halfway value is not 12; by reading, the wrapped `Box`'s id
+  then equals the inner layer's, so the two share one `$anim` slot), 17
+  issues. On the skeleton,
+  test 3 read 3 and test 5 read x 4, 6, 8.
+- **An unnamed inner layer named by its style**
+  (`ElementID("\(inner[k].style.padding)")`) reddens test 4 (taps 0), test 5,
+  lane 1's test 5 (a `.named("Edges<Length>(…)")` component), tests 4 and 2,
+  the style and AX inner arms, and the allocation test (the interpolated
+  string allocates: +63 500 and +126 500 over nested per 500 builds), 17
+  issues.
+- **The outermost layer's id keyed on the layer count**
+  (`elementID ?? ElementID("\(layerCount)")`) reddens test 5 at its
+  betweenness `#require` ("min(start, end) < mid → false": the snap), test 3,
+  lane 1's test 5 and tests 4 and 2, 12 issues.
+- **The instrument's check:** `setNeedsRedraw()` moved out of the
+  `withAnimation` body reddens test 5 alone, at the same `#require`, 1 issue.
+
 
 ---
 
@@ -1060,7 +1188,34 @@ forgets the loop. An arm on a one-layer chain would pass it.
 suite green, the demo sidebar's width animation among them (it lives on a
 padding wrapper). Record §09 says so of `FrameModifier` today, by reading.
 
-**Mutations:** owed by lane 2.
+**Mutations:** lane 2 (at `49270c7`, whole suite, record §10). Every arm was
+red on the skeleton for its inner layer (`e9248c3`): the style arm read
+`start.inner` as the leaf's padding; the colour arm found no rect; both
+`BackgroundChainTests` arms found no 40×40 rect; the click arm logged `[]`; the
+AX arm emitted no node under the inner layer's id. The outermost arms were
+green there, as the likeliest wrong implementation would leave them.
+
+- **Inner layers skip `animated`**: the style arm's INNER expectation
+  (`start?.inner == .pixels(4) → false`), plus tests 4, 2 and 5 and lane 1's
+  test 5; the outermost expectation stays green.
+- **Inner layers resolve their background token directly instead of calling
+  `animatedBackground`**: `everyBackgroundPaintingSiteAnimatesItsColour` (the
+  inner arm reads the target at t = 0 and at t = 0.5),
+  `everyBackgroundPaintingSiteHonoursHoverAndFocus` (the inner layer paints
+  `.surface` while focused or hovered) and
+  `everyBackgroundPaintingSiteFadesItsResolvedHoverAndFocusColour` (no active
+  animation, no mid-flight colour), 15 issues, every one on an inner arm.
+- **Inner layers skip `registerHandlers`**: `onClickIsLiveOnEveryConformerThatCanRegisterOne`
+  (`["modified inner layer"]` expected, `[]`),
+  `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` (the inner
+  node is not emitted), and both `BackgroundChainTests` guards (0 hitboxes),
+  plus tests 4 and 2, 7 issues.
+- **Layer styles minted outermost-first** reaches the arms too (the style
+  arm's inner and outer expectations, the AX arms' frames, both
+  `BackgroundChainTests` guards), as well as lane 1's test 10 (O1 76×76, O2
+  60×60: swapped), `chainedFramesRemainConcreteAndNestTheirLayoutNodes`,
+  test 5 and the allocation test, 25 issues.
+
 
 ---
 
@@ -1106,6 +1261,32 @@ change to the same wrapper is exactly that risk again.
 
 **Mutations:** not applicable. The capture is the check; its two PNG sizes and
 the differing-pixel count go in record §10.
+
+**Lane 2's result: the window capture could NOT be taken; an offscreen scene
+comparison stands in for it, and the capture is owed** (`MC-R` item 5). The
+baseline release build of `git archive f64e58a` succeeded, and its window
+opened (828×533 at (614, 259) by `CGWindowListCopyWindowInfo`, not frontmost),
+but the session was locked with the display asleep
+(`CGSessionCopyCurrentDictionary` `CGSSessionScreenIsLocked` = 1,
+`CGDisplayIsAsleep` = 1, screen-capture access granted):
+`screencapture -x -R614,259,828,533` and `-l<window id>` both printed "could
+not create image" and a full-screen capture was black. No input was sent and
+the pointer was not moved; it read (1090.18, 339.99) before each launch.
+
+**What stood in:** the demo's `demoContent()` from `f64e58a` and from
+`49270c7`, each rendered through `@testable` `Frame.render` in a scratch copy
+of its own tree (the last line `try runDemo()` replaced by a harness; nothing
+committed): 920×560 at scale 2, three frames under `Theme.light` and three
+under `Theme.dark`, one shared `StateTable`/`ShapingCache`/`GlyphAtlas`, every
+`MUIRect`, `MUIGlyph` and hitbox printed. The two dumps are **byte-identical**
+(18 838 lines each; frame 0 has 2036 nodes, 518 rects, 15 711 glyphs; later
+frames 60 nodes, 24 rects, 493 glyphs, 3 hitboxes). **The instrument can
+disagree:** the same harness over `49270c7` with `ModifiedElement.paint`
+emitting its fills after its content differs in 87 diff lines (the root's and
+the header's rects move), and is identical again once restored. What this does
+NOT cover that a capture would: the renderer, the window's real size and
+backing scale, the display link, a focused counter at launch, and the pointer's
+hover.
 
 ---
 
@@ -1180,7 +1361,45 @@ exists to catch.
   **That is the number task 4 must re-measure** before converting
   `width`/`height`.
 
-**Mutations:** owed by lane 2.
+**Measured by lane 2, the real module, the suite's configuration** (debug test
+build, swift.org 6.3.3; `aModifierChainAllocatesABoundedAmountOverNestedBoxes`).
+Per 500 frame builds — construction AND `requestLayout` — of `Box().padding(…)`
+chains against `Box(style:content:)` nested to the same depth, each in a fresh
+`Frame` warmed with 1500 builds; calibration 16 of 16 (17 in one filtered run):
+
+| layers | nested `Box` | flat | flat − nested, per chain |
+|---|---|---|---|
+| 1 | 17 002 | 17 002 | **+0** |
+| 2 | 27 001 | 28 501 | **+3** |
+| 3 | 37 004 | 39 504 | **+5** |
+
+The differences are **exactly the model's** (+0/+3/+5). The absolute counts are
+the real frame's work (tree nodes, `$anim` state, children arrays), about 34,
+54 and 74 per chain for nested boxes. Under the swiftlang 6.4 toolchain
+(`xcrun swift test --no-parallel`, filtered): calibration 32, a bare 67-item
+index loop 67, nested 17 502 / 27 501 / 37 504, flat 17 502 / 29 501 / 41 004,
+so +0, +4, +7 per chain; the test prints `MC-K-ALLOC: two- and three-layer
+bounds NOT CHECKED` there and checks only the one-layer arm. **The test is kept**:
+each arm reddens under a named mutation.
+
+**Mutations:** lane 2 (at `49270c7`, whole suite, record §10).
+
+- **A `requestLayout`-local array of every layer** (`inner + [outermost]`):
+  the one-layer arm (18 002 against 17 002), and the two- and three-layer arms
+  (+2 per chain each), 3 issues, that test alone.
+- **One extra array per `requestLayout` over the inner layers**
+  (`let _ = inner.map { $0.style }`): the two- and three-layer arms (3 000 and
+  5 000 over nested) and **not** the one-layer arm, whose `inner` is empty; 2
+  issues, that test alone.
+
+**A hazard the test adds** (`MC-R` item 6): it and
+`freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine` each install the
+process-wide `malloc_logger` hook, so two counting windows that overlap
+corrupt each other. Measured once, filtered to the two and run without
+`--no-parallel` under 6.4: the freeze-loop test's calibration `#require`
+failed. The whole suite without `--no-parallel` (6.3.3) passed once. Under
+CLAUDE.md's `--no-parallel` the two cannot overlap.
+
 
 ---
 
@@ -1516,3 +1735,92 @@ restored around this round and was not edited.
 `MC-F`, `MC-H`, `MC-I`, `MC-J`, `MC-K`, lane order.
 
 **Mutations:** `MC-P`'s R1-R3 and `MC-B`'s R4-R5.
+
+---
+
+## MC-R — lane 2's departures from the spec: two skeletons, not one; counts from 1095; test 2's padding-8 spelled with `Edges`; guard 7's positive gains a call; the demo compared offscreen because the screen was locked; and a parallel-run hazard
+
+Written by lane 2 (commits `e9248c3`, `5fe5a30`, `49270c7`), 2026-09-15. The
+spec is corrected at each line these items make false.
+
+1. **The red runs were taken on two skeletons, because the spec's one skeleton
+   cannot compile the lane's own tests.** The spec's skeleton omits
+   `typealias LayerBase = Content`, so chains nest. But tests 1, 2, 3 and 5
+   (and `ComponentTests`' stored `Row<ModifiedElement<TwoLeaves>>`) spell a
+   chain as ONE `ModifiedElement<Leaf>` — tests 3 and 5 by design, since a
+   chain whose length changes at run time in one type is what they pin — and
+   on a nesting skeleton those spellings are compile errors, which take the
+   whole test target down rather than reddening tests.
+   - **S1, committed as the red commit `e9248c3`:** the flat type
+     (`LayerBase = Content`, the appending `_wrap`) with phases that register
+     only the outermost layer, around the content, under the outermost id.
+     Red there: tests 2, 3, 5, all six `MC-I` inner arms, lane 1's tests 4, 5
+     and 10, and two existing `ComponentTests` (1102 tests, 40 issues).
+     Green there: test 1 (the type was flat), test 4, both guards.
+   - **S2, uncommitted:** S1 minus the typealias and the appending `_wrap`.
+     `swift build --build-tests` failed with, among others,
+     `ModifiedElementTests.swift:271:69: error: cannot assign value of type
+     'ModifiedElement<ModifiedElement<ChainLeaf>>' to type
+     'ModifiedElement<ChainLeaf>'` and `:301:37: error: cannot convert return
+     expression of type
+     'ModifiedElement<ModifiedElement<ModifiedElement<LayerLeaf>>>' to return
+     type 'ModifiedElement<LayerLeaf>'` — tests 1 and 2's type claims, red as
+     build errors. With `ModifiedElementTests.swift` moved aside and
+     `ComponentTests`' stored type patched, the guards ran
+     (`--filter ModifiedElementCompileGuards`): guard 7 red ("annotated
+     succeeded=true"), guard 6 green. Everything was restored from copies and
+     `git status --short` showed only the intended uncommitted files.
+2. **The counts start from 1095, not 1094.** Lane 1's verifier-fix round
+   (`b675451`) added test 11. So lane 2 reads **1102** without the allocation
+   test and **1103** with it (the spec's 1101/1102 plus one). Guards 45 → 47
+   (`grep -c canTypecheck`: 19, 10, 5, 3 with one a comment, 3, 6, 2).
+3. **Test 2's flat chain spells its padding-8 layer
+   `.padding(Edges(all: .pixels(8)))`** (`49270c7`). Under test 1's mutation a
+   `Pixels` padding on a chain nests, and test 2's `-> ModifiedElement<LayerLeaf>`
+   would stop compiling. The generic arm keeps `t.padding(8)`.
+4. **Guard 7's positive fixture also calls the generic wrap over a chain**
+   (`func use() -> ModifiedElement<Leaf> { wrap(Leaf().padding(4)) }`), so the
+   positive is sensitive to nesting as well. Measured on S2: the generic nested
+   negative stays rejected even when chains nest (`T.LayerBase` is abstract), so
+   the annotated negative and this call are the halves that see nesting.
+5. **The default demo was not captured; an offscreen scene comparison stands in,
+   and the window capture is owed** (`MC-J`'s result has the numbers). The
+   session was locked with the display asleep for the whole lane, so
+   `screencapture` could produce no image. The stand-in compares every rect,
+   glyph and hitbox the demo's content emits through `Frame.render`, byte for
+   byte, and was shown able to disagree. **Owed:** the capture of the release
+   demo against `f64e58a`'s release build, by the method `MC-J` names, once
+   the display is available; `mc-base`'s release build is in the session
+   scratchpad, not in the repository, and must be rebuilt if gone.
+6. **A parallel-run hazard, measured and not fixed.** `ModifiedElementTests.swift`
+   copies `FreezeLoopAllocationTests.swift`'s counter, and both install
+   libmalloc's process-wide `malloc_logger` hook. Run concurrently they can
+   corrupt each other's counts (measured once: the freeze-loop calibration
+   `#require` failed in a filtered run without `--no-parallel`). A shared,
+   locked counter needs a `MetalUITestSupport` dependency that
+   `MetalUILayoutTests` does not have (a `Package.swift` change), so it is
+   named here, in the test's doc comment and in record §10 instead.
+7. **The style guard's inner arm reads the inner node as the outer node's only
+   child in the layout tree**, not through `ModifiedElement.Layout`, so the
+   reading does not depend on the bookkeeping under test; and its helper returns
+   an optional rather than calling `#require` inside a local function, where
+   the compiler warned "no calls to throwing functions occur within 'try'
+   expression" on both a `Bool` and an `Optional` `#require`.
+8. **`prepaint` is a recursion over the layers** (`prepaintLayer(_:id:bounds:layout:pass:)`),
+   the spec's "or equivalent" taken literally: one call per layer covers its
+   registration and everything inside it.
+9. **`Component.swift`'s `Box.swift:643`/`:603`/`:607` citations were already
+   stale at `f64e58a`** (`padding(_ points:)` is at `:640`, `width` at `:593`,
+   `height` at `:597`, both before and after this lane). The lane's `Box.swift`
+   edit did not move them, and `Component.swift` is a shared file the spec
+   leaves unedited, so they are left for integration.
+
+**What it costs if wrong.** Item 1: none in behaviour; a reader looking for one
+red commit carrying every red finds S2's in record §10 instead. Item 5: a
+renderer-level or window-level difference in the default demo would go unseen
+until the owed capture. Item 6: an intermittent red in an unfiltered parallel
+run.
+
+**Mutations:** the items' runs are the Mutations lines of `MC-A`, `MC-B`,
+`MC-C`, `MC-I` and `MC-K`.
+

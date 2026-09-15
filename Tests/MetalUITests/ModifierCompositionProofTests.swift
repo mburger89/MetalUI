@@ -476,7 +476,8 @@ private struct BoxWithoutAnimated<Content: ElementGroup>: StyledElement {
     }
 }
 
-/// `FrameModifier.init`'s style, written out independently of it.
+/// The frame layer's style — `FrameModifier.init`'s until lane 2 deleted that
+/// type, `ElementGroup.frame`'s layer since — written out independently of it.
 private func frameStyle(width: Float, height: Float) -> Style {
     var style = Style()
     style.alignItems = .center
@@ -511,8 +512,14 @@ private func frameStyle(width: Float, height: Float) -> Style {
 ///   oracle differs only in length, so it never showed the comparison can see
 ///   one dead slot).
 ///
-/// Green on arrival. Mutation (today's code, record §10): `FrameModifier.prepaint`
-/// registering its handlers after its content.
+/// Green on arrival. Mutation (lane 1, on `FrameModifier` at `2571d4a`, record
+/// §10): `FrameModifier.prepaint` registering its handlers after its content.
+/// Lane 2's mutations of `ModifiedElement`, each reddening this test (record
+/// §10): `_wrap` replacing instead of appending; content under the outermost
+/// id; inner layers skipping `animated` or `registerHandlers`; inner layers
+/// taking the outermost id; `.id` on the wrong layer; layers registered
+/// innermost-first or after their contents; fills after the content; content
+/// painted once per inner layer; layer styles minted outermost-first.
 ///
 /// **What it cannot see:** a cursor offset beneath the named padding-4 layer.
 /// A name replaces the index, so `FrameModifier`'s content cursor starting at
@@ -630,8 +637,10 @@ private func frameStyle(width: Float, height: Float) -> Style {
 /// `.positional(0)` under the next one out; the third (padding 8) takes the
 /// `Row`'s index 0.
 ///
-/// Green on arrival. Mutation (today's code, record §10): `FrameModifier`'s
-/// content cursor starting at 1.
+/// Green on arrival. Mutation (lane 1, at `6ff2d31`, record §10): `FrameModifier`'s
+/// content cursor starting at 1. Lane 2 (record §10): `ModifiedElement`'s
+/// content laid out under the outermost id, and inner layers skipping
+/// `animated`, each redden it.
 @Test @MainActor func stateSurvivesFramesUnderALegacyModifierChain() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = CompositionLog()
@@ -731,7 +740,9 @@ private func frameStyle(width: Float, height: Float) -> Style {
 /// separately: `ModifiedContent.prepaint`'s `allowsHitTesting` branch calling
 /// `prepaintGroup` twice; its `clip` paint branch losing its `else`;
 /// `OverlayModifier.paint` skipping `overlay.paintGroup`;
-/// `FrameModifier.prepaint` calling its content twice.
+/// `FrameModifier.prepaint` calling its content twice (lane 1, before lane 2
+/// deleted that type). Lane 2 (record §10): `ModifiedElement.paint` painting
+/// its content once per inner layer reads `[1, 1, 3]` on the chain arm.
 @Test @MainActor func everyModifierWrapperDelegatesEachPhaseExactlyOnce() throws {
     func counts<Root: Element>(_ make: (CompositionLog) -> Root) throws -> [Int] {
         let log = CompositionLog()
@@ -810,8 +821,12 @@ private func frameStyle(width: Float, height: Float) -> Style {
 /// over its padding; a click in the padding ring runs `outer` and a click in
 /// the leaf runs `inner`.
 ///
-/// Green on arrival. Mutation (today's code, record §10): `Box.prepaint`
-/// registering its handlers after its content.
+/// Green on arrival. Mutation (lane 1, when `.padding` was a `Box`, record
+/// §10): `Box.prepaint` registering its handlers after its content. Lane 2
+/// (record §10), on `ModifiedElement`: a layer registering after everything
+/// inside it, and separately a layer's fill emitted after the content, each
+/// redden it. Its chain has ONE padding layer, so reversing the order of
+/// several layers is invisible here and is test 4's.
 @Test @MainActor func aModifierChainRegistersAndPaintsOuterLayersFirst() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = CompositionLog()
@@ -963,8 +978,9 @@ private struct Placement: Equatable, CustomStringConvertible {
 /// Those are plan task 4's (legacy `.frame` semantics), not proven here.
 ///
 /// Green, as measured by the design review's deleted scratch test. Mutation
-/// (today's code, record §10): `FrameModifier.init` dropping
-/// `justifyContent = .center`.
+/// (lane 1, on `FrameModifier` at `2571d4a`, record §10): `FrameModifier.init`
+/// dropping `justifyContent = .center`. Lane 2 (record §10): `ModifiedElement`
+/// minting its layer styles outermost-first swaps O1 and O2.
 @Test @MainActor func modifierOrderChangesSizeAndPlacementAsSwiftUIDoes() throws {
     func place<Chain: Element>(_ chain: (CompositionLog) -> Chain) throws -> Placement {
         let size = Size(width: px(200), height: px(200))

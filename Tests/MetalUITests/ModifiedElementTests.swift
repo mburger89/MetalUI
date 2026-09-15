@@ -248,11 +248,17 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
 /// own `padding`), and an external generic group. The stored spellings
 /// typecheck, and the stored `Row`'s layers still register one node each.
 ///
-/// Mutation (record §10): a concrete
+/// Green on the skeleton, whose type was already flat; red on the nesting
+/// skeleton only as a build failure ("cannot assign value of type
+/// 'ModifiedElement<ModifiedElement<ChainLeaf>>' to type
+/// 'ModifiedElement<ChainLeaf>'"), ruling MC-R. Mutation, run on the
+/// implementation (record §10): a concrete
 /// `extension ModifiedElement { func padding(_ points: Pixels) -> ModifiedElement<Self> }`
-/// nests the component chain at run time with the build still succeeding —
-/// which is why the stored spellings here, and tests 3 and 5's run-time layer,
-/// avoid a `Pixels` padding on a chain.
+/// builds, and reddens this test (`componentChain` reads
+/// `"ModifiedElement<ModifiedElement<ChainComp>>"`) and both guards in
+/// `ModifiedElementCompileGuards.swift` — which is why the stored spellings
+/// here, test 2's flat chain, and tests 3 and 5's run-time layer, avoid a
+/// `Pixels` padding on a chain.
 @Test @MainActor func legacyModifierChainsInferOneConcreteType() throws {
     let leafChain = ChainLeaf().padding(4).frame(width: 60).padding(Edges(all: .pixels(px(8)))).width(70)
     let componentChain = ChainComp().frame(width: 60).padding(4)
@@ -289,8 +295,12 @@ private func wrapInPadding8<T: StyledElement>(_ t: T) -> ModifiedElement<T.Layer
 /// The chain is lane 1 test 4's with its `.padding(8)` moved into
 /// `wrapInPadding8`, whose return type is `ModifiedElement<T.LayerBase>`.
 ///
-/// Red on the skeleton (record §10). Mutation: `ModifiedElement._wrap`
-/// replacing its outermost layer instead of appending one.
+/// Red on the skeleton (14 issues: every observation, both chains). Mutations
+/// that redden it (record §10): `_wrap` replacing its outermost layer instead of
+/// appending one; the content laid out under the outermost id; inner layers
+/// skipping `animated`, `registerHandlers`, or taking the outermost id; `.id`
+/// moved to the wrong layer; layers registered innermost-first or after their
+/// contents; fills painted after the content.
 @Test @MainActor func aGenericWrapOverAChainIsIdenticalToTheFlatChain() throws {
     func flatChain(_ log: LayerLog) -> ModifiedElement<LayerLeaf> {
         LayerLeaf("leaf", log: log)
@@ -420,7 +430,8 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
 /// SwiftUI cannot express one type whose chain changes length).
 ///
 /// Red on the skeleton, which lays the content out under the outermost id
-/// whatever the layer count (record §10). Mutation: the same.
+/// whatever the layer count: it read 3 (record §10). The same mutation on the
+/// implementation reddens it again.
 @Test @MainActor func addingALayerAtRunTimeResetsTheWrappedElementsState() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = LayerLog()
@@ -453,8 +464,8 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
 /// The leaf's x is `try #require`d to move, so the value change is shown to
 /// reach layout rather than assumed.
 ///
-/// Green on the skeleton. Mutation (record §10): an unnamed layer named by its
-/// style, `ElementID("\(style.padding)")`.
+/// Green on the skeleton. Mutation (record §10): an unnamed inner layer named by
+/// its style, `ElementID("\(inner[k].style.padding)")`, reads 0 here.
 @Test @MainActor func changingALayersValueKeepsTheWrappedElementsState() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = LayerLog()
@@ -492,13 +503,16 @@ private func growableChain(_ log: LayerLog, adding: Bool) -> ModifiedElement<Lay
 /// `P`'s `$anim` baseline of 4 and slides 4 → 8, while the new inner padding-4
 /// layer at `P/0` has no baseline and snaps. The leaf's x therefore reads the
 /// sum: 4 + 4 = **8** at t = 0, 4 + 6 = **10** at t = 0.5, 4 + 8 = **12**
-/// settled (predicted by reading; the measured values are recorded in record
-/// §10). `P`'s `$anim` slot is live at both generations; `P/0`'s is not live at
+/// settled (predicted by reading, then measured exactly so on the
+/// implementation, record §10). `P`'s `$anim` slot is live at both generations; `P/0`'s is not live at
 /// generation 0 (it is the leaf's id, and the leaf never animates) and is at
 /// generation 1. The leaf's three taps reset (test 3's half).
 ///
-/// Red on the skeleton, which registers one layer (record §10). Mutation: the
-/// outermost layer's id keyed on the layer count.
+/// Red on the skeleton, which registers one layer: x read 4, 6, 8 (record
+/// §10). Mutation: the outermost layer's id keyed on the layer count
+/// (`elementID ?? ElementID("\(layerCount)")`) snaps, and the betweenness
+/// `#require` fails; so does moving `setNeedsRedraw()` out of the
+/// `withAnimation` body (the instrument's check).
 @Test @MainActor func aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = LayerLog()
@@ -673,11 +687,21 @@ private func chainAllocations(_ build: (Int, GlobalElementID, inout LayoutPass) 
 /// design model's difference (`LayerAllocationModel.swift`). The bounds are
 /// those measured differences.
 ///
-/// **Mutations, each reddening its arm** (MC-K's Mutations line): a
-/// `requestLayout`-local array holding every layer (`inner + [outermost]`)
-/// reddens the one-layer arm; one extra array per `requestLayout` over the
+/// **Mutations, each reddening its arm** (MC-K's Mutations line, record §10):
+/// a `requestLayout`-local array holding every layer (`inner + [outermost]`)
+/// reddens the one-layer arm (18 002 against 17 002), and the other two as
+/// well (+2 per chain each); one extra array per `requestLayout` over the
 /// inner layers (`let _ = inner.map { $0.style }`) reddens the two- and
-/// three-layer arms and not the one-layer arm, whose `inner` is empty.
+/// three-layer arms (3 000 and 5 000 over nested) and not the one-layer arm,
+/// whose `inner` is empty.
+///
+/// **A hazard this adds, measured:** this file and
+/// `FreezeLoopAllocationTests.swift` each install libmalloc's process-wide
+/// `malloc_logger` hook. Run CONCURRENTLY — `swift test` without
+/// `--no-parallel`, filtered to the two — the freeze-loop test's calibration
+/// `#require` failed once. The whole suite passed in parallel mode once as
+/// well, so the collision is a scheduling race, not a certainty. CLAUDE.md's
+/// command runs `--no-parallel`, where the two cannot overlap.
 ///
 /// **On a swiftlang toolchain the strict half is not checked**, as in
 /// `freezeLoopAllocationsDoNotGrowWithTheItemsOnTheLine`: a bare index loop
