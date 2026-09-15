@@ -13,8 +13,8 @@
 The integration step, not this track, links this file from
 `docs/record/README.md` and CLAUDE.md.
 
-**Status: design only, no source changed.** The design was revised after one
-critic round. Each lane appends its own section below:
+**Status: lane 1 (tree and seam) implemented; lanes 2 and 3 designed.** The
+design was revised after one critic round. Each lane appends its own section below:
 
 - the red run;
 - the green run;
@@ -100,6 +100,107 @@ arms never asked a SwiftUI node for rows. The rules probe asks only
 - The modal panel is not labelled, because a label would hide the modal's text.
 
 The script below compensates for both.
+
+### Lane 1 — tree and seam (2026-09-15)
+
+Commits on `feat/ax-bridge`: `bc3fbdc` (tests, red, with a compiling
+skeleton), `78bc8ea` (implementation), `f7555e1` and `c6922f7` (tests added or
+strengthened under `AB-AA`). `swift package clean` ran before the
+first build, as the spec requires.
+
+**First red, before any skeleton.** `f64e58a` plus the Frame-only half of
+`aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame`, run alone:
+`Expectation failed: (target2.frame.origin.y → Pixels(value: 100.0)) == (60 → Pixels(value: 60.0))`.
+The design session's "by reading, expected to read 100" is now a measurement.
+The whole suite on that tree: `Test run with 1085 tests in 1 suite failed …
+with 1 issue` (1084 at `f64e58a`, plus this test).
+
+**Red run on the skeleton commit** (`swift test --build-system native
+--skip-build --no-parallel --filter AccessibilityTreeTests`):
+`Test run with 14 tests in 0 suites failed … with 16 issues`.
+
+| test | red line |
+|---|---|
+| `aFrameThatDoesNotCollectRecordsNothingAndSynthesisWritesNoRetentionSlot` | `(activeFrame.axEmissions.count → 0) == 1` |
+| `anActivationRequestDirtiesACleanWindowAndItsNextFramePublishes` | `.activate` answered `false`; `needsRedraw → false`; `(publishedAccessibilityTrees.count → 0) == 1` |
+| `childrenFollowDeclarationOrderWhereIDsAloneCannot` | `id(labelled: "c") → nil` |
+| `aNodesParentIsItsNearestEmittingAncestor` | `id(labelled: "outer") → nil` |
+| `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor` | `id(labelled: "B") → nil` |
+| `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame` | `origin.y → 100 == 60`; `id(labelled: "target") → nil` |
+| `aPressRequestRunsOnClickThroughTheLastFramesHitboxes`, `aPressIsRefusedWhereHitTestingIsDisabled`, `anIncrementRequestRunsTheAdjustmentHandler`, `publishedFocusIsTheWindowsFocusAndAFocusRequestMovesIt` | `publishedAccessibilityTrees.last → nil` |
+| `anUnchangedFrameIsNotRepublished` | `(buildsAfterFirst → 0) >= 1` |
+| `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce` | `id(labelled: "divider") → nil` |
+| `aLabelledListIsStillATable` | `id(labelled: "Contacts") → nil` |
+| `anInactiveWindowBuildsAndPublishesNothing` | **green**, as it must be: nothing collected before lane 1 either. Its evidence is M01, M03, M04 |
+
+`declaredRolesLabelsValuesAndTraitsReachThePublishedNode` was added after the
+builder and was green on arrival; its evidence is M15, M24, M26–M29, M35.
+
+**Green.** After the implementation, native build system: `Test run with 1098
+tests in 1 suite passed`. At lane 1's last commit, **default build system**
+(`swift test --no-parallel`, full build): **`Test run with 1099 tests in 1
+suite passed`, 0 `error:`, 0 `warning:`**. Goldens: 97, unchanged against
+`f64e58a`. Typecheck guards: none added.
+
+**Mutations.** 35, each applied to committed source, built, run against the
+**unfiltered** suite (native build system), and restored with `git checkout`
+(clean `git status` checked after each). No other agent was live in this
+worktree. "Reddens" lists every failing test; counts are at 1099 tests
+(M08, M30, M33 re-taken after `c6922f7`; the rest at `f7555e1`, before
+`hiddenContentIsNotPublished…` gained its focus arm. That arm only adds
+assertions, so a row it already reddened stays red; a row that did not name it
+was not re-taken).
+
+| # | mutation | reddens |
+|---|---|---|
+| M01 | record regardless of `collectsAccessibility` | `aFrameThatDoesNotCollect…`, `anInactiveWindowBuildsAndPublishesNothing` |
+| M02 | also route a synthesized record through `emitAXNode` | `aFrameThatDoesNotCollect…` |
+| M03 | `Window` builds every frame with `collectsAccessibility: true` | `anInactiveWindowBuildsAndPublishesNothing` (`lastEmissionCount`) |
+| M04 | drop the `isActive` guard in `frameDidRender` | `anInactiveWindowBuildsAndPublishesNothing` |
+| M05 | `.activate` does not dirty | `anActivationRequestDirties…` |
+| M06 | `activate()` answers `true` every time | `anActivationRequestDirties…` (the second activation dirties) |
+| M07 | reverse record order in the parent pass | `childrenFollowDeclarationOrder…`, `hiddenContentIsNotPublished…`, `portalContentIsARoot…` |
+| M08 | parent pass iterates the record dictionary's keys | `portalContentIsARoot…` only, in both runs. **`childrenFollowDeclarationOrder…` survived it twice**: iteration order over three keys happened to match declaration order in both arms. Not a clean mutant; M07 is that test's killing mutation |
+| M09 | parent is `id.parent` or nothing, no walk | `aNodesParentIsItsNearestEmittingAncestor`, `childrenFollowDeclarationOrder…` |
+| M10 | parent walk ignores portals | `portalContentIsARoot…` |
+| M11 | `emitAXNode` stores untranslated bounds | `aNodeInsideAScrolledScrollView…` |
+| M12 | `visibleFrame` is the unclipped frame | `aNodeInsideAScrolledScrollView…` |
+| M13 | `hasSameStructure` also compares geometry | `aNodeInsideAScrolledScrollView…` |
+| M14 | `.press` answers `true` without running `onClick` | `aPressRequestRuns…`, `aPressIsRefused…`, `anUnchangedFrameIsNotRepublished` |
+| M15 | advertise `.press` on every node | `aPressRequestRuns…`, `aPressIsRefused…`, `anIncrementRequest…`, `declaredRolesLabelsValuesAndTraits…` |
+| M16 | derive `.press` from `record.isClickable`, not hitboxes | `aPressIsRefusedWhereHitTestingIsDisabled` |
+| M17 | build `focused` from the handed-in focus | `publishedFocusIs…` (its last arm, added under `AB-AA`) |
+| M18 | `.focus` skips the `isFocusable` check | `publishedFocusIs…` |
+| M19 | publish without the `!=` check | `anUnchangedFrameIsNotRepublished` |
+| M20 | no `display: none` suppression | `hiddenContentIsNotPublished…` |
+| M21 | drop zero-area records | `hiddenContentIsNotPublished…` |
+| M22 | no seen-set (one entry per record) | `hiddenContentIsNotPublished…` |
+| M23 | swap increment and decrement | `anIncrementRequest…` |
+| M24 | advertise adjustment on every node | `anIncrementRequest…`, `aPressRequestRuns…`, `aPressIsRefused…`, `declaredRolesLabelsValuesAndTraits…` |
+| M25 | `.table` only from a `container` with `logicalCount` | `aLabelledListIsStillATable` |
+| M26 | `.text` maps to `.group` | `declaredRolesLabelsValuesAndTraits…` |
+| M27 | ignore `.disabled` | `declaredRolesLabelsValuesAndTraits…` |
+| M28 | ignore `.selected` | `declaredRolesLabelsValuesAndTraits…` |
+| M29 | a clickable `container` becomes `.button` | `declaredRolesLabelsValuesAndTraits…` |
+| M30 | publish `focused` even when that id published nothing | **green at first (1099 passed)**; after `AB-AA`'s hidden-focus arm: `hiddenContentIsNotPublished…` |
+| M31 | `isFocusable` always `false` | `publishedFocusIs…` |
+| M32 | `hasSameStructure` ignores `nodes` | `aNodeInsideAScrolledScrollView…` |
+| M33 | suppression ignores the scope's exception | **green (1099 passed)** — no lane-1 caller passes one; owned by lane 3 (`AB-AA`) |
+| M34 | never increment the portal ordinal (every portal is 0) | `portalContentIsARoot…` |
+| M35 | `value` copies `label` | `declaredRolesLabelsValuesAndTraits…` |
+
+**Performance, by count.** With no client, lane 1 adds one `Bool` read per
+`registerHandlers` call, one per `Element.prepaintGroup`, and one `Int` store
+per drawn frame; `anInactiveWindowBuildsAndPublishesNothing` pins
+`buildCount == 0` and `lastEmissionCount == 0` over three frames of a `List`
+and a click target (M01, M03, M04 redden it). `aFrameThatDoesNotCollect…` pins
+equal `StateTable.count` with and without collection (M02). No allocation
+instrument was used (`AB-M`).
+
+**Deferred from lane 1** (`AB-AA`): the suppression exception (lane 3's first
+reader), distinct ordinals for nested portals, a hidden root element, and the
+`logicalIndex` strip and `.row` role (lane 3). `AppKitWindow` only stores the
+published tree; lane 2 forwards it. No human look is owed by lane 1.
 
 ### Human VoiceOver look — script (open)
 

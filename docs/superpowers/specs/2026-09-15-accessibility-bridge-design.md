@@ -5,8 +5,10 @@
 semantics, disabled behaviour and content shapes wait for task 9 and are not
 here.
 
-**Status (2026-09-15): design only, revised after one critic round.** Written
-against `f64e58a` on `feat/ax-bridge`. No source has changed. Rulings are
+**Status (2026-09-15): lane 1 implemented; lanes 2 and 3 designed.** Written
+against `f64e58a` on `feat/ax-bridge` and revised after one critic round. Lane
+1's deviations from the text below are marked **"Lane 1 as built"** in place and
+ruled in `AB-AA`; its red runs and mutations are in the record. Rulings are
 prefixed **`AB-`** and lettered, in
 `docs/superpowers/2026-09-15-accessibility-bridge-decisions.md`; a bare `AB-3`
 is a typo, not a citation. That doc's last section maps each of the critic's
@@ -196,6 +198,12 @@ public enum AccessibilityRequest: Equatable {
 `Sendable` is deliberately not declared. Every value crosses only between
 `@MainActor` code, and `AnyHashable`'s conformance would have to be argued.
 
+**Lane 1 as built (`AB-AA`).** `AccessibilityRole` and `AccessibilityActions`
+do declare `Sendable`: each carries a `static let`, which Swift 6 rejects on a
+non-`Sendable` public type, and neither holds more than a tag.
+`AccessibilityTree.empty` is a computed `static var` for the same reason.
+`AccessibilityNode.init` defaults every parameter but `role`.
+
 ### `Sources/MetalUIPlatform/Platform.swift` (+2 requirements, ~15 lines with docs)
 
 ```swift
@@ -271,6 +279,12 @@ struct AXEmission {
    }
    ```
 
+   **Lane 1 as built (`AB-AA`).** `AXNode.logicalIndex` does not exist until
+   lane 3, so lane 1 has no strip and tests `!handlers.axNode.isEmpty`
+   directly; lane 3 adds the field, the strip and the `logicalIndex` term
+   together. The overload's two parameters are required on `Frame` and
+   defaulted only on `PrepaintPass`.
+
    With no client active, the frame does what it does today, plus one `Bool`
    read. `noConformerEmitsAnAXNodeItDidNotDeclare` stays true as written,
    whether or not a client is active: a synthesized node never reaches
@@ -345,6 +359,9 @@ Lane 1's algorithm (`AB-C`, `AB-H`, `AB-O`, `AB-V`):
    | `generic`, `container` | `.group` |
 
    On lane 1 alone, a `generic` node that is clickable is `.button`.
+   **Lane 1 as built:** the `.row` line waits for lane 3's `logicalIndex`;
+   "clickable" is `record.isClickable` (`handlers.onClick`), not `.press`, so
+   a button under `allowsHitTesting(false)` stays a button with no press.
    **Traits:** `.selected` sets `isSelected`. `.disabled`, or
    `record.isEnabled == false`, sets `isEnabled = false`. `.updatesFrequently`
    has no AppKit counterpart and is dropped.
@@ -414,6 +431,27 @@ platform side (`AB-K`).
    `accessibility.frameDidRender(emissionCount: frame.axEmissions.count, AccessibilityTreeBuilder.build(…), to: platformWindow)`.
 
 ### Lane 1 tests — `Tests/MetalUITests/AccessibilityTreeTests.swift` (new)
+
+**Lane 1 as built: 15 tests, not 14 (`AB-AA`).** The table's fourteen plus one
+new test, and four of the fourteen strengthened, because a mutation the table
+did not name survived or a named one could not redden its test:
+
+- `declaredRolesLabelsValuesAndTraitsReachThePublishedNode` (new): the
+  builder's `.staticText`/`.image`/`.group` roles, its `value` copy and both
+  trait mappings, one distinct value per field.
+- `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame` also asserts
+  `hasSameStructure` true across a scroll and false across a label change.
+- `hiddenContentIsNot…` also focuses the hidden box (it is focusable, and
+  `hidden()` keeps focus) and asserts the published `focused` is `nil`.
+- `publishedFocusIs…` gains a last arm, `window.focus(c)` then a draw: the
+  frame clears it and the published `focused` is `nil`. **Without it, this
+  table's own mutation ("build `focused` from the handed-in focus") cannot
+  redden the test**: in every earlier arm the handed-in and read-back focus
+  are equal.
+- `anUnchangedFrameIsNotRepublished` changes its `@State` label by pressing
+  the element through `.press`, from a `Component`.
+- `anInactiveWindowBuildsAndPublishesNothing` compiles against the red
+  skeleton and is green there; its evidence is its two mutations.
 
 **Footing.** Frame-level tests use `Frame.render` over a bare `Frame`, which is
 `AXEmitSiteTests`' footing and needs no Metal device. Window-level tests use
@@ -904,7 +942,7 @@ About 47 new tests:
 
 | where | tests |
 |---|---|
-| lane 1 | 14 |
+| lane 1 | 15 (as built) |
 | lane 2, platform | 16 |
 | lane 2, end-to-end | 2 |
 | lane 3 | 15 |

@@ -4,7 +4,7 @@ Rulings for the accessibility-bridge half of plan task 12
 (`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`). They are prefixed
 **`AB-`** and **lettered** (`AB-A`, `AB-B`, …), with two-letter tails after
 `AB-Z`. **A bare `AB-3` is a typo, not a citation.** The next unused letter is
-`AB-AA`.
+`AB-AB`.
 
 Read alongside:
 
@@ -1185,6 +1185,73 @@ directions:
 **Cost if wrong.** The joint test is red after the merge, which is its job.
 If the integration step skips it, a disabled synthesized button reads as
 enabled and pressable, while a press silently does nothing.
+
+## AB-AA — lane 1 as built: four corrections to the spec, and three strengthened tests
+
+**Added by lane 1's implementer (2026-09-15), after its red and green runs.**
+The spec's lane-1 section carries a "Lane 1 as built" note at each site; the
+red lines and the full mutation table are in `docs/record/12-accessibility-bridge.md`.
+
+**What.**
+
+1. **`logicalIndex` waits for lane 3.** The spec's lane-1 `registerHandlers`
+   block strips `declaration.logicalIndex` and tests
+   `handlers.axNode.logicalIndex != nil`, and its role map has a `.row` line,
+   but the field is added by lane 3 (`AXNode.swift`). Lane 1 tests
+   `!handlers.axNode.isEmpty` and has no `.row` mapping; lane 3 adds the
+   field, the strip, the record term and the `.row` line in one change.
+2. **`Sendable` on two tags.** `AccessibilityRole` and `AccessibilityActions`
+   declare it, because each has a `static let` and Swift 6 rejects one of a
+   non-`Sendable` public type. `AccessibilityTree.empty` is a computed
+   `static var`. The id and the tree stay non-`Sendable`, as designed.
+3. **"Clickable" for the role is `handlers.onClick`, not `.press`.** A generic
+   click target under `allowsHitTesting(false)` is still a button and
+   advertises no press; the press stays derived from hitboxes (`AB-H`).
+4. **The `Frame` overload's two parameters are required;** only the
+   `PrepaintPass` overload defaults them, so no call site can resolve the
+   three-argument spelling ambiguously.
+
+**Three tests strengthened, one added**, each because a mutation survived or a
+named one could not redden its own test (shape: "a mutation that reddens
+nothing is a broken instrument, or it is the finding"):
+
+- `publishedFocusIsTheWindowsFocusAndAFocusRequestMovesIt`: the spec's named
+  mutation, "build `focused` from the handed-in focus", **cannot redden the
+  spec's fixture**, because every arm had handed-in focus equal to read-back
+  focus. A last arm focuses the non-focusable `c` directly; the frame clears
+  it, and the published `focused` must be `nil`. The mutation now reddens it.
+- `hiddenContentIsNotPublished…`: the builder's "focused only if it
+  published" filter survived the whole suite (mutation M30). The hidden box is
+  now focusable and focused.
+- `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame`: `hasSameStructure`
+  had no lane-1 caller or test; two arms pin geometry out and nodes in.
+- **Added** `declaredRolesLabelsValuesAndTraitsReachThePublishedNode`: role
+  map beyond `.button`/`.table`, `value`, and both traits had no pin.
+
+**Why.** Each is the smallest change that makes the lane compile against the
+fields that exist, or makes a mutation the spec relies on observable.
+
+**Evidence.** Measured: lane 1's red run (skeleton commit `bc3fbdc`), and the
+35-mutation table in the record, every row taken from an unfiltered suite run.
+
+**Left unpinned on lane 1, with owners.**
+
+- **The suppression exception** (`isAccessibilitySuppressed` answering
+  `outermost != id`): replacing it with "always suppressed" leaves the suite
+  green (M33), because no lane-1 caller passes a non-nil exception. Lane 3's
+  `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`
+  is its first reader and must redden under M33.
+- **Nested portals get distinct ordinals**: only "every portal is ordinal 0"
+  is pinned (M34). A `Deferred` inside a `Deferred` publishing its content as
+  a child of the outer portal's content is unpinned.
+- **A hidden root.** `Frame.render` calls the root's `prepaint` directly, not
+  through `prepaintGroup`, so a root element with `display: none` is not
+  suppressed. Unreachable from `Window` in any real tree (a hidden root draws
+  nothing at all), recorded so nobody reads the check as universal.
+
+**Cost if wrong.** Item 1: if lane 3 forgets the strip, a `List` row writes a
+`$ax` slot per row while a client is active — lane 3's
+`aClientDoesNotChangeStateRetention` is the guard.
 
 ---
 
