@@ -1015,6 +1015,18 @@ public final class Frame {
         return body()
     }
 
+    /// Runs `body` inside an accessibility suppression scope when `node`'s style
+    /// is `display: none`, and plainly otherwise — the one `display: none` check
+    /// (ruling AB-O), shared by `Element.prepaintGroup` (a whole element) and
+    /// `ModifiedElement`'s per-layer prepaint (each inner layer, which receives
+    /// no group default of its own — ruling MC-B's "any hook in those defaults
+    /// is mirrored per layer"). The style is read only while collecting.
+    /// Pinned per layer by `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`.
+    func suppressingAccessibilityIfHidden<R>(_ node: LayoutNodeID, _ body: () -> R) -> R {
+        guard collectsAccessibility, style(node).display == .none else { return body() }
+        return withAccessibilitySuppressed(except: nil, body)
+    }
+
     /// True inside a suppression scope, unless `id` is the **outermost** scope's
     /// exception: a `List` suppressing its rows keeps its own node, and a
     /// hidden ancestor (`except: nil`, outermost) still silences that `List`.

@@ -148,14 +148,11 @@ extension Element {
         // AB-O): the "one check in `Element`'s group walk" `Box.focusable()`'s
         // doc names, applied to accessibility ONLY — focus, hitboxes and paint
         // keep their inert-table behaviour. The style is read only while collecting.
-        let frame = pass.frame
-        if frame.collectsAccessibility, frame.style(layout.node).display == .none {
-            return frame.withAccessibilitySuppressed(except: nil) {
-                prepaint(layout.id, bounds: pass.bounds(of: layout.node), layout: &layout.state, pass: &pass)
-            }
+        // The check is `Frame.suppressingAccessibilityIfHidden`, shared with
+        // `ModifiedElement`'s inner layers.
+        return pass.frame.suppressingAccessibilityIfHidden(layout.node) {
+            prepaint(layout.id, bounds: pass.bounds(of: layout.node), layout: &layout.state, pass: &pass)
         }
-        return prepaint(layout.id, bounds: pass.bounds(of: layout.node),
-                        layout: &layout.state, pass: &pass)
     }
 
     public mutating func paintGroup(layout: inout SingleElementLayout<Self>,

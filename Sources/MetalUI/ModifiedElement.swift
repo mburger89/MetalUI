@@ -207,6 +207,22 @@ public struct ModifiedElement<Content: ElementGroup>: Element, StyledElement {
     private mutating func prepaintLayer(_ depth: Int, id: GlobalElementID, bounds: Bounds<Pixels>,
                                         layout: inout Layout,
                                         pass: inout PrepaintPass) -> Content.GroupPrepaint {
+        // The outermost layer's `display: none` is `Element.prepaintGroup`'s
+        // check; each inner layer mirrors it here, around its registration and
+        // everything inside it (ruling AB-O, mirrored per layer at integration
+        // as ruling MC-B requires). Deleting the wrap reddens
+        // `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`.
+        guard depth < inner.count else {
+            return prepaintLayerBody(depth, id: id, bounds: bounds, layout: &layout, pass: &pass)
+        }
+        return pass.frame.suppressingAccessibilityIfHidden(layout.inner[depth].node) {
+            prepaintLayerBody(depth, id: id, bounds: bounds, layout: &layout, pass: &pass)
+        }
+    }
+
+    private mutating func prepaintLayerBody(_ depth: Int, id: GlobalElementID, bounds: Bounds<Pixels>,
+                                            layout: inout Layout,
+                                            pass: inout PrepaintPass) -> Content.GroupPrepaint {
         let handlers = depth == inner.count ? outermost.handlers : inner[depth].handlers
         pass.registerHandlers(handlers, at: bounds, id: id)
         guard depth > 0 else {
