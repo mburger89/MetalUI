@@ -238,3 +238,69 @@ private struct Published {
         #expect(offCounts.adjustments == 0, "adjustable: the handler ran")
     }
 }
+
+// MARK: - Accessibility across a modifier chain's identity change (MC-C × AB-D)
+
+@MainActor
+private final class LayerFlag {
+    var adding = false
+}
+
+/// A labelled click target inside a labelled `ModifiedElement` chain, with one
+/// more `.padding` layer when `adding` — the same TYPE either way, so the
+/// change is a layer added at run time (ruling MC-C), not a structural `if`.
+@MainActor private func labelledChain(adding: Bool) -> ModifiedElement<Box<EmptyGroup>> {
+    var chain = Box().width(px(20)).height(px(20)).onClick {}.accessibilityLabel("leaf").padding(px(4))
+    if adding { chain = chain.padding(px(4)) }
+    return chain.onClick {}.accessibilityLabel("outer")
+}
+
+/// **What an accessibility client sees when a legacy modifier chain gains a
+/// layer at run time** — where `MC-C` (the new outermost layer adopts the old
+/// outermost id; the wrapped element moves one level down and resets) meets
+/// `AB-D` (one element per id while published, detached on first absence).
+///
+/// Measured at integration, and pinned as it stands: the chain's outermost
+/// node keeps its id, so a client holding it keeps a live element; the wrapped
+/// element's id changes, so its old element is detached and a new one is
+/// published; the tree never holds two nodes for one label, and the leaf is
+/// still a child of the outer node. The control frame without the change
+/// publishes the same ids twice, so the id comparison is shown to be able to
+/// read "equal".
+@MainActor
+@Test func aLayerAddedAtRunTimeKeepsTheOutermostAccessibilityNodeAndRepublishesTheWrappedOne() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+    let flag = LayerFlag()
+    let (window, platform) = try makeFakeWindow(device: device, size: 100) {
+        Row { labelledChain(adding: flag.adding) }
+    }
+    platform.simulateAccessibilityRequest(.activate)
+    drawUntilClean(window)
+
+    func ids() throws -> (outer: AccessibilityNodeID, leaf: AccessibilityNodeID, tree: AccessibilityTree) {
+        let tree = try #require(platform.publishedAccessibilityTrees.last)
+        let outer = tree.nodes.filter { $0.value.label == "outer" }
+        let leaf = tree.nodes.filter { $0.value.label == "leaf" }
+        try #require(outer.count == 1 && leaf.count == 1,
+                     "one node per label; read outer \(outer.count), leaf \(leaf.count)")
+        return (outer[outer.startIndex].key, leaf[leaf.startIndex].key, tree)
+    }
+
+    let before = try ids()
+    try #require(before.tree.nodes[before.outer]?.children == [before.leaf], "set up: the leaf is the outer node's child")
+
+    window.setNeedsRedraw()
+    drawUntilClean(window)
+    let control = try ids()
+    try #require(control.outer == before.outer && control.leaf == before.leaf,
+                 "control: an unchanged chain republishes the same ids")
+
+    flag.adding = true
+    window.setNeedsRedraw()
+    drawUntilClean(window)
+    let after = try ids()
+    #expect(after.outer == before.outer, "the outermost layer keeps its id (MC-C), so its element stays live")
+    #expect(after.leaf != before.leaf, "the wrapped element moved one level down (MC-C), so it is republished")
+    #expect(after.tree.nodes.count == before.tree.nodes.count, "the added layer publishes nothing of its own")
+    #expect(after.tree.nodes[after.outer]?.children == [after.leaf], "the leaf is still the outer node's child")
+}
