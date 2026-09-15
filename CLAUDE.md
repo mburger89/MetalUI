@@ -299,7 +299,7 @@ reading only (no typecheck guard):** `anyComponent.frame(width:height:)` returns
 a `ModifiedElement`, a `StyledElement`, so `.frame(…).background(…)` compiles on
 any component; and a component retro-conformed to `ProposalElementGroup` picks
 up that extension's `.background(ColorToken)`, `.padding(Edges<Pixels>)`,
-`.frame(…)` and the rest (`NativeModifiedContent.swift:187`), so on it
+`.frame(…)` and the rest (`NativeModifiedContent.swift:157`), so on it
 `.padding(Pixels)` distributes while `.padding(Edges<Pixels>)` wraps.
 A `Component` over proposal content declares `some ProposalElementGroup`;
 `some ElementGroup` does not conform to the marker (guard 3,
@@ -519,8 +519,9 @@ Two measure closures use `MainActor.assumeIsolated` with no guard —
 `Text.requestLayout` (`Text.swift:237`) and `ProposalText`'s
 (`ProposalText.swift:49`) — sound only because `computeLayout` and
 `computeNativeLayout` run synchronously on the caller's thread; moving layout
-off the main actor rewrites both first. The other two `assumeIsolated` calls
-(`Window.markDirtyFromObservation`, the demo's `atexit_b`) are guarded.
+off the main actor rewrites both first. The other three `assumeIsolated` calls
+(`Window.markDirtyFromObservation`, the demo's `atexit_b`, and the bridge's
+`mainActorAnswer`, behind `Thread.isMainThread`, `AB-AE`) are guarded.
 
 **Animation (M4 spec 3, complete — production animates; decisions doc `AN-`).**
 `withAnimation` writes **two** slots with one value. `pendingTransaction` is
@@ -765,7 +766,8 @@ Kernel types (`MetalUILayout`): `ProposedSize`, `LayoutMeasurement`,
 `ProposalAlignment` (nine), `ProposalStackAxis`, `AspectRatioContentMode`,
 `ProposalMeasureFunction`, `ProposalLayout` and its four proxy types. **The
 `Native…` types and `native…` modifier methods are deprecated aliases** — 26
-`@available(*, deprecated` hits: 17 typealiases (14 in `MetalUI`, 3 in
+of the 27 `@available(*, deprecated` hits (the 27th is task 9's `Binding` alias
+for `KeyBinding`): 17 typealiases (14 in `MetalUI`, 3 in
 `LayoutTree.swift`) and 9 methods — except the two `nativeFrame(...)`
 overloads, live undeprecated duplicates of `.frame` used by six test call
 sites; deprecating them breaks the 0-warning baseline. **The kernel's own
@@ -792,7 +794,7 @@ with the scrolling axis unspecified, reports each finite proposal axis, and
 shares `ScrollView`'s wheel routing (`registerScrollRegion`, `ScrollState`
 under its bare id). Its prepaint clamp and its indicator (alpha fade,
 `requestAnotherFrame`, thumb maths, clip) are **private copies**
-(`ProposalScrollView.swift:93-165`), so a fix to `ScrollView`'s does not reach
+(`ProposalScrollView.swift:94-166`), so a fix to `ScrollView`'s does not reach
 it. It takes `elementID:` in its
 init, has no `$anim-content`/`$anim-viewport` nodes and never animates;
 multiple direct children lower to a **vertical** stack at spacing 8 on either
@@ -854,7 +856,7 @@ rulings above and `SA-N`'s findings below, not this list.
   `ProposalScrollView` takes an id, so the trailing-sibling remedy cannot name
   a built-in proposal element. A custom element or `Component` conformed to
   `ProposalElementGroup` can still declare `var elementID` (the demo's
-  `PreviewToggle` does, `main.swift:892`). `@State`
+  `PreviewToggle` does, `main.swift:921`). `@State`
   binds, but no built-in proposal element declares any; `.onTap` is the only
   pointer handler (hover via `hoverColor`); nothing is focusable, handles keys
   or emits an AX node, and nothing publishes to accessibility — `onTap` still

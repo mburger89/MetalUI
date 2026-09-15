@@ -98,7 +98,7 @@ registration and everything inside it.
 
 | mutation (1224 tests) | reddened |
 |---|---|
-| the per-layer wrap deleted | exactly `:682`, `:683` |
+| the per-layer wrap deleted | exactly `:682`, `:683` (`:684`, `:685` since `2456c69` added two doc lines above them; re-run at `dbea8b5` by the integration checker: exactly those two) |
 | `Element.prepaintGroup`'s wrap deleted | `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce` `:621`, `:623`, `:630`; `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` `:755`, `:756` |
 
 ## Tests only the merged tree could hold
@@ -120,7 +120,7 @@ arrival. Mutations (1224 tests):
 | mutation | reddened |
 |---|---|
 | J1 the record's `isEnabled: true` | `:154` ×3 (the three click arms), `:209` focusable, `:235` adjustable |
-| J2 the whole record gated on `enabled` | `:134` (the `nodes.count == 1` require; the test stops there) |
+| J2 the whole record gated on `enabled` | `:134` (the `publishedAccessibilityTrees.last` require, "nothing published": with no record no tree is published at all, so the test stops before `:135`'s `nodes.count == 1`; re-run at `dbea8b5` by the integration checker, 1 issue) |
 | J2b `enabled &&` around the synthesized terms | `:134` |
 | J3 focus registration ungated | `:210`, `:211`, `:213` (focusable), `:236`–`:238` (adjustable), and lane 3's eight focus tests |
 | J4 a hitbox registered when disabled | `:155`–`:157` ×3 (press accepted, handler ran), D2 ×11, D3 and 8 more lane-3 tests, and `aProposalModifierWrittenAfterAScopeSitsOutsideIt` `:105` |

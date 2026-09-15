@@ -123,7 +123,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   layout/prepaint/paint ordering, and stored subtrees. This is the prerequisite
   for converting the legacy direct-mutating size modifiers; plain return-type
   changes already break concrete `Box<T>` boundaries in the demo.
-  *Progress 2026-09-14 (at `7cfcddc`), still open.* Proposal content has a
+  *Progress 2026-09-14 (at `7cfcddc`; superseded by the 2026-09-15 closing
+  note below, kept as history).* Proposal content has a
   concrete `ModifiedContent<Content>` over a closed `LayoutModifier` enum
   (`NativeModifiedContent.swift:9-31`). Legacy content has none: `.frame` is a
   standalone `FrameModifier`, and `.padding` returns `Box<Self>`.
