@@ -453,7 +453,16 @@ passed after 12.820 seconds` (`MC-R` item 6).
 allocation test). Guards 47: `grep -c canTypecheck` reads 19, 10, 5, 3 (one a
 comment), 3, 6, 2 (`ModifiedElementCompileGuards`), plus the declaration in
 `Typecheck.swift`. Goldens 97; `git diff --stat f64e58a -- '*.json'` empty.
-The final runs are below.
+Final runs, after the docs commit `c52f782` (whose test
+files changed only in doc comments): `swift build --build-system native
+--build-tests`, then `swift test --build-system native --no-parallel`: `Test
+run with 1103 tests in 1 suite passed after 29.513 seconds`, 0 `error:`, 0
+`warning:`, both new guards' diagnostics printed; then `swift test
+--no-parallel` (default build system, whose guards read the native build's
+modules): `Test run with 1103 tests in 1 suite passed after 26.470 seconds`, 0
+`error:`, 0 `warning:`. `swift build -c release --product MetalUIDemo` in the
+worktree: complete, for the owed capture. The session was still locked
+(`CGSSessionScreenIsLocked` 1, display asleep) at the end of the lane.
 
 **Not run, by reading only:** that `Element`'s group defaults do nothing per
 element that a layer would need (they enter the id and bind `@State`); the
