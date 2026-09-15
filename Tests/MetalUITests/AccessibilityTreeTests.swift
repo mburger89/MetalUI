@@ -614,6 +614,58 @@ private struct PressToRename: Component {
             "published once, at its first position: before the divider its two occurrences straddle")
 }
 
+/// A window root with `display: none` records nothing (AB-AD). `Frame.render`
+/// calls the root's `prepaint` directly, not through `prepaintGroup`, so the
+/// check there cannot reach it; `hidden()` filters layout and not prepaint
+/// (CLAUDE.md's inert table), so without a check of its own the root and
+/// everything in it would record.
+///
+/// The root is itself a click target and holds a declared, sized, clickable
+/// box, so both the root's own record and its content's are observable. The
+/// control is the same root without `hidden()`.
+@Test @MainActor func aHiddenRootPublishesNothing() throws {
+    func root(hidden: Bool) -> Box<Box<EmptyGroup>> {
+        let box = Box { declared(Box().width(px(10)).height(px(10)).onClick {}, AXNode(label: "in")) }
+            .width(px(20)).height(px(20)).onClick {}
+        return hidden ? box.hidden() : box
+    }
+    let (shownFrame, shown) = collect(root(hidden: false))
+    try #require(shownFrame.axEmissions.count == 2, "control: the shown root and its box both record")
+    #expect(shown.id(labelled: "in") != nil)
+
+    let (hiddenFrame, hidden) = collect(root(hidden: true))
+    #expect(hiddenFrame.axNodes.values.contains { $0.label == "in" },
+            "control: the hidden root still prepaints, so its content still emits as today")
+    #expect(hiddenFrame.axEmissions.isEmpty, "a hidden root records nothing")
+    #expect(hidden.nodes.isEmpty && hidden.roots.isEmpty)
+}
+
+/// `display: none` on an INNER wrapper layer hides everything inside it
+/// (AB-O, AB-Z item 4). `x.padding(4).hidden().padding(4)` hides the middle
+/// layer, while `prepaintGroup` reads the outermost layer's style.
+///
+/// **Green on this branch by construction, and written for the merge.** Here
+/// each `.padding` is a nested `Box`, and the middle `Box`'s own
+/// `prepaintGroup` suppresses. After the modifier-composition merge the same
+/// spelling is one three-layer `ModifiedElement` whose `prepaint` registers its
+/// layers in a loop without passing through `prepaintGroup`; this test is red
+/// there until that loop carries the check. The control, `.padding(4).padding(4)`,
+/// records the box.
+@Test @MainActor func aHiddenInnerModifierLayerSuppressesEverythingInsideIt() throws {
+    func target() -> Box<EmptyGroup> {
+        declared(Box().width(px(10)).height(px(10)).onClick {}, AXNode(label: "in"))
+    }
+    let (shownFrame, shown) = collect(Row { target().padding(px(4)).padding(px(4)) })
+    try #require(shownFrame.axEmissions.count == 1, "control: the unhidden box records")
+    #expect(shown.id(labelled: "in") != nil)
+
+    let (hiddenFrame, hidden) = collect(Row { target().padding(px(4)).hidden().padding(px(4)) })
+    #expect(hiddenFrame.axNodes.values.contains { $0.label == "in" },
+            "control: the box inside the hidden layer still prepaints and emits as today")
+    #expect(hiddenFrame.axEmissions.isEmpty, "nothing inside a hidden inner layer records")
+    #expect(hidden.nodes.isEmpty)
+}
+
 /// A `List` publishes a table whose row count is its logical count, even when a
 /// caller declared a label and so left its role `generic` (AB-L, arm R16).
 @Test @MainActor func aLabelledListIsStillATable() throws {

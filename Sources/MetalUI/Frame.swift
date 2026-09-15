@@ -1486,8 +1486,16 @@ public final class Frame {
         let rootBounds = bounds(of: root)
 
         var prepaintPass = PrepaintPass(frame: self)
-        var prepaintState = element.prepaint(rootID, bounds: rootBounds,
-                                             layout: &state, pass: &prepaintPass)
+        // The root's `prepaint` is called here, not through `prepaintGroup`, so
+        // `Element.prepaintGroup`'s `display: none` check cannot reach it: a
+        // hidden root still prepaints (`hidden()` filters layout only), and
+        // without this every record inside it would publish (ruling AB-AD,
+        // `aHiddenRootPublishesNothing`). Accessibility only, as there.
+        var prepaintState = collectsAccessibility && style(root).display == .none
+            ? withAccessibilitySuppressed(except: nil) {
+                element.prepaint(rootID, bounds: rootBounds, layout: &state, pass: &prepaintPass)
+            }
+            : element.prepaint(rootID, bounds: rootBounds, layout: &state, pass: &prepaintPass)
 
         // Hover resolves HERE — after `prepaint` has returned, so every
         // hitbox the frame will ever have is already registered, and before
