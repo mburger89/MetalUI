@@ -458,3 +458,130 @@ this is what the batch taught beyond them:
 - The inert and divergence rows, the reserved-name and `Window.environment`
   paragraphs, and the counts are owed to the integration step (spec, "Owed to
   the integration step"); CLAUDE.md was not edited.
+
+### Design session, third pass (2026-09-15), at `f4dcad8`
+
+A second critic reviewed lanes 1–2 as built and lane 3 as designed, and reported
+11 findings (decisions doc, "Third pass"). This session changed **no source and
+no test**: `git diff --stat f4dcad8 -- Sources Tests` is empty at this pass's
+commit, so the critic's suite reading at `f4dcad8` stands (1112 tests, 0
+`error:`, 0 `warning:`, `--build-system native`; log in the critic's session
+scratchpad) and was not re-taken. Goldens: no file under `Tests` changed, 97.
+
+#### Probes written and run (both committed under `docs/probes/`, output in their headers)
+
+- **`swiftui-disabled-ancestor-and-order.swift`**, from the critic's scratch
+  `order-probe.swift` (whose first version, with the O arms, the critic had
+  overwritten; the O arms were rebuilt from the finding's text and re-run, not
+  copied). Arms and readings:
+  - N0 control (enabled child gesture in a tappable `ZStack`): child 1, parent 0.
+  - N3 control (enabled `.plain` Button in a tappable card): button 1, parent 0.
+  - N4 control (a gesture-less child in a tappable card): parent 1.
+  - **N1 disabled child gesture: child 0, parent 1.**
+  - **N2 disabled `.plain` Button: button 0, parent 1.**
+  - O0 control 1; O1 gesture inside `.disabled` 0; **O2 gesture after
+    `.disabled` 1; O3 after `.disabled` and `.padding(4)` 1**; O4 enabled
+    `VStack` gesture over a disabled gesture-less child 1.
+  - O5 control (background before the writer) probe=1; **O6 background after
+    the writer probe=0**.
+- **`swiftui-environment-pixel-length.swift`**, from the critic's scratch
+  `px-probe.swift` and `ev-default.swift`, with a V2 comparison added:
+  - V0 bare `EnvironmentValues()`: pixelLength 1.0, displayScale 1.0, locale '',
+    isEnabled true, large, leftToRight. V1 control (`displayScale = 4`):
+    pixelLength 0.25. **V2: bare locale `== Locale(identifier: "")` true,
+    `== Locale.current` false**, `Locale.current` en_US.
+  - X0 control in a 2x window: pixelLength 0.5, displayScale 2.0, en_US.
+    **X1 `.environment(\.displayScale, 3)`: pixelLength 0.333…** **X2
+    `.environment(\.self, EnvironmentValues())`: pixelLength 1.0, displayScale
+    1.0, locale ''.** X3 (`\.self` inside an outer locale write): locale ''.
+- **Run three ways each**, filtered with the committed `grep -v`, and the three
+  outputs of each probe were byte-identical (`diff` empty): `/usr/bin/swift
+  <file>` (Apple Swift 6.4, swiftlang-6.4.0.33.1), `/usr/bin/swiftc` then the
+  binary with `OS_ACTIVITY_DT_MODE=1`, and `swiftc` from `PATH` — which on this
+  machine is **swiftly's swift.org 6.3.3**, not Apple's (`EV-R` item 9). macOS
+  26.6.2 (25G83), system appearance Dark. Exit status 0 each time.
+- One label was renamed after the first run (`O0 control, Color.onTapGesture: 1
+  expected` → `O0 control, Color.onTapGesture`), and the probe was re-run in all
+  three forms after the rename; the header holds the post-rename output.
+
+#### Compiler measurement: modifiers after a scope already compile (finding 7)
+
+Against this worktree's `--build-system native` modules at `f4dcad8`
+(`swiftc -typecheck -diagnostic-style=llvm -I .build/arm64-apple-macosx/debug/Modules`
+plus the C module map directories, the `Typecheck.swift` helper's arguments),
+a plain-import fixture:
+
+```swift
+Box().environment(\.probe, 1).frame(width: Pixels(20), height: Pixels(20)).padding(Pixels(4)).onClick {}
+Box().theme(.dark).frame(width: Pixels(20), height: Pixels(20)).background(.surface).hoverBackground(.accent)
+```
+
+**typechecked with exit status 0 and no diagnostic.** A second fixture,
+`Box().theme(.dark).padding(Pixels(4))` and `Box().theme(.dark).onClick {}`,
+failed as `EV-B` said: "referencing instance method 'padding' on
+'EnvironmentScope' requires that 'Box<EmptyGroup>' conform to
+'ProposalElementGroup'" and "value of type 'EnvironmentScope<Box<EmptyGroup>>'
+has no member 'onClick'". Cause: `FrameModifier.swift:62-67` declares
+`frame(width:height:)` in `extension ElementGroup`, and `FrameModifier` is a
+`StyledElement`. So `EV-B`'s "does not compile" limit was never true for
+`.frame`; the critic's "becomes false at the composition merge" understated it.
+`FrameModifier.prepaint` (`:45-50`) calls `pass.registerHandlers` before
+`content.prepaintGroup`, and `paint` fills before `content.paintGroup`: both
+outside any scope in its content, which is `EV-X`'s mechanism.
+
+#### Merge measurement (finding 2)
+
+`git merge-tree --write-tree --name-only feat/environment feat/ax-bridge`
+(`f4dcad8` × `53d3bf6`, merge base `f64e58a`): **CONFLICT in
+`Sources/MetalUI/ElementGroup.swift` and `Sources/MetalUI/Window.swift`**;
+`Frame.swift` and `Passes.swift` **auto-merge**. The same against
+`feat/modifier-composition` (`ec65da6`): no conflict.
+
+Read at `53d3bf6` (`git show`, read-only): `Frame.registerHandlers(_:at:id:)` is
+a bare forward to `registerHandlers(_:at:id:accessibleText:synthesizesAccessibility:)`
+(`Frame.swift:610-618`); the record is
+`AXEmission(id:, declared: handlers.axNode, text:, isClickable: handlers.onClick != nil, isEnabled: true, …)`
+(`:735-741`) behind `hasSomethingToSay`, with `adjustable` read from
+`handlers.actions` (`:729`). The bridge's spec derives `.press` from `hitboxes`,
+`.increment`/`.decrement` and `isFocusable` from the `FocusRegistry`, and
+`isEnabled = false` from a declared trait or `record.isEnabled == false`. Its
+`AB-Z` merge contract still assumes an `environment:` init parameter, a
+`keyboard` copy with stripped actions, and a hitbox with `Handlers()`.
+Read at `ec65da6`: the composition spec's environment-collision section still
+says "`bind` gains `environment:`" and "E11 reads only in paint"; its lane 3
+guard `aMarkerConformerThatRegistersALegacyNodeDoesNotCompile` rejects E11's
+fixture shape.
+
+#### Source facts re-checked for finding 1, at `f4dcad8`
+
+- `Window.dispatchClick` (`Window.swift:1215-1224`): the topmost opaque hitbox
+  under the release, `hit.id == pressed`, and its own `onClick`; no bubbling
+  (its doc: "a container's `onClick` never sees a click that landed on a child
+  with its own").
+- `updatePointerState`: `mouseDown` sets `active = topmostHitboxOwner(at:)`, so
+  a press over no hitbox leaves `active` nil and `dispatchClick` returns at its
+  first guard.
+- `PaintPass.isHovered(_: GlobalElementID)` is `frame.hoveredElement == id` and
+  `isActive` is `frame.activeElement == id` (`Passes.swift:725-738`): exact id
+  equality, so an element with no hitbox is never hovered or active.
+- `Frame.rootEnvironment`'s setter (`Frame.swift:189-198`) assigns
+  `environmentTop = values` unconditionally (finding 11), and
+  `grep -rn "rootEnvironment" Sources Tests` finds one production writer
+  (`Window.swift:860`) and one test writer (`EnvironmentTests.swift:530`,
+  between two renders).
+
+#### What the third pass did NOT establish
+
+- **No MetalUI code ran for finding 1.** "A disabled target with no hitbox lets
+  an enabled ancestor's `onClick` fire" is read from `dispatchClick` and
+  `topmostOpaqueHitbox`, not measured; lane 3's D3 ancestor arm is the
+  measurement, with its control.
+- **SwiftUI's hover under `.disabled`**, and whether an enabled ancestor's hover
+  look shows over a disabled child, stay unprobed (`EV-T`, D16's consequence
+  arm is MetalUI's choice).
+- **The accessibility joint test** exists on neither branch; its expected
+  readings are design, not measurement.
+
+E22's spelling **was** typechecked, the same way as the after-scope fixture:
+`HStack(spacing: Pixels(0)) { Pair(Rectangle(…), Rectangle(…)).environment(\.probe, 1); Rectangle(…) }`
+returned as `some Element` compiles with no diagnostic at `f4dcad8`.

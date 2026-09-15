@@ -3,9 +3,14 @@
 **Milestone:** plan task 9 of `plans/2026-09-12-swiftui-alignment.md`, "Expand
 the environment and control-state model", on `feat/environment`.
 
-**Status (2026-09-15): lanes 1 and 2 implemented** (`a3c92a7`, `a4ef92d`); lane 3
-owed. Lane 2's corrections to this text, all measured, are marked "(lane 2)" in
-place; its readings are in the decisions doc's `Mutations` lines and in record 11.
+**Status (2026-09-15, third design pass): lanes 1 and 2 implemented** (`a3c92a7`,
+`a4ef92d`, recorded at `f4dcad8`); **lanes 2b, 3 and 4 owed, in that order.** A
+second critic review of `f4dcad8` found 11 defects; each is applied, with
+reasons, in the decisions doc's "Third pass" table, and marked "(third pass)"
+here. The largest: a disabled click target now registers **no** hitbox, because
+SwiftUI lets an enabled ancestor take the click (`EV-E`, probe arm N). Lane 2's
+corrections to this text, all measured, are marked "(lane 2)" in place; its
+readings are in the decisions doc's `Mutations` lines and in record 11.
 
 **Status (2026-09-14): design only, second pass.** This was written against
 `f64e58a`, and no source has changed. A critic review found 18 defects in the
@@ -48,13 +53,17 @@ and are merged afterwards. So this design:
    - `locale`: carried, no built-in consumer (`EV-H`);
    - `dynamicTypeSize`: carried, with no text effect on macOS, as in SwiftUI
      (`EV-I`);
-   - `pixelLength`: read-only, `\.self` included (`EV-J`, `EV-U`);
+   - `pixelLength`: read-only and tied to the device, `\.self` included — a
+     **divergence**, since SwiftUI derives it from a writable `displayScale`
+     (`EV-J`, `EV-U`; third pass);
    - custom keys.
 3. **A disabled control state**, all of it through **one** gate in
    `Frame.registerHandlers`:
-   - It suppresses clicks and taps on legacy and proposal elements. The
-     element's hit region stays and runs nothing, registered under a derived
-     id, so it is neither hovered nor pressed (`EV-E`, `EV-T`).
+   - It suppresses clicks and taps on legacy and proposal elements by
+     registering **no hitbox**, so a click over a disabled target reaches an
+     enabled ancestor (aligned, probe N) or an enabled sibling under it (a
+     pre-existing divergence), and the target is neither hovered nor pressed
+     (`EV-E`, `EV-T`; third pass).
    - A click needs the target enabled at press **and** at release, as probe R
      measured (`EV-T`).
    - It removes the element from the keyboard entirely: no focus, no action
@@ -73,15 +82,18 @@ Not delivered, each with its owner or flagged as unowned: `EV-Q`.
 
 ## Evidence this design stands on
 
-Three probes. All were run in this session, and their recorded output is in
+Five probes. All were run in a design session, and their recorded output is in
 their headers. The disabled-interaction probe was **re-run in the second pass**
-with arms P2g/P2h, a fixed K5–K8 and a new arm R:
+with arms P2g/P2h, a fixed K5–K8 and a new arm R; the last two were added and
+run in the **third pass**:
 
 | probe | arms | rulings |
 |---|---|---|
 | `docs/probes/swiftui-environment-scoping.swift` | A precedence, B `isEnabled`, C defaults, D state retention, E layout transparency, F overlay scope, G dynamic type, H RTL | `EV-A`, `EV-B`, `EV-D`, `EV-G`…`EV-K` |
 | `docs/probes/swiftui-disabled-interaction.swift` | P pointer (18 arms, 8 of them controls), K focus/keys (K0–K8), R press/release across a flip | `EV-D`, `EV-E` (analogy only), `EV-F`, `EV-T` |
 | `docs/probes/swiftui-environment-api-shape.swift` | compile-only: writable vs get-only members | `EV-C`, `EV-J` |
+| `docs/probes/swiftui-disabled-ancestor-and-order.swift` | N a disabled child inside a tappable ancestor (N0, N3, N4 controls), O a gesture or background written inside vs after a scope (O0, O5 controls) | `EV-E`, `EV-X` |
+| `docs/probes/swiftui-environment-pixel-length.swift` | V a bare `EnvironmentValues()` (V1, V2 controls), X `displayScale` and `\.self` writes in a window (X0 control) | `EV-J`, `EV-U`, `EV-Y` |
 
 One compiler measurement stands beside them (record 11, "Second pass"): in a
 two-module build, `environment(\.self, EV())` resets a `public internal(set)`
@@ -123,9 +135,11 @@ public struct EnvironmentValues {                     // not @MainActor: a plain
     public init()                                    // every field at its default
     public var isEnabled: Bool                       // true
     public var layoutDirection: LayoutDirection      // .leftToRight
-    public var locale: Locale                        // Locale.current, read in init()
+    public var locale: Locale                        // Locale(identifier: ""); Window stamps
+                                                     // Locale.current (EV-Y, lane 2b; lane 2 read .current)
     public var dynamicTypeSize: DynamicTypeSize      // .large
-    public internal(set) var pixelLength: Double     // 1; Frame stamps 1/scaleFactor (EV-J, EV-U)
+    public internal(set) var pixelLength: Double     // 1; Frame stamps 1/scaleFactor (EV-J, EV-U:
+                                                     // a divergence — no scope can change it)
     var theme: Theme                                 // .light; INTERNAL — PaintPass.theme only (EV-G, EV-U)
     public subscript<K: EnvironmentKey>(key: K.Type) -> K.Value { get set }
 }
@@ -181,7 +195,9 @@ extension PaintPass    { public var environment: EnvironmentValues { get } }
 // PaintPass.theme keeps its spelling; Frame.theme becomes an in-place read of the top.
 
 // Sources/MetalUI/Window.swift  (shared, lane 2 — one property, one statement)
-extension Window { public var environment: EnvironmentValues { get set } }   // didSet → setNeedsRedraw(), even a no-op (EV-H)
+extension Window { public var environment: EnvironmentValues { get set } }   // didSet → setNeedsRedraw(), even a no-op (EV-H);
+                                                                             // initial value: EnvironmentValues() with
+                                                                             // locale = .current (EV-Y, lane 2b)
 
 // Sources/MetalUI/Keymap.swift  (shared, lane 1)
 public struct KeyBinding { /* was `Binding`; body unchanged */ }
@@ -196,7 +212,9 @@ public typealias Binding = KeyBinding
 private(set) var environmentTop: EnvironmentValues     // read IN PLACE by `theme` and the gate
 var rootEnvironment: EnvironmentValues { get set }       // setter re-stamps theme (from init's `theme:`)
                                                          // and pixelLength (1/scale, or 1 if the scale is
-                                                         // not finite and positive) and resets the top
+                                                         // not finite and positive) and resets the top;
+                                                         // lane 2b: precondition(!isRendering) (EV-Z)
+private var isRendering: Bool                            // lane 2b: set at the top of render, cleared at its end
 var theme: Theme { environmentTop.theme }                // replaces `let theme`
 func scopedValues(applying write: EnvironmentWrite) -> EnvironmentValues
     // .transform(t): var v = environmentTop; t(&v); v.theme = environmentTop.theme;
@@ -226,8 +244,12 @@ static func bind<E>(_ element: E, in frame: Frame, id: GlobalElementID)
   (conformance kept), `Component`, builder groups.
 - **Not usable** as a window root, as `Deferred` content, or as a `List` row,
   because each of those requires `Element`. Write the scope outside instead.
-- **Not usable** before a `StyledElement` modifier: write `.padding(4).disabled(true)`,
-  not `.disabled(true).padding(4)`.
+- **Not usable** directly before `.padding` or a handler modifier:
+  `.disabled(true).padding(4)` does not compile. **But `.frame(width:height:)`
+  is an `ElementGroup` extension**, so `.disabled(true).frame(…)` compiles today,
+  and any `StyledElement` modifier may follow it (third pass, measured). Such a
+  modifier sits **outside** the scope, as in SwiftUI (`EV-X`, probe O2, O3,
+  O6): `X().disabled(true).frame(width: 40, height: 40).onClick {}` fires.
 
 ---
 
@@ -378,7 +400,69 @@ Suite: 1085 → **1085 + 21 + 6 = 1112**. Guards: 46 → **52**.
 
 ---
 
-## Lane 3 — the disabled control state (`EV-D`, `EV-E`, `EV-F`, `EV-T`, `EV-P` capture)
+## Lane 2b — hardening lane 2 (third pass: `EV-B`, `EV-C`, `EV-J`, `EV-U`, `EV-X`, `EV-Y`, `EV-Z`)
+
+Everything here answers a finding against `f4dcad8` (decisions doc, "Third
+pass"). It runs before lane 3 because lane 3 extends two of its files (G6, and
+the doc comments lane 3 amends).
+
+### Changes
+
+- **`EnvironmentValues.swift`** (new file of this track).
+  - `init()`: `locale = Locale(identifier: "")` (`EV-Y`).
+  - `init`'s doc: these are SwiftUI's **bare** defaults (pixel-length probe V0),
+    not probe C's, which a host stamps; a `Window` stamps `Locale.current` and a
+    `Frame` stamps `pixelLength` and the theme.
+  - `locale`'s doc: `Locale(identifier: "")` bare, `Locale.current` under a
+    window.
+  - `pixelLength`'s doc: delete "as SwiftUI's is". State that SwiftUI's is
+    get-only but derived from a writable `displayScale` (X1) and reset by
+    `\.self` (X2), so a scope can change it there and cannot here: a
+    divergence (`EV-J`, `EV-U`).
+  - The type doc's `EV-U` paragraph: the `pixelLength` half is a divergence;
+    the `theme` half is MetalUI's own key.
+- **`EnvironmentProperty.swift`**: the unbound-read doc says locale '' instead
+  of "reading `Locale.current`".
+- **`EnvironmentScope.swift`**: its doc's "where usable" text follows the spec
+  section above (`.frame` may follow a scope; `EV-X`).
+- **`Window.swift`** (shared, one expression): `environment`'s initial value
+  becomes `EnvironmentValues()` with `locale = .current`, written as a closure
+  or a private static helper **in `EnvironmentValues.swift`** (so the `Window`
+  edit is the initializer expression only); its doc gains one `EV-Y` sentence.
+- **`Frame.swift`** (shared, four lines plus doc): `private var isRendering =
+  false`; `render` sets it on its first line and clears it on its last (after
+  `stateTable.sweep()`); the `rootEnvironment` setter begins with
+  `precondition(!isRendering, "Frame.rootEnvironment set during render: it would replace every open scope's values (ruling EV-Z)")`.
+  The setter's doc replaces "set it before `render`, never during" with the
+  precondition.
+
+### Tests
+
+| # | test | red before lane 2b | mutation and what must redden |
+|---|---|---|---|
+| E12 (extended in place) | Add the `EV-X` arm to `aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope`: `Box().width(px(13)).height(px(10)).background(.surface).theme(.dark).frame(width: px(14), height: px(10)).background(.surface)`. The 13pt rect is dark; the 14pt frame layer's rect is **light** (O6, F2). The **disagreeing spelling** in the same test, `…background(.surface).frame(width: px(16), height: px(10)).background(.surface).theme(.dark)` (widths 15/16), reads dark and dark, so the arm is shown to see inside vs outside | — (aligned behaviour, passes on arrival: an instrument pin) | `EV-X`'s hoist overload on `EnvironmentScope.frame` → the 14pt rect paints dark |
+| E22 | `aScopeOverProposalContentContributesNoNodeAndConsumesNoIndex`. E4 on the proposal path: `NodeProbe(inner: HStack(spacing: 0) { Pair(NativeEnvRecorder(A), NativeEnvRecorder(B)).environment(\.probe, 1); NativeEnvRecorder(C) })` against the same tree bare. `NativeEnvRecorder` gains `log.ids[label] = id` in `prepaint`. `try #require` the **bare** `HStack` node's `tree.children` count is 3 before comparing; then the scoped count is 3 and A, B, C's ids equal the bare ones. (the explicit `Pair` inside `HStack`'s builder typechecks at `f4dcad8`, record 11, third pass) | — (passes on arrival, stated: one entry serves both paths today; it exists for the merge, `EV-W` item 1) | run here, against the shared entry, to prove the instrument sees: E4(a) with a native wrapper (`requestNativeOverlay`), E4(b), E4(c) → each reddens E22 (and E4). **Re-run at integration against the typed entry** |
+| E23 | `aProposalStateCounterKeepsItsCountAcrossAChangingScope`. A real fake window (`try #require(MTLCreateSystemDefaultDevice())`), root `HStack { NativeClickCounter(log: log).environment(\.probe, model.value) }`, where `NativeClickCounter` is E11's shape (`Element` + `ProposalElementGroup` marker, `requestNativeLeaf` 20×20) with `@State var n`, an `onClick` that increments it through `pass.registerHandlers`, and a paint-time log. Click twice (`try #require` the log reads 2), set `model.value = 7`, redraw → 2 | — (passes on arrival, as E5 did) | E5's value-keyed scope id → 0. **Re-run at integration against the typed entry** |
+| E24 | `aBareEnvironmentValuesHoldsTheRootLocaleAndAWindowStampsTheCurrentOne` (`EV-Y`). (i) `try #require(Locale.current != Locale(identifier: ""))`; `EnvironmentValues().locale == Locale(identifier: "")`. (ii) A fresh fake window: `window.environment.locale == Locale.current`; a recorder with no writer reads `Locale.current.identifier`. (iii) In the same window, a recorder under `.environment(\.self, EnvironmentValues())` reads `""` while its unscoped sibling reads `Locale.current.identifier` (X2) | (i) and (iii) read `Locale.current` | `EV-Y` (a) `init` reads `Locale.current` → (i) and (iii); (b) the window's initial value unstamped → (ii), and E14's default-locale expectation |
+| T1 | `aRootEnvironmentWriteDuringARenderTraps` (`EV-Z`), new file `Tests/MetalUITests/EnvironmentTrapTests.swift`. Three `#expect(processExitsWith: .failure, observing: [\.standardErrorContent])` blocks, written out at each site (non-capturing, as `ElementGroupTrapTests.swift` explains), each rendering `Row { Writer(phase:) }` inside `MainActor.run`, where `Writer` sets `pass.frame.rootEnvironment = EnvironmentValues()` in `requestLayout`, `prepaint` or `paint`. Each asserts the stderr contains `"rootEnvironment set during render"`, so an unrelated trap cannot pass it | does not trap | (a) delete the precondition → all three arms; (c) clear `isRendering` at the top of `paint` → the paint arm |
+| T2 | `aRootEnvironmentWriteBeforeAndBetweenRendersDoesNotTrap` (`EV-Z`), `.success`: one `Frame`; set the root; render `Row { EnvRecorder(…).environment(\.probe, 1) }`; set the root again; render again. Inside the child, `precondition` that the second render's recorder reads `probe == 1` | — (passes on arrival) | (b) precondition on `environmentPushCount == 0` instead → traps on the second set |
+
+**Typecheck guard**, in `EnvironmentCompileGuards.swift`:
+
+| # | guard | kind | mutations |
+|---|---|---|---|
+| G6 | `theEnvironmentsPublicWritersCompileFromOutsideTheModule` (`EV-C`, shape 16). Plain `import MetalUI`, Swift 6 mode (`typecheckFile`, as G4 does). A file-scope custom key with a `public var probe` extension. In an `@MainActor` function returning `some ElementGroup`: `Box()` chained through `.environment(\.isEnabled, false)`, `.environment(\.layoutDirection, .rightToLeft)`, `.environment(\.locale, Locale(identifier: "de_DE"))`, `.environment(\.dynamicTypeSize, .accessibility1)`, `.environment(\.probe, 1)`, `.transformEnvironment(\.probe) { $0 += 1 }`, `.dynamicTypeSize(.xLarge)`, `.theme(.dark)`. In an `@MainActor func f(_ w: Window)`: `w.environment = EnvironmentValues()`; `w.environment.isEnabled = false`; `var e = EnvironmentValues()`, then assign each of `isEnabled`, `layoutDirection`, `locale`, `dynamicTypeSize` and `e[ProbeKey.self]`; `_ = DynamicTypeSize.accessibility2.isAccessibilitySize`. Asserts `succeeded`, printing `output` on failure | positive | each alone, each must print `failed` for G6 (and the run must show G6 ran, not skipped): (a) `.theme(_:)` internal; (b) `locale` `internal(set)`; (c) `Window.environment` `internal(set)` |
+
+Each mutation in this lane is run on a `--build-system native` build in this
+worktree, one at a time, restored from git, and its reddened tests named in the
+ruling's Mutations line.
+
+Suite: 1112 → **1112 + 5 + 1 = 1118** (E22, E23, E24, T1, T2 and G6; E12 is
+extended in place). Guards: 52 → **53**.
+
+---
+
+## Lane 3 — the disabled control state (`EV-D`, `EV-E`, `EV-F`, `EV-T`, `EV-X`)
 
 ### Changes
 
@@ -391,36 +475,36 @@ Suite: 1085 → **1085 + 21 + 6 = 1112**. Guards: 46 → **52**.
       focusedElementProducedThisFrame = true                    // UNCHANGED, still ungated
       if enabled { /* the existing $focus slot write */ }       // gated (EV-F, finding 7)
   }
-  if hitTestingDisabledDepth == 0, handlers.isPointerTarget {
-      if enabled {
-          _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
-      } else {                                                  // keep the region, run nothing, under a
-          _ = insertHitbox(bounds, id: .child(of: id, at: 0, name: ElementID("$disabled")),  // DERIVED (EV-T)
-                           opaque: true, handlers: Handlers())
-      }
+  if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {  // disabled: NO hitbox (EV-E, third pass)
+      _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
   }
   if !handlers.axNode.isEmpty {
-      var node = handlers.axNode                                // after the AX-bridge merge: the SYNTHESIZED
-      if !enabled { node.traits.insert(.disabled) }             // node, from the UNGATED handlers; the trait
-      emitAXNode(node, at: bounds, id: id, children: [])        // is inserted after synthesis (EV-W)
+      var node = handlers.axNode
+      if !enabled { node.traits.insert(.disabled) }             // the declared node; the bridge's record
+      emitAXNode(node, at: bounds, id: id, children: [])        // takes `isEnabled: enabled` at merge (EV-W item 4)
   }
   ```
-  The derived id copies the `$anim-content` precedent's spelling exactly
-  (`AnimatedStyle.swift:185`: `.child(of: id, at: 0, name: ElementID("$anim-content"))`).
-  **Update the method's doc** to state the gate and cite `EV-E`/`EV-F`/`EV-T`.
+  There is **no derived id and no `$disabled` suffix** (third pass; the second
+  pass's blocker is withdrawn, `EV-E`, `EV-T`).
+  **Update the method's doc** to state the gate and cite `EV-E`/`EV-F`/`EV-T`,
+  including that a click over a disabled target reaches an enabled ancestor or
+  the sibling under it.
   **Update the `$focus` paragraph** (`Frame.swift:621-651`): the ungated-write
   hazard stays reachable through `Window.focus` on an enabled non-focusable
   element, and is **not** reachable through `.disabled`, because the slot write
   is gated on `isEnabled`. **Update `Handlers`' doc** paragraph on the two gates.
-- **No other source edit.**
+- **No other behavioural source edit.**
   - `Box`, `Stack`, `Text`, `FrameModifier` and `NativeTappable`
     (`OnTapModifier`) are **not** touched; the gate reaches them. Those are the
     **five** `registerHandlers` callers today (`grep -rn "registerHandlers(" Sources`);
     `Column`/`Row` reach it through `Box`, `List` rows through their elements,
     and `Component` through its members.
-  - `Window` is **not** touched: its click dispatch already runs nothing for a
-    hitbox with no `onClick`, and the derived id makes a press on a disabled
-    target never match a later release on the re-enabled element.
+  - `Window` is **not** touched: with no hitbox for the disabled target, a
+    press over it makes some other id `active` (or none), so a release on the
+    re-enabled element fails `dispatchClick`'s `hit.id == pressed` (`EV-T`).
+- **`EnvironmentValues.swift`**: `isEnabled`'s doc names the gate (`EV-E`,
+  `EV-F`). **`EnvironmentCompileGuards.swift`**: G6's fixture gains
+  `.disabled(true)` in its chain.
 
 ### Tests
 
@@ -436,8 +520,8 @@ scope cannot be a root (`EV-B`).
 | # | test | shell-only red reading | mutation and what must redden |
 |---|---|---|---|
 | D1 | `disabledComposesAsAnAndAndARawWriteOverridesIt`. Probe B0–B8 as a recorder table in paint: `[true, false, true, false, false, true, false, false, false]`. | — (the value exists) | (a) `.disabled(d)` as `$0.isEnabled = !d` → the B3 and B6 slots read true; (b) `.environment(\.isEnabled, …)` special-cased to AND → the B5 slot reads false |
-| D2 | `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`. It mirrors `onClickIsLiveOnEveryConformerThatCanRegisterOne` (`InputDispatchTests.swift`). **Arms are defined by their spelling, not by the type they produce**: `Box().onClick`, `Column { … }.onClick`, `Row { … }.onClick`, `Stack { … }.onClick`, `Text("x").onClick`, a `List` row's `onClick` box, **a `.padding(4).frame(width: 20, height: 20)` chain with the `onClick` on the inner layer**, proposal `Rectangle(...).onTap`, and a `Component` whose content is an `onClick` box with `.disabled(true)` on the component. Each arm has a **control**, identical minus `.disabled(true)`, that fires once. | every disabled arm fires | always pass `handlers` (delete the `enabled` branch) → every disabled arm fires. **There is no per-site mutation today:** the gate is central, so one edit reddens every arm. The arm list exists for a FUTURE site that registers a click without `registerHandlers` — including the modifier-composition track's `ModifiedElement`, which replaces `FrameModifier` (`EV-W`); record that as this test's stated purpose, not as measured per-site coverage |
-| D3 | `aDisabledClickTargetKeepsItsRegionAndRunsNothing`. `ZStack { Rectangle().onTap(under); Rectangle().onTap(over).disabled(true) }` clicked at the centre gives under 0, over 0. The **control** is the same with `.allowsHitTesting(false)` instead of `.disabled(true)`: under 1. The doc states this is **MetalUI's choice by analogy** (`EV-E`): probe P2e–P2h shows SwiftUI's `.disabled` leaves hit-testability alone, and a MetalUI region comes from its `onClick`. It does **not** cite P2f as alignment | over 1 | skip the hitbox when disabled → under 1 |
+| D2 | `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`. It mirrors `onClickIsLiveOnEveryConformerThatCanRegisterOne` (`InputDispatchTests.swift`). **Arms are defined by their spelling, not by the type they produce**, and each is placed in a root `Row { … }` in both halves: `Box().onClick`, `Column { … }.onClick`, `Row { … }.onClick`, `Stack { … }.onClick`, `Text("x").onClick`, **a `.padding(4).frame(width: 20, height: 20)` chain with the `onClick` on the inner layer**, proposal `Rectangle(...).onTap`, a `Component` whose content is an `onClick` box with `.disabled(true)` on the component, and **two `List` arms** (third pass; a scope is not an `Element`, so it cannot be a row): **(list-row)** `List([Datum(id: 0)], rowHeight: px(40)) { _ in Box { Box().width(px(40)).height(px(40)).onClick { rec("list-row") }.disabled(true) } }`, whose control is the same with the inner `.disabled(true)` deleted — the wrapper `Box` is in both halves; **(list)** `List(...) { _ in Box() }.width(px(40)).height(px(40)).onClick { rec("list") }.disabled(true)`, control the same minus `.disabled(true)`. Each arm's **control**, identical minus `.disabled(true)`, fires once. **Plus the `EV-X` arm, which must FIRE:** `Box().width(px(20)).height(px(20)).disabled(true).frame(width: px(40), height: px(40)).onClick { rec("after") }` fires 1 (probe O2), against its **disagreeing spelling** `Box().width(px(20)).height(px(20)).frame(width: px(40), height: px(40)).onClick { rec("inside") }.disabled(true)`, which fires 0 (O1) | every disabled arm fires | always register the hitbox and focus with `handlers` (delete the `enabled` checks) → every disabled arm fires. `EV-X`'s hoist overload on `EnvironmentScope.frame` → the after arm reads 0. **There is no per-site mutation today:** the gate is central, so one edit reddens every arm. The arm list exists for a FUTURE site that registers a click without the gated method — including the composition track's `ModifiedElement` and, after the bridge merge, a gate placed in the 3-argument overload that `Text` and `OnTapModifier` bypass (`EV-W` item 4); record that as this test's stated purpose, not as measured per-site coverage |
+| D3 | `aDisabledClickTargetPassesTheClickToWhatIsUnderIt` (third pass, re-derived; `EV-E`). **(ancestor, aligned, probe N1/N2)** `Row { Box { Box().width(px(20)).height(px(20)).onClick { rec("child") }.disabled(true) }.width(px(40)).height(px(40)).onClick { rec("parent") } }` clicked at the child's centre → child 0, parent 1; **control** (child enabled) → child 1, parent 0 (N0/N3). **(sibling, a pre-existing divergence, P2f/P2m)** `ZStack { Rectangle(width: px(40), height: px(40)).onTap { rec("under") }; Rectangle(width: px(40), height: px(40)).onTap { rec("over") }.disabled(true) }` → under 1, over 0; **control** (over enabled) → under 0, over 1; **reference** `.allowsHitTesting(false)` instead of `.disabled(true)` → under 1, the same as the disabled arm. The doc states the sibling reading diverges from SwiftUI, whose shape blocks, and why it is not new: an enabled MetalUI `Box` with no `onClick` over a clickable sibling already passes the click | parent 0 and under 0 under the second pass's blocker; with no gate, child 1 and over 1 | `EV-E` (a) a blocker under a derived id → parent 0 and under 0; (b) the blocker under the element's own id → the same, plus D15/D16 |
 | D4 | `theGateReadsTheEnvironmentValueNotTheModifier`. Probe P8/P9: `.onClick` box under `.environment(\.isEnabled, true)` inside `.disabled(true)` → fires 1; under `.environment(\.isEnabled, false)` with no `.disabled` → 0. | P9 arm fires | gate on a `Frame.disabledDepth` counter that only `.disabled` increments → P8 reads 0 and P9 reads 1 |
 | D5 | `aDisabledElementCannotAcquireFocus`. Probe K1: `window.focus(id)` on a `.focusable().onKey{…}` box inside `.disabled(true)`; draw → `window.focusedElement == nil`; a key event → `onKey` count 0. The **control** without `.disabled` → focused and count 1. | stays focused | register the ungated `handlers` → focused |
 | D6 | `aFocusedElementThatBecomesDisabledLosesFocusAtOnce`. **A divergence pin** (`EV-F`, probe K2 measured the opposite). Focus an enabled focusable box; draw; flip `model.disabled`; draw → `focusedElement == nil`; flip back; draw → still nil. The doc quotes K2. | stays focused | register `handlers` for a disabled element whose id is `focusedElement` → focus retained. This is exactly the SwiftUI-aligned alternative the divergence rejects |
@@ -446,19 +530,43 @@ scope cannot be a root (`EV-B`).
 | D9 | `aDisabledPaneContributesNoKeyContext`. MetalUI's choice, **SwiftUI has no comparable concept** (`EV-S`). `KeyBinding("cmd-k", A(), context: "Pane")`; the pane `.keyContext("Pane")` inside `.disabled(true)` holds a re-enabled focused child with `onAction(A.self)` → the child handler 0 **and** `window.onAction` 0 (the binding does not match). The control (pane enabled) → child 1 | child 1 | keep `keyContext` for a disabled element → child 1 |
 | D10 | Extends E5: the `.disabled(model.flag)` arm. The counter below `.disabled(model.flag)` keeps `n` across a flip and back, **and** a click while disabled does not increment it. | a click while disabled increments | the E5 `EitherGroup` mutation applied to `.disabled` → `n` resets. The gate-deletion mutation → it increments. Counted in E5, not as a new test |
 | D11 | `reEnablingRestoresClicksButNotFocus`. Frame N disabled: click → 0. Frame N+1 enabled: click → 1, and the focus requested while disabled is not restored. | a click in frame N fires | cache the disabled state in a `$enabled` `StateTable` slot read on the next frame → the frame N+1 click reads 0 |
-| D12 | `aDisabledElementsAXNodeCarriesTheDisabledTrait`. A `Box` with `handlers.axNode = AXNode(role: .button, label: "b")` set directly, as `AXEmitSiteTests.swift` does (there is no AX modifier), inside `.disabled(true)` → `frame.axNode(for:)` traits contain `.disabled`; the **control** (enabled) lacks it. **An arm is owed to the integration step** (`EV-W`): an undeclared, disabled `Box().onClick {}` in a *collecting* frame publishes a synthesized `.button` with `isEnabled == false`, and has no `.press` action | trait absent | delete the `traits.insert` → red |
+| D12 | `aDisabledElementsAXNodeCarriesTheDisabledTrait`. A `Box` with `handlers.axNode = AXNode(role: .button, label: "b")` set directly, as `AXEmitSiteTests.swift` does (there is no AX modifier), inside `.disabled(true)` → `frame.axNode(for:)` traits contain `.disabled`; the **control** (enabled) lacks it. **D12 cannot see the bridge merge** (third pass): it reads a frame that is not collecting, so it stays green whatever the record's `isEnabled` says. That is the joint test's job, `aDisabledClickableElementPublishesDisabledWithNoPressAndRefusesAPress`, written at integration (`EV-W` item 4) | trait absent | delete the `traits.insert` → red |
 | D13 | `aFocusRequestWhileDisabledLeavesNoRetentionSlot` (`EV-F`). Frame 1: `x` = `.focusable()` box inside `.disabled(true)`; `window.focus(x)`; draw → nil. Frame 2: `x` removed by an `if`; draw. `window.focus(x)`; draw → `focusedElement == nil`. **Instrument arm, pinned wrong on purpose:** the same sequence with `x` enabled but **not** `.focusable()` reads `x` — the known hazard in `Frame.swift`'s `$focus` paragraph, which proves the instrument can see a sticky focus. Below `StateTable.sweepThreshold` in both arms (`try #require`) | disabled arm reads `x` | write the `$focus` slot regardless of `enabled` → the disabled arm reads `x` |
 | D14 | `aDisabledScopeReachesIntoDeferredContent`. `Row { Row { Deferred { fixed-size Box().onClick(rec) } }.disabled(true) }` (the scope sits outside the `Deferred`, whose content must be an `Element`, and inside a root `Row`, since a scope cannot be a root): a click at the portal's rect → 0, and a focus request on a focusable box inside the portal → nil. **Control** without `.disabled` → 1 and focused. | 1 and focused | `PrepaintPass.deferred` sets the top to `rootEnvironment` around its body → 1 and focused |
-| D15 | `aClickNeedsTheTargetEnabledAtPressAndAtRelease` (`EV-T`, probe R). A model-driven `.disabled(model.flag)` over an `onClick` box in a fake window; `mouseDown`, flip, draw, `mouseUp`. **R0 control** (no flip, enabled) → 1; **R1** pressed disabled, released enabled → 0; **R2** pressed enabled, released disabled → 0; **R3** disabled throughout → 0 | R1 reads 1 | register the blocker under the element's own `id` → R1 reads 1 |
-| D16 | `aDisabledTargetIsNeitherHoveredNorPressed` (`EV-T`). A fixed-size `Box().onClick {}.hoverBackground(.accent).background(.surface)` inside `.disabled(model.flag)`; `mouseMoved` to its centre, draw → the rect is `.surface`, and a paint-phase recorder reads `isActive` false during a held press. **Control** (enabled) → `.accent` and `isActive` true | `.accent` and true | register the blocker under the element's own `id` → `.accent` and true |
+| D15 | `aClickNeedsTheTargetEnabledAtPressAndAtRelease` (`EV-T`, probe R). A model-driven `.disabled(model.flag)` over an `onClick` box in a fake window; `mouseDown`, flip, draw, `mouseUp`. **R0 control** (no flip, enabled) → 1; **R1** pressed disabled, released enabled → 0; **R2** pressed enabled, released disabled → 0; **R3** disabled throughout → 0 | with no gate, R1, R2, R3 read 1 | `EV-T`'s mutation: a hitbox with empty `Handlers()` under the element's own id for a disabled target → R1 reads 1 |
+| D16 | `aDisabledTargetIsNeitherHoveredNorPressed` (`EV-T`). A fixed-size `Box().onClick {}.hoverBackground(.accent).background(.surface)` inside `.disabled(model.flag)`; `mouseMoved` to its centre, draw → the rect is `.surface`, and a paint-phase recorder reads `isActive` false during a held press. **Control** (enabled) → `.accent` and `isActive` true. **Consequence arm** (MetalUI's, unprobed, `EV-S`): the same disabled box inside a 40×40 `Box { … }.onClick {}.hoverBackground(.accent).background(.surface)` parent → the **parent's** rect paints `.accent` with the pointer over the disabled child, as it does over any child without an `onClick` | `.accent` and true | `EV-T`'s mutation → the disabled arm paints `.accent` and reads `isActive` true |
 
 **Divergence and inert rows, as tests.** D6 and D8 are the new divergence pins.
 E8, E17 and E21 are lane 2's inert and divergence pins.
 
-Suite: 1112 → **1112 + 15 = 1127** (D10 extends E5 and adds no test). Guards:
-52 → **52**.
+G6 gains `.disabled(true)` (no new guard); its mutation (d), `.disabled` made
+internal, must print `failed` for G6.
 
-### Human verification: the window capture (`EV-P`)
+Suite: 1118 → **1118 + 15 = 1133** (D10 extends E5 and adds no test). Guards:
+53 → **53**.
+
+---
+
+## Lane 4 — the window capture and the merge re-measure (`EV-P`, `EV-W`)
+
+No source or test edit; only `docs/record/11-environment.md` and the
+decisions doc's `EV-P`/`EV-W` lines. Suite and guard counts stay at 1133 / 53,
+re-read from an unfiltered run.
+
+### The merge re-measure (`EV-W`)
+
+After lane 3's commit, run `git merge-tree --write-tree --name-only` of
+`feat/environment` against the **current** heads of `feat/ax-bridge` and
+`feat/modifier-composition` (record both hashes). For each pair record the
+conflicting files and the auto-merged ones, and for each `EV-W` item say
+whether it is still loud, now loud, or still silent. In particular: does
+`Frame.swift` now conflict in `registerHandlers` against the bridge (lane 3
+edited the body the bridge also edits)? A clean textual merge there does
+**not** make item 4 loud; say so if it happens. If either track has moved past
+what `EV-W` describes (for example, the composition track's lane 2 or 3 has
+landed), re-read its current spec and amend `EV-W` in the same lane.
+
+### The window capture (`EV-P`)
 
 **No input is sent to the real demo.** Build release at `f64e58a`
 (`git worktree add`, in a scratch worktree) and at lane 3's commit. For each:
@@ -487,7 +595,7 @@ swap.** E18 is that evidence, and the record says so.
 ## Verification common to every lane
 
 - **Read the summary line, never the exit status.** The totals must equal the
-  table above exactly: 1085 after lane 1, 1112 after lane 2, 1127 after lane 3.
+  table above exactly: 1085 after lane 1, 1112 after lane 2, 1118 after lane 2b, 1133 after lane 3 and lane 4.
   A shortfall is a truncated run (shape 11). `grep -c "error:"` and
   `grep -c "warning:"` must both read 0. `--build-system native` prints its own
   deprecation line: tell it apart from a compiler warning, and record which it is.
@@ -512,10 +620,10 @@ swap.** E18 is that evidence, and the record says so.
   - No test sleeps.
   - Animation-adjacent tests drive `simulateTick(timestamp:)`.
   - E15 counts pushes, snapshots and transforms, never time.
-- **Exit tests.** No new trap is designed. If a lane adds a precondition (for
-  example, "the environment top is the root again after paint"), pin it with
-  `#expect(processExitsWith:)`, as `FontResolverTrapTests.swift` does, in the same
-  change.
+- **Exit tests.** One trap is designed, lane 2b's `EV-Z` precondition, pinned
+  by T1/T2 with `#expect(processExitsWith:)` as `FontResolverTrapTests.swift`
+  and `ElementGroupTrapTests.swift` do, in the same change. Any other
+  precondition a lane adds is pinned the same way in the same change.
 - **Device-dependent tests.** Use `try #require(MTLCreateSystemDefaultDevice())`,
   not `makeFakeWindowOnDefaultDevice`, so a displayless runner skips rather than
   hard-fails (CLAUDE.md, "When CI lands").
@@ -532,20 +640,22 @@ swap.** E18 is that evidence, and the record says so.
 | `Sources/MetalUIDemo/main.swift` | 1 | shared | nine call sites |
 | `Tests/MetalUITests/KeymapTests.swift` | 1 | shared | respell |
 | `Sources/MetalUICore/LayoutDirection.swift` | 2 | new | |
-| `Sources/MetalUI/EnvironmentValues.swift` | 2 | new | |
-| `Sources/MetalUI/EnvironmentProperty.swift` | 2 | new | |
-| `Sources/MetalUI/EnvironmentScope.swift` | 2 (+3 for `.disabled`) | new | |
-| `Sources/MetalUI/Frame.swift` | 2, 3 | shared | top, root, counters, `theme`; `registerHandlers` gate, `$focus` doc |
+| `Sources/MetalUI/EnvironmentValues.swift` | 2, 2b, 3 | new | 2b: bare locale, docs; 3: `isEnabled` doc |
+| `Sources/MetalUI/EnvironmentProperty.swift` | 2, 2b | new | 2b: one doc line |
+| `Sources/MetalUI/EnvironmentScope.swift` | 2, 2b (doc), 3 (`.disabled`) | new | |
+| `Sources/MetalUI/Frame.swift` | 2, 2b, 3 | shared | top, root, counters, `theme`; 2b: `isRendering` + setter precondition; 3: `registerHandlers` gate, `$focus` doc |
 | `Sources/MetalUI/Passes.swift` | 2 | shared | three accessors, one doc |
-| `Sources/MetalUI/Window.swift` | 2 | shared | one property, one statement after `Frame(...)` |
+| `Sources/MetalUI/Window.swift` | 2, 2b | shared | one property, one statement after `Frame(...)`; 2b: the property's initial value |
 | `Sources/MetalUI/ElementGroup.swift` | 2 | shared | three bind calls |
 | `Sources/MetalUI/Component.swift` | 2 | shared | one bind call |
 | `Sources/MetalUI/StateReflection.swift` | 2 | shared | binder signature, shape cache |
 | `Sources/MetalUI/Handlers.swift` | 3 | shared | doc only |
-| `Tests/MetalUITests/EnvironmentTests.swift` | 2 | new | |
-| `Tests/MetalUITests/EnvironmentCompileGuards.swift` | 1, 2 | new | |
+| `Tests/MetalUITests/EnvironmentTests.swift` | 2, 2b | new | 2b: E12 arm, E22–E24, E8/E11 docs |
+| `Tests/MetalUITests/EnvironmentTrapTests.swift` | 2b | new | T1, T2 |
+| `Tests/MetalUITests/EnvironmentCompileGuards.swift` | 1, 2, 2b, 3 | new | 2b: G6; 3: `.disabled` in G6 |
 | `Tests/MetalUITests/DisabledTests.swift` | 3 | new | |
-| `docs/record/11-environment.md` | all | new (track) | append per lane |
+| `docs/record/11-environment.md` | all | new (track) | append per lane; lane 4: capture and merge re-measure |
+| `docs/probes/swiftui-disabled-ancestor-and-order.swift`, `docs/probes/swiftui-environment-pixel-length.swift` | third design pass | new | committed with recorded output |
 | `docs/superpowers/2026-09-15-environment-decisions.md` | all | new (track) | fill "Mutations" lines |
 
 `Tests/MetalUITests/Fakes.swift` needs no edit. `simulateInput`, `readPixels`,
@@ -553,50 +663,60 @@ swap.** E18 is that evidence, and the record says so.
 
 ## Owed to the integration step (not written by this track)
 
-**Merge obligations** (`EV-W`; each is loud by construction, and this list says
-where):
+**Merge obligations.** `EV-W` is the normative list, re-taken in the third pass
+against `feat/ax-bridge` at `53d3bf6` and `feat/modifier-composition` at
+`ec65da6`, and re-measured by lane 4. **Not every item is loud**; the summary:
 
-- **Modifier composition, lane 3 (`feat/modifier-composition`, `1c6f686`).**
-  - `ProposalElementGroup` gains `requestProposalGroupLayout`. The empty
-    conditional conformance of `EnvironmentScope` then fails to compile (loud).
-    The fix must go **through the same private helper** as
-    `requestGroupLayout` — resolve the write once, push, forward — not a bare
-    forward, which would skip the push in layout. E11's layout slot is the test
-    that sees a bare forward.
-  - `MC-H` adds two `StateBinder.bind` call sites (the `ProposalElement` typed
-    default and `Component where Content: ProposalElementGroup`). They are
-    written against `bind(_:table:id:)`, which this design removes, so they fail
-    to compile (loud). They move to `bind(_:in:id:)`. **No default and no
-    compatibility overload may be added** to make them compile.
-- **Modifier composition, lane 2.** `FrameModifier.swift` is deleted and
-  `ModifiedElement` registers one layer per id. D2's `.padding(4).frame(…)` arm
-  is defined by spelling, so it keeps running and must stay green; `EV-E`'s site
-  list and the "five callers" count are re-taken with the grep above.
-- **Accessibility bridge (`feat/ax-bridge`, `2042a54`).**
-  - **Textual conflict in `Frame.registerHandlers`**: both tracks edit its body.
-    Resolution: synthesis (`AXNode.synthesized(declared:handlers:text:)`) reads
-    the **ungated** `handlers`, so a disabled clickable still synthesizes a
-    `.button`; the `.disabled` trait is inserted into the node synthesis
-    returned, **after** synthesis, before `emitAXNode`. Resolving it the other
-    way (trait on `handlers.axNode` before synthesis) publishes a disabled
-    clickable as `isEnabled = true`.
-  - D12 gains its collecting-frame arm (above).
-  - **No conflict in `Frame.init` or in `Window`'s `Frame(...)` expression**:
-    this design adds neither an init parameter nor an argument (`EV-H`); the
-    bridge's `collectsAccessibility:` lands alone. `Window` gains one statement
-    after that expression, which may conflict as adjacent lines only.
-  - The bridge's `.press` derivation ("`lastHitboxes` holds an entry for the id
-    with `onClick`") refuses a disabled element for free, because the blocker
-    sits under the derived id with empty handlers; its `.focus` request refuses
-    because a disabled element is not in the focus registry. Neither needs an
-    edit; both deserve an arm in the bridge's own tests.
+- **Precondition (`EV-W` item 0).** Do not integrate this branch before lane 3's
+  commit: at `f4dcad8` `isEnabled` compiles, is documented as a gate and is read
+  by nothing. Check: `grep -n "isEnabled" Sources/MetalUI/Frame.swift` is
+  non-empty and `Tests/MetalUITests/DisabledTests.swift` exists.
+- **Modifier composition, lane 3 (`EV-W` item 1).** Loud: `EnvironmentScope`'s
+  empty conditional conformance stops compiling. **Silent unless re-run:** the
+  typed `requestProposalGroupLayout` must call
+  `pass.frame.scopedValues(applying: write)` once, `pass.frame.withEnvironment(values) { … }`
+  around `content.requestProposalGroupLayout(under: parent, at: &cursor, pass: &pass)`,
+  and forward `parent` and `cursor` unchanged (the code is in `EV-W`). E11, E22
+  and E23 are written in the marker shape that merge rejects: **port them to
+  `ProposalElement`** (E11's layout reading inside `requestProposalLayout`), then
+  **re-run** E11(b), E4(b)/(c) and E5's value-keyed id against the typed entry
+  and confirm E11, E22 and E23 redden. E11 absorbs the composition track's
+  `aProposalContainerReadsTheEnvironmentDuringLayout` arms; do not add a second
+  test. The composition track's text "`bind` gains `environment:`" and "pass
+  `pass.frame.environment`" is stale: the API is `StateBinder.bind(_:in:id:)`,
+  and there is no `Frame.environment`.
+- **`StateBinder.bind` (`EV-W` item 2).** Loud. `MC-H`'s helper calls
+  `bind(element, in: pass.frame, id: id)`. No default, no compatibility overload.
+- **Modifier composition, lane 2 (`EV-W` item 3).** `FrameModifier.swift` is
+  deleted. D2's arms (including its after-`.disabled` arm) and E12's
+  after-`.theme` arm are spelled with `.frame(width:height:)`, so they run
+  against `ModifiedElement` unchanged and must stay green; `EV-E`'s "five
+  callers" is re-taken with the grep.
+- **Accessibility bridge (`EV-W` item 4) — SILENT.** `Frame.swift` auto-merges
+  today, and the bridge's record literal `isEnabled: true` keeps compiling.
+  Write the merged 5-argument `registerHandlers` exactly as `EV-W` gives it:
+  the gate in the 5-argument implementation (the 3-argument overload stays a
+  bare forward), no hitbox and no focus registration when disabled, the
+  declared node's `.disabled` trait, and the record's `isEnabled: enabled`,
+  with presence and role read from the ungated `handlers` and actions left to
+  the gated registrations. Then write the joint test
+  `aDisabledClickableElementPublishesDisabledWithNoPressAndRefusesAPress` (two
+  arms, a control, four mutations, all in `EV-W`) and run its mutations.
+  Reconcile the bridge's `AB-Z` to it: its `keyboard` copy, `Handlers()`
+  hitbox, ungated `$focus` write and `environment:` init parameter were all
+  withdrawn here.
+- **`Frame.init` (`EV-W` item 5).** No parameter from this track; the bridge's
+  `collectsAccessibility:` lands alone. The `Window.swift` conflict is the one
+  statement after the `Frame(...)` expression.
 - **Unowned deferrals — flag, do not assume.**
-  - "Scopes after `StyledElement` modifiers" was handed to task 3, but the
-    modifier-composition spec never mentions `EnvironmentScope`.
+  - `.padding` and handler modifiers directly on a scope (`EV-B`, `EV-X`) were
+    handed to task 3, but the modifier-composition spec never mentions
+    `EnvironmentScope`. (`.frame` already follows a scope.)
   - "Hover and pressed on a disabled element; focus retention on disable" was
     handed to task 12, but the AX-bridge spec says "disabled behaviour … wait[s]
-    for task 9". Hover and pressed are now decided here (`EV-T`); focus
-    retention and a disabled look remain **unowned**.
+    for task 9". Hover and pressed are decided here (`EV-T`); focus retention
+    and a disabled look remain **unowned**.
+  - A hit shape separate from `onClick` (`EV-E`'s sibling divergence).
 
 **Documents:**
 
@@ -606,18 +726,26 @@ where):
     binding.
   - Divergences: `EV-K` (RTL not mirrored), `EV-F` (focus lost on disable;
     raw `onKey` and `keyContext` removed while SwiftUI keeps `.onKeyPress`),
-    `EV-J` (no `displayScale`), and the key handler order (SwiftUI runs an
-    ancestor's `.onKeyPress` before the focused view's; MetalUI bubbles
-    outward from the focused element; probe K5).
+    `EV-J` (no `displayScale`), `EV-U` (`pixelLength` tied to the device: no
+    scope can change it and a `\.self` reset does not reset it, where SwiftUI's
+    follows `displayScale`; pixel-length probe X1/X2), `EV-E`'s sibling half (a
+    disabled click target passes the click to an enabled sibling under it,
+    where SwiftUI's shape blocks — the same difference every non-clickable
+    MetalUI overlay already has; the ancestor half is aligned, probe N), and
+    the key handler order (SwiftUI runs an ancestor's `.onKeyPress` before the
+    focused view's; MetalUI bubbles outward from the focused element; probe K5).
   - Inert rows: `@Environment` inside `AnyElement`; `@Environment` never bound
     returns the default silently; `layoutDirection`'s writer affects no layout;
     `locale` has no consumer (`Text`'s tokenizer and typesetter never receive
     it); `pixelLength` has no internal reader; an in-module write to
     `Frame.rootEnvironment.theme` or `.pixelLength` (or to
     `window.environment.theme`) is silently re-stamped.
-  - Reserved names: `$disabled` is an **id suffix** (the blocker hitbox's
-    derived id), not a slot, beside `$anim-content`/`$anim-viewport`. A `List`
-    datum whose id describes to it collides with a disabled row's blocker.
+  - Reserved names: **none added** by this track (third pass; the second
+    pass's `$disabled` suffix was withdrawn with the blocker hitbox).
+  - A paragraph on `.disabled`: no hitbox, so a click reaches an enabled
+    ancestor; out of the keyboard entirely; a modifier written after the scope
+    (`.disabled(true).frame(…).onClick`) sits outside it and fires (`EV-X`).
+  - `Frame.rootEnvironment` traps if set during `render` (`EV-Z`).
   - `Window.environment`: every write dirties, a no-op included; write from
     input, never from a phase (a phase-time write keeps the link awake).
   - The guard-count file list gains `EnvironmentCompileGuards`.
