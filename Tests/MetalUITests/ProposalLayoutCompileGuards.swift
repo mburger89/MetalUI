@@ -8,7 +8,8 @@ import MetalUITestSupport
 // **Every guard here uses `typecheckFile`, never `typecheck`.** The older helper
 // wraps its body in `func fixture() { … }` and passes no `-swift-version`: the
 // wrapper makes every fixture type a local type and rejects the migration
-// story's own `extension Leaf: ProposalElementGroup {}` with `declaration is only
+// story's own `extension Leaf: ProposalElementGroup {}` (its spelling until
+// ruling MC-G made the leaf a `ProposalElement`) with `declaration is only
 // valid at file scope`, and Swift 5 mode reports a `Sendable` violation in an
 // outside `ProposalLayout` as a warning, exit 0. `typecheckFile` compiles a
 // whole file, `public` declarations at file scope, in Swift 6 mode, which is
@@ -90,9 +91,11 @@ func typecheckFileChecksInTheSwift6LanguageMode() throws {
 
 /// **The migration story compiles from public API alone** (ruling SA-F, the
 /// table in the kernel completion design): an outside module declares a
-/// `ProposalLayout`, a leaf `Element` over `requestNativeLeaf` marked
-/// `ProposalElementGroup`, and a container `Element` that calls
-/// `requestGroupLayout` then `requestNativeLayout`, and uses all three through
+/// `ProposalLayout`, a leaf `ProposalElement` over `requestNativeLeaf`, and a
+/// container `ProposalElement` that calls `requestProposalGroupLayout` then
+/// `requestNativeLayout` (both written on the typed entry since ruling MC-G;
+/// until then an `Element` marked `ProposalElementGroup` calling
+/// `requestGroupLayout`), and uses all three through
 /// `callAsFunction` (both spellings), `ProposalLayoutContainer`, and a
 /// proposal modifier.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
@@ -100,10 +103,10 @@ func anExternalModuleCanBuildACustomLeafAndContainerFromPublicAPI() throws {
     let result = try typecheckFile(diagonalSource + """
 
 
-        public struct Leaf: Element {
+        public struct Leaf: ProposalElement {
             public init() {}
 
-            public func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+            public func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
                 (pass.requestNativeLeaf { proposal in
                     LayoutMeasurement(size: SizeD(width: proposal.width ?? 10, height: 10))
                 }, ())
@@ -116,17 +119,15 @@ func anExternalModuleCanBuildACustomLeafAndContainerFromPublicAPI() throws {
                               prepaint: inout Void, pass: inout PaintPass) {}
         }
 
-        extension Leaf: ProposalElementGroup {}
-
-        public struct Container<Content: ProposalElementGroup>: Element {
+        public struct Container<Content: ProposalElementGroup>: ProposalElement {
             public var content: Content
 
             public init(@ElementBuilder content: () -> Content) { self.content = content() }
 
-            public mutating func requestLayout(_ id: GlobalElementID,
-                                               pass: inout LayoutPass) -> (LayoutNodeID, Content.GroupLayout) {
+            public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                                       pass: inout LayoutPass) -> (ProposalNodeID, Content.GroupLayout) {
                 var cursor = 0
-                let (children, layout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+                let (children, layout) = content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
                 return (pass.requestNativeLayout(Diagonal(alignment: .bottom), children: children), layout)
             }
 
@@ -142,8 +143,6 @@ func anExternalModuleCanBuildACustomLeafAndContainerFromPublicAPI() throws {
                 content.paintGroup(layout: &layout, prepaint: &prepaint, pass: &pass)
             }
         }
-
-        extension Container: ProposalElementGroup {}
 
         @MainActor public func probe() {
             _ = VStack {
@@ -228,10 +227,10 @@ func aCustomLayoutContainerRejectsLegacyContent() throws {
 
 /// A public proposal leaf, for the frame guard's fixtures.
 private let frameLeafSource = """
-    public struct Leaf: Element {
+    public struct Leaf: ProposalElement {
         public init() {}
 
-        public func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        public func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
             (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }, ())
         }
 
@@ -241,8 +240,6 @@ private let frameLeafSource = """
         public func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
                           prepaint: inout Void, pass: inout PaintPass) {}
     }
-
-    extension Leaf: ProposalElementGroup {}
     """
 
 /// **A fixed and a flexible frame dimension cannot be combined** (lane 3,

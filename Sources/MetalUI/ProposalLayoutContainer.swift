@@ -24,13 +24,13 @@ public struct ProposalLayoutContainer<L: ProposalLayout, Content: ProposalElemen
         var content: Content.GroupLayout
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
-                                                                   pass: &pass)
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
+                                                                           pass: &pass)
         let node = pass.requestNativeLayout(layout, children: children)
-        return (node, Layout(node: node, content: contentLayout))
+        return (node, Layout(node: node.layoutNodeID, content: contentLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -46,7 +46,7 @@ public struct ProposalLayoutContainer<L: ProposalLayout, Content: ProposalElemen
     }
 }
 
-extension ProposalLayoutContainer: ProposalElementGroup {}
+extension ProposalLayoutContainer: ProposalElement {}
 
 extension ProposalLayout {
     /// `MyLayout() { A(); B() }`, as SwiftUI's `Layout.callAsFunction`.

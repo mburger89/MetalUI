@@ -8,12 +8,12 @@ private final class DiagonalProbe: @unchecked Sendable {
 }
 
 /// A fixed-size proposal leaf that records its prepaint bounds by name.
-private struct DiagonalProbeLeaf: Element {
+private struct DiagonalProbeLeaf: ProposalElement {
     let size: SizeD
     let name: String
     let probe: DiagonalProbe
 
-    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+    func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
         let size = size
         return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: size) }, ())
     }
@@ -27,7 +27,6 @@ private struct DiagonalProbeLeaf: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-extension DiagonalProbeLeaf: ProposalElementGroup {}
 
 /// Places each child at the previous child's bottom-trailing corner, each at
 /// its unspecified-proposal answer; answers the sum of the answers.

@@ -4,10 +4,12 @@ import MetalUILayout
 /// A native proposal-layout horizontal stack.
 ///
 /// Its content must resolve exclusively to native layout nodes such as
-/// ``NativeRectangle`` and ``NativeSpacer``. The boundary is intentionally
-/// structural: attempting to place a legacy element here traps when the layout
-/// pass registers the stack, instead of silently handing a CSS child to the
-/// native algorithm.
+/// ``Rectangle`` and ``Spacer``. The boundary is intentionally structural: a
+/// legacy element does not satisfy `Content: ProposalElementGroup`, and content
+/// can hand the stack only `ProposalNodeID`s, which only native registrars mint
+/// (ruling MC-G). A legacy node that reaches it anyway — through a `@testable`
+/// mint, MC-G's hole 3 — traps when the layout pass registers the stack, instead
+/// of silently handing a CSS child to the native algorithm.
 public struct HStack<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var spacing: Pixels
@@ -25,15 +27,15 @@ public struct HStack<Content: ProposalElementGroup>: Element {
         var content: Content.GroupLayout
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
-                                                                   pass: &pass)
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
+                                                                           pass: &pass)
         let node = pass.requestNativeLinearStack(children: children, axis: .horizontal,
                                                  spacing: Double(spacing.value),
                                                  alignment: alignment)
-        return (node, Layout(node: node, content: contentLayout))
+        return (node, Layout(node: node.layoutNodeID, content: contentLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -67,15 +69,15 @@ public struct VStack<Content: ProposalElementGroup>: Element {
         var content: Content.GroupLayout
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
-                                                                   pass: &pass)
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
+                                                                           pass: &pass)
         let node = pass.requestNativeLinearStack(children: children, axis: .vertical,
                                                  spacing: Double(spacing.value),
                                                  alignment: alignment)
-        return (node, Layout(node: node, content: contentLayout))
+        return (node, Layout(node: node.layoutNodeID, content: contentLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -107,13 +109,13 @@ public struct ZStack<Content: ProposalElementGroup>: Element {
         var content: Content.GroupLayout
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
-                                                                   pass: &pass)
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
+                                                                           pass: &pass)
         let node = pass.requestNativeOverlay(children: children, alignment: alignment)
-        return (node, Layout(node: node, content: contentLayout))
+        return (node, Layout(node: node.layoutNodeID, content: contentLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -193,11 +195,11 @@ public struct ProposalFrame<Content: ProposalElementGroup>: Element {
         var content: Content.GroupLayout
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
-                                                                   pass: &pass)
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
+                                                                           pass: &pass)
         precondition(children.count == 1, "ProposalFrame content must contribute one native node")
         let node = pass.requestNativeFrame(
             child: children[0], width: width.map { Double($0.value) },
@@ -206,7 +208,7 @@ public struct ProposalFrame<Content: ProposalElementGroup>: Element {
             minHeight: minHeight.map { Double($0.value) }, idealHeight: idealHeight.map { Double($0.value) },
             maxHeight: maxHeight.map { Double($0.value) }, alignment: alignment
         )
-        return (node, Layout(node: node, content: contentLayout))
+        return (node, Layout(node: node.layoutNodeID, content: contentLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -241,16 +243,16 @@ public struct Padding<Content: ProposalElementGroup>: Element {
         var content: Content.GroupLayout
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
-                                                                   pass: &pass)
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
+                                                                           pass: &pass)
         precondition(children.count == 1, "Padding content must contribute one native node")
         let insets = Edges<Double>(top: Double(insets.top.value), right: Double(insets.right.value),
                                    bottom: Double(insets.bottom.value), left: Double(insets.left.value))
         let node = pass.requestNativePadding(child: children[0], insets: insets)
-        return (node, Layout(node: node, content: contentLayout))
+        return (node, Layout(node: node.layoutNodeID, content: contentLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -279,11 +281,11 @@ public struct Background<Content: ProposalElementGroup>: Element {
 
     public struct Layout { var content: Content.GroupLayout }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
-                                                                   pass: &pass)
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
+                                                                           pass: &pass)
         precondition(children.count == 1, "Background content must contribute one native node")
         return (children[0], Layout(content: contentLayout))
     }
@@ -329,15 +331,15 @@ public struct FixedSize<Content: ProposalElementGroup>: Element {
         var content: Content.GroupLayout
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
-                                                                   pass: &pass)
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
+                                                                           pass: &pass)
         precondition(children.count == 1, "FixedSize content must contribute one native node")
         let node = pass.requestNativeFixedSize(child: children[0], horizontal: horizontal,
                                                vertical: vertical)
-        return (node, Layout(node: node, content: contentLayout))
+        return (node, Layout(node: node.layoutNodeID, content: contentLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -371,10 +373,10 @@ public struct Spacer: Element {
 
     public struct Layout { var node: LayoutNodeID }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let node = pass.requestNativeSpacer(minLength: minLength.map { Double($0.value) })
-        return (node, Layout(node: node))
+        return (node, Layout(node: node.layoutNodeID))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -412,8 +414,8 @@ public struct Rectangle: Element {
 
     public struct Layout { var node: LayoutNodeID }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let width = Double(width.value)
         let height = Double(height.value)
         let respondsToProposal = respondsToProposal
@@ -421,7 +423,7 @@ public struct Rectangle: Element {
             Self.measurement(for: proposal, width: width, height: height,
                              respondsToProposal: respondsToProposal)
         }
-        return (node, Layout(node: node))
+        return (node, Layout(node: node.layoutNodeID))
     }
 
     nonisolated static func measurement(for proposal: ProposedSize, width: Double = 10,
@@ -458,10 +460,10 @@ public struct Color: Element {
 
     public struct Layout { var node: LayoutNodeID }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let node = pass.requestNativeLeaf { Self.measurement(for: $0) }
-        return (node, Layout(node: node))
+        return (node, Layout(node: node.layoutNodeID))
     }
 
     nonisolated static func measurement(for proposal: ProposedSize) -> LayoutMeasurement {

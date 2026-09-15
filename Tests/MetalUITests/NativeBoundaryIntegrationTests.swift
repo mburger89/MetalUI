@@ -6,23 +6,33 @@ import MetalUILayout
 // Lane 2 ("boundaries") of `docs/superpowers/specs/2026-09-14-native-kernel-completion-design.md`:
 // the mixing traps of ruling SA-G, reached through elements and a real `Frame`,
 // and the two run-time traps ruling SA-R leaves standing where the compiler
-// cannot check a `ProposalElementGroup` conformer's promise.
+// cannot check a `ProposalElementGroup` conformer's promise. Since ruling MC-G
+// the compiler checks most of that promise; the traps stay as the backstop for
+// its holes 3 and 5.
 //
 // Each is an exit test that asserts its fragment on stderr as well as the
 // failure, because a trap elsewhere must not pass; the bodies cannot capture.
 
 /// A proposal `Component` whose content is one native leaf. `Component` plus
-/// `ProposalElementGroup` compiles, and so does a legacy style modifier on it
-/// inside a legacy container (the design's evidence 9).
+/// `ProposalElementGroup` compiles — since ruling MC-G only over content spelled
+/// `some ProposalElementGroup` — and so does a legacy style modifier on it inside
+/// a legacy container (the design's evidence 9; MC-G hole 5).
 private struct Toggle: Component, ProposalElementGroup {
-    var content: some ElementGroup { Rectangle() }
+    var content: some ProposalElementGroup { Rectangle() }
 }
 
-/// An element that declares the proposal marker and registers a LEGACY node.
-/// The marker has no requirements, so this compiles (ruling SA-R).
-private struct LegacyNodeUnderAProposalMarker: Element, ProposalElementGroup {
-    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
-        (pass.requestNode(style: Style(), children: []), ())
+/// A proposal element whose typed entry hands a LEGACY node to its container.
+///
+/// **Until ruling MC-G the marker had no requirements**, so an `Element` that
+/// declared it and registered a legacy node compiled (ruling SA-R). That shape
+/// is now a compile error (`aMarkerConformerThatRegistersALegacyNodeDoesNotCompile`),
+/// and the way left to reach the run-time trap is to mint a `ProposalNodeID`
+/// from a legacy node through the internal initializer, which this file can do
+/// only because it imports `MetalUI` `@testable` — MC-G's hole 3, the one the
+/// trap below backstops.
+private struct LegacyNodeUnderAProposalMarker: ProposalElement {
+    func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
+        (ProposalNodeID(pass.requestNode(style: Style(), children: [])), ())
     }
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
                   pass: inout PrepaintPass) {}
@@ -76,8 +86,8 @@ private struct LegacyNodeUnderAProposalMarker: Element, ProposalElementGroup {
 
 /// A proposal element that traps with its own message the moment it is
 /// registered: the witness that registration continued past a sibling.
-private struct RegisteredAfterTheContainer: Element, ProposalElementGroup {
-    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+private struct RegisteredAfterTheContainer: ProposalElement {
+    func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
         preconditionFailure("registration continued past a proposal container holding a legacy node")
     }
     func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
@@ -88,8 +98,10 @@ private struct RegisteredAfterTheContainer: Element, ProposalElementGroup {
 
 /// A `ProposalElementGroup` conformer that registers a legacy node traps inside
 /// a proposal container, **at the container's native registration**. This is
-/// the run-time half of ruling SA-R's amended criterion: the compile-time check
-/// is plan task 3's.
+/// the run-time half of ruling SA-R's amended criterion. The compile-time half
+/// is plan task 3's, delivered by ruling MC-G; the legacy node now reaches the
+/// container only through a `@testable` mint (MC-G hole 3), so this trap is the
+/// backstop for what the type cannot see.
 ///
 /// **Why the sibling registered after the `HStack`.** Measurement reaches the
 /// same `nativeNode(_:)` lookup, with the same message, so without a witness a

@@ -400,8 +400,9 @@ func demoContent() -> some Element {
         // no change; every other container below did.
         .alignItems(.center)
         // **Modifier order is load-bearing on every padded container in this
-        // file.** `.padding` returns an outer `Box` (a SwiftUI-style wrapper,
-        // `f1944f8`), so everything written before it configures the padded
+        // file.** `.padding` adds an outer wrapper layer (SwiftUI-style,
+        // `f1944f8`; a `ModifiedElement` layer since ruling MC-A, no longer a
+        // `Box`), so everything written before it configures the padded
         // container and everything after it configures the wrapper. Container
         // settings (`alignItems`) therefore go first; the flex-item size
         // (`height`/`width`/`flexGrow`), background and corner radius go after,
@@ -908,7 +909,10 @@ private struct PreviewToggle: Component {
 
     var elementID: ElementID? { ElementID("native-preview-toggle") }
 
-    var content: some ElementGroup {
+    // `some ProposalElementGroup`, not `some ElementGroup`: the opaque type must
+    // say its content is proposal content, or the marker below does not conform
+    // (ruling MC-G).
+    var content: some ProposalElementGroup {
         Rectangle(width: Pixels(168), height: Pixels(95),
                         color: isSelected ? .separator : .accent)
             .aspectRatio(16.0 / 9.0)
@@ -927,20 +931,20 @@ extension PreviewToggle: ProposalElementGroup {}
 /// the proposal stack's compression and `layoutPriority` visible as the window
 /// changes size; production elements will acquire their own proposal-aware
 /// measurements during the remaining migration work.
-private struct PriorityPreviewPanel: Element {
+private struct PriorityPreviewPanel: ProposalElement {
     let idealWidth: Pixels
     let color: ColorToken
 
     struct Layout { var node: LayoutNodeID }
 
-    mutating func requestLayout(_ id: GlobalElementID,
-                                pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    mutating func requestProposalLayout(_ id: GlobalElementID,
+                                        pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let idealWidth = Double(idealWidth.value)
         let node = pass.requestNativeLeaf { proposal in
             LayoutMeasurement(size: SizeD(width: Swift.min(idealWidth, proposal.width ?? idealWidth),
                                            height: 48))
         }
-        return (node, Layout(node: node))
+        return (node, Layout(node: node.layoutNodeID))
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -952,7 +956,6 @@ private struct PriorityPreviewPanel: Element {
     }
 }
 
-extension PriorityPreviewPanel: ProposalElementGroup {}
 
 @MainActor
 func nativeLayoutPreviewContent() -> some Element {

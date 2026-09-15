@@ -15,13 +15,13 @@ private final class ModifierProbe: @unchecked Sendable {
 
 /// A leaf answering `min(ideal, proposal.width ?? ideal)` × 10, or its proposal
 /// when `echoes`, recording its prepaint bounds by name.
-private struct ModifierProbeLeaf: Element {
+private struct ModifierProbeLeaf: ProposalElement {
     let ideal: Double
     let echoes: Bool
     let name: String
     let probe: ModifierProbe
 
-    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+    func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
         let ideal = ideal
         let echoes = echoes
         return (pass.requestNativeLeaf { proposal in
@@ -40,7 +40,6 @@ private struct ModifierProbeLeaf: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-extension ModifierProbeLeaf: ProposalElementGroup {}
 
 /// `Rectangle().layoutPriority(.infinity)` and `.aspectRatio(-2)` construct and
 /// render through a real `Frame`, and the kernel gives SwiftUI's answers.

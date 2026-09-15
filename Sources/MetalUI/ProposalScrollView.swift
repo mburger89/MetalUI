@@ -41,18 +41,18 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         var content: Content.GroupLayout
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
-                                                                   pass: &pass)
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
+                                                                           pass: &pass)
         // SwiftUI's `ScrollView` content builder presents direct children in a
         // vertical variadic layout regardless of its scrolling axis. macOS
         // pixel probes with 20pt red and 30pt blue children observed an 8pt
         // gap (red, background, blue) for both axes. Horizontal content is an
         // explicit `HStack`, which remains a single transparent child here.
         let contentAxis: ProposalStackAxis = axis == .vertical ? .vertical : .horizontal
-        let contentNode: LayoutNodeID
+        let contentNode: ProposalNodeID
         if children.count == 1 {
             contentNode = children[0]
         } else {
@@ -63,7 +63,8 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
             child: contentNode,
             axis: contentAxis
         )
-        return (node, Layout(node: node, contentNode: contentNode, content: contentLayout))
+        return (node, Layout(node: node.layoutNodeID, contentNode: contentNode.layoutNodeID,
+                            content: contentLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -166,4 +167,4 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
     }
 }
 
-extension ProposalScrollView: ProposalElementGroup {}
+extension ProposalScrollView: ProposalElement {}

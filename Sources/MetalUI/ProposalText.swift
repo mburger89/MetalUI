@@ -8,7 +8,7 @@ import MetalUIText
 /// can be migrated without source ambiguity. This value preserves Text's font,
 /// shaping-cache, and glyph-paint behavior while registering a native leaf, so
 /// it can participate in an otherwise proposal-only subtree today.
-public struct ProposalText: Element, ProposalElementGroup {
+public struct ProposalText: ProposalElement {
     public var string: String
     public var fontFamily: String?
     public var fontSize: Double
@@ -38,8 +38,8 @@ public struct ProposalText: Element, ProposalElementGroup {
 
     public struct Layout { var node: LayoutNodeID }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let cache = pass.shapingCache
         let font = cache.resolveFont(family: fontFamily, size: fontSize)
         cache.registerFont(font)
@@ -53,7 +53,7 @@ public struct ProposalText: Element, ProposalElementGroup {
                 return proposalTextMeasurement(string, font: font, cache: cache, proposal: proposal)
             }
         }
-        return (node, Layout(node: node))
+        return (node, Layout(node: node.layoutNodeID))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,

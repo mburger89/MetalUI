@@ -81,6 +81,20 @@ public protocol ElementGroup {
     mutating func paintGroup(layout: inout GroupLayout,
                              prepaint: inout GroupPrepaint,
                              pass: inout PaintPass)
+
+    /// The type a legacy wrapper modifier (`.padding`, `.frame`) wraps: `Self`
+    /// for every conformer but `ModifiedElement`, whose layers wrap its content,
+    /// so a chain stays ONE `ModifiedElement<Base>` however long it grows
+    /// (ruling MC-A, `ModifiedElement.swift`).
+    associatedtype LayerBase: ElementGroup = Self
+
+    /// Framework entry point for `.padding`/`.frame`: adds one outer layer.
+    /// **Not for conformers to implement.** A conformer that declares
+    /// `LayerBase` and forwards this to another value compiles, and its
+    /// `.padding` then silently drops the receiver — a hole no access-control
+    /// spelling closes, since a requirement is as visible as its protocol
+    /// (ruling MC-A).
+    func _wrap(_ layer: ModifierLayer) -> ModifiedElement<LayerBase>
 }
 
 // MARK: - Every element is a group of one
@@ -104,13 +118,16 @@ extension Element {
     /// that becomes: a `.named` one when the element carries an `.id()`, a
     /// `.positional(cursor)` one otherwise. The index is supplied either way, so
     /// the name-replaces-position rule lives in the constructor and not here.
+    ///
+    /// The id, the `@State` bind and the cursor advance are one call to
+    /// `GlobalElementID.enteringGroupMember` (`GroupMember.swift`, ruling MC-H),
+    /// shared with the typed proposal defaults.
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)
         -> ([LayoutNodeID], SingleElementLayout<Self>) {
-        let id = GlobalElementID.child(of: parent, at: cursor, name: elementID)
-        StateBinder.bind(self, table: pass.frame.stateTable, id: id)
-        cursor += 1
+        let id = GlobalElementID.enteringGroupMember(self, name: elementID, under: parent,
+                                                     at: &cursor, pass: &pass)
         let (node, state) = requestLayout(id, pass: &pass)
         return ([node], SingleElementLayout(id: id, node: node, state: state))
     }
@@ -596,7 +613,10 @@ extension AnyElement: ElementGroup {
     /// **No longer identical for `@State`, and this paragraph used to claim
     /// it was.** `Element`'s default `requestGroupLayout` (`ElementGroup.swift`
     /// above) seeds every `@State` the element declares through
-    /// `StateBinder.bind`, right after computing `id`. This one never gained
+    /// `StateBinder.bind`, right after computing `id` — since lane 3 of the
+    /// modifier-composition track, inside the shared helper
+    /// `GlobalElementID.enteringGroupMember` (`GroupMember.swift`, ruling MC-H),
+    /// which this default deliberately does not call. This one never gained
     /// that line: `Mirror(reflecting: anyElement)` sees only the boxed `any
     /// ElementObject`, not the erased element's own stored properties, so
     /// there is nothing here `StateBinder` could reflect even if the call
@@ -617,7 +637,9 @@ extension AnyElement: ElementGroup {
     /// duplication is why this file's seeding line went missing in the first
     /// place: the two `requestGroupLayout`s are hand-kept in sync rather than
     /// sharing an implementation, and this is the second thing to go missing
-    /// from the copy, not the first.
+    /// from the copy, not the first. (`Element`'s default and both typed
+    /// proposal defaults now share `enteringGroupMember`; this one stays a copy
+    /// because its box has nothing `StateBinder` can reflect, above.)
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
                                             pass: inout LayoutPass)

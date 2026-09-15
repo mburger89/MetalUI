@@ -51,98 +51,119 @@ public struct LayoutPass {
         frame.requestLeaf(style: style, measure: measure)
     }
 
+    // MARK: Native registrars — typed (ruling MC-G)
+    //
+    // **Every native registrar returns a `ProposalNodeID` and takes them as
+    // children**, and `ProposalNodeID`'s initializer is `internal`, so outside
+    // `MetalUI` a native child can only be a node one of these returned
+    // (`aNativeRegistrarRejectsALegacyChild`,
+    // `aProposalLayoutContainerOnlyAcceptsTypedChildren`). They wrap and unwrap
+    // around `Frame`'s untyped registrars, which are unchanged and keep the
+    // run-time traps of ruling SA-G as the backstop for what the type cannot see
+    // (`ProposalNodeID.swift`'s seven holes). Until lane 3 of the
+    // modifier-composition track these took and returned `LayoutNodeID`.
+
     /// Registers a leaf measured by the native SwiftUI-style layout path.
     ///
     /// The closure receives the parent's proposal rather than CSS known and
     /// available spaces. A native node cannot contain a legacy child, and a
     /// legacy node cannot contain a native one: both trap at registration
-    /// (ruling SA-G). So this API establishes an explicit migration boundary at
-    /// the root instead of mixing the two engines within one subtree.
-    public func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
-        frame.requestNativeLeaf(measure: measure)
+    /// (ruling SA-G). The typed id makes the first a compile error for any child
+    /// a native registrar is handed (ruling MC-G); the traps stay for a legacy
+    /// node reached some other way.
+    public func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeLeaf(measure: measure))
     }
 
     /// Registers a native `ZStack`-style overlay container.
-    public func requestNativeOverlay(children: [LayoutNodeID],
-                                     alignment: ProposalAlignment = .center) -> LayoutNodeID {
-        frame.requestNativeOverlay(children: children, alignment: alignment)
+    public func requestNativeOverlay(children: [ProposalNodeID],
+                                     alignment: ProposalAlignment = .center) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeOverlay(children: children.map(\.layoutNodeID),
+                                                  alignment: alignment))
     }
 
-    public func requestNativeOverlayAttachment(child: LayoutNodeID, overlay: LayoutNodeID,
-                                               alignment: ProposalAlignment = .center) -> LayoutNodeID {
-        frame.requestNativeOverlayAttachment(child: child, overlay: overlay, alignment: alignment)
+    /// Registers a native overlay attachment: `overlay` measured against
+    /// `child`'s resolved size, without changing it.
+    public func requestNativeOverlayAttachment(child: ProposalNodeID, overlay: ProposalNodeID,
+                                               alignment: ProposalAlignment = .center) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeOverlayAttachment(child: child.layoutNodeID,
+                                                            overlay: overlay.layoutNodeID,
+                                                            alignment: alignment))
     }
 
     /// Registers a native SwiftUI-style frame around one native child.
-    public func requestNativeFrame(child: LayoutNodeID, width: Double? = nil,
+    public func requestNativeFrame(child: ProposalNodeID, width: Double? = nil,
                                    height: Double? = nil,
                                    minWidth: Double? = nil, idealWidth: Double? = nil,
                                    maxWidth: Double? = nil,
                                    minHeight: Double? = nil, idealHeight: Double? = nil,
                                    maxHeight: Double? = nil,
-                                   alignment: ProposalAlignment = .center) -> LayoutNodeID {
-        frame.requestNativeFrame(child: child, width: width, height: height,
-                                 minWidth: minWidth, idealWidth: idealWidth,
-                                 maxWidth: maxWidth,
-                                 minHeight: minHeight, idealHeight: idealHeight,
-                                 maxHeight: maxHeight,
-                                 alignment: alignment)
+                                   alignment: ProposalAlignment = .center) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeFrame(child: child.layoutNodeID, width: width, height: height,
+                                                minWidth: minWidth, idealWidth: idealWidth,
+                                                maxWidth: maxWidth,
+                                                minHeight: minHeight, idealHeight: idealHeight,
+                                                maxHeight: maxHeight,
+                                                alignment: alignment))
     }
 
     /// Registers native outer padding around one native child.
-    public func requestNativePadding(child: LayoutNodeID,
-                                     insets: Edges<Double>) -> LayoutNodeID {
-        frame.requestNativePadding(child: child, insets: insets)
+    public func requestNativePadding(child: ProposalNodeID,
+                                     insets: Edges<Double>) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativePadding(child: child.layoutNodeID, insets: insets))
     }
 
     /// Registers native fixed-size behavior around one native child.
-    public func requestNativeFixedSize(child: LayoutNodeID,
+    public func requestNativeFixedSize(child: ProposalNodeID,
                                        horizontal: Bool = true,
-                                       vertical: Bool = true) -> LayoutNodeID {
-        frame.requestNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
+                                       vertical: Bool = true) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeFixedSize(child: child.layoutNodeID,
+                                                    horizontal: horizontal, vertical: vertical))
     }
 
     /// Registers native aspect-ratio proposal behavior around one native child.
-    public func requestNativeAspectRatio(child: LayoutNodeID, ratio: Double,
-                                         contentMode: AspectRatioContentMode = .fit) -> LayoutNodeID {
-        frame.requestNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
+    public func requestNativeAspectRatio(child: ProposalNodeID, ratio: Double,
+                                         contentMode: AspectRatioContentMode = .fit) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeAspectRatio(child: child.layoutNodeID, ratio: ratio,
+                                                      contentMode: contentMode))
     }
 
     /// Registers native stack layout priority around one proposal-layout child.
-    public func requestNativeLayoutPriority(child: LayoutNodeID, priority: Double) -> LayoutNodeID {
-        frame.requestNativeLayoutPriority(child: child, priority: priority)
+    public func requestNativeLayoutPriority(child: ProposalNodeID, priority: Double) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeLayoutPriority(child: child.layoutNodeID, priority: priority))
     }
 
     /// Registers a native flexible spacer for a native linear stack.
-    public func requestNativeSpacer(minLength: Double? = nil) -> LayoutNodeID {
-        frame.requestNativeSpacer(minLength: minLength)
+    public func requestNativeSpacer(minLength: Double? = nil) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeSpacer(minLength: minLength))
     }
 
     /// Registers a clipped proposal-layout viewport around one native child.
     /// The element owns clipping and the interactive scroll offset; this node
     /// establishes only the parent-proposal/content-measurement relationship.
-    public func requestNativeScrollViewport(child: LayoutNodeID,
-                                            axis: ProposalStackAxis) -> LayoutNodeID {
-        frame.requestNativeScrollViewport(child: child, axis: axis)
+    public func requestNativeScrollViewport(child: ProposalNodeID,
+                                            axis: ProposalStackAxis) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeScrollViewport(child: child.layoutNodeID, axis: axis))
     }
 
     /// Registers a native linear stack for the proposal-layout migration.
-    public func requestNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
+    public func requestNativeLinearStack(children: [ProposalNodeID], axis: ProposalStackAxis,
                                          spacing: Double = 0,
-                                         alignment: ProposalAlignment = .center) -> LayoutNodeID {
-        frame.requestNativeLinearStack(children: children, axis: axis, spacing: spacing,
-                                       alignment: alignment)
+                                         alignment: ProposalAlignment = .center) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeLinearStack(children: children.map(\.layoutNodeID), axis: axis,
+                                                      spacing: spacing, alignment: alignment))
     }
 
     /// Registers a custom `ProposalLayout` algorithm over native children.
     ///
     /// The element-side mirror of `LayoutTree.newNativeLayout(_:children:)`.
     /// `ProposalLayoutContainer` is the ready-made element over it; an element
-    /// with its own paint or input calls `content.requestGroupLayout` and then
-    /// this, as `HStack` calls `requestNativeLinearStack`.
+    /// with its own paint or input is a `ProposalElement` that calls
+    /// `content.requestProposalGroupLayout` and then this, as `HStack` calls
+    /// `requestNativeLinearStack`.
     public func requestNativeLayout(_ layout: some ProposalLayout,
-                                    children: [LayoutNodeID]) -> LayoutNodeID {
-        frame.requestNativeLayout(layout, children: children)
+                                    children: [ProposalNodeID]) -> ProposalNodeID {
+        ProposalNodeID(frame.requestNativeLayout(layout, children: children.map(\.layoutNodeID)))
     }
 
     /// Reads back a node's current `Style`, so a caller that registered a node
