@@ -203,6 +203,42 @@ private struct Item: Identifiable { let id: Int }
     #expect(tree.nodes[button]?.children == [])
 }
 
+// MARK: - Roles, labels, values, traits (AB-F, AB-L)
+
+/// What a node declared reaches the published node field by field, with a
+/// distinct value in every field (taxonomy shape 1).
+///
+/// **Not in the spec's lane-1 table, added by the implementer**: without it the
+/// builder's role map beyond `.button`/`.table`, its `value` copy and both trait
+/// mappings had no lane-1 pin. Green on arrival (written after the builder);
+/// its evidence is the mutations named in the record.
+@Test @MainActor func declaredRolesLabelsValuesAndTraitsReachThePublishedNode() throws {
+    let (_, tree) = collect(Column {
+        declared(Box().width(px(10)).height(px(10)),
+                 AXNode(role: .text, label: "L1", value: "V1", traits: [.selected]))
+        declared(Box().width(px(10)).height(px(10)),
+                 AXNode(role: .image, label: "L2", value: "V2", traits: [.disabled, .updatesFrequently]))
+        declared(Box().width(px(10)).height(px(10)), AXNode(role: .generic, label: "L3"))
+        declared(Box().width(px(10)).height(px(10)).onClick {}, AXNode(role: .container, label: "L4"))
+        declared(Box().width(px(10)).height(px(10)).onClick {}, AXNode(role: .generic, label: "L5"))
+    })
+    let text = try #require(tree.id(labelled: "L1").flatMap { tree.nodes[$0] })
+    let image = try #require(tree.id(labelled: "L2").flatMap { tree.nodes[$0] })
+    let generic = try #require(tree.id(labelled: "L3").flatMap { tree.nodes[$0] })
+    let clickableContainer = try #require(tree.id(labelled: "L4").flatMap { tree.nodes[$0] })
+    let clickableGeneric = try #require(tree.id(labelled: "L5").flatMap { tree.nodes[$0] })
+
+    #expect(text.role == .staticText && text.value == "V1")
+    #expect(text.isSelected && text.isEnabled)
+    #expect(image.role == .image && image.value == "V2")
+    #expect(!image.isSelected && !image.isEnabled, "a declared .disabled trait disables the node")
+    #expect(generic.role == .group && generic.value == nil && generic.actions == [])
+    #expect(clickableContainer.role == .group && clickableContainer.actions == [.press],
+            "a declared container stays a group even when clickable")
+    #expect(clickableGeneric.role == .button && clickableGeneric.actions == [.press],
+            "an undeclared-role click target is a button")
+}
+
 // MARK: - Geometry (AB-E, AB-W, AB-K)
 
 /// A node inside a scrolled `ScrollView` reports where it is on screen, not
