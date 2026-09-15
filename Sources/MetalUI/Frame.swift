@@ -588,6 +588,13 @@ public final class Frame {
     /// the wheel swallow this milestone's exit criterion 4 is about.
     func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
                           id: GlobalElementID) {
+        registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                         synthesizesAccessibility: true)
+    }
+
+    func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
+                          id: GlobalElementID, accessibleText: String?,
+                          synthesizesAccessibility: Bool) {
         // The keyboard side first, and unconditionally: focus registration is
         // not gated on the pointer gate below, and an element can ask for one
         // without the other. `register` gates itself on `isKeyTarget`.
@@ -717,6 +724,14 @@ public final class Frame {
     /// "what was produced this frame" as a distinct question from "is this id
     /// still valid".
     private(set) var axNodes: [GlobalElementID: AXNode] = [:]
+
+    /// SKELETON (lane 1, red run).
+    let collectsAccessibility: Bool
+    private(set) var axEmissions: [AXEmission] = []
+    func withAccessibilitySuppressed<R>(except exception: GlobalElementID?, _ body: () -> R) -> R {
+        body()
+    }
+    func isAccessibilitySuppressed(for id: GlobalElementID) -> Bool { false }
 
     /// Records `node` as `id`'s accessibility node, resolving its `frame` and
     /// `children` from the parameters rather than from whatever `node` itself
@@ -1045,7 +1060,8 @@ public final class Frame {
          mousePosition: Point<Pixels>? = nil,
          activeElement: GlobalElementID? = nil,
          focusedElement: GlobalElementID? = nil,
-         transaction: Animation? = nil) {
+         transaction: Animation? = nil,
+         collectsAccessibility: Bool = false) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
@@ -1060,6 +1076,7 @@ public final class Frame {
         self.activeElement = activeElement
         self.focusedElement = focusedElement
         self.transaction = transaction
+        self.collectsAccessibility = collectsAccessibility
     }
 
     // MARK: - Layout phase

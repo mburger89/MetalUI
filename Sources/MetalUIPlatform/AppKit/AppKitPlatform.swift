@@ -226,6 +226,13 @@ final class AppKitWindow: NSObject, PlatformWindow, NSWindowDelegate {
     var onAppearanceChange: ((Appearance) -> Void)?
     var onClose: (() -> Void)?
 
+    /// Lane 1 of the accessibility bridge stores the tree and exposes nothing:
+    /// `MetalHostView` is still a plain `NSView`, so no client can read it or
+    /// send a request yet. Lane 2 forwards both to `AppKitAccessibilityBridge`.
+    var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)?
+    private(set) var publishedAccessibilityTree = AccessibilityTree.empty
+    func publishAccessibilityTree(_ tree: AccessibilityTree) { publishedAccessibilityTree = tree }
+
     init(device: any MTLDevice, title: String, size: Size<Pixels>) throws {
         metalSurface = MetalLayerSurface(device: device)
         hostView = MetalHostView(surface: metalSurface)

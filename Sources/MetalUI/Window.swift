@@ -285,6 +285,9 @@ public final class Window {
     /// ask instead.
     private(set) var lastFocusRegistry = FocusRegistry()
 
+    /// SKELETON (lane 1, red run).
+    let accessibility = WindowAccessibility()
+
     /// The focused element and every ancestor of it, **innermost first** —
     /// empty when nothing is focused.
     ///

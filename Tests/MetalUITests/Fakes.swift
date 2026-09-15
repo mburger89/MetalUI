@@ -116,6 +116,21 @@ final class FakePlatformWindow: PlatformWindow {
     var onAppearanceChange: ((Appearance) -> Void)?
     var onClose: (() -> Void)?
 
+    /// The accessibility seam (ruling AB-A): every tree `Window` published, in
+    /// order, so a test asserts exactly what a platform would have been handed.
+    var onAccessibilityRequest: ((AccessibilityRequest) -> Bool)?
+    private(set) var publishedAccessibilityTrees: [AccessibilityTree] = []
+    func publishAccessibilityTree(_ tree: AccessibilityTree) {
+        publishedAccessibilityTrees.append(tree)
+    }
+
+    /// Send a request the way an accessibility client's query or action would
+    /// reach `onAccessibilityRequest`, and return the window's answer.
+    @discardableResult
+    func simulateAccessibilityRequest(_ request: AccessibilityRequest) -> Bool {
+        onAccessibilityRequest?(request) ?? false
+    }
+
     /// Change the appearance and notify, the way AppKit does: the getter already
     /// reports the new value by the time the callback runs.
     func simulateAppearanceChange(to newAppearance: Appearance) {
