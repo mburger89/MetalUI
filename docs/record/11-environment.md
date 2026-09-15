@@ -1046,6 +1046,14 @@ lines 258-259 ("two `StateBinder.bind` call sites (`MC-H`)") as stale:
 **no** bind call site. That correction is recorded here rather than by
 rewriting the second-pass entry.
 
+**`feat/ax-bridge` moved during this lane**, to `b9e258e` ("docs(ax-bridge):
+record lane 2 …"): docs only (`git diff --stat dbfa314 b9e258e` touches its
+record, decisions doc and spec, no `Sources/` or `Tests/`), its spec header now
+reads "lanes 1 and 2 implemented", and no line about the environment, `EV-`,
+`isEnabled`, `disabled` or the blocker changed. `git merge-tree` against it:
+tree `df6a60c…`, exit 1, the same three conflicting files and `Passes.swift`
+auto-merged. The reading above holds at `b9e258e`.
+
 #### Counts, re-read
 
 - `swift build --build-system native --build-tests`, then

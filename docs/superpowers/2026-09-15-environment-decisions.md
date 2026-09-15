@@ -1391,7 +1391,9 @@ lane 3 unbuilt), loud half and silent half as written, plus one owed pair of
 arms below; **2** loud (the `ElementGroup.swift` conflict against the bridge;
 against composition still future, a compile error when its lane 3 lands);
 **3** landed and **loud, measured**; **4** now a textual conflict and **still
-SILENT**; **5** loud, unchanged (the one `Window.swift` hunk); **6** unchanged.
+SILENT**; **5** loud, unchanged (the one `Window.swift` hunk); **6** unchanged. The bridge moved again during lane 4, to `b9e258e`. That commit
+changes docs only and none of their environment lines, and `merge-tree` gives
+the same conflicts, so this table holds there too.
 
 0. **Integration precondition: lane 3 lands first** (critic finding 9). At
    `f4dcad8`, `.environment(\.isEnabled, false)` and
