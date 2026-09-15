@@ -165,14 +165,23 @@ private final class NativeMeasureCounter: @unchecked Sendable {
 /// When a parent leaves an axis unspecified, SwiftUI's ideal frame dimension
 /// both becomes the child's proposal and the frame's outer response, subject
 /// to the frame's min/max limits. A concrete parent proposal still wins.
+///
+/// **Re-fixtured by the kernel completion's lane 3** (ruling SA-K item 5): this
+/// declared `idealWidth: 90` over `maxWidth: 80`, which SwiftUI diagnoses as
+/// contradictory (P4c) and ruling SA-J now rejects at registration. At ideal 70,
+/// by hand: the unspecified width proposes the ideal, clamp(70, 40…80) = 70,
+/// so the child sees (70, 60) and the frame answers 70; the concrete height 60
+/// is not the ideal's, so the height is the child's 10 clamped to 20…70 = 20.
+/// The child rect is unchanged. The re-fixture loses the "ideal clamped by
+/// max" case, which validated ordering makes unreachable.
 @Test func aNativeFrameUsesIdealDimensionsOnlyForUnspecifiedAxes() {
     let tree = LayoutTree(generation: 0)
     let child = tree.newNativeLeaf { proposal in
-        #expect(proposal == ProposedSize(width: 80, height: 60))
+        #expect(proposal == ProposedSize(width: 70, height: 60))
         return LayoutMeasurement(size: SizeD(width: 30, height: 10))
     }
     let frame = tree.newNativeFrame(child: child,
-                                    minWidth: 40, idealWidth: 90, maxWidth: 80,
+                                    minWidth: 40, idealWidth: 70, maxWidth: 80,
                                     minHeight: 20, idealHeight: 70, maxHeight: 70)
 
     let measurement = tree.computeNativeLayout(
@@ -181,7 +190,7 @@ private final class NativeMeasureCounter: @unchecked Sendable {
         in: LayoutRect(x: 5, y: 9, width: 40, height: 20)
     )
 
-    #expect(measurement.size == SizeD(width: 80, height: 20))
+    #expect(measurement.size == SizeD(width: 70, height: 20))
     #expect(tree.layout(child) == LayoutRect(x: 10, y: 14, width: 30, height: 10))
 }
 

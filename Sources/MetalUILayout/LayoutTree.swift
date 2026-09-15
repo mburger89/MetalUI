@@ -61,6 +61,9 @@ public final class LayoutTree {
     /// footing).
     private var activeNativeRun: NativeLayoutRun?
 
+    /// SKELETON (lane 3, red run): never assigned yet.
+    private(set) var lastNativeLayoutWork = NativeLayoutWork()
+
     /// The stamp carried by every id this tree issues. Changed only by
     /// `reset(generation:)`, which is what makes the ids from before a reset
     /// detectably stale.

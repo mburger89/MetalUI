@@ -225,3 +225,72 @@ func aCustomLayoutContainerRejectsLegacyContent() throws {
                 "\(spelling) was rejected, but not by the proposal-content constraint:\n\(result.output)")
     }
 }
+
+/// A public proposal leaf, for the frame guard's fixtures.
+private let frameLeafSource = """
+    public struct Leaf: Element {
+        public init() {}
+
+        public func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+            (pass.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }, ())
+        }
+
+        public func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                             pass: inout PrepaintPass) {}
+
+        public func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                          prepaint: inout Void, pass: inout PaintPass) {}
+    }
+
+    extension Leaf: ProposalElementGroup {}
+    """
+
+/// **A fixed and a flexible frame dimension cannot be combined** (lane 3,
+/// ruling SA-K item 6). SwiftUI has no overload that spells the combination
+/// (`Color.red.frame(width: 10, minWidth: 5)` → `extra argument 'minWidth' in
+/// call`), so the proposal element API splits into SwiftUI's two overloads —
+/// on the modifier, on `nativeFrame`, on `ProposalFrame`'s initializers and on
+/// `LayoutModifier` (`.frame` and `.flexibleFrame`) — rather than turning a
+/// spelling SwiftUI authors never meet into a run-time crash. The kernel
+/// registrar keeps one signature and traps on one axis as a backstop
+/// (`aFixedFrameDimensionCombinedWithAFlexibleOneTraps`).
+///
+/// The positive half proves the split kept both SwiftUI spellings, including
+/// an alignment on each.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func aFixedAndAFlexibleFrameDimensionCannotBeCombined() throws {
+    let rejected: [(spelling: String, diagnostic: String)] = [
+        ("Leaf().frame(width: Pixels(10), minWidth: Pixels(5))",
+         "extra argument 'minWidth' in call"),
+        ("Leaf().frame(width: Pixels(10), minHeight: Pixels(5))",
+         "extra argument 'minHeight' in call"),
+        ("ProposalFrame(width: Pixels(10), maxWidth: Pixels(20)) { Leaf() }",
+         "extra arguments at positions #2, #3 in call"),
+        ("ModifiedContent(content: Leaf(), modifier: .frame(width: Pixels(10), minWidth: Pixels(5)))",
+         "extra argument 'minWidth' in call"),
+        ("Leaf().nativeFrame(width: Pixels(10), minWidth: Pixels(5))",
+         "extra argument 'minWidth' in call"),
+    ]
+    for (spelling, diagnostic) in rejected {
+        let result = try typecheckFile(frameLeafSource + """
+
+
+            @MainActor public func probe() {
+                _ = \(spelling)
+            }
+            """, importing: "MetalUI")
+        #expect(!result.succeeded, "\(spelling) must not combine a fixed and a flexible dimension:\n\(result.output)")
+        #expect(result.messages.contains(diagnostic),
+                "\(spelling) was rejected, but not by the overload split:\n\(result.output)")
+    }
+
+    let accepted = try typecheckFile(frameLeafSource + """
+
+
+        @MainActor public func probe() {
+            _ = Leaf().frame(width: Pixels(10), alignment: .leading)
+            _ = Leaf().frame(minWidth: Pixels(5), maxWidth: Pixels(20))
+        }
+        """, importing: "MetalUI")
+    #expect(accepted.succeeded, "both SwiftUI frame spellings must still compile:\n\(accepted.output)")
+}

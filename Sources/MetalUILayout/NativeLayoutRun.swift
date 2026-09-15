@@ -35,6 +35,9 @@ final class NativeLayoutRun {
     /// does `LayoutTree.setLayout` (ruling SA-H clause 4).
     var measureDepth = 0
 
+    /// SKELETON (lane 3, red run): the native depth limit, not yet enforced.
+    static let maxDepth = 96
+
     init(tree: LayoutTree) { self.tree = tree }
 
     /// Every subview-proxy member calls this first, so a proxy that escaped
@@ -49,4 +52,11 @@ final class NativeLayoutRun {
 struct NativeMeasurementKey: Hashable {
     let id: LayoutNodeID
     let proposal: ProposedSize
+}
+
+/// SKELETON (lane 3, red run): the native work counters, never written yet.
+struct NativeLayoutWork: Equatable {
+    var measureCalls = 0
+    var cacheHits = 0
+    var cacheMisses = 0
 }
