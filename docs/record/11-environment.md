@@ -308,3 +308,153 @@ no `renamed:`, reddens only the `"KeyBinding"` expectation.
   writes it into the helper's pipe. Checked by the 0 above, not assumed.
 - Goldens: **97**; `git diff --name-only f64e58a -- Tests` lists no `.json`.
 - Guards: **46** (`EnvironmentCompileGuards` 1 over the design baseline's 45).
+
+### Lane 2 — scoped environment (`EV-A`…`EV-C`, `EV-G`…`EV-M`, `EV-O`, `EV-P`, `EV-U`, `EV-V`), 2026-09-15
+
+**Where.** Worktree `/Users/maxburger/Developer/MetalUI-environment`, branch
+`feat/environment`, from `a3c92a7`. No other agent was live **in this worktree**.
+`swift package clean` ran before the first build (a new public type in
+`MetalUICore`, a stored property on `Frame`).
+
+**One contention, recorded because it touched the instrument.** The session
+scratchpad is shared with the parallel tracks' agents, and another agent's
+mutation harness wrote into the same `mut/summary.txt` while this lane's batch
+ran (its lines read "1094 tests" and name overlay and modifier tests). Only that
+summary file was shared: every mutation here wrote its own full log, those logs
+are internally consistent, and every figure below and in the decisions doc was
+re-read from the per-mutation logs after the batch, not from the summary. The
+other agent's runs used their own worktree; this worktree's `git status` was
+clean after every run.
+
+#### What changed
+
+- New: `Sources/MetalUICore/LayoutDirection.swift`,
+  `Sources/MetalUI/EnvironmentValues.swift` (`EnvironmentValues`,
+  `EnvironmentKey`, `DynamicTypeSize`), `EnvironmentProperty.swift`
+  (`@Environment`, `BindableEnvironment`), `EnvironmentScope.swift`
+  (`EnvironmentScope`, `EnvironmentWrite`, `EnvironmentScopeLayout`,
+  `.environment`/`.transformEnvironment`/`.dynamicTypeSize`/`.theme`).
+- Shared, additive: `Frame.swift` (`theme` read in place from
+  `environmentTop`; `rootTheme`; `rootEnvironment` whose setter re-stamps
+  `theme` and `pixelLength`; `scopedValues(applying:)`; `withEnvironment`;
+  `environmentSnapshot()`; three counters; **no init parameter**);
+  `Passes.swift` (three get-only `environment` accessors, `PaintPass.theme`
+  doc); `Window.swift` (`public var environment` with a `didSet` that always
+  dirties; one statement `frame.rootEnvironment = environment` after the
+  `Frame(...)` expression, which is unedited); `StateReflection.swift`
+  (`bind(_:in:id:)` replaces `bind(_:table:id:)`, no overload, no default);
+  `ElementGroup.swift` ×3 and `Component.swift` ×1 call sites; `Frame.render`'s
+  root bind.
+- **The shape cache stores one merged ordinal list and a `hasEnvironment`
+  flag**, not separate `State` and `Environment` lists as the spec sketched:
+  nothing reads the two lists apart, and the hit path's question is only "does
+  this type need a snapshot". Behaviour is the spec's.
+- Tests: `EnvironmentTests.swift` (E1–E21), six guards appended to
+  `EnvironmentCompileGuards.swift`, and one doc sentence in
+  `PhaseSeparationTests.swift`'s theme section pointing at G1−.
+
+#### Red first (commit `e9bafb0`)
+
+The API landed as a **shell** so the tests compiled and failed on mechanism:
+the scope applied no write and pushed nothing, the binder bound no
+`@Environment`, and `Window` did not hand its environment to the frame. `Frame`'s
+root stamping was **not** shelled. Filtered run of the 28 environment tests,
+native build: **15 failed with 36 issues**. Each failure line, at `e9bafb0`:
+
+- E1 `:206` readings all 0; E2 `:224` `[0, 0]`; E3 `:241`, `:242` inner and
+  sibling `[0, 0, 0]`.
+- E6 `:391`, `:396` `[[0], [0], [0]]`; E7 `:410` `[0, 0]`.
+- E9 `:454` the scoped arm paints `Theme.light.surface`.
+- E11 `:475`, `:481` `[0, 0, 0]` on both arms.
+- E12 `:504`, `:506` the scoped and `Deferred` arms light.
+- E19 `:613`, `:627` both arms light; `:616` the control reads 0, not 3.
+- E14 `:662` the recorder reads `en_US`, not `de_DE`.
+- E15, on both trees: `:714` push 0 ≠ 3, `:716` transform 0 ≠ 1, `:720` push
+  0 ≠ 6, `:722` transform 0 ≠ 2, `:727` push 0 ≠ 3, `:728` snapshot 0 ≠ 3,
+  `:729` the reader reads `[0]`.
+- E20 `:757`–`:759`, `:764`–`:766` `counter.n` 0, `[0, 0, 0]`, transform count 0.
+
+**Green on the shell**, as the spec predicted or for a stated reason: E4 (red
+only if a shell registers a node), E5 (no mechanism to lose state), E8 (inert
+pin), E10, E16, E17, E21 (aligned or inert pins), E18 (a regression pin), and
+**E13** — against the spec's predicted "light; 1 at scale 2", because the shell
+kept `Frame`'s root stamping. E13's three mutations are its red readings. The
+six new guards passed on the shell; each is reddened by its mutation instead
+(decisions doc, `EV-C`, `EV-G`, `EV-J`).
+
+**A first-draft guard failed for a real reason.** G1+'s fixture declared
+`public struct Reader { @Environment(\.isEnabled) var isEnabled }` and failed in
+the Swift 6 language mode: "memberwise initializer for 'Reader' cannot be both
+nonisolated and main actor-isolated" (and "default initializer…"), with a note
+that the initializer for `_isEnabled` is main-actor-isolated. `Environment` is
+`@MainActor` like `State`, so a type declaring either must be main-actor
+isolated — every `Element` and `Component` already is, through its protocol.
+The fixture gained `@MainActor`. G1−'s wrapper fixture got the same fix, and its
+message assertion was tightened from `theme` to `'theme' is inaccessible`,
+because a nonisolated fixture's note names `_theme` and would have satisfied the
+bare word for the wrong reason. The exact diagnostics, from the fixtures typechecked
+outside the harness:
+
+- `'theme' is inaccessible due to 'internal' protection level` (both G1− fixtures);
+- `cannot assign to property: 'environment' is a get-only property` (G2);
+- `cannot convert value of type 'any KeyPath<EnvironmentValues, Double> & Sendable' to expected argument type 'WritableKeyPath<EnvironmentValues, Double>'` (G3);
+- `generic struct 'HStack' requires that 'Box<EmptyGroup>' conform to 'ProposalElementGroup'` (G4−).
+
+#### Suite (implementation commit `a4ef92d`)
+
+- `swift build --build-system native --build-tests` then
+  `swift test --no-parallel --build-system native`, both streams to one file:
+  **`Test run with 1112 tests in 1 suite passed`**, **0 `warning:`**, **0
+  `error:`**. The two documented gated tests skipped. This native run printed no
+  deprecation line matching `warning:` (grep for "deprecat" found only G5's
+  test name).
+- `swift test --no-parallel` (default build system), afterwards: **1112 tests
+  passed**, 0 `warning:`, 0 `error:`.
+- Goldens: **97**; `git diff --name-only f64e58a -- '*.json'` empty. No file
+  under `Sources/MetalUILayout/` changed.
+- Guards: **52** by the per-file count (`PhaseSeparationTests` 19,
+  `ErasureCompileGuards` 10, `ProposalLayoutCompileGuards` 6,
+  `ElementGroupTrapTests` 5, `UnitSafetyTests` 3 hits = 2, `AXNodeTests` 3,
+  `EnvironmentCompileGuards` 7). All seven environment guards printed `passed`,
+  not `skipped`, on the native build.
+- A full native suite run takes about 27 s on this machine, so every mutation
+  below ran the whole suite, not a filter.
+
+#### Mutations
+
+Forty-one runs (36 planned, 5 re-spelled after a failed instrument), one at a time, full suite, restored with `git checkout` and
+`git status --short` checked empty after each. **The readings and the tests each
+one reddened are under the ruling each mutation serves, in the decisions doc**;
+this is what the batch taught beyond them:
+
+- **Three instruments failed first, and each is recorded, not smoothed over.**
+  E4(a) as a legacy wrapper node killed the run at SA-G's trap (no summary line:
+  a truncated run, shape 11), so it was re-run with a native wrapper for native
+  content. E5's spec spelling does not compile against the test file. E5's second
+  spelling compared `String(describing:)` of two `EnvironmentValues` and never
+  flipped, because writing a custom key's default value still adds an entry;
+  E5 stayed green and E4/E10 reddened for the wrong reason. The third
+  spelling — the scope's id keyed by its values — reddens E5.
+- **E6(c) stayed green on E6, as the spec predicted**, and reddened E7 and
+  E15's reader-snapshot count. E6's limit, not coverage.
+- **E21's mutation is void.** Routing the locale into a line-break tokenizer did
+  not move the Thai sample's min-content width. E21 pins that no locale reaches
+  measurement today; it does not show that one would move it.
+- **E18 reddens at its reference require, never at `after == lightRef`**: any
+  mutation that makes the swapped frame light makes the dark reference light too.
+- **G4+ could not be run as written**: deleting the conformance stops the test
+  target compiling (E11 and E17 use it). It was run with those two tests under
+  `#if false` (1110 tests) and reddened only its guard.
+- **E13(a) and E18's own mutation redden 17 and 19 tests**, most outside this
+  file (colour animation, `ThemeTests`, and `theSevenRetentionSlotsAreMutuallyDistinct`),
+  because every test that builds `Frame(theme: .dark)` depends on the root stamp.
+
+#### Deferred, or not done by this lane
+
+- `.disabled(_:)`, the gate in `Frame.registerHandlers`, D1–D16 and the window
+  capture: lane 3.
+- `@Environment` inside `AnyElement` stays inert (E8), for task 8.
+- RTL mirroring stays unimplemented (E17), for task 6.
+- The inert and divergence rows, the reserved-name and `Window.environment`
+  paragraphs, and the counts are owed to the integration step (spec, "Owed to
+  the integration step"); CLAUDE.md was not edited.
