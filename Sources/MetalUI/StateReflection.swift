@@ -29,6 +29,11 @@ extension State: BindableState {}
 /// all, since the wrapper itself (`State.swift`) only ever reads a box
 /// someone else must have filled in.
 ///
+/// **`@Environment` rides the same walk** (ruling EV-M): its box is seeded
+/// with a snapshot of the frame's environment at the element's position. The
+/// shape cache records both kinds of ordinal, and a type with no
+/// `@Environment` never causes a snapshot (ruling EV-O).
+///
 /// **Reflects a TYPE once, not an instance every frame.** `Mirror` over every
 /// element every frame would cost more than the whole layout pass; a type's
 /// stored properties cannot change at runtime, so the ordinals of its `State`
@@ -63,43 +68,74 @@ extension State: BindableState {}
 /// only, so no `nonisolated(unsafe)` is needed anywhere here.
 @MainActor
 enum StateBinder {
-    /// Ordinals of the `State` wrappers a type declares among its `Mirror`
-    /// children, in ASCENDING order — `bindOrdinals` relies on that order to
-    /// consume them in one forward pass over the children.
-    private static var shapes: [ObjectIdentifier: [Int]] = [:]
+    /// What a type declares, found once by reflection: the ordinals of its
+    /// `State` wrappers and of its `Environment` wrappers among its `Mirror`
+    /// children, both in ASCENDING order. `bindOrdinals` walks `all`, the two
+    /// merged, in one forward pass over the children.
+    private struct Shape {
+        var state: [Int] = []
+        var environment: [Int] = []
+        var all: [Int] = []
+    }
+
+    private static var shapes: [ObjectIdentifier: Shape] = [:]
 
     /// Test observability for the per-type cache. Not part of any contract.
+    /// One per type, whatever the type declares.
     private(set) static var reflectionCount = 0
 
     static func resetReflectionCount() { reflectionCount = 0 }
 
-    /// Seeds every `@State` `element` declares with `id`. Marking is
-    /// `State.bind`'s own job, done unconditionally as part of computing the
-    /// slot id — see its doc comment.
-    static func bind<E>(_ element: E, table: StateTable, id: GlobalElementID) {
+    /// Seeds every `@State` `element` declares with `frame`'s state table and
+    /// `id`, and every `@Environment` with a snapshot of `frame`'s current
+    /// environment (ruling EV-M). Marking is `State.bind`'s own job, done
+    /// unconditionally as part of computing the slot id — see its doc comment.
+    ///
+    /// **Takes the `Frame`, not an `EnvironmentValues`, and that is the whole
+    /// performance argument** (ruling EV-O). An `environment:` argument would
+    /// be evaluated before this could return early, copying the environment
+    /// for every element in every phase. Here `frame.environmentSnapshot()` is
+    /// called only when the type's cached shape has `Environment` ordinals, and
+    /// then once per bind.
+    ///
+    /// **No overload keeps the old `bind(_:table:id:)` spelling, and the frame
+    /// must never gain a default** (ruling EV-W). A call site written elsewhere
+    /// against the old spelling fails to compile at a merge, instead of
+    /// silently binding the root environment.
+    static func bind<E>(_ element: E, in frame: Frame, id: GlobalElementID) {
         let key = ObjectIdentifier(E.self)
-        if let ordinals = shapes[key] {
-            guard !ordinals.isEmpty else { return }
-            bindOrdinals(ordinals, in: element, table: table, id: id)
+        if let shape = shapes[key] {
+            guard !shape.all.isEmpty else { return }
+            let snapshot: EnvironmentValues? = nil // SHELL
+            bindOrdinals(shape.all, in: element, table: frame.stateTable,
+                         environment: snapshot, id: id)
             return
         }
 
         // Cache miss: one Mirror pass finds the ordinals AND binds them,
         // rather than a `reflect` pass followed by a separate `bindOrdinals`
         // pass over the same value.
-        var ordinals: [Int] = []
+        var shape = Shape()
+        let snapshot: EnvironmentValues? = nil // SHELL
         for (index, child) in Mirror(reflecting: element).children.enumerated() {
-            guard let bindable = child.value as? BindableState else { continue }
-            ordinals.append(index)
-            bindable.bind(to: table, id: id, slot: index)
+            if let bindable = child.value as? BindableState {
+                shape.state.append(index)
+                shape.all.append(index)
+                bindable.bind(to: frame.stateTable, id: id, slot: index)
+            } else if let bindable = child.value as? BindableEnvironment {
+                shape.environment.append(index)
+                shape.all.append(index)
+                _ = bindable; _ = snapshot // SHELL
+            }
         }
-        shapes[key] = ordinals
+        shapes[key] = shape
         reflectionCount += 1
     }
 
     /// Binds exactly the children at `ordinals`, in one forward walk of the
     /// `Mirror`'s children — no `Array` of every child, and no work past the
-    /// last ordinal.
+    /// last ordinal. `environment` is non-nil exactly when the shape has
+    /// `Environment` ordinals.
     ///
     /// `ordinals` is never empty here: the one caller already guards that.
     ///
@@ -130,12 +166,17 @@ enum StateBinder {
     /// worked this way), reachable only through a `CustomReflectable` element
     /// whose children vary by instance, and unpinned by any test.
     private static func bindOrdinals<E>(_ ordinals: [Int], in element: E,
-                                        table: StateTable, id: GlobalElementID) {
+                                        table: StateTable,
+                                        environment: EnvironmentValues?,
+                                        id: GlobalElementID) {
         var next = ordinals.startIndex
         for (index, child) in Mirror(reflecting: element).children.enumerated() {
             guard index == ordinals[next] else { continue }
             if let bindable = child.value as? BindableState {
                 bindable.bind(to: table, id: id, slot: index)
+            } else if let bindable = child.value as? BindableEnvironment,
+                      let environment {
+                bindable.bind(environment)
             }
             next += 1
             if next == ordinals.endIndex { break }

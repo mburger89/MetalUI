@@ -539,12 +539,15 @@ public struct PaintPass {
         frame.tree.measuredWidth(node)
     }
 
-    /// The active theme (spec §7.9).
+    /// The active theme (spec §7.9): the nearest `.theme(_:)`, else the
+    /// window's (ruling EV-G).
     ///
     /// This is the whole of "propagated through the frame context": an element
     /// that wants a colour resolves a `ColorToken` against this, and there is no
     /// other way to obtain one. Nothing here reads global state, and nothing
-    /// cascades — `Style` has no colour field for a cascade to inherit through.
+    /// cascades — `Style` has no colour field for a cascade to inherit through,
+    /// and a scoped theme is a value handed out at a position, not a property
+    /// written into every node.
     ///
     /// **Deliberately not on `LayoutPass` or `PrepaintPass`.** Neither phase can
     /// consume a colour: layout contributes `Style`, which has no colour field,
@@ -827,4 +830,37 @@ extension PaintPass {
                              _ body: (inout S) -> Void) {
         frame.stateTable.withState(id, initial: initial(), body)
     }
+}
+
+// MARK: - Environment (rulings EV-C, EV-L)
+//
+// **Get-only on all three passes, and readable in all three.** A setter here
+// would be an unscoped push: a write in one element's phase would change what
+// every later sibling reads, the cascade leak ruling EV-A exists to prevent.
+// Writers are modifiers (`EnvironmentScope`). Pinned by the typecheck guard
+// `environmentValuesCannotBeWrittenThroughAPass`.
+//
+// **No phase-only guard** (ruling EV-L): within one frame and one scope the
+// three accessors return identical values, because the root is fixed before
+// the frame starts and a scope re-pushes the values it computed in layout.
+// There is no prepaint/paint boundary for a value to lie across. The theme is
+// not reachable here — `EnvironmentValues.theme` is internal and
+// `PaintPass.theme` is its only reader (ruling EV-G).
+//
+// Each read is a copy of the frame's current environment and counts one
+// `Frame.environmentSnapshotCount` (ruling EV-O).
+
+extension LayoutPass {
+    /// The environment at this element's position. See the section note above.
+    public var environment: EnvironmentValues { frame.environmentSnapshot() }
+}
+
+extension PrepaintPass {
+    /// The environment at this element's position. See the section note above.
+    public var environment: EnvironmentValues { frame.environmentSnapshot() }
+}
+
+extension PaintPass {
+    /// The environment at this element's position. See the section note above.
+    public var environment: EnvironmentValues { frame.environmentSnapshot() }
 }

@@ -135,20 +135,125 @@ public final class Frame {
     /// the default below is the only value the engine has ever seen.
     let rootFontSize: Double
 
-    /// The active theme (spec §7.9), fixed for the whole frame.
+    /// The theme in effect at the element being visited (spec §7.9): the
+    /// nearest `.theme(_:)` scope's, else the root's (ruling EV-G).
     ///
-    /// A `let`, so the two halves of one frame cannot resolve the same token
-    /// differently: a theme swapped mid-paint would give the first half of the
-    /// tree light colours and the second half dark ones, and every rect would
-    /// still be individually correct. `Window` swaps the theme *between* frames
-    /// and marks §4.4's dirty flag.
+    /// **Scoped now, and still fixed per scope for the whole frame.** It used
+    /// to be a `let`, so the two halves of one frame could not resolve the same
+    /// token differently. That property survives scoping: the root theme is a
+    /// `let` (`rootTheme`), and a scope computes its values once, in layout,
+    /// and re-pushes the stored result in prepaint and paint (ruling EV-V), so
+    /// one element reads one theme in every phase. `Window` still swaps the
+    /// root theme *between* frames and marks §4.4's dirty flag.
+    ///
+    /// Read **in place** from `environmentTop`, not through
+    /// `environmentSnapshot()`, so it costs no copy and is not counted
+    /// (ruling EV-O).
     ///
     /// Reachable from `PaintPass` only. Nothing in layout or prepaint consumes a
     /// colour — `LayoutPass` contributes `Style`, which has no colour field at
     /// all, and `PrepaintPass` reads resolved rects — so exposing it there would
-    /// be an API with no reader. Adding it to another pass is one forwarding
-    /// property when a phase acquires a use for it.
-    let theme: Theme
+    /// be an API with no reader. `EnvironmentValues.theme` is internal for the
+    /// same reason.
+    var theme: Theme { environmentTop.theme }
+
+    /// The theme this frame was built with — `Window.theme`, handed in through
+    /// `init`. The root environment's `theme` is stamped from this and from
+    /// nothing else (ruling EV-H), so an in-module write to
+    /// `rootEnvironment.theme` is silently re-stamped.
+    private let rootTheme: Theme
+
+    // MARK: - Environment (rulings EV-A, EV-H, EV-O, EV-U, EV-V)
+
+    /// The environment in effect at the element being visited.
+    ///
+    /// Starts as `rootEnvironment` and is replaced only inside
+    /// `withEnvironment`, which restores it when its body returns — so the
+    /// call stack is the stack, and an unbalanced push is not expressible
+    /// (the discipline `clipStack` and `scrollContextStack` use). Read in place
+    /// by `theme`; handed out as a copy only by `environmentSnapshot()`.
+    private(set) var environmentTop: EnvironmentValues
+
+    private var storedRootEnvironment: EnvironmentValues
+
+    /// The values every scope starts from: `Window.environment`, set by
+    /// `Window.drawFrameIfNeeded` on the line after it builds this frame. A
+    /// `Frame` built without a window (every test) keeps `EnvironmentValues()`.
+    ///
+    /// **The setter re-stamps two fields** (rulings EV-H, EV-U): `theme`
+    /// from the `theme:` this frame was built with, and `pixelLength` from its
+    /// scale factor. `Window.theme` stays the root theme's only source, and no
+    /// value can lie about the device, so `window.environment.theme = .dark` —
+    /// which compiles inside the module — changes nothing. It also resets the
+    /// top: set it before `render`, never during.
+    var rootEnvironment: EnvironmentValues {
+        get { storedRootEnvironment }
+        set {
+            var values = newValue
+            values.theme = rootTheme
+            values.pixelLength = Self.pixelLength(forScaleFactor: scaleFactor)
+            storedRootEnvironment = values
+            environmentTop = values
+        }
+    }
+
+    /// One device pixel in points, or 1 when the surface has not reported a
+    /// usable scale — a 0 or NaN from a backend still configuring itself would
+    /// otherwise hand every reader an infinity.
+    private static func pixelLength(forScaleFactor scale: Float) -> Double {
+        guard scale.isFinite, scale > 0 else { return 1 }
+        return 1 / Double(scale)
+    }
+
+    /// A writer's values: `write` applied to a copy of the **current top**, so
+    /// a transform composes with what it inherits and a nearer writer wins
+    /// (ruling EV-A). Called once per scope per frame, by
+    /// `EnvironmentScope.requestGroupLayout` only (ruling EV-V).
+    ///
+    /// **A `.transform` cannot change `theme` or `pixelLength`**: both are put
+    /// back from the top it copied, after the transform runs, because
+    /// `.environment(\.self, EnvironmentValues())` compiles outside the module
+    /// and would otherwise reset them (ruling EV-U). `.theme` is the one write
+    /// that sets a theme.
+    func scopedValues(applying write: EnvironmentWrite) -> EnvironmentValues {
+        environmentTransformCount += 1
+        var values = environmentTop
+        switch write {
+        case .transform(let transform):
+            transform(&values)
+            values.theme = environmentTop.theme
+            values.pixelLength = environmentTop.pixelLength
+        case .theme(let theme):
+            values.theme = theme
+        }
+        return values
+    }
+
+    /// Runs `body` with `values` as the top, restoring the previous top when it
+    /// returns. The saved top lives in this call's own local, so nesting is the
+    /// call stack.
+    func withEnvironment<R>(_ values: EnvironmentValues, _ body: () -> R) -> R {
+        environmentPushCount += 1
+        let saved = environmentTop
+        environmentTop = values
+        defer { environmentTop = saved }
+        return body()
+    }
+
+    /// A copy of the top, for a public reader: `pass.environment`, or a bind of
+    /// a type that declares an `@Environment`. The framework's own reads
+    /// (`theme`) read the top in place and do not come through here.
+    func environmentSnapshot() -> EnvironmentValues {
+        environmentSnapshotCount += 1
+        return environmentTop
+    }
+
+    /// Test observables for ruling EV-O. A tree with no writer pushes 0 and
+    /// transforms 0; W writers push 3W and transform W per frame; a tree with
+    /// no reader snapshots 0, however large. No production reader.
+    private(set) var environmentPushCount = 0
+    private(set) var environmentSnapshotCount = 0
+    private(set) var environmentTransformCount = 0
 
     /// Layout nodes for this frame.
     ///
@@ -1054,7 +1159,12 @@ public final class Frame {
         self.stateTable = stateTable
         self.shapingCache = shapingCache
         self.glyphAtlas = glyphAtlas
-        self.theme = theme
+        self.rootTheme = theme
+        var root = EnvironmentValues()
+        root.theme = theme
+        root.pixelLength = Self.pixelLength(forScaleFactor: scaleFactor)
+        self.storedRootEnvironment = root
+        self.environmentTop = root
         self.timestamp = timestamp
         self.mousePosition = mousePosition
         self.activeElement = activeElement
@@ -1346,7 +1456,7 @@ public final class Frame {
         // never runs for the root at all — so this is a second, independent
         // seeding site. A root element with `@State` would otherwise never be
         // bound to a table or an id.
-        StateBinder.bind(element, table: stateTable, id: rootID)
+        StateBinder.bind(element, in: self, id: rootID)
 
         // Unlike the atlas's bracket below, this one wraps layout as well as
         // paint: a `Text`'s `MeasureFunction` shapes during `requestLayout`

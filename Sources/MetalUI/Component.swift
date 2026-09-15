@@ -127,7 +127,7 @@ extension Component {
         // 1's earlier count — 5 issues across 4 tests, on the then-801-test
         // file — was correct for that file and is superseded here, not
         // wrong; `StyledComponent` did not exist yet.)
-        StateBinder.bind(self, table: pass.frame.stateTable, id: id)
+        StateBinder.bind(self, in: pass.frame, id: id)
 
         // One index from the PARENT's cursor, and a fresh cursor for the
         // content. Threading the outer cursor into the content instead would
