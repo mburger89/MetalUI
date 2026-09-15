@@ -1,8 +1,9 @@
 // SwiftUI probe: what `.disabled(true)` (and a raw `isEnabled` write) does to
 // pointer, focus and key input, measured by synthesizing AppKit events into
-// real NSWindows hosting SwiftUI. Evidence for rulings EV-D (the environment
-// value is the gate), EV-E (a disabled hit target swallows rather than passing
-// through), EV-F (focus acquisition, key actions and raw key handlers) in
+// real NSWindows hosting SwiftUI. Evidence for rulings EV-D (the
+// environment value is the gate), EV-E (what a disabled hit target does to a
+// click, by ANALOGY — see READING), EV-F (focus acquisition, key actions and
+// raw key handlers) and EV-T (a press and a release across a flip) in
 // docs/superpowers/2026-09-15-environment-decisions.md.
 //
 // HOW TO RUN. Either form; both were run on the final file and their filtered
@@ -13,9 +14,9 @@
 //   swiftc docs/probes/swiftui-disabled-interaction.swift -o /tmp/disprobe
 //   OS_ACTIVITY_DT_MODE=1 /tmp/disprobe 2>&1 | grep -v 'Connection\]\|ntents\|WindowTab'
 //
-// It opens and orders out one small window per arm (about 20). Exit status 0.
+// It opens and orders out one small window per arm (about 30). Exit status 0.
 //
-// HARNESS HISTORY, because two versions of it measured nothing:
+// HARNESS HISTORY, because versions of it measured nothing:
 // - The first click helper queued the mouse-up and then sent the mouse-down.
 //   Every `.onTapGesture` arm read 0 INCLUDING the enabled control P0, and so
 //   did the default-style Button control: the disabled arms' zeros meant
@@ -27,10 +28,20 @@
 // - P2 (a disabled tappable Color over a tappable) read under 0 / over 0, but
 //   so did the control P2m with an ENABLED gesture-less Color on top, so P2
 //   could not say whether disabling swallows or a Color simply blocks. P2d..P2f
-//   were added: an overlay whose only hit area is a contentShape.
+//   were added: an overlay whose only hit area is a contentShape. A design
+//   review then added P2g/P2h (second pass, same day): the same overlay with NO
+//   gesture blocks too, enabled or disabled, so P2f does not show that
+//   `.disabled` swallows; it shows that `.disabled` leaves the hit shape alone.
+// - K5/K6 first COUNTED the child's and the parent's `.onKeyPress`, with the
+//   parent returning `.handled`. The child read 0 in the enabled control as
+//   well, and the arm was recorded as "unexplained". The second pass logged
+//   handler ORDER instead: the PARENT runs first on this system, so a parent
+//   that returns `.handled` pre-empts the child. K5/K6 now return `.ignored`
+//   from the parent, which makes the child's entry a control that can move
+//   (it does: K5 lists it); K7/K8 keep the old `.handled` shape.
 // - A scroll arm failed its control and was removed; see "S" below.
 //
-// RECORDED 2026-09-14, macOS 26.6.2 (25G83), Apple Swift 6.4
+// RECORDED 2026-09-14 (second pass), macOS 26.6.2 (25G83), Apple Swift 6.4
 // (swiftlang-6.4.0.33.1). Arms print enabled controls first, then the rest in
 // the order the dictionary sorted them; zeros for counters that never fired are
 // printed from an explicit list:
@@ -55,16 +66,29 @@
 //     P2e control, clear+contentShape+gesture ENABLED: under: 0
 //     P2f clear+contentShape+gesture .disabled(true): under: 0
 //     P2f clear+contentShape+gesture .disabled(true): over: 0
+//     P2g control, clear+contentShape, NO gesture, ENABLED: under: 0
+//     P2h clear+contentShape, NO gesture, .disabled(true): under: 0
 //   --- K: focus and key handling (focus requested in onAppear)
 //     K0 enabled (control): focused=1 onKeyPress=1 firstResponder=Optional<NSResponder>
 //     K1 .disabled(true) from the start: focused=never changed onKeyPress=0 firstResponder=Optional<NSResponder>
 //     K2 focused, then disabled: control, onKeyPress while still enabled=1
 //     K2 focused, then disabled: focused before=1 after=1 onKeyPress after disabling=1 isEnabled seen by the focused view after disabling=0
 //     K2 focused, then disabled, re-enabled: focused=1
-//     K5 bubble, parent enabled (control): child focused=1 child onKeyPress=0 parent onKeyPress=1
-//     K6 bubble, parent .disabled(true), child re-enabled: child focused=1 child onKeyPress=0 parent onKeyPress=1
+//     K5 bubble, parent enabled, parent .ignored (control): child focused=1 handler order=["parent", "child"]
+//     K6 bubble, parent .disabled(true), child re-enabled, parent .ignored: child focused=1 handler order=["parent", "child"]
+//     K7 bubble, parent enabled, parent .handled: child focused=1 handler order=["parent"]
+//     K8 bubble, parent .disabled(true), child re-enabled, parent .handled: child focused=1 handler order=["parent"]
 //     K3 keyboardShortcut cmd-k enabled (control): 1
 //     K4 keyboardShortcut cmd-k .disabled(true): 0
+//   --- R: press, flip .disabled, release (same timing in every arm)
+//     R0 Button(.plain) enabled throughout (control): 1
+//     R1 Button(.plain) pressed disabled, released enabled: 0
+//     R2 Button(.plain) pressed enabled, released disabled: 0
+//     R3 Button(.plain) disabled throughout: 0
+//     R0 onTapGesture enabled throughout (control): 1
+//     R1 onTapGesture pressed disabled, released enabled: 0
+//     R2 onTapGesture pressed enabled, released disabled: 0
+//     R3 onTapGesture disabled throughout: 0
 //
 // READING (what the rulings rely on):
 // - P1, P4, P6, P7: disabling suppresses a tap gesture, a plain Button and a
@@ -73,21 +97,30 @@
 //   `.disabled` modifier: a raw `isEnabled = true` write inside `.disabled(true)`
 //   lets the tap through, and a raw `isEnabled = false` write with no
 //   `.disabled` blocks it.
-// - P2d/P2e/P2f: a clear overlay with no hit area passes the click down (P2d
-//   under 1); the same overlay with a contentShape and an ENABLED gesture takes
-//   it (P2e over 1, under 0); DISABLED, it takes it and runs nothing (P2f over
-//   0, under 0). A disabled hit target swallows. `.allowsHitTesting(false)` is
-//   the pass-through spelling (P2c under 1).
+// - P2d..P2h: HIT-TESTABILITY BELONGS TO THE SHAPE, AND `.disabled` DOES NOT
+//   CHANGE IT. A clear overlay with no hit area passes the click down (P2d
+//   under 1). Give it a contentShape and it takes the click whether it has an
+//   enabled gesture (P2e over 1, under 0), a disabled gesture (P2f over 0,
+//   under 0), no gesture (P2g under 0), or no gesture and `.disabled` (P2h
+//   under 0). `.allowsHitTesting(false)` is the pass-through spelling (P2c
+//   under 1). This probe does NOT show "a disabled target swallows" as a
+//   property of `.disabled`. MetalUI's rule is a choice by analogy (EV-E),
+//   because a MetalUI element's hit region is conferred by its `onClick`
+//   rather than by a separate shape.
 // - K1: a view disabled from the start never acquires focus and never sees a key.
 // - K2: a view focused and THEN disabled keeps focus (focused stays 1, and is
 //   still 1 after re-enabling) and its `.onKeyPress` still fires — while the
 //   view itself reads isEnabled 0, so the disable did reach it.
-// - K5/K6: an enabled parent and a DISABLED parent both receive the key a
-//   focused, re-enabled child leaves unhandled: `.onKeyPress` is not gated on
-//   isEnabled. UNEXPLAINED and not relied on: the child's own `.onKeyPress`
-//   reads 0 in both arms, including the control, although the child is
-//   focused.
+// - K5..K8: `.onKeyPress` on a DISABLED parent runs exactly as on an enabled
+//   one (K6 = K5, K8 = K7): raw key handlers are not gated on isEnabled. The
+//   handler ORDER is parent first, then the focused child (K5), which is the
+//   opposite of MetalUI's focused-element-outward bubble. Recorded, not
+//   adopted (EV-Q).
 // - K3/K4: a Button's `.keyboardShortcut` does not fire while disabled.
+// - R0..R3: a click fires only when the control is enabled at BOTH the press
+//   and the release. Pressed disabled and released enabled reads 0 (R1), and
+//   so does the reverse (R2), for a plain Button and for `.onTapGesture`; the
+//   enabled control at the same timing reads 1 (R0).
 import SwiftUI
 import AppKit
 
@@ -192,6 +225,18 @@ let center = CGPoint(x: 100, y: 100)
         Color.red.onTapGesture { Count.bump("P2n disabled over with NO gesture: under") }
         Color.blue.disabled(true)
     })
+    // P2g/P2h: the P2e/P2f overlay with its gesture REMOVED. If P2g's enabled,
+    // gesture-less contentShape already blocks, then P2f's swallow is the hit
+    // shape's doing and not `.disabled`'s: disabling changes whether the
+    // gesture runs, not whether the view is hit-testable.
+    tapArm("P2g", ZStack {
+        Color.red.onTapGesture { Count.bump("P2g control, clear+contentShape, NO gesture, ENABLED: under") }
+        Color.clear.contentShape(Rectangle())
+    })
+    tapArm("P2h", ZStack {
+        Color.red.onTapGesture { Count.bump("P2h clear+contentShape, NO gesture, .disabled(true): under") }
+        Color.clear.contentShape(Rectangle()).disabled(true)
+    })
     tapArm("P3", Button { Count.bump("P3 .plain Button enabled (control)") } label: { Color.blue }
         .buttonStyle(.plain))
     tapArm("P4", Button { Count.bump("P4 .plain Button .disabled(true)") } label: { Color.blue }
@@ -218,7 +263,9 @@ let center = CGPoint(x: 100, y: 100)
               "P2e control, clear+contentShape+gesture ENABLED: under",
               "P2e control, clear+contentShape+gesture ENABLED: over",
               "P2f clear+contentShape+gesture .disabled(true): under",
-              "P2f clear+contentShape+gesture .disabled(true): over"] where Count.hits[k] == nil {
+              "P2f clear+contentShape+gesture .disabled(true): over",
+              "P2g control, clear+contentShape, NO gesture, ENABLED: under",
+              "P2h clear+contentShape, NO gesture, .disabled(true): under"] where Count.hits[k] == nil {
         print("  \(k): 0")
     }
 }
@@ -256,24 +303,79 @@ struct EnabledReader: View {
     }
 }
 
-/// K5/K6: a focused, RE-ENABLED child that ignores the key, inside a parent
-/// whose own onKeyPress sits inside or outside `.disabled(true)`.
+/// K5..K8: a focused, RE-ENABLED child that ignores the key, inside a parent
+/// whose own onKeyPress sits inside or outside `.disabled(true)`. Each handler
+/// APPENDS ITS NAME to one ordered log, so the arm shows who ran and in what
+/// order. The first version counted instead, with the parent returning
+/// `.handled`, and the child read 0 in the enabled control too: the parent runs
+/// FIRST on this system, so a parent that handles pre-empts the child. K5/K6
+/// therefore return `.ignored` from the parent (so the child's reading is a
+/// positive control that can move), and K7/K8 keep the `.handled` shape.
+enum Seq { nonisolated(unsafe) static var log: [String: [String]] = [:] }
+
 struct BubbleProbe: View {
     let label: String
     let parentDisabled: Bool
+    let parentResult: KeyPress.Result
     @FocusState var focused: Bool
     var body: some View {
         VStack {
             Color.blue
                 .focusable()
                 .focused($focused)
-                .onKeyPress { _ in Count.bump("\(label) child"); return .ignored }
+                .onKeyPress { _ in Seq.log[label, default: []].append("child"); return .ignored }
                 .environment(\.isEnabled, true)
         }
-        .onKeyPress { _ in Count.bump("\(label) parent"); return .handled }
+        .onKeyPress { _ in Seq.log[label, default: []].append("parent"); return parentResult }
         .disabled(parentDisabled)
         .onAppear { focused = true }
         .onChange(of: focused) { _, v in Count.hits["\(label) focused"] = v ? 1 : 0 }
+    }
+}
+
+/// R: a press and a release with the `.disabled` value flipped between them,
+/// through an `@ObservedObject` so the view re-renders mid-press.
+@MainActor final class PressModel: ObservableObject { @Published var disabled = false }
+
+struct PressProbe: View {
+    let label: String
+    let button: Bool
+    @ObservedObject var model: PressModel
+    var body: some View {
+        if button {
+            Button { Count.bump(label) } label: { Color.blue }.buttonStyle(.plain).disabled(model.disabled)
+        } else {
+            Color.blue.onTapGesture { Count.bump(label) }.disabled(model.disabled)
+        }
+    }
+}
+
+@MainActor func pressFlip(_ label: String, button: Bool, before: Bool, after: Bool) {
+    let m = PressModel(); m.disabled = before
+    let w = makeWindow(PressProbe(label: label, button: button, model: m))
+    func ev(_ t: NSEvent.EventType) -> NSEvent {
+        NSEvent.mouseEvent(with: t, location: center, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                           windowNumber: w.windowNumber, context: nil, eventNumber: 0,
+                           clickCount: 1, pressure: t == .leftMouseDown ? 1 : 0)!
+    }
+    w.sendEvent(ev(.leftMouseDown))
+    spin(0.05)
+    m.disabled = after
+    spin(0.2)
+    w.sendEvent(ev(.leftMouseUp))
+    spin()
+    print("  \(label): \(Count.read(label))")
+    w.orderOut(nil)
+}
+
+@MainActor func armR() {
+    print("--- R: press, flip .disabled, release (same timing in every arm)")
+    for button in [true, false] {
+        let k = button ? "Button(.plain)" : "onTapGesture"
+        pressFlip("R0 \(k) enabled throughout (control)", button: button, before: false, after: false)
+        pressFlip("R1 \(k) pressed disabled, released enabled", button: button, before: true, after: false)
+        pressFlip("R2 \(k) pressed enabled, released disabled", button: button, before: false, after: true)
+        pressFlip("R3 \(k) disabled throughout", button: button, before: true, after: true)
     }
 }
 
@@ -309,13 +411,16 @@ struct BubbleProbe: View {
     print("  \(label), re-enabled: focused=\(Count.hits["\(label) focused"].map(String.init) ?? "never changed")")
     w.orderOut(nil)
 
-    for (l, disabled) in [("K5 bubble, parent enabled (control)", false),
-                          ("K6 bubble, parent .disabled(true), child re-enabled", true)] {
-        let w = makeWindow(BubbleProbe(label: l, parentDisabled: disabled))
+    for (l, disabled, result) in [
+        ("K5 bubble, parent enabled, parent .ignored (control)", false, KeyPress.Result.ignored),
+        ("K6 bubble, parent .disabled(true), child re-enabled, parent .ignored", true, KeyPress.Result.ignored),
+        ("K7 bubble, parent enabled, parent .handled", false, KeyPress.Result.handled),
+        ("K8 bubble, parent .disabled(true), child re-enabled, parent .handled", true, KeyPress.Result.handled)] {
+        let w = makeWindow(BubbleProbe(label: l, parentDisabled: disabled, parentResult: result))
         spin(0.3)
         key(w, "a")
         print("  \(l): child focused=\(Count.hits["\(l) focused"].map(String.init) ?? "never changed") " +
-              "child onKeyPress=\(Count.read("\(l) child")) parent onKeyPress=\(Count.read("\(l) parent"))")
+              "handler order=\(Seq.log[l] ?? [])")
         w.orderOut(nil)
     }
 
@@ -344,5 +449,5 @@ MainActor.assumeIsolated {
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
     app.activate(ignoringOtherApps: true)
-    armP(); armK()
+    armP(); armK(); armR()
 }

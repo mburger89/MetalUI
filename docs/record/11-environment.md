@@ -102,8 +102,11 @@ Arm results:
     the view reads `isEnabled` 0. Focus is still held after re-enabling.
   - K5/K6: the parent's key handler fires (1) whether or not the parent is
     disabled. The child's handler reads 0 in both arms, including the control;
-    **this is unexplained**.
+    **this is unexplained**. _(Superseded in the second pass, below: the parent
+    runs first and a `.handled` parent pre-empts the child.)_
   - K3, an enabled keyboard shortcut: 1. K4, the same shortcut disabled: 0.
+  - _(Second pass: P2f's reading below is superseded too; P2g shows an enabled
+    gesture-less shape blocks, so P2f measured the shape, not `.disabled`.)_
 
 **`docs/probes/swiftui-environment-api-shape.swift`** was typechecked with
 `swiftc -typecheck`, which exited 1. That is expected: the file must fail.
@@ -160,3 +163,107 @@ members form in Swift 6 mode". **That claim was checked and refuted.**
   `AnyElement`.** These are MetalUI design choices, not SwiftUI observations.
 - **Any MetalUI behaviour.** Nothing was implemented, so every EV ruling's
   "Mutations" line is still owed.
+
+### Design session, second pass (2026-09-14 into 2026-09-15), at `bbd4d66`
+
+**Why.** A critic review of the first design commit (`bbd4d66`) reported 18
+defects. This pass applied all 18; the dispositions are in the decisions doc's
+"Second pass" table. **No source file was edited.** The changed files are the
+spec, the decisions doc, this record and one probe. **No other agent was live
+in this worktree.** The two other tracks' design commits were read with
+`git show` from the shared object store (`1c6f686` modifier composition,
+`2042a54` accessibility bridge); their worktrees were not touched.
+
+#### Probe re-run: `docs/probes/swiftui-disabled-interaction.swift`
+
+Three arms were changed or added, and the whole file was re-run.
+
+- **P2g/P2h** (the critic's arm, now committed): a clear overlay with a
+  `contentShape` and **no gesture** over a tappable, enabled (P2g) and
+  `.disabled(true)` (P2h). Both read **under 0**. P2d (no shape) still reads
+  under 1, so the instrument can pass a click through.
+- **K5–K8** replace the old K5/K6. Each handler appends its name to an ordered
+  log. K5 (parent enabled, parent returns `.ignored`, control) reads
+  `["parent", "child"]`; K6 (parent disabled, child re-enabled) reads the same;
+  K7/K8 (parent returns `.handled`) read `["parent"]`.
+- **R0–R3** (new): press, flip `.disabled` through an `@ObservedObject`, 0.2 s,
+  release, for a plain `Button` and for `.onTapGesture`. R0 (enabled
+  throughout, same timing) reads 1; R1 (pressed disabled, released enabled),
+  R2 (the reverse) and R3 (disabled throughout) read 0. Identical for both
+  controls.
+
+**How it ran.** Compiled with `swiftc` and run with `OS_ACTIVITY_DT_MODE=1`
+twice, and as `/usr/bin/swift <file>` once, on the final file (the header was
+rewritten after the first compiled run and the file re-compiled and re-run).
+All filtered outputs were `diff`-identical to the recorded block now in the
+header, every run exited 0, and the script run printed 0 `warning:` lines.
+Every arm the first pass recorded reads the same as before.
+
+#### Scratch exploration behind K5–K8 (not committed; files in the session scratchpad `ev2/`)
+
+The committed arms were designed from three scratch runs, recorded here so the
+path is checkable:
+
+- **Six child variants under a `.handled` parent** (`kbprobe.swift`): the
+  original shape, no `.environment` write, a child returning `.handled`,
+  `.onKeyPress` before `.focusable()`, `onKeyPress(phases: .down)` and
+  `onKeyPress(characters:)`. **All six read child 0, parent 1**, with the child
+  focused. So the child's zero was not about the modifier order or the overload.
+- **Parent presence** (`kbprobe2.swift`): no parent handler → child 1; a parent
+  returning `.ignored` → child 1, parent 1; a parent returning `.handled` →
+  child 0, parent 1 (twice, once with the child returning `.handled`).
+- **Order** (`kbprobe3.swift`): an ordered log read `["parent", "child"]` with the
+  parent enabled or disabled and returning `.ignored`, and `["parent"]` when it
+  returned `.handled`. That is the shape committed as K5–K8.
+
+#### Key-path measurement behind `EV-U`
+
+The critic's two-module stand-in was rebuilt and re-run in this session
+(scratchpad `ev2/kp/`). Module `A` declares
+`public struct EV { public init() {}; public internal(set) var pixelLength: Double = 1; var theme: Int = 0 }`
+and `public func environment<V>(_ kp: WritableKeyPath<EV, V>, _ v: V) -> EV`,
+which starts from a value with `pixelLength = 0.5` and `theme = 7`.
+
+- From module `B`, `environment(\.self, EV())` compiled, ran (exit 0), and
+  printed `pixelLength 1.0 theme 0`: both the `internal(set)` field and the
+  internal field were reset from outside the module.
+- From module `C`, `environment(\.pixelLength, 1.0)` failed to typecheck with
+  `cannot convert value of type 'KeyPath<EV, Double>' to expected argument type 'WritableKeyPath<EV, Double>'`.
+
+#### Source facts re-checked for the second pass, at `f64e58a`
+
+- `grep -rn "registerHandlers(" Sources` finds **five** callers: `Box.swift:99`,
+  `Stack.swift:123`, `Text.swift:304`, `FrameModifier.swift:48` and
+  `NativeTappable.swift:35` (plus `Passes.swift:426`, the forwarding pass
+  method). The first pass said six.
+- `StateBinder.bind(` has five call sites, all in `Sources/`
+  (`ElementGroup.swift:112,129,139`, `Component.swift:130`, `Frame.swift:1349`),
+  and **none in `Tests/`**, so removing `bind(_:table:id:)` breaks no test.
+- `PrepaintPass.deferred` and `PaintPass.deferred` (`Passes.swift:494`, `:642`)
+  run their body in place, inside the caller's closure, so a scope around a
+  `Deferred` is still on the stack when its content runs.
+- `Window.dispatchClick` requires `hit.id == pressed` and a non-nil `onClick`
+  (`Window.swift:1195-1201`); `updatePointerState` sets `active` to the topmost
+  hitbox's owner on `mouseDown` whatever its handlers (`:1128`). Scroll regions
+  register opaque hitboxes with no `onClick` (`Frame.swift:502`).
+- The `$anim-content` named-child spelling is
+  `.child(of: id, at: 0, name: ElementID("$anim-content"))`
+  (`AnimatedStyle.swift:185`).
+- `MetalUI` re-exports `MetalUICore` (`App.swift:8`).
+- The accessibility-bridge spec (`2042a54`) synthesizes nodes inside
+  `registerHandlers` from `handlers.onClick != nil`, adds
+  `collectsAccessibility:` to `Frame.init` and to `Window`'s `Frame(...)` call,
+  derives `.press` from a `lastHitboxes` entry with the element's id and an
+  `onClick`, and says disabled behaviour waits for task 9.
+- The modifier-composition spec (`1c6f686`) adds
+  `ProposalElementGroup.requestProposalGroupLayout`, two `StateBinder.bind` call
+  sites (`MC-H`), deletes `FrameModifier.swift`, and does not mention
+  `EnvironmentScope`.
+
+#### What the second pass did NOT establish
+
+- **SwiftUI's hover look on a disabled view.** `EV-T`'s hover half is a choice.
+- **Whether SwiftUI text measurement moves with `locale`.** E21 pins MetalUI's
+  inertness, not alignment.
+- **The suite, goldens and guards were not re-run**: nothing in `Sources/` or
+  `Tests/` changed since the first pass's baseline.
