@@ -21,17 +21,40 @@ Shipped:
   legacy path uses (`roundNativeStoredRects`, `LayoutTree.swift:786-792`).
 - A single root switch in `Frame.computeRootLayout` (`Frame.swift:1165-1184`).
 
-Not shipped:
-- The layout protocol and `LayoutContext`, and any type-erased algorithm: the
+Not shipped (as of `7cfcddc`; see the update below for what has since closed):
+- ~~The layout protocol and `LayoutContext`, and any type-erased algorithm: the
   kernel is a closed `private enum NativeNode` (`LayoutTree.swift:835`), so
-  nobody outside `MetalUILayout` can add a layout algorithm.
+  nobody outside `MetalUILayout` can add a layout algorithm.~~
 - A legacy compatibility root.
-- Input validation beyond the ratio and priority preconditions.
-- A recursion-depth guard, work counters, or `beginLayout`/`endLayout`
-  re-entrancy protection on the native path.
+- ~~Input validation beyond the ratio and priority preconditions.~~
+- ~~A recursion-depth guard, work counters, or `beginLayout`/`endLayout`
+  re-entrancy protection on the native path.~~
 - Baseline producers and consumers.
 - Any record of the mutation obligations in "Verification" below. No decisions
   doc exists for this milestone either.
+
+**Update 2026-09-14 (`feat/kernel-completion`, at `553b980`).** Task 2's
+completion, `specs/2026-09-14-native-kernel-completion-design.md`, **replaces
+this spec's "Kernel protocol and tree representation" and "Root and
+compatibility boundary" sections**. Its rulings are `SA-A`…`SA-U` in
+`docs/superpowers/2026-09-14-swiftui-alignment-decisions.md`, each with a
+mutation record, and its SwiftUI probes are under `docs/probes/`. Suite 1084
+tests, 97 goldens, 45 guards. Shipped since the list above:
+- **A layout protocol**, `ProposalLayout`, with measurement-only and placement
+  proxies, stored as a twelfth `NativeNode` case, `custom`; the eleven
+  built-ins stay cases (`SA-A`…`SA-F`). There is still no `LayoutContext`
+  parameter: a per-call `NativeLayoutRun` holds the cache, depth and counters.
+- **No compatibility root, by ruling.** Mixing now traps in every direction
+  and no adapter is built; the root switch is the boundary (`SA-G`).
+- **Validation** by `SA-J`'s rule, **a depth guard** of 88 native nodes
+  (`SA-L`), **work counters** (`SA-M`), and **one `isLayingOut` flag** for both
+  engines (`SA-I`).
+- **The mutation obligation** is recorded for task 2's completion's claims, not
+  for the earlier `a15ec83..7cfcddc` kernel (record §09).
+
+Still not shipped: a legacy compatibility root (ruled out, `SA-G`), baseline
+producers and consumers, and a compile-time check that a
+`ProposalElementGroup` conformer registers native nodes (plan task 3, `SA-R`).
 
 ## Purpose
 
@@ -69,6 +92,11 @@ prepaint or paint.
 > - `PaintPass.fill` gained `borderColor:`/`borderWidths:` (`Passes.swift:570-576`).
 > - `PaintPass.opacity` was added (`Passes.swift:579-584`).
 >
+> *Follow-up 2026-09-14 (`3c701a2`, ruling `SA-G`).* The next paragraph is
+> history: mixed trees are now rejected in **every** direction, and the
+> native-under-legacy reading below was confirmed by execution before the trap
+> replaced it (a native leaf in a `Column` measured never and stored 0×0).
+>
 > Mixed trees are rejected in one direction only. A native container given a
 > legacy child traps at registration (`LayoutTree.swift:379-385`, message
 > "native layout subtree contains a legacy node"). No test pins that trap. The
@@ -105,6 +133,16 @@ infinity, or an instruction to use intrinsic size; the child chooses its answer.
 `zero` and `infinity` are explicit proposals for containers that need to ask a
 child for its minimum and unconstrained responses. A finite proposal must be
 non-negative. An answer is always finite and non-negative.
+
+> *Superseded 2026-09-14 (`71c8b1c`, ruling `SA-J`).* Neither sentence is the
+> rule. A negative, zero or infinite proposal is **accepted**, as SwiftUI
+> accepts it (probe P6), and so is a negative answer where SwiftUI gives one
+> (a negative aspect ratio, `SA-K` item 2). The corollary instead: **a measurement
+> may be infinite, a stored rect may not, and nothing may be NaN**, enforced at
+> three checkpoints (a NaN proposal at `measureNative` entry, a NaN measurement
+> at its exit, a non-finite rect at `placeNative` entry). A parameter is
+> rejected at registration only if SwiftUI rejects it or it makes the node
+> non-finite at a proposal with no infinite axis.
 
 > *Superseded in practice, 2026-09-14 (at `7cfcddc`).* The value type matches
 > this sketch (`ProposedSize.swift:8-35`). The prose around it does not match
@@ -203,6 +241,16 @@ made selectable. Do not overload `Style.display` as a native layout switch.
 >   stores the ratio size even for a child that answered smaller
 >   (`LayoutTree.swift:495, 531-560`).
 
+> *Superseded again 2026-09-14 (`00a1e22` onward).* This section is replaced by
+> `specs/2026-09-14-native-kernel-completion-design.md`. A public
+> `ProposalLayout` protocol exists (`sizeThatFits(proposal:subviews:)`,
+> `placeSubviews(in:proposal:subviews:)`); its measurement proxies cannot
+> place, and each placed subtree is placed once after `placeSubviews` returns
+> (`SA-A`…`SA-F`). The `inout` dictionary became a per-call
+> `NativeLayoutRun`, which also carries the depth guard and work counters.
+> "Placement never changes a measurement and measurement never writes a rect"
+> is now enforced: `setLayout` traps during a measurement body (`SA-H`).
+
 ## Root and compatibility boundary
 
 `Frame.computeRootLayout` will select exactly one root authority:
@@ -246,6 +294,15 @@ have a compile-time replacement.
 > for a `Component` and a hand-written `Element` (`main.swift:907, 938`). The
 > "no mixed subtree path" rule is therefore enforced only for the built-in
 > constructors.
+>
+> *Follow-up 2026-09-14 (`3c701a2`, ruling `SA-G`; this section is replaced by
+> `specs/2026-09-14-native-kernel-completion-design.md`).* "No mixed subtree
+> path" is now enforced at run time in every direction: `newNode` traps on a
+> native child, every native registrar on a legacy child, `setStyle` on a
+> native node, and `computeLayout` on a native root, each pinned. A marker
+> conformer that registers a legacy node traps inside any proposal container;
+> its compile-time check is plan task 3's (`SA-R`). No adapter is built. The
+> native path now has a depth guard (`SA-L`) and holds `isLayingOut` (`SA-I`).
 >
 > The native path has no depth guard, and it does not set `isLayingOut`.
 > The measured width is recorded: `roundNativeStoredRects` stores each native

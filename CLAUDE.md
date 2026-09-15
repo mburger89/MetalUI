@@ -43,8 +43,9 @@ CLAUDE.md AGENTS.md` before committing.
   | `CS-`, `SI-`, `TX-`, `CL-`, `ST-`, `AP-`, `MP-`, `IN-`, `SZ-` | content sizing … sizing | **lettered** (`CS-A`…; `MP-L`…`MP-N` and `SZ-O` are real) |
   | `TB-`, `RX-`, `CO-` | tombstones (`TB-A`…`TB-AH`), reactivity (`RX-A`…`RX-R`), Component (`CO-A`…`CO-Z`, next is `CO-AA`) | lettered, two-letter tails are deliberate |
   | `AN-` | animation (`AN-A`…`AN-W`, next is `AN-X`) | lettered |
+  | `SA-` | SwiftUI alignment, native kernel completion (`SA-A`…`SA-U`, next is `SA-V`) | lettered |
 
-  A bare `CS-3`, `TB-3`, `CO-3`, `AN-3` etc. is a typo, not a citation. Sweep
+  A bare `CS-3`, `TB-3`, `CO-3`, `AN-3`, `SA-3` etc. is a typo, not a citation. Sweep
   for stray citations case-insensitively. The animation milestone (M4 spec 3,
   on `feat/animation`) is specced at
   `docs/superpowers/specs/2026-09-03-animation-design.md`, planned at
@@ -52,15 +53,22 @@ CLAUDE.md AGENTS.md` before committing.
   `docs/superpowers/2026-09-03-animation-decisions.md`. **Its `AN-` letters do
   NOT track its ledger's**, unlike `CO-A`…`CO-O`; that ledger lettered twice
   and half its rulings were about dispatch.
-- **SwiftUI alignment (in progress, `feat/review-fixes`):** plan
+- **SwiftUI alignment (in progress; task 2's completion on
+  `feat/kernel-completion`):** plan
   `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, inventory
   `docs/superpowers/2026-09-12-swiftui-layout-replacement-inventory.md`, specs
-  `specs/2026-09-12-native-layout-kernel-design.md` and
-  `specs/2026-09-12-typed-modifier-composition-design.md`. Both specs describe
-  types that were never built (`NativeLayoutEngine`, `LayoutContext`-threaded
-  algorithms, `ModifiedElement`/`ElementModifier`); **the source is the
-  authority**. No decisions doc, no ruling prefix, no mutation record yet.
-  Record: `docs/record/09-swiftui-alignment.md`.
+  `specs/2026-09-12-native-layout-kernel-design.md`,
+  `specs/2026-09-12-typed-modifier-composition-design.md` and
+  `specs/2026-09-14-native-kernel-completion-design.md`. The two 2026-09-12
+  specs describe types that were never built (`NativeLayoutEngine`,
+  `LayoutContext`-threaded algorithms, `ModifiedElement`/`ElementModifier`);
+  **the source is the authority**. Decisions doc (task 2's completion only,
+  with per-ruling mutation records):
+  `docs/superpowers/2026-09-14-swiftui-alignment-decisions.md`, prefix `SA-`.
+  SwiftUI probes: `docs/probes/`, their headers carry the recorded output and
+  how to run them (`SA-O`). The earlier range `a15ec83..7cfcddc` has no
+  decisions doc and no mutation record. Record:
+  `docs/record/09-swiftui-alignment.md`.
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests. Sixteen numbered shapes of test that cannot fail, seven ways a
   record goes wrong, all observed here.
@@ -80,18 +88,19 @@ swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout preview window (value must be exactly "1")
 ```
 
-- **Counts, dated:** **993 tests**, **97** browser-fixture goldens, **39**
+- **Counts, dated:** **1084 tests**, **97** browser-fixture goldens, **45**
   `swiftc -typecheck` guards, 0 `error:`, 0 `warning:` — measured 2026-09-14
-  on `feat/review-fixes` at `7cfcddc` (`swift test --no-parallel`, one summary
-  line). Delta from the 2026-09-11 reading (923 / 97 / 35 at `7f58db9`): **+70
-  tests, 0 goldens, +4 guards**, all from the SwiftUI-alignment commits
-  (`a15ec83..7cfcddc`): 70 added `@Test`s and none removed (18 in
-  `NativeLayoutTests`, 41 in `NativeLayoutIntegrationTests`, 3 in
-  `ProposedSizeTests`, 4 in `ComponentTests`, 4 in `ElementGroupTrapTests`), and `ElementGroupTrapTests` went
-  from 1 guard to 5 (the four `proposal…` constructor/overload guards). Guards
-  per file: `PhaseSeparationTests` 19, `ErasureCompileGuards` 10,
-  `ElementGroupTrapTests` 5, `UnitSafetyTests` 2 (3 hits, one a comment),
-  `AXNodeTests` 3. Earlier: 861 (47 + 448 + 50 + 6 + 288 + 22) on
+  on `feat/kernel-completion` at `553b980`, unfiltered `swift test
+  --no-parallel` after `swift build --build-system native` (one summary line;
+  only the two gated tests skipped; all six new guards logged `passed`).
+  Delta from `34e2841` (993 / 97 / 39, as at `7cfcddc`): **+91 tests, 0
+  goldens, +6 guards**,
+  all additions, from task 2's three lanes — protocol +17 (1010), boundaries
+  +22 (1032), robustness +52 (1084); record §09. Guards per file:
+  `PhaseSeparationTests` 19, `ErasureCompileGuards` 10,
+  `ElementGroupTrapTests` 5, `ProposalLayoutCompileGuards` 6,
+  `UnitSafetyTests` 2 (3 hits, one a comment), `AXNodeTests` 3. Before that:
+  923 / 97 / 35 at `7f58db9` (2026-09-11). Earlier: 861 (47 + 448 + 50 + 6 + 288 + 22) on
   `feat/animation` at `b869253`; `master` at the Component milestone's end was
   811 / 87 / 34. **The per-target split is no longer printed on this
   machine** — SwiftPM now emits ONE summary line for the whole run, not six.
@@ -111,14 +120,24 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout previe
   run by any golden, but they live in `LayoutTree.swift` and share its storage
   with the CSS engine — `newNode`, `reset(generation:)` (which now also clears
   `nativeNodes`) and `roundLayout` (`Rounding.swift`, called by both
-  `FlexEngine.swift` and `roundNativeStoredRects`) — so a proposal-path edit
-  there **can** move a golden; run the fixtures. The corpus has **no text
+  `FlexEngine.swift` and `roundNativeStoredRects`), plus the `SA-G`/`SA-I`
+  preconditions in `newNode`, `appendNode`, `setStyle`, `reset` and
+  `computeLayout` — so a proposal-path edit there **can** move a golden; run
+  the fixtures. The corpus has **no text
   fixture and must not gain one** (ruling TX-B).
 - **Guards:** count with per-file `grep -c canTypecheck` across
   `PhaseSeparationTests`, `ErasureCompileGuards`, `ElementGroupTrapTests`,
-  `MetalUICoreTests/UnitSafetyTests` (one hit is a comment) and
-  `MetalUITests/AXNodeTests`. `Tests/MetalUITestSupport/Typecheck.swift` also
-  matches and holds only the declaration — count guards, not files. Guards
+  `ProposalLayoutCompileGuards`, `MetalUICoreTests/UnitSafetyTests` (one hit
+  is a comment) and `MetalUITests/AXNodeTests`.
+  `Tests/MetalUITestSupport/Typecheck.swift` also matches and holds only the
+  declaration — count guards, not files. **Two helpers:** the 39 older guards
+  use `typecheck(_:importing:)`, which wraps the fixture in a function in
+  Swift 5 mode, so every fixture type is local and no `public` or file-scope
+  `extension` compiles; the six in `ProposalLayoutCompileGuards` use
+  `typecheckFile(_:importing:)` (whole file, `-swift-version 6`), pinned by
+  its own instrument guard `typecheckFileChecksInTheSwift6LanguageMode`. A
+  guard about what an **external module** can write uses `typecheckFile`
+  (`SA-P`). Guards
   skip silently whenever `.build/<triple>/debug/Modules` is not where
   `#filePath`-relative resolution expects (`--scratch-path`, `-c release`,
   moved checkout): the total does not move and the run passes.
@@ -455,7 +474,8 @@ transforms.
 ## SwiftUI alignment — the proposal layout path (in progress)
 
 The plan intends to replace the CSS engine; today a SwiftUI-style
-propose/measure/place engine and API sit **beside** it. Record §09.
+propose/measure/place engine and API sit **beside** it. Record §09; task 2's
+completion rulings are `SA-` (decisions doc above).
 
 **Two layout authorities, chosen by the window root alone.**
 `Frame.computeRootLayout` checks only `tree.isNativeLayoutNode(root)` (its doc
@@ -467,44 +487,98 @@ the root is stored at the full window
 root) and a root stack packs from the leading edge rather than centring
 (`hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt`: a 58pt
 `HStack` root in a 100pt window puts its trailing item at x = 28). The
-kernel is a private closed `NativeNode` enum (11 cases) in `LayoutTree.swift`
-— no algorithm protocol, no `LayoutContext`; the 11 public
-`LayoutPass.requestNative*` methods register a leaf or a built-in algorithm, so
-an external custom **container** has no migration path. Each native node also
-appends a `Style.default` row to the legacy arrays. The `(node, proposal)`
-measurement cache lives for one `computeNativeLayout` call, with no counters
-(work cannot be counted yet), no depth guard and no `isLayingOut`. Rounding is
-the legacy `roundLayout`, cumulative-edge.
+kernel is a private `NativeNode` enum in `LayoutTree.swift`: eleven built-in
+cases, which stay cases, plus `custom(any ProposalLayout)` (`SA-B`). Each
+native node still appends a placeholder `Style.default` row to the legacy
+arrays, through the private `appendNode`. Rounding is the legacy
+`roundLayout`, cumulative-edge.
 
-**No mixing — enforced in one direction only.**
-- Native parent, legacy child: rejected at compile time by `Content:
-  ProposalElementGroup` on every proposal container and wrapper (guards
-  `proposalLayoutConstructorsRequireProposalContent`,
-  `proposalOverlayAcceptsProposalContentAndRejectsLegacyContent`,
-  `proposalOnTapAcceptsProposalContentAndRejectsLegacyContent` — the fourth
-  new guard, `proposalTextSelectsProposalModifiersWithoutMakingLegacyTextAmbiguous`,
-  is positive-only and rejects nothing), with
-  a runtime backstop in `LayoutTree.nativeNode(_:)`: `preconditionFailure("native
-  layout subtree contains a legacy node")`, unpinned. The overlay's `overlay:`
-  argument has no negative guard.
-- `ProposalElementGroup` is a **public, requirement-free marker**: any type can
-  declare it (the demo does for `PreviewToggle`, `PriorityPreviewPanel`) and
-  then trap at registration if it registers legacy nodes. Single-child wrappers
-  (`ProposalFrame`, `Padding`, `Background`, `FixedSize`, `ModifiedContent`,
-  `.overlay` — primary and overlay each — and `.onTap`'s `OnTapModifier`,
-  `NativeTappable.swift:27`) precondition exactly one node, so
-  `ProposalFrame { if flag { … } }` traps when `flag` is false.
-  `ProposalScrollView` does not: zero children lower to an empty vertical
-  stack. `EitherGroup` does not conform (so `if/else`
-  inside a proposal stack is expected not to compile — unverified).
-- **Legacy parent, native child compiles and fails silently**: `Column {
-  HStack { … } }` — `newNode` checks nothing, and the CSS engine sees a
-  `Style.default` subtree (native containers pass their children to
-  `newNode`, `LayoutTree.swift:124`, `:250`) whose native leaves are
-  measure-less `Style.default` nodes, so by reading content contributes 0 and
-  only a stretching parent's cross axis gives it any size. No trap, test or
-  guard. Keep a window's tree all-proposal or
-  all-legacy.
+**`ProposalLayout` is the public algorithm protocol** (`SA-A`…`SA-F`):
+`sizeThatFits(proposal:subviews:)` and `placeSubviews(in:proposal:subviews:)`,
+`Sendable`, no cache. Register it with `newNativeLayout`/`requestNativeLayout`
+or `ProposalLayoutContainer(layout) { … }` (also `MyLayout { … }`).
+- **Measurement cannot place.** `MeasurementSubview` has no `place`, and no
+  proxy can be constructed publicly; both are compile-time. A stashed
+  `PlacementSubview` traps outside its own `placeSubviews` or during any
+  measurement body. Any proxy traps after its run ends.
+- **`place(at:anchor:proposal:)` only records.** After `placeSubviews`
+  returns, each subview is stored at its answer to the recorded proposal, and
+  its subtree is placed once, in index order. The last record wins. An unplaced
+  subview is centred at the parent's proposal.
+- **Proxies expose `priority`, `isSpacer` and a cached `sizeThatFits`**, each
+  by the built-in stack's own rule.
+- **Migration** (`SA-F`, under `SA-R`'s amended criterion):
+  - a leaf uses `requestNativeLeaf`;
+  - an algorithm uses `ProposalLayout`;
+  - a container with its own paint or input uses `requestGroupLayout` +
+    `requestNativeLayout`;
+  - a legacy root is unchanged, and nothing legacy is deprecated.
+- **Sufficiency.** The plain-import `ReferenceLinearStack` must match the
+  built-in stack's rects. It proves the **horizontal** path only (verifier
+  mutation F1).
+
+**One layout authority per root, no adapter** (`SA-G`). Each of these traps:
+- a native node under a legacy node;
+- a legacy node under a native registrar;
+- a `Style` written onto a native node (a legacy style modifier on a proposal
+  `Component` reaches this);
+- `computeLayout` on a native root.
+
+Migration is root by root. `ProposalElementGroup` stays a requirement-free
+marker: a conformer that registers a legacy node compiles, and traps inside
+any proposal container. Its compile-time check is plan task 3's (`SA-R`).
+Single-child proposal wrappers (`ProposalFrame`, `Padding`, `Background`,
+`FixedSize`, `ModifiedContent`, both `.overlay` slots, `OnTapModifier`)
+precondition exactly one node, so `ProposalFrame { if flag { … } }` traps when
+`flag` is false. `ProposalScrollView` lowers zero children to an empty stack.
+`EitherGroup` does not conform. The overlay's `overlay:` argument has no
+negative guard.
+
+**Invalidation** (`SA-H`, `SA-I`).
+- **The cache lives for one call.** It sits in a `NativeLayoutRun` for one
+  `computeNativeLayout` or `measureNativeLayout` call, so every frame
+  re-measures every native leaf. SwiftUI's memo survives passes; that
+  divergence is deliberate, and it reopens only with a work count.
+- **Answers are assumed pure.** A layout's answer must depend only on its
+  value, its proposal and its subviews' answers; nothing detects a violation.
+- **`setLayout` traps during a measurement body.** A rect written from
+  `placeSubviews` is not checked.
+- **One `isLayingOut` flag guards both engines; do not split it.** While either
+  engine runs, `setStyle`, every registration, `reset` and re-entry all trap.
+  `measureNativeLayout`'s bracket is unpinned.
+
+**Validation** (`SA-J`, `SA-K`).
+- **The rule.** Reject a parameter, with a `precondition` naming it, only if
+  SwiftUI rejects it (a diagnostic, a trap, a hang, or no spelling), or if it
+  would make the node non-finite at a proposal with no infinite axis.
+- **Accepted as SwiftUI accepts them:** negative spacing, negative padding
+  (the response clamps at 0 per axis), a negative frame minimum, a +∞ maximum,
+  a negative `minLength`, ±∞ priority, a negative ratio, and any non-NaN
+  proposal.
+- **Three checkpoints.** A measurement may be infinite, a stored rect may not,
+  and nothing may be NaN.
+- **The proposal frame is split** into SwiftUI's fixed and flexible spellings,
+  and combining them does not compile.
+- **Relaxing a trap into a clamp later is additive.** The reverse breaks
+  callers.
+
+**Depth guard** (`SA-L`). `NativeLayoutRun.maxDepth` is **88 native nodes**,
+one counter across measurement and placement. It is 0.60 of the smallest debug
+ceiling on a 1 MB thread, rounded down to a multiple of 8. It is not
+`LayoutContext.maxDepth` and claims no parity with it. Raise it only after
+re-bisecting all four node kinds.
+
+**Work counters** (`SA-M`). Count native work with the internal
+`LayoutTree.lastNativeLayoutWork` (`measureCalls`, `cacheHits`,
+`cacheMisses`, assigned per call). Use a branching tree, and compare against
+literals derived by hand before the run.
+
+**Unpinned sub-clauses, found by verifier mutations that stayed green** (record
+§09):
+- the `measureDepth` bracket around built-in bodies;
+- `measureNativeLayout`'s flag, active run and work record;
+- padding's right inset;
+- checkpoint 2's height and `lastBaseline`, and checkpoint 3's rect height.
 
 **Vocabulary.** Proposal types (`MetalUI`): `HStack`/`VStack(spacing: 8,
 alignment: .center)`, `ZStack`, `Spacer(minLength:)`, `Rectangle(color:)`
@@ -512,21 +586,24 @@ alignment: .center)`, `ZStack`, `Spacer(minLength:)`, `Rectangle(color:)`
 `ProposalFrame` (not `Frame`: `public final class Frame` exists), `Padding`,
 `Background`, `FixedSize`, `ProposalScrollView`, `ProposalText`. Modifiers on
 `extension ProposalElementGroup` return `ModifiedContent` over a closed
-`LayoutModifier` enum — `.frame(width:height:minWidth:idealWidth:maxWidth:…
-alignment:)`, `.padding(Edges<Pixels>)`, `.fixedSize`, `.background`,
+`LayoutModifier` enum — `.frame(width:height:alignment:)` and
+`.frame(minWidth:idealWidth:maxWidth:minHeight:idealHeight:maxHeight:alignment:)`,
+`.padding(Edges<Pixels>)`, `.fixedSize`, `.background`,
 `.clip(cornerRadius:)`, `.border`, `.opacity`, `.allowsHitTesting`,
 `.aspectRatio(_:contentMode:)`, `.layoutPriority` — plus `.overlay` and
-`.onTap(hoverColor:)`. Kernel types (`MetalUILayout`): `ProposedSize`,
-`LayoutMeasurement`, `ProposalAlignment` (nine), `ProposalStackAxis`,
-`AspectRatioContentMode`, `ProposalMeasureFunction`. **The `Native…` types
-and `native…` modifier methods are deprecated aliases** — 26
+`.onTap(hoverColor:)`; `ProposalLayoutContainer` carries a custom layout.
+Kernel types (`MetalUILayout`): `ProposedSize`, `LayoutMeasurement`,
+`ProposalAlignment` (nine), `ProposalStackAxis`, `AspectRatioContentMode`,
+`ProposalMeasureFunction`, `ProposalLayout` and its four proxy types. **The
+`Native…` types and `native…` modifier methods are deprecated aliases** — 26
 `@available(*, deprecated` hits: 17 typealiases (14 in `MetalUI`, 3 in
-`LayoutTree.swift:852-861`) and 9 methods — except `nativeFrame(...)`, a live
-undeprecated duplicate of `.frame` used by six test call sites; deprecating it
-breaks the 0-warning baseline. **The kernel's own `Native` names are not
-aliases and are not deprecated**: the 11 `LayoutPass.requestNative*`
-(`Passes.swift:60-129`), the 11 `LayoutTree.newNative*`, `computeNativeLayout`
-and `isNativeLayoutNode` (`LayoutTree.swift:110-285`) are the primary API. Shared spellings
+`LayoutTree.swift`) and 9 methods — except the two `nativeFrame(...)`
+overloads, live undeprecated duplicates of `.frame` used by six test call
+sites; deprecating them breaks the 0-warning baseline. **The kernel's own
+`Native` names are not aliases and are not deprecated**: the 12
+`LayoutPass.requestNative*`, the 12 `LayoutTree.newNative*` (each set
+including the custom-layout registrar), `computeNativeLayout` and
+`isNativeLayoutNode` are the primary API. Shared spellings
 resolve by receiver: `.frame(width:height:)` on a proposal value picks the
 proposal overload (`proposalLayoutFrameUsesTheTypedProposalWrapper`), on
 anything else `FrameModifier`; `.background(ColorToken)` exists on both
@@ -553,9 +630,12 @@ multiple direct children lower to a **vertical** stack at spacing 8 on either
 axis. `ScrollView` is unchanged and remains `List`'s only scroller. Divergence
 16 applies to `.onTap` inside a `ProposalScrollView` (by reading).
 
-**Probe-backed values.** SwiftUI macOS probes; **no probe source is saved in
-the repo** (prose in the plan and in test doc comments only), so none can be
-re-run, and most record no positive control.
+**Probe-backed values.** SwiftUI macOS probes. **The values in this list have
+no saved probe source** (prose in the plan and in test doc comments only), so
+none can be re-run, and most record no positive control. Task 2's completion
+committed two re-runnable probes, `docs/probes/swiftui-layout-protocol-contract.swift`
+and `…-input-validation.swift`, with positive controls; they back the `SA-`
+rulings above and `SA-N`'s findings below, not this list.
 - `HStack`/`VStack` default spacing 8 — a hard-coded constant, probed for one
   view pair (`hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt`,
   `vStack…`); `ProposalScrollView` direct children 8pt vertical on both axes
@@ -571,27 +651,36 @@ re-run, and most record no positive control.
   `hStackHonoursHigherLayoutPriorityBeforeCompressingItsSibling`,
   `hStackDividesAConstrainedProposalAmongEqualPriorityFlexibleChildren`).
 - `Spacer(minLength:)` is a floor even when the stack overflows
-  (`spacerMinimumLengthSurvivesAConstrainedStackProposal`); `nil` means 0,
-  unpinned and unprobed.
+  (`spacerMinimumLengthSurvivesAConstrainedStackProposal`).
 - `.aspectRatio` fit/fill at 100×80 on 2:1 → 100×50 / 160×80
   (`aspectRatioFitInscribesTheParentProposalBeforeMeasuringItsChild`, `…Fill…`);
-  single-axis and unspecified branches unpinned.
+  the two-axis branch at zero and negative axes is probed (P8c) and pinned
+  (`aspectRatioUsesSwiftUIsBranchAtZeroAndNegativeProposalAxes`); the
+  single-axis branch is unpinned.
+
+**Probed, and the kernel disagrees** (`SA-N`; owned by later tasks):
+- a finite-`maxWidth` frame grows to the proposal in SwiftUI: min 40 / max 80
+  at 100 around a 20pt child answers 80, the kernel 40
+  (`aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum`; task 4);
+- `Spacer()` has an 8pt default minimum between two views; the kernel's `nil`
+  is 0 (task 6);
+- `aspectRatio` at nil×nil answers the child's own size; the kernel's
+  intrinsic branch does not (task 7);
+- padding places its child at the child's own size; the kernel stores bounds
+  minus insets, pinned wrong on purpose (task 5);
+- a single-child stack passes its child's priority through (task 6);
+- argument-less `.frame()` compiles; SwiftUI deprecates it (task 4).
 
 **Unprobed kernel behaviour that fails silently** (by reading):
-- Only a type-recognised `Spacer` (bare or under one `.layoutPriority`) takes
+- Only a type-recognised `Spacer` (bare or under any depth of `.layoutPriority`) takes
   surplus: two `Color`s in a 100pt `HStack` are 10pt each, `.frame(maxWidth:
   .infinity)` in a stack does not expand (stack children get a nil main
   offer), a padded or framed `Spacer` loses its flexibility, and a stack with
   any spacer never compresses. A `Spacer` also claims the proposed cross axis.
-- A frame fills its offer only when `max == .infinity`; min 40 / max 80 at
-  100 around a 20pt child reports 40
-  (`aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum`).
 - A stack measures children at a nil main axis but places them at their
   allocations, so wrapping text can outgrow the height the stack reported.
-- No input validation: NaN or negative proposals, min > max, fixed plus
-  min/max (fixed wins), negative spacing or insets all pass; only
-  `.aspectRatio` and `.layoutPriority` precondition, and `.opacity` out of
-  0…1 traps at **paint**.
+- `.opacity` out of 0…1 traps at **paint**, not at registration (outside
+  `SA-J`'s scope).
 - **`OverlayModifier` starts the primary's and the overlay's cursors both at 0
   under one id**, so their first elements share a `GlobalElementID`: hover,
   press/release dispatch, `@State` slots and `ScrollState` are shared across
@@ -725,7 +814,7 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 | `ProposedSize.zero` / `.infinity` | no container ever proposes them; nothing asks a child for its minimum or maximum |
 | `.allowsHitTesting(false)` over a scroller | gates click hitboxes only; a `ScrollView`/`ProposalScrollView` inside still scrolls and still wins topmost-opaque |
 | `GlyphAtlas.evictUnusedSince`, `LayoutTree.reset(generation:)` | zero callers; guards kept for whoever calls them |
-| `Frame.scrollRegions` / `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount` | test observables with no production reader |
+| `Frame.scrollRegions` / `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount`, `LayoutTree.lastNativeLayoutWork` | test observables with no production reader |
 | `AXNode.children`, `AXNode.logicalCount`, `Frame.axNodes`/`axNode(for:)` | always empty / one writer no reader / built before the M4 bridge exists; `axNode(for:)` validity lags one frame |
 
 ## Performance — the numbers to reason from
@@ -753,7 +842,9 @@ pre-`f1944f8` `demoContent()`**; each demo list row's `.padding` now adds a
 registering `Box` (and a `$anim` entry) per built row, so they are stale by an
 unmeasured amount. (Divergence 18's `2n + 7` is unaffected: it was measured on
 the `demoLikeRows(_:)` fixture, which has no `.padding`; only its extrapolation
-to the demo is stale.) The proposal engine has no timing or work counts at all.
+to the demo is stale.) The proposal engine has no timing. Count its work with
+`LayoutTree.lastNativeLayoutWork` (`SA-M`): on the branching tree in
+`NativeLayoutWorkTests.swift` one call is 16 measure calls, 27 hits, 25 misses.
 The
 cold first frame builds every `List` row: ~76 ms release / ~188 ms debug at
 500, ~17 s release at 100k — M3's "100k scrolls smoothly" is met for scrolling
@@ -773,7 +864,7 @@ has the mechanisms.
 - **Every typecheck guard skips when `.build` is not where `#filePath`
   resolution expects** — and that includes **the default build system**.
   `swiftbuild` writes modules flat into `.build/out/Products/Debug/` with no
-  `Modules` directory, so under it alone **all 39 guards skip**, the total does
+  `Modules` directory, so under it alone **all 45 guards skip**, the total does
   not move and the run passes. `--build-system native` writes
   `.build/<triple>/debug/Modules`, **and that directory survives**: once a
   checkout has ever been built that way the guards run under the default system

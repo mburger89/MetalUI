@@ -3,7 +3,19 @@
 **Milestone:** SwiftUI replacement task 2, the part still open at `34e2841`
 (`plans/2026-09-12-swiftui-alignment.md`, task 2's "Not done" list).
 
-**Status (2026-09-14):** design only. Written against `34e2841` on
+**Status (2026-09-14, at `553b980`): implemented.** All three lanes landed on
+`feat/kernel-completion` — protocol `00a1e22`, boundaries `3c701a2`,
+robustness `71c8b1c` — each red first, with its mutation record in the
+decisions doc and an independent verifier's re-run in record §09 ("Kernel
+completion (task 2)"). Suite 1084 tests, 97 goldens unmoved, 45 guards, 0
+`error:` / 0 `warning:`. Plan task 2 is ticked, item (e) under `SA-R`'s
+amended criterion and item (c)'s adapter ruled out (`SA-G`). The three "Docs
+owed" lists below are delivered by the docs pass that wrote this line. Where the
+lanes' tests differ from the text below, `SA-T` and `SA-U` say how; the green
+mutations the verifiers found are listed in record §09 and under `SA-B`,
+`SA-C`, `SA-I`, `SA-J` and `SA-M`.
+
+*Original status line:* design only. Written against `34e2841` on
 `feat/kernel-completion`. No source has changed. Rulings are prefixed **`SA-`**
 and lettered, in `docs/superpowers/2026-09-14-swiftui-alignment-decisions.md`.
 A bare `SA-3` is a typo, not a citation.

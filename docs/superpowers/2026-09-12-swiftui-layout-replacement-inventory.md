@@ -135,8 +135,31 @@ The root switch reads only the root. Every native node still also occupies a
 
 *2026-09-14 (at `7cfcddc`).* How these invariants hold in the source:
 
-- **One authority per rendered subtree.** This holds only where the root is
-  native, and it is not enforced both ways.
+- *Rewritten 2026-09-14 (`3c701a2`, ruling `SA-G`).* **One authority per
+  rendered subtree.** This holds, and is enforced at run time in every
+  direction. There is still no adapter or compatibility boundary below the
+  root; the root switch is the boundary, by ruling.
+  - A native node under a legacy node traps in `newNode`
+    (`aNativeNodeRegisteredUnderALegacyNodeTraps`,
+    `aProposalElementInsideALegacyContainerTrapsAtRegistration`).
+  - A legacy node under any native registrar traps, custom layouts included
+    (`aLegacyNodeRegisteredUnderANativeStackTraps`,
+    `aLegacyNodeRegisteredUnderACustomLayoutTraps`).
+  - A `Style` written onto a native node traps
+    (`aStyleWrittenOntoANativeNodeTraps`,
+    `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`), and so does
+    `computeLayout` on a native root (`computeLayoutRejectsANativeRoot`).
+  - Built-in legacy content is still rejected at compile time by the
+    `Content: ProposalElementGroup` constraints, now including
+    `ProposalLayoutContainer` and `callAsFunction`. The overlay side still has
+    no negative case.
+  - `ProposalElementGroup` still has no requirements. A lying conformer traps
+    at registration
+    (`aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`).
+    The compile-time check is plan task 3's (`SA-R`).
+
+  *As written at `7cfcddc`, now history:* this held only where the root was
+  native, and it was not enforced both ways.
   - A native container traps on a legacy child at registration
     (`LayoutTree.swift:379-385`). No test pins that trap.
   - Built-in legacy content is rejected at compile time by the
@@ -162,7 +185,8 @@ The root switch reads only the root. Every native node still also occupies a
   (`LayoutTree.swift:495`).
 - **The measurement cache is frame-local and retains no ids across frames.**
   This holds, and the cache is narrower than that: it lives for one
-  `computeNativeLayout` call (`LayoutTree.swift:275-282`).
+  `computeNativeLayout` call (`LayoutTree.swift:275-282`). *2026-09-14:* this is
+  now a written, pinned contract (`SA-H`, `NativeInvalidationContractTests.swift`).
 - **Every replacement container has a SwiftUI probe.** Not yet: no probe source
   is versioned in the repository. Probe results exist only as prose in the
   plan and in test doc comments.
@@ -186,6 +210,7 @@ The root switch reads only the root. Every native node still also occupies a
    registration API and the per-call cache exist. The layout-algorithm
    interface, which this step names, does not: the kernel is a closed
    `private enum`, listed under the kernel spec's "Not shipped".
+   *Done 2026-09-14 (`00a1e22`):* the interface is `ProposalLayout` (`SA-A`).
 2. Done. The single root switch and the overlay proof exist.
 3. Partly done, on the proposal path only (`ModifiedContent`), and not as the
    protocol-based design in the typed-modifier spec. "Preserve identity" is
@@ -219,7 +244,29 @@ The compile-time migration story is written nowhere. As it stands in the
 source:
 - Custom leaves can migrate, through `requestNativeLeaf` and a marker
   conformance.
-- Custom containers cannot.
+- ~~Custom containers cannot.~~ *Struck 2026-09-14 (`00a1e22`): they can,
+  through `ProposalLayout`.*
 - Nothing checks that a marker conformer registers native nodes.
+  *2026-09-14, ruling `SA-R`:* this criterion is **amended, not met**. The
+  migration story is compile-checked for every spelling an external module
+  writes. A marker conformer that registers a legacy node remains a
+  **run-time trap**, pinned by lane 2
+  (`aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`).
+  The compile-time check moves to plan task 3's open proofs.
 
 Task 2 therefore stays open.
+
+*2026-09-14 (`feat/kernel-completion`, at `553b980`).* **The migration story
+for external custom elements**
+(`specs/2026-09-14-native-kernel-completion-design.md`, ruling `SA-F`):
+
+| an outside module wants | it uses | compile-checked by |
+|---|---|---|
+| a leaf | `requestNativeLeaf` + `ProposalElementGroup` conformance | `anExternalModuleCanBuildACustomLeafAndContainerFromPublicAPI` |
+| an algorithm | a `ProposalLayout` conformer, used as `MyLayout { … }` or `ProposalLayoutContainer(MyLayout()) { … }` | the same guard; `aCustomLayoutContainerRejectsLegacyContent`; `aMeasurementSubviewCannotBePlaced`; `subviewProxiesCannotBeConstructedOutsideTheKernel` |
+| a container with its own paint or input | `requestGroupLayout` + `LayoutPass.requestNativeLayout` | `anExternalModuleCanBuildACustomLeafAndContainerFromPublicAPI` |
+| a legacy root | unchanged; `requestNode`/`requestLeaf` are not deprecated | — |
+
+All six guards typecheck a whole file at file scope in Swift 6 mode
+(`typecheckFile`). Under `SA-R`'s amended criterion, the plan's task 2 is
+closed.

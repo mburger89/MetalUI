@@ -29,6 +29,12 @@ Every probe figure below survives only as a sentence here or in a test doc
 comment, so none can be re-run. Most record no positive control. The same
 range left no decisions doc and no mutation record for this milestone.
 
+*Later on 2026-09-14 (task 2's completion):* two probes are committed, with
+positive controls, under `docs/probes/`, and
+`../2026-09-14-swiftui-alignment-decisions.md` (prefix `SA-`) records their
+use and each ruling's mutations. They cover task 2's claims only; the figures
+recorded as sentences for `a15ec83..7cfcddc` still have no source.
+
 ## Sequenced work
 
 - [x] **1. Publish the replacement contract and CSS-debt inventory.**
@@ -42,30 +48,71 @@ range left no decisions doc and no mutation record for this milestone.
   counterpart (for example, margin). The baseline inventory is
   [`2026-09-12-swiftui-layout-replacement-inventory.md`](../2026-09-12-swiftui-layout-replacement-inventory.md).
 
-- [ ] **2. Build the native layout kernel.**
+- [x] **2. Build the native layout kernel.**
   Replace CSS `Style` resolution and flex/grid placement with a layout protocol
   that receives a size proposal, measures a child response, caches the result
   for the frame, and places children in a resolved bounds rectangle. Establish
   the tree, invalidation, measurement cache, coordinate-space and pixel-rounding
   contracts before migrating public elements. Keep a temporary adapter only at
   the old engine boundary, never as the new layout authority.
-  *Progress 2026-09-14 (at `7cfcddc`), still open.*
-  - **Done:**
+  *Progress 2026-09-14 (at `7cfcddc`).*
+  - **Done then:**
     - `ProposedSize`/`LayoutMeasurement`.
     - The per-call `(node, proposal)` cache.
     - Root-absolute placement.
     - Stored-rect rounding.
     - One root switch (`Frame.swift:1166`).
     - Eleven public `LayoutPass.requestNative*` registrars.
-  - **Not done:**
-    - A layout *protocol*. The kernel is a closed `private enum NativeNode`,
-      so no caller can add an algorithm.
-    - An invalidation contract.
-    - Any adapter. Native-under-legacy is not even rejected
-      (`LayoutTree.swift:89-90`).
-    - Validation, a depth guard, and work counters on the native path.
-    - The inventory's "compile-time migration story for external custom
-      elements".
+
+  *Closed 2026-09-14 on `feat/kernel-completion` (`3bb1ca1..553b980`).* Spec
+  `specs/2026-09-14-native-kernel-completion-design.md`; rulings `SA-A`…`SA-U`
+  in `../2026-09-14-swiftui-alignment-decisions.md`, each with a mutation
+  record; probes in `docs/probes/`; record §09, "Kernel completion (task 2)".
+  Each lane was written red first and its mutations re-run by an independent
+  verifier. Suite 1084 tests (993 + 17 + 22 + 52), 97 goldens unmoved, 45
+  guards (39 + 5 + 1), 0 `error:` / 0 `warning:`, re-taken at `553b980`.
+  What was "Not done", item by item:
+  - **A layout protocol — done** (`00a1e22`, lane 1, `SA-A`…`SA-F`).
+    `ProposalLayout`, measurement proxies that cannot place, the `custom` node
+    kind, `LayoutPass.requestNativeLayout`, `ProposalLayoutContainer` and
+    `callAsFunction`. The eleven built-ins stay enum cases (`SA-B`).
+  - **An invalidation contract — done** (`3c701a2`, lane 2, `SA-H`, `SA-I`).
+    A cache per call and nothing surviving it; measurement never writes a rect;
+    one `isLayingOut` flag for both engines, with registration, reset and
+    re-entry trapping. It deliberately diverges from SwiftUI's cross-pass memo.
+  - **Any adapter; native-under-legacy not rejected — the rejection is done,
+    and "(c) an adapter" is ruled out, not built** (`3c701a2`, `SA-G`). Mixing
+    traps in every direction. The root switch is the task's "old engine
+    boundary", and no adapter was needed there.
+  - **Validation, a depth guard and work counters — done** (`71c8b1c`, lane 3,
+    `SA-J`…`SA-M`). Validation rejects only what SwiftUI rejects or what goes
+    non-finite. `maxDepth` is 88 native nodes. `lastNativeLayoutWork` is
+    counted on a branching tree.
+  - **The migration story for external custom elements — done under `SA-R`'s
+    amended criterion** (`00a1e22`, lane 1). It is compile-checked for every
+    spelling an external module writes (six file-scope, Swift 6 guards). A
+    `ProposalElementGroup` conformer that registers a legacy node is a
+    run-time trap, not a compile error; that check moves to task 3's open
+    proofs.
+
+  **Carried, not blocking.** These are coverage gaps that verifiers found by
+  mutations that stayed green; each is listed in record §09:
+  - the reference stack compares the horizontal path only;
+  - the `measureDepth` bracket around built-in bodies;
+  - `measureNativeLayout`'s flag, active-run and work-record assignments;
+  - padding's right-inset term;
+  - checkpoint 2's height and `lastBaseline`, and checkpoint 3's rect height.
+
+  **Owned by later tasks** (`SA-N`):
+  - a finite-`maxWidth` frame grows to its proposal, and argument-less
+    `.frame()` is deprecated in SwiftUI (task 4);
+  - padding places its child at the child's size (task 5);
+  - `Spacer()`'s 8pt default minimum, and a single-child stack passing its
+    child's priority through (task 6);
+  - `aspectRatio` at nil×nil (task 7).
+
+  Not in this task: replacing `Style` resolution and the legacy engine
+  (task 7).
 
 - [ ] **3. Build a typed modifier-composition foundation.**
   Introduce a modifier wrapper representation that can nest without forcing
@@ -84,6 +131,14 @@ range left no decisions doc and no mutation record for this milestone.
   - No test checks once-per-phase delegation.
   - `OverlayModifier` gives its primary element and its overlay element the
     same id, by reading of `NativeOverlayModifier.swift:28-33`.
+  - *Added 2026-09-14 (`SA-R`).* Nothing checks **at compile time** that a
+    `ProposalElementGroup` conformer registers native nodes. Task 2 closed its
+    migration story under an amended criterion. Today a lying conformer traps
+    at registration, pinned by
+    `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`
+    and `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`. `SA-R`
+    sketches the compile-time mechanism, unmeasured: a typed native node id
+    with no public initializer, returned by a new requirement.
 
   See the typed-modifier spec's Status.
 
@@ -478,6 +533,9 @@ derived from source and not executed.
   - no cache work counters, so no count-the-work performance test is possible
     yet;
   - no input validation beyond the ratio and priority preconditions.
+
+  *Closed 2026-09-14 (task 2, `feat/kernel-completion`):* all four now exist
+  (`SA-I`, `SA-J`, `SA-L`, `SA-M`); see task 2's entry.
 - *Added 2026-09-14.* Overlay identity hazard. `OverlayModifier.requestLayout`
   starts two independent cursors at 0 under one id
   (`NativeOverlayModifier.swift:28-33`), and each group's element takes

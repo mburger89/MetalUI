@@ -22,6 +22,14 @@ stale" below.
 - a mutation record. The kernel spec's Verification section says "Record the
   named tests that fail". No such record exists for any kernel claim.
 
+*2026-09-14, later the same day:* task 2's completion on
+`feat/kernel-completion` (`3bb1ca1..553b980`) supplies all three for its own
+work: `docs/superpowers/2026-09-14-swiftui-alignment-decisions.md` (prefix
+`SA-`), two committed probes under `docs/probes/`, and per-ruling mutation
+records. It does not retrofit them onto `a15ec83..7cfcddc`, whose pins below
+stay unmutated except where a task-2 mutation happened to redden one. See
+"Kernel completion (task 2)" at the end of this file.
+
 Everything this file calls **pinned** is pinned by a named test that exists and
 passed in the orchestrator's run. **None of those pins has been
 mutation-tested**, so "pinned" means "asserted", not "proven able to fail"
@@ -135,6 +143,13 @@ exit item, "a compile-time migration story for external custom elements", has
 no answer yet. The legacy `requestNode`/`requestLeaf` (`Passes.swift:32`, `:49`)
 are not deprecated, which follows the inventory's own ordering.
 
+> *Corrected 2026-09-14 (`00a1e22`).* Users can now add algorithms:
+> `ProposalLayout` is public, registered by `newNativeLayout` /
+> `requestNativeLayout` / `ProposalLayoutContainer`, and stored as the enum's
+> twelfth case, `custom`. The eleven built-ins stay cases (`SA-B`). The
+> migration story exists under `SA-R`'s amended criterion. "Kernel completion
+> (task 2)", lane 1.
+
 **The root switch is one `if`, on the root alone** (`Frame.swift:1165-1184`).
 `computeRootLayout` asks `tree.isNativeLayoutNode(root)`:
 
@@ -182,6 +197,13 @@ Placement re-asks `measureNative` and hits the cache. Pins:
 **The practices rule "performance tests count work, never wall clock" cannot
 yet be applied to this engine**, because it exposes no work to count.
 
+> *Closed 2026-09-14 (`71c8b1c`).* `LayoutTree.lastNativeLayoutWork` counts
+> measure calls, cache hits and misses per call (`SA-M`), pinned by
+> `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` (16 / 27 / 25,
+> derived by hand) and `nativeLayoutWorkIsPerCall`. The one-call cache
+> lifetime is now pinned too (`aSecondComputeNativeLayoutCallReMeasuresEveryLeaf`,
+> `SA-H`).
+
 **Rounding reuses the legacy engine's function in the legacy engine's order**
 (`a4ace1e`). `roundNativeStoredRects` (`:786-792`) matches `FlexEngine.swift`'s
 `roundStoredRects` line for line: `setMeasuredWidth` with the pre-rounding
@@ -202,6 +224,13 @@ it** (see §7).
   `minLength` or negative insets. A NaN proposal misses the cache every time,
   because it is unequal to itself. Only the ratio and the priority have
   preconditions (`:206`, `:220`).
+  *Closed 2026-09-14 (`71c8b1c`), under a different rule from the spec's:*
+  `SA-J` rejects only what SwiftUI rejects or what goes non-finite at a
+  proposal with no infinite axis, so negative spacing, padding, minimum,
+  `minLength`, ratio and proposals are **accepted**, as SwiftUI accepts them;
+  NaN is rejected at three checkpoints; fixed plus flexible no longer
+  compiles. Pinned by `NativeValidationTrapTests.swift` (35) and
+  `NativeValidationAcceptanceTests.swift` (9).
 - **No depth guard.** The legacy engine has `LayoutContext`'s `maxDepth` 64.
   Here `measureNative`, `placeNative` and `roundNativeStoredRects` recurse with
   no equivalent. Depth grows with nesting and with chains of the five
@@ -211,9 +240,20 @@ it** (see §7).
   and `.onTap` returns its child's (`NativeTappable.swift:28`), so those add no
   depth. Cycles cannot be built, because a child always
   has a lower index and `LayoutNodeID.init` is internal.
+  *Closed 2026-09-14 (`71c8b1c`):* `NativeLayoutRun.maxDepth` = 88 native
+  nodes, one counter across `measureNative` and `placeNative` (`SA-L`), pinned
+  by the four tests in `NativeDepthGuardTests.swift`. `roundNativeStoredRects`
+  is not entered in it; by reading it walks only a tree that placement, which is
+  guarded, already walked to the same depth.
 - **No re-entrancy guard.** `computeNativeLayout` never calls
   `beginLayout`/`endLayout`, so `isLayingOut` stays false throughout. Its
   `setStyle` precondition therefore cannot fire during native layout.
+  *Corrected 2026-09-14 (`3c701a2`):* both native entry points now hold the one
+  `isLayingOut` flag (`SA-I`), and registration, `reset` and a rect write from
+  measurement trap too. Before that change a re-entrant `computeNativeLayout`
+  did not merely skip a check: its red run died with an empty stderr, the
+  recursion exhausting the stack
+  (`computeNativeLayoutReenteredFromAMeasureClosureTraps`).
 - **`ProposedSize.zero` and `.infinity` have no production caller.** No
   container asks a child for its minimum or maximum response, although both
   constants' doc comments say that is what they are for.
@@ -832,6 +872,15 @@ control. The table quotes what was written, not what was verified.
   that size (§6);
 - whether `.opacity(0)` still hit-tests.
 
+*2026-09-14 (task 2's probes, `SA-N`).* Three of these are now probed, and
+**all three disagree with the kernel**: a finite `maxWidth` frame **grows** to
+the proposal (80, not 40); `Spacer()` has an **8pt** default minimum between two
+views; and (§6's neighbour) `aspectRatio` at nil×nil answers the child's own
+size. Also carried: padding places its child at the child's own size; a
+single-child stack passes its child's priority through; `.frame()` with no
+argument is deprecated in SwiftUI. Owners: plan tasks 4–7. Whether a root is
+centred and whether `.opacity(0)` hit-tests stay unprobed.
+
 ### Hazards this range introduced, in one place
 
 Each is described above, where its mechanism is. They are gathered here so none
@@ -848,6 +897,12 @@ is missed. **All are by reading unless marked.**
    runs. There is no trap, no diagnostic, no test and no guard. The kernel spec
    says "There is no mixed subtree path", and the inventory says mixing "is
    prohibited". That holds in one direction only.
+   **Closed 2026-09-14 (`3c701a2`, `SA-G`).** Confirmed by execution first (a
+   native leaf in a `Column` at 140×90: closure calls 0, bounds 0×0 at x = 70),
+   then made a trap in every direction: `aNativeNodeRegisteredUnderALegacyNodeTraps`,
+   `aProposalElementInsideALegacyContainerTrapsAtRegistration`,
+   `computeLayoutRejectsANativeRoot`, `aStyleWrittenOntoANativeNodeTraps`,
+   `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`. No adapter.
 2. **The marker protocol is opt-in and unchecked.** Any type can declare
    `ProposalElementGroup`; the demo does, for a `Component` and a custom leaf. A
    legacy-content type that declares it compiles inside `HStack` and traps at
@@ -860,6 +915,13 @@ is missed. **All are by reading unless marked.**
    node in each slot, `NativeOverlayModifier.swift:34`). The guards cover built-in constructors
    with legacy *content*. `OverlayModifier`'s `overlay:` argument has no
    negative probe.
+   *2026-09-14 (`3c701a2`):* the registration trap is now pinned
+   (`aLegacyNodeRegisteredUnderANativeStackTraps`,
+   `aLegacyNodeRegisteredUnderACustomLayoutTraps`,
+   `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`).
+   The marker stays opt-in and unchecked at compile time; that check is plan
+   task 3's (`SA-R`). The single-node wrapper traps and the overlay's
+   `overlay:` probe are unchanged.
 3. **`OverlayModifier` gives its primary and its overlay the same child id.** It
    calls `requestGroupLayout(under: id, …)` twice, with two cursors that both
    start at 0 (`NativeOverlayModifier.swift:28-33`), so both first elements are
@@ -949,7 +1011,13 @@ The plan's checklist has **task 1 ticked and tasks 2–15 unticked**, and that i
 accurate: every slice above is migration evidence on a **parallel** API, and
 none completes a task.
 
-- **Task 2 (kernel):** not done:
+*2026-09-14, later:* task 2 is now ticked, on `feat/kernel-completion`, by the
+work recorded in "Kernel completion (task 2)" below; tasks 3–15 stay
+unticked.
+
+- **Task 2 (kernel):** not done at `7cfcddc` (*closed 2026-09-14; see
+  "Kernel completion (task 2)" below for what was delivered and what was
+  amended or ruled out*):
   - a layout *protocol* (it is a private enum);
   - an invalidation contract (the cache is per call);
   - a compatibility adapter (mixing is unsupported both ways and unrejected one
@@ -978,11 +1046,303 @@ none completes a task.
 
 **Owed before this work is cited as done:**
 
-- a decisions doc with a ruling prefix;
-- committed, re-runnable SwiftUI probes, each with a positive control;
-- a mutation pass over the kernel that names the tests it reddens;
+- a decisions doc with a ruling prefix (*task 2's completion has one, `SA-`;
+  this range's own rulings still have none*);
+- committed, re-runnable SwiftUI probes, each with a positive control (*two
+  exist for task 2's claims; this range's recorded probe sentences still have
+  no source*);
+- a mutation pass over the kernel that names the tests it reddens (*done for
+  task 2's claims only*);
 - `FrameModifier` arms in the five per-conformer and per-site guards;
 - a positive `.onTap` dispatch test;
-- a test for the overlay id collision, and for the native-under-legacy
-  direction;
+- a test for the overlay id collision (*the native-under-legacy direction
+  now has its traps, 2026-09-14*);
 - a human look at both the default demo and the preview.
+
+---
+
+## Kernel completion (task 2) — `feat/kernel-completion`, 2026-09-14
+
+**The record for `3bb1ca1..553b980`: task 2's "Not done" list closed in three
+lanes, each written red first, implemented, then mutation-tested by the
+implementer and again by an independent verifier in a detached `git worktree`.**
+Spec `docs/superpowers/specs/2026-09-14-native-kernel-completion-design.md`;
+rulings `SA-A`…`SA-U` in
+`docs/superpowers/2026-09-14-swiftui-alignment-decisions.md` (next unused
+`SA-V`), whose "Mutations" lines are the implementers' runs. This section adds
+the verifiers' independent runs, including every mutation that stayed green.
+Unlike the section above, **this work was measured by running code**.
+
+### Commits
+
+| commit | what |
+|---|---|
+| `3bb1ca1`, `334f5ff` | the design and its third pass after a critic's review (`SA-S`); both probes committed |
+| `3130acc` | refactor: a `NativeLayoutRun` threaded through the kernel instead of an `inout` cache |
+| `a5eeecd` → `d7a9022` | red, then fix: `nativeLayoutPriority` looks through overlay attachments (`SA-D`) |
+| `db6837e` → `00a1e22` → `e90e4dc` | lane 1, protocol: skeleton + red tests, implementation, mutation record |
+| `18a4331` → `3c701a2` → `8e3cb8f` | lane 2, boundaries: red tests, implementation, mutation record |
+| `408dfc3` → `71c8b1c` → `553b980` | lane 3, robustness: red tests, implementation, mutation record |
+
+### Counts
+
+| | `34e2841` | `e90e4dc` (lane 1) | `8e3cb8f` (lane 2) | `553b980` (lane 3) |
+|---|---|---|---|---|
+| tests | 993 | 1010 (+17) | 1032 (+22) | **1084** (+52) |
+| goldens | 97 | 97 | 97 | **97** |
+| typecheck guards | 39 | 44 | 44 | **45** |
+| `error:` / `warning:` | 0 / 0 | 0 / 0 | 0 / 0 | **0 / 0** |
+
+Each lane's figure was read from an unfiltered `swift test --no-parallel` by
+its verifier. The last column was **re-taken for this record** at `553b980`,
+after `swift build --build-system native`: `Test run with 1084 tests in 1
+suite passed after 23.370 seconds`, 0 `error:` / 0 `warning:` in the build
+and test logs, only `regenerateAllGoldens` and
+`aListsWorkIsTheSameFor100kRowsAsFor500` skipped, all six
+`ProposalLayoutCompileGuards` logged `passed`. `git diff --stat 34e2841 --
+'*.json'` is empty. Guards per file: 19 `PhaseSeparationTests`, 10
+`ErasureCompileGuards`, 5 `ElementGroupTrapTests`, **6
+`ProposalLayoutCompileGuards`**, 2 `UnitSafetyTests` (3 hits), 3
+`AXNodeTests`. **The guard count's ninth and tenth moves**, 39 → 44 → 45, both
+in one new file, and each landed with its lane's red tests, before the
+implementation it guards.
+All six use the new `typecheckFile(_:importing:)` (whole file, `-swift-version
+6`); the older 39 use the function-wrapped Swift 5 `typecheck(_:importing:)`,
+which cannot compile a file-scope `public` declaration (`SA-P`).
+
+New tests by file (`git diff` of `@Test` lines, none removed):
+
+| lane | file | tests |
+|---|---|---|
+| 1 | `MetalUILayoutTests/ProposalLayoutTests.swift` (+ test-only `ReferenceLinearStack.swift`) | 10 |
+| 1 | `MetalUILayoutTests/NativeLayoutTests.swift` (`aLinearStackReadsPriorityThroughAnOverlayAttachment`) | 1 |
+| 1 | `MetalUITests/ProposalLayoutIntegrationTests.swift` | 1 |
+| 1 | `MetalUITests/ProposalLayoutCompileGuards.swift` | 5 guards |
+| 2 | `MetalUILayoutTests/NativeBoundaryTrapTests.swift` | 14 |
+| 2 | `MetalUILayoutTests/NativeInvalidationContractTests.swift` | 5 |
+| 2 | `MetalUITests/NativeBoundaryIntegrationTests.swift` | 3 |
+| 3 | `MetalUILayoutTests/NativeValidationTrapTests.swift` | 35 |
+| 3 | `MetalUILayoutTests/NativeValidationAcceptanceTests.swift` | 9 |
+| 3 | `MetalUILayoutTests/NativeDepthGuardTests.swift` | 4 |
+| 3 | `MetalUILayoutTests/NativeLayoutWorkTests.swift` | 2 |
+| 3 | `MetalUITests/ProposalModifierValidationTests.swift` | 1 |
+| 3 | `MetalUITests/ProposalLayoutCompileGuards.swift` | 1 guard |
+
+Lane 3 also re-fixtured `aNativeFrameUsesIdealDimensionsOnlyForUnspecifiedAxes`
+(ideal 90 > max 80 is now rejected; ideal 70, `SA-K` item 5).
+
+### The probes
+
+Both are committed and re-runnable; their headers carry the recorded output,
+the machine and toolchain, and how to run them (`SA-O`: `/usr/bin/swift
+<file>` reproduces the numbers but prints none of SwiftUI's os_log
+diagnostics; compile and run with `OS_ACTIVITY_DT_MODE=1` for those).
+
+- **`docs/probes/swiftui-layout-protocol-contract.swift`** — arms A–N plus
+  J2, K2, L2, L3: measurement once per distinct proposal (A/B/C), `place`
+  inside `sizeThatFits` traps (D, exit 133 by design, so D runs last),
+  priority through modifiers and containers (E, L, L2, L3), placement proposal
+  and anchor (K, K2), last placement wins and a subtree placed once (J, J2),
+  an unplaced subview centred (I2), SwiftUI's cross-pass memo (F, G, H), and
+  NaN / infinite placement and answers (M, N).
+- **`docs/probes/swiftui-layout-input-validation.swift`** — groups P1–P9 with
+  P2b, P2c, P4b–d, P7b, P8b, P8c, each with a positive control: what SwiftUI
+  accepts, diagnoses, clamps, traps or hangs on for spacing, padding, fixed
+  and flexible frames, `Spacer` minimum, proposals, priority and aspect ratio.
+
+What they found that task 2 does not fix is `SA-N`; see "Unprobed, and
+material" above for the three earlier open questions they settled.
+
+### Lane 1 — protocol (items a and e; `SA-A`…`SA-F`, `SA-R`)
+
+**Delivered.** `ProposalLayout` (`sizeThatFits(proposal:subviews:)`,
+`placeSubviews(in:proposal:subviews:)`, `Sendable`, no cache); two proxy
+pairs, `MeasurementSubviews`/`MeasurementSubview` (no `place`) and
+`PlacementSubviews`/`PlacementSubview`, none publicly constructible; the
+`custom` node kind registered by `LayoutTree.newNativeLayout` and
+`LayoutPass.requestNativeLayout`; `ProposalLayoutContainer` and
+`callAsFunction`; public `ProposalAlignment` factors. `place` records, and each
+subtree is placed once after `placeSubviews` returns. The eleven built-ins stay
+enum cases. **Item (e) is delivered under `SA-R`'s amended criterion**:
+compile-checked for every spelling an external module writes, with a marker
+conformer that lies remaining a run-time trap until plan task 3.
+
+**Red first.** At `db6837e` all 11 behavioural lane tests failed (12 tests, 55
+issues) and the overlay-priority test passed, as it should at that commit; at
+`a5eeecd` `aLinearStackReadsPriorityThroughAnOverlayAttachment` failed with 6
+issues, `second` at (63, 27, 50, 10).
+
+**Verifier's mutations at `e90e4dc`** (each a full unfiltered run; tests
+byte-identical between `db6837e` and `HEAD`):
+
+| mutation | reddened |
+|---|---|
+| both proxies' `priority` return 0 | `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects`, `aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules` |
+| proxy `isSpacer` direct `.spacer` only | the same two |
+| `placeCustom` sizes a recorded child at the parent's proposal | the equivalence test, `aSubviewMeasuresOncePerDistinctProposalWithinOneRun`, `aSubviewPlacedTwiceKeepsItsLastPlacement`, `placingASubviewUsesItsAnswerToThePlacementProposalAndTheAnchor` |
+| the record's proposal ignored for size and for the child's placement | the same four |
+| size from the record, child placed at the parent's proposal | the equivalence test alone |
+| `.custom` hands `placeSubviews` bounds with x = 0 | the equivalence test, `anUnplacedSubviewIsCentredInItsParentAtTheParentsProposal`, `aProposalLayoutContainerRendersThroughTheFramePipeline`, `placingASubview…` |
+| proxy `sizeThatFits` clears its cache entry first | `aSubviewMeasuresOncePerDistinctProposalWithinOneRun` |
+| anchor factors swapped between axes | `placingASubview…`, on its topTrailing (125, 105) and leading (110, 125) arms only |
+| unplaced children left at the zero rect / at the bounds origin | `anUnplacedSubviewIsCentred…` (origin: the fixed-child arm only) |
+| `place` keeps the first record | `aSubviewPlacedTwiceKeepsItsLastPlacement` |
+| `place` eager, deferred loop skips recorded children | `aSubviewPlacedTwicePlacesItsSubtreeOnce` (`placeRuns` 2 == 1) |
+| `nativeLayoutPriority` reads a priority under any first-child wrapper | `aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules` |
+| overlay-attachment look-through removed | `aLinearStackReadsPriorityThroughAnOverlayAttachment`, `aCustomLayoutReadsPriority…` |
+| `isNativeSpacer` also recurses through `.frame` | `aCustomLayoutReadsPriority…` |
+| token / `measureDepth` / `isActive` precondition deleted, each | `aPlacementSubviewUsedOutsideItsPlaceSubviewsCallTraps` / `aPlacementSubviewUsedDuringMeasurementTraps` / `aSubviewUsedAfterItsLayoutRunTraps` |
+| `ProposalLayoutContainer.requestLayout` registers an overlay | `aProposalLayoutContainerRendersThroughTheFramePipeline` |
+| `MeasurementSubview` gains a public `place` | `aMeasurementSubviewCannotBePlaced` |
+| `MeasurementSubviews` gains `public init()` | `subviewProxiesCannotBeConstructedOutsideTheKernel` |
+| container constraint relaxed to `ElementGroup` / and `callAsFunction`'s | `aCustomLayoutContainerRejectsLegacyContent` (2 issues / 6 issues) |
+| `LayoutPass.requestNativeLayout` renamed | `anExternalModuleCanBuildACustomLeafAndContainerFromPublicAPI` |
+| `-swift-version 6` removed from `typecheckFile` | `typecheckFileChecksInTheSwift6LanguageMode` |
+
+**Two stayed green, and each is a finding:**
+- **F1:** `ReferenceLinearStack`'s vertical cross offset with factor 0 instead
+  of `alignment.horizontalFactor`. The reference tree's vertical root has both
+  children 157 wide, no overflow (38 < 91) and no spacer, so **the equivalence
+  test compares the horizontal stack path only**; its doc comment and `SA-B`
+  claim cross-axis alignment generally. Open.
+- **B1:** `measureDepth` raised only around `.custom`'s `sizeThatFits`, not
+  around leaf closures or built-in bodies. Lane 2's
+  `writingARectDuringNativeMeasurementTraps` later pinned the **leaf** half
+  (its mutation M12 below); the **built-in body** half is not known to be
+  pinned by any test.
+
+### Lane 2 — boundaries (items b and c; `SA-G`…`SA-I`, `SA-T`)
+
+**Delivered.** Mixing traps in every direction (`newNode` given a native
+child; every native registrar given a legacy child; `setStyle` on a native
+node; `computeLayout` on a native root), with no adapter: **item (c)'s adapter
+is ruled out, not built** (`SA-G`), and the root switch is the boundary. The
+invalidation contract (`SA-H`): a cache per call in the run object, nothing
+surviving a call, a frame or a `reset`; measurement never writes a rect
+(`setLayout` traps during a measurement body); a deliberate divergence from
+SwiftUI's cross-pass memo (probes F/G/H). One `isLayingOut` flag for both
+engines (`SA-I`), with registration (`appendNode`), `reset` and re-entry of
+either engine trapping during layout. A new internal `measureNativeLayout`
+measures without writing.
+
+**Red first.** Sources at `18a4331` with `HEAD`'s tests, clean build, the
+lane's 22 tests filtered: 15 failed, exactly the 15 the commit names; the 7
+green on arrival passed, as the spec said.
+
+**Verifier's mutations at `8e3cb8f`** (full unfiltered runs after `swift
+package clean`; 1032 unless noted):
+
+| mutation | reddened |
+|---|---|
+| `newNode`'s native-child precondition deleted | `aNativeNodeRegisteredUnderALegacyNodeTraps`, `aProposalElementInsideALegacyContainerTrapsAtRegistration` |
+| child loop deleted from `newNativeLinearStack` | `aLegacyNodeRegisteredUnderANativeStackTraps`, `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer` (on the witness sibling's message) |
+| child loop deleted from `newNativeLayout` | `aLegacyNodeRegisteredUnderACustomLayoutTraps` |
+| all 12 native registrars through the checking `newNode` | `everyNativeRegistrarAcceptsNativeChildrenWithoutTrapping`, 7 exit tests on their fragment, and **the run truncated** (signal 5, no summary line), as `SA-T` item 4 predicts |
+| only `newNativeOverlayAttachment`, then only `newNativeLayout`, through `newNode` | `everyNativeRegistrarAccepts…`, both |
+| `computeLayout`'s native-root precondition deleted | `computeLayoutRejectsANativeRoot` |
+| `setStyle`'s native-node precondition deleted | `aStyleWrittenOntoANativeNodeTraps`, `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration` (on its fragment; `Column`'s trap fired instead) |
+| `beginLayout()` dropped from `computeNativeLayout` | `computeNativeLayoutReenteredFromAMeasureClosureTraps`, `computeLayoutCalledFromANativeMeasureClosureTraps`, `setStyleOnALegacyNodeDuringNativeLayoutTraps`, `registeringANativeNodeDuringNativeLayoutTraps`, `registeringALegacyLeafDuringNativeLayoutTraps`, `resettingATreeDuringLayoutTraps`, `nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns` |
+| a separate native flag | `computeLayoutCalledFromANativeMeasureClosureTraps`, `nativeLayoutHoldsTheLayingOutFlag…` |
+| `appendNode`'s registration precondition deleted | the three `registering…Traps` tests |
+| `newLeaf` bypasses `appendNode` | `registeringALegacyLeafDuringNativeLayoutTraps` |
+| `reset`'s `isLayingOut` precondition deleted | `resettingATreeDuringLayoutTraps` |
+| leaf raises `measureDepth` only after its closure; `setLayout`'s precondition deleted; `activeNativeRun` never set, each | `writingARectDuringNativeMeasurementTraps` |
+| `endLayout()` directly after `beginLayout()` | the spec's seven exactly; `registeringANodeDuringLegacyLayoutTraps` stayed green |
+| `defer { endLayout() }` dropped | `nativeLayoutHoldsTheLayingOutFlag…`, then **truncated** at `aSecondComputeNativeLayoutCallReMeasuresEveryLeaf`, as predicted |
+| `measureNativeLayout` also places the root | `measuringANativeTreeWritesNoRect` |
+| cache hoisted onto the tree; result memoized on the root id | `aSecondComputeNativeLayoutCallReMeasuresEveryLeaf`, `aDifferentRootProposalReMeasuresAndMovesTheRects` |
+| a persistent `(index, proposal)` cache `reset` does not clear | those two and `aResetTreeMeasuresItsNewRegistrationsFromScratch` |
+
+**Two stayed green (X1, X2):** removing `beginLayout`/`endLayout` from
+`measureNativeLayout`, and removing its `activeNativeRun = run`. The mutants
+behave differently (a measure closure could restyle, register, reset or
+`setLayout` during it), so **`measureNativeLayout`'s half of the contract is
+unpinned**. It is internal with no `Sources/` caller. At `8e3cb8f` only
+`measuringANativeTreeWritesNoRect` called it; lane 3's
+`measuringANativeTreeDeeperThanTheLimitTraps` calls it too and, by reading,
+checks neither the flag nor the active run. Open.
+
+### Lane 3 — robustness (item d; `SA-J`…`SA-M`, `SA-U`)
+
+**Delivered.** Validation by `SA-J`'s rule (reject only what SwiftUI rejects,
+or what goes non-finite at a proposal with no infinite axis), preconditions
+naming the parameter, three NaN/non-finite checkpoints; the relaxations and
+repairs it forces (`SA-K`: ±∞ priority, negative aspect ratio with SwiftUI's
+two-axis predicate, padding response clamped per axis, the modifiers
+following the kernel, the frame API split into fixed and flexible overloads).
+A depth guard, `NativeLayoutRun.maxDepth` = **88**, re-bisected on the lane's
+own build (padding 169/170, frame 168/169, stack 151/152, custom 156/157 on a
+1 MB debug thread; the design's provisional 96 predated the run object's
+extra per-frame cost). Work counters, `LayoutTree.lastNativeLayoutWork`.
+
+**Red first.** Sources at `408dfc3` with `HEAD`'s tests (differing by one
+comment): 53 lane tests, 46 failed with 90 issues, 7 passed — the re-fixture,
+the at-limit depth test and five acceptance tests whose input already passed.
+**Depth spot-check by the verifier:** with the guard raised out of the way, 151
+one-child vertical stacks over a leaf complete on a 1 MB thread and 152 die;
+with the real guard, 87 stacks (88 levels) complete.
+
+**Verifier's mutations at `553b980`** (1084 each):
+
+| mutation | reddened |
+|---|---|
+| stack spacing `!= .infinity` | `aNaNStackSpacingTraps`, `aNegativeInfiniteStackSpacingTraps` |
+| padding precondition deleted | the three padding traps (NaN, +∞, −∞) |
+| fixed dimension NaN-blind / `>= 0` dropped / `isFinite` dropped | `aNaNFixedFrameDimensionTraps` / `aNegativeFixedFrameDimensionTraps` / `anInfiniteFixedFrameDimensionTraps` |
+| minimum `!isNaN` dropped / `!= .infinity` dropped | `aNaNFrameMinimumTraps` / `anInfiniteFrameMinimumTraps` |
+| maximum NaN-blind / deleted | `aNaNFrameMaximumTraps` / that and `aNegativeFrameMaximumTraps` |
+| ideal NaN-blind / `>= 0` dropped / `isFinite` dropped | `aNaNFrameIdealTraps` / `aNegativeFrameIdealTraps` / `anInfiniteFrameIdealTraps` |
+| each ordering check, and the fixed+flexible check, deleted | its own test alone |
+| spacer, priority precondition deleted | the three spacer traps; `aNaNLayoutPriorityTraps` |
+| ratio `!= 0` alone / `!isNaN && != .infinity` | NaN, +∞, −∞ ratio traps / `aNegativeInfiniteAspectRatioTraps`, `aZeroAspectRatioTraps` |
+| checkpoint 1, 2, 3 deleted | `aNaNRootProposalTraps`, `aNaNSubviewProposalTraps` / `aNaNMeasurementTraps`, `aNaNCustomMeasurementTraps` / `aNonFiniteRootBoundsTraps`, `anInfiniteStoredRectTraps`, `aNonFinitePlacementPositionTraps` |
+| checkpoint 3's non-finite test moved to checkpoint 2 | `anInfiniteMeasurementIsAcceptedUntilItBecomesARect` and the three checkpoint-3 traps |
+| checkpoint 1 drops the height-NaN half | `aNaNSubviewProposalTraps` |
+| negative proposal axes rejected | `aNegativeProposalIsAccepted`, `aNegativeSpacerMinimumIsAccepted`, `aNegativeAspectRatioIsAcceptedOnEveryProposedBranch`, `aspectRatioUsesSwiftUIsBranchAtZeroAndNegativeProposalAxes`, `theProposalModifiersAcceptWhatTheKernelAccepts` |
+| negative spacing rejected; gaps clamped at 0 | `negativeStackSpacingAnswersSwiftUIsUnclampedSum` |
+| padding clamp removed; both axes clamped together | `negativePaddingIsAcceptedAndItsResponseClampsPerAxis` |
+| negative minimum rejected | `negativeAndNegativeInfiniteFrameMinimumsAndAnInfiniteMaximumAreAccepted` |
+| `minLength` clamped at 0 | `aNegativeSpacerMinimumIsAccepted` |
+| ±∞ priority mapped to 0 | `infiniteLayoutPrioritiesAreAcceptedAndOrderLikeFinitePriorities`, `theProposalModifiersAccept…` |
+| old aspect-ratio predicate | the two aspect-ratio acceptance tests, `theProposalModifiersAccept…` |
+| old modifier preconditions restored | `theProposalModifiersAccept…` |
+| nine-parameter `frame` re-added beside the overloads | `aFixedAndAFlexibleFrameDimensionCannotBeCombined` (first two fixtures) |
+| `enter`/`leave` deleted from both recursions / measurement only / placement only | the three depth traps / `measuringANativeTreeDeeperThanTheLimitTraps` / `aPlacementOnlyChainOfCustomLayoutsDeeperThanTheLimitTraps` |
+| `depth < maxDepth` | `aNativeTreeAtTheDepthLimitDoesNotTrap` |
+| cache disabled | the branching work test on (1), (2) 62, (3) 0/89, and eight closure-counting tests |
+| cache keyed on node only | the branching test on (2)–(4) and other layout and integration tests (35 issues) |
+| hit counted before the key check | the branching test on (3) alone (`cacheHits` 52) |
+| work accumulated, not assigned | `nativeLayoutWorkIsPerCall` |
+| custom `sizeThatFits` not counted | the branching test (`measureCalls` 15) |
+| `cacheMisses` never incremented | the branching test, `nativeLayoutWorkIsPerCall` |
+
+**Five stayed green**, each a coverage gap in a claim the source's doc comments
+make:
+- the padding precondition without `insets.right.isFinite` — no test gives
+  the right edge a non-finite value;
+- checkpoint 2 without its height-NaN half, and without its `lastBaseline`
+  half — "a NaN size or baseline" is pinned on width and `firstBaseline` only;
+- checkpoint 3 without `bounds.height.isFinite` — "any non-finite field" is
+  pinned on x, y and width only;
+- `measureNativeLayout` not assigning `lastNativeLayoutWork` — both work tests
+  call `computeNativeLayout` only.
+
+One citation is also loose: `negativeAndNegativeInfiniteFrameMinimumsAndAnInfiniteMaximumAreAccepted`
+cites P4/P9 for "20 at a 100 proposal", but the probe records minWidth −10 and
+−∞ at a **nil** proposal only; the 100-proposal answer is derived. Open.
+
+### Task 2's "Not done" list, item by item
+
+| item | state | evidence |
+|---|---|---|
+| (a) a layout protocol | **done** | lane 1; `ProposalLayout` |
+| (b) an invalidation contract | **done** | lane 2; `SA-H` |
+| (c) an adapter; native-under-legacy not rejected | **rejection done; adapter ruled out, not built** | lane 2; `SA-G` |
+| (d) validation, depth guard, work counters | **done** | lane 3; `SA-J`…`SA-M` |
+| (e) compile-time migration story | **done under `SA-R`'s amended criterion** | lane 1's six guards; the marker-conformance compile-time check moved to plan task 3 |
+
+**Carried, not blocking task 2:** the six green mutations above (F1, B1's
+built-in half, X1/X2, the padding right edge, checkpoints 2 and 3's unpinned
+fields, `measureNativeLayout`'s work record) and the loose P4/P9 citation;
+`SA-N`'s probed divergences (tasks 4–7); the overlay id collision (§3 hazard
+3), which no lane touched; no human look at the preview window.

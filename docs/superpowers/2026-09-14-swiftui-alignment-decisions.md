@@ -208,6 +208,11 @@ every run read `Test run with 1010 tests in 1 suite`, so none truncated).**
   `placeSubviews` handed bounds with x = 0 → the equivalence test,
   `placingASubviewUsesItsAnswerToThePlacementProposalAndTheAnchor` and
   `aProposalLayoutContainerRendersThroughTheFramePipeline`.
+- *Verifier's independent re-run, 2026-09-14 (record §09):* **not everything is
+  compared.** Setting `ReferenceLinearStack`'s vertical cross offset to factor 0
+  (F1) left the equivalence test green: the reference tree's vertical root has
+  both children 157 wide, no overflow and no spacer, so only the **horizontal**
+  stack path is proven equivalent. Open.
 
 ---
 
@@ -272,6 +277,11 @@ every run read `Test run with 1010 tests in 1 suite`, so none truncated).**
   guards match: `value of type 'MeasurementSubview' has no member 'place'` and
   `'MeasurementSubviews' initializer is inaccessible due to 'internal'
   protection level` (likewise `'PlacementSubview'`).
+- *Verifier's independent re-run, 2026-09-14 (record §09):* raising
+  `measureDepth` only around `.custom`'s `sizeThatFits` (B1) left lane 1's tests
+  green. The leaf-closure half of the bracket is pinned by lane 2's
+  `writingARectDuringNativeMeasurementTraps` (`SA-H`); the built-in body half is
+  not known to be pinned. Open.
 
 ---
 
@@ -897,6 +907,10 @@ by `git status --short` clean each time, full `swift test --build-system native
   trapped "computeLayout re-entered on the same tree", no summary line, 248
   `passed` lines. `--filter nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns`
   on the same build: `.success → .signal(SIGTRAP → 5)`, 1 test, 1 issue.
+- *Verifier's independent re-run, 2026-09-14 (record §09):* removing
+  `beginLayout`/`endLayout` from `measureNativeLayout` (X1), or its
+  `activeNativeRun = run` (X2), left the suite green at 1032. Its half of
+  clauses 4 and 7 is unpinned; it has no `Sources/` caller. Open.
 
 ---
 
@@ -1050,6 +1064,14 @@ builds were incremental; the implementation's own suite run was cleaned).**
   `negativeStackSpacingAnswersSwiftUIsUnclampedSum`. A negative minimum
   rejected → `negativeAndNegativeInfiniteFrameMinimumsAndAnInfiniteMaximumAreAccepted`.
   `minLength` clamped at 0 → `aNegativeSpacerMinimumIsAccepted`.
+- *Verifier's independent re-run, 2026-09-14 (record §09):* four sub-clauses
+  stayed green when removed: the padding precondition's `insets.right.isFinite`,
+  checkpoint 2's height-NaN and `lastBaseline`-NaN halves, and checkpoint 3's
+  `bounds.height.isFinite`. Each check still exists; no test gives that field a
+  bad value. Also,
+  `negativeAndNegativeInfiniteFrameMinimumsAndAnInfiniteMaximumAreAccepted`
+  cites P4/P9 at a 100 proposal, but those probe arms offered nil only; the
+  100-proposal answer is derived. Open.
 
 ---
 
@@ -1377,6 +1399,10 @@ builds were incremental; the implementation's own suite run was cleaned).**
   (`cacheHits → 52`).
 - Accumulate into `lastNativeLayoutWork` → `nativeLayoutWorkIsPerCall`
   (`measureCalls: 32, cacheHits: 54, cacheMisses: 50` against 16/27/25).
+- *Verifier's independent re-run, 2026-09-14 (record §09):* deleting
+  `lastNativeLayoutWork = run.work` from `measureNativeLayout` left the suite
+  green at 1084: "each native entry point assigns it" is pinned for
+  `computeNativeLayout` only. Open.
 
 ---
 
