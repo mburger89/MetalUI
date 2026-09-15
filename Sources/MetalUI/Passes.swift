@@ -54,9 +54,10 @@ public struct LayoutPass {
     /// Registers a leaf measured by the native SwiftUI-style layout path.
     ///
     /// The closure receives the parent's proposal rather than CSS known and
-    /// available spaces. A native root cannot contain a legacy child, so this
-    /// API establishes an explicit migration boundary instead of mixing the two
-    /// engines within one subtree.
+    /// available spaces. A native node cannot contain a legacy child, and a
+    /// legacy node cannot contain a native one: both trap at registration
+    /// (ruling SA-G). So this API establishes an explicit migration boundary at
+    /// the root instead of mixing the two engines within one subtree.
     public func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
         frame.requestNativeLeaf(measure: measure)
     }

@@ -301,6 +301,12 @@ private struct PassThroughLayout: ProposalLayout {
 /// A measure closure writing a rect traps: measurement never writes a rect
 /// (ruling SA-H clause 4). The closure runs inside `measureNative`'s
 /// `measureDepth` bracket, which is what the check reads.
+///
+/// **The leaf is the ROOT, on purpose.** Under a parent the closure also runs
+/// inside the parent's bracket, so a leaf case that raised `measureDepth` only
+/// after calling its closure still trapped here. Measured: with the leaf under
+/// an overlay, that mutation left this test green; as the root, the closure
+/// runs at depth 0 unless the leaf's own bracket holds.
 @Test func writingARectDuringNativeMeasurementTraps() async {
     let result = await #expect(processExitsWith: .failure,
                                observing: [\.standardErrorContent]) {
@@ -312,9 +318,8 @@ private struct PassThroughLayout: ProposalLayout {
             }
             return LayoutMeasurement(size: SizeD(width: 5, height: 5))
         }
-        let root = tree.newNativeOverlay(children: [leaf])
-        boundaryNode = root
-        tree.computeNativeLayout(root: root, proposal: proposal, in: bounds)
+        boundaryNode = leaf
+        tree.computeNativeLayout(root: leaf, proposal: proposal, in: bounds)
     }
     let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
     #expect(stderr.contains("during native measurement"),

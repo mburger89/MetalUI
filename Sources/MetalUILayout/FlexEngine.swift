@@ -98,6 +98,13 @@ public func computeLayout(
     available: AvailableSpaceSize,
     rootFontSize: Double = 16
 ) {
+    // One layout authority per root (ruling SA-G): a native root has only a
+    // placeholder `Style.default`, and flex would lay it out as an empty box
+    // with no error. Checked before `beginLayout`, so a native measure closure
+    // that calls this on a LEGACY root in the same tree reaches the re-entrancy
+    // trap instead (ruling SA-I).
+    precondition(!tree.isNativeLayoutNode(root),
+                 "computeLayout called on a native root — use computeNativeLayout (SA-G)")
     let ctx = LayoutContext(rootFontSize: rootFontSize)
     tree.beginLayout()
     defer { tree.endLayout() }
