@@ -5,9 +5,11 @@ the environment and control-state model", on `feat/environment`.
 
 **Status (2026-09-15, lane 3): lanes 1, 2, 2b and 3 implemented** (`a3c92a7`,
 `a4ef92d`, recorded at `f4dcad8`; lane 2b red `d271a64`, green `de84219`;
-lane 3 red `2de4eef`, green `6957464`); **lane 4 owed.** Lane 2b's corrections
-to this text are marked "(lane 2b)" in place, and lane 3's "(lane 3)"; lane 3
-found no design defect and added no ruling.
+lane 3 red `2de4eef`, green `6957464`); **lane 4 done, with its window
+capture NOT taken** (the session was locked; the capture stays owed, below).
+Lane 2b's corrections to this text are marked "(lane 2b)" in place, lane 3's
+"(lane 3)" and lane 4's "(lane 4)". Lanes 3 and 4 found no design defect and
+added no ruling; lane 4 amended `EV-W` against both tracks' moved heads.
 
 **Third design pass (2026-09-15).** A
 second critic review of `f4dcad8` found 11 defects; each is applied, with
@@ -598,6 +600,17 @@ appearance, both images' sizes, the dynamic boxes, the differing boxes, and the
 verdict in `docs/record/11-environment.md`. **A capture cannot see the Space
 swap.** E18 is that evidence, and the record says so.
 
+(lane 4) **Not taken.** Both release builds ran and each window was listed,
+but the session was locked with the display asleep: `screencapture -l` printed
+"could not create image from window", and ScreenCaptureKit returned -3811. An
+offscreen stand-in, `demoContent()` through a real `Window` over the fake
+platform, was byte-identical between `f64e58a` and lane 3 in light and dark,
+and was checked first against two disagreeing controls. It is recorded as a
+stand-in, not as the capture, which is owed to the integration step. The merge
+re-measure found both tracks moved and amended `EV-W`: `Frame.swift` now
+conflicts textually against the bridge, and item 4 is still silent; item 3
+landed and is loud, measured on a built composition merge. Record 11, lane 4.
+
 ---
 
 ## Verification common to every lane
@@ -673,12 +686,19 @@ swap.** E18 is that evidence, and the record says so.
 
 **Merge obligations.** `EV-W` is the normative list, re-taken in the third pass
 against `feat/ax-bridge` at `53d3bf6` and `feat/modifier-composition` at
-`ec65da6`, and re-measured by lane 4. **Not every item is loud**; the summary:
+`ec65da6`, and re-measured by lane 4 against **`dbfa314`** and **`6d0ea97`**
+(both tracks had built their lane 2). **Not every item is loud**; the summary:
 
 - **Precondition (`EV-W` item 0).** Do not integrate this branch before lane 3's
   commit: at `f4dcad8` `isEnabled` compiles, is documented as a gate and is read
   by nothing. Check: `grep -n "isEnabled" Sources/MetalUI/Frame.swift` is
-  non-empty and `Tests/MetalUITests/DisabledTests.swift` exists.
+  non-empty and `Tests/MetalUITests/DisabledTests.swift` exists. (lane 4: met
+  at `6957464`.)
+- **The release-window capture (`EV-P`), not taken by lane 4.** The session was
+  locked. Take it on an unlocked session by lane 4's method: base `f64e58a`
+  against the merged tree, no input, compared by region after a base-vs-base
+  calibration. The composition track owes the same capture (`MC-J`), so one run
+  can serve both.
 - **Modifier composition, lane 3 (`EV-W` item 1).** Loud: `EnvironmentScope`'s
   empty conditional conformance stops compiling. **Silent unless re-run:** the
   typed `requestProposalGroupLayout` must call
@@ -692,30 +712,51 @@ against `feat/ax-bridge` at `53d3bf6` and `feat/modifier-composition` at
   `aProposalContainerReadsTheEnvironmentDuringLayout` arms; do not add a second
   test. The composition track's text "`bind` gains `environment:`" and "pass
   `pass.frame.environment`" is stale: the API is `StateBinder.bind(_:in:id:)`,
-  and there is no `Frame.environment`.
+  and there is no `Frame.environment`. (lane 4: the composition spec at
+  `6d0ea97` has corrected both. It also owes two `EnvironmentScope` arms in
+  `everyModifierWrapperDelegatesEachPhaseExactlyOnce`, one legacy and one
+  proposal, each `[1, 1, 1]`, with the mutation "the typed entry calls content
+  twice". Its lane 3 is not built, so this item is unchanged.)
 - **`StateBinder.bind` (`EV-W` item 2).** Loud. `MC-H`'s helper calls
   `bind(element, in: pass.frame, id: id)`. No default, no compatibility overload.
 - **Modifier composition, lane 2 (`EV-W` item 3).** `FrameModifier.swift` is
   deleted. D2's arms (including its after-`.disabled` arm) and E12's
   after-`.theme` arm are spelled with `.frame(width:height:)`, so they run
   against `ModifiedElement` unchanged and must stay green; `EV-E`'s "five
-  callers" is re-taken with the grep.
-- **Accessibility bridge (`EV-W` item 4) — SILENT.** `Frame.swift` auto-merges
-  today, and the bridge's record literal `isEnabled: true` keeps compiling.
+  callers" is re-taken with the grep. (lane 4: **landed there, loud,
+  measured.** On a built scratch merge, 1152 tests passed. The callers are
+  still five, with `ModifiedElement` in `FrameModifier`'s place. A gate bypass
+  in `ModifiedElement.prepaintLayer` reddens exactly D2's padding-frame and
+  inside arms. Relabel `FrameModifier` → `ModifiedElement` in
+  `Frame.registerHandlers`' doc.)
+- **Accessibility bridge (`EV-W` item 4) — SILENT.** (lane 4) `Frame.swift`
+  **now conflicts** against `dbfa314`, in two hunks inside `registerHandlers`.
+  That does not make the item loud: the bridge's record literal
+  `isEnabled: true` sits outside both hunks, auto-merges, and keeps compiling
+  under every resolution that compiles.
   Write the merged 5-argument `registerHandlers` exactly as `EV-W` gives it:
   the gate in the 5-argument implementation (the 3-argument overload stays a
   bare forward), no hitbox and no focus registration when disabled, the
   declared node's `.disabled` trait, and the record's `isEnabled: enabled`,
   with presence and role read from the ungated `handlers` and actions left to
-  the gated registrations. Then write the joint test
-  `aDisabledClickableElementPublishesDisabledWithNoPressAndRefusesAPress` (two
-  arms, a control, four mutations, all in `EV-W`) and run its mutations.
-  Reconcile the bridge's `AB-Z` to it: its `keyboard` copy, `Handlers()`
-  hitbox, ungated `$focus` write and `environment:` init parameter were all
-  withdrawn here.
+  the gated registrations. Then write the joint test under the bridge's name,
+  `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`.
+  It has three arms (clickable, focusable and adjustable only), each with a
+  control, and four mutations as reconciled in `EV-W`. Run those mutations.
+  (lane 4: this supersedes the third pass's
+  `aDisabledClickableElementPublishesDisabledWithNoPressAndRefusesAPress`.)
+  Reconcile the bridge's `AB-Z` to it. Its `$disabled` blocker hitbox, and
+  the blocker mutation, were withdrawn here (`EV-E`, third pass). So were the
+  first version's `keyboard` copy, ungated `$focus` write and `environment:`
+  init parameter. `Text` and `OnTapModifier` do not yet call the 5-argument
+  method directly; the bridge's lane 3 adds those calls (`AB-F`, `AB-Y`), and
+  with them D2's text and onTap arms become the check that the gate is in the
+  5-argument body.
 - **`Frame.init` (`EV-W` item 5).** No parameter from this track; the bridge's
   `collectsAccessibility:` lands alone. The `Window.swift` conflict is the one
-  statement after the `Frame(...)` expression.
+  statement after the `Frame(...)` expression. (lane 4: unchanged at
+  `dbfa314`. The `ElementGroup.swift` hunk is the bind line against the bridge's
+  `AB-O` block; keep both, bind first.)
 - **Unowned deferrals — flag, do not assume.**
   - `.padding` and handler modifiers directly on a scope (`EV-B`, `EV-X`) were
     handed to task 3, but the modifier-composition spec never mentions

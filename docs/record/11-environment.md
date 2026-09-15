@@ -834,3 +834,238 @@ counter and D10, `EV-E` (a)–(c), D12, D14, `EV-F` six runs and D11, `EV-T`
   and `.padding`/handler modifiers directly on a scope.
 - CLAUDE.md's `.disabled` paragraph, divergences and counts (1133 tests, 53
   guards): owed to the integration step; CLAUDE.md was not edited.
+
+### Lane 4 — the window capture and the merge re-measure (`EV-P`, `EV-W`), 2026-09-15
+
+**Where.** Worktree `/Users/maxburger/Developer/MetalUI-environment`, branch
+`feat/environment`, at `ba9f4cb` (lane 3's docs commit; `git diff 6957464
+ba9f4cb -- Sources Tests` is empty, so its source is lane 3's implementation
+commit). No `Sources/` or `Tests/` file changed in this lane. Scratch worktrees,
+all under this session's scratchpad `ev4/` and all detached (no ref moved): `base`
+at `f64e58a`, `lane3` at `ba9f4cb`, `merge-mc` at a scratch commit (below). No
+other agent was live in this worktree. macOS 26.6.2 (Darwin 25.6.0), `Apple
+Swift version 6.3.3`.
+
+#### The window capture (`EV-P`): NOT TAKEN — the session was locked
+
+**System state**, read by a compiled CoreGraphics/AppKit script at 04:35 and
+again at 04:44 and 04:47 PDT, unchanged each time:
+`CGSSessionScreenIsLocked` 1, `kCGSSessionOnConsoleKey` 1,
+`CGDisplayIsAsleep(CGMainDisplayID())` 1, `CGPreflightScreenCaptureAccess()`
+true. **System appearance: Dark** (`defaults read -g AppleInterfaceStyle` →
+`Dark`; `NSAppearance.currentDrawing()` → `NSAppearanceNameDarkAqua`). One
+screen, 2056×1329 pt at scale 2 ("Color LCD"). This is the state the
+modifier-composition track's lane 2 met (`feat/modifier-composition:docs/record/10-modifier-composition.md`,
+"the window capture was NOT taken").
+
+**What was run.** Both builds succeeded: `swift build -c release --product
+MetalUIDemo` at `f64e58a` ("complete! (34.37s)") and at `ba9f4cb` ("complete!
+(34.52s)"). A script (`ev4/capture.sh`) ran `swift run -c release MetalUIDemo`
+in the package directory, polled a `CGWindowListCopyWindowInfo` listing
+(`ev4/winlist`, owner `MetalUIDemo`) until a window appeared, waited 2 s, tried
+the capture, and ended the process with `kill` (`pgrep -x MetalUIDemo` empty
+afterwards every time). **No input was sent, the pointer was not moved, and
+nothing was done to wake or unlock the session.**
+
+| build | window (id, bounds, flags) | `screencapture -l <id> -o -x` | ScreenCaptureKit fallback |
+|---|---|---|---|
+| `f64e58a`, run 1 | 77700, (614, 259) 828×533, onscreen, layer 0, "MetalUI — Milestones 1 to 3" | `could not create image from window`, exit 1 | not tried |
+| `f64e58a`, run 2 | 77735, same bounds | same | trapped: `Assertion failed: (did_initialize), function CGS_REQUIRE_INIT` (the script did not touch `NSApplication.shared` first; a harness error) |
+| `f64e58a`, run 3 | 77739, same bounds | same | `SCScreenshotManager.captureImage` on `SCContentFilter(desktopIndependentWindow:)`: the window IS in `SCShareableContent` (`onScreen: true`, `active: true`), and the capture fails with `SCStreamErrorDomain` -3811, "Failed to start stream due to audio/video capture failure" |
+| `ba9f4cb` | 78394, same bounds | same | same -3811 |
+
+So there are **no images, no image sizes, no base-vs-base dynamic boxes, no
+differing boxes and no capture verdict.** The calibration the spec requires
+(two base captures seconds apart, non-empty diff) could not start. **The
+capture stays owed** (spec, "Owed to the integration step"), by the same method,
+on an unlocked session; the scripts are described above and rebuilt in minutes.
+Harness note: `swift <file>` could not JIT a script importing AppKit here
+("Symbols not found: `_OBJC_CLASS_$_NSAppearance`, `_OBJC_CLASS_$_NSScreen`"),
+so each script was compiled with `swiftc -O` and run as a binary.
+
+**A capture was never the evidence for the Space swap.** E18,
+`theSpaceKeyBindingSwapsTheThemeThroughTheFakePlatform`, reads the swap as
+pixels through the fake platform (`EV-P`, lane 2's mutations); it passed in this
+lane's unfiltered run below.
+
+#### A stand-in, and what it is not
+
+What a locked session still allows is rendering offscreen. In the `base` and
+`lane3` scratch worktrees only (never committed), a generated test file
+`EV4DemoStandIn.swift` holds the demo's `main.swift` up to `runDemo()` —
+`Increment`/`Decrement` renamed `EV4Demo…` (they collide with test fixtures) and
+the top-level globals marked `nonisolated(unsafe)` (Swift 6 mode in the test
+target) — plus one test that renders `demoContent()` through a real `Window`
+over `FakePlatformWindow` (`makeFakeWindow`, 1024×1024, scale 1,
+`startsDisplayLink: true`), under `Appearance.light` and `.dark`: one draw,
+PNG from `fakeSurface.readPixels()`; then three `simulateTick` + draw, PNG
+again. The two generated files were `cmp`-identical (the demo differs between
+the builds only in `runDemo()`'s nine `KeyBinding` spellings, `EV-N`, which the
+cut excludes). Both runs printed `theme=light` / `theme=dark` and
+`framesDrawn=1` (the ticks drew nothing: nothing was dirty).
+
+The comparison tool (`ev4/regiondiff`, compiled Swift) decodes two PNGs into
+RGBA8 sRGB, requires equal dimensions, bins differing pixels into 8×8 cells,
+merges 8-connected cells and prints each component's pixel bounds; given a box
+file it reports whether every differing box lies inside one.
+
+| comparison | sizes | differing pixels | boxes |
+|---|---|---|---|
+| **control, must differ everywhere:** base light-f0 vs base dark-f0 | 1024×1024 both | 1 048 576 | `0 0 1024 1024` |
+| base dark-f0 vs base dark-f3 (the offscreen "dynamic regions") | 1024×1024 | **0** | none |
+| **control, must differ locally:** `lane3` vs `lane3` with ONE demo sidebar `Box` (`EV4DemoStandIn.swift:459`) given `.theme(.light)`, dark-f0 | 1024×1024 | 1 748 | **`30 189 68 26`** — exactly that 68×26 box |
+| the same control, light-f0 (a light scope under a light theme) | 1024×1024 | 0 | none |
+| **base vs lane 3**, light-f0, light-f3, dark-f0, dark-f3 | 1024×1024 each | **0, 0, 0, 0** | none; `cmp` byte-identical, all four |
+
+**Reading.** With no scope written, lane 3's demo renders the same bytes as
+`f64e58a`'s under both themes, and the instrument that says so reports a single
+scoped box as a single 68×26 box. **What it does not cover:** the drawable,
+`MetalLayerSurface`, the display's colour space (divergence 1), the real
+920×560 window's layout, AppKit's appearance delivery, and anything time- or
+scroll-dependent (the offscreen base-vs-base diff is empty because the fake
+clock is deterministic, so the spec's "non-empty dynamic regions" calibration
+has no offscreen counterpart; the two disagreeing controls stand in for it).
+It is recorded as a stand-in, not as `EV-P`'s capture.
+
+#### The merge re-measure (`EV-W`)
+
+Heads: `feat/environment` `ba9f4cb`, `feat/ax-bridge` **`dbfa314`**,
+`feat/modifier-composition` **`6d0ea97`**; merge base `f64e58a` for both pairs.
+**Both tracks have moved past what `EV-W` described** (it was re-taken at
+`53d3bf6` / `ec65da6`): the bridge has built its lane 2 (`b7474f9`, `7dfdc6d`,
+`dbfa314`: the AppKit bridge; its spec header still reads "lane 1
+implemented"), and the composition track has built its lane 2 (`e9248c3`,
+`5fe5a30`, `49270c7`, recorded `c52f782`/`6d0ea97`: `ModifiedElement`,
+`FrameModifier.swift` deleted; its lane 3 "not started"). Both specs were
+re-read at those heads (`git show`, read-only), and `EV-W` was amended.
+
+**`git merge-tree --write-tree --name-only feat/environment feat/ax-bridge`**:
+tree `198b02197df0af59f23ccbae896a5c29fe90f6e4`, exit 1.
+
+- **Conflicting:** `Sources/MetalUI/ElementGroup.swift` (one hunk: lane 2's
+  `StateBinder.bind(self, in: pass.frame, id:)` against the bridge's old-spelling
+  bind plus its `AB-O` `display: none` block), **`Sources/MetalUI/Frame.swift`
+  (two hunks, both inside `registerHandlers`: NEW since the third pass)**, and
+  `Sources/MetalUI/Window.swift` (one hunk: `frame.rootEnvironment =
+  environment` against `collectsAccessibility: accessibility.isActive`).
+- **`Frame.swift`'s hunks.** (1) Lane 3's `let enabled = environmentTop.isEnabled`
+  and gated `focusRegistry.register`, against the bridge's 3-argument body
+  becoming a forward, the 5-argument signature, and an ungated
+  `focusRegistry.register`. (2) Lane 3's doc paragraph on the declared node's
+  `.disabled` trait, against the bridge's `AB-C` doc paragraph, both just
+  above `if !handlers.axNode.isEmpty`.
+- **Auto-merged** (touched by both, no conflict): `Sources/MetalUI/Passes.swift`;
+  and in `Frame.swift` everything outside the two hunks — including lane 3's
+  gated `$focus` write, its `if enabled, hitTestingDisabledDepth == 0, …`
+  hitbox gate, its `if !enabled { node.traits.insert(.disabled) }`, **and the
+  bridge's `isEnabled: true` record literal**, which lands unconflicted in the
+  merged 5-argument body. `Frame.render`'s root edits (lane 2b's bind and
+  `isRendering`, the bridge's `AB-AD` hidden-root `prepaint`) also auto-merge.
+
+**Is item 4 loud now? No — a textual conflict there does not make it loud.**
+By reading the merged file (none of these resolutions was built): resolving
+hunk 1 by taking the bridge's side wholesale leaves `enabled` undeclared for the
+three auto-merged uses (a compile error, loud); taking the environment's side
+wholesale deletes the 5-argument signature, so the auto-merged record code's
+`accessibleText` and `synthesizesAccessibility` are undeclared and
+`PrepaintPass.registerHandlers(_:at:id:accessibleText:synthesizesAccessibility:)`
+(`dbfa314:Sources/MetalUI/Passes.swift:439-443`) calls a method that is gone (a
+compile error, loud); a resolution that declares `enabled` but leaves
+`focusRegistry.register` ungated is lane 3's measured "focus registration
+ungated" mutation, 13 issues in 8 tests, D5 among them (`EV-F`'s Mutations
+line; loud). **Every resolution that compiles still keeps
+`isEnabled: true`**, and no test on either branch reads a collecting frame's
+record of a disabled element. Item 4 stays SILENT.
+
+Two facts corrected by this reading: at `53d3bf6` and at `dbfa314`, **no
+element calls the 5-argument overload directly** — `Text.swift:304` and
+`NativeTappable.swift:35` call the 3-argument one; only `PrepaintPass`'s
+internal overload forwards to it, with no `Sources/` caller. `EV-W` said `Text`
+and `OnTapModifier` "call directly"; that is the bridge's lane 3 design (`AB-F`,
+`AB-Y`), not built. And the bridge's `AB-Z` merge contract
+(`dbfa314:docs/superpowers/specs/2026-09-15-accessibility-bridge-design.md:967-1066`,
+rewritten against this track's `e9afded`) still registers **a blocker hitbox
+under the derived id `$disabled`** — withdrawn by this track's third pass
+(`EV-E`) and absent from lane 3's code — and names its joint test
+`aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`
+with **three** arms (clickable only, focusable only, adjustable only) and a
+mutation "register the blocker under `id` with the enabled `handlers`". `EV-W`
+named `aDisabledClickableElementPublishesDisabledWithNoPressAndRefusesAPress`
+with two. `EV-W` item 4 now adopts the bridge's name and three arms, with the
+mutation list reconciled to lane 3's no-hitbox gate.
+
+**`git merge-tree --write-tree --name-only feat/environment feat/modifier-composition`**:
+tree `b970fff7ff25ca7bad706e0b629c37f65ea35f06`, exit 0, **no conflict**.
+Touched by both and auto-merged: `Sources/MetalUI/ElementGroup.swift` (the
+composition track's two `LayerBase` requirements; lane 2's three bind calls) and
+`Sources/MetalUIDemo/main.swift` (`EV-N`'s nine `KeyBinding` spellings; the
+composition track's doc/type lines).
+
+**The clean composition merge was built and run**, because only a build can
+say whether item 3 is loud. `git commit-tree b970fff -p ba9f4cb -p 6d0ea97`
+made the scratch commit `481c0e9` (no ref points at it), checked out detached
+in `ev4/merge-mc`:
+
+- `swift build --build-system native --build-tests`: "Build complete!", 0
+  `error:`.
+- `swift test --no-parallel --build-system native`: **`Test run with 1152 tests
+  in 1 suite passed after 29.410 seconds`**, 0 `error:`, 0 `warning:`. 1152 =
+  1084 + 49 (this track) + 19 (composition, 1103 − 1084): nothing lost.
+- Guards by per-file `grep -c canTypecheck`: 19 + 10 + 6 + 5 + 2 (`UnitSafetyTests`
+  3 hits, one a comment) + 3 + 8 + 2 (`ModifiedElementCompileGuards`) = **55**.
+- **`registerHandlers` callers** (`grep -rn "registerHandlers(" Sources`, code
+  lines): `Box.swift:99`, `Stack.swift:123`, `Text.swift:304`,
+  `ModifiedElement.swift:211`, `NativeTappable.swift:35` — still five, with
+  `ModifiedElement` in `FrameModifier`'s place. `Frame.swift:733`'s lane 3 doc
+  still names `FrameModifier` on the merged tree (stale at merge; integration
+  relabels).
+- **Mutation, one run, full suite:** `ModifiedElement.prepaintLayer` registers
+  each layer under a pushed copy of the environment with `isEnabled = true`
+  (a per-site bypass of the central gate). **`Test run with 1152 tests in 1
+  suite failed after 29.233 seconds with 2 issues`**, both
+  `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`
+  `DisabledTests.swift:298` `(disabled → 1) == 0`, arms **"padding-frame"** and
+  **"inside"**; the after arm and every other test passed. Restored with
+  `git checkout -- Sources`; `git status --short` empty.
+
+So on the merged tree D2's two `.frame`-spelled disabled arms run through
+`ModifiedElement`, unchanged, and a site there that skipped the gate is caught
+by a test that exists without anyone writing it: **item 3 is loud, measured.**
+This is also the first measured per-site reading of D2's arm list (lane 3 could
+only move the central gate).
+
+Also read at `6d0ea97`: the composition spec's environment collisions were
+re-written against `f4dcad8` (`MC-Q` finding 5) and agree with `EV-W` items 1
+and 2 (`bind(_:in:id:)`; E11 is the layout-slot test; its invented test
+withdrawn). It adds one owed item `EV-W` lacked: **`EnvironmentScope` arms in
+`everyModifierWrapperDelegatesEachPhaseExactlyOnce`**, legacy and proposal,
+each `[1, 1, 1]`, mutation "the typed entry calls
+`content.requestProposalGroupLayout` twice". It also names this record's
+lines 258-259 ("two `StateBinder.bind` call sites (`MC-H`)") as stale:
+`8cdb25e`'s shared helper superseded them, and the composition track now adds
+**no** bind call site. That correction is recorded here rather than by
+rewriting the second-pass entry.
+
+#### Counts, re-read
+
+- `swift build --build-system native --build-tests`, then
+  `swift test --no-parallel --build-system native` in this worktree, unfiltered:
+  **`Test run with 1133 tests in 1 suite passed after 28.035 seconds`**, 0
+  `error:`, 0 `warning:`. No SwiftPM deprecation line was printed in this run's
+  log.
+- Guards **53** (`PhaseSeparationTests` 19, `ErasureCompileGuards` 10,
+  `ProposalLayoutCompileGuards` 6, `ElementGroupTrapTests` 5, `UnitSafetyTests`
+  3 hits = 2, `AXNodeTests` 3, `EnvironmentCompileGuards` 8);
+  `.build/arm64-apple-macosx/debug/Modules` exists. No guard added.
+- Goldens **97**; `git diff --stat f64e58a -- '*.json'` and
+  `-- Sources/MetalUILayout` both empty.
+
+#### Deferred, or not done by this lane
+
+- **The release-window capture (`EV-P`)**, on an unlocked session: owed to the
+  integration step, with the composition track's identical owed capture
+  (`MC-J`). The offscreen stand-in above does not discharge it.
+- The joint AX test, the merged 5-argument gate and the E11/E22/E23 ports
+  (`EV-W` items 1 and 4): the integration step, as before.
+- CLAUDE.md, counts and divergences: the integration step; CLAUDE.md was not
+  edited.
