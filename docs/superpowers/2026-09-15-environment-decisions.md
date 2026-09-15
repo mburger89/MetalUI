@@ -1099,6 +1099,13 @@ not designed in; it is the next instrument if a profile ever disagrees.
   as exactly its 68×26 box, so it sees both a global and a local difference.
   It cannot see the drawable, the display colour space or the real window's
   size, so the capture is listed in the spec's "Owed to the integration step".
+- **Lane 4 re-run (08:14–08:35 PDT): still not taken.** The session was still
+  locked with the display asleep, appearance Dark. The lane's release build at
+  `e709dc5` launched, and window 86152 was listed at the same bounds.
+  `screencapture -l` printed "could not create image from window" and
+  ScreenCaptureKit returned -3811 again. No input was sent. Nothing rendered
+  has changed since the stand-in (`git diff ba9f4cb e709dc5 -- Sources Tests`
+  is two doc comments), so the stand-in's reading stands. The capture stays owed.
 
 **Why no keystrokes into the real demo.** This track's rule is that input is
 sent only through the fake platform, in tests. The theme's scoping change must
@@ -1109,7 +1116,7 @@ that.
 AppKit's delivery path, is not covered. `MetalHostView`'s key path is not
 touched by this track.
 
-**Mutations** (lane 2, the test; the capture is _owed by lane 4_, third pass). `theSpaceKeyBindingSwapsTheThemeThroughTheFakePlatform` reddened under E13(a), E13(c) and E18's own mutation (`Frame.theme` computed from `EnvironmentValues().theme`, 132 issues in 19 tests), each time at the `try #require(lightRef != darkRef)` (`:568`), never at `after == lightRef`: every mutation that turns the post-swap frame light turns the dark reference light too, so the require is the reading. The `after` expectation has no mutation of its own that leaves the references apart; breaking the key path would be a keymap mutation, outside this track. **Lane 4 (the capture):** not taken, session locked (record 11, lane 4, with every command's output). The stand-in's instrument was checked by two disagreeing controls before its agreement was believed — base light vs base dark: 1 048 576 differing pixels, one box `0 0 1024 1024`; lane 3 vs lane 3 with one scoped `.theme(.light)` sidebar box, dark: 1 748 pixels, one box `30 189 68 26` — and then read base vs lane 3: 0 differing pixels in all four images, `cmp` identical. E18 passed in lane 4's unfiltered run (1133 tests).
+**Mutations** (lane 2, the test; the capture is _owed by lane 4_, third pass). `theSpaceKeyBindingSwapsTheThemeThroughTheFakePlatform` reddened under E13(a), E13(c) and E18's own mutation (`Frame.theme` computed from `EnvironmentValues().theme`, 132 issues in 19 tests), each time at the `try #require(lightRef != darkRef)` (`:568`), never at `after == lightRef`: every mutation that turns the post-swap frame light turns the dark reference light too, so the require is the reading. The `after` expectation has no mutation of its own that leaves the references apart; breaking the key path would be a keymap mutation, outside this track. **Lane 4 (the capture):** not taken, session locked (record 11, lane 4, with every command's output). The stand-in's instrument was checked by two disagreeing controls before its agreement was believed — base light vs base dark: 1 048 576 differing pixels, one box `0 0 1024 1024`; lane 3 vs lane 3 with one scoped `.theme(.light)` sidebar box, dark: 1 748 pixels, one box `30 189 68 26` — and then read base vs lane 3: 0 differing pixels in all four images, `cmp` identical. E18 passed in lane 4's unfiltered run (1133 tests). **Lane 4 re-run:** capture not taken (locked, record 11); E18 passed again in its unfiltered native run (1133 tests); no stand-in re-take, nothing rendered having changed.
 
 ## EV-Q — found by the probes, or required by the brief, and NOT done here
 
@@ -1416,6 +1423,30 @@ and `merge-tree` gives the same conflicts, so this table holds there too.
 is at `40566de` (tests and docs only since `6d0ea97`), and `merge-tree` against
 it still exits 0 (tree `7153201`). Re-take at the integration step's own heads.
 
+**Lane 4 re-run (2026-09-15, 08:14–08:40 PDT), against `feat/ax-bridge` at
+`aa5d055` and `feat/modifier-composition` at `6a0169c`, this track at
+`e709dc5`** (record 11, "Lane 4, re-run"). **Both tracks have built their lane
+3**: the bridge's `Text`/`OnTapModifier` defaults, accessibility modifiers and
+`List` (`AB-F`, `AB-G`, `AB-T`, `AB-X`, `AB-Y`, with `AB-L`'s `declaration`),
+and the composition track's `ProposalNodeID` with the typed
+`requestProposalGroupLayout` requirement (`MC-G`, `MC-H`). Both merges were
+**built and run** in scratch worktrees, not read.
+
+| pair | `merge-tree` | conflicting | built result |
+|---|---|---|---|
+| × `feat/ax-bridge` `aa5d055` | `df46e83…`, exit 1 | `ElementGroup.swift` (1), `Frame.swift` (2, in `registerHandlers`; hunk 2 now carries `AB-L`'s `declaration`), `Window.swift` (1) | resolved as item 4 prescribes: **1189 passed** with `isEnabled: true` and again with `isEnabled: enabled`; control `!enabled` → 1 issue (`AccessibilityTreeTests.swift:300`); 53 guards |
+| × `feat/modifier-composition` `6a0169c` | `90ddf94…`, **exit 1 (was 0)** | `ElementGroup.swift` (1: the bind against `enteringGroupMember`) | 3 source errors (`EnvironmentScope` does not conform; `GroupMember.swift:39` `table:`); with this item's typed entry pasted, 4 test errors in E11's and E23's fixtures; ported in scratch, **1162 passed**, 61 guards |
+
+Per item, now: **0** met; **1 LANDED** — loud half loud, measured; silent half
+measured sufficient in scratch (below) and still owed on the real merge; **2**
+loud, measured on both merges; **3** loud, `ModifiedElement.swift` unchanged
+since `6d0ea97`, not re-run; **4 still SILENT, measured at `aa5d055`**, and its
+"gate in the 3-argument overload" hazard is now **loud, measured**; **5** loud,
+unchanged; **6** unchanged. During the re-run the heads moved to `15f0dd2`
+(bridge: one test file) and `dbc2bc9` (composition: one doc comment, one new
+test file, docs). `merge-tree` gives the same conflicting files at both, and
+nothing read above changed. The built totals will rise by those tests.
+
 0. **Integration precondition: lane 3 lands first** (critic finding 9). At
    `f4dcad8`, `.environment(\.isEnabled, false)` and
    `window.environment.isEnabled = false` compile, `isEnabled`'s doc says
@@ -1480,11 +1511,36 @@ it still exits 0 (tree `7153201`). Re-take at the integration step's own heads.
      `HStack { CountingProposalLeaf("x").environment(\.probe, 1) }`, each
      `[1, 1, 1]`; mutation: the typed entry calls
      `content.requestProposalGroupLayout` twice. Silent until written.
+   - **Lane 4 re-run: landed at `6a0169c`, measured on a scratch merge.** The
+     loud half is loud: `EnvironmentScope.swift:108:1` "does not conform to
+     protocol 'ProposalElementGroup'". The code block above, pasted verbatim,
+     compiles. The fixtures fail exactly as predicted: `EnvironmentTests.swift`
+     `:95`/`:480` cannot return `(ProposalNodeID, ())` as `(LayoutNodeID, Void)`,
+     and `:110`/`:498` `NativeEnvRecorder`/`NativeClickCounter` do not conform.
+     Ported to `ProposalElement` (`requestProposalLayout`, marker extensions
+     deleted), the merge passed 1162. Mutations of the typed entry, each alone
+     against the full suite, with line numbers from the ported file:
+     - no `withEnvironment` reddens E11 `:639`/`:645`, layout slot `[0, 7, 7]`;
+     - `cursor += 1` reddens E22 `:459` ×3;
+     - a fresh cursor under `.child(of:at:name: nil)` reddens E22 `:459` ×3;
+     - the value-keyed parent reddens E22 `:459` ×2 and E23 `:529`;
+     - **calling content twice passes 1162, which is silent.** With the two
+       wrapper arms above added (as `.environment(\.layoutDirection, .rightToLeft)`),
+       they pass unmutated and the mutant reads "EnvironmentScope, proposal:
+       [layout, prepaint, paint] = [2, 1, 1]" (`ModifierCompositionProofTests.swift:831`).
+
+     So the instructions here are sufficient at `6a0169c`; the integrator still
+     does the port, the arms and the runs on the real tree (the scratch merge
+     was discarded).
 2. **`StateBinder.bind`.** Loud. The old `bind(_:table:id:)` is gone; the
    composition track's `GlobalElementID.enteringGroupMember` helper (`MC-H`)
    calls `StateBinder.bind(element, in: pass.frame, id: id)`. **No default and
    no compatibility overload.** (Measured: this is the `ElementGroup.swift`
-   conflict against the bridge today too.)
+   conflict against the bridge today too.) **Lane 4 re-run:** against
+   `6a0169c` it is now a textual conflict in `Element.requestGroupLayout`
+   (take the helper) plus `GroupMember.swift:39:25` "incorrect argument label
+   in call (have '_:table:id:', expected '_:in:id:')", measured. The bridge's
+   `ElementGroup.swift` hunk also spells `table:`; respell it there.
 3. **`FrameModifier.swift` deleted (modifier composition, lane 2).** D2's arms
    and `EV-X`'s after-a-scope arms are spelled, not typed, so they keep running
    against `ModifiedElement` and must stay green **unchanged**. `EV-E`'s
@@ -1508,7 +1564,10 @@ it still exits 0 (tree `7153201`). Re-take at the integration step's own heads.
      is reached only through `PrepaintPass`'s internal overload
      (`Passes.swift:439-443`), which nothing in `Sources/` calls. The direct calls
      are the bridge's lane 3 design, `AB-F` and `AB-Y`, not yet built. Once they
-     exist, the hazard named at the end of this item applies.) After the declared-node
+     exist, the hazard named at the end of this item applies.) (**Lane 4
+     re-run:** they exist at `aa5d055`, as `Text.swift:311` and
+     `NativeTappable.swift:38` through that internal overload, and the hazard
+     is measured loud, below.) After the declared-node
      `emitAXNode` it appends, while collecting,
      `AXEmission(id:, declared: handlers.axNode, text:, isClickable: handlers.onClick != nil, isEnabled: true, synthesizes:, portal:, geometry:)`,
      and its local `adjustable` reads `handlers.actions`. There is no
@@ -1557,14 +1616,16 @@ it still exits 0 (tree `7153201`). Re-take at the integration step's own heads.
          if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
              _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)   // EV-E: none when disabled
          }
-         if !handlers.axNode.isEmpty {
+         var declaration = handlers.axNode                             // AB-L (bridge lane 3, landed)
+         declaration.logicalIndex = nil
+         if !declaration.isEmpty {
              var node = handlers.axNode
-             if !enabled { node.traits.insert(.disabled) }
+             if !enabled { node.traits.insert(.disabled) }                  // EV-E; dropping it reddens D12
              emitAXNode(node, at: bounds, id: id, children: [])
          }
          if collectsAccessibility, !isAccessibilitySuppressed(for: id) {
              let adjustable = handlers.actions[ObjectIdentifier(AccessibilityAdjustment.self)] != nil
-             let hasSomethingToSay = !handlers.axNode.isEmpty
+             let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
                  || (synthesizesAccessibility
                      && (handlers.onClick != nil || handlers.isFocusable || adjustable || accessibleText != nil))
              if hasSomethingToSay {
@@ -1631,7 +1692,15 @@ it still exits 0 (tree `7153201`). Re-take at the integration step's own heads.
 
      When the bridge's lane 3 lands, `AB-L`'s lines join the merged method:
      `declaration.logicalIndex = nil`, and `handlers.axNode.logicalIndex != nil`
-     in `hasSomethingToSay`. Neither touches the gate.
+     in `hasSomethingToSay`. Neither touches the gate. **Lane 4 re-run: landed
+     at `aa5d055`, and the method above now includes them.** They sit in
+     `Frame.swift`'s hunk 2, and the auto-merged record code reads
+     `declaration`. Resolved as above, the merge passed 1189, with the literal
+     either way. Each of the four wholesale resolutions of the two hunks fails
+     to compile (`enabled`, `declaration`, `accessibleText` or
+     `synthesizesAccessibility` undeclared). Hunk 2 taken from the bridge with
+     `enabled` declared loses the trait: 1 issue, D12
+     `DisabledTests.swift:927`.
    - **The joint test as the third pass named it, superseded by the bullet above:**
      `aDisabledClickableElementPublishesDisabledWithNoPressAndRefusesAPress`,
      written at integration in the bridge's end-to-end test file. Fixture: an
@@ -1650,7 +1719,12 @@ it still exits 0 (tree `7153201`). Re-take at the integration step's own heads.
      registry → the second arm advertises `.increment`. **Not this test's job:**
      the gate placed in the 3-argument overload instead of the 5-argument one
      leaves `Text.onClick` and `Rectangle.onTap` ungated; D2's `text` and
-     `onTap` arms redden for that, on the merged tree.
+     `onTap` arms redden for that, on the merged tree. **Lane 4 re-run,
+     measured at `aa5d055`** (where `Text.swift:311` and `NativeTappable.swift:38`
+     reach the 5-argument method through `PrepaintPass`'s internal overload):
+     the 3-argument forward carrying the gate into an otherwise ungated body
+     gives 1189 with 3 issues — D2 `DisabledTests.swift:298` arms "text" and
+     "proposal", and D3 `:429`. Loud.
 5. **`Frame.init` and `Window`'s `Frame(...)` expression.** No init parameter
    here (`EV-H`); the bridge's `collectsAccessibility:` lands alone. `AB-Z`'s
    "the merged signature takes both, `environment:` and
@@ -1679,7 +1753,14 @@ under a pushed `isEnabled = true`. Result: `Test run with 1152 tests in 1 suite
 failed … with 2 issues`, both in
 `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled` at
 `DisabledTests.swift:298`, `(disabled → 1) == 0`, arms "padding-frame" and
-"inside" (item 3).
+"inside" (item 3). **Lane 4 re-run**, on two scratch merges that were
+discarded afterwards (record 11, "Lane 4, re-run"). Composition `6a0169c`,
+ported: M1 no push → E11 ×2; M2 `cursor += 1` → E22 ×3; M3 fresh cursor → E22
+×3; M4 value-keyed parent → E22 ×2 + E23; M5 content twice → nothing, then 1
+issue once the two wrapper arms exist. Bridge `aa5d055`: `isEnabled: true` →
+nothing; `!enabled` → 1 issue (`AccessibilityTreeTests.swift:300`); hunk 2 from
+the bridge's side → D12; gate in the 3-argument overload → D2 "text" and
+"proposal", and D3.
 
 ## EV-X — a modifier written AFTER a scope sits outside it
 

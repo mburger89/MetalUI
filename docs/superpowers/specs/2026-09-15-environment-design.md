@@ -624,6 +624,19 @@ re-measure found both tracks moved and amended `EV-W`: `Frame.swift` now
 conflicts textually against the bridge, and item 4 is still silent; item 3
 landed and is loud, measured on a built composition merge. Record 11, lane 4.
 
+(lane 4 re-run, at `e709dc5`) **Capture still not taken**: the session was
+still locked at 08:14–08:35 PDT, with the same `screencapture` and -3811
+failures. **Both tracks had built their lane 3** (`feat/ax-bridge` `aa5d055`,
+`feat/modifier-composition` `6a0169c`), so both merges were built and run in
+scratch. The composition merge now conflicts in `ElementGroup.swift`. Item 1
+landed: its loud half fails to compile, as predicted. Its silent half was
+measured sufficient after a scratch port, 1162 passed: the push, cursor and
+value-keyed mutations redden E11, E22 and E23, and the twice-delegation mutant
+needs the two wrapper arms. Item 4 is still silent at `aa5d055` (1189 passed
+with the literal either way), and its gate-in-the-3-argument-overload hazard is
+now loud (D2 text and proposal, D3). `EV-W` and the section below were amended.
+Record 11, "Lane 4, re-run".
+
 ---
 
 ## Verification common to every lane
@@ -699,8 +712,10 @@ landed and is loud, measured on a built composition merge. Record 11, lane 4.
 
 **Merge obligations.** `EV-W` is the normative list, re-taken in the third pass
 against `feat/ax-bridge` at `53d3bf6` and `feat/modifier-composition` at
-`ec65da6`, and re-measured by lane 4 against **`dbfa314`** and **`6d0ea97`**
-(both tracks had built their lane 2). **Not every item is loud**; the summary:
+`ec65da6`, re-measured by lane 4 against **`dbfa314`** and **`6d0ea97`**
+(both tracks had built their lane 2), and re-measured again by lane 4's re-run
+against **`aa5d055`** and **`6a0169c`** (both tracks had built their lane 3;
+both merges built and run in scratch). **Not every item is loud**; the summary:
 
 - **Precondition (`EV-W` item 0).** Do not integrate this branch before lane 3's
   commit: at `f4dcad8` `isEnabled` compiles, is documented as a gate and is read
@@ -708,7 +723,7 @@ against `feat/ax-bridge` at `53d3bf6` and `feat/modifier-composition` at
   non-empty and `Tests/MetalUITests/DisabledTests.swift` exists. (lane 4: met
   at `6957464`.)
 - **The release-window capture (`EV-P`), not taken by lane 4.** The session was
-  locked. Take it on an unlocked session by lane 4's method: base `f64e58a`
+  locked, at both of lane 4's runs (04:35–04:55 and 08:14–08:35 PDT). Take it on an unlocked session by lane 4's method: base `f64e58a`
   against the merged tree, no input, compared by region after a base-vs-base
   calibration. The composition track owes the same capture (`MC-J`), so one run
   can serve both.
@@ -729,9 +744,21 @@ against `feat/ax-bridge` at `53d3bf6` and `feat/modifier-composition` at
   `6d0ea97` has corrected both. It also owes two `EnvironmentScope` arms in
   `everyModifierWrapperDelegatesEachPhaseExactlyOnce`, one legacy and one
   proposal, each `[1, 1, 1]`, with the mutation "the typed entry calls content
-  twice". Its lane 3 is not built, so this item is unchanged.)
+  twice". Its lane 3 is not built, so this item is unchanged.) (**lane 4
+  re-run: its lane 3 LANDED at `6a0169c`.** `merge-tree` now exits 1 on
+  `ElementGroup.swift`; take `enteringGroupMember` and respell
+  `GroupMember.swift:39`'s bind. Measured on a scratch merge:
+  `EnvironmentScope` does not conform, `EV-W`'s typed entry compiles verbatim,
+  and E11's and E23's fixtures fail to compile. After the port, 1162 passed. The
+  no-push mutation reddens E11's layout slot, the cursor mutations E22, and the
+  value-keyed parent E22 and E23. **The content-twice mutation passes until the
+  two wrapper arms exist**, and reddens the proposal arm (`[2, 1, 1]`) once
+  they do. The scratch merge was discarded; do all of it on the real tree.)
 - **`StateBinder.bind` (`EV-W` item 2).** Loud. `MC-H`'s helper calls
   `bind(element, in: pass.frame, id: id)`. No default, no compatibility overload.
+  (lane 4 re-run: measured loud against `6a0169c`, `GroupMember.swift:39:25`
+  "incorrect argument label"; the bridge's `ElementGroup.swift` hunk also spells
+  `table:`.)
 - **Modifier composition, lane 2 (`EV-W` item 3).** `FrameModifier.swift` is
   deleted. D2's arms (including its after-`.disabled` arm) and E12's
   after-`.theme` arm are spelled with `.frame(width:height:)`, so they run
@@ -764,7 +791,16 @@ against `feat/ax-bridge` at `53d3bf6` and `feat/modifier-composition` at
   init parameter. `Text` and `OnTapModifier` do not yet call the 5-argument
   method directly; the bridge's lane 3 adds those calls (`AB-F`, `AB-Y`), and
   with them D2's text and onTap arms become the check that the gate is in the
-  5-argument body.
+  5-argument body. (**lane 4 re-run, at `aa5d055`:** those calls exist. A gate
+  in the 3-argument overload reddens D2's "text" and "proposal" arms and D3,
+  measured. Hunk 2 now carries `AB-L`'s `declaration`: keep it, and insert the
+  trait on a copy of `handlers.axNode` inside `if !declaration.isEmpty`, as
+  `EV-W`'s method now shows; the bridge's side alone reddens D12. The four
+  wholesale resolutions do not compile. The correct resolution passes 1189
+  with `isEnabled: true` and with `enabled`, so the item is still silent. The
+  bridge's spec at `aa5d055` still has the `$disabled` blocker and "lane 3
+  designed". D12's doc comment names the superseded joint-test name; relabel
+  it.)
 - **`Frame.init` (`EV-W` item 5).** No parameter from this track; the bridge's
   `collectsAccessibility:` lands alone. The `Window.swift` conflict is the one
   statement after the `Frame(...)` expression. (lane 4: unchanged at

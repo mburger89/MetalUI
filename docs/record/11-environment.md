@@ -1329,6 +1329,216 @@ solver falls back to `ElementGroup.frame` because `.onClick` exists only on
    (one commit, tests and docs), and merge-tree against it still exits 0 (tree
    `7153201`). Item 4's measured silence above is now in `EV-W`.
 
+### Lane 4, re-run at `e709dc5` (2026-09-15, 08:14–08:40 PDT)
+
+**Why a second run.** The first run could not take the capture, and both
+parallel tracks built their lane 3 afterwards: `feat/ax-bridge` is at
+**`aa5d055`** (`AB-F`, `AB-G`, `AB-T`, `AB-X`, `AB-Y`: `Text` and `OnTapModifier`
+defaults, the accessibility modifiers, `List`), and `feat/modifier-composition`
+is at **`6a0169c`** (`f9e2c62`: `ProposalNodeID` and the typed
+`requestProposalGroupLayout` requirement, `MC-G`/`MC-H`; its spec header reads
+"lanes 1, 2 and 3 done"). So `EV-W`'s two future items are no longer future, and
+both were measured on built merges rather than read.
+
+**Where.** This worktree at `e709dc5`; `git diff ba9f4cb e709dc5 -- Sources Tests`
+touches two doc comments only (the verifiers' `EnvironmentScope` and D6
+comments), so the source is lane 3's. No `Sources/` or `Tests/` file in this
+worktree changed. Scratch worktrees, all detached, under this session's
+scratchpad `ev4r/`: `mc` and `ab` (merges started from `e709dc5`, never
+committed), `mchead` at `6a0169c` and `abhead` at `aa5d055` (test lists only).
+All four were removed at the end of the run. No other agent was live in this
+worktree.
+
+#### The window capture (`EV-P`): NOT TAKEN, again
+
+At 08:14 and again at 08:35 PDT the session script (`ev4/session`) read
+`CGSSessionScreenIsLocked` 1, `CGDisplayIsAsleep(main)` 1,
+`CGPreflightScreenCaptureAccess` true, **appearance Dark**, one 2056×1329 pt
+screen at scale 2. `swift build -c release --product MetalUIDemo` at `e709dc5`
+completed ("complete! (4.98s)", incremental). `ev4/capture.sh` launched
+`swift run -c release MetalUIDemo`, found window **86152** (614, 259) 828×533,
+onscreen, "MetalUI — Milestones 1 to 3", and got `could not create image from
+window` (exit 1) and ScreenCaptureKit `-3811` ("Failed to start stream due to
+audio/video capture failure"). `pgrep -x MetalUIDemo` was empty afterwards. No
+input was sent and nothing was done to wake the session. The base build was
+not rebuilt, because a capture of the lane's build was already impossible.
+**Still no images, sizes, dynamic boxes, differing boxes or verdict.** The
+offscreen stand-in above is unchanged in what it covers: no rendered source has
+changed since it was taken. E18 passed in this run's unfiltered suite (below)
+and remains the evidence for the Space-key swap.
+
+#### Merge re-measure (`EV-W`) at `aa5d055` and `6a0169c`
+
+Merge base `f64e58a` for both pairs.
+
+| pair | `git merge-tree --write-tree --name-only` | conflicting | auto-merged (touched by both) |
+|---|---|---|---|
+| × `feat/ax-bridge` `aa5d055` | `df46e83…`, exit 1 | `ElementGroup.swift` (1 hunk), `Frame.swift` (2 hunks in `registerHandlers`), `Window.swift` (1 hunk) | `Passes.swift`, `Sources/MetalUIDemo/main.swift` |
+| × `feat/modifier-composition` `6a0169c` | `90ddf94…`, exit 1 (**was exit 0**) | **`ElementGroup.swift` (1 hunk, new)** | `Passes.swift`, `Sources/MetalUIDemo/main.swift` |
+
+**The composition merge, built.** The one hunk is `Element.requestGroupLayout`:
+lane 2's `child(of:)` + `StateBinder.bind(self, in: pass.frame, id:)` +
+`cursor += 1` against the composition track's
+`GlobalElementID.enteringGroupMember(...)` call. Resolved to the helper side,
+then built with `swift build --build-system native --build-tests`:
+
+- **Loud, measured (items 1 and 2).** Three errors:
+  `EnvironmentScope.swift:108:1: type 'EnvironmentScope<Content>' does not conform to protocol 'ProposalElementGroup'`;
+  `GroupMember.swift:39:25: incorrect argument label in call (have '_:table:id:', expected '_:in:id:')`;
+  `GroupMember.swift:39:53: cannot convert value of type 'StateTable' to expected argument type 'Frame'`.
+- **`EV-W` item 1's typed entry, pasted verbatim, compiles.** With
+  `GroupMember.swift:39` respelled `bind(element, in: pass.frame, id: id)`, the
+  sources build, and the test target fails with exactly the fixtures `EV-W`
+  predicted: `EnvironmentTests.swift:95:16` and `:480:16` "cannot convert
+  return expression of type '(ProposalNodeID, ())' to return type
+  '(LayoutNodeID, Void)'", and `:110:1` / `:498:1` "type 'NativeEnvRecorder'
+  / 'NativeClickCounter' does not conform to protocol 'ProposalElementGroup'"
+  — E11's recorder (also E22's) and E23's counter. **Loud.**
+- **The port, in scratch only.** Both fixtures made `ProposalElement` with
+  `requestProposalLayout(_:pass:) -> (ProposalNodeID, Void)`, the two empty
+  marker extensions deleted, bodies unchanged: "Build complete!", then
+  `swift test --no-parallel --build-system native`: **`Test run with 1162 tests
+  in 1 suite passed after 31.467 seconds`**, 0 `error:`, 0 `warning:`. 1162 =
+  1133 + 1113 − 1084, and the merged `swift test list` equals the union of this
+  branch's list (1133) and `6a0169c`'s (1113), so nothing was lost. (`6a0169c`
+  run alone: `Test run with 1113 tests … passed`; its record's "1116" at lane 3
+  counts uncommitted files.) Guards: 19 + 10 + 6 + 5 + 2 (`UnitSafetyTests` 3
+  hits) + 3 + 8 + 2 (`ModifiedElementCompileGuards`) + 6
+  (`ProposalNodeIDCompileGuards`) = **61**. Goldens 97. `registerHandlers`
+  callers: `Box`, `Stack`, `Text`, `ModifiedElement` `:211`, `NativeTappable`
+  `:35` — five. `ModifiedElement.swift` is unchanged since `6d0ea97`, so item
+  3's per-site measurement stands and was not re-run.
+- **The silent half, measured on the ported merge.** Each mutation replaced the
+  typed entry's body alone, full unfiltered suite, restored from a copy. Line
+  numbers are the ported scratch file's (HEAD's minus 1 before `:110`, minus 2
+  after `:498`).
+
+| mutation of the typed `requestProposalGroupLayout` | result |
+|---|---|
+| M1: no `withEnvironment` (the bare forward `EV-W` warns of) | 1162, 2 issues: E11 `proposalContentReadsTheEnvironmentThroughAScopeInEveryPhase` `:639` (`hstack` → `[0, 7, 7]`) and `:645` (`scroll` → `[0, 7, 7]`) — the layout slot only |
+| M2: `cursor += 1` before forwarding (E4(b)) | 1162, 3 issues: E22 `aScopeOverProposalContentContributesNoNodeAndConsumesNoIndex` `:459` ×3 (A, B, C ids moved) |
+| M3: forward under `.child(of: parent, at: cursor, name: nil)` with a fresh cursor (E4(c)) | the same 3 issues, E22 `:459` ×3 |
+| M4: content's parent keyed by `ElementID("value:" + String(describing: values))` (E5) | 1162, 3 issues: E22 `:459` ×2 (A, B; C is outside the scope) and E23 `aProposalStateCounterKeepsItsCountAcrossAChangingScope` `:529` ("a changed environment value reset the proposal state below it") |
+| M5: the typed entry calls `content.requestProposalGroupLayout` twice (once on a copy with a scratch cursor) | **1162 passed — silent** |
+| M5 again, after adding the two owed arms (`Row { CountingLeaf("x", log: log).environment(\.layoutDirection, .rightToLeft) }` and the `HStack`/`CountingProposalLeaf` twin) to `everyModifierWrapperDelegatesEachPhaseExactlyOnce` | unmutated: 1162 passed (the arms are green); mutated: 1162, 1 issue, `ModifierCompositionProofTests.swift:831`, "EnvironmentScope, proposal: [layout, prepaint, paint] = [2, 1, 1]" |
+
+So on this merge **E11, E22 and E23, ported, see the typed entry**: M1 reddens
+only E11's layout slot, M2/M3 only E22, M4 E22 and E23. **None of the legacy
+E4/E5/E10 tests redden under these mutations**, as expected, since only the
+typed entry was mutated. The twice-delegation bug is invisible until the
+wrapper arms exist, and they catch it once they do. These mutations were run
+by the person who pasted the entry, in scratch. **The integrator still owes
+the port and these runs on the real merged tree.** What this run establishes
+is that `EV-W`'s code and port instructions are sufficient at `6a0169c`.
+
+**The bridge merge, built.** Resolved as `EV-W` item 4 prescribes:
+`ElementGroup.swift` takes the bridge's hunk with the bind respelled
+`StateBinder.bind(self, in: pass.frame, id: layout.id)` before its `AB-O`
+block; `Window.swift` keeps `collectsAccessibility: accessibility.isActive` and
+then `frame.rootEnvironment = environment`; `Frame.swift` hunk 1 is the
+bridge's 3-argument forward and 5-argument signature followed by lane 3's
+`let enabled` and gated `focusRegistry.register`. **Hunk 2 has changed since
+`b9e258e`:** the bridge's side is now `AB-L`'s `var declaration =
+handlers.axNode; declaration.logicalIndex = nil; if !declaration.isEmpty {
+emitAXNode(handlers.axNode, …) }`, and the auto-merged record code reads
+`declaration` (`hasSomethingToSay = !declaration.isEmpty ||
+handlers.axNode.logicalIndex != nil || …`). Resolved as `if
+!declaration.isEmpty { var node = handlers.axNode; if !enabled {
+node.traits.insert(.disabled) }; emitAXNode(node, …) }`.
+
+- **The four wholesale resolutions of the two `Frame.swift` hunks, each
+  built (`swift build --build-system native`):** bridge/bridge: `cannot find
+  'enabled' in scope` (`:840`, `:850`); environment/environment: `cannot find
+  'declaration'`, `'synthesizesAccessibility'`, `'accessibleText'`;
+  bridge/environment: `enabled` and `declaration`; environment/bridge:
+  `synthesizesAccessibility`, `accessibleText`. **All loud.**
+- **Correct resolution, record literal left as the bridge's `isEnabled: true`:**
+  `Test run with 1189 tests in 1 suite passed after 30.680 seconds`, 0
+  `error:`. **With `isEnabled: enabled`:** `Test run with 1189 tests in 1 suite
+  passed after 32.723 seconds`, 0 `error:`, 0 `warning:`. **Instrument
+  control, `isEnabled: !enabled`** (`[3/7] Compiling MetalUI Frame.swift`, so
+  the edits were built): 1189, 1 issue,
+  `declaredRolesLabelsValuesAndTraitsReachThePublishedNode`
+  `AccessibilityTreeTests.swift:300`. **Item 4 is still SILENT at `aa5d055`**,
+  measured. 1189 = 1133 + 1140 − 1084; the merged test list is the union of
+  this branch's and `aa5d055`'s (1140). Guards 53, goldens 97.
+- **Hunk 2 resolved to the bridge's side, with `enabled` declared** (so the
+  trait insert is lost): 1189, 1 issue, `aDisabledElementsAXNodeCarriesTheDisabledTrait`
+  (D12) `DisabledTests.swift:927`. Loud.
+- **The gate placed in the 3-argument overload instead of the 5-argument body**
+  (the 3-argument forward stores `environmentTop.isEnabled` in a scratch
+  `mutantGate` and resets it to `true`; the 5-argument body reads
+  `let enabled = mutantGate`): 1189, 3 issues —
+  `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`
+  `DisabledTests.swift:298` ×2, arms **"text"** and **"proposal"** (the
+  `Rectangle.onTap` arm), and `aDisabledClickTargetPassesTheClickToWhatIsUnderIt`
+  `:429` (the `ZStack` of two `onTap` rectangles). **This hazard is now loud,
+  measured**: at `aa5d055`, `Text.swift:311` and `NativeTappable.swift:38` call
+  `PrepaintPass`'s internal 5-argument overload (`Passes.swift:439-442`), which
+  calls `Frame`'s 5-argument method. Callers on the bridge merge are `Box`,
+  `Stack` and `FrameModifier` (3-argument), plus `Text` and `NativeTappable`
+  (5-argument).
+- **The bridge's docs at `aa5d055`** are unchanged where this track cares.
+  `git diff b9e258e aa5d055 -- docs/superpowers/specs/` is empty: the header
+  still reads "lanes 1 and 2 implemented; lane 3 designed", and `AB-Z`'s merge
+  contract still registers the `$disabled` blocker hitbox (`:1029`) with the
+  three-arm joint test. The decisions-doc diff adds only the lane-2 verifier
+  round's V-rows.
+
+**Per item, now:**
+
+- **0** met.
+- **1 landed.** Its loud half is loud, measured: `EnvironmentScope` and the three
+  fixtures do not compile. Its silent half is measured sufficient in scratch,
+  and the integrator still owes it: M1–M4 redden the ported E11/E22/E23, and M5
+  needs the two wrapper arms.
+- **2** loud, measured: `GroupMember.swift:39` does not compile against the
+  composition track, and `ElementGroup.swift` conflicts against both tracks.
+- **3** loud; unchanged since `6d0ea97` and not re-run.
+- **4** still SILENT, measured at `aa5d055`. Hunk 2 now carries `AB-L`'s
+  `declaration`. The gate-in-the-3-argument-overload hazard is loud now that
+  the direct 5-argument calls exist.
+- **5** loud, unchanged (the same `Window.swift` hunk).
+- **6** unchanged.
+
+**Heads moved during this re-run** (read at 08:40): `feat/ax-bridge` to
+**`15f0dd2`** (one commit, `AccessibilityDefaultsTests.swift` only) and
+`feat/modifier-composition` to **`dbc2bc9`** (a doc comment in
+`ProposalElementGroup.swift`, the new `ProposalGroupEntryTests.swift`, docs).
+Neither touches a file this track edits or any line read above. `merge-tree`
+at the new heads gives `6147237…` (exit 1: the same three files) and
+`65dacb3…` (exit 1: `ElementGroup.swift`). The merged test totals above
+(1162, 1189) will rise by those commits' tests; the merges were not rebuilt at
+the new heads.
+
+**Not measured:** the three-way merge of all three branches (`ModifiedElement`
+on the bridge merge, `FrameModifier` on neither), and the two merges' own
+`AB-O`/`ModifiedElement` interaction (the composition spec's item, not this
+track's).
+
+#### Counts, re-read (this worktree, `e709dc5`)
+
+`swift build --build-system native --build-tests` ("Build complete!"), then
+`swift test --no-parallel --build-system native`, unfiltered: **`Test run with
+1133 tests in 1 suite passed after 28.048 seconds`**, 0 `error:`, 0 `warning:`,
+no deprecation line in the log. Guards **53** (19, 10, 6, 5, 3 hits = 2, 3, 8);
+`.build/arm64-apple-macosx/debug/Modules` exists. Goldens **97**; `git diff
+--stat f64e58a -- '*.json' Sources/MetalUILayout` empty.
+
+#### Deferred, or not done by this re-run
+
+- **The release-window capture (`EV-P`)**: the session is still locked. It is
+  owed to the integration step, by the same method.
+- Items 1 and 4 on the real merged tree: the port, the typed entry, the two
+  wrapper arms, the M1–M5 re-runs, the merged 5-argument gate, the joint AX
+  test and its four mutations. This run's scratch merges were discarded.
+- **A stale test doc comment, not edited (no `Tests/` edits in this lane):**
+  D12's doc (`DisabledTests.swift:907`) still names the joint test
+  `aDisabledClickableElementPublishesDisabledWithNoPressAndRefusesAPress`, which
+  the first lane-4 run superseded with the bridge's
+  `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`.
+  The integrator relabels it when writing the joint test.
+
 ### What stayed green
 
 - **All 97 goldens, byte-identical to `f64e58a`**, and nothing under
@@ -1382,7 +1592,9 @@ Each is described above or in its ruling. **Measured** unless marked.
 10. **Two merge collisions are silent** (`EV-W` items 1 and 4): the typed
     proposal entry must push the scope (E11/E22/E23 stop compiling and must be
     ported and their mutations re-run), and the bridge's `isEnabled: true`
-    compiles under every resolution — measured green both ways.
+    compiles under every resolution — measured green both ways (1172 at
+    `b9e258e`, 1189 at `aa5d055`). Item 1's twice-delegation mutant is green
+    until the two `EnvironmentScope` wrapper arms are written (lane 4 re-run).
 11. **E24 hard-fails on a root-locale runner** (its precondition is a
     `#require`, not a skip; by reading, not run on such a runner).
 12. **Carried values with no consumer**: `layoutDirection` mirrors nothing
@@ -1396,7 +1608,8 @@ Each is described above or in its ruling. **Measured** unless marked.
 ### What remains open
 
 - **The release-window capture** (`EV-P`), before/after, no input: not taken,
-  session locked. Owed with the composition track's `MC-J`.
+  session locked (04:35–04:55 and again 08:14–08:35 PDT). Owed with the
+  composition track's `MC-J`.
 - **`EV-W` items 1 and 4** on the merged tree: the typed-entry port with its
   re-run mutations and the two `EnvironmentScope` wrapper arms; the merged
   5-argument gate and the three-arm joint AX test with its four mutations.
@@ -1423,12 +1636,16 @@ this branch's.
 **1. Merge, and check what does not fail by itself.**
 
 - **Precondition** (`EV-W` item 0): met at `6957464`.
-- **Re-run `git merge-tree` at your own heads.** Last read: `feat/ax-bridge`
-  `b9e258e` (exit 1: `ElementGroup.swift`, `Frame.swift` ×2 hunks in
-  `registerHandlers`, `Window.swift`; `Passes.swift` auto-merges);
-  `feat/modifier-composition` `40566de` (exit 0).
+- **Re-run `git merge-tree` at your own heads.** Last read (lane 4 re-run):
+  `feat/ax-bridge` `aa5d055`, then `15f0dd2` (exit 1: `ElementGroup.swift`, `Frame.swift` ×2
+  hunks in `registerHandlers`, `Window.swift`; `Passes.swift` and the demo
+  auto-merge); `feat/modifier-composition` `6a0169c`, then `dbc2bc9` (**exit 1**:
+  `ElementGroup.swift`, `Element.requestGroupLayout`'s bind against
+  `enteringGroupMember`; take the helper and respell `GroupMember.swift:39` as
+  `StateBinder.bind(element, in: pass.frame, id: id)`).
 - **`ElementGroup.swift`** (bridge): keep both — `StateBinder.bind(self, in:
-  pass.frame, id:)` first, then the bridge's `AB-O` block. **`Window.swift`**:
+  pass.frame, id: layout.id)` first, then the bridge's `AB-O` block (the
+  bridge's hunk spells the bind `table:`; respell it). **`Window.swift`**:
   keep both statements (`collectsAccessibility:` in the `Frame(...)` expression;
   `frame.rootEnvironment = environment` after it). No `Frame.init` parameter
   from this track (`EV-W` item 5). `StateBinder.bind(_:in:id:)` has no default
@@ -1439,16 +1656,24 @@ this branch's.
   registration when disabled, the `$focus` write gated,
   `focusedElementProducedThisFrame` ungated, the declared node's `.disabled`
   trait, and **`isEnabled: enabled`** in the record, not the bridge's `true`.
-  Measured: 1172 tests pass with either value, so nothing will tell you. Then
+  Measured: 1172 tests pass with either value at `b9e258e`, and 1189 at
+  `aa5d055`, so nothing will tell you. Then
   write `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest`
   (three arms: clickable only, focusable only, adjustable only; each with a
   control) and run its four mutations as `EV-W` lists them. Reconcile the
   bridge's `AB-Z`: its `$disabled` blocker hitbox, blocker mutation, `keyboard`
   copy, ungated `$focus` and `environment:` init parameter were all withdrawn
-  here. When the bridge's lane 3 makes `Text` and `OnTapModifier` call the
-  5-argument method directly, D2's text and onTap arms become the check that the
-  gate sits in that body.
-- **Modifier composition lane 3, when it lands** (`EV-W` item 1, silent half):
+  here. **The bridge's lane 3 has landed (`aa5d055`)**: `Text` and
+  `OnTapModifier` now reach the 5-argument method directly, and a gate placed
+  in the 3-argument overload reddens D2's "text" and "proposal" arms and D3
+  (measured, lane 4 re-run). Hunk 2 now carries `AB-L`'s `declaration`; keep
+  it, and insert the trait on a copy of `handlers.axNode` inside
+  `if !declaration.isEmpty` (dropping the insert reddens D12). Relabel D12's
+  doc comment to the bridge's joint-test name.
+- **Modifier composition lane 3, LANDED at `6a0169c`** (`EV-W` item 1; the
+  loud half and the sufficiency of what follows were measured on a scratch merge
+  in the lane 4 re-run: 1162 passed after the port, M1–M4 redden E11/E22/E23,
+  M5 needs the wrapper arms). The silent half:
   the typed `requestProposalGroupLayout` on `EnvironmentScope` calls
   `scopedValues(applying:)` once, pushes with `withEnvironment` around
   `content.requestProposalGroupLayout`, and forwards `parent` and `cursor`
@@ -1543,8 +1768,9 @@ this branch's.
 - **Build and test — guards:** the per-file guard list gains
   `MetalUITests/EnvironmentCompileGuards` (8 guards). **Counts on this branch:
   1133 tests, 97 goldens, 53 guards, 0 `error:`, 0 `warning:`** (both build
-  systems); the composition merge measured 1152 / 55. Re-take on the merged
-  tree.
+  systems); the composition merge measured 1152 / 55 at `6d0ea97` and 1162 / 61
+  at `6a0169c` (after the scratch port), the bridge merge 1172 at `b9e258e` and
+  1189 / 53 at `aa5d055`. Re-take on the merged tree.
 - **When CI lands — add:** `aBareEnvironmentValuesHoldsTheRootLocaleAndAWindowStampsTheCurrentOne`
   (E24) **hard-fails on a runner whose current locale is the root locale**
   (unset `LANG`): its discriminating precondition is a `try #require`, not a
