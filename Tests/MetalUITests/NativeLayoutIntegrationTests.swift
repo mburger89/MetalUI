@@ -796,7 +796,7 @@ extension NativeProposalProbe: ProposalElementGroup {}
 }
 
 @MainActor
-@Test func nativeBackgroundWrapsTheResolvedOuterBoundsAndPaintsBeforeItsContent() {
+@Test func nativeBackgroundWrapsTheResolvedOuterBoundsAndPaintsBeforeItsContent() throws {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1,
                       theme: .light)
     var root = ZStack {
@@ -808,7 +808,7 @@ extension NativeProposalProbe: ProposalElementGroup {}
     frame.render(&root)
 
     let rects = frame.finalizedScene().rects
-    #expect(rects.count == 2)
+    try #require(rects.count == 2)  // indexed below (practices shape 13)
     #expect(rects[0].bounds.origin.x == 35)
     #expect(rects[0].bounds.origin.y == 30)
     #expect(rects[0].bounds.size.width == 30)
@@ -822,7 +822,7 @@ extension NativeProposalProbe: ProposalElementGroup {}
 }
 
 @MainActor
-@Test func builderNativeBackgroundPaintsBeneathItsNativeChild() {
+@Test func builderNativeBackgroundPaintsBeneathItsNativeChild() throws {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1,
                       theme: .light)
     var root = ZStack {
@@ -834,13 +834,13 @@ extension NativeProposalProbe: ProposalElementGroup {}
     frame.render(&root)
 
     let rects = frame.finalizedScene().rects
-    #expect(rects.count == 2)
+    try #require(rects.count == 2)  // indexed below (practices shape 13)
     #expect(rects[0].background.h == Theme.light.surface.h)
     #expect(rects[1].background.h == Theme.light.accent.h)
 }
 
 @MainActor
-@Test func nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt() {
+@Test func nativeOverlayIsMeasuredAgainstItsPrimaryAndDoesNotEnlargeIt() throws {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
     var root = ZStack {
         Rectangle(width: Pixels(20), height: Pixels(10), color: .accent)
@@ -852,7 +852,7 @@ extension NativeProposalProbe: ProposalElementGroup {}
     frame.render(&root)
 
     let rects = frame.finalizedScene().rects
-    #expect(rects.count == 2)
+    try #require(rects.count == 2)  // indexed below (practices shape 13)
     #expect(rects[0].bounds.origin.x == 40)
     #expect(rects[0].bounds.origin.y == 35)
     #expect(rects[0].bounds.size.width == 20)
@@ -885,7 +885,7 @@ extension NativeProposalProbe: ProposalElementGroup {}
 }
 
 @MainActor
-@Test func nativeBorderPaintsOverContentWithoutChangingItsFrame() {
+@Test func nativeBorderPaintsOverContentWithoutChangingItsFrame() throws {
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 2,
                       theme: .light)
     var root = ZStack {
@@ -896,7 +896,7 @@ extension NativeProposalProbe: ProposalElementGroup {}
     frame.render(&root)
 
     let rects = frame.finalizedScene().rects
-    #expect(rects.count == 2)
+    try #require(rects.count == 2)  // indexed below (practices shape 13)
     #expect(rects[0].bounds.size.width == 40)
     #expect(rects[0].bounds.size.height == 20)
     #expect(rects[0].background.h == Theme.light.accent.h)
