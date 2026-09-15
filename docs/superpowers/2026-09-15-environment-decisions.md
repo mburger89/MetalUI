@@ -277,6 +277,14 @@ made internal.
 
 **A first draft of G6 failed for a fixture reason, not a source one**: `cannot find 'Locale' in scope` twice. `import MetalUI` does not re-export Foundation, so an external caller naming `Locale` imports Foundation itself; the fixture now does.
 
+**Mutation, G6 (d)** (lane 3, 2026-09-15, each run alone on a `--build-system native` build in this worktree against the full suite — 1133 tests, every run printed its summary line — restored with `git checkout -- Sources Tests` and `git status --short` empty before the next; line numbers are at `6957464`, where `DisabledTests.swift` is unchanged from the red commit `2de4eef`): `.disabled(_:)` made internal → G6
+`theEnvironmentsPublicWritersCompileFromOutsideTheModule` printed `failed`, 1
+issue at `EnvironmentCompileGuards.swift:287`, its fixture reporting
+`'disabled' is inaccessible due to 'internal' protection level`. G6 printed
+`passed`, not `skipped`, on the unmutated native build (the red and green runs),
+so it runs. That run's `grep -c "error:"` read 2: both are the fixture's own
+diagnostic echoed inside the failure message, not a build error.
+
 ## EV-D — `isEnabled` composes as an AND under `.disabled`, a raw write overrides, and the gate reads the value
 
 **What.** `.disabled(d)` is `transformEnvironment(\.isEnabled) { $0 = $0 && !d }`,
@@ -306,7 +314,41 @@ gate would ignore `.environment(\.isEnabled, true)`. Each is one test to flip
 (`disabledComposesAsAnAndAndARawWriteOverridesIt`,
 `theGateReadsTheEnvironmentValueNotTheModifier`).
 
-**Mutations.** _owed by lane 3._
+**Mutations** (lane 3, 2026-09-15, each run alone on a `--build-system native` build in this worktree against the full suite — 1133 tests, every run printed its summary line — restored with `git checkout -- Sources Tests` and `git status --short` empty before the next; line numbers are at `6957464`, where `DisabledTests.swift` is unchanged from the red commit `2de4eef`):
+
+- **(a) a plain-write `.disabled`** (`$0 = !disabled`): 1 issue, only
+  `disabledComposesAsAnAndAndARawWriteOverridesIt` (`DisabledTests.swift:213`):
+  B3 and B6 read `true`.
+- **(b) `.environment(\.isEnabled, v)` special-cased to an AND** (a `Bool`
+  write through `\.isEnabled` becomes `$0.isEnabled && v`): 5 issues in 5
+  tests — D1 `:213` (B5 reads `false`), `theGateReadsTheEnvironmentValueNotTheModifier`
+  `:235` (P8 reads 0), and the `try #require` that the re-enabled child holds
+  focus in `aDisabledElementsActionHandlerDoesNotClaimAKeymapAction` (`:547`),
+  `aDisabledAncestorsRawKeyHandlerDoesNotSeeAKey` (`:598`) and
+  `aDisabledPaneContributesNoKeyContext` (`:644`). Those three re-enable a child
+  under a disabled parent with exactly this raw write, so the mutation stops
+  them at their instrument, before their own assertions — a correct reading,
+  but not coverage of D7–D9's subjects.
+- **D4's counter gate** (`EnvironmentValues` gains a `disabledDepth` that only
+  `.disabled` increments, and the gate reads `disabledDepth == 0`): 6 issues in
+  5 tests — D4 `:235` (P8 reads 0) and `:245` (P9 reads 1); D1 `:213` (every
+  slot reads `true` except B6, since `.disabled` no longer writes `isEnabled`);
+  and the same three `try #require`s, `:547`, `:598`, `:644`.
+- **D10, E5's `.disabled` arm, under lane 2's value-keyed scope id**
+  (`ElementID("value:" + String(describing: values))` as the content's parent,
+  with a fresh cursor; ruling EV-B): 13 issues in 6 tests —
+  `changingADisabledOrEnvironmentValueKeepsTheStateBelowTheWriter` at `:357`
+  (the environment arm, 0) and **`:374` and `:378`** (the disabled arm reads 0
+  after disabling, and still 0 after the click while disabled), E4's three ids
+  (`EnvironmentTests.swift:279`), E10 (`:411`), E23 (`:531`), E22's three ids
+  (`:460`), and `aFocusedElementThatBecomesDisabledLosesFocusAtOnce`
+  (`DisabledTests.swift:499`, `:503`). **Two readings not predicted.** E5's
+  `:383` (re-enabled, 2) and `:387` (a click counts 3) stayed green: the slot
+  under the original id was only tombstoned, so returning to the original
+  values restored the count — the reset is visible only while the value
+  differs. D6 reddened because the focused id moved with the scope's values, and
+  the old id then fell back on its `$focus` retention slot.
+- The gate-deletion half of D10 is under `EV-E` (c): `:378`, `:383`, `:387`.
 
 ## EV-E — a disabled click target REGISTERS NO HITBOX: its click reaches an enabled ancestor, and what is under it; one gate, in `Frame.registerHandlers`, reaches every site
 
@@ -393,12 +435,46 @@ blocker restores that and breaks N1/N2 again; doing both needs a shape concept.
 The pins that flip are `aDisabledClickTargetPassesTheClickToWhatIsUnderIt`'s
 two arms, in opposite directions.
 
-**Mutations.** _owed by lane 3_: (a) register a blocker hitbox with empty
-`Handlers()` under a derived id (the second pass's design) → D3's ancestor arm
-reads parent 0 and its sibling arm under 0; (b) the same blocker under the
-element's own id → additionally D15's R1 reads 1 and D16 paints `.accent` with
-`isActive` true; (c) register the hitbox with the element's own handlers when
-disabled (delete the gate) → every D2 arm fires.
+**Mutations, as planned in the third pass**: (a) register a blocker hitbox
+with empty `Handlers()` under a derived id (the second pass's design) → D3's
+ancestor arm reads parent 0 and its sibling arm under 0; (b) the same blocker
+under the element's own id → additionally D15's R1 reads 1 and D16 paints
+`.accent` with `isActive` true; (c) register the hitbox with the element's own
+handlers when disabled (delete the gate) → every D2 arm fires.
+
+**Mutations** (lane 3, 2026-09-15, each run alone on a `--build-system native` build in this worktree against the full suite — 1133 tests, every run printed its summary line — restored with `git checkout -- Sources Tests` and `git status --short` empty before the next; line numbers are at `6957464`, where `DisabledTests.swift` is unchanged from the red commit `2de4eef`):
+
+- **(a) a blocker under a derived id** (`.child(of: id, at: 0, name: "$disabled")`,
+  empty `Handlers()`, for a disabled pointer target): 3 issues in 2 tests —
+  `aDisabledClickTargetPassesTheClickToWhatIsUnderIt` `:417` (the ancestor arm
+  does not read `["parent"]`) and `:429` (the sibling arm does not read
+  `["under"]`), and — **not predicted** — `aDisabledTargetIsNeitherHoveredNorPressed`'s
+  consequence arm `:892`: the parent is not hovered, because the blocker is the
+  hitbox under the pointer. The blocker's own id is never hovered, so the
+  disabled box's own hover and `isActive` slots stay green, as predicted.
+- **(b) the blocker under the element's own id** (also `EV-T`'s mutation): 7
+  issues in 3 tests — `aClickNeedsTheTargetEnabledAtPressAndAtRelease` `:814`
+  (R1 reads 1; R2 and R3 stay 0), D3 `:417` and `:429`, and D16 `:863` (the
+  disabled box paints `.accent`), `:864` (`isActive` reads `true`), `:892` and
+  `:893` (over a disabled child, the child is hovered and the parent is not).
+- **(c) the hitbox gate deleted** (`if hitTestingDisabledDepth == 0,
+  handlers.isPointerTarget`, with the focus, `$focus` and AX gates kept): 27
+  issues in 8 tests — `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled`
+  `:298` **×11, one per disabled arm** (box, column, row, stack, text,
+  padding-frame, proposal, component, list-row, list, inside; the `after` arm
+  at `:367` stays green, as it must); D3 `:417`, `:429`; D15 `:814`, `:815`,
+  `:816` (R1, R2, R3 each read 1); D16 `:863`, `:864`, `:892`, `:893`; D4 `:245`
+  (P9 reads 1); `reEnablingRestoresClicksButNotFocus` `:682`, `:687`;
+  `aDisabledScopeReachesIntoDeferredContent` `:776` (the click reads 1); and
+  E5's D10 arm, `EnvironmentTests.swift:378`, `:383`, `:387` (a click while
+  disabled increments). **One edit reddens every D2 arm, as the spec says:** the
+  gate is central, and this is not per-site coverage.
+- **D12, the trait insert deleted**: 1 issue, only
+  `aDisabledElementsAXNodeCarriesTheDisabledTrait` `:925`.
+- **D14, `PrepaintPass.deferred` pushes `rootEnvironment` around its body**: 2
+  issues in 1 test — `aDisabledScopeReachesIntoDeferredContent` `:776` (the
+  click reads 1) and `:777` (the portal's box is focused). Both halves of the
+  gate are read from the pushed top, so one edit reaches both.
 
 ## EV-F — keyboard: a disabled element is OUT OF THE KEYBOARD — no focus, no action handlers, no raw `onKey`, no `keyContext`; a focused element that becomes disabled loses focus (two DIVERGENCES)
 
@@ -498,7 +574,46 @@ focus signal and keeping `onKey` in a copy of the handlers, and the pins to flip
 are `aFocusedElementThatBecomesDisabledLosesFocusAtOnce` and
 `aDisabledAncestorsRawKeyHandlerDoesNotSeeAKey`.
 
-**Mutations.** _owed by lane 3._
+**Mutations** (lane 3, 2026-09-15, each run alone on a `--build-system native` build in this worktree against the full suite — 1133 tests, every run printed its summary line — restored with `git checkout -- Sources Tests` and `git status --short` empty before the next; line numbers are at `6957464`, where `DisabledTests.swift` is unchanged from the red commit `2de4eef`):
+
+- **Focus registration ungated** (`focusRegistry.register` for every element;
+  the hitbox, `$focus` and AX gates kept): 13 issues in 8 tests —
+  `aDisabledElementCannotAcquireFocus` `:471`, `:472` (focused, and `onKey` runs);
+  `aFocusedElementThatBecomesDisabledLosesFocusAtOnce` `:499`, `:503`;
+  `aDisabledElementsActionHandlerDoesNotClaimAKeymapAction` `:556`, `:557`
+  (parent 1, window 0); `aDisabledAncestorsRawKeyHandlerDoesNotSeeAKey` `:608`,
+  `:609` (parent 1, window 0); `aDisabledPaneContributesNoKeyContext` `:653`
+  (child 1); `reEnablingRestoresClicksButNotFocus` `:680`, `:688`;
+  `aFocusRequestWhileDisabledLeavesNoRetentionSlot` `:717` (its `try #require`
+  that the first request is cleared: the disabled element is now focusable);
+  `aDisabledScopeReachesIntoDeferredContent` `:777` (focused).
+- **D6's alternative as spelled, register when `enabled || id == focusedElement`**:
+  8 issues in 5 tests — D6 `:499`, `:503`, and also D5 `:471`, `:472`, D11
+  `:680`, `:688`, D13 `:717`, D14 `:777`. **This spelling is not the
+  SwiftUI-aligned alternative the divergence rejects**: a focus request on a
+  disabled element makes its id `focusedElement` before registration, so it
+  acquires focus too, against K1. Keeping focus only for an element that was
+  focused while enabled needs the previous-frame signal this ruling says
+  `Frame` lacks, so no mutation here separates D6 from D5; that is recorded, not
+  banked as D6-specific coverage.
+- **Keep only `onKey`** (a disabled element registers `Handlers()` carrying its
+  `onKey`): 2 issues in 1 test — D8 `:608` (parent 1), `:609` (window 0).
+- **Keep only `actions`**: 2 issues in 1 test — D7 `:556` (parent 1), `:557`
+  (window 0).
+- **Keep only `keyContext`**: 1 issue — D9 `:653` (child 1).
+- **The `$focus` slot write ungated** (`if true` for `if enabled`): 1 issue —
+  `aFocusRequestWhileDisabledLeavesNoRetentionSlot` `:739` (the disabled arm
+  sticks). Its instrument arm (`:730`, enabled and not focusable, pinned wrong on
+  purpose) is green in every run, the unmutated ones included, so the
+  instrument sees a sticky focus.
+- **D11's cached state** (the gate reads a `$enabled` `StateTable` slot written
+  the frame before, falling back to the live value): 19 issues in 16 tests —
+  `reEnablingRestoresClicksButNotFocus` `:687` (the frame N+1 click reads 0),
+  D15 `:815` (R2 reads 1), D6 `:499`, E5's D10 arm `EnvironmentTests.swift:378`,
+  `:383`, and 14 `table.count` assertions in 13 tests that count `StateTable`
+  entries (`IdentityTests.swift` 11 in 10 tests, `ElementGroupTrapTests.swift`
+  `:427`, `:454`, `MeasurePerformanceTests.swift:434`), since the mutation mints
+  a slot for every registering element.
 
 ## EV-G — the theme becomes scoped and stays PAINT-ONLY; `Deferred` keeps its declaring scope
 
@@ -1122,10 +1237,18 @@ that runs nothing, and then the R1 guard must move into `Window`
 (`dispatchClick` or `updatePointerState`), and N1/N2's ancestor must still be
 reachable through it; `aDisabledTargetIsNeitherHoveredNorPressed` flips.
 
-**Mutations.** _owed by lane 3_: register a hitbox with empty `Handlers()` under
-the element's own id for a disabled target → `aClickNeedsTheTargetEnabledAtPressAndAtRelease`
-R1 reads 1, and `aDisabledTargetIsNeitherHoveredNorPressed` paints `.accent`
-with `isActive` true (and D3's ancestor arm reads parent 0).
+**Mutations, as planned in the third pass**: register a hitbox with empty
+`Handlers()` under the element's own id for a disabled target →
+`aClickNeedsTheTargetEnabledAtPressAndAtRelease` R1 reads 1, and
+`aDisabledTargetIsNeitherHoveredNorPressed` paints `.accent` with `isActive`
+true (and D3's ancestor arm reads parent 0).
+
+**Mutations** (lane 3, 2026-09-15): that one run is `EV-E` (b), recorded there —
+7 issues in 3 tests, including D15 `:814` (R1 reads 1), D16 `:863` (`.accent`)
+and `:864` (`isActive` true), and D3 `:417`. R2 is reddened by the hitbox gate
+deleted (`EV-E` (c), `:815`) and by D11's cached state (`EV-F`, `:815`), not by
+the blocker: with a blocker under the pressed id, a release over the disabled
+target finds that id with no `onClick` and runs nothing.
 
 ## EV-U — `theme` and `pixelLength` are re-stamped after every public write, so `\.self` cannot reset them (the `pixelLength` half is a DIVERGENCE)
 
@@ -1448,7 +1571,21 @@ the arm's reading, not by inspection.
 - **The overload as written above is VOID for E12's spelling — a broken instrument, recorded.** It compiled, and the suite read **1118 tests, 0 issues**. Not because the arm is blind: the overload **loses overload resolution** whenever a `StyledElement` modifier follows the frame. Measured with `swiftc -typecheck` against the mutated native modules: an unconstrained `let x = Box().theme(.dark).frame(width: Pixels(14), height: Pixels(10))` does pick the overload (it converts to `EnvironmentScope<FrameModifier<Box<EmptyGroup>>>`, exit 0), while the same chain followed by `.background(.surface)` also typechecks — the solver falls back to `ElementGroup.frame`, because `.background` exists only on `StyledElement` and `EnvironmentScope` is not one. Positive control: against the **unmutated** modules the conversion fails with `cannot convert value of type 'FrameModifier<EnvironmentScope<Box<EmptyGroup>>>'`. **Lane 3's D2 after-`.disabled` arm (`.frame(…).onClick`) has the same shape and must use the respelling below.**
 - **Respelled, so the frame layer does land inside the scope**: `FrameModifier.prepaint` registers its handlers, and `FrameModifier.paint` resolves and fills its background, inside `pass.frame.withEnvironment(values)` whenever its content's layout is an `EnvironmentScopeLayout` (read through a mutation-local protocol). 1 issue, only `aScopedThemeRepaintsOnlyItsSubtreeAndDeferredKeepsItsDeclaringScope` at `EnvironmentTests.swift:650`: the 14pt frame layer paints `Theme.dark.surface`. The 13pt, 15pt and 16pt slots stayed as expected, so the reading is the after-scope arm and nothing else.
 
-_Lane 3 half still owed_: D2's after-`.disabled` arm under the respelled hoist.
+**Mutations, lane 3 half** (lane 3, 2026-09-15, each run alone on a `--build-system native` build in this worktree against the full suite — 1133 tests, every run printed its summary line — restored with `git checkout -- Sources Tests` and `git status --short` empty before the next; line numbers are at `6957464`, where `DisabledTests.swift` is unchanged from the red commit `2de4eef`):
+
+- **The respelled hoist** (`FrameModifier.prepaint` registers its handlers
+  inside `pass.frame.withEnvironment(values)` whenever its content's layout is an
+  `EnvironmentScopeLayout`, read through a mutation-local protocol): 1 issue,
+  only `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled` at
+  `DisabledTests.swift:367` — the `after` arm reads 0. The disagreeing `inside`
+  arm and its control stay green, so the reading is the after-scope arm.
+- **The overload as the spec first wrote it** (`EnvironmentScope.frame(width:height:)`
+  returning `EnvironmentScope<FrameModifier<Content>>`): **void again**, 1133
+  passed, 0 issues. The respelled hoist reddens the same arm, so the arm is not
+  blind; the overload changed no behaviour, consistent with lane 2b's measured
+  fallback (`.onClick` exists only on `StyledElement`, so the solver picks
+  `ElementGroup.frame`). The fallback was **not** re-measured with `swiftc` for
+  this spelling.
 
 ## EV-Y — `EnvironmentValues()` holds SwiftUI's bare defaults; the WINDOW stamps the current locale
 

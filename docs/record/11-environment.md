@@ -700,3 +700,137 @@ the batch taught beyond them:
   integration step (`EV-W` item 1).
 - CLAUDE.md's divergence text for `pixelLength` (`EV-U`) and the counts are
   owed to the integration step; CLAUDE.md was not edited.
+
+### Lane 3 — the disabled control state (`EV-D`, `EV-E`, `EV-F`, `EV-T`, `EV-X`), 2026-09-15
+
+**Where.** Worktree `/Users/maxburger/Developer/MetalUI-environment`, branch
+`feat/environment`, from `087c405`. No other agent was live in this worktree.
+Every run below used `--build-system native` unless it says otherwise; logs in
+this session's scratchpad under `ev3/`. macOS 26.6.2; `swift --version` printed
+`Apple Swift version 6.3.3 (swift-6.3.3-RELEASE)`; `Locale.current` `en_US`.
+
+#### What changed
+
+- `EnvironmentScope.swift`: `.disabled(_:)` as
+  `transformEnvironment(\.isEnabled) { $0 = $0 && !disabled }`, with its doc
+  (`EV-D`, `EV-E`, `EV-F`, `EV-T`, `EV-X`).
+- `Frame.registerHandlers` (shared): one `let enabled = environmentTop.isEnabled`;
+  `focusRegistry.register` only when enabled; the `$focus` slot write only when
+  enabled, with `focusedElementProducedThisFrame` still ungated; `insertHitbox`
+  only when enabled (no blocker, no derived id); the declared AX node gains
+  `.disabled` when not enabled. The method's doc states the gate; the `$focus`
+  hazard paragraph now says the hazard is reachable through `Window.focus` on an
+  ENABLED, produced, non-focusable element and not through `.disabled`, and
+  names D13 as the pin both ways.
+- Doc only: `Handlers`' type doc (both gates sit behind `isEnabled`),
+  `EnvironmentValues.isEnabled`, and `PrepaintPass.registerHandlers` (one
+  paragraph, `Passes.swift`, shared). `Box`, `Stack`, `Text`, `FrameModifier`,
+  `OnTapModifier` and `Window` are untouched; `Box.swift` and `Text.swift`'s
+  "holds all three gates" stay true (the disabled gate is in the same method)
+  and were left alone.
+- Tests: new `DisabledTests.swift` (D1–D9, D11–D16, 15 tests); E5 gains the D10
+  arm in place (`EnvModel.flag`); G6's chain gains `.disabled(true)`.
+- **Test-shape deviations from the spec's wording**, none a design change: the
+  D2 proposal arm's root is an `HStack` (a legacy `Row` cannot hold proposal
+  content) and its rectangle, like D3's sibling rectangles, is 100×100 so the
+  click lands wherever the proposal root places it; D2's list-row `List`
+  carries `.width(px(40))` in both halves; every Bool-parameterised control
+  spells `.disabled(false)` (probe B2: enabled) rather than deleting the
+  modifier; D16's consequence arm has its own control (child enabled). Ids,
+  bounds and `isActive` are read through a forwarding `TargetProbe` wrapper that
+  hands its own id to the wrapped element (the name `Probe` is taken elsewhere
+  in the test module).
+
+#### Red first (commit `2de4eef`)
+
+The red commit carries `.disabled(_:)` (the API shell) and no gate. Full suite:
+**`Test run with 1133 tests in 1 suite failed after 30.313 seconds with 41
+issues`**, 0 `error:`, 0 `warning:`. Every control passed; each failure line, at
+`2de4eef`:
+
+- D4 `DisabledTests.swift:245` `(log.count("P9") → 1) == 0`.
+- D2 `:298` `(disabled → 1) == 0` **×11** — box, column, row, stack, text,
+  padding-frame, proposal, component, list-row, list, inside. The after arm
+  (`:367`) passed, as it must.
+- D3 `:417` `clicks(at: pt(10, 40)) { ancestor(true) } == ["parent"]`; `:429`
+  `clicks(at: pt(50, 50)) { sibling(true) } == ["under"]`.
+- D5 `:471` `!(disabled.focused → true)`; `:472` `(disabled.keys → 1) == 0`.
+- D6 `:499`, `:503` `(window.focusedElement → GlobalElementID) == nil`.
+- D7 `:556` `(disabled.parent → 1) == 0`; `:557` `(disabled.window → 0) == 1`.
+- D8 `:608` `(disabled.parent → 1) == 0`; `:609` `(disabled.window → 0) == 1`.
+- D9 `:653` `(disabled.child → 1) == 0`.
+- D11 `:680` focus not cleared; `:682` `(log.count("x") → 1) == 0`; `:687`
+  `(log.count("x") → 2) == 1`; `:688` focus not nil.
+- D13 `:717` — the arm's `try #require` that the first request is cleared: with
+  no gate the disabled element is focusable, so the arm stops before its final
+  assertion. The instrument arm (`:730`) passed.
+- D14 `:776` `(disabled.clicks → 1) == 0`; `:777` `!(disabled.focused → true)`.
+- D15 `:814`, `:815`, `:816` — R1, R2, R3 each read 1 (R0 passed).
+- D16 `:863` the disabled box hovered; `:864` `(disabled.active → true) == false`;
+  `:892` `parentHovered → false`; `:893` `childHovered → true`.
+- D12 `:925` `traits(true).contains(.disabled)`.
+- E5's D10 arm `EnvironmentTests.swift:378` `(readings.last → 3) == 2`; `:383`
+  `3 == 2`; `:387` `4 == 3`.
+
+**Passed on arrival, as the spec states**: D1 (the value exists once
+`.disabled` does) and G6 (`.disabled` is public).
+
+#### Suite (implementation commit `6957464`)
+
+- `swift test --no-parallel --build-system native`: **`Test run with 1133
+  tests in 1 suite passed after 29.002 seconds`**, 0 `error:`, 0 `warning:`.
+  Green on the first implementation run.
+- `swift test --no-parallel` (default build system), afterwards: **1133 tests
+  passed**, 0 `error:`, 0 `warning:`.
+- Goldens: **97**; `git diff --stat f64e58a -- '*.json'` empty; nothing under
+  `Sources/MetalUILayout/` changed.
+- Guards: **53** by the per-file count (`PhaseSeparationTests` 19,
+  `ErasureCompileGuards` 10, `ProposalLayoutCompileGuards` 6,
+  `ElementGroupTrapTests` 5, `UnitSafetyTests` 3 hits = 2, `AXNodeTests` 3,
+  `EnvironmentCompileGuards` 8). No new guard; G6 printed `passed` on the native
+  build and `failed` under its mutation (d), so it runs.
+
+#### Mutations
+
+Nineteen runs after the green commit, one at a time, full suite, each restored
+with `git checkout -- Sources Tests` and `git status --short` empty after each
+(all nineteen read empty). Readings and reddened tests are under each ruling's
+Mutations line in the decisions doc (`EV-C` G6 (d), `EV-D` (a), (b), D4's
+counter and D10, `EV-E` (a)–(c), D12, D14, `EV-F` six runs and D11, `EV-T`
+(= `EV-E` (b)), `EV-X` lane 3 half). What the batch taught beyond them:
+
+- **The central gate is one edit away from every D2 arm**: deleting the hitbox
+  gate reddened all 11 disabled arms at once and left the after arm green. The
+  arm list is a pin for future sites, not per-site coverage, as the spec says.
+- **The spec's `EV-X` overload is void for D2's `.onClick` spelling too** (1133
+  passed); the respelled hoist reddens only the after arm (`:367`).
+- **Three unpredicted readings.** `EV-E` (a)'s derived-id blocker also reddens
+  D16's consequence arm (the blocker, not the parent, is the hovered hitbox).
+  The value-keyed scope id reads 0 in E5's disabled arm while disabled but 2
+  again after re-enabling, because the original slot was only tombstoned; it
+  also reddens D6 (the focused id moves with the values). D11's `$enabled` slot
+  reddens 14 `table.count` assertions across `IdentityTests`,
+  `ElementGroupTrapTests` and `MeasurePerformanceTests`, besides D11 itself.
+- **D6's mutation as the spec spells it cannot separate D6 from D5**:
+  registering for `id == focusedElement` also lets a disabled element acquire
+  focus, since a request sets `focusedElement` before registration. The
+  SwiftUI-aligned retention it stands for needs a previous-frame focus signal
+  (`EV-F`, `EV-Q`); recorded, not banked as D6-specific coverage.
+- **`EV-D` (b) and D4's counter stop D7–D9 at their instruments**: each
+  re-enables a child with a raw `.environment(\.isEnabled, true)`, so their
+  `try #require` that the child holds focus is where they redden.
+- G6 (d)'s run printed `error:` twice; both are the typecheck fixture's
+  diagnostic quoted in the failure message, not a build error.
+
+#### Deferred, or not done by this lane
+
+- The window capture and the merge re-measure (`EV-P`, `EV-W`): lane 4. With
+  this lane `Frame.registerHandlers`' body changed, so lane 4's question whether
+  it now conflicts textually with `feat/ax-bridge` is live.
+- The joint AX-bridge test and the merged 5-argument gate (`EV-W` item 4), and
+  porting E11/E22/E23 (`EV-W` item 1): the integration step.
+- Unowned, as before: focus retention across a disable (D6's divergence), a
+  disabled look, a hit shape separate from `onClick` (D3's sibling divergence),
+  and `.padding`/handler modifiers directly on a scope.
+- CLAUDE.md's `.disabled` paragraph, divergences and counts (1133 tests, 53
+  guards): owed to the integration step; CLAUDE.md was not edited.
