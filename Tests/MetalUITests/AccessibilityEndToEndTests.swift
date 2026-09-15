@@ -117,6 +117,22 @@ private func elements(_ list: [Any]?) -> [NSAccessibilityElement] {
         return windowsHandler?(request) ?? false
     }
 
+    // Control: the events really reach the host view's overrides. Without it,
+    // a synthesized event AppKit swallowed leaves "no activation" vacuous: lane
+    // 2's mutation L44 (`mouseDown` activating) survived the first version of
+    // this test, whose mouse events never reached the view.
+    var inputs: [String] = []
+    let windowsInput = appKit.onInput
+    appKit.onInput = { event in
+        switch event {
+        case .mouseDown: inputs.append("down")
+        case .mouseUp: inputs.append("up")
+        case .keyDown: inputs.append("key")
+        default: break
+        }
+        return windowsInput?(event) ?? false
+    }
+
     nsWindow.makeKeyAndOrderFront(nil)
     nsWindow.makeFirstResponder(appKit.hostView)
     let inside = NSPoint(x: 20, y: nsWindow.contentRect(forFrameRect: nsWindow.frame).height - 10)
@@ -125,6 +141,13 @@ private func elements(_ list: [Any]?) -> [NSAccessibilityElement] {
             with: type, location: inside, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
             windowNumber: nsWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
         nsWindow.sendEvent(event)
+        // **AppKit swallows a synthesized mouse event here** (measured: in the
+        // test process the app is not active and the window is not key, so
+        // `sendEvent` spends the click on activation and the host view's
+        // `mouseDown` never runs, while the key event below does arrive). The
+        // AppKit path is still taken above; the override is then called directly
+        // so the host view's own mouse handling really runs.
+        if type == .leftMouseDown { appKit.hostView.mouseDown(with: event) } else { appKit.hostView.mouseUp(with: event) }
     }
     let key = try #require(NSEvent.keyEvent(
         with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
@@ -137,6 +160,7 @@ private func elements(_ list: [Any]?) -> [NSAccessibilityElement] {
         window.drawFrameIfNeeded()
     }
     try #require(window.framesDrawn == 5, "control: five frames really drew")
+    try #require(inputs == ["down", "up", "key"], "control: every synthesized event reached the host view")
 
     #expect(requests.isEmpty, """
         a window with no accessibility client was activated. If an out-of-process AX client \

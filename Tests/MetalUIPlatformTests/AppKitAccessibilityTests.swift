@@ -404,6 +404,17 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     #expect(rows.map { $0.accessibilityIndex() } == [40, 41, 42])
     #expect(elements(table.accessibilityVisibleRows()).map { $0.accessibilityLabel() } == ["r41", "r42"],
             "a row with a zero-height visible frame is not visible")
+
+    // Every element implements the table and row accessors, so the selector
+    // gate is what keeps a row from advertising a row count and a table from
+    // advertising an index (AB-AF item 5).
+    let rowCount = #selector(NSAccessibilityElement.accessibilityRowCount)
+    let rowsSelector = #selector(NSAccessibilityElement.accessibilityRows)
+    let index = #selector(NSAccessibilityElement.accessibilityIndex)
+    #expect(table.isAccessibilitySelectorAllowed(rowCount) && table.isAccessibilitySelectorAllowed(rowsSelector))
+    #expect(!table.isAccessibilitySelectorAllowed(index))
+    #expect(rows[0].isAccessibilitySelectorAllowed(index))
+    #expect(!rows[0].isAccessibilitySelectorAllowed(rowCount) && !rows[0].isAccessibilitySelectorAllowed(rowsSelector))
 }
 
 // MARK: - Hit testing (AB-W)
@@ -640,6 +651,22 @@ private func label(_ any: Any?) -> String? { (any as? AppKitAccessibilityElement
     _ = stable.accessibilityChildren()
     h.bridge.publish(tree(leaves: 13))
     #expect(h.poster.count(.layoutChanged) == 2, "a read re-arms exactly one more")
+
+    // Structure is more than the id set. Each arm keeps every id and changes
+    // one thing a client's children list or roles depend on; lane 2's
+    // mutations L49 (ignore children) and L50 (ignore roles) survived the
+    // arms above, which all add ids.
+    var reordered = tree(leaves: 13)
+    reordered.nodes[nid("stable")]?.children.reverse()
+    _ = stable.accessibilityChildren()
+    h.bridge.publish(reordered)
+    #expect(h.poster.count(.layoutChanged) == 3, "the same children in another order is a layout change")
+
+    var retyped = reordered
+    retyped.nodes[nid("leaf0")]?.role = .button
+    _ = stable.accessibilityChildren()
+    h.bridge.publish(retyped)
+    #expect(h.poster.count(.layoutChanged) == 4, "a role change alone is a layout change")
 }
 
 /// Label, value, row count and focus changes each post once, on the element
