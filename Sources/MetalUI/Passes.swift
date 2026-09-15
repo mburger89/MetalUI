@@ -208,6 +208,9 @@ public struct LayoutPass {
     /// `ShapingCache`'s whole surface part of `MetalUI`'s API by reachability.
     var shapingCache: ShapingCache { frame.shapingCache }
 
+    /// Whether this frame records accessibility (`Frame.collectsAccessibility`).
+    var collectsAccessibility: Bool { frame.collectsAccessibility }
+
     /// The innermost active `ScrollView`'s ambient context, or `nil` outside
     /// one — `ScrollView.requestLayout` is the sole publisher, via
     /// `withScrollContext` below.
@@ -451,6 +454,20 @@ public struct PrepaintPass {
     public func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
                                  id: GlobalElementID) {
         frame.registerHandlers(handlers, at: bounds, id: id)
+    }
+
+    /// Whether this frame records accessibility (`Frame.collectsAccessibility`).
+    var collectsAccessibility: Bool { frame.collectsAccessibility }
+
+    /// `registerHandlers` with what only an in-module conformer can say to an
+    /// accessibility client: a text leaf's string, and whether it synthesizes a
+    /// node at all (ruling AB-Y). Its two callers are `Text.prepaint` and
+    /// `OnTapModifier.prepaint`. See `Frame.registerHandlers`.
+    func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
+                          id: GlobalElementID, accessibleText: String? = nil,
+                          synthesizesAccessibility: Bool = true) {
+        frame.registerHandlers(handlers, at: bounds, id: id, accessibleText: accessibleText,
+                               synthesizesAccessibility: synthesizesAccessibility)
     }
 
     /// Runs `body` with pointer hitbox registration enabled or disabled.

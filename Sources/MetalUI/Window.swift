@@ -310,6 +310,10 @@ public final class Window {
     /// ask instead.
     private(set) var lastFocusRegistry = FocusRegistry()
 
+    /// Whether an accessibility client is present, and what this window last
+    /// published to it (`WindowAccessibility`, rulings AB-B, AB-M).
+    let accessibility = WindowAccessibility()
+
     /// The focused element and every ancestor of it, **innermost first** —
     /// empty when nothing is focused.
     ///
@@ -447,6 +451,9 @@ public final class Window {
         stateTable.onWrite = { [weak self] in self?.setNeedsRedraw() }
 
         platformWindow.onResize = { [weak self] _, _ in self?.setNeedsRedraw() }
+        platformWindow.onAccessibilityRequest = { [weak self] request in
+            self?.handleAccessibilityRequest(request) ?? false
+        }
         platformWindow.onAppearanceChange = { [weak self] appearance in
             // Assigning drives `theme`'s `didSet`, which is what marks the
             // window dirty — §7.9's "swap the active theme and mark §4.4's
@@ -861,7 +868,8 @@ public final class Window {
                           mousePosition: lastMousePosition,
                           activeElement: active,
                           focusedElement: focusHandedIn,
-                          transaction: transaction)
+                          transaction: transaction,
+                          collectsAccessibility: accessibility.isActive)
         frame.rootEnvironment = environment
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
@@ -922,6 +930,20 @@ public final class Window {
         // answer is the whole answer, and a flag that only ever went true is
         // a window whose display link never pauses again.
         hasActiveAnimations = frame.hasActiveAnimations
+
+        // After the focus read-back, so a published focus is the frame's
+        // decision (AB-J). Builds only while a client is active (AB-B). A
+        // `List` still waiting for its viewport asks for one more frame, which
+        // this honours at most once per run of asking frames (AB-X rule 3).
+        if accessibility.frameDidRender(
+            emissionCount: frame.axEmissions.count,
+            retry: frame.wantsAccessibilityRetry,
+            AccessibilityTreeBuilder.build(emissions: frame.axEmissions, focused: focusedElement,
+                                           hitboxes: frame.hitboxes,
+                                           focusRegistry: frame.focusRegistry),
+            to: platformWindow) {
+            setNeedsRedraw()
+        }
 
         // **Before `encode`, and the ordering is the whole point.** Paint has
         // just packed whatever glyphs this frame needed and the scene holds

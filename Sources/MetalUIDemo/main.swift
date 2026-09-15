@@ -285,7 +285,10 @@ struct CounterPanel: Element {
 
         return Box(style: row,
                    decoration: Decoration(background: .surface, cornerRadius: Pixels(12)),
-                   content: Pair(Pair(button("-", minus), readout), button("+", plus)))
+                   // Labelled for an accessibility client (ruling AB-G): an
+                   // unlabelled square would combine its text into "-" and "+".
+                   content: Pair(Pair(button("-", minus).accessibilityLabel("Decrement"), readout),
+                                 button("+", plus).accessibilityLabel("Increment")))
             // **The focus affordance, and the only one this framework has.**
             // `Frame.fill` hard-codes zero border widths, so nothing above the
             // renderer can draw a ring; a token swap is what is reachable.
@@ -813,6 +816,14 @@ func demoContent() -> some Element {
                                 // dismisses, which is also how a human tells
                                 // the hitbox is really there.
                                 .onClick { demoModel.showModal = false }
+                                // A button to an accessibility client (AB-G).
+                                // The panel inside is interactive (its
+                                // click-absorbing `onClick {}`), so the scrim
+                                // keeps its children. The panel itself stays
+                                // UNlabelled on purpose: its combined label is
+                                // the modal's text, which a label would hide
+                                // (AB-Y).
+                                .accessibilityLabel("Close modal")
                             }
                         }
 

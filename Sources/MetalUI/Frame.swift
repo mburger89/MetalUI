@@ -2,6 +2,7 @@ import MetalUICore
 import MetalUILayout
 import MetalUIRender
 import MetalUIText
+import MetalUIPlatform
 
 /// The single owner of one frame's mutable state (spec §4.1).
 ///
@@ -357,10 +358,30 @@ public final class Frame {
 
     /// Pushes the root layer. Balanced by `popLayer`, reached only through
     /// `deferred`'s `defer`.
-    func pushLayer() { layerStack.append(Self.rootLayer) }
+    ///
+    /// **While collecting accessibility it also opens a portal** (ruling AB-V):
+    /// each `Deferred` scope gets a fresh per-frame ordinal, nested ones
+    /// included, and every record made inside carries the innermost. The layer
+    /// itself cannot serve: every portal shares `rootLayer`, so a portal nested
+    /// in a portal would look like its parent's content.
+    func pushLayer() {
+        layerStack.append(Self.rootLayer)
+        if collectsAccessibility {
+            portalCount += 1
+            portalStack.append(portalCount)
+        }
+    }
 
     /// Pops one level pushed by `pushLayer`.
-    func popLayer() { layerStack.removeLast() }
+    func popLayer() {
+        layerStack.removeLast()
+        if collectsAccessibility { portalStack.removeLast() }
+    }
+
+    /// Portal ordinals issued this frame, and the ones open now, innermost last
+    /// (AB-V). Untouched while not collecting.
+    private var portalCount = 0
+    private var portalStack: [Int] = []
 
     /// Pushes an **intersected** clip (radii included, see `intersect(_:radii:_:radii:)`)
     /// and an **accumulated** offset.
@@ -737,6 +758,19 @@ public final class Frame {
     /// primitive reads `pass.environment.isEnabled` itself.
     func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
                           id: GlobalElementID) {
+        registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                         synthesizesAccessibility: true)
+    }
+
+    /// The implementation, and **the one place the disabled gate lives**
+    /// (ruling EV-W item 4): the 3-argument overload above is a bare forward,
+    /// because `Text` and `OnTapModifier` reach this method directly through
+    /// `PrepaintPass`'s internal overload, so a gate in the 3-argument method
+    /// would leave them ungated (measured: D2's "text" and "proposal" arms and
+    /// D3 redden).
+    func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
+                          id: GlobalElementID, accessibleText: String?,
+                          synthesizesAccessibility: Bool) {
         // Read in place, not through `environmentSnapshot()`, so the gate costs
         // no counted snapshot (ruling EV-O).
         let enabled = environmentTop.isEnabled
@@ -839,8 +873,9 @@ public final class Frame {
         // — `AXNode.isEmpty`'s own doc names this as `Handlers`' "empty means
         // not a hit target" rule, one type over.
         //
-        // **Kept LAST in this method**, so the `$ax` write follows the
-        // `$focus` write above — `Box.prepaint`'s order before this moved, and
+        // **Kept AFTER the `$focus` write above** (and before only the
+        // accessibility record below, which writes no slot), so the `$ax` write
+        // follows the `$focus` write — `Box.prepaint`'s order before this moved, and
         // the order `theSevenRetentionSlotsAreMutuallyDistinct`
         // (`AXNodeTests.swift`) calls the two in by hand. **That test does not
         // pin this ordering, and it is not what keeps it red:** it calls
@@ -854,17 +889,50 @@ public final class Frame {
         // `[LayoutNodeID]`, not a `GlobalElementID` per child
         // (`ElementGroup.swift`), so no container can name its own children's
         // ids without a change to that protocol's associated types (ruling
-        // `TB-M`). Whoever assembles a real tree either extends `ElementGroup`
-        // for it or walks `GlobalElementID.parent` over the flat `axNodes` map.
+        // `TB-M`). **The accessibility bridge assembles its tree elsewhere and
+        // leaves this `[]`** (ruling AB-C): `AccessibilityTreeBuilder` walks
+        // `GlobalElementID.parent` over this frame's `axEmissions`, whose
+        // record order — which `axNodes`' keys cannot carry — is declaration
+        // order.
+        //
+        // **A row hint is not a declaration** (ruling AB-L): `logicalIndex` is
+        // stripped before the test, so a `List` row that carries only its index
+        // emits nothing here and writes no `$ax` slot (AB-U).
         //
         // **A disabled element's declared node gains `.disabled`** (ruling
         // EV-E). Presence and role still come from the ungated `handlers`: a
-        // disabled button is still a button. The accessibility bridge's record
-        // takes `isEnabled: enabled` at merge (ruling EV-W item 4).
-        if !handlers.axNode.isEmpty {
+        // disabled button is still a button. The client's record below carries
+        // `isEnabled: enabled` (ruling EV-W item 4).
+        var declaration = handlers.axNode
+        declaration.logicalIndex = nil
+        if !declaration.isEmpty {
             var node = handlers.axNode
             if !enabled { node.traits.insert(.disabled) }
             emitAXNode(node, at: bounds, id: id, children: [])
+        }
+        // **A client's record, separate from the emission above and never a
+        // substitute for it** (ruling AB-U). With no client this is one `Bool`
+        // read. While collecting, anything with something to say appends a
+        // record — a declared node, and (when this conformer synthesizes) a
+        // click target, a focusable or adjustable element, or a text leaf —
+        // and nothing here writes `axNodes` or `StateTable`, so a synthesized
+        // node cannot change retention and `noConformerEmitsAnAXNodeItDidNotDeclare`
+        // stays true whether or not a client is active.
+        if collectsAccessibility, !isAccessibilitySuppressed(for: id) {
+            let adjustable = handlers.actions[ObjectIdentifier(AccessibilityAdjustment.self)] != nil
+            let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
+                || (synthesizesAccessibility
+                    && (handlers.onClick != nil || handlers.isFocusable || adjustable
+                        || accessibleText != nil))
+            if hasSomethingToSay {
+                axEmissions.append(AXEmission(id: id, declared: handlers.axNode,
+                                              text: accessibleText,
+                                              isClickable: handlers.onClick != nil,
+                                              isEnabled: enabled,
+                                              synthesizes: synthesizesAccessibility,
+                                              portal: portalStack.last ?? 0,
+                                              geometry: accessibilityGeometry(for: bounds)))
+            }
         }
     }
 
@@ -899,6 +967,82 @@ public final class Frame {
     /// still valid".
     private(set) var axNodes: [GlobalElementID: AXNode] = [:]
 
+    /// Whether an accessibility client is active for this frame's window
+    /// (ruling AB-B). `Window` passes `WindowAccessibility.isActive`; a `Frame`
+    /// built anywhere else defaults to `false`.
+    ///
+    /// **A `let`, for `theme`'s reason**: half a frame collecting would publish
+    /// half a tree. **What it turns on is records, not emissions**: `axNodes`,
+    /// the `$ax` slot and everything else this frame does are identical either
+    /// way (AB-U), which is what keeps a screen reader from changing app state.
+    let collectsAccessibility: Bool
+
+    /// This frame's accessibility records, in prepaint order — **empty unless
+    /// `collectsAccessibility`**. Read by `AccessibilityTreeBuilder` once per
+    /// frame. See `AXEmission`.
+    private(set) var axEmissions: [AXEmission] = []
+
+    /// Set by a collecting `List` whose window is unbounded only because its
+    /// scroller has not measured a viewport yet (ruling AB-X rule 3). `Window`
+    /// hands it to `WindowAccessibility.frameDidRender`, which dirties the window
+    /// only when the previous drawn frame did not ask too.
+    private(set) var wantsAccessibilityRetry = false
+
+    /// Ask for one more frame so an accessibility client sees what this frame
+    /// could not publish. A no-op unless collecting.
+    ///
+    /// **Not `requestAnotherFrame()`**: `wantsAnotherFrame` is honoured on every
+    /// frame, so a scroller that never measures a viewport (zero height) would
+    /// keep the display link awake forever. This one is capped by its reader.
+    func requestAccessibilityRetry() {
+        guard collectsAccessibility else { return }
+        wantsAccessibilityRetry = true
+    }
+
+    /// The exceptions of the open suppression scopes, outermost first.
+    private var accessibilitySuppressionExceptions: [GlobalElementID?] = []
+
+    /// Runs `body` with accessibility records suppressed for everything except
+    /// `exception` — for a subtree a client must not see even though it runs
+    /// `prepaint` (`display: none`, ruling AB-O; a `List`'s unbounded window,
+    /// which excepts the list's own node, AB-X). Closure form for `clipped(to:offsetBy:)`'s
+    /// reason: an unbalanced scope is not expressible. A no-op while not
+    /// collecting.
+    func withAccessibilitySuppressed<R>(except exception: GlobalElementID?, _ body: () -> R) -> R {
+        guard collectsAccessibility else { return body() }
+        accessibilitySuppressionExceptions.append(exception)
+        defer { accessibilitySuppressionExceptions.removeLast() }
+        return body()
+    }
+
+    /// True inside a suppression scope, unless `id` is the **outermost** scope's
+    /// exception: a `List` suppressing its rows keeps its own node, and a
+    /// hidden ancestor (`except: nil`, outermost) still silences that `List`.
+    func isAccessibilitySuppressed(for id: GlobalElementID) -> Bool {
+        guard let outermost = accessibilitySuppressionExceptions.first else { return false }
+        return outermost != id
+    }
+
+    /// A record's geometry: `bounds` translated exactly as `insertHitbox`
+    /// translates it, that rect intersected with the active clip — the rect a
+    /// hitbox would register at — and the hitbox's layer (AB-E, AB-W). The
+    /// record's `order` is not known here: `AccessibilityTreeBuilder` fills it
+    /// from the record's first position.
+    private func accessibilityGeometry(for bounds: Bounds<Pixels>) -> AccessibilityGeometry {
+        let translated = translatedByActiveOffset(bounds)
+        return AccessibilityGeometry(frame: translated,
+                                     visibleFrame: Self.intersect(activeClip, translated),
+                                     layer: activeLayer)
+    }
+
+    /// `bounds` moved by the active scroll translation — what `insertHitbox`,
+    /// `fill` and `emitAXNode` each apply before storing or emitting.
+    private func translatedByActiveOffset(_ bounds: Bounds<Pixels>) -> Bounds<Pixels> {
+        Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                             y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+               size: bounds.size)
+    }
+
     /// Records `node` as `id`'s accessibility node, resolving its `frame` and
     /// `children` from the parameters rather than from whatever `node` itself
     /// carried — see `AXNode`'s own doc on why a declared value's `frame` and
@@ -924,7 +1068,15 @@ public final class Frame {
     func emitAXNode(_ node: AXNode, at bounds: Bounds<Pixels>, id: GlobalElementID,
                     children: [GlobalElementID]) -> AXNode {
         var resolved = node
-        resolved.frame = bounds
+        // Translated by the active scroll offset, exactly as `insertHitbox`
+        // translates a hitbox (ruling AB-E). **It was not, until the
+        // accessibility bridge's lane 1**: a node inside a `ScrollView`
+        // scrolled by 40 reported its content-space y of 100 where it was on
+        // screen at 60, measured by
+        // `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame` before the
+        // fix. Unclipped, unlike the hitbox: a frame is where the node IS, and a
+        // client reads what is scrolled out of view too (arm R17).
+        resolved.frame = translatedByActiveOffset(bounds)
         resolved.children = children
         resolved.isValid = true
         axNodes[id] = resolved
@@ -1226,7 +1378,8 @@ public final class Frame {
          mousePosition: Point<Pixels>? = nil,
          activeElement: GlobalElementID? = nil,
          focusedElement: GlobalElementID? = nil,
-         transaction: Animation? = nil) {
+         transaction: Animation? = nil,
+         collectsAccessibility: Bool = false) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
@@ -1246,6 +1399,7 @@ public final class Frame {
         self.activeElement = activeElement
         self.focusedElement = focusedElement
         self.transaction = transaction
+        self.collectsAccessibility = collectsAccessibility
     }
 
     // MARK: - Layout phase
@@ -1551,8 +1705,16 @@ public final class Frame {
         let rootBounds = bounds(of: root)
 
         var prepaintPass = PrepaintPass(frame: self)
-        var prepaintState = element.prepaint(rootID, bounds: rootBounds,
-                                             layout: &state, pass: &prepaintPass)
+        // The root's `prepaint` is called here, not through `prepaintGroup`, so
+        // `Element.prepaintGroup`'s `display: none` check cannot reach it: a
+        // hidden root still prepaints (`hidden()` filters layout only), and
+        // without this every record inside it would publish (ruling AB-AD,
+        // `aHiddenRootPublishesNothing`). Accessibility only, as there.
+        var prepaintState = collectsAccessibility && style(root).display == .none
+            ? withAccessibilitySuppressed(except: nil) {
+                element.prepaint(rootID, bounds: rootBounds, layout: &state, pass: &prepaintPass)
+            }
+            : element.prepaint(rootID, bounds: rootBounds, layout: &state, pass: &prepaintPass)
 
         // Hover resolves HERE — after `prepaint` has returned, so every
         // hitbox the frame will ever have is already registered, and before
