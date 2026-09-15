@@ -18,10 +18,10 @@ private final class NativeTapProbe {
     var count = 0
 }
 
-private struct NativeRoot: Element {
+private struct NativeRoot: ProposalElement {
     let probe: NativeLayoutProbe
 
-    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+    func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
         let leaf = pass.requestNativeLeaf { proposal in
             probe.measureCalls += 1
             #expect(proposal == ProposedSize(width: 140, height: 90))
@@ -39,12 +39,12 @@ private struct NativeRoot: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-private struct NativeProbeLeaf: Element {
+private struct NativeProbeLeaf: ProposalElement {
     let size: SizeD
     let probe: NativeLayoutProbe
     let name: String
 
-    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+    func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
         let node = pass.requestNativeLeaf { proposal in
             probe.proposals.append(proposal)
             return LayoutMeasurement(size: size)
@@ -61,16 +61,15 @@ private struct NativeProbeLeaf: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-extension NativeProbeLeaf: ProposalElementGroup {}
 
 /// A leaf whose width is its proposal capped at its ideal width. This mirrors
 /// the flexible probe used by the companion SwiftUI priority measurement.
-private struct NativeFlexibleProbe: Element {
+private struct NativeFlexibleProbe: ProposalElement {
     let idealWidth: Double
     let probe: NativeLayoutProbe
     let name: String
 
-    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+    func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
         let node = pass.requestNativeLeaf { proposal in
             probe.proposals.append(proposal)
             return LayoutMeasurement(size: SizeD(width: Swift.min(idealWidth, proposal.width ?? idealWidth), height: 10))
@@ -87,16 +86,15 @@ private struct NativeFlexibleProbe: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-extension NativeFlexibleProbe: ProposalElementGroup {}
 
 /// The vertical counterpart of ``NativeFlexibleProbe``. It is kept separate
 /// so each priority test makes the flexible axis explicit.
-private struct NativeVerticallyFlexibleProbe: Element {
+private struct NativeVerticallyFlexibleProbe: ProposalElement {
     let idealHeight: Double
     let probe: NativeLayoutProbe
     let name: String
 
-    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+    func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
         let node = pass.requestNativeLeaf { proposal in
             probe.proposals.append(proposal)
             return LayoutMeasurement(size: SizeD(width: 10, height: Swift.min(idealHeight, proposal.height ?? idealHeight)))
@@ -113,12 +111,11 @@ private struct NativeVerticallyFlexibleProbe: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-extension NativeVerticallyFlexibleProbe: ProposalElementGroup {}
 
-private struct NativeFillProbe: Element {
+private struct NativeFillProbe: ProposalElement {
     let probe: NativeLayoutProbe
 
-    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+    func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
         let node = pass.requestNativeLeaf { proposal in
             LayoutMeasurement(size: proposal.replacingUnspecifiedDimensions(by: .zero))
         }
@@ -134,13 +131,12 @@ private struct NativeFillProbe: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-extension NativeFillProbe: ProposalElementGroup {}
 
-private struct NativeProposalProbe: Element {
+private struct NativeProposalProbe: ProposalElement {
     let expectedProposal: ProposedSize
     let probe: NativeLayoutProbe
 
-    func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+    func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
         let node = pass.requestNativeLeaf { proposal in
             #expect(proposal == expectedProposal)
             return LayoutMeasurement(size: SizeD(width: 30, height: 10))
@@ -157,7 +153,6 @@ private struct NativeProposalProbe: Element {
                prepaint: inout Void, pass: inout PaintPass) {}
 }
 
-extension NativeProposalProbe: ProposalElementGroup {}
 
 @MainActor
 @Test func aNativeRootRunsThroughTheFramePipelineWithoutInvokingFlexLayout() {

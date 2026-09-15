@@ -141,7 +141,7 @@ private struct CountingLeaf: StyledElement {
 /// with the same `@State`, handler, log and hover fill. `action` replaces the
 /// default handler and `displayed` replaces the logged value, so a `Component`
 /// can route its OWN `@State` through this leaf.
-private struct CountingProposalLeaf: Element, ProposalElementGroup {
+private struct CountingProposalLeaf: ProposalElement {
     @State var taps = 0
     var name: String
     var log: CompositionLog
@@ -160,7 +160,7 @@ private struct CountingProposalLeaf: Element, ProposalElementGroup {
         self.displayed = displayed
     }
 
-    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+    mutating func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
         log.layout[name, default: 0] += 1
         log.events.append("layout \(name)")
         let size = SizeD(width: width, height: height)
@@ -202,7 +202,7 @@ private struct CountingProposalComponent: Component, ProposalElementGroup {
     var name: String
     var log: CompositionLog
 
-    var content: some ElementGroup {
+    var content: some ProposalElementGroup {
         let state = _taps
         return CountingProposalLeaf(name, log: log, action: { state.wrappedValue += 1 },
                                     displayed: taps)
@@ -1075,7 +1075,7 @@ private struct Placement: Equatable, CustomStringConvertible {
 /// A proposal wrapper that contributes no layout node (`OnTapModifier`'s shape)
 /// and registers `isFocusable` and an `onKey` that claims only `claims`,
 /// writing every keystroke it sees into `log.events`.
-private struct KeyHandling<Content: ProposalElementGroup>: Element, ProposalElementGroup {
+private struct KeyHandling<Content: ProposalElementGroup>: ProposalElement {
     var name: String
     var log: CompositionLog
     var focusable: Bool
@@ -1093,9 +1093,9 @@ private struct KeyHandling<Content: ProposalElementGroup>: Element, ProposalElem
 
     struct Layout { var content: Content.GroupLayout }
 
-    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    mutating func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor, pass: &pass)
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor, pass: &pass)
         precondition(children.count == 1, "KeyHandling wraps one native node")
         return (children[0], Layout(content: contentLayout))
     }

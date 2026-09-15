@@ -19,11 +19,11 @@ public struct OnTapModifier<Content: ProposalElementGroup>: Element {
 
     public struct Layout { var content: Content.GroupLayout }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
-                                                                   pass: &pass)
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
+                                                                           pass: &pass)
         precondition(children.count == 1, "a native tappable wrapper requires one native child")
         return (children[0], Layout(content: contentLayout))
     }

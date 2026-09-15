@@ -50,13 +50,13 @@ public struct ModifiedContent<Content: ProposalElementGroup>: Element {
         var content: Content.GroupLayout
     }
 
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var cursor = 0
-        let (children, contentLayout) = content.requestGroupLayout(under: id, at: &cursor,
-                                                                   pass: &pass)
+        let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
+                                                                           pass: &pass)
         let node = nativeWrapperNode(for: children, pass: &pass)
-        return (node, Layout(node: node, content: contentLayout))
+        return (node, Layout(node: node.layoutNodeID, content: contentLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -106,7 +106,7 @@ public struct ModifiedContent<Content: ProposalElementGroup>: Element {
         }
     }
 
-    private func nativeWrapperNode(for children: [LayoutNodeID], pass: inout LayoutPass) -> LayoutNodeID {
+    private func nativeWrapperNode(for children: [ProposalNodeID], pass: inout LayoutPass) -> ProposalNodeID {
         precondition(children.count == 1,
                      "a native outer modifier must wrap exactly one native layout node")
         let child = children[0]

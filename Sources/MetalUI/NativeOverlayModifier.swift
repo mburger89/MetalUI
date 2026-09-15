@@ -60,21 +60,21 @@ public struct OverlayModifier<Content: ProposalElementGroup, Overlay: ProposalEl
     /// shape, `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`
     /// (`ModifierCompositionProofTests.swift`). The shared-cursor-at-0 mutation
     /// reddens all four; the threaded cursor reddens the first and the last.
-    public mutating func requestLayout(_ id: GlobalElementID,
-                                       pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    public mutating func requestProposalLayout(_ id: GlobalElementID,
+                                               pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         var contentCursor = 0
-        let (contentNodes, contentLayout) = content.requestGroupLayout(under: id, at: &contentCursor,
-                                                                        pass: &pass)
+        let (contentNodes, contentLayout) = content.requestProposalGroupLayout(under: id, at: &contentCursor,
+                                                                                pass: &pass)
         var overlayCursor = 0
         let overlaySide = GlobalElementID.child(of: id, at: -1, name: nil)
-        let (overlayNodes, overlayLayout) = overlay.requestGroupLayout(under: overlaySide,
-                                                                        at: &overlayCursor,
-                                                                        pass: &pass)
+        let (overlayNodes, overlayLayout) = overlay.requestProposalGroupLayout(under: overlaySide,
+                                                                                at: &overlayCursor,
+                                                                                pass: &pass)
         precondition(contentNodes.count == 1 && overlayNodes.count == 1,
                      "a native overlay modifier requires one primary and one overlay node")
         let node = pass.requestNativeOverlayAttachment(child: contentNodes[0], overlay: overlayNodes[0],
                                                        alignment: alignment)
-        return (node, Layout(node: node, content: contentLayout, overlay: overlayLayout))
+        return (node, Layout(node: node.layoutNodeID, content: contentLayout, overlay: overlayLayout))
     }
 
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Layout,

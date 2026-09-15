@@ -909,7 +909,10 @@ private struct PreviewToggle: Component {
 
     var elementID: ElementID? { ElementID("native-preview-toggle") }
 
-    var content: some ElementGroup {
+    // `some ProposalElementGroup`, not `some ElementGroup`: the opaque type must
+    // say its content is proposal content, or the marker below does not conform
+    // (ruling MC-G).
+    var content: some ProposalElementGroup {
         Rectangle(width: Pixels(168), height: Pixels(95),
                         color: isSelected ? .separator : .accent)
             .aspectRatio(16.0 / 9.0)
@@ -928,20 +931,20 @@ extension PreviewToggle: ProposalElementGroup {}
 /// the proposal stack's compression and `layoutPriority` visible as the window
 /// changes size; production elements will acquire their own proposal-aware
 /// measurements during the remaining migration work.
-private struct PriorityPreviewPanel: Element {
+private struct PriorityPreviewPanel: ProposalElement {
     let idealWidth: Pixels
     let color: ColorToken
 
     struct Layout { var node: LayoutNodeID }
 
-    mutating func requestLayout(_ id: GlobalElementID,
-                                pass: inout LayoutPass) -> (LayoutNodeID, Layout) {
+    mutating func requestProposalLayout(_ id: GlobalElementID,
+                                        pass: inout LayoutPass) -> (ProposalNodeID, Layout) {
         let idealWidth = Double(idealWidth.value)
         let node = pass.requestNativeLeaf { proposal in
             LayoutMeasurement(size: SizeD(width: Swift.min(idealWidth, proposal.width ?? idealWidth),
                                            height: 48))
         }
-        return (node, Layout(node: node))
+        return (node, Layout(node: node.layoutNodeID))
     }
 
     mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -953,7 +956,6 @@ private struct PriorityPreviewPanel: Element {
     }
 }
 
-extension PriorityPreviewPanel: ProposalElementGroup {}
 
 @MainActor
 func nativeLayoutPreviewContent() -> some Element {
