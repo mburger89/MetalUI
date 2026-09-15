@@ -10,7 +10,7 @@ replacement's reason depends on it.
 
 Prefixed **`MC-`** and **lettered** (`MC-A`, `MC-B`, …), per this repo's
 convention. **A bare `MC-3` is a typo, not a citation.** The next unused letter
-is **`MC-S`**.
+is **`MC-T`**.
 
 Read alongside:
 
@@ -45,6 +45,10 @@ Read alongside:
 - **`MC-R`** — lane 2's departures from the spec: two skeletons, the counts'
   base, the demo capture that could not be taken and what stood in for it, and
   a parallel-run hazard.
+- **`MC-S`** — lane 3's departures from the spec: no skeleton, the counts'
+  base, helpers beyond the lists, positive controls, two mutation spellings
+  that did not build, the demo captures again not taken, and the registrars'
+  per-call array.
 
 **Every ruling ends with a "Mutations" line reading _owed by lane N_.** The lane
 that implements a ruling replaces it with the mutations it ran and the tests
@@ -1088,7 +1092,61 @@ the untyped `requestLayout` comes from the default.
   compiles is again a run-time trap (holes 3, 5 and 7), or, for holes 4 and 6,
   silently wrong output. They are named here and pinned so they cannot be.
 
-**Mutations:** owed by lane 3.
+**Mutations:** lane 3, at `f9e2c62` (G1b and F1b at `b320ee7`), each
+`swift test --build-system native --no-parallel` over the whole suite, record
+§10, where the guards' red runs before the typed id existed are too. Coverage
+is worded as differentials between named tests, taken at 1112.
+
+- **G1b** — `extension ProposalElementGroup where Self: Element` with a
+  trapping default `requestProposalGroupLayout` (the spec's unconstrained
+  spelling does not build, `MC-S` item 5): 1112 tests, 2 issues, guard 1 (`:65`,
+  `:67`; the liar `succeeded=true`). Guard 6's negative stays rejected, since it
+  is not an `Element` ("candidate would match if 'Liar' conformed to
+  'Element'").
+- **G2** — `ProposalNodeID.init(_:)` made `public`: 1112, 1 issue, guard 2
+  (`:91`, both halves `succeeded=true`).
+- **G3** — an unconstrained `extension Component` with a trapping default:
+  1112, 1 issue, guard 3 (`:131`, all three fixtures `succeeded=true`).
+- **G4** — a `requestNativeFrame(child: LayoutNodeID, …)` overload on
+  `LayoutPass`: 1112, 1 issue, guard 4 (`:161`).
+- **G5** — a `requestNativeLayout(_:children: [LayoutNodeID])` overload: 1112,
+  1 issue, guard 5 (`:223`).
+- **G6** — guard 6's positive fixture built without its typed entry (the
+  post-landing red run the spec asks for): 1112, 1 issue, guard 6 (`:275`, both
+  fixtures "type 'Liar' does not conform to protocol 'ProposalElementGroup'").
+- **F1b** — `LayoutPass.requestNativeLayout` made `internal` (the SA-F row's
+  spelling, `ProposalElement`'s `requestLayout` default made `internal`, does
+  not build: "method 'requestLayout(_:pass:)' must be declared public because
+  it matches a requirement in public protocol 'Element'"): 1112, 2 issues —
+  `anExternalModuleCanBuildACustomLeafAndContainerFromPublicAPI` (`:159`,
+  "'requestNativeLayout' is inaccessible due to 'internal' protection level")
+  and guard 5 (`:223`, its typed positive failing too).
+- **T7** — an orphan check: a counter raised around `ProposalElement`'s typed
+  default's `requestProposalLayout` call and `precondition(counter == 0)` in
+  `LayoutPass.requestNode`. **No summary line:** the process trapped ("MetalUI/
+  Passes.swift:33: Precondition failed: MUTATION T7: legacy node registered
+  during a typed entry") inside test 7 after 953 tests had passed, having
+  already reddened
+  `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`
+  on its fragment (its `@testable` mint now trapped at `requestNode` first).
+  As test 7's doc says, whoever closes hole 2 converts it to an exit test.
+- **T8** — a duplicate-parent precondition in `LayoutTree.appendNode` (a set of
+  every node already given a parent). **No summary line:** trapped
+  ("MetalUILayout/LayoutTree.swift:150: Precondition failed: MUTATION T8:
+  duplicate parent") inside test 8 after 955 tests had passed; no test run
+  before it, legacy or native, tripped the check.
+- **T9** — test 9's trapping arm registers a fresh id on frame 2 as well: 1112,
+  2 issues, test 9 (`:342` `.failure → .exitCode(0)`; `:355` the fragment).
+- **S1** — `newNativeLinearStack`'s child loop deleted (`SA-T` item 1's
+  mutation, on the typed entry): 1112, 3 issues —
+  `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`
+  (the witness's message instead) and
+  `aLegacyNodeRegisteredUnderANativeStackTraps`. Test 9 stays green:
+  `appendNode`'s own `slot` loop then reports the stale id, with the same
+  message (`MC-S` item 9).
+- **S2** — `LayoutTree.setStyle`'s native check deleted: 1112, 3 issues —
+  `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration` (hole 5's pin)
+  and `aStyleWrittenOntoANativeNodeTraps`.
 
 ---
 
@@ -1168,7 +1226,58 @@ parallel and merge afterwards, and `Passes.swift` is a named shared file.
   3. `Component`'s typed default bypasses the helper;
   4. delete the helper's `cursor += 1`.
 
-**Mutations:** owed by lane 3.
+**Mutations:** lane 3, each over the whole suite under `--build-system native`,
+record §10. **The table's first run (`f9e2c62`) found that the test could not
+see mutation 2, and that mutation 1's reading of `a` had been predicted
+wrong:**
+
+- H1 (the helper's bind deleted): 1112, 19 issues; test 6 only at `c`
+  (`taps["c"] → 0`) — `a` read 3.
+- **H2 (`ProposalElement`'s typed default bypasses the helper: `.child`, then
+  `cursor += 1`, no bind): `Test run with 1112 tests in 1 suite passed`.**
+- H3 (`Component`'s typed default bypasses it): 1112, 1 issue, test 6 at `c`.
+- H4 (the helper's `cursor += 1` deleted): 1112, 25 issues.
+
+**Why H2 was invisible.** `Element.prepaintGroup` and `paintGroup` re-bind an
+element's `@State` to the id stamped during layout before they call `prepaint`
+and `paint` (`ElementGroup.swift`, the `Row { sep; sep }` re-bind). Test 6's
+`CountingProposalLeaf` read `taps` in paint and captured its handler's box in
+prepaint, so an ELEMENT's own state never depended on the group entry's bind.
+A `Component` has no such re-bind, and its displayed value is computed in
+`content`, during layout — hence `c` alone under H1 and H3. What the entry's
+bind does serve is a **layout-time** read, so the mutant is observable and the
+test was the broken instrument (practices, "a mutation that reddens nothing").
+`b320ee7` makes `CountingProposalLeaf` log the value it reads in
+`requestProposalLayout`, and pins a/b/c at 3/0/2 there too.
+
+**Re-taken at `b320ee7`, the whole table:**
+
+- **H1**: 1112, 21 issues — test 6 at `taps["c"] → 0`, `layoutTaps["a"] → 0`
+  and `layoutTaps["c"] → 0`; test 7 arm b (the orphan leaf's `$state0` reads
+  `nil` and is not live); and the legacy `@State` tests
+  `stateSurvivesAcrossFramesForTheSameElement`,
+  `stateInsideAComponentsContentIsAlsoSeeded`,
+  `aNamedComponentsContentKeepsItsStateWhenASiblingIsInsertedBeforeIt`,
+  `oneElementValuePlacedTwiceDoesNotShareItsState`,
+  `aHandlerWritesTheStateOfTheOccurrenceThatRegisteredIt`,
+  `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` and
+  `theResidentEntrySetStaysBoundedWhileScrolling10kRows`.
+- **H2**: 1112, 1 issue — test 6, `layoutTaps["a"] → 0`.
+- **H3**: 1112, 2 issues — test 6, `taps["c"] → 0` and `layoutTaps["c"] → 0`.
+- **H4**: 1112, 26 issues — test 6 at `taps["b"] → 2` and `layoutTaps["b"] →
+  2` (with the cursor frozen `b` takes `c`'s id and reads the component's
+  slot); `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed`'s
+  control; and the tests that rely on distinct sibling indices, among them
+  `theIndexSpaceIsFlatRatherThanNested`,
+  `twoUnnamedSiblingsDoNotShareOneStateEntry`,
+  `reorderingAnUnnamedListKeepsStateWithThePositionNotTheItem`,
+  `aPressOnOneElementReleasedOnAnotherIsNotAClick` and
+  `hoveringOneClickTargetDoesNotHoverItsSibling`.
+
+As a differential: H2 reddens test 6's layout-time `a` and H3 its `c`, neither
+the other's; H1 reddens both and the legacy `@State` tests; H4 reddens `b`.
+`Component.swift`'s untyped copy was not mutated here (its two pins are named
+in `MC-M`).
 
 ---
 
@@ -1316,6 +1425,22 @@ the header's rects move), and is identical again once restored. What this does
 NOT cover that a capture would: the renderer, the window's real size and
 backing scale, the display link, a focused counter at launch, and the pointer's
 hover.
+
+**Lane 3's result: neither window could be captured; the offscreen comparison
+stands in again, now for both, and both captures are owed** (`MC-S` item 7).
+The session was locked with the display asleep (`CGSSessionScreenIsLocked` 1,
+`CGDisplayIsAsleep` 1, `IOConsoleLocked` true; `screencapture -x
+-R0,0,100,100` → "could not create image from rect"); the pointer read
+(1090.18, 339.99) and was not moved; nothing was launched. The harness above,
+given a second root selected by `HARNESS_ROOT=preview` that renders
+`nativeLayoutPreviewContent()`, over `git archive f64e58a` and
+`git archive f9e2c62`: the default dumps are byte-identical (18 838 lines, the
+counts above), and so are the preview dumps (696 lines; every frame 31 nodes,
+16 rects, 97 glyphs, 2 hitboxes). **The preview dump can disagree:** with
+`Pair`'s typed entry returning its halves' nodes reversed, 1332 diff lines.
+**Neither dump can see the shared helper:** with its `cursor += 1` deleted, both
+stayed identical, since no input reaches a state slot or a hitbox id in a dump.
+Restored and rebuilt, both identical to the baseline again.
 
 ---
 
@@ -1862,3 +1987,101 @@ run.
 **Mutations:** the items' runs are the Mutations lines of `MC-A`, `MC-B`,
 `MC-C`, `MC-I` and `MC-K`.
 
+---
+
+## MC-S — lane 3's departures from the spec: the guards' red run taken on the unchanged tree with no skeleton; counts from 1103; helpers and conformances beyond the lists; positive controls in guards 2 and 4; two mutation spellings that do not build; lane 1 test 6 made able to see its own mutation; the demo compared offscreen again; and the registrars' per-call array
+
+Written by lane 3 (commits `41a8634`, `f9e2c62`, `b320ee7` and the docs commit),
+2026-09-15.
+The spec is corrected at each line these items make false.
+
+1. **No skeleton; two red runs of different kinds.** The spec asks for the lane's
+   tests red first. Guards 1–6 are strings typechecked at run time, so they
+   compile against any `MetalUI`: they were committed alone (`41a8634`) and run
+   red on the unchanged tree (`40566de` + the file), 6 tests, 9 issues. Tests
+   7–9 cannot compile before the typed id exists; their red is the build
+   error, taken by adding the file to the unchanged tree and removed before the
+   commit (51 errors, first `ProposalNodeIDTests.swift:26:75: error: cannot find
+   type 'ProposalNodeID' in scope`). A skeleton that compiled tests 7–9 would
+   need the typed registrars and `ProposalElement`, which turn guards 2, 4 and
+   5 green before the requirement exists — so it would have hidden three of
+   the six red runs rather than adding any.
+2. **The counts start from 1103**, lane 2's verified end state, not the spec's
+   1101/1102: **1112** tests (six guards and tests 7–9), **53** guards, 97
+   goldens.
+3. **Helpers and conformances beyond the spec's lists.**
+   - `KeyHandling` (`ModifierCompositionProofTests.swift`, added by lane 1's
+     verifier-fix round as test 11's wrapper) is a third converted helper in
+     that file; the spec counted two.
+   - `NativeRoot` (`NativeLayoutIntegrationTests.swift`) called the native
+     registrars from a plain `Element` without the marker; it becomes a
+     `ProposalElement`, a sixth helper in that file (the spec counted five).
+   - `ProposalText`, `ProposalScrollView` and `ProposalLayoutContainer` conform
+     to `ProposalElement` in their own files; the spec's "13 element types"
+     are `ProposalElementGroup.swift`'s, whose extension-only conformances
+     became `extension X: ProposalElement {}` there and needed nothing restated.
+   - The redundant `extension …: ProposalElementGroup {}` lines of every
+     converted helper and of the demo's `PriorityPreviewPanel` are deleted:
+     `ProposalElement` refines the marker.
+4. **Guards 2 and 4 gain a positive control**, `#require`d to disagree with the
+   negative (shape 15): guard 2 reads `pass.requestNativeSpacer().layoutNodeID`,
+   guard 4 hands `requestNativeFrame` a native spacer. At `40566de` guard 2's
+   two halves AGREED (both failed: "cannot find type 'ProposalNodeID' in
+   scope" / "value of type 'LayoutNodeID' has no member 'layoutNodeID'"), so the
+   `#require` is what reddened it; without the control its fragment
+   `#expect` alone would have been red, but for a missing type rather than an
+   internal initializer.
+5. **Two named mutations do not build, so each was re-spelled.**
+   **Guard 1's is constrained `where Self: Element`.** The spec's
+   unconstrained `extension ProposalElementGroup { requestProposalGroupLayout …
+   preconditionFailure() }` does not build: `PreviewToggle` (a `Component` over
+   proposal content) then has two unordered candidate witnesses, that default
+   and `Component`'s `where Content: ProposalElementGroup` one, and fails
+   "type 'PreviewToggle' does not conform to protocol 'ProposalElementGroup'"
+   at `main.swift:928`. A mutation that stops the build reddens no guard, so it
+   was re-run constrained to `Element`, the shape guard 1's liar has (G1b).
+   Guard 3's unconstrained `extension Component` mutation builds as the spec
+   wrote it: the constrained `Component` default is more specialized.
+   **The SA-F guards' mutation** ("make `ProposalElement`'s `requestLayout`
+   default `internal`") fails for every public conformer in `MetalUI` ("method
+   'requestLayout(_:pass:)' must be declared public because it matches a
+   requirement in public protocol 'Element'"); `LayoutPass.requestNativeLayout`
+   made `internal` stands in (F1b), a typed entry the external container
+   fixture uses and the demo does not (by reading, `requestNativeLeaf` would
+   not have built: the demo's `PriorityPreviewPanel` calls it).
+6. **Lane 1 test 6 was edited** (`b320ee7`), outside this lane's file list:
+   mutation H2 left the whole suite green, because an element's `@State` is
+   re-bound before prepaint and paint, so the test's paint-time read could not
+   see the group entry's bind. `CountingProposalLeaf` now also logs the value
+   it reads in `requestProposalLayout` (`CompositionLog.layoutTaps`), and the
+   test pins it. The whole `MC-H` table was re-taken on that commit.
+7. **The demo was compared offscreen, again.** The session was locked with the
+   display asleep (`CGSSessionScreenIsLocked` 1, `CGDisplayIsAsleep` 1, pointer
+   (1090.18, 339.99)), so neither window could be captured. The scene dump of
+   `MC-R` item 5 was taken for `demoContent()` AND `nativeLayoutPreviewContent()`
+   from `git archive f64e58a` and `git archive f9e2c62`: both byte-identical.
+   Numbers under `MC-J`.
+8. **Each multi-child native registrar allocates one array per call**
+   (`children.map(\.layoutNodeID)` in `requestNativeOverlay`,
+   `requestNativeLinearStack` and `requestNativeLayout`), because the typed
+   ids are unwrapped around `Frame`'s untyped registrars. By reading; not
+   counted. Single-child registrars unwrap a field and allocate nothing.
+9. **Hole 7's trap is reported from `LayoutTree.newNativeLinearStack`'s child
+   loop, not `appendNode`** — by reading, corrected from the spec's "by
+   reading, `LayoutTree.appendNode` → `slot`": the linear stack checks each
+   child with `nativeNode(_:)` before it calls `appendNode`, and both reach
+   `slot`. The stderr names only `LayoutTree.swift:561`, `slot`'s precondition.
+   Measured half: with the linear stack's child loop deleted (S1), test 9 stays
+   green, so `appendNode`'s loop reports the same trap when the first is gone.
+
+**What it costs if wrong.** Item 1: none in behaviour. Item 5: guard 1 is
+proven against a default that applies to `Element`s, not against one that
+applies to every group, which would not build while `PreviewToggle` exists;
+the SA-F guard is proven against one typed registrar's access, not the default
+entry's. Item 6: a test that reads state only in paint cannot guard a
+group entry's bind — any future `MC-H`-style mutation target needs a
+layout-time read. Item 7: a renderer- or window-level difference in either demo
+window would go unseen until a capture. Item 8: an unmeasured allocation per
+native container per frame build.
+
+**Mutations:** the items' runs are the Mutations lines of `MC-G` and `MC-H`.

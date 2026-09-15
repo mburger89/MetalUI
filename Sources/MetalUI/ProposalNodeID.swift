@@ -92,8 +92,14 @@ extension ProposalElement {
     /// One element is one index, entered exactly as `Element`'s untyped default
     /// enters it — through the one shared helper (ruling MC-H), so binding
     /// `@State` and advancing the cursor cannot drift between the two engines.
-    /// Pinned by `stateSurvivesFramesUnderAProposalModifierChain`: bypassing the
-    /// helper here reads `a` as 0.
+    ///
+    /// **The bind here serves LAYOUT-time reads only.** `Element.prepaintGroup`
+    /// and `paintGroup` re-bind the element's `@State` before `prepaint` and
+    /// `paint`, so bypassing the helper (a bare `.child` and `cursor += 1`) left
+    /// every paint-time read and prepaint-registered handler working and the
+    /// whole suite green (measured, ruling MC-H). Pinned since then by
+    /// `stateSurvivesFramesUnderAProposalModifierChain`'s layout-time reading:
+    /// the bypass reads `a` as 0 during layout.
     public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
                                                     at cursor: inout Int,
                                                     pass: inout LayoutPass)
@@ -116,7 +122,8 @@ extension Component where Content: ProposalElementGroup {
     /// content, or over content spelled `some ElementGroup`, cannot take the
     /// marker (`aComponentOnlyTakesTheProposalMarkerWithProposalContent`).
     /// Pinned by `stateSurvivesFramesUnderAProposalModifierChain`: bypassing the
-    /// helper here reads `c` as 0.
+    /// helper here reads `c` as 0 in paint and during layout — a component has
+    /// no prepaint re-bind, and its `content` is evaluated during layout.
     public mutating func requestProposalGroupLayout(under parent: GlobalElementID?,
                                                     at cursor: inout Int,
                                                     pass: inout LayoutPass)

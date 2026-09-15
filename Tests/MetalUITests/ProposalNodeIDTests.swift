@@ -121,10 +121,11 @@ private struct OrphanLegacySubtree: ProposalElement {
 ///   root and requires that it paints its 30×30 rect, so "no rect" is a reading
 ///   the instrument could have got wrong.
 ///
-/// **Whoever closes the holes.** Arm a reddens under an orphan check in
-/// `LayoutPass.requestNode` during native registration, which traps — so the
-/// arm becomes an exit test. Nothing in this design closes arm b short of
-/// detecting state bound by an unregistered subtree.
+/// **Whoever closes the holes.** An orphan check in `LayoutPass.requestNode`
+/// during a typed entry traps this test's process — measured (lane 3, record
+/// §10): the suite printed no summary line, stopping here after 953 tests — so
+/// the test becomes an exit test first. Nothing in this design closes arm b
+/// short of detecting state bound by an unregistered subtree.
 @MainActor
 @Test func anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected() throws {
     // Arm a.
@@ -256,8 +257,9 @@ private func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bo
 /// wraps unchanged, and re-measured here through the typed registrars.
 ///
 /// **Whoever closes the hole** with a duplicate-parent precondition in
-/// `LayoutTree.appendNode` traps this test's process, so the test becomes an
-/// exit test.
+/// `LayoutTree.appendNode` traps this test's process — measured (lane 3, record
+/// §10): no summary line, stopping here after 955 tests, and no test before it
+/// tripped the check — so the test becomes an exit test first.
 @MainActor
 @Test func aNativeNodeRegisteredTwiceIsNotRejected() throws {
     do {
@@ -327,6 +329,11 @@ private struct StoresItsNodeID: ProposalElement {
 /// exits 0 — so the failure is about the stored id, not about rendering this
 /// element twice. Its red run: the trapping arm also registers afresh on frame 2,
 /// and the failure expectation reddens (record §10).
+///
+/// **Which check reports it:** `LayoutTree.newNativeLinearStack`'s child loop
+/// (`nativeNode(_:)` → `slot`), by reading; with that loop deleted the test
+/// stays green, because `appendNode`'s own `slot` loop then reports it with the
+/// same message (measured).
 @Test func aTypedNodeIDStoredFromAnEarlierFrameTraps() async {
     await #expect(processExitsWith: .success) {
         await MainActor.run {

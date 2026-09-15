@@ -740,8 +740,18 @@ private func frameStyle(width: Float, height: Float) -> Style {
 /// (ruling MC-D): lane 3's typed defaults bind state and advance the cursor
 /// through ruling MC-H's helper, and this test is those mutations' target.
 ///
+/// **Each value is read twice, in paint and during layout** (`taps` and
+/// `layoutTaps`). An element's `@State` is re-bound before prepaint and paint,
+/// so only the layout-time read depends on the group entry's bind: with paint
+/// alone, `ProposalElement`'s typed default bypassing the helper left the whole
+/// suite green (lane 3, ruling MC-H).
+///
 /// Green on arrival. Mutation (today's code, record §10): `ModifiedContent`'s
-/// content cursor starting at 1.
+/// content cursor starting at 1. Lane 3's `MC-H` mutations, each whole suite at
+/// `b320ee7`: the helper's bind deleted reads `layoutTaps` a 0, and c 0 in both
+/// (legacy `@State` tests redden too); `ProposalElement`'s typed default
+/// bypassing the helper reads `layoutTaps` a 0 alone; `Component`'s reads c 0
+/// in both; the helper's `cursor += 1` deleted reads b 2 in both.
 @Test @MainActor func stateSurvivesFramesUnderAProposalModifierChain() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let log = CompositionLog()

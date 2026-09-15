@@ -2,9 +2,9 @@
 
 The record for plan task 3. Spec
 `docs/superpowers/specs/2026-09-15-modifier-composition-design.md`; rulings
-`MC-A`…`MC-Q` in
+`MC-A`…`MC-S` in
 `docs/superpowers/2026-09-15-modifier-composition-decisions.md` (next unused
-`MC-R`). The track runs in its own worktree,
+`MC-T`). The track runs in its own worktree,
 `/Users/maxburger/Developer/MetalUI-modifier-composition`, beside two parallel
 tracks, and is merged by an integration step that owns `CLAUDE.md`, the plan,
 `docs/record/README.md` and the SA decisions doc. **Nothing in this file has
@@ -518,6 +518,180 @@ only; no `Sources/` change.
   in the demo is a single layer). The `malloc_logger` parallel hazard (`MC-R`
   item 6) stays for the integration step.
 
+#### Lane 3 — the typed native node id, 2026-09-15 (from `40566de`)
+
+One agent in the worktree. The session was locked with the display asleep for
+the whole lane (`CGSSessionScreenIsLocked` 1, `CGDisplayIsAsleep` 1,
+`IOConsoleLocked` true; `screencapture -x -R0,0,100,100` → "could not create
+image from rect"). Suite and PATH `swiftc`: swift.org 6.3.3. Base count at
+`40566de`, `swift test --build-system native --no-parallel`: `Test run with
+1103 tests in 1 suite passed after 26.009 seconds`, 0 `error:`.
+
+**Commits.**
+
+| commit | what |
+|---|---|
+| `41a8634` | `ProposalNodeIDCompileGuards.swift`, guards 1–6 — red |
+| `f9e2c62` | `ProposalNodeID.swift` (`ProposalNodeID`, `ProposalElement`, its two defaults, `Component`'s typed default), `GroupMember.swift`, `ElementGroup.swift`'s entry through the helper (and `AnyElement`'s doc), `ProposalElementGroup.swift`'s requirement and builder-group implementations, `Passes.swift`'s registrar block, every proposal element and wrapper, the demo's two preview declarations, the test helpers and SA-F fixtures, `ProposalNodeIDTests.swift` tests 7–9 |
+| `b320ee7` | lane 1 test 6 also reads each value during layout (`CompositionLog.layoutTaps`), after mutation H2 left the suite green |
+| docs commit | doc comments at the lines the mutations taught (`ProposalNodeID.swift`, `GroupMember.swift`, test 6); spec; `MC-G`/`MC-H` Mutations lines; `MC-J`'s lane 3 result; `MC-S`; this section |
+
+**Red runs.**
+
+- **Guards, on the unchanged tree** (`40566de` plus the guard file, `swift test
+  --build-system native --no-parallel --filter ProposalNodeIDCompileGuards`):
+  `Test run with 6 tests in 0 suites failed after 1.928 seconds with 9 issues.`
+  - guard 1 at `:65` `!(result.succeeded → true)` and `:67` (messages empty);
+    printed `succeeded=true`;
+  - guard 2 at `:91` `(minted.succeeded → false) != (read.succeeded → false)`;
+    printed "cannot find type 'ProposalNodeID' in scope" and "value of type
+    'LayoutNodeID' has no member 'layoutNodeID'";
+  - guard 3 at `:131` (all three fixtures `succeeded=true`);
+  - guard 4 at `:161` `(legacy.succeeded → true) != (native.succeeded → true)`;
+  - guard 5 at `:223` `(untyped.succeeded → false) != (typed.succeeded →
+    false)` (neither `ProposalElement` nor the typed entry existed);
+  - guard 6 at `:277` (the liar failed: "fixture.swift:10:82: error: cannot
+    find type 'ProposalNodeID' in scope"), `:278` and `:280` (the negative
+    compiled).
+- **Tests 7–9 do not compile before lane 3.** The file added to the same tree,
+  `swift build --build-system native --build-tests`: 51 errors in
+  `ProposalNodeIDTests.swift`, the first
+  `ProposalNodeIDTests.swift:26:75: error: cannot find type 'ProposalNodeID' in
+  scope`, then `:39:34: error: cannot find type 'ProposalElement' in scope`.
+  The file was removed before `41a8634` (`MC-S` item 1).
+
+**Green** (`f9e2c62`), after `swift package clean` (public signatures changed
+across modules): `Test run with 1112 tests in 1 suite passed after 28.093
+seconds`, 0 `error:`, 0 `warning:`. Only the two env-gated tests skipped. Every
+guard printed its diagnostic; the real diagnostics, all matching the spec's
+skeleton fragments:
+
+- guard 1: "type 'Liar' does not conform to protocol 'ProposalElementGroup'",
+  noting "protocol requires function 'requestProposalGroupLayout(under:at:pass:)'
+  with type '(GlobalElementID?, inout Int, inout LayoutPass) -> ([ProposalNodeID],
+  SingleElementLayout<Liar>)'";
+- guard 2: "'ProposalNodeID' initializer is inaccessible due to 'internal'
+  protection level"; the read `succeeded=true`;
+- guard 3: "type 'LegacyComp' does not conform to protocol
+  'ProposalElementGroup'" ("candidate would match if 'Text' conformed to
+  'ProposalElementGroup'"), the same for `OpaqueComp` ("… if 'some ElementGroup'
+  conformed …"); `ProposalComp` `succeeded=true`;
+- guard 4: "cannot convert value of type 'LayoutNodeID' to expected argument
+  type 'ProposalNodeID'"; the native child `succeeded=true`;
+- guard 5: "cannot convert value of type '[LayoutNodeID]' to expected argument
+  type '[ProposalNodeID]'"; the typed container `succeeded=true`;
+- guard 6: the liar `succeeded=true`; without its typed entry "type 'Liar' does
+  not conform to protocol 'ProposalElementGroup'".
+
+**Tests 7–9's readings** (all as the design review measured with untyped ids,
+now through the typed registrars):
+
+- test 7 arm a (`MC-G` hole 2): the typed leaf prepaints at (65, 0) 10×10; one
+  rect, the 5×5 `Rectangle`; `nodeCount` 5; measure calls 1;
+- test 7 arm b (hole 6): the typed leaf at (65, 0) 10×10; one rect, 5×5;
+  `nodeCount` 6; the orphan leaf's `$state0` reads 8 and is live; the orphan
+  `Box`'s `$anim` slot is live. Its disagreeing oracle (the same `Box` as a
+  root) paints its 30×30 rect;
+- test 8 arm a (hole 4): stack (60, 0) 20×10; leaf (70, 0) 10×10; measure
+  calls 1; `nodeCount` 4. Arm b: stack (30, 0) 80×50; leaf (100, 40) 10×10;
+  measure calls 2; `nodeCount` 6;
+- test 9 (hole 7): stderr `MetalUILayout/LayoutTree.swift:561: Precondition
+  failed: LayoutNodeID from generation 1 used against a LayoutTree at
+  generation 2 — the id outlived the tree that issued it (ruling C-3)`; the
+  control exits 0.
+
+**Mutations** (`mutate.py` in the scratchpad: `cp` backup, each anchor replaced
+exactly once with a `// MUTATION <label>` marker, `swift test --build-system
+native --no-parallel` whole suite, restore; `git status --short` empty of
+sources and the marker grep empty after every run).
+
+| # | mutation | commit | summary | tests reddened |
+|---|---|---|---|---|
+| G1 | the spec's unconstrained trapping `ProposalElementGroup` default | `f9e2c62` | **build failed**: `main.swift:928:1: error: type 'PreviewToggle' does not conform to protocol 'ProposalElementGroup'` (two unordered witnesses) | none ran (`MC-S` item 5) |
+| G1b | the same default `where Self: Element` | `b320ee7` | 1112, 2 issues | guard 1 (`:65`, `:67`) |
+| G2 | `ProposalNodeID.init` `public` | `f9e2c62` | 1112, 1 issue | guard 2 (`:91`) |
+| G3 | unconstrained trapping `Component` default | `f9e2c62` | 1112, 1 issue | guard 3 (`:131`) |
+| G4 | `requestNativeFrame(child: LayoutNodeID, …)` overload | `f9e2c62` | 1112, 1 issue | guard 4 (`:161`) |
+| G5 | `requestNativeLayout(_:children: [LayoutNodeID])` overload | `f9e2c62` | 1112, 1 issue | guard 5 (`:223`) |
+| G6 | guard 6's positive without its typed entry | `f9e2c62` | 1112, 1 issue | guard 6 (`:275`) |
+| F1 | `ProposalElement`'s `requestLayout` default `internal` (the SA-F row) | `f9e2c62` | **build failed**: `NativeElements.swift:13:15: error: method 'requestLayout(_:pass:)' must be declared public because it matches a requirement in public protocol 'Element'` | none ran |
+| F1b | `LayoutPass.requestNativeLayout` `internal` | `b320ee7` | 1112, 2 issues | `anExternalModuleCanBuildACustomLeafAndContainerFromPublicAPI` (`:159`); guard 5 (`:223`) |
+| T7 | orphan check: a counter around the typed default's `requestProposalLayout`, `precondition(counter == 0)` in `LayoutPass.requestNode` | `f9e2c62` | **no summary line**: trapped in test 7 ("Passes.swift:33: Precondition failed: MUTATION T7 …") after 953 passed | `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer` (fragment) before the trap |
+| T8 | duplicate-parent precondition in `LayoutTree.appendNode` | `f9e2c62` | **no summary line**: trapped in test 8 ("LayoutTree.swift:150: Precondition failed: MUTATION T8: duplicate parent") after 955 passed | none before the trap |
+| T9 | test 9's trapping arm registers afresh on frame 2 | `f9e2c62` | 1112, 2 issues | test 9 (`:342`, `:355`) |
+| S1 | `newNativeLinearStack`'s child loop deleted | `f9e2c62` | 1112, 3 issues | `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`, `aLegacyNodeRegisteredUnderANativeStackTraps`; test 9 green |
+| S2 | `setStyle`'s native check deleted | `f9e2c62` | 1112, 3 issues | `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`, `aStyleWrittenOntoANativeNodeTraps` |
+| H1 | the helper's bind deleted | `f9e2c62` | 1112, 19 issues | test 6 at `c` only (`a` read 3); legacy `@State` tests; test 7 arm b |
+| **H2** | `ProposalElement`'s typed default bypasses the helper | `f9e2c62` | **1112 passed** | **none** — the finding `b320ee7` answers (`MC-H`) |
+| H3 | `Component`'s typed default bypasses the helper | `f9e2c62` | 1112, 1 issue | test 6 at `c` |
+| H4 | the helper's `cursor += 1` deleted | `f9e2c62` | 1112, 25 issues | test 6 at `b` (2); identity, dispatch, hover tests |
+| H1 | re-taken | `b320ee7` | 1112, 21 issues | test 6 (`taps["c"]`, `layoutTaps["a"]`, `layoutTaps["c"]` → 0); test 7 arm b (`$state0` nil, not live); seven legacy `@State` tests (`MC-H`) |
+| H2 | re-taken | `b320ee7` | 1112, 1 issue | test 6 alone (`layoutTaps["a"] → 0`) |
+| H3 | re-taken | `b320ee7` | 1112, 2 issues | test 6 alone (`taps["c"]`, `layoutTaps["c"]` → 0) |
+| H4 | re-taken | `b320ee7` | 1112, 26 issues | test 6 (`taps["b"]`, `layoutTaps["b"]` → 2); lane 1 test 9's control; the sibling-index tests (`MC-H`) |
+
+After every run `git status --short` showed no source change and the marker grep
+was empty (the docs files the lane was editing in between appear in the later
+runs' status lines, and no mutation touched them).
+
+**The demo (`MC-J`): neither window was captured.** Locked as above; pointer
+(1090.18, 339.99), not moved, no input sent, nothing launched.
+
+- **Stand-in: offscreen scene dumps**, `MC-R` item 5's harness extended with
+  `HARNESS_ROOT=preview` rendering `nativeLayoutPreviewContent()`. Scratch copies
+  `git archive f64e58a` (`mc3-base`) and `git archive f9e2c62` (`mc3-head`),
+  each `main.swift` given `@testable import MetalUI`, `import MetalUIText`,
+  `import MetalUIRender` and its `try runDemo()` replaced; debug builds
+  (`swift build --build-system native --product MetalUIDemo`); 920×560 at
+  scale 2, three frames under light and three under dark, one shared state
+  table, shaping cache and atlas; every `MUIRect`, `MUIGlyph` and hitbox
+  printed.
+- **Default:** 18 838 lines each, `cmp` identical (frame 0: 2036 nodes, 518
+  rects, 15 711 glyphs, 3 hitboxes; later frames 60 / 24 / 493 / 3).
+- **Preview:** 696 lines each, `cmp` identical (every frame: 31 nodes, 16
+  rects, 97 glyphs, 2 hitboxes).
+- **The instrument can disagree, for the preview:** `mc3-head` with `Pair`'s
+  typed entry returning `secondNodes + firstNodes` → 1332 differing diff lines
+  (rects move from the dump's fifth line on). **It cannot see the helper:** `mc3-head`
+  with the helper's `cursor += 1` deleted → 0 differing lines in both dumps
+  (no input, so no state or hitbox id is exercised). Restored (diff against
+  `git show f9e2c62:` empty), rebuilt, both dumps `cmp` identical to the
+  baseline again.
+- **Owed:** both release-window captures against `f64e58a`, by `MC-J`'s method.
+
+**Counts.** Tests 1112 (1103 + six guards + tests 7–9). Guards 53:
+`grep -c canTypecheck` reads 19 (`PhaseSeparationTests`), 10
+(`ErasureCompileGuards`), 6 (`ProposalNodeIDCompileGuards`), 6
+(`ProposalLayoutCompileGuards`), 5 (`ElementGroupTrapTests`), 3
+(`UnitSafetyTests`, one a comment), 3 (`AXNodeTests`), 2
+(`ModifiedElementCompileGuards`), plus the declaration in `Typecheck.swift`.
+Goldens 97; `git diff --stat f64e58a -- '*.json'` empty.
+
+**Final runs**, on the tree of the docs commit (its `Sources/` and `Tests/`
+changes against `b320ee7` are doc comments only): `swift test --build-system
+native --no-parallel`: `Test run with 1112 tests in 1 suite passed after 28.153
+seconds`, 0 `error:`, 0 `warning:`, all six guards' diagnostics printed; then
+`swift test --no-parallel` (default build system, whose guards read the native
+build's modules): `Test run with 1112 tests in 1 suite passed after 29.146
+seconds`, 0 `error:`, 0 `warning:`, the guards' diagnostics printed again.
+
+**`SA-R`'s amended criterion is met** by `MC-G`: a `ProposalElementGroup`
+conformer that registers a legacy node, in every shape the design names, is a
+compile error, with the seven holes pinned or cited (hole 1 guard 6; holes 2
+and 6 test 7; hole 3 the rewritten trap test; hole 4 test 8; hole 5
+`aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`; hole 7 test 9).
+The SA decisions doc is not edited here.
+
+**Not run, by reading only:** `MC-S` item 8's per-call array in the multi-child
+registrars; that `EnvironmentScope`'s typed entry on `feat/environment` is the
+merge's (the spec's merge notes).
+
+**Deferred by lane 3.** Both demo window captures (`MC-S` item 7), with lane
+2's still owed. Closing any of `MC-G`'s seven holes. An orphan check (hole 2)
+and a duplicate-parent check (hole 4), each measured here to truncate the suite
+rather than redden a test, so whoever adds one converts the pinning test to an
+exit test first.
+
 ### For the integration step
 
 Collected here so the merge does not have to re-derive them:
@@ -543,12 +717,32 @@ Collected here so the merge does not have to re-derive them:
 - **A practices-doc instance** (shape 13, `MC-O` item 5): a mutation truncated
   the suite through a count `#expect` followed by indexing in
   `NativeLayoutIntegrationTests.swift`; four instances fixed at `2571d4a`.
-- **`SA-R`'s amended criterion is met by lane 3** (`MC-G`), with **seven**
-  named holes (the design review added holes 4, 5 and 6; the critic round
-  after lane 1 added hole 7, a stored typed id, backstopped by C-3's trap). The
-  SA decisions doc is not edited by this track.
-- **The guard count moves 45 → 47 (lane 2) → 53 (lane 3) by design** (lane 2
-  test 6 became a guard after the critic round). Re-count per file. Lane 2's
+- **`SA-R`'s amended criterion is met by lane 3** (`MC-G`, `f9e2c62`), with
+  **seven** named holes (the design review added holes 4, 5 and 6; the critic
+  round after lane 1 added hole 7, a stored typed id, backstopped by C-3's
+  trap), each pinned or cited — for the plan's task 3 entry, the SA doc's
+  `SA-R` status and CLAUDE.md's holes list. The SA decisions doc is not edited
+  by this track.
+- **Every proposal element's layout signature changed once** (lane 3): an
+  element is a `ProposalElement` writing `requestProposalLayout(_:pass:) ->
+  (ProposalNodeID, LayoutState)`; a container calls
+  `content.requestProposalGroupLayout`; the native registrars take and return
+  `ProposalNodeID`; a `Component` over proposal content spells it
+  `some ProposalElementGroup`. Any other track's proposal element (e.g. one
+  adding AX, focus or environment reads) stops compiling at merge until
+  converted — loud, not silent.
+- **For CLAUDE.md's `@State` section** (lane 3, `MC-H`): `Element.prepaintGroup`
+  and `paintGroup` re-bind an element's `@State`, so the group entry's bind is
+  observable only by a LAYOUT-time read. A test of a bind that reads only in
+  paint cannot fail (measured: the typed default bypassing the helper left the
+  suite green until lane 1 test 6 read during layout, `b320ee7`).
+- **Closing hole 2 or hole 4 truncates the suite** unless the pinning test
+  (`anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected`,
+  `aNativeNodeRegisteredTwiceIsNotRejected`) is first made an exit test —
+  measured by lane 3's T7 and T8 (no summary line).
+- **The guard count moves 45 → 47 (lane 2) → 53 (lane 3)**, re-counted by lane
+  3 at 53 (lane 2 test 6 became a guard after the critic round). Re-count per
+  file. Lane 2's
   test 6 guard passes `-Xfrontend -solver-scope-threshold=T`; CI's toolchain
   must accept that frontend flag.
 - **`ElementGroup` gains two defaulted requirements** in lane 2
@@ -579,6 +773,13 @@ Collected here so the merge does not have to re-derive them:
   mutation "remove the per-layer call" (spec merge notes).
 - **`NativeTappable.swift`:** lane 3's typed `OnTapModifier` entry and AX lane
   3's one-line `OnTapModifier.prepaint` edit conflict textually; keep both.
+- **`ProposalElementGroup.swift`'s 13 conformance lines now read
+  `extension X: ProposalElement {}`**, and `ProposalText`,
+  `ProposalScrollView` and `ProposalLayoutContainer` conform in their own
+  files; a track adding a proposal type adds it as a `ProposalElement`.
+- **Owed by lane 3 as well as lane 2:** the preview window's release capture
+  against `f64e58a` (`MC-J`, `MC-S` item 7); both offscreen dumps were
+  byte-identical.
 - **`FrameModifier` in other tracks' lists:**
   - the environment track's D2 "frame" arm;
   - the AX-bridge spec's in-scope emit site and its "untouched" line;

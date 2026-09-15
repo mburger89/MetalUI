@@ -22,9 +22,14 @@ extension GlobalElementID {
     ///
     /// Bounded by four mutations, each reddening
     /// `stateSurvivesFramesUnderAProposalModifierChain`
-    /// (`ModifierCompositionProofTests.swift`): deleting the bind (the legacy
-    /// `@State` tests redden too), either typed default bypassing this helper,
-    /// and deleting `cursor += 1`. Their readings are in record §10.
+    /// (`ModifierCompositionProofTests.swift`): deleting the bind (`a` reads 0
+    /// during layout and `c` reads 0; the legacy `@State` tests redden too),
+    /// `ProposalElement`'s typed default bypassing this helper (`a` reads 0
+    /// during layout), `Component`'s bypassing it (`c` reads 0), and deleting
+    /// `cursor += 1` (`b` reads 2, on `c`'s id). **An element's bind here is
+    /// visible only to a layout-time read**: `Element.prepaintGroup`/`paintGroup`
+    /// re-bind before `prepaint`/`paint`, and the test saw the second mutation
+    /// only once it read during layout (ruling MC-H, record §10).
     @MainActor
     static func enteringGroupMember<E>(_ element: E, name: ElementID?,
                                        under parent: GlobalElementID?,

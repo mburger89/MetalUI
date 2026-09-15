@@ -4,7 +4,7 @@
 (`plans/2026-09-12-swiftui-alignment.md`, "Build a typed modifier-composition
 foundation", and its four open proofs).
 
-**Status (2026-09-15): lanes 1 and 2 done; lane 3 not started.** Designed
+**Status (2026-09-15): lanes 1, 2 and 3 done.** Designed
 against `f64e58a` on `feat/modifier-composition`, in the worktree
 `/Users/maxburger/Developer/MetalUI-modifier-composition`, and revised after
 design review. **Lane 1** landed as `6d89906` (its ten tests, four red),
@@ -15,7 +15,14 @@ guards and arms, red on a skeleton), `5fe5a30` (`ModifiedElement`'s phases and
 the allocation test) and `49270c7` (one test spelling): 1103 tests, 47 guards,
 97 goldens; its measurements are in record §10 and its departures in `MC-R` —
 among them that the default demo's window capture could not be taken (the
-screen was locked) and is owed. Rulings are prefixed **`MC-`** and lettered, in
+screen was locked) and is owed. **Lane 3** landed as `41a8634` (its six guards,
+red on the unchanged tree), `f9e2c62` (`ProposalNodeID`, the typed requirement,
+the shared helper, every conversion, tests 7–9) and `b320ee7` (lane 1 test 6
+reads its state during layout, after an `MC-H` mutation left the suite green):
+1112 tests, 53 guards, 97 goldens; its measurements are in record §10 and its
+departures in `MC-S` — among them that neither demo window could be captured
+(still locked) and an offscreen comparison of both stands in. Rulings are
+prefixed **`MC-`** and lettered, in
 `docs/superpowers/2026-09-15-modifier-composition-decisions.md`; a bare `MC-3`
 is a typo. The track's record is `docs/record/10-modifier-composition.md`.
 
@@ -637,13 +644,16 @@ public protocol ProposalElementGroup: ElementGroup {
 - **Not edited:** `Element.swift`, `Component.swift`, `Frame.swift` (`MC-H`).
 - **Tests:**
   - helper conversions to `ProposalElement`:
-    - `NativeLayoutIntegrationTests.swift` (5);
+    - `NativeLayoutIntegrationTests.swift` (5; **as run, 6**: `NativeRoot`,
+      a plain `Element` over the native registrars, too — `MC-S` item 3);
     - `ProposalLayoutIntegrationTests.swift` (1);
     - `ProposalModifierValidationTests.swift` (1);
     - `ModifierCompositionProofTests.swift` (**2**: `CountingProposalLeaf`
       becomes a `ProposalElement`; `CountingProposalComponent`'s and
       `EmptyProposalComponent`'s content become `some ProposalElementGroup`
-      where spelled opaquely);
+      where spelled opaquely; **as run, 3**: lane 1's verifier round had added
+      `KeyHandling`, and `EmptyProposalComponent`'s `EmptyGroup` needed no
+      change — `MC-S` item 3);
     - `NativeBoundaryIntegrationTests.swift`. There, `Toggle`'s content becomes
       `some ProposalElementGroup`; `RegisteredAfterTheContainer` becomes a
       `ProposalElement`; and `LegacyNodeUnderAProposalMarker` becomes a
@@ -669,7 +679,7 @@ public protocol ProposalElementGroup: ElementGroup {
 
 | # | test | pins | before | mutation that must redden it |
 |---|---|---|---|---|
-| 1 | guard `aMarkerConformerThatRegistersALegacyNodeDoesNotCompile` | today's `LegacyNodeUnderAProposalMarker` shape (`Element` + marker, `requestNode`) is rejected with "does not conform to protocol 'ProposalElementGroup'" | **red**: it compiles today (`SA-R`) | add `extension ProposalElementGroup { public mutating func requestProposalGroupLayout(…) -> … { preconditionFailure() } }` |
+| 1 | guard `aMarkerConformerThatRegistersALegacyNodeDoesNotCompile` | today's `LegacyNodeUnderAProposalMarker` shape (`Element` + marker, `requestNode`) is rejected with "does not conform to protocol 'ProposalElementGroup'" | **red**: it compiles today (`SA-R`) | add `extension ProposalElementGroup { public mutating func requestProposalGroupLayout(…) -> … { preconditionFailure() } }`. **As run, constrained `where Self: Element`:** unconstrained, it does not build (`PreviewToggle` gets two unordered witnesses; `MC-S` item 5) |
 | 2 | guard `aProposalNodeIDCannotBeMintedOutsideMetalUI` | `ProposalNodeID(pass.requestNode(…))` fails with "initializer is inaccessible due to 'internal' protection level" | **red**: "cannot find 'ProposalNodeID' in scope" lacks the fragment | make the init `public` |
 | 3 | guard `aComponentOnlyTakesTheProposalMarkerWithProposalContent` | Three fixtures. Two are rejected with "does not conform to protocol 'ProposalElementGroup'": a `Component` with `Text` content, and one with `var content: some ElementGroup` over a `Rectangle`. The third, with `some ProposalElementGroup`, is accepted. `#require` that the fixtures disagree | **red**: both negatives compile today | an unconstrained `extension Component { requestProposalGroupLayout … preconditionFailure() }` |
 | 4 | guard `aNativeRegistrarRejectsALegacyChild` | `pass.requestNativeFrame(child: pass.requestNode(style: Style(), children: []))` fails with "cannot convert value of type 'LayoutNodeID' to expected argument type 'ProposalNodeID'" | **red**: compiles today | add a `requestNativeFrame(child: LayoutNodeID, …)` overload |
@@ -677,11 +687,11 @@ public protocol ProposalElementGroup: ElementGroup {
 | 6 | guard `aProposalGroupWhoseEntryPointsDisagreeStillCompiles` (**pinned wrong on purpose**, `MC-G` hole 1) | Two fixtures against the real module. The **positive** is `liar4`'s shape (both entry points written, legacy nodes from one, zero typed nodes from the other): it typechecks. The **in-test negative** is the same fixture with its `requestProposalGroupLayout` deleted: it is rejected with "does not conform to protocol 'ProposalElementGroup'". `#require` that the two disagree, so a broken instrument cannot pass, and print both results | **red**: the requirement does not exist, so the negative compiles and the `#require` fails | **after lane 3 lands:** delete the positive fixture's `requestProposalGroupLayout`, making it identical to the negative. The positive assertion reddens. Record that red line. It exists to be inverted by whoever closes the hole |
 | 7 | `anOrphanLegacyRegistrationBesideATypedLeafIsNotRejected` (**pinned wrong on purpose**, `MC-G` holes 2 and 6) | Two arms, each a `ProposalElement` inside `VStack { HStack { it }; Rectangle(width: 5, height: 5, color: .accent) }`, 140×90. **Arm a:** its typed entry calls `pass.requestNode(style: Style(), children: [])`, discards the result, and returns a typed leaf. It renders: prepaint bounds 10×10, 1 rect. **Arm b:** its typed entry lays out a discarded `Box { StatefulLegacyLeaf() }.background(.accent)` through `requestGroupLayout(under: id, at: &c)` (the leaf writes its `@State` from 7 to 8 in `requestLayout`), then returns a typed leaf. Measured at `f64e58a` in the `HStack`-only form: no trap; the leaf's `$state0` slot reads 8 and is live; the orphan `Box`'s `$anim` slot is live; nothing of the orphan subtree is painted; `nodeCount` is 5 (2 orphan nodes). The test pins the measured values in its own `VStack` form | **green, as measured** (`MC-G`) | an orphan check in `LayoutPass.requestNode` during native registration reddens arm a. Nothing is available for arm b short of unregistered-state detection; the doc comment says so |
 | 8 | `aNativeNodeRegisteredTwiceIsNotRejected` (**pinned wrong on purpose**, `MC-G` hole 4) | Each arm in `VStack { HStack { it } }`, 140×90. **Arm a:** one typed leaf (10×10) passed twice to `requestNativeLinearStack(children: [leaf, leaf], axis: .horizontal)`. **Arm b:** one typed leaf handed to two frames (30×30 `.topLeading`, 50×50 `.bottomTrailing`) in one horizontal stack. Measured at `f64e58a` with untyped ids, which the typed ids wrap unchanged: arm a gives stack bounds (60, 0, 20×10), leaf bounds (70, 0, 10×10), measure calls 1, `nodeCount` 4; arm b gives stack (30, 0, 80×50), leaf (100, 40, 10×10), measure calls 2, `nodeCount` 6 | **green, as measured** | a duplicate-parent precondition in `LayoutTree.appendNode` closes the hole. It **traps** this test's process, so whoever closes it converts the test to an exit test; the doc comment says so |
-| 9 | `aTypedNodeIDStoredFromAnEarlierFrameTraps` (`MC-G` hole 7, **added after `MC-Q` finding 8**) | exit test (`#expect(processExitsWith: .failure)`, stderr fragment "outlived the tree that issued it"). A `@MainActor final class` box captured by the content closure; a `ProposalElement` whose typed entry stores its `ProposalNodeID` in the box on frame 1 and returns the stored one on frame 2, inside `HStack`, through a real `Frame` each frame. **Control:** the same element returning a fresh id on frame 2 exits with success | does not compile before lane 3 (no typed id) | the element returns a fresh id on frame 2 as well: the child exits 0 and the failure expectation reddens. Record which registrar's child loop reports the trap (by reading, `LayoutTree.appendNode` → `slot`) |
-| — | lane 1 test 6 | the typed defaults bind state and advance the cursor, through the helper (`MC-H`) | green | four mutations, each run separately: delete `StateBinder.bind` from the helper (a and c read 0, and legacy `@State` tests redden too); `ProposalElement`'s typed default computes its id with `.child` directly instead of calling the helper (a reads 0); `Component`'s typed default does the same (c reads 0); delete the helper's `cursor += 1` (a and b share an id) |
+| 9 | `aTypedNodeIDStoredFromAnEarlierFrameTraps` (`MC-G` hole 7, **added after `MC-Q` finding 8**) | exit test (`#expect(processExitsWith: .failure)`, stderr fragment "outlived the tree that issued it"). A `@MainActor final class` box captured by the content closure; a `ProposalElement` whose typed entry stores its `ProposalNodeID` in the box on frame 1 and returns the stored one on frame 2, inside `HStack`, through a real `Frame` each frame. **Control:** the same element returning a fresh id on frame 2 exits with success | does not compile before lane 3 (no typed id) | the element returns a fresh id on frame 2 as well: the child exits 0 and the failure expectation reddens. Record which registrar's child loop reports the trap (by reading, `LayoutTree.appendNode` → `slot`). **As run:** `newNativeLinearStack`'s own child loop (`nativeNode(_:)` → `slot`) reaches it first; with that loop deleted (mutation S1) the test stays green, the trap then coming from `appendNode`'s loop, with the same message (`MC-S` item 9) |
+| — | lane 1 test 6 | the typed defaults bind state and advance the cursor, through the helper (`MC-H`) | green | four mutations, each run separately: delete `StateBinder.bind` from the helper (a and c read 0, and legacy `@State` tests redden too); `ProposalElement`'s typed default computes its id with `.child` directly instead of calling the helper (a reads 0); `Component`'s typed default does the same (c reads 0); delete the helper's `cursor += 1` (a and b share an id). **As run (`MC-H`'s Mutations line):** the second left the whole suite GREEN and the first read a as 3, because `Element.prepaintGroup`/`paintGroup` re-bind an element's `@State` before prepaint and paint, so the test's paint-time read and prepaint-registered handler never depended on the entry's bind. The test now also reads each value during layout (`b320ee7`), where a reads 0 under both; the fourth reads b as 2 (b and c share a slot) |
 | — | `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer` (existing, rewritten helper) | the run-time backstop survives | green | its existing mutation: delete `newNativeLinearStack`'s child loop (`SA-T` item 1) |
 | — | `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration` (existing) | `MC-G` hole 5: `Toggle().width(Pixels(70))` still compiles after lane 3 and still traps | green | its existing mutation (the `setStyle` check deleted) |
-| — | the existing SA-F guards | an external leaf, container and algorithm still build from public API, on the typed entry | green after the fixture edits | make `ProposalElement`'s `requestLayout` default `internal`; the external leaf fixture must redden |
+| — | the existing SA-F guards | an external leaf, container and algorithm still build from public API, on the typed entry | green after the fixture edits | make `ProposalElement`'s `requestLayout` default `internal`; the external leaf fixture must redden. **As run:** that mutation does not build — `MetalUI`'s own public conformers then fail "method 'requestLayout(_:pass:)' must be declared public because it matches a requirement in public protocol 'Element'" — so `LayoutPass.requestNativeLayout` was made `internal` instead, a typed entry the external container uses and the demo does not (`MC-G`'s Mutations line) |
 
 **The demo (`MC-J`).**
 
@@ -690,12 +700,22 @@ public protocol ProposalElementGroup: ElementGroup {
   the default window.
 - **After the lane**, re-capture both and count the differing pixels. The
   expected difference is none, beyond desktop corners.
+- **As run (`MC-J`, `MC-S` item 7): not captured.** The session was locked with
+  the display asleep again. Offscreen scene dumps of `demoContent()` and
+  `nativeLayoutPreviewContent()` from `git archive f64e58a` and
+  `git archive f9e2c62` are byte-identical, and the preview dump was shown able
+  to disagree. **Both window captures are owed.**
 
 ### Expected counts
 
 1101 (or 1102) → **1110** (or 1111) tests: five new guards, the hole guard,
 and tests 7, 8 and 9. Guards 47 → **53**, re-counted by `grep -c canTypecheck`
 per file, not from this number. Goldens 97.
+
+**Measured by lane 3** (`MC-S` item 2): the base was 1103, so `Test run with
+1112 tests in 1 suite passed`, 0 `error:`, 0 `warning:`; `grep -c canTypecheck`
+per file 19, 10, 6, 6, 5, 3 (one a comment), 3, 2 → 53; goldens 97,
+`git diff --stat f64e58a -- '*.json'` empty.
 
 ### Docs owed by lane 3
 
