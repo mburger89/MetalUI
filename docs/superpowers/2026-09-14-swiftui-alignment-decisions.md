@@ -9,7 +9,7 @@ starts here, at the design stage.**
 
 Prefixed **`SA-`** and **lettered** (`SA-A`, `SA-B`, …), per this repo's
 convention. **A bare `SA-3` is a typo, not a citation.** The next unused letter
-is `SA-T`.
+is `SA-U`.
 
 Read alongside:
 
@@ -661,7 +661,42 @@ inert.
 - **If an adapter proves necessary,** it is a new node kind with its own tree,
   and nothing here blocks it.
 
-**Mutations:** owed by lane 2.
+**Mutations (lane 2, 2026-09-14, run on the lane's own tests in a separate
+`git worktree` off `feat/kernel-completion`, one at a time, restore confirmed
+by `git status --short` clean each time, full `swift test --build-system native
+--no-parallel` after `swift package clean` each; every run read `Test run with
+1032 tests in 1 suite` unless it says it truncated).**
+- **Red before** (`18a4331`, filtered, 22 tests, 15 failed):
+  `aNativeNodeRegisteredUnderALegacyNodeTraps`, `computeLayoutRejectsANativeRoot`,
+  `aStyleWrittenOntoANativeNodeTraps`,
+  `aProposalElementInsideALegacyContainerTrapsAtRegistration` and
+  `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration` each read
+  `.failure → .exitCode(0)` and an empty stderr.
+- Delete `newNode`'s native-child precondition →
+  `aNativeNodeRegisteredUnderALegacyNodeTraps` and
+  `aProposalElementInsideALegacyContainerTrapsAtRegistration`.
+- Route the native registrars through the checking `newNode` →
+  `everyNativeRegistrarAcceptsNativeChildrenWithoutTrapping`
+  (`.success → .signal(SIGTRAP → 5)`), **and the run truncates** (shape 11):
+  the in-process `measuringANativeTreeWritesNoRect` traps "given a native
+  child", no summary line, 239 `passed` lines. The exit test's red line is in
+  that log before the truncation.
+- Delete `computeLayout`'s native-root precondition →
+  `computeLayoutRejectsANativeRoot`.
+- Delete `setStyle`'s native-node precondition →
+  `aStyleWrittenOntoANativeNodeTraps` and
+  `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`, the latter on
+  its fragment: stderr read `LayoutTree.swift:118: Precondition failed: legacy
+  layout node given a native child`, `Column`'s trap, exactly as the spec
+  predicted.
+- Delete the child loop from `newNativeLinearStack` →
+  `aLegacyNodeRegisteredUnderANativeStackTraps` and
+  `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`
+  (both green on arrival; this is their red run, taken before the tests were
+  committed and re-taken on the implementation). **The integration test first
+  stayed green under it** (`SA-T` item 1).
+- Delete the child loop from `newNativeLayout` →
+  `aLegacyNodeRegisteredUnderACustomLayoutTraps`.
 
 ---
 
@@ -716,8 +751,41 @@ memo pays only for changed proposals. `SA-M`'s counters make the cost countable,
 and a cross-frame memo stays open for a performance milestone with a count
 behind it.
 
-**Mutations:** owed by lane 2. Clauses 1, 2 and 5 already hold, so their red runs
-are the recorded mutations (the spec's red-first note).
+**Mutations (lane 2, 2026-09-14, run on the lane's own tests in a separate
+`git worktree` off `feat/kernel-completion`, one at a time, restore confirmed
+by `git status --short` clean each time, full `swift test --build-system native
+--no-parallel` after `swift package clean` each; every run read `Test run with
+1032 tests in 1 suite` unless it says it truncated).**
+Clauses 1 and 5 already held, so the three cache tests were green on arrival;
+each red run below was taken before the tests were committed and re-taken on
+the implementation, with the same result.
+- **Red before:** `measuringANativeTreeWritesNoRect`, against the skeleton
+  `measureNativeLayout` that delegated to `computeNativeLayout`: 28 issues,
+  e.g. `measured.layout(id) → LayoutRect(x: 0.0, y: 4.0, width: 80.0, height:
+  9.0)`. `writingARectDuringNativeMeasurementTraps`: `.failure →
+  .exitCode(0)`.
+- The cache hoisted to a stored property on `LayoutTree` →
+  `aSecondComputeNativeLayoutCallReMeasuresEveryLeaf` (`calls.counts → [1, 1,
+  1]` against `[2, 2, 2]`) and `aDifferentRootProposalReMeasuresAndMovesTheRects`
+  (its second call's `(nil, 80)` becomes a hit). `aResetTreeMeasuresItsNewRegistrationsFromScratch`
+  stays green: its keys carry the new generation. **Built incrementally, this
+  mutation also reddened `aNodeIDDoesNotSilentlyResolveAgainstAnotherFramesTree`
+  and `everyFrameTakesADistinctTreeGeneration`, both reading tree generation
+  8538670168**: a stored property added to a public class, read across a
+  module boundary by a stale build (CLAUDE.md's `swift package clean` note).
+  Cleaned, both stayed green, so every run here was cleaned. A per-tree
+  global keyed on `ObjectIdentifier` was tried first to avoid the rebuild and
+  is **not a mutation of this clause**: a freed tree's address is reused, so it
+  leaked caches across trees and reddened ten unrelated `NativeLayoutTests`.
+- `computeNativeLayout` memoized on the root id alone → the same two tests.
+- A persistent cache keyed on `(id.index, proposal)` that `reset` does not
+  clear → `aResetTreeMeasuresItsNewRegistrationsFromScratch` (`after.counts →
+  [0, 0]`, the stack measuring 70×10) and the same two.
+- `measureNativeLayout` also calls `placeNative` on the root →
+  `measuringANativeTreeWritesNoRect`.
+- The leaf case raises `measureDepth` only after calling its closure →
+  `writingARectDuringNativeMeasurementTraps`, **once its leaf is the root**
+  (`SA-T` item 2).
 
 ---
 
@@ -778,7 +846,57 @@ Lane 2's red runs are the first executions of these paths.
 subtree of the same tree from inside a measure closure now traps. No such caller
 exists in `Sources/`, and a hosted subtree belongs in its own tree (`SA-G`).
 
-**Mutations:** owed by lane 2.
+**Mutations (lane 2, 2026-09-14, run on the lane's own tests in a separate
+`git worktree` off `feat/kernel-completion`, one at a time, restore confirmed
+by `git status --short` clean each time, full `swift test --build-system native
+--no-parallel` after `swift package clean` each; every run read `Test run with
+1032 tests in 1 suite` unless it says it truncated).**
+- **Red before** (`18a4331`): `computeLayoutCalledFromANativeMeasureClosureTraps`,
+  `setStyleOnALegacyNodeDuringNativeLayoutTraps`,
+  `registeringANativeNodeDuringNativeLayoutTraps`,
+  `registeringALegacyLeafDuringNativeLayoutTraps` and
+  `registeringANodeDuringLegacyLayoutTraps` read `.failure → .exitCode(0)`.
+  `computeNativeLayoutReenteredFromAMeasureClosureTraps` died with an empty
+  stderr (the recursion exhausted the stack). `resettingATreeDuringLayoutTraps`
+  died, but **not on an out-of-range index as the spec predicted**: stderr read
+  `LayoutTree.swift:393: Precondition failed: LayoutNodeID from generation 0
+  used against a LayoutTree at generation 1`, the next stale-id read.
+  `nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns` read `.success →
+  .signal(SIGTRAP → 5)`.
+- Drop `beginLayout()` from `computeNativeLayout` →
+  `computeNativeLayoutReenteredFromAMeasureClosureTraps`,
+  `computeLayoutCalledFromANativeMeasureClosureTraps`,
+  `setStyleOnALegacyNodeDuringNativeLayoutTraps`,
+  `registeringANativeNodeDuringNativeLayoutTraps`,
+  `registeringALegacyLeafDuringNativeLayoutTraps`,
+  `resettingATreeDuringLayoutTraps` and
+  `nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns`.
+- Give the native path its own flag (its own re-entrancy precondition; the
+  registration, `setStyle` and `reset` checks reading either flag) →
+  `computeLayoutCalledFromANativeMeasureClosureTraps` and
+  `nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns`.
+- Delete the precondition from `appendNode` →
+  `registeringANativeNodeDuringNativeLayoutTraps`,
+  `registeringALegacyLeafDuringNativeLayoutTraps` and
+  `registeringANodeDuringLegacyLayoutTraps`.
+- Route `newLeaf` around `appendNode` (its own storage append) →
+  `registeringALegacyLeafDuringNativeLayoutTraps` alone of those three.
+- Delete the `reset(generation:)` precondition →
+  `resettingATreeDuringLayoutTraps`.
+- **(A)** `endLayout()` moved from the `defer` to directly after `beginLayout()`
+  in `computeNativeLayout` → `nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns`,
+  `setStyleOnALegacyNodeDuringNativeLayoutTraps`,
+  `computeLayoutCalledFromANativeMeasureClosureTraps`,
+  `computeNativeLayoutReenteredFromAMeasureClosureTraps`,
+  `registeringANativeNodeDuringNativeLayoutTraps`,
+  `registeringALegacyLeafDuringNativeLayoutTraps` and
+  `resettingATreeDuringLayoutTraps`; `registeringANodeDuringLegacyLayoutTraps`
+  stayed green. The spec's list, exactly.
+- **(B)** the `defer { endLayout() }` dropped entirely → **the run truncated**
+  as the spec predicted: the in-process `aSecondComputeNativeLayoutCallReMeasuresEveryLeaf`
+  trapped "computeLayout re-entered on the same tree", no summary line, 248
+  `passed` lines. `--filter nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns`
+  on the same build: `.success → .signal(SIGTRAP → 5)`, 1 test, 1 issue.
 
 ---
 
@@ -1351,7 +1469,12 @@ registrars return a `ProposalNodeID` with no public initializer, and
   silently.
 
 **Mutations:** lane 1's half done — the five guards and their red runs are
-under `SA-F` and `SA-C`. Owed by lane 2: the two run-time traps.
+under `SA-F` and `SA-C`. Lane 2's half, the two run-time traps, is under
+`SA-G`: `aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`
+("contains a legacy node", reddened by deleting `newNativeLinearStack`'s child
+loop once it has a witness sibling, `SA-T` item 1) and
+`aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration` ("setStyle on a
+native layout node", reddened by deleting that precondition).
 
 ---
 
@@ -1398,3 +1521,51 @@ it has three rows.
 "applied" and the spec does not carry the change, the review's finding is
 silently lost. Each row names where the change lives so that can be checked.
 
+---
+
+## SA-T — lane 2's tests as built differ from the spec in five places, each forced by a mutation or a red run
+
+*Written by lane 2 during implementation, 2026-09-14. The spec's lane 2 tables
+are corrected in place to match.*
+
+1. **`aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`
+   registers a witness sibling after the `HStack`.** As specified (`HStack {
+   Liar() }` alone), deleting the child loop from `newNativeLinearStack` left
+   it **green**: measurement's `nativeNode(_:)` lookup traps later, at layout,
+   with the same "contains a legacy node" message. So the test could not see
+   SA-R's claim that the trap fires *at native registration*. The root is now
+   `VStack { HStack { Liar() }; RegisteredAfterTheContainer() }`, where the
+   sibling's `requestLayout` traps with "registration continued past a proposal
+   container holding a legacy node". The same mutation now reddens it on its
+   fragment.
+2. **`writingARectDuringNativeMeasurementTraps` lays out the leaf as the
+   root.** With the leaf under an overlay, the spec's mutation (raise the leaf's
+   `measureDepth` only after its closure) left it **green**, because the
+   closure still ran inside the overlay's own bracket. As the root the closure
+   runs at depth 0 unless the leaf's bracket holds. Red before the
+   implementation either way (`.failure → .exitCode(0)`).
+3. **`resettingATreeDuringLayoutTraps`' red run** was not "an out-of-range
+   index": the run died on the next stale-id read (`LayoutNodeID from
+   generation 0 used against a LayoutTree at generation 1`). Still red on its
+   fragment, as the spec required.
+4. **`everyNativeRegistrarAcceptsNativeChildrenWithoutTrapping`'s mutation
+   truncates the suite** (shape 11): routed through the checking `newNode`,
+   every in-process native test with a child traps. The spec said only "which
+   then traps". Its red line is recorded from the truncated log (`SA-G`). Its
+   red run also needs the checking `newNode` to exist, so it was taken after
+   the implementation, not before the tests were committed.
+5. **`measuringANativeTreeWritesNoRect` rebuilds lane 1's reference tree** with
+   the built-in stack in its own file. `ProposalLayoutTests.swift`'s
+   `ReferenceTree` and its leaf helpers are `private`, and widening them would
+   collide with same-named private helpers elsewhere in the target. The
+   geometry, including lane 1's x.5 adjustment, is copied; the test also
+   `try #require`s that the twin tree's rects are not all zero (shape 15), and
+   asserts measured widths stay 0 as well as rects.
+
+**What it costs if wrong.** Item 5 is a second copy of a fixture that can
+drift from lane 1's. It is a regression fixture for "writes nothing", not an
+equivalence oracle, so drift changes which tree is measured, not what the test
+can catch.
+
+**Mutations:** the runs that forced items 1, 2 and 4 are under `SA-G` and
+`SA-H`.
