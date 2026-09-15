@@ -69,8 +69,8 @@ exercise, the way `SA-J`…`SA-M` carry theirs.
   isolation, how a test forces that signal, and a hidden root.
 - `AB-AE`, `AB-AF`: lane 2 as built — the overrides' isolation, and the
   corrections and hazards it found.
-- `AB-AG`: lane 3 as built — the corrections to the spec, a test added and two
-  widened, and the hazards left for the integration step.
+- `AB-AG`: lane 3 as built — the corrections to the spec, two tests added (one
+  after the verifier round) and two widened, and the hazards left for the integration step.
 - **"Critic round"** and **"Second critic round"** at the end map each finding
   to what was done.
 
@@ -1842,7 +1842,7 @@ fields that exist, or makes a mutation the spec relies on observable.
 **Cost if wrong.** Item 1: an app that imports `AppKit` and spells
 `AccessibilityRequest` must qualify it until the rename.
 
-## AB-AG — lane 3 as built: no rule changed; one test added, two widened, three hazards
+## AB-AG — lane 3 as built: no rule changed; two tests added, two widened, four hazards
 
 **Added by lane 3's implementer (2026-09-15), after its red and green runs.**
 The spec's lane-3 section carries a "Lane 3 as built" note; the red lines and
@@ -1941,7 +1941,42 @@ unfiltered suite: `aa5d055` (46 rows; N46 and N49 survived, N19 did not build
 and was re-spelled), `15f0dd2` (52 rows; N52 and N60 survived) and `ecb0504`
 (57 rows). All in the record.
 
+7. **The verifier round (after `4d97ba6`) added a sixteenth test and one arm.**
+   The 57-row table had no survivor, but it had no mutant for three rules, and
+   the verifier's hunting mutants on each survived the unfiltered suite, each
+   first shown to change a published value:
+   - **V01**, step C not recursing below a kept node that is not a folding
+     button. No fixture put a combining button under a published node, though
+     the demo's `CounterPanel` (a focusable container of click targets over
+     texts) is exactly that shape. Pinned by a new arm in
+     `aClickableContainerCombinesItsTextsIntoOneButtonLabel` and by the list
+     arm below.
+   - **V02**, step C gating on clickability instead of the published `.button`
+     role. **The gate is the role deliberately**: a clickable `List` is a
+     table (`AB-L`), and gating on clickability folds its rows into one label.
+   - **V05**, `windowIsBounded` ignoring a non-positive `rowHeight` (item 5's
+     spelling). Without the clause, a zero-`rowHeight` list in a measured
+     scroller publishes every row on every frame.
+   `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` pins V01
+   (click targets inside a bounded list's rows), V02 (a clickable list keeps its
+   10 rows) and V05 (`rowHeight` 0 publishes no row). V01 reddens both tests;
+   V02 and V05 redden the new one. `Resolving.isInteractive`'s doc comment,
+   which described the negation of the property, was corrected.
+
 **Hazards left for the integration step.**
+
+- **The retry cap starves a list shown beside one that always asks.** `AB-X`
+  rule 3's cap is a single window-wide `Bool` (one extra frame per run of
+  asking frames). A `List` whose scroller never measures a viewport, such as a
+  zero-height collapsed section, asks on every frame, so the run never ends and
+  **no other list's retry is honoured again**. A list shown later publishes its
+  table with no rows, and the window goes clean. The rows publish on the next
+  frame drawn for any other reason. Measured in the record: with the
+  zero-height list, the toggle took 1 frame and published 0 rows,
+  `needsRedraw false`; without it, 2 frames and 10 rows. Unfixed and unpinned.
+  The named fix keys the cap per list id: dirty whenever the set of asking ids
+  gains a member that did not ask on the previous frame. That set is built only
+  while collecting.
 
 - **Distribution reads the gated registries.** A distributor must not be
   focusable or adjustable, and both are read from `FocusRegistry` (as `AB-H`'s

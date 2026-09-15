@@ -787,7 +787,10 @@ passed`. Arms added in `ecb0504`: a clickable text inside a click target, and
 an active scroller-less list that must go clean after frame 0.
 
 **Third round, the whole table re-taken at `ecb0504`: 57 rows** (the second
-round's 52, plus N64, N65, N67, N69, N70). **No survivor**; every run built and
+round's 52, plus N64, N65, N67, N69, N70). **No survivor among those 57**, which
+is not the same as covering step C and the window guard: the verifier round
+below found three hunting mutants (V01, V02, V05) that this table did not
+contain and that all survived. Every run built and
 printed `Test run with 1140 tests`. Against the second round, 49 rows redden
 exactly the same tests; N52 and N60 are now killed; N07 (a clickable text
 keeps role `.text`) also reddens `aClickableContainerCombinesItsTextsIntoOneButtonLabel`,
@@ -855,6 +858,78 @@ mutation reaches them):
 | N70 | a row hint alone does not record | `aClientDoesNotChangeStateRetention`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, `synthesizedNodesCostNothingWhileNoClientIsActive` |
 | N51 | a folded button with no contributions gets an empty label | `eachLiveHandlerAloneMakesAnUndeclaredElementRecord` |
 
+**Verifier round, at `4d97ba6`: three survivors in step C and the window
+guard.** Lane 3's verifier re-took N23, N26, N29, N30, N46, N52, N60 and N69
+(each reddened the tests above) and ran hunting mutants of its own, all on
+the unfiltered suite, each shown to change a published value by a probe before
+being banked as a gap. Three survived at `Test run with 1140 tests in 1 suite
+passed`:
+
+- **V01**: step C does not recurse below a node that is not a folding button.
+  No fixture had a combining button whose parent is a published node, which is
+  the demo's own `CounterPanel` shape. On
+  `Row { Box{Text("-")}.onClick{}.accessibilityLabel("Decrement"); Box{Text("go")}.onClick{} }.focusable()`
+  the mutant publishes `button label=nil` holding `staticText "go"` where the
+  implementation publishes `button label="go"` with no children.
+- **V02**: step C gates on `record.isClickable` rather than the published role.
+  A clickable `List` then folds every row into its label
+  (`table label="Row 0, Row 1, … Row 9" kids=0`, against `table kids=10`).
+- **V05**: `windowIsBounded` drops `&& rowHeight.value > 0`. A 50-row list at
+  `rowHeight` 0 in a measured 200pt scroller then publishes 50 rows and 50 texts
+  on its second frame, where the implementation publishes none: `AB-X`'s
+  frame-0 flood, on every frame.
+
+The verifier's V07 (distribution not overwriting a clickable child's label)
+reddened `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`.
+
+**Fixed by the implementer's verifier-fix pass.** An arm in
+`aClickableContainerCombinesItsTextsIntoOneButtonLabel` (a focusable `Row`
+holding a labelled and an unlabelled click target over texts: a group with two
+buttons labelled `"Decrement"` and `"go"`, no children, no static text), and a
+sixteenth test, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`,
+with three arms, each on the second frame over one state table, behind a
+`#require` that the scroller measured 200pt: click targets inside a bounded
+list's rows (each row's one child is a button labelled `"Row N"` with no
+children, rows 0..<10), a clickable list (still a table, `actions == [.press]`
+as the control, `label nil`, 10 rows with their texts), and `rowHeight` 0
+(table with `rowCount 50` as the control, no rows, no static text).
+`scrolledList` gained `rowHeight`, `clickableRows` and `clickableList`
+parameters, defaulted to the old fixture. The mutants were applied by a script
+as text replacements (V05's target checked to leave `visibleRange`'s own
+`rowHeight.value > 0` guard, the one remaining occurrence), each run as the
+unfiltered suite and restored from a copy:
+
+| # | mutation | reddens |
+|---|---|---|
+| V01 | step C does not recurse below a non-folding node | `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` |
+| V02 | step C gates on `isClickable`, not the role | `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` (`list.label → "Row 0, …, Row 9"`, `listRowIDs.count → 0`) |
+| V05 | `windowIsBounded` ignores `rowHeight` | `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows` (`zero.children` → 50 ids, texts published) |
+
+Pristine before the mutants and again after: `Test run with 1141 tests in 1
+suite passed` (1140 + the new test), 0 `error:`, 0 `warning:` in each log.
+Only V01, V02 and V05 were re-run in this pass; the 57-row table above was not
+re-taken, since no source line changed beyond `Resolving.isInteractive`'s doc
+comment (which said the opposite of what the property returns, and now reads
+"has a derived action or is focusable: what stops a button folding its
+descendants").
+
+**The retry cap can starve a list that appears later** (verifier finding,
+re-measured here). `WindowAccessibility`'s cap is one `Bool` for the whole
+window: a list whose scroller never measures a viewport (height 0, as a
+collapsed section) asks on every frame, so no later frame's retry is ever
+honoured. A second list shown afterwards publishes its table with no rows,
+and the window goes clean until unrelated input dirties it; the next frame
+drawn for any reason publishes the rows, since the new scroller measured its
+viewport on the frame that showed it. Measured with a temporary test (not
+committed) through `makeFakeWindow`, activated, drawn until clean, then an
+`@Observable` toggle showing a 50-row list in a 200pt scroller, drawn until
+clean again: **without** a zero-height list beside it, 2 frames after the
+toggle, 10 rows, `needsRedraw false` (the control); **with** a 20-row list in a
+zero-height scroller beside it, 1 frame, **0 rows**, `needsRedraw false`. Left
+as a known limitation (`AB-AG` hazard). The named fix is to key the cap per
+list id: dirty when the set of asking ids gains a member that did not ask on
+the previous frame.
+
 **Performance, by count.** With no client, lane 3 adds, by reading (`AB-AG`
 item 5; no instrument measured it), one `Bool` store per drawn frame (`WindowAccessibility`'s retry flag), one `Bool` read per `List`
 `prepaint`, two `Bool` stores per `List` `requestLayout`, and the `logicalIndex`
@@ -886,6 +961,9 @@ instrument was used (`AB-M`).
 - **Distribution reads the gated registries** (`AB-AG` hazard): after the
   environment merge a disabled focusable or adjustable labelled container
   distributes. Unpinned.
+- **The retry cap starves a list shown beside one that always asks** (`AB-AG`
+  hazard, measured above): 0 rows until unrelated input. Unfixed and unpinned;
+  the per-id cap is the named fix.
 - **Unpinned by construction:** setting `logicalIndex` while not collecting,
   or on an unbounded window (neither records nor emits, so no input can tell
   the spellings apart), and `Frame.requestAccessibilityRetry`'s own guard alone

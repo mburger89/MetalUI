@@ -133,7 +133,8 @@ enum AccessibilityTreeBuilder {
         let actions: AccessibilityActions
         let isFocusable: Bool
 
-        /// No derived action and not focusable: what a button may fold away (AB-G).
+        /// Has a derived action or is focusable: what stops a button folding
+        /// its descendants (AB-G).
         var isInteractive: Bool { !actions.isEmpty || isFocusable }
 
         /// A plain generic node that declared a label or value and has a kept

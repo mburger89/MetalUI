@@ -82,13 +82,19 @@ private extension AccessibilityTree {
 
 /// A 200pt-wide scroller of `height` over a `count`-row `List` whose rows are a
 /// 28pt `Box` holding `Text("Row N")` — the demo's row shape, `demoLikeRows`'
-/// footing.
+/// footing. `rowHeight` is the list's declared row height (each row's content
+/// stays 28pt); `clickableRows` puts an `onClick` on each row's content Box,
+/// `clickableList` one on the list itself.
 @MainActor private func scrolledList(_ count: Int, height: Float,
-                                     label: String? = nil) -> some Element {
-    var list = List((0..<count).map(Item.init), rowHeight: px(28)) { item in
-        Box { Text("Row \(item.id)") }.width(px(180)).height(px(28))
+                                     label: String? = nil, rowHeight: Float = 28,
+                                     clickableRows: Bool = false,
+                                     clickableList: Bool = false) -> some Element {
+    var list = List((0..<count).map(Item.init), rowHeight: px(rowHeight)) { item in
+        let content = Box { Text("Row \(item.id)") }.width(px(180)).height(px(28))
+        return clickableRows ? content.onClick {} : content
     }
     if let label { list = list.accessibilityLabel(label) }
+    if clickableList { list = list.onClick {} }
     return Box { ScrollView(.vertical) { list } }
         .width(px(200)).height(px(height)).minHeight(px(0))
 }
@@ -336,6 +342,78 @@ private extension AccessibilityTree {
     let unfolded = try #require(nestedInteractive.rootNodes.first)
     #expect(unfolded.label == nil && unfolded.children.count == 1,
             "a focusable grandchild keeps the button's children")
+
+    // **A button below a kept node that is not a button still combines**
+    // (the verifier's surviving mutant V01 stopped the walk at the first kept
+    // non-button). The demo's `CounterPanel` shape: a focusable container
+    // holding click targets that wrap texts. Each inner button folds its own
+    // text, and a declared label wins over it.
+    let (_, panelTree) = collect(Row {
+        Box { Text("-") }.width(px(20)).height(px(20)).onClick {}.accessibilityLabel("Decrement")
+        Box { Text("go") }.width(px(20)).height(px(20)).onClick {}
+    }.width(px(60)).height(px(20)).focusable())
+    let panelID = try #require(panelTree.roots.first)
+    try #require(panelTree.roots.count == 1)
+    #expect(panelTree.nodes[panelID]?.role == .group)
+    #expect(panelTree.nodes[panelID]?.label == nil)
+    let inner = panelTree.childNodes(of: panelID)
+    try #require(inner.count == 2, "control: the focusable panel keeps both buttons")
+    #expect(inner.map(\.role) == [.button, .button])
+    #expect(inner.map(\.label) == ["Decrement", "go"], "each nested button takes its own text")
+    #expect(inner.allSatisfy { $0.children.isEmpty }, "each nested button folds its text away")
+    #expect(panelTree.all(.staticText).isEmpty)
+}
+
+/// Combination inside a bounded `List` (AB-G, AB-L): a click target inside each
+/// row folds its text into its label, below a table and a row that are kept
+/// and are not buttons. A **clickable list** is still a table and keeps its
+/// rows, because step C gates on the published role, not on clickability. And
+/// a non-positive `rowHeight` leaves the window unbounded even inside a
+/// measured scroller, so no row is published (`AB-AG` item 5).
+///
+/// Each arm is the second frame over one state table, so the scroller has
+/// measured its 200pt viewport. The window at offset 0 is rows 0..<10 (200 / 28
+/// = 7.1, rounded up, plus 2 of overscan).
+///
+/// **Added against the verifier's surviving mutants** V01 (step C does not
+/// recurse below a kept non-button), V02 (step C gates on `isClickable`) and
+/// V05 (`windowIsBounded` ignores `rowHeight`).
+@Test @MainActor func combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows() throws {
+    func secondFrame<E: Element>(_ make: () -> E) throws -> AccessibilityTree {
+        let stateTable = StateTable()
+        let (first, _) = collect(make(), stateTable: stateTable, width: 200, height: 200)
+        let scroller = try #require(first.scrollRegions.first).id
+        try #require(stateTable.peek(scroller, as: ScrollState.self)?.viewportExtent == 200,
+                     "control: the first frame measured a 200pt viewport")
+        return collect(make(), stateTable: stateTable, width: 200, height: 200).1
+    }
+
+    let clickableRows = try secondFrame { scrolledList(50, height: 200, clickableRows: true) }
+    let rowsTableID = try #require(clickableRows.all(.table).first).id
+    let rowIDs = clickableRows.nodes[rowsTableID]?.children ?? []
+    try #require(rowIDs.count == 10, "control: the bounded window publishes rows 0..<10")
+    let buttons = rowIDs.map { clickableRows.childNodes(of: $0) }
+    try #require(buttons.allSatisfy { $0.count == 1 }, "each row holds one click target")
+    #expect(buttons.map { $0[0].role } == Array(repeating: AccessibilityRole.button, count: 10))
+    #expect(buttons.map { $0[0].label } == (0..<10).map { "Row \($0)" },
+            "a row's button is labelled by its text")
+    #expect(buttons.allSatisfy { $0[0].children.isEmpty }, "and folds that text away")
+    #expect(clickableRows.all(.staticText).isEmpty)
+
+    let clickableList = try secondFrame { scrolledList(50, height: 200, clickableList: true) }
+    let (listID, list) = try #require(clickableList.all(.table).first)
+    #expect(clickableList.roots == [listID])
+    #expect(list.actions == [.press], "control: the list is clickable")
+    #expect(list.label == nil, "a clickable table takes no combined label")
+    let listRowIDs = list.children
+    #expect(listRowIDs.count == 10, "a clickable table keeps its rows")
+    #expect(listRowIDs.map { clickableList.childNodes(of: $0).map(\.value) } == (0..<10).map { ["Row \($0)"] })
+
+    let zeroHeight = try secondFrame { scrolledList(50, height: 200, rowHeight: 0) }
+    let zero = try #require(zeroHeight.all(.table).first).node
+    #expect(zero.rowCount == 50, "control: the table and its row count still publish")
+    #expect(zero.children.isEmpty, "a zero rowHeight is an unbounded window: no rows")
+    #expect(zeroHeight.all(.staticText).isEmpty, "and none of their texts")
 }
 
 /// Portal content is a root, so it is never folded into a button's label
