@@ -405,12 +405,14 @@ where Data.Element: Identifiable {
         // windowing is active) — the two are asserted as different numbers
         // by `AXNodeTests.swift`'s `aVirtualizedListsLogicalCountDiffersFromItsRealizedRowCount`.
         // Unconditional, unlike every other declared `AXNode` field: nothing
-        // gates this behind a caller opting in (there is no public modifier
-        // for `.axNode` at all yet — see `AXNode.swift`'s own doc), because
-        // the exit criterion is that a `List` always exposes this, not that
-        // one CAN. A role is set only when the caller declared none, so a
-        // future `.axNode(_:)` modifier's own `role`/`label` are not
-        // silently overwritten here.
+        // gates this behind a caller opting in (no public modifier sets a
+        // count or a role; `accessibilityLabel`/`accessibilityValue` set only
+        // their own field), because the exit criterion is that a `List`
+        // always exposes this, not that one CAN. A role is set only when the
+        // caller declared nothing, so `List(…).accessibilityLabel("Contacts")`
+        // keeps its label and a `generic` role — which is why the accessibility
+        // builder makes any node with a `logicalCount` a table whatever its
+        // role (ruling AB-L, arm R16).
         var listHandlers = handlers
         if listHandlers.axNode.isEmpty {
             listHandlers.axNode = AXNode(role: .container)

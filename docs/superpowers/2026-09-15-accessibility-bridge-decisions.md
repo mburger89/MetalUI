@@ -4,7 +4,7 @@ Rulings for the accessibility-bridge half of plan task 12
 (`docs/superpowers/plans/2026-09-12-swiftui-alignment.md`). They are prefixed
 **`AB-`** and **lettered** (`AB-A`, `AB-B`, …), with two-letter tails after
 `AB-Z`. **A bare `AB-3` is a typo, not a citation.** The next unused letter is
-`AB-AG`.
+`AB-AH`.
 
 Read alongside:
 
@@ -69,6 +69,8 @@ exercise, the way `SA-J`…`SA-M` carry theirs.
   isolation, how a test forces that signal, and a hidden root.
 - `AB-AE`, `AB-AF`: lane 2 as built — the overrides' isolation, and the
   corrections and hazards it found.
+- `AB-AG`: lane 3 as built — the corrections to the spec, a test added and two
+  widened, and the hazards left for the integration step.
 - **"Critic round"** and **"Second critic round"** at the end map each finding
   to what was done.
 
@@ -1839,6 +1841,132 @@ fields that exist, or makes a mutation the spec relies on observable.
 
 **Cost if wrong.** Item 1: an app that imports `AppKit` and spells
 `AccessibilityRequest` must qualify it until the rename.
+
+## AB-AG — lane 3 as built: no rule changed; one test added, two widened, three hazards
+
+**Added by lane 3's implementer (2026-09-15), after its red and green runs.**
+The spec's lane-3 section carries a "Lane 3 as built" note; the red lines and
+the mutation tables are in `docs/record/12-accessibility-bridge.md`, "Lane 3".
+
+**What.** Every rule `AB-F`, `AB-G`, `AB-L`, `AB-T`, `AB-X` and `AB-Y` states
+was built as written. The corrections are to tests, fixtures and spellings:
+
+1. **A fifteenth test.** The spec's table has 14 rows under a "15 tests" count.
+   `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` is added: a
+   `List` on its unbounded frame inside `display: none` content. It is the only
+   fixture that nests the list's own suppression scope (`except: id`) inside
+   another (`except: nil`), so it pins that `isAccessibilitySuppressed`
+   answers from the **outermost** scope: mutant N29 (innermost) reddens it; in
+   each of the three rounds recorded it reddened no other test. Lane 1's M33 (always suppressed) reddens
+   `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, as
+   `AB-AA` required, and also this test and lane 1's
+   `aLabelledListIsStillATable`.
+2. **The `logicalIndex` strip had no guard that could see it.** `AB-AA` named
+   `aClientDoesNotChangeStateRetention`, whose spec fixture (130 texts, 10
+   click targets) holds no `List`, and the spec's
+   `synthesizedNodesCostNothingWhileNoClientIsActive` renders its `List` with no
+   scroll context, which is unbounded and so never carries a hint. Both now
+   render a `List` bounded by its scroller (the first over three window
+   frames, the second over two `Frame`s sharing a state table), each with a
+   `#require` that rows were published. Forgetting the strip (N30) reddens
+   both.
+3. **A lane-1 fixture changed.** `AB-G`'s step C folds the non-interactive
+   descendants of **any** `.button`, including a declared one, so lane 1's
+   `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor` (a declared
+   `.button` holding a declared sibling `after`) published no `after` once
+   lane 3 landed: the first green run's one failure,
+   `id(labelled: "after") → nil`. `after` is now focusable, so the button keeps
+   its children. The portal mutants still redden it (N17, the parent walk
+   ignoring portals; M38, `popLayer` not popping).
+4. **Tests were strengthened twice against surviving mutants**, each survivor
+   first shown to change a published value on an input no fixture had:
+   - after the first round (`15f0dd2`): **N49** (a clickable text's string
+     overriding its declared label; no fixture declared a label on a clickable
+     text) and **N46** (combination looking one level down; no fixture put a
+     kept node with children of its own between a button and its texts). The
+     N46 arms use a `@testable` declared `.container` as the intermediate; **by
+     reading, the public API reaches that shape only through a `List` inside a
+     click target** (its table and rows are kept, non-interactive and have
+     children). **N09v** (a distributed value not overwriting a child's own)
+     was found by reading the same round, not run: arm 6's texts declared no
+     value, so the condition it adds held for every child there. Arm 6 now
+     declares one, and N09v reddens it;
+   - after the second round (`ecb0504`): **N60** (only focusability makes a
+     descendant interactive; the one clickable descendant under a button in
+     any fixture, lane 1's `aHiddenRootPublishesNothing`, folds into a root
+     labelled `"in"`, which that test's `id(labelled: "in")` still finds) and
+     **N52** (a list with no scroll context retries once; no active window held
+     such a list).
+5. **Spellings.**
+   - `WindowAccessibility.frameDidRender(emissionCount:retry:_:to:)` takes
+     `retry` with no default and returns the `Bool` with no
+     `@discardableResult`: its one caller must not drop it. The previous
+     frame's flag is stored on every drawn frame, active or not; `retry` is
+     `false` on every frame that did not collect.
+   - `List.windowIsBounded` is `visibleRange`'s own guard, so a non-positive
+     `rowHeight` also counts as unbounded, beside the spec's two causes.
+   - Step B absorbs lane 1's "a clickable `generic` node is a button"; the role
+     map maps `generic` to `.group` only.
+   - A folded button with no contributions keeps a `nil` label, never `""`
+     (N51 reddens lane 1's `eachLiveHandlerAloneMakesAnUndeclaredElementRecord`).
+   - `AXEmission.synthesizes` has **no reader**: a conformer that does not
+     synthesize records only what it declared, which `registerHandlers`' gate
+     already decides. Its doc says so.
+   - **The inactive path grows, by reading (unmeasured).** `AB-M`'s "one
+     `Bool` read per `registerHandlers` call, plus one `Int` store per frame"
+     now also pays, with no client: a copy of `handlers.axNode` for the
+     `logicalIndex` strip per `registerHandlers` call, one `Bool` store per
+     drawn frame (the retry flag), and per `List` two `Bool` stores in
+     `requestLayout` and one `Bool` read in `prepaint`. None allocates by
+     reading; no instrument measured it.
+   - The demo's labels are written at the call site
+     (`button("-", minus).accessibilityLabel("Decrement")`), not inside
+     `CounterPanel.button`, and the scrim's after its `onClick`.
+6. **The cost tests' footing.** Their bridge is over a plain `NSView`, which has
+   none of `MetalHostView`'s overrides, so "read the host's children" is spelled
+   `noteClientRead()` plus `rootElements()`; the table's rows are read through
+   the vended element's own `accessibilityRows()`. The retry test's cap and
+   inactive arms use 500 rows (its main arm keeps 5,000), and frame 1 asserts
+   exactly 10 rows, from `visibleRange`'s arithmetic, where the spec said "at
+   most 12". The animation test reads the landed width, 120, as a control.
+
+**Why.** Items 1–4 are the smallest changes that make each rule a mutation can
+break observable, and item 3 is forced by `AB-G` as written. Item 5's spellings
+each remove a way to misuse an internal API or record what a field no longer
+does.
+
+**Evidence.** Measured: the red run on `2e5ca0a`; the first green run's one
+failure (item 3); three mutation rounds, each over the whole table and the
+unfiltered suite: `aa5d055` (46 rows; N46 and N49 survived, N19 did not build
+and was re-spelled), `15f0dd2` (52 rows; N52 and N60 survived) and `ecb0504`
+(57 rows). All in the record.
+
+**Hazards left for the integration step.**
+
+- **Distribution reads the gated registries.** A distributor must not be
+  focusable or adjustable, and both are read from `FocusRegistry` (as `AB-H`'s
+  actions and `AB-J`'s focusability are). After the environment merge a
+  disabled element is not registered (`EV-F`), so a **disabled** focusable or
+  adjustable labelled container becomes a distributor and its label moves onto
+  its children. SwiftUI distributes from those containers anyway (arms C1,
+  C5), so this lands nearer SwiftUI, not further; the joint disabled test in
+  the merge contract does not exercise a labelled container, and nothing pins
+  the interaction.
+- **CLAUDE.md's demo `StateTable` figures are stale.** The demo's three labels
+  are declared nodes and write `$ax` slots every frame, client or not (`AB-U`
+  exempts only synthesized records), so the warm resident counts (165 at 40
+  rows, 63 at 500) must be re-taken from record §07's harness. Not re-taken here.
+- **Record §05's inert rows.** `AXNode.logicalCount` now has a reader (the
+  builder publishes it as `AXRowCount`), and `AXNode.logicalIndex` is a new
+  internal field with one writer (`List`) and one reader (the builder).
+  `AXNode.children` is still always `[]` and `Frame.axNodes` still has no
+  production reader: the bridge reads records.
+
+**Cost if wrong.** Item 2: had the strip gone unguarded, a client reading a
+bounded `List` would have written one `$ax` slot per realized row per frame,
+changing `@State` retention with VoiceOver on, which is what `AB-U` exists to
+prevent. Item 3: the portal test would have kept passing only if its fixture
+stopped exercising a button, which is the case `AB-V` was written for.
 
 ---
 

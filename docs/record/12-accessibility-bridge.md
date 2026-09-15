@@ -3,7 +3,7 @@
 **This is the track's record, on `feat/ax-bridge` from `f64e58a`.**
 
 - Spec: `docs/superpowers/specs/2026-09-15-accessibility-bridge-design.md`.
-- Rulings: `AB-A`…`AB-AF` in
+- Rulings: `AB-A`…`AB-AG` in
   `docs/superpowers/2026-09-15-accessibility-bridge-decisions.md`.
 - Probes:
   - `docs/probes/swiftui-accessibility-bridge.swift`;
@@ -18,8 +18,8 @@
 The integration step, not this track, links this file from
 `docs/record/README.md` and CLAUDE.md.
 
-**Status: lanes 1 (tree and seam) and 2 (AppKit bridge) implemented; lane 3
-designed.** The
+**Status: lanes 1 (tree and seam), 2 (AppKit bridge) and 3 (defaults,
+modifiers, `List`) implemented; the human VoiceOver look is open.** The
 design was revised after one critic round, and again after a second critic
 round that followed lane 1 (its section is after lane 1's). Each lane appends
 its own section below:
@@ -682,11 +682,224 @@ unfiltered): `swift build --build-tests` printed 0 `error:` and 0 `warning:`;
 platform tests. Goldens: 97, and `git diff --stat f64e58a -- '*.json'` is
 empty.
 
+### Lane 3 — defaults, modifiers, `List` (2026-09-15)
+
+Commits on `feat/ax-bridge`: `2e5ca0a` (15 tests, red, with an inert modifier
+skeleton), `aa5d055` (implementation, demo labels, and lane 1's portal fixture),
+`15f0dd2` and `ecb0504` (tests strengthened against the first and second
+mutation rounds), and the docs commit that follows them (this section,
+`AB-AG`, the spec's "Lane 3 as built", two source doc comments). Ruling added: `AB-AG`. `swift package clean` ran before the first
+build, as the spec requires. No other agent was live in this worktree.
+
+**What landed.** `AXNode.logicalIndex` (internal) and its strip in
+`Frame.registerHandlers`; `Frame.requestAccessibilityRetry()` and
+`wantsAccessibilityRetry`; `WindowAccessibility.frameDidRender(…retry:…) -> Bool`
+and `Window`'s dirtying on it; `Text.prepaint` passing its non-empty string;
+`OnTapModifier.prepaint` passing `synthesizesAccessibility: false`; the
+builder's steps A (distribution), B (text resolution) and C (combination) and
+the `.row` role; `List`'s row indices, unbounded-window suppression and retry;
+`Sources/MetalUI/AccessibilityModifiers.swift`; the demo's three labels.
+Shared-file edits: `Frame.swift` (the strip, the retry, two doc lines),
+`Window.swift` (the retry's `if`), `Passes.swift` (one doc line), `Text.swift`,
+`NativeTappable.swift`, `List.swift`, `AXNode.swift`, the demo's `main.swift`;
+`ElementGroup.swift`, `Handlers.swift`, `Platform.swift` and `Fakes.swift` are
+untouched.
+
+**Red run on the skeleton commit** (`swift test --skip-build --no-parallel
+--filter AccessibilityDefaultsTests`, after a clean build):
+`Test run with 15 tests in 0 suites failed after 14.804 seconds with 26 issues`.
+**Every test was red**, including `aClientDoesNotChangeStateRetention`, which
+the spec expected green; the tests the spec expected not to compile compiled
+against the skeleton and failed on behaviour:
+
+| test | red line (first issue; all 26 recorded in the run log) |
+|---|---|
+| `aTextIsPublishedAsStaticTextWhoseValueIsItsString` | `(tree.roots.count → 0) == 2` |
+| `labelAndValueFollowSwiftUIsStaticTextRules` | `(labelled.rootNodes → []).first → nil` |
+| `aClickableTextIsAButtonLabelledByItsString` | `(go.label == "Go" → false)`: the button published with no label |
+| `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` | `(container.nodes.count → 0) == 2` |
+| `aClickableContainerCombinesItsTextsIntoOneButtonLabel` | `(combined.label == "A, B" → false)`; `(interactive.nodes[kept]?.children.count → 1) == 3`; each of C3, C7, C6, C4's label check `→ false` (six issues) |
+| `aDeferredInsideAClickableBoxIsNotFoldedIntoItsLabel` | `(tree.roots.count → 1) == 2` |
+| `theAdjustableActionModifierRegistersTheAdjustmentHandler` | `(platform.publishedAccessibilityTrees → []).last → nil` (the skeleton modifier registered nothing, so nothing recorded) |
+| `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices` | `(rows.count → 0) == 12` |
+| `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` | `window.needsRedraw → false` after frame 0; `(window.framesDrawn → 1) == 2`; `(table1.children.count → 0) == 10`; cap arm `capped.needsRedraw → false`, `(capped.framesDrawn → 1) == 2` (five issues). **Frame 0's `lastEmissionCount <= 3` held**: before lane 3 rows recorded nothing at all |
+| `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` | `(vended.count → 0) == 10` |
+| `anAnimationWithAClientActivePostsNothingAndTouchesNoElement` | `feed.bridge.rootElements().first → nil`: the skeleton's label recorded nothing, so nothing published |
+| `aClientDoesNotChangeStateRetention` | `(active.accessibility.lastEmissionCount → 11) >= 140`: the ten click targets and the list, no text. **The spec's "green before" was wrong for this fixture**: its shape-15 `#require` is what reddens, because texts did not record before lane 3 |
+| `synthesizedNodesCostNothingWhileNoClientIsActive` | `!((tree.all(.row) → []).isEmpty)`: the bounded-list control |
+| `anOnTapModifierPublishesNothingButItsHitboxStillPresses` | `(window.accessibility.lastEmissionCount → 1) == 0`; `lastPublished.nodes` held one `.button` with `label: nil`, `actions` press — the unlabelled button `AB-Y` predicted |
+| `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` | `(hidden.rootNodes.map(\.value) → []) == ["shown"]`: its text did not record. Its hidden-list assertion held; the rule it guards is live only once `List` opens its own scope (its evidence is N29) |
+
+**The first green run was not green: one lane-1 test** (`AB-AG` item 3). The
+filtered accessibility run (56 tests) failed once, in
+`portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor`:
+`tree.id(labelled: "after") → nil`, the tree dump showing the declared button
+`"B"` with `children: []`. Step C had folded the declared sibling into the
+button, as `AB-G` says it must. The fixture's `after` became focusable, and the
+run read `Test run with 56 tests in 0 suites passed`.
+
+**Green at `aa5d055`** (default build system, unfiltered, after the clean):
+`swift build --build-tests` printed 0 `error:` and 0 `warning:`;
+`Test run with 1140 tests in 1 suite passed after 30.542 seconds`, 0 `error:`,
+0 `warning:` in the test log. 1140 = 1125 at lane 2's verifier round + 15.
+**Green at `ecb0504` plus this lane's source doc-comment edits** (default
+build system, unfiltered): `swift build --build-tests` printed 0 `error:` and
+0 `warning:`; `Test run with 1140 tests in 1 suite passed after 25.802
+seconds`, 0 `error:`, 0 `warning:` in the test log. The strengthening added arms
+to existing tests, not tests. Goldens: `find Tests -name "*.json" | wc -l` reads
+97, and `git diff --stat f64e58a -- '*.json'` is empty. Typecheck guards: none
+added.
+
+**Mutations.** Applied by a script (a scratchpad directory of its own) as exact
+text replacements to committed source, each target checked unique first, built
+with `swift build --build-tests`, run as the **unfiltered** suite with
+`swift test --skip-build --no-parallel`, the failing test names parsed from the
+log, and restored with `git checkout`, with
+`git status --porcelain -- Sources Tests Package.swift` checked clean after
+each. Every run that built printed its summary line (1140 tests).
+
+**First round, at `aa5d055`: 46 rows.** N19 did not build (`contextual type for
+closure argument list expects 1 argument`: the spelling `{ handler(.increment) }`
+dropped the closure's parameter) and was re-spelled for the re-take. **Two
+survived**: N46 (combination looking only at direct children) and N49 (a
+clickable text's string overriding its declared label); the suite read
+`Test run with 1140 tests in 1 suite passed` under each. Each changes a
+published value on an input no fixture had — shown, not assumed, by the arms
+added for them reddening under each in the second round. A third gap was found
+by reading the same round's rows: N09v (a distributed value not overwriting a
+child's own) is identical to the implementation on arm 6's fixture, whose texts
+declared no value, so the condition it adds is true for every child there. All
+three were closed by arms added in `15f0dd2` (`AB-AG` item 4). Every other
+first-round row reddened at least one test; its test names are superseded by
+the re-takes below.
+
+**Second round, the whole table re-taken at `15f0dd2`: 52 rows** (every
+first-round row, N19 re-spelled as `{ _ = $0; handler(.increment) }`, plus
+N09v, lane 1's M38 against the changed portal fixture, and hunting mutants N52,
+N57, N59, N60). N46, N49 and N09v reddened the arms added for them. **Two
+survived**, each shown to change a published value first: N60 (only
+focusability makes a descendant interactive — the one clickable descendant
+under a button in any fixture, in lane 1's `aHiddenRootPublishesNothing`, folds
+into a root button labelled `"in"`, which that test's `id(labelled: "in")`
+still finds) and N52 (a list with no scroll context asks for a retry — no
+active window held one). Both read `Test run with 1140 tests in 1 suite
+passed`. Arms added in `ecb0504`: a clickable text inside a click target, and
+an active scroller-less list that must go clean after frame 0.
+
+**Third round, the whole table re-taken at `ecb0504`: 57 rows** (the second
+round's 52, plus N64, N65, N67, N69, N70). **No survivor**; every run built and
+printed `Test run with 1140 tests`. Against the second round, 49 rows redden
+exactly the same tests; N52 and N60 are now killed; N07 (a clickable text
+keeps role `.text`) also reddens `aClickableContainerCombinesItsTextsIntoOneButtonLabel`,
+whose new arm holds a clickable text. The table, with every test each row
+reddens (test names in full; lane 1's and lane 2's tests appear where a lane-3
+mutation reaches them):
+
+| # | mutation | reddens |
+|---|---|---|
+| N01 | a static text's string goes to the label, not the value | `aDeferredInsideAClickableBoxIsNotFoldedIntoItsLabel`, `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`, `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `aTextIsPublishedAsStaticTextWhoseValueIsItsString`, `labelAndValueFollowSwiftUIsStaticTextRules` |
+| N02 | every registerHandlers call synthesizes (a Column gains a node) | `aClickableTextIsAButtonLabelledByItsString`, `aHeldElementWhoseIDIsAdoptedPressesTheAdopter`, `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`, `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`, `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`, `aNodesParentIsItsNearestEmittingAncestor`, `aRealAppKitWindowPublishesItsFrameAndAPressRunsOnClick`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `aTextIsPublishedAsStaticTextWhoseValueIsItsString`, `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `anAnimationWithAClientActivePostsNothingAndTouchesNoElement`, `eachLiveHandlerAloneMakesAnUndeclaredElementRecord`, `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`, `labelAndValueFollowSwiftUIsStaticTextRules`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, `theAdjustableActionModifierRegistersTheAdjustmentHandler` |
+| N03 | Text passes its string even when empty | `aTextIsPublishedAsStaticTextWhoseValueIsItsString` |
+| N04 | delete the value-present branch's label = label ?? text | `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`, `labelAndValueFollowSwiftUIsStaticTextRules` |
+| N05 | skip the label-to-value move (value = text, label kept) | `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`, `labelAndValueFollowSwiftUIsStaticTextRules` |
+| N06 | apply the label-to-value move even when a value is present | `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`, `labelAndValueFollowSwiftUIsStaticTextRules` |
+| N07 | a clickable text keeps role .text | `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `aClickableTextIsAButtonLabelledByItsString`, `labelAndValueFollowSwiftUIsStaticTextRules` |
+| N08 | no distribution (the label stays on the wrapper) | `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` |
+| N09 | the inner label wins over a distributed one | `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` |
+| N10 | distribute from a focusable node | `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` |
+| N10b | distribute from an adjustable node | `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` |
+| N11 | a labelled node with no kept child distributes (to nothing) | `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`, `aNodesParentIsItsNearestEmittingAncestor`, `anAnimationWithAClientActivePostsNothingAndTouchesNoElement`, `anIncrementRequestRunsTheAdjustmentHandler`, `childrenFollowDeclarationOrderWhereIDsAloneCannot`, `declaredRolesLabelsValuesAndTraitsReachThePublishedNode`, `hiddenContentIsNotPublishedButAZeroHeightNodeIsAndADuplicatedIDIsPublishedOnce`, `labelAndValueFollowSwiftUIsStaticTextRules`, `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor`, `publishedFocusIsTheWindowsFocusAndAFocusRequestMovesIt` |
+| N12 | combined labels join with a space | `aClickableContainerCombinesItsTextsIntoOneButtonLabel` |
+| N13 | a combining button keeps its children | `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` |
+| N14 | combine across an interactive descendant | `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor` |
+| N15 | drop the combined value half | `aClickableContainerCombinesItsTextsIntoOneButtonLabel` |
+| N16 | a plain text's value goes into the button's value | `aClickableContainerCombinesItsTextsIntoOneButtonLabel` |
+| N17 | the parent walk ignores portals | `aDeferredInsideAClickableBoxIsNotFoldedIntoItsLabel`, `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor` |
+| N18 | the adjustable modifier registers under a different Action type | `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`, `theAdjustableActionModifierRegistersTheAdjustmentHandler` |
+| N19 | the adjustable modifier passes a constant direction | `theAdjustableActionModifierRegistersTheAdjustmentHandler` |
+| N20 | logicalIndex = offset (no lowerBound) | `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices` |
+| N21 | drop rowCount | `aLabelledListIsStillATable`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` |
+| N22 | distribute a list's label (logicalCount does not exclude) | `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices` |
+| N23 | drop the unbounded suppression | `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` |
+| N24 | the bridge creates elements eagerly in publish | `aFocusedElementQueryDoesNotActivate`, `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `destroyedIsPostedOnlyForElementsAClientWasHanded`, `elementsAreCreatedOnlyWhenAClientReadsThem`, `labelValueRowCountAndFocusChangesPostOnlyForTheElementThatChanged`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` |
+| N25 | drop the retry request | `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` |
+| N26 | uncap the retry | `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` |
+| N27 | retry while not collecting | `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` |
+| M33 | suppression ignores the scope's exception (always suppressed) | `aLabelledListIsStillATable`, `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`, `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` |
+| N29 | the innermost scope's exception decides | `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` |
+| N30 | forget the logicalIndex strip | `aClientDoesNotChangeStateRetention`, `synthesizedNodesCostNothingWhileNoClientIsActive` |
+| N31 | write a $ax slot for every record | `aClientDoesNotChangeStateRetention`, `aFrameThatDoesNotCollectRecordsNothingAndSynthesisWritesNoRetentionSlot` |
+| N32 | record regardless of collectsAccessibility | `aFrameThatDoesNotCollectRecordsNothingAndSynthesisWritesNoRetentionSlot`, `anInactiveWindowBuildsAndPublishesNothing`, `synthesizedNodesCostNothingWhileNoClientIsActive` |
+| N33 | OnTapModifier synthesizes | `anOnTapModifierPublishesNothingButItsHitboxStillPresses` |
+| N34 | post .layoutChanged on every structural publish | `layoutChangedIsPostedOncePerClientRead`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` |
+| N35 | post destroyed per removed id, on a fresh object | `destroyedIsPostedOnlyForElementsAClientWasHanded`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` |
+| N36 | geometry is structure | `aGeometryOnlyChangeTouchesNoElementAndPostsNothing`, `anAnimationWithAClientActivePostsNothingAndTouchesNoElement` |
+| N38 | logicalIndex does not make a row | `aClientDoesNotChangeStateRetention`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, `synthesizedNodesCostNothingWhileNoClientIsActive` |
+| N39 | rowIndex is not published | `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices` |
+| N42 | a zero viewport counts as bounded | `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame` |
+| N44 | a distributor's value is not applied | `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` |
+| N45 | a combining button overwrites its own label | `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` |
+| N46 | combination looks at direct children only | `aClickableContainerCombinesItsTextsIntoOneButtonLabel` |
+| N49 | a clickable text's string overrides its declared label | `aClickableTextIsAButtonLabelledByItsString` |
+| N50 | the value-present branch overrides a declared label | `labelAndValueFollowSwiftUIsStaticTextRules` |
+| N09v | the inner value wins over a distributed one | `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` |
+| M38 | popLayer never pops the portal stack (lane 1, against lane 3's portal fixture) | `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor` |
+| N52 | a list with no scroll context also asks for a retry | `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` |
+| N57 | a declared non-generic role distributes | `aNodesParentIsItsNearestEmittingAncestor`, `childrenFollowDeclarationOrderWhereIDsAloneCannot`, `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor` |
+| N59 | a focusable descendant is not interactive | `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor` |
+| N60 | an actionable descendant is not interactive | `aClickableContainerCombinesItsTextsIntoOneButtonLabel` |
+| N64 | a clickable labelled node distributes | `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` |
+| N65 | a clickable generic node that is not text stays generic | `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `aDeferredInsideAClickableBoxIsNotFoldedIntoItsLabel`, `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`, `anActivationRequestDirtiesACleanWindowAndItsNextFramePublishes`, `declaredRolesLabelsValuesAndTraitsReachThePublishedNode` |
+| N67 | combined values join with a space | `aClickableContainerCombinesItsTextsIntoOneButtonLabel` |
+| N69 | an unbounded list excepts nothing from its suppression | `aLabelledListIsStillATable`, `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`, `activatingBeforeTheFirstFramePublishesNoRowsUntilTheWindowIsBounded` |
+| N70 | a row hint alone does not record | `aClientDoesNotChangeStateRetention`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `scrollingAListPostsBoundedNotificationsAndBuildsOncePerFrame`, `synthesizedNodesCostNothingWhileNoClientIsActive` |
+| N51 | a folded button with no contributions gets an empty label | `eachLiveHandlerAloneMakesAnUndeclaredElementRecord` |
+
+**Performance, by count.** With no client, lane 3 adds, by reading (`AB-AG`
+item 5; no instrument measured it), one `Bool` store per drawn frame (`WindowAccessibility`'s retry flag), one `Bool` read per `List`
+`prepaint`, two `Bool` stores per `List` `requestLayout`, and the `logicalIndex`
+strip's copy of `handlers.axNode` per `registerHandlers` call; a row is indexed
+only while collecting. Pinned counts: frame 0 of a 5,000-row list activated
+before its first draw records **at most 3** (`lastEmissionCount`), publishes a
+table with `rowCount 5000` and **0** rows, and frame 1 publishes **10**, with
+`createdElementCount == 0` and **0** destroyed posts across both
+(`activatingBefore…`, N23, N24, N25); a zero-height scroller retries **once**
+(N26); an inactive window never retries (N27). Scrolling a read 500-row list 60
+frames by 20pt: **60** builds, **1** `.layoutChanged`, **10** destroyed posts
+for the 10 vended rows, **0** title or value posts, no element created
+(`scrollingAList…`, N34, N35). A 30-tick width animation: **0** posts, 0
+structural publishes, every publish geometry-only (`anAnimation…`, N36). Equal
+`StateTable.count` active against inactive over 130 texts, 10 click targets and
+a bounded list (`aClientDoesNotChangeStateRetention`, N30, N31). No allocation
+instrument was used (`AB-M`).
+
+**Deferred and owed, from lane 3.**
+
+- **CLAUDE.md's demo `StateTable` figures need a re-take** (`AB-AG`): the
+  demo's `"Decrement"`, `"Increment"` and `"Close modal"` labels are declared
+  nodes and write a `$ax` slot every frame whether or not a client is active,
+  so the warm resident counts (165 at 40 rows, 63 at 500) are stale. Re-take
+  them from record §07's harness. Not measured here.
+- **Record §05** (`AB-AG`): `AXNode.logicalCount` now has a reader; the new
+  internal `AXNode.logicalIndex` has one writer and one reader; `AXNode.children`
+  and `Frame.axNodes` are unchanged in the inert table.
+- **Distribution reads the gated registries** (`AB-AG` hazard): after the
+  environment merge a disabled focusable or adjustable labelled container
+  distributes. Unpinned.
+- **Unpinned by construction:** setting `logicalIndex` while not collecting,
+  or on an unbounded window (neither records nor emits, so no input can tell
+  the spellings apart), and `Frame.requestAccessibilityRetry`'s own guard alone
+  (its one caller calls it only while collecting). None was run as a mutation.
+- **Proposal-path emission, scroll areas, `Stack` order, modal isolation, task
+  9's button half, system settings, iOS**: `AB-Q`, unchanged.
+- **The human VoiceOver look** below stays open: items 1–9 for a person to run.
+
 ### Human VoiceOver look — script (open)
 
 Nothing in the suite hears VoiceOver.
 
-**Run conditions.** Run on a **release** build, after lane 3 lands, on a
+**Run conditions.** Run on a **release** build of `feat/ax-bridge` at or after
+lane 3's last commit (lane 3 has landed; nobody has run this script yet), on a
 machine with VoiceOver available (⌘F5 toggles it). Report each item's
 observation verbatim; "works" is not a report. Xcode's **Accessibility
 Inspector** (Xcode → Open Developer Tool) is used in items 4 and 7 to read
@@ -706,6 +919,9 @@ item 1 before opening it.
   text: "Modal, Declared inside the list…". VO-Space on it does nothing. That is
   the panel's click-absorbing `onClick {}` (`AB-Y`).
 - **Modal scrim.** A button labelled "Close modal", containing the panel.
+- **Counter panel.** An unlabelled group (the panel is focusable, and a
+  focusable container keeps its node, `AB-T`) holding the "Decrement" button,
+  the "Count N" text and the "Increment" button, in that order.
 - **Preview toggle** (the proposal-path rectangles). **Nothing is announced**,
   and neither is the dimmed inert rectangle beside it. `onTap` content publishes
   nothing (`AB-Y`, `AB-Q`).

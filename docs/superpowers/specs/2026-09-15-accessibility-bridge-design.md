@@ -5,13 +5,15 @@
 semantics, disabled behaviour and content shapes wait for task 9 and are not
 here.
 
-**Status (2026-09-15): lanes 1 and 2 implemented; lane 3 designed.** Written
+**Status (2026-09-15): lanes 1, 2 and 3 implemented; the human VoiceOver look
+is open.** Written
 against `f64e58a` on `feat/ax-bridge`, revised after one critic round, and
 revised again after a second critic round that followed lane 1. Lane 1's
 deviations from the text below are marked **"Lane 1 as built"** in place and
 ruled in `AB-AA`; its red runs and mutations are in the record. Changes the
 second round made are marked **"Second critic round"** in place. Lane 2's
 deviations are marked **"Lane 2 as built"** and ruled in `AB-AE` and `AB-AF`.
+Lane 3's are marked **"Lane 3 as built"** and ruled in `AB-AG`.
 Rulings are
 prefixed **`AB-`** and lettered, in
 `docs/superpowers/2026-09-15-accessibility-bridge-decisions.md`; a bare `AB-3`
@@ -809,6 +811,48 @@ body. `AppKitWindow` owns the bridge, built with its signal and
 
 ## Lane 3 — defaults, modifiers, `List`
 
+**Lane 3 as built (`AB-AG`).** The design below held; no rule changed. What
+differs from the text, each with its reason in `AB-AG` and its measurement in
+the record:
+
+- **15 tests, not the table's 14.** `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame`
+  is added: it is the only fixture that nests a `List`'s own suppression scope
+  inside another, so it pins that the **outermost** scope's exception decides
+  (mutant N29).
+- **The strip's guard is widened.** `AB-AA` named `aClientDoesNotChangeStateRetention`
+  the guard for the `logicalIndex` strip, but the table's fixture held no `List`,
+  so it could not see a row hint. It gains a bounded `List`, and
+  `synthesizedNodesCostNothingWhileNoClientIsActive` renders its `List` inside a
+  scroller over two frames so the second is bounded (mutant N30).
+- **Fixture choices in the cost tests.** The retry test's cap and inactive arms
+  use 500 rows (the main arm keeps 5,000); its frame 1 asserts exactly 10 rows,
+  by `visibleRange`'s arithmetic, not "at most 12". The bridge the cost tests
+  feed is over a plain `NSView`, which has none of `MetalHostView`'s overrides,
+  so a host children read is spelled `noteClientRead()` plus `rootElements()`;
+  the table's rows are read through the element's own `accessibilityRows()`.
+- **Arms added against surviving mutants**, over two rounds: a clickable text
+  with a declared label (N49), a kept intermediate with children between a
+  button and its texts (N46), a child's own value under a distributed one
+  (N09v), a clickable text inside a click target (N60), and an active list
+  outside any scroller that must not retry (N52).
+- **A lane-1 fixture changed.** In
+  `portalContentIsARootEvenWhenDeclaredInsideAnEmittingAncestor` the sibling
+  `after` is now focusable: step C folds a declared `.button`'s non-interactive
+  descendants away, which would hide the child the test reads.
+- **`frameDidRender(emissionCount:retry:_:to:)`** takes `retry` as a required
+  argument and returns the `Bool` without `@discardableResult`; the retry flag is
+  stored on every drawn frame, active or not.
+- **`windowIsBounded`** is `visibleRange`'s own guard, so a non-positive
+  `rowHeight` is unbounded too, beside the two causes named below.
+- **Step B absorbs lane 1's "clickable `generic` is a button".** The role map
+  now maps `generic` to `.group` only; step B has already made every clickable
+  `generic` node a button.
+- **A folded button with no contribution keeps a `nil` label**, never `""`.
+- **`AXEmission.synthesizes` has no reader.** A non-synthesizing conformer
+  records only what it declared, which `registerHandlers`' gate already decides.
+- **Demo labels are written at the call site**,
+  `button("-", minus).accessibilityLabel("Decrement")`, not inside `button`.
+
 ### `Sources/MetalUI/AXNode.swift` (+~10 lines)
 
 `var logicalIndex: Int?` is **internal**: not on the public initializer, not
@@ -989,7 +1033,7 @@ and named in the record. Shape 15 of `verifying-tests-can-fail.md` applies: it
 first `try #require`s that the active window really recorded
 (`lastEmissionCount >= 140`), so the equal counts are not two idle windows.
 
-### The human look (open when this track ends)
+### The human look (open: lane 3 has landed, nobody has run it)
 
 The script is in `docs/record/12-accessibility-bridge.md`. A human runs it with
 VoiceOver, because the suite cannot hear what VoiceOver says.
@@ -1168,7 +1212,7 @@ About 52 new tests (second critic round):
 | lane 1 | 18 (15 as built, one added against hunting mutants, two in the second critic round) |
 | lane 2, platform | 18 as built (`aFocusedElementQueryDoesNotActivate` added in design; `anOffMainThreadQueryAnswersNothingAndDoesNotTrap` added by `AB-AE`) |
 | lane 2, end-to-end | 3 (`aHeldElementWhoseIDIsAdoptedPressesTheAdopter` added) |
-| lane 3 | 15 (arms added, no new tests) |
+| lane 3 | 15 as built: the table's 14, plus `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` (`AB-AG`) |
 | integration, the joint disabled test | 1 |
 
 Counts are design-time and go stale the moment a test lands; the record

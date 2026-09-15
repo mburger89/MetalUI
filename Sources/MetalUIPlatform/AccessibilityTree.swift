@@ -59,8 +59,9 @@ public struct AccessibilityNode: Equatable {
     /// `AXRowCount` for a `.table`: the logical count a virtualized container
     /// represents, not its realized children (AB-L).
     public var rowCount: Int?
-    /// `AXIndex` for a `.row` (AB-L). No producer until lane 3 gives `List`'s
-    /// realized rows a logical index.
+    /// `AXIndex` for a `.row` (AB-L): a realized row's logical index, which
+    /// `List` gives each row it realizes while a client is active and its
+    /// window is bounded.
     public var rowIndex: Int?
 
     public init(role: AccessibilityRole, label: String? = nil, value: String? = nil,
