@@ -888,13 +888,18 @@ private func frameStyle(width: Float, height: Float) -> Style {
 
     struct Reading: Equatable {
         var primary: PathComponent?
-        var overlay: GlobalElementID?
+        /// The overlay's own component, then its parent's — printable, unlike
+        /// a `GlobalElementID`.
+        var overlayPath: [PathComponent?]
+        var overlayIsExpectedID: Bool
         var taps: Int?
         var overlayLive: Bool
     }
     func reading() -> Reading {
-        Reading(primary: log.ids["p"]?.component, overlay: log.ids["o"], taps: log.taps["o"],
-                overlayLive: window.stateTable.isLive(overlaySlot))
+        let o = log.ids["o"]
+        return Reading(primary: log.ids["p"]?.component, overlayPath: [o?.component, o?.parent?.component],
+                       overlayIsExpectedID: o == overlayID, taps: log.taps["o"],
+                       overlayLive: window.stateTable.isLive(overlaySlot))
     }
 
     for _ in 0..<3 {
@@ -917,8 +922,13 @@ private func frameStyle(width: Float, height: Float) -> Style {
     try #require([first.primary, second.primary, third.primary] == [.positional(1), .positional(0), .positional(1)],
                  "the primary's shape did not flip: \([first.primary, second.primary, third.primary])")
 
-    let kept = Reading(primary: nil, overlay: overlayID, taps: 3, overlayLive: true)
-    func overlayHalf(_ r: Reading) -> Reading { Reading(primary: nil, overlay: r.overlay, taps: r.taps, overlayLive: r.overlayLive) }
+    let kept = Reading(primary: nil, overlayPath: [.positional(0), .positional(-1)], overlayIsExpectedID: true,
+                       taps: 3, overlayLive: true)
+    func overlayHalf(_ r: Reading) -> Reading {
+        var half = r
+        half.primary = nil
+        return half
+    }
     #expect(overlayHalf(first) == kept, "\(first)")
     #expect(overlayHalf(second) == kept, "\(second)")
     #expect(overlayHalf(third) == kept, "\(third)")
