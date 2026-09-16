@@ -103,9 +103,9 @@ swift build
 swift test --no-parallel
 ```
 
-At `2456c69` (2026-09-15, after integrating plan tasks 3, 9 and 12) the suite
-reports **1226 tests**. That total includes **97** layout goldens generated from
-WebKit and **61** `swiftc -typecheck` guards.
+On `integrate/tasks-4-5` (2026-09-16, after integrating plan tasks 4 and 5)
+the suite reports **1303 tests**. That total includes **97** layout goldens
+generated from WebKit and **66** `swiftc -typecheck` guards.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them.
@@ -154,10 +154,19 @@ Reading `model.count` inside `content` is what subscribes the window to it:
 the whole frame build is tracked, so the next mutation redraws without an
 explicit invalidation call.
 
+`.width` and `.height` write the element's own CSS box; `.frame(width:)` —
+SwiftUI's spelling, with min/max and alignment — wraps it in a layer, and the
+two differ ([record §14](docs/record/14-frame-and-sizing.md)).
+
 On an ordinary element, `.padding` **wraps** its receiver in a
 `ModifiedElement` layer (one flat type however many `.padding`/`.frame` calls
 you chain), so modifiers written after it configure that wrapper. That is why
-`.padding` comes last above.
+`.padding` comes last above. On a `Component` it wraps each top-level node of
+the body, and chained paddings accumulate on both; `width`/`height` on a
+component still overwrite the members' own sizes. The legacy path also has
+`.border`, `.hoverBorder`, `.focusBorder` (the focus ring), `.opacity`,
+`.clipped()`, `.allowsHitTesting` and `.contentShape(inset:)`, each acting on
+the layer it is written on; `borderWidth(_:)` is gone.
 
 Environment values are scoped with `.environment(_:_:)`,
 `.transformEnvironment`, `.disabled`, `.dynamicTypeSize` and `.theme`, read
@@ -235,16 +244,17 @@ means something reached the engine that should not have.
 
 WebKit says nothing about the proposal-layout kernel. Its tests are
 `ProposedSizeTests`, `NativeLayoutTests` and `NativeLayoutIntegrationTests`.
-About a dozen of the integration tests cite a SwiftUI probe result in their
-own doc comments. `NativeLayoutTests` cites none. The probes survive only as
-prose, and most record no positive control.
+`NativeLayoutTests` and `FrameSizingTests` cite two saved probes with positive
+controls (`docs/probes/swiftui-frame-semantics.swift`, `…-negative-sizes.swift`),
+and `docs/probes/` holds the other re-runnable SwiftUI probes; the earliest
+probes survive only as prose.
 
-Twelve measured divergences from CSS, SwiftUI or WebKit are tabled in
-[`CLAUDE.md`](CLAUDE.md). Two are unfixed defects (15 and 19); the other ten
-are deliberate decisions or known limits. Full entries with repros for eleven
-of them are in
-[`docs/record/04-divergences.md`](docs/record/04-divergences.md). The twelfth,
-divergence 19 (one element value placed twice shares a `@State` box), is so far
+Forty-two measured divergences from CSS, SwiftUI or WebKit are tabled in
+[`CLAUDE.md`](CLAUDE.md). Two are unfixed defects (19, one element value placed
+twice shares a `@State` box; 40, `width(percent:)` takes a fraction); the rest
+are deliberate decisions or known limits. Divergence 15 was fixed by task 5.
+[`docs/record/04-divergences.md`](docs/record/04-divergences.md) holds the
+original eleven in full and index tables for 20–34 and 35–50; divergence 19 is
 recorded only in `CLAUDE.md`.
 
 ## Milestones
@@ -282,7 +292,9 @@ transforms, and text colour animation.
   [`09-swiftui-alignment.md`](docs/record/09-swiftui-alignment.md) for the
   proposal-layout work, `10`–`12` for tasks 3, 9 and 12, and
   [`13-integration-tasks-3-9-12.md`](docs/record/13-integration-tasks-3-9-12.md)
-  for their integration.
+  for their integration, `14`–`15` for tasks 4 and 5, and
+  [`16-integration-tasks-4-5.md`](docs/record/16-integration-tasks-4-5.md) for
+  theirs.
 - [`docs/superpowers/`](docs/superpowers/) — a decisions document per
   completed milestone, each ruling with its reasoning and what it costs if wrong.
 - SwiftUI alignment:
@@ -298,6 +310,8 @@ transforms, and text colour animation.
     [modifier composition spec](docs/superpowers/specs/2026-09-15-modifier-composition-design.md)
   - [environment spec](docs/superpowers/specs/2026-09-15-environment-design.md)
     and [accessibility bridge spec](docs/superpowers/specs/2026-09-15-accessibility-bridge-design.md)
+  - [frame and sizing spec](docs/superpowers/specs/2026-09-15-frame-sizing-design.md)
+    and [outer modifiers spec](docs/superpowers/specs/2026-09-15-outer-modifiers-design.md)
 - [`docs/practices/verifying-tests-can-fail.md`](docs/practices/verifying-tests-can-fail.md)
   — sixteen numbered shapes of test that cannot fail, every one observed here.
 

@@ -343,6 +343,9 @@ Pins in `NativeLayoutIntegrationTests`:
 grow toward a larger proposal? The kernel grows only at `.infinity`, so the
 clamp test reads 40. The commonly cited reconstruction of SwiftUI's frame gives
 80, and the test cites no probe for this case.
+*Answered 2026-09-16:* it grows (`FR-A`, `FR-M`; saved probe
+`docs/probes/swiftui-frame-semantics.swift`); the kernel now answers 80
+(record §14, integrated in §16).
 
 **The typed modifier is a closed enum, not the spec's protocol** (`388b43e`,
 then per-modifier commits, then `3b3cfe8`). The typed-modifier spec asked for
@@ -867,7 +870,8 @@ control. The table quotes what was written, not what was verified.
 
 **Unprobed, and material to behaviour this range pins:**
 
-- whether a finite `maxWidth` frame grows (§2);
+- whether a finite `maxWidth` frame grows (§2) — *answered 2026-09-16: it
+  does (`FR-A`, record §14)*;
 - whether `Spacer` claims the cross axis, and what `Spacer()`'s `nil`
   `minLength` means (§4);
 - whether a root view is centred or stretched (§1);
@@ -883,6 +887,8 @@ two views (the `nil` `minLength` half of §4's item). A third probed finding is
 answers the child's own size. Also carried: padding places its child at the
 child's own size; a single-child stack passes its child's priority through;
 `.frame()` with no argument is deprecated in SwiftUI. Owners: plan tasks 4–7.
+*2026-09-16:* task 4's two items are closed (`FR-A`/`FR-M`, `FR-J`); task 5
+did not take padding placement (unowned).
 Whether `Spacer` claims the cross axis, whether a child smaller than its
 aspect-ratio size is placed at that size, whether a root is centred and whether
 `.opacity(0)` hit-tests stay unprobed.

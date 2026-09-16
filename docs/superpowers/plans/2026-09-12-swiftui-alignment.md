@@ -107,8 +107,10 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
 
   **Owned by later tasks** (`SA-N`):
   - a finite-`maxWidth` frame grows to its proposal, and argument-less
-    `.frame()` is deprecated in SwiftUI (task 4);
-  - padding places its child at the child's size (task 5);
+    `.frame()` is deprecated in SwiftUI (task 4) — *closed 2026-09-16 by
+    `FR-A`/`FR-M` and `FR-J`*;
+  - padding places its child at the child's size (task 5) — *2026-09-16: task
+    5 did not take it (`OM-Q`, no kernel change); unowned, reassign*;
   - `Spacer()`'s 8pt default minimum, and a single-child stack passing its
     child's priority through (task 6);
   - `aspectRatio` at nil×nil (task 7).
@@ -189,23 +191,75 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   whose observable meaning cannot match SwiftUI. The additive
   `.frame(width:height:)` API exists; this task makes it the single semantic
   path.
-  *Progress 2026-09-14 (at `7cfcddc`), still open.* The proposal
-  `.frame(width:height:minWidth:idealWidth:maxWidth:minHeight:idealHeight:maxHeight:alignment:)`
-  exists, with deterministic tests. Legacy `.frame(width:height:)` has no
-  min/ideal/max or alignment, and `width`/`height` still mutate `Style`.
-  There are two semantic paths, not one.
+  *Progress 2026-09-16, still open* (`feat/frame-sizing`, `4796bbb..3858eff`,
+  integrated on `integrate/tasks-4-5`, record §16). Spec
+  `specs/2026-09-15-frame-sizing-design.md`; rulings `FR-A`…`FR-V` in
+  `../2026-09-15-frame-sizing-decisions.md`; four probes in `docs/probes/`
+  (71 SwiftUI arms with positive controls); record §14.
+  - **The kernel's flexible frame — fixed** (`FR-A`, `FR-B`, `FR-L`, `FR-M`):
+    greedy at any maximum, `max(proposal, child)` with no minimum, declared
+    negatives floored, an infinite proposal answering the child. `SA-N` items
+    1 and 9 closed.
+  - **The legacy frame's SwiftUI surface — done** (`FR-C`, `FR-D`, `FR-K`,
+    `FR-O`, `FR-P`, `FR-S`): optional axes, min/max, the nine alignments,
+    chained-frame ordering, one lowering in `FrameLayer.swift`; `ideal` traps;
+    `.frame()` deprecated on both paths. Divergences 35, 36 and the single-axis
+    inert row pinned wrong on purpose.
+  - **The sizing inventory — ruled, not converted** (`FR-F`…`FR-I`, `FR-Q`,
+    `FR-T`): `width`/`height`/min/max/percent stay CSS-box modifiers, with the
+    node-count and automatic-minimum differences pinned; `width(percent:)`
+    takes a fraction (divergence 40).
+  - **Integration** (record §16): the frame layer carries task 5's decorations,
+    hit-testing fields, focus ring, accessibility and the disabled gate on
+    whichever side of it they are written; eight cross-track tests.
+
+  **Not ticked, clause by clause.** "Move `width`, `height`, min/max sizing …
+  onto that representation" is refused with measurements (`FR-F`, `FR-G`: the
+  type-level blast radius and `.minHeight(0)`'s automatic-minimum override no
+  layer can express) and moved to task 7 with a recipe. "Deprecate APIs whose
+  observable meaning cannot match SwiftUI" is done for `frame()` only (`FR-J`);
+  the rest is refused by the 0-warning gate (`FR-I`). "The single semantic
+  path" is not met: two engines and two sizing vocabularies stay live; what is
+  single is the parameter surface, the alignment vocabulary and the one
+  lowering function. Also open: a greedy finite maximum, a single-axis infinite
+  maximum and an overflowing oversized child on the legacy path (task 6),
+  `ideal` on the legacy path (task 7), the `percent:` unit (task 6), the
+  release-window captures (`MC-J`; `FR-V`).
 
 - [ ] **5. Finish outer modifiers and modifier order.**
   Complete the padding migration, then audit background, overlay, border,
   corner/clip shape, opacity, hit testing, focus drawing and content shape.
   Pin whether each wraps, distributes through a `Component`, or affects only
   paint. Test order-sensitive chains such as padding/background/frame/clip.
-  *Progress 2026-09-14 (at `7cfcddc`), still open.*
-  - **Proposal path.** Background, border, clip, opacity, allowsHitTesting,
-    onTap and overlay exist, and none of them animates.
-  - **Legacy path.** Element padding wraps. Component padding distributes.
-  - **Not done.** Focus drawing and content shape are absent, and no written
-    wrap/distribute/paint-only matrix exists.
+  *Progress 2026-09-16, still open* (`feat/outer-modifiers`,
+  `981f78b..77740f8`, integrated on `integrate/tasks-4-5`, record §16). Spec
+  `specs/2026-09-15-outer-modifiers-design.md`; rulings `OM-A`…`OM-AM` in
+  `../2026-09-15-outer-modifiers-decisions.md`; five probes; record §15.
+  - **Padding migration — done.** Element padding wraps (`f1944f8`);
+    `Component` padding wraps each top-level node and accumulates (`OM-D`,
+    `OM-E`); one shape on all three columns of spec §3.1.
+  - **Audit — done**, spec §3.1, three columns. Legacy `overlay` is audited as
+    "not offered; use `Stack` or `Deferred`" (task 6/7).
+  - **Focus drawing and content shape — delivered**: `focusBorder` (the focus
+    ring, `OM-L`) and `contentShape(inset:)` (`OM-J`), with `border`,
+    `opacity`, `clipped()` and `allowsHitTesting` on the legacy path;
+    `borderWidth(_:)` deleted; divergence 15 fixed.
+  - **Order-sensitive chains — pinned**: padding/background (A1–A3, E1–E3),
+    clip (`.clipped()` on a two-layer chain), hit testing (P1/P2, N1/N2,
+    X0–X3), `Component` orders (G13–G16), and at integration the
+    frame/background orders (probe B1/B2/D1/D2, record §16 test 8) and
+    `contentShape` across a wrapper (probe S0–S3, divergence 50).
+    Divergences 41–50 recorded.
+
+  **Not ticked.** "Pin whether each wraps, distributes through a `Component`,
+  or affects only paint" is pinned table-driven for the two legacy columns
+  only (`everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays`);
+  the proposal column rests on the per-modifier tests each landed with in task
+  2, never collected or checked row by row (spec §3.2; the integration step did
+  not add a proposal-row shape). Also open, beyond the task's text: the
+  `.cornerRadius`/`.background` and `.cornerRadius`/`.border` orders
+  (`swiftui-border-clip-paint` C3, D1) have no test; the focus ring's look;
+  the release-window captures.
 
 - [ ] **6. Replace containers with SwiftUI-style algorithms.**
   Audit `Row`, `Column`, `Stack`, `Box`, `Spacer`, `ScrollView`, `List`, and
@@ -494,6 +548,9 @@ derived from source and not executed.
     not grow it, as `aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum`
     pins: min 40 and max 80 at a proposal of 100 with a 20pt child give 40.
   - No SwiftUI probe for that case is recorded.
+  - *History as of 2026-09-16:* a finite maximum now grows (`FR-A`, `FR-M`);
+    the test pins 80 and the probe is saved
+    (`docs/probes/swiftui-frame-semantics.swift`).
 - The canonical no-argument `Rectangle` is now proposal-responsive: a macOS
   SwiftUI custom-Layout probe measures a 10pt ideal on each unspecified axis
   and the offered value on each concrete axis. The existing explicit
@@ -594,6 +651,12 @@ derived from source and not executed.
   structural migration path until the native layout kernel owns proposals.
   - That trial is `4aaca40`, reverted by `d0a04d3`, and `Box.swift:593-599`
     still mutates `Style`.
+  - *Corrected 2026-09-16 by `FR-F`:* two of the three breakage claims are
+    refuted by measurement (a frame layer's width reaches a measured leaf and
+    re-wraps it; a framed `List` paints the same rows) and the third is
+    SwiftUI's own behaviour. What blocks the conversion is the type-level blast
+    radius and the 0-warning gate. `width`/`height` still write `Style`, by
+    ruling; task 7 owns the conversion.
   - The breakage it names is recorded only here, unverified.
 - *Added 2026-09-14.* Native root behaviour. `Frame.computeRootLayout` selects
   the kernel when the root node is native (`Frame.swift:1166`). It proposes

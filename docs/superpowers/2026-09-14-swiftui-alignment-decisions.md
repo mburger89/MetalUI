@@ -1417,6 +1417,9 @@ behaviour noticed and not explained. None blocks task 2.
    `aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum` pins 40. This
    is plan task 4, and it settles record §09's "whether a finite `maxWidth`
    frame grows". It does.
+   **Closed 2026-09-15 by `FR-A`/`FR-M`** (`feat/frame-sizing`, `389c452`;
+   integrated 2026-09-16, record §16): the kernel is greedy at any maximum and
+   the test now pins 80.
 2. **`Spacer()` has an 8pt default minimum between two views.** P5 control:
    `HStack(spacing: 0) { 20; Spacer(); 20 }` answers **48**. The kernel's nil
    `minLength` is 0 (`LayoutTree.swift:234`). Plan task 6.
@@ -1426,7 +1429,8 @@ behaviour noticed and not explained. None blocks task 2.
    −20×10 for −2. Plan task 7.
 4. **Padding places its child at the child's own size.** P2b: the inner rect is
    20×20 at origin + inset. The kernel stores bounds minus insets (record §09
-   hazard 4). Plan task 5.
+   hazard 4). Plan task 5. *2026-09-16:* task 5 did not take it (`OM-Q`: no
+   `Sources/MetalUILayout` behaviour change); unowned, needs reassigning.
 5. **SwiftUI's memo survives passes** (F/G/H). This is deliberately not adopted
    (`SA-H`). Reopen it only with a `lastNativeLayoutWork` count showing the
    cost.
@@ -1449,7 +1453,9 @@ behaviour noticed and not explained. None blocks task 2.
 9. **`.frame()` with no argument compiles silently** (third pass, after `SA-K`
    item 6's split), and so does `.frame(alignment:)`. SwiftUI deprecates
    `frame()`: `'frame()' is deprecated: Please pass one or more parameters.`
-   Plan task 4.
+   Plan task 4. **Closed by `FR-J`**: `frame()` is a deprecated no-op on both
+   paths, guarded by `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`.
+   `.frame(alignment:)` alone still compiles.
 
 **Fixed, not carried:** priority through `.overlay` (L2). The second pass's
 kernel read 0; `SA-D` now looks through overlay attachments.

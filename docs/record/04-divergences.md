@@ -737,3 +737,33 @@ ruling it cites; they are not repeated here.
 | 32 | vs SwiftUI | `AB-L`, R16 | — |
 | 33 | vs SwiftUI | `AB-F`, 10b, R6, R11 | — |
 | 34 | vs SwiftUI | `AB-P`, arm 4 | unpinned |
+
+## 2026-09-16: divergences 35–50, and 15 retired (tasks 4 and 5, integrated)
+
+Added to `CLAUDE.md`'s table at integration (record §16). Each entry's full
+mechanism, probe arms and pins live in the ruling it cites.
+
+| # | kind | ruling (decisions doc) | pin |
+|---|---|---|---|
+| 35 | vs SwiftUI | `FR-E`, frame probe D4 | `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`, wrong on purpose |
+| 36 | vs SwiftUI | `FR-N`, A5 | `aLegacyFrameSqueezesAnOversizedChildWhereSwiftUIOverflows`, wrong on purpose |
+| 37 | vs SwiftUI | `FR-B`, D12 | `aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity` (deliberate) |
+| 38 | vs SwiftUI | `FR-L`, `FR-R`, `SA-J`; negative-sizes H6, H10 | — (task 7) |
+| 39 | vs SwiftUI | `FR-D`, C1 | `anIdealDimensionOnTheLegacyFrameTraps` |
+| 40 | unfixed defect | `FR-T` | `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock`, wrong on purpose |
+| 41 | vs SwiftUI | `OM-I`, content-shape H1 | `metalUIsDefaultHitRegionIsTheElementsWholeFrame` |
+| 42 | vs SwiftUI | `OM-K`, P1/P2 | `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot` |
+| 43 | vs SwiftUI | `OM-AJ`, H6 | `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor` |
+| 44 | vs SwiftUI | `OM-AL`, X1–X3 | `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`, wrong on purpose |
+| 45 | vs SwiftUI | `OM-N`, `OM-AA` a (folded in: the same fact seen from both paths), G3/G4 | `opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot` |
+| 46 | vs SwiftUI | `OM-AH`, G1/G2 | `aSecondOpacityOnOneElementReplacesTheFirstWhereSwiftUIMultiplies` |
+| 47 | vs SwiftUI | `OM-G`, border-clip C1 | `aBareCornerRadiusDoesNotClipTheChildren` (C3/D1 orders unpinned) |
+| 48 | vs SwiftUI | `OM-F`, component G7/G8 | `aComponentsWidthStillOverwritesItsMembersDeclaredWidth` |
+| 49 | vs SwiftUI | `OM-W`, D2 vs M1 | `aRoundedBorderFollowsTheArcWhereSwiftUIsClippedSquareBorderDoesNot` |
+| 50 | vs SwiftUI | record §16; content-shape S1 (S2 agrees, S3 the control) | `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`, wrong on purpose |
+
+**15 retired** (`OM-U`): `pushClip` now adds `activeOffset`, so a `ScrollView`
+inside a scrolled `ScrollView` gets its own mask. Pins:
+`aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` (inverted, name
+kept) and `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`. Never reuse
+the label.

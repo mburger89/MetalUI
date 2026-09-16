@@ -1673,7 +1673,7 @@ as covering it.
 
 | item | why not here | owner |
 |---|---|---|
-| `width`/`height`/min/max as layers; legacy `.frame` min/ideal/max/alignment | the plan forbids it here | task 4 |
+| `width`/`height`/min/max as layers; legacy `.frame` min/ideal/max/alignment | the plan forbids it here | task 4 — *2026-09-16:* the legacy `.frame` half is delivered (`FR-C`, `FR-P`; `ideal` traps, `FR-D`); the `width`/`height` half is refused with measurements and moved to task 7 (`FR-F`, `FR-G`, `FR-I`) |
 | inline layer storage for multi-layer chains (`MC-K`) | a second storage path; the multi-layer chains arrive with task 4 | task 4 |
 | `Component` modifier distribution (`StyledComponent`), and caller modifiers snapping (B-7) | the plan forbids it here | task 5 |
 | `MC-G` hole 5 (a legacy style modifier on a proposal `Component` compiles, traps) | distribution's | task 5 |
@@ -1691,7 +1691,7 @@ as covering it.
 | ~~`aProposalContainerReadsTheEnvironmentDuringLayout`~~ — **withdrawn after lane 1's critic round (`MC-Q` finding 5):** the environment track already has it as `proposalContentReadsTheEnvironmentThroughAScopeInEveryPhase` (`feat/environment:Tests/MetalUITests/EnvironmentTests.swift:468`, E11, ruling EV-W), reading layout, prepaint and paint `[7, 7, 7]` under an `HStack` and a `ProposalScrollView` | the typed `EnvironmentScope` entry is written at merge; EV-W's test is its check | integration step |
 | `EnvironmentScope` arms in `everyModifierWrapperDelegatesEachPhaseExactlyOnce` (legacy and proposal) | the wrapper does not exist on this branch | integration step |
 | per-layer mirroring of AB-O's `display: none` accessibility suppression in `ModifiedElement.prepaint`, and its test | the check does not exist on this branch (`MC-B`'s "does NOT cover") | integration step |
-| legacy `.frame` against SwiftUI outside test 10's scope: a nil axis, a frame smaller than its content, under a stretching `Box` (EP-8), in a shrinking row (SZ-L) | legacy `.frame` semantics are task 4's; by reading the legacy frame node stretches or shrinks where a SwiftUI frame stays fixed | task 4 |
+| legacy `.frame` against SwiftUI outside test 10's scope: a nil axis, a frame smaller than its content, under a stretching `Box` (EP-8), in a shrinking row (SZ-L) | legacy `.frame` semantics are task 4's; by reading the legacy frame node stretches or shrinks where a SwiftUI frame stays fixed | task 4 — *2026-09-16:* the shrinking row is `FR-P`'s pin, the smaller frame is divergence 36 (`FR-N`); the nil axis and the stretching `Box` parent stay open (task 6) |
 | CLAUDE.md / AGENTS.md / plan / record README updates: guard count, "registering points", `FrameModifier` mentions, the candidate divergence (`MC-C`), the holes | owned by the integration step | integration |
 
 **The superseded typed-modifier spec's required proofs**, and where each now

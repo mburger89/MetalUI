@@ -641,3 +641,64 @@ private struct TwoMembers: Component {
     #expect(insetBefore.clicks == [1, 1, 1],
             why("S1 diverges: SwiftUI reads [1, 0, 0]; MetalUI hits everywhere; got \(insetBefore.clicks)"))
 }
+
+// MARK: - 8. FR-C x OM-C: the frame/background and padding/frame/background orders
+
+/// **A `.background` written after a legacy frame fills the frame's 60x60; written
+/// before it, the 20x20 child's — and a padding layer between them changes
+/// neither answer.** Probe `docs/probes/swiftui-outer-modifier-order.swift`,
+/// arms B1, B2, D1, D2 (re-run 2026-09-16 by the integration step, every arm
+/// byte-identical to its header; C0/C2 the controls):
+///
+/// - B1 `.frame(60x60).background`          : leaf (20, 20) 20x20, bg (0, 0) 60x60
+/// - B2 `.background.frame(60x60)`          : leaf (20, 20) 20x20, bg (20, 20) 20x20
+/// - D1 `.padding(8).frame(60x60).background`: leaf (20, 20) 20x20, bg (0, 0) 60x60
+/// - D2 `.background.padding(8).frame(60x60)`: leaf (20, 20) 20x20, bg (20, 20) 20x20
+///
+/// Task 5's own list carried these as "probed, no MetalUI test". The leaf
+/// paints `.surface` where it can; in B2/D2 the background IS the leaf's own
+/// `Decoration.background` (a `Self`-returning modifier on the `Box`), so the
+/// one accent rect stands for both. The two B arms are `#require`d to disagree
+/// first. All four agree with SwiftUI.
+@Test @MainActor func aBackgroundBeforeOrAfterALegacyFrameFillsTheBoxItWasWrittenOnAsSwiftUIDoes() throws {
+    @MainActor func read<E: ElementGroup>(_ make: @escaping @MainActor () -> E) throws -> [String] {
+        let (window, _) = try render { inRow(make) }
+        let theme = window.theme
+        let accent = theme[.accent]
+        let surface = theme[.surface]
+        return window.lastScene.rects.compactMap { r in
+            let b = r.bounds
+            let where_ = "(\(b.origin.x), \(b.origin.y)) \(b.size.width)x\(b.size.height)"
+            if r.background.h == accent.h && r.background.s == accent.s && r.background.l == accent.l {
+                return "bg " + where_
+            }
+            if r.background.h == surface.h && r.background.s == surface.s && r.background.l == surface.l {
+                return "leaf " + where_
+            }
+            return nil
+        }.sorted()
+    }
+
+    let b1 = try read {
+        Box().width(px(20)).height(px(20)).background(.surface)
+            .frame(width: px(60), height: px(60)).background(.accent)
+    }
+    let b2 = try read {
+        Box().width(px(20)).height(px(20)).background(.accent)
+            .frame(width: px(60), height: px(60))
+    }
+    let d1 = try read {
+        Box().width(px(20)).height(px(20)).background(.surface)
+            .padding(px(8)).frame(width: px(60), height: px(60)).background(.accent)
+    }
+    let d2 = try read {
+        Box().width(px(20)).height(px(20)).background(.accent)
+            .padding(px(8)).frame(width: px(60), height: px(60))
+    }
+
+    try #require(b1 != b2, why("the two frame/background orders must paint differently: \(b1) vs \(b2)"))
+    #expect(b1 == ["bg (0.0, 0.0) 60.0x60.0", "leaf (20.0, 20.0) 20.0x20.0"], why("B1: \(b1)"))
+    #expect(b2 == ["bg (20.0, 20.0) 20.0x20.0"], why("B2: \(b2)"))
+    #expect(d1 == ["bg (0.0, 0.0) 60.0x60.0", "leaf (20.0, 20.0) 20.0x20.0"], why("D1: \(d1)"))
+    #expect(d2 == ["bg (20.0, 20.0) 20.0x20.0"], why("D2: \(d2)"))
+}
