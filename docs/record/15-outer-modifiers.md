@@ -296,7 +296,190 @@ and coordinates).*
 
 #### Lane 1 — the audit, pinned as it stands
 
-*Not started.*
+**Commits.** `a4c5dc6` (the five tests) and `c07f141` (the mutation round's two
+corrections). No `Sources/` change in either — every `Sources/` edit below was a
+mutation, applied, run, and reverted with `git checkout`; `git status --short`
+was clean of `Sources/` after each.
+
+One new file, `Tests/MetalUITests/OuterModifierMatrixTests.swift`. Nothing else
+in `Tests/` or `Sources/` is touched, so `ModifierTests.swift`'s `cases.count`
+tripwire is still **38** and this track's pre-agreed 47 is untouched.
+
+##### Counts, re-taken at `c07f141`
+
+| reading | value | against the baseline |
+|---|---|---|
+| `swift test --build-system native --no-parallel` | `Test run with 1231 tests in 1 suite passed after 30.068 seconds.` | **+5** on `c4b5853`'s 1226 |
+| `error:` / `warning:` in the run | **0** / **0** | unchanged |
+| `find Tests -name "*.json" \| wc -l` | **97** | unchanged; `git diff --stat c4b5853 -- Tests` lists no `.json` |
+| guards, `grep -c canTypecheck` per file | 19 / 10 / 5 / 3 / 3 / 2 / 6 / 6 / 8 = **62 hits, 61 guards** | unchanged — this lane adds no guard |
+
+##### The first run
+
+Four of the five were green on arrival and one was red. The red line, verbatim:
+
+```
+􀢄  Test aBareCornerRadiusDoesNotClipTheChildren() recorded an issue at
+   OuterModifierMatrixTests.swift:853:5: Expectation failed:
+   (child.bounds.size.width == 60 → false) && (child.bounds.size.height == 60 → <not evaluated>)
+􀄵  the child overflows its rounded parent at full size; got [0.0 0.0 40.0x60.0] …
+```
+
+**The 60x60 child came back 40x60**: flex-shrunk to its 40pt parent, so it never
+overflowed and "unclipped" and "clipped exactly to the box" were the same
+picture. `.flexShrink(0)` on the child, and on the `ScrollView` control's child,
+is the fix.
+
+**The matrix test passed on its first run**, with all sixteen rows classified as
+§3.1 claims them. That is a weaker result than a red one and it is recorded as
+such: what makes the table an instrument rather than a transcript is the
+mutation round below, not the run above.
+
+##### Mutations — thirteen, and two of them found the tests
+
+Each applied singly, run against the five tests under
+`swift test --build-system native --no-parallel --filter`, then reverted.
+
+| # | mutation | site | reddened |
+|---|---|---|---|
+| M1 | transpose two rows' claimed kinds: `padding` → `paintOnly`, `background` → `wraps` | the table | matrix, **6 issues** — `nodeDelta == 0`, `nodeDelta > 0`, `outerSizeDelta > 0`, `rectsMoved`, `!rectsMoved`, and the paint-only layout clause |
+| M2 | the `borderWidth on a sized box` row's declared arm loses the modifier (both tuple and storage) | the table | matrix, 1 issue, at the **BROKEN INSTRUMENT `#require`** — before any kind is derived, exactly as `OM-X` requires |
+| M3 | `_wrap` assigns `outermost` without appending | `ModifiedElement.swift` | `legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes`, at its **control**: `twice.outer` 28 == `single.outer` 28 |
+| M4 | `ModifiedElement.paint` fills the outermost decoration at `pass.bounds(of: layout.inner[0].node)` | `ModifiedElement.swift` | **nothing, the first time.** See "What the mutations found" |
+| M5 | `prepaintLayerBody` recurses with the outer `bounds` instead of `pass.bounds(of: next.node)` | `ModifiedElement.swift` | `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot`, `middleLayerEdge` 1 ≠ 0 — after M4's arm was added |
+| M6 | `Frame.registerHandlers` inserts a hitbox for `isFocusable` too | `Frame.swift:863` | matrix, the `focusable()` row's **prepaint-only negative** (`!hitRegionsMoved`) |
+| M7 | `borderWidth(_ points:)` also writes `decoration.cornerRadius` | `Box.swift` | matrix, the `borderWidth on a sized box` row's **paint negative** (`!rectsMoved`) |
+| M8 | `Box.paint` wraps its children in `pass.clipped(to: bounds, cornerRadii: Corners(all: decoration.cornerRadius))` | `Box.swift` | `aBareCornerRadiusDoesNotClipTheChildren`, 2 issues (the mask and its radii) |
+| M9 | `StyledComponent.requestGroupLayout` amends `nodes.prefix(1)` | `Component.swift` | **nothing, the first time.** See below |
+| M9b | the same, after the witness moved to sizes | `Component.swift` | matrix, **both** `Component` rows, on member 1's unchanged `50.0x20.0` |
+| M10 | `padding(_ edges:)` wraps a layer carrying no padding | `Box.swift` | 4 issues across 4 tests: the matrix's `outerSizeDelta > 0`, test 2's order `#require`, test 3's control, test 4's set-up |
+| M11 | `Box.paint` emits no background at all | `Box.swift` | 4 issues, but all of them **set-up `#require`s** — it kills the 1x1 marker the instrument measures with, so it is not a discriminating mutation and is recorded as one that is not |
+| M11b | `animatedBackground` drops the `focusBackground ?? hoverBackground ??` chain | `AnimatedColor.swift` | matrix, the **hover and focus rows'** paint-only witness (`rectsMoved`), both |
+| M12 | `id(_:)` writes no `elementID` | `Box.swift` | matrix, the `id(_:)` row at the **BROKEN INSTRUMENT `#require`** — a modifier that stops writing anything fails as a broken fixture rather than being reclassified as inert |
+
+##### What the mutations found — `OM-AD`
+
+**M9: the `distributes` witness was reading a member's POSITION.** `OM-X`'s
+witness was "the delta appears twice, once per member". A component's top-level
+nodes sit in one flex line, so growing member 0 pushes member 1 sideways: member
+1's rect string moved, the per-member check passed, and an amend that reached
+only the first member reddened nothing at all. `Observation` gains `rectSizes`
+and the witness reads that instead. A member's **size** is what the modifier did
+to it; its **position** is what its siblings did to it.
+
+**M4 and M5: two order tests had no two-layer chain to bite.** Every fixture in
+`aLegacyChainsBackgroundCoversTheBoxAtThePointItWasWritten` and
+`aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot` was ONE
+`ModifierLayer` with `inner` empty — `.padding(8).background`,
+`.background.padding(8)`, `.padding(80).onClick`, `.onClick.padding(80)` — so
+`ModifiedElement.paint`'s loop over the inner layers and `prepaintLayerBody`'s
+recursion never ran. The mutation the spec's own lane-1 table names for test 2,
+by its source line, reddened nothing. Three probe-backed arms were added:
+
+- `.padding(4).padding(4).background(.accent)` → the outermost layer is filled,
+  `(0,0) 36x36` — SwiftUI A1 reached through E1;
+- `.padding(8).background(.accent).padding(4)` → probe arm **A3** exactly: outer
+  44x44, the inner layer's fill at `(4,4) 36x36`;
+- `.padding(40).onClick.padding(40)` → the handler is on the inner layer, whose
+  box is 100x100 at `(40, 40)`, so `(50, 50)` hits and `(5, 5)` does not.
+
+Both mutations redden after that. Taxonomy shape 2 (fixtures too shallow) and,
+for M9, shape 12 read sideways: the witness was reading a side effect the code
+under test produced and calling it the effect.
+
+##### What the audit itself established
+
+The sixteen rows and their measured readings. Deltas are `declared − bare`;
+`rects` and `hit regions` are "identical" or "moved".
+
+| row | path | kinds | node | outer | rects | hit |
+|---|---|---|---|---|---|---|
+| `padding(_:)` | Element | wraps | +1 | +16 | identical | identical |
+| `frame(width:height:)` | Element | wraps | +1 | +40 | identical | identical |
+| `width(_:)` | Element | self | 0 | +40 | identical | identical |
+| `margin(_:)` | Element | self | 0 | +20 | identical | identical |
+| `hidden()` | Element | self | 0 | **−20** | identical | identical |
+| `id(_:)` | Element | self | 0 | 0 | identical | identical |
+| `focusable()` | Element | self | 0 | 0 | identical | identical |
+| `borderWidth(_:)`, sized box | Element | self | 0 | **0** | **identical** | identical |
+| `borderWidth(_:)`, content-sized box | Element | self | 0 | **+8** | identical | identical |
+| `background(_:)` | Element | self + paint-only | 0 | 0 | moved | identical |
+| `cornerRadius(_:)` | Element | self + paint-only | 0 | 0 | moved | identical |
+| `hoverBackground(_:)`, hovered | Element | self + paint-only | 0 | 0 | moved | identical |
+| `focusBackground(_:)`, focused | Element | self + paint-only | 0 | 0 | moved | identical |
+| `onClick(_:)` | Element | self + prepaint-only | 0 | 0 | identical | **moved**, 0 → 1 click |
+| `padding(_:)` | Component | distributes | 0 | +10 | both member sizes moved | identical |
+| `width(_:)` | Component | distributes | 0 | +60 | both member sizes moved | identical |
+
+Those are not predictions. The table is a transcription of a `print` added to
+the matrix test's loop, run once and reverted (`git checkout` immediately
+after); the dump, verbatim, with the two `Component` rows' member sizes:
+
+```
+AUDIT | padding(_:) | legacy Element | wraps | node 1 | outer 16.0 | rects identical | hitRegions identical | clicks 0->0 | storage nil | sizes [] -> []
+AUDIT | frame(width:height:) | legacy Element | wraps | node 1 | outer 40.0 | rects identical | hitRegions identical | clicks 0->0 | storage nil | sizes [] -> []
+AUDIT | width(_:) | legacy Element | selfStorage | node 0 | outer 40.0 | rects identical | hitRegions identical | clicks 0->0 | storage Optional(true) | sizes [] -> []
+AUDIT | margin(_:) | legacy Element | selfStorage | node 0 | outer 20.0 | rects identical | hitRegions identical | clicks 0->0 | storage Optional(true) | sizes [] -> []
+AUDIT | hidden() | legacy Element | selfStorage | node 0 | outer -20.0 | rects identical | hitRegions identical | clicks 0->0 | storage Optional(true) | sizes [] -> []
+AUDIT | id(_:) | legacy Element | selfStorage | node 0 | outer 0.0 | rects identical | hitRegions identical | clicks 0->0 | storage Optional(true) | sizes [] -> []
+AUDIT | focusable() | legacy Element | selfStorage | node 0 | outer 0.0 | rects identical | hitRegions identical | clicks 0->0 | storage Optional(true) | sizes [] -> []
+AUDIT | borderWidth(_:) on a sized box | legacy Element | selfStorage | node 0 | outer 0.0 | rects identical | hitRegions identical | clicks 0->0 | storage Optional(true) | sizes ["40.0x40.0"] -> ["40.0x40.0"]
+AUDIT | borderWidth(_:) on a content-sized box | legacy Element | selfStorage | node 0 | outer 8.0 | rects identical | hitRegions identical | clicks 0->0 | storage Optional(true) | sizes [] -> []
+AUDIT | background(_:) | legacy Element | paintOnly+selfStorage | node 0 | outer 0.0 | rects moved | hitRegions identical | clicks 0->0 | storage Optional(true) | sizes [] -> ["40.0x40.0"]
+AUDIT | cornerRadius(_:) | legacy Element | paintOnly+selfStorage | node 0 | outer 0.0 | rects moved | hitRegions identical | clicks 0->0 | storage Optional(true) | sizes ["40.0x40.0"] -> ["40.0x40.0"]
+AUDIT | hoverBackground(_:), genuinely hovered | legacy Element | paintOnly+selfStorage | node 0 | outer 0.0 | rects moved | hitRegions identical | clicks 1->1 | storage Optional(true) | sizes ["40.0x40.0"] -> ["40.0x40.0"]
+AUDIT | focusBackground(_:), genuinely focused | legacy Element | paintOnly+selfStorage | node 0 | outer 0.0 | rects moved | hitRegions identical | clicks 1->1 | storage Optional(true) | sizes ["40.0x40.0"] -> ["40.0x40.0"]
+AUDIT | onClick(_:) | legacy Element | prepaintOnly+selfStorage | node 0 | outer 0.0 | rects identical | hitRegions moved | clicks 0->1 | storage Optional(true) | sizes [] -> []
+AUDIT | padding(_:) | legacy Component | distributes | node 0 | outer 10.0 | rects moved | hitRegions identical | clicks 0->0 | storage nil | sizes ["30.0x10.0", "50.0x20.0"] -> ["40.0x40.0", "50.0x40.0"]
+AUDIT | width(_:) | legacy Component | distributes | node 0 | outer 60.0 | rects moved | hitRegions identical | clicks 0->0 | storage nil | sizes ["30.0x10.0", "50.0x20.0"] -> ["70.0x10.0", "70.0x20.0"]
+```
+
+`Component.padding(20)` takes 30x10 to **40x40** and 50x20 to **50x40** — CSS
+border-box padding absorbed into each declared size, agreeing digit for digit
+with record §15's scratch `C4` (30x10 → 40x40) and with `OM-D`'s reading of it.
+SwiftUI's per-member wrap would give 70x50 and 90x60 (probe G12's shape); lane 4
+is where those numbers move, and this row is what will notice.
+
+Four readings worth quoting on their own:
+
+- **`borderWidth(_:)` on a sized box moves nothing at all** — not the outer
+  size, not the emitted rect's `borderWidths`, not its `borderColor`. The
+  subject carries a background in both arms, so "the rects are identical" is a
+  statement about a live rect rather than about an empty scene. This is the
+  standing inert row of `CLAUDE.md`'s declared-but-inert table, pinned, and it
+  is precisely the API `OM-X` says a triple could not have seen.
+- **On a content-sized box the same modifier moves the box by +8 and still
+  paints nothing** — the other half of the finding, and why `OM-M` deletes the
+  name rather than fixing it.
+- **`hidden()` reads node 0 / outer −20**, so the `wraps` witness
+  (`nodeDelta > 0` **and** `outerSizeDelta > 0`) does not claim it. Under an
+  outer-size-only witness it would have classified as `wraps`, which is `OM-X`'s
+  second counterexample, confirmed here on a real reading.
+- **`focusable()` registers no pointer target.** All five components zero, only
+  storage differs — the keyboard gate and the pointer gate are separate, as
+  `CLAUDE.md` says they must stay.
+
+##### Hazards the lane leaves for lanes 2–4
+
+- **`Observation.rects` is compared as a whole, `rectSizes` only for
+  `distributes`.** Lane 2 adds fields to `MUIRect`'s emission (`borderColor`,
+  `borderWidths`, a rounded mask) that `describe(_ r: MUIRect)` already prints,
+  so a new paint-only modifier gets the right answer for free — but a new
+  modifier that only moves a rect's POSITION and adds no member needs its own
+  thought before it is filed as `distributes`.
+- **`hitCountAtEdge` is a probe point the row chooses**, defaulting to `(2, 2)`
+  — just inside the subject's outer box. A lane-3 row for
+  `contentShape(inset:)` will want a point chosen against that inset, not this
+  one.
+- **The node count comes from a second render** through a directly built
+  `Frame`, because `Window` does not retain its own. If `Window` ever exposes
+  its frame, the two renders collapse to one and the doc comment on `observe`
+  says so.
+- **`HandlerFingerprint` in this file is a second copy** of
+  `ModifierTests.swift`'s `HandlerShape` projection, and `CLAUDE.md`'s rule
+  ("`HandlerShape` must gain a field in the same change `Handlers` gains a
+  member") now applies to **two** structs. Lane 3 adds `allowsHitTesting` and
+  `contentShapeInset` to `Handlers`; both must gain them.
 
 #### Lane 2 — paint-only decoration: border, focus ring, opacity, clip
 
@@ -343,6 +526,14 @@ and coordinates).*
 - `CLAUDE.md`'s "three `pass.fill` sites" and "four `pass.fill` sites"
   sentences, the animation section's registering-point counts, and
   `ModifierTests`' "40 public funcs in `Box.swift`" reconciliation all move.
+- **`CLAUDE.md`'s `HandlerShape` sentence now covers TWO structs** (lane 1). It
+  reads "`HandlerShape` in `ModifierTests.swift` must gain a field in the same
+  change `Handlers` gains a member — it has fallen behind twice."
+  `OuterModifierMatrixTests.swift` carries a second projection of the same
+  shape, `HandlerFingerprint`, because the storage witness must compare
+  `Handlers` and `Handlers` is not `Equatable`. Lane 3 adds
+  `allowsHitTesting` and `contentShapeInset` to `Handlers`; both structs must
+  gain them, and the sentence must name both.
 - The focus-ring look is a **human** check: nothing in the suite can see whether
   a ring reads as a focus affordance. It belongs in CLAUDE.md's human
   verification table, open, with the demo key that shows it (if lane 4 adds

@@ -6,13 +6,14 @@ on `feat/outer-modifiers` in the worktree
 
 Rulings are `OM-` and **lettered**, in
 [`../2026-09-15-outer-modifiers-decisions.md`](../2026-09-15-outer-modifiers-decisions.md)
-(`OM-A`…`OM-AC`; next unused `OM-AD`). The record is
+(`OM-A`…`OM-AD`; next unused `OM-AE`). The record is
 [`../../record/15-outer-modifiers.md`](../../record/15-outer-modifiers.md).
 Probes are in [`../../probes/`](../../probes/); four are new here, three of them
 extended and re-recorded in round 2.
 
-**Status: designed, not implemented; revised once after review.** No `Sources/`
-change is committed by the design session. The four probes and the recorded
+**Status: lane 1 built; lanes 2–4 designed, not implemented. Revised once after
+review, and once more by lane 1's mutation round (`OM-AD`).** No `Sources/`
+change is committed by the design session, and lane 1 adds none either. The four probes and the recorded
 scratch measurements of today's MetalUI are committed, and everything below is
 written against them.
 
@@ -682,10 +683,16 @@ No `Sources/` change. New file `Tests/MetalUITests/OuterModifierMatrixTests.swif
 | # | test | red before? | mutation that must redden it |
 |---|---|---|---|
 | 1 | `everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays` | **new, and must be red until its table is filled from measurements**: write it with the expected kinds first and let the arms disagree | swapping any two rows' expected kind; and, per row, the row's own mechanism (e.g. making `ModifiedElement.requestLayout` skip a layer's `requestNode`) | 
-| 2 | `aLegacyChainsBackgroundCoversTheBoxAtThePointItWasWritten` | green on arrival (§6.1) | `ModifiedElement.paint` filling the outermost decoration at `pass.bounds(of: layout.inner[0].node)` instead of `bounds` |
+| 2 | `aLegacyChainsBackgroundCoversTheBoxAtThePointItWasWritten` | green on arrival (§6.1) | `ModifiedElement.paint` filling the outermost decoration at `pass.bounds(of: layout.inner[0].node)` instead of `bounds`. **`OM-AD`: this needs a TWO-layer arm — both §6.1 A-row chains are one `ModifierLayer` with `inner` empty, and against those the mutation reddens nothing** |
 | 3 | `legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes` | green on arrival | `_wrap` assigning `outermost` without appending the old one to `inner` |
-| 4 | `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot` | green on arrival, **pinned wrong on purpose** | registering the hitbox at the innermost layer's node bounds |
-| 5 | `aBareCornerRadiusDoesNotClipTheChildren` | green on arrival, **pinned wrong on purpose** (SwiftUI C1) | making `Box.paint` push a rounded clip for its own radius |
+| 4 | `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot` | green on arrival, **pinned wrong on purpose** | registering the hitbox at the innermost layer's node bounds. **`OM-AD`: also a two-layer arm — `.padding(40).onClick.padding(40)`, whose handler is on the inner layer** |
+| 5 | `aBareCornerRadiusDoesNotClipTheChildren` | green on arrival, **pinned wrong on purpose** (SwiftUI C1) | making `Box.paint` push a rounded clip for its own radius. The overflowing child needs `.flexShrink(0)`, or it is shrunk to the parent and never overflows |
+
+**Built, 2026-09-15.** All five landed; the matrix's sixteen rows all classified
+as §3.1 claims them on the first run, and the mutation round — thirteen
+mutations, recorded in record §15 — is what establishes that they could have
+done otherwise. Two of the mutations found the tests rather than the source, and
+`OM-AD` is that finding.
 
 Test 1's table is the matrix. Each row is `(name, path, expected kind)` plus a
 closure returning a **five**-tuple measured through a real `Window`:
@@ -711,7 +718,7 @@ mechanism-specific witness:
 | **self** | `nodeDelta == 0`, and the written field differs between arms on the **outermost** `ModifierLayer` — the same reflection `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` uses |
 | **paint-only** | `nodeDelta == 0 && outerSizeDelta == 0` **and** `rectDelta != 0` |
 | **prepaint-only** | the first three all zero **and** `hitRegionDelta != 0` or `hitCountAtEdge` moves |
-| **distributes** | the measurement is repeated on a two-member `Component` and the delta appears **twice**, once per member |
+| **distributes** | the measurement is repeated on a two-member `Component` and each member's own **SIZE** changes, all of them (`OM-AD`; the first draft said "the delta appears twice", and a delta appearing on member 1 is what member 0's growth does to it) |
 
 Rows must not be uniform: at least one row of each kind, and `#require` on the
 arms disagreeing **before the kind derivation runs, not only before the row

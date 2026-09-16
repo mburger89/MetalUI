@@ -5,11 +5,15 @@ Plan task 5. Spec:
 Record: [`../record/15-outer-modifiers.md`](../record/15-outer-modifiers.md).
 Branch `feat/outer-modifiers`, from `c4b5853`.
 
-Rulings are **lettered**: `OM-A` … `OM-AC`. **Next unused: `OM-AD`.** A bare
-`OM-1` is a typo, not a citation; the two-letter tails (`OM-AA`…`OM-AC`) are
+Rulings are **lettered**: `OM-A` … `OM-AD`. **Next unused: `OM-AE`.** A bare
+`OM-1` is a typo, not a citation; the two-letter tails (`OM-AA`…`OM-AD`) are
 deliberate, as `CO-`'s and `TB-`'s are.
 
-**Status: design only, revised once.** Nothing in `Sources/` has changed. Every
+**Status: design revised twice; lane 1 built.** `OM-AD` is lane 1's, and it is
+the first ruling here written from a test run rather than from a probe: two of
+the instruments this document specified could not fail, and the mutation round
+that found them is recorded in record §15's lane 1 entry. Nothing in `Sources/`
+has changed — lane 1 adds one test file and no production line. Every
 ruling below states what was measured and what was only read; `OM-S` is the
 summary of that split and **`OM-AC` is round 2's correction to it**. The
 dispositions of seventeen critic findings are tabled at the end, under "Design
@@ -1167,6 +1171,59 @@ APPLIED on its substance.**
 green and by the demo comparison); and that no site other than the four named
 calls `registerHandlers` in a way `registerAndScope` would bypass (`grep -rn
 "registerHandlers(" Sources` at lane-3 time, not at design time).
+
+---
+
+## OM-AD — the `distributes` witness is a member's SIZE, and an order test needs a TWO-layer chain
+
+**Ruling, part 1.** `OM-X`'s witness for `distributes` — "the measurement is
+repeated on a two-member `Component` and the delta appears **twice**, once per
+member" — is **replaced** by: each member's own **size** must change, all
+`memberCount` of them. `Observation` carries `rectSizes` beside `rects`, and the
+`distributes` arm of
+`everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays` reads that.
+
+**Reasoning, measured.** A component's top-level nodes sit in one flex line, so
+growing member 0 **pushes member 1 sideways**. With the whole rect compared, a
+`StyledComponent.requestGroupLayout` that amended only `nodes.prefix(1)` still
+moved member 1's rect — its origin — and the mutation **reddened nothing at
+all** on either `Component` row. A delta "appearing twice" is therefore not
+evidence that the modifier reached twice; what a member's *size* records is what
+the modifier did to it, and what its *position* records is what its siblings did
+to it. After the change the same mutation reddens both rows, on member 1's
+unchanged `50.0x20.0`.
+
+This is the taxonomy's shape-12 hazard read sideways: the second member's
+movement was produced by the code under test, so the witness was reading the
+mutation's own side effect and calling it the effect.
+
+**Ruling, part 2.** Every order test whose named mutation lives in
+`ModifiedElement`'s per-layer recursion must use a **two-layer** chain, and the
+lane-1 table's "red before?" column is amended to say so.
+
+**Reasoning, measured.** `Box(20x20).padding(8).background(.accent)` and
+`Box(20x20).background(.accent).padding(8)` are both **one** `ModifierLayer`
+with `inner` empty. `ModifiedElement.paint`'s loop over the inner layers and
+`prepaintLayerBody`'s recursion therefore never run, and the mutation the spec's
+lane-1 table names for test 2 by its own source line — filling the outermost
+decoration at `pass.bounds(of: layout.inner[0].node)` instead of `bounds` —
+reddened nothing. The same held of the hit-testing test: `.padding(80).onClick`
+and `.onClick.padding(80)` are one layer each, so the layer-to-bounds pairing
+had nothing to get wrong. Taxonomy shape 2, fixtures too shallow to distinguish
+two models.
+
+The arms added are probe-backed rather than invented: `.padding(4).padding(4)
+.background` is A1 reached through E1 (the outermost layer filled, `(0,0)
+36x36`) and `.padding(8).background.padding(4)` is probe arm **A3** exactly
+(`44x44` outer, the inner layer's fill at `(4,4) 36x36`). The hit-testing arm is
+`.padding(40).onClick.padding(40)`, whose handler sits on the inner layer's
+100x100 box at `(40, 40)`, so `(50, 50)` is inside it and `(5, 5)` is not.
+
+**Cost if wrong.** Both instruments were green, on true claims, and could not
+have gone red for the defects they were written for — the exact shape this
+repo's practices doc calls a broken instrument rather than a finding. The cost
+of the fix is one extra field on `Observation` and three extra arms; the cost of
+leaving it was two tests whose passing said nothing.
 
 ---
 
