@@ -83,6 +83,10 @@
 //   (SC3: b at (10, 38)).
 // - The root (R): a hosting view proposes its bounds and CENTRES the root's
 //   answer (R1, R2 at (21, 40) in 100x100); a greedy root fills (R control).
+// - aspectRatio ANSWERS ITS CHILD'S ANSWER to the ratio-shaped proposal: a
+//   fixed 168x95 child reads 168x95 at 500x300 (AR1, proposed 500x281.25) and
+//   at nil (AR2); a child that takes the offer reads the ratio size (AR3). In a
+//   stack it stays 168x95 (AR4).
 // - Not a result: the sparse probe lists (G3's b has one call) are SwiftUI
 //   evaluating flexibility lazily and stopping at a flexibility of 0; every
 //   allocation above equals a stable sort by flexibility.
@@ -496,6 +500,18 @@
 //   Q3 HStack(0){a area 600 ideal 10; b 20x30} at 100x50 (measured at allocations?) @100x50: size 100x30
 //       leaf a: proposed [infx50, 0x50, 80x50] at (0, 11.25) 80x7.50 calls 3
 //       leaf b: proposed [infx50, 0x50, 50x50] at (80, 0) 20x30 calls 3
+//   AR control fixed 168x95 alone at 500x300 @500x300: size 168x95
+//       leaf c: proposed [500x300] at (0, 0) 168x95 calls 1
+//   AR1 fixed 168x95 .aspectRatio(16/9, .fit) at 500x300 @500x300: size 168x95
+//       leaf c: proposed [500x281.25] at (0, 0) 168x95 calls 1
+//   AR2 fixed 168x95 .aspectRatio(16/9, .fit) at nil @nilxnil: size 168x95
+//       leaf c: proposed [nilxnil] at (0, 0) 168x95 calls 1
+//   AR3 flexible c .aspectRatio(16/9, .fit) at 500x300 (a child that takes the offer) @500x300: size 500x281.25
+//       leaf c: proposed [500x281.25] at (0, 0) 500x281.25 calls 1
+//   AR4 HStack(12){a 168x64; fixed 168x95 .aspectRatio(16/9); b 168x64} at 856x300 @856x300: size 528x95
+//       leaf a: proposed [infx300, 0x300, 277.33x300] at (0, 15.50) 168x64 calls 3
+//       leaf c: proposed [533.33x300, 0x0, 332x186.75] at (180, 0) 168x95 calls 3
+//       leaf b: proposed [496x300] at (360, 15.50) 168x64 calls 1
 //   DONE
 
 import AppKit
@@ -1061,6 +1077,26 @@ enum Kind: String, CaseIterable { case rect, color, text, leaf, image, hstack, b
     }
     run("Q3 HStack(0){a area 600 ideal 10; b 20x30} at 100x50 (measured at allocations?)", p(100, 50)) {
         HStack(spacing: 0) { AreaLeaf(name: "a", area: 600, ideal: 10) { SwiftUI.Color.clear }; fixed("b", 20, 30) }
+    }
+
+
+    // ================= AR: aspectRatio over a FIXED child (the preview's
+    // PreviewToggle). Control: the child alone answers 168x95 at 500x300.
+    run("AR control fixed 168x95 alone at 500x300", p(500, 300)) { fixed("c", 168, 95) }
+    run("AR1 fixed 168x95 .aspectRatio(16/9, .fit) at 500x300", p(500, 300)) {
+        fixed("c", 168, 95).aspectRatio(16.0 / 9.0, contentMode: .fit)
+    }
+    run("AR2 fixed 168x95 .aspectRatio(16/9, .fit) at nil", none) {
+        fixed("c", 168, 95).aspectRatio(16.0 / 9.0, contentMode: .fit)
+    }
+    run("AR3 flexible c .aspectRatio(16/9, .fit) at 500x300 (a child that takes the offer)", p(500, 300)) {
+        Leaf(name: "c", minW: 0, idealW: 10, maxW: .infinity, minH: 0, idealH: 10, maxH: .infinity) { SwiftUI.Color.clear }
+            .aspectRatio(16.0 / 9.0, contentMode: .fit)
+    }
+    run("AR4 HStack(12){a 168x64; fixed 168x95 .aspectRatio(16/9); b 168x64} at 856x300", p(856, 300)) {
+        HStack(spacing: 12) {
+            fixed("a", 168, 64); fixed("c", 168, 95).aspectRatio(16.0 / 9.0, contentMode: .fit); fixed("b", 168, 64)
+        }
     }
 
 }
