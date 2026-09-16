@@ -37,6 +37,11 @@
 // corrected in place, marked "(corrected, revision 4)": the ZStack placement
 // rule and "framing a spacer hides its flexibility".
 //
+// RE-RECORDED 2026-09-16 (revision 5, containers lane 2), same machine and
+// toolchain, exit 0, run twice with byte-identical output. Additive only: the
+// G4r and G4f arms after R4; the 607 output lines before them are byte-identical
+// to revision 4's record (`diff` empty).
+//
 // READING (each claim names its arms):
 // - Default spacing is 8 horizontally between every pair measured (S), and 8
 //   vertically between non-text views; vertically a Text edge is font-derived
@@ -85,7 +90,11 @@
 //   the -inf priority through (K2a: a is offered (200-8)/2 = 96). Padding
 //   hides only the priority (SP20: still flexible, served last among priority
 //   0); an overlay hides neither (X8). A greedy non-spacer child takes surplus (G3 180, G4
-//   `.frame(maxWidth: .infinity)` 180) and beats a spacer to it (G5, G5b: the
+//   `.frame(maxWidth: .infinity)` 180; revision 5: G4r, the same frame declared
+//   FIRST, still takes 180 and a 20 sits at 180, and G4f's bounded 0..80 sibling
+//   is served first at 100 and keeps 80, the frame 120 — so a greedy frame over a
+//   fixed child reports its flexibility, which means it answers more than its
+//   child at an infinite main proposal) and beats a spacer to it (G5, G5b: the
 //   spacer keeps 8); two greedy children share (G25 96/96); a stack WITH a
 //   spacer compresses its other children (G6 80/8/12 at 100).
 // - A single-child HStack/VStack passes its child's priority through (G11 80
@@ -760,6 +769,12 @@
 //   K6f List{leaf l 30x30} at 100x100 (is a row laid out?) @100x100: size 100x100
 //   R3 fixed r 58x20 .overlay{greedy a} root in a 100x100 host: r at (21, 40) 58x20; a proposed [58x20] at (21, 40) 58x20
 //   R4 fixed r 58x20 .background{greedy a} root in a 100x100 host: r at (21, 40) 58x20; a proposed [58x20] at (21, 40) 58x20
+//   G4r HStack(0){b fixed 20 .frame(maxWidth: .infinity); a fixed 20} at 200x50 (G4 order swapped) @200x50: size 200x20
+//       leaf b: proposed [infx50, 180x50, 180x20] at (80, 0) 20x20 calls 3
+//       leaf a: proposed [infx50, 100x50] at (180, 0) 20x20 calls 2
+//   G4f HStack(0){b fixed 20 .frame(maxWidth: .infinity); a 0..80} at 200x50 (bounded flexible sibling) @200x50: size 200x20
+//       leaf b: proposed [infx50, 120x50, 120x20] at (50, 0) 20x20 calls 3
+//       leaf a: proposed [infx50, 100x50] at (120, 0) 80x20 calls 2
 //   DONE
 
 import AppKit
@@ -1615,6 +1630,18 @@ enum Kind: String, CaseIterable { case rect, color, text, leaf, image, hstack, b
         host.layoutSubtreeIfNeeded()
         let r = placed["r"]!, a = placed["a"]!
         print("\(label): r at (\(d(r.minX)), \(d(r.minY))) \(d(r.width))x\(d(r.height)); a proposed [\((proposalsSeen["a"] ?? []).joined(separator: ", "))] at (\(d(a.minX)), \(d(a.minY))) \(d(a.width))x\(d(a.height))")
+    }
+
+    // Revision 5 (containers lane 2): does a greedy frame over a FIXED child
+    // report its flexibility, so that the stack serves it after a rigid or less
+    // flexible sibling whatever the declaration order? Control: G4 above (frame
+    // declared last, 180). G4r swaps the order; G4f gives the frame a sibling
+    // that is flexible but bounded (0..80).
+    run("G4r HStack(0){b fixed 20 .frame(maxWidth: .infinity); a fixed 20} at 200x50 (G4 order swapped)", p(200, 50)) {
+        HStack(spacing: 0) { fixed("b", 20, 20).frame(maxWidth: .infinity); fixed("a", 20, 20) }
+    }
+    run("G4f HStack(0){b fixed 20 .frame(maxWidth: .infinity); a 0..80} at 200x50 (bounded flexible sibling)", p(200, 50)) {
+        HStack(spacing: 0) { fixed("b", 20, 20).frame(maxWidth: .infinity); flexW("a", 0, 80, 80) }
     }
 
 }
