@@ -143,6 +143,16 @@ private struct Observation: Equatable {
     var outerWidth: Float
     /// Every emitted rect but the marker's.
     var rects: [String]
+    /// The same rects' SIZES alone, in the same order.
+    ///
+    /// **The `distributes` witness reads this and not `rects`, and the reason
+    /// was found by mutation.** A component's members sit in one flex line, so
+    /// growing member 0 pushes member 1 sideways: with the whole rect compared,
+    /// an amend that reached only the FIRST member still moved the second one's
+    /// string, and `StyledComponent.requestGroupLayout` amending
+    /// `nodes.prefix(1)` reddened nothing. A member's size is what the modifier
+    /// did to it; its position is what its siblings did to it.
+    var rectSizes: [String]
     /// Every registered hit region.
     var hitRegions: [String]
     /// How many `onClick` closures a synthesized down/up pair at the row's
@@ -205,9 +215,11 @@ private func observe<Subject: ElementGroup>(
                       scaleFactor: 1)
     frame.render(&tree)
 
+    let subjectRects = scene.rects.filter { !isMarker($0) }
     return Observation(nodeCount: frame.tree.nodeCount,
                        outerWidth: marker.bounds.origin.x,
-                       rects: scene.rects.filter { !isMarker($0) }.map(describe),
+                       rects: subjectRects.map(describe),
+                       rectSizes: subjectRects.map { "\($0.bounds.size.width)x\($0.bounds.size.height)" },
                        hitRegions: hitRegions,
                        hitCountAtEdge: counter.count)
 }
@@ -575,13 +587,14 @@ private struct TwoMembers: Component {
             #expect(nodeDelta == 0,
                     why("\(label) claims `distributes` and the modified component gained a node of "
                         + "its own — a Component is layout-transparent. \(reading)"))
-            try #require(bare.rects.count == members && declared.rects.count == members,
+            try #require(bare.rectSizes.count == members && declared.rectSizes.count == members,
                          why("\(label): set up — each member must paint exactly one rect, got "
-                             + "\(bare.rects.count) and \(declared.rects.count). \(reading)"))
-            for (index, pair) in zip(bare.rects, declared.rects).enumerated() {
+                             + "\(bare.rectSizes.count) and \(declared.rectSizes.count). \(reading)"))
+            for (index, pair) in zip(bare.rectSizes, declared.rectSizes).enumerated() {
                 #expect(pair.0 != pair.1,
-                        why("\(label) claims `distributes` and member \(index) is unchanged — the "
-                            + "modifier reached some members and not all of them. \(reading)"))
+                        why("\(label) claims `distributes` and member \(index) kept its size "
+                            + "(\(pair.0)) — the modifier reached some members and not all of "
+                            + "them. \(reading)"))
             }
         }
     }
@@ -628,9 +641,29 @@ private struct TwoMembers: Component {
     let filledThenPadded = try accentRect {
         Box().width(px(20)).height(px(20)).background(.accent).padding(px(8))
     }
+    // **Two-layer arms, and they are not decoration.** Both chains above are
+    // ONE `ModifierLayer` (`inner` empty), so `ModifiedElement.paint`'s loop
+    // over the inner layers never runs and a fill emitted at the wrong layer's
+    // bounds is invisible. Measured: filling the outermost decoration at
+    // `pass.bounds(of: layout.inner[0].node)` instead of `bounds` reddened
+    // nothing at all until these two arms existed.
+    //
+    // `.padding(4).padding(4).background` is A1 reached through E1: two layers,
+    // the OUTERMOST one decorated, so the fill is the full (0,0) 36x36.
+    // `.padding(8).background.padding(4)` is probe arm A3 exactly: outer 44x44
+    // with the INNER layer's fill at (4,4) 36x36.
+    let twoLayersOutermostFilled = try accentRect {
+        Box().width(px(20)).height(px(20)).padding(px(4)).padding(px(4)).background(.accent)
+    }
+    let twoLayersInnerFilled = try accentRect {
+        Box().width(px(20)).height(px(20)).padding(px(8)).background(.accent).padding(px(4))
+    }
 
     try #require(describe(paddedThenFilled) != describe(filledThenPadded),
                  "the two orders painted the same rect — this chain has no order to test")
+    try #require(describe(twoLayersOutermostFilled) != describe(twoLayersInnerFilled),
+                 why("the two two-layer orders painted the same rect — the layer a fill belongs "
+                     + "to is not observable in this fixture"))
 
     #expect(paddedThenFilled.bounds.origin.x == 0 && paddedThenFilled.bounds.origin.y == 0
                 && paddedThenFilled.bounds.size.width == 36
@@ -642,6 +675,17 @@ private struct TwoMembers: Component {
                 && filledThenPadded.bounds.size.height == 20,
             why("`.background.padding(8)` fills the INNER box, SwiftUI A2's (8,8) 20x20; got "
                 + describe(filledThenPadded)))
+    #expect(twoLayersOutermostFilled.bounds.origin.x == 0
+                && twoLayersOutermostFilled.bounds.origin.y == 0
+                && twoLayersOutermostFilled.bounds.size.width == 36
+                && twoLayersOutermostFilled.bounds.size.height == 36,
+            why("`.padding(4).padding(4).background` fills the OUTERMOST layer's box, (0,0) "
+                + "36x36; got " + describe(twoLayersOutermostFilled)))
+    #expect(twoLayersInnerFilled.bounds.origin.x == 4 && twoLayersInnerFilled.bounds.origin.y == 4
+                && twoLayersInnerFilled.bounds.size.width == 36
+                && twoLayersInnerFilled.bounds.size.height == 36,
+            why("`.padding(8).background.padding(4)` fills the INNER layer's box, SwiftUI A3's "
+                + "(4,4) 36x36 inside a 44x44 outer; got " + describe(twoLayersInnerFilled)))
 }
 
 /// **Two `.padding` calls accumulate; they do not replace** — SwiftUI's E1/E2/E3
@@ -764,6 +808,26 @@ private struct TwoMembers: Component {
 
     let paddedEdge = try hits(at: edge, paddedThenClickable)
     let clickableEdge = try hits(at: edge, clickableThenPadded)
+
+    // **A two-layer arm, and it is not decoration.** Both chains above are ONE
+    // `ModifierLayer`, so `prepaintLayerBody`'s recursion — which is what pairs
+    // a layer's handlers with that layer's own box — never runs, and a chain
+    // that registered every layer at the outermost box would read the same.
+    // `.padding(40).onClick.padding(40)` puts the handler on the INNER layer,
+    // whose box is 100x100 at (40, 40) inside a 180x180 outer: (50, 50) is
+    // inside it and the edge is not.
+    let clickableInTheMiddle = { @MainActor (counter: ClickCounter) in
+        Box().width(px(20)).height(px(20)).padding(px(40)).onClick { counter.bump() }
+            .padding(px(40))
+    }
+    let middleLayerInside = try hits(at: pt(50, 50), clickableInTheMiddle)
+    let middleLayerEdge = try hits(at: edge, clickableInTheMiddle)
+    #expect(middleLayerInside == 1,
+            why("the handler-carrying INNER layer's own box (40…140) must be hit at (50, 50); "
+                + "got \(middleLayerInside)"))
+    #expect(middleLayerEdge == 0,
+            why("and the OUTER layer, which carries no handler, must not be — (5, 5) is inside "
+                + "it and outside the handler's layer; got \(middleLayerEdge)"))
 
     #expect(paddedEdge == 1,
             why("DIVERGENCE (OM-K): `.padding(80).onClick` is hit in its padding — SwiftUI's P1 "
