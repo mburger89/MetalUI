@@ -71,7 +71,8 @@
 //   places at proposal ?? its own size per axis (A5, A5n 20x20, X12 100x20,
 //   Q2 reports 30x60). overlay/background: the secondary is proposed the
 //   primary's size, placed by the nine alignments, may overflow (A6-A9);
-//   several views in one overlay are a ZStack with that alignment (A10).
+//   several views in one overlay are a ZStack with that alignment (A10); an
+//   empty overlay or background leaves the primary alone (A11, A11b).
 // - ScrollView (SC, SCG2): the content is proposed nil on each scrolling axis
 //   and the proposal on the other. The view answers the proposal on each
 //   scrolling axis (nil -> the content's answer, inf -> inf) and the CONTENT's
@@ -512,6 +513,10 @@
 //       leaf a: proposed [infx300, 0x300, 277.33x300] at (0, 15.50) 168x64 calls 3
 //       leaf c: proposed [533.33x300, 0x0, 332x186.75] at (180, 0) 168x95 calls 3
 //       leaf b: proposed [496x300] at (360, 15.50) 168x64 calls 1
+//   A11 primary 60x40 .overlay{ if false { o 20x20 } } (empty overlay) @nilxnil: size 60x40
+//       leaf primary: proposed [nilxnil] at (0, 0) 60x40 calls 1
+//   A11b primary 60x40 .background{ if false { bg 20x20 } } (empty background) @nilxnil: size 60x40
+//       leaf primary: proposed [nilxnil] at (0, 0) 60x40 calls 1
 //   DONE
 
 import AppKit
@@ -1097,6 +1102,16 @@ enum Kind: String, CaseIterable { case rect, color, text, leaf, image, hstack, b
         HStack(spacing: 12) {
             fixed("a", 168, 64); fixed("c", 168, 95).aspectRatio(16.0 / 9.0, contentMode: .fit); fixed("b", 168, 64)
         }
+    }
+
+
+    // ================= A11: an overlay whose content is an empty conditional.
+    // Control: A6's .center arm places o at (20, 10); here o must not exist.
+    run("A11 primary 60x40 .overlay{ if false { o 20x20 } } (empty overlay)", none) {
+        fixed("primary", 60, 40).overlay { if Bool.random() && false { fixed("o", 20, 20) } }
+    }
+    run("A11b primary 60x40 .background{ if false { bg 20x20 } } (empty background)", none) {
+        fixed("primary", 60, 40).background { if Bool.random() && false { fixed("bg", 20, 20) } }
     }
 
 }
