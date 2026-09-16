@@ -297,6 +297,22 @@ extension ProposalElementGroup {
         )
     }
 
+    /// SwiftUI's own rejection of an argument-less frame, verbatim (ruling
+    /// FR-J).
+    ///
+    /// **This declaration is load-bearing even though `ProposalElementGroup`
+    /// refines `ElementGroup`, which declares the same overload.** With only the
+    /// `ElementGroup` one, `leaf.frame()` on a proposal element resolves to the
+    /// all-defaulted `frame(width:height:alignment:)` above — more specialized,
+    /// so it wins — and infers `ModifiedContent<Leaf>` with no deprecation
+    /// diagnostic at all, which is `SA-N` item 9 surviving on the path that
+    /// matters. Measured against a skeleton of the real protocol shape under
+    /// `-swift-version 6`, and pinned by the typecheck fixture
+    /// `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`, which asserts the
+    /// inferred type on **both** paths so deleting either declaration reddens it.
+    @available(*, deprecated, message: "Please pass one or more parameters.")
+    public func frame() -> Self { self }
+
     /// Constrains this proposal-layout subtree to a width-to-height ratio.
     ///
     /// A concrete parent proposal is inscribed by `.fit` or circumscribed by

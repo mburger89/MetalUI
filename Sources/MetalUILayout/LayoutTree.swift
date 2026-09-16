@@ -198,14 +198,46 @@ public final class LayoutTree {
         return id
     }
 
-    /// Registers a native fixed frame around exactly one native child.
+    /// Registers a native frame around exactly one native child.
     ///
-    /// A fixed axis is proposed to the child and becomes the frame's measured
-    /// size; an optional axis forwards the parent's proposal and adopts the
-    /// child's response. When an ideal axis is used because its parent axis is
-    /// unspecified, the clamped ideal also becomes the frame's response.
-    /// Placement centres the child inside the resulting frame, matching
-    /// SwiftUI's default frame alignment.
+    /// **The rule, per axis** (rulings FR-A, FR-B, FR-L, FR-M), from 71 arms of
+    /// two committed SwiftUI probes — `docs/probes/swiftui-frame-semantics.swift`
+    /// and `docs/probes/swiftui-frame-negative-sizes.swift`, whose arm names the
+    /// comments below cite:
+    ///
+    /// ```
+    /// lo = max(0, min)   hi = max(0, max)      // DECLARED bounds only (H2, H4)
+    ///
+    /// childProposal = fixed ?? clamp(parentProposal ?? ideal,
+    ///                                min == nil ? -inf : lo, hi)
+    ///                 — nil when the proposal and the ideal are both nil
+    ///
+    /// response      = fixed ?? clamp(base, lo, hi)
+    ///   base = parentProposal          a maximum, a concrete proposal, and a
+    ///                                  DECLARED minimum (D control, D1, D2,
+    ///                                  D13, C5, H11, H13)
+    ///        = max(parentProposal, child)
+    ///                                  a maximum, a concrete proposal, NO
+    ///                                  minimum (D4, D5, D10, H2, H7, H8, H15,
+    ///                                  H16)
+    ///        = ideal                   no proposal on this axis (C1, C3, C4)
+    ///        = the child's answer      otherwise (C control, D6-D9, D14, D15)
+    /// ```
+    ///
+    /// So a frame with a maximum is **greedy**: it takes the space it is
+    /// offered, clamped, rather than reporting what its child asked for. A
+    /// minimum on its own is not greedy. A child bigger than the frame keeps its
+    /// own size and overflows (A5, B9); a fixed frame never shrinks, because
+    /// there is no shrinking in SwiftUI. Chained frames: the outer size wins and
+    /// the inner keeps its own (E1, E2).
+    ///
+    /// **One deliberate divergence** (`FR-B`): at an INFINITE proposal SwiftUI
+    /// answers `inf` and MetalUI answers the child, because SwiftUI's own answer
+    /// traps one step later in its placement and an infinite measurement would
+    /// otherwise reach `LayoutRect`, `Bounds` and the renderer.
+    ///
+    /// Placement puts the child at `alignment` inside the bounds the frame was
+    /// given — not inside its own measurement — defaulting to SwiftUI's centre.
     ///
     /// **Validation (ruling SA-J)**, per axis, each a trap naming the
     /// parameter:
@@ -1021,24 +1053,62 @@ public final class LayoutTree {
         }
     }
 
+    /// One axis of the proposal a frame hands its child (rulings FR-A, FR-L).
+    ///
+    /// A **declared** bound is floored at 0 before use; an **absent** minimum
+    /// forwards a negative proposal unchanged. Probe `H4` (`minWidth: −50`)
+    /// proposes 0.0 to its child where `H2` (no minimum, the same −30 proposal)
+    /// proposes −30.0, so the floor is on the declared bound and nowhere else.
     private func framedProposal(_ parent: Double?, fixed: Double?, ideal: Double?, min: Double?, max: Double?) -> Double? {
         guard fixed == nil else { return fixed }
         guard let proposal = parent ?? ideal else { return nil }
-        return Swift.max(min ?? -.infinity, Swift.min(proposal, max ?? .infinity))
+        let lo = min.map { Swift.max(0, $0) } ?? -.infinity
+        let hi = max.map { Swift.max(0, $0) } ?? .infinity
+        return Swift.max(lo, Swift.min(proposal, hi))
     }
 
+    /// One axis of a frame's own answer (rulings FR-A, FR-B, FR-L, FR-M).
+    ///
+    /// Five things here are deliberate and must not be "simplified":
+    ///
+    /// - **`max != nil` is the greedy gate, not `max == .infinity`.** SwiftUI's
+    ///   flexible frame grows at ANY maximum: probe `D4` answers 80 under a
+    ///   *finite* 80pt cap at a 100pt proposal. Making it unconditional instead
+    ///   — greedy whenever the proposal is concrete — breaks a minimum on its
+    ///   own, which answers the child (`D7`: 40 at a 100pt proposal).
+    /// - **`min == nil ? max(proposal, child) : proposal` tests the minimum's
+    ///   PRESENCE, never its value** (`FR-M`). Probe `H8` (`maxWidth: 80`,
+    ///   proposal 10, child 20) answers 20; `H14` (`minWidth: 0` added, the
+    ///   same numbers) answers 10. Writing `(min ?? 0) == 0` reads 20 for both
+    ///   and is wrong.
+    /// - **`proposal.isFinite` keeps `FR-B`'s divergence.** At an infinite
+    ///   proposal SwiftUI answers `inf` (`D12`) and then crashes in its own
+    ///   placement on the NaN origin that follows; MetalUI answers the child.
+    /// - **The declared bounds are floored at 0** (`FR-L`): SwiftUI never
+    ///   answers a negative size. `hi`'s floor is unreachable through
+    ///   `newNativeFrame` today, which rejects a negative maximum at
+    ///   registration (`SA-J`, `aNegativeFrameMaximumTraps`); it is kept as a
+    ///   backstop for kernel callers, exactly as `validateFrameAxis`'s
+    ///   fixed-plus-flexible check is, and ruling `FR-R` records that no test
+    ///   can currently see it.
+    /// - **The ideal branch stays second.** It is unreachable from the first —
+    ///   the greedy branch requires a non-nil proposal — so the order is
+    ///   documentation rather than logic, but swapping the two is one of test
+    ///   1.4's mutations.
     private func framedSize(_ child: Double, proposal: Double?, fixed: Double?, ideal: Double?,
                             min: Double?, max: Double?) -> Double {
-        guard let fixed else {
-            if proposal == nil, let ideal {
-                return Swift.max(min ?? 0, Swift.min(ideal, max ?? .infinity))
-            }
-            if max == .infinity, let proposal, proposal.isFinite {
-                return Swift.max(min ?? 0, proposal)
-            }
-            return Swift.max(min ?? 0, Swift.min(child, max ?? .infinity))
+        if let fixed { return fixed }
+        let lo = Swift.max(0, min ?? 0)
+        let hi = max.map { Swift.max(0, $0) } ?? .infinity
+        let base: Double
+        if max != nil, let proposal, proposal.isFinite {
+            base = min == nil ? Swift.max(proposal, child) : proposal
+        } else if proposal == nil, let ideal {
+            base = ideal                         // probes C1, C3, C4
+        } else {
+            base = child                         // probes C control, D6-D9, D14, D15
         }
-        return fixed
+        return Swift.max(lo, Swift.min(base, hi))
     }
 
     /// One axis of `newNativeFrame`'s validation (ruling SA-J); `axis` and

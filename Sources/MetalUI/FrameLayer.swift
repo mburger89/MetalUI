@@ -47,3 +47,30 @@ struct FrameSpec: Sendable, Hashable {
         return style
     }
 }
+
+extension ElementGroup {
+    /// SwiftUI's own rejection of an argument-less frame, verbatim (ruling
+    /// FR-J).
+    ///
+    /// Every parameter of `frame(width:height:)` has a default, so `.frame()`
+    /// used to compile silently and build a real centring, size-nothing layer —
+    /// a node, an identity level and a `$anim` slot for nothing (`SA-N` item 9).
+    /// SwiftUI answers that with a separate zero-parameter overload marked
+    /// deprecated, which the compiler prefers for a no-argument call; this is
+    /// the same overload with the same message, returning the receiver so it
+    /// contributes nothing.
+    ///
+    /// **A matching declaration on `ProposalElementGroup` is load-bearing, not
+    /// redundant** (`NativeModifiedContent.swift`). With this one alone, a
+    /// no-argument call on a proposal element resolves to that refined
+    /// protocol's own all-defaulted `frame(width:height:alignment:)` — more
+    /// specialized, so it wins — and infers `ModifiedContent<…>` with no
+    /// diagnostic at all, which is `SA-N` item 9 surviving on the path that
+    /// matters. Measured; pinned by the typecheck fixture
+    /// `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`.
+    ///
+    /// `.frame(alignment:)` is deliberately left alone: SwiftUI accepts it too,
+    /// and an alignment with nothing to align is a no-op in both.
+    @available(*, deprecated, message: "Please pass one or more parameters.")
+    public func frame() -> Self { self }
+}
