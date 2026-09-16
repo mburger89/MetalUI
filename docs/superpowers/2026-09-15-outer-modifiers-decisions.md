@@ -5,11 +5,12 @@ Plan task 5. Spec:
 Record: [`../record/15-outer-modifiers.md`](../record/15-outer-modifiers.md).
 Branch `feat/outer-modifiers`, from `c4b5853`.
 
-Rulings are **lettered**: `OM-A` … `OM-AD`. **Next unused: `OM-AE`.** A bare
-`OM-1` is a typo, not a citation; the two-letter tails (`OM-AA`…`OM-AD`) are
+Rulings are **lettered**: `OM-A` … `OM-AG`. **Next unused: `OM-AH`.** A bare
+`OM-1` is a typo, not a citation; the two-letter tails (`OM-AA`…`OM-AG`) are
 deliberate, as `CO-`'s and `TB-`'s are.
 
-**Status: design revised twice; lane 1 built.** `OM-AD` is lane 1's, and it is
+**Status: design revised twice; lanes 1 and 2 built.** `OM-AE`, `OM-AF` and
+`OM-AG` are lane 2's, each written from a run rather than from a probe. `OM-AD` is lane 1's, and it is
 the first ruling here written from a test run rather than from a probe: two of
 the instruments this document specified could not fail, and the mutation round
 that found them is recorded in record §15's lane 1 entry. Nothing in `Sources/`
@@ -1248,3 +1249,100 @@ leaving it was two tests whose passing said nothing.
 | 15 | merge collisions larger than the risk table says | **applied** — three collisions added, `StyledComponent`'s storage named as a coordination item, the tripwire pre-agreed | spec §8 |
 | 16 | opacity path-dependence; `Deferred` does not reset opacity | **applied** — a ruling each, and a pin for (b) | `OM-AA` |
 | 17 | five smaller items | **applied, all five** — `border(_:widths:)` row added; `hoverBorder`/`focusBorder` gain the `widths:` form for symmetry; `Decoration`'s memberwise `init` updated; lane 2 test 1 reads pixels; the order-sensitive padded-hit-region row added to §6.3 | spec §5.1, §6.3, §7 |
+
+---
+
+## OM-AE — lane 2 ships EIGHT of §5.1's eleven modifiers; the other three are lane 3's
+
+**Ruling.** `extension StyledElement` gains `border(_:width:)`,
+`border(_:widths:)`, `hoverBorder` ×2, `focusBorder` ×2, `opacity(_:)` and
+`clipped()` — **eight**. `allowsHitTesting(_:)` and the two
+`contentShape(inset:)` overloads stay unwritten until lane 3, which adds
+`Handlers.allowsHitTesting` and `Handlers.contentShapeInset` and the prepaint
+wiring that makes them do anything.
+
+**Reasoning.** §5.1 lists eleven because eleven is the **task's** surface, and
+the lane brief inherited the number. Shipping the three hit-testing modifiers
+in this lane would mean three public methods that compile, store nothing and
+change nothing — exactly the shape `OM-M` deletes `borderWidth` for, introduced
+in the commit that deletes it. There is no intermediate: `allowsHitTesting`
+needs a `Handlers` member (lane 3 owns `Handlers.swift`, and `HandlerShape` and
+`HandlerFingerprint` must gain fields in the same change), and
+`contentShape(inset:)` needs `Frame.registerHandlers` to apply an inset to the
+bounds it hands `insertHitbox`.
+
+**Consequence for the tripwire.** `ModifierTests`' `cases.count` moves
+38 − 2 + 8 = **44** in lane 2 and 44 + 3 = **47** in lane 3. 47 is unchanged as
+this track's pre-agreed number (spec §8 risk (c)); only the intermediate is new.
+
+**Cost if wrong.** A caller reading §5.1 finds three modifiers missing between
+lane 2 and lane 3. `DecorationCompileGuards.swift`'s collision guard names
+`clipped()` as legacy-only and would need a row for each when they land.
+
+---
+
+## OM-AF — `paintDecoration` and `registerAndScope` are METHODS on their pass, not free functions
+
+**Ruling.** Both helpers are non-mutating methods in an `extension PaintPass` /
+`extension PrepaintPass` rather than the free functions taking
+`pass: inout PaintPass` that §5.2 specifies. Every call site reads
+`pass.paintDecoration(decoration, in: bounds, for: id) { … }`.
+
+**Reasoning, and it is the compiler's.** The free-function form does not
+compile. `content()` at all four sites writes `pass` —
+`content.paintGroup(layout:prepaint:pass: &pass)` — and an `inout` parameter
+holds an **exclusive access open for the whole call**, so the closure's write
+overlaps it. Measured: four `error: overlapping accesses to 'pass', but
+modification requires exclusive access [#ExclusivityViolation]`, at
+`Stack.swift:131`, `Stack.swift:175`, `ModifiedElement.swift:231` and
+`ModifiedElement.swift:272`. A non-mutating method takes `self` as a borrow
+instead, which is what `pass.clipped(to:offsetBy:) { … pass … }` — the idiom
+`ScrollView.paint` has used since the clipping milestone — has always relied on.
+
+`PaintPass` and `PrepaintPass` each hold exactly one stored property, `let
+frame: Frame`, so `self` is a handle and the borrow costs nothing. Inside
+`paintDecoration` one local copy (`var resolving = self`) exists solely to
+satisfy `animatedBackground(_:for:pass:)`'s `inout` parameter, whose signature
+about fifty test call sites are written against; the copy is the same pass by
+construction.
+
+**Cost if wrong.** None observable — the helper's behaviour is identical and
+the call sites read better. It is recorded because §5.2's signature is quoted
+in the spec and a reader would otherwise think the lane departed from it for
+taste.
+
+---
+
+## OM-AG — the collision guard cannot be reddened by adding a member to a SUPERprotocol
+
+**Ruling.** `theLegacyAndProposalDecorationModifiersDoNotCollide`'s recorded
+mutation is **G3b** — declaring `clipped()` on `ElementGroup`, which makes the
+`crossed` fixture compile and the `#require` fire. The mutation the spec's §8
+risk row implies, declaring the legacy `opacity(_:)` on `ElementGroup` where a
+proposal element also sees it, **reddens nothing**.
+
+**Evidence, measured this lane (mutation G3).** With
+
+```swift
+extension ElementGroup { public func opacity(_ value: Float) -> Self { self } }
+```
+
+added beside the real one, `HStack { ProposalText("hi") }.border(.accent, width:
+Pixels(2)).opacity(0.5)` still compiles and still selects
+`ProposalElementGroup`'s. `ProposalElementGroup` **refines** `ElementGroup`, and
+Swift's overload resolution prefers the more refined protocol's extension, so
+there is no ambiguity to produce. The guard ran (it is not a skip: G3b reddens
+it in the same session).
+
+**Why this matters beyond one mutation.** §8's risk row reads "a new
+`StyledElement` modifier collides with the proposal extension's same-named
+one", and the mechanism it had in mind cannot happen for any pair where one
+protocol refines the other. The collision that IS reachable is the one G3b
+produces: a member on the **shared** superprotocol that the proposal side does
+not also declare, which then leaks a legacy-only spelling onto every proposal
+element. That is what the guard's `crossed` arm states, and the guard's doc
+comment now says so instead of naming the mutation that does not work.
+
+**Cost if wrong.** A guard whose recorded mutation does not redden it is a
+decoration; this ruling is what keeps the recorded mutation honest.
+

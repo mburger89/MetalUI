@@ -6,14 +6,16 @@ on `feat/outer-modifiers` in the worktree
 
 Rulings are `OM-` and **lettered**, in
 [`../2026-09-15-outer-modifiers-decisions.md`](../2026-09-15-outer-modifiers-decisions.md)
-(`OM-A`…`OM-AD`; next unused `OM-AE`). The record is
+(`OM-A`…`OM-AG`; next unused `OM-AH`). The record is
 [`../../record/15-outer-modifiers.md`](../../record/15-outer-modifiers.md).
 Probes are in [`../../probes/`](../../probes/); four are new here, three of them
 extended and re-recorded in round 2.
 
-**Status: lane 1 built; lanes 2–4 designed, not implemented. Revised once after
-review, and once more by lane 1's mutation round (`OM-AD`).** No `Sources/`
-change is committed by the design session, and lane 1 adds none either. The four probes and the recorded
+**Status: lanes 1 and 2 built; lanes 3–4 designed, not implemented. Revised
+once after review, once by lane 1's mutation round (`OM-AD`), and once by lane
+2's (`OM-AE`, `OM-AF`, `OM-AG`).** No `Sources/` change is committed by the
+design session, and lane 1 adds none either; **lane 2 is the first `Sources/`
+change on this branch**. The four probes and the recorded
 scratch measurements of today's MetalUI are committed, and everything below is
 written against them.
 
@@ -163,7 +165,7 @@ in record §15 and are quoted where each is used.
 | `border(_:width:)` / `border(_:widths:)` | **self**, paint-only (lane 2, `OM-B`); emitted **after** the children, as SwiftUI's overlay is (`OM-V`) | — | **wraps** the value, paint-only |
 | `hoverBorder`/`focusBorder` (both `width:` and `widths:`) | **self**, paint-only (lane 2) — **the focus ring** | — | — |
 | `cornerRadius(_:)` | **self**, paint-only; rounds this element's own fill and border | — | — (`clip(cornerRadius:)`) |
-| `clipped()` | **self**, paint-**and-prepaint**-only scope (lane 2, `OM-G`); lane 2 also takes divergence 15's `pushClip` fix so it is correct inside a scrolled `ScrollView` (`OM-U`) | — | **wraps** the value (`.clip`) |
+| `clipped()` | **self**, paint-**and-prepaint**-only scope (lane 2, `OM-G`); lane 2 also takes divergence 15's `pushClip` fix so it is correct inside a scrolled `ScrollView` (`OM-U`). **In the matrix TEST it is filed `paintOnly` alone**, because that instrument treats paint-only and prepaint-only as exclusive; its prepaint half is pinned by `clippedAlsoClipsTheHitboxesInsideIt` | — | **wraps** the value (`.clip`) |
 | `opacity(_:)` | **self**, paint-only scope (lane 2, `OM-N`); **fades the receiver's own fill in both orders, where the proposal path fades it in only one** (`OM-AA` a) | — | **wraps** the value |
 | `onClick(_:)` | **self**, prepaint-only (an opaque hitbox at the receiver's box) | — | `onTapGesture` on the value |
 | `contentShape(inset:)` | **self**, prepaint-only (lane 3, `OM-J`); **configures a region, does not create one — inert with no `onClick`** (`OM-AB`) | — | — (task 12) |
@@ -335,7 +337,11 @@ extension Handlers {
     public var contentShapeInset: Edges<Pixels>?   // nil = the element's own box
 }
 
-// Box.swift, appended to `extension StyledElement`. ELEVEN, not nine: the
+// Box.swift, appended to `extension StyledElement`. ELEVEN for the TASK;
+// **lane 2 ships the first EIGHT and lane 3 the last three** (`OM-AE`) —
+// `allowsHitTesting` and `contentShape` need `Handlers` members and prepaint
+// wiring, and shipping them without those is three modifiers that compile and
+// do nothing. ELEVEN, not nine: the
 // hover and focus borders gain the `widths:` form, so all three border
 // modifiers offer the same two spellings. The first draft offered `border` in
 // both forms and the other two in one, with no reason given (critic finding
@@ -372,6 +378,17 @@ it as a coordination item.
 
 ### 5.2 One paint helper, one prepaint helper
 
+**Both are METHODS on their pass, not free functions taking `inout`**
+(`OM-AF`, measured in lane 2): `content()` writes `pass` at all four sites, and
+an `inout` parameter holds an exclusive access open across the whole call, so
+the closure's write overlaps it — four `#ExclusivityViolation` errors. A
+non-mutating method borrows `self`, which is what
+`pass.clipped(to:offsetBy:) { … pass … }` has always relied on. The signatures
+below are shown in their original free-function form because the bodies are
+what §5.2 specifies; the built spelling is
+`pass.paintDecoration(decoration, in: bounds, for: id) { … }` and
+`pass.registerAndScope(handlers, decoration, at: bounds, for: id) { … }`.
+
 ```swift
 // AnimatedColor.swift (paint) — beside `animatedBackground`, which it calls.
 @MainActor
@@ -379,7 +396,8 @@ func paintDecoration(_ decoration: Decoration, in bounds: Bounds<Pixels>,
                      for id: GlobalElementID, pass: inout PaintPass,
                      content: () -> Void)
 
-// Frame.swift or a new `HitRegion.swift` (prepaint).
+// `DecorationScope.swift` (prepaint) — a new file, so the parallel
+// frame/sizing track cannot collide with it.
 //
 // `accessibleText`/`synthesizesAccessibility` are NOT optional decoration:
 // `Text.prepaint` (Text.swift:311-313) calls the five-argument internal
@@ -727,14 +745,24 @@ broken instrument rather than passing as "inert".
 
 ### Lane 2 — paint-only decoration: border, focus ring, opacity, clip
 
-Source: `Box.swift` (`BorderStyle`, five `Decoration` members, five modifiers,
-delete `borderWidth`), `AnimatedColor.swift` (`resolvedBorder`,
-`paintDecoration`, the extracted hover/focus selector), `Box.swift`/
-`Stack.swift`/`Text.swift`/`ModifiedElement.swift` paint sites.
+**Built, 2026-09-15** (`c624d13` red-first, `9f37d10` the lane, plus two
+follow-ups). Record §15's lane 2 entry has the red run, the twenty-one
+mutations and the counts. What the build changed about this section is marked
+**Round 3** below and in `OM-AE`, `OM-AF` and `OM-AG`.
+
+Source: `Box.swift` (`BorderStyle`, five `Decoration` members, **eight**
+modifiers — `OM-AE` — delete `borderWidth`), `AnimatedColor.swift`
+(`resolvedBorder`, `paintDecoration`, the extracted hover/focus selector
+`effectiveForPointerState`), **`DecorationScope.swift`** (new:
+`registerAndScope`), `Box.swift`/`Stack.swift`/`Text.swift`/
+`ModifiedElement.swift` paint **and prepaint** sites, `Frame.pushClip`.
 `swift package clean` before the first test run of the `Decoration` commit.
 
-New file `Tests/MetalUITests/DecorationPaintTests.swift`, plus one new
-typecheck guard in `ErasureCompileGuards.swift`.
+New files `Tests/MetalUITests/DecorationPaintTests.swift` and
+**`Tests/MetalUITests/DecorationCompileGuards.swift`** — three guards in a file
+of their own rather than in `ErasureCompileGuards.swift`, because
+`ErasureCompileGuards` is a shared file the other tracks also touch and a
+per-file `grep -c canTypecheck` is how the guard count is taken.
 
 | # | test | red before | mutation |
 |---|---|---|---|
@@ -761,6 +789,25 @@ typecheck guard in `ErasureCompileGuards.swift`.
 | 15 | `aNegativeBorderWidthTraps` — an **exit test** | does not compile | removing the `precondition` from `BorderStyle.init` |
 | 15a | `aBorderWidthSetAfterInitIsStillValidated` and `anOpacitySetAfterInitIsStillValidated` — exit tests through `withWidths(_:)` and `setOpacity(_:)` (`OM-Y`) | does not compile | dropping the validation from either |
 | 15b | a typecheck guard, **plain import**: `BorderStyle.widths` and `Decoration.opacity` are not assignable from outside the module (`OM-Y`; a `@testable` test cannot demonstrate a narrowing — taxonomy shape 16). Mutate it red once | compiles today, since both are `var` | making either `public var` again |
+
+**Round 3 — what lane 2 changed about this table.**
+
+- Test 2's mutation table gained a second half: "emitting both before
+  `content()`" reddens test 2 as well as 2a, and the swap reddens test 2, 2a
+  **and** the existing `aContainerPaintsItsBackgroundBeneathItsChildren`.
+- Test 3's mutation (fill unconditionally) reddens test 3 alone; test 3a is
+  reddened by 3a's own mutation (emit the border unconditionally). The table
+  implied one mutation covered both.
+- **A test the table did not have:**
+  `aChainsOuterLayerScopesContainTheLayersInsideIt`. Every other opacity and
+  clip fixture is ONE element, so `ModifiedElement.paint`'s recursion — this
+  lane's one structural edit — had nothing that could see it. Restoring the old
+  loop reddened nothing until that test existed. `OM-AD`'s finding in its paint
+  form; the arm is a two-layer chain with the fade on the outer layer and the
+  fill on the inner one.
+- Test 12's guard moved to `DecorationCompileGuards.swift`, and 15b's with it.
+- The collision guard's recorded mutation is `OM-AG`'s G3b, not the one §8
+  implied.
 
 Tests 14 and 15 exist because `PaintPass.opacity` already has a
 `precondition((0...1).contains(value))` that a caller can now reach from element
@@ -882,7 +929,7 @@ brief's minimal-edits list or a shared test fixture.
 | **(b)** lane 4 **replaces** `StyledComponent`'s stored `amend` with `ops` and rewrites all six modifier methods, in `Component.swift` — a minimal-edits file — while `OM-F` hands `Component.width`/`height` to task 4 | the two tracks would edit the same property | a **boundary**, pre-agreed: `OM-F` freezes `Component.width`/`height` semantics as today's amend, so task 4 has no reason to edit those two methods; this track owns `StyledComponent`'s storage. Keeping `amend` alongside `ops` was rejected — two orderings cannot interleave, and `OM-E`'s order-sensitivity would be lost (§5.4) |
 | **(c)** lane 2 test 13 and lane 3 test 7 both mutate `ModifierTests.swift`'s single `cases` array and its `cases.count == 38` tripwire, as will task 4 | one array, three lanes and another track | the number is **pre-agreed at 47** for this track (38 − 2 + 8 + 3), stated in lane 3's table so task 4 adds to it rather than colliding |
 | `Decoration` gains stored properties across a module boundary | observed twice with `Scene`, once with `FontKey` | `swift package clean` before the first run of that commit, stated in lane 2 |
-| A new `StyledElement` modifier collides with the proposal extension's same-named one | `.background`, `.border`, `.opacity`, `.allowsHitTesting`, `.clip` exist on `ProposalElementGroup` | no type conforms to both today (`grep`), and `.background` already exists on both without ambiguity; lane 2 adds a typecheck guard asserting the inferred types on a `Box` and on an `HStack` |
+| A new `StyledElement` modifier collides with the proposal extension's same-named one | `.background`, `.border`, `.opacity`, `.allowsHitTesting`, `.clip` exist on `ProposalElementGroup` | no type conforms to both today (`grep`), and `.background` already exists on both without ambiguity; lane 2's `theLegacyAndProposalDecorationModifiersDoNotCollide` asserts the inferred types on a `Box` and on an `HStack`. **Round 3 (`OM-AG`, measured): the collision this row describes cannot be produced by adding a member to a superprotocol** — `ProposalElementGroup` refines `ElementGroup`, so Swift prefers the refined extension and there is no ambiguity. The reachable collision, and the guard's recorded mutation, is a legacy-only spelling leaking onto every proposal element (`clipped()` declared on `ElementGroup`) |
 | The matrix test agrees with itself by construction | shape 15 | `#require` the arms disagree before comparing kinds; at least one row per kind |
 | Lane 4 moves numbers a mutation record elsewhere cites | `Component.swift` carries eight mutation records | lane 4 re-runs and re-writes the `everyRegisteringSiteAnimatesItsStyle` `Component` arm rather than assuming it; the practices doc's "re-take the whole table" |
 | `contentShape` silently widening AX or focus | one call site handles all three | lane 3 test 5 |

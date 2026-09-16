@@ -154,9 +154,18 @@ func theValidatedDecorationFieldsAreNotAssignableFromOutsideTheModule() throws {
 /// states it as one: a `Box` chain must resolve to `Box`, and an `HStack` chain
 /// to the proposal wrapper, in one file that imports both surfaces.
 ///
-/// Mutated red once (record §15): declaring the legacy `opacity(_:)` on
-/// `ElementGroup` instead of `StyledElement` — where `HStack` would also see it
-/// — makes the `HStack` arm ambiguous and the fixture fails to compile.
+/// Mutated red once (record §15, mutation **G3b**): declaring `clipped()` on
+/// `ElementGroup` — where a proposal element sees it too — makes the `crossed`
+/// fixture compile, the two fixtures agree, and the `#require` fires.
+///
+/// **The obvious mutation does NOT redden it, and that is worth knowing**
+/// (G3, measured): declaring the legacy `opacity(_:)` on `ElementGroup` rather
+/// than on `StyledElement` leaves `HStack { … }.opacity(0.5)` **unambiguous**,
+/// because `ProposalElementGroup` refines `ElementGroup` and Swift's overload
+/// resolution prefers a more refined protocol's extension. So the collision
+/// this guard is named for cannot be produced by adding a member to a
+/// SUPERprotocol at all; what it does state is that `clipped()` stays
+/// legacy-only and that a legacy chain keeps inferring its concrete type.
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func theLegacyAndProposalDecorationModifiersDoNotCollide() throws {
     let both = try typecheckFile("""

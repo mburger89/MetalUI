@@ -2,9 +2,9 @@
 
 The record for plan task 5. Spec
 `docs/superpowers/specs/2026-09-15-outer-modifiers-design.md`; rulings
-`OM-A`…`OM-AC` in
+`OM-A`…`OM-AG` in
 `docs/superpowers/2026-09-15-outer-modifiers-decisions.md` (next unused
-`OM-AD`; the two-letter tails `OM-AA`…`OM-AC` are deliberate). The track runs in
+`OM-AH`; the two-letter tails `OM-AA`…`OM-AG` are deliberate). The track runs in
 its own worktree,
 `/Users/maxburger/Developer/MetalUI-outer-modifiers`, beside the task-4
 frame/sizing track, and is merged by an integration step that owns `CLAUDE.md`,
@@ -497,7 +497,246 @@ Four readings worth quoting on their own:
 
 #### Lane 2 — paint-only decoration: border, focus ring, opacity, clip
 
-*Not started.*
+**Commits.** `c624d13` (red-first: the divergence-15 inversion and three new
+compile guards), `9f37d10` (the lane — source, `DecorationPaintTests.swift`,
+`ModifierTests` and the matrix rows), then the two-layer scope test and the
+`OM-AG` doc correction the mutation round produced.
+
+**The first `Sources/` change on this branch.** `swift package clean` was run
+before the first test run of the commit that adds five stored properties to
+`Decoration`, a public type that crosses a module boundary (CLAUDE.md's build
+note; the same hazard that bit `Scene` twice and `FontKey` once).
+
+##### What was built, and the three places it departs from the spec
+
+Eight modifiers, not §5.1's eleven (`OM-AE`). `allowsHitTesting(_:)` and the
+two `contentShape(inset:)` overloads need `Handlers` members and prepaint
+wiring that are lane 3's; shipping them here would be three modifiers that
+compile and do nothing, in the commit that deletes `borderWidth` for being
+exactly that.
+
+`paintDecoration` and `registerAndScope` are **methods on their pass**, not
+free functions taking `inout` (`OM-AF`). The free-function form does not
+compile: `content()` writes `pass` at all four sites and an `inout` parameter
+holds an exclusive access open across the whole call. Verbatim, the four:
+
+```
+Sources/MetalUI/Stack.swift:131:82: error: overlapping accesses to 'pass', but modification requires exclusive access; consider copying to a local variable [#ExclusivityViolation]
+Sources/MetalUI/Stack.swift:175:64: error: overlapping accesses to 'pass', ... [#ExclusivityViolation]
+Sources/MetalUI/ModifiedElement.swift:231:39: error: overlapping accesses to 'pass', ... [#ExclusivityViolation]
+Sources/MetalUI/ModifiedElement.swift:272:64: error: overlapping accesses to 'pass', ... [#ExclusivityViolation]
+```
+
+The three guards live in a new `Tests/MetalUITests/DecorationCompileGuards.swift`
+rather than in `ErasureCompileGuards.swift`, which the other tracks also touch
+and whose per-file `grep -c canTypecheck` is how the guard count is taken.
+
+##### The red run, before any source change (`c624d13`)
+
+`swift test --build-system native --no-parallel --filter`, four tests, all red:
+
+```
+aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask, 9 issues (3 rows x 3):
+  NestedClipTests.swift:141:9  (row.contentMask.size.height -> 0.0) == (100 -> 100.0)
+  NestedClipTests.swift:148:9  (row.contentMask.origin.y -> 300.0) == (100 -> 100.0)
+  NestedClipTests.swift:150:9  (row.contentMask.origin.y == region.origin.y.value -> false)
+borderWidthIsNoLongerSpellable, 1 issue:
+  DecorationCompileGuards.swift:64:9 (control.succeeded && !points.succeeded -> false)
+  printed: points succeeded=true edges succeeded=true control succeeded=true
+theValidatedDecorationFieldsAreNotAssignableFromOutsideTheModule, 1 issue:
+  DecorationCompileGuards.swift:128:9 (control.succeeded && !opacity.succeeded -> false)
+  printed: "value of type 'Decoration' has no member 'opacity'",
+           "cannot find type 'BorderStyle' in scope"
+theLegacyAndProposalDecorationModifiersDoNotCollide, 1 issue:
+  DecorationCompileGuards.swift:183:9 (both.succeeded -> false) != (crossed.succeeded -> false)
+  printed: "value of type 'Box<EmptyGroup>' has no member 'border'"
+Test run with 4 tests in 0 suites failed after 1.522 seconds with 12 issues.
+```
+
+The rest of the lane's tests cannot be red before the API exists (they do not
+compile), so they landed with the source; the mutation round below is what
+makes them instruments rather than transcripts.
+
+**Two tests were red as instruments on their first run and were fixed rather
+than believed**, both recorded because the fix changed what the test measures:
+
+- `theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate` used a **plain class**
+  as its model. `withAnimation` parks a transaction only when a frame build is
+  coming, which it decides from the observation counter, so a plain class parks
+  nothing, the window never rebuilds, and the control arm read the resting
+  token. `@Observable` fixes it. It then failed again at `t = 100.5`: the frame
+  that STARTS a fade reads its own `from`, so the first post-write tick is not
+  mid-flight. The test now reads both frames — `t = 100.2`, where the
+  background is still at `surface` and the border is **already** `accent`, and
+  `t = 100.7`, where the background is at neither endpoint.
+- `theValidatedDecorationFieldsAreNotAssignableFromOutsideTheModule` asserted
+  the diagnostic text `"setter for 'opacity' is inaccessible"`. Swift 6.4 emits
+  `"cannot assign to property: 'opacity' setter is inaccessible"`. Corrected
+  against the printed message, not guessed.
+
+##### Mutations — twenty-one, applied singly, run filtered, reverted
+
+`git checkout -- Sources Tests` after each; `git status --short` clean of
+`Sources/` throughout. Every one reddened.
+
+| # | mutation | site | reddened |
+|---|---|---|---|
+| M1 | `paintDecoration` passes `borderWidths: Edges(all: Pixels(0))` | `AnimatedColor.swift` | `aBorderIsPaintedInsideTheElementsBoxAndChangesNoLayout` (2 pixel issues, `[235,99,37,255]` where `[214,205,200,255]` is the border), `aBorderIsVisibleOverAChildThatFillsTheBox`, `everyDecorationPaintingSiteDrawsItsBorder` (5 arms) — **8 issues** |
+| M2 | the two emissions swapped: border first, background after the children | `AnimatedColor.swift` | `aBackgroundIsEmittedBeforeTheChildrenAndABorderAfter` (both clauses: `2 < 1`, `1 < 0`), `aBorderIsVisibleOverAChildThatFillsTheBox`, and the pre-existing `aContainerPaintsItsBackgroundBeneathItsChildren` (4 issues) — **7 issues** |
+| M2b | both emitted **before** `content()` | `AnimatedColor.swift` | `aBackgroundIsEmittedBeforeTheChildrenAndABorderAfter` (`childIndex 2 < borderIndex 1`), `aBorderIsVisibleOverAChildThatFillsTheBox` |
+| M3 | `paintDecorationBody` fills unconditionally (`background ?? .transparent`) | `AnimatedColor.swift` | `anElementWithNeitherABackgroundNorABorderEmitsNoRect` |
+| M3a | the border rect emitted unconditionally | `AnimatedColor.swift` | `anElementWithNeitherABackgroundNorABorderEmitsNoRect`, `aBackgroundOnlyElementStillEmitsExactlyOneRect` (`plainCount 2 == 1`) |
+| M4 | `Stack.paint` reverted to its pre-lane fill (the `paintDecoration` call dropped at ONE site) | `Stack.swift` | `everyDecorationPaintingSiteDrawsItsBorder` at its **`Stack` arm** (`bordered.count 0 == 1`), `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain` at the same arm |
+| M5 | `resolvedBorder`'s chain reversed (hover outranks focus) | `AnimatedColor.swift` | `aFocusRingOutranksAHoverBorderAndABorder`, `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain` — **13 issues** |
+| M6 | `resolvedBorder` resolves `decoration.border` alone | `AnimatedColor.swift` | the same two, **and** the matrix's `focusBorder(_:width:), genuinely focused` row at its `paintOnly` witness (`rectsMoved`) — **14 issues** |
+| M7 | the opacity scope opened **after** the element's own fill | `AnimatedColor.swift` | `opacityMultipliesAndFadesTheElementsOwnBackground` (both the half and the quarter), `opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot` at its control |
+| M8 | the paint clip loses its radii (`Corners(all: Pixels(0))`) | `AnimatedColor.swift` | `clippedCutsTheSubtreeToTheElementsBoxAndRoundsItByTheCornerRadius` |
+| M9 | `pushClip`'s `+ activeOffset` reverted | `Frame.swift` | `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints` (`scrolled.mask 150` vs paint), `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` (9 issues). **The four regression-bound tests stayed green** in the same run: `nestedClipsIntersectRatherThanReplace`, `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`, `aHitboxInsideAScrolledRegionIsRecordedWhereItPaints`, `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame` |
+| M10 | the prepaint half of the clip dropped | `DecorationScope.swift` | `clippedAlsoClipsTheHitboxesInsideIt`, at its **`#require`**: both arms read 60, which is the defect stated as a broken instrument |
+| M11 | `pushRootClip`/`popClip` reset `opacityStack` | `Frame.swift` | `aDeferredPortalInsideAFadedSubtreeIsStillFaded` |
+| M12 | `StyledElement.opacity(_:)`'s precondition removed (and the value dropped) | `Box.swift` | `anOpacityAboveOneTraps` (both arms, `.failure -> .exitCode(0)`) **and the positive control** `theAdmittedOpacitiesAndBorderWidthsBehave` (`.success -> .signal(SIGTRAP)`), which is what says the control checks what it admits |
+| M13 | `BorderStyle.init(_:widths:)` stops validating | `Box.swift` | `aNegativeBorderWidthTraps` (3 arms), `aBorderWidthSetAfterInitIsStillValidated` |
+| M14 | `Decoration.setOpacity` stops validating | `Box.swift` | `anOpacitySetAfterInitIsStillValidated`, its `setOpacity` arm |
+| M14b | the memberwise `init` stops validating opacity | `Box.swift` | `anOpacitySetAfterInitIsStillValidated`, its `Decoration(opacity: 2)` arm |
+| M15 | `ModifiedElement.paint` restored to its pre-lane **loop** | `ModifiedElement.swift` | `aChainsOuterLayerScopesContainTheLayersInsideIt`, all three clauses. **Nothing else** — see below |
+| M16 | `paintLayer` recurses with the OUTER bounds | `ModifiedElement.swift` | `aChainsOuterLayerScopesContainTheLayersInsideIt`, `aLegacyChainsBackgroundCoversTheBoxAtThePointItWasWritten`, `everyBackgroundPaintingSiteHonoursHoverAndFocus` |
+| G1 | the `borderWidth` guard's two negatives pointed at `padding` | the guard | `borderWidthIsNoLongerSpellable` |
+| G2 / G2b | `Decoration.opacity` / `BorderStyle.widths` made a plain `public var` | `Box.swift` | `theValidatedDecorationFieldsAreNotAssignableFromOutsideTheModule`, each |
+| G3b | `clipped()` declared on `ElementGroup` | `Box.swift` | `theLegacyAndProposalDecorationModifiersDoNotCollide` (`both true != crossed true`) |
+
+**All three new guards ran rather than skipped**: `canTypecheck(module:
+"MetalUI")` is true in this worktree after `swift build --build-system native`,
+and each was reddened by its own mutation above.
+
+##### What the mutations found — `OM-AF`, `OM-AG`, and one missing test
+
+**M15 found a missing test, not a bug.** Restoring `ModifiedElement.paint`'s
+pre-lane loop — every layer's decoration emitted in sequence, then the content
+once — reddened **nothing**, because every opacity and clip fixture in
+`DecorationPaintTests.swift` was ONE element. An opacity on the outermost layer
+of a two-layer chain would have left the inner layer's fill opaque and a
+`.clipped()` there would have bounded nothing but the content, with no
+diagnostic. `aChainsOuterLayerScopesContainTheLayersInsideIt` was added: a
+`.padding(4).background(.accent).padding(8)` chain with the fade or the clip on
+the outer layer, asserting the INNER layer's 28x28 rect. M15 reddens all three
+of its clauses afterwards. Taxonomy shape 2 (fixtures too shallow), and
+`OM-AD`'s lane-1 finding reappearing in the paint phase — this lane read that
+finding, applied it to the two order tests it named, and did not apply it to
+the new scopes.
+
+**G3 is a mutation that could not redden its guard, and it is `OM-AG`.**
+Declaring the legacy `opacity(_:)` on `ElementGroup` — the collision §8's risk
+row describes — leaves `HStack { … }.opacity(0.5)` unambiguous, because
+`ProposalElementGroup` refines `ElementGroup` and Swift prefers the more
+refined protocol's extension. The guard's doc named that mutation; it now names
+G3b, the collision that IS reachable (a legacy-only spelling leaking onto every
+proposal element).
+
+##### The audit table, re-taken where lane 2 moved it
+
+Lane 1's sixteen matrix rows are eighteen. The two `borderWidth(_:)` rows are
+gone with the modifier and four rows replace them:
+
+| row | kinds | node | outer | rects | hit |
+|---|---|---|---|---|---|
+| `border(_:width:)`, sized box | self + paint-only | 0 | 0 | **moved** | identical |
+| `border(_:width:)`, content-sized box | self + paint-only | 0 | **0** | **moved** | identical |
+| `focusBorder(_:width:)`, focused | self + paint-only | 0 | 0 | moved | identical |
+| `opacity(_:)` | self + paint-only | 0 | 0 | moved | identical |
+| `clipped()` | self + paint-only | 0 | 0 | moved | identical |
+
+The content-sized row is the whole of `OM-B`/`OM-M` in one line. Lane 1
+measured `borderWidth(_:)` on that same box at **node 0 / outer +8 / rects
+identical** — it moved the layout by twice its width and painted nothing.
+`border(_:width:)` reads **outer 0 / rects moved**: layout-neutral, as SwiftUI's
+is (probe L2), and visible.
+
+`clipped()` claims `paintOnly` and not `prepaintOnly`, because lane 1's
+instrument treats the two as exclusive (`prepaintOnly` asserts `!rectsMoved`).
+Its prepaint half is pinned by `clippedAlsoClipsTheHitboxesInsideIt` instead,
+and the row's note says so.
+
+##### Counts, re-taken at the end of the lane
+
+| reading | value | against lane 1's `c07f141` |
+|---|---|---|
+| `swift test --build-system native --no-parallel` | `Test run with 1256 tests in 1 suite passed after 34.192 seconds.` | **+25** on 1231 |
+| `error:` / `warning:` in the run | **0** / **0** | unchanged |
+| `find Tests -name "*.json" \| wc -l` | **97** | unchanged; `git diff --stat c4b5853 -- Tests` lists no `.json` |
+| guards, `grep -c canTypecheck` per file | 19 / 10 / 5 / 3 / 3 / 2 / 6 / 6 / 8 / **3** = **65 hits, 64 guards** | **+3**, all in `DecorationCompileGuards.swift` |
+| `grep -c "public func" Sources/MetalUI/Box.swift` | **47** | 40 − 2 + 8 + `BorderStyle.withWidths` |
+| `ModifierTests`' `cases.count` tripwire | **44** | 38 − 2 + 8; lane 3 takes it to the pre-agreed 47 |
+
+##### The demo and the preview: 0 differing pixels, and the instrument that proves it can see one
+
+`ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked` read **`<true/>`** at
+**2026-09-15 20:22:34 PDT**, so no real-window `screencapture -R` was taken and
+none was attempted; no demo was launched and no input was sent. The offscreen
+comparison is the primary evidence (`OM-AC`), and it is sufficient on its own.
+
+Method, `MC-J`'s: `git archive c4b5853` and `git archive HEAD` into two scratch
+directories; in each, a generated test file holds that tree's `main.swift` up
+to `runDemo()` (types prefixed `SI`, globals `nonisolated(unsafe)`) and renders
+through a real `Window` over `FakePlatformWindow` at 1024x1024, scale 1, writing
+`fakeSurface.readPixels()`. Ten images per tree, debug builds. `Sources/MetalUIDemo`
+is byte-identical between the two commits (`git diff --stat c4b5853 -- Sources/MetalUIDemo`
+is empty), so the demo's own declarations are not a variable here.
+
+| comparison | differing pixels |
+|---|---|
+| control: base light vs base dark | 1 048 576 (all) |
+| control: base default vs base modal | 1 030 499 |
+| control: base default vs base animation look | 210 043, bbox (16, 113)–(981, 1007) |
+| control: base frame 0 vs base frame 3 | 0 (deterministic clock) |
+| **base vs lane 2, all ten images** | **0** |
+| instrument: lane 2 vs lane 2 with `paintDecoration`'s background emitted AFTER `content()` | demo/modal/animation, light and dark: **949 108** each, bbox (16, 16)–(1007, 1007); **preview 0** |
+
+The ten are `demoContent()` light and dark at frame 0 and after three ticks, the
+modal (`showModal = true`) light and dark, the settled animation look
+(`animationDemoActive = true`) light and dark, and
+`nativeLayoutPreviewContent()` light and dark.
+
+**Reading.** Lane 2 renders the default demo, the modal, the settled animation
+look and the proposal preview byte-identical to `c4b5853` in both themes. The
+instrument moves every legacy image when this lane's own helper changes its
+emission order, so the zeros are a statement about a code path the comparison
+actually exercises — and it moves **no** preview pixel, because the preview is
+the proposal path and reaches no `paintDecoration` at all, so the preview's zero
+is the weaker of the two claims (as record §13 said of the same pair).
+
+**Not covered**, unchanged from record §13: the drawable, the display's colour
+space, the real 920x560 window and AppKit appearance, anything input-, focus-,
+hover- or scroll-driven, a mid-flight animation, and a release build.
+
+**No deliberate demo change.** The focus ring is opt-in and the demo declares no
+`.focusBorder`; `grep -rnE "\.(border|hoverBorder|focusBorder|opacity|clipped)\(" Sources/MetalUIDemo`
+finds only the proposal preview's `.border`/`.opacity`, which are
+`ProposalElementGroup`'s and untouched. If a reviewer wants the ring seen on
+screen, it is a separate commit whose diff is the demo file alone (spec §7 lane
+4, step 3).
+
+##### Hazards the lane leaves for lanes 3 and 4
+
+- **`registerAndScope` is where lane 3's `allowsHitTesting` scope goes**, at the
+  TOP of the function, wrapping the receiver's own `registerHandlers` as well as
+  `content()` (`OM-T`, probe N1). The function is already shaped for it — the
+  closure and the generic return type are there — and its doc says so.
+- **`HandlerShape` and `HandlerFingerprint` must both gain `allowsHitTesting`
+  and `contentShapeInset`** in the same change `Handlers` does (CLAUDE.md's rule,
+  now covering two structs — lane 1's note).
+- **The tripwire is at 44, not 38.** Lane 3 adds three and lands on the
+  pre-agreed 47.
+- **`DecorationCompileGuards.swift`'s collision guard names `clipped()` as
+  legacy-only.** When lane 3 adds `allowsHitTesting(_:)` to `StyledElement` —
+  a name the proposal path also declares — the `both` fixture should gain a
+  legacy `.allowsHitTesting` arm, and `OM-AG`'s finding says the resulting
+  ambiguity cannot be produced by a superprotocol member.
+- **The matrix instrument treats `paintOnly` and `prepaintOnly` as exclusive.**
+  Lane 3's `contentShape(inset:)` row is `prepaintOnly` and must not also claim
+  `paintOnly`; `clipped()` is filed `paintOnly` for this reason and its prepaint
+  half is pinned separately.
+- **`Decoration` now has nine stored properties and five of them are new.**
+  `swift package clean` before the first run of any commit that adds a tenth.
 
 #### Lane 3 — hit testing: `allowsHitTesting` and `contentShape`
 
@@ -523,14 +762,24 @@ Four readings worth quoting on their own:
   under "2026-09-15: divergences 20–34 (tasks 3, 9 and 12, integrated)".
   **Next free: 35.** The wrong figure appeared in three places and is corrected
   in all three.
-- **Divergence 15 is RETIRED** (`OM-U`, round 2): lane 2 takes its one-line
-  `pushClip` fix, because `.clipped()` changes the defect's reach from "a
-  `ScrollView` inside a scrolled `ScrollView`" to "any element inside one".
-  `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` is inverted in the
-  same commit.
+- **Divergence 15 is RETIRED** (`OM-U`, round 2) — **done in lane 2**
+  (`c624d13` inverted the test, `9f37d10` added the term).
+  `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` keeps its name
+  deliberately, because CLAUDE.md, record §04 and the spec all cite it; every
+  expectation in it is inverted and its doc says which answer it now asserts.
+  Retiring the row from `CLAUDE.md` and `docs/record/04-divergences.md` is the
+  integration step's.
 - `CLAUDE.md`'s declared-but-inert table loses its `borderWidth(_:)` row
-  (`OM-M`) and its `MUIRect.borderColor`/`borderWidths` row becomes "reachable
-  through `Decoration.border`".
+  (`OM-M`, **done in lane 2**) and its `MUIRect.borderColor`/`borderWidths` row
+  becomes "reachable through `Decoration.border`/`hoverBorder`/`focusBorder` on
+  the legacy path and `.border` on the proposal one". `CLAUDE.md`'s **focus**
+  sentence also moves: "nothing above the renderer can draw a border
+  (`Frame.fill` hard-codes zero widths)" is false as of lane 2, and
+  `focusBorder(_:width:)` is the ring. So is the animation section's
+  "`Text`'s glyph colour and its measured *style* are still spec §8's holes"
+  neighbourhood: the **new** paint-only fields are unanimated too, deferred to
+  task 13 and pinned by
+  `theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate`.
 - `CLAUDE.md`'s `Deferred` sentence — "hoists to the root layer and resets clip
   and scroll offset together (AP-I)" — gains "and **not** opacity, which a faded
   subtree's portal inherits" (`OM-AA` b), which only becomes reachable once
@@ -538,8 +787,12 @@ Four readings worth quoting on their own:
 - `MC-G` hole 5's owner: the modifier-composition decisions doc says task 5, and
   task 5 closes it (`OM-Z`). No reassignment for integration to reconcile.
 - `CLAUDE.md`'s "three `pass.fill` sites" and "four `pass.fill` sites"
-  sentences, the animation section's registering-point counts, and
-  `ModifierTests`' "40 public funcs in `Box.swift`" reconciliation all move.
+  sentences, and the animation section's registering-point counts, all move:
+  after lane 2 the background sites go through `paintDecoration` and a bordered
+  element emits a **second** rect after its children. `ModifierTests`' "40
+  public funcs in `Box.swift`" reconciliation is re-taken **in the test file
+  itself** at 47, with a note that `grep -c "public func"` does not see
+  `Decoration.setOpacity` because it is `public mutating func`.
 - **`CLAUDE.md`'s `HandlerShape` sentence now covers TWO structs** (lane 1). It
   reads "`HandlerShape` in `ModifierTests.swift` must gain a field in the same
   change `Handlers` gains a member — it has fallen behind twice."
@@ -551,4 +804,13 @@ Four readings worth quoting on their own:
 - The focus-ring look is a **human** check: nothing in the suite can see whether
   a ring reads as a focus affordance. It belongs in CLAUDE.md's human
   verification table, open, with the demo key that shows it (if lane 4 adds
-  one).
+  one). **Lane 2 deliberately did not add one** — the demo is pixel-identical
+  and a ring in production would be a visual change made as a side effect of an
+  audit (`OM-G`'s argument, one field over).
+- **`OM-AE`'s eight-of-eleven split** is a fact about the branch between lanes 2
+  and 3 and should be gone by the merge; if lane 3 does not land, the
+  integration step must say that `allowsHitTesting` and `contentShape` are
+  specced and unbuilt rather than let §5.1 read as delivered.
+- **`OM-AG`** refutes a mechanism the spec's §8 risk table implies. If that
+  table is ever copied into `CLAUDE.md` or the plan, the corrected sentence is
+  the one in `OM-AG`.
