@@ -548,6 +548,14 @@ private final class CallCounter {
 /// leaves paint at, and the same discriminator the brief wanted — each leaf's
 /// rect moves under distribution, neither leaf's rect moves under wrapping —
 /// is observable here instead.
+///
+/// **Since the outer-modifiers task (`OM-D`) the discriminator reads
+/// differently but still discriminates.** A component's `.padding` now wraps
+/// each member, so the leaves keep their 0x0 and their ORIGINS move instead:
+/// `a` to x 4 inside its own wrapper and `b` to x 12 (after `a`'s 8-wide
+/// wrapper, plus its own 4). One wrapper around the pair would put both at
+/// x 4; the old amend put `a` at 0 with 8x8. The node count (+2, one per
+/// member) is the other half of the reading.
 private struct TwoAutoLeaves: Component {
     let log: ComponentLog
     var elementID: ElementID?
@@ -565,12 +573,14 @@ private struct TwoAutoLeaves: Component {
 /// `HStack { MyRow().padding(8) }` is 120x26 where `MyRow`'s body is a 30x10 and
 /// a 50x10, which is `(30+16) + 8 + (50+16)` — each child padded — and is
 /// bit-identical to `Group { A; B }.padding(8)`. Wrapping predicts 96-104. That
-/// SwiftUI measurement is about the DESIGN (distribute, don't wrap); it is not
-/// reproducible as a literal number here, because SwiftUI's `.padding()` grows
-/// a fixed-size frame (content-box-shaped) where this engine's `.padding()`
-/// is border-box only (`Style.swift:97`) and cannot move a box with an
-/// explicit size at all — see `TwoAutoLeaves`' own doc for the mismatch this
-/// forced, measured against the brief's literal fixture before it was changed.
+/// SwiftUI measurement is about the DESIGN (distribute, don't wrap). **Until
+/// the outer-modifiers task it was not reproducible as a literal number
+/// here**, because the amend wrote border-box `Style.padding` onto a leaf that
+/// already fixed its size — see `TwoAutoLeaves`' own doc for the mismatch that
+/// forced, measured against the brief's literal fixture before it was
+/// changed. Since lane 4 (`OM-D`) it IS reproduced literally:
+/// `aTwoMemberComponentsPaddingIsAppliedToEachMember` reads G2's 120x26 with
+/// `a` at (8, 8) and `b` at (62, 8).
 ///
 /// **Both halves are asserted and both are needed.** The node count alone cannot
 /// tell distribution from a modifier that did nothing at all; the rects alone

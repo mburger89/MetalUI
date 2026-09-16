@@ -5,11 +5,15 @@ Plan task 5. Spec:
 Record: [`../record/15-outer-modifiers.md`](../record/15-outer-modifiers.md).
 Branch `feat/outer-modifiers`, from `c4b5853`.
 
-Rulings are **lettered**: `OM-A` … `OM-AG`. **Next unused: `OM-AH`.** A bare
-`OM-1` is a typo, not a citation; the two-letter tails (`OM-AA`…`OM-AG`) are
+Rulings are **lettered**: `OM-A` … `OM-AM`. **Next unused: `OM-AN`.** A bare
+`OM-1` is a typo, not a citation; the two-letter tails (`OM-AA`…`OM-AM`) are
 deliberate, as `CO-`'s and `TB-`'s are.
 
-**Status: design revised twice; lanes 1 and 2 built.** `OM-AE`, `OM-AF` and
+**Status: design revised twice; all four lanes built** (lane 4 on 2026-09-16,
+`5cadec0` red-first, `367de92` the lane). `OM-AH` is lane 2's review round's;
+`OM-AJ`, `OM-AK` and `OM-AL` are lane 3's; **`OM-AM` is lane 4's**, written from
+a test run: the matrix instrument's `distributes` witness (`OM-AD`) could not
+classify a per-member WRAP, so it branches. `OM-AE`, `OM-AF` and
 `OM-AG` are lane 2's, each written from a run rather than from a probe. `OM-AD` is lane 1's, and it is
 the first ruling here written from a test run rather than from a probe: two of
 the instruments this document specified could not fail, and the mutation round
@@ -187,6 +191,18 @@ spec's lane 4. If the wrap turned out to disagree with SwiftUI on some shape not
 probed — a component whose body is a `Component` — the fix is the same node, one
 level in.
 
+**Built, lane 4 (`367de92`).** `ComponentModifierOp.wrap(Style)` and
+`StyledComponent.ops`; the wrapper carries the `Style` `StyledElement.padding`
+gives a `ModifierLayer` (`paddingWrapperStyle`, `Component.swift`). Pinned by
+`aComponentsPaddingWrapsEachTopLevelNode` (G10/G11 13x16 → 53x56, G12 30x10 →
+70x50 with the leaf at (20, 20)) and `aTwoMemberComponentsPaddingIsAppliedToEachMember`
+(G2's 120x26, `a` (8, 8), `b` (62, 8)). Mutation M1 (the wrap re-implemented as
+an amend of `Style.padding`) reddens both, the re-specified
+`aModifierOnAComponentDistributesToEachTopLevelChild`, the chain test, the order
+test's `#require`, the animation arm's `#require`, the exit test's fragment and
+the matrix's Component padding row — 21 issues across 8 tests, the red-first
+reading exactly (record §15, lane 4).
+
 ---
 
 ## OM-E — chained padding accumulates, and a component's ops apply in declaration order
@@ -246,6 +262,17 @@ withdrawn — it was a prediction about numbers no arm had taken.
 8. No such caller exists in `Sources/`. The old expectation survives in the
 record as a superseded measurement rather than being deleted.
 
+**Built, lane 4 (`367de92`).** `chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement`
+replaces `chainedPaddingReplacesRatherThanAccumulates` (three arms: `.padding(4)`
+→ 4, `.padding(8)` → 8, the chain → 12; the controls `#require`d to disagree).
+`aModifierOnAComponentAppliesInTheOrderItIsWritten` pins MetalUI's own
+readings — `.padding(4).width(70)`: outer 70, member (4, 4, 30, 10);
+`.width(70).padding(4)`: outer 78, member (4, 4, 70, 10) — after `#require`ing
+the two orders disagree, and names `OM-F`. Mutation M5 (every amend before every
+wrap) reddens exactly that `#require` and nothing else in the suite; M3 (only
+the last op applied) reddens the chain test, the order test's pins, the
+animation arm's member half and `widthAndHeightComposeOnAChainedModifier`.
+
 ---
 
 ## OM-F — `Component` `width`/`height` keep today's overwrite, and it is a recorded divergence
@@ -272,6 +299,13 @@ re-measured it and measured SwiftUI's side, which `CO-U` had not.
 **Cost if wrong.** The divergence stays one release longer. It is pinned by
 `aComponentsWidthStillOverwritesItsMembersDeclaredWidth`, so task 4 cannot
 close it silently.
+
+**Built, lane 4 (`367de92`).** `aComponentsWidthStillOverwritesItsMembersDeclaredWidth`
+(`ComponentTests.swift`): `TwoLeaves().width(70)` reads both members 70 (30/50
+bare), no node added, WRONG ON PURPOSE in its messages with G7's answer named.
+The order test above is the same divergence seen through order: SwiftUI's
+G15/G16 outer widths (70 / 78) are reproduced, its member geometry (30 wide,
+centred at x 20 / x 24) is not.
 
 ---
 
@@ -1072,6 +1106,20 @@ explains it rather than discovering it later. If `PreviewToggle` ever gains a
 `.padding`, it traps loudly at `SA-G` — which is hole 5 behaving as designed and
 not a regression.
 
+**Built, lane 4 (`5cadec0` red-first, `367de92`).**
+`aPaddingModifierOnAProposalComponentTraps` (`NativeBoundaryIntegrationTests.swift`),
+beside the amend pin. **It drives `StyledComponent.requestGroupLayout` directly
+rather than under a `Column`**: a `Column` would trap at its own `newNode` with
+the same "given a native child" fragment once its content returned, so an
+implementation whose `.padding` did nothing would still pass on the fragment.
+With the direct call the wrap's registration is the only legacy `newNode` in the
+process — red-first it trapped at `setStyle` instead (the amend), and mutation
+M2 (`newNode`'s native-child precondition deleted) makes it exit 0 alongside the
+direct pin `aNativeNodeRegisteredUnderALegacyNodeTraps`, the two tests the
+ruling predicted and no other. `grep -n "PreviewToggle()" Sources/MetalUIDemo/main.swift`
+at lane-4 time: one hit, line 1017, bare — the premise the pixel comparison's
+zero rests on, re-taken rather than cited.
+
 ---
 
 ## OM-AA — opacity is path-dependent, and `Deferred` does not reset it
@@ -1610,5 +1658,46 @@ doc: **write the scope last**. If a later task gives MetalUI a "no region"
 default (closing `OM-I`), this row closes with it and the X1 arm's expectation
 flips to 0 / 0 — the `#require(x1 != x2)` would then be the first thing to
 fail, which is the intended signal.
+
+---
+
+## OM-AM — the matrix's `distributes` witness branches: a per-member WRAP leaves each member's own size unchanged
+
+**Ruling.** A matrix row that claims `distributes` **and** `wraps` is witnessed
+by exactly `memberCount` new layout nodes and each member's own size
+**unchanged**; a row that claims `distributes` alone keeps `OM-AD`'s witness
+(no new node, each member's own size changed). The Component `padding(_:)` row
+claims both. Written from a run: the red-first run of lane 4, where the
+instrument as `OM-AD` left it could only fail the lane's own deliverable.
+
+**Reasoning.** `OM-AD` replaced "the delta appears twice" with "each member's
+own size changes" because a member's position records what its siblings did
+and its size records what the modifier did — for an **amend**. A wrap per
+member does nothing to the member's size by construction; what grows is the
+wrapper the container now sees, and what says "per member, not around the
+group" is the node count: two members, two nodes. One node around the pair
+reads 1 (mutation M4, which reddens exactly this branch's `nodeDelta ==
+members` plus the three `ComponentTests` that read `b`'s position); an amend
+reads 0 with the sizes moved (M1). The `wraps` witness the row also carries —
+`outerSizeDelta > 0` — is the third leg, and it is the one that catches a
+wrapper registered but not returned (M8: the container still sees the member,
+`outerSizeDelta` 0, and only that assertion reddens in the matrix).
+
+The spec's lane-1 text said of this row "lane 4 makes it a wrap per node; the
+kind does not change, the numbers do". The kind DID change — the matrix legend's
+`distributes` is "applied to each of a `Component`'s top-level nodes", and §3.1
+already wrote the cell as "**wraps each top-level node**" — and a witness
+written for one mechanism cannot be inherited by the other. Taxonomy shape 12
+again, one lane later: the size witness was reading the amend's own effect.
+
+**Evidence.** Red-first (`5cadec0`): `OuterModifierMatrixTests.swift:669`
+`nodeDelta > 0`, `:722` `nodeDelta == members`, `:727` `pair.0 == pair.1` twice
+— the row read as an amend. After `367de92`: green, and M1/M4/M8 each redden a
+different assertion of it (record §15, lane 4's mutation table).
+
+**Cost if wrong.** The instrument is one branch longer and the row carries two
+kinds. If task 4 makes `width`/`height` wrap per member (`OM-F`'s owner), those
+two rows move to the same branch by adding `.wraps` to their kinds — no new
+witness needed.
 
 ---

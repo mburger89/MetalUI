@@ -1575,9 +1575,11 @@ public final class Frame {
     }
 
     /// Overwrites a node's `Style` after it has already been registered.
-    /// `StyledComponent`'s write half: a modifier on a `Component` distributes
-    /// by amending each of its top-level nodes' styles in place rather than by
-    /// wrapping them in a new one (spec §5).
+    /// `StyledComponent`'s write half: a `width`/`height` on a `Component`
+    /// distributes by amending each of its top-level nodes' styles in place
+    /// (spec §5, `OM-F`). A `padding` on a `Component` no longer comes here —
+    /// since the outer-modifiers task it wraps each top-level node in a new
+    /// node through `requestNode` (`OM-D`).
     func setStyle(_ id: LayoutNodeID, _ style: Style) {
         tree.setStyle(id, style)
     }

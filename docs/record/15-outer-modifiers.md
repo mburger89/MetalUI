@@ -2,9 +2,9 @@
 
 The record for plan task 5. Spec
 `docs/superpowers/specs/2026-09-15-outer-modifiers-design.md`; rulings
-`OM-A`…`OM-AG` in
+`OM-A`…`OM-AM` in
 `docs/superpowers/2026-09-15-outer-modifiers-decisions.md` (next unused
-`OM-AH`; the two-letter tails `OM-AA`…`OM-AG` are deliberate). The track runs in
+`OM-AN`; the two-letter tails `OM-AA`…`OM-AM` are deliberate). The track runs in
 its own worktree,
 `/Users/maxburger/Developer/MetalUI-outer-modifiers`, beside the task-4
 frame/sizing track, and is merged by an integration step that owns `CLAUDE.md`,
@@ -1163,7 +1163,230 @@ it immediately before each `screencapture -R`, not once.
 
 #### Lane 4 — `Component` padding wraps, and the verification
 
-*Not started.*
+**Commits.** `5cadec0` (red-first: the seven rows' tests, the exit test, the
+matrix row's two kinds and the animation arm's re-specification, with the 21
+red issues in the message), `367de92` (the lane: `Component.swift` only), then
+this record with `OM-AM`, the spec's built notes, and five stale doc comments.
+
+**A continuation, second time.** The run that began the track stopped at
+2026-09-15 21:46 PDT mid-lane 3; lane 3 was finished and reviewed by a
+continuation (`641c91c`). This lane started 2026-09-16 04:1x PDT on a clean
+worktree at `641c91c` with nothing uncommitted.
+
+##### What was built, and the two places it departs from the spec
+
+`ComponentModifierOp` (`.amend(@Sendable (inout Style) -> Void)`, `.wrap(Style)`)
+and `StyledComponent.ops: [ComponentModifierOp]` replacing `amend`.
+`requestGroupLayout` forwards `parent` and `cursor` unchanged, then maps each
+returned node through the ops in order with a current node: an amend reads,
+amends and sets the current node's `Style`; a wrap registers
+`pass.requestNode(style:children: [current])` and replaces it. `Component.padding`
+contributes `.wrap(paddingWrapperStyle(points))`, where `paddingWrapperStyle`
+is `Style()` with `padding` set — the `Style` `StyledElement.padding` gives a
+`ModifierLayer` (`Box.swift`); `width`/`height` contribute `.amend`
+(`OM-F`); `StyledComponent`'s three append. No new precondition (`OM-Z`).
+`Component.swift` is the only source file the lane commit touches.
+
+1. **The exit test drives `StyledComponent.requestGroupLayout` directly, not
+   under a `Column`** (spec row 1a says "the route through `StyledComponent`"
+   and the `.amend` pin beside it uses a `Column`). A `Column` traps at its own
+   `newNode` with the SAME "given a native child" fragment once its content
+   returns, so a `.padding` that did nothing would still pass on the fragment.
+   With the direct call (`LayoutPass(frame:)`, `@testable`) the wrap's
+   registration is the only legacy `newNode` in the process; red-first it
+   trapped at `setStyle` (the amend), and M2 makes it exit 0.
+2. **The matrix instrument's `distributes` witness branches** (`OM-AM`). Lane
+   1's witness — each member's own SIZE changes, `OM-AD` — is an amend's; a
+   per-member wrap leaves the size unchanged by construction and adds a node
+   per member, so the red-first run failed the lane's own deliverable on
+   `nodeDelta == 0` and `pair.0 != pair.1`. The Component `padding(_:)` row now
+   claims `[.distributes, .wraps]`: exactly `memberCount` new nodes, member
+   sizes unchanged, and the `wraps` witness's bigger outer box. The spec's
+   lane-1 note "the kind does not change, the numbers do" was wrong on the
+   kind.
+
+The seventh row's arm (`everyRegisteringSiteAnimatesItsStyle`, Component)
+reads the wrapper `group` returns and the member as its only child through
+`pass.frame.tree.children`, `#require`ing exactly one of each; the readings
+moved from one node's (320, 80, 20) to the wrapper's `padding.left` 20 and the
+member's (320, 80), at both samples — B-7 unchanged.
+
+##### The red run
+
+`swift test --build-system native --no-parallel --filter` over the ten named
+tests, against the source at `641c91c` (8 failed, 2 passed, 21 issues; the
+full list is in `5cadec0`'s message):
+
+```
+everyRegisteringSiteAnimatesItsStyle       AnimationTests.swift:1025  wrapperAndMember(...) != nil
+aModifierOnAComponentDistributesToEachTopLevelChild  ComponentTests.swift:602/613/617
+    nodes 3 against 3; a (0.0, 26.0, 8.0, 8.0); b (8.0, 26.0, 8.0, 8.0)
+chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement  :849  four.x != eight.x — both (x: 0.0, nodes: 3)
+aComponentsPaddingWrapsEachTopLevelNode    :952/954/956/965/967/972
+    SoloText padded (13.0, 16.0, nodes 3) = bare — inert; Solo padded (40.0, 40.0); leaf (0, 0, 40, 40)
+aTwoMemberComponentsPaddingIsAppliedToEachMember  :1007/1008/1010/1011
+    a (0, 0, 30, 16); b (38, 0, 50, 16); outer 88; nodes 4 against 4
+aModifierOnAComponentAppliesInTheOrderItIsWritten  :1054  the two orders read identically
+aPaddingModifierOnAProposalComponentTraps  NativeBoundaryIntegrationTests.swift:117
+    stderr.contains("given a native child") — trapped at setStyle instead
+everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays
+    OuterModifierMatrixTests.swift:669 nodeDelta > 0; :722 nodeDelta == members; :727 pair.0 == pair.1 (x2)
+addingAModifierDoesNotResetAComponentsState            passed
+aComponentsWidthStillOverwritesItsMembersDeclaredWidth passed
+Test run with 10 tests in 0 suites failed after 0.297 seconds with 21 issues.
+```
+
+The 13x16 in `aComponentsPaddingWrapsEachTopLevelNode` is the system font's
+`Text("Hi")` on this machine — the same 13x16 the design session's scratch T1
+read and SwiftUI's G10 reads — and the red run confirms it: the bare arm
+already read (13.0, 16.0) before the lane, and the padded arm read the same,
+which is the inertness the spec's §4.4 first row describes.
+
+##### Mutations — eight, applied singly by script, restored from a `cp` backup after `367de92`
+
+Run filtered over `ComponentTests`, the two boundary-trap pins, the direct
+`newNode` pin, the animation guard, the matrix and
+`legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes` (32 tests); after each,
+`git status --short` read 0 dirty files.
+
+| # | mutation | reddened (issues) |
+|---|---|---|
+| M1 | `.wrap` re-implemented as `.amend { $0.padding = … }` at both padding sites — the spec's named mutation for row 1 | **8 tests, 21 issues: the red-first reading exactly** — the animation arm's `#require`, `aModifierOnAComponentDistributesToEachTopLevelChild` ×3, the chain test's `#require`, `aComponentsPaddingWrapsEachTopLevelNode` ×6, `aTwoMemberComponentsPaddingIsAppliedToEachMember` ×4, the order test's `#require`, the exit test's fragment, the matrix ×4 |
+| M2 | `LayoutTree.newNode`'s native-child precondition deleted — row 1a's named mutation | **2 tests, 4 issues**: `aPaddingModifierOnAProposalComponentTraps` and `aNativeNodeRegisteredUnderALegacyNodeTraps`, each on both its exit expectation (`EXIT_SUCCESS` reported) and its fragment. The two the ruling predicted, and no other |
+| M3 | only the last op applied (`ops.suffix(1)`) — row 2's | **4 tests, 9 issues**: the chain test's `chain.x == 12` and `+4` nodes, the order test's three pins (its `#require` stays green: one op each still differs), the animation arm's member half ×2, and `widthAndHeightComposeOnAChainedModifier` ×2 |
+| M4 | one wrapper around the member LIST instead of one per member — row 3's | **4 tests, 8 issues**: `aTwoMemberComponentsPaddingIsAppliedToEachMember`'s `b`, outer 120 and `+2` nodes; the distributes test's `+2` and `b`; the chain test's two node counts; the matrix's `nodeDelta == members` (`OM-AM`'s branch, alone in the matrix) |
+| M5 | every amend applied before every wrap — row 4's | **1 test, 1 issue**: `aModifierOnAComponentAppliesInTheOrderItIsWritten`'s `#require` that the two orders disagree. Nothing else in the 32 sees order, which is what the row predicted |
+| M6 | `StyledComponent` mints an id and hands it down as the parent — Step 8's, row 5's | **1 test, 1 issue**: `addingAModifierDoesNotResetAComponentsState` (reads 1, not 3) — exactly, as the `Component` milestone recorded |
+| M7 | lane 4 reverted (`git show 5cadec0:Sources/MetalUI/Component.swift`) — row 7's | **8 tests, 21 issues**, the same list as M1 |
+| M8 | the wrapper registered but the MEMBER returned as outermost (`_ = pass.requestNode(...)`) — not in the spec; added because M1 and M4 both move the node count, and this one does not | **6 tests, 13 issues**: the animation `#require`, the distributes test's `a`/`b`, the chain `#require`, test 1's four geometric assertions (its node counts stay green — the node IS registered), test 3's `a` and outer, the order `#require`, and in the matrix **only `outerSizeDelta > 0`** — the `wraps` witness, which is why the row claims two kinds |
+
+##### What the mutations found
+
+- **M5 reddening one assertion is the point, not a gap**: order is observable
+  only where an amend and a wrap meet on one member, and the suite has one
+  such fixture on purpose. A second one would be the same test.
+- **M8 says the matrix row's two kinds are both load-bearing.** With
+  `distributes` alone (even branched), a wrapper that is registered and
+  discarded reads `nodeDelta == members` and unchanged sizes — green. The
+  `wraps` witness's `outerSizeDelta > 0` is what sees it.
+- **M3 reaches `widthAndHeightComposeOnAChainedModifier`**, a Component-milestone
+  test that never knew about ops: two amends are two ops, and dropping all but
+  the last drops the width. The old amend-closure composition had the same
+  property under a different mutation ("drop `previous`"), which that test's doc
+  still describes; it holds for the list too.
+
+##### Counts, re-taken at `367de92`
+
+| reading | value | against `641c91c` |
+|---|---|---|
+| `swift test --build-system native --no-parallel` (after `swift build --build-system native --build-tests`) | `Test run with 1274 tests in 1 suite passed after 38.749 seconds.` (and 38.472 s re-run on the tree with the doc-comment corrections below, 0 issues) | **+5** on 1269: `aComponentsPaddingWrapsEachTopLevelNode`, `aTwoMemberComponentsPaddingIsAppliedToEachMember`, `aModifierOnAComponentAppliesInTheOrderItIsWritten`, `aComponentsWidthStillOverwritesItsMembersDeclaredWidth`, `aPaddingModifierOnAProposalComponentTraps`; `chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement` replaces `chainedPaddingReplacesRatherThanAccumulates` one for one |
+| `error:` / `warning:` | **0** / **1** — SwiftPM's own `--build-system native` deprecation notice | unchanged |
+| skipped | the two gated tests only | unchanged |
+| `find Tests -name "*.json" \| wc -l` | **97**; `git diff --stat c4b5853 -- Tests` lists no `.json` | unchanged — `Component.swift` is outside `Sources/MetalUILayout/` (`OM-Q`) |
+| guards, `grep -c canTypecheck` per file | 19 / 10 / 5 / 6 / 2 / 6 / 8 / 3 / 3 / 3 = **65 hits, 64 guards** | unchanged; the lane adds no guard |
+| `grep -c "public func" Sources/MetalUI/Box.swift` | **50** | unchanged |
+| `ModifierTests`' `cases.count` tripwire | **47** | unchanged |
+| `grep -c sleep` over the two test files touched | **0** / **0** | — |
+| exit tests | one new, `#expect(processExitsWith: .failure)` with its fragment | — |
+
+##### The demo and the preview: 0 differing pixels in all ten, scene dumps identical, and the instrument that says what the zero can and cannot see
+
+**Display state.** `ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked` read
+**`<true/>`** at **2026-09-16 04:30:10 PDT** and again at **04:35:54 PDT**
+and **`<true/>`** at **2026-09-16 04:38:03 PDT**, the lane's last reading. No real-window `screencapture -R` was
+attempted, no demo was launched and no input was sent. The offscreen
+comparison is the primary evidence (`OM-AC`).
+
+**Method, record §13's and lane 2's, with the scene dump added.**
+`git archive c4b5853` and `git archive 367de92` into two scratch directories
+(`Sources/MetalUIDemo` is byte-identical between them: `git diff --stat
+c4b5853 -- Sources/MetalUIDemo` is empty). In each, a generated
+`Tests/MetalUITests/ZZSnapshotHarness.swift` holds that tree's `main.swift`
+up to `func runDemo()` — thirteen top-level types prefixed `SI`, the seven
+top-level globals `nonisolated(unsafe)` — and one test that renders through a
+real `Window` over `FakePlatformWindow` at 1024x1024, scale 1, and writes both
+`fakeSurface.readPixels()` and `String(describing: window.lastScene)` (9.2 MB
+per default-demo frame, 64 KB per preview frame). The generated file is
+byte-identical in the two trees (`cmp`). Ten images per tree, debug builds:
+`demoContent()` light and dark at frame 0 and after three ticks, the modal
+(`showModal = true`) light and dark, the settled animation look
+(`animationDemoActive = true`, no transaction) light and dark, and
+`nativeLayoutPreviewContent()` light and dark. Frame 0 emits 518 rects (520
+with the modal), the preview 16 — record §13's counts.
+
+| comparison | differing pixels | scene dump |
+|---|---|---|
+| control: base light vs base dark | 1 048 576 (all) | differs |
+| control: base default vs base modal | 1 030 498 | differs |
+| control: base default vs base animation look | 210 027, bbox (16, 113)–(981, 1007) | differs |
+| control: base frame 0 vs base frame 3 | 0 | identical |
+| **base `c4b5853` vs lane 4 `367de92`, all ten images** | **0** | **identical, all ten** |
+| instrument A: `367de92` with the COMPONENT wrapper's padding doubled (`paddingWrapperStyle`) | **0, all ten** | identical |
+| instrument B: `367de92` with the ELEMENT path's `padding(_ points:)` doubled (`Box.swift`) | default 402 223 light / 402 218 dark, modal 395 220 / 395 199, animation 414 103 / 414 100, bbox (16, 16)–(1007, 1007) each; **preview 0** | differs (preview identical) |
+
+**Reading.** Lane 4 renders the default demo, the modal, the settled animation
+look and the proposal preview byte-identical to `c4b5853` in both themes, in
+pixels and in emitted primitives. **Instrument A is the honest half of the
+claim**: the harness cannot see this lane's code path at all, because the demo
+constructs no `StyledComponent` — `grep -n "PreviewToggle()"
+Sources/MetalUIDemo/main.swift` reads one hit, line 1017, bare, the premise
+`OM-Z` re-derived the zero on; and `grep -rnE "\.(border|hoverBorder|focusBorder|opacity|clipped|allowsHitTesting|contentShape)\("
+Sources/MetalUIDemo` reads five hits, all in the proposal preview and all
+`ProposalElementGroup`'s. So the ten zeros are a regression check that lane 4
+moved nothing ELSE, not evidence about the wrap. Instrument B is the control
+for the harness itself: a padding change on the element path moves ~400 000
+pixels in every legacy image and none in the preview, so a legacy-path
+regression would have been seen.
+
+**Not covered**, unchanged from record §13 and lane 2: the drawable, the
+display's colour space, the real 920x560 window and AppKit appearance, anything
+input-, focus-, hover- or scroll-driven, a mid-flight animation, and a release
+build. The release-window captures stay owed, by `MC-J`'s method, on an
+unlocked session.
+
+**No deliberate demo change.** The focus ring stays opt-in (lane 2), and no
+`Component` in the demo carries a modifier. If a reviewer wants either seen on
+screen, it is a separate commit whose diff is the demo file alone (spec §7 lane
+4, step 3).
+
+##### Stale doc comments corrected
+
+Five, each of which described `Component` padding as an amend: `Frame.setStyle`
+("distributes by amending … rather than by wrapping"), `LayoutPass.style`'s
+narrowing note, `ProposalNodeID.swift`'s hole 5 (now names both traps and both
+pins), `LayoutTree.setStyle` ("the reachable route"), and in `ComponentTests`
+the distributes test's "not reproducible as a literal number here" (G2's 120x26
+now is, literally) and `TwoAutoLeaves`' discriminator. `Component.swift`'s own
+type doc was rewritten in the lane commit: the "padding on a single-leaf
+component is completely inert" paragraph is gone, the chained extension's "not
+accumulation" is inverted with the probe cited, and the B-7 measurement is
+re-stated on two nodes. `AnimationTests`' Component arm no longer names
+`chainedPaddingReplacesRatherThanAccumulates`; `OuterModifierMatrixTests`'
+element-half doc points at the replacement.
+
+##### Hazards the lane leaves for the integration step
+
+- **CLAUDE.md's `Component` paragraph is stale in three sentences**: "chained
+  `.padding` replaces rather than accumulates" (now accumulates, `OM-E`);
+  "`.padding()` on a single-`Text` component is inert while that leaf is
+  content-sized" (now 13x16 → 53x56, `OM-D`); and the inert table's row
+  "…and a `Component`'s distributed `.padding`: ignored on a content-sized
+  leaf" (the distributed `.padding` no longer writes `Style.padding` at all).
+  "`width`/`height` overwrite" stays true (`OM-F`).
+- **CLAUDE.md's animation section**: "A caller's modifier on a `Component`
+  always snaps … `MyComponent().width(196)` → `.width(320)` … reads 320 at
+  t = 0 and t = 0.5" stays true; its `padding` example now reads on the wrapper
+  node (20 at both samples) rather than on the member.
+- **`ProposalNodeID.swift`'s hole 5 is closed at run time by two traps**, both
+  pre-existing (`OM-Z`); the modifier-composition decisions doc's "task 5"
+  assignment is discharged.
+- **`OM-AM` changes what the matrix's `distributes` kind means for a row that
+  also claims `wraps`**; if task 4 makes `width`/`height` wrap per member, those
+  two rows add `.wraps` and move to the same branch.
+- **`Component.swift` still contains the literal `// MUTATION`** in the
+  Component-milestone comments (lane 3's note); this lane's mutation script
+  verified reverts by `git status --short` and `cp` backups, not by grepping
+  `Sources/`.
 
 ---
 
@@ -1242,3 +1465,12 @@ it immediately before each `screencapture -R`, not once.
 - **`OM-AG`** refutes a mechanism the spec's §8 risk table implies. If that
   table is ever copied into `CLAUDE.md` or the plan, the corrected sentence is
   the one in `OM-AG`.
+- **Lane 4 (`OM-D`, `OM-E`, `OM-F`, `OM-Z`, `OM-AM`)**: CLAUDE.md's `Component`
+  paragraph loses "chained `.padding` replaces rather than accumulates" and
+  "`.padding()` on a single-`Text` component is inert"; the inert table's
+  `Style.padding` row loses its "and a `Component`'s distributed `.padding`"
+  clause; the divergence table gains `OM-F` (a component's `width`/`height`
+  overwriting its members' own, where SwiftUI's `.frame` wraps) with the next
+  free number; `MC-G` hole 5 is closed by two existing traps and two exit
+  tests; and the demo comparison for the whole track is on record above with
+  its instrument.

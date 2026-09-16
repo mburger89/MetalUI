@@ -461,7 +461,9 @@ public final class LayoutTree {
     /// Traps while either engine is laying the tree out (ruling SA-I), and on a
     /// native node at any time (ruling SA-G): the proposal engine never reads
     /// `Style`, so the write would be silently inert. The reachable route is a
-    /// legacy style modifier on a proposal `Component` (`StyledComponent`).
+    /// legacy `width`/`height` on a proposal `Component` (`StyledComponent`'s
+    /// amend); its `padding` wraps instead and meets `newNode`'s native-child
+    /// check.
     public func setStyle(_ id: LayoutNodeID, _ s: Style) {
         precondition(!isLayingOut,
                      "setStyle called while computeLayout is running — measured sizes are memoized against the styles this would change")

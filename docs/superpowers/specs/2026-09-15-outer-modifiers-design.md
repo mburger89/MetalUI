@@ -591,6 +591,14 @@ instead is a **boundary**: `OM-F` freezes `Component.width`/`height` semantics a
 today's amend, so task 4 has no reason to edit `StyledComponent.width`/`height`
 at all, and this track owns `StyledComponent`'s storage. §8 carries it.
 
+**Built, 2026-09-16 (lane 4, `5cadec0` red-first, `367de92`).** As specified,
+with one wording correction: the current-node walk is a `nodes.map` per member,
+and the wrapper's `Style` comes from a private `paddingWrapperStyle(_:)` so the
+component and element paths share one box model by construction rather than by
+copy. Mutation M4 (one wrapper around the member LIST) and M5 (every amend
+before every wrap) are the two shapes this section rules out, and each reddens
+the test written for it and nothing else it should not (record §15, lane 4).
+
 ---
 
 ## 6. Order-sensitive chains, and where each expectation comes from
@@ -762,7 +770,7 @@ mechanism-specific witness:
 | **self** | `nodeDelta == 0`, and the written field differs between arms on the **outermost** `ModifierLayer` — the same reflection `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` uses |
 | **paint-only** | `nodeDelta == 0 && outerSizeDelta == 0` **and** `rectDelta != 0` |
 | **prepaint-only** | the first three all zero **and** `hitRegionDelta != 0` or `hitCountAtEdge` moves |
-| **distributes** | the measurement is repeated on a two-member `Component` and each member's own **SIZE** changes, all of them (`OM-AD`; the first draft said "the delta appears twice", and a delta appearing on member 1 is what member 0's growth does to it) |
+| **distributes** | the measurement is repeated on a two-member `Component` and each member's own **SIZE** changes, all of them (`OM-AD`; the first draft said "the delta appears twice", and a delta appearing on member 1 is what member 0's growth does to it). **Lane 4 (`OM-AM`): for a row that also claims `wraps` — the Component `padding(_:)` row once it wraps per member — the witness is exactly `memberCount` new nodes and each member's own size UNCHANGED; the size witness was an amend's, and a per-member wrap leaves the size alone by construction** |
 
 Rows must not be uniform: at least one row of each kind, and `#require` on the
 arms disagreeing **before the kind derivation runs, not only before the row
@@ -901,6 +909,30 @@ three `Component` and three `StyledComponent` methods).
 | 5 | `addingAModifierDoesNotResetAComponentsState` (existing) must stay green | — | minting an id in `StyledComponent.requestGroupLayout` (Step 8's mutation, still valid) |
 | 6 | `aComponentsWidthStillOverwritesItsMembersDeclaredWidth` (G7/G8) | green, **pinned wrong on purpose**, owner task 4 | — |
 | 7 | `everyRegisteringSiteAnimatesItsStyle`'s `Component` arm — **re-measure and rewrite its readings**: the padding half now lands on a wrapper node the member's `animated` never sees, so B-7's "a caller's modifier never animates" still holds but the numbers it reads move | red the moment lane 4 lands | reverting lane 4 |
+
+**Built, 2026-09-16** (`5cadec0` red-first, `367de92` the lane, then the
+record commit). All seven rows landed; two departures from the table as
+written, both recorded in `OM-AM` and `OM-Z`'s built notes:
+
+- **Row 1a's exit test drives `StyledComponent.requestGroupLayout` directly,
+  not under a `Column`.** A `Column` traps at its own `newNode` with the SAME
+  "given a native child" fragment once its content returns, so a `.padding`
+  that did nothing would still pass on the fragment; with the direct call the
+  wrap's registration is the only legacy `newNode` in the process. Red-first it
+  trapped at `setStyle` (the amend); the named mutation (M2) makes it and the
+  direct pin both exit 0.
+- **The matrix instrument needed a branch** (`OM-AM`): lane 1's `distributes`
+  witness — each member's own size changes — is an amend's, and a per-member
+  wrap leaves the size unchanged by construction, so the red-first run failed
+  the lane's own deliverable on `pair.0 == pair.1`. The Component `padding(_:)`
+  row now claims `[.distributes, .wraps]` and is witnessed by exactly
+  `memberCount` new nodes, unchanged member sizes and a bigger outer box.
+
+Row 4's numbers, as pinned: `.padding(4).width(70)` → outer 70, member
+(4, 4, 30, 10); `.width(70).padding(4)` → outer 78, member (4, 4, 70, 10) —
+SwiftUI's outer widths (G15/G16), not its member geometry (`OM-F`). Row 7's
+re-measured readings: the wrapper's `padding.left` 20 at both samples, the
+member's (w, h) (320, 80) at both — still B-7, on two nodes.
 
 **Verification, in this lane, against `c4b5853`:**
 
