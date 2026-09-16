@@ -26,7 +26,10 @@ the integrator"**) were written last, by the record pass, after the
 continuation that finished lanes 3 and 4. The verdicts for lanes 1 and 2 were
 lost with the run that was cut off at 21:46 PDT on 2026-09-15, and their
 subsections say what is reconstructed and from where; the verdicts for lanes 3
-and 4 are quoted from the verifiers' reports.
+and 4 are quoted from the verifiers' reports. **Lane 4 was verified twice**:
+at `2fb0800` (eleven mutations) and again, re-dispatched, at `ec504b7` (five
+mutations, 1274 tests, three minors of which the record writer refuted two on
+inspection and carried one). Every lane's verdict is **ok**.
 
 ---
 
@@ -1563,6 +1566,83 @@ demo harness. Every one reddened what was expected.**
 built note; the M8 row's "6 tests" is "7 tests" (the list it gives is seven
 and the run reads seven).
 
+##### Second verifier's verdict, 2026-09-16 ~09:18 PDT, at `ec504b7` — **ok**, three minors (two refuted by the record writer, one carried)
+
+A re-dispatched verification of the finished lane, on the tree the record pass
+left. Quoted from the verifier's report, then checked.
+
+**Suite.** `swift build --build-system native --build-tests`; `swift test
+--build-system native --no-parallel` at `ec504b7`: `Test run with 1274 tests
+in 1 suite passed after 42.308 seconds.` 0 `error:`; the only `warning:` line
+SwiftPM's `--build-system native` deprecation notice; skipped only
+`regenerateAllGoldens` and `aListsWorkIsTheSameFor100kRowsAsFor500`.
+`.build/<triple>/debug/Modules` present, so the guards ran: **65 `canTypecheck`
+hits** outside `Typecheck.swift`, the same at `641c91c` and at HEAD — lane 4
+added no guard. 97 goldens; `git diff c4b5853` lists no `.json`. Lane 4's only
+behavioural source change is `Component.swift`; the `641c91c..HEAD` edits to
+`Frame.swift`, `Passes.swift`, `ProposalNodeID.swift` and
+`MetalUILayout/LayoutTree.swift` are comment lines only (the diff grepped for
+changed lines that are not comments). Red-first holds (`5cadec0` before
+`367de92`; the earlier verifier's M7 re-ran the red list).
+`docs/probes/swiftui-component-distribution.swift` re-run under `xcrun swiftc`:
+G0–G16 reproduce exactly, including G2 120x26, G4's accumulation, G11 53x56,
+G12 70x50 and G15/G16. Display **`IOConsoleLocked` true at 09:17:49 PDT**, so
+no `screencapture`; the offscreen comparison stands as recorded above (0 pixels
+in all ten, the element-path padding-doubling instrument ~400k). The demo
+builds no `StyledComponent`, so there is no demo change to show. Worktree left
+clean.
+
+**Mutations — five, the verifier's own numbering, every one reddened what was
+expected** (test names only; the verifier gave no line numbers):
+
+| # | mutation | reddened |
+|---|---|---|
+| V1 | `StyledComponent.requestGroupLayout` iterates `ops.reversed()` | `aModifierOnAComponentAppliesInTheOrderItIsWritten`, `everyRegisteringSiteAnimatesItsStyle` |
+| V2 | `paddingWrapperStyle` pads the left edge only | `aComponentsPaddingWrapsEachTopLevelNode`, `aModifierOnAComponentAppliesInTheOrderItIsWritten`, `aModifierOnAComponentDistributesToEachTopLevelChild`, `aTwoMemberComponentsPaddingIsAppliedToEachMember` |
+| V3 | the chained `StyledComponent.padding` replaces `ops` (`[.wrap]`) instead of appending | `aModifierOnAComponentAppliesInTheOrderItIsWritten`, `chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement`, `everyRegisteringSiteAnimatesItsStyle` |
+| V4 | the unchained `Component.padding` is an `.amend` writing `Style.padding` (the chained one still wraps) | `aComponentsPaddingWrapsEachTopLevelNode`, `aModifierOnAComponentAppliesInTheOrderItIsWritten`, `aModifierOnAComponentDistributesToEachTopLevelChild`, `aPaddingModifierOnAProposalComponentTraps`, `aTwoMemberComponentsPaddingIsAppliedToEachMember`, `chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement`, the matrix |
+| V5 | the chained `StyledComponent.width` drops the previous ops | `aModifierOnAComponentAppliesInTheOrderItIsWritten` — **alone** |
+
+Read against the lane's table: V1 is M5's order finding from the other side
+(reversal, not partition) and additionally reaches the animation arm, because
+that arm chains `.padding` after `.width`; V2 shows the per-edge wrapper style
+is seen by four tests where M9 (a zero wrapper) was seen by seven; V3 and V5
+split the lane's M3 (last op only) by method — V5's "alone" says the chained
+`width` extension's append has exactly one witness, the order test. V4 is the
+one that separates the two `padding` entry points, which M1 (both sites
+amended) could not.
+
+**Issues, and what the record writer found when checking them** (at
+`ec504b7`, by reading and `grep`, no test run):
+
+1. *"`aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren` calls
+   `.width(px(20))` and asserts both members are 20, the opposite of its name;
+   CLAUDE.md's frame claim has no real test."* **Refuted.** The test
+   (`ComponentTests.swift:636`, `:607` at `c4b5853`) builds
+   `TwoLeaves(log: framedLog).frame(width: px(100), height: px(40))` against a
+   bare `TwoLeaves`, requires `nodeCount` + 1, and asserts the members keep
+   30 and 50 (`a (10, 15, 30, 10)`, `b (40, 5, 50, 30)`); `bareLog` and
+   `bareFrame` are read. The quoted body — `Row { TwoAutoLeaves(log:
+   log).width(px(20)) }` asserting 20 — is `widthAloneDistributesToEachTopLevelChild`
+   (`:802`), the test 166 lines below. CLAUDE.md's citation is correct; no
+   rename is owed. (Not mutated here: the claim is about which test says what,
+   and the source reads unambiguously.)
+2. *"The probe header records the C2 control line twice."* **Refuted.**
+   `grep -c "C2 A().background"` over the header (first 80 lines) reads **1**
+   (line 45; the other hit, line 178, is the `arm(...)` call), `sort | uniq -d`
+   over the first 120 lines finds no duplicated output line, and `git log -S`
+   shows the line entered once, in `981f78b`. The header matches today's run
+   by the verifier's own account of that run. No edit made.
+3. *"A member that contributes no layout node (a `Deferred` portal, a false
+   `if`) gets no wrapper, so `.padding` on it is silently dropped; the old
+   amend behaved the same, but nothing says so."* **Confirmed by reading**:
+   `StyledComponent.requestGroupLayout` maps the ops over the `nodes` its
+   component returns and nothing else, so a node-less member receives no op of
+   either kind. Unpinned, SwiftUI's answer unprobed (a `Deferred` has no
+   SwiftUI counterpart; an empty `if` in a padded custom view does). Carried to
+   "For the integrator" — a doc sentence in `Component.swift`, a merge-collision
+   file, is the integration step's; no behaviour change is proposed.
+
 ---
 
 ### Carried into the integration step (the lanes' running list)
@@ -1807,7 +1887,8 @@ numbers both tracks' rows in one pass.
 
 - **Counts line.** This track alone: **1274 tests / 97 goldens / 64 guards**
   at `2fb0800` (+48 / 0 / +3 on `c4b5853`'s 1226 / 97 / 61), guards per file
-  gaining `DecorationCompileGuards 3`. Re-measure after the merge with task 4
+  gaining `DecorationCompileGuards 3`; re-taken unchanged at `792893f` and at
+  `ec504b7` (lane 4's second verification, 65 `canTypecheck` hits). Re-measure after the merge with task 4
   rather than adding the two tracks' deltas.
 - **Component paragraph** (the sentence beginning "Its `.padding`/`.width`/
   `.height` **distribute** …"). Replace with: "Its `.padding` **wraps each
@@ -1829,7 +1910,15 @@ numbers both tracks' rows in one pass.
   an existing `SA-G` precondition (`.amend` at `setStyle`, `.wrap` at
   `newNode`), pinned by `aPaddingModifierOnAProposalComponentTraps` beside the
   amend pin (`OM-Z`); the modifier-composition doc's "task 5" assignment is
-  discharged.
+  discharged. Add: **a member that contributes no layout node (a `Deferred`,
+  a false `if`) receives no op, so `.padding` on it is dropped** — as the old
+  amend dropped it; by reading, unpinned, SwiftUI unprobed (lane 4's second
+  verifier). Keep the citation
+  `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren` for "`.frame` on a
+  component wraps its body without overwriting its children": that verifier
+  called the test misnamed, and the record writer found it is not (it builds
+  `.frame(width: 100, height: 40)` and asserts the members keep 30 and 50; the
+  `.width(px(20))` body quoted is `widthAloneDistributesToEachTopLevelChild`).
 - **`StyledElement` paragraph.** "a conformer must also call
   `registerHandlers` in its own `prepaint`" becomes: a conformer calls
   **`registerAndScope(handlers, decoration, …) { content }`** in `prepaint`
@@ -1914,7 +2003,7 @@ numbers both tracks' rows in one pass.
   demo declares none, so a look needs a demo-only commit first) and this
   track's release-window captures by `MC-J`'s method (never taken: the display
   read `<true/>` at every capture moment — 20:22, 23:50, 00:00, 00:03, 04:30,
-  04:35, 04:38 — and `<false/>` only between them). The offscreen stand-in is
+  04:35, 04:38, 09:02, 09:04, 09:17 — and `<false/>` only between them). The offscreen stand-in is
   on record twice (lane 2 and lane 4): **0 differing pixels in all ten images,
   scene dumps identical**, with an instrument that moves ~400 000–949 000
   pixels per legacy image and 0 in the preview.
@@ -2044,7 +2133,8 @@ table-driven test, `Component` padding wrapping per member, the legacy
 `border`/`focusBorder`/`opacity`/`clipped`/`allowsHitTesting`/`contentShape`
 modifiers with their two helpers and per-site guards, `borderWidth` deleted,
 divergence 15 fixed, five SwiftUI probes, four lanes' red runs and mutation
-tables, two verifier verdicts verbatim and two reconstructed, the offscreen
+tables, three verifier verdicts verbatim (lane 3; lane 4 twice) and two
+reconstructed, the offscreen
 demo comparison (0 pixels, twice, with instruments), counts 1274 / 97 / 64,
 and the integrator's list. **Section 14 is the task-4 track's**; do not
 renumber.
@@ -2056,9 +2146,11 @@ renumber.
 | `contentShape(inset:)` written before the wrapping modifier that carries the `onClick` — inert on the inner layer | measured by lane 3's verifier (regions `[0 0 200x200]` vs `[20 20 160x160]`), **unprobed in SwiftUI, unpinned, undocumented at the modifier** | a probe arm (`colour.contentShape(Rectangle().inset(by: 20)).padding(10).onTapGesture` vs the reverse), a doc sentence on `StyledElement.contentShape(inset:)` and `Handlers.contentShapeInset`, and a `#require`-disagree pin beside the X test — `Box.swift`/`Handlers.swift` are merge-collision files, so after the merge |
 | the `.frame` order chains B1/B2/D1/D2 and the radius orders C3/D1 | probed, recorded in spec §6, no MetalUI test | task 5's tick |
 | the proposal column in the matrix instrument | pinned by the proposal path's own tests only | integration's call (spec §3.2) |
-| release-window captures by `MC-J`'s method | never taken; display locked at every capture moment | the next unlocked session |
+| release-window captures by `MC-J`'s method | never taken; display locked at every capture moment (last read `true` at 09:17:49 PDT by lane 4's second verifier), re-read by a lane-4 re-dispatch at `792893f`: `<true/>` at 2026-09-16 09:02:05 and 09:04:18 PDT, so no capture, no launch, no input (that run re-took the suite: `Test run with 1274 tests in 1 suite passed after 41.023 seconds.` native; six default-build-system lines summing 65+692+55+28+412+22 = 1274; 97 goldens, no `.json` in `git diff c4b5853 -- Tests`) | the next unlocked session |
 | the focus ring's look | needs a demo commit declaring a `.focusBorder` first | human verification |
 | lanes 1 and 2's verifier verdicts | lost; reconstructed above from the record and `09a7f7c`; one lane-2 mutation's outcome unrecoverable | — |
 | `OM-AK`: a `ScrollView` under `allowsHitTesting(false)` | pinned as it stands; SwiftUI unprobed | whoever probes `ScrollView` under `.allowsHitTesting(false)` and `.disabled` together (`EV-Q`) |
 | `SA-N`'s "padding places its child at the child's size (task 5)" | not taken here — proposal-kernel placement, `Sources/MetalUILayout` untouched | reassign |
 | the `$anim` end-to-end per-entry figures with the 80-byte `Decoration` | not re-taken | task 13 |
+| `.padding` on a `Component` member that contributes no layout node (`Deferred`, a false `if`) | dropped: `StyledComponent.requestGroupLayout` maps ops over returned nodes only; by reading, unpinned, SwiftUI unprobed (an empty `if` in a padded custom view is probe-able) | a doc sentence on `StyledComponent` (`Component.swift`, merge-collision file) after the merge; a probe arm if anyone wants the row classified |
+| lane 4's second verifier's two other minors (the "misnamed" frame test, the "duplicated" C2 probe line) | **refuted** by the record writer at `ec504b7` — see lane 4's second verdict | none |
