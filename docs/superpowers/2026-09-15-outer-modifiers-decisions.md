@@ -1457,3 +1457,84 @@ it — which is the half a reader of `DecorationScope.swift` was told was pinned
 Those doc claims are corrected in the same change (`Text.paint`'s "a faded one
 fades them with its fill" and `DecorationScope.swift`'s "`clippedAlsoClips…` is
 the pin") rather than left standing over a test that could not see them.
+
+---
+
+## OM-AJ — a grown content shape is bounded by an ancestor's clip; SwiftUI's is not
+
+**Ruling.** A negative `contentShape(inset:)` grows the hit region past the
+element's own box and is **not clamped** (`Frame.hitRegion(_:inset:)`), and
+the grown region is then intersected with the active clip by `insertHitbox`,
+exactly as every other hitbox is. SwiftUI's grown region is not: an ancestor
+`.clipped()` does not bound it, and a click outside the clip still lands.
+Recorded as a divergence and left alone; pinned by
+`aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor`
+(lane 3), whose `(100, 100)` click outside an 80x80 `.clipped()` parent must
+**miss** while its `(60, 60)` click outside the 40x40 child must hit.
+
+**Reasoning.** The clip intersection is one rule in one place, and it is the
+rule that keeps a hitbox from covering pixels the element does not draw — a
+scroller's rows outside its viewport are its commonest subject, and `OM-U`
+just spent divergence 15's fix making that rule correct inside a scrolled
+`ScrollView`. Exempting a content shape from it would mean a second rule
+("intersect, unless the region was grown") for a shape no caller has asked
+for, and a hitbox on screen where nothing is. SwiftUI's own answer here is a
+consequence of its `.clipped()` being purely visual (its documentation says
+the modifier does not affect hit testing), which MetalUI's `.clipped()` is
+not: since lane 2 it also clips the hitboxes inside it
+(`clippedAlsoClipsTheHitboxesInsideIt`), and a content shape is a hitbox.
+
+**Evidence.** `swiftui-content-shape-hit-region`, re-recorded for lane 3 with
+three additive arms:
+
+- **H4** an 80x80 `Color` with a tap, no shape — centre 1, edge **0** (the
+  control: a point 40pt outside the leaf misses);
+- **H5** the same at `.contentShape(Rectangle().inset(by: -60))` — centre 1,
+  edge **1**: the grown region reaches the point;
+- **H6** H5 inside a 100x100 `.clipped()` — centre 1, edge **1**: the clip did
+  not bound it.
+
+MetalUI, the test's fixture: the 40x40 child at `inset: -100` registers
+`(0, 0) 80x80` — the parent's clip — where the unclipped answer would be
+`(-100, -100) 240x240`.
+
+**Cost if wrong.** A caller porting a SwiftUI view that grows its hit region
+through a clipped ancestor finds the region stops at the clip. The opt-out is
+the same as for every clip: `Deferred`, which resets the clip (`AP-I`). The
+divergence table's number is the integration step's (next free was 35 at
+round 2; lane 2 added none).
+
+---
+
+## OM-AK — a scroll region inside `allowsHitTesting(false)` is still registered, and it is recorded rather than fixed
+
+**Ruling.** `Frame.registerScrollRegion` calls `insertHitbox` directly and
+does not consult `hitTestingDisabledDepth`, so a `ScrollView` under a legacy
+`.allowsHitTesting(false)` scope still registers its scroll region, still
+takes the wheel, and still wins the topmost-opaque slot. **Pinned wrong on
+purpose** by `aScrollRegionInsideAllowsHitTestingFalseIsStillRegistered`
+(lane 3): its control arm `#require`s that the fixture scrolls at all, and
+its scoped arm asserts the same region count and the same offset. No SwiftUI
+claim is made: whether a SwiftUI `ScrollView` under `.allowsHitTesting(false)`
+still scrolls on the wheel is **unprobed**, so this is a hole recorded, not a
+divergence measured.
+
+**Reasoning.** The hole is older than this lane — CLAUDE.md's inert table
+already carries "`.allowsHitTesting(false)` over a scroller — gates click
+hitboxes only; a `ScrollView`/`ProposalScrollView` inside still scrolls" for
+the proposal path — and lane 3 changes its **reach**, from "a proposal
+subtree" to "any legacy element", which is exactly `OM-U`'s shape one modifier
+over. `OM-U` took the fix because it was one line at the one site the lane
+was already editing. This one is not: the site is `registerScrollRegion`,
+which this lane's brief does not name, the same bypass is what keeps a
+`.disabled` `ScrollView` scrolling (`EV-Q`, `aDisabledScrollViewStillScrollsOnTheWheel`,
+SwiftUI likewise unmeasured), and a fix to one without the other would make
+the two gates disagree about what a scope covers. The fix is one `guard` when
+someone has probed SwiftUI's answer for both.
+
+**Cost if wrong.** A caller who dims a pane with `.allowsHitTesting(false)`
+expecting its scroller to go inert finds the wheel still moves it, while every
+click inside is dead. The behaviour is named at `Handlers.allowsHitTesting`'s
+doc and at the modifier's, and the test's failure message says "PINNED WRONG
+ON PURPOSE". Integration extends the inert-table row's reach to the legacy
+path rather than adding a row.

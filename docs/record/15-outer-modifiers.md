@@ -871,7 +871,191 @@ and was not re-taken.
 
 #### Lane 3 — hit testing: `allowsHitTesting` and `contentShape`
 
-*Not started.*
+**Commits.** `6279f59` (red-first: the collision guard's two new names, the
+default-hit-region test pinned wrong on purpose, and the two probes —
+`swiftui-content-shape-hit-region` re-recorded with H4–H6,
+`swiftui-allows-hit-testing-side-effects` new), `e1c33b5` (the lane: source,
+`HitRegionTests.swift`, the `ModifierTests` and matrix rows), then this record
+with `OM-AJ`, `OM-AK` and two stale doc comments.
+
+**A continuation.** The run that began this lane stopped at 2026-09-15 21:46
+PDT with `6279f59` committed and the implementation partly written and
+uncommitted (`Box.swift`, `DecorationScope.swift`, `Frame.swift`,
+`Handlers.swift`, `HitRegionTests.swift`). The continuation read that diff and
+kept it. What it lacked: `HandlerShape` and `HandlerFingerprint`'s two fields,
+the three `ModifierTests` rows and the 47 tripwire, the two matrix rows, a
+per-edge arm for test 3, and the two rulings the source and tests already cited
+by letter — `OM-AJ` was being used for two different claims (the H6 clip
+divergence and the scroll-region bypass), so the second became `OM-AK` and
+every citation was re-pointed.
+
+##### What was built, and the five places it departs from the spec
+
+`Handlers.allowsHitTesting: Bool = true` and `Handlers.contentShapeInset:
+Edges<Pixels>?`, appended at the end of the stored members.
+`PrepaintPass.registerAndScope` opens the pointer-disable scope at the top,
+around the receiver's own `registerHandlers` and `content()` alike (`OM-T`),
+with the body split into `registerAndScopeBody` rather than written twice.
+`Frame.registerHandlers` applies the inset to the bounds handed to
+`insertHitbox` and nowhere else, through `Frame.hitRegion(_:inset:)`, which
+does not clamp a negative inset (`OM-J`). Three modifiers at the end of
+`extension StyledElement` in `Box.swift`. `swift package clean` before the
+first test run: `Handlers` is a public struct crossing a module boundary and
+gained two stored members.
+
+1. **Test 3 has a per-edge arm** (top 5 / right 10 / bottom 15 / left 20 on a
+   100x100 box, four clicks each deciding on one edge). The spec's uniform
+   `inset: 20` is taxonomy shape 1: `hitRegion` subtracting `left` twice gives
+   100 − 20 − 20 = 60 either way, and the mutation round confirmed the uniform
+   arm cannot see it (M12 below).
+2. **`OM-AJ`**: the probe's H6 arm (recorded in `6279f59`) says SwiftUI's grown
+   region hits through an ancestor `.clipped()`; MetalUI's is intersected with
+   the active clip like every hitbox. A new divergence, pinned by test 4.
+3. **`OM-AK`**: a `ScrollView` under a legacy `.allowsHitTesting(false)` still
+   registers its scroll region and still scrolls — `registerScrollRegion`
+   bypasses `hitTestingDisabledDepth`. Pinned wrong on purpose by
+   `aScrollRegionInsideAllowsHitTestingFalseIsStillRegistered`; no SwiftUI claim.
+4. **The matrix gains two rows**, `contentShape(inset:)` and
+   `allowsHitTesting(_:)`, both `self` + `prepaint-only`, both arms carrying an
+   `onClick` because neither modifier creates a region (`OM-AB`). Lane 1's
+   table had no row for either; `HandlerFingerprint` gained the two fields in
+   the same change, as lane 1's hazard note required.
+5. **The spec's row 2a named the wrong tests.** See the mutation table.
+
+##### The red run
+
+Against the committed source (`git stash push -- Sources/`, `swift package
+clean`, `swift build --build-system native --build-tests`): 33 diagnostics,
+all "has no member" —
+
+```
+HitRegionTests.swift:186:35, 198:14, 216:10, 262:32, 268:32, 273:32, 279:33, 318:26,
+  322:26, 325:26, 329:40, 336:45, 602:36
+    value of type 'Box<EmptyGroup>' / 'Stack<Box<EmptyGroup>>' / 'Text' /
+    'ModifiedElement<Box<EmptyGroup>>' / 'Box<Box<EmptyGroup>>' /
+    'Box<ScrollView<Box<EmptyGroup>>>' has no member 'allowsHitTesting'
+HitRegionTests.swift:384:55, 420:12, 466:41, 515:34, 557:14, 566:14
+    value of type 'Box<EmptyGroup>' has no member 'contentShape'
+HitRegionTests.swift:463:13  type '() -> Box<EmptyGroup>' cannot conform to 'ElementGroup'
+HitRegionTests.swift:532:35  cannot infer key path type from context
+HitRegionTests.swift:610:99  failed to produce diagnostic for expression
+ModifierTests.swift:386:61, 387:62   'Handlers' has no member 'allowsHitTesting' / 'contentShapeInset'
+OuterModifierMatrixTests.swift:125:30, 126:31 (the fingerprint), 594:33, 598:44,
+  610:33, 614:44
+```
+
+(the three odd ones are the compiler giving up on a closure whose member
+lookup already failed). With the source in and the three `ModifierTests` rows
+out, `swift test --build-system native --no-parallel --filter <the lane>`:
+
+```
+everyPublicModifierWritesItsOwnFieldAndOnlyThatField, 1 issue:
+  ModifierTests.swift:361:5 Expectation failed: cases.count == 47     (reads 44)
+Test run with 14 tests in 0 suites failed after 0.989 seconds with 1 issue.
+```
+
+Every other lane test was green on that run, including the collision guard
+that `6279f59` recorded red for the missing names (it ran: `canTypecheck` is
+true in this worktree after `swift build --build-system native`). The rest
+cannot be red before the API exists — lane 2's precedent — and the mutation
+round is what makes them instruments.
+
+##### Mutations — sixteen, applied singly, reverted with `git checkout` after `e1c33b5`
+
+Run filtered (`--filter` over the lane's tests plus `clippedAlsoClips`, the D2
+guard, `onClickIsLiveOnEveryConformerThatCanRegisterOne`,
+`aPaddedClickTargetIsHittable`, `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`
+and `aTextIsPublishedAsStaticTextWhoseValueIsItsString`), except M5 on the full
+suite. Every one reddened. `git status --short` clean of `Sources/` after each,
+checked by the driver with `git diff -G "// MUTATION"` — **not** by a grep for
+the marker over `Sources/`, because `Component.swift` carries that literal in
+four committed comment lines (its own mutation records) and the first version
+of the check reported a phantom dirty file on every run.
+
+| # | mutation | reddened (issues) |
+|---|---|---|
+| M1 | `registerAndScope` registers OUTSIDE the scope and scopes children only (the first draft's mechanism) | test 1 at `n1.clicks == 0 && n1.regions.isEmpty` (N2 is asserted as `n2 == n1` and both register, so it fails as one); test 2 all four arms; test 2a's `frame.hitboxes.isEmpty` set-up; the matrix `allowsHitTesting` row — 10. **The child arm stays green**, as the spec required |
+| M2 | `guard !handlers.allowsHitTesting` | 14 tests, 43 issues: every control `#require` in the file, D2's `control == 1`, `onClickIsLive…`, `clippedAlsoClips…`, `aPressIsRefusedWhereHitTestingIsDisabled`, the matrix, `aPaddedClickTarget…` |
+| M3 | `focusRegistry.register` gated on `hitTestingDisabledDepth == 0` | test 1 **only**, its two keyboard assertions (N1's `keyRan && focusable` and the child's) — 2 |
+| M4a–d | one site passes handlers with `allowsHitTesting` forced `true` (`Box.prepaint`, `Stack.prepaint`, `Text.prepaint`, `ModifiedElement.prepaintLayerBody`) | each: test 2's own arm and test 2a's own set-up (2 each); `Box` also test 1 (N1 and the child, whose parent is a `Box`) and the matrix row — 5 |
+| M5 | `registerAndScopeBody` forwards the three-argument `registerHandlers` | **full suite, 11 tests, 24 issues**: test 2a's `strings.contains("hi")` and ten in `AccessibilityDefaultsTests.swift` — `aTextIsPublishedAsStaticTextWhoseValueIsItsString`, `labelAndValueFollowSwiftUIsStaticTextRules`, `aClickableTextIsAButtonLabelledByItsString`, `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren`, `aClickableContainerCombinesItsTextsIntoOneButtonLabel`, `combinationReachesButtonsInsideAListAndAClickableListKeepsItsRows`, `aDeferredInsideAClickableBoxIsNotFoldedIntoItsLabel`, `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `aClientDoesNotChangeStateRetention`, `aListInsideHiddenContentIsNotPublishedEvenOnItsUnboundedFrame` |
+| M6 | the inset applied at the call site (`registerAndScopeBody` insets `bounds`; `registerHandlers` inserts bare `bounds`) | test 5 only: the emitted `AXNode`'s frame and the client record's geometry — 2. Test 3 stays green, as the spec predicted |
+| M7 | `hitRegion` clamps each inset at 0 | test 4's `#require(plain.regions != grown.regions)` — 1 |
+| M8 | `Box.prepaint` hands `registerAndScope` empty handlers when `background == nil` | test 6 (all three assertions) plus nine others — 25 |
+| M9 | the hitbox insert also fires on `contentShapeInset != nil` | test 6a's `bare.lastHitboxes.isEmpty` — 1 |
+| M10 | `contentShape(inset: Edges)` writes `top` for `left` | `ModifierTests` (the per-edge row) and test 3's per-edge arm (its region string, its left-edge and right-edge clicks) — 4 |
+| M11 | `registerScrollRegion` consults the depth | `aScrollRegionInsideAllowsHitTestingFalseIsStillRegistered`, both scoped-arm assertions — 2 |
+| M12 | `hitRegion` subtracts `left` twice | test 3's per-edge region assertion **alone** — 1. The uniform arm (line 391) and `ModifierTests` cannot see it |
+| M13 | `focusable()` also writes `contentShapeInset = 0` | `ModifierTests` alone — 1: the projection tracks the struct (the closure the practices doc names for `HandlerShape`) |
+| M14 | `contentShape(inset: Pixels)` writes nothing | tests 3, 4, 5, 6a, `ModifierTests`, and the matrix row's broken-instrument `#require` — 6 |
+| M15 | `allowsHitTesting(_:)` writes `!enabled` | tests 1, 2, 2a, `ModifierTests`, the matrix row's `#require` — 12 |
+
+##### What the mutations found
+
+- **The spec's row 2a predicted two test names and both were wrong**
+  (`OM-X` said the lane must take the names from the red run, and this is why).
+  `aTextLeafPublishesItsStringAsAValue` does not exist.
+  `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers` exists and
+  **stays green** under M5: a declared `AXNode` is emitted by the
+  three-argument overload too (`Frame.registerHandlers` reads `handlers.axNode`,
+  not `accessibleText`), so that test cannot see the payload and was never
+  going to. The spec's row now carries the eleven measured names.
+- **The uniform-inset arm is blind to an edge transposition** (M12), which is
+  why the per-edge arm exists; `ModifierTests`' per-edge row catches the
+  modifier transposing (M10) but not `hitRegion` doing so, because it reads
+  the field and never the registered region. The two instruments overlap on
+  M10 and separate on M12 and M13 — a differential between named tests, not
+  an exclusivity claim.
+- **M3 reddens exactly the two keyboard assertions**, so the "removes the
+  pointer target and nothing else" half of `OM-T` is pinned as its own clause
+  and not as a side effect of the pointer half.
+- **M1 leaves the child arm green** and M4a reddens it — the two together say
+  the child arm measures the SUBTREE half of the scope and the N1 arm the
+  receiver half.
+
+##### Counts, re-taken at `e1c33b5`
+
+| reading | value | against lane 2's re-verification |
+|---|---|---|
+| `swift test --build-system native --no-parallel` | `Test run with 1267 tests in 1 suite passed after 40.730 seconds.` (and 44.344 s after the mutation round's reverts) | **+9** on 1258: the nine tests of `HitRegionTests.swift` |
+| `error:` / `warning:` | **0** / **1** — SwiftPM's own `--build-system native` deprecation notice | unchanged |
+| skipped | the two gated tests only | unchanged |
+| `find Tests -name "*.json" \| wc -l` | **97**; `git diff --stat c4b5853 -- Tests` lists no `.json` | unchanged |
+| guards, `grep -c canTypecheck` per file | 19 / 10 / 5 / 6 / 2 / 6 / 8 / 3 / 3 / 3 = **65 hits, 64 guards** | unchanged; the collision guard was extended, not added |
+| `grep -c "public func" Sources/MetalUI/Box.swift` | **50** | +3 |
+| `ModifierTests`' `cases.count` tripwire | **47** | the pre-agreed number |
+| `Handlers` stored members | **8** | +2 |
+
+##### The demo and the preview: lane 4's, and the display was unlocked
+
+Lane 3 changes no paint path and no layout node: `allowsHitTesting` and
+`contentShapeInset` are read in `registerAndScope` and `registerHandlers` only,
+and `git diff --stat c4b5853 -- Sources/MetalUIDemo` is empty. The offscreen
+pixel comparison is the spec's **lane 4** deliverable ("the verification") and
+is not re-taken here. **One reading for lane 4:** `ioreg -n Root -d1 -a | grep
+-A1 IOConsoleLocked` read **`<false/>`** at **2026-09-15 23:33:05 PDT** — the
+first unlocked reading since the design sessions — so if it still reads so at
+lane-4 time, the real release-window captures the spec's step 2 asks for are
+possible. No demo was launched and no input was sent in this lane.
+
+##### Hazards the lane leaves for lane 4 and the integration step
+
+- **`OM-AK` extends an inert-table row's reach.** CLAUDE.md's
+  "`.allowsHitTesting(false)` over a scroller — gates click hitboxes only" was
+  written for the proposal path; it is now true of any legacy element too.
+- **`OM-AJ` needs a divergence number** (the carried list below is now nine).
+- **`CLAUDE.md`'s `HandlerShape` sentence must name both structs** — both
+  gained the two fields in `e1c33b5`, and the doc comment on `HandlerShape`
+  now says `Handlers` has EIGHT members.
+- **`grep -c "public func" Sources/MetalUI/Box.swift` is 50**, and
+  `ModifierTests`' reconciliation note says so; task 4's additions count from
+  there.
+- **`Component.swift` contains the literal `// MUTATION`** in four committed
+  comment lines. Any driver that greps `Sources/` for a marker to prove a
+  revert will report it dirty on every run; grep the diff instead.
+- **The other track was building in its own worktree throughout**
+  (`MetalUI-frame-sizing`, seen in `ps`); nothing touched this checkout, and
+  no measurement here was taken in a contended window.
 
 #### Lane 4 — `Component` padding wraps, and the verification
 
@@ -881,9 +1065,11 @@ and was not re-taken.
 
 ### Carried into the integration step
 
-- **Eight** divergence rows with no numbers yet: the default hit region
+- **Nine** divergence rows with no numbers yet: the default hit region
   (`OM-I`), a padded click target (`OM-K` — and its order-sensitivity, which
-  SwiftUI's P1/P2 do not have), `.opacity` reaching a later background (`OM-N`),
+  SwiftUI's P1/P2 do not have), **a grown content shape bounded by an
+  ancestor's clip where SwiftUI's hits through it (`OM-AJ`, lane 3)**,
+  `.opacity` reaching a later background (`OM-N`),
   **a second `.opacity` on one element REPLACING the first where SwiftUI's two
   calls multiply (`OM-AH`, the review round)**,
   `.cornerRadius` not clipping (`OM-G`), a `Component`'s `width`/`height`
@@ -931,19 +1117,21 @@ and was not re-taken.
   change `Handlers` gains a member — it has fallen behind twice."
   `OuterModifierMatrixTests.swift` carries a second projection of the same
   shape, `HandlerFingerprint`, because the storage witness must compare
-  `Handlers` and `Handlers` is not `Equatable`. Lane 3 adds
-  `allowsHitTesting` and `contentShapeInset` to `Handlers`; both structs must
-  gain them, and the sentence must name both.
+  `Handlers` and `Handlers` is not `Equatable`. **Lane 3 added
+  `allowsHitTesting` and `contentShapeInset` to `Handlers` and to both structs
+  in the same commit (`e1c33b5`)**; the sentence must name both.
 - The focus-ring look is a **human** check: nothing in the suite can see whether
   a ring reads as a focus affordance. It belongs in CLAUDE.md's human
   verification table, open, with the demo key that shows it (if lane 4 adds
   one). **Lane 2 deliberately did not add one** — the demo is pixel-identical
   and a ring in production would be a visual change made as a side effect of an
   audit (`OM-G`'s argument, one field over).
-- **`OM-AE`'s eight-of-eleven split** is a fact about the branch between lanes 2
-  and 3 and should be gone by the merge; if lane 3 does not land, the
-  integration step must say that `allowsHitTesting` and `contentShape` are
-  specced and unbuilt rather than let §5.1 read as delivered.
+- **`OM-AE`'s eight-of-eleven split is closed**: lane 3 landed the other three
+  (`e1c33b5`), and §5.1's eleven are all live. `Box.swift`'s lane 2 MARK
+  comment says so.
+- **`OM-AK` (lane 3)**: CLAUDE.md's inert-table row "`.allowsHitTesting(false)`
+  over a scroller — gates click hitboxes only" now covers the legacy path too;
+  extend the row's reach rather than adding one.
 - **`OM-AG`** refutes a mechanism the spec's §8 risk table implies. If that
   table is ever copied into `CLAUDE.md` or the plan, the corrected sentence is
   the one in `OM-AG`.

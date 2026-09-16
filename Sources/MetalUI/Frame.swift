@@ -776,10 +776,12 @@ public final class Frame {
     ///   stays ungated (see that write's own paragraph below).
     /// - **the declared AX node gains `.disabled`**.
     ///
-    /// Every caller reaches it: `Box` (and so `Column`/`Row`), `Stack`, `Text`,
-    /// `ModifiedElement` (each layer) and `OnTapModifier`
-    /// (`grep -rn "registerHandlers(" Sources`, five callers),
-    /// `List` rows through their elements and `Component` through its members.
+    /// Every caller reaches it: `Box` (and so `Column`/`Row`), `Stack`, `Text`
+    /// and `ModifiedElement` (each layer) through `PrepaintPass.registerAndScope`
+    /// (`DecorationScope.swift`, since plan task 5's lane 2 — one call site for
+    /// the four), `OnTapModifier` through `PrepaintPass`'s internal overload
+    /// directly, `List` rows through their elements and `Component` through
+    /// its members.
     /// A raw `PrepaintPass.insertHitbox` is NOT gated: an element using the
     /// primitive reads `pass.environment.isEnabled` itself.
     func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,

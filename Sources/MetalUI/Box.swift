@@ -1020,13 +1020,14 @@ extension StyledElement {
     // DistributesAsTheMatrixSays` is the per-modifier pin and
     // `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` the field pin.
     //
-    // §5.1 specifies ELEVEN modifiers for this task; this lane ships the
-    // **eight** it can make live. `allowsHitTesting(_:)` and the two
+    // §5.1 specifies ELEVEN modifiers for this task; lane 2 shipped the
+    // **eight** it could make live. `allowsHitTesting(_:)` and the two
     // `contentShape(inset:)` overloads need `Handlers.allowsHitTesting` and
-    // `Handlers.contentShapeInset` plus the prepaint wiring, which is lane 3's
-    // — shipping them here would be three modifiers that compile and do
-    // nothing, which is the shape this whole task exists to remove. Ruling
-    // `OM-AE`.
+    // `Handlers.contentShapeInset` plus the prepaint wiring — shipping them
+    // with lane 2 would have been three modifiers that compile and do nothing,
+    // which is the shape this whole task exists to remove. Ruling `OM-AE`.
+    // Lane 3 shipped them; they are under the "Hit testing" MARK at the end
+    // of this extension.
 
     /// Draws a border of `token`, `width` points wide on all four edges,
     /// **inside** this element's own box.
