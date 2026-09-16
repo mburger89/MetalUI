@@ -349,6 +349,17 @@ its child in the node's bounds) left the suite green.
 - `ProposalSpacing`'s doc no longer says default stack spacing uses the
   constant: no stack reads it until lane 3 (`CN-H`).
 
+Measured after `103bce0`, one at a time, unfiltered native suite, source
+restored and `git status --short` empty after each: M3d reddens
+`theCrossAxisMarkReachesASpacerThroughEveryWrapperButAStack` only (3 issues:
+K2g size, K2i size, K2i b rect); M11 reddens
+`aResetTreeMeasuresItsNewRegistrationsFromScratch` only (1); M10 reddens
+`anInfinitelyWideRootBoundsTraps` only (2). Unmutated: **`Test run with 1323
+tests in 1 suite passed`** (+2 arms in existing tests, +1 test), 0 `error:`,
+no `warning:` besides the deprecation notice; goldens 97, unchanged against
+`9e439cb`. Probe revision 6: exit 0, run twice byte-identical, 626 output
+lines, the first 613 byte-identical to revision 5's record.
+
 ### Demo comparison (`CN-S` row 2)
 
 `ioreg -n Root -d1 -a` read `IOConsoleLocked` `<true/>`: no real window
