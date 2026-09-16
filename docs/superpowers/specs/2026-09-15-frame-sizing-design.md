@@ -4,11 +4,12 @@ Plan task 4 of `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, on
 branch `feat/frame-sizing` in the worktree
 `/Users/maxburger/Developer/MetalUI-frame-sizing`, from `c4b5853`.
 
-**Status: lane 1 is landed** (commits `901917a`, `9bd130c`, `389c452`). Lanes 2,
-3 and 4 are design only. Lane 1's three design corrections, each measured by
-running, are ruling `FR-R`, and the numbers below already carry them.
+**Status: lanes 1 and 2 are landed** (lane 1: `901917a`, `9bd130c`, `389c452`;
+lane 2: `c5a02a0`, `44a79b5`, `dda9c6f`). Lanes 3 and 4 are design only. Lane
+1's three design corrections are ruling `FR-R` and lane 2's is ruling `FR-S`,
+each measured by running, and the numbers below already carry them.
 
-Rulings `FR-A`…`FR-R` live in
+Rulings `FR-A`…`FR-S` live in
 [`../2026-09-15-frame-sizing-decisions.md`](../2026-09-15-frame-sizing-decisions.md);
 the record is `docs/record/14-frame-and-sizing.md`. The track runs beside a
 second one (task 5's paint modifiers) in its own worktree, and an integration
@@ -336,12 +337,28 @@ comment in `UnitSafetyTests.swift`, so **62** guards.
 
 `FR-C` (the lowering table), `FR-D` (ideal traps), `FR-E` (no greedy finite
 maximum), `FR-K` (one alignment type), `FR-N` (an oversized child is squeezed),
-`FR-O` (an infinite maximum), `FR-P` (the fixed-axis pin).
+`FR-O` (an infinite maximum), `FR-P` (the fixed-axis pin), `FR-S` (one fixed
+overload, measured).
+
+**Landed 2026-09-15.** Three commits: `c5a02a0` the red tests, `44a79b5` the
+source and the oracle drift, `dda9c6f` two tests strengthened after mutations
+that reddened nothing. `Test run with 1245 tests in 1 suite passed`, 0
+`error:`, 0 `warning:`, 97 goldens unmoved, guards 62 → 63. Every red line and
+every mutation is in `docs/record/14-frame-and-sizing.md`.
 
 ### Public API
 
-Everything below lands in `Sources/MetalUI/FrameLayer.swift`, created by lane
-1's step 0. `ModifiedElement.swift` is **not touched again**.
+`FrameSpec`, `style()` and the FLEXIBLE overload land in
+`Sources/MetalUI/FrameLayer.swift`, created by lane 1's step 0. The FIXED
+overload stays where lane 1 put it, in `ModifiedElement.swift`, amended in
+place to carry `alignment:` — **ruling `FR-S`, which withdraws this section's
+original "`ModifiedElement.swift` is not touched again"**. Declaring a second
+fixed overload instead (leaving lane 1's two-parameter one live) compiles and
+is unambiguous, and makes a 24-modifier chain exponential for the constraint
+solver: measured against the real module, `ModifiedElementCompileGuards`'
+positive fixture fails at `-solver-scope-threshold=16000` with two fixed
+overloads and needs **186** scopes with one — the same 186 that guard measured
+before this lane.
 
 ```swift
 /// SwiftUI's frame as one value: what `.frame(...)` asked for, before the CSS
@@ -364,7 +381,9 @@ struct FrameSpec: Sendable, Hashable {
 }
 
 extension ElementGroup {
-    /// SwiftUI's `frame(width:height:alignment:)`.
+    /// SwiftUI's `frame(width:height:alignment:)` — declared in
+    /// `ModifiedElement.swift`, amended in place from lane 1's two-parameter
+    /// spelling (FR-S). There must be exactly one of these.
     public func frame(width: Pixels? = nil, height: Pixels? = nil,
                       alignment: ProposalAlignment = .center) -> ModifiedElement<LayerBase>
 
@@ -402,8 +421,18 @@ same five overloads — compiled and run under `-swift-version 6`, Apple Swift 6
 | `.frame(alignment:)` | `ModifiedContent<Leaf, FrameModifier>` |
 | `.frame()` (both declared) | `Leaf`, with the deprecation |
 
-Nothing is ambiguous and the refined protocol wins every shape. **And the
-existing negative guard's exact diagnostic is unchanged** (critic finding 4):
+Nothing is ambiguous and the refined protocol wins every shape. **Re-run as
+lane 2's first step — the skeleton, now committed as
+`docs/probes/swift-frame-overload-resolution.swift`, and then the same seven
+rows against the REAL module through lane 2's new guard: no row moved.** The
+skeleton also answered a question the design had not asked, and the answer is
+ruling `FR-S`: with BOTH a two- and a three-parameter fixed legacy overload the
+seven rows are unchanged and nothing is ambiguous — `.frame(width:)` simply
+takes the two-parameter body — so the skeleton alone would have approved a
+shape that makes a 24-modifier chain uncompilable. The suite caught it; the
+threshold measurement explains it.
+
+**And the existing negative guard's exact diagnostic is unchanged** (critic finding 4):
 `Leaf().frame(width: Pixels(10), minWidth: Pixels(5))` against the doubled
 overload set is still rejected with `extra argument 'minWidth' in call`, and
 `minHeight` likewise — so `aFixedAndAFlexibleFrameDimensionCannotBeCombined`
@@ -441,11 +470,13 @@ type** of `.frame(width:)`, `.frame(minWidth:idealWidth:maxWidth:)`,
 
 | file | change |
 |---|---|
-| `Sources/MetalUI/FrameLayer.swift` | `FrameSpec` gains its six bounds and alignment; `style()` gains the table above; the two overloads |
+| `Sources/MetalUI/FrameLayer.swift` | `FrameSpec` gains its six bounds and alignment; `style()` gains the table above; the FLEXIBLE overload |
+| `Sources/MetalUI/ModifiedElement.swift` | **one two-line hunk** (`FR-S`): the fixed overload's signature gains `alignment:` and forwards it. There must not be a second fixed overload |
 | `Sources/MetalUI/Box.swift` | doc comments only, in the `MARK: Size` section (`FR-F`, `FR-G`, `FR-H`, `FR-Q`) — lane 3 |
 | `Tests/MetalUITests/FrameSizingTests.swift` | new; tests 2.1–2.10 |
 | `Tests/MetalUITests/FrameSizingCompileGuards.swift` | the overload fixture |
 | `Tests/MetalUITests/ModifierCompositionProofTests.swift` | `frameStyle(width:height:)` (line 503) gains the `minSize` pin |
+| `Tests/MetalUITests/ModifiedElementTests.swift` | the **second** hand-spelled `frameStyle` (line 235) gains it too — the spec's file list had missed it, and leaving one copy stale is the drift the obligation exists to prevent |
 
 **The oracle obligation, restated after measurement.** The spec previously said
 `aModifierChainIsIdenticalToHandBuiltNestedBoxes` (`MC-B`) would redden unless
@@ -461,6 +492,13 @@ was green both before and after that edit.
 `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes` (`MC-L`) must stay green
 untouched, and lane 2 says so after running it, not before.
 
+**Measured by lane 2:** `Test run with 1245 tests in 1 suite passed` both
+before and after the `frameStyle` edits, so the obligation is confirmed to be
+drift rather than redness; `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes`
+was then run on its own (`Test run with 1 test in 0 suites passed`) and is
+untouched. There are **two** hand-spelled duplicates, not one —
+`ModifiedElementTests.swift:235` as well — and both were updated.
+
 ### Tests
 
 | # | test | pins | before | mutation that must redden it |
@@ -471,9 +509,9 @@ untouched, and lane 2 says so after running it, not before.
 | 2.4 | `anIdealDimensionOnTheLegacyFrameTraps` (`FR-D`) | Two `#expect(processExitsWith: .failure)` bodies, `idealWidth` and `idealHeight`, each calling `.frame(idealWidth: 80)` on a `Box`; a control body passing `minWidth`/`maxWidth` only that exits **successfully**; and a second control (critic finding 5) calling `.frame(idealWidth: 80)` on a **proposal** element, which must also exit successfully — the positive control for the overload split | does not compile (new API) | delete the precondition — both failure arms redden. Make the legacy overload win on a proposal element — the proposal control reddens |
 | 2.5 | `chainedLegacyFramesAgreeWithSwiftUIsOrderingRules` | `probe.frame(width: 100).frame(width: 50)` reports 50 with the 20pt leaf at x = 15; reversed, reports 100 with the leaf at x = 40 — the probe's E1/E2. A third arm adds alignment: `.frame(width: 60, height: 40).frame(width: 120, height: 100, alignment: .topLeading)` reports 120×100 with the leaf at (20, 10) (probe E6). `try #require(15 != 40)` first. The doc comment records that arms 1–2 do **not** discriminate on their own (scratch N13: a 100pt inner overflowing a 50pt outer and one shrunk to 50 both centre the leaf at 15) — arm 3 is what does | arms 1–2 **green**, measured (scratch M1, and unchanged by the `minSize` pin — N13); arm 3 does not compile | mint the layer nodes outermost-first (arms 1 and 2 swap); drop `justifyContent` (arm 3) |
 | 2.6 | `aLegacyFrameProposesItsWidthToAMeasuredLeaf` | `Column { Text("alpha bravo charlie delta").font(size: 12).frame(width: 60); marker }`: the marker sits at y = 60 — the text re-wrapped to four 15pt lines — against y = 15 unframed. The "it broke text measurement" half of the reverted 2026-09-12 conversion, refuted | **green**, measured (scratch L11: 60 vs 15). `try #require(60 != 15)` | drop `size.width` from `style()` |
-| 2.7 | `aLegacyFrameAroundAListStillBuildsEveryRow` | `ScrollView { List(40 rows).frame(width: 200) }` paints the same 40 row rects as the unframed and `.width(200)` spellings — the "it broke list virtualization" half (scratch L12). Counts are `try #require`d | green, measured | **localized** (critic finding 16): set the frame layer's own `size.height` to a fixed 40 in `style()` and re-count — the framed arm's row count collapses while the unframed and `.width(200)` arms hold, which is what makes the claim about virtualization rather than about painting. The previous mutation (dropping the layer's child list) reddened every framed element in the suite and proved nothing about this test. Lane 2 names the tests the chosen mutation reddens, from the run |
+| 2.7 | `aLegacyFrameAroundAListStillBuildsEveryRow` | **Re-fixtured by lane 2**: forty **40pt** rows in a 600pt viewport over **two frames sharing one `StateTable`** (frame 0 has no measured viewport and builds every row, MP-I), so the window really windows; the observable is the row-index SET, plus the rows' widths — 400 unframed, **200** under `.width(200)`, **400** framed, because flex §4.5's automatic minimum floors the list at its rows' min-content width and a wrapper cannot reach into its child to cancel it (`FR-G` from the other side) | green, measured | **the designed localized mutation reddens nothing, and lane 2 measured why**: a fixed `size.height` on the frame layer moves 2.6 and 2.9 and leaves this test green even against a real window, because `List` computes its window against the enclosing SCROLLER's origin and viewport and ignores where the list itself sits (divergence 14). No `FrameSpec.style()` mutation can move it. The only mutation that reddens it is dropping the layer's child list in `ModifiedElement.requestLayout` — **102 issues across ~25 tests**, this one among them — recorded as such rather than claimed as this test's own |
 | 2.8 | `aLegacyFrameSqueezesAnOversizedChildWhereSwiftUIOverflows` (`FR-N`, **pinned wrong on purpose**) | A child declaring 200×160 inside `.frame(width: 60, height: 40)` lands at **(0, 20) 60×160** — width squeezed to the frame, height overflowing — where SwiftUI's A5 keeps 200×160 at (−70, −60). SwiftUI's numbers are in the doc comment. A second arm repeats it with `flexShrink(0)` on the layer and reads the same, separating "the layer shrank" from "the child was shrunk as its flex item" | **green**, measured (scratch N5/N6, and record §14's L3) | set the layer's `flexDirection` to `.column` — the squeeze moves to the height and both arms redden, which is the evidence that one node cannot overflow both axes |
-| 2.9 | `anInfiniteMaximumFillsOnlyWhenBothAxesAreInfinite` (`FR-O`) | Two arms with a disagreeing `try #require` between them. **Fill**: `.frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity))` around a 20×20 mark in a 300×200 `Row` puts the mark at (140, 90), and at (140, 90) in a `Column` too. **Inert**: `.frame(maxWidth: Pixels(.infinity))` alone leaves the mark where the unframed spelling does, and `tree.nodeCount` is one higher than unframed — the layer exists and does nothing | does not compile (new API); measured as scratch N14/N15 | drop `alignSelf = .stretch` (the `Row` fill arm's y reddens, the `Column` fill arm's x reddens); drop `flexGrow = 1` (the other halves redden); extend the fill lowering to a single infinite maximum (the inert arm reddens) |
+| 2.9 | `anInfiniteMaximumFillsOnlyWhenBothAxesAreInfinite` (`FR-O`) | **Fill**, four arms: `.frame(maxWidth: Pixels(.infinity), maxHeight: Pixels(.infinity))` around a 20×20 mark in a 300×200 `Row` puts the mark at (140, 90), and at (140, 90) in a `Column`; **and, added by lane 2, the same two parents at `.topLeading`, which read (0, 0)**. **Inert**: `.frame(maxWidth: Pixels(.infinity))` alone leaves the mark where the unframed spelling does, and `tree.nodeCount` is one higher | does not compile (new API); measured as scratch N14/N15 | drop `alignSelf = .stretch` (**both `.topLeading` arms**); drop `flexGrow = 1` (the opening `#require`); extend the fill lowering to a single infinite maximum (the same `#require`). **The two `.topLeading` arms exist because the centred ones could not see the cross axis**: with only them, dropping `alignSelf = .stretch` reddened nothing in 1245 tests — a mark centred in a 20pt-tall layer at y = 90 and one centred in a 200pt-tall layer at y = 0 share a y |
 | 2.10 | `aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare` (`FR-P`) | `.frame(height: 40)` around a wrapping `Text` in an over-constrained 300pt `Row`, with a 200pt sibling whose x reads the layer's width: **154**, the same as the unframed spelling, where `flexShrink = 0` would read 210 and leave the text unwrapped. The doc comment carries 210 as the number this test exists to keep out | **green** under the `minSize` lowering, **red** under `flexShrink = 0`; measured as scratch N11 | replace the axis-named pin with `flexShrink = 0` on any fixed axis — this test reddens where 2.2 does not, which is the whole finding |
 
 ### Expected counts
@@ -483,6 +521,14 @@ overload fixture**, which is a `@Test` like every other guard (`FR-R` item 1;
 this row originally read 1233 → 1243 and omitted it). Guards 62 → **63**: the
 overload fixture. Goldens 97, unmoved — `FrameSpec.style()` produces CSS the
 fixtures never exercise, and no fixture uses a modifier.
+
+**Measured, 2026-09-15:** `Test run with 1245 tests in 1 suite passed after
+33.327 seconds`, 0 `error:`, 0 `warning:`; `find Tests -name '*.json' | wc -l`
+= 97 and `git diff --stat c4b5853 -- '*.json'` empty; per-file
+`grep -c canTypecheck` sums to 64 outside `Typecheck.swift`, one of which is a
+comment in `UnitSafetyTests.swift`, so **63** guards. The new guard was mutated
+red (`FR-S`'s third mutation), so it runs in this worktree rather than
+skipping.
 
 ## Lane 3 — the sizing inventory
 

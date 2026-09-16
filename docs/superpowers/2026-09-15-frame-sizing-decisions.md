@@ -2,14 +2,22 @@
 
 Rulings for `docs/superpowers/specs/2026-09-15-frame-sizing-design.md`, on
 `feat/frame-sizing` from `c4b5853`. Ids are **lettered**, `FR-A`…; next unused
-is **`FR-S`**. A bare `FR-3` is a typo, not a citation.
+is **`FR-T`**. A bare `FR-3` is a typo, not a citation.
+
+**Status, 2026-09-15, after lane 2:** the legacy frame has SwiftUI's whole
+parameter surface. `FR-A`, `FR-B`, `FR-C`, `FR-D`, `FR-E`, `FR-J`, `FR-K`,
+`FR-L`, `FR-M`, `FR-N`, `FR-O` and `FR-P` are **landed and mutation-tested**;
+`FR-R` and `FR-S` were added by lanes 1 and 2 for things the design got wrong
+that only running could show. `FR-F`…`FR-I` and `FR-Q` are lane 3's and are
+still design only. The suite reads `Test run with 1245 tests in 1 suite
+passed`, 0 `error:`, 0 `warning:`, 97 goldens unmoved, 63 typecheck guards.
 
 **Status, 2026-09-15, after lane 1:** the kernel's flexible frame is
 implemented. `FR-A`, `FR-B`, `FR-J`, `FR-L` and `FR-M` are **landed and
 mutation-tested**; `FR-R` was added by lane 1 for three things the design got
 wrong that only running could show. `FR-C`…`FR-I`, `FR-K`, `FR-N`…`FR-Q` are
 still design only. The suite reads `Test run with 1234 tests in 1 suite passed`,
-0 `error:`, 0 `warning:`, 97 goldens unmoved, 62 typecheck guards.
+0 `error:`, 0 `warning:`, 62 typecheck guards.
 
 **Status, 2026-09-15, after the critic round:** design only. No source file had
 changed — every source patch below was applied, measured and restored from a
@@ -212,6 +220,27 @@ enumerated, and each member is pinned.
 
 ---
 
+**Landed by lane 2, with the lowering mutated row by row** (each patch applied
+to a `cp` backup's `FrameLayer.swift`, the WHOLE suite run under `swift test
+--build-system native --no-parallel`, the file restored and `git status
+--short` checked empty; every run read `Test run with 1245 tests`):
+
+| mutation | tests reddened |
+|---|---|
+| the alignment switch's `justifyContent` dropped | **8**: 2.1 (its six non-centred x arms), 2.2, 2.5, 2.9, and four tests nobody wrote for this — `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`, `chainedFramesRemainConcreteAndNestTheirLayoutNodes`, `aGenericWrapOverAChainIsIdenticalToTheFlatChain`, `aModifierChainIsIdenticalToHandBuiltNestedBoxes` and `modifierOrderChangesSizeAndPlacementAsSwiftUIDoes` |
+| the switch's `alignItems` dropped | **8**: 2.1 (six arms), 2.5, 2.6, 2.8, 2.9 and the same four oracles |
+| the switch's two axes swapped | **1**: 2.1, at its four corner arms and `.top`/`.bottom` |
+| `size.width` dropped from the fixed rows | **4**: 2.1, 2.5, 2.6, 2.8 |
+| `flexDirection` set to `.column` | **4**: 2.8 (both arms — the squeeze moves to the height), 2.1, and the two `ComponentTests` frame tests |
+
+An earlier, partial version of the `alignItems` mutation — one that reached only
+three of the nine cases — reddened just two arms of 2.1, which is the shape
+practices shape 15 warns about from the other side: a mutation that does less
+than it says reads as a test that covers less than it does. The row above is
+the full one.
+
+---
+
 ## FR-D — `idealWidth`/`idealHeight` trap on the legacy path
 
 **The finding.** An ideal dimension is defined entirely by "what this view
@@ -242,6 +271,14 @@ task 7.
 **What it costs if wrong.** A caller who legitimately wants an ideal on the
 legacy path gets a crash instead of an approximation. That is the intended
 trade: the approximation would be wrong in the direction nobody can see.
+
+---
+
+**Landed by lane 2.** Mutation: `precondition(idealWidth == nil, …)` made
+unconditional reddens **1** test, `anIdealDimensionOnTheLegacyFrameTraps`, at
+its `idealWidth` arm (`.failure → .exitCode(0)`) and at the stderr assertion
+that the trap names the parameter. The message is asserted, not just the exit
+code, so a trap fired for another reason does not pass.
 
 ---
 
@@ -285,6 +322,16 @@ the child's width rather than 80 on the legacy path. It is recorded as a
 divergence rather than approximated, because M4 shows the approximation
 available today (`width: 100%`) is catastrophic on one axis and invisible on
 the other.
+
+---
+
+**Landed by lane 2, divergence included.** Mutations: dropping `minSize` from
+the flexible minimum row reddens **1** test, 2.3, at its opening `#require`
+(the `minWidth` arm then reads the child's own 20 and agrees with the `maxWidth`
+arm); dropping `maxSize` reddens the same test at its second arm. The third
+arm — `.frame(maxWidth: 80)` over a 20pt child reading **20** where SwiftUI's
+`D4` reads 80 — is pinned wrong on purpose, with SwiftUI's number in the
+expectation's own message.
 
 ---
 
@@ -709,6 +756,14 @@ because "content bigger than its frame" is ordinary.
 
 ---
 
+**Landed by lane 2**, pinned wrong on purpose by test 2.8, whose two arms read
+`(0, 20) 60×160` with and without `flexShrink(0)` on the layer. Mutation:
+`flexDirection = .column` on the layer reddens **4** tests — 2.8's two arms
+(the squeeze moves to the height, which is the evidence that one flex node
+cannot overflow both axes), 2.1, and the two `ComponentTests` frame tests.
+
+---
+
 ## FR-O — an infinite maximum fills when BOTH axes are infinite, and is inert when only one is
 
 **Where it came from.** The critic round's finding 7: lowering an infinite
@@ -758,6 +813,21 @@ present, the same lowering in a `Column` pushes the sibling from y = 20 to
 stops being full-bleed — loud and immediately visible. If the single-axis
 inertness is the wrong call, a caller gets a node that does nothing, which the
 declared-but-inert row and test 2.9 are what make findable.
+
+---
+
+**Landed by lane 2, and one of its two mutations found a blind test.** Dropping
+`alignSelf = .stretch` first reddened **nothing in 1245 tests**: test 2.9's
+arms centred their mark, and a mark centred in a 20pt-tall layer at y = 90 and
+one centred in a 200pt-tall layer at y = 0 sit at the same y. The test gained
+two `.topLeading` arms — (0, 0) filled, against (0, 90) in a `Row` and (140, 0)
+in a `Column` unstretched — and the mutations then read:
+
+| mutation | tests reddened |
+|---|---|
+| `alignSelf = .stretch` dropped | **1**: 2.9, at both `.topLeading` arms |
+| `flexGrow = 1` dropped | **1**: 2.9, at its opening `#require` (filled and inert then place the mark alike) |
+| the fill extended to a SINGLE infinite maximum (`&&` → `\|\|`) | **1**: 2.9, at the same `#require` — the inert arm stops being inert |
 
 ---
 
@@ -817,6 +887,16 @@ will not tell you when it drifts.
 **What it costs if wrong.** A fixed frame shrinks below its declared size in an
 over-constrained parent, which is L9's 150-instead-of-200 and what the demo's
 sidebar already does for a different reason (SZ-L).
+
+---
+
+**Landed by lane 2, and the two mutations separate exactly as the ruling
+predicted:**
+
+| mutation | tests reddened |
+|---|---|
+| `minSize` dropped from the fixed rows | **1**: 2.2 — the two 200pt layers shrink to 150 and the marks read 65/215 |
+| the axis-named pin replaced by `flexShrink = 0` | **1**: **2.10**, and NOT 2.2 — `(framed → 0.0) == (bare → 123.0)`. That is the whole finding: the two lowerings are indistinguishable on the axis that happens to be the parent's main one, and disagree on the one the caller never declared |
 
 ---
 
@@ -942,6 +1022,75 @@ integration. Item 2 costs a lane writing an arm that cannot compile, and — lef
 uncorrected — a reader believing the `hi` floor is tested. Item 3 costs a lane
 reporting a mutation as "did not redden, instrument broken" and going looking
 for a fault that is not there.
+
+## FR-S — ONE fixed `frame` overload on `ElementGroup`, because two make a long chain exponential
+
+**Where it came from.** Lane 2's first step, the overload skeleton re-run
+against the real module. The design said lane 2 would declare
+`frame(width:height:alignment:)` in `FrameLayer.swift` and that
+`ModifiedElement.swift` "is **not** touched again" (critic finding 14, which
+made lane 1's step 0 an in-place forwarding declaration so that a parallel
+track's appends would not race a deletion). Those two sentences cannot both
+hold: lane 1's declaration is `frame(width:height:)`, so declaring
+`frame(width:height:alignment:)` elsewhere leaves **two** fixed overloads live.
+
+**The first measurement said that was harmless.** The skeleton
+(`docs/probes/swift-frame-overload-resolution.swift`, variant A) compiles with
+both: nothing is ambiguous, `.frame(width:)` silently takes the two-parameter
+body and `.frame(width:height:alignment:)` the three-parameter one. Both would
+lower through the one `FrameSpec`, so the duplicate looked like surface
+redundancy to be collapsed at integration.
+
+**The suite said otherwise, and nobody had predicted it.** With the scratch stub
+declaring both, the whole-suite run reddened a test this lane had no reason to
+touch: `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget` (ruling
+`MC-A`), whose positive fixture — `Leaf().padding(1).frame(width: 1)` twelve
+times over, ending in a ternary `.background` — stopped type-checking. Measured
+directly against the built module, with the harness's own command line:
+
+| fixed legacy overloads | `-solver-scope-threshold` needed |
+|---|---|
+| two (`width:height:` **and** `width:height:alignment:`) | fails at 1000, 2000, 4000, 8000, **16000** |
+| one (`width:height:alignment:`) | **186** — ok at 186, fails at 180 |
+
+186 is the same minimum `MC-A` recorded for this fixture before this lane, so
+replacing the declaration costs the solver **nothing**. Two applicable
+overloads at each of twelve `.frame(width: <integer literal>)` calls is a
+disjunction the solver explores combinatorially; that is the mechanism, and the
+16000 row is the evidence that it is exponential rather than merely dearer.
+
+**The ruling.** `ElementGroup` declares **exactly one** fixed `frame` overload,
+and it is lane 1's declaration in `ModifiedElement.swift` **amended in place**
+to carry `alignment:` — one signature line, one forwarded argument, the same
+extension at the same position. The flexible overload, a name that file never
+had, is declared in `FrameLayer.swift`. So the spec's "`ModifiedElement.swift`
+is not touched again" is **withdrawn and replaced** by "it is touched exactly
+once more, in place, and the hunk is two lines".
+
+**Reasoning for amending rather than moving.** Deleting the extension from
+`ModifiedElement.swift` and re-declaring it in `FrameLayer.swift` is the merge
+shape critic finding 14 exists to avoid — a deletion at the file's last lines,
+which is where the parallel paint-modifier track appends. An in-place signature
+change is one hunk at the same lines lane 1 already changed, and it leaves the
+file's length and shape alone.
+
+**What it costs if wrong.** If the solver measurement were wrong in the other
+direction, the cost of this ruling is one extra two-line hunk in a shared file
+at merge. If it had been ignored, the cost is a package whose long modifier
+chains do not compile — with a diagnostic ("the compiler is unable to
+type-check this expression in reasonable time") that names neither `frame` nor
+the overload set, on a shape the modifier-composition milestone exists to
+support.
+
+**Mutations, run over the whole suite.**
+
+| mutation | tests reddened |
+|---|---|
+| the two-parameter fixed overload re-declared beside the three-parameter one | **1**: `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget`, `positive.succeeded → false` with "unable to type-check this expression in reasonable time" — the same shape as that guard's own first-design negative |
+| `ProposalElementGroup`'s fixed `frame(width:height:alignment:)` removed, so the legacy overload wins there | **the package stops compiling**: `main.swift:1004` (`.border` on the resulting `ModifiedElement`) and `ModifierCompositionProofTests.swift:768` (`HStack` requires `ProposalElementGroup`). The mis-resolution this lane's guard exists to catch is *also* caught by 52 existing call sites — as a cascade of unrelated-looking errors, which is why the guard asserts the inferred type and fails with one readable line instead |
+| `ProposalElementGroup`'s flexible overload's `idealWidth:` label renamed (the one spelling no other call site uses) | **2**, and they are exactly the pair the design predicted: `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload` (`cannot convert value of type 'ModifiedElement<ProposalLeaf>' to specified type 'ModifiedContent<ProposalLeaf>'`) and test 2.4's proposal control (`.success → .signal(SIGTRAP)` — the proposal element fell into `FR-D`'s legacy trap). This is also the proof the new guard RUNS in this worktree |
+
+---
 
 ## Carried into this task, and where each went
 
