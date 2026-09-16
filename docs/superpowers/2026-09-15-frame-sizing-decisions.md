@@ -21,6 +21,13 @@ table): every number above reads the same, the stand-in is 0 against its own
 2026-09-15 images as well as against `c4b5853`, and `IOConsoleLocked` this time
 read `true` under the same locked, asleep CGS state — `FR-V` corroborated, not
 contradicted. `MC-J` still owed.
+**Re-verified 2026-09-16 at `957b068`** (record §14, lane 4's second verifier
+round): `ok`, 1247 / 0 / 0, 97 goldens, 63 guards, both guards' fixture prints
+present, the stand-in 0 × 10 from fresh scratch trees; four minor issues,
+applied in the commit after `957b068` — `FR-U`'s second pin corrected to
+`aFrameNeverAnswersANegativeSize`, `FR-V`'s probe still without a positive
+control (a fourth reading, 09:07 PDT, locked and asleep again), and two record
+and spec corrections. No ruling changed; the next unused letter stays `FR-W`.
 **Record written 2026-09-16 at `6c18389`** (record §14, "For the integrator"):
 the lane 3 and lane 4 verifier rounds' seven minor issues applied — `FR-Q`'s
 addendum (a fourth rem entry point, `inset(_ edges:)`), `FR-H`'s pointer to
@@ -1263,7 +1270,12 @@ would show the change; the demo has neither.
 preview and no evidence about `FR-M` in either direction**; the kernel change
 is pinned where it can be seen, by
 `aFrameWithoutAMinimumNeverAnswersLessThanItsChild` (H16) and
-`aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI`. The spec's lane
+`aFrameNeverAnswersANegativeSize` — the two tests that redden when `framedSize`'s
+greedy line is put back to `base = proposal` (lane 4's second verifier, at
+`957b068`: 2 issues, those two only). *(Corrected 2026-09-16: this sentence
+first cited `aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI`,
+which pins `FR-A`'s growth to the proposal and stays green under that
+mutant.)* The spec's lane
 4 item 5 is corrected to say so: a preview difference is still to be
 investigated, and its absence is expected, not reassuring. **The preview's own
 first human look is still owed** (CLAUDE.md's human-verification table), and
@@ -1318,6 +1330,16 @@ that dictionary says the screen is unlocked.
 `screencapture` calls per attempt, already paid once here. If the CGS check
 is also insufficient on some session, the full-screen non-black count is the
 backstop: 0 means nothing was captured, whatever any flag says.
+
+**The check is unvalidated** (lane 4's second verifier, at `957b068`). Every
+reading behind this ruling was taken on a locked session, so
+`CGSSessionScreenIsLocked == 0 && !displayAsleep` has never been shown to
+predict a successful capture — only `IOConsoleLocked` has been shown NOT to.
+A fourth reading, 2026-09-16 09:07 PDT, was locked and asleep again, under a
+new `CGSSessionScreenLockedTime` (1789569027), so the session was unlocked
+at some point after 04:20 and nobody was capturing. The control owed: on the
+next unlocked session, one reading of the probe together with a full-screen
+capture whose non-black pixel count is above 0, added to the probe's header.
 
 ---
 

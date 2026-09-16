@@ -77,7 +77,7 @@ because the file that produced them is gone. `Mark` is a childless
 | L1 | `Text(…).frame(width: 60)` **as the root** | 60×200, and identical for `.width(60)` and for a `Box` wrapper — the root's auto height takes the offered space (divergence 4), so the root contaminates this measurement | — (superseded by L11) |
 | L2 | `Mark.frame(width: 60, height: 40)` | root 60×40; the **Mark is 0×0** at (30, 20) | matches: a contentless child answers 0 and is centred (A-control shape) |
 | L3 | `Mark.width(200).height(160).frame(width: 60, height: 40)` | the Mark is **(0, −60, 60, 160)** — width shrunk to the frame, height overflowing. Re-measured in the critic round as **N5** (a `Row` parent instead of the root, so the y differs: (0, 20, 60, 160)); both agree the width is squeezed. Ruled on by `FR-N`, pinned wrong on purpose by test 2.8 | A5: the child keeps 200×160 at (−70, −60) |
-| L4 | `Box { Mark }.onClick {}.frame(width: 60, height: 40)` | the hitbox is **0×0 at (30, 20)** | the same in SwiftUI: a handler declared before a frame sits on the content |
+| L4 | `Box { Mark }.onClick {}.frame(width: 60, height: 40)` | the hitbox is **0×0 at (30, 20)** | **by reading, unprobed**: no saved probe measures a gesture's hit area before a frame. Only the background half is probed (`swiftui-modifier-order.swift` O1: a `GeometryReader` background before the outer frame reads 20×20). *(Corrected at `957b068`'s verifier round; this cell said "the same in SwiftUI".)* |
 | L6 | nine `justifyContent` × `alignItems` combinations on a 60×40 layer over a 20×20 child | `(0,0) (0,10) (0,20) (20,0) (20,10) (20,20) (40,0) (40,10) (40,20)` | B1–B8 exactly |
 | L9 | `Row { Mark.frame(200×20); Mark.frame(200×20) }` in 300pt | marks at x = **75 and 225** — each layer shrank to 150. The critic round's **N10** re-took it at x = 65/215 with a slightly different probe and reached the same finding | a fixed frame never shrinks |
 | L10 | in a 300pt `Row`, width read from a 5pt sibling's x | `maxWidth 80` over a 20pt child → **20**; `minWidth 40` → **40**; `maxWidth 80` over a 200pt child → **80**; `.frame(width: 80)` → 80 with the child centred at 30 | D4 → 80 (**diverges**); D7 → 40; D14 → 80; A1 |
@@ -98,7 +98,8 @@ measurement", and record §09 notes no measurement of it exists.
 - **List virtualization: refuted.** L12 — the framed list paints the same rows.
 - **Hit testing: confirmed, and it is not a defect.** L4 — a handler declared
   before the frame stays on the content, which is what SwiftUI does with
-  `.background` before `.frame`. What actually blocks the conversion is the
+  `.background` before `.frame` (probe O1); that a SwiftUI gesture's hit area
+  does the same is by reading, unprobed. What actually blocks the conversion is the
   type-level blast radius and the 0-warning gate (`FR-F`).
 
 ### Critic round, 2026-09-15, still at `c4b5853`
@@ -690,7 +691,7 @@ of its own characterizations. Worktree clean afterwards.
 | M7, an instrument | scratch `ZZVerifierRemInsetTests.swift`: an absolutely positioned `Mark` with `.inset(left: .length(.rems(Rems(2))))` against a 0px control; deleted afterwards | **none — it PASSED**, `VERIFIER-M7 inset left: control 0.0, 2rem 32.0`, which is the finding: `Length.rems` is publicly reachable through `inset(_ edges: Edges<Dimension>)` (`FlexEngine.swift`'s `placeAbsolute` resolves each inset with `rootFontSize`), a fourth entry point the `FR-Q` inventory and the new `padding(_ edges:)` comment said did not exist |
 
 **Five minor issues, and where each went** (all applied 2026-09-16 in the
-commit after `6c18389`, by the record writer):
+commit after `6c18389`, `957b068`, by the record writer):
 
 | # | issue | disposition |
 |---|---|---|
@@ -868,12 +869,59 @@ the stand-in:
 | the pixel stand-in, re-taken fresh in both scratch trees | `l4-base/Sources` byte-identical to `git archive c4b5853`; `l4-head/Sources` and `Tests` identical to the worktree bar the generated `SIPixelStandIn.swift`; ten 1024×1024 images per tree through a real `Window` over `FakePlatformWindow` | controls: light vs dark 1 048 576; default vs modal 1 030 498; default vs animation look 210 027, bbox (16, 113, 966×895); preview light vs dark 1 048 576; f0 vs f3 0. **Base vs head: 0 differing pixels in all ten**; the fresh images byte-identical to the 2026-09-15/16 `l4-px-*` images (20 / 20); rect dumps 518 rects / 15 711 glyphs (default) and 16 / 97 (preview) at all three sizes, 0 differing lines × 6; the preview's 920×560 inner surface rect confirmed at (0, −34) 1840×1188 device px = 594pt in a 560pt window |
 
 **Two minor issues, and where each went** (both applied 2026-09-16 in the
-commit after `6c18389`):
+commit after `6c18389`, `957b068`):
 
 | # | issue | disposition |
 |---|---|---|
 | 1 | the re-take paragraph dated the run 04:02–04:20 PDT; the last artifact (`l4-px-inst-I2/rects-preview-920x560.txt`) is stamped 04:07:39 and `6c18389` is 04:08:40 | **applied**: the paragraph reads 04:02–04:08 and says why. Numbers unaffected |
 | 2 | `FR-V` rules that the check runs "from a swiftc-compiled probe", but no such probe was saved; the working `l4-diag.swift` lived only in the scratchpad and the scratchpad's `l4-lockcheck.swift` variant does not compile (`CGSessionCopyCurrentDictionary()` returns `CFDictionary?`, so `.takeRetainedValue()` is an error) | **applied**: saved as `docs/probes/appkit-screen-lock-state.swift`, the `l4-diag.swift` shape (`as? [String: Any]`, `CGDisplayIsAsleep`, `CGDisplayIsActive`, `CGPreflightScreenCaptureAccess`), with the two lane-4 readings and a third taken when the file was saved (2026-09-16 04:20:39 PDT: still locked, still asleep, `IOConsoleLocked` `<true/>`) in its header, the `CFDictionary?` note, and no positive control — every reading so far is locked, and the header says the first unlocked one is the control it lacks. `FR-V` and this file cite it |
+
+#### Lane 4 — second verifier round, 2026-09-16 (at `957b068`)
+
+A second verification of lane 4, run after `957b068` had already set the
+spec's Status to "verified `ok`" — so that Status line was written ahead of
+this round. It is true now; the order is recorded here, not rewritten.
+
+**Verdict `ok: true`**, quoted: `Test run with 1247 tests in 1 suite passed
+after 39.025 seconds` (after `swift build --build-system native
+--build-tests`, `swift test --build-system native --no-parallel`; `error:` 0
+in the build and test logs; `warning:` 1, SwiftPM's own `--build-system native`
+deprecation notice; both guard fixture prints present, `FR-J ... succeeded=true
+deprecations=2` and `FR-S ... succeeded=true`, so the guards ran). Goldens 97,
+diff against `c4b5853` empty. Guards 64 `canTypecheck` hits across ten files,
+less the `UnitSafetyTests` comment, **63**. Pixel stand-in re-taken from
+scratch trees: base `Sources` byte-identical to `git archive c4b5853`, head
+`Sources` synced to `957b068` (`diff -rq` clean); **0 differing pixels in all
+ten** BGRA images and **0 differing lines in all six rect dumps** (16 229
+lines per default dump, 113 per preview dump). Controls that differ: light vs
+dark f0, 1 048 576 pixels; the preview vs the default demo, 373 313. Red-first
+order holds (`9bd130c` before `389c452`, `c5a02a0` before `44a79b5`).
+`a316916` and lane 4's `7d5a3a7`, `6c18389`, `957b068` change only comments and
+docs in `Sources`, checked by diffing non-comment lines.
+
+**Mutations and instruments, this verifier's:**
+
+| # | mutation | result |
+|---|---|---|
+| M1 (`FR-M`'s pin) | `LayoutTree.swift` `framedSize`: `base = min == nil ? Swift.max(proposal, child) : proposal` → `base = proposal`, full unfiltered suite | **2**: `aFrameWithoutAMinimumNeverAnswersLessThanItsChild` (`NativeLayoutTests.swift:394`, `h8.answer != h14.answer`) and `aFrameNeverAnswersANegativeSize` (`:435`, `h2.answer == 20`). **Not** `aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI`, which `FR-U` had cited — issue 2 below |
+| I1 (`FR-U`) | the same revert on the scratch head kernel; `siRectDump` at 920×560, 828×503, 1024×1024 | **nothing**: 0 differing lines × 6, as `FR-U` predicts (the two centre alignments cancel). An instrument reading, not a test |
+| I2 (I1's control) | `framedProposal` returns its value minus 10 | 224 differing lines in each preview dump at all 3 sizes; the default dumps stay 0 — the dump can see the preview's frame |
+| I3 (the verifier's own) | `base = child` (the greedy branch answers the child) | **nothing**: 0 × 6. Consistent with `FR-U`: in the preview the child (594) exceeds the proposal (560), so `max(proposal, child)` is the child |
+| A (`FR-J` guard) | delete the deprecated `ElementGroup.frame()`, `FrameLayer.swift:197-198`; filtered run | **1**: `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths` (`FrameSizingCompileGuards.swift:102` `succeeded`, `:104` `deprecations == 2`); fixture print `succeeded=false deprecations=1` |
+| B (`FR-S` guard) | rename the proposal flexible `frame(minWidth:idealWidth:…)`'s external label to `idealWidthX`, `NativeModifiedContent.swift:296` | **2**: `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload` (`:171`; `cannot convert ModifiedElement<ProposalLeaf> to ModifiedContent<ProposalLeaf>`) and `anIdealDimensionOnTheLegacyFrameTraps` (`FrameSizingTests.swift:268`, the exit test's success arm got SIGTRAP) |
+
+Mutations A and B repeat the first round's A and B with the same result, taken
+independently. M1 and I3 are new.
+
+**Four minor issues, and where each went** (applied in the commit after
+`957b068`, by the record writer):
+
+| # | issue | disposition |
+|---|---|---|
+| 1 | the lane 4 implementer report stops at `6c18389`, but `957b068` (04:32 PDT) edits `Box.swift` (46 comment lines), adds the lock probe and sets the spec Status to verified before this round ran | **applied**: `957b068` is listed as lane 4's in "What landed" and in the spec's Status, which now says which round verified what and in which order |
+| 2 | `FR-U` cites `aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI` as `FR-M`'s second pin; M1 leaves it green (it pins `FR-A`) | **applied**: `FR-U` now cites `aFrameNeverAnswersANegativeSize`, with a correction note |
+| 3 | this file's L4 row said a handler before a frame sits on the content "the same in SwiftUI", against `Box.swift`'s "by reading, unprobed" | **applied**: the row and the hit-testing paragraph say unprobed and cite O1 for the background half only. No probe added |
+| 4 | `FR-V`'s lock probe has no positive control | **not closable today**: a fourth reading at 09:07:08 PDT was locked and asleep (`CGSSessionScreenIsLocked = 1`, a new lock time 1789569027, `IOConsoleLocked` `<true/>`), added to the probe's header; `FR-V` gains an "unvalidated" paragraph naming the control owed |
 
 ### Open at the end of the critic round
 
@@ -926,7 +974,8 @@ moved in four of them and `Tests/` in five:
 | `b513fa3` | 3, record | `FR-T`; five mutations; two stale claims |
 | `7d5a3a7` | 4, record | verification; `FR-U`, `FR-V` |
 | `6c18389` | 4, record | the whole of lane 4 re-taken at `7d5a3a7`, every figure identical |
-| the commit after `6c18389` | record | this file's summary sections; the lane 3 and lane 4 verifiers' seven minor issues applied (comments in `Box.swift`, `FR-H`/`FR-Q`/`FR-V`, the saved lock probe, three record corrections); the spec's Status |
+| `957b068` | 4, record | this file's summary sections; the lane 3 and lane 4 verifiers' seven minor issues applied (comments in `Box.swift`, `FR-H`/`FR-Q`/`FR-V`, the saved lock probe, three record corrections); the spec's Status |
+| the commit after `957b068` | record | lane 4's second verifier round and its four minor issues (`FR-U`'s pin, `FR-V` unvalidated with a fourth reading, the L4 row, the spec's Status order) |
 
 **Source files, `git diff --stat c4b5853..6c18389 -- Sources`:**
 
@@ -989,7 +1038,7 @@ golden moved, which is expected — the change is inside `framedSize`, behind
 | `docs/probes/swiftui-frame-semantics.swift` | 54 (`A`…`F`) | the whole frame rule: child proposal, response, the nine alignments, chaining, measured leaves; that a finite `maxWidth` frame GROWS (`SA-N` item 1, closed) | every group opens with a control whose answer must differ; script and compiled forms diffed EMPTY (295 lines); its first pass crashed SwiftUI at D12 (`view origin is invalid: (nan, 190.0)`), recorded |
 | `docs/probes/swiftui-frame-negative-sizes.swift` | 17 (`H`) | SwiftUI never answers a negative size and floors DECLARED bounds at 0 (`FR-L`); an absent minimum is not `minWidth: 0` (`FR-M`: H8 20 vs H14 10); `maxWidth: .infinity` over an oversized child answers the child (H16) — the shipped kernel's live bug | script and compiled forms diffed EMPTY (101 lines); the compiled form prints exactly two SwiftUI diagnostics (H6, H10) |
 | `docs/probes/swift-frame-overload-resolution.swift` | 3 variants × 8 spellings | a probe of the COMPILER: the refined protocol wins every `frame` spelling; `frame()` on `ElementGroup` alone reinstates `SA-N` item 9 (`FR-J`); two fixed legacy overloads are silently ambiguous-free and exponentially slow (`FR-S`, measured on the real module: fails at threshold 16000 with two, 186 with one) | each `frame` body prints which declaration ran; variant C is the pre-lane-2 shape |
-| `docs/probes/appkit-screen-lock-state.swift` | — | a probe of the MACHINE: `CGSSessionScreenIsLocked` + `CGDisplayIsAsleep` are the pre-capture check, `IOConsoleLocked` is not (`FR-V`) | **none yet** — three locked readings; the first unlocked reading is the control it lacks; the full-screen non-black pixel count is the backstop |
+| `docs/probes/appkit-screen-lock-state.swift` | — | a probe of the MACHINE: `CGSSessionScreenIsLocked` + `CGDisplayIsAsleep` are the pre-capture check, `IOConsoleLocked` is not (`FR-V`) | **none yet** — four locked readings (the fourth 2026-09-16 09:07 PDT, after a re-lock); the first unlocked reading taken with a capture whose non-black count is above 0 is the control it lacks, so `FR-V`'s check is unvalidated; the full-screen non-black pixel count is the backstop |
 | cited, not new: `docs/probes/swiftui-modifier-order.swift` arm O1 | | a `.background` before a `.frame` sits at the content's size in SwiftUI — the background half of `Box.swift`'s section comment | (task 3's) |
 
 Seventy-one SwiftUI arms across the two frame probes; the rule they fix, in
@@ -1130,7 +1179,9 @@ session cut off on 2026-09-15 (verdicts lost; the brief's "suite 1245 at lane
 2's verification" is the only surviving figure; see "Lanes 1 and 2 — the
 verifier tables, reconstructed"), lane 3 at `b513fa3` and lane 4 at `6c18389`
 in the continuation, each with minor issues only, all applied in the commit
-after `6c18389`. This track adds no `Sources/` change after `44a79b5` beyond
+after `6c18389`; lane 4 verified a second time at `957b068`, `ok`, four minor
+issues, applied in the commit after `957b068` except `FR-V`'s positive
+control, which needs an unlocked session. This track adds no `Sources/` change after `44a79b5` beyond
 comments. The release-window captures are still owed. Re-take every count
 after merging with the paint-modifier track. The figures here are this
 branch's alone: **1247 tests, 97 goldens, 63 guards, 0 `error:` / 0
@@ -1277,7 +1328,7 @@ own deprecation notice).
    report a clipped border". Change the standing check in the two capture
    rows from `ioreg … IOConsoleLocked` to "`docs/probes/appkit-screen-lock-state.swift`:
    `CGSSessionScreenIsLocked` 0 and `displayAsleep` false; `IOConsoleLocked`
-   read `false` on a locked, asleep display".
+   read `false` on a locked, asleep display; the CGS check itself has no positive control yet (`FR-V`)".
 10. **Unprobed kernel behaviour** bullet "`.frame(maxWidth: .infinity)` in a
     stack does not expand (stack children get a nil main offer)" stays; it is
     a stack fact, not a frame one, and `FR-A` does not change it.
