@@ -500,11 +500,20 @@ private struct BoxWithoutAnimated<Content: ElementGroup>: StyledElement {
 
 /// The frame layer's style — `FrameModifier.init`'s until lane 2 deleted that
 /// type, `ElementGroup.frame`'s layer since — written out independently of it.
+///
+/// **A drift obligation, not a redness one** (frame-sizing ruling `FR-P`).
+/// Plan task 4's lane 2 gave `FrameSpec.style()` the axis-named `minSize` pin
+/// that keeps a fixed frame from shrinking, and running each candidate lowering
+/// over the whole suite showed that nothing here moves either way. This oracle
+/// is a hand-spelled duplicate of the lowering, and the suite has demonstrated
+/// it will not tell you when the two diverge, so it is kept in step by hand, in
+/// the same commit as the lowering changes.
 private func frameStyle(width: Float, height: Float) -> Style {
     var style = Style()
     style.alignItems = .center
     style.justifyContent = .center
     style.size = Size(width: .length(.pixels(px(width))), height: .length(.pixels(px(height))))
+    style.minSize = Size(width: .length(.pixels(px(width))), height: .length(.pixels(px(height))))
     return style
 }
 

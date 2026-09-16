@@ -267,10 +267,15 @@ extension ElementGroup {
     ///
     /// Adds one layer to a `ModifiedElement` (ruling MC-A). **The lowering
     /// lives in `FrameLayer.swift`** — `FrameSpec.style()`, ruling FR-C — which
-    /// is where every later change to the legacy frame's meaning goes. This
-    /// file is shared with a parallel track, so the declaration stays here, in
-    /// place, and stays one line (frame-sizing critic finding 14).
-    public func frame(width: Pixels? = nil, height: Pixels? = nil) -> ModifiedElement<LayerBase> {
-        _wrap(ModifierLayer(style: FrameSpec(width: width, height: height).style()))
+    /// is where every later change to the legacy frame's meaning goes, along
+    /// with the flexible `frame(minWidth:…)` overload. This file is shared with
+    /// a parallel track, so the declaration stays here, in place (frame-sizing
+    /// critic finding 14); `alignment:` was added to it in place rather than
+    /// declared as a second overload, because two applicable fixed `frame`
+    /// overloads make a long chain exponential for the solver (ruling FR-S).
+    public func frame(width: Pixels? = nil, height: Pixels? = nil,
+                      alignment: ProposalAlignment = .center) -> ModifiedElement<LayerBase> {
+        _wrap(ModifierLayer(style: FrameSpec(width: width, height: height,
+                                             alignment: alignment).style()))
     }
 }

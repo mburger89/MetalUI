@@ -232,11 +232,17 @@ private func paddingStyle(_ points: Float) -> Style {
 }
 
 /// The frame layer's style, written out independently of `ModifiedElement`.
+///
+/// The second hand-spelled duplicate of `FrameSpec.style()`'s fixed-axis rows
+/// (the other is `ModifierCompositionProofTests`'), carrying plan task 4's
+/// axis-named `minSize` pin for the same drift reason — see that copy's
+/// comment and ruling `FR-P`.
 private func frameStyle(width: Float, height: Float) -> Style {
     var style = Style()
     style.alignItems = .center
     style.justifyContent = .center
     style.size = Size(width: .length(.pixels(px(width))), height: .length(.pixels(px(height))))
+    style.minSize = Size(width: .length(.pixels(px(width))), height: .length(.pixels(px(height))))
     return style
 }
 
