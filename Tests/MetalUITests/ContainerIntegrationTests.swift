@@ -256,10 +256,16 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
 /// - SP7 `VStack{a20; Spacer(minLength: 0); b20}`: 20×40, b at y 20.
 /// - G23 `HStack{a20; if false {…}; b20}`: 48×20, b at 28 (element half only;
 ///   the kernel never sees the conditional).
+/// - SC5 (probe revision 7) `ProposalScrollView(.vertical){a20;
+///   Spacer(minLength: 0); b20}`: b 20 below a, against SC5c's 28 without the
+///   spacer — the several-children lowering is a default-spacing stack.
+///   Added after the lane: the mutation "lower with an explicit 8" left the
+///   suite green (b reads 28 under it).
 ///
 /// Before the lane `HStack`'s default is an explicit 8, applied beside a spacer
 /// too: SP3 reads 56 and SP2 64. Mutations: apply 8 beside spacers (SP2, SP3,
-/// SP7 move); default nil → 0 (S rect|rect and G23 move).
+/// SP7 move); default nil → 0 (S rect|rect and G23 move); lower
+/// `ProposalScrollView`'s children with an explicit 8 (SC5 moves).
 @MainActor
 @Test func aStackWithoutSpacingPutsEightBetweenViewsAndNothingBesideASpacer() {
     // Kernel half.
@@ -340,6 +346,17 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
         }.fixedSize())
         #expect(log.bounds["m"] == nil, "G23 the conditional is empty")
         #expect(log.bounds["b"] == rect(28, 0, 20, 20), "element G23 b")
+    }
+    do { // SC5 (probe revision 7): a vertical ProposalScrollView's direct children
+        let log = BoundsLog()
+        render(ProposalScrollView(.vertical) {
+            fixed("a", 20, 20, log); Spacer(minLength: Pixels(0)); fixed("b", 20, 20, log)
+        })
+        render(ProposalScrollView(.vertical) { fixed("ca", 20, 20, log); fixed("cb", 20, 20, log) })
+        let (a, b) = (log.bounds["a"]?.origin.y.value, log.bounds["b"]?.origin.y.value)
+        let (ca, cb) = (log.bounds["ca"]?.origin.y.value, log.bounds["cb"]?.origin.y.value)
+        #expect(cb.flatMap { cb in ca.map { cb - $0 } } == 28, "SC5c control: 8 between two views")
+        #expect(b.flatMap { b in a.map { b - $0 } } == 20, "SC5: none beside the spacer")
     }
 }
 
