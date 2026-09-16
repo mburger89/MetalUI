@@ -46,14 +46,14 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         var cursor = 0
         let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
                                                                            pass: &pass)
-        // SwiftUI's `ScrollView` content builder presents direct children in a
-        // vertical variadic layout regardless of its scrolling axis. macOS
-        // pixel probes with 20pt red and 30pt blue children observed an 8pt
-        // gap (red, background, blue) for both axes. Horizontal content is an
-        // explicit `HStack`, which remains a single transparent child here.
-        // The lowering is a default-spacing `VStack` (probe SC3), so it takes
-        // the platform default per pair — 8 between views, none at a spacer's
-        // edge (ruling CN-H) — rather than an explicit 8.
+        // SwiftUI's `ScrollView` lays several direct children out as a
+        // centred, default-spacing `VStack` whatever its scrolling axis (probe
+        // SC3: b at (10, 38) under a 50×30 a on `.vertical`, `.horizontal` and
+        // both). Horizontal content is an explicit `HStack`, which remains a
+        // single transparent child here. Default spacing is the platform
+        // default per pair — 8 between views, none at a spacer's edge (ruling
+        // CN-H, SC5) — rather than an explicit 8. The viewport answers this
+        // content's size on its non-scrolling axis (ruling CN-M).
         let contentAxis: ProposalStackAxis = axis == .vertical ? .vertical : .horizontal
         let contentNode: ProposalNodeID
         if children.count == 1 {

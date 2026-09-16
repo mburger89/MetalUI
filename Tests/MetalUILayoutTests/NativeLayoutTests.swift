@@ -6,34 +6,43 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     var count = 0
 }
 
+/// A `ZStack` measures every child at its own proposal and answers the union;
+/// it places every child at its OWN placed size and centres each answer in the
+/// union of those answers (ruling CN-E's `ZStack` clause, plan task 6 lane 4).
+///
+/// Laid out in bounds of its answer, 40×50 at (13, 17), as a parent places a
+/// child: each leaf is asked (120, 80) then (40, 50), once each; the 40×20 child
+/// is centred at (13, 32) and the 20×50 at (23, 17). Rebuilt in lane 4: until
+/// then the test placed the overlay in bounds larger than its answer (120×80),
+/// where CN-E puts the union at the bounds' origin rather than centring it.
 @Test func aNativeOverlayForwardsOneProposalMeasuresTheLargestChildAndCentresEachChild() {
     let tree = LayoutTree(generation: 0)
     let firstCalls = NativeMeasureCounter()
     let secondCalls = NativeMeasureCounter()
     let first = tree.newNativeLeaf { proposal in
         firstCalls.count += 1
-        #expect(proposal == ProposedSize(width: 120, height: 80))
+        #expect(proposal == ProposedSize(width: 120, height: 80) || proposal == ProposedSize(width: 40, height: 50))
         return LayoutMeasurement(size: SizeD(width: 40, height: 20))
     }
     let second = tree.newNativeLeaf { proposal in
         secondCalls.count += 1
-        #expect(proposal == ProposedSize(width: 120, height: 80))
-        return LayoutMeasurement(size: SizeD(width: 25, height: 50))
+        #expect(proposal == ProposedSize(width: 120, height: 80) || proposal == ProposedSize(width: 40, height: 50))
+        return LayoutMeasurement(size: SizeD(width: 20, height: 50))
     }
     let overlay = tree.newNativeOverlay(children: [first, second])
 
     let measurement = tree.computeNativeLayout(
         root: overlay,
         proposal: ProposedSize(width: 120, height: 80),
-        in: LayoutRect(x: 13, y: 17, width: 120, height: 80)
+        in: LayoutRect(x: 13, y: 17, width: 40, height: 50)
     )
 
     #expect(measurement.size == SizeD(width: 40, height: 50))
-    #expect(tree.layout(overlay) == LayoutRect(x: 13, y: 17, width: 120, height: 80))
-    #expect(tree.layout(first) == LayoutRect(x: 53, y: 47, width: 40, height: 20))
-    #expect(tree.layout(second) == LayoutRect(x: 61, y: 32, width: 25, height: 50))
-    #expect(firstCalls.count == 1)
-    #expect(secondCalls.count == 1)
+    #expect(tree.layout(overlay) == LayoutRect(x: 13, y: 17, width: 40, height: 50))
+    #expect(tree.layout(first) == LayoutRect(x: 13, y: 32, width: 40, height: 20))
+    #expect(tree.layout(second) == LayoutRect(x: 23, y: 17, width: 20, height: 50))
+    #expect(firstCalls.count == 2)
+    #expect(secondCalls.count == 2)
 }
 
 @Test func aNativeOverlayPlacesEveryChildAtTheRequestedAlignment() {
@@ -46,19 +55,26 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     }
     let overlay = tree.newNativeOverlay(children: [first, second], alignment: .bottomTrailing)
 
+    // Placed at its answer, 50×40 (CN-E: a larger rect would put the union at
+    // its origin); the smaller child sits in the union's bottom-trailing corner.
     _ = tree.computeNativeLayout(
         root: overlay,
         proposal: ProposedSize(width: 120, height: 80),
-        in: LayoutRect(x: 13, y: 17, width: 120, height: 80)
+        in: LayoutRect(x: 13, y: 17, width: 50, height: 40)
     )
 
-    #expect(tree.layout(first) == LayoutRect(x: 103, y: 87, width: 30, height: 10))
-    #expect(tree.layout(second) == LayoutRect(x: 83, y: 57, width: 50, height: 40))
+    #expect(tree.layout(first) == LayoutRect(x: 33, y: 47, width: 30, height: 10))
+    #expect(tree.layout(second) == LayoutRect(x: 13, y: 17, width: 50, height: 40))
 }
 
 /// Every public proposal alignment must map to a distinct placement in a
 /// larger overlay. This is intentionally a nine-arm table: testing only the
 /// factors independently would let one enum case be routed to the wrong pair.
+///
+/// The child is aligned against a 100×80 sibling, so the union it is aligned
+/// in is 100×80 and the overlay is placed at that answer (ruling CN-E, lane 4:
+/// a lone child is its own union, so alignment inside a larger rect alone no
+/// longer moves it).
 @Test func everyProposalAlignmentPlacesAnOverlayChildAtItsNamedPosition() {
     let cases: [(ProposalAlignment, LayoutRect)] = [
         (.topLeading, LayoutRect(x: 13, y: 17, width: 20, height: 10)),
@@ -75,7 +91,8 @@ private final class NativeMeasureCounter: @unchecked Sendable {
     for (alignment, expected) in cases {
         let tree = LayoutTree(generation: 0)
         let child = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 10)) }
-        let overlay = tree.newNativeOverlay(children: [child], alignment: alignment)
+        let sibling = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 100, height: 80)) }
+        let overlay = tree.newNativeOverlay(children: [sibling, child], alignment: alignment)
         _ = tree.computeNativeLayout(root: overlay, proposal: ProposedSize(width: 100, height: 80),
                                      in: LayoutRect(x: 13, y: 17, width: 100, height: 80))
         #expect(tree.layout(child) == expected, "alignment: \(alignment)")

@@ -1584,16 +1584,22 @@ public final class Frame {
         tree.setStyle(id, style)
     }
 
-    /// Runs the flex engine over the tree, between `requestLayout` and
-    /// `prepaint`. Not reachable from any pass: elements contribute nodes, the
-    /// frame runs the engine on the finished root.
+    /// Lays the finished tree out, between `requestLayout` and `prepaint`. Not
+    /// reachable from any pass: elements contribute nodes, the frame runs the
+    /// engine on the finished root.
+    ///
+    /// **The root alone chooses the engine** (ruling SA-G). A legacy root runs
+    /// the CSS flex engine at the content size. A native root is measured at the
+    /// content size and placed CENTRED at its own answer
+    /// (`computeNativeLayout(root:proposal:centredIn:)`, ruling CN-J, probe
+    /// R1/R2); a root that takes the whole offer fills the window.
     func computeRootLayout(root: LayoutNodeID) {
         if tree.isNativeLayoutNode(root) {
             _ = tree.computeNativeLayout(
                 root: root,
                 proposal: ProposedSize(width: Double(contentSize.width.value),
                                        height: Double(contentSize.height.value)),
-                in: LayoutRect(x: 0, y: 0,
+                centredIn: LayoutRect(x: 0, y: 0,
                                width: Double(contentSize.width.value),
                                height: Double(contentSize.height.value))
             )

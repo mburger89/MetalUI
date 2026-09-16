@@ -3,8 +3,16 @@ import MetalUILayout
 
 /// A native SwiftUI-style overlay attachment.
 ///
-/// Its overlay is measured against the primary content's resolved size and
+/// Its overlay is proposed the primary content's resolved size, placed at that
+/// proposal and positioned by its answer and `alignment` (probe A6–A8, K5), and
 /// does not change the primary content's reported size.
+///
+/// **Any number of overlay views** (ruling CN-K): several are one centred
+/// `ZStack` that `alignment` positions (A10, K5a, K5g); none leaves the primary
+/// alone and registers no attachment (A11). The primary must contribute exactly
+/// one node. Prepaints and paints the primary before the overlay, so the
+/// overlay's hitboxes rank above the primary's (probe H2); `BackgroundModifier`
+/// is the reverse.
 public struct OverlayModifier<Content: ProposalElementGroup, Overlay: ProposalElementGroup>: Element {
     public var content: Content
     public var overlay: Overlay
@@ -70,10 +78,8 @@ public struct OverlayModifier<Content: ProposalElementGroup, Overlay: ProposalEl
         let (overlayNodes, overlayLayout) = overlay.requestProposalGroupLayout(under: overlaySide,
                                                                                 at: &overlayCursor,
                                                                                 pass: &pass)
-        precondition(contentNodes.count == 1 && overlayNodes.count == 1,
-                     "a native overlay modifier requires one primary and one overlay node")
-        let node = pass.requestNativeOverlayAttachment(child: contentNodes[0], overlay: overlayNodes[0],
-                                                       alignment: alignment)
+        let node = pass.requestSecondaryContentAttachment(primary: contentNodes, secondary: overlayNodes,
+                                                          alignment: alignment, modifier: "overlay")
         return (node, Layout(node: node.layoutNodeID, content: contentLayout, overlay: overlayLayout))
     }
 

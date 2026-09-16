@@ -24,7 +24,7 @@ private struct NativeRoot: ProposalElement {
     func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
         let leaf = pass.requestNativeLeaf { proposal in
             probe.measureCalls += 1
-            #expect(proposal == ProposedSize(width: 140, height: 90))
+            probe.proposals.append(proposal)
             return LayoutMeasurement(size: SizeD(width: 40, height: 20))
         }
         return (pass.requestNativeOverlay(children: [leaf]), ())
@@ -133,12 +133,23 @@ private struct NativeFillProbe: ProposalElement {
 
 
 private struct NativeProposalProbe: ProposalElement {
-    let expectedProposal: ProposedSize
+    let expectedProposals: [ProposedSize]
     let probe: NativeLayoutProbe
 
+    init(expectedProposal: ProposedSize, probe: NativeLayoutProbe) {
+        self.init(expectedProposals: [expectedProposal], probe: probe)
+    }
+
+    init(expectedProposals: [ProposedSize], probe: NativeLayoutProbe) {
+        self.expectedProposals = expectedProposals
+        self.probe = probe
+    }
+
     func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
+        let (expectedProposals, probe) = (self.expectedProposals, self.probe)
         let node = pass.requestNativeLeaf { proposal in
-            #expect(proposal == expectedProposal)
+            probe.proposals.append(proposal)
+            #expect(expectedProposals.contains(proposal))
             return LayoutMeasurement(size: SizeD(width: 30, height: 10))
         }
         return (node, ())
@@ -154,6 +165,13 @@ private struct NativeProposalProbe: ProposalElement {
 }
 
 
+/// A native root (an overlay over one 40×20 leaf) is laid out by the proposal
+/// engine: measured at the 140×90 window, then — since plan task 6's lane 4 —
+/// placed CENTRED at its 40×20 answer (ruling CN-J, probe R1/R2), at (50, 35),
+/// where it proposes its leaf its own size (ruling CN-E's `ZStack` clause).
+/// Until then the root was stored at the full window and its leaf measured
+/// once. A flex run would ask the leaf nothing (a legacy node has no proposal
+/// closure) and store the overlay by CSS.
 @MainActor
 @Test func aNativeRootRunsThroughTheFramePipelineWithoutInvokingFlexLayout() {
     let probe = NativeLayoutProbe()
@@ -162,9 +180,10 @@ private struct NativeProposalProbe: ProposalElement {
 
     frame.render(&root)
 
-    #expect(probe.measureCalls == 1)
-    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(0), y: Pixels(0)),
-                                           size: Size(width: Pixels(140), height: Pixels(90))))
+    #expect(probe.proposals == [ProposedSize(width: 140, height: 90), ProposedSize(width: 40, height: 20)])
+    #expect(probe.measureCalls == 2)
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(50), y: Pixels(35)),
+                                           size: Size(width: Pixels(40), height: Pixels(20))))
 }
 
 @MainActor
@@ -332,9 +351,9 @@ private struct NativeProposalProbe: ProposalElement {
 
     frame.render(&root)
 
-    // `.fixedSize` places the 100×10 stack at its answer, so the cross axis no
-    // longer centres in the window: y 0, where the unwrapped stack read 15.
-    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(80), y: Pixels(0)),
+    // The 100×10 root is centred at its answer in the 100×40 window (CN-J):
+    // y 15.
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(80), y: Pixels(15)),
                                            size: Size(width: Pixels(20), height: Pixels(10))))
 }
 
@@ -353,13 +372,19 @@ private struct NativeProposalProbe: ProposalElement {
 
     frame.render(&root)
 
-    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(0), y: Pixels(80)),
+    // The 10×100 root is centred at its answer in the 40×100 window (CN-J): x 15.
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(15), y: Pixels(80)),
                                            size: Size(width: Pixels(10), height: Pixels(20))))
 }
 
 /// The default stack gap is a platform metric, not an accidental zero. The
 /// recorded SwiftUI HStack probe measures 8pt; the explicit-zero control makes
 /// a default implementation that simply forgot to set a gap visibly wrong.
+///
+/// Each root is centred at its answer in the 100×40 window (plan task 6's
+/// CN-J, probe R1): the default 58×10 stack at x 21, so the trailing item at
+/// 21 + 20 + 8 = 49; the zero-spacing 50×10 stack at x 25, trailing at 45.
+/// (Before CN-J both roots packed from x 0: 28 and 20.)
 @MainActor
 @Test func hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt() {
     let defaultProbe = NativeLayoutProbe()
@@ -378,15 +403,17 @@ private struct NativeProposalProbe: ProposalElement {
     defaultFrame.render(&defaultStack)
     zeroFrame.render(&zeroStack)
 
-    #expect(defaultProbe.prepaintBounds?.origin.x == Pixels(28),
+    #expect(defaultProbe.prepaintBounds?.origin.x == Pixels(49),
             "the default 8pt gap follows the 20pt leading item")
-    #expect(zeroProbe.prepaintBounds?.origin.x == Pixels(20),
+    #expect(zeroProbe.prepaintBounds?.origin.x == Pixels(45),
             "an explicit zero opts out of the platform default")
 }
 
 /// A macOS SwiftUI probe gives `HStack { 10pt; Spacer(minLength: 30); 10pt }`
 /// a 50pt response even when its parent offers 20pt. The spacer's minimum is
-/// a floor, not a request that stack compression may discard.
+/// a floor, not a request that stack compression may discard. The 50×10 root
+/// overflows the 20pt window and is centred at its answer (CN-J), at x −15, so
+/// the trailing leaf sits at −15 + 40 = 25 (before CN-J: 40).
 @MainActor
 @Test func spacerMinimumLengthSurvivesAConstrainedStackProposal() {
     let probe = NativeLayoutProbe()
@@ -399,7 +426,7 @@ private struct NativeProposalProbe: ProposalElement {
 
     frame.render(&root)
 
-    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(40), y: Pixels(15)),
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(25), y: Pixels(15)),
                                            size: Size(width: Pixels(10), height: Pixels(10))))
 }
 
@@ -482,7 +509,10 @@ private struct NativeProposalProbe: ProposalElement {
 /// The companion macOS SwiftUI probe hosts 20 by 10 and 20 by 30 children in
 /// a fitting `VStack` and measures 20 by 48: the 8pt difference is the default
 /// vertical gap. The explicit-zero control keeps this from passing if both
-/// initializers happen to share an accidental value.
+/// initializers happen to share an accidental value. Each root is centred at
+/// its answer in the 100×80 window (CN-J): the default 20×48 stack at y 16, so
+/// the trailing item at 16 + 10 + 8 = 34; the zero-spacing 20×40 at y 20,
+/// trailing at 30 (before CN-J: 18 and 10).
 @MainActor
 @Test func vStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt() {
     let defaultProbe = NativeLayoutProbe()
@@ -501,9 +531,9 @@ private struct NativeProposalProbe: ProposalElement {
     defaultFrame.render(&defaultStack)
     zeroFrame.render(&zeroStack)
 
-    #expect(defaultProbe.prepaintBounds?.origin.y == Pixels(18),
+    #expect(defaultProbe.prepaintBounds?.origin.y == Pixels(34),
             "the default 8pt gap follows the 10pt leading item")
-    #expect(zeroProbe.prepaintBounds?.origin.y == Pixels(10),
+    #expect(zeroProbe.prepaintBounds?.origin.y == Pixels(30),
             "an explicit zero opts out of the platform default")
 }
 
@@ -626,7 +656,11 @@ private struct NativeProposalProbe: ProposalElement {
     frame.render(&root)
 
     #expect(frame.tree.nodeCount == 3)
-    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(75), y: Pixels(65)),
+    // The padding root answers 50×40 and is centred at (25, 20) (CN-J); its
+    // 40×30 frame sits at (30, 25) and puts the leaf bottom-trailing at
+    // (50, 45). Before CN-J the root filled the 100×80 window and the frame was
+    // stored at the window minus the insets, so the leaf read (75, 65).
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(50), y: Pixels(45)),
                                            size: Size(width: Pixels(20), height: Pixels(10))))
 }
 
@@ -658,11 +692,16 @@ private struct NativeProposalProbe: ProposalElement {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(80)), scaleFactor: 1)
     var root = ZStack {
-        NativeProposalProbe(expectedProposal: ProposedSize(width: nil, height: 80), probe: probe)
+        NativeProposalProbe(expectedProposals: [ProposedSize(width: nil, height: 80),
+                                                ProposedSize(width: nil, height: 10)], probe: probe)
             .fixedSize(horizontal: true, vertical: false)
     }
 
     frame.render(&root)
+    // Measured at (nil, 80); since plan task 6's lane 4 the root `ZStack` is
+    // placed at its 30×10 answer (CN-J) and re-proposes its child that size
+    // (CN-E), which `.fixedSize` again withholds the width of: (nil, 10).
+    #expect(probe.proposals == [ProposedSize(width: nil, height: 80), ProposedSize(width: nil, height: 10)])
     #expect(probe.prepaintBounds?.size == Size(width: Pixels(30), height: Pixels(10)))
 }
 
@@ -987,8 +1026,12 @@ private struct NativeProposalProbe: ProposalElement {
 /// places each at the child's *measured* width, from `bounds.x` under a leading
 /// alignment. So the leaf's x is the frame's width minus the leaf's, halved.
 /// At 200pt offered, min 40 / max 80 over a 20pt leaf, the frame answers **80**
-/// and the leaf sits at **x = 30**; before `FR-A` it answered its child clamped
-/// to the minimum, 40, and the leaf sat at x = 10.
+/// and the leaf sits **30** inside it; before `FR-A` it answered its child
+/// clamped to the minimum, 40, and the leaf sat 10 inside it. Since plan task
+/// 6's CN-J a root is centred at its answer, and a stack of the frame alone
+/// would centre an 80pt and a 40pt frame's leaf at the same x (90), so a 200pt
+/// sibling keeps the stack as wide as the window and the frame at x 0: the
+/// leaf reads **x = 30** (a 40pt frame: 10).
 @MainActor
 @Test func aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI() {
     let probe = NativeLayoutProbe()
@@ -996,6 +1039,7 @@ private struct NativeProposalProbe: ProposalElement {
     var root = VStack(alignment: .leading, spacing: Pixels(0)) {
         NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
             .frame(minWidth: Pixels(40), maxWidth: Pixels(80))
+        Rectangle(width: Pixels(200), height: Pixels(10), color: .surface)
     }
 
     frame.render(&root)

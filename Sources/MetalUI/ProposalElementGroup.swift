@@ -111,3 +111,4 @@ extension Color: ProposalElement {}
 extension ModifiedContent: ProposalElement {}
 extension OnTapModifier: ProposalElement {}
 extension OverlayModifier: ProposalElement {}
+extension BackgroundModifier: ProposalElement {}

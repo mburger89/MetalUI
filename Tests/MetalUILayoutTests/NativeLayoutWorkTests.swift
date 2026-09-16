@@ -139,15 +139,19 @@ private struct BranchingTree {
 /// re-asks the six probes and three offers (9 hits).
 /// - Place A (proposal (100, 66.67)): its solve re-asks its 12 lookups (12
 ///   hits); placing P1 and P4 re-asks a1 and a4 (2 hits). **14.**
-/// - Place B: b1, AR, b3 at (100, 94) (3 hits); placing AR re-asks b2 at
-///   (100, 50) (1 hit). **4.**
+/// - Place B (ruling CN-E's `ZStack` clause, lane 4): B is stored at its
+///   answer, 100×50, and proposes each child that size — b1, AR and b3 at
+///   (100, 50) are new keys (3 misses, 2 calls: b1 and b3); AR's body asks b2
+///   at (100, 50) (1 hit); placing AR re-asks b2 there (1 hit). **3 misses, 2
+///   hits, 2 calls** (before lane 4, at B's proposal (100, 94): 4 hits).
 /// - Place C: its `placeSubviews` re-solves at (100, 138) (9 hits) and records
 ///   each child; the kernel measures each record (3 hits) and placing F re-asks
 ///   c2 at (65, 138) (1 hit). **13.**
-/// **40 hits.**
+/// **38 hits, 3 misses, 2 calls.**
 ///
-/// Totals: misses **87**; hits 13 + 40 = **53**; calls **62** (lane 1: 90, 54,
-/// 65; before CN-B: 25, 27, 16). The staged prototype read 66 / 51 / 47 after
+/// Totals: misses 87 + 3 = **90**; hits 13 + 38 = **51**; calls 62 + 2 =
+/// **64** (lanes 2–3: 87, 53, 62; lane 1: 90, 54, 65; before CN-B: 25, 27,
+/// 16). The staged prototype read 66 / 51 / 47 after
 /// lane 1 and 63 / 50 / 44 after lane 2 (CN-B's table); it did not carry this
 /// file's rewritten reference stack, so its C evaluated differently — a
 /// difference recorded in `docs/record/17-containers.md`, not an edit to these
@@ -178,9 +182,9 @@ private struct BranchingTree {
 
     // (2) and (3), against the hand-derived literals above.
     let work = tree.lastNativeLayoutWork
-    #expect(work.measureCalls == 62, "measureCalls")
-    #expect(work.cacheHits == 53, "cacheHits")
-    #expect(work.cacheMisses == 87, "cacheMisses")
+    #expect(work.measureCalls == 64, "measureCalls")
+    #expect(work.cacheHits == 51, "cacheHits")
+    #expect(work.cacheMisses == 90, "cacheMisses")
 
     // (4) A compressed leaf is stored at its hand-derived allocation.
     #expect(tree.layout(fixture.a3) == LayoutRect(x: 78, y: 13, width: 27, height: 8))

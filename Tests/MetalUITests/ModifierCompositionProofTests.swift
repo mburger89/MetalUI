@@ -990,7 +990,8 @@ private func frameStyle(width: Float, height: Float) -> Style {
         }
     }
     window.drawFrameIfNeeded()
-    try #require(log.bounds["o"] == Bounds(origin: pt(0, 0), size: Size(width: px(10), height: px(10))))
+    // The 60×60 root is centred at (20, 20) since plan task 6's CN-J.
+    try #require(log.bounds["o"] == Bounds(origin: pt(20, 20), size: Size(width: px(10), height: px(10))))
     let modifier = try #require(log.ids["p"]?.parent)
     let overlayID = GlobalElementID.child(of: GlobalElementID.child(of: modifier, at: -1, name: nil),
                                           at: 0, name: nil)
@@ -1013,7 +1014,7 @@ private func frameStyle(width: Float, height: Float) -> Style {
     }
 
     for _ in 0..<3 {
-        click(platformWindow, at: pt(5, 5))
+        click(platformWindow, at: pt(25, 25))
         window.drawFrameIfNeeded()
     }
     let first = reading()

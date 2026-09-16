@@ -60,6 +60,15 @@ public final class LayoutTree {
     /// boundary: `swift package clean` after changing it (CN-R).
     private var spacerAxes: [Int: ProposalStackAxis] = [:]
 
+    /// Each native child's parent, by node index (ruling CN-L, closing `MC-G`
+    /// hole 4). Written by every native registrar that takes children
+    /// (`recordParent`), which traps on a child that already has one — a node
+    /// under two parents, or listed twice in one. Cleared by
+    /// `reset(generation:)`. Legacy `newNode` is not checked. A stored property
+    /// on a public class read across a module boundary: `swift package clean`
+    /// after changing it (CN-R).
+    private var nativeParents: [Int: Int] = [:]
+
     /// The native run in progress, `nil` outside a native layout call.
     ///
     /// Held only so `setLayout` can read `measureDepth` (ruling SA-H clause 4:
@@ -183,12 +192,15 @@ public final class LayoutTree {
     ///
     /// Every child must already be native. This makes the migration boundary
     /// structural: a native subtree cannot accidentally delegate one child back
-    /// into the CSS engine. Every child receives the same proposal, then is
-    /// placed independently with the requested alignment.
+    /// into the CSS engine. Every child is measured at the overlay's proposal,
+    /// which answers the union of those answers (probe A4). Placement proposes
+    /// each child the overlay's own placed size and aligns its answer within the
+    /// union of those answers, at the overlay's origin (ruling CN-E; `placeNative`).
     public func newNativeOverlay(children: [LayoutNodeID],
                                  alignment: ProposalAlignment = .center) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
         let id = appendNode(style: .default, children: children)
+        recordParent(id, of: children)
         nativeNodes[id.index] = .overlay(alignment: alignment)
         return id
     }
@@ -202,6 +214,7 @@ public final class LayoutTree {
         _ = nativeNode(child)
         _ = nativeNode(overlay)
         let id = appendNode(style: .default, children: [child, overlay])
+        recordParent(id, of: [child, overlay])
         nativeNodes[id.index] = .overlayAttachment(alignment: alignment)
         return id
     }
@@ -278,6 +291,7 @@ public final class LayoutTree {
         Self.validateFrameAxis("width", "Width", fixed: width, min: minWidth, ideal: idealWidth, max: maxWidth)
         Self.validateFrameAxis("height", "Height", fixed: height, min: minHeight, ideal: idealHeight, max: maxHeight)
         let id = appendNode(style: .default, children: [child])
+        recordParent(id, of: [child])
         nativeNodes[id.index] = .frame(width: width, height: height,
                                        minWidth: minWidth, idealWidth: idealWidth,
                                        maxWidth: maxWidth,
@@ -305,6 +319,7 @@ public final class LayoutTree {
                         && insets.bottom.isFinite && insets.left.isFinite,
                      "padding insets must be finite (SA-J), got \(insets)")
         let id = appendNode(style: .default, children: [child])
+        recordParent(id, of: [child])
         nativeNodes[id.index] = .padding(insets: insets)
         return id
     }
@@ -319,6 +334,7 @@ public final class LayoutTree {
                                    vertical: Bool = true) -> LayoutNodeID {
         _ = nativeNode(child)
         let id = appendNode(style: .default, children: [child])
+        recordParent(id, of: [child])
         nativeNodes[id.index] = .fixedSize(horizontal: horizontal, vertical: vertical)
         return id
     }
@@ -346,6 +362,7 @@ public final class LayoutTree {
         precondition(ratio.isFinite && ratio != 0,
                      "aspect ratio must be finite and non-zero (SA-J), got \(ratio)")
         let id = appendNode(style: .default, children: [child])
+        recordParent(id, of: [child])
         nativeNodes[id.index] = .aspectRatio(ratio: ratio, contentMode: contentMode)
         return id
     }
@@ -364,6 +381,7 @@ public final class LayoutTree {
         _ = nativeNode(child)
         precondition(!priority.isNaN, "layout priority must not be NaN (SA-J)")
         let id = appendNode(style: .default, children: [child])
+        recordParent(id, of: [child])
         nativeNodes[id.index] = .layoutPriority(priority)
         return id
     }
@@ -426,6 +444,7 @@ public final class LayoutTree {
             precondition(spacing.isFinite, "linear stack spacing must be finite (SA-J), got \(spacing)")
         }
         let id = appendNode(style: .default, children: children)
+        recordParent(id, of: children)
         for child in children { markSpacers(child, axis: axis) }
         nativeNodes[id.index] = .linearStack(axis: axis, spacing: spacing,
                                              alignment: alignment)
@@ -434,15 +453,20 @@ public final class LayoutTree {
 
     /// Registers a proposal-layout scrolling viewport around one native child.
     ///
-    /// The content receives an unspecified proposal along the scrolling axis,
-    /// while the viewport adopts a concrete parent proposal when one exists —
-    /// ∞ included, so it answers ∞ at ∞ (probe SC1; ruling CN-F).
+    /// The content receives an unspecified proposal along the scrolling axis and
+    /// the parent's proposal on the other. The viewport answers its parent's
+    /// proposal on the scrolling axis when there is one — ∞ included, so it
+    /// answers ∞ at ∞ (probe SC1; ruling CN-F) — else the content's answer, and
+    /// the CONTENT's answer on the non-scrolling axis (SC2, SC4; ruling CN-M).
+    /// The content is placed at the viewport's origin at its own answer, so
+    /// small content sits at the leading edge of the scrolling axis (SCG2).
     /// Geometry stays untransformed here; the owning element applies its stored
     /// scroll offset during prepaint and paint.
     public func newNativeScrollViewport(child: LayoutNodeID,
                                         axis: ProposalStackAxis) -> LayoutNodeID {
         _ = nativeNode(child)
         let id = appendNode(style: .default, children: [child])
+        recordParent(id, of: [child])
         nativeNodes[id.index] = .scrollViewport(axis: axis)
         return id
     }
@@ -456,6 +480,7 @@ public final class LayoutTree {
                                 children: [LayoutNodeID]) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
         let id = appendNode(style: .default, children: children)
+        recordParent(id, of: children)
         nativeNodes[id.index] = .custom(layout)
         return id
     }
@@ -497,6 +522,37 @@ public final class LayoutTree {
             lastNativeLayoutWork = run.work
         }
         let result = measureNative(root, proposal: proposal, run: run)
+        placeNative(root, in: bounds, proposal: proposal, run: run)
+        roundNativeStoredRects(root)
+        return result
+    }
+
+    /// Measures `root` at `proposal` and places it CENTRED in `container` at its
+    /// own answer, in one native run (ruling CN-J, probe R1/R2: a hosting view
+    /// proposes its bounds and centres the root's answer; a greedy root fills,
+    /// R control). `Frame.computeRootLayout` calls this for a native window
+    /// root; `computeNativeLayout(root:proposal:in:)` keeps placing at the
+    /// caller's bounds.
+    ///
+    /// The same run, bracket, checkpoints and work record as
+    /// `computeNativeLayout(root:proposal:in:)`. An infinite answer traps at
+    /// checkpoint 3, as a rect built from it would anywhere else.
+    @discardableResult
+    public func computeNativeLayout(root: LayoutNodeID, proposal: ProposedSize,
+                                    centredIn container: LayoutRect) -> LayoutMeasurement {
+        beginLayout()
+        defer { endLayout() }
+        let run = NativeLayoutRun(tree: self)
+        activeNativeRun = run
+        defer {
+            run.isActive = false
+            activeNativeRun = nil
+            lastNativeLayoutWork = run.work
+        }
+        let result = measureNative(root, proposal: proposal, run: run)
+        let bounds = LayoutRect(x: container.x + (container.width - result.size.width) / 2,
+                                y: container.y + (container.height - result.size.height) / 2,
+                                width: result.size.width, height: result.size.height)
         placeNative(root, in: bounds, proposal: proposal, run: run)
         roundNativeStoredRects(root)
         return result
@@ -628,6 +684,7 @@ public final class LayoutTree {
         measuredWidths.removeAll(keepingCapacity: true)
         nativeNodes.removeAll(keepingCapacity: true)
         spacerAxes.removeAll(keepingCapacity: true)
+        nativeParents.removeAll(keepingCapacity: true)
     }
 
     /// The storage index for `id`, after checking it belongs to this tree.
@@ -642,6 +699,22 @@ public final class LayoutTree {
                      (ruling C-3)
                      """)
         return id.index
+    }
+
+    /// Records `parent` as each child's parent, trapping on a child that
+    /// already has one (ruling CN-L, `MC-G` hole 4): the same node registered
+    /// under two native parents, or listed twice in one. SwiftUI has no
+    /// spelling for either (a view value has no node id); the kernel would lay
+    /// the node out once, where its LAST placement puts it, leaving the other
+    /// slot empty. Called by every native registrar with children, after
+    /// `appendNode`, so a trap here leaves a placeholder row behind in a
+    /// process that is ending.
+    private func recordParent(_ parent: LayoutNodeID, of children: [LayoutNodeID]) {
+        for child in children {
+            precondition(nativeParents[child.index] == nil,
+                         "native layout node \(child.index) registered under a second parent (node \(parent.index)) — one node, one slot (MC-G hole 4, ruling CN-L)")
+            nativeParents[child.index] = parent.index
+        }
     }
 
     private func nativeNode(_ id: LayoutNodeID) -> NativeNode {
@@ -752,7 +825,8 @@ public final class LayoutTree {
             let content = measureNative(children(id)[0],
                                         proposal: scrollContentProposal(for: axis, parent: proposal),
                                         run: run)
-            result = LayoutMeasurement(size: scrollViewportSize(proposal: proposal, content: content.size))
+            result = LayoutMeasurement(size: scrollViewportSize(axis: axis, proposal: proposal,
+                                                                content: content.size))
         case .custom(let layout):
             run.work.measureCalls += 1
             result = layout.sizeThatFits(proposal: proposal,
@@ -793,13 +867,27 @@ public final class LayoutTree {
         case .custom(let layout):
             placeCustom(id, layout: layout, in: bounds, proposal: proposal, run: run)
         case .overlay(let alignment):
-            for child in children(id) {
-                let measurement = measureNative(child, proposal: proposal, run: run)
+            // CN-E (amended, critic round 1): every child is placed at a
+            // proposal equal to the ZStack's OWN size B — its stored bounds,
+            // which its parent placed at its answer — re-measured there, and
+            // aligned within the UNION U of those answers, U at the ZStack's
+            // origin (probe Z1: at 60×40 the ZStack answers 30×20 and a
+            // half-width child placed at 30×20 sits at (2.5, 5) inside a 20×20
+            // union; Z4, Q2, A5, A5n, X12). A kernel caller placing a ZStack in
+            // bounds larger than its answer therefore puts U at the bounds'
+            // origin, not centred in them.
+            let own = ProposedSize(width: bounds.width, height: bounds.height)
+            let nodes = children(id)
+            let answers = nodes.map { measureNative($0, proposal: own, run: run).size }
+            let union = answers.reduce(SizeD.zero) {
+                SizeD(width: max($0.width, $1.width), height: max($0.height, $1.height))
+            }
+            for (child, answer) in zip(nodes, answers) {
                 placeNative(child,
-                            in: LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) * alignment.horizontalFactor,
-                                           y: bounds.y + (bounds.height - measurement.size.height) * alignment.verticalFactor,
-                                           width: measurement.size.width, height: measurement.size.height),
-                            proposal: proposal, run: run)
+                            in: LayoutRect(x: bounds.x + (union.width - answer.width) * alignment.horizontalFactor,
+                                           y: bounds.y + (union.height - answer.height) * alignment.verticalFactor,
+                                           width: answer.width, height: answer.height),
+                            proposal: own, run: run)
             }
         case .overlayAttachment(let alignment):
             let primary = children(id)[0]
@@ -949,9 +1037,19 @@ public final class LayoutTree {
         }
     }
 
-    private func scrollViewportSize(proposal: ProposedSize, content: SizeD) -> SizeD {
-        SizeD(width: resolvedViewportDimension(proposal.width, content: content.width),
-              height: resolvedViewportDimension(proposal.height, content: content.height))
+    /// The viewport's answer (ruling CN-M, probe SC1/SC2/SC4): its proposal on
+    /// the scrolling axis (`resolvedViewportDimension`), and the CONTENT's
+    /// answer on the other — SC2 `.vertical` over 50×30 at 100×100 answers
+    /// 50×100, SC4 over 500×500 answers 500×100.
+    private func scrollViewportSize(axis: ProposalStackAxis, proposal: ProposedSize, content: SizeD) -> SizeD {
+        switch axis {
+        case .vertical:
+            SizeD(width: content.width,
+                  height: resolvedViewportDimension(proposal.height, content: content.height))
+        case .horizontal:
+            SizeD(width: resolvedViewportDimension(proposal.width, content: content.width),
+                  height: content.height)
+        }
     }
 
     /// One viewport axis: the proposal when there is one — ∞ included (probe

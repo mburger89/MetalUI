@@ -131,6 +131,12 @@ public struct VStack<Content: ProposalElementGroup>: Element {
 }
 
 /// A native proposal-layout overlay, analogous to SwiftUI's `ZStack`.
+///
+/// Measures every child at its proposal and answers the union (probe A4).
+/// Places every child at a proposal equal to its own placed size and aligns
+/// each answer within the union of those answers, at its own origin (ruling
+/// CN-E; probe Z1–Z4, A3, A5). As a window root it is centred at its answer
+/// (ruling CN-J).
 public struct ZStack<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var alignment: ProposalAlignment

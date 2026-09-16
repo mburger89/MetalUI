@@ -56,18 +56,21 @@ private func bounds(_ x: Int, _ y: Int, _ width: Int, _ height: Int) -> Bounds<P
 /// `Frame`'s native root, in all three spellings (ruling SA-F).
 ///
 /// Hand-derived before the run, in a 140×90 frame. The root is padding with
-/// top 11 and left 7, so the diagonal is stored at the padding's bounds minus
-/// its insets, (7, 11, 133, 79) (record §09 hazard 4 decides the size; only
-/// the origin matters here). Leaves are 20×10, 30×15 and 25×5:
-/// - first at the bounds origin: (7, 11, 20, 10);
-/// - second at its corner (27, 21): (27, 21, 30, 15);
-/// - third at (57, 36): (57, 36, 25, 5).
+/// top 11 and left 7 around the diagonal's 75×30 answer, so it answers 82×41
+/// and, since plan task 6's CN-J, is centred at its answer: (29, 24.5). The
+/// diagonal sits at (36, 35.5). Leaves are 20×10, 30×15 and 25×5, stored
+/// rounded (`roundLayout`, halves away from zero):
+/// - first at the diagonal's origin: (36, 35.5) → (36, 36, 20, 10);
+/// - second at its corner (56, 45.5) → (56, 46, 30, 15);
+/// - third at (86, 60.5) → (86, 61, 25, 5).
+/// (Before CN-J the root was stored at the full window: (7, 11), (27, 21),
+/// (57, 36).)
 @MainActor
 @Test func aProposalLayoutContainerRendersThroughTheFramePipeline() {
     func expectDiagonal(_ probe: DiagonalProbe, _ spelling: String) {
-        #expect(probe.boundsByName["first"] == bounds(7, 11, 20, 10), "\(spelling)")
-        #expect(probe.boundsByName["second"] == bounds(27, 21, 30, 15), "\(spelling)")
-        #expect(probe.boundsByName["third"] == bounds(57, 36, 25, 5), "\(spelling)")
+        #expect(probe.boundsByName["first"] == bounds(36, 36, 20, 10), "\(spelling)")
+        #expect(probe.boundsByName["second"] == bounds(56, 46, 30, 15), "\(spelling)")
+        #expect(probe.boundsByName["third"] == bounds(86, 61, 25, 5), "\(spelling)")
     }
     let insets = Edges(top: Pixels(11), right: Pixels(0), bottom: Pixels(0), left: Pixels(7))
 

@@ -63,9 +63,11 @@ private func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bo
 }
 
 /// `HStack` and `VStack` distribute as the probe reads, through the element API
-/// (CN-B). Each stack is a window root offered the window's size and, until
-/// lane 4's `CN-J`, stored at the full window, so the cross axis centres a
-/// 20pt child in 50 at 15.
+/// (CN-B). Each stack is a window root offered the window's size; each answers
+/// the window's main-axis size and 20 across, and since lane 4's `CN-J` is
+/// centred at that answer, so a 20pt child sits 15 in on the 50pt cross axis
+/// (before CN-J the root filled the window and the stack's cross alignment
+/// centred the child at the same 15).
 ///
 /// - G1 `HStack(0){a 20..100; b 60..100}` at 100×50: a 40, b 60 at x 40.
 /// - G2 `HStack(0){a 0..80 prio 1; b 30..80}`: a 70, b 30 at x 70.
@@ -180,11 +182,12 @@ private func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bo
 /// Lane 2 through the element API (CN-C, CN-F).
 ///
 /// - SP1 `HStack(spacing: 0){a20; Spacer(); b20}` under `.fixedSize()` (so
-///   the stack is proposed nil×nil, as the probe's arm is): b at x 28, the
-///   default minimum 8.
+///   the stack is proposed nil×nil, as the probe's arm is): b 28 after a, the
+///   default minimum 8. Since lane 4's CN-J the 48×20 root is centred in the
+///   100×50 window, at (26, 15), so a reads x 26 and b x 54.
 /// - G4 `HStack(spacing: 0){a fixed 20; b fixed 20 .frame(maxWidth:
 ///   .infinity)}`, a 200×50 window root: b centred in 180 at x 100 (y 15: the
-///   root is stored at the full window until lane 4's CN-J). Revision 5's G4r,
+///   200×20 root is centred in the 50pt window, CN-J). Revision 5's G4r,
 ///   the frame declared first: b at 80, a at 180.
 ///
 /// Before the lane SP1's b reads 20 (a nil minimum was 0) and G4r's frame is
@@ -201,8 +204,8 @@ private func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bo
             fixed("b", 20, 20, log)
         }.fixedSize()
         frame.render(&root)
-        #expect(log.bounds["a"] == rect(0, 0, 20, 20), "SP1 a")
-        #expect(log.bounds["b"] == rect(28, 0, 20, 20), "SP1 b")
+        #expect(log.bounds["a"] == rect(26, 15, 20, 20), "SP1 a")
+        #expect(log.bounds["b"] == rect(54, 15, 20, 20), "SP1 b")
     }
     do { // G4
         let log = BoundsLog()
@@ -250,7 +253,11 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
 /// CN-H: with no `spacing:`, a stack puts 8 between two views and nothing
 /// beside a spacer; an empty conditional adds nothing. Every arm at nil×nil
 /// (the element half roots each stack under `.fixedSize()`, so the stack is
-/// proposed nil×nil as the probe's arm is, and sits at the origin).
+/// proposed nil×nil as the probe's arm is). Since lane 4 (CN-J) each element
+/// root is centred at its answer in the 100×100 window, so the element half's
+/// rects carry that offset: a 48×20 root sits at (26, 40), so b at 28 reads
+/// x 54; a 40×20 root at (30, 40); a 20×48 root at (40, 26); a 20×40 at
+/// (40, 30).
 ///
 /// - S rect|rect: `HStack{a20; b20}` b at x 28; `VStack{a20; b20}` b at y 28.
 /// - SP2 `HStack{a20; Spacer(); b20}`: 48×20, b at 28 (the spacer's own 8,
@@ -320,24 +327,24 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
     do { // S rect|rect
         let log = BoundsLog()
         render(HStack { fixed("a", 20, 20, log); fixed("b", 20, 20, log) }.fixedSize())
-        #expect(log.bounds["b"] == rect(28, 0, 20, 20), "element S rect|rect hstack b")
+        #expect(log.bounds["b"] == rect(54, 40, 20, 20), "element S rect|rect hstack b")
         render(VStack { fixed("c", 20, 20, log); fixed("d", 20, 20, log) }.fixedSize())
-        #expect(log.bounds["d"] == rect(0, 28, 20, 20), "element S rect|rect vstack b")
+        #expect(log.bounds["d"] == rect(40, 54, 20, 20), "element S rect|rect vstack b")
     }
     do { // SP2
         let log = BoundsLog()
         render(HStack { fixed("a", 20, 20, log); Spacer(); fixed("b", 20, 20, log) }.fixedSize())
-        #expect(log.bounds["b"] == rect(28, 0, 20, 20), "element SP2 b")
+        #expect(log.bounds["b"] == rect(54, 40, 20, 20), "element SP2 b")
     }
     do { // SP3
         let log = BoundsLog()
         render(HStack { fixed("a", 20, 20, log); Spacer(minLength: Pixels(0)); fixed("b", 20, 20, log) }.fixedSize())
-        #expect(log.bounds["b"] == rect(20, 0, 20, 20), "element SP3 b")
+        #expect(log.bounds["b"] == rect(50, 40, 20, 20), "element SP3 b")
     }
     do { // SP7
         let log = BoundsLog()
         render(VStack { fixed("a", 20, 20, log); Spacer(minLength: Pixels(0)); fixed("b", 20, 20, log) }.fixedSize())
-        #expect(log.bounds["b"] == rect(0, 20, 20, 20), "element SP7 b")
+        #expect(log.bounds["b"] == rect(40, 50, 20, 20), "element SP7 b")
     }
     do { // G23
         let log = BoundsLog()
@@ -348,7 +355,7 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
             fixed("b", 20, 20, log)
         }.fixedSize())
         #expect(log.bounds["m"] == nil, "G23 the conditional is empty")
-        #expect(log.bounds["b"] == rect(28, 0, 20, 20), "element G23 b")
+        #expect(log.bounds["b"] == rect(54, 40, 20, 20), "element G23 b")
     }
     do { // SC5 (probe revision 7): a vertical ProposalScrollView's direct children
         let log = BoundsLog()
@@ -371,6 +378,11 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
 /// - SP4 `HStack(spacing: 20){a20; Spacer(minLength: 0); b20}`: 80×20, b at
 ///   60.
 ///
+/// Each root sits centred at its answer in the 100×100 window since lane 4
+/// (CN-J): SP4's 80×20 at (10, 40), so b at 60 reads x 70; `HStack(spacing: 0)`
+/// 40×20 at (30, 40), b 50; `HStack(spacing: 20)` 60×20 at (20, 40), b 60;
+/// `VStack(spacing: 20)` 20×60 at (40, 20), b y 60.
+///
 /// Green on arrival (an explicit 20 was already applied everywhere), so the
 /// test first requires SP3's default (b at 20, test 3.1's arm) and SP4 to
 /// disagree. Mutation: treat an explicit spacing as default beside a spacer
@@ -390,14 +402,14 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
     try #require(log.bounds["b3"] != nil && log.bounds["b4"] != nil)
     try #require(log.bounds["b3"]!.origin.x != log.bounds["b4"]!.origin.x,
                  "SP3 (default) and SP4 (explicit 20) must disagree before SP4 can say anything")
-    #expect(log.bounds["b4"] == rect(60, 0, 20, 20), "SP4 b")
+    #expect(log.bounds["b4"] == rect(70, 40, 20, 20), "SP4 b")
 
     render(HStack(spacing: Pixels(0)) { fixed("a", 20, 20, log); fixed("b0", 20, 20, log) }.fixedSize())
-    #expect(log.bounds["b0"] == rect(20, 0, 20, 20), "S control hstack(0) b")
+    #expect(log.bounds["b0"] == rect(50, 40, 20, 20), "S control hstack(0) b")
     render(HStack(spacing: Pixels(20)) { fixed("a", 20, 20, log); fixed("b20", 20, 20, log) }.fixedSize())
-    #expect(log.bounds["b20"] == rect(40, 0, 20, 20), "S control hstack(20) b")
+    #expect(log.bounds["b20"] == rect(60, 40, 20, 20), "S control hstack(20) b")
     render(VStack(spacing: Pixels(20)) { fixed("a", 20, 20, log); fixed("v20", 20, 20, log) }.fixedSize())
-    #expect(log.bounds["v20"] == rect(0, 40, 20, 20), "S control vstack(20) b")
+    #expect(log.bounds["v20"] == rect(40, 60, 20, 20), "S control vstack(20) b")
 }
 
 /// CN-I: `HStack(alignment:spacing:)` takes a `VerticalAlignment` and
@@ -447,7 +459,9 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
 /// spacing-preference channel to derive it from (owner task 11, with baseline
 /// alignment).
 ///
-/// Three `VStack(alignment: .leading)` roots under `.fixedSize()`, the marker
+/// Three `VStack(alignment: .leading)` roots under `.fixedSize()` (each inside a
+/// 300×300 top-leading frame, so the stack's top is the window's whatever its
+/// height; since lane 4's CN-J a bare root would be centred at its answer), the marker
 /// `m` a fixed 20×20 leaf: `{text; text; m}` at spacing 0 puts m at 2h (the
 /// control, from which h, one line's height, is read); `{text; m}` at default
 /// spacing puts m at h + 8 (text|rect); `{text; text; m}` at default spacing at
@@ -468,16 +482,16 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
         ProposalText("Alpha")
         ProposalText("Bravo")
         fixed("m", 20, 20, log)
-    }.fixedSize(), log)
+    }.fixedSize().frame(width: Pixels(300), height: Pixels(300), alignment: .topLeading), log)
     let textRect = try markerY(VStack(alignment: .leading) {
         ProposalText("Alpha")
         fixed("m", 20, 20, log)
-    }.fixedSize(), log)
+    }.fixedSize().frame(width: Pixels(300), height: Pixels(300), alignment: .topLeading), log)
     let textText = try markerY(VStack(alignment: .leading) {
         ProposalText("Alpha")
         ProposalText("Bravo")
         fixed("m", 20, 20, log)
-    }.fixedSize(), log)
+    }.fixedSize().frame(width: Pixels(300), height: Pixels(300), alignment: .topLeading), log)
     let lineHeight = control / 2
     try #require(lineHeight > 0, "the control measured no text")
     try #require(textText != control, "default spacing and spacing 0 must disagree")

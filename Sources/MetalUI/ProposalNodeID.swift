@@ -28,7 +28,10 @@ import MetalUILayout
 // 3. `unsafeBitCast`, or `@testable` code calling the internal initializer — the
 //    run-time traps of ruling SA-G stay the backstop
 //    (`aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`);
-// 4. one typed id used twice (`aNativeNodeRegisteredTwiceIsNotRejected`);
+// 4. one typed id used twice — **closed at run time since plan task 6's ruling
+//    CN-L**: every native registrar with children records each child's parent
+//    and traps on a second (`aNativeNodeRegisteredTwiceTraps`, an exit test);
+//    the type still does not prevent it;
 // 5. a legacy style modifier on a proposal `Component`, whose `StyledComponent`
 //    is a plain `ElementGroup` — closed at run time by two existing SA-G traps,
 //    `setStyle`'s for `width`/`height` and `newNode`'s native-child check for
@@ -48,7 +51,8 @@ import MetalUILayout
 /// `layoutNodeID` to ask a pass for the node's bounds.
 ///
 /// It constrains who mints an id, not how often or when one is used: see holes 4
-/// and 7 in this file's header.
+/// and 7 in this file's header (both caught at run time, by `LayoutTree`'s
+/// parent record and generation check).
 public struct ProposalNodeID: Hashable, Sendable {
     /// The untyped node, for `bounds(of:)` and the other untyped pass queries.
     public let layoutNodeID: LayoutNodeID
