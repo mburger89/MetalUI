@@ -361,15 +361,23 @@ overwrites each member's own value (divergence 48, `OM-F`; SwiftUI's `.frame`
 wraps). Ops apply in declaration order (`StyledComponent.ops`;
 `aModifierOnAComponentAppliesInTheOrderItIsWritten`), and only to members that
 contribute a node: `.padding` on a `Deferred` or a false `if` member is dropped
-(by reading, unpinned). `.padding` means the same thing on both receiver
-types; only `width`/`height` keep two meanings.
+(by reading, unpinned). `.padding` means the same thing **in layout** on both
+receiver types; only `width`/`height` keep two layout meanings. It is still not
+the same modifier: a component's padding node is a bare `requestNode` with no
+id and no `$anim` slot, so it adds no id level and **snaps** inside
+`withAnimation`, where an element's padding layer has both
+(`everyRegisteringSiteAnimatesItsStyle`'s `Component` arm, re-measured by
+`OM-D`'s lane 4).
 `.frame(width:height:)` on a component wraps its body in one `ModifiedElement`
 layer without overwriting its children
 (`aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`). A caller's
-distributing modifier never animates (review finding B-7; see the Animation
-section's snap list). `Component` itself has no `.background()` (use a `Box`)
-and no `.id()` — declare `var elementID`; nor `border`/`focusBorder`/`opacity`/
-`clipped`/`contentShape` (`decorationBackedModifiersAreNotOfferedOnAComponent`).
+modifier on a component — `width`, `height` or `padding` — never animates
+(review finding B-7; see the Animation section's snap list). `Component` itself
+has no `.background()` (use a `Box`) and no `.id()` — declare `var elementID`;
+nor `border`/`focusBorder`/`opacity`/`clipped`/`contentShape`. That absence is
+by type only (they live on `extension StyledElement`): no guard pins it, and
+`decorationBackedModifiersAreNotOfferedOnAComponent`, despite its name, checks
+only that `.padding` returns a `StyledComponent`.
 **Both holes have side doors (no typecheck guard):**
 `anyComponent.frame(...)` returns a `ModifiedElement`, a `StyledElement`, so
 `.frame(…).background(…)` compiles on any component, and `.opacity`,
@@ -1153,6 +1161,7 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 | `AlignItems.baseline` / `AlignSelf.baseline` | falls back to the start edge in flex and in `Stack`; needs baselines in the measure protocol |
 | `Style.aspectRatio`, `Style.overflow` | zero reads (`overflow` has one write, in `ScrollView`, that nothing consumes). The proposal `.aspectRatio(_:contentMode:)` modifier is a different, live API — do not delete it with this row |
 | `margin: .auto` | resolves to 0 on both axes; unreachable from modifiers, reachable via `Style` |
+| `Style.border` on a container | shrinks the content box and paints nothing (the engine discards the resolved edges; `paintDecoration` reads only `Decoration`'s borders). Unreachable from modifiers since `borderWidth(_:)` was deleted (`OM-M`), reachable via `Box(style:)`, on `margin: .auto`'s footing. Not the paint-only `.border(_:width:)`. By reading, unpinned |
 | `Position.relative`'s offset | makes a containing block, does not shift the box |
 | `Style.alignSelf` on a `Stack` child | ignored entirely |
 | `Style.padding`/`border`/`margin` on a **leaf** (`Text`) | **not** the `.padding(_:)` modifier on an element, which now wraps in a `ModifiedElement` layer: it offsets and enlarges the outer footprint of a fixed-size custom `StyledElement` (`paddingWrapsAnElementAndExpandsItsOuterFootprint`, whose `Leaf` is not a `Text`); that it does the same for a `Text` is by reading, unpinned. Holds for `Style.padding`/`Style.border` set directly and `.margin`: ignored on a **content-sized** leaf: no size moves, and it stays out of §9.7.4.c's shrink weight (`aContentSizedMeasuredLeafsPaddingDoesNotComeOffItsShrinkWeight`). **Not inert once the leaf declares a main size**: ruling BM-4 puts the padding inside that base, so it comes off the shrink weight as CSS says — a 200 row of two `width: 200px` measured leaves, one with `padding: 0 40px`, lays out 125 / 75 (`aMeasuredLeafWithADeclaredSizeIsWeightedByItsInnerBaseSize`) |

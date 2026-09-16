@@ -988,6 +988,11 @@ inventory's scope is modifiers. **Four** public entry points, not three:
 `inset(_ edges:)`. The disposition is unchanged, and `Box.swift`'s four
 comments now say four.
 
+*Integration, 2026-09-16 (record §16):* `borderWidth(_ edges:)` was deleted
+by the outer-modifiers track (`OM-M`) and the deletion stood in the merge, so
+there are **three** public entry points (`padding`, `margin`, `inset`), and
+`Box.swift`'s remaining comments say three.
+
 ---
 
 ## FR-R — three things lane 1 found by running that the design had wrong

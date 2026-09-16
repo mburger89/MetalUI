@@ -157,3 +157,24 @@ Record §13; mechanisms in the cited rulings.
   bypasses the gate; pinned as it stands by `aDisabledScrollViewStillScrollsOnTheWheel`).
 - **Edited:** the leaf-padding row's "wraps in a `Box`" now reads "wraps in a
   `ModifiedElement` layer".
+
+---
+
+## 2026-09-16: rows changed at the task 4/5 integration
+
+Records §14–§16; mechanisms in the cited rulings. Added by the integration
+check, which found this section missing.
+
+- **Deleted:** legacy `borderWidth(_:)` — the modifier itself is gone (`OM-M`),
+  and the legacy path paints borders through `Decoration.border`/`hoverBorder`/
+  `focusBorder` (`OM-L`, `OM-V`). The `MUIRect` row above is therefore stale in
+  its legacy half as well: a `Box`/`Decoration` path now passes a border.
+- **Added:** `Style.border` on a container (still discarded by the engine,
+  reachable only via `Box(style:)`, `OM-M`; by reading); `contentShape(inset:)`
+  with no `onClick` on its layer (`OM-AB`) and, on a chain, before the layer
+  that carries the click (divergences 44, 50); a single-axis infinite maximum on
+  the legacy frame (`FR-O`); the no-argument `frame()` on both protocols
+  (`FR-J`).
+- **Edited:** the leaf-padding row no longer lists `.borderWidth(_:)` or a
+  `Component`'s distributed `.padding` (a component's padding now wraps,
+  `OM-D`); the `.allowsHitTesting(false)` row covers both paths (`OM-AK`).

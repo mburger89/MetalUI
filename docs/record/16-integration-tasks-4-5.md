@@ -65,7 +65,7 @@ reverted with `git checkout`, and the suite re-read passed afterwards.
 | mutation | reddened (issues) |
 |---|---|
 | **M0** `paintLayer`: outermost `decoration.clipsContent = false` | `everyDecorationScopingSiteContainsItsOwnContent` (1), `aChainsOuterLayerScopesContainTheLayersInsideIt` (2), **test 1** (1), **test 4** (1) |
-| **M1** `prepaintLayerBody`: outermost `handlers.contentShapeInset = nil` | **test 2** (1), **test 5** (1) — and nothing else: no track test puts a content shape on a `ModifiedElement` layer |
+| **M1** `prepaintLayerBody`: outermost `handlers.contentShapeInset = nil` | **test 2** (1), **test 5** (1) — and nothing else: no track test puts a content shape on a `ModifiedElement` layer. *Measured at `45f15e8`, before test 7 existed. Re-run at `d3bffbc` by the integration check (isolated worktree, default build system, unfiltered): 3 issues — test 2 (1), test 5 (1) and **test 7** (1), whose S2 arm puts the inset on the outermost layer. Still no track test.* |
 | **M2** `paintLayer`: outermost `focusBorder = nil; hoverBorder = nil` | `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain` (2), **test 3** (2), **test 6** (1) |
 | **M3** `prepaintLayerBody`: the outermost layer's registration runs under `withEnvironment` with `isEnabled = true` | `everyHandlerRegisteringSiteSuppressesItsClickWhenDisabled` (2), `aDisabledElementPublishesDisabledWithTheGatedActionsAndRefusesEveryRequest` (8), **test 6** (1) |
 | **M4** `prepaintLayerBody`: the outermost layer with an `onClick` and an inset registers at `hitRegion(bounds, inset)` with the inset cleared (the inset applied at the call site, moving the accessibility frame with it) | **test 5** (1), alone |
