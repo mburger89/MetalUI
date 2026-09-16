@@ -481,3 +481,110 @@ private func kernelRun(_ tree: LayoutTree, _ root: LayoutNodeID) -> SizeD {
     #expect(textRect - lineHeight == 8, "text|rect gap (SwiftUI 8.15)")
     #expect(textText - textRect - lineHeight == 8, "text|text gap (SwiftUI 0)")
 }
+
+/// The deprecated spacing-first spellings, reached without a deprecation
+/// warning: a requirement satisfied by a deprecated witness, called through the
+/// protocol, keeps the 0-warning baseline.
+@MainActor
+private protocol SpacingFirstStacks {
+    static func hStack<C: ProposalElementGroup>(spacing: Pixels, alignment: ProposalAlignment,
+                                        @ElementBuilder content: () -> C) -> HStack<C>
+    static func vStack<C: ProposalElementGroup>(spacing: Pixels, alignment: ProposalAlignment,
+                                        @ElementBuilder content: () -> C) -> VStack<C>
+}
+
+@MainActor
+private enum DeprecatedStackSpellings: SpacingFirstStacks {
+    @available(*, deprecated)
+    static func hStack<C: ProposalElementGroup>(spacing: Pixels, alignment: ProposalAlignment,
+                                        @ElementBuilder content: () -> C) -> HStack<C> {
+        HStack(spacing: spacing, alignment: alignment, content: content)
+    }
+
+    @available(*, deprecated)
+    static func vStack<C: ProposalElementGroup>(spacing: Pixels, alignment: ProposalAlignment,
+                                        @ElementBuilder content: () -> C) -> VStack<C> {
+        VStack(spacing: spacing, alignment: alignment, content: content)
+    }
+}
+
+/// CN-I's deprecated spacing-first initializers forward the caller's explicit
+/// spacing and the cross-axis factor of the nine-case alignment unchanged.
+///
+/// - Stored values: for each of the nine `ProposalAlignment` cases,
+///   `HStack(spacing: 20, alignment:)` stores spacing 20 and the case's
+///   vertical factor as a `VerticalAlignment` (top 0, center ½, bottom 1), and
+///   `VStack(spacing: 20, alignment:)` its horizontal factor as a
+///   `HorizontalAlignment`.
+/// - Placement, beside a spacer: `HStack(spacing: 20, alignment: .bottom){a
+///   20×10; Spacer(minLength: 0); b 20×30}` places as the SwiftUI-order
+///   `HStack(alignment: .bottom, spacing: 20)`: a at (0, 20), b at (60, 0)
+///   (explicit spacing beside a spacer, SP4; A1's bottom). The control, the
+///   same stack at default spacing and centre alignment, must disagree: a at
+///   (0, 10), b at (20, 0). `VStack(spacing: 20, alignment: .trailing){a 10×20;
+///   Spacer(minLength: 0); b 30×20}`: a at (20, 0), b at (0, 60), control a at
+///   (10, 0), b at (0, 20).
+///
+/// Mutations: map factor 1 to `.center` in `VerticalAlignment(verticalFactorOf:)`
+/// (M12); forward `spacing: nil` from the deprecated `HStack` initializer (M13).
+@MainActor
+@Test func theDeprecatedSpacingFirstStackInitializersForwardSpacingAndTheCrossFactor() throws {
+    let spellings: any SpacingFirstStacks.Type = DeprecatedStackSpellings.self
+    let nine: [(ProposalAlignment, VerticalAlignment, HorizontalAlignment)] = [
+        (.topLeading, .top, .leading), (.top, .top, .center), (.topTrailing, .top, .trailing),
+        (.leading, .center, .leading), (.center, .center, .center), (.trailing, .center, .trailing),
+        (.bottomLeading, .bottom, .leading), (.bottom, .bottom, .center), (.bottomTrailing, .bottom, .trailing),
+    ]
+    for (alignment, vertical, horizontal) in nine {
+        let h = spellings.hStack(spacing: Pixels(20), alignment: alignment) { fixed("e", 0, 0, BoundsLog()) }
+        #expect(h.alignment == vertical, "HStack \(alignment)")
+        #expect(h.spacing == Pixels(20), "HStack \(alignment) spacing")
+        let v = spellings.vStack(spacing: Pixels(20), alignment: alignment) { fixed("e", 0, 0, BoundsLog()) }
+        #expect(v.alignment == horizontal, "VStack \(alignment)")
+        #expect(v.spacing == Pixels(20), "VStack \(alignment) spacing")
+    }
+
+    func render<Root: Element>(_ root: Root, _ width: Float, _ height: Float) {
+        var root = root
+        let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1)
+        frame.render(&root)
+    }
+    do { // HStack
+        let old = BoundsLog(), new = BoundsLog(), control = BoundsLog()
+        render(spellings.hStack(spacing: Pixels(20), alignment: .bottom) {
+            fixed("a", 20, 10, old); Spacer(minLength: Pixels(0)); fixed("b", 20, 30, old)
+        }.fixedSize(), 80, 30)
+        render(HStack(alignment: .bottom, spacing: Pixels(20)) {
+            fixed("a", 20, 10, new); Spacer(minLength: Pixels(0)); fixed("b", 20, 30, new)
+        }.fixedSize(), 80, 30)
+        render(HStack {
+            fixed("a", 20, 10, control); Spacer(minLength: Pixels(0)); fixed("b", 20, 30, control)
+        }.fixedSize(), 40, 30)
+        try #require(control.bounds["a"] != nil && new.bounds["a"] != nil)
+        try #require(control.bounds["a"] != new.bounds["a"] && control.bounds["b"] != new.bounds["b"],
+                     "the control must disagree with the SwiftUI-order spelling on both children")
+        #expect(new.bounds["a"] == rect(0, 20, 20, 10), "HStack(alignment: .bottom, spacing: 20) a")
+        #expect(new.bounds["b"] == rect(60, 0, 20, 30), "HStack(alignment: .bottom, spacing: 20) b")
+        #expect(old.bounds["a"] == new.bounds["a"], "deprecated HStack a")
+        #expect(old.bounds["b"] == new.bounds["b"], "deprecated HStack b")
+    }
+    do { // VStack
+        let old = BoundsLog(), new = BoundsLog(), control = BoundsLog()
+        render(spellings.vStack(spacing: Pixels(20), alignment: .trailing) {
+            fixed("a", 10, 20, old); Spacer(minLength: Pixels(0)); fixed("b", 30, 20, old)
+        }.fixedSize(), 30, 80)
+        render(VStack(alignment: .trailing, spacing: Pixels(20)) {
+            fixed("a", 10, 20, new); Spacer(minLength: Pixels(0)); fixed("b", 30, 20, new)
+        }.fixedSize(), 30, 80)
+        render(VStack {
+            fixed("a", 10, 20, control); Spacer(minLength: Pixels(0)); fixed("b", 30, 20, control)
+        }.fixedSize(), 30, 40)
+        try #require(control.bounds["a"] != nil && new.bounds["a"] != nil)
+        try #require(control.bounds["a"] != new.bounds["a"] && control.bounds["b"] != new.bounds["b"],
+                     "the control must disagree with the SwiftUI-order spelling on both children")
+        #expect(new.bounds["a"] == rect(20, 0, 10, 20), "VStack(alignment: .trailing, spacing: 20) a")
+        #expect(new.bounds["b"] == rect(0, 60, 30, 20), "VStack(alignment: .trailing, spacing: 20) b")
+        #expect(old.bounds["a"] == new.bounds["a"], "deprecated VStack a")
+        #expect(old.bounds["b"] == new.bounds["b"], "deprecated VStack b")
+    }
+}

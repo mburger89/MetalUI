@@ -1230,14 +1230,17 @@ extension Arm {
 ///   .overlay{spacer}` (the spacer on the content side; c at (28, 10)), K3j
 ///   `ZStack{spacer; c}` and K3k `ZStack{c; spacer}`: each 56×20, b at 36.
 ///   K3m `.padding(4)`: 64×20 (20+8+8+8+20), b at 44. K3n `.padding(.leading,
-///   4)`: 52×20 (20+8+4+0+20), b at 32. K3p vertically, `.padding(.top, 4)`:
-///   20×52, b at y 32.
+///   4)`: 52×20 (20+8+4+0+20), b at 32, and the padding wrapper at (28, 10)
+///   4×0 (probe revision 8's V6: its background reads that rect); V6c
+///   `.padding(.trailing, 4)`: 52×20, the wrapper at (20, 10). K3p vertically,
+///   `.padding(.top, 4)`: 20×52, b at y 32.
 ///
 /// Before the lane every default gap is an explicit 8: K3a reads 56.
 /// Mutations: read `isNativeSpacer` instead of the walk (K3a, K3b, K3c, K3e,
 /// K3f, K3g move); treat padding as transparent whatever its inset (K3m, K3n
 /// move); walk into an overlay's content (K3i moves); OR instead of AND over a
-/// `ZStack`'s children (K3j moves).
+/// `ZStack`'s children (K3j moves); swap padding's leading and trailing insets
+/// (V6 and V6c exchange rects, sizes and b unmoved).
 @Test func defaultSpacingBesideASpacerIsDecidedPerEdgeThroughItsWrappers() {
     typealias Wrap = (Arm, LayoutNodeID) -> LayoutNodeID
     /// `defaultHStack{a; wrap(spacer); b}` at nil×nil: its size and b's rect.
@@ -1304,10 +1307,17 @@ extension Arm {
         #expect(answer == size(64, 20), "K3m size")
         #expect(arm["b"] == rect(44, 0, 20, 20), "K3m b")
     }
-    do { // K3n
+    do { // K3n, and V6 (probe revision 8): the padded spacer sits at x 28
         let (arm, answer) = wrapped { $0.padding("w", $1, left: 4) }
         #expect(answer == size(52, 20), "K3n size")
         #expect(arm["b"] == rect(32, 0, 20, 20), "K3n b")
+        #expect(arm["w"] == rect(28, 10, 4, 0), "V6 the leading-padded spacer")
+    }
+    do { // V6c: the trailing-padded spacer sits at x 20, and must disagree with V6
+        let (arm, answer) = wrapped { $0.padding("w", $1, right: 4) }
+        #expect(answer == size(52, 20), "V6c size")
+        #expect(arm["w"] == rect(20, 10, 4, 0), "V6c the trailing-padded spacer")
+        #expect(arm["b"] == rect(32, 0, 20, 20), "V6c b")
     }
     do { // K3p
         let arm = Arm()
@@ -1316,5 +1326,170 @@ extension Arm {
                                            arm.fixed("b", 20, 20)])
         #expect(arm.run(root, nil, nil) == size(20, 52), "K3p size")
         #expect(arm["b"] == rect(0, 32, 20, 20), "K3p b")
+    }
+}
+
+// MARK: 3.6 nested stacks, custom layouts, empty containers
+
+/// A custom layout that overrides nothing about spacing: the probe's `Pass`,
+/// answering the largest child answer per axis and placing every child at its
+/// origin.
+private struct Pass: ProposalLayout {
+    func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
+        LayoutMeasurement(size: subviews.reduce(SizeD(width: 0, height: 0)) { size, subview in
+            let answer = subview.sizeThatFits(proposal).size
+            return SizeD(width: Swift.max(size.width, answer.width), height: Swift.max(size.height, answer.height))
+        })
+    }
+
+    func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {
+        for subview in subviews {
+            subview.place(at: Point(x: bounds.x, y: bounds.y), anchor: .topLeading, proposal: proposal)
+        }
+    }
+}
+
+/// CN-H as amended (probe revision 8, the V group; every arm at nil×nil between
+/// `a` and `b` fixed 20×20 in a default-spacing `HStack`, `sp` a
+/// `Spacer(minLength: 0)`, `c`/`d` fixed 0×0). Controls: K3 (48, test 3.2) and
+/// the non-spacer arms V1j, V3c, V3g, V4c (56), which must disagree with the
+/// zero arms (40).
+///
+/// - A spacer is a zero edge only along the axis of the stack that orients it,
+///   or both ways when none does: V1d `VStack{sp; c}` and V1h `VStack{sp; sp}`
+///   56, V3h `Pass{VStack{sp}}` 56, V7h `ZStack{VStack{sp}}` 56; V3 `Pass{sp}`
+///   40.
+/// - A same-axis stack: first child's leading, last child's trailing, its own
+///   spacing ignored. V1 `HStack{sp}` 40; V1b `HStack{sp; c}` 48 (c at 20, b at
+///   28); V1c `HStack{c; sp}` 48 (c at 28, b at 28); V1i `HStack(spacing:
+///   4){sp; c}` 52 (c at 24, b at 32); V1k `HStack{sp.padding(.leading, 4); c}`
+///   60 (c at 32, b at 40); V1e vertically `VStack{a; VStack{sp}; b}` 20×40.
+/// - A cross-axis stack or a custom layout: an edge is zero when ANY child's
+///   is. V3b `Pass{sp; c}`, V3e `Pass{c; sp}`, V7 `VStack{ZStack{sp}}`, V7b
+///   `VStack{ZStack{sp}; c}`, V7c `VStack{HStack{sp}}`, V7d `VStack{c;
+///   HStack{sp}}`, V7e, V7i `Pass{VStack{sp}; ZStack{sp}}`: each 40. Per edge:
+///   V3f `Pass{sp.padding(.leading, 4); c}` 52, b at 32; V7f
+///   `VStack{ZStack{sp}.padding(.leading, 4); HStack{sp}}` 44, b at 24.
+/// - A ZStack: EVERY child's, per edge. V7g `ZStack{HStack{sp}}` 40, V7j
+///   `ZStack{sp; HStack{sp}}` 40, V7k `ZStack{sp.padding(.leading, 4); sp}` 52,
+///   b at 32.
+/// - Empty: zero. V1f `HStack{}`, V1g `VStack{}`, V3d `Pass{}`, V4 `ZStack{}`:
+///   each 40.
+///
+/// Before the amendment the walk answered no zero edge for any stack or custom
+/// layout: V1, V1b, V3, V3d, V4 read 56 and V1e 20×56. Mutations: an empty
+/// `ZStack` has no zero edge (V4); a nested stack has none (V1…); a spacer's
+/// edges ignore its orientation (V1d, V1h, V3h, V7h read 40); a custom layout
+/// combines with AND (V3b, V3e, V7i); a cross-axis stack combines with AND (V7b,
+/// V7d); a same-axis stack reads its last child's leading edge (V1b, V1c).
+@Test func defaultSpacingBesideANestedContainerFollowsItsChildrensEdges() {
+    typealias Middle = (Arm) -> LayoutNodeID
+    /// `defaultHStack{a; middle; b}` at nil×nil: the arm and its answer.
+    func between(_ middle: Middle) -> (Arm, SizeD) {
+        let arm = Arm()
+        let a = arm.fixed("a", 20, 20)
+        let m = middle(arm)
+        let root = arm.defaultHStack("s", [a, m, arm.fixed("b", 20, 20)])
+        return (arm, arm.run(root, nil, nil))
+    }
+    func sp(_ arm: Arm) -> LayoutNodeID { arm.tree.newNativeSpacer(minLength: 0) }
+    func c(_ arm: Arm, _ name: String = "c") -> LayoutNodeID { arm.fixed(name, 0, 0) }
+    func pass(_ arm: Arm, _ children: [LayoutNodeID]) -> LayoutNodeID {
+        arm.tree.newNativeLayout(Pass(), children: children)
+    }
+    func leftPadded(_ arm: Arm, _ child: LayoutNodeID) -> LayoutNodeID {
+        arm.tree.newNativePadding(child: child, insets: Edges(top: 0, right: 0, bottom: 0, left: 4))
+    }
+
+    let controls: [(String, Middle)] = [
+        ("V1j", { arm in arm.defaultHStack("w", [c(arm)]) }),
+        ("V3c", { arm in pass(arm, [c(arm)]) }),
+        ("V3g", { arm in pass(arm, [c(arm), c(arm, "d")]) }),
+        ("V4c", { arm in arm.zstack("w", [c(arm)]) }),
+        ("V1d", { arm in arm.defaultVStack("w", [sp(arm), c(arm)]) }),
+        ("V1h", { arm in arm.defaultVStack("w", [sp(arm), sp(arm)]) }),
+        ("V3h", { arm in pass(arm, [arm.defaultVStack("v", [sp(arm)])]) }),
+        ("V7h", { arm in arm.zstack("w", [arm.defaultVStack("v", [sp(arm)])]) }),
+    ]
+    for (label, middle) in controls {
+        let (arm, answer) = between(middle)
+        #expect(answer == size(56, 20), "\(label) size")
+        #expect(arm["b"] == rect(36, 0, 20, 20), "\(label) b")
+    }
+    let zero: [(String, Middle)] = [
+        ("V1", { arm in arm.defaultHStack("w", [sp(arm)]) }),
+        ("V1f", { arm in arm.defaultHStack("w", []) }),
+        ("V1g", { arm in arm.defaultVStack("w", []) }),
+        ("V3", { arm in pass(arm, [sp(arm)]) }),
+        ("V3b", { arm in pass(arm, [sp(arm), c(arm)]) }),
+        ("V3e", { arm in pass(arm, [c(arm), sp(arm)]) }),
+        ("V3d", { arm in pass(arm, []) }),
+        ("V4", { arm in arm.zstack("w", []) }),
+        ("V7", { arm in arm.defaultVStack("w", [arm.zstack("z", [sp(arm)])]) }),
+        ("V7b", { arm in arm.defaultVStack("w", [arm.zstack("z", [sp(arm)]), c(arm)]) }),
+        ("V7c", { arm in arm.defaultVStack("w", [arm.defaultHStack("h", [sp(arm)])]) }),
+        ("V7d", { arm in arm.defaultVStack("w", [c(arm), arm.defaultHStack("h", [sp(arm)])]) }),
+        ("V7e", { arm in arm.defaultVStack("w", [arm.defaultHStack("h", [sp(arm)]),
+                                                 arm.defaultHStack("h2", [sp(arm)])]) }),
+        ("V7g", { arm in arm.zstack("w", [arm.defaultHStack("h", [sp(arm)])]) }),
+        ("V7i", { arm in pass(arm, [arm.defaultVStack("v", [sp(arm)]), arm.zstack("z", [sp(arm)])]) }),
+        ("V7j", { arm in arm.zstack("w", [sp(arm), arm.defaultHStack("h", [sp(arm)])]) }),
+    ]
+    for (label, middle) in zero {
+        let (arm, answer) = between(middle)
+        #expect(answer == size(40, 20), "\(label) size")
+        #expect(arm["b"] == rect(20, 0, 20, 20), "\(label) b")
+    }
+    do { // V1b
+        let (arm, answer) = between { arm in arm.defaultHStack("w", [sp(arm), c(arm)]) }
+        #expect(answer == size(48, 20), "V1b size")
+        #expect(arm.x("c") == 20, "V1b c")
+        #expect(arm["b"] == rect(28, 0, 20, 20), "V1b b")
+    }
+    do { // V1c
+        let (arm, answer) = between { arm in arm.defaultHStack("w", [c(arm), sp(arm)]) }
+        #expect(answer == size(48, 20), "V1c size")
+        #expect(arm.x("c") == 28, "V1c c")
+        #expect(arm["b"] == rect(28, 0, 20, 20), "V1c b")
+    }
+    do { // V1i
+        let (arm, answer) = between { arm in
+            arm.name(arm.tree.newNativeLinearStack(children: [sp(arm), c(arm)], axis: .horizontal, spacing: 4), "w")
+        }
+        #expect(answer == size(52, 20), "V1i size")
+        #expect(arm.x("c") == 24, "V1i c")
+        #expect(arm["b"] == rect(32, 0, 20, 20), "V1i b")
+    }
+    do { // V1k
+        let (arm, answer) = between { arm in arm.defaultHStack("w", [leftPadded(arm, sp(arm)), c(arm)]) }
+        #expect(answer == size(60, 20), "V1k size")
+        #expect(arm.x("c") == 32, "V1k c")
+        #expect(arm["b"] == rect(40, 0, 20, 20), "V1k b")
+    }
+    do { // V3f
+        let (arm, answer) = between { arm in pass(arm, [leftPadded(arm, sp(arm)), c(arm)]) }
+        #expect(answer == size(52, 20), "V3f size")
+        #expect(arm["b"] == rect(32, 0, 20, 20), "V3f b")
+    }
+    do { // V7f
+        let (arm, answer) = between { arm in
+            arm.defaultVStack("w", [leftPadded(arm, arm.zstack("z", [sp(arm)])),
+                                    arm.defaultHStack("h", [sp(arm)])])
+        }
+        #expect(answer == size(44, 20), "V7f size")
+        #expect(arm["b"] == rect(24, 0, 20, 20), "V7f b")
+    }
+    do { // V7k
+        let (arm, answer) = between { arm in arm.zstack("w", [leftPadded(arm, sp(arm)), sp(arm)]) }
+        #expect(answer == size(52, 20), "V7k size")
+        #expect(arm["b"] == rect(32, 0, 20, 20), "V7k b")
+    }
+    do { // V1e, vertically
+        let arm = Arm()
+        let root = arm.defaultVStack("s", [arm.fixed("a", 20, 20),
+                                           arm.defaultVStack("w", [sp(arm)]),
+                                           arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, nil, nil) == size(20, 40), "V1e size")
+        #expect(arm["b"] == rect(0, 20, 20, 20), "V1e b")
     }
 }
