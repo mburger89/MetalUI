@@ -491,8 +491,15 @@ private struct ScriptedLayout: ProposalLayout {
 /// invalid", reproduced by `swiftui-stack-algorithms.swift` K4f's first run).
 /// `anInfiniteStoredRectTraps` above is the same checkpoint reached by a
 /// proposal-echoing leaf; this is the frame, which answered its child (20)
-/// under FR-B and so did not trap before the lane. Mutation: remove checkpoint
-/// 3's width term.
+/// under FR-B and so did not trap before the lane.
+///
+/// **Mutation, measured:** removing checkpoint 3's WIDTH term alone reddens
+/// nothing, here or in `anInfiniteStoredRectTraps`: the frame centres its
+/// child at x = (∞ − 20) × 0.5 = ∞, and the echo leaf's record puts it at
+/// x − 0 × ∞ = NaN, so the x term traps one node later with the same message.
+/// Removing the x AND width terms reddens this test,
+/// `anInfiniteStoredRectTraps` and `aNonFinitePlacementPositionTraps`. The
+/// width term alone is not pinned by any test (record §17, lane 2).
 @Test func aCustomLayoutPlacingAChildAtAnInfiniteProposalTraps() async {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         let tree = LayoutTree(generation: 0)

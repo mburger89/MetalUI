@@ -229,6 +229,11 @@ tree (G13, G14) so a two-child special case cannot pass. The work cost is up to
 11 leaf calls per leaf and twice the shaping on a cold frame; the cache is still
 per call (`SA-H`), so a warm frame pays it again.
 
+**Lane 2, as built** (`63387f6`; record §17). The branching tree reads **62
+calls / 53 hits / 87 misses**, re-derived by hand from lane 1's tree: only its
+aspect ratio changes, by the same −3 / −1 / −3 the prototype moved (66/51/47 →
+63/50/44). The nested tree (51 / 72) and the shaping count (12) are unchanged.
+
 ---
 
 ## CN-C — `Spacer`: default minimum 8, priority −∞, zero on its stack's cross axis, infinite at an infinite proposal
@@ -289,6 +294,21 @@ allocations under the walk above; lane 2 alone adds 5 red tests (spec appendix).
 **What it costs if wrong.** A spacer claims or refuses a cross-axis size a
 SwiftUI one would not, which moves a stack's cross size (SP13: 20 tall, not
 50) — visible, and pinned per arm.
+
+**Lane 2, as built** (`63387f6`; record §17). As ruled, with two choices the
+ruling left open:
+
+- **A spacer keeps its first mark.** Marks are set at registration and an
+  inner stack registers before the stack containing it, so the first mark is
+  the nearest stack's; the walk's `switch` is exhaustive, so a new node kind
+  must choose to pass or stop.
+- **`ReferenceLinearStack` reads `isSpacer` again.** A `ProposalLayout`
+  cannot mark a node (nor can SwiftUI's custom layouts: contract probe E), so
+  the reference leaves `isSpacer` subviews out of its cross size, and
+  `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects` compares
+  only the main-axis extent of the reference tree's three spacer nodes. The
+  proxy's `isSpacer` reach (bare or under `layoutPriority`) is narrower than
+  the mark's walk; the reference tree builds nothing between.
 
 ---
 
@@ -392,6 +412,24 @@ with the node named. That is louder than `FR-B`'s silent under-expansion, and
 no built-in path is known to reach it; lane 2 adds an exit test for the one
 path that can (a custom layout placing at ∞).
 
+**Lane 2, as built** (`63387f6`; record §17).
+
+- **G4 was green on arrival** after lane 1 (under `FR-B` a and the frame tie at
+  flexibility 0 and declaration order serves the frame 180 anyway), so it
+  cannot see this ruling. The probe gained revision 5's **G4r** (the frame
+  declared first: still 180, a at 180) and **G4f** (beside a bounded 0..80
+  sibling: a 80 served first, the frame 120), both red before the lane; they
+  are the evidence that a greedy frame over a fixed child answers more than
+  its child at main ∞.
+- **Test 2.4 is the frame form**, not a citation of `anInfiniteStoredRectTraps`
+  (whose echo leaf answered ∞ before this ruling): red before, trapping after.
+- **Checkpoint 3's width term alone is unpinned**, measured: removing it
+  reddens nothing, because on every path that produces an ∞-wide rect the x
+  is ∞ or NaN too (a centred child, a top-leading record) and the x term traps
+  with the same message. Removing both terms reddens 2.4 and two older trap
+  tests. The ruling's cost statement ("traps with the node named") holds; the
+  pin is the x term's.
+
 ---
 
 ## CN-G — `aspectRatio` answers its child's answer to the ratio-shaped proposal; infinity is a concrete axis
@@ -445,6 +483,11 @@ unchanged.
 **What it costs if wrong.** A fixed child under `.aspectRatio` sizes by its own
 answer rather than the ratio; `aspectRatioFitInscribes…`/`…Fill…` flip and pin
 AR1/AR3.
+
+**Lane 2, as built** (`63387f6`; record §17). As ruled: the preview's toggle is
+168×95 (188 pixels per 1024 image, `CN-S` row 2), both negative-ratio
+acceptance tests pass unchanged with an echo child, and the integration
+fit/fill tests pin AR1 (the fixed child keeps 20×10; the proposals differ).
 
 ---
 

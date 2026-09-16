@@ -184,3 +184,181 @@ Exactly `CN-S` row 1. The moved rects, from the scene dumps:
   and measure-at-nil-versus-place-at-allocations are superseded by this lane;
   whether `.frame(maxWidth: .infinity)` in a stack now matches G4 was not
   measured here (test 2.7 is lane 2's). `SA-N` item 8 is closed (1.8).
+
+## Lane 2 — spacer cross axis and minimum, infinite answers, aspect ratio (the rest of `CN-C`, the rest of `CN-F`, `CN-G`)
+
+2026-09-16. Commits: `32f57fb` (probe revision 5), `476a894` (tests, red),
+`63387f6` (implementation and the nine re-derived tests), then this record
+with the as-built addenda to `CN-B`, `CN-C`, `CN-F` and the 2.4 doc comment.
+
+### Probe revision 5, first
+
+Test 2.7's spec arm G4 (`HStack(0){a 20; b 20 .frame(maxWidth: .infinity)}`)
+is **green on arrival since lane 1**: under `FR-B` the frame answers its child
+at ∞, so a and the frame both have flexibility 0 and are served in declaration
+order, a at 100 → 20, the frame at 180 → 180 — SwiftUI's allocation by
+accident. G4 cannot see `CN-F`. Rather than state an unprobed order, the lane
+extended `docs/probes/swiftui-stack-algorithms.swift` (additive, after R4; run
+twice under `/usr/bin/swift`, Apple Swift 6.4, macOS 27.0 26A428, exit 0,
+byte-identical; the 607 revision-4 output lines unchanged, `diff` empty):
+
+- **G4r** — the same frame declared first: frame 180, b at (80, 0), a at 180.
+- **G4f** — the frame beside a bounded `a 0..80`: a served first at 100 → 80
+  at x 120, the frame 120, b at (50, 0).
+
+G4 is their control. Both are red before this lane (G4r's frame is served
+first at 100) and are arms of tests 2.3 (kernel) and 2.7 (G4r, element API).
+
+### Red first
+
+Seven new tests: 2.1, 2.2, 2.3, 2.5, 2.6 appended to
+`Tests/MetalUILayoutTests/NativeStackDistributionTests.swift`, 2.4 in
+`NativeValidationTrapTests.swift` (beside `anInfiniteStoredRectTraps`), 2.7 in
+`Tests/MetalUITests/ContainerIntegrationTests.swift`. Run filtered against
+`32f57fb`: `Test run with 7 tests in 0 suites failed … with 75 issues`, every
+test red. First failure each:
+
+| # | test | first failure |
+|---|---|---|
+| 2.1 | `aSpacerDefaultsToEightAndAnswersZeroOnItsStacksCrossAxis` (20 issues) | `:818` `arm.run(root, nil, nil) == size(48, 20)` (SP1) |
+| 2.2 | `theCrossAxisMarkReachesASpacerThroughEveryWrapperButAStack` (18) | `:916` `arm.run(root, 200, 50) == size(90, 20)` (K2b) |
+| 2.3 | `anInfiniteProposalIsAnsweredWithInfinity` (9) | `:1010` `arm.measure(root, .infinity, .infinity) == size(.infinity, 20)` (D12) |
+| 2.4 | `aCustomLayoutPlacingAChildAtAnInfiniteProposalTraps` (2) | `NativeValidationTrapTests.swift:497` `expected exit status ".failure", but ".exitCode(EXIT_SUCCESS)"` |
+| 2.5 | `anAspectRatioAnswersItsChildsAnswerToTheRatioProposal` (16) | `:1069` `arm.run(root, 500, 300) == size(168, 95)` (AR1) |
+| 2.6 | `anAspectRatioTreatsInfinityAsAConcreteAxis` (7) | `:1138` `arm.measure(root, .infinity, .infinity) == size(168, 95)` (K4d) |
+| 2.7 | `aDefaultSpacerAndAGreedyFrameThroughTheElementAPI` (3) | `ContainerIntegrationTests.swift:202` `log.bounds["b"] == rect(28, 0, 20, 20)` (SP1) |
+
+Green on arrival inside red tests: 2.3's G4 arm (above), 2.6's K4f (the old
+intrinsic branch also answered ∞×∞ there), 2.7's G4 arm.
+
+**2.4 differs from the spec's wording.** The spec said to cite an existing
+`SA-J` trap test if one places a custom child at ∞. `anInfiniteStoredRectTraps`
+does, with a proposal-echoing leaf, which answered ∞ before this lane too; the
+lane wrote the frame form instead, because it is the path `CN-F` newly opens
+and it was red before (the frame answered 20 and nothing trapped).
+
+### What changed
+
+`Sources/MetalUILayout/LayoutTree.swift`:
+
+- `spacerAxes: [Int: ProposalStackAxis]`, a stored property on the public
+  `LayoutTree` — **`swift package clean` before the suite**, as `CN-R`
+  requires; `reset(generation:)` clears it.
+- `markSpacers(_:axis:)`, called by `newNativeLinearStack` for each child: a
+  spacer keeps its first mark (its nearest stack's, which registers first);
+  the walk passes `layoutPriority`, `padding`, `frame`, `fixedSize`,
+  `aspectRatio` and both children of `overlayAttachment`, and returns at
+  `leaf`, `overlay`, `linearStack`, `scrollViewport`, `custom` (an exhaustive
+  switch, so a new node kind must choose).
+- `.spacer` measurement answers 0 on the marked stack's cross axis;
+  `newNativeSpacer(nil)` stores `ProposalSpacing.platformDefault` (new public
+  `enum` in `Sources/MetalUILayout/ProposalSpacing.swift`, 8).
+- `framedSize`'s greedy gate and `resolvedViewportDimension` lose
+  `isFinite`.
+- `.aspectRatio` measures and places through `aspectRatioProposal` (∞
+  concrete, nil×nil passed through) and answers / places the child at the
+  child's answer; `aspectRatioSize` and its intrinsic branch are gone.
+
+Doc comments rewritten: `newNativeFrame` (the `FR-B` paragraph), `framedSize`
+(third bullet), `newNativeAspectRatio` (and its negative-ratio line: −2 at
+100×80 now *proposes* 100×−50), `newNativeSpacer`, `newNativeLinearStack`,
+`newNativeScrollViewport`, `ProposalLayout.swift`'s `isSpacer`,
+`NativeModifiedContent.swift`'s `.aspectRatio`, `NativeElements.swift`'s
+`Spacer`.
+
+### The nine existing tests
+
+Exactly the spec's list went red (9 tests, 34 issues), plus nothing else:
+
+| test | change |
+|---|---|
+| `aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity` | deleted, replaced by 2.3 (a pointer comment stays in `NativeLayoutTests.swift`); 1316 + 7 − 1 = 1322 |
+| `aNegativeAspectRatioIsAcceptedOnEveryProposedBranch`, `aspectRatioUsesSwiftUIsBranchAtZeroAndNegativeProposalAxes` | child becomes a proposal-echoing leaf (P8's `Color`), numbers unchanged — `CN-G`'s diagnosis held |
+| `aspectRatioFitInscribesTheParentProposalBeforeMeasuringItsChild`, `…Fill…` | the fixed 20×10 child now stays 20×10 at (40, 35) in both (AR1); the proposals (100×50 vs 160×80) still tell the modes apart |
+| `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` | 65/54/90 → **62 calls / 53 hits / 87 misses**, re-derived by hand before the run from `31fd2ba`'s tree: only branch B's aspect ratio changes (no spacer in the tree), B's three evaluations 17/1/11 → 14/1/8 and its placement 5 → 4 hits. The prototype moved by the same −3/−1/−3 (66/51/47 → 63/50/44) |
+| `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects` | literals re-derived: **157×38**, second spacer (88, 46, 66, 0), last leaf (159, 42, 11, 8). The reference stack now reads `isSpacer` and leaves spacers out of its cross size (a `ProposalLayout` cannot mark a node — SwiftUI's custom layouts cannot either, contract probe E); for the three spacer nodes only the main extent is compared (and no measured width transposed). Both controls still disagree |
+| `aNativeLinearStackDividesConcreteSurplusBetweenSpacers` | stack 100×40 → **100×10**; spacer (35, 0, 40, 40) → (35, 20, 40, 0) |
+| `measuringANativeTreeWritesNoRect` | 157×91 → **157×38**, as lane 1 expected |
+
+Unchanged, and so confirmed: 1.12 (51 / 72 calls) and 1.13 (12 misses) — the
+nested tree's spacers now answer 0 on their cross axis without moving a call.
+
+### Suite
+
+After `swift package clean`: `swift build --build-system native --build-tests`,
+`swift test --build-system native --no-parallel` → **`Test run with 1322 tests
+in 1 suite passed`**, 0 `error:`, no `warning:` besides SwiftPM's deprecation
+notice (re-run after the doc-only edits: the same). Default build system:
+65 + 718 + 55 + 28 + 434 + 22 = **1322, all passed**, 0 `error:`. Goldens:
+97, `git diff 9e439cb -- '*.json'` empty. No guard added (66).
+
+### Mutations
+
+After `63387f6`, in this worktree, one at a time: applied, built (native),
+unfiltered suite, `git checkout`, `git status --short` empty after each.
+
+| mutation | red tests (the named test in bold) |
+|---|---|
+| L1 nil → 0 in `newNativeSpacer` | **2.1**, **2.7**, 2.2 (16 issues) |
+| L2 delete the marking | **2.1**, 2.2, reference equivalence, surplus spacers, measuring-writes-no-rect (43) |
+| L3 the walk stops at `frame` | **2.2** only (4: K2d, SP19) |
+| L4 skip an overlay attachment's content side | **2.2** only (1: K2e's spacer) |
+| L5 walk into an `overlay` node | **2.2** only (3: K2a) |
+| L6 restore `isFinite` in `framedSize` | **2.3**, 2.4, 2.7 (11) |
+| L7 restore `isFinite` in `resolvedViewportDimension` | **2.3** only (2: SC1 both axes) |
+| L8 remove checkpoint 3's width term | **nothing red** — see below |
+| L8b remove checkpoint 3's x and width terms | **2.4**, `anInfiniteStoredRectTraps`, `aNonFinitePlacementPositionTraps` (6) |
+| L9 answer the ratio size | **2.5**, 2.6, 2.2 (K2b), both integration fit/fill tests (15) |
+| L10 filter ∞ to nil in `aspectRatioProposal` | **2.6** only (4) |
+
+**L8, a finding, not a coverage gap of 2.4 alone.** An ∞-wide rect never
+reaches checkpoint 3 with a finite x on these paths: the frame centres its
+child at x = (∞ − 20) × 0.5 = ∞, and a custom record at a top-leading anchor
+stores x − 0 × ∞ = NaN, so the x term traps one node later with the same
+"non-finite rect" message. L8b proves the test sees checkpoint 3. The width
+term alone was already unpinned before this lane (`anInfiniteStoredRectTraps`
+has the same shape); a root-bounds arm with an infinite width would pin it.
+Not added here.
+
+### Demo comparison (`CN-S` row 2)
+
+`ioreg -n Root -d1 -a` read `IOConsoleLocked` `<true/>`: no real window
+captures. Stand-in: lane 1's harness (`scratchpad/harness/gen.py`, twelve
+images through a real `Window` over `FakePlatformWindow`) on `git archive
+63387f6`, against lane 1's `9e439cb` images. `demoContent()` still names no
+proposal type, so the legacy images are not evidence.
+
+| comparison | differing pixels |
+|---|---|
+| controls, base and head alike: light vs dark / default vs modal / default vs animation / f0 vs f3 / preview light vs dark | 1 048 576 / 1 030 498 / 210 027 / 0 / 1 048 576 |
+| eight legacy images + `small560-default-light` | **0**, scenes identical |
+| `preview-light`, `preview-dark` | **188** each, bbox (264, 845)–(431, 865) |
+| `small560-preview-light` | **64 199**, bbox (0, 0)–(559, 559) |
+
+Exactly `CN-S` row 2. Moved rects, from the scene dumps:
+
+- **1024 preview:** two rects. `PreviewToggle`'s `Rectangle(168×95)
+  .aspectRatio(16/9)` 168×94 at (264, 846) → **168×95 at (264, 845)**, and its
+  `.topTrailing` 20×20 badge (412, 846) → (412, 845). Base: the ratio size
+  168×94.5, rounded; now the child's own answer (AR1, AR4), vertically centred
+  in the row one point higher.
+- **560 preview:** every rect is translated except inside the bottom row. The
+  toggle 32×18 (lane 1) → **168×95** (AR4); the bottom row is now the widest,
+  168 + 12 + 168 + 12 + 168 = 528, plus 2 × (36 + 48) = **696**, so the root's
+  answer 668×564 → 696×603 (G9/X13 overflow), stored rounded at (−68, −22)
+  696×604 from −21.5, centred by the root `ZStack`. Height +39 = the row 64 →
+  95 (+31) and the `Spacer()` between the panels and that row now at its 8pt
+  minimum where it was 0 (CN-C, SP1/K1: the row starts 48 = 20 + 8 + 20 below
+  the priority panels, 40 before).
+
+### Not done here, and why
+
+- `CLAUDE.md`, `AGENTS.md`, the plan and the record index: the Docs phase.
+  Candidates it should carry: `CLAUDE.md`'s "unprobed kernel behaviour"
+  bullets on `.frame(maxWidth: .infinity)` in a stack (now expands, G4r/G4f)
+  and "a `Spacer` also claims the proposed cross axis" (now 0 inside a stack);
+  `SA-N` items 2 (`Spacer()`'s 8) and 3 (`aspectRatio` at nil×nil) closed;
+  `FR-B` reversed; the inert/limit note that checkpoint 3's width term alone
+  is unpinned.
+- Default spacing beside a spacer is lane 3's (`CN-H`); nothing here inserts
+  it.
