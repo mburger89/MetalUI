@@ -8,8 +8,22 @@ record `docs/record/17-containers.md` (written by the lanes). Plan:
 `../plans/2026-09-12-swiftui-alignment.md`, task 6, with the items tasks 2, 3,
 4 and 5 handed to it.
 
-**Status, 2026-09-16: design only, after critic round 1.** Nothing under
-`Sources/` or `Tests/` is committed. The suite at `9e439cb` reads `Test run
+**Status, 2026-09-16, at the record pass after `6d59cf0`: all five lanes
+landed; not all verified `ok`; task 6 stays open (`CN-T`).** Lanes 1, 2, 4
+and 5 verified `ok: true`; lane 3 verified `ok: false`, because its second
+verifier was stopped after two of fifteen mutations, and the record pass's
+own run of the rest is not an independent verification (record §17, "Verifier
+round (lane 3)"). The suite reads `Test run with 1355 tests in 1 suite passed`
+(native), 97 goldens unmoved, 70 guards. Probe revision 8 supersedes the
+revision 4 cited below. Where a lane's as-built result differs from a figure
+in this spec (the branching tree's literals, the suite counts, `CN-H`'s walk),
+the decisions doc's "as built" addenda and record §17 hold the measured
+answer; this spec's figures are the staged prototype's. Obligations for
+`CLAUDE.md`, the plan, README and the divergence and inert tables: record
+§17, "For the integrator".
+
+*Design status, kept for history:* **design only, after critic round 1.**
+Nothing under `Sources/` or `Tests/` was committed. The suite at `9e439cb` reads `Test run
 with 1303 tests in 1 suite passed` under `--build-system native` after
 `swift package clean`, 97 goldens, 66 guards. Every "measured" figure below
 comes from a prototype that was applied, run and reverted in this worktree
