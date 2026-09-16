@@ -2,7 +2,20 @@
 
 Rulings for `docs/superpowers/specs/2026-09-15-frame-sizing-design.md`, on
 `feat/frame-sizing` from `c4b5853`. Ids are **lettered**, `FR-A`…; next unused
-is **`FR-T`**. A bare `FR-3` is a typo, not a citation.
+is **`FR-W`**. A bare `FR-3` is a typo, not a citation.
+
+**Status, 2026-09-15, after lane 4 (verification):** every ruling `FR-A`…`FR-T`
+is landed or is a documented refusal; nothing in `Sources/` or `Tests/` moved
+in this lane. After `swift package clean`, `swift test --build-system native
+--no-parallel` reads `Test run with 1247 tests in 1 suite passed`, 0 `error:`,
+1 `warning:` (SwiftPM's own `--build-system native` deprecation notice — the
+repo's standing lone hit), 97 goldens with `git diff --stat c4b5853 --
+'*.json'` empty, 63 typecheck guards, and both new guards mutated red in this
+worktree (record §14, lane 4). The ten stand-in images are 0 differing pixels
+against `c4b5853`, preview included, and `FR-U` says why the preview zero is
+not evidence about `FR-M`. The real-window captures were attempted on an
+`IOConsoleLocked = false` session and refused by a locked, asleep display;
+`FR-V` replaces the check. `MC-J` stays owed.
 
 **Status, 2026-09-15, after lane 2:** the legacy frame has SwiftUI's whole
 parameter surface. `FR-A`, `FR-B`, `FR-C`, `FR-D`, `FR-E`, `FR-J`, `FR-K`,
@@ -1184,6 +1197,87 @@ box 100× too wide, silently, and in a `Row` the flex shrink hides it — the bo
 reads exactly the parent's width, which looks like `width: 100%` working. That
 is the worst shape a bug can have, and it survived until a test placed the same
 spelling in a `Column`. Keeping it pinned is what makes the next reader see it.
+
+---
+
+## FR-U — `FR-M` changes the preview's frame answer and cannot move a preview pixel, because two centred alignments cancel
+
+**Where it came from.** Lane 4's pixel comparison. The spec's item 5 said the
+preview "can move" under `FR-M` if its content is larger than the offer, and
+told the lane to investigate a difference. There was none — and the content
+IS larger than the offer, so "no difference" needed explaining rather than
+banking.
+
+**The finding, measured.** A `@testable` `Frame` at 920×560 (the demo's
+requested size), scale 2, dumps the preview's 16 rects and 97 glyphs
+identically from `c4b5853` and from the branch. The inner surface rect is at
+`(0, −34)` with height 1188 device px: the `.frame(maxWidth: ∞, maxHeight: ∞)`
+child is 594pt tall in a 560pt window. On the head scratch tree's kernel, with
+`framedSize`'s greedy line put back to the pre-`FR-M` `base = proposal`, the
+dump is again identical to base (0 lines); with `framedProposal` perturbed by
+10pt it moves 224 lines. So the instrument sees the frame and the rule change
+does not reach it.
+
+**The mechanism.** The frame is not the root; the outer `ZStack` is. Both the
+`ZStack` and the frame align `.center`:
+
+| kernel | the frame answers | the `ZStack` places the frame at | the frame places its child at | the child's y |
+|---|---|---|---|---|
+| `c4b5853` | 560 (the proposal) | 0 | (560 − 594) / 2 = −17 | **−17** |
+| branch (`FR-M`, H16) | 594 (`max(proposal, child)`) | (560 − 594) / 2 = −17 | 0 | **−17** |
+
+The frame's own rect moved by 34pt and nothing paints it. Any alignment other
+than centre at either level — or any sibling that reads the frame's size —
+would show the change; the demo has neither.
+
+**The ruling.** The preview's stand-in zero is a **regression check on the
+preview and no evidence about `FR-M` in either direction**; the kernel change
+is pinned where it can be seen, by
+`aFrameWithoutAMinimumNeverAnswersLessThanItsChild` (H16) and
+`aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI`. The spec's lane
+4 item 5 is corrected to say so: a preview difference is still to be
+investigated, and its absence is expected, not reassuring. **The preview's own
+first human look is still owed** (CLAUDE.md's human-verification table), and
+this ruling adds to it: at the default window the preview's content overflows
+its window by 17pt top and bottom, centred, which a look would report as a
+clipped border. Whether SwiftUI overflows the same way at that size is
+unprobed and not claimed here.
+
+**What it costs if wrong.** If the double-centring reading were wrong, I1
+would have moved the dump — it did not. The cost of the ruling is a paragraph;
+the cost of not writing it is a later lane reading "preview 0" as "`FR-M`
+verified in production".
+
+---
+
+## FR-V — `IOConsoleLocked` is not the screen-lock check; the CGS session dictionary is
+
+**Where it came from.** Lane 4's spec item 6 (and the task brief) said to
+check `ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked` and, if false, take
+the release-window captures. It read `<false/>`. The captures were attempted
+and every one failed the way the three locked sessions before it did.
+
+**Measured.** With `IOConsoleLocked = false`: `CGSessionCopyCurrentDictionary`
+read `CGSSessionScreenIsLocked = 1` (locked at `CGSSessionScreenLockedTime =
+1789541394`), `CGDisplayIsAsleep(CGMainDisplayID()) = 1`, `CGDisplayIsActive =
+0`, `CGPreflightScreenCaptureAccess() = true`. Both demo windows opened (828×531
+at (614, 259), from both builds), `screencapture -x -R…` printed `could not
+create image from rect` four times, and a full-screen capture was 4112×2658
+with 0 non-black pixels. No input was sent; the pointer read (602.15, 674.36)
+before and after and was not moved.
+
+**The ruling.** The check to run before a capture is
+`CGSSessionScreenIsLocked` (0) **and** `CGDisplayIsAsleep` (false) from a
+`swiftc`-compiled probe, not `IOConsoleLocked`, which reports the *console
+session* (still this user's) rather than the screen lock. The task brief's
+recipe is wrong on this point and every later lane that copies it will launch
+two windows for nothing. The captures stay owed to `MC-J`, on a session where
+that dictionary says the screen is unlocked.
+
+**What it costs if wrong.** Nothing but two launches and four failed
+`screencapture` calls per attempt, already paid once here. If the CGS check
+is also insufficient on some session, the full-screen non-black count is the
+backstop: 0 means nothing was captured, whatever any flag says.
 
 ---
 

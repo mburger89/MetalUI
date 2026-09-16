@@ -564,6 +564,121 @@ demo and preview pixel comparison against `c4b5853`, and the
 executable line in `Sources/`, so it cannot move a pixel; lane 1's kernel change
 is still the thing that comparison is for.
 
+#### Lane 4 — verification, 2026-09-15
+
+No source or test file changed; the lane's commits are documentation only.
+Every step below was run in the worktree `feat/frame-sizing` at `b513fa3`,
+after `swift package clean` (spec item 1, critic finding 14), with `swift build
+--build-system native --build-tests` first so that the typecheck guards had a
+`.build/<triple>/debug/Modules` to run against. No other agent was live in this
+worktree; the parallel paint-modifier track's scratch files share the
+scratchpad directory and were left alone (every file of this lane is prefixed
+`l4-`).
+
+**Suite, goldens, guards** (spec items 2–4):
+
+| check | result |
+|---|---|
+| `swift test --build-system native --no-parallel` | `Test run with 1247 tests in 1 suite passed after 37.954 seconds`; `grep -c error:` **0**; `grep -c warning:` **1**, and it is SwiftPM's own `'--build-system native' has been deprecated` notice, not a compiler warning (CLAUDE.md records the same lone hit); both gated tests skipped (`regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`) |
+| goldens | `git diff --stat c4b5853 -- '*.json'` empty; `find Tests -name '*.json' \| wc -l` = **97** |
+| guards | per-file `grep -c canTypecheck`: `PhaseSeparationTests` 19, `ErasureCompileGuards` 10, `EnvironmentCompileGuards` 8, `ProposalNodeIDCompileGuards` 6, `ProposalLayoutCompileGuards` 6, `ElementGroupTrapTests` 5, `AXNodeTests` 3, `UnitSafetyTests` 3 (line 13 is the comment), `ModifiedElementCompileGuards` 2, **`FrameSizingCompileGuards` 2** — 64, less the comment, **63**; `Typecheck.swift`'s declaration excluded |
+| the guards RAN, not skipped | the baseline log carries both fixtures' prints: `FR-J no-argument frame: succeeded=true deprecations=2` and `FR-S overload resolution: succeeded=true messages=[]` |
+
+**The two new guards, each mutated red once in this worktree** (spec item 4).
+Each patch was applied to a `cp` backup's file, the WHOLE suite run under
+`swift test --build-system native --no-parallel`, the file restored from the
+copy and `git status --short` checked empty:
+
+| # | mutation | tests reddened |
+|---|---|---|
+| A | `ElementGroup`'s deprecated `frame()` deleted (`FrameLayer.swift`) | **1**: `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths` at `FrameSizingCompileGuards.swift:102` and `:104` — `succeeded=false deprecations=1`, `error: cannot convert value of type 'ModifiedElement<LegacyLeaf>' to specified type 'LegacyLeaf'`. The proposal declaration's deprecation still fires, so the count reads 1, not 0; `Test run with 1247 tests in 1 suite failed … with 2 issues` |
+| B | `ProposalElementGroup`'s flexible overload's `idealWidth:` label renamed (`NativeModifiedContent.swift`) | **2**: `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload` at `:171` (`cannot convert value of type 'ModifiedElement<ProposalLeaf>' to specified type 'ModifiedContent<ProposalLeaf>'`, twice — the flexible and the ideal spellings fell to the legacy overload) and `anIdealDimensionOnTheLegacyFrameTraps` at `FrameSizingTests.swift:268` (test 2.4's proposal control met `FR-D`'s trap). Exactly the pair `FR-S` predicted from lane 2's own run |
+
+Both are the mutations `FR-J` and `FR-S` already record from lanes 1 and 2;
+re-running them here is what a worktree owes, since a worktree whose `.build`
+has never been built natively runs no guard at all and reads the same 1247.
+
+**Pixels, by record §13's stand-in** (spec item 5). `git archive c4b5853` and
+`git archive b513fa3` into `l4-base` and `l4-head`; in each, a generated
+`Tests/MetalUITests/SIPixelStandIn.swift` holds that tree's `main.swift` up to
+`runDemo()` (its `import MetalUI` dropped for the test file's `@testable` one,
+every top-level `let`/`var` made `nonisolated(unsafe)`, and only `Increment`
+and `Decrement` — the two names that collide with existing `MetalUITests`
+declarations — prefixed `SI`, with their two `"Increment"`/`"Decrement"` text
+literals restored so no rendered string changed) and a test that renders
+through a real `Window` over `FakePlatformWindow` (1024×1024, scale 1),
+`drawFrameIfNeeded()` once for a frame-0 image and three `setNeedsRedraw()` +
+`simulateTick` pairs for a frame-3 one, writing `fakeSurface.readPixels()`.
+Debug builds. Ten images per tree, compared byte-for-byte per pixel:
+
+| comparison | differing pixels |
+|---|---|
+| control: base light vs base dark, frame 0 | 1 048 576 (all) |
+| control: base default vs base modal | 1 030 498 |
+| control: base default vs base animation look (settled, no transaction) | 210 027, bbox (16, 113, 966×895) |
+| control: base preview light vs dark | 1 048 576 |
+| base f0 vs base f3 | 0 (deterministic clock) |
+| **base vs head, the eight non-preview images** (default light/dark × f0/f3, modal light/dark, animation light/dark) | **0, 0, 0, 0, 0, 0, 0, 0** |
+| **base vs head, preview light and dark** | **0, 0** |
+
+The controls match record §13's shapes to within the demo's own drift since
+`f64e58a` (§13 read 1 030 499 and 210 043 with the same bbox).
+
+**The preview's zero, investigated as spec item 5 requires — and it is the
+fix landing invisibly, not the fix missing.** The spec expected `FR-M` to move
+the preview "if its content is wider or taller than the window offers", and
+at 1024×1024 it is not. So a second instrument, `siRectDump`, renders both
+roots through a bare `@testable` `Frame` at the real window's proportions
+(920×560, the demo's request; 828×503, the 828×531 the window actually opened
+as under MC-J's method less a title bar assumed to be 28pt — a reading; and
+1024×1024), scale 2, light
+theme, and writes every `MUIRect` and `MUIGlyph`. Default: 518 rects, 15 711
+glyphs at every size (§13's numbers); preview: 16 rects, 97 glyphs. **All six
+dumps are identical between base and head.** At 920×560 the preview's inner
+surface rect reads origin `(0, −34)`, size `1840×1188` device px — **594pt
+tall in a 560pt window, centred, overflowing 17pt top and bottom**. So the
+content IS taller than the offer, exactly the H16/H17 shape, and the pixels
+still do not move. Two instruments on the head scratch tree's kernel
+(`LayoutTree.swift`, `cp`-restored after each, the scratch copy only) say why:
+
+| instrument | preview dump vs base | default dump vs base |
+|---|---|---|
+| I1: `framedSize`'s greedy line put back to the pre-`FR-M` rule, `base = proposal` | **0** differing lines | 0 |
+| I2: `framedProposal` proposes `proposal − 10` to the child | **224** differing lines | 0 |
+
+I2 shows the dump sees the preview's kernel frame and is blind to the legacy
+default, as it should be; I1 shows the old and new rules produce the same
+rects. The mechanism, ruling `FR-U`: the `.frame(maxWidth: ∞, maxHeight: ∞)`
+is not the root — the outer `ZStack` is — and both the `ZStack` and the frame
+align `.center`. Base answers 560 and centres the 594pt child inside it at
+−17; head answers 594 (H16, pinned at the kernel by
+`aFrameWithoutAMinimumNeverAnswersLessThanItsChild`), the `ZStack` centres
+that at −17 and the child sits at 0 inside it. The same pixel both ways. The
+frame's answer did change; nothing downstream of it can show that in this
+demo, and the stand-in's zero is therefore a regression check on the preview
+and no evidence about `FR-M` either way.
+
+**Real-window captures: refused again, and the brief's check said the session
+was open** (spec item 6, ruling `FR-V`). `ioreg -n Root -d1 -a | grep -A1
+IOConsoleLocked` printed `<false/>`, so the captures were attempted:
+`swift build -c release --product MetalUIDemo` in both scratch trees, the
+pointer logged at (602.15, 674.36) and not moved, each demo launched alone
+with no suite running (an AppKit test window could otherwise sit over it), no
+input sent. Each window opened at (614, 259) 828×531 by
+`CGWindowListCopyWindowInfo` — `MetalUI — Milestones 1 to 3` and `MetalUI —
+Native Layout Preview`, from both builds — and every `screencapture -x
+-R614,259,828,531` printed `could not create image from rect`. A full-screen
+`screencapture -x` wrote a 4112×2658 PNG with **0 non-black pixels of
+10 929 696**. `CGSessionCopyCurrentDictionary` read `CGSSessionScreenIsLocked =
+1`, `CGDisplayIsAsleep(main) = 1`, `CGDisplayIsActive(main) = 0`,
+`CGPreflightScreenCaptureAccess() = true`: the display was asleep and the
+screen locked while `IOConsoleLocked` said otherwise. `MC-J` stays owed, with
+the same standing as after §13, and the check to run first is the CGS one.
+
+**Counts at the end of the lane** are the table's: 1247 / 0 / 1 (SwiftPM's)
+/ 97 / 63. Nothing in `Sources/` or `Tests/` moved; `git status --short` is
+empty after every mutation and instrument.
+
 ### Open at the end of the critic round
 
 - Two of `MC-Q` finding 7's four handed-over shapes are **not** covered by this
@@ -585,5 +700,7 @@ is still the thing that comparison is for.
 - N2 and N12 did not discriminate: the flex automatic minimum floors those
   shapes before any pin can matter. The cross-axis finding rests on N11 alone,
   which is why N11 gets its own test (2.10) rather than an arm inside 2.2.
-- The release-window captures stay owed (`MC-J`, `EV-P`); lane 4 checks
-  `IOConsoleLocked` and records the refusal if the session is locked.
+- The release-window captures stay owed (`MC-J`, `EV-P`); lane 4 checked
+  `IOConsoleLocked`, found it `false`, launched, and was refused anyway — the
+  screen was locked and the display asleep by the CGS session dictionary, which
+  is the check to run instead (`FR-V`).

@@ -616,14 +616,32 @@ guard, so it mutates none red; the two it inherits were proved to run by lanes
    preview images are inspected rather than asserted — a difference there is
    investigated against H16 and recorded either as the fix landing or as a
    regression, and the demo's default (non-preview) frame must be 0 regardless.
-6. **Real window captures**: check `ioreg -n Root -d1 -a | grep -A1
-   IOConsoleLocked`; if false, take release-window captures with
+   **Corrected by `FR-U` after running:** the preview's content is taller than
+   the window (594pt in 560), the frame's answer does move under `FR-M`, and
+   the pixels cannot — the `ZStack` and the frame both centre, so the child
+   lands at −17pt either way. A preview zero is expected and says nothing about
+   `FR-M`; a non-zero there is still a regression to investigate.
+6. **Real window captures**: ~~check `ioreg -n Root -d1 -a | grep -A1
+   IOConsoleLocked`; if false~~ — **corrected by `FR-V`**: that flag read
+   `false` on a locked, asleep display. Check `CGSSessionScreenIsLocked` and
+   `CGDisplayIsAsleep` instead; if both clear, take release-window captures with
    `screencapture -R`, sending no input. If locked, record the refusal as §13
    did and leave `MC-J` owed.
 7. **Mutation discipline** (practices): commit before mutating; `cp` the file,
    restore from the copy, confirm with `git status --short`; run the whole suite
    per mutation and name the tests each reddens in the ruling's Mutations line;
    word coverage as a differential.
+
+**Measured, 2026-09-15, at `b513fa3` after `swift package clean`** (record §14,
+lane 4): `Test run with 1247 tests in 1 suite passed after 37.954 seconds`, 0
+`error:`, 1 `warning:` (SwiftPM's `--build-system native` notice); goldens 97,
+diff empty; guards 64 hits less the `UnitSafetyTests` comment = **63**, both
+new ones mutated red in this worktree (A: `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`
+alone; B: `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload`
+and `anIdealDimensionOnTheLegacyFrameTraps`); stand-in controls 1 048 576 /
+1 030 498 / 210 027 (bbox (16, 113, 966×895)); **base vs head 0 in all ten
+images**; the preview zero explained by `FR-U` with instruments I1 (0) and I2
+(224 lines); captures refused (`FR-V`), `MC-J` owed.
 
 ## Order, and what each lane may assume
 
