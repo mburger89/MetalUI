@@ -241,54 +241,55 @@ private func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bo
     Bounds(origin: Point(x: Pixels(x), y: Pixels(y)), size: Size(width: Pixels(width), height: Pixels(height)))
 }
 
-/// **PINNED WRONG ON PURPOSE (`MC-G` hole 4): one typed id used twice is not
-/// rejected.** A type with an internal initializer constrains who mints an id,
-/// not how often it is used, and `LayoutTree.appendNode` checks only the id's
-/// generation.
+/// **One native node registered under two parents traps (`MC-G` hole 4,
+/// closed by plan task 6's ruling CN-L).** No SwiftUI spelling reaches it: a
+/// view value has no node id. Until CN-L this test pinned the hole wrong on
+/// purpose as `aNativeNodeRegisteredTwiceIsNotRejected` (arm a: the leaf was
+/// placed once, at the second slot of a 20-wide stack; arm b: drawn where the
+/// last frame put it); it became this exit test before the precondition landed,
+/// because a trap in-process truncates the suite (record §10).
 ///
-/// - **Arm a:** one leaf listed twice in a horizontal stack reserves both slots
-///   (the stack is 20 wide) and is placed once, at the SECOND slot. It is
-///   measured at four distinct proposals since plan task 6's ruling CN-B: the
-///   stack's one priority group of two probes it at (∞, h) and (0, h), then
-///   offers it half the width and then the width less the 10 it answered.
-/// - **Arm b:** one leaf handed to a 30×30 top-leading frame and a 50×50
-///   bottom-trailing frame is drawn where the LAST placement puts it, the first
-///   frame's slot empty; it is measured twice.
+/// - **Arm a:** one leaf listed twice in one horizontal stack exits with
+///   failure, at the parent record's check.
+/// - **Arm b:** one leaf handed to two frames exits with failure there too.
+/// - **The reset arm** (`LayoutTree.reset(generation:)` clears the record): a
+///   leaf under a frame, a reset, then a fresh leaf under a fresh frame at the
+///   same indices lays out and exits successfully. Without the clear, index 0
+///   would still hold its old parent and trap.
 ///
-/// Values measured at design review with untyped ids, which a `ProposalNodeID`
-/// wraps unchanged, and re-measured here through the typed registrars.
-///
-/// **Whoever closes the hole** with a duplicate-parent precondition in
-/// `LayoutTree.appendNode` traps this test's process — measured (lane 3, record
-/// §10): no summary line, stopping here after 955 tests, and no test before it
-/// tripped the check — so the test becomes an exit test first.
-@MainActor
-@Test func aNativeNodeRegisteredTwiceIsNotRejected() throws {
-    do {
-        let probe = TypedIDProbe()
-        let frame = Frame(contentSize: frameSize, scaleFactor: 1)
-        var root = VStack { HStack { LeafListedTwice(probe: probe) } }
-        frame.render(&root)
-        print("MC-G hole 4 (arm a): stack \(String(describing: probe.bounds["stack"])), "
-              + "leaf \(String(describing: probe.bounds["leaf"])), measure calls \(probe.measureCalls), "
-              + "nodeCount \(frame.tree.nodeCount)")
-        #expect(probe.bounds["stack"] == rect(60, 0, 20, 10))
-        #expect(probe.bounds["leaf"] == rect(70, 0, 10, 10))
-        #expect(probe.measureCalls == 4)
-        #expect(frame.tree.nodeCount == 4)
+/// Before CN-L both arms exit successfully. Mutations: delete the precondition
+/// (arms a and b); do not clear the record in `reset` (the reset arm).
+@Test func aNativeNodeRegisteredTwiceTraps() async {
+    let listedTwice = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            let probe = TypedIDProbe()
+            var root = VStack { HStack { LeafListedTwice(probe: probe) } }
+            Frame(contentSize: frameSize, scaleFactor: 1).render(&root)
+        }
     }
-    do {
-        let probe = TypedIDProbe()
-        let frame = Frame(contentSize: frameSize, scaleFactor: 1)
-        var root = VStack { HStack { LeafInTwoFrames(probe: probe) } }
-        frame.render(&root)
-        print("MC-G hole 4 (arm b): stack \(String(describing: probe.bounds["stack"])), "
-              + "leaf \(String(describing: probe.bounds["leaf"])), measure calls \(probe.measureCalls), "
-              + "nodeCount \(frame.tree.nodeCount)")
-        #expect(probe.bounds["stack"] == rect(30, 0, 80, 50))
-        #expect(probe.bounds["leaf"] == rect(100, 40, 10, 10))
-        #expect(probe.measureCalls == 2)
-        #expect(frame.tree.nodeCount == 6)
+    let stderrA = String(decoding: listedTwice?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderrA.contains("MC-G hole 4"), "arm a aborted, but not at the parent record:\n\(stderrA)")
+
+    let inTwoFrames = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            let probe = TypedIDProbe()
+            var root = VStack { HStack { LeafInTwoFrames(probe: probe) } }
+            Frame(contentSize: frameSize, scaleFactor: 1).render(&root)
+        }
+    }
+    let stderrB = String(decoding: inTwoFrames?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderrB.contains("MC-G hole 4"), "arm b aborted, but not at the parent record:\n\(stderrB)")
+
+    await #expect(processExitsWith: .success) {
+        let tree = LayoutTree(generation: 0)
+        let old = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+        _ = tree.newNativeFrame(child: old, width: 20, height: 20)
+        tree.reset(generation: 1)
+        let leaf = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+        let frame = tree.newNativeFrame(child: leaf, width: 20, height: 20)
+        tree.computeNativeLayout(root: frame, proposal: ProposedSize(width: 20, height: 20),
+                                 in: LayoutRect(x: 0, y: 0, width: 20, height: 20))
+        precondition(tree.layout(leaf) == LayoutRect(x: 5, y: 5, width: 10, height: 10))
     }
 }
 

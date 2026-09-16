@@ -1,6 +1,9 @@
 import Testing
+import Metal
 import MetalUICore
 import MetalUILayout
+import MetalUIPlatform
+import MetalUIRender
 @testable import MetalUIText
 @testable import MetalUI
 
@@ -587,4 +590,760 @@ private enum DeprecatedStackSpellings: SpacingFirstStacks {
         #expect(old.bounds["a"] == new.bounds["a"], "deprecated VStack a")
         #expect(old.bounds["b"] == new.bounds["b"], "deprecated VStack b")
     }
+}
+
+// MARK: - Lane 4: root, ZStack placement, overlay and background content, scroll axes (CN-J, CN-E, CN-K, CN-M)
+
+/// Each probe leaf's DISTINCT proposals, in the order first asked. A class
+/// shared by value into the `@Sendable` measure closures.
+private final class ProposalRecord: @unchecked Sendable {
+    var proposals: [String: [ProposedSize]] = [:]
+    func record(_ name: String, _ proposal: ProposedSize) {
+        if !(proposals[name, default: []].contains(proposal)) { proposals[name, default: []].append(proposal) }
+    }
+}
+
+@MainActor
+private final class Lane4Log {
+    var bounds: [String: Bounds<Pixels>] = [:]
+    var ids: [String: GlobalElementID] = [:]
+    var taps: [String: Int] = [:]
+    let record = ProposalRecord()
+    func proposals(_ name: String) -> [ProposedSize] { record.proposals[name] ?? [] }
+}
+
+/// A native leaf answering `measure(proposal)`, logging its proposals and its
+/// prepaint bounds under `name`.
+private struct LaneProbe: ProposalElement {
+    let name: String
+    let log: Lane4Log
+    let measure: @Sendable (ProposedSize) -> SizeD
+
+    func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
+        let (record, name, measure) = (log.record, self.name, self.measure)
+        return (pass.requestNativeLeaf { proposal in
+            record.record(name, proposal)
+            return LayoutMeasurement(size: measure(proposal))
+        }, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {
+        log.bounds[name] = bounds
+        log.ids[name] = id
+    }
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Void,
+               pass: inout PaintPass) {}
+}
+
+/// The probe's `fixed` leaf.
+private func pFixed(_ name: String, _ width: Double, _ height: Double, _ log: Lane4Log) -> LaneProbe {
+    LaneProbe(name: name, log: log) { _ in SizeD(width: width, height: height) }
+}
+
+/// The probe's `half` leaf: width half its proposal (half of 40 at nil), height 10.
+private func pHalf(_ name: String, _ log: Lane4Log) -> LaneProbe {
+    LaneProbe(name: name, log: log) { SizeD(width: ($0.width ?? 40) / 2, height: 10) }
+}
+
+/// The probe's greedy `Leaf(0..inf, ideal 10)` on both axes.
+private func pGreedy(_ name: String, _ log: Lane4Log) -> LaneProbe {
+    LaneProbe(name: name, log: log) { SizeD(width: $0.width ?? 10, height: $0.height ?? 10) }
+}
+
+/// The probe's `flexible ideal 50x300` scroll content: `proposal ?? ideal` per axis.
+private func pFlexible(_ name: String, _ idealW: Double, _ idealH: Double, _ log: Lane4Log) -> LaneProbe {
+    LaneProbe(name: name, log: log) { SizeD(width: $0.width ?? idealW, height: $0.height ?? idealH) }
+}
+
+private func pp(_ width: Double?, _ height: Double?) -> ProposedSize { ProposedSize(width: width, height: height) }
+
+@MainActor
+private func render<Root: Element>(_ root: Root, _ width: Float, _ height: Float) -> Frame {
+    var root = root
+    let frame = Frame(contentSize: Size(width: Pixels(width), height: Pixels(height)), scaleFactor: 1)
+    frame.render(&root)
+    return frame
+}
+
+/// CN-J: a native window root is measured at the window's size and placed
+/// CENTRED at its own answer; a greedy root fills.
+///
+/// - R control: a greedy root in 100×100 is proposed [100×100] and fills
+///   (0, 0) 100×100.
+/// - R1 `HStack(0){a 58x20}` root in 100×100: a at (21, 40) 58×20.
+/// - R2 a fixed 58×20 root: proposed [100×100], at (21, 40) 58×20.
+/// - R3 fixed r 58×20 `.overlay{greedy a}`: r at (21, 40); a proposed
+///   [58×20] at (21, 40) 58×20 — a root's overlay content is proposed the
+///   ROOT's size. R4 the same through `.background`.
+/// - Kernel half: `computeNativeLayout(root:proposal:centredIn:)` stores R2's
+///   leaf at (21, 40) in (0, 0, 100, 100) and at (31, 60) in (10, 20, 100, 100).
+///
+/// Before the lane the root is stored at the full window: R1's a reads (0, 40)
+/// and R2's leaf (0, 0) 100×100. Mutation: place at the full rect.
+@MainActor
+@Test func aNativeRootIsCentredAtItsAnswer() {
+    do { // R control
+        let log = Lane4Log()
+        _ = render(pGreedy("a", log), 100, 100)
+        #expect(log.proposals("a") == [pp(100, 100)], "R control proposals")
+        #expect(log.bounds["a"] == rect(0, 0, 100, 100), "R control a")
+    }
+    do { // R1
+        let log = Lane4Log()
+        _ = render(HStack(spacing: Pixels(0)) { pFixed("a", 58, 20, log) }, 100, 100)
+        #expect(log.bounds["a"] == rect(21, 40, 58, 20), "R1 a")
+    }
+    do { // R2
+        let log = Lane4Log()
+        _ = render(pFixed("a", 58, 20, log), 100, 100)
+        #expect(log.proposals("a") == [pp(100, 100)], "R2 proposals")
+        #expect(log.bounds["a"] == rect(21, 40, 58, 20), "R2 a")
+    }
+    do { // R3
+        let log = Lane4Log()
+        _ = render(pFixed("r", 58, 20, log).overlay { pGreedy("a", log) }, 100, 100)
+        #expect(log.bounds["r"] == rect(21, 40, 58, 20), "R3 r")
+        #expect(log.proposals("a") == [pp(58, 20)], "R3 a proposals")
+        #expect(log.bounds["a"] == rect(21, 40, 58, 20), "R3 a")
+    }
+    do { // R4
+        let log = Lane4Log()
+        _ = render(pFixed("r", 58, 20, log).background { pGreedy("a", log) }, 100, 100)
+        #expect(log.bounds["r"] == rect(21, 40, 58, 20), "R4 r")
+        #expect(log.proposals("a") == [pp(58, 20)], "R4 a proposals")
+        #expect(log.bounds["a"] == rect(21, 40, 58, 20), "R4 a")
+    }
+    do { // kernel half
+        let tree = LayoutTree(generation: 0)
+        let leaf = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 58, height: 20)) }
+        let answer = tree.computeNativeLayout(root: leaf, proposal: pp(100, 100),
+                                              centredIn: LayoutRect(x: 0, y: 0, width: 100, height: 100))
+        #expect(answer.size == SizeD(width: 58, height: 20), "kernel answer")
+        #expect(tree.layout(leaf) == LayoutRect(x: 21, y: 40, width: 58, height: 20), "kernel R2")
+        tree.computeNativeLayout(root: leaf, proposal: pp(100, 100),
+                                 centredIn: LayoutRect(x: 10, y: 20, width: 100, height: 100))
+        #expect(tree.layout(leaf) == LayoutRect(x: 31, y: 60, width: 58, height: 20), "kernel R2 offset")
+    }
+}
+
+/// CN-K: several views in one `.overlay` or `.background` are a `ZStack` that
+/// is CENTRED whatever the modifier's alignment; the alignment only positions
+/// that `ZStack` in the primary. Every arm is a 60×40 window root, so the root
+/// sits at the origin as the probe's arm does.
+///
+/// - A10 `primary 60x40 .overlay{o1 20x20; o2 30x10}`: o1 proposed [60×40,
+///   30×20] at (20, 10); o2 at (15, 15) 30×10.
+/// - K5a `.overlay{half h; o 20x20}`: h proposed [60×40, 30×20], at SwiftUI's
+///   (17.5, 15) 15×10, stored rounded (18, 15); o at (15, 10). (K5b, an
+///   explicit `ZStack`, reads the same and is the kernel's `ZStack` rule.)
+/// - K5g `.overlay(alignment: .topLeading){half h; o}`: h at (2.5, 5) → (3, 5),
+///   o at (0, 0).
+/// - K5h `.background(alignment: .bottomTrailing){half h; o}`: h at
+///   (32.5, 25) → (33, 25), o at (30, 20).
+///
+/// Before the lane an overlay of two views traps at `NativeOverlayModifier`'s
+/// one-node precondition (measured filtered, never in the unfiltered suite:
+/// shape 13) and `.background(alignment:content:)` does not exist. Mutation:
+/// give the implicit `ZStack` the modifier's alignment (K5g moves).
+@MainActor
+@Test func severalViewsInAnOverlayOrBackgroundAreACentredZStackPositionedByTheAlignment() {
+    do { // A10
+        let log = Lane4Log()
+        _ = render(pFixed("p", 60, 40, log).overlay {
+            pFixed("o1", 20, 20, log)
+            pFixed("o2", 30, 10, log)
+        }, 60, 40)
+        #expect(log.proposals("o1") == [pp(60, 40), pp(30, 20)], "A10 o1 proposals")
+        #expect(log.bounds["o1"] == rect(20, 10, 20, 20), "A10 o1")
+        #expect(log.bounds["o2"] == rect(15, 15, 30, 10), "A10 o2")
+    }
+    do { // K5a
+        let log = Lane4Log()
+        _ = render(pFixed("p", 60, 40, log).overlay { pHalf("h", log); pFixed("o", 20, 20, log) }, 60, 40)
+        #expect(log.proposals("h") == [pp(60, 40), pp(30, 20)], "K5a h proposals")
+        #expect(log.bounds["h"] == rect(18, 15, 15, 10), "K5a h (SwiftUI 17.5, 15)")
+        #expect(log.bounds["o"] == rect(15, 10, 20, 20), "K5a o")
+    }
+    do { // K5g
+        let log = Lane4Log()
+        _ = render(pFixed("p", 60, 40, log).overlay(alignment: .topLeading) {
+            pHalf("h", log); pFixed("o", 20, 20, log)
+        }, 60, 40)
+        #expect(log.bounds["h"] == rect(3, 5, 15, 10), "K5g h (SwiftUI 2.5, 5)")
+        #expect(log.bounds["o"] == rect(0, 0, 20, 20), "K5g o")
+    }
+    do { // K5h
+        let log = Lane4Log()
+        _ = render(pFixed("p", 60, 40, log).background(alignment: .bottomTrailing) {
+            pHalf("h", log); pFixed("o", 20, 20, log)
+        }, 60, 40)
+        #expect(log.bounds["h"] == rect(33, 25, 15, 10), "K5h h (SwiftUI 32.5, 25)")
+        #expect(log.bounds["o"] == rect(30, 20, 20, 20), "K5h o")
+        #expect(log.bounds["p"] == rect(0, 0, 60, 40), "K5h primary")
+    }
+}
+
+/// CN-K: overlay and background content is PLACED at the primary's size as its
+/// proposal, positioned by its answer. 60×40 window roots.
+///
+/// - K5 control `.overlay{half h}`: h proposed only [60×40], at (15, 15) 30×10.
+///   The in-test control: the same leaf placed at its own answer (a 30×10
+///   frame) answers 15 wide, so K5's 30 can tell the two rules apart.
+/// - K5d `.overlay{HStack(0){half h; o 20x20}}`: the stack is re-solved at
+///   60×40 — h at (10, 15) 20×10, o at (30, 10).
+/// - K5f `.overlay{half h .frame(width: 30)}`: h proposed [30×40], at
+///   (22.5, 15) → (23, 15) 15×10.
+/// - K5e `.background{half h; o 20x20}`: as K5a — h (18, 15), o (15, 10).
+/// - The `.background` halves of K5 and K5d read the overlay's numbers.
+///
+/// Green on arrival for the `.overlay` halves; `.background` is missing.
+/// Mutation: place the content at its own answer (K5d moves).
+@MainActor
+@Test func overlayAndBackgroundContentIsPlacedAtThePrimarysSize() throws {
+    let control = Lane4Log()
+    _ = render(pHalf("h", control).frame(width: Pixels(30), height: Pixels(10)), 60, 40)
+    do { // K5
+        let log = Lane4Log()
+        _ = render(pFixed("p", 60, 40, log).overlay { pHalf("h", log) }, 60, 40)
+        let h = try #require(log.bounds["h"]), c = try #require(control.bounds["h"])
+        try #require(h.size.width != c.size.width, "K5 must differ from a leaf placed at its own answer")
+        #expect(log.proposals("h") == [pp(60, 40)], "K5 h proposals")
+        #expect(h == rect(15, 15, 30, 10), "K5 h")
+    }
+    do { // K5d
+        let log = Lane4Log()
+        _ = render(pFixed("p", 60, 40, log).overlay {
+            HStack(spacing: Pixels(0)) { pHalf("h", log); pFixed("o", 20, 20, log) }
+        }, 60, 40)
+        #expect(log.bounds["h"] == rect(10, 15, 20, 10), "K5d h")
+        #expect(log.bounds["o"] == rect(30, 10, 20, 20), "K5d o")
+    }
+    do { // K5f
+        let log = Lane4Log()
+        _ = render(pFixed("p", 60, 40, log).overlay { pHalf("h", log).frame(width: Pixels(30)) }, 60, 40)
+        #expect(log.proposals("h") == [pp(30, 40)], "K5f h proposals")
+        #expect(log.bounds["h"] == rect(23, 15, 15, 10), "K5f h (SwiftUI 22.5, 15)")
+    }
+    do { // K5e
+        let log = Lane4Log()
+        _ = render(pFixed("p", 60, 40, log).background { pHalf("h", log); pFixed("o", 20, 20, log) }, 60, 40)
+        #expect(log.proposals("h") == [pp(60, 40), pp(30, 20)], "K5e h proposals")
+        #expect(log.bounds["h"] == rect(18, 15, 15, 10), "K5e h (SwiftUI 17.5, 15)")
+        #expect(log.bounds["o"] == rect(15, 10, 20, 20), "K5e o")
+    }
+    do { // K5, background
+        let log = Lane4Log()
+        _ = render(pFixed("p", 60, 40, log).background { pHalf("h", log) }, 60, 40)
+        #expect(log.proposals("h") == [pp(60, 40)], "background K5 h proposals")
+        #expect(log.bounds["h"] == rect(15, 15, 30, 10), "background K5 h")
+    }
+    do { // K5d, background
+        let log = Lane4Log()
+        _ = render(pFixed("p", 60, 40, log).background {
+            HStack(spacing: Pixels(0)) { pHalf("h", log); pFixed("o", 20, 20, log) }
+        }, 60, 40)
+        #expect(log.bounds["h"] == rect(10, 15, 20, 10), "background K5d h")
+        #expect(log.bounds["o"] == rect(30, 10, 20, 20), "background K5d o")
+    }
+}
+
+/// Element half of test 4.4 (CN-E's `ZStack` clause; the kernel half is in
+/// `NativeStackDistributionTests.swift`), through a window root that CN-J
+/// places at its answer.
+///
+/// - Z1 `ZStack{half h; o 20x20}` root in 60×40: answers 30×20, centred at
+///   (15, 10); h placed at 30×20 answers 15×10 and sits at (2.5, 5) inside the
+///   20×20 union → (17.5, 15) → stored (18, 15); o at (15, 10).
+/// - Z4 `ZStack{half h; o 60x40}` root in 100×100: at (20, 30) 60×40; h
+///   proposed [100×100, 60×40] at (35, 45) 30×10; o at (20, 30).
+///
+/// Before the lane the root is stored at the full window and each child placed
+/// at the window's proposal: Z1's h reads (15, 15) 30×10. Mutations: as the
+/// kernel half.
+@MainActor
+@Test func aZStackRootPlacesItsChildrenAtItsOwnSizeWithinTheirUnion() {
+    do { // Z1
+        let log = Lane4Log()
+        _ = render(ZStack { pHalf("h", log); pFixed("o", 20, 20, log) }, 60, 40)
+        #expect(log.proposals("h") == [pp(60, 40), pp(30, 20)], "Z1 h proposals")
+        #expect(log.bounds["h"] == rect(18, 15, 15, 10), "Z1 h")
+        #expect(log.bounds["o"] == rect(15, 10, 20, 20), "Z1 o")
+    }
+    do { // Z4
+        let log = Lane4Log()
+        _ = render(ZStack { pHalf("h", log); pFixed("o", 60, 40, log) }, 100, 100)
+        #expect(log.proposals("h") == [pp(100, 100), pp(60, 40)], "Z4 h proposals")
+        #expect(log.bounds["h"] == rect(35, 45, 30, 10), "Z4 h")
+        #expect(log.bounds["o"] == rect(20, 30, 60, 40), "Z4 o")
+    }
+}
+
+/// CN-K: an empty conditional in `.overlay` or `.background` leaves the primary
+/// alone — A11 and A11b: the primary proposed [nil×nil] (here the window),
+/// 60×40 at the origin — and registers no attachment: the tree holds the
+/// primary's one node.
+///
+/// Before the lane the overlay traps at its one-node precondition and the
+/// background API is missing. Mutation: register an attachment with a
+/// zero-size leaf in the empty slot (the node count moves).
+@MainActor
+@Test func anEmptyOverlayOrBackgroundLeavesThePrimaryAlone() {
+    let log = Lane4Log()
+    let shows = log.bounds.count > 0
+    do { // A11
+        let frame = render(pFixed("p", 60, 40, log).overlay { if shows { pFixed("o", 20, 20, log) } }, 60, 40)
+        #expect(log.bounds["o"] == nil, "A11 the conditional is empty")
+        #expect(log.bounds["p"] == rect(0, 0, 60, 40), "A11 primary")
+        #expect(frame.tree.nodeCount == 1, "A11 node count")
+    }
+    log.bounds = [:]
+    do { // A11b
+        let frame = render(pFixed("p", 60, 40, log).background { if shows { pFixed("b", 20, 20, log) } }, 60, 40)
+        #expect(log.bounds["b"] == nil, "A11b the conditional is empty")
+        #expect(log.bounds["p"] == rect(0, 0, 60, 40), "A11b primary")
+        #expect(frame.tree.nodeCount == 1, "A11b node count")
+    }
+}
+
+@MainActor
+private final class TapCounter {
+    var primary = 0
+    var secondary = 0
+}
+
+@MainActor
+private func click(_ platformWindow: FakePlatformWindow, at x: Float, _ y: Float) {
+    let position = Point(x: Pixels(x), y: Pixels(y))
+    platformWindow.simulateInput(.mouseDown(MouseEvent(position: position)))
+    platformWindow.simulateInput(.mouseUp(MouseEvent(position: position)))
+}
+
+/// CN-K, overlay-presentation probe H1 and H2: a click over a view and its
+/// `.background` content reaches the VIEW; outside the view it reaches the
+/// background; an `.overlay`'s content takes both. Through a real `Window`,
+/// 200×200: a 100×100 `onTap` primary, centred at (50, 50) by CN-J, and 150×150
+/// `onTap` content centred on it at (25, 25). (100, 100) is over both; (35, 100)
+/// is over the content only.
+///
+/// - H1 background: centre → primary 1, secondary 0; edge → primary 0,
+///   secondary 1.
+/// - H2 overlay (the control, which must disagree at the centre): centre →
+///   secondary 1; edge → secondary 1.
+///
+/// Before the lane the background API is missing. Mutation: prepaint the
+/// primary before the background content (the centre click reaches the
+/// background).
+@MainActor
+@Test func aClickOverABackgroundAndItsPrimaryReachesThePrimary() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    func clicks(background: Bool, at x: Float, _ y: Float) throws -> (Int, Int) {
+        let counter = TapCounter()
+        func run<Root: Element>(_ content: @escaping @MainActor () -> Root) throws {
+            let (window, platform) = try makeFakeWindow(device: device, size: 200, content: content)
+            window.drawFrameIfNeeded()
+            click(platform, at: x, y)
+            window.drawFrameIfNeeded()
+        }
+        let primary = { Rectangle(width: Pixels(100), height: Pixels(100), color: .accent)
+            .onTap { counter.primary += 1 } }
+        let content = { Rectangle(width: Pixels(150), height: Pixels(150), color: .surface)
+            .onTap { counter.secondary += 1 } }
+        if background {
+            try run { primary().background { content() } }
+        } else {
+            try run { primary().overlay { content() } }
+        }
+        return (counter.primary, counter.secondary)
+    }
+    let overlayCentre = try clicks(background: false, at: 100, 100)
+    let backgroundCentre = try clicks(background: true, at: 100, 100)
+    try #require(overlayCentre != backgroundCentre, "H2 (overlay) and H1 (background) must disagree at the centre")
+    #expect(overlayCentre == (0, 1), "H2 centre")
+    #expect(try clicks(background: false, at: 35, 100) == (0, 1), "H2 edge")
+    #expect(backgroundCentre == (1, 0), "H1 centre")
+    #expect(try clicks(background: true, at: 35, 100) == (0, 1), "H1 edge")
+}
+
+/// CN-K, probe A9: `.background(alignment:content:)` proposes the primary's
+/// size and aligns like an overlay, and paints BENEATH the primary.
+///
+/// - A9 `primary 60x40 .background(alignment: .topLeading / .center /
+///   .bottomTrailing){bg 20x20}`, 60×40 window roots: bg proposed [60×40], at
+///   (0, 0) / (20, 10) / (40, 20).
+/// - Scene order: a 60×40 `Rectangle` with a 20×20 `Rectangle` background emits
+///   the 20×20 rect first; the same with `.overlay` (the control, which must
+///   disagree) emits it last.
+///
+/// Before the lane the API is missing. Mutation: paint the content after the
+/// primary.
+@MainActor
+@Test func aBackgroundIsProposedThePrimarysSizeAlignedAndPaintedBeneath() throws {
+    let arms: [(ProposalAlignment, Float, Float)] = [(.topLeading, 0, 0), (.center, 20, 10), (.bottomTrailing, 40, 20)]
+    for (alignment, x, y) in arms {
+        let log = Lane4Log()
+        _ = render(pFixed("p", 60, 40, log).background(alignment: alignment) { pFixed("bg", 20, 20, log) }, 60, 40)
+        #expect(log.proposals("bg") == [pp(60, 40)], "A9 \(alignment) proposals")
+        #expect(log.bounds["bg"] == rect(x, y, 20, 20), "A9 \(alignment) bg")
+        #expect(log.bounds["p"] == rect(0, 0, 60, 40), "A9 \(alignment) primary")
+    }
+    func widths(_ frame: Frame) -> [Float] { frame.finalizedScene().rects.map { $0.bounds.size.width } }
+    let primary = Rectangle(width: Pixels(60), height: Pixels(40), color: .accent)
+    let secondary = Rectangle(width: Pixels(20), height: Pixels(20), color: .surface)
+    let overlay = widths(render(primary.overlay { secondary }, 60, 40))
+    let background = widths(render(primary.background { secondary }, 60, 40))
+    try #require(overlay != background, "the overlay control must paint in a different order: \(overlay)")
+    #expect(overlay == [60, 20], "overlay order")
+    #expect(background == [20, 60], "background order")
+}
+
+@MainActor
+private final class OnFlag {
+    var value = true
+}
+
+/// A fixed-size native leaf with its own `@State`, incremented by a click, and
+/// logged under `name` in prepaint (`taps` is the first property, so its slot
+/// is `$state0`).
+private struct TapLeaf: ProposalElement {
+    @State var taps = 0
+    var name: String
+    var log: Lane4Log
+    var width: Double
+    var height: Double
+
+    init(_ name: String, _ width: Double, _ height: Double, _ log: Lane4Log) {
+        self.name = name
+        self.log = log
+        self.width = width
+        self.height = height
+    }
+
+    func requestProposalLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (ProposalNodeID, Void) {
+        let size = SizeD(width: width, height: height)
+        return (pass.requestNativeLeaf { _ in LayoutMeasurement(size: size) }, ())
+    }
+
+    func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, pass: inout PrepaintPass) {
+        log.bounds[name] = bounds
+        log.ids[name] = id
+        log.taps[name] = taps
+        var handlers = Handlers()
+        let state = _taps
+        handlers.onClick = { state.wrappedValue += 1 }
+        pass.registerHandlers(handlers, at: bounds, id: id)
+    }
+
+    func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void, prepaint: inout Void,
+               pass: inout PaintPass) {
+        log.taps[name] = taps
+    }
+}
+
+/// A proposal `Component` with no content: one cursor index, no node.
+private struct EmptyContent: Component, ProposalElementGroup {
+    var content: EmptyGroup { EmptyGroup() }
+}
+
+@MainActor
+private func builderGroup<G: ElementGroup>(@ElementBuilder _ body: () -> G) -> G { body() }
+
+/// CN-K / `MC-P` applied to `.background`: the content numbers from 0 under
+/// `.child(of: modifier, at: -1)`, so its identity and `@State` do not depend
+/// on how many indices the primary consumed (SwiftUI keeps an overlay's state
+/// through such a flip, `docs/probes/swiftui-overlay-primary-shape.swift`).
+///
+/// Real `Window`, 100×100. The primary `{ if flag { EmptyContent() }; p 60x60 }`
+/// is centred at (20, 20); the 100×100 background content fills the window, so
+/// (90, 90) is the background alone. Three clicks there, then the flag flips
+/// off and on. In-test control: p's own component reads `.positional(1)`,
+/// `.positional(0)`, `.positional(1)`, proof the flip moved an index. The
+/// content then reads `.positional(0)` under `.positional(-1)`, 3 taps, at
+/// every step.
+///
+/// Before the lane the API is missing. Mutation: number the background content
+/// under the primary's cursor.
+@MainActor
+@Test func aBackgroundsContentKeepsItsStateWhenThePrimaryChangesShape() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let log = Lane4Log()
+    let flag = OnFlag()
+    let (window, platform) = try makeFakeWindow(device: device, size: 100) {
+        builderGroup {
+            if flag.value { EmptyContent() }
+            TapLeaf("p", 60, 60, log)
+        }
+        .background { TapLeaf("b", 100, 100, log) }
+    }
+    window.drawFrameIfNeeded()
+    try #require(log.bounds["p"] == rect(20, 20, 60, 60), "primary \(String(describing: log.bounds["p"]))")
+    try #require(log.bounds["b"] == rect(0, 0, 100, 100), "background \(String(describing: log.bounds["b"]))")
+
+    struct Reading: Equatable {
+        var primary: PathComponent?
+        var content: [PathComponent?]
+        var taps: Int?
+    }
+    func reading() -> Reading {
+        Reading(primary: log.ids["p"]?.component,
+                content: [log.ids["b"]?.component, log.ids["b"]?.parent?.component], taps: log.taps["b"])
+    }
+    for _ in 0..<3 {
+        click(platform, at: 90, 90)
+        window.drawFrameIfNeeded()
+    }
+    let first = reading()
+    flag.value = false
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    let second = reading()
+    flag.value = true
+    window.setNeedsRedraw()
+    window.drawFrameIfNeeded()
+    let third = reading()
+
+    try #require([first.primary, second.primary, third.primary] == [.positional(1), .positional(0), .positional(1)],
+                 "the primary's shape did not flip")
+    let kept = Reading(primary: nil, content: [.positional(0), .positional(-1)], taps: 3)
+    for (label, r) in [("first", first), ("second", second), ("third", third)] {
+        var half = r
+        half.primary = nil
+        #expect(half == kept, "\(label): \(r)")
+    }
+    #expect(log.taps["p"] == 0, "the primary was never clicked")
+}
+
+/// Probe A3, A4, A6: the nine alignments of a `ZStack` and of
+/// `.overlay(alignment:)`, placed and sized as SwiftUI reads them. Each root is
+/// in a 100×100 window, so a 60×40 answer is centred at (20, 30) (CN-J) and
+/// the root's size is read through that offset.
+///
+/// - A3 `ZStack(alignment){big 60x40; small 20x20}`: big at (20, 30) 60×40
+///   (the answer is the union); small at (20 + {0|20|40}, 30 + {0|10|20}).
+/// - A4 `ZStack(.topLeading){a 60x20; b 20x40}`: answers the union 60×40, so a
+///   sits at (20, 30).
+/// - A6 `primary 60x40 .overlay(alignment){o 20x20}`: o proposed [60×40], at the
+///   same nine positions.
+///
+/// Green on arrival for the placement (the kernel already agrees) except the
+/// root's offset; requires `.topLeading` and `.bottomTrailing` to disagree.
+/// Mutation: swap `horizontalFactor` for `verticalFactor` in the kernel's
+/// `.overlay` placement (A3 moves).
+@MainActor
+@Test func everyZStackAndOverlayAlignmentPlacesAndSizesAsTheProbeReads() throws {
+    let nine: [(ProposalAlignment, Float, Float)] = [
+        (.topLeading, 0, 0), (.top, 20, 0), (.topTrailing, 40, 0),
+        (.leading, 0, 10), (.center, 20, 10), (.trailing, 40, 10),
+        (.bottomLeading, 0, 20), (.bottom, 20, 20), (.bottomTrailing, 40, 20),
+    ]
+    var positions: [String: Bounds<Pixels>] = [:]
+    for (alignment, x, y) in nine {
+        let log = Lane4Log()
+        _ = render(ZStack(alignment: alignment) { pFixed("big", 60, 40, log); pFixed("small", 20, 20, log) },
+                   100, 100)
+        #expect(log.bounds["big"] == rect(20, 30, 60, 40), "A3 \(alignment) big")
+        #expect(log.bounds["small"] == rect(20 + x, 30 + y, 20, 20), "A3 \(alignment) small")
+        positions["\(alignment)"] = log.bounds["small"]
+
+        let overlay = Lane4Log()
+        _ = render(pFixed("p", 60, 40, overlay).overlay(alignment: alignment) { pFixed("o", 20, 20, overlay) },
+                   100, 100)
+        #expect(overlay.proposals("o") == [pp(60, 40)], "A6 \(alignment) proposals")
+        #expect(overlay.bounds["o"] == rect(20 + x, 30 + y, 20, 20), "A6 \(alignment) o")
+    }
+    try #require(positions["topLeading"] != nil && positions["topLeading"] != positions["bottomTrailing"],
+                 "the corners must disagree")
+    do { // A4
+        let log = Lane4Log()
+        _ = render(ZStack(alignment: .topLeading) { pFixed("a", 60, 20, log); pFixed("b", 20, 40, log) }, 100, 100)
+        #expect(log.bounds["a"] == rect(20, 30, 60, 20), "A4 a")
+        #expect(log.bounds["b"] == rect(20, 30, 20, 40), "A4 b")
+    }
+}
+
+/// CN-M: a `ProposalScrollView` answers its CONTENT's size on its non-scrolling
+/// axis (and its proposal on the scrolling one).
+///
+/// - SC2 `.vertical{c fixed 50x30}` at 100×100 answers 50×100: as a 100×100
+///   window root, centred at (25, 0), c at (25, 0). `.horizontal`: 100×30 at
+///   (0, 35), c at (0, 35).
+/// - SC4 `{c fixed 500x500}` at 100×100: `.vertical` 500×100 at (−200, 0);
+///   `.horizontal` 100×500 at (0, −200).
+/// - Kernel half: `newNativeScrollViewport` over a 50×30 leaf at 100×100
+///   answers 50×100 (`.vertical`) and 100×30 (`.horizontal`).
+///
+/// Before the lane the viewport answers the proposal on both axes: SC2 reads
+/// 100×100. Mutation: answer the proposal on the cross axis.
+@MainActor
+@Test func aProposalScrollViewAnswersItsContentOnItsNonScrollingAxis() {
+    do {
+        let log = Lane4Log()
+        _ = render(ProposalScrollView(.vertical) { pFixed("c", 50, 30, log) }, 100, 100)
+        #expect(log.bounds["c"] == rect(25, 0, 50, 30), "SC2 vertical")
+    }
+    do {
+        let log = Lane4Log()
+        _ = render(ProposalScrollView(.horizontal) { pFixed("c", 50, 30, log) }, 100, 100)
+        #expect(log.bounds["c"] == rect(0, 35, 50, 30), "SC2 horizontal")
+    }
+    do {
+        let log = Lane4Log()
+        _ = render(ProposalScrollView(.vertical) { pFixed("c", 500, 500, log) }, 100, 100)
+        #expect(log.bounds["c"] == rect(-200, 0, 500, 500), "SC4 vertical")
+    }
+    do {
+        let log = Lane4Log()
+        _ = render(ProposalScrollView(.horizontal) { pFixed("c", 500, 500, log) }, 100, 100)
+        #expect(log.bounds["c"] == rect(0, -200, 500, 500), "SC4 horizontal")
+    }
+    for (axis, expected) in [(ProposalStackAxis.vertical, SizeD(width: 50, height: 100)),
+                             (.horizontal, SizeD(width: 100, height: 30))] {
+        let tree = LayoutTree(generation: 0)
+        let leaf = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 50, height: 30)) }
+        let viewport = tree.newNativeScrollViewport(child: leaf, axis: axis)
+        let answer = tree.computeNativeLayout(root: viewport, proposal: pp(100, 100),
+                                              in: LayoutRect(x: 0, y: 0, width: expected.width,
+                                                             height: expected.height))
+        #expect(answer.size == expected, "kernel SC2 \(axis)")
+    }
+}
+
+/// CN-M, probe SCG2: content smaller than a single-axis viewport sits at the
+/// LEADING edge of the scrolling axis. Each window is exactly the scroll view's
+/// answer (so the root is at the origin): `.vertical{c 50x30}` in 50×100, c at
+/// (0, 0); `.horizontal` in 100×30, c at (0, 0).
+///
+/// The control: the same content with a greedy sibling in a `ZStack` in 50×100
+/// sits at y 35 (A5's centring), and must disagree with the vertical scroll
+/// view. Green on arrival. Mutation: centre the content.
+@MainActor
+@Test func aProposalScrollViewPlacesSmallContentAtTheLeadingEdgeOfItsScrollingAxis() throws {
+    let control = Lane4Log()
+    _ = render(ZStack { pGreedy("g", control); pFixed("c", 50, 30, control) }, 50, 100)
+    let vertical = Lane4Log()
+    _ = render(ProposalScrollView(.vertical) { pFixed("c", 50, 30, vertical) }, 50, 100)
+    let c = try #require(control.bounds["c"]), v = try #require(vertical.bounds["c"])
+    try #require(c.origin.y == Pixels(35) && c != v, "the ZStack control reads \(c), the scroll view \(v)")
+    #expect(v == rect(0, 0, 50, 30), "SCG2 vertical")
+    let horizontal = Lane4Log()
+    _ = render(ProposalScrollView(.horizontal) { pFixed("c", 50, 30, horizontal) }, 100, 30)
+    #expect(horizontal.bounds["c"] == rect(0, 0, 50, 30), "SCG2 horizontal")
+}
+
+/// A custom layout that measures its only subview at fixed proposals and
+/// records the answers; it answers 0×0 and places nothing.
+private struct MeasuresAt: ProposalLayout {
+    let proposals: [ProposedSize]
+    let answers: AnswerRecord
+
+    func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
+        answers.sizes = proposals.map { subviews[0].sizeThatFits($0).size }
+        return LayoutMeasurement(size: .zero)
+    }
+
+    func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {}
+}
+
+private final class AnswerRecord: @unchecked Sendable {
+    var sizes: [SizeD] = []
+}
+
+/// CN-M / CN-F, probe SC1: on its scrolling axis a `ProposalScrollView`
+/// answers its proposal — the content's answer at nil, ∞ at ∞ — through the
+/// element path. A custom layout measures the scroll view over `flexible ideal
+/// 50x300` content at nil×nil, 100×100 and ∞×∞: 50×300, 100×100, ∞×∞ on
+/// both axes.
+///
+/// Green on arrival for the kernel since lane 2; this pins the element path.
+/// Mutation: answer the content at ∞.
+@MainActor
+@Test func aProposalScrollViewAnswersItsProposalOnItsScrollingAxis() {
+    let inf = Double.infinity
+    let expected = [SizeD(width: 50, height: 300), SizeD(width: 100, height: 100), SizeD(width: inf, height: inf)]
+    for axis in [ScrollAxis.vertical, .horizontal] {
+        let answers = AnswerRecord()
+        let log = Lane4Log()
+        _ = render(ProposalLayoutContainer(MeasuresAt(proposals: [pp(nil, nil), pp(100, 100), pp(inf, inf)],
+                                                      answers: answers)) {
+            ProposalScrollView(axis) { pFlexible("c", 50, 300, log) }
+        }, 100, 100)
+        #expect(answers.sizes == expected, "SC1 \(axis)")
+    }
+}
+
+/// CN-H / CN-M, probe SC3: two direct children of a `ProposalScrollView` are a
+/// centred, default-spaced `VStack` on either axis — a 50×30 and b 30×20, b at
+/// (10, 38) from a.
+///
+/// 200×200 window roots: `.vertical` answers 50×200 (content width, CN-M),
+/// centred at (75, 0): a (75, 0), b (85, 38). `.horizontal` answers 200×58,
+/// at (0, 71): a (0, 71), b (10, 109).
+///
+/// Replaces `aProposalScrollViewStacksDirectChildrenWithSwiftUIsDefaultSpacing`
+/// and `aHorizontalProposalScrollViewAlsoStacksDirectChildrenVertically`.
+/// Before the lane the horizontal arm answers 200×200 (a at (0, 0)). Mutation:
+/// lower horizontally for `.horizontal`.
+@MainActor
+@Test func aProposalScrollViewsDirectChildrenAreACentredDefaultSpacedVStackOnEitherAxis() {
+    do {
+        let log = Lane4Log()
+        _ = render(ProposalScrollView(.vertical) { pFixed("a", 50, 30, log); pFixed("b", 30, 20, log) }, 200, 200)
+        #expect(log.bounds["a"] == rect(75, 0, 50, 30), "SC3 vertical a")
+        #expect(log.bounds["b"] == rect(85, 38, 30, 20), "SC3 vertical b")
+    }
+    do {
+        let log = Lane4Log()
+        _ = render(ProposalScrollView(.horizontal) { pFixed("a", 50, 30, log); pFixed("b", 30, 20, log) }, 200, 200)
+        #expect(log.bounds["a"] == rect(0, 71, 50, 30), "SC3 horizontal a")
+        #expect(log.bounds["b"] == rect(10, 109, 30, 20), "SC3 horizontal b")
+    }
+}
+
+/// `MC-L`'s item, reachable since CN-K lets one overlay hold several views: two
+/// `ProposalScrollView`s in one overlay keep separate offsets, because each is
+/// numbered under the overlay-side id (`MC-P`) and keys its `ScrollState` on
+/// its own id.
+///
+/// Real `Window`, 100×100: a 100×100 primary; overlay `{ wide: vertical over
+/// 100×400; narrow: vertical over 40×400 }`, a centred `ZStack` — wide at
+/// (0, 0) 100×100, narrow at (30, 0) 40×100 (CN-M), on top. A wheel at (10, 50)
+/// reaches only `wide`, one at (50, 50) only `narrow`.
+///
+/// Green on arrival by `MC-E`/`MC-P` once the overlay is allowed (before the
+/// lane it traps). The first wheel's offset is required non-zero. Mutation:
+/// key both `ScrollState`s on the parent id.
+@MainActor
+@Test func twoProposalScrollViewsInOneOverlayKeepSeparateOffsets() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let (window, platform) = try makeFakeWindow(device: device, size: 100) {
+        Rectangle(width: Pixels(100), height: Pixels(100), color: .surface).overlay {
+            ProposalScrollView(.vertical, elementID: ElementID("wide")) {
+                Rectangle(width: Pixels(100), height: Pixels(400), color: .accent)
+            }
+            ProposalScrollView(.vertical, elementID: ElementID("narrow")) {
+                Rectangle(width: Pixels(40), height: Pixels(400), color: .accent)
+            }
+        }
+    }
+    let root = GlobalElementID.child(of: nil, at: 0, name: nil)
+    let side = GlobalElementID.child(of: root, at: -1, name: nil)
+    let wide = GlobalElementID.child(of: side, at: 0, name: ElementID("wide"))
+    let narrow = GlobalElementID.child(of: side, at: 1, name: ElementID("narrow"))
+    func offsets() -> (Double, Double) {
+        (window.stateTable.peek(wide, as: ScrollState.self)?.offset ?? 0,
+         window.stateTable.peek(narrow, as: ScrollState.self)?.offset ?? 0)
+    }
+    window.drawFrameIfNeeded()
+    platform.simulateInput(.scrollWheel(ScrollEvent(position: Point(x: Pixels(10), y: Pixels(50)),
+                                                    delta: Point(x: Pixels(0), y: Pixels(-37)))))
+    window.drawFrameIfNeeded()
+    let afterWide = offsets()
+    try #require(afterWide.0 > 0, "the wheel over wide did not scroll it: \(afterWide)")
+    #expect(afterWide.1 == 0, "narrow moved with wide: \(afterWide)")
+    platform.simulateInput(.scrollWheel(ScrollEvent(position: Point(x: Pixels(50), y: Pixels(50)),
+                                                    delta: Point(x: Pixels(0), y: Pixels(-20)))))
+    window.drawFrameIfNeeded()
+    let afterNarrow = offsets()
+    #expect(afterNarrow.0 == afterWide.0, "wide moved with narrow: \(afterNarrow)")
+    #expect(afterNarrow.1 > 0, "the wheel over narrow did not scroll it: \(afterNarrow)")
 }

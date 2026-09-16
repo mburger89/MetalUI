@@ -1493,3 +1493,115 @@ private struct Pass: ProposalLayout {
         #expect(arm["b"] == rect(0, 20, 20, 20), "V1e b")
     }
 }
+
+// MARK: - Lane 4: ZStack placement (CN-E's ZStack clause)
+
+extension Arm {
+    /// The probe's `half` leaf: width half its proposal (half of 40 at nil),
+    /// height 10.
+    func half(_ name: String) -> LayoutNodeID {
+        let log = ProposalLog()
+        let id = tree.newNativeLeaf { proposal in
+            log.record(proposal)
+            return LayoutMeasurement(size: SizeD(width: (proposal.width ?? 40) / 2, height: 10))
+        }
+        nodes[name] = id
+        logs[name] = log
+        return id
+    }
+
+    func zstack(_ name: String, alignment: ProposalAlignment, _ children: [LayoutNodeID]) -> LayoutNodeID {
+        self.name(tree.newNativeOverlay(children: children, alignment: alignment), name)
+    }
+}
+
+/// Kernel half of test 4.4 (CN-E, amended in critic round 1): a `ZStack`
+/// measures every child at its proposal, then PLACES every child at a proposal
+/// equal to its own size B (the stored bounds), and aligns each child's answer
+/// there within the UNION U of those answers, U at the `ZStack`'s origin.
+///
+/// Each arm is laid out at its proposal in bounds of its own answer at the
+/// origin (`Arm.run`), as the probe's `Probe` layout places it.
+///
+/// - Z1 `ZStack{half h; o 20x20}` at 60×40: 30×20; h proposed [60×40, 30×20],
+///   placed 15×10 at SwiftUI's (2.5, 5) — stored rounded, (3, 5) 15×10
+///   (`roundLayout`: 2.5 → 3, 17.5 → 18); o at (0, 0).
+/// - Z2 `.topLeading`: h and o at (0, 0).
+/// - Z3 at nil: 20×20; h proposed [nil×nil, 20×20] at (5, 5) 10×10.
+/// - Z4 `{half h; o 60x40}` at 100×100: 60×40; h proposed [100×100, 60×40] at
+///   (15, 15) 30×10.
+/// - Q2 `{a area 600 ideal 10; b 30x20}` at nil: 30×60; a proposed [nil×nil,
+///   30×60] at (0, 0) 30×20; b at (0, 0).
+/// - A5 `{a 0..inf ideal 10; b 20x20}` at 100×80: a (0, 0) 100×80, b (40, 30).
+///   A5n at nil: 20×20, a proposed [nil×nil, 20×20], both at (0, 0).
+/// - X12 at 100×nil: 100×20; a proposed [100×nil, 100×20] (0, 0) 100×20; b
+///   (40, 0).
+///
+/// Before the lane each child is placed at the `ZStack`'s PARENT proposal and
+/// centred in the bounds: Z1's h reads (0, 5) 30×10. Mutations: place at the
+/// parent's proposal (Z4 moves); centre in the bounds instead of the union
+/// (Z1 moves).
+@Test func aZStackPlacesItsChildrenAtItsOwnSizeWithinTheirUnion() {
+    do { // Z1
+        let arm = Arm()
+        let root = arm.zstack("z", [arm.half("h"), arm.fixed("o", 20, 20)])
+        #expect(arm.run(root, 60, 40) == size(30, 20), "Z1 size")
+        #expect(arm.proposals("h") == [p(60, 40), p(30, 20)], "Z1 h proposals")
+        #expect(arm["h"] == rect(3, 5, 15, 10), "Z1 h (SwiftUI 2.5, 5)")
+        #expect(arm["o"] == rect(0, 0, 20, 20), "Z1 o")
+    }
+    do { // Z2
+        let arm = Arm()
+        let root = arm.zstack("z", alignment: .topLeading, [arm.half("h"), arm.fixed("o", 20, 20)])
+        #expect(arm.run(root, 60, 40) == size(30, 20), "Z2 size")
+        #expect(arm["h"] == rect(0, 0, 15, 10), "Z2 h")
+        #expect(arm["o"] == rect(0, 0, 20, 20), "Z2 o")
+    }
+    do { // Z3
+        let arm = Arm()
+        let root = arm.zstack("z", [arm.half("h"), arm.fixed("o", 20, 20)])
+        #expect(arm.run(root, nil, nil) == size(20, 20), "Z3 size")
+        #expect(arm.proposals("h") == [p(nil, nil), p(20, 20)], "Z3 h proposals")
+        #expect(arm["h"] == rect(5, 5, 10, 10), "Z3 h")
+        #expect(arm["o"] == rect(0, 0, 20, 20), "Z3 o")
+    }
+    do { // Z4
+        let arm = Arm()
+        let root = arm.zstack("z", [arm.half("h"), arm.fixed("o", 60, 40)])
+        #expect(arm.run(root, 100, 100) == size(60, 40), "Z4 size")
+        #expect(arm.proposals("h") == [p(100, 100), p(60, 40)], "Z4 h proposals")
+        #expect(arm["h"] == rect(15, 15, 30, 10), "Z4 h")
+        #expect(arm["o"] == rect(0, 0, 60, 40), "Z4 o")
+    }
+    do { // Q2
+        let arm = Arm()
+        let root = arm.zstack("z", [arm.area("a", 600, ideal: 10), arm.fixed("b", 30, 20)])
+        #expect(arm.run(root, nil, nil) == size(30, 60), "Q2 size")
+        #expect(arm.proposals("a") == [p(nil, nil), p(30, 60)], "Q2 a proposals")
+        #expect(arm["a"] == rect(0, 0, 30, 20), "Q2 a")
+        #expect(arm["b"] == rect(0, 0, 30, 20), "Q2 b")
+    }
+    do { // A5
+        let arm = Arm()
+        let root = arm.zstack("z", [arm.flexible("a"), arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, 100, 80) == size(100, 80), "A5 size")
+        #expect(arm["a"] == rect(0, 0, 100, 80), "A5 a")
+        #expect(arm["b"] == rect(40, 30, 20, 20), "A5 b")
+    }
+    do { // A5n
+        let arm = Arm()
+        let root = arm.zstack("z", [arm.flexible("a"), arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, nil, nil) == size(20, 20), "A5n size")
+        #expect(arm.proposals("a") == [p(nil, nil), p(20, 20)], "A5n a proposals")
+        #expect(arm["a"] == rect(0, 0, 20, 20), "A5n a")
+        #expect(arm["b"] == rect(0, 0, 20, 20), "A5n b")
+    }
+    do { // X12
+        let arm = Arm()
+        let root = arm.zstack("z", [arm.flexible("a"), arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, 100, nil) == size(100, 20), "X12 size")
+        #expect(arm.proposals("a") == [p(100, nil), p(100, 20)], "X12 a proposals")
+        #expect(arm["a"] == rect(0, 0, 100, 20), "X12 a")
+        #expect(arm["b"] == rect(40, 0, 20, 20), "X12 b")
+    }
+}
