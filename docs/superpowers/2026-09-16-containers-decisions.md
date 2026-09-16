@@ -527,7 +527,8 @@ later child's leading edge is a zero-spacing edge**, else
 `layoutPriority`, `frame`, `fixedSize`, `aspectRatio` and `overlayAttachment`
 (its primary); the child's AND an inset of exactly 0 on that edge for `padding`;
 for an `overlay` node with at least one child, the AND of its children's; none
-for anything else. `ProposalScrollView`'s lowering of several children passes
+for anything else (**superseded for nested stacks, custom layouts and empty
+containers by the verifier-round amendment below**). `ProposalScrollView`'s lowering of several children passes
 nil. **Not adopted:** the text-edge vertical values. MetalUI's `ProposalText`
 has no font metrics in the kernel and no spacing preference channel; it gets 8
 (a divergence, owner task 11 with baseline alignment).
@@ -555,6 +556,53 @@ revision 7 (SC5c/SC5) shows SwiftUI's vertical `ScrollView{a; Spacer(minLength:
 SwiftUI's; test 3.1 carries the SC5 arm, red under that mutant. The horizontal
 arm cannot discriminate (the implicit stack is proposed 200 tall and the greedy
 spacer absorbs any gap).
+
+**Amended, lane 3's verifier round: "none for anything else" was unprobed and
+wrong.** Its only evidence was K3h, a CROSS-axis `VStack{Spacer}`. Probe
+revision 8 (the V group, same method, controls K3 48, SP3 40 and the non-spacer
+arms V1j, V3c, V3g, V4c 56) reads:
+
+- a spacer's zero edges belong to the axis of the stack that orients it (its
+  `CN-C` mark), or to both axes when no stack does: `VStack{sp; c}` (V1d),
+  `VStack{sp; sp}` (V1h), `Pass{VStack{sp}}` (V3h), `ZStack{VStack{sp}}` (V7h)
+  are default (56) between two views of an `HStack`, while `Pass{sp}` (V3) and
+  `ZStack{sp}` (K3g) are zero (40);
+- a **same-axis** nested stack takes its first child's leading edge and its last
+  child's trailing edge, whatever its own spacing: V1 40, V1b `HStack{sp; c}` 48
+  with c at 20, V1c `HStack{c; sp}` 48 with c at 28, V1e vertically 20×40, V1i
+  `HStack(spacing: 4){sp; c}` 52, V1k 60;
+- a **cross-axis** nested stack and a **custom layout** (a `Layout` overriding
+  only the two required methods) are zero on an edge when ANY child is: V3b
+  `Pass{sp; c}`, V3e `Pass{c; sp}`, V7b `VStack{ZStack{sp}; c}`, V7d
+  `VStack{c; HStack{sp}}`, V7i: 40 each; per edge, V3f
+  `Pass{sp.padding(.leading, 4); c}` 52 (8 before, 0 after);
+- a `ZStack` stays AND per edge (V7j 40, V7k `ZStack{sp.padding(.leading, 4);
+  sp}` 52);
+- **empty** stacks, custom layouts and `ZStack`s (an `if false` included) are
+  zero: V1f, V1g, V3d, V4, V4b, 40 each;
+- a `ScrollView` is default whatever its content (V8, both axes, 56 like V8c);
+- a padding wrapper sits after the gap its padded edge keeps: V6
+  `.padding(.leading, 4)` at x 28, V6c `.padding(.trailing, 4)` at x 20.
+
+**The amended walk** (`zeroSpacingEdges`): a spacer is zero on both edges when
+unmarked or marked along the query axis, else neither; wrappers and `padding`
+as before; a linear stack along the axis → (first child's leading, last child's
+trailing); a linear stack across the axis or a `.custom` node → per edge OR
+over its children; `overlay` → per edge AND over its children; each of those
+three with no children → both; a leaf or scroll viewport → neither. **Adopted,
+not recorded as a divergence**: every arm is a closed rule with no font or
+preference channel, and the walk stays an exhaustive switch recomputed per
+solve. Test 3.6 (`defaultSpacingBesideANestedContainerFollowsItsChildrensEdges`)
+carries every V arm; test 3.2 gains V6/V6c.
+
+**Measured.** Before the amendment the kernel read 56 for V1, V1b, V3, V3d, V4
+and 20×56 for V1e (the verifier's figures); 3.6 was red with 46 issues at
+`dcd509d` and is green at `8a4a491`. The mutations are in record §17.
+
+**What it costs if wrong.** One 8pt gap beside a nested container that holds or
+is next to a spacer. The one unprobed kernel shape left is a custom layout's
+**own** spacing preference: `ProposalLayout` has no `spacing` requirement, so
+every custom layout behaves as SwiftUI's default `Layout.spacing` does (V3).
 
 ---
 
