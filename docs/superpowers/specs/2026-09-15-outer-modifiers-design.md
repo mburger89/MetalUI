@@ -12,7 +12,8 @@ Probes are in [`../../probes/`](../../probes/); four are new here, three of them
 extended and re-recorded in round 2.
 
 **Status (2026-09-16): all four lanes built and verified — the track is
-complete at `2fb0800` on `feat/outer-modifiers`, awaiting integration.**
+complete at `2fb0800` on `feat/outer-modifiers`, awaiting integration;
+lane 4 re-verified ok at `ec504b7` (1274 tests, 97 goldens unchanged).**
 Revised once after review, once by lane 1's mutation round (`OM-AD`), once by
 lane 2's (`OM-AE`, `OM-AF`, `OM-AG`) and its review round (`OM-AH`, `OM-AI`),
 once by lane 3's (`OM-AJ`, `OM-AK`) and its review round (`OM-AL`), and once
