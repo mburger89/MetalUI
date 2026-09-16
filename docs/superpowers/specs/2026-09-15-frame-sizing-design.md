@@ -6,11 +6,15 @@ branch `feat/frame-sizing` in the worktree
 
 **Status: complete — all four lanes landed and verified `ok`** (lane 1:
 `901917a`, `9bd130c`, `389c452`; lane 2: `c5a02a0`, `44a79b5`, `dda9c6f`;
-lane 3: `10dcc60`, `a316916`, `b513fa3`; lane 4: `7d5a3a7`, `6c18389`; the
-record and the verifiers' corrections in the commit after `6c18389`). Lanes 1
-and 2 were verified in the session cut off on 2026-09-15 at 21:46 PDT and
-their verdicts are lost (record §14 reconstructs what can be); lanes 3 and 4
-were verified in the continuation, both `ok` with minor issues, all applied.
+lane 3: `10dcc60`, `a316916`, `b513fa3`; lane 4: `7d5a3a7`, `6c18389`,
+`957b068`, the last also carrying the record and the first verifiers'
+corrections; the second lane-4 verifier's corrections in the commit after
+`957b068`). Lanes 1 and 2 were verified in the session cut off on 2026-09-15
+at 21:46 PDT and their verdicts are lost (record §14 reconstructs what can
+be); lane 3 was verified at `b513fa3` and lane 4 at `6c18389`, both `ok` with
+minor issues. `957b068` wrote this Status as "verified" before lane 4's second
+verifier ran; that round, at `957b068`, also read `ok` with four minor issues,
+all applied except `FR-V`'s positive control, which needs an unlocked session.
 The design corrections each lane found by running are rulings `FR-R` (lane
 1), `FR-S` (lane 2), `FR-T` (lane 3) and `FR-U`/`FR-V` (lane 4), and the
 numbers below already carry them. Final counts on this branch: **1247 tests,

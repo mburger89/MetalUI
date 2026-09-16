@@ -44,7 +44,7 @@
 // 'CFDictionary' has no member 'takeRetainedValue'`); bridge it with
 // `as? [String: Any]` as below.
 //
-// RECORDED OUTPUT — three readings, all on the same locked session, macOS
+// RECORDED OUTPUT — four readings, all locked (1–3 one lock, 4 a later one), macOS
 // 26.6.2 (25G83), Apple Swift 6.4 (swiftlang-6.4.0.33.1), one 2056×1329 @2x
 // display:
 //
@@ -90,6 +90,22 @@
 //
 //    `kCGSSessionOnConsoleKey = 1` is the thing `IOConsoleLocked` is about:
 //    the session IS on the console, and the screen is locked anyway.
+//
+// 4. 2026-09-16 09:07:08 PDT, the record round at `957b068`, `IOConsoleLocked`
+//    `<true/>`; every key as in reading 3 except:
+//
+//      session CGSSessionScreenIsLocked = 1
+//      session CGSSessionScreenLockedTime = 1789569027
+//      displayAsleep main: 1
+//      displayActive main: 0
+//      preflightScreenCaptureAccess: true
+//
+//    The lock time moved (1789543593 → 1789569027), so the screen was
+//    unlocked and re-locked between readings 3 and 4 with nobody capturing.
+//    STILL NO POSITIVE CONTROL: the rule "0 and not asleep ⇒ a capture
+//    succeeds" has never been observed. Owed: an unlocked reading taken
+//    together with a full-screen `screencapture -x` whose non-black pixel
+//    count is above 0.
 
 import CoreGraphics
 import AppKit
