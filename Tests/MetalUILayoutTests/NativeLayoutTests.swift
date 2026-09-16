@@ -523,15 +523,27 @@ private final class NativeProposalRecorder: @unchecked Sendable {
     #expect(tree.layout(content) == LayoutRect(x: 0, y: 0, width: 160, height: 50))
 }
 
+/// A spacer takes the surplus its siblings leave, because its −∞ priority
+/// serves it last (ruling CN-B, CN-C; probe SP8).
+///
+/// Re-derived by hand for CN-B (plan task 6, lane 1). Leaves 30×10 and 20×10
+/// around a min-10 spacer, spacing 5, offered 100×40: 90 remain after the
+/// gaps. The priority-0 group reserves the spacer's minimum 10 and is offered
+/// 80; both leaves have flexibility 0 (probed at (∞, 40) and (0, 40)), so the
+/// first is offered 40 and answers 30, the second 50 and answers 20. The spacer
+/// is offered the 40 left and answers 40. Rects: (0, 15, 30, 10),
+/// (35, 0, 40, 40), (80, 15, 20, 10); every proposal carries the 40pt cross.
 @Test func aNativeLinearStackDividesConcreteSurplusBetweenSpacers() {
     let tree = LayoutTree(generation: 0)
+    let leadingLog = NativeProposalLog()
+    let trailingLog = NativeProposalLog()
     let leading = tree.newNativeLeaf { proposal in
-        #expect(proposal == ProposedSize(width: nil, height: 40))
+        leadingLog.proposals.append(proposal)
         return LayoutMeasurement(size: SizeD(width: 30, height: 10))
     }
     let spacer = tree.newNativeSpacer(minLength: 10)
     let trailing = tree.newNativeLeaf { proposal in
-        #expect(proposal == ProposedSize(width: nil, height: 40))
+        trailingLog.proposals.append(proposal)
         return LayoutMeasurement(size: SizeD(width: 20, height: 10))
     }
     let stack = tree.newNativeLinearStack(children: [leading, spacer, trailing], axis: .horizontal,
@@ -544,22 +556,31 @@ private final class NativeProposalRecorder: @unchecked Sendable {
     )
 
     #expect(measurement.size == SizeD(width: 100, height: 40))
+    #expect(leadingLog.proposals.allSatisfy { $0.height == 40 } && trailingLog.proposals.allSatisfy { $0.height == 40 })
+    #expect(leadingLog.proposals.last == ProposedSize(width: 40, height: 40))
+    #expect(trailingLog.proposals.last == ProposedSize(width: 50, height: 40))
     #expect(tree.layout(leading) == LayoutRect(x: 0, y: 15, width: 30, height: 10))
     #expect(tree.layout(spacer) == LayoutRect(x: 35, y: 0, width: 40, height: 40))
     #expect(tree.layout(trailing) == LayoutRect(x: 80, y: 15, width: 20, height: 10))
 }
 
-/// A horizontal stack leaves its main axis unspecified for each child, forwards
-/// the parent's cross-axis proposal, sums widths plus gaps, and centres each
-/// unequal child vertically in the placement rectangle.
+/// A horizontal stack forwards the parent's cross-axis proposal to every child,
+/// distributes its main axis (ruling CN-B), answers the sum of its children's
+/// widths plus gaps, and centres each unequal child vertically.
+///
+/// Re-derived by hand for CN-B: 30×10 and 50×40, spacing 7, offered 120×80.
+/// Both have flexibility 0, so the first is offered (120 − 7) / 2 = 56.5 and the
+/// second the 83 left. Answer 87×40; rects (13, 52, 30, 10), (50, 37, 50, 40).
 @Test func aNativeHorizontalStackForwardsItsCrossProposalMeasuresAndPlacesInOrder() {
     let tree = LayoutTree(generation: 0)
+    let firstLog = NativeProposalLog()
+    let secondLog = NativeProposalLog()
     let first = tree.newNativeLeaf { proposal in
-        #expect(proposal == ProposedSize(width: nil, height: 80))
+        firstLog.proposals.append(proposal)
         return LayoutMeasurement(size: SizeD(width: 30, height: 10))
     }
     let second = tree.newNativeLeaf { proposal in
-        #expect(proposal == ProposedSize(width: nil, height: 80))
+        secondLog.proposals.append(proposal)
         return LayoutMeasurement(size: SizeD(width: 50, height: 40))
     }
     let stack = tree.newNativeLinearStack(children: [first, second], axis: .horizontal,
@@ -572,18 +593,26 @@ private final class NativeProposalRecorder: @unchecked Sendable {
     )
 
     #expect(measurement.size == SizeD(width: 87, height: 40))
+    #expect(firstLog.proposals.allSatisfy { $0.height == 80 } && secondLog.proposals.allSatisfy { $0.height == 80 })
+    #expect(firstLog.proposals.last == ProposedSize(width: 56.5, height: 80))
+    #expect(secondLog.proposals.last == ProposedSize(width: 83, height: 80))
     #expect(tree.layout(first) == LayoutRect(x: 13, y: 52, width: 30, height: 10))
     #expect(tree.layout(second) == LayoutRect(x: 50, y: 37, width: 50, height: 40))
 }
 
+/// The vertical counterpart. Re-derived by hand for CN-B: 30×10 and 50×40,
+/// spacing 5, offered 120×80: the first is offered (80 − 5) / 2 = 37.5, the
+/// second the 65 left. Answer 50×55; rects (58, 17, 30, 10), (48, 32, 50, 40).
 @Test func aNativeVerticalStackForwardsItsCrossProposalMeasuresAndPlacesInOrder() {
     let tree = LayoutTree(generation: 0)
+    let firstLog = NativeProposalLog()
+    let secondLog = NativeProposalLog()
     let first = tree.newNativeLeaf { proposal in
-        #expect(proposal == ProposedSize(width: 120, height: nil))
+        firstLog.proposals.append(proposal)
         return LayoutMeasurement(size: SizeD(width: 30, height: 10))
     }
     let second = tree.newNativeLeaf { proposal in
-        #expect(proposal == ProposedSize(width: 120, height: nil))
+        secondLog.proposals.append(proposal)
         return LayoutMeasurement(size: SizeD(width: 50, height: 40))
     }
     let stack = tree.newNativeLinearStack(children: [first, second], axis: .vertical,
@@ -596,6 +625,9 @@ private final class NativeProposalRecorder: @unchecked Sendable {
     )
 
     #expect(measurement.size == SizeD(width: 50, height: 55))
+    #expect(firstLog.proposals.allSatisfy { $0.width == 120 } && secondLog.proposals.allSatisfy { $0.width == 120 })
+    #expect(firstLog.proposals.last == ProposedSize(width: 120, height: 37.5))
+    #expect(secondLog.proposals.last == ProposedSize(width: 120, height: 65))
     #expect(tree.layout(first) == LayoutRect(x: 58, y: 17, width: 30, height: 10))
     #expect(tree.layout(second) == LayoutRect(x: 48, y: 32, width: 50, height: 40))
 }
@@ -662,9 +694,10 @@ private final class NativeProposalLog: @unchecked Sendable {
 /// at bounds (13, 17, 100, 30), holds two leaves that answer
 /// `min(80, proposal.width ?? 80)` × 10. The first is under `layoutPriority(1)`
 /// and then an overlay attachment (a fixed 6×4 badge).
-/// - Natural widths 80 + 80 = 160 > 100, so the stack divides 100 by priority.
-/// - Reading priority 1 through the attachment: the first gets its ideal 80,
-///   the second the remaining 20. Reading 0 for both: 50 and 50.
+/// - Re-derived for ruling CN-B (plan task 6, lane 1): reading priority 1
+///   through the attachment, the first is the higher group, offered 100 minus
+///   the second's minimum 0 = 100, and answers 80; the second is offered the
+///   remaining 20. Reading 0 for both: one group, 50 and 50.
 /// - Cross axis centred: y = 17 + (30 − 10) / 2 = 27.
 /// - The badge is measured at the primary's 80×10 and centred in it:
 ///   x = 13 + (80 − 6) / 2 = 50, y = 27 + (10 − 4) / 2 = 30.
@@ -692,7 +725,7 @@ private final class NativeProposalLog: @unchecked Sendable {
     )
 
     #expect(measurement.size == SizeD(width: 100, height: 10))
-    #expect(firstLog.proposals.contains(ProposedSize(width: 80, height: 30)))
+    #expect(firstLog.proposals.last == ProposedSize(width: 100, height: 30))
     #expect(secondLog.proposals.contains(ProposedSize(width: 20, height: 30)))
     #expect(tree.layout(attached) == LayoutRect(x: 13, y: 27, width: 80, height: 10))
     #expect(tree.layout(first) == LayoutRect(x: 13, y: 27, width: 80, height: 10))

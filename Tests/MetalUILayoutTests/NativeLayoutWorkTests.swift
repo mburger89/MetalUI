@@ -99,42 +99,59 @@ private struct BranchingTree {
 /// - (iii) C: `ReferenceLinearStack(.horizontal)` over c1 (fixed 20×10) ·
 ///   F(c2) · c3 (fixed 15×5), F a `frame(idealWidth: 25)` and c2 an echo leaf.
 ///
-/// **The kernel's proposal sequence, by hand.** "miss" runs a body; "hit" is a
+/// **The kernel's proposal sequence, by hand** — re-derived for ruling CN-B
+/// (plan task 6, lane 1: the flexibility-ordered distribution, and
+/// `ReferenceLinearStack` rewritten to it). "miss" runs a body; "hit" is a
 /// lookup that found its key; "call" is user code (a leaf closure or a custom
-/// `sizeThatFits`).
+/// `sizeThatFits`). Proposals are written (width, height); c is a cross height.
 ///
-/// Measure R at (100, 200): miss R. Child proposal (100, nil).
-/// - A at (100, nil): miss A. Its children at (nil, nil): miss P1 → miss+call
-///   a1; miss+call a2; miss+call a3; miss P4 → miss+call a4. Natural
-///   40+30+30+20+3×2 = 126, answered min(126, 100) = 100 wide, 12 tall.
-///   **7 misses, 4 calls.**
-/// - B at (100, nil): miss B. b1 at (100, nil): miss+call. AR: miss; b2 at
-///   (100, nil) miss+call → 100×10, so the ratio answers 100×50; b2 at
-///   (100, 50) miss+call. b3 at (100, nil): miss+call. **6 misses, 4 calls.**
-/// - C at (100, nil): miss C, call its `sizeThatFits`. Children at (nil, nil):
-///   c1 miss+call; F miss → c2 at (25, nil) miss+call; c3 miss+call. Natural
-///   20+25+15 = 60. **5 misses, 4 calls.**
+/// **One evaluation of A at (100, c)** (H, 100 − 6 = 94 left): miss A.
+/// Priority 1 reserves the lower children's minimums at (0, c): a2, a3 and P4
+/// → a4 (4 misses, 3 calls, all 0 wide) and offers P1 94 → a1 (2 misses, 1
+/// call, 40). Priority 0 reserves P4 (hit), probes a2 and a3 at (∞, c) (2
+/// misses, 2 calls) and (0, c) (2 hits), and, tied at flexibility 30, offers a2
+/// 27 and a3 27 (2 misses, 2 calls). Priority −1 offers P4 0 (hit). A answers
+/// 100×12 at every c. **11 misses, 4 hits, 8 calls.**
 ///
-/// Place R: A, B, C at (100, nil) to measure (3 hits), no overflow at 200, so
-/// each again at the same constrained proposal (3 hits). **6 hits.**
-/// - Place A (width 100): its four children at (nil, nil), 4 hits. Overflow:
-///   remaining 100 − 6 = 94; priority 1 takes P1's 40 (54 left); priority 0's
-///   ideal 60 > 54, so a2 and a3 get 27 each; priority −1 gets 0. Then P1 at
-///   (40, nil) miss → a1 miss+call, and placing P1 re-asks a1, hit; a2 at
-///   (27, nil) miss+call; a3 at (27, nil) miss+call; P4 at (0, nil) miss → a4
-///   miss+call, and placing P4 re-asks a4, hit. **6 hits, 6 misses, 4 calls.**
-/// - Place B: b1, AR, b3 at (100, nil), 3 hits; placing AR re-asks b2 at
-///   (100, nil) and (100, 50), 2 hits. **5 hits.**
-/// - Place C: its `placeSubviews` asks the three children at (nil, nil) twice
-///   (6 hits) and records each at (nil, nil); the kernel then measures each
-///   record once (3 hits), and placing F re-asks c2 at (25, nil) (1 hit).
-///   **10 hits.**
+/// **B at (100, c)** (overlay, each child at (100, c)): c = ∞ — B, b1, AR, b2 at
+/// (100, ∞), whose ratio size is (100, 50), b2 at (100, 50), b3: 6 misses, 4
+/// calls, 100×50; c = 0 — the same six, b2 at (100, 0) then (0, 0): 6 misses,
+/// 4 calls, 30×14; c = 94 — b2 at (100, 50) is a hit: 5 misses, 1 hit, 3
+/// calls, 100×50.
 ///
-/// Totals: misses 1 + 7 + 6 + 5 + 6 = **25**; hits 6 + 6 + 5 + 10 = **27**;
-/// calls 4 + 4 + 4 + 4 = **16**.
+/// **C at (100, c)** (the reference stack, one group of three): miss C, call
+/// its `sizeThatFits`. It probes c1, F and c3 at (∞, c) and (0, c) (F → c2 at
+/// the same keys) and serves c1 (flexibility 0) at 33.3 → 20, c3 (0) at 40 →
+/// 15, F (∞) at 65 → c2 at (65, c). **13 misses, 10 calls.** C answers
+/// 100 × max(10, c, 5): ∞ at c = ∞, 10 at c = 0.
 ///
-/// **(4)**: a3 lands at x = 7 + 40 + 2 + 27 + 2 = 78, y = 11 + (12 − 8) × 0.5
-/// = 13, at its allocation 27 and its own 8: (78, 13, 27, 8).
+/// **Measure R at (100, 200)** (V, one group of three): miss R. It probes A,
+/// B and C at (100, ∞) and (100, 0) — flexibilities A 0, B 36, C ∞ — and
+/// serves A at 66.67 (→ 12), B at 94 (→ 50), C at 138 (→ 138). So A, B and C
+/// are each evaluated three times: A 33 misses, 12 hits, 24 calls; B 17
+/// misses, 1 hit, 11 calls; C 39 misses, 30 calls. **90 misses, 13 hits, 65
+/// calls.**
+///
+/// **Place R** at (100, 200), cross 100 given, so no second pass: its solve
+/// re-asks the six probes and three offers (9 hits).
+/// - Place A (proposal (100, 66.67)): its solve re-asks its 12 lookups (12
+///   hits); placing P1 and P4 re-asks a1 and a4 (2 hits). **14.**
+/// - Place B: b1, AR, b3 at (100, 94) (3 hits); placing AR re-asks b2 at
+///   (100, 94) and (100, 50) (2 hits). **5.**
+/// - Place C: its `placeSubviews` re-solves at (100, 138) (9 hits) and records
+///   each child; the kernel measures each record (3 hits) and placing F re-asks
+///   c2 at (65, 138) (1 hit). **13.**
+/// **41 hits.**
+///
+/// Totals: misses **90**; hits 13 + 41 = **54**; calls **65** (before CN-B: 25,
+/// 27, 16). The staged prototype read 66 / 51 / 47 (CN-B's table); it did not
+/// carry this file's rewritten reference stack, so its C evaluated differently
+/// — a difference recorded in `docs/record/17-containers.md`, not an edit to
+/// these literals.
+///
+/// **(4)**: A is placed at (7, 11), 12 tall; a3 lands at x = 7 + 40 + 2 + 27 + 2
+/// = 78, y = 11 + (12 − 8) × 0.5 = 13, at its offer 27 and its own 8:
+/// (78, 13, 27, 8) — unchanged by CN-B.
 ///
 /// Assertion (1) is **green on arrival**, because the cache predates the
 /// counters; (2) and (3) are red against a zero-filled `NativeLayoutWork`.
@@ -156,9 +173,9 @@ private struct BranchingTree {
 
     // (2) and (3), against the hand-derived literals above.
     let work = tree.lastNativeLayoutWork
-    #expect(work.measureCalls == 16, "measureCalls")
-    #expect(work.cacheHits == 27, "cacheHits")
-    #expect(work.cacheMisses == 25, "cacheMisses")
+    #expect(work.measureCalls == 65, "measureCalls")
+    #expect(work.cacheHits == 54, "cacheHits")
+    #expect(work.cacheMisses == 90, "cacheMisses")
 
     // (4) A compressed leaf is stored at its hand-derived allocation.
     #expect(tree.layout(fixture.a3) == LayoutRect(x: 78, y: 13, width: 27, height: 8))

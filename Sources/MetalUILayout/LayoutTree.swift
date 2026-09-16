@@ -353,10 +353,12 @@ public final class LayoutTree {
 
     /// Registers a native flexible spacer with an optional minimum length.
     ///
-    /// A spacer reports its minimum when its main axis is unspecified. Native
-    /// linear stacks recognise it through a layout-priority wrapper as well as
-    /// directly, and divide any concrete offered surplus among them during
-    /// placement.
+    /// A spacer answers its minimum on an unspecified axis and
+    /// `max(minimum, proposal)` on a concrete one, ∞ at ∞ (contract probe E;
+    /// ruling CN-F). A linear stack gives it no special case: its priority is
+    /// −∞ unless a `layoutPriority` node wraps it (ruling CN-C), so it is
+    /// served after every other child and takes what they leave (SP8, SP9,
+    /// SP10, X6).
     ///
     /// **A given minimum must be finite** (ruling SA-J): SwiftUI answers −inf
     /// for NaN and ±inf for ±∞ (P5, P9). A negative minimum is accepted:
@@ -720,28 +722,8 @@ public final class LayoutTree {
             result = layout.sizeThatFits(proposal: proposal,
                                          subviews: MeasurementSubviews(run: run, nodes: children(id)))
         case .linearStack(let axis, let spacing, _):
-            let childProposal = stackChildProposal(for: axis, parent: proposal)
-            let childMeasurements = children(id).map {
-                measureNative($0, proposal: childProposal, run: run)
-            }
-            let gaps = Double(max(0, childMeasurements.count - 1)) * spacing
-            let hasSpacer = children(id).contains(where: isNativeSpacer)
-            switch axis {
-            case .horizontal:
-                let naturalWidth = childMeasurements.reduce(gaps) { $0 + $1.size.width }
-                result = LayoutMeasurement(
-                    size: SizeD(width: resolvedStackMainSize(naturalWidth, proposal: proposal.width,
-                                                             hasSpacer: hasSpacer),
-                                height: childMeasurements.map(\.size.height).max() ?? 0)
-                )
-            case .vertical:
-                let naturalHeight = childMeasurements.reduce(gaps) { $0 + $1.size.height }
-                result = LayoutMeasurement(
-                    size: SizeD(width: childMeasurements.map(\.size.width).max() ?? 0,
-                                height: resolvedStackMainSize(naturalHeight, proposal: proposal.height,
-                                                              hasSpacer: hasSpacer))
-                )
-            }
+            result = LayoutMeasurement(size: solveLinearStack(id, axis: axis, spacing: spacing,
+                                                              proposal: proposal, run: run).size)
         }
         run.measureDepth -= 1
         precondition(!result.size.width.isNaN && !result.size.height.isNaN
@@ -849,40 +831,39 @@ public final class LayoutTree {
                                        width: measurement.size.width, height: measurement.size.height),
                         proposal: childProposal, run: run)
         case .linearStack(let axis, let spacing, let alignment):
-            let childProposal = stackChildProposal(for: axis, parent: proposal)
-            let childMeasurements = children(id).map {
-                measureNative($0, proposal: childProposal, run: run)
+            // CN-E: at a nil cross proposal the stack reports its first-pass
+            // answers (measurement) but places after re-running the
+            // distribution at its own measured cross size (probe Q1, X10,
+            // X11, G17, G21).
+            var solveProposal = proposal
+            switch axis {
+            case .horizontal where proposal.height == nil:
+                solveProposal = ProposedSize(width: proposal.width,
+                                             height: measureNative(id, proposal: proposal, run: run).size.height)
+            case .vertical where proposal.width == nil:
+                solveProposal = ProposedSize(width: measureNative(id, proposal: proposal, run: run).size.width,
+                                             height: proposal.height)
+            default:
+                break
             }
-            let naturalMain = stackMainSize(childMeasurements, axis: axis, spacing: spacing)
-            let spacerCount = children(id).filter(isNativeSpacer).count
-            let availableMain = axis == .horizontal ? bounds.width : bounds.height
-            let extraPerSpacer = spacerCount == 0 ? 0 : Swift.max(0, availableMain - naturalMain) / Double(spacerCount)
-            let allocations = stackMainAllocations(children: children(id), measurements: childMeasurements,
-                                                   axis: axis, available: availableMain,
-                                                   spacing: spacing, hasSpacer: spacerCount > 0)
+            let solution = solveLinearStack(id, axis: axis, spacing: spacing, proposal: solveProposal, run: run)
             var cursor = axis == .horizontal ? bounds.x : bounds.y
-            for (index, (child, baseMeasurement)) in zip(children(id), childMeasurements).enumerated() {
-                let placementProposal = spacerProposal(for: child, base: baseMeasurement,
-                                                       parent: childProposal, axis: axis,
-                                                       extra: extraPerSpacer)
-                let constrainedProposal = stackPlacementProposal(placementProposal,
-                                                                  axis: axis,
-                                                                  allocatedMain: allocations[index])
-                let measurement = measureNative(child, proposal: constrainedProposal, run: run)
+            for (index, child) in children(id).enumerated() {
+                let answer = solution.answers[index].size
                 let childBounds: LayoutRect
                 switch axis {
                 case .horizontal:
                     childBounds = LayoutRect(x: cursor,
-                                             y: bounds.y + (bounds.height - measurement.size.height) * alignment.verticalFactor,
-                                             width: measurement.size.width, height: measurement.size.height)
-                    cursor += measurement.size.width + spacing
+                                             y: bounds.y + (bounds.height - answer.height) * alignment.verticalFactor,
+                                             width: answer.width, height: answer.height)
+                    cursor += answer.width + spacing
                 case .vertical:
-                    childBounds = LayoutRect(x: bounds.x + (bounds.width - measurement.size.width) * alignment.horizontalFactor,
+                    childBounds = LayoutRect(x: bounds.x + (bounds.width - answer.width) * alignment.horizontalFactor,
                                              y: cursor,
-                                             width: measurement.size.width, height: measurement.size.height)
-                    cursor += measurement.size.height + spacing
+                                             width: answer.width, height: answer.height)
+                    cursor += answer.height + spacing
                 }
-                placeNative(child, in: childBounds, proposal: constrainedProposal, run: run)
+                placeNative(child, in: childBounds, proposal: solution.proposals[index], run: run)
             }
         }
     }
@@ -927,13 +908,6 @@ public final class LayoutTree {
         }
     }
 
-    private func stackChildProposal(for axis: ProposalStackAxis, parent: ProposedSize) -> ProposedSize {
-        switch axis {
-        case .horizontal: ProposedSize(width: nil, height: parent.height)
-        case .vertical: ProposedSize(width: parent.width, height: nil)
-        }
-    }
-
     private func scrollContentProposal(for axis: ProposalStackAxis, parent: ProposedSize) -> ProposedSize {
         switch axis {
         case .horizontal: ProposedSize(width: nil, height: parent.height)
@@ -951,6 +925,10 @@ public final class LayoutTree {
         return proposal
     }
 
+    /// Whether `id` is a spacer, directly or under any depth of `layoutPriority`
+    /// nodes: the public proxies' `isSpacer`. **No built-in reads it** since
+    /// ruling CN-B: a spacer takes surplus through its −∞ priority
+    /// (`nativeLayoutPriority`), like any other child.
     func isNativeSpacer(_ id: LayoutNodeID) -> Bool {
         switch nativeNode(id) {
         case .spacer:
@@ -962,96 +940,126 @@ public final class LayoutTree {
         }
     }
 
+    /// A spacer's answer on one axis: its minimum at nil, else
+    /// `max(minimum, proposal)` — ∞ at ∞, as SwiftUI's spacer answers
+    /// (contract probe E; ruling CN-F, which drops the old `isFinite` gate).
     private func spacerLength(for proposal: Double?, minimum: Double) -> Double {
-        guard let proposal, proposal.isFinite else { return minimum }
+        guard let proposal else { return minimum }
         return Swift.max(minimum, proposal)
     }
 
-    private func resolvedStackMainSize(_ natural: Double, proposal: Double?, hasSpacer: Bool) -> Double {
-        guard let proposal, proposal.isFinite else { return natural }
-        return hasSpacer ? Swift.max(natural, proposal) : Swift.min(natural, proposal)
-    }
-
-    private func stackMainSize(_ measurements: [LayoutMeasurement], axis: ProposalStackAxis,
-                               spacing: Double) -> Double {
-        let gaps = Double(Swift.max(0, measurements.count - 1)) * spacing
-        switch axis {
-        case .horizontal: return measurements.reduce(gaps) { $0 + $1.size.width }
-        case .vertical: return measurements.reduce(gaps) { $0 + $1.size.height }
+    /// One linear stack's children's proposals and answers, and the size it
+    /// answers, at `proposal` (ruling CN-B). The one function both
+    /// `measureNative` and `placeNative` call, so what a stack reports and
+    /// where it places cannot disagree at one proposal.
+    ///
+    /// - **Nil or infinite main proposal:** every child is offered that value
+    ///   with the stack's cross proposal, and nothing is distributed (G7, G8).
+    /// - **Finite main proposal:** the spacing comes off first (G12). Children
+    ///   are grouped by `nativeLayoutPriority`, highest group first. A group is
+    ///   offered what remains minus the minimum — the main-axis answer at main
+    ///   0 — of every lower-priority child (G2, G14, X5). Inside a group,
+    ///   children are served least flexible first, flexibility being the
+    ///   answer at main ∞ minus the answer at main 0, ties in declaration order
+    ///   (G1, G1r, X1, X3, X4); each is offered `max(0, remaining / children
+    ///   left in the group)` (G13), and what remains shrinks by what it
+    ///   ANSWERED.
+    /// - **The answer** is the sum of the children's main answers plus the
+    ///   spacing — overflow and shrink-wrap included (G9, G10, G13, X13) — and
+    ///   the largest of their cross answers at those proposals (Q3).
+    ///
+    /// **Eager probing, a kernel choice** (CN-B): SwiftUI evaluates flexibility
+    /// lazily; this probes every member of a group of two or more at main ∞
+    /// and main 0, a group of one not at all, and a lower-priority child at
+    /// main 0 only. Under the purity assumption (SA-H) the allocations equal
+    /// SwiftUI's; the extra measurements are counted by
+    /// `nestedStacksUnderAnUnspecifiedCrossProposalDoBoundedWork`.
+    private func solveLinearStack(_ id: LayoutNodeID, axis: ProposalStackAxis, spacing: Double,
+                                  proposal: ProposedSize,
+                                  run: NativeLayoutRun) -> (answers: [LayoutMeasurement],
+                                                            proposals: [ProposedSize], size: SizeD) {
+        let nodes = children(id)
+        let cross = axis == .horizontal ? proposal.height : proposal.width
+        let main = axis == .horizontal ? proposal.width : proposal.height
+        func offer(_ length: Double?) -> ProposedSize {
+            axis == .horizontal ? ProposedSize(width: length, height: cross)
+                                : ProposedSize(width: cross, height: length)
         }
-    }
-
-    private func spacerProposal(for child: LayoutNodeID, base: LayoutMeasurement,
-                                parent: ProposedSize, axis: ProposalStackAxis,
-                                extra: Double) -> ProposedSize {
-        guard isNativeSpacer(child) else { return parent }
-        switch axis {
-        case .horizontal: return ProposedSize(width: base.size.width + extra, height: parent.height)
-        case .vertical: return ProposedSize(width: parent.width, height: base.size.height + extra)
+        func mainLength(_ measurement: LayoutMeasurement) -> Double {
+            axis == .horizontal ? measurement.size.width : measurement.size.height
         }
-    }
+        let gaps = Double(Swift.max(0, nodes.count - 1)) * spacing
+        var proposals = Array(repeating: offer(main), count: nodes.count)
+        var answers: [LayoutMeasurement]
 
-    private func stackPlacementProposal(_ proposal: ProposedSize, axis: ProposalStackAxis,
-                                        allocatedMain: Double?) -> ProposedSize {
-        guard let allocatedMain else { return proposal }
-        switch axis {
-        case .horizontal: return ProposedSize(width: allocatedMain, height: proposal.height)
-        case .vertical: return ProposedSize(width: proposal.width, height: allocatedMain)
-        }
-    }
-
-    private func stackMainAllocations(children: [LayoutNodeID], measurements: [LayoutMeasurement],
-                                      axis: ProposalStackAxis, available: Double, spacing: Double,
-                                      hasSpacer: Bool) -> [Double?] {
-        let natural = stackMainSize(measurements, axis: axis, spacing: spacing)
-        guard !hasSpacer, available < natural else { return Array(repeating: nil, count: children.count) }
-        var allocations = Array<Double?>(repeating: nil, count: children.count)
-        var remaining = Swift.max(0, available - Double(Swift.max(0, children.count - 1)) * spacing)
-        let priorities = Set(children.map(nativeLayoutPriority)).sorted(by: >)
-        for priority in priorities {
-            let indices = children.indices.filter { nativeLayoutPriority(children[$0]) == priority }
-            let ideal = indices.reduce(0) { partial, index in
-                partial + stackMain(measurements[index], axis: axis)
+        if let main, main.isFinite, !nodes.isEmpty {
+            answers = Array(repeating: LayoutMeasurement(size: .zero), count: nodes.count)
+            let priorities = nodes.map(nativeLayoutPriority)
+            var remaining = main - gaps
+            for priority in Set(priorities).sorted(by: >) {
+                let members = nodes.indices.filter { priorities[$0] == priority }
+                let reserved = nodes.indices.filter { priorities[$0] < priority }.reduce(0.0) { total, index in
+                    total + mainLength(measureNative(nodes[index], proposal: offer(0), run: run))
+                }
+                var order = members
+                if members.count > 1 {
+                    let flexibility = Dictionary(uniqueKeysWithValues: members.map { index in
+                        (index, mainLength(measureNative(nodes[index], proposal: offer(.infinity), run: run))
+                            - mainLength(measureNative(nodes[index], proposal: offer(0), run: run)))
+                    })
+                    order.sort { lhs, rhs in
+                        let (l, r) = (flexibility[lhs]!, flexibility[rhs]!)
+                        return l != r ? l < r : lhs < rhs
+                    }
+                }
+                var groupRemaining = remaining - reserved
+                for (served, index) in order.enumerated() {
+                    proposals[index] = offer(Swift.max(0, groupRemaining / Double(order.count - served)))
+                    answers[index] = measureNative(nodes[index], proposal: proposals[index], run: run)
+                    groupRemaining -= mainLength(answers[index])
+                    remaining -= mainLength(answers[index])
+                }
             }
-            if remaining >= ideal {
-                for index in indices { allocations[index] = stackMain(measurements[index], axis: axis) }
-                remaining -= ideal
-            } else {
-                let share = remaining / Double(indices.count)
-                for index in indices { allocations[index] = share }
-                remaining = 0
-            }
+        } else {
+            answers = nodes.indices.map { measureNative(nodes[$0], proposal: proposals[$0], run: run) }
         }
-        return allocations
+
+        let mainTotal = answers.reduce(gaps) { $0 + mainLength($1) }
+        let crossMax = answers.map { axis == .horizontal ? $0.size.height : $0.size.width }.max() ?? 0
+        let size = axis == .horizontal ? SizeD(width: mainTotal, height: crossMax)
+                                       : SizeD(width: crossMax, height: mainTotal)
+        return (answers, proposals, size)
     }
 
     /// The priority a native stack (and a `ProposalLayout` subview proxy) reads
-    /// for `id`: the value of a `layoutPriority` node that IS the child, looking
-    /// through any depth of overlay attachments to their primary child, else 0.
+    /// for `id` (rulings SA-D, CN-C, CN-D):
     ///
-    /// **The attachment look-through matches SwiftUI** (probe L2, ruling SA-D):
-    /// `.overlay {}` does not lay its content out and leaves priority visible,
-    /// while `frame`, `padding`, `aspectRatio` and `fixedSize` hide it, as they
-    /// hide it in SwiftUI. MetalUI's paint-only proposal modifiers (`background`,
-    /// `clip`, `border`, `opacity`, `allowsHitTesting`, `onTap`) register no node,
-    /// so they need no case here. A single-child built-in stack does NOT pass
-    /// its child's priority through, where SwiftUI's does (probe L3, SA-N item 8).
-    /// Pinned by `aLinearStackReadsPriorityThroughAnOverlayAttachment`.
+    /// - a spacer: **−∞** (SP8, X5; contract probe E, E2);
+    /// - a `layoutPriority` node: its value, whatever it wraps (X6);
+    /// - an overlay attachment: its primary's, at any depth (probe L2, X8);
+    /// - a linear stack or overlay (`ZStack`) with **exactly one** child: that
+    ///   child's (G11, K2a, L3); with any other count, 0 (G11c, L3);
+    /// - anything else, a custom layout included: 0 (L3). `frame`, `padding`,
+    ///   `aspectRatio` and `fixedSize` hide a priority, as in SwiftUI (L2).
+    ///
+    /// MetalUI's paint-only proposal modifiers (`background`, `clip`, `border`,
+    /// `opacity`, `allowsHitTesting`, `onTap`) register no node, so they need
+    /// no case here. Pinned by `aLinearStackReadsPriorityThroughAnOverlayAttachment`,
+    /// `aSingleChildStackPassesItsChildsPriorityThrough` and
+    /// `aSpacerHasTheLowestPriorityAndAnswersInfinityAtInfinity`.
     func nativeLayoutPriority(_ id: LayoutNodeID) -> Double {
         switch nativeNode(id) {
+        case .spacer:
+            return -.infinity
         case .layoutPriority(let priority):
             return priority
         case .overlayAttachment:
             return nativeLayoutPriority(children(id)[0])
+        case .linearStack, .overlay:
+            let nodes = children(id)
+            return nodes.count == 1 ? nativeLayoutPriority(nodes[0]) : 0
         default:
             return 0
-        }
-    }
-
-    private func stackMain(_ measurement: LayoutMeasurement, axis: ProposalStackAxis) -> Double {
-        switch axis {
-        case .horizontal: measurement.size.width
-        case .vertical: measurement.size.height
         }
     }
 

@@ -98,6 +98,12 @@ private func buildReferenceTree(_ tree: LayoutTree) -> (root: LayoutNodeID, all:
 ///
 /// **Shape 15:** the twin's rects are `try #require`d NOT all zero, so "every
 /// rect is zero" is a claim a placing entry point could fail.
+///
+/// The answer is **157×91** after plan task 6's lane 1 (ruling CN-B): the
+/// root's second child holds spacers that, unmarked until lane 2's CN-C,
+/// claim the 71pt cross proposal the distribution offers it (derivation in
+/// `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects`). Lane 2
+/// is expected to restore 157×38 (containers design, `CN-U`).
 @Test func measuringANativeTreeWritesNoRect() throws {
     let zero = LayoutRect(x: 0, y: 0, width: 0, height: 0)
     let proposal = ProposedSize(width: 157, height: 91)
@@ -114,7 +120,7 @@ private func buildReferenceTree(_ tree: LayoutTree) -> (root: LayoutNodeID, all:
                  "the twin must store rects, or 'every rect is zero' discriminates nothing")
 
     #expect(measurement == placed)
-    #expect(measurement == LayoutMeasurement(size: SizeD(width: 157, height: 38)))
+    #expect(measurement == LayoutMeasurement(size: SizeD(width: 157, height: 91)))
     for (index, id) in measuredIDs.all.enumerated() {
         #expect(measured.layout(id) == zero, "node \(index)")
         #expect(measured.measuredWidth(id) == 0, "measured width of node \(index)")
@@ -143,9 +149,11 @@ private func recordingStack(_ tree: LayoutTree, widths: [Double], height: Double
 /// deliberate divergence from SwiftUI's probe F**, where a forced same-size
 /// relayout re-ran nothing.
 ///
-/// Hand-derived: three leaves of 30, 40 and 20 in a stack offered 120×80. The
-/// stack measures each at (nil, 80); natural 90 fits 120, so placement
-/// allocates nothing and re-asks (nil, 80), a hit. One call per leaf per call.
+/// Hand-derived for ruling CN-B (plan task 6, lane 1): three leaves capped at
+/// 30, 40 and 20 in a stack offered 120×80 form one priority group, so each is
+/// probed at (∞, 80) and (0, 80) and then offered its share — the 20 leaf
+/// (flexibility 20) at 40, the 30 leaf at 50, the 40 leaf at 70 — and placement
+/// re-asks those keys, all hits. Three calls per leaf per call.
 ///
 /// Green on arrival. Red run: the cache hoisted to a stored property on
 /// `LayoutTree`, so the second call reads the first call's entries.
@@ -157,19 +165,21 @@ private func recordingStack(_ tree: LayoutTree, widths: [Double], height: Double
     let bounds = LayoutRect(x: 0, y: 0, width: 120, height: 80)
 
     tree.computeNativeLayout(root: root, proposal: proposal, in: bounds)
-    #expect(calls.counts == [1, 1, 1])
+    #expect(calls.counts == [3, 3, 3])
     tree.computeNativeLayout(root: root, proposal: proposal, in: bounds)
-    #expect(calls.counts == [2, 2, 2])
+    #expect(calls.counts == [6, 6, 6])
 }
 
 /// A second call at a different root proposal re-measures at the new
 /// allocations and moves the stored rects (ruling SA-H clause 5).
 ///
-/// Hand-derived: two leaves of ideal 70, height 10, in a horizontal stack.
-/// - At 120×80: each measured at (nil, 80) → 70; natural 140 > 120, so each is
-///   allocated 60 and asked at (60, 80). Rects (0, 35, 60, 10), (60, 35, 60, 10).
-/// - At 90×80: a fresh run asks (nil, 80) again, then (45, 80). Rects
-///   (0, 35, 45, 10), (45, 35, 45, 10).
+/// Hand-derived for ruling CN-B (plan task 6, lane 1): two leaves of ideal 70,
+/// height 10, in a horizontal stack.
+/// - At 120×80: each probed at (∞, 80) → 70 and (0, 80) → 0 (equal
+///   flexibility, declaration order), the first offered 60, the second the 60
+///   left. Rects (0, 35, 60, 10), (60, 35, 60, 10).
+/// - At 90×80: a fresh run probes (∞, 80) and (0, 80) again, then offers 45
+///   each. Rects (0, 35, 45, 10), (45, 35, 45, 10).
 ///
 /// Green on arrival. Red run: `computeNativeLayout`'s result memoized on the
 /// root id alone, so the second call returns without measuring or placing.
@@ -185,8 +195,10 @@ private func recordingStack(_ tree: LayoutTree, widths: [Double], height: Double
 
     tree.computeNativeLayout(root: root, proposal: ProposedSize(width: 90, height: 80),
                              in: LayoutRect(x: 0, y: 0, width: 90, height: 80))
-    let expected = [ProposedSize(width: nil, height: 80), ProposedSize(width: 60, height: 80),
-                    ProposedSize(width: nil, height: 80), ProposedSize(width: 45, height: 80)]
+    let expected = [ProposedSize(width: .infinity, height: 80), ProposedSize(width: 0, height: 80),
+                    ProposedSize(width: 60, height: 80),
+                    ProposedSize(width: .infinity, height: 80), ProposedSize(width: 0, height: 80),
+                    ProposedSize(width: 45, height: 80)]
     #expect(calls.proposals[0] == expected)
     #expect(calls.proposals[1] == expected)
     #expect(tree.layout(leaves[0]) == LayoutRect(x: 0, y: 35, width: 45, height: 10))
@@ -198,8 +210,10 @@ private func recordingStack(_ tree: LayoutTree, widths: [Double], height: Double
 ///
 /// Hand-derived: before, leaves 30×10 and 40×10 in a stack at indices 0, 1, 2.
 /// After, leaves 50×20 and 25×20 at the same indices. Offered 100×50: the
-/// stack measures 75×20; natural 75 fits, so the leaves sit at y = (50 − 20)/2
-/// = 15: (0, 15, 50, 20) and (50, 15, 25, 20). Each new closure runs once.
+/// stack measures 75×20, so the leaves sit at y = (50 − 20)/2 = 15:
+/// (0, 15, 50, 20) and (50, 15, 25, 20). Under ruling CN-B (plan task 6, lane
+/// 1) each closure, before and after, runs three times — probed at (∞, 50) and
+/// (0, 50), then offered its share — and no more.
 ///
 /// Green on arrival. Red run: a persistent cache keyed on `(id.index, proposal)`
 /// that `reset` does not clear.
@@ -220,8 +234,8 @@ private func recordingStack(_ tree: LayoutTree, widths: [Double], height: Double
 
     #expect(tree.computeNativeLayout(root: root, proposal: proposal, in: bounds)
             == LayoutMeasurement(size: SizeD(width: 75, height: 20)))
-    #expect(after.counts == [1, 1])
-    #expect(before.counts == [1, 1])
+    #expect(after.counts == [3, 3])
+    #expect(before.counts == [3, 3])
     #expect(tree.layout(leaves[0]) == LayoutRect(x: 0, y: 15, width: 50, height: 20))
     #expect(tree.layout(leaves[1]) == LayoutRect(x: 50, y: 15, width: 25, height: 20))
 }

@@ -31,10 +31,14 @@ private func echoLeaf(_ tree: LayoutTree) -> LayoutNodeID {
     }
 }
 
-/// Answers `min(ideal, proposal.width ?? ideal)` × `height`.
-private func flexibleLeaf(_ tree: LayoutTree, ideal: Double, height: Double) -> LayoutNodeID {
+/// Answers `min(ideal, proposal.width ?? ideal)` × `height`, or, transposed,
+/// `height` × `min(ideal, proposal.height ?? ideal)`.
+private func flexibleLeaf(_ tree: LayoutTree, ideal: Double, height: Double,
+                          transposed: Bool = false) -> LayoutNodeID {
     tree.newNativeLeaf { proposal in
-        LayoutMeasurement(size: SizeD(width: Swift.min(ideal, proposal.width ?? ideal), height: height))
+        transposed
+            ? LayoutMeasurement(size: SizeD(width: height, height: Swift.min(ideal, proposal.height ?? ideal)))
+            : LayoutMeasurement(size: SizeD(width: Swift.min(ideal, proposal.width ?? ideal), height: height))
     }
 }
 
@@ -58,17 +62,16 @@ private struct ScriptedLayout: ProposalLayout {
 /// the same nodes in the same order.
 ///
 /// - Root: a vertical stack, spacing 7, `.trailing`.
-/// - Child A: a horizontal stack, spacing 3, `.bottom`, that overflows with no
-///   spacer: flexible leaves of ideal 80×9 (priority 1), 60×11 (priority 0) and
-///   50×7 (priority −1), then a fixed 20×13 leaf.
+/// - Child A: a horizontal stack, spacing 3, `.bottom`, that overflows: flexible
+///   leaves of ideal 80×9 (priority 1), 60×11 (priority 0) and 50×7 (priority
+///   −1), then a fixed 20×13 leaf.
 /// - Child B: a horizontal stack, spacing 5, centred: a 30×10 leaf,
 ///   `Spacer(minLength: 10)`, a 20×18 leaf, a spacer under `layoutPriority(2)`,
 ///   and an 11×8 leaf.
 ///
-/// **Adjusted from the design's 20×17 and 11×9** so no B edge falls on x.5:
-/// B is 18 tall (its tallest child), and centring a 17-tall leaf or a 9-tall
-/// one in it, or the min-0 spacer's 0-tall answer in a 17-tall B, put a y on a
-/// half point.
+/// `transposed` swaps every axis — stack axes, leaf widths and heights,
+/// alignments (`.bottom` ↔ `.trailing`) — so the same distribution runs
+/// vertically (record §09's "horizontal only", closed by plan task 6 lane 1).
 private struct ReferenceTree {
     var all: [LayoutNodeID] = []
     var root: LayoutNodeID
@@ -76,28 +79,33 @@ private struct ReferenceTree {
     var secondSpacerOfB: LayoutNodeID
     var lastLeafOfB: LayoutNodeID
 
-    init(_ tree: LayoutTree,
+    init(_ tree: LayoutTree, transposed: Bool = false,
          stack: (LayoutTree, [LayoutNodeID], ProposalStackAxis, Double, ProposalAlignment) -> LayoutNodeID) {
         var all: [LayoutNodeID] = []
         func keep(_ id: LayoutNodeID) -> LayoutNodeID { all.append(id); return id }
+        func fixed(_ width: Double, _ height: Double) -> LayoutNodeID {
+            transposed ? fixedLeaf(tree, height, width) : fixedLeaf(tree, width, height)
+        }
+        let inner: ProposalStackAxis = transposed ? .vertical : .horizontal
+        let outer: ProposalStackAxis = transposed ? .horizontal : .vertical
 
-        let a80 = keep(flexibleLeaf(tree, ideal: 80, height: 9))
+        let a80 = keep(flexibleLeaf(tree, ideal: 80, height: 9, transposed: transposed))
         let a80p = keep(tree.newNativeLayoutPriority(child: a80, priority: 1))
-        let a60 = keep(flexibleLeaf(tree, ideal: 60, height: 11))
-        let a50 = keep(flexibleLeaf(tree, ideal: 50, height: 7))
+        let a60 = keep(flexibleLeaf(tree, ideal: 60, height: 11, transposed: transposed))
+        let a50 = keep(flexibleLeaf(tree, ideal: 50, height: 7, transposed: transposed))
         let a50p = keep(tree.newNativeLayoutPriority(child: a50, priority: -1))
-        let a20 = keep(fixedLeaf(tree, 20, 13))
-        let a = keep(stack(tree, [a80p, a60, a50p, a20], .horizontal, 3, .bottom))
+        let a20 = keep(fixed(20, 13))
+        let a = keep(stack(tree, [a80p, a60, a50p, a20], inner, 3, transposed ? .trailing : .bottom))
 
-        let b30 = keep(fixedLeaf(tree, 30, 10))
+        let b30 = keep(fixed(30, 10))
         let bSpacer = keep(tree.newNativeSpacer(minLength: 10))
-        let b20 = keep(fixedLeaf(tree, 20, 18))
+        let b20 = keep(fixed(20, 18))
         let bInnerSpacer = keep(tree.newNativeSpacer())
         let bSpacer2 = keep(tree.newNativeLayoutPriority(child: bInnerSpacer, priority: 2))
-        let b11 = keep(fixedLeaf(tree, 11, 8))
-        let b = keep(stack(tree, [b30, bSpacer, b20, bSpacer2, b11], .horizontal, 5, .center))
+        let b11 = keep(fixed(11, 8))
+        let b = keep(stack(tree, [b30, bSpacer, b20, bSpacer2, b11], inner, 5, .center))
 
-        root = keep(stack(tree, [a, b], .vertical, 7, .trailing))
+        root = keep(stack(tree, [a, b], outer, 7, transposed ? .bottom : .trailing))
         priorityZeroLeafOfA = a60
         secondSpacerOfB = bSpacer2
         lastLeafOfB = b11
@@ -122,70 +130,84 @@ private struct LaidOut {
 }
 
 private func layOutReference(
+    transposed: Bool = false,
     _ stack: (LayoutTree, [LayoutNodeID], ProposalStackAxis, Double, ProposalAlignment) -> LayoutNodeID
 ) -> LaidOut {
     let tree = LayoutTree(generation: 0)
-    let ids = ReferenceTree(tree, stack: stack)
-    let measurement = tree.computeNativeLayout(root: ids.root, proposal: referenceProposal,
-                                               in: referenceBounds)
+    let ids = ReferenceTree(tree, transposed: transposed, stack: stack)
+    let proposal = transposed ? ProposedSize(width: 91, height: 157) : referenceProposal
+    let bounds = transposed ? LayoutRect(x: 17, y: 13, width: 91, height: 157) : referenceBounds
+    let measurement = tree.computeNativeLayout(root: ids.root, proposal: proposal, in: bounds)
     return LaidOut(measurement: measurement, rects: ids.all.map(tree.layout),
                    widths: ids.all.map(tree.measuredWidth), tree: tree, ids: ids)
 }
 
-/// **Sufficiency of the protocol (ruling SA-B, SA-D):** a `ProposalLayout`
-/// written with a plain import (`ReferenceLinearStack.swift`) reproduces the
-/// built-in linear stack's every stored rect and measured width on a tree that
-/// reaches priority allocation, spacer surplus and cross-axis alignment.
+/// **Sufficiency of the protocol (ruling SA-B, SA-D, CN-B):** a
+/// `ProposalLayout` written with a plain import (`ReferenceLinearStack.swift`)
+/// reproduces the built-in linear stack's every stored rect and measured width
+/// on a tree that reaches priority groups, reserved minimums, flexibility
+/// order, spacers and cross-axis alignment — horizontally AND, transposed,
+/// vertically.
 ///
-/// The three literal rects were derived by hand before the run:
-/// - Root measured at 157×91. A (proposal 157×nil, child proposal nil×nil):
-///   natural 80 + 60 + 50 + 20 + 3·3 = 219 > 157, so 157×13. B: natural
-///   30 + 10 + 20 + 0 + 11 + 4·5 = 91, with a spacer, so max(91, 157) = 157×18.
-///   Root: 13 + 18 + 7 = 38, so 157×38.
-/// - Root placement at (13, 17, 157, 91): A at (13, 17, 157, 13), B at
-///   (13, 37, 157, 18).
-/// - A allocates: remaining 157 − 9 = 148; priority 1 takes its ideal 80,
-///   leaving 68; priority 0 holds the 60 leaf and the fixed 20 leaf, ideal 80 >
-///   68, so each is proposed 34; priority −1 gets 0. Cursor 13 + 80 + 3 = 96,
-///   so **A's priority-0 leaf is (96, 17 + 13 − 11, 34, 11) = (96, 19, 34, 11)**.
-/// - B's spacer surplus (157 − 91) / 2 = 33 each. Cursor: 13 → 48 (30 + 5) →
-///   96 (spacer 10 + 33 + 5) → 121 (20 + 5). **B's second spacer is proposed
-///   0 + 33 wide and answers its minimum 0 tall: (121, 37 + 18/2, 33, 0) =
-///   (121, 46, 33, 0).** Cursor 121 + 33 + 5 = 159, so **B's last leaf is
-///   (159, 37 + (18 − 8)/2, 11, 8) = (159, 42, 11, 8)**.
+/// The literal rects were re-derived by hand for ruling CN-B before the run
+/// (plan task 6, lane 1; the unnamed spacer has minimum 0 until lane 2's CN-C):
+/// - Root (V) at 157×91: A and B are one priority group, probed at
+///   (157, ∞) and (157, 0). A is 13 tall at both (flexibility 0); B's spacers
+///   claim the cross proposal (lane 2 zeroes it), so B answers ∞ and 18
+///   (flexibility ∞). A is served first at (91 − 7) / 2 = 42 → 13; B at 71 →
+///   71. **The root measures 157×91.** A at (13, 17, 157, 13), B at
+///   (13, 37, 157, 71).
+/// - A (H, 157 − 9 = 148): priority 1 is offered 148 minus the lower
+///   minimums (a60 0, a50 0, a20 20) = 128 and a80 answers 80; 68 remain.
+///   Priority 0 reserves a50's 0 and serves a20 (flexibility 0) at 34 → 20,
+///   then a60 at 48 → 48. Priority −1 gets 0. Cursor 13 + 80 + 3 = 96, so
+///   **A's priority-0 leaf is (96, 17 + 13 − 11, 48, 11) = (96, 19, 48, 11)**.
+/// - B (H, 157 − 20 = 137, cross 71): priority 2 is offered 137 minus the
+///   others' minimums (30 + 10 + 20 + 11 = 71) = 66, and its spacer answers 66;
+///   71 remain. Priority 0 reserves the min-10 spacer's 10 and serves b30,
+///   b20, b11 (all flexibility 0) at 20.3 → 30, 15.5 → 20, 11 → 11. The
+///   min-10 spacer gets the last 10. Cursor 13 → 48 → 63 → 88, so **B's second
+///   spacer is (88, 37, 66, 71)**; cursor 88 + 66 + 5 = 159, so **B's last leaf
+///   is (159, 37 + (71 − 8) / 2, 11, 8) = (159, 68.5, 11, 8), stored rounded
+///   as (159, 69, 11, 8)** (`roundLayout` rounds each edge half away from zero:
+///   68.5 → 69, 76.5 → 77).
+///
+/// Shape 15: a priority-blind and an order-blind (no flexibility sort)
+/// reference must each DISAGREE with the built-in on both trees.
 @Test func aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects() throws {
     let builtIn = layOutReference(builtInStack)
-    let custom = layOutReference { tree, children, axis, spacing, alignment in
-        tree.newNativeLayout(ReferenceLinearStack(axis: axis, spacing: spacing, alignment: alignment),
-                             children: children)
-    }
+    #expect(builtIn.measurement == LayoutMeasurement(size: SizeD(width: 157, height: 91)))
+    #expect(builtIn.tree.layout(builtIn.ids.priorityZeroLeafOfA) == LayoutRect(x: 96, y: 19, width: 48, height: 11))
+    #expect(builtIn.tree.layout(builtIn.ids.secondSpacerOfB) == LayoutRect(x: 88, y: 37, width: 66, height: 71))
+    #expect(builtIn.tree.layout(builtIn.ids.lastLeafOfB) == LayoutRect(x: 159, y: 69, width: 11, height: 8))
 
-    #expect(builtIn.measurement == LayoutMeasurement(size: SizeD(width: 157, height: 38)))
-    #expect(builtIn.tree.layout(builtIn.ids.priorityZeroLeafOfA) == LayoutRect(x: 96, y: 19, width: 34, height: 11))
-    #expect(builtIn.tree.layout(builtIn.ids.secondSpacerOfB) == LayoutRect(x: 121, y: 46, width: 33, height: 0))
-    #expect(builtIn.tree.layout(builtIn.ids.lastLeafOfB) == LayoutRect(x: 159, y: 42, width: 11, height: 8))
+    for transposed in [false, true] {
+        let builtIn = layOutReference(transposed: transposed, builtInStack)
+        let custom = layOutReference(transposed: transposed) { tree, children, axis, spacing, alignment in
+            tree.newNativeLayout(ReferenceLinearStack(axis: axis, spacing: spacing, alignment: alignment),
+                                 children: children)
+        }
+        try #require(builtIn.rects.count == custom.rects.count)
+        #expect(custom.measurement == builtIn.measurement, "transposed \(transposed)")
+        for index in builtIn.rects.indices {
+            #expect(custom.rects[index] == builtIn.rects[index], "node \(index), transposed \(transposed)")
+            #expect(custom.widths[index] == builtIn.widths[index],
+                    "measured width of node \(index), transposed \(transposed)")
+        }
 
-    try #require(builtIn.rects.count == custom.rects.count)
-    #expect(custom.measurement == builtIn.measurement)
-    for index in builtIn.rects.indices {
-        #expect(custom.rects[index] == builtIn.rects[index], "node \(index)")
-        #expect(custom.widths[index] == builtIn.widths[index], "measured width of node \(index)")
+        let priorityBlind = layOutReference(transposed: transposed) { tree, children, axis, spacing, alignment in
+            tree.newNativeLayout(PriorityBlindLinearStack(axis: axis, spacing: spacing, alignment: alignment),
+                                 children: children)
+        }
+        let orderBlind = layOutReference(transposed: transposed) { tree, children, axis, spacing, alignment in
+            tree.newNativeLayout(OrderBlindLinearStack(axis: axis, spacing: spacing, alignment: alignment),
+                                 children: children)
+        }
+        try #require(priorityBlind.rects != builtIn.rects,
+                     "a priority-blind stack must change the reference tree's rects (transposed \(transposed))")
+        try #require(orderBlind.rects != builtIn.rects,
+                     "an order-blind stack must change the reference tree's rects (transposed \(transposed))")
     }
-
-    // Shape 15: the two controls must DISAGREE with the built-in, or the
-    // equality above could not see a proxy that drops priority or spacer-ness.
-    let priorityBlind = layOutReference { tree, children, axis, spacing, alignment in
-        tree.newNativeLayout(PriorityBlindLinearStack(axis: axis, spacing: spacing, alignment: alignment),
-                             children: children)
-    }
-    let spacerBlind = layOutReference { tree, children, axis, spacing, alignment in
-        tree.newNativeLayout(SpacerBlindLinearStack(axis: axis, spacing: spacing, alignment: alignment),
-                             children: children)
-    }
-    try #require(priorityBlind.rects != builtIn.rects,
-                 "a priority-blind stack must change the reference tree's rects")
-    try #require(spacerBlind.rects != builtIn.rects,
-                 "a spacer-blind stack must change the reference tree's rects")
 }
 
 // MARK: - Measurement through the run's cache
@@ -343,7 +365,7 @@ private func layOutReference(
 // MARK: - The proxy surface
 
 /// A proxy reads `priority` and `isSpacer` by the built-in stack's own rules
-/// (ruling SA-D; probes L, L2, L3).
+/// (rulings SA-D, CN-C, CN-D; probes L, L2, L3 and contract probe E).
 ///
 /// | child | priority | isSpacer | why |
 /// |---|---|---|---|
@@ -351,11 +373,12 @@ private func layOutReference(
 /// | `frame` over `layoutPriority(2)` | 0 | false | probe L: a laying-out wrapper hides it |
 /// | one overlay attachment over `layoutPriority(2)` | 2 | false | probe L2 |
 /// | two overlay attachments over `layoutPriority(2)` | 2 | false | probe L2 |
-/// | a one-child linear stack over `layoutPriority(2)` | **0, pinned wrong on purpose** | false | SwiftUI reads 2 (probe L3); SA-N item 8, plan task 6 |
-/// | `layoutPriority(1)` over `layoutPriority(3)` over a spacer | 1 | true | spacer under any depth of priority |
-/// | `frame` over a spacer | 0 | false | never through another wrapper |
-/// | overlay attachment over a spacer | 0 | false | `isNativeSpacer` does not look through attachments |
+/// | a one-child linear stack over `layoutPriority(2)` | 2 | false | probe L3 (CN-D; was pinned 0 until plan task 6) |
+/// | `layoutPriority(1)` over `layoutPriority(3)` over a spacer | 1 | true | the outer value; spacer under any depth of priority |
+/// | `frame` over a spacer | 0 | false | a frame hides the spacer's −∞ (K2d) and its spacer-ness |
+/// | overlay attachment over a spacer | −∞ | false | the attachment passes the primary's priority (X8); `isNativeSpacer` does not look through it |
 /// | a plain leaf | 0 | false | |
+/// | a bare spacer | −∞ | true | contract probe E |
 @Test func aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules() {
     let tree = LayoutTree(generation: 0)
     let log = LayoutLog()
@@ -380,6 +403,7 @@ private func layOutReference(
         tree.newNativeFrame(child: tree.newNativeSpacer(), width: 5),
         tree.newNativeOverlayAttachment(child: tree.newNativeSpacer(), overlay: fixedLeaf(tree, 1, 1)),
         fixedLeaf(tree, 1, 1),
+        tree.newNativeSpacer(),
     ]
     let layout = ScriptedLayout(
         measure: { _, subviews in
@@ -393,8 +417,8 @@ private func layOutReference(
     _ = tree.computeNativeLayout(root: root, proposal: ProposedSize(width: 100, height: 100),
                                  in: LayoutRect(x: 0, y: 0, width: 100, height: 100))
 
-    #expect(log.priorities == [2.5, 0, 2, 2, 0, 1, 0, 0, 0])
-    #expect(log.spacers == [false, false, false, false, false, true, false, false, false])
+    #expect(log.priorities == [2.5, 0, 2, 2, 2, 1, 0, -.infinity, 0, -.infinity])
+    #expect(log.spacers == [false, false, false, false, false, true, false, false, false, true])
 }
 
 // MARK: - The dynamic backstops (exit tests)

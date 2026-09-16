@@ -247,8 +247,10 @@ private func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bo
 /// generation.
 ///
 /// - **Arm a:** one leaf listed twice in a horizontal stack reserves both slots
-///   (the stack is 20 wide) and is placed once, at the SECOND slot; it is
-///   measured once.
+///   (the stack is 20 wide) and is placed once, at the SECOND slot. It is
+///   measured at four distinct proposals since plan task 6's ruling CN-B: the
+///   stack's one priority group of two probes it at (∞, h) and (0, h), then
+///   offers it half the width and then the width less the 10 it answered.
 /// - **Arm b:** one leaf handed to a 30×30 top-leading frame and a 50×50
 ///   bottom-trailing frame is drawn where the LAST placement puts it, the first
 ///   frame's slot empty; it is measured twice.
@@ -272,7 +274,7 @@ private func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bo
               + "nodeCount \(frame.tree.nodeCount)")
         #expect(probe.bounds["stack"] == rect(60, 0, 20, 10))
         #expect(probe.bounds["leaf"] == rect(70, 0, 10, 10))
-        #expect(probe.measureCalls == 1)
+        #expect(probe.measureCalls == 4)
         #expect(frame.tree.nodeCount == 4)
     }
     do {

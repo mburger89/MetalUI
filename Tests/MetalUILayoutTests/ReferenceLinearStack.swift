@@ -1,20 +1,26 @@
 // **A PLAIN import, never `@testable`, and that is the proof.** This file
 // reimplements the built-in `linearStack` node kind as a `ProposalLayout`
-// using only public API: the proxies' `priority`, `isSpacer`, `sizeThatFits`
-// and `place`, and `ProposalAlignment`'s factors. If it compiled only with
-// `@testable`, the protocol would be insufficient for the one algorithm the
-// kernel already ships (ruling SA-B, SA-P).
+// using only public API: the proxies' `priority`, `sizeThatFits` and `place`,
+// and `ProposalAlignment`'s factors. If it compiled only with `@testable`, the
+// protocol would be insufficient for the one algorithm the kernel already
+// ships (ruling SA-B, SA-P).
 //
 // A plain import in one file of a test target is not widened by `@testable`
 // imports in the target's other files: measured on a two-file scratch package
 // (`error: cannot find 'secret' in scope`; ruling SA-P, evidence 7 of the
 // kernel completion design). So `MetalUILayoutTests` being full of `@testable`
 // files does not weaken this one.
+//
+// **Rewritten for ruling CN-B** (plan task 6, lane 1): SwiftUI's distribution
+// — priority groups, lower groups' minimums reserved, least flexible first,
+// the sum of the answers — and CN-E's second pass at a nil cross proposal. It
+// no longer reads `isSpacer`: a spacer's −∞ `priority` is all a stack needs,
+// which is also all SwiftUI's own proxy offers (contract probe E).
 import MetalUICore
 import MetalUILayout
 
-/// The built-in linear stack, line for line, as an outside module would write
-/// it. `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects`
+/// The built-in linear stack, as an outside module would write it.
+/// `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects`
 /// requires it to reproduce every stored rect of the built-in kind.
 ///
 /// It is test-only, so if it and `LayoutTree`'s `linearStack` case drift apart
@@ -25,9 +31,9 @@ struct ReferenceLinearStack: ProposalLayout {
     var spacing: Double
     var alignment: ProposalAlignment
     /// Positive-control switches: `PriorityBlindLinearStack` and
-    /// `SpacerBlindLinearStack` each turn exactly one off.
+    /// `OrderBlindLinearStack` each turn exactly one off.
     var readsPriority = true
-    var readsSpacers = true
+    var sortsByFlexibility = true
 
     init(axis: ProposalStackAxis, spacing: Double = 0, alignment: ProposalAlignment = .center) {
         self.axis = axis
@@ -36,127 +42,95 @@ struct ReferenceLinearStack: ProposalLayout {
     }
 
     func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
-        let childProposal = stackChildProposal(parent: proposal)
-        let childMeasurements = subviews.map { $0.sizeThatFits(childProposal) }
-        let gaps = Double(max(0, childMeasurements.count - 1)) * spacing
-        let hasSpacer = subviews.contains { spacer($0.isSpacer) }
-        switch axis {
-        case .horizontal:
-            let naturalWidth = childMeasurements.reduce(gaps) { $0 + $1.size.width }
-            return LayoutMeasurement(
-                size: SizeD(width: resolvedStackMainSize(naturalWidth, proposal: proposal.width,
-                                                         hasSpacer: hasSpacer),
-                            height: childMeasurements.map(\.size.height).max() ?? 0)
-            )
-        case .vertical:
-            let naturalHeight = childMeasurements.reduce(gaps) { $0 + $1.size.height }
-            return LayoutMeasurement(
-                size: SizeD(width: childMeasurements.map(\.size.width).max() ?? 0,
-                            height: resolvedStackMainSize(naturalHeight, proposal: proposal.height,
-                                                          hasSpacer: hasSpacer))
-            )
-        }
+        LayoutMeasurement(size: solve(proposal: proposal,
+                                      priorities: subviews.map { priority($0.priority) },
+                                      measure: { subviews[$0].sizeThatFits($1) }).size)
     }
 
     func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize,
                        subviews: PlacementSubviews) {
-        let childProposal = stackChildProposal(parent: proposal)
-        let childMeasurements = subviews.map { $0.sizeThatFits(childProposal) }
-        let naturalMain = stackMainSize(childMeasurements)
-        let spacers = subviews.map { spacer($0.isSpacer) }
-        let spacerCount = spacers.filter { $0 }.count
-        let availableMain = axis == .horizontal ? bounds.width : bounds.height
-        let extraPerSpacer = spacerCount == 0 ? 0 : max(0, availableMain - naturalMain) / Double(spacerCount)
-        let allocations = stackMainAllocations(priorities: subviews.map { priority($0.priority) },
-                                               measurements: childMeasurements,
-                                               available: availableMain,
-                                               hasSpacer: spacerCount > 0)
+        let priorities = subviews.map { priority($0.priority) }
+        let measure: (Int, ProposedSize) -> LayoutMeasurement = { subviews[$0].sizeThatFits($1) }
+        var solveProposal = proposal
+        switch axis {
+        case .horizontal where proposal.height == nil:
+            solveProposal.height = solve(proposal: proposal, priorities: priorities, measure: measure).size.height
+        case .vertical where proposal.width == nil:
+            solveProposal.width = solve(proposal: proposal, priorities: priorities, measure: measure).size.width
+        default:
+            break
+        }
+        let solution = solve(proposal: solveProposal, priorities: priorities, measure: measure)
         var cursor = axis == .horizontal ? bounds.x : bounds.y
         for index in subviews.indices {
-            let subview = subviews[index]
-            let baseMeasurement = childMeasurements[index]
-            var placementProposal = childProposal
-            if spacers[index] {
-                switch axis {
-                case .horizontal:
-                    placementProposal = ProposedSize(width: baseMeasurement.size.width + extraPerSpacer,
-                                                     height: childProposal.height)
-                case .vertical:
-                    placementProposal = ProposedSize(width: childProposal.width,
-                                                     height: baseMeasurement.size.height + extraPerSpacer)
-                }
-            }
-            var constrainedProposal = placementProposal
-            if let allocated = allocations[index] {
-                switch axis {
-                case .horizontal:
-                    constrainedProposal = ProposedSize(width: allocated, height: placementProposal.height)
-                case .vertical:
-                    constrainedProposal = ProposedSize(width: placementProposal.width, height: allocated)
-                }
-            }
-            let measurement = subview.sizeThatFits(constrainedProposal)
+            let answer = solution.answers[index]
             let origin: Point<Double>
             switch axis {
             case .horizontal:
-                origin = Point(x: cursor,
-                               y: bounds.y + (bounds.height - measurement.size.height) * alignment.verticalFactor)
-                cursor += measurement.size.width + spacing
+                origin = Point(x: cursor, y: bounds.y + (bounds.height - answer.height) * alignment.verticalFactor)
+                cursor += answer.width + spacing
             case .vertical:
-                origin = Point(x: bounds.x + (bounds.width - measurement.size.width) * alignment.horizontalFactor,
-                               y: cursor)
-                cursor += measurement.size.height + spacing
+                origin = Point(x: bounds.x + (bounds.width - answer.width) * alignment.horizontalFactor, y: cursor)
+                cursor += answer.height + spacing
             }
-            subview.place(at: origin, anchor: .topLeading, proposal: constrainedProposal)
+            subviews[index].place(at: origin, anchor: .topLeading, proposal: solution.proposals[index])
         }
     }
 
     private func priority(_ value: Double) -> Double { readsPriority ? value : 0 }
-    private func spacer(_ value: Bool) -> Bool { readsSpacers ? value : false }
 
-    private func stackChildProposal(parent: ProposedSize) -> ProposedSize {
-        switch axis {
-        case .horizontal: ProposedSize(width: nil, height: parent.height)
-        case .vertical: ProposedSize(width: parent.width, height: nil)
-        }
+    private func offer(_ main: Double?, cross: Double?) -> ProposedSize {
+        axis == .horizontal ? ProposedSize(width: main, height: cross) : ProposedSize(width: cross, height: main)
     }
 
-    private func resolvedStackMainSize(_ natural: Double, proposal: Double?, hasSpacer: Bool) -> Double {
-        guard let proposal, proposal.isFinite else { return natural }
-        return hasSpacer ? max(natural, proposal) : min(natural, proposal)
-    }
+    private func mainLength(_ size: SizeD) -> Double { axis == .horizontal ? size.width : size.height }
+    private func crossLength(_ size: SizeD) -> Double { axis == .horizontal ? size.height : size.width }
 
-    private func stackMain(_ measurement: LayoutMeasurement) -> Double {
-        switch axis {
-        case .horizontal: measurement.size.width
-        case .vertical: measurement.size.height
-        }
-    }
+    private func solve(proposal: ProposedSize, priorities: [Double],
+                       measure: (Int, ProposedSize) -> LayoutMeasurement)
+        -> (answers: [SizeD], proposals: [ProposedSize], size: SizeD) {
+        let count = priorities.count
+        let main = axis == .horizontal ? proposal.width : proposal.height
+        let cross = axis == .horizontal ? proposal.height : proposal.width
+        let gaps = Double(max(0, count - 1)) * spacing
+        var proposals = Array(repeating: offer(main, cross: cross), count: count)
+        var answers = Array(repeating: SizeD(width: 0, height: 0), count: count)
 
-    private func stackMainSize(_ measurements: [LayoutMeasurement]) -> Double {
-        let gaps = Double(max(0, measurements.count - 1)) * spacing
-        return measurements.reduce(gaps) { $0 + stackMain($1) }
-    }
-
-    private func stackMainAllocations(priorities: [Double], measurements: [LayoutMeasurement],
-                                      available: Double, hasSpacer: Bool) -> [Double?] {
-        let natural = stackMainSize(measurements)
-        guard !hasSpacer, available < natural else { return Array(repeating: nil, count: priorities.count) }
-        var allocations = [Double?](repeating: nil, count: priorities.count)
-        var remaining = max(0, available - Double(max(0, priorities.count - 1)) * spacing)
-        for priority in Set(priorities).sorted(by: >) {
-            let indices = priorities.indices.filter { priorities[$0] == priority }
-            let ideal = indices.reduce(0) { $0 + stackMain(measurements[$1]) }
-            if remaining >= ideal {
-                for index in indices { allocations[index] = stackMain(measurements[index]) }
-                remaining -= ideal
-            } else {
-                let share = remaining / Double(indices.count)
-                for index in indices { allocations[index] = share }
-                remaining = 0
+        if let main, main.isFinite, count > 0 {
+            var remaining = main - gaps
+            for group in Set(priorities).sorted(by: >) {
+                let members = priorities.indices.filter { priorities[$0] == group }
+                let reserved = priorities.indices.filter { priorities[$0] < group }.reduce(0.0) {
+                    $0 + mainLength(measure($1, offer(0, cross: cross)).size)
+                }
+                var order = members
+                if members.count > 1 && sortsByFlexibility {
+                    var flexibility: [Int: Double] = [:]
+                    for index in members {
+                        flexibility[index] = mainLength(measure(index, offer(.infinity, cross: cross)).size)
+                            - mainLength(measure(index, offer(0, cross: cross)).size)
+                    }
+                    order.sort { lhs, rhs in
+                        flexibility[lhs]! != flexibility[rhs]! ? flexibility[lhs]! < flexibility[rhs]! : lhs < rhs
+                    }
+                }
+                var groupRemaining = remaining - reserved
+                for (served, index) in order.enumerated() {
+                    proposals[index] = offer(max(0, groupRemaining / Double(order.count - served)), cross: cross)
+                    answers[index] = measure(index, proposals[index]).size
+                    groupRemaining -= mainLength(answers[index])
+                    remaining -= mainLength(answers[index])
+                }
             }
+        } else {
+            for index in 0..<count { answers[index] = measure(index, proposals[index]).size }
         }
-        return allocations
+
+        let mainTotal = answers.reduce(gaps) { $0 + mainLength($1) }
+        let crossMax = answers.map(crossLength).max() ?? 0
+        return (answers, proposals,
+                axis == .horizontal ? SizeD(width: mainTotal, height: crossMax)
+                                    : SizeD(width: crossMax, height: mainTotal))
     }
 }
 
@@ -179,13 +153,15 @@ struct PriorityBlindLinearStack: ProposalLayout {
     }
 }
 
-/// Positive control: the reference stack reading every `isSpacer` as false.
-struct SpacerBlindLinearStack: ProposalLayout {
+/// Positive control: the reference stack serving each group in declaration
+/// order, never by flexibility. Exists to prove the equivalence tree's rects
+/// depend on the order at all (shape 15).
+struct OrderBlindLinearStack: ProposalLayout {
     var base: ReferenceLinearStack
 
     init(axis: ProposalStackAxis, spacing: Double = 0, alignment: ProposalAlignment = .center) {
         base = ReferenceLinearStack(axis: axis, spacing: spacing, alignment: alignment)
-        base.readsSpacers = false
+        base.sortsByFlexibility = false
     }
 
     func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {

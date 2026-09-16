@@ -343,6 +343,12 @@ private struct NativeProposalProbe: ProposalElement {
 /// A macOS SwiftUI probe finds that an unspecified `.frame(idealWidth: 80)`
 /// proposes 80pt to a 20pt child and itself reports 80pt. HStack makes the
 /// otherwise-unspecified main-axis proposal observable through its sibling.
+///
+/// **The stack sits under `.fixedSize(horizontal: true, vertical: false)`**
+/// since plan task 6's lane 1: a stack offered a concrete width now
+/// distributes it (ruling CN-B), so the frame would be offered 80 and answer
+/// its child's 20. Withholding the width keeps the axis unspecified, the
+/// question this test asks; the trailing leaf still lands at x 80.
 @MainActor
 @Test func anIdealFrameWidthBecomesItsOuterWidthWhenTheAxisIsUnspecified() {
     let probe = NativeLayoutProbe()
@@ -352,15 +358,18 @@ private struct NativeProposalProbe: ProposalElement {
             NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "leading")
         }
         NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
-    }
+    }.fixedSize(horizontal: true, vertical: false)
 
     frame.render(&root)
 
-    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(80), y: Pixels(15)),
+    // `.fixedSize` places the 100×10 stack at its answer, so the cross axis no
+    // longer centres in the window: y 0, where the unwrapped stack read 15.
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(80), y: Pixels(0)),
                                            size: Size(width: Pixels(20), height: Pixels(10))))
 }
 
-/// The companion SwiftUI probe reports the same rule for `.frame(idealHeight:)`.
+/// The companion SwiftUI probe reports the same rule for `.frame(idealHeight:)`;
+/// the stack sits under a vertical `.fixedSize` for the reason above.
 @MainActor
 @Test func anIdealFrameHeightBecomesItsOuterHeightWhenTheAxisIsUnspecified() {
     let probe = NativeLayoutProbe()
@@ -370,11 +379,11 @@ private struct NativeProposalProbe: ProposalElement {
             NativeProbeLeaf(size: SizeD(width: 10, height: 20), probe: probe, name: "leading")
         }
         NativeProbeLeaf(size: SizeD(width: 10, height: 20), probe: probe, name: "trailing")
-    }
+    }.fixedSize(horizontal: false, vertical: true)
 
     frame.render(&root)
 
-    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(15), y: Pixels(80)),
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(0), y: Pixels(80)),
                                            size: Size(width: Pixels(10), height: Pixels(20))))
 }
 

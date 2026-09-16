@@ -61,13 +61,13 @@ public struct MeasurementSubview {
         self.node = node
     }
 
-    /// The value of a `layoutPriority` node that IS this subview, looking
-    /// through any depth of overlay attachments (`.overlay`) to their primary
-    /// child, else 0: the built-in stack's own rule (ruling SA-D). A priority
-    /// under `frame`, `padding`, `aspectRatio`, `fixedSize` or inside a
-    /// container reads 0, as in SwiftUI (probes L, L2), except that a
-    /// single-child stack also reads 0 where SwiftUI passes its child's through
-    /// (probe L3, carried as SA-N item 8).
+    /// The built-in stack's own priority rule (rulings SA-D, CN-C, CN-D): a
+    /// spacer reads −∞ (SwiftUI's proxy reads the same, contract probe E); a
+    /// `layoutPriority` node its value; an overlay attachment its primary's,
+    /// at any depth (L2); a built-in linear stack or `ZStack` with exactly one
+    /// child that child's (L3); anything else 0 — a `frame`, `padding`,
+    /// `aspectRatio` or `fixedSize` over a priority, a container of two or
+    /// more, and a custom layout of any count (L, L2, L3).
     public var priority: Double {
         run.requireActive()
         return run.tree.nativeLayoutPriority(node)
@@ -75,8 +75,9 @@ public struct MeasurementSubview {
 
     /// True for a spacer node, directly or under any depth of `layoutPriority`
     /// nodes, and never through `frame`, padding, an overlay attachment or any
-    /// other wrapper: the built-in stack's `isNativeSpacer` rule (ruling SA-D).
-    /// SwiftUI exposes no such test (probes E, E2).
+    /// other wrapper (ruling SA-D). SwiftUI exposes no such test (probes E,
+    /// E2), and since ruling CN-B no built-in stack reads it: a spacer's
+    /// behaviour in a stack follows from its −∞ `priority`.
     public var isSpacer: Bool {
         run.requireActive()
         return run.tree.isNativeSpacer(node)

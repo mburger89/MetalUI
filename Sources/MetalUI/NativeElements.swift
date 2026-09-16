@@ -10,6 +10,11 @@ import MetalUILayout
 /// (ruling MC-G). A legacy node that reaches it anyway — through a `@testable`
 /// mint, MC-G's hole 3 — traps when the layout pass registers the stack, instead
 /// of silently handing a CSS child to the native algorithm.
+///
+/// Its width is distributed as SwiftUI's `HStack` distributes it (ruling CN-B,
+/// `LayoutTree.solveLinearStack`): by layout priority, lower groups' minimums
+/// reserved, least flexible child first, answering the sum of its children's
+/// answers; a ``Spacer`` is served last.
 public struct HStack<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var spacing: Pixels
@@ -51,7 +56,8 @@ public struct HStack<Content: ProposalElementGroup>: Element {
     }
 }
 
-/// A native proposal-layout vertical stack.
+/// A native proposal-layout vertical stack, distributing its height as
+/// ``HStack`` distributes its width (ruling CN-B).
 public struct VStack<Content: ProposalElementGroup>: Element {
     public var content: Content
     public var spacing: Pixels
