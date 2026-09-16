@@ -265,15 +265,12 @@ extension ElementGroup {
     /// Applies a SwiftUI-style outer frame without overwriting the content's
     /// own declared size. Passing `nil` leaves that axis unconstrained.
     ///
-    /// Adds one layer to a `ModifiedElement` (ruling MC-A): a flex container
-    /// centred on both axes with the given sizes — `FrameModifier.init`'s style,
-    /// verbatim, before that type was deleted.
+    /// Adds one layer to a `ModifiedElement` (ruling MC-A). **The lowering
+    /// lives in `FrameLayer.swift`** — `FrameSpec.style()`, ruling FR-C — which
+    /// is where every later change to the legacy frame's meaning goes. This
+    /// file is shared with a parallel track, so the declaration stays here, in
+    /// place, and stays one line (frame-sizing critic finding 14).
     public func frame(width: Pixels? = nil, height: Pixels? = nil) -> ModifiedElement<LayerBase> {
-        var style = Style()
-        style.alignItems = .center
-        style.justifyContent = .center
-        if let width { style.size.width = .length(.pixels(width)) }
-        if let height { style.size.height = .length(.pixels(height)) }
-        return _wrap(ModifierLayer(style: style))
+        _wrap(ModifierLayer(style: FrameSpec(width: width, height: height).style()))
     }
 }
