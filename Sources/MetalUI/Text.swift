@@ -308,9 +308,17 @@ public struct Text: Element, StyledElement {
     /// and publishes `Text(" ")`.
     public mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                   layout: inout Layout, pass: inout PrepaintPass) {
-        pass.registerHandlers(handlers, at: bounds, id: id,
+        // Through `registerAndScope` since plan task 5's lane 2, exactly as
+        // `Box.prepaint` and `Stack.prepaint` are. **The two accessibility
+        // arguments are forwarded and are not optional decoration** (`OM-X`):
+        // a helper that took only the three-argument form would delete every
+        // text leaf's accessibility string. `Text` has no children, so the
+        // content closure is empty and the clip scope is a no-op here — it is
+        // written out anyway so a future `Text` that draws through the helper
+        // gets the same answer the other three sites do.
+        pass.registerAndScope(handlers, decoration, at: bounds, for: id,
                               accessibleText: string.isEmpty ? nil : string,
-                              synthesizesAccessibility: true)
+                              synthesizesAccessibility: true) { }
     }
 
     /// Emits the background, then one sprite per inked glyph.
@@ -367,11 +375,20 @@ public struct Text: Element, StyledElement {
         // computed. The glyph fill below (`foregroundColor ?? .textPrimary`)
         // is genuinely still unanimated — it is not in spec §4's animatable
         // list, and animating text colour is §8's named hole, unchanged.
-        if let color = animatedBackground(decoration, for: id, pass: &pass) {
-            pass.fill(bounds, color: color,
-                      cornerRadii: Corners(all: decoration.cornerRadius))
+        //
+        // **Through `paintDecoration` since plan task 5's lane 2.** The glyphs
+        // are this leaf's `content()`, so they sit between the background and
+        // the border and inside the opacity scope and the clip — a bordered
+        // `Text` draws its ring over its own glyphs (`OM-V`), and a faded one
+        // fades them with its fill rather than leaving them opaque.
+        pass.paintDecoration(decoration, in: bounds, for: id) {
+            paintGlyphs(bounds: bounds, layout: &layout, pass: &pass)
         }
+    }
 
+    /// The glyph half of `paint`, as `paintDecoration`'s `content()`.
+    private mutating func paintGlyphs(bounds: Bounds<Pixels>, layout: inout Layout,
+                                      pass: inout PaintPass) {
         // The same memoized request `requestLayout` made — a dictionary hit,
         // not a second `CTFont` creation.
         let font = pass.shapingCache.resolveFont(family: fontFamily, size: fontSize)

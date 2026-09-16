@@ -30,11 +30,13 @@ import MetalUIRender
 // "prepaint-only" and "genuinely inert" apart — all three read `(0, 0, 0)` —
 // and `hidden()`, which moves layout without adding a node, would classify as
 // "wraps" under a witness that only asked whether the outer size moved. The
-// row that makes this concrete is `borderWidth(_:) on a sized box`: it is the
-// API this whole audit exists to expose, and on the five-tuple it moves
-// **nothing at all**. Its two arms are separated only by the storage witness,
-// which is why the storage comparison is part of the instrument rather than a
-// convenience.
+// row that made this concrete was `borderWidth(_:) on a sized box`: it was the
+// API this whole audit existed to expose, and on the five-tuple it moved
+// **nothing at all**, so its two arms were separated only by the storage
+// witness. That is why the storage comparison is part of the instrument rather
+// than a convenience. Lane 2 deleted the modifier (`OM-M`) and its two rows are
+// now `border(_:width:)` rows reading `selfStorage + paintOnly`; `id(_:)`
+// carries the storage-witness-only case on its own.
 //
 // **What "the arms disagree" means here, and when it is checked.** A row whose
 // two arms measure identically in all five tuple components AND in storage is
@@ -68,9 +70,10 @@ private final class ClickCounter {
 /// rendered as one string so two arms compare as lists.
 ///
 /// **`contentMask`, `borderColor` and `borderWidths` are in here deliberately.**
-/// Without the mask a clip would read as "paints nothing new"; without the two
-/// border fields, a `borderWidth(_:)` that started painting would be invisible
-/// to the row that exists to say it does not.
+/// Without the mask a `.clipped()` would read as "paints nothing new"; without
+/// the two border fields, `border(_:width:)`'s two rows would have nothing to
+/// see at all — a paint-only border changes no bounds, no colour and no radius,
+/// only those two fields.
 private func describe(_ r: MUIRect) -> String {
     let b = r.bounds
     let m = r.contentMask
@@ -292,11 +295,13 @@ private struct TwoMembers: Component {
 /// identical** rects; a row that does not claim `prepaintOnly` must leave the
 /// hit regions and the click count exactly where they were.
 ///
-/// The last two negatives are what make `borderWidth(_:)`'s row a finding
-/// rather than a formality. Its subject carries a background in both arms, so
-/// "the rects are identical" is a statement about a live rect's `borderWidths`
-/// and `borderColor` fields — not the vacuous truth it would be if nothing
-/// painted at all.
+/// The last two negatives are what make the two `border(_:width:)` rows a
+/// finding rather than a formality. The sized-box subject carries a background
+/// in both arms, so "the rects differ" is a statement about a live rect's
+/// `borderWidths` and `borderColor` fields — not the vacuous truth it would be
+/// if a rect had simply appeared from nothing — and the content-sized one's
+/// `does not claim wraps` negative is what states that a paint-only border,
+/// unlike the deleted `borderWidth(_:)`, moves no layout at all.
 @Test @MainActor func everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays() throws {
     let rows: [MatrixRow] = [
         // MARK: wraps
@@ -372,39 +377,111 @@ private struct TwoMembers: Component {
                                       Box().width(px(40)).height(px(40)).focusable()))
                   }),
 
-        // MARK: the inert one this audit exists to expose
-        MatrixRow(name: "borderWidth(_:) on a sized box", path: "legacy Element",
-                  kinds: [.selfStorage],
-                  note: "DECLARED BUT INERT: writes Style.border, and on a box whose size is "
-                      + "declared it moves nothing at all — not the outer size, not the emitted "
-                      + "rect's borderWidths, not its borderColor. The subject carries a "
-                      + "background in both arms so that `the rects are identical` is a "
-                      + "statement about a live rect",
+        // MARK: what the inert one BECAME (lane 2, rulings OM-B and OM-M)
+        //
+        // These two rows replace `borderWidth(_:) on a sized box` and
+        // `borderWidth(_:) on a content-sized box`, which lane 1 measured as
+        // `selfStorage / node 0 / outer 0 / rects identical` and
+        // `selfStorage / node 0 / outer +8 / rects identical` — the standing
+        // inert row of CLAUDE.md's declared-but-inert table, and the API this
+        // audit existed to expose. `border(_:width:)` reads `selfStorage +
+        // paintOnly` on BOTH shapes: the emitted rect's `borderWidths` and
+        // `borderColor` move, and the content-sized box's **outer size no
+        // longer does**, which is the `OM-B` half of the finding (SwiftUI's
+        // `.border` is layout-neutral, probe arm L2) as opposed to the `OM-M`
+        // half (it paints at all).
+        MatrixRow(name: "border(_:width:) on a sized box", path: "legacy Element",
+                  kinds: [.selfStorage, .paintOnly],
+                  note: "the replacement for the deleted borderWidth(_:): it paints, and the "
+                      + "rect that moves is a LIVE one — the subject carries a background in "
+                      + "both arms, so `the rects differ` is about borderWidths and borderColor "
+                      + "rather than about a rect appearing from nothing",
                   arms: {
                       (try observe(probe: pt(2, 2)) { _ in
                            Box().width(px(40)).height(px(40)).background(.accent)
                        },
                        try observe(probe: pt(2, 2)) { _ in
-                           Box().width(px(40)).height(px(40)).background(.accent).borderWidth(px(4))
+                           Box().width(px(40)).height(px(40)).background(.accent)
+                               .border(.separator, width: px(4))
                        },
                        storageDiffers(Box().width(px(40)).height(px(40)).background(.accent),
                                       Box().width(px(40)).height(px(40)).background(.accent)
-                                          .borderWidth(px(4))))
+                                          .border(.separator, width: px(4))))
                   }),
-        MatrixRow(name: "borderWidth(_:) on a content-sized box", path: "legacy Element",
-                  kinds: [.selfStorage],
-                  note: "the other half of the same finding: on a box that sizes to its content "
-                      + "the border DOES move layout, and still paints nothing",
+        MatrixRow(name: "border(_:width:) on a content-sized box", path: "legacy Element",
+                  kinds: [.selfStorage, .paintOnly],
+                  note: "the other half: where borderWidth(_:) moved this same box by +8 and "
+                      + "still painted nothing, a paint-only border moves NOTHING and paints. "
+                      + "The `does not claim wraps` negative below is what states the first "
+                      + "half, and the paintOnly witness the second",
                   arms: {
                       (try observe(probe: pt(2, 2)) { _ in
                            Box { Box().width(px(30)).height(px(10)) }
                        },
                        try observe(probe: pt(2, 2)) { _ in
-                           Box { Box().width(px(30)).height(px(10)) }.borderWidth(px(4))
+                           Box { Box().width(px(30)).height(px(10)) }
+                               .border(.separator, width: px(4))
                        },
                        storageDiffers(Box { Box().width(px(30)).height(px(10)) },
                                       Box { Box().width(px(30)).height(px(10)) }
-                                          .borderWidth(px(4))))
+                                          .border(.separator, width: px(4))))
+                  }),
+        MatrixRow(name: "focusBorder(_:width:), genuinely focused", path: "legacy Element",
+                  kinds: [.selfStorage, .paintOnly],
+                  note: "THE FOCUS RING (OM-L). The subject is focused in both arms, so what "
+                      + "differs is the declaration and not the state — the shape "
+                      + "`hoverBackground(_:), genuinely hovered` above uses, one chain over",
+                  arms: {
+                      let focus: @MainActor (Window, FakePlatformWindow) -> Void = { window, _ in
+                          if let first = window.lastHitboxes.first { window.focus(first.id) }
+                      }
+                      return (try observe(probe: pt(2, 2), interact: focus) { counter in
+                                  Box().width(px(40)).height(px(40)).background(.surface)
+                                      .focusable().onClick { counter.bump() }
+                              },
+                              try observe(probe: pt(2, 2), interact: focus) { counter in
+                                  Box().width(px(40)).height(px(40)).background(.surface)
+                                      .focusBorder(.accent, width: px(2))
+                                      .focusable().onClick { counter.bump() }
+                              },
+                              storageDiffers(Box().width(px(40)).height(px(40)).background(.surface),
+                                             Box().width(px(40)).height(px(40)).background(.surface)
+                                                 .focusBorder(.accent, width: px(2))))
+                  }),
+        MatrixRow(name: "opacity(_:)", path: "legacy Element",
+                  kinds: [.selfStorage, .paintOnly],
+                  note: "a paint-phase SCOPE, not an emission: the subject's own fill fades "
+                      + "(OM-N), and no number the engine produced moves",
+                  arms: {
+                      (try observe(probe: pt(2, 2)) { _ in
+                           Box().width(px(40)).height(px(40)).background(.accent)
+                       },
+                       try observe(probe: pt(2, 2)) { _ in
+                           Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5)
+                       },
+                       storageDiffers(Box().width(px(40)).height(px(40)).background(.accent),
+                                      Box().width(px(40)).height(px(40)).background(.accent)
+                                          .opacity(0.5)))
+                  }),
+        MatrixRow(name: "clipped()", path: "legacy Element",
+                  kinds: [.selfStorage, .paintOnly],
+                  note: "also a scope. The CHILD's rect is what moves — its contentMask stops "
+                      + "being the whole surface — so the subject needs a child that overflows "
+                      + "it, with flexShrink(0) or the engine shrinks the child to fit and "
+                      + "nothing is clipped. Its PREPAINT half cannot be claimed here: this "
+                      + "instrument treats prepaint-only and paint-only as exclusive, and "
+                      + "`clippedAlsoClipsTheHitboxesInsideIt` pins it instead",
+                  arms: {
+                      (try observe(probe: pt(2, 2)) { _ in
+                           Box { Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface) }
+                               .width(px(40)).height(px(40))
+                       },
+                       try observe(probe: pt(2, 2)) { _ in
+                           Box { Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface) }
+                               .width(px(40)).height(px(40)).clipped()
+                       },
+                       storageDiffers(Box().width(px(40)).height(px(40)),
+                                      Box().width(px(40)).height(px(40)).clipped()))
                   }),
 
         // MARK: self AND paint-only

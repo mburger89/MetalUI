@@ -136,9 +136,9 @@ func theValidatedDecorationFieldsAreNotAssignableFromOutsideTheModule() throws {
                  widths:
                  \(widths.output)
                  """)
-    #expect(opacity.messages.contains("setter for 'opacity' is inaccessible"),
+    #expect(opacity.messages.contains("'opacity' setter is inaccessible"),
             "`Decoration.opacity` must be rejected for its SETTER's access level:\n\(opacity.output)")
-    #expect(widths.messages.contains("setter for 'widths' is inaccessible"),
+    #expect(widths.messages.contains("'widths' setter is inaccessible"),
             "`BorderStyle.widths` must be rejected for its SETTER's access level:\n\(widths.output)")
 }
 

@@ -17,12 +17,14 @@ import MetalUIPlatform
 /// background token could not be put there without giving the layout engine a
 /// dependency on the theme.
 ///
-/// **Backgrounds and corner radii landed in Task 5; borders did not.** That
-/// sentence used to read "Backgrounds, borders and corner radii are Task 5's",
-/// and the border half of it is now false: `Frame.fill` emits
-/// `borderColor: .transparent` and offers no way to change it. The mechanism is
-/// recorded there — paint has no *resolved* border width to pair a colour with,
-/// because the engine computes one inside `contentBox` and does not store it.
+/// **Backgrounds and corner radii landed in the M1 Task 5; borders landed in
+/// plan task 5's lane 2** (rulings `OM-B`, `OM-M`). This comment said "borders
+/// did not" and named `Frame.fill`'s hard-coded `borderColor: .transparent` as
+/// the reason — which was a statement about a width derived from
+/// `Style.border`, whose percentage case only the engine can resolve.
+/// `Decoration.border` declares its widths in `Pixels` instead, so there is
+/// nothing to resolve and the blocker does not apply; the layout-affecting
+/// `borderWidth(_:)` modifier is deleted rather than kept beside it.
 ///
 /// `Column` and `Row` are this type with a `flexDirection` — see `Flex.swift`.
 /// (That file was called `Stack.swift` until the stack-container milestone gave
@@ -96,12 +98,18 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // registers focus and emits a declared `handlers.axNode` — see
         // `Frame.registerHandlers`, which holds all three gates so that `Box`,
         // `Stack` and `Text` cannot disagree about any of them.
-        pass.registerHandlers(handlers, at: bounds, id: id)
-        // `bounds` is this box's own rect and is deliberately not passed down:
-        // the engine stores rects **absolute to the root**, so each child looks
-        // its own up rather than being offset by its parent. Adding `bounds`
-        // here would double-count every ancestor's origin.
-        return content.prepaintGroup(layout: &layout.content, pass: &pass)
+        //
+        // Through `registerAndScope` since plan task 5's lane 2, because a
+        // `Decoration` now carries a SCOPE (`clipsContent`) as well as fields
+        // that only ever produced one emission — see `DecorationScope.swift`.
+        //
+        // `bounds` is this box's own rect and is deliberately not passed down to
+        // the children: the engine stores rects **absolute to the root**, so
+        // each child looks its own up rather than being offset by its parent.
+        // Adding `bounds` here would double-count every ancestor's origin.
+        return pass.registerAndScope(handlers, decoration, at: bounds, for: id) {
+            content.prepaintGroup(layout: &layout.content, pass: &pass)
+        }
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -119,12 +127,17 @@ public struct Box<Content: ElementGroup>: Element, StyledElement {
         // the one resulting value. It is shared with `Stack.paint` and
         // `Text.paint` — see its doc for the precedence and why only the
         // element-keyed `isHovered` overload is reachable from here.
-        if let color = animatedBackground(decoration, for: id, pass: &pass) {
-            pass.fill(bounds, color: color,
-                      cornerRadii: Corners(all: decoration.cornerRadius))
+        //
+        // **All four of those calls now go through `paintDecoration`** (plan
+        // task 5, lane 2): the background is still emitted first and the
+        // children still follow it, but the border is a SECOND emission after
+        // them (`OM-V` — SwiftUI's `.border` is an overlay), and opacity and
+        // the clip are scopes rather than emissions, so they have to wrap the
+        // recursion rather than precede it.
+        pass.paintDecoration(decoration, in: bounds, for: id) {
+            content.paintGroup(layout: &layout.content,
+                               prepaint: &prepaint, pass: &pass)
         }
-        content.paintGroup(layout: &layout.content,
-                           prepaint: &prepaint, pass: &pass)
     }
 }
 
@@ -178,9 +191,15 @@ extension Box {
 /// fully transparent background would still emit a rect, and rects are what the
 /// renderer's per-frame budget is spent on.
 ///
-/// **There is no `borderColor`, deliberately.** See `Frame.fill` for the
-/// mechanism — the resolved border width does not survive the engine, so a
-/// colour would have nothing to be drawn at.
+/// **A border IS reachable as of plan task 5** (rulings `OM-B`, `OM-M`), and
+/// this doc said it was not. The blocker `Frame.fill` records is a *resolved
+/// width derived from `Style.border`* — an `Edges<Length>` whose percentage
+/// case has to resolve against the containing block's width, which the engine
+/// computes inside `contentBox` and then discards. `BorderStyle` below declares
+/// its widths in `Pixels`, which have nothing to resolve, so that blocker does
+/// not apply to it. The layout-affecting `borderWidth(_:)` modifier that wrote
+/// `Style.border` is deleted (`OM-M`); `Style.border` itself stays, engine-side
+/// and reachable only through `Box(style:)`.
 public struct Decoration: Sendable, Hashable {
     public var background: ColorToken?
     public var cornerRadius: Pixels
@@ -188,14 +207,12 @@ public struct Decoration: Sendable, Hashable {
     /// The background to paint instead of `background` while the pointer is
     /// over this element, or `nil` to paint `background` either way.
     ///
-    /// **A token swap is the whole of what this framework can express for a
-    /// pointer state today, and that is a property of `Frame.fill` rather than
-    /// a preference.** A border is the obvious spelling for a hover or focus
-    /// affordance and it is unreachable: `Frame.fill` hard-codes
-    /// `borderColor: .transparent` and zero widths, because the engine resolves
-    /// a border width inside `contentBox` and throws it away, so paint has no
-    /// width to pair a colour with (CLAUDE.md's declared-but-inert table). A
-    /// caller who wants a ring today nests two filled boxes.
+    /// **A token swap was the whole of what this framework could express for a
+    /// pointer state, and that sentence is now false** (`OM-B`, `OM-L`):
+    /// `hoverBorder` and `focusBorder` below are the ring, resolved through the
+    /// same precedence by the same helper. A caller who wants a ring no longer
+    /// nests two filled boxes. This field is unchanged and is still the right
+    /// spelling for a hover *fill*.
     ///
     /// **`nil` is not "no hover", it is "no hover *paint*".** Hover is resolved
     /// for every element that registers a hitbox whether or not it declares one
@@ -217,13 +234,170 @@ public struct Decoration: Sendable, Hashable {
     /// `Box` and `everyBackgroundPaintingSiteHonoursHoverAndFocus` on all three.
     public var focusBackground: ColorToken?
 
+    // MARK: Plan task 5, lane 2 — appended, never reordered
+
+    /// The border to draw inside this element's own box, or `nil` to draw none.
+    ///
+    /// **Paint-only, and drawn INSIDE the box**, which is where SwiftUI's
+    /// `.border` draws (probe `swiftui-border-clip-paint` B1/B2: the border
+    /// colour at (1, 1) and (3, 3), the content at (6, 6) on a 40x40 at width
+    /// 4) and what `MUIRect.borderWidths` already means to the fragment shader.
+    /// It contributes no layout node and moves no number, as SwiftUI's does not
+    /// (probe `swiftui-outer-modifier-order` L2).
+    ///
+    /// **It is emitted AFTER the children, not before them** (`OM-V`).
+    /// SwiftUI's `.border` is an overlay — a child filling the whole box does
+    /// not hide it (probe arm B3) — and MetalUI's children live inside the same
+    /// box the border is drawn inside, so a single emission before them would
+    /// be covered by any filling child. That would make `focusBorder` invisible
+    /// on the exact call it exists for. `paintDecoration(_:in:for:pass:content:)`
+    /// is the one site.
+    public var border: BorderStyle?
+
+    /// The border to draw instead of `border` while the pointer is over this
+    /// element. `nil` means "no hover *border*", exactly as `hoverBackground`'s
+    /// `nil` means no hover fill, and it needs an `onClick` for the same reason.
+    public var hoverBorder: BorderStyle?
+
+    /// **The focus ring** (`OM-L`): the border to draw instead of `border` —
+    /// and instead of `hoverBorder` — while this element holds keyboard focus.
+    ///
+    /// Focus outranks hover, the same precedence `focusBackground` states one
+    /// field up, and it is stated once rather than twice:
+    /// `resolvedBorder(_:for:pass:)` and `animatedBackground(_:for:pass:)` share
+    /// `effectiveForPointerState(_:_:_:for:pass:)`, so the two chains cannot
+    /// drift apart.
+    ///
+    /// The ring is drawn **inside** the element's box, because that is the only
+    /// border geometry the renderer has. AppKit's own focus ring is a halo
+    /// *outside* the control's bounds; MetalUI's is not, and that is a recorded
+    /// difference rather than a claim about SwiftUI — SwiftUI exposes no
+    /// focus-ring drawing for an arbitrary view at all, so there is nothing to
+    /// probe. What was probed is that focus changes no layout
+    /// (`swiftui-outer-modifier-order` L8), which is the property a ring must
+    /// not violate.
+    ///
+    /// It needs `focusable()` AND something to move focus, on
+    /// `focusBackground`'s footing: clicking does not focus.
+    public var focusBorder: BorderStyle?
+
+    /// Multiplies the opacity of everything this element paints — its own
+    /// background and border included — and of everything inside it.
+    ///
+    /// **`private(set)`** (`OM-Y`): `Decoration` is public and reachable through
+    /// `Box(style:decoration:)`, so a plain stored `var` would let
+    /// `d.opacity = 2` reach `PaintPass.opacity`'s `precondition((0...1))` far
+    /// from the call site that wrote it, or multiply the frame's opacity above
+    /// 1 when it never reaches that precondition at all. Set it through
+    /// `setOpacity(_:)` or the memberwise `init` below, both of which trap
+    /// outside `0...1`.
+    ///
+    /// **The scope includes this element's own fill** (`OM-N`), so
+    /// `.background(x).opacity(0.5)` fades the panel — SwiftUI's G3, agreeing —
+    /// and `.opacity(0.5).background(x)` fades it too, where SwiftUI's G4 leaves
+    /// a background written after an opacity opaque. Both are fields of one
+    /// `Decoration`, so only one of the two orders can be right; the one a
+    /// caller actually writes was chosen. Recorded divergence, and the
+    /// **proposal** path already answers the second order SwiftUI's way
+    /// (`OM-AA` a), so the two paths disagree with each other as well.
+    public private(set) var opacity: Float
+
+    /// Whether this element clips what it contains to its own box, rounded by
+    /// `cornerRadius`.
+    ///
+    /// **Separate from `cornerRadius`, deliberately** (`OM-G`). SwiftUI's
+    /// `.cornerRadius` clips its content; MetalUI's rounds a fill and clips
+    /// nothing, and making it clip would change all sixteen of the demo's
+    /// `cornerRadius` call sites as a side effect of an audit.
+    /// `.cornerRadius(12).clipped()` is the spelling for SwiftUI's
+    /// `.cornerRadius(12)`.
+    ///
+    /// The clip is pushed in **both** prepaint and paint, as `ScrollView` does,
+    /// so a hitbox inside a clipped box is registered against the clip rather
+    /// than escaping it.
+    public var clipsContent: Bool
+
+    /// Traps outside `0...1`, so the failure names the assignment rather than
+    /// the `pass.opacity` call a frame later. See `opacity`.
+    public mutating func setOpacity(_ value: Float) {
+        Self.validateOpacity(value)
+        opacity = value
+    }
+
+    static func validateOpacity(_ value: Float) {
+        precondition(value.isFinite && (0...1).contains(value),
+                     "opacity must be a finite value in 0...1, got \(value)")
+    }
+
     public init(background: ColorToken? = nil, cornerRadius: Pixels = Pixels(0),
                 hoverBackground: ColorToken? = nil,
-                focusBackground: ColorToken? = nil) {
+                focusBackground: ColorToken? = nil,
+                border: BorderStyle? = nil,
+                hoverBorder: BorderStyle? = nil,
+                focusBorder: BorderStyle? = nil,
+                opacity: Float = 1,
+                clipsContent: Bool = false) {
+        Self.validateOpacity(opacity)
         self.background = background
         self.cornerRadius = cornerRadius
         self.hoverBackground = hoverBackground
         self.focusBackground = focusBackground
+        self.border = border
+        self.hoverBorder = hoverBorder
+        self.focusBorder = focusBorder
+        self.opacity = opacity
+        self.clipsContent = clipsContent
+    }
+}
+
+/// A paint-only border: a semantic colour and four widths in points.
+///
+/// **The widths are `Pixels`, not `Length`, and that is what makes this cheap**
+/// (`OM-B`). A `Length` percentage resolves against the containing block's
+/// width, which only the engine knows and which it discards; points resolve
+/// against nothing, so paint can pair a colour with a width without the
+/// `LayoutTree` plumbing `Frame.fill`'s doc names as the blocker.
+///
+/// **`widths` is `public private(set)`** (`OM-Y`). A negative width reaches
+/// `max(halfSize - border, 0.0)` in the fragment shader
+/// (`shaders.metal:129-133`) and produces an inner rect LARGER than the outer
+/// one, with no diagnostic anywhere above it. Every WRITE is validated, not
+/// only every `init` — a public stored `var` beside a validating initializer is
+/// a door beside an open window. `withWidths(_:)` is the only other way in, and
+/// it validates identically.
+public struct BorderStyle: Sendable, Hashable {
+    /// Resolved once per frame against `PaintPass.theme`, exactly as
+    /// `Decoration.background` is: a border is a semantic token, never a
+    /// literal (spec §7.9).
+    public var color: ColorToken
+
+    /// Points, drawn inside the element's box. See this type's doc for why the
+    /// setter is private.
+    public private(set) var widths: Edges<Pixels>
+
+    /// Traps on a negative or non-finite width. Pinned by an exit test.
+    public init(_ color: ColorToken, width: Pixels) {
+        self.init(color, widths: Edges(all: width))
+    }
+
+    /// Traps on a negative or non-finite width on any edge.
+    public init(_ color: ColorToken, widths: Edges<Pixels>) {
+        Self.validate(widths)
+        self.color = color
+        self.widths = widths
+    }
+
+    /// The only other way to set `widths`; validates identically.
+    public func withWidths(_ widths: Edges<Pixels>) -> BorderStyle {
+        BorderStyle(color, widths: widths)
+    }
+
+    static func validate(_ widths: Edges<Pixels>) {
+        for (edge, value) in [("top", widths.top), ("right", widths.right),
+                              ("bottom", widths.bottom), ("left", widths.left)] {
+            precondition(value.value.isFinite && value.value >= 0,
+                         "border width must be finite and non-negative, got \(value.value) on \(edge)")
+        }
     }
 }
 
@@ -663,19 +837,16 @@ extension StyledElement {
         }
     }
 
-    /// Border **width**, which is layout. **There is no border colour anywhere
-    /// in the framework**, so a border width changes where the children sit and
-    /// draws nothing: `Frame.fill` emits `borderColor: .transparent` and
-    /// `borderWidths: 0` unconditionally, and the blocker recorded there is the
-    /// *resolved width*, not the colour — the engine computes it inside
-    /// `contentBox` and discards it rather than storing it on the node.
-    public func borderWidth(_ points: Pixels) -> Self {
-        modifying { $0.border = Edges(all: .pixels(points)) }
-    }
-
-    public func borderWidth(_ edges: Edges<Length>) -> Self {
-        modifying { $0.border = edges }
-    }
+    // `borderWidth(_:)` lived here and is DELETED (ruling `OM-M`). It wrote
+    // `Style.border`, which the engine consumed inside `contentBox` and
+    // discarded: on a content-sized box it moved the layout by twice the width
+    // and on any box it painted nothing at all. That is worse than inert, and
+    // CLAUDE.md's declared-but-inert table exists to remove that shape rather
+    // than annotate it. The name belongs to the paint-only `border(_:width:)`
+    // at the end of this extension; `Style.border` stays engine-side, reachable
+    // only through `Box(style:)`, on `margin: .auto`'s footing.
+    // `borderWidthIsNoLongerSpellable` (`DecorationCompileGuards.swift`) pins
+    // the removal against a plain import.
 
     // MARK: As a flex container
 
@@ -825,5 +996,125 @@ extension StyledElement {
     /// call site. CLAUDE.md's declared-but-inert table has the row.
     public func hidden() -> Self {
         modifying { $0.display = .none }
+    }
+
+    // MARK: Paint-only decoration (plan task 5, lane 2)
+    //
+    // **Appended at the END of this extension, and that placement is a merge
+    // decision rather than taste.** Plan task 4 (frame/sizing) is editing the
+    // same extension for `width`/`height`/min/max in a parallel worktree;
+    // added-lines-at-a-known-anchor is a conflict a human resolves in one
+    // glance, an interleave is not. The outer-modifiers spec §5.1 and §8 both
+    // say so. New modifiers go below this comment, not above it.
+    //
+    // Every one of the eight is **paint-only**: it writes `Decoration` and
+    // contributes no layout node, exactly as SwiftUI's equivalents do (probe
+    // `swiftui-outer-modifier-order`, arms L2…L9 — `.border`, `.opacity`,
+    // `.clipShape` and five others all leave a 20x20 leaf 20x20 where
+    // `.padding(8)` reads 36x36). `everyOuterModifierIsWrapsOrPaintOnlyOr
+    // DistributesAsTheMatrixSays` is the per-modifier pin and
+    // `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` the field pin.
+    //
+    // §5.1 specifies ELEVEN modifiers for this task; this lane ships the
+    // **eight** it can make live. `allowsHitTesting(_:)` and the two
+    // `contentShape(inset:)` overloads need `Handlers.allowsHitTesting` and
+    // `Handlers.contentShapeInset` plus the prepaint wiring, which is lane 3's
+    // — shipping them here would be three modifiers that compile and do
+    // nothing, which is the shape this whole task exists to remove. Ruling
+    // `OM-AE`.
+
+    /// Draws a border of `token`, `width` points wide on all four edges,
+    /// **inside** this element's own box.
+    ///
+    /// Paint-only: it adds no node and changes no size, as SwiftUI's `.border`
+    /// does not (probe `swiftui-outer-modifier-order` L2). The border is
+    /// emitted AFTER this element's children, so a child that fills the box
+    /// does not hide it (`OM-V`, probe arm B3).
+    ///
+    /// **Rounded by this element's own `cornerRadius`, and SwiftUI's is not.**
+    /// `.border(c, w).cornerRadius(r)` in SwiftUI clips a *square* border by the
+    /// radius, leaving the corner arc's interior unbordered; MetalUI emits one
+    /// rounded bordered rect whose stroke follows the arc. Both are fields of
+    /// one `Decoration`, so the order is not observable here at all — a
+    /// recorded divergence, pinned by
+    /// `aRoundedBorderFollowsTheArcWhereSwiftUIsClippedSquareBorderDoesNot`
+    /// (`OM-W`).
+    ///
+    /// Traps on a negative or non-finite width — see `BorderStyle`.
+    public func border(_ token: ColorToken, width: Pixels) -> Self {
+        decorating { $0.border = BorderStyle(token, width: width) }
+    }
+
+    /// The per-edge form of `border(_:width:)`.
+    public func border(_ token: ColorToken, widths: Edges<Pixels>) -> Self {
+        decorating { $0.border = BorderStyle(token, widths: widths) }
+    }
+
+    /// Draws this border instead of `border(_:width:)`'s while the pointer is
+    /// over this element.
+    ///
+    /// **It does not make the element a hit target**, exactly as
+    /// `hoverBackground(_:)` does not: `onClick(_:)` is the only thing that puts
+    /// an element into the hitbox list, so `.hoverBorder(…)` alone compiles and
+    /// draws the plain border forever.
+    public func hoverBorder(_ token: ColorToken, width: Pixels) -> Self {
+        decorating { $0.hoverBorder = BorderStyle(token, width: width) }
+    }
+
+    /// The per-edge form of `hoverBorder(_:width:)`.
+    public func hoverBorder(_ token: ColorToken, widths: Edges<Pixels>) -> Self {
+        decorating { $0.hoverBorder = BorderStyle(token, widths: widths) }
+    }
+
+    /// **The focus ring**: draws this border instead of `border(_:width:)`'s —
+    /// and instead of `hoverBorder(_:width:)`'s — while this element holds
+    /// keyboard focus (`OM-L`).
+    ///
+    /// Until this existed the framework's only focus affordance was
+    /// `focusBackground(_:)`'s token swap, which a human reviewer could not read
+    /// as an affordance at all ("a judgement about two dark greys", CLAUDE.md's
+    /// human-verification table).
+    ///
+    /// It needs `focusable()` AND something to move focus: clicking does not
+    /// focus (`Window.focus(_:)` is the only mover), so an element declaring
+    /// this and nothing else draws its plain border forever.
+    public func focusBorder(_ token: ColorToken, width: Pixels) -> Self {
+        decorating { $0.focusBorder = BorderStyle(token, width: width) }
+    }
+
+    /// The per-edge form of `focusBorder(_:width:)`.
+    public func focusBorder(_ token: ColorToken, widths: Edges<Pixels>) -> Self {
+        decorating { $0.focusBorder = BorderStyle(token, widths: widths) }
+    }
+
+    /// Multiplies the opacity of everything this element paints — its own
+    /// background and border included — and of everything inside it.
+    ///
+    /// Traps outside `0...1`, at the call site rather than a frame later inside
+    /// `PaintPass.opacity`. Opacities compose by multiplication, as SwiftUI's do
+    /// (probe `swiftui-border-clip-paint` G1/G2: 0.58 after one 0.5, 0.80 after
+    /// two).
+    ///
+    /// **`.opacity(0.5).background(x)` fades the background too, and SwiftUI's
+    /// does not** (G4). See `Decoration.opacity` for why that order was the one
+    /// given up, and `OM-N`/`OM-AA` for the two divergences it produces.
+    public func opacity(_ value: Float) -> Self {
+        Decoration.validateOpacity(value)
+        return decorating { $0.setOpacity(value) }
+    }
+
+    /// Clips this element's children to its own box, rounded by its
+    /// `cornerRadius`.
+    ///
+    /// **Separate from `cornerRadius(_:)`** (`OM-G`): SwiftUI's `.cornerRadius`
+    /// clips its content and MetalUI's rounds a fill, so
+    /// `.cornerRadius(12).clipped()` is the spelling for SwiftUI's
+    /// `.cornerRadius(12)`. Making the radius clip on its own would move all
+    /// sixteen of the demo's call sites and is task 11's.
+    ///
+    /// The clip is pushed in prepaint as well as paint, so a hitbox inside is
+    /// registered against it — `clippedAlsoClipsTheHitboxesInsideIt`.
+    public func clipped() -> Self {
+        decorating { $0.clipsContent = true }
     }
 }

@@ -240,10 +240,152 @@ struct RgbaVelocity: Equatable {
 @MainActor
 func animatedBackground(_ decoration: Decoration, for id: GlobalElementID,
                         pass: inout PaintPass) -> Hsla? {
-    let effective = (pass.isFocused(id) ? decoration.focusBackground : nil)
-        ?? (pass.isHovered(id) ? decoration.hoverBackground : nil)
-        ?? decoration.background
+    let effective = effectiveForPointerState(decoration.focusBackground,
+                                             decoration.hoverBackground,
+                                             decoration.background, for: id, pass: pass)
     return animatedColor(effective, for: id, pass: &pass)
+}
+
+/// The `focus ?? hover ?? plain` selection, **extracted so two chains cannot
+/// disagree about precedence** (`OM-L`).
+///
+/// It was written out inside `animatedBackground` above and nowhere else until
+/// `Decoration` gained `border`/`hoverBorder`/`focusBorder`. Two copies of a
+/// `??` chain is exactly the shape that produced this file's own worst bug —
+/// the chain living in `Box.paint` alone while `Stack` and `Text` passed
+/// `decoration.background` straight through, so both modifiers compiled on them
+/// and painted nothing. `focusOutranksHoverWhenAnElementIsBoth` and
+/// `aFocusRingOutranksAHoverBorderAndABorder` are the two pins, one per chain.
+///
+/// **`pass` is not `inout`.** `isFocused` and `isHovered` are both non-mutating
+/// reads of `Frame`; taking it `inout` would claim a write this makes no use of.
+@MainActor
+func effectiveForPointerState<T>(_ focused: T?, _ hovered: T?, _ plain: T?,
+                                 for id: GlobalElementID, pass: PaintPass) -> T? {
+    (pass.isFocused(id) ? focused : nil) ?? (pass.isHovered(id) ? hovered : nil) ?? plain
+}
+
+/// The border to draw for `id`, resolved through the **same** precedence and the
+/// **same** selection helper the three background fields use (`OM-L`).
+///
+/// Returns the theme-resolved colour and the declared widths, or `nil` when no
+/// border resolves — in which case `paintDecoration` emits no border rect at
+/// all, which is what keeps a background-only element at exactly one rect.
+///
+/// **Deliberately NOT animated**, unlike `animatedBackground` above. A second
+/// animated colour needs an eighth reserved retention slot beside
+/// `$anim-color` — `animColorRetentionSlot(for:)` is one named child per
+/// element, and a second value under the same name would alias the background's
+/// baseline, so a border change would retarget the fill's fade. Spec §9 defers
+/// it to task 13; `theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate` pins
+/// the snap so the deferral is visible rather than assumed.
+@MainActor
+func resolvedBorder(_ decoration: Decoration, for id: GlobalElementID,
+                    pass: PaintPass) -> (color: Hsla, widths: Edges<Pixels>)? {
+    guard let style = effectiveForPointerState(decoration.focusBorder, decoration.hoverBorder,
+                                               decoration.border, for: id, pass: pass)
+    else { return nil }
+    return (pass.theme[style.color], style.widths)
+}
+
+/// **The one paint-side entry point for everything a `Decoration` draws or
+/// scopes** — background, border, opacity and clip — wrapped around this
+/// element's `content()` (`OM-P`, `OM-V`).
+///
+/// Its four callers are `Box.paint`, `Stack.paint`, `Text.paint` and
+/// `ModifiedElement`'s per-layer `paintLayer`. A site that called `pass.fill`
+/// itself would be silently unbordered, unfaded and unclipped with no
+/// diagnostic — the failure `everyBackgroundPaintingSiteHonoursHoverAndFocus`
+/// was written for, one field over. `everyDecorationPaintingSiteDrawsItsBorder`
+/// is the per-site guard here.
+///
+/// **The order, and each step's reason:**
+///
+/// 1. `pass.opacity(decoration.opacity)` around **everything below**, this
+///    element's own fill and border included (`OM-N`). Opened only when the
+///    value is below 1, so an ordinary element pushes nothing — and so an
+///    out-of-range value that somehow escaped `Decoration.setOpacity` would
+///    never reach `PaintPass.opacity`'s own precondition, which is why
+///    `anOpacityAboveOneTraps` uses a value **above** 1 rather than a negative
+///    one (`OM-Y`).
+/// 2. The **background rect, before the children**, and not at all when no
+///    background resolves. Emission order is paint order (`Scene.finalize()`
+///    sorts stably at equal `order`), so a fill emitted after its children would
+///    paint over them — `aContainerPaintsItsBackgroundBeneathItsChildren`.
+/// 3. `content()`, inside `pass.clipped(…)` when `clipsContent`.
+/// 4. The **border rect, after the children** (`OM-V`). SwiftUI's `.border` is
+///    an overlay (probe `swiftui-border-clip-paint` arm B3: a child filling the
+///    whole box does not hide it), and MetalUI's children live inside the same
+///    box the border is drawn inside. One emission before them would be covered
+///    by any filling child — a `Text` with a background, a `Row` stretched by
+///    EP-8 — which would make the **focus ring invisible on the exact call it
+///    exists for**.
+///
+/// **Cost**: an undecorated element still emits nothing, a background-only one
+/// still emits exactly one rect (the whole of the demo), a bordered one costs
+/// two. `anElementWithNeitherABackgroundNorABorderEmitsNoRect` and
+/// `aBackgroundOnlyElementStillEmitsExactlyOneRect` are the bounds.
+/// **A method on `PaintPass`, not a free function taking `inout PaintPass`, and
+/// that is a requirement rather than a style choice.** The caller's `content()`
+/// closure has to be free to write `pass` — every one of the four sites calls
+/// `content.paintGroup(…, pass: &pass)` inside it. A free function holding
+/// `inout PaintPass` keeps an exclusive access open for the whole call, so the
+/// closure's write is an overlapping access and the compiler rejects it
+/// (measured: four `#ExclusivityViolation` errors, one per site). A
+/// **non-mutating method** takes `self` as a borrow instead, which is exactly
+/// what `pass.clipped(to:offsetBy:) { … pass … }` has always relied on.
+/// `PaintPass`'s only stored property is `let frame: Frame`, so `self` is a
+/// handle and the borrow costs nothing.
+extension PaintPass {
+    func paintDecoration(_ decoration: Decoration, in bounds: Bounds<Pixels>,
+                         for id: GlobalElementID, content: () -> Void) {
+        // Both resolutions happen before any emission, so the two chains see the
+        // same pointer and focus state even though only one of them touches the
+        // state table. `resolving` is a copy for `animatedBackground`'s `inout`
+        // parameter: `PaintPass` is one `let frame: Frame`, so a copy is the
+        // same pass, and `animatedColor`'s signature is what fifty test call
+        // sites are written against.
+        var resolving = self
+        let background = animatedBackground(decoration, for: id, pass: &resolving)
+        let border = resolvedBorder(decoration, for: id, pass: self)
+        let radii = Corners(all: decoration.cornerRadius)
+
+        guard decoration.opacity < 1 else {
+            paintDecorationBody(bounds, radii: radii, background: background, border: border,
+                                clips: decoration.clipsContent, content: content)
+            return
+        }
+        opacity(decoration.opacity) {
+            paintDecorationBody(bounds, radii: radii, background: background, border: border,
+                                clips: decoration.clipsContent, content: content)
+        }
+    }
+
+    /// Steps 2–4 of `paintDecoration`, so the opacity scope can wrap them.
+    private func paintDecorationBody(_ bounds: Bounds<Pixels>, radii: Corners<Pixels>,
+                                     background: Hsla?,
+                                     border: (color: Hsla, widths: Edges<Pixels>)?,
+                                     clips: Bool, content: () -> Void) {
+        if let background {
+            fill(bounds, color: background, cornerRadii: radii)
+        }
+        if clips {
+            clipped(to: bounds, offsetBy: Point(x: Pixels(0), y: Pixels(0)),
+                    cornerRadii: radii) {
+                content()
+            }
+        } else {
+            content()
+        }
+        if let border {
+            // `color: .transparent` — the fragment shader mixes border against
+            // background by an inner-edge selector, so a transparent interior
+            // leaves whatever was drawn beneath it (this element's own fill, and
+            // its children) showing through the middle while the ring is opaque.
+            fill(bounds, color: .transparent, cornerRadii: radii,
+                 borderColor: border.color, borderWidths: border.widths)
+        }
+    }
 }
 
 /// The animated effective background colour for `id`, or `nil` when there is

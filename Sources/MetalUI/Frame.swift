@@ -390,10 +390,36 @@ public final class Frame {
     /// inner clip wider than its outer must not widen it, or a nested scroller
     /// paints over its parent's chrome. Pinned by
     /// `nestedClipsIntersectRatherThanReplace`.
+    ///
+    /// **`bounds` is translated by `activeOffset` before the intersection, and
+    /// it was not until plan task 5** (ruling `OM-U`; CLAUDE.md's divergence 15,
+    /// now retired). `activeClip` is in surface space — `fill` and
+    /// `insertHitbox` both translate on the way in — so intersecting an
+    /// untranslated rect into it compared two different coordinate spaces.
+    /// Inside a scrolled ancestor the inner clip came out at the engine's stored
+    /// y rather than the painted one, and once the ancestor had scrolled far
+    /// enough the intersection was **empty**: the subtree laid out correctly,
+    /// routed wheel events correctly, and drew nothing.
+    ///
+    /// It was deferred while `ScrollView` was the only caller. Lane 2 of that
+    /// task put `pass.clipped(to: bounds, …)` behind a public `.clipped()` on
+    /// every `Box`/`Stack`/`Text`/`ModifierLayer`, which changes the defect's
+    /// reach from "a `ScrollView` inside a scrolled `ScrollView`" to "any
+    /// element inside one" — a `.clipped()` row in the demo's 500-row list would
+    /// blank itself on the first scroll. The added term is a **no-op wherever
+    /// `activeOffset == 0`**, which is every non-nested scroller in existence,
+    /// so it moves no existing pixel. Pinned by
+    /// `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` (inverted in
+    /// the same commit) and
+    /// `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`.
     func pushClip(_ bounds: Bounds<Pixels>, offset: Point<Pixels>,
                  radii: Corners<Pixels> = Corners(all: Pixels(0))) {
+        let translated = Bounds(
+            origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                          y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+            size: bounds.size)
         let (clip, clipRadii) = Self.intersect(activeClip, radii: activeClipRadii,
-                                               bounds, radii: radii)
+                                               translated, radii: radii)
         let composed = Point(x: Pixels(activeOffset.x.value + offset.x.value),
                              y: Pixels(activeOffset.y.value + offset.y.value))
         clipStack.append((clip, composed, clipRadii))
@@ -1564,16 +1590,21 @@ public final class Frame {
     /// when no `clipped(to:offsetBy:)` block is active, which is why no
     /// existing call site's output moves.
     ///
-    /// **`borderColor` is `.transparent` and there is no way to set it**, even
-    /// though `MUIRect` carries it and the fragment shader draws it — the M0
-    /// demo proved that end to end. The blocker is the *width*, not the colour:
-    /// a border width is `Style.border`, an `Edges<Length>` whose percentage
-    /// case resolves against the **containing block's width**, and the engine
-    /// computes that inside `contentBox` and discards it rather than storing it
-    /// on the node. So paint has no resolved width to pair a colour with, and
-    /// re-resolving one here against the box's own width is the exact mistake
-    /// CLAUDE.md's percentage-inset constraint records. Storing the resolved
-    /// edges on `LayoutTree` is what unblocks it.
+    /// **`borderColor` and `borderWidths` are parameters, and both paths reach
+    /// them.** This doc said "`borderColor` is `.transparent` and there is no
+    /// way to set it": that was true of a width derived from `Style.border`, an
+    /// `Edges<Length>` whose percentage case resolves against the **containing
+    /// block's width**, which the engine computes inside `contentBox` and
+    /// discards rather than storing on the node. Re-resolving one here against
+    /// the box's own width is the exact mistake CLAUDE.md's percentage-inset
+    /// constraint records, and storing the resolved edges on `LayoutTree` is
+    /// still what would unblock *that*.
+    ///
+    /// What unblocked a border was declaring one that needs no resolution.
+    /// `NativeModifiedContent`'s `.border` (proposal path) and
+    /// `Decoration.border`/`hoverBorder`/`focusBorder` (legacy path, rulings
+    /// `OM-B`/`OM-L`) both carry `Pixels`, which paint can pair with a colour
+    /// directly. `Style.border` remains engine-side and is still discarded.
     func fill(_ bounds: Bounds<Pixels>, color: Hsla,
               cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
               borderColor: Hsla = .transparent,
