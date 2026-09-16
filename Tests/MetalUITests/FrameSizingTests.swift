@@ -603,3 +603,219 @@ private func nodeCount<Root: Element>(_ make: (SizeLog) -> Root) throws -> Int {
     #expect(framed == bare,
             "a declared height must not pin the width: framed \(framed), unframed \(bare)")
 }
+
+// MARK: - Lane 3, the sizing inventory (rulings FR-F, FR-G, FR-H, FR-T)
+//
+// Lane 3 is a documentation lane: its source change is `Box.swift`'s
+// `MARK: Size` comments. These two tests are what make that documentation
+// falsifiable — every sentence added there names one of them.
+//
+// Both are **characterizations**: they were green the moment they compiled,
+// because they describe shipped behaviour rather than new behaviour. Their
+// proof is therefore entirely in their mutations, which are named in each doc
+// comment and measured in `docs/record/14-frame-and-sizing.md`.
+
+// MARK: - 3.1 percentage sizing (rulings FR-H, FR-T)
+
+/// **`width(percent:)` takes a FRACTION, and the parameter's name says
+/// otherwise** — ruling `FR-T`, found by running the design's own arm and
+/// **pinned wrong on purpose**; plus the containing-block resolution ruling
+/// `FR-H` keeps as an explicit MetalUI divergence (SwiftUI has no percentage
+/// sizing at all; its nearest, `containerRelativeFrame`, resolves against a
+/// named container rather than a containing block).
+///
+/// `Length.percent` stores a fraction everywhere in the engine —
+/// `resolveLength` is `f * parent`, and every one of its ~15 engine-test call
+/// sites passes `0.5`, `0.25`, `0.10`. `Box.width(percent:)` forwards its
+/// argument untouched, so **`.width(percent: 50)` means 5000%**, and the only
+/// callers (`ModifierTests`' modifier table) assert the `Style` field rather
+/// than a layout, so nothing caught it.
+///
+/// The arms:
+///
+/// - **A**, the fraction in a 300pt `Row`: `.width(percent: 0.5)` reads 150 —
+///   CSS's answer, resolved against the containing block.
+/// - **B**, the same fraction as the ROOT element: 150 as well. This arm
+///   exists to refute a stale claim rather than to pin a new one: this file's
+///   `width(percent:)` doc comment used to say the root "falls back to the
+///   offered space, so `width(percent: 50)` in an 800-wide window gives 800".
+///   Ruling `SZ-A` fixed that and deleted CLAUDE.md's row for it; the engine
+///   oracle is `rootPercentageMatchesWebKit`
+///   (`Tests/MetalUILayoutTests/SizingFixtureTests.swift`) and this is the
+///   same fact through the public modifier.
+/// - **C**, the spelling the parameter's NAME invites, pinned wrong on
+///   purpose: `.width(percent: 50)` is 15000pt wide, and `.width(percent:
+///   100)` is 30000pt. Centred on a 300pt `Column`'s cross axis those land at
+///   x = −7350 and x = −14850.
+///
+/// **C is what the design called "the `Column` percentage defect (≈30000pt),
+/// mechanism not investigated" and asserted as a range.** There is no
+/// `Column` defect and no range is needed: 30000 is 100 × 300, the fraction
+/// bug seen through a centring parent. The design's arms 1 and 2 were both
+/// written with the `percent: 50` spelling and are refuted — see `FR-T`.
+///
+/// Mutations. (1) Make `width(percent:)` write `.percent(percent / 100)` —
+/// the candidate fix — and every arm moves; this test is what stops that
+/// landing silently. (2) In `resolveRootSize`, resolve `withoutMeasuring`'s
+/// declared dimension against no basis (`declared(dim)`, the pre-`SZ-A`
+/// spelling) and **arm B alone** reddens.
+@Test @MainActor func aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock() throws {
+    // A — the fraction, read as the x of a 5pt sibling in a 300pt Row.
+    let fractionInRow = try widthInRow { log in
+        Mark("a", log: log, height: 20).width(percent: 0.5)
+    }
+    // B — the same element as the root of a 300x200 frame.
+    let atRoot = try render { log in
+        Mark("a", log: log, height: 20).width(percent: 0.5)
+    }
+    // C — the spelling the label invites, in a Column, whose cross-axis
+    // centring is the only instrument that can see a width wider than the
+    // parent (in a Row it is shrunk back to 300 and the number is hidden).
+    let fifty = try render { log in
+        Column { Mark("a", log: log, height: 20).width(percent: 50) }
+    }
+    let hundred = try render { log in
+        Column { Mark("a", log: log, height: 20).width(percent: 100) }
+    }
+    // C's control: the fraction in that same Column.
+    let halfInColumn = try render { log in
+        Column { Mark("a", log: log, height: 20).width(percent: 0.5) }
+    }
+    // The symmetric modifier, against the Column's own 200pt main axis.
+    let halfHigh = try render { log in
+        Column { Mark("a", log: log, width: 20).height(percent: 0.5) }
+    }
+
+    let fiftyRect = Rect(try #require(fifty.bounds["a"]))
+    try #require(fractionInRow != fiftyRect.width,
+                 """
+                 `percent: 0.5` and `percent: 50` agreed, so nothing here can see the unit: \
+                 \(fractionInRow), \(fiftyRect.width)
+                 """)
+
+    #expect(fractionInRow == 150,
+            "0.5 of a 300pt containing block: \(fractionInRow)")
+    #expect(Rect(try #require(atRoot.bounds["a"])) == Rect(0, 0, 150, 20),
+            "the ROOT resolves its own percentage against the offered extent too (SZ-A)")
+    #expect(Rect(try #require(halfInColumn.bounds["a"])) == Rect(75, 0, 150, 20),
+            "the same fraction, centred on a Column's cross axis")
+    #expect(Rect(try #require(halfHigh.bounds["a"])) == Rect(140, 0, 20, 100),
+            "`height(percent:)` resolves against the containing block's HEIGHT")
+
+    #expect(fiftyRect == Rect(-7350, 0, 15000, 20),
+            "`percent: 50` is 5000%, not 50% — the parameter takes a fraction (FR-T)")
+    #expect(Rect(try #require(hundred.bounds["a"])) == Rect(-14850, 0, 30000, 20),
+            "30000 is 100 x 300; there is no separate Column defect (FR-T)")
+}
+
+// MARK: - 3.2 the sizing modifiers write their own box (rulings FR-F, FR-G)
+
+/// **The eight CSS sizing modifiers write THIS element's own box; `.frame(...)`
+/// wraps it in a new one** — rulings `FR-F` and `FR-G`, the measurements that
+/// keep both refusals honest rather than asserted (practices shape 14).
+///
+/// **Half one, the node count.** `.width`, `.height`, `.minWidth`, `.maxWidth`,
+/// `.minHeight` and `.maxHeight` each leave `tree.nodeCount` exactly where the
+/// unmodified element leaves it; `.frame(width:)` adds one. Two vocabularies,
+/// two different operations, one observable that cannot be argued with.
+///
+/// Half one's mutation is `FR-F`'s refusal made executable, and it is a
+/// **compile** result rather than a red test: routing `width(_:)` and
+/// `height(_:)` through `frame(width:)`/`frame(height:)` cannot keep their
+/// `-> Self` return type, so the package stops building — measured in this
+/// lane at 11 errors across `main.swift`, `EnvironmentTests`, `ModifierTests`,
+/// `AccessibilityTreeTests` and `ProposalNodeIDTests` (record §14). That a
+/// sizing modifier cannot be made to wrap without changing its signature IS
+/// the reason the conversion is deferred to plan task 7.
+///
+/// **Half two, the automatic minimum**, on the demo's own shape
+/// (`main.swift:878-881`): a `flexGrow(1)`, `flexBasis(0)` box holding 400pt of
+/// content in a 200pt `Column` under an 80pt header. `.minHeight(px(0))` — the
+/// demo's own spelling, whose comment says it "replaces the automatic
+/// (content-based) minimum" — lets the content shrink into the 120pt left. No
+/// `minHeight` keeps flex §4.5's automatic minimum and the content stays 400.
+/// **`.frame(minHeight: 0)` reads 400 as well**, with `flexGrow`/`flexBasis` on
+/// the layer and on the inner box alike: the layer's `minSize` is the LAYER's
+/// minimum, and the element inside keeps its own automatic one. There is no
+/// frame spelling of `.minHeight(0)`, which is why `FR-G` keeps the four
+/// clamps.
+///
+/// The two framed arms are pinned **wrong on purpose** in the sense that a
+/// reader may wish they read 120; their mutation is the fix (make a frame
+/// layer's `minSize` reach into its child), and it is owed to plan task 6, not
+/// to a one-line change here. The `.minHeight(px(0))` arm has an ordinary
+/// mutation: make `minHeight(_:)` write nothing, and the opening `#require`
+/// reddens.
+@Test @MainActor func theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt() throws {
+    let bare = try nodeCount { log in Row { Mark("a", log: log, width: 20, height: 20) } }
+    let framed = try nodeCount { log in
+        Row { Mark("a", log: log, width: 20, height: 20).frame(width: px(40)) }
+    }
+    try #require(bare != framed,
+                 "`.frame(width:)` added no node, so the instrument cannot see a layer: \(bare)")
+    #expect(framed == bare + 1, "a frame is a layer: \(framed) against \(bare)")
+
+    let counts: [(String, Int)] = [
+        ("width(_:)",     try nodeCount { log in
+            Row { Mark("a", log: log, width: 20, height: 20).width(px(40)) } }),
+        ("height(_:)",    try nodeCount { log in
+            Row { Mark("a", log: log, width: 20, height: 20).height(px(40)) } }),
+        ("minWidth(_:)",  try nodeCount { log in
+            Row { Mark("a", log: log, width: 20, height: 20).minWidth(px(40)) } }),
+        ("maxWidth(_:)",  try nodeCount { log in
+            Row { Mark("a", log: log, width: 20, height: 20).maxWidth(px(40)) } }),
+        ("minHeight(_:)", try nodeCount { log in
+            Row { Mark("a", log: log, width: 20, height: 20).minHeight(px(40)) } }),
+        ("maxHeight(_:)", try nodeCount { log in
+            Row { Mark("a", log: log, width: 20, height: 20).maxHeight(px(40)) } }),
+    ]
+    for (name, count) in counts {
+        #expect(count == bare,
+                "`\(name)` must write its own box and add no node: \(count) against \(bare)")
+    }
+
+    // The demo's shape. `-1` for "the content never prepainted": a `#require`
+    // inside a nested function expands without a throwing call and costs a
+    // `warning:` against the hard 0-warning gate, and every number asserted
+    // below is a real height, so the sentinel cannot pass for one (the same
+    // reasoning as test 2.7's).
+    func contentHeight<Growing: Element>(_ box: (SizeLog) -> Growing) -> Float {
+        let log = SizeLog()
+        var root = Column {
+            Mark("header", log: log, width: 100, height: 80)
+            box(log)
+        }
+        Frame(contentSize: Size(width: px(300), height: px(200)), scaleFactor: 1).render(&root)
+        return log.bounds["content"]?.size.height.value ?? -1
+    }
+
+    let demoSpelling = contentHeight { log in
+        Column { Mark("content", log: log, width: 100, height: 400) }
+            .flexGrow(1).flexBasis(px(0)).minHeight(px(0))
+    }
+    let noMinimum = contentHeight { log in
+        Column { Mark("content", log: log, width: 100, height: 400) }
+            .flexGrow(1).flexBasis(px(0))
+    }
+    let framedOnLayer = contentHeight { log in
+        Column { Mark("content", log: log, width: 100, height: 400) }
+            .frame(minHeight: px(0)).flexGrow(1).flexBasis(px(0))
+    }
+    let framedOnInner = contentHeight { log in
+        Column { Mark("content", log: log, width: 100, height: 400) }
+            .flexGrow(1).flexBasis(px(0)).frame(minHeight: px(0))
+    }
+
+    try #require(demoSpelling != noMinimum,
+                 """
+                 `.minHeight(0)` changed nothing, so this half cannot see the automatic \
+                 minimum at all: \(demoSpelling), \(noMinimum)
+                 """)
+
+    #expect(demoSpelling == 120, "`.minHeight(0)` cancels the automatic minimum: \(demoSpelling)")
+    #expect(noMinimum == 400, "the automatic minimum floors the content: \(noMinimum)")
+    #expect(framedOnLayer == 400,
+            "a frame layer's minSize is the LAYER's, with flexGrow on the layer: \(framedOnLayer)")
+    #expect(framedOnInner == 400,
+            "and with flexGrow on the inner box: \(framedOnInner)")
+}
