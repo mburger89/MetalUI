@@ -15,6 +15,19 @@ copied into those.**
 Branch point `c4b5853` (`feat/review-fixes`, after the three-track integration
 of tasks 3, 9 and 12).
 
+**Status, 2026-09-16: all four lanes built and verified; the track is
+complete at `2fb0800` plus this record's final commit.** Twenty commits
+`981f78b..2fb0800`, three of them design, the rest lanes 1–4 in order — each
+lane a red-first commit, the lane, and its record — then two review rounds
+(lane 2's `09a7f7c`, lane 3's `641c91c`). The lane-by-lane entries below were
+written by the lanes as they ran; the **"Verifier's verdict"** subsection
+under each lane and the two closing sections (**"Track totals"** and **"For
+the integrator"**) were written last, by the record pass, after the
+continuation that finished lanes 3 and 4. The verdicts for lanes 1 and 2 were
+lost with the run that was cut off at 21:46 PDT on 2026-09-15, and their
+subsections say what is reconstructed and from where; the verdicts for lanes 3
+and 4 are quoted from the verifiers' reports.
+
 ---
 
 ### Design session, 2026-09-15, at `c4b5853`
@@ -495,6 +508,33 @@ Four readings worth quoting on their own:
   member") now applies to **two** structs. Lane 3 adds `allowsHitTesting` and
   `contentShapeInset` to `Handlers`; both must gain them.
 
+##### Verifier's verdict — lost; what is reconstructed, and from where
+
+The verifier's report for this lane did not survive the cut-off run. What is
+known of it is one sentence in the continuation brief: *lanes 1 and 2 were
+verified ok after one fix round*. Nothing on the branch identifies a lane-1
+fix commit distinct from the lane's own work — `c07f141` is the
+**implementer's** mutation round (its message names the two instruments that
+could not fail) and `cfc5c4d` records the one stale doc comment — so whether
+"one fix round" refers to lane 1 at all, or only to lane 2's `09a7f7c`, cannot
+be settled from the record and is left open here.
+
+**Reconstructed mutation table.** No verifier-authored mutation of lane 1 is
+recorded anywhere. The only mutation evidence for the lane is the
+implementer's thirteen (M1–M12, M9b, M11b) in the table above, taken from
+`8526b51`'s record entry and `c07f141`'s message, and `OM-AD`'s "Mutations"
+line in the decisions doc, which cites the same M4/M5/M9 findings. Every figure
+in that table is therefore the implementer's, not a verifier's, and the
+verdict's "ok" rests on the brief's sentence alone. The two mutations that
+stayed green on the first try (M4, M9) and the one that is recorded as
+non-discriminating (M11) are the lane's own findings, not a verifier's.
+
+What a later reader can still check without the verdict: the five tests of
+`OuterModifierMatrixTests.swift` are on the branch and every mutation in the
+table names a `Sources/` line, so the table is re-runnable; the suite figure
+`1231` at `c07f141` is quoted from that commit's record entry and was not
+re-taken by the record pass (the branch has moved on to 1274, below).
+
 #### Lane 2 — paint-only decoration: border, focus ring, opacity, clip
 
 **Commits.** `c624d13` (red-first: the divergence-15 inversion and three new
@@ -869,6 +909,29 @@ No `Sources/` behaviour changed in the review round — every source edit is a d
 comment — so the demo/preview pixel comparison recorded above stands unchanged
 and was not re-taken.
 
+##### Verifier's verdict — lost; what is reconstructed, and from where
+
+The verifier's report itself is gone with the cut-off run. Unlike lane 1, its
+substance survives in two places written from it at the time: the "Review
+round" subsection above (written by the fix-round agent from the verifier's
+three issues) and the fix commit `09a7f7c`, whose message restates the four
+green mutations with the alphas measured in the mutated trees (a faded
+`Stack`'s child and a faded `Text`'s glyphs at **1.0** where the unmutated tree
+emits **0.5**). So the following is reconstructed, not quoted:
+
+| figure | value | source |
+|---|---|---|
+| verifier mutations run | **21**, "sixteen of which reddened as recorded" | the review-round subsection above |
+| stayed green | the **four** tabled above (`Text.paint` and `Stack.paint` painting content outside the closure; `Stack.prepaint` and `ModifiedElement.prepaintLayerBody` passing `Decoration()`) | the subsection and `09a7f7c` |
+| unaccounted for | 21 − 16 − 4 = **1** mutation whose outcome the surviving text does not state | arithmetic on the two figures above; the verdict is the only place it was recorded |
+| issues raised | one major (`OM-AI`), one major (`OM-AH`), one minor (`AnimatedStyle.swift`'s stale byte count) | the subsection, `09a7f7c` |
+| fix round's own mutations | MV1–MV7, each reddening its own site's arm (tabled above) | the subsection |
+| suite at re-verification | `Test run with 1258 tests in 1 suite passed after 37.688 seconds.` | the subsection; the brief's "suite 1258 at lane 2's re-verification" agrees |
+
+The verdict's "ok" is the brief's sentence plus the 1258 figure the brief and
+the subsection independently carry; the mutation the arithmetic leaves
+unaccounted for is the one thing a later reader cannot recover from the branch.
+
 #### Lane 3 — hit testing: `allowsHitTesting` and `contentShape`
 
 **Commits.** `6279f59` (red-first: the collision guard's two new names, the
@@ -1161,6 +1224,82 @@ The display lock, re-read for minor 2: `<false/>` at **00:10:11** and again at
 23:50, 00:00 and 00:03; `<false/>` at 23:33, 00:10 and 00:13). Lane 4 reads
 it immediately before each `screencapture -R`, not once.
 
+##### Verifier's verdict, 2026-09-16 ~04:03 PDT, at `641c91c` — **ok**, one minor
+
+Quoted from the verifier's report; this is the verdict for the lane **after**
+its review round (the fixed tree), and it is the first verifier verdict on
+this branch that survives verbatim.
+
+**Suite.** `Test run with 1269 tests in 1 suite passed after 47.111 seconds.`
+— unfiltered `swift test --build-system native --no-parallel` after `swift
+build --build-system native --build-tests`; 0 `error:`, the one `warning:`
+SwiftPM's `--build-system native` deprecation notice; only the two gated tests
+skipped; 97 goldens, no `.json` in `git diff --stat c4b5853 -- Tests`;
+`Sources/MetalUIDemo` byte-identical to `c4b5853`. **The extended collision
+guard demonstrably ran**: its `crossedShape` diagnostic is in the log. Both
+SwiftUI probes re-run under `/usr/bin/swift` at 04:03 PDT, exit 0, all 18
+hit-region arms (H0–H6, P1–P5, N1–N2, X0–X3) and all 7 side-effect lines
+identical to their headers. Display lock read `<true/>`.
+
+**Mutations — seventeen, every one reddened what was expected.** Line numbers
+are the verifier's, in `HitRegionTests.swift` unless another file is named.
+
+| # | mutation | reddened |
+|---|---|---|
+| V1 | `registerAndScope` registers the receiver OUTSIDE the pointer-disable scope and scopes the children only (the first draft's mechanism) | `allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTarget…` (`:188`, N1; the child arm stays green), `everyHandlerRegisteringSiteHonoursAllowsHitTesting` (`:254` ×4), `everyHandlerRegisteringSiteStillPublishesItsAccessibilityPayload` (`:305` ×4), the matrix (`OuterModifierMatrixTests.swift:697`), `aHoverBackgroundNeverPaintsUnderAllowsHitTestingFalse` (`:824`), `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt` (`:765`, the `#require(x1 != x2)`) |
+| V2 | `Frame.hitRegion` ignores the inset (returns `bounds`) | `aContentShapeInsetShrinksTheHitRegionAndChangesNoLayout` (`:386`), `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor` (`:479`), `aContentShapeMovesNeitherTheAccessibilityFrameNorTheFocusRegistration` (`:520`), `aContentShapeWithoutAClickHandlerRegistersNothing` (`:569`), the matrix (`:697`) |
+| V3 | `Frame.hitRegion` clamps each negative inset at 0 | `aNegativeContentShapeInset…` (`:479`, the `#require` that the arms disagree) — **alone** |
+| V4 | `Frame.hitRegion` subtracts `left` twice (right ignored) | `aContentShapeInsetShrinks…` (`:422`, the per-edge arm's region) — **alone**; the uniform arm cannot see it (the lane's M12, confirmed) |
+| V5 | `focusRegistry.register` gated on `hitTestingDisabledDepth == 0` (the scope reaches the keyboard) | `allowsHitTestingFalseRemoves…` (`:191` N1 keyboard, `:221` child keyboard) — **exactly the two keyboard assertions** (the lane's M3, confirmed) |
+| V6 | `Text.prepaint` forces `handlers.allowsHitTesting = true` before `registerAndScope` | `everyHandlerRegisteringSiteHonoursAllowsHitTesting` (`:254`, `Text` arm), `…StillPublishesItsAccessibilityPayload` (`:305`, `Text` arm) |
+| V7 | `Stack.prepaint` forces the flag true | the same two, `Stack` arm |
+| V8 | `ModifiedElement.prepaintLayerBody` forces the flag true per layer | `…HonoursAllowsHitTesting` (`:254`, inner-layer arm), `…StillPublishesItsAccessibilityPayload` (`:305`, outermost-layer arm), `anInnerLayersAllowsHitTesting…` (`:765` — X2 now registers too, so `x1 == x2`) |
+| V9 | `contentShape(inset: Pixels)` writes nothing | `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` (`ModifierTests.swift:403`), the matrix (`:660`), tests 3, 4, 5, 6a (`:386`, `:479`, `:520`, `:569`) |
+| V10 | `allowsHitTesting(_:)` writes nothing | `ModifierTests.swift:403`, the matrix (`:660`), test 1 (`:188`, `:218`), test 2 (`:254` ×4), test 2a (`:305` ×4), the hover pin (`:824`), the X test (`:765`) |
+| V11 | **the NEW guard fixture**: a `contentShape(inset:)` declared on `extension ProposalElementGroup` | `theLegacyAndProposalDecorationModifiersDoNotCollide` (`DecorationCompileGuards.swift:211`, `both.succeeded != crossedShape.succeeded`; log shows `crossedShape succeeded=true`) — **proves the extended typecheck guard runs in this worktree** |
+| V12 | `registerScrollRegion` consults `hitTestingDisabledDepth` (the `OM-AK` fix) | `aScrollRegionInsideAllowsHitTestingFalseIsStillRegistered` (`:620`, `:623`) — both scoped-arm assertions, **alone** |
+| V13 | `registerHandlers` inserts a hitbox when `contentShapeInset != nil` even with no `onClick` | `aContentShapeWithoutAClickHandlerRegistersNothing` (`:560`) — **alone** |
+| V14 | the inset applied at the call site (`registerAndScopeBody` insets `bounds`; `insertHitbox` gets bare bounds) — moves focus/AX with it | `aContentShapeMovesNeither…` (`:525` emitted `AXNode` frame, `:530` client record geometry) — **alone**; test 3 stays green as the spec predicted (the lane's M6, confirmed) |
+| V15 | the `hitTestingDisabledDepth == 0` gate removed from `Frame.registerHandlers` | test 1 (`:188`, `:218`), test 2 (`:254` ×4), test 2a (`:305` ×4), the hover pin (`:824`), the X test (`:765`), the matrix (`:697`), **`aPressIsRefusedWhereHitTestingIsDisabled`** (`AccessibilityTreeTests.swift:471-473`), **`allowsHitTestingFalsePreventsDescendantOnTapDispatch`** (`NativeLayoutIntegrationTests.swift:985`, `:991`) — the two proposal-path pins spec §3.2 names, seen by a legacy mutation because the gate is shared |
+| V16 | `contentShape(inset: Edges)` transposes top and bottom | `ModifierTests.swift:403`, `aContentShapeInsetShrinks…` (`:422` per-edge region, `:433` top-edge click) |
+| V17 | `Frame.hitRegion` moves the origin by the inset but does not shrink the height | `aContentShapeInsetShrinks…` (`:391`, `:422`, `:435`), `aNegativeContentShapeInset…` (`:484`, `:493`, `:497`), `aContentShapeMovesNeither…` (`:520`), `aContentShapeWithoutAClickHandler…` (`:569`) |
+
+Read against the lane's own table: V1/V5/V4/V14 reproduce M1/M3/M12/M6 with
+the same "alone" shapes, which is the differential the lane claimed; V11 is
+new and is the one mutation that establishes the guard ran here rather than
+skipped; V15 is new and shows the legacy and proposal `allowsHitTesting` share
+one gate in `Frame.registerHandlers` — a mutation there reddens both paths'
+pins.
+
+**Minor — `contentShape(inset:)` written before a wrapping modifier, with the
+`onClick` after it, is silently dropped, and nothing says so.** The verifier's
+scratch test (deleted; worktree clean) through a real `Window` over
+`FakePlatformWindow`, 200x200, at `641c91c`:
+
+| chain | registered region | (5, 60) | (60, 60) |
+|---|---|---|---|
+| `Box().width(100).height(100).contentShape(inset: 20).padding(10).onClick {}` | `[0 0 200x200]` | **hits** (1) | 2 |
+| `…​.padding(10).contentShape(inset: 20).onClick {}` | `[20 20 160x160]` | misses (0) | 1 |
+
+The inset lands on the inner layer's `Handlers`, which has no `onClick` and so
+registers nothing (`OM-AB`), while the outer layer registers its whole frame
+(`OM-I`). It is `OM-AL`'s layer-crossing shape one modifier over and the
+mechanism `OM-AB` + `MC-A` already imply; but unlike `allowsHitTesting` after
+the review round, neither `StyledElement.contentShape(inset:)`'s doc nor
+`Handlers.contentShapeInset`'s names the order, no test pins the two orders,
+and **SwiftUI's answer for the chain is unprobed** — the probe's X arms cover
+`allowsHitTesting` only. The verifier offered two dispositions: a doc sentence
+plus a `#require`-disagree pin beside
+`anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt` and a
+probe arm (`colour.contentShape(Rectangle().inset(by: 20)).padding(10)
+.onTapGesture` vs the reverse), or carrying it as "unprobed". **The record pass
+carries it** (see "For the integrator", open items): it is a doc sentence and
+a test in a merge-collision file (`Box.swift`, `Handlers.swift`), the row can
+only be classified as agreement or divergence once the probe arm is run, and no
+false claim stands meanwhile — the modifier's doc says the inset is applied at
+one site to the bounds `registerHandlers` hands `insertHitbox`, which is
+exactly what happens on each layer.
+
 #### Lane 4 — `Component` padding wraps, and the verification
 
 **Commits.** `5cadec0` (red-first: the seven rows' tests, the exit test, the
@@ -1252,13 +1391,13 @@ Run filtered over `ComponentTests`, the two boundary-trap pins, the direct
 | # | mutation | reddened (issues) |
 |---|---|---|
 | M1 | `.wrap` re-implemented as `.amend { $0.padding = … }` at both padding sites — the spec's named mutation for row 1 | **8 tests, 21 issues: the red-first reading exactly** — the animation arm's `#require`, `aModifierOnAComponentDistributesToEachTopLevelChild` ×3, the chain test's `#require`, `aComponentsPaddingWrapsEachTopLevelNode` ×6, `aTwoMemberComponentsPaddingIsAppliedToEachMember` ×4, the order test's `#require`, the exit test's fragment, the matrix ×4 |
-| M2 | `LayoutTree.newNode`'s native-child precondition deleted — row 1a's named mutation | **2 tests, 4 issues**: `aPaddingModifierOnAProposalComponentTraps` and `aNativeNodeRegisteredUnderALegacyNodeTraps`, each on both its exit expectation (`EXIT_SUCCESS` reported) and its fragment. The two the ruling predicted, and no other |
+| M2 | `LayoutTree.newNode`'s native-child precondition deleted — row 1a's named mutation | **3 tests, 6 issues**: `aPaddingModifierOnAProposalComponentTraps` and `aNativeNodeRegisteredUnderALegacyNodeTraps`, each on both its exit expectation (`EXIT_SUCCESS` reported) and its fragment — the two the ruling predicted — **and `aProposalElementInsideALegacyContainerTrapsAtRegistration`** (`NativeBoundaryIntegrationTests.swift:48/57`), which pins the same precondition through a `Column`. *Corrected by the lane's verifier (2026-09-16): the implementer's filter named three tests rather than the file and could not see the third; the verifier's run (`mut-M2.log`) reads 3 tests, 6 issues at `NativeBoundaryIntegrationTests.swift:48, :57, :106, :117` and `NativeBoundaryTrapTests.swift:47, :54`. This row first read "2 tests, 4 issues … and no other".* |
 | M3 | only the last op applied (`ops.suffix(1)`) — row 2's | **4 tests, 9 issues**: the chain test's `chain.x == 12` and `+4` nodes, the order test's three pins (its `#require` stays green: one op each still differs), the animation arm's member half ×2, and `widthAndHeightComposeOnAChainedModifier` ×2 |
 | M4 | one wrapper around the member LIST instead of one per member — row 3's | **4 tests, 8 issues**: `aTwoMemberComponentsPaddingIsAppliedToEachMember`'s `b`, outer 120 and `+2` nodes; the distributes test's `+2` and `b`; the chain test's two node counts; the matrix's `nodeDelta == members` (`OM-AM`'s branch, alone in the matrix) |
 | M5 | every amend applied before every wrap — row 4's | **1 test, 1 issue**: `aModifierOnAComponentAppliesInTheOrderItIsWritten`'s `#require` that the two orders disagree. Nothing else in the 32 sees order, which is what the row predicted |
 | M6 | `StyledComponent` mints an id and hands it down as the parent — Step 8's, row 5's | **1 test, 1 issue**: `addingAModifierDoesNotResetAComponentsState` (reads 1, not 3) — exactly, as the `Component` milestone recorded |
 | M7 | lane 4 reverted (`git show 5cadec0:Sources/MetalUI/Component.swift`) — row 7's | **8 tests, 21 issues**, the same list as M1 |
-| M8 | the wrapper registered but the MEMBER returned as outermost (`_ = pass.requestNode(...)`) — not in the spec; added because M1 and M4 both move the node count, and this one does not | **6 tests, 13 issues**: the animation `#require`, the distributes test's `a`/`b`, the chain `#require`, test 1's four geometric assertions (its node counts stay green — the node IS registered), test 3's `a` and outer, the order `#require`, and in the matrix **only `outerSizeDelta > 0`** — the `wraps` witness, which is why the row claims two kinds |
+| M8 | the wrapper registered but the MEMBER returned as outermost (`_ = pass.requestNode(...)`) — not in the spec; added because M1 and M4 both move the node count, and this one does not | **7 tests, 13 issues** (*first written "6 tests"; the list that follows is seven, and the verifier's `mut-M8.log` reads seven*): the animation `#require`, the distributes test's `a`/`b`, the chain `#require`, test 1's four geometric assertions (its node counts stay green — the node IS registered), test 3's `a` and outer, the order `#require`, and in the matrix **only `outerSizeDelta > 0`** — the `wraps` witness, which is why the row claims two kinds |
 
 ##### What the mutations found
 
@@ -1388,9 +1527,48 @@ element-half doc points at the replacement.
   verified reverts by `git status --short` and `cp` backups, not by grepping
   `Sources/`.
 
+##### Verifier's verdict, 2026-09-16, at `2fb0800` — **ok**, two doc-only minors (both applied above)
+
+Quoted from the verifier's report.
+
+**Suite.** `Test run with 1274 tests in 1 suite passed after 38.457 seconds.`
+— `swift build --build-system native --build-tests`, then `swift test
+--build-system native --no-parallel`; 0 `error:`, the only `warning:` line
+SwiftPM's own `--build-system native` deprecation notice; the two gated tests
+skipped as usual; `.build/<triple>/debug/Modules` present, so the guards ran.
+Goldens unchanged.
+
+**Mutations — the lane's eight re-run (M1–M8), two of the verifier's own
+(M9, M11; the verifier's numbering has no M10), and one instrument on the
+demo harness. Every one reddened what was expected.**
+
+| # | mutation | reddened |
+|---|---|---|
+| M1 | `.wrap(paddingWrapperStyle(points))` re-implemented as `.amend { $0.padding = Edges(all: .pixels(points)) }` at both `Component.swift` padding sites (the spec's row-1 mutation) | `aComponentsPaddingWrapsEachTopLevelNode`, `aModifierOnAComponentAppliesInTheOrderItIsWritten`, `aModifierOnAComponentDistributesToEachTopLevelChild`, `aPaddingModifierOnAProposalComponentTraps`, `aTwoMemberComponentsPaddingIsAppliedToEachMember`, `chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement`, `everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays`, `everyRegisteringSiteAnimatesItsStyle` — 8 tests, the lane's list |
+| M2 | `LayoutTree.newNode`'s native-child `for child in children { precondition(...) }` deleted (row 1a's) | `aPaddingModifierOnAProposalComponentTraps`, `aNativeNodeRegisteredUnderALegacyNodeTraps`, **and `aProposalElementInsideALegacyContainerTrapsAtRegistration`** — 3 tests, 6 issues (the lane's row said 2 / 4 "and no other"; corrected above and in `OM-Z`'s built note) |
+| M3 | only the last op applied (`for op in ops.suffix(1)`) | `aModifierOnAComponentAppliesInTheOrderItIsWritten`, `chainedPaddingAccumulatesOnAComponent…`, `everyRegisteringSiteAnimatesItsStyle`, `widthAndHeightComposeOnAChainedModifier` — 4 tests, the lane's list |
+| M4 | one wrapper around the member LIST instead of one per member (amends still per member) | `aModifierOnAComponentDistributesToEachTopLevelChild`, `aTwoMemberComponentsPaddingIsAppliedToEachMember`, `chainedPaddingAccumulatesOnAComponent…`, the matrix — 4 tests, the lane's list |
+| M5 | every `.amend` applied before every `.wrap` (`amends + wraps`) | `aModifierOnAComponentAppliesInTheOrderItIsWritten` — **alone**, as the lane recorded |
+| M6 | `StyledComponent.requestGroupLayout` mints `GlobalElementID.child(of: parent, at: cursor, name: nil)` and hands it down as the parent (Step 8's) | `addingAModifierDoesNotResetAComponentsState` — **alone**, as the lane recorded |
+| M7 | lane 4 reverted: `git show 5cadec0:Sources/MetalUI/Component.swift` under HEAD's tests (red-first reproduction) | the same 8 as M1 |
+| M8 | wrapper registered but the MEMBER returned as outermost (`_ = pass.requestNode(...)`) | `aComponentsPaddingWrapsEachTopLevelNode`, `aModifierOnAComponentAppliesInTheOrderItIsWritten`, `aModifierOnAComponentDistributesToEachTopLevelChild`, `aTwoMemberComponentsPaddingIsAppliedToEachMember`, `chainedPaddingAccumulatesOnAComponent…`, the matrix (**only `OuterModifierMatrixTests.swift:671 outerSizeDelta > 0`** — the `wraps` witness, confirming the row's second kind is load-bearing), `everyRegisteringSiteAnimatesItsStyle` — **7 tests**, 13 issues (the lane's row said 6; corrected above) |
+| M9 (verifier's) | `paddingWrapperStyle` returns a bare `Style()` — a wrapper with zero padding | the same 7 as M8 — 7 tests, 16 issues |
+| M11 (verifier's) | ops applied to the FIRST member only (`index == 0 ? ops : []`) | `aComponentsWidthStillOverwritesItsMembersDeclaredWidth`, `aModifierOnAComponentDistributesToEachTopLevelChild`, `aTwoMemberComponentsPaddingIsAppliedToEachMember`, `chainedPaddingAccumulatesOnAComponent…`, the matrix, `heightAloneDistributesToEachTopLevelChild`, `widthAloneDistributesToEachTopLevelChild`, `widthAndHeightComposeOnAChainedModifier` — 8 tests, 13 issues. **This is `OM-AD`'s M9 re-run on the wrap**: lane 1's position-reading witness could not see a first-member-only amend; the size-reading witness and the per-member node count both can |
+| demo instrument B (verifier's own harness, a scratch copy of `2fb0800`) | element-path `padding(_ points:)` doubled in `Box.swift`; eight 1024x1024 offscreen images through a real `Window` over `FakePlatformWindow` | default-light **402 223** px, default-dark 402 218, modal-light 395 220, modal-dark 395 199, anim-light 414 103, anim-dark 414 100, **preview-light 0, preview-dark 0** — the lane's instrument B reproduced independently, to the pixel on the light default and within 5 px elsewhere |
+
+**Issues.** Both doc-only, both applied in this record pass: the M2 row's
+"2 tests, 4 issues … and no other" is "3 tests, 6 issues" naming
+`aProposalElementInsideALegacyContainerTrapsAtRegistration`
+(`NativeBoundaryIntegrationTests.swift:48/57`), in the row above and in `OM-Z`'s
+built note; the M8 row's "6 tests" is "7 tests" (the list it gives is seven
+and the run reads seven).
+
 ---
 
-### Carried into the integration step
+### Carried into the integration step (the lanes' running list)
+
+*Written by the lanes as they ran; "For the integrator" below is the
+consolidated version and, where the two differ, the later one.*
 
 - **Ten** divergence rows with no numbers yet: the default hit region
   (`OM-I`), a padded click target (`OM-K` — and its order-sensitivity, which
@@ -1474,3 +1652,413 @@ element-half doc points at the replacement.
   free number; `MC-G` hole 5 is closed by two existing traps and two exit
   tests; and the demo comparison for the whole track is on record above with
   its instrument.
+
+---
+
+### Track totals at `2fb0800`, re-taken by the record pass (2026-09-16 04:51 PDT)
+
+`swift build --build-system native --build-tests`, then unfiltered `swift test
+--build-system native --no-parallel`, in this worktree, nothing else building:
+
+```
+Test run with 1274 tests in 1 suite passed after 38.318 seconds.
+```
+
+0 `error:` in the build and the run; the one `warning:` is SwiftPM's
+`--build-system native` deprecation notice (it appears once in the build log
+and once interleaved into a test's name in the run log); skipped: the two gated
+tests only. `find Tests -name "*.json" | wc -l` = **97**; `git diff --stat
+c4b5853 -- Tests` lists no `.json`. Guards, `grep -c canTypecheck` per file:
+PhaseSeparationTests 19, ErasureCompileGuards 10, ElementGroupTrapTests 5,
+UnitSafetyTests 3 (one a comment), AXNodeTests 3, ModifiedElementCompileGuards
+2, ProposalLayoutCompileGuards 6, ProposalNodeIDCompileGuards 6,
+EnvironmentCompileGuards 8, **DecorationCompileGuards 3** — **65 hits, 64
+guards**. Against `c4b5853`'s 1226 / 97 / 61: **+48 tests, 0 goldens, +3
+guards.** `git status --short` was clean before the run.
+
+**What landed, by commit** (`git log --oneline c4b5853..2fb0800`, oldest
+first):
+
+| commit | lane | what |
+|---|---|---|
+| `981f78b` | design | spec, `OM-A`…`OM-S`, this record, four probes |
+| `aa7b9f5` | design round 2 | `OM-T`…`OM-AC`, three probes extended, seven mechanism corrections |
+| `a4c5dc6` | 1 | `OuterModifierMatrixTests.swift`: the matrix as a table and four order tests; no `Sources/` change |
+| `c07f141` | 1 | the mutation round's two corrections (`OM-AD`) |
+| `8526b51`, `cfc5c4d` | 1 | record; the stale `borderWidth` doc left for lane 2 |
+| `c624d13` | 2 red-first | divergence 15 inverted, `DecorationCompileGuards.swift` (three guards) |
+| `9f37d10` | 2 | `BorderStyle`, five `Decoration` fields, eight modifiers, `paintDecoration` / `registerAndScope`, `ModifiedElement.paint` as a recursion, `pushClip` + `activeOffset`; `borderWidth` deleted; `DecorationPaintTests.swift` |
+| `10f0e40`, `5a28933` | 2 | the two-layer scope arm; record, `OM-AE`…`OM-AG` |
+| `09a7f7c` | 2 review | `OM-AH`, `OM-AI`; `everyDecorationScopingSiteContainsItsOwnContent`, `clippedAlsoClipsTheHitboxesInsideIt` as three arms |
+| `6279f59` | 3 red-first | the collision guard's two new names, `metalUIsDefaultHitRegionIsTheElementsWholeFrame`, `swiftui-allows-hit-testing-side-effects.swift` new, `swiftui-content-shape-hit-region.swift` + H4–H6 |
+| `e1c33b5` | 3 | `Handlers.allowsHitTesting` / `contentShapeInset`, the scope at the top of `registerAndScope`, `Frame.hitRegion`, three modifiers; `HitRegionTests.swift` |
+| `2859350` | 3 | record, `OM-AJ`, `OM-AK` |
+| `641c91c` | 3 review | `OM-AL`, probe arms X0–X3, the layer-crossing pin and the hover pin |
+| `5cadec0` | 4 red-first | seven rows' tests, the hole-5 exit test, the matrix row's two kinds, the animation arm re-specified |
+| `367de92` | 4 | `ComponentModifierOp`, `StyledComponent.ops`, per-member padding wrap — `Component.swift` only |
+| `2fb0800` | 4 | record, `OM-AM`, five stale doc comments |
+
+**`Sources/` touched** (`git diff --stat c4b5853 -- Sources`): thirteen files,
++1174/−203. `AnimatedColor.swift` (+156: `paintDecoration`, `resolvedBorder`,
+`effectiveForPointerState`), `AnimatedStyle.swift` (21: the storage doc's
+re-measured sizes), `Box.swift` (+473/−: `BorderStyle`, `Decoration`'s five
+fields and extended `init`, eleven modifiers appended, two `borderWidth`
+overloads deleted), `Component.swift` (262 lines moved: `ops`),
+`DecorationScope.swift` (new, 133), `Frame.swift` (111: `hitRegion`, the
+scope depth, `pushClip`'s term, `registerHandlers`' inset), `Handlers.swift`
+(+82: two members and their docs), `ModifiedElement.swift` (66: paint as a
+recursion, per-layer `registerAndScope`), `Passes.swift` (3),
+`ProposalNodeID.swift` (5: hole 5's note), `Stack.swift` (23), `Text.swift`
+(38), `MetalUILayout/LayoutTree.swift` (**4, doc only** — a `setStyle` comment;
+no golden moved). Shared files on the brief's minimal-edits list were touched
+by appending (`Box.swift`'s modifiers at the end of the extension,
+`Handlers`' two members at the end of the stored members, `ModifiedElement`'s
+per-layer calls) except `Component.swift`, whose `StyledComponent` storage this
+track owns by the pre-agreed boundary (spec §8 b).
+
+**Tests per file** (`@Test` count at `2fb0800` vs `c4b5853`; guards counted
+separately):
+
+| file | base | now | delta | note |
+|---|---|---|---|---|
+| `OuterModifierMatrixTests.swift` | — | 5 | **+5** | new (lane 1): the matrix (21 rows: 19 `legacy Element`, 2 `legacy Component`) and four order tests |
+| `DecorationPaintTests.swift` | — | 24 | **+24** | new (lane 2 + review): includes five exit tests with a positive control |
+| `DecorationCompileGuards.swift` | — | 3 | **+3** | new (lane 2), guards; one extended by lane 3 |
+| `HitRegionTests.swift` | — | 11 | **+11** | new (lane 3 + review) |
+| `ComponentTests.swift` | 22 | 26 | **+4** | lane 4; `chainedPaddingReplacesRatherThanAccumulates` renamed and inverted to `chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement` |
+| `NativeBoundaryIntegrationTests.swift` | 3 | 4 | **+1** | lane 4: `aPaddingModifierOnAProposalComponentTraps`, an exit test |
+| `NestedClipTests.swift` | 1 | 1 | 0 | lane 2: `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` inverted, name kept |
+| `ModifierTests.swift` | 1 | 1 | 0 | rows 38 → **47** (−2 `borderWidth`, +8 lane 2, +3 lane 3); `HandlerShape` +2 fields |
+| `AnimationTests.swift` | 49 | 49 | 0 | `everyRegisteringSiteAnimatesItsStyle`'s `Component` arm re-specified on a wrapper + member |
+
++48 in all, which is the suite delta. Exit tests added: six
+(`anOpacityAboveOneTraps`, `aNegativeBorderWidthTraps`,
+`aBorderWidthSetAfterInitIsStillValidated`, `anOpacitySetAfterInitIsStillValidated`,
+their positive control `theAdmittedOpacitiesAndBorderWidthsBehave`, and
+`aPaddingModifierOnAProposalComponentTraps`). `grep -c sleep` over every file
+in the table: 0.
+
+**Probes** (`docs/probes/`, five files, +1087 lines, each with its recorded
+stdout, positive controls and toolchains in its header; every arm cited by a
+test is listed by the test):
+
+| probe | arms | new / re-recorded | cited by |
+|---|---|---|---|
+| `swiftui-outer-modifier-order.swift` | 25 labelled lines (L1–L9, A1–A3, B1–B2, C0–C2, D1–D2, E1–E3, F1–F3; the design session counted 22 arms) | new, design | matrix (L2/L5/L7, A1–A3, E1–E3), `DecorationPaintTests` (L2), `HitRegionTests` (L7), `ComponentTests` (E1/E3) |
+| `swiftui-border-clip-paint.swift` | 26 lines incl. controls (B1–B3, C1–C3, D1–D2, G1–G4, K0–K1, M1, …) | new; +B3, +M1 and two arc points in round 2; re-run in lane 2's review | `DecorationPaintTests` (B1, B3, D2, M1, G1–G4), matrix (C1) |
+| `swiftui-content-shape-hit-region.swift` | 18 (H0–H6, P1–P5, N1–N2, X0–X3) | new; +N2 round 2, +H4–H6 lane 3, +X0–X3 lane 3's review; re-run at each | `HitRegionTests` (H0–H6, N1–N2, X0–X3), matrix (P1, P2, P4, N1) |
+| `swiftui-component-distribution.swift` | G0–G16 | new; +G10–G16 round 2 | `ComponentTests` (G0–G2, G4–G5, G7–G8, G10–G12, G15–G16) |
+| `swiftui-allows-hit-testing-side-effects.swift` | 7 side-effect lines (K1, A0–A2, …: focus, keys and the `AXButton` under `.allowsHitTesting(false)`) | new, lane 3 | `HitRegionTests` (K1, A0–A2) |
+
+**Probe arms with no MetalUI test** — found by the record pass by grepping
+the test files for arm labels, and named here so the plan entry below is
+honest: `swiftui-outer-modifier-order` **B1, B2, D1, D2** (the `.frame(60x60)`
+chains of spec §6.1, i.e. the plan text's own "frame" chain) and
+`swiftui-border-clip-paint` **C2, C3, D1** (the `.cornerRadius`/`.background`
+and `.cornerRadius`/`.border` orders of §6.2, whose "not expressible" cells
+are pinned by mechanism — one `Decoration` field per modifier,
+`everyPublicModifierWritesItsOwnFieldAndOnlyThatField` — but by no test that
+builds both orders). The spec's §6.2 cells for C3 and D1 said "Divergence,
+pinned" and are corrected to say what is pinned.
+
+**Red runs**, one per lane, quoted in the lane entries above: lane 1 one red
+line (the 40x60 flex-shrunk child); lane 2 four tests, 12 issues before any
+source change; lane 3 thirty-three "has no member" diagnostics, then the 47
+tripwire alone; lane 4 eight of ten red, 21 issues, the same 21 mutation M1
+and the revert M7 reproduce.
+
+**Mutations that stayed green, whole track** — each one a finding, each
+closed by a test the lane then added, none left standing:
+
+| lane | mutation | what it found | closed by |
+|---|---|---|---|
+| 1 | M4: outermost decoration filled at the inner node's bounds | two order tests had no two-layer chain | three probe-backed arms (`OM-AD`) |
+| 1 | M9: amend `nodes.prefix(1)` | the `distributes` witness read a member's POSITION | `Observation.rectSizes` (`OM-AD`) |
+| 1 | M11: `Box.paint` emits no background | kills the instrument's own 1x1 marker — recorded as non-discriminating, not as a gap | — |
+| 2 | M15: `ModifiedElement.paint` restored to a loop | every opacity/clip fixture was one element | `aChainsOuterLayerScopesContainTheLayersInsideIt` |
+| 2 | G3: legacy `opacity(_:)` declared on `ElementGroup` | cannot collide — Swift prefers the refined protocol's extension (`OM-AG`) | the guard's recorded mutation became G3b |
+| 2 review | four (helpers called with an empty closure / `Decoration()`) | the SCOPE half of both helpers was pinned at one site each (`OM-AI`) | `everyDecorationScopingSiteContainsItsOwnContent`, `clippedAlsoClipsTheHitboxesInsideIt` ×3 |
+| 3 | (none stayed green; the spec's row 2a had named two wrong test names, found by the red run) | — | the eleven measured names |
+| 3 review | MA: the candidate fix for `OM-AL` reddens only the new X test | the layer-crossing rule had one instrument | `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt` |
+| 4 | (none; M5 and M6 redden exactly one assertion each, by design) | — | — |
+
+**Hazards, whole track**, beyond each lane's own list: `Decoration` (nine
+stored properties, 80 bytes) and `Handlers` (eight) both grew across a module
+boundary — `swift package clean` before the first run after a merge that
+touches either; the two helpers' SCOPE halves are the shape a future site
+will get wrong (a call with an empty closure passes the "draws its border"
+guard); `Component.swift` carries the literal `// MUTATION` in committed
+comments, so a driver must prove reverts by `git diff`, not by grepping
+`Sources/`; the display lock flips within minutes on this machine, so a
+capture session reads it immediately before each `screencapture`.
+
+---
+
+### For the integrator
+
+What each owned document should say, in the words to use. The lanes' running
+list above is the source; where a bullet there and one here differ, this one
+is later and wins. Divergence numbers are **not** allocated here: the highest
+at `c4b5853` is **34** (record §04, "divergences 20–34"), so this track's rows
+start at **35** only if the task-4 track allocates none; the integrator
+numbers both tracks' rows in one pass.
+
+#### `CLAUDE.md` — rules only
+
+- **Counts line.** This track alone: **1274 tests / 97 goldens / 64 guards**
+  at `2fb0800` (+48 / 0 / +3 on `c4b5853`'s 1226 / 97 / 61), guards per file
+  gaining `DecorationCompileGuards 3`. Re-measure after the merge with task 4
+  rather than adding the two tracks' deltas.
+- **Component paragraph** (the sentence beginning "Its `.padding`/`.width`/
+  `.height` **distribute** …"). Replace with: "Its `.padding` **wraps each
+  top-level node** in its own padding node, accumulating on a chain (`OM-D`,
+  `OM-E`; probe `swiftui-component-distribution` G2/G10–G12: a one-`Text`
+  component measures 13x16 bare and 53x56 padded, the same numbers the element
+  path gives), so `.padding()` on a single-`Text` component is no longer inert;
+  `.width`/`.height` still **distribute** as an amend that overwrites the
+  member's own value (`OM-F`, a divergence: SwiftUI's `.frame` wraps and keeps
+  the member at 30). Ops apply in declaration order (`StyledComponent.ops`;
+  `aModifierOnAComponentAppliesInTheOrderItIsWritten`). `.padding` now means
+  the same thing on both receiver types; only `width`/`height` keep two
+  meanings." Delete "chained `.padding` replaces rather than accumulates" and
+  "`.padding()` on a single-`Text` component is inert while that leaf is
+  content-sized". Keep "A caller's distributing modifier never animates
+  (B-7)" — its `padding` example now reads on the wrapper node (20 at both
+  samples), the `width` example is unchanged. Hole 5: "a legacy style modifier
+  on a proposal `Component` compiles, then traps" — now both op kinds trap on
+  an existing `SA-G` precondition (`.amend` at `setStyle`, `.wrap` at
+  `newNode`), pinned by `aPaddingModifierOnAProposalComponentTraps` beside the
+  amend pin (`OM-Z`); the modifier-composition doc's "task 5" assignment is
+  discharged.
+- **`StyledElement` paragraph.** "a conformer must also call
+  `registerHandlers` in its own `prepaint`" becomes: a conformer calls
+  **`registerAndScope(handlers, decoration, …) { content }`** in `prepaint`
+  (opens the `allowsHitTesting` scope around the receiver's own registration
+  AND its content, pushes `.clipped()`'s clip, then `registerHandlers` with the
+  accessibility payload) and **`paintDecoration(decoration, in:, for:) {
+  content }`** in `paint` (opens the opacity scope, emits the background before
+  the content and the border **after** it, `OM-V`). Four sites: `Box`, `Stack`,
+  `Text`, `ModifiedElement` (per layer). **Each helper has two halves and each
+  half has its own per-site guard** (`OM-AI`): `everyDecorationPaintingSiteDrawsItsBorder`
+  and `everyDecorationScopingSiteContainsItsOwnContent` (paint);
+  `everyHandlerRegisteringSiteHonoursAllowsHitTesting`,
+  `everyHandlerRegisteringSiteStillPublishesItsAccessibilityPayload` and
+  `clippedAlsoClipsTheHitboxesInsideIt` (prepaint); the hover/focus chain by
+  `everyDecorationPaintingSiteHonoursTheBorderHoverAndFocusChain`. A site that
+  calls a helper with an **empty closure** and paints its content after it
+  passes the first guard and fails the second. The `HandlerShape` sentence
+  becomes: "`Handlers` is not `Equatable` and has **eight** stored members;
+  `HandlerShape` (`ModifierTests.swift`) **and `HandlerFingerprint`**
+  (`OuterModifierMatrixTests.swift`) must each gain a field in the same change
+  `Handlers` gains a member." `ModifierTests`' tripwire is **47**; `grep -c
+  "public func" Sources/MetalUI/Box.swift` is **50** (task 4 counts from
+  there).
+- **Hitbox paragraph.** After "`PrepaintPass.allowsHitTesting(false)` (and the
+  proposal `.allowsHitTesting(false)`) gates only `registerHandlers`' pointer
+  hitbox": add the legacy **`StyledElement.allowsHitTesting(false)`** — a
+  prepaint-only scope on the layer it is written on, covering the receiver's
+  own hitbox and its subtree's (`OM-T`, probe N1/N2), leaving focus, `onKey`,
+  actions and the accessibility payload untouched; **per layer**, so written
+  before a wrapping modifier that carries the `onClick` it does not reach that
+  click (`OM-AL`, probe X1/X2 — a divergence, pinned wrong on purpose); a
+  `ScrollView` inside still scrolls (`OM-AK`). Hover follows the hitbox
+  (`aHoverBackgroundNeverPaintsUnderAllowsHitTestingFalse`). **`contentShape(inset:)`**
+  moves the pointer region only — not the accessibility frame, not the focus
+  registration — applied in `Frame.registerHandlers` to the bounds handed to
+  `insertHitbox` through `Frame.hitRegion` (`OM-J`); a negative inset grows
+  the region as SwiftUI's does (H5) and is still intersected with the active
+  clip where SwiftUI's is not (`OM-AJ`, divergence); with no `onClick` it
+  writes a field and registers nothing (`OM-AB`). **MetalUI's default hit
+  region is the element's whole frame** where SwiftUI's is content-derived
+  (`OM-I`, H1; divergence), so a padded click target is hittable in its
+  padding (`OM-K`, P1) — order-sensitively, because only the outermost layer
+  carries handlers (P2).
+- **Focus paragraph.** Replace "Focus is drawn by `focusBackground` token
+  swap. `PaintPass.fill` now takes `borderColor:`/`borderWidths:` (the
+  proposal `.border` uses them), but no legacy element or focus path passes a
+  border." with: "Focus is drawn by `focusBackground` and/or
+  **`focusBorder(_:width:)` — the focus ring** (`OM-L`); background and border
+  resolve through one `focus ?? hover ?? plain` selector
+  (`effectiveForPointerState`, `AnimatedColor.swift`), so focus outranks hover
+  for both; every legacy decoration site passes its border to `pass.fill`
+  through `paintDecoration`, as a second rect **after** the children (`OM-V`).
+  Nothing in the demo declares a `.focusBorder`; the ring is opt-in."
+- **Animation section.** "Of the thirteen library `pass.fill` sites five
+  animate …" is stale: `grep -rn "pass\.fill(" Sources/MetalUI` now reads
+  **8**, all proposal-path or the `ScrollView` indicator; the four legacy
+  background sites fill inside `paintDecorationBody` (`AnimatedColor.swift`),
+  one animated background fill through `animatedBackground` and one border
+  fill that does not animate. **The five new `Decoration` fields (`border`,
+  `hoverBorder`, `focusBorder`, `opacity`, `clipsContent`) snap**, pinned by
+  `theNewPaintOnlyDecorationFieldsSnapRatherThanAnimate`, deferred to task 13
+  (spec §9). A settled `$anim` entry now carries an 80-byte `Decoration`, not
+  12 (`AnimatedStyle.swift`'s doc, re-measured; the end-to-end per-entry
+  figures are not re-taken).
+- **`Deferred` sentence.** "resets clip and scroll offset together (AP-I)" →
+  "… and **not opacity**, which a faded subtree's portal inherits (`OM-AA` b,
+  `aDeferredPortalInsideAFadedSubtreeIsStillFaded`)".
+- **`.opacity` on the legacy path** (a new sentence beside the `Deferred`
+  one): scopes multiply (`Frame.activeOpacity`), an element contributes ONE
+  scope, so `.opacity(0.5).opacity(0.5)` on one element reads **0.5** where
+  SwiftUI reads 0.25 (`OM-AH`); a nested `Box` or a layer between them reads
+  0.25. `.opacity` fades the receiver's own fill in both orders on the legacy
+  path and in one on the proposal path (`OM-AA` a).
+- **Identity section.** Unchanged: `.padding`/`.frame` still return one flat
+  `ModifiedElement`, `.id()` is still outermost. Add one clause: the
+  decoration and handler modifiers written after a wrapper configure the
+  **outermost layer** (`self` in the matrix's sense), which is why
+  `.padding(8).background` fills the padded box and `.background.padding(8)`
+  the inner one (`OM-C`, probe A1/A2).
+- **Human verification table.** Two open rows: the focus ring's look (nothing
+  in the suite can see whether `focusBorder` reads as a focus affordance; the
+  demo declares none, so a look needs a demo-only commit first) and this
+  track's release-window captures by `MC-J`'s method (never taken: the display
+  read `<true/>` at every capture moment — 20:22, 23:50, 00:00, 00:03, 04:30,
+  04:35, 04:38 — and `<false/>` only between them). The offscreen stand-in is
+  on record twice (lane 2 and lane 4): **0 differing pixels in all ten images,
+  scene dumps identical**, with an instrument that moves ~400 000–949 000
+  pixels per legacy image and 0 in the preview.
+- **Build note.** `Decoration` (nine stored properties) and `Handlers` (eight)
+  crossed the module boundary with new storage; the `swift package clean` rule
+  gains both names.
+- **Practices, two bullets.** "A helper with two halves needs two per-site
+  guards: a site that keeps the call and does its work outside the closure
+  passes a guard that looks for the helper's own emission" (`OM-AI`). "A
+  `distributes` witness reads each member's SIZE; a member's position is what
+  its siblings did to it, and an order test needs a TWO-layer chain before a
+  per-layer mutation can bite" (`OM-AD`).
+
+#### The plan's task 5 entry — **do not tick**; replace the progress note
+
+The task's own text is four clauses. Three are met and the fourth is met for
+two of its three named chains:
+
+1. *Complete the padding migration* — **done.** `Element` padding wraps
+   (`f1944f8`, before this track); `Component` padding wraps each top-level
+   node, accumulating (lane 4, `OM-D`/`OM-E`); one documented shape, spec
+   §3.1's `padding(_:)` row, on all three columns.
+2. *Audit background, overlay, border, corner/clip shape, opacity, hit
+   testing, focus drawing and content shape* — **done**, spec §3.1, three
+   columns (legacy `Element`, legacy `Component`, proposal). Legacy `overlay`
+   is audited as "not offered; use `Stack` or `Deferred`" and deferred to
+   task 6/7 (spec §9); the proposal `.overlay` is `MC-P`'s.
+3. *Pin whether each wraps, distributes through a `Component`, or affects
+   only paint* — **done for the legacy columns** by the table-driven
+   `everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays` (21 rows,
+   per-kind witnesses, `OM-X`/`OM-AD`/`OM-AM`); the **proposal column is
+   pinned by the proposal path's own tests, not by the matrix** (spec §3.2),
+   and adding a proposal-row shape to the instrument was left to integration.
+4. *Test order-sensitive chains such as padding/background/frame/clip* —
+   **padding/background** pinned (A1/A2/A3, E1–E3), **clip** pinned
+   (`.clipped()` scopes on a two-layer chain; `.cornerRadius` C1 pinned wrong
+   on purpose; the border/radius D2-vs-M1 arm), hit-testing and `Component`
+   orders pinned (P1/P2, N1/N2, X0–X3, G13–G16). **The `.frame` chains — probe
+   arms B1, B2, D1, D2 of `swiftui-outer-modifier-order` — are probed and
+   recorded in spec §6.1 and pinned by NO MetalUI test**; nor are the
+   `.cornerRadius`/`.background` and `.cornerRadius`/`.border` orders (C3, D1
+   of `swiftui-border-clip-paint`). Four probe-backed arms the size of test
+   2's would close the first; the second needs only a test that builds both
+   orders and asserts they read the same.
+
+Suggested note: *Progress 2026-09-16 (`feat/outer-modifiers` at `2fb0800`,
+record §15, rulings `OM-A`…`OM-AM`). Padding wraps on both receiver types;
+the matrix is written (spec §3.1) and table-driven for the legacy columns;
+focus drawing is `focusBorder` and content shape is `contentShape(inset:)`,
+both delivered; ten new divergences and one retirement (15). Open: the
+`.frame` order chains (probe B1/B2/D1/D2) have no test; the proposal column
+is not in the matrix instrument; `contentShape` across a layer boundary is
+unprobed.* Also strike "Focus drawing and content shape are absent, and no
+written wrap/distribute/paint-only matrix exists" from the 2026-09-14 note,
+and under **Owned by later tasks** (`SA-N`) leave "padding places its child
+at the child's size (task 5)" **as is** — that item is the proposal
+`Padding` node's placement (kernel, `LayoutTree.swift`), which this track did
+not touch (`OM-Q`: no `Sources/MetalUILayout` behaviour change); it needs a
+new owner, and the honest edit is "(task 5 did not take it; reassign)".
+
+#### `README.md`
+
+- The paragraph "On an ordinary element, `.padding` **wraps** its receiver in
+  a `ModifiedElement` layer …" gains: "On a `Component` it wraps each
+  top-level node of the body, and chained paddings accumulate on both;
+  `width`/`height` on a component still overwrite the members' own sizes."
+- The legacy-path feature list gains the decoration and hit-testing
+  modifiers: `.border`, `.hoverBorder`, `.focusBorder` (the focus ring),
+  `.opacity`, `.clipped()`, `.allowsHitTesting`, `.contentShape(inset:)`;
+  and `borderWidth(_:)` is gone.
+- "Twelve measured divergences … Two are unfixed defects (15 and 19)": 15 is
+  retired (fixed, `OM-U`), and the count grows by this track's ten (and task
+  4's); re-count from `CLAUDE.md`'s table after numbering rather than from
+  this sentence.
+
+#### The declared-but-inert table
+
+- **Delete** the `legacy borderWidth(_:)` row: the API is deleted (`OM-M`),
+  guarded by `borderWidthIsNoLongerSpellable`.
+- **`Style.padding`/`border`/`margin` on a leaf** row: delete the clause "and
+  a `Component`'s distributed `.padding`: ignored on a content-sized leaf" —
+  the distributed `.padding` no longer writes `Style.padding`.
+- **`.allowsHitTesting(false)` over a scroller** row: extend to "on either
+  path — the legacy modifier too (`OM-AK`, pinned by
+  `aScrollRegionInsideAllowsHitTestingFalseIsStillRegistered`)".
+- **Add** `contentShape(inset:)` on an element with no `onClick` — writes
+  `Handlers.contentShapeInset`, registers nothing (`OM-AB`,
+  `aContentShapeWithoutAClickHandlerRegistersNothing`); and, on a chain,
+  `contentShape(inset:)` or `allowsHitTesting(false)` written on an inner
+  layer while the `onClick` is on a layer written after it — the inner
+  layer's field is set and reaches no click (`OM-AL` for `allowsHitTesting`,
+  probe-backed and pinned; for `contentShape` measured by lane 3's verifier,
+  unprobed and unpinned — see open items).
+- `Style.overflow`'s row stands: clipping is `Decoration.clipsContent`, not
+  `Style.overflow`. `PaintPass.isActive`'s row stands (the hover pin's doc
+  says the pressed half is by reading).
+
+#### The divergence table
+
+Ten new rows, one retirement. Each row's pin is named; the probe arm is the
+SwiftUI side.
+
+| ruling | one line | SwiftUI (arm) | pin |
+|---|---|---|---|
+| `OM-I` | the default hit region is the element's whole frame | content-derived: a stack's empty middle reads 0/0 (H1) | `metalUIsDefaultHitRegionIsTheElementsWholeFrame` |
+| `OM-K` | a padded click target is hittable in its padding, and only when the `onClick` is written after the padding | 1/0 in both orders (P1, P2) | `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot` |
+| `OM-AJ` | a grown (negative-inset) content shape is intersected with an ancestor's clip | hits through `.clipped()` (H6) | `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor` |
+| `OM-AL` | an inner layer's `allowsHitTesting(false)` does not reach a click on a layer written after it | 0/0 in both orders (X1, X2); a later `.contentShape` restores it (X3) | `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt` |
+| `OM-N` | `.opacity` fades a background written after it | does not (G4) | `opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot` |
+| `OM-AH` | a second `.opacity` on one element replaces the first (0.5) | multiplies (0.25; G1/G2) | `aSecondOpacityOnOneElementReplacesTheFirstWhereSwiftUIMultiplies` |
+| `OM-G` | `.cornerRadius` rounds the fill and border and does not clip the children; `.clipped()` clips | clips (C1); `.cornerRadius.background` is square (C3) | `aBareCornerRadiusDoesNotClipTheChildren` (C1); C3/D1 unpinned by order (mechanism only) |
+| `OM-F` | a `Component`'s `width`/`height` overwrite each member's own size | `.frame` wraps and keeps the member's size (G7/G8) | `aComponentsWidthStillOverwritesItsMembersDeclaredWidth` (task 4's to fix) |
+| `OM-W` | `.border.cornerRadius` draws a rounded stroke that follows the arc | a square border clipped by the radius; the arc's interior is fill (D2 vs M1) | `aRoundedBorderFollowsTheArcWhereSwiftUIsClippedSquareBorderDoesNot` |
+| `OM-AA` a | `.opacity` fades the receiver's own fill in both orders on the legacy path and in one order on the proposal path | G3/G4 | the legacy pin above and the proposal path's own G4-agreeing test (task 2) |
+| **15** | **retired** (`OM-U`): `pushClip` adds `activeOffset`; a `ScrollView` inside a scrolled `ScrollView` now gets its own mask | — | `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` (inverted, name kept), `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints` |
+
+Add 15 to the "Retired and never reused" list. `OM-AK` (the scroll region
+under `allowsHitTesting(false)`) is an inert-table extension, not a
+divergence: SwiftUI's answer is unprobed.
+
+#### `docs/record/README.md`
+
+One row, in the table's form: `15-outer-modifiers.md` — plan task 5 on
+`feat/outer-modifiers` (`981f78b..2fb0800`, 2026-09-15 … 09-16): the
+wraps / self / paint-only / prepaint-only / distributes matrix and its
+table-driven test, `Component` padding wrapping per member, the legacy
+`border`/`focusBorder`/`opacity`/`clipped`/`allowsHitTesting`/`contentShape`
+modifiers with their two helpers and per-site guards, `borderWidth` deleted,
+divergence 15 fixed, five SwiftUI probes, four lanes' red runs and mutation
+tables, two verifier verdicts verbatim and two reconstructed, the offscreen
+demo comparison (0 pixels, twice, with instruments), counts 1274 / 97 / 64,
+and the integrator's list. **Section 14 is the task-4 track's**; do not
+renumber.
+
+#### Open items, in one place
+
+| item | state | owner |
+|---|---|---|
+| `contentShape(inset:)` written before the wrapping modifier that carries the `onClick` — inert on the inner layer | measured by lane 3's verifier (regions `[0 0 200x200]` vs `[20 20 160x160]`), **unprobed in SwiftUI, unpinned, undocumented at the modifier** | a probe arm (`colour.contentShape(Rectangle().inset(by: 20)).padding(10).onTapGesture` vs the reverse), a doc sentence on `StyledElement.contentShape(inset:)` and `Handlers.contentShapeInset`, and a `#require`-disagree pin beside the X test — `Box.swift`/`Handlers.swift` are merge-collision files, so after the merge |
+| the `.frame` order chains B1/B2/D1/D2 and the radius orders C3/D1 | probed, recorded in spec §6, no MetalUI test | task 5's tick |
+| the proposal column in the matrix instrument | pinned by the proposal path's own tests only | integration's call (spec §3.2) |
+| release-window captures by `MC-J`'s method | never taken; display locked at every capture moment | the next unlocked session |
+| the focus ring's look | needs a demo commit declaring a `.focusBorder` first | human verification |
+| lanes 1 and 2's verifier verdicts | lost; reconstructed above from the record and `09a7f7c`; one lane-2 mutation's outcome unrecoverable | — |
+| `OM-AK`: a `ScrollView` under `allowsHitTesting(false)` | pinned as it stands; SwiftUI unprobed | whoever probes `ScrollView` under `.allowsHitTesting(false)` and `.disabled` together (`EV-Q`) |
+| `SA-N`'s "padding places its child at the child's size (task 5)" | not taken here — proposal-kernel placement, `Sources/MetalUILayout` untouched | reassign |
+| the `$anim` end-to-end per-entry figures with the 80-byte `Decoration` | not re-taken | task 13 |

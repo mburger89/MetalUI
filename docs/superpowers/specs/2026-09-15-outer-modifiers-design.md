@@ -6,18 +6,28 @@ on `feat/outer-modifiers` in the worktree
 
 Rulings are `OM-` and **lettered**, in
 [`../2026-09-15-outer-modifiers-decisions.md`](../2026-09-15-outer-modifiers-decisions.md)
-(`OM-A`…`OM-AG`; next unused `OM-AH`). The record is
+(`OM-A`…`OM-AM`; next unused `OM-AN`). The record is
 [`../../record/15-outer-modifiers.md`](../../record/15-outer-modifiers.md).
 Probes are in [`../../probes/`](../../probes/); four are new here, three of them
 extended and re-recorded in round 2.
 
-**Status: lanes 1 and 2 built; lanes 3–4 designed, not implemented. Revised
-once after review, once by lane 1's mutation round (`OM-AD`), and once by lane
-2's (`OM-AE`, `OM-AF`, `OM-AG`).** No `Sources/` change is committed by the
+**Status (2026-09-16): all four lanes built and verified — the track is
+complete at `2fb0800` on `feat/outer-modifiers`, awaiting integration.**
+Revised once after review, once by lane 1's mutation round (`OM-AD`), once by
+lane 2's (`OM-AE`, `OM-AF`, `OM-AG`) and its review round (`OM-AH`, `OM-AI`),
+once by lane 3's (`OM-AJ`, `OM-AK`) and its review round (`OM-AL`), and once
+by lane 4's (`OM-AM`). Lanes 3 and 4 were verified ok with verdicts quoted in
+record §15; lanes 1 and 2 were verified ok in a run whose verdicts were lost
+and are reconstructed there. **What this spec still owes** (record §15, "For
+the integrator", open items): the `.frame` order chains of §6.1 (B1, B2, D1,
+D2) and the radius orders C3/D1 of §6.2 are probed and pinned by no MetalUI
+test; `contentShape(inset:)` across a layer boundary is unprobed; the
+proposal column of §3.1 is pinned by the proposal path's own tests, not by
+the matrix instrument. No `Sources/` change is committed by the
 design session, and lane 1 adds none either; **lane 2 is the first `Sources/`
-change on this branch**. The four probes and the recorded
-scratch measurements of today's MetalUI are committed, and everything below is
-written against them.
+change on this branch**. The four probes (five after lane 3) and the recorded
+scratch measurements of the MetalUI of `c4b5853` are committed, and everything
+below is written against them.
 
 **Round 2 changed seven things a reader of the first draft would get wrong**,
 each on an arm taken in this session. The decisions doc's "Design review round
@@ -626,14 +636,21 @@ leaf (13x16): `.padding(20).background` fills `(0,0) 53x56`, `.background
 .padding(20)` fills `(20,20) 13x16`, `.background.padding(4).padding(4)` puts
 the leaf at (8, 8). All three agree with SwiftUI's shape.
 
+**Record pass, 2026-09-16: the four `.frame` rows (B1, B2, D1, D2) are probe
+readings only.** Lane 1's order tests pin A1/A2/A3 and E1–E3; the matrix has a
+`frame(width:height:)` row (kind `wraps`) and no chain. No MetalUI test builds
+a `.frame(60x60)` chain with a `.background` on either side of it, so those
+four MetalUI cells are not "what the test asserts" — they are owed (record
+§15, open items).
+
 ### 6.2 Paint (probe `swiftui-border-clip-paint`)
 
 | chain | what changes | arm | MetalUI |
 |---|---|---|---|
 | `.background.cornerRadius(12)` | the fill is rounded | C2 | same |
-| `.cornerRadius(12).background` | the fill is **square** | C3 | **not expressible**: both write one `Decoration`, so MetalUI always rounds. Divergence, pinned |
+| `.cornerRadius(12).background` | the fill is **square** | C3 | **not expressible**: both write one `Decoration`, so MetalUI always rounds. Divergence; the MECHANISM is pinned (one field per modifier, `everyPublicModifierWritesItsOwnFieldAndOnlyThatField`), **the order itself is built by no test** (record pass, 2026-09-16) |
 | `.cornerRadius(12)` on a leaf | the **content** is clipped | C1 | **not** clipped without `.clipped()`. Divergence, pinned |
-| `.cornerRadius(12).border` | a square border over rounded content | D1 | MetalUI's border always follows the radius. Divergence, pinned |
+| `.cornerRadius(12).border` | a square border over rounded content | D1 | MetalUI's border always follows the radius. Divergence; pinned by mechanism only, as C3 — no test builds this order (record pass, 2026-09-16) |
 | `.border.cornerRadius(12)` | a **square** border clipped by the radius: the arc's interior is unbordered | D2 vs **M1** | **not expressible**: MetalUI's rounded stroke follows the arc. Divergence, pinned (`OM-W`) |
 | `.border(w)` | drawn **inside** the box | B1/B2 | same (`MUIRect.borderWidths`) |
 | `.border(w)` over a child that fills the box | an **overlay** — the child does not hide it | **B3** | same, after `OM-V` makes the border a second emission **after** the children |

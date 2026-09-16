@@ -1115,8 +1115,13 @@ implementation whose `.padding` did nothing would still pass on the fragment.
 With the direct call the wrap's registration is the only legacy `newNode` in the
 process — red-first it trapped at `setStyle` instead (the amend), and mutation
 M2 (`newNode`'s native-child precondition deleted) makes it exit 0 alongside the
-direct pin `aNativeNodeRegisteredUnderALegacyNodeTraps`, the two tests the
-ruling predicted and no other. `grep -n "PreviewToggle()" Sources/MetalUIDemo/main.swift`
+direct pin `aNativeNodeRegisteredUnderALegacyNodeTraps` — the two tests the
+ruling predicted — **and a third the ruling did not name**,
+`aProposalElementInsideALegacyContainerTrapsAtRegistration`
+(`NativeBoundaryIntegrationTests.swift:48/57`), which pins the same
+precondition through a `Column`: 3 tests, 6 issues (the lane's verifier,
+2026-09-16; the implementer's filter named three tests rather than the file
+and could not see it. This note first read "and no other"). `grep -n "PreviewToggle()" Sources/MetalUIDemo/main.swift`
 at lane-4 time: one hit, line 1017, bare — the premise the pixel comparison's
 zero rests on, re-taken rather than cited.
 
