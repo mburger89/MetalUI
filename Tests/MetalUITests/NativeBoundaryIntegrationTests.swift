@@ -84,6 +84,40 @@ private struct LegacyNodeUnderAProposalMarker: ProposalElement {
             "aborted, but not at the native-style check this test is about:\n\(stderr)")
 }
 
+/// `.padding` on a proposal `Component` traps at the WRAP's `newNode` — the
+/// second route into `MC-G` hole 5, closed by the outer-modifiers task
+/// (`OM-Z`, lane 4). `Component.padding` no longer amends each member's
+/// `Style` (which reached `setStyle`'s trap above) but wraps each member in a
+/// legacy padding node through `LayoutPass.requestNode(style:children:)`, and
+/// `LayoutTree.newNode` already refuses a native child
+/// (`LayoutTree.swift`, "legacy layout node given a native child", ruling
+/// SA-G; pinned for the direct call by
+/// `aNativeNodeRegisteredUnderALegacyNodeTraps`). No new precondition: this
+/// pins the ROUTE through `StyledComponent`.
+///
+/// **Why the call is direct and not under a `Column`.** A `Column` would trap
+/// at its own `newNode` with the SAME fragment once its content returned, so
+/// an implementation whose `.padding` did nothing at all would still pass on
+/// the fragment. Driving `requestGroupLayout` on the `StyledComponent` itself
+/// leaves the wrap's registration as the only legacy `newNode` in the
+/// process: delete the wrap and nothing traps, and the exit expectation
+/// itself fails.
+@Test func aPaddingModifierOnAProposalComponentTraps() async {
+    let result = await #expect(processExitsWith: .failure,
+                               observing: [\.standardErrorContent]) {
+        await MainActor.run {
+            let frame = Frame(contentSize: Size(width: Pixels(140), height: Pixels(90)), scaleFactor: 1)
+            var pass = LayoutPass(frame: frame)
+            var styled = Toggle().padding(Pixels(4))
+            var cursor = 0
+            _ = styled.requestGroupLayout(under: nil, at: &cursor, pass: &pass)
+        }
+    }
+    let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    #expect(stderr.contains("given a native child"),
+            "aborted, but not at the wrap's native-child check this test is about:\n\(stderr)")
+}
+
 /// A proposal element that traps with its own message the moment it is
 /// registered: the witness that registration continued past a sibling.
 private struct RegisteredAfterTheContainer: ProposalElement {

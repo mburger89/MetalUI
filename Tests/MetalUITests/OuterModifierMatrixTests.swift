@@ -293,7 +293,7 @@ private struct TwoMembers: Component {
 /// | `selfStorage` | `nodeDelta == 0` **and** the outermost layer's stored state differs |
 /// | `paintOnly` | `nodeDelta == 0 && outerSizeDelta == 0` **and** the emitted rects differ |
 /// | `prepaintOnly` | the first three all zero **and** the hit regions or the click count move |
-/// | `distributes` | the component's members each moved, all `memberCount` of them |
+/// | `distributes` | each of the component's `memberCount` members' own SIZE changed (an amend, `OM-AD`); with `wraps` also claimed, exactly one node per member and each member's own size UNCHANGED — a wrap per member (`OM-AM`, lane 4's `padding`) |
 ///
 /// and, for every row: a row that does not claim `wraps` must add no node; a
 /// row that claims neither `paintOnly` nor `distributes` must emit **byte-
@@ -615,10 +615,13 @@ private struct TwoMembers: Component {
                   }),
 
         // MARK: distributes
-        MatrixRow(name: "padding(_:)", path: "legacy Component", kinds: [.distributes],
-                  note: "today an amend writing CSS border-box Style.padding onto EACH "
-                      + "top-level node — lane 4 makes it a wrap per node; the kind does not "
-                      + "change, the numbers do",
+        MatrixRow(name: "padding(_:)", path: "legacy Component", kinds: [.distributes, .wraps],
+                  note: "a WRAP PER MEMBER (lane 4, OM-D): one node around each top-level "
+                      + "node, each member keeping its own size. Before lane 4 it was an amend "
+                      + "writing CSS border-box Style.padding onto each member — `distributes` "
+                      + "alone, whose witness was the member's own size changing (OM-AD); a "
+                      + "per-member wrap leaves that size unchanged by construction, so the "
+                      + "row claims both kinds and the witness branches (OM-AM)",
                   memberCount: 2,
                   arms: {
                       (try observe(probe: pt(2, 2)) { _ in TwoMembers() },
@@ -707,17 +710,35 @@ private struct TwoMembers: Component {
             let members = try #require(row.memberCount,
                                        why("\(label) claims `distributes` without saying how many "
                                            + "top-level nodes its component has"))
-            #expect(nodeDelta == 0,
-                    why("\(label) claims `distributes` and the modified component gained a node of "
-                        + "its own — a Component is layout-transparent. \(reading)"))
             try #require(bare.rectSizes.count == members && declared.rectSizes.count == members,
                          why("\(label): set up — each member must paint exactly one rect, got "
                              + "\(bare.rectSizes.count) and \(declared.rectSizes.count). \(reading)"))
-            for (index, pair) in zip(bare.rectSizes, declared.rectSizes).enumerated() {
-                #expect(pair.0 != pair.1,
-                        why("\(label) claims `distributes` and member \(index) kept its size "
-                            + "(\(pair.0)) — the modifier reached some members and not all of "
-                            + "them. \(reading)"))
+            if row.kinds.contains(.wraps) {
+                // A wrap PER MEMBER (OM-AM): exactly one new node per member —
+                // one around the whole group reads 1, an amend 0 — and each
+                // member's OWN size unchanged, because what grew is its
+                // wrapper. The `wraps` witness above already required the
+                // container to see a bigger box.
+                #expect(nodeDelta == members,
+                        why("\(label) claims `distributes` + `wraps` and added \(nodeDelta) node(s) "
+                            + "for \(members) members — one wrapper per member, not one around "
+                            + "the group and not an amend. \(reading)"))
+                for (index, pair) in zip(bare.rectSizes, declared.rectSizes).enumerated() {
+                    #expect(pair.0 == pair.1,
+                            why("\(label) claims a wrap per member and member \(index)'s own size "
+                                + "moved (\(pair.0) → \(pair.1)) — that is an amend, not a wrap. "
+                                + reading))
+                }
+            } else {
+                #expect(nodeDelta == 0,
+                        why("\(label) claims `distributes` and the modified component gained a node of "
+                            + "its own — a Component is layout-transparent. \(reading)"))
+                for (index, pair) in zip(bare.rectSizes, declared.rectSizes).enumerated() {
+                    #expect(pair.0 != pair.1,
+                            why("\(label) claims `distributes` and member \(index) kept its size "
+                                + "(\(pair.0)) — the modifier reached some members and not all of "
+                                + "them. \(reading)"))
+                }
             }
         }
     }
@@ -820,9 +841,11 @@ private struct TwoMembers: Component {
 /// `.padding(4)` alone puts the leaf at 4 and the outer box at 28 — numbers
 /// neither of the other two arms can produce.
 ///
-/// This is the `Element` half of a claim whose `Component` half is false today:
-/// `chainedPaddingReplacesRatherThanAccumulates` (`ComponentTests.swift`) pins
-/// the opposite answer on `StyledComponent`, and lane 4 inverts it.
+/// This is the `Element` half of a claim whose `Component` half is
+/// `chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement`
+/// (`ComponentTests.swift`, lane 4) — which replaced
+/// `chainedPaddingReplacesRatherThanAccumulates`, the amend-era pin of the
+/// opposite answer.
 @Test @MainActor func legacyPaddingAccumulatesAcrossAChainAsSwiftUIDoes() throws {
     let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
 
