@@ -1390,3 +1390,122 @@ private final class AnswerRecord: @unchecked Sendable {
     #expect(afterNarrow.0 == afterWide.0, "wide moved with narrow: \(afterNarrow)")
     #expect(afterNarrow.1 > 0, "the wheel over narrow did not scroll it: \(afterNarrow)")
 }
+
+// MARK: - Lane 5: the legacy containers' three pinned divergences (CN-P)
+//
+// Each test builds a legacy container and its proposal counterpart side by
+// side, `#require`s them to disagree by the probe's numbers, and so names the
+// difference until task 7 (the owner of all three) lowers or deletes the legacy
+// spelling. Probe arms are re-run 2026-09-16 from
+// `docs/probes/swiftui-stack-algorithms.swift`, output identical on these arms.
+
+/// A childless legacy leaf recording its prepaint bounds; `nil` sizes leave
+/// that axis content-sized (0).
+private struct LegacyMark: StyledElement {
+    let name: String
+    let log: Lane4Log
+    var style = Style()
+    var decoration = Decoration()
+    var elementID: ElementID?
+    var handlers = Handlers()
+
+    init(_ name: String, _ log: Lane4Log, width: Float? = nil, height: Float? = nil) {
+        self.name = name
+        self.log = log
+        if let width { style.size.width = .length(.pixels(Pixels(width))) }
+        if let height { style.size.height = .length(.pixels(Pixels(height))) }
+    }
+
+    mutating func requestLayout(_ id: GlobalElementID, pass: inout LayoutPass) -> (LayoutNodeID, Void) {
+        (pass.requestNode(style: style, children: []), ())
+    }
+
+    mutating func prepaint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                           pass: inout PrepaintPass) {
+        log.bounds[name] = bounds
+    }
+
+    mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>, layout: inout Void,
+                        prepaint: inout Void, pass: inout PaintPass) {}
+}
+
+/// The gap between two logged rects along one axis: `b`'s leading edge minus
+/// `a`'s trailing edge.
+@MainActor
+private func gap(_ log: Lane4Log, horizontal: Bool) throws -> Float {
+    let a = try #require(log.bounds["a"]), b = try #require(log.bounds["b"])
+    return horizontal
+        ? b.origin.x.value - (a.origin.x.value + a.size.width.value)
+        : b.origin.y.value - (a.origin.y.value + a.size.height.value)
+}
+
+/// **CN-P 1: a legacy `Row`/`Column` puts no space between two views where
+/// `HStack`/`VStack` put 8.** Probe `S rect|rect`: `hstack 8  vstack 8` (and the
+/// explicit control `hstack(0) 0`). Two 20×20 views, 100×100 window each.
+///
+/// Legacy: gap 0 on both axes. Proposal: 8 on both. Required to disagree.
+/// Owner: task 7. Green on arrival (a pin). Mutation: `Row`/`Column` default
+/// gap 8 (measured at design time, 22 tests redden; this one among them).
+@MainActor
+@Test func aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight() throws {
+    let row = Lane4Log(), column = Lane4Log(), hStack = Lane4Log(), vStack = Lane4Log()
+    _ = render(Row { LegacyMark("a", row, width: 20, height: 20); LegacyMark("b", row, width: 20, height: 20) },
+               100, 100)
+    _ = render(Column { LegacyMark("a", column, width: 20, height: 20); LegacyMark("b", column, width: 20, height: 20) },
+               100, 100)
+    _ = render(HStack { pFixed("a", 20, 20, hStack); pFixed("b", 20, 20, hStack) }, 100, 100)
+    _ = render(VStack { pFixed("a", 20, 20, vStack); pFixed("b", 20, 20, vStack) }, 100, 100)
+
+    let legacyH = try gap(row, horizontal: true), proposalH = try gap(hStack, horizontal: true)
+    let legacyV = try gap(column, horizontal: false), proposalV = try gap(vStack, horizontal: false)
+    try #require(legacyH != proposalH && legacyV != proposalV,
+                 "the legacy and proposal stacks agree: \(legacyH)/\(proposalH), \(legacyV)/\(proposalV)")
+    #expect(legacyH == 0 && legacyV == 0, "legacy Row/Column default gap: \(legacyH), \(legacyV)")
+    #expect(proposalH == 8 && proposalV == 8, "S rect|rect: \(proposalH), \(proposalV)")
+}
+
+/// **CN-P 2: a legacy `Stack` offers its child fit-content where a `ZStack`
+/// offers its proposal.** Probe `A5`: `ZStack{a 0..inf ideal 10; b 20x20}` at
+/// 100×80 answers 100×80 with a at (0, 0) 100×80 and b at (40, 30). The legacy
+/// `Stack` in a 100×80 window places a sizeless leaf at (50, 40) 0×0 (its
+/// fit-content), and a 20×20 sibling at (40, 30) — where both agree.
+///
+/// Owner: task 7. Green on arrival (a pin). Mutation: set the legacy `Stack`
+/// container's `alignItems` and `justifyItems` to `.stretch` in `Stack.init`
+/// (measured at design time: 7 tests redden and the child reads (0, 0) 100×80;
+/// this pin must be the 8th).
+@MainActor
+@Test func aLegacyStackOffersFitContentWhereAZStackOffersItsProposal() throws {
+    let legacy = Lane4Log(), proposal = Lane4Log()
+    _ = render(Stack { LegacyMark("a", legacy); LegacyMark("b", legacy, width: 20, height: 20) }, 100, 80)
+    _ = render(ZStack { pGreedy("a", proposal); pFixed("b", 20, 20, proposal) }, 100, 80)
+
+    let legacyA = try #require(legacy.bounds["a"]), proposalA = try #require(proposal.bounds["a"])
+    try #require(legacyA != proposalA, "the legacy Stack and the ZStack offered alike: \(legacyA)")
+    #expect(legacyA == rect(50, 40, 0, 0), "legacy Stack, sizeless child: \(legacyA)")
+    #expect(proposalA == rect(0, 0, 100, 80), "A5 a: \(proposalA)")
+    #expect(legacy.bounds["b"] == rect(40, 30, 20, 20) && proposal.bounds["b"] == rect(40, 30, 20, 20),
+            "A5 b, where both agree")
+}
+
+/// **CN-P 3: a legacy `ScrollView`'s viewport takes its parent's cross axis
+/// where a `ProposalScrollView` takes its content's.** Probe `SC2`:
+/// `ScrollView(.vertical){c fixed 50x30}` at 100×100 answers **50**×100. Read as
+/// the registered scroll region's width, 100×100 window root: legacy 100,
+/// proposal 50 (centred at x 25 by `CN-J`).
+///
+/// Owner: task 7. Green on arrival (a pin, after lane 4). Mutation: revert lane
+/// 4's cross-axis line (the proposal viewport answers its proposal).
+@MainActor
+@Test func aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents() throws {
+    let legacy = Lane4Log(), proposal = Lane4Log()
+    let legacyFrame = render(ScrollView(.vertical) { LegacyMark("c", legacy, width: 50, height: 30) }, 100, 100)
+    let proposalFrame = render(ProposalScrollView(.vertical) { pFixed("c", 50, 30, proposal) }, 100, 100)
+
+    let legacyRegion = try #require(legacyFrame.scrollRegions.first).bounds
+    let proposalRegion = try #require(proposalFrame.scrollRegions.first).bounds
+    try #require(legacyRegion.size.width != proposalRegion.size.width,
+                 "both viewports are \(legacyRegion.size.width) wide")
+    #expect(legacyRegion == rect(0, 0, 100, 100), "legacy viewport: \(legacyRegion)")
+    #expect(proposalRegion == rect(25, 0, 50, 100), "SC2 vertical viewport: \(proposalRegion)")
+}

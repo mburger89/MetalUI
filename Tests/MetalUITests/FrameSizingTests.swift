@@ -1,6 +1,8 @@
 import Testing
+import Metal
 import MetalUICore
 import MetalUILayout
+import MetalUIPlatform
 @testable import MetalUI
 
 // Lane 2 of plan task 4, "the legacy frame's SwiftUI surface"
@@ -442,27 +444,44 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
             """)
 }
 
-// MARK: - 2.8 an oversized child is squeezed (ruling FR-N)
+// MARK: - 5.1 a single-child frame overflows (ruling CN-N, closing FR-N)
 
-/// **A child bigger than its legacy frame is SQUEEZED on the layer's main axis**
-/// where SwiftUI overflows both — ruling `FR-N`, **pinned wrong on purpose**.
+/// Two legacy marks as ONE component, so a frame around it wraps two nodes —
+/// the case `CN-N` keeps on `FR-C`'s flex-row lowering.
+private struct TwoMarks: Component {
+    let log: SizeLog
+    var content: some ElementGroup {
+        Mark("child", log: log, width: 200, height: 160)
+        Mark("second", log: log, width: 10, height: 10)
+    }
+}
+
+/// **A child bigger than its single-child legacy frame keeps its size and
+/// overflows BOTH axes, placed by the frame's alignment** — ruling `CN-N`,
+/// which closes `FR-N` (this test replaces
+/// `aLegacyFrameSqueezesAnOversizedChildWhereSwiftUIOverflows`).
 ///
-/// A child declaring 200×160 inside `.frame(width: 60, height: 40)` lands at
-/// **(0, 20) 60×160**: its width shrunk to the frame, its height overflowing.
-/// **SwiftUI's `A5` keeps 200×160 at (−70, −60)** — a frame never resizes its
-/// child.
+/// SwiftUI, `docs/probes/swiftui-frame-semantics.swift` (re-run 2026-09-16,
+/// output identical on these arms): `A5`, a 200×160 child in
+/// `.frame(width: 60, height: 40)`, is placed at **(−70, −60) 200×160** relative
+/// to the frame; `B9`, the same with `.topLeading`, at **(0, 0) 200×160**.
 ///
-/// The frame layer is a flex container: on its main axis an over-large item
-/// shrinks (`flexShrink` defaults to 1, and the layer cannot reach into its
-/// child's `Style`), on its cross axis it overflows. The second arm puts
-/// `flexShrink(0)` on the LAYER and reads the same numbers, which separates
-/// "the layer shrank" from "the child was shrunk as its flex item" (scratch
-/// `N5`/`N6`). Owner of the fix: plan task 6.
+/// Here the frame is a flex item of a 300×200 `Row`, so it sits at (0, 80) and
+/// the expected rects are the probe's plus that origin: centred (−70, 20),
+/// top-leading (0, 80). The second arm puts `flexShrink(0)` on the LAYER and
+/// must read the same (the old test's separation of "the layer shrank" from
+/// "the child was shrunk").
 ///
-/// Mutation: set the layer's `flexDirection` to `.column` — the squeeze moves
-/// to the height and both arms redden, which is the evidence that one flex node
-/// cannot overflow both axes.
-@Test @MainActor func aLegacyFrameSqueezesAnOversizedChildWhereSwiftUIOverflows() throws {
+/// **The control is the other half of the ruling**: the same oversized mark
+/// framed together with a 10×10 sibling inside one component — two nodes —
+/// keeps the flex row and is still squeezed (to 57, CSS shrink by base size), as
+/// `FR-N` read. It is `#require`d to disagree with the single-child arm.
+///
+/// Before the lane the single-child arm reads (0, 20) 60×160 (`FR-N`).
+/// Mutations: lower single-child frames as a flex row again (the three
+/// single-child arms redden); lower every frame layer as a stack (the control's
+/// `#require` fails).
+@Test @MainActor func aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes() throws {
     let plain = try render { log in
         Row {
             Mark("child", log: log, width: 200, height: 160).frame(width: px(60), height: px(40))
@@ -475,10 +494,30 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
                 .flexShrink(0)
         }
     }
-    #expect(Rect(try #require(plain.bounds["child"])) == Rect(0, 20, 60, 160),
-            "SwiftUI's A5 is 200x160 at (-70, -60)")
-    #expect(Rect(try #require(pinned.bounds["child"])) == Rect(0, 20, 60, 160),
-            "the layer did not shrink; the child was shrunk as its flex item")
+    let topLeading = try render { log in
+        Row {
+            Mark("child", log: log, width: 200, height: 160)
+                .frame(width: px(60), height: px(40), alignment: .topLeading)
+        }
+    }
+    let twoNodes = try render { log in
+        Row {
+            TwoMarks(log: log).frame(width: px(60), height: px(40))
+        }
+    }
+
+    let single = Rect(try #require(plain.bounds["child"]))
+    let squeezed = Rect(try #require(twoNodes.bounds["child"]))
+    try #require(single != squeezed,
+                 "the single-child and two-node frames placed the child alike: \(single), \(squeezed)")
+
+    #expect(single == Rect(-70, 20, 200, 160), "A5 (-70, -60) from the frame at (0, 80): \(single)")
+    #expect(Rect(try #require(pinned.bounds["child"])) == Rect(-70, 20, 200, 160),
+            "flexShrink(0) on the layer changes nothing")
+    #expect(Rect(try #require(topLeading.bounds["child"])) == Rect(0, 80, 200, 160),
+            "B9 (0, 0) from the frame at (0, 80)")
+    #expect(squeezed.width == 57 && squeezed.height == 160,
+            "a frame over two nodes keeps FR-C's flex row and squeezes the child: \(squeezed)")
 }
 
 // MARK: - 2.9 an infinite maximum (ruling FR-O)
@@ -615,97 +654,60 @@ private func nodeCount<Root: Element>(_ make: (SizeLog) -> Root) throws -> Int {
 // proof is therefore entirely in their mutations, which are named in each doc
 // comment and measured in `docs/record/14-frame-and-sizing.md`.
 
-// MARK: - 3.1 percentage sizing (rulings FR-H, FR-T)
+// MARK: - 5.2 fractional sizing (rulings FR-H, FR-T, CN-O)
 
-/// **`width(percent:)` takes a FRACTION, and the parameter's name says
-/// otherwise** — ruling `FR-T`, found by running the design's own arm and
-/// **pinned wrong on purpose**; plus the containing-block resolution ruling
-/// `FR-H` keeps as an explicit MetalUI divergence (SwiftUI has no percentage
-/// sizing at all; its nearest, `containerRelativeFrame`, resolves against a
-/// named container rather than a containing block).
+/// **`width(fraction:)`, `height(fraction:)` and `flexBasis(fraction:)` take a
+/// fraction of the containing block, as their names now say** — ruling `CN-O`,
+/// which renames `FR-T`'s misnamed `percent:` modifiers (still present,
+/// deprecated, meaning unchanged; guard G4 counts their deprecations). This
+/// test replaces `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock`.
+/// No SwiftUI claim: SwiftUI has no fractional sizing (`FR-H` keeps it as a
+/// MetalUI divergence; its nearest, `containerRelativeFrame`, resolves against
+/// a named container rather than a containing block).
 ///
-/// `Length.percent` stores a fraction everywhere in the engine —
-/// `resolveLength` is `f * parent`, and every one of its ~15 engine-test call
-/// sites passes `0.5`, `0.25`, `0.10`. `Box.width(percent:)` forwards its
-/// argument untouched, so **`.width(percent: 50)` means 5000%**, and the only
-/// callers (`ModifierTests`' modifier table) assert the `Style` field rather
-/// than a layout, so nothing caught it.
+/// `FR-T`'s arms, respelled:
 ///
-/// The arms:
+/// - **A**, 0.5 in a 300pt `Row`, read as the x of a 5pt sibling: 150;
+/// - **B**, the same element as the ROOT: (0, 0) 150×20 (`SZ-A`);
+/// - **C**, 0.5 centred on a 300pt `Column`'s cross axis: x 75;
+/// - **D**, `height(fraction: 0.5)` against the `Column`'s 200pt height: 100;
+/// - **E**, `flexBasis(fraction: 0.5)` in the 300pt `Row`: 150.
 ///
-/// - **A**, the fraction in a 300pt `Row`: `.width(percent: 0.5)` reads 150 —
-///   CSS's answer, resolved against the containing block.
-/// - **B**, the same fraction as the ROOT element: 150 as well. This arm
-///   exists to refute a stale claim rather than to pin a new one: this file's
-///   `width(percent:)` doc comment used to say the root "falls back to the
-///   offered space, so `width(percent: 50)` in an 800-wide window gives 800".
-///   Ruling `SZ-A` fixed that and deleted CLAUDE.md's row for it; the engine
-///   oracle is `rootPercentageMatchesWebKit`
-///   (`Tests/MetalUILayoutTests/SizingFixtureTests.swift`) and this is the
-///   same fact through the public modifier.
-/// - **C**, the spelling the parameter's NAME invites, pinned wrong on
-///   purpose: `.width(percent: 50)` is 15000pt wide, and `.width(percent:
-///   100)` is 30000pt. Centred on a 300pt `Column`'s cross axis those land at
-///   x = −7350 and x = −14850.
+/// The control is 0.25 in the same `Row` (75), `#require`d to disagree with A.
 ///
-/// **C is what the design called "the `Column` percentage defect (≈30000pt),
-/// mechanism not investigated" and asserted as a range.** There is no
-/// `Column` defect and no range is needed: 30000 is 100 × 300, the fraction
-/// bug seen through a centring parent. The design's arms 1 and 2 were both
-/// written with the `percent: 50` spelling and are refuted — see `FR-T`.
-///
-/// Mutations. (1) Make `width(percent:)` write `.percent(percent / 100)` —
-/// the candidate fix — and every arm moves; this test is what stops that
-/// landing silently. (2) In `resolveRootSize`, resolve `withoutMeasuring`'s
-/// declared dimension against no basis (`declared(dim)`, the pre-`SZ-A`
-/// spelling) and **arm B alone** reddens.
-@Test @MainActor func aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock() throws {
-    // A — the fraction, read as the x of a 5pt sibling in a 300pt Row.
-    let fractionInRow = try widthInRow { log in
-        Mark("a", log: log, height: 20).width(percent: 0.5)
+/// Before the lane the API is missing. Mutation: make `fraction:` write
+/// `.percent(fraction * 100)` (A, B, C, D, E move to 15000-scale widths).
+@Test @MainActor func aFractionSizeResolvesAgainstItsContainingBlock() throws {
+    let half = try widthInRow { log in
+        Mark("a", log: log, height: 20).width(fraction: 0.5)
     }
-    // B — the same element as the root of a 300x200 frame.
+    let quarter = try widthInRow { log in
+        Mark("a", log: log, height: 20).width(fraction: 0.25)
+    }
+    try #require(half != quarter, "0.5 and 0.25 agreed, so nothing here can see the fraction: \(half)")
+
     let atRoot = try render { log in
-        Mark("a", log: log, height: 20).width(percent: 0.5)
+        Mark("a", log: log, height: 20).width(fraction: 0.5)
     }
-    // C — the spelling the label invites, in a Column, whose cross-axis
-    // centring is the only instrument that can see a width wider than the
-    // parent (in a Row it is shrunk back to 300 and the number is hidden).
-    let fifty = try render { log in
-        Column { Mark("a", log: log, height: 20).width(percent: 50) }
-    }
-    let hundred = try render { log in
-        Column { Mark("a", log: log, height: 20).width(percent: 100) }
-    }
-    // C's control: the fraction in that same Column.
     let halfInColumn = try render { log in
-        Column { Mark("a", log: log, height: 20).width(percent: 0.5) }
+        Column { Mark("a", log: log, height: 20).width(fraction: 0.5) }
     }
-    // The symmetric modifier, against the Column's own 200pt main axis.
     let halfHigh = try render { log in
-        Column { Mark("a", log: log, width: 20).height(percent: 0.5) }
+        Column { Mark("a", log: log, width: 20).height(fraction: 0.5) }
+    }
+    let basis = try widthInRow { log in
+        Mark("a", log: log, height: 20).flexBasis(fraction: 0.5)
     }
 
-    let fiftyRect = Rect(try #require(fifty.bounds["a"]))
-    try #require(fractionInRow != fiftyRect.width,
-                 """
-                 `percent: 0.5` and `percent: 50` agreed, so nothing here can see the unit: \
-                 \(fractionInRow), \(fiftyRect.width)
-                 """)
-
-    #expect(fractionInRow == 150,
-            "0.5 of a 300pt containing block: \(fractionInRow)")
+    #expect(half == 150, "A: 0.5 of a 300pt containing block: \(half)")
+    #expect(quarter == 75, "the control: 0.25 of it: \(quarter)")
     #expect(Rect(try #require(atRoot.bounds["a"])) == Rect(0, 0, 150, 20),
-            "the ROOT resolves its own percentage against the offered extent too (SZ-A)")
+            "B: the ROOT resolves its fraction against the offered extent too (SZ-A)")
     #expect(Rect(try #require(halfInColumn.bounds["a"])) == Rect(75, 0, 150, 20),
-            "the same fraction, centred on a Column's cross axis")
+            "C: the same fraction, centred on a Column's cross axis")
     #expect(Rect(try #require(halfHigh.bounds["a"])) == Rect(140, 0, 20, 100),
-            "`height(percent:)` resolves against the containing block's HEIGHT")
-
-    #expect(fiftyRect == Rect(-7350, 0, 15000, 20),
-            "`percent: 50` is 5000%, not 50% — the parameter takes a fraction (FR-T)")
-    #expect(Rect(try #require(hundred.bounds["a"])) == Rect(-14850, 0, 30000, 20),
-            "30000 is 100 x 300; there is no separate Column defect (FR-T)")
+            "D: `height(fraction:)` resolves against the containing block's HEIGHT")
+    #expect(basis == 150, "E: `flexBasis(fraction:)` against the Row's main axis: \(basis)")
 }
 
 // MARK: - 3.2 the sizing modifiers write their own box (rulings FR-F, FR-G)
@@ -826,4 +828,165 @@ private func nodeCount<Root: Element>(_ make: (SizeLog) -> Root) throws -> Int {
             "a frame layer's minSize is the LAYER's, with flexGrow on the layer: \(framedOnLayer)")
     #expect(framedOnInner == 400,
             "and with flexGrow on the inner box: \(framedOnInner)")
+}
+
+
+// MARK: - Plan task 6, lane 5: what a single-child legacy frame must keep (ruling CN-N)
+//
+// `CN-N` lowers a legacy frame layer over exactly one node to a one-cell
+// `display: .stack` instead of `FR-C`'s flex row. Its prototype never put an
+// absolutely positioned child or a `ScrollView` inside such a frame, so these
+// two tests take **today's answers, measured at `8e1dfa7` before the lowering
+// changed**, and a moved rect afterwards is a finding (the spec's 5.6 and 5.7).
+// Neither makes a SwiftUI claim: SwiftUI has no absolute positioning, and a
+// legacy `ScrollView`'s viewport is `CN-P`'s divergence 3.
+
+/// Four `inset` edges in points, `nil` for `.auto`.
+private func insets(top: Float?, right: Float?, bottom: Float?, left: Float?) -> Edges<MetalUICore.Dimension> {
+    func edge(_ value: Float?) -> MetalUICore.Dimension { value.map { .length(.pixels(px($0))) } ?? .auto }
+    return Edges(top: edge(top), right: edge(right), bottom: edge(bottom), left: edge(left))
+}
+
+/// **An absolutely positioned child of a single-child legacy frame is placed
+/// against its containing block exactly as before the lowering** (5.6).
+///
+/// Each arm is a 300×200 `Row` of a 30×30 `pad`, the framed 20×20 `abs` and a
+/// 10×10 `after` whose rect reads the frame's own size. Taken at `8e1dfa7`:
+///
+/// - **A**, fixed 60×40 frame made `.relative`, insets top 10 left 15: abs
+///   (45, 90) — the frame at (30, 80) plus the insets; after (90, 95);
+/// - **B**, the same frame left `.static`: abs (15, 10), against the root;
+/// - **C**, `.relative`, every inset `.auto`: abs (30, 80), the containing
+///   block's origin (divergence 9, `AP-F`);
+/// - **D**, as C with `.bottomTrailing`: still (30, 80) — alignment does not
+///   place an absolute child, on either lowering;
+/// - **E**, a flexible `.frame(minWidth: 50, minHeight: 30)` made `.relative`,
+///   insets right 5 bottom 5: abs (55, 90), after (80, 95) — the frame is
+///   50×30 because an absolute child contributes no size;
+/// - **F**, `.relative`, insets all 0 on a 20×20 child: abs (30, 80).
+///
+/// The control: A and B must disagree (the relative frame IS the containing
+/// block). Mutation: lower through `display: .stack` without carrying
+/// `position`'s containing block (make the frame layer `.static` when it
+/// lowers): A, C, D, E and F move to the root's origin.
+@Test @MainActor func anAbsolutelyPositionedChildInsideASingleChildLegacyFrameKeepsItsPlacement() throws {
+    func arm(relative: Bool, _ edges: Edges<MetalUICore.Dimension>, alignment: ProposalAlignment = .center,
+             flexible: Bool = false) throws -> (abs: Rect, after: Rect) {
+        let log = try render { log in
+            Row {
+                Mark("pad", log: log, width: 30, height: 30)
+                if flexible {
+                    Mark("abs", log: log, width: 20, height: 20).position(.absolute).inset(edges)
+                        .frame(minWidth: px(50), minHeight: px(30), alignment: alignment)
+                        .position(relative ? .relative : .static)
+                } else {
+                    Mark("abs", log: log, width: 20, height: 20).position(.absolute).inset(edges)
+                        .frame(width: px(60), height: px(40), alignment: alignment)
+                        .position(relative ? .relative : .static)
+                }
+                Mark("after", log: log, width: 10, height: 10)
+            }
+        }
+        return (Rect(try #require(log.bounds["abs"])), Rect(try #require(log.bounds["after"])))
+    }
+
+    let a = try arm(relative: true, insets(top: 10, right: nil, bottom: nil, left: 15))
+    let b = try arm(relative: false, insets(top: 10, right: nil, bottom: nil, left: 15))
+    try #require(a.abs != b.abs, "a relative and a static frame placed the child alike: \(a.abs)")
+
+    #expect(a.abs == Rect(45, 90, 20, 20), "A: \(a.abs)")
+    #expect(a.after == Rect(90, 95, 10, 10), "A: the frame keeps its 60pt width: \(a.after)")
+    #expect(b.abs == Rect(15, 10, 20, 20), "B: \(b.abs)")
+    let c = try arm(relative: true, insets(top: nil, right: nil, bottom: nil, left: nil))
+    #expect(c.abs == Rect(30, 80, 20, 20), "C: \(c.abs)")
+    let d = try arm(relative: true, insets(top: nil, right: nil, bottom: nil, left: nil),
+                    alignment: .bottomTrailing)
+    #expect(d.abs == Rect(30, 80, 20, 20), "D: \(d.abs)")
+    let e = try arm(relative: true, insets(top: nil, right: 5, bottom: 5, left: nil), flexible: true)
+    #expect(e.abs == Rect(55, 90, 20, 20), "E: \(e.abs)")
+    #expect(e.after == Rect(80, 95, 10, 10), "E: the flexible frame is 50x30: \(e.after)")
+    let f = try arm(relative: true, insets(top: 0, right: 0, bottom: 0, left: 0))
+    #expect(f.abs == Rect(30, 80, 20, 20), "F: \(f.abs)")
+}
+
+/// **A `ScrollView` inside a single-child legacy frame keeps its viewport, its
+/// content's rect and its wheel exactly as before the lowering** (5.7).
+///
+/// Through a real `Window` over `FakePlatformWindow`, 200×200. Each arm is a
+/// `Row` of a 30×30 pad and the frame; one wheel event of −37 at a point inside
+/// the region. Taken at `8e1dfa7` (region bounds are clipped to the window, as
+/// every hitbox is):
+///
+/// - **A**, `ScrollView(.vertical) { c 80×400 }` in a 120×100 frame: the
+///   viewport is the content's 400 tall — a legacy frame never imposes its
+///   size — so the region is (50, 0) 80×200, c (50, −100), and nothing scrolls
+///   (offset 0);
+/// - **F**, the same scroll view in a `Box` declared 100 tall: region (50, 50)
+///   80×100, c (50, 50), offset **37**;
+/// - **H**, F's box in a 60×60 `.topLeading` frame: region (30, 70) 80×100, c
+///   (30, 70), offset 37;
+/// - **G**, `ScrollView(.horizontal) { c 400×40 }` in a `Box` declared 100
+///   wide in a 120×100 frame: the viewport overflows at the content's width,
+///   region (40, 80) 160×40, c (40, 80), offset 0.
+///
+/// The control: A and F must disagree on the offset (the instrument can see a
+/// scroll). Mutation: the frame layer lowers to a stack that stretches its one
+/// child (`justifyItems`/`alignItems` `.stretch`): A's and G's rects move.
+@Test @MainActor func aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    func arm<Content: Element>(at x: Float, _ y: Float, horizontal: Bool = false,
+                               _ make: @escaping @MainActor (SizeLog) -> Content) throws
+        -> (region: Rect, content: Rect, offset: Double) {
+        let log = SizeLog()
+        let (window, platform) = try makeFakeWindow(device: device, size: 200) { make(log) }
+        window.drawFrameIfNeeded()
+        let region = try #require(window.lastScrollRegions.first, "no scroll region registered")
+        let delta = horizontal ? Point(x: px(-37), y: px(0)) : Point(x: px(0), y: px(-37))
+        platform.simulateInput(.scrollWheel(ScrollEvent(position: Point(x: px(x), y: px(y)), delta: delta)))
+        window.drawFrameIfNeeded()
+        let offset = try #require(window.stateTable.peek(region.id, as: ScrollState.self)).offset
+        return (Rect(region.bounds), Rect(try #require(log.bounds["c"])), offset)
+    }
+
+    let a = try arm(at: 90, 100) { log in
+        Row {
+            Mark("pad", log: log, width: 30, height: 30)
+            ScrollView(.vertical) { Mark("c", log: log, width: 80, height: 400) }
+                .frame(width: px(120), height: px(100))
+        }
+    }
+    let f = try arm(at: 90, 100) { log in
+        Row {
+            Mark("pad", log: log, width: 30, height: 30)
+            Box { ScrollView(.vertical) { Mark("c", log: log, width: 80, height: 400) } }
+                .height(px(100))
+                .frame(width: px(120), height: px(100))
+        }
+    }
+    try #require(a.offset != f.offset, "neither arm scrolled, so the wheel is unobserved: \(a.offset)")
+
+    #expect(a.region == Rect(50, 0, 80, 200) && a.content == Rect(50, -100, 80, 400) && a.offset == 0,
+            "A: \(a)")
+    #expect(f.region == Rect(50, 50, 80, 100) && f.content == Rect(50, 50, 80, 400) && f.offset == 37,
+            "F: \(f)")
+    let h = try arm(at: 50, 90) { log in
+        Row {
+            Mark("pad", log: log, width: 30, height: 30)
+            Box { ScrollView(.vertical) { Mark("c", log: log, width: 80, height: 400) } }
+                .height(px(100))
+                .frame(width: px(60), height: px(60), alignment: .topLeading)
+        }
+    }
+    #expect(h.region == Rect(30, 70, 80, 100) && h.content == Rect(30, 70, 80, 400) && h.offset == 37,
+            "H: \(h)")
+    let g = try arm(at: 90, 100, horizontal: true) { log in
+        Row {
+            Mark("pad", log: log, width: 30, height: 30)
+            Box { ScrollView(.horizontal) { Mark("c", log: log, width: 400, height: 40) } }
+                .width(px(100))
+                .frame(width: px(120), height: px(100))
+        }
+    }
+    #expect(g.region == Rect(40, 80, 160, 40) && g.content == Rect(40, 80, 400, 40) && g.offset == 0,
+            "G: \(g)")
 }

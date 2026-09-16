@@ -110,3 +110,38 @@ func theSpacingFirstStackInitializersAreDeprecated() throws {
     #expect(result.messages.contains("'init(spacing:alignment:content:)' is deprecated"),
             "deprecated, but not the spacing-first initializer:\n\(result.output)")
 }
+
+/// **G4 — the `percent:` sizing modifiers are deprecated renames of
+/// `fraction:`** (ruling `CN-O`). Both spellings compile from a plain
+/// `import MetalUI`; the three `fraction:` calls draw no diagnostic, and the
+/// three `percent:` calls draw exactly three deprecations, each naming its
+/// `fraction:` replacement.
+///
+/// Red before the lane: `fraction:` does not exist and `percent:` is not
+/// deprecated. Mutation that must redden it: remove one `@available`.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func thePercentSizingModifiersAreDeprecatedRenamesOfFraction() throws {
+    let control = try typecheckFile("""
+        @MainActor func build() {
+            _ = Box().width(fraction: 0.5).height(fraction: 0.5).flexBasis(fraction: 0.5)
+        }
+        """, importing: "MetalUI")
+    show("G4 control", control)
+    try #require(control.succeeded, "the fraction: spellings must compile:\n\(control.output)")
+    #expect(deprecations(control) == 0, "fraction: is not deprecated:\n\(control.output)")
+
+    let result = try typecheckFile("""
+        @MainActor func build() {
+            _ = Box().width(percent: 0.5)
+            _ = Box().height(percent: 0.5)
+            _ = Box().flexBasis(percent: 0.5)
+        }
+        """, importing: "MetalUI")
+    show("G4", result)
+    #expect(result.succeeded, "the percent: spellings must still compile:\n\(result.output)")
+    #expect(deprecations(result) == 3, "one deprecation per percent: modifier:\n\(result.output)")
+    for name in ["width", "height", "flexBasis"] {
+        #expect(result.messages.contains("'\(name)(percent:)' is deprecated: renamed to '\(name)(fraction:)'"),
+                "\(name)(percent:) is not a deprecated rename of \(name)(fraction:):\n\(result.output)")
+    }
+}
