@@ -669,6 +669,56 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
                 + "\(backgroundFirst)"))
 }
 
+/// **An outer layer's opacity and clip contain the layers INSIDE it**, not only
+/// the wrapped element.
+///
+/// This is why `ModifiedElement.paint` is a recursion and not the loop it used
+/// to be. The loop emitted every layer's fill in sequence and then painted the
+/// content once, which is correct while a `Decoration` is a set of leaf
+/// emissions and wrong the moment one of them is a **scope**: an `.opacity` on
+/// the outermost layer would leave every inner layer's fill opaque, and a
+/// `.clipped()` there would clip nothing but the content.
+///
+/// The fixture is a two-layer chain — `.padding(4).background(.accent)` is the
+/// INNER layer, `.padding(8).opacity(0.5)` the outer — so the faded rect
+/// belongs to a layer the scope has to reach across. A one-layer chain cannot
+/// see this at all, which is `OM-AD`'s finding in its paint form.
+@Test @MainActor func aChainsOuterLayerScopesContainTheLayersInsideIt() throws {
+    @MainActor func innerLayerRect(faded: Bool, clipped: Bool) throws -> MUIRect {
+        let (window, _) = try render(side: 200) {
+            inRow {
+                { () -> ModifiedElement<Box<EmptyGroup>> in
+                    let chain = Box().width(px(20)).height(px(20))
+                        .padding(Edges(all: .pixels(px(4))))
+                        .background(.accent)
+                        .padding(Edges(all: .pixels(px(8))))
+                    let withFade = faded ? chain.opacity(0.5) : chain
+                    return clipped ? withFade.clipped() : withFade
+                }()
+            }
+        }
+        return try rect(window.lastScene, 28, 28)
+    }
+
+    let plain = try innerLayerRect(faded: false, clipped: false)
+    let faded = try innerLayerRect(faded: true, clipped: false)
+    let clipped = try innerLayerRect(faded: false, clipped: true)
+
+    try #require(plain.bounds.origin.x == 8 && plain.bounds.origin.y == 8,
+                 why("set up — the inner layer's 28x28 box sits 8 points inside the outer "
+                     + "layer's 44x44, or the two layers are not nested at all; got "
+                     + describe(plain)))
+    #expect(abs(faded.background.a - plain.background.a * 0.5) < 0.001,
+            why("the OUTER layer's opacity fades the INNER layer's fill: expected "
+                + "\(plain.background.a * 0.5), got \(faded.background.a)"))
+    #expect(clipped.contentMask.size.width == 44 && clipped.contentMask.size.height == 44,
+            why("and the outer layer's clip bounds it — the mask is the outer layer's own "
+                + "44x44 box, not the surface; got " + describe(clipped)))
+    try #require(describe(plain) != describe(clipped),
+                 why("set up — the clipped arm must differ from the plain one: "
+                     + describe(plain)))
+}
+
 /// **A `Deferred` portal inside a faded subtree is still faded** (`OM-AA` b).
 ///
 /// `Deferred` resets the clip stack and the accumulated scroll translation
