@@ -1181,3 +1181,140 @@ extension Arm {
         #expect(arm.proposals("c") == [p(.infinity, .infinity)], "K4h c")
     }
 }
+
+// MARK: - Lane 3: default spacing beside a spacer (CN-H)
+
+// Lane 3 of the same spec: CN-H. A stack registered with `spacing: nil` puts
+// `ProposalSpacing.platformDefault` (8) between each adjacent pair unless the
+// earlier child's trailing edge or the later child's leading edge is a
+// zero-spacing edge. Spacers below are `minLength: 0`, as the probe's K3 arms
+// are, so the only thing between `a` and `b` is the spacing.
+
+extension Arm {
+    /// A default-spacing stack: the element API's `HStack { … }`.
+    func defaultHStack(_ name: String, _ children: [LayoutNodeID]) -> LayoutNodeID {
+        self.name(tree.newNativeLinearStack(children: children, axis: .horizontal, spacing: nil), name)
+    }
+
+    func defaultVStack(_ name: String, _ children: [LayoutNodeID]) -> LayoutNodeID {
+        self.name(tree.newNativeLinearStack(children: children, axis: .vertical, spacing: nil), name)
+    }
+
+    /// `.padding` with one inset per edge.
+    func padding(_ name: String, _ child: LayoutNodeID, top: Double = 0, right: Double = 0,
+                 bottom: Double = 0, left: Double = 0) -> LayoutNodeID {
+        self.name(tree.newNativePadding(child: child,
+                                        insets: Edges(top: top, right: right, bottom: bottom, left: left)), name)
+    }
+}
+
+// MARK: 3.2 the per-edge walk
+
+/// CN-H's walk, arm by arm against the probe's K3 group (every arm at nil×nil,
+/// `a` and `b` fixed 20×20, a `Spacer(minLength: 0)` between them, default
+/// spacing). A node's zero-spacing edges along the stack's axis: both for a
+/// spacer; the child's through `padding` only where that edge's inset is 0, and
+/// through `frame`, `fixedSize`, `aspectRatio`, `layoutPriority` and an overlay
+/// attachment's PRIMARY; the AND of every child's for a `ZStack`; none for
+/// anything else.
+///
+/// - K3 control `{a; b}`: 48×20, b at 28.
+/// - Zero spacing survives: K3a `.padding(0)`, K3b `.frame(width: 0)`, K3c
+///   `.overlay{c 0×0}` (c at (20, 10)), K3d `.layoutPriority(1)`, K3e
+///   `.fixedSize()`, K3g `ZStack{spacer}`, K3l `ZStack{spacer; spacer}`, K3o
+///   `.padding(.top, 4)` (a cross-axis edge): each 40×20, b at 20. K3f
+///   `.aspectRatio(1, .fit)` reports 40×20; SwiftUI places b at 40 there
+///   (the spacer is proposed a width at the placement pass), so only its size
+///   is pinned. K3q `.frame(width: 10).padding(0)`: 50×20, b at 30.
+/// - Default spacing: K3h `VStack{spacer}` (a nested stack), K3i `c 0×0
+///   .overlay{spacer}` (the spacer on the content side; c at (28, 10)), K3j
+///   `ZStack{spacer; c}` and K3k `ZStack{c; spacer}`: each 56×20, b at 36.
+///   K3m `.padding(4)`: 64×20 (20+8+8+8+20), b at 44. K3n `.padding(.leading,
+///   4)`: 52×20 (20+8+4+0+20), b at 32. K3p vertically, `.padding(.top, 4)`:
+///   20×52, b at y 32.
+///
+/// Before the lane every default gap is an explicit 8: K3a reads 56.
+/// Mutations: read `isNativeSpacer` instead of the walk (K3a, K3b, K3c, K3e,
+/// K3f, K3g move); treat padding as transparent whatever its inset (K3m, K3n
+/// move); walk into an overlay's content (K3i moves); OR instead of AND over a
+/// `ZStack`'s children (K3j moves).
+@Test func defaultSpacingBesideASpacerIsDecidedPerEdgeThroughItsWrappers() {
+    typealias Wrap = (Arm, LayoutNodeID) -> LayoutNodeID
+    /// `defaultHStack{a; wrap(spacer); b}` at nil×nil: its size and b's rect.
+    func wrapped(_ wrap: Wrap) -> (Arm, SizeD) {
+        let arm = Arm()
+        let a = arm.fixed("a", 20, 20)
+        let middle = wrap(arm, arm.spacer("sp", minLength: 0))
+        let root = arm.defaultHStack("s", [a, middle, arm.fixed("b", 20, 20)])
+        return (arm, arm.run(root, nil, nil))
+    }
+    do { // K3 control
+        let arm = Arm()
+        let root = arm.defaultHStack("s", [arm.fixed("a", 20, 20), arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, nil, nil) == size(48, 20), "K3 control size")
+        #expect(arm["b"] == rect(28, 0, 20, 20), "K3 control b")
+    }
+    let zero: [(String, Wrap)] = [
+        ("K3a", { $0.padding("w", $1, 0) }),
+        ("K3b", { $0.frame("w", $1, width: 0) }),
+        ("K3d", { $0.priority($1, 1) }),
+        ("K3e", { $0.fixedSize("w", $1) }),
+        ("K3g", { $0.zstack("w", [$1]) }),
+        ("K3l", { arm, spacer in arm.zstack("w", [spacer, arm.spacer("sp2", minLength: 0)]) }),
+        ("K3o", { $0.padding("w", $1, top: 4) }),
+    ]
+    for (label, wrap) in zero {
+        let (arm, answer) = wrapped(wrap)
+        #expect(answer == size(40, 20), "\(label) size")
+        #expect(arm["b"] == rect(20, 0, 20, 20), "\(label) b")
+    }
+    do { // K3c
+        let (arm, answer) = wrapped { arm, spacer in arm.overlay("w", spacer, arm.fixed("c", 0, 0)) }
+        #expect(answer == size(40, 20), "K3c size")
+        #expect(arm["c"] == rect(20, 10, 0, 0), "K3c c")
+        #expect(arm["b"] == rect(20, 0, 20, 20), "K3c b")
+    }
+    do { // K3f
+        let (_, answer) = wrapped { $0.aspectRatio("w", $1, 1) }
+        #expect(answer == size(40, 20), "K3f size")
+    }
+    do { // K3q
+        let (arm, answer) = wrapped { arm, spacer in arm.padding("p", arm.frame("w", spacer, width: 10), 0) }
+        #expect(answer == size(50, 20), "K3q size")
+        #expect(arm["b"] == rect(30, 0, 20, 20), "K3q b")
+    }
+    let eight: [(String, Wrap)] = [
+        ("K3h", { $0.defaultVStack("w", [$1]) }),
+        ("K3j", { arm, spacer in arm.zstack("w", [spacer, arm.fixed("c", 0, 0)]) }),
+        ("K3k", { arm, spacer in arm.zstack("w", [arm.fixed("c", 0, 0), spacer]) }),
+    ]
+    for (label, wrap) in eight {
+        let (arm, answer) = wrapped(wrap)
+        #expect(answer == size(56, 20), "\(label) size")
+        #expect(arm["b"] == rect(36, 0, 20, 20), "\(label) b")
+    }
+    do { // K3i
+        let (arm, answer) = wrapped { arm, spacer in arm.overlay("w", arm.fixed("c", 0, 0), spacer) }
+        #expect(answer == size(56, 20), "K3i size")
+        #expect(arm["c"] == rect(28, 10, 0, 0), "K3i c")
+        #expect(arm["b"] == rect(36, 0, 20, 20), "K3i b")
+    }
+    do { // K3m
+        let (arm, answer) = wrapped { $0.padding("w", $1, 4) }
+        #expect(answer == size(64, 20), "K3m size")
+        #expect(arm["b"] == rect(44, 0, 20, 20), "K3m b")
+    }
+    do { // K3n
+        let (arm, answer) = wrapped { $0.padding("w", $1, left: 4) }
+        #expect(answer == size(52, 20), "K3n size")
+        #expect(arm["b"] == rect(32, 0, 20, 20), "K3n b")
+    }
+    do { // K3p
+        let arm = Arm()
+        let root = arm.defaultVStack("s", [arm.fixed("a", 20, 20),
+                                           arm.padding("w", arm.spacer("sp", minLength: 0), top: 4),
+                                           arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, nil, nil) == size(20, 52), "K3p size")
+        #expect(arm["b"] == rect(0, 32, 20, 20), "K3p b")
+    }
+}
