@@ -6,14 +6,20 @@ import MetalUIPlatform
 import MetalUIRender
 @testable import MetalUI
 
-// Divergence 15: a `ScrollView` nested inside a **scrolled** `ScrollView` gets
-// a content mask in the wrong coordinate space, so its subtree is clipped away.
+// Divergence 15 — **CLOSED by plan task 5, lane 2 (ruling `OM-U`)**. A
+// `ScrollView` nested inside a **scrolled** `ScrollView` used to get a content
+// mask in the wrong coordinate space, so its subtree was clipped away. This
+// file asserted that wrong answer on purpose; it now asserts the right one,
+// and the comment below records what the inversion was.
 //
-// This file exists to make that a red test the day somebody fixes it, and it is
-// deliberately written to assert TODAY'S WRONG ANSWER — the same instrument
-// `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows` uses for
-// divergence 14, and for the same reason: a limitation nothing asserts is a
-// limitation the next person rediscovers.
+// **Why the fix was taken here rather than deferred again.** Lane 2 puts
+// `pass.clipped(to: bounds, …)` behind a public `.clipped()` on every
+// `Box`/`Stack`/`Text`/`ModifierLayer`, so `Frame.pushClip`'s missing
+// `+ activeOffset` stops being "a `ScrollView` inside a scrolled `ScrollView`"
+// and becomes "any element inside one": a `.clipped()` row in the demo's
+// 500-row list would blank itself on the first scroll. Ruling `OM-U` records
+// the severity change and record §04 records why the added term is a no-op
+// wherever `activeOffset == 0`.
 
 private func columnStyle() -> Style {
     var s = Style()
@@ -46,42 +52,39 @@ private func wheel(at position: Point<Pixels>, deltaY: Float) -> InputEvent {
                             isMomentum: false))
 }
 
-/// **Divergence 15, and this test asserts the WRONG answer on purpose.**
+/// **Divergence 15, INVERTED** (ruling `OM-U`): a `ScrollView` nested inside a
+/// **scrolled** `ScrollView` now receives the content mask it paints at, rather
+/// than an empty one.
 ///
-/// A `ScrollView` nested inside a **scrolled** `ScrollView` receives an empty
-/// content mask, so nothing inside it is drawn at all — while its rows are laid
-/// out correctly, painted at the right window positions, and its wheel routing
-/// is exactly right.
+/// **The name is kept deliberately.** It is cited by CLAUDE.md, by record §04
+/// and by the outer-modifiers spec as the pin for this defect; renaming it
+/// would leave four documents pointing at nothing while the test that replaced
+/// it looked new. What changed is every expectation below, and the failure
+/// messages say which answer they now assert.
 ///
-/// **The mechanism is one missing term.** `Frame.pushClip` intersects the
+/// **The mechanism was one missing term.** `Frame.pushClip` intersected the
 /// incoming rect into `activeClip` without translating it by `activeOffset`
 /// first, where `Frame.insertHitbox` — the routing side — does translate. So
-/// the inner viewport's clip is computed in the engine's untranslated space
-/// while `activeClip` is already in surface space, and the two are compared as
-/// though they were the same thing. Here the inner viewport is stored at engine
-/// y = 300 and paints at window y = 100 after the outer scrolls 200; the clip
-/// intersects (0, 0) 200x200 with (0, 300) 200x100 and gets nothing.
+/// the inner viewport's clip was computed in the engine's untranslated space
+/// while `activeClip` was already in surface space, and the two were compared
+/// as though they were the same thing. Here the inner viewport is stored at
+/// engine y = 300 and paints at window y = 100 after the outer scrolls 200; the
+/// clip intersected (0, 0) 200x200 with (0, 300) 200x100 and got nothing. With
+/// the term added it intersects (0, 0) 200x200 with **(0, 100) 200x100** and
+/// gets the viewport, which is where the rows are drawn.
 ///
-/// **Routing was the same defect and was fixed** — ruling IN-F of the
+/// **Routing was the same defect and was fixed first** — ruling IN-F of the
 /// input-and-state milestone, pinned by
-/// `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`. This is
-/// its sibling on the paint side, found by the same probe and deliberately left
-/// alone: it is a clip-space change whose blast radius is every clipped subtree
-/// in the framework, and it was found inside a milestone whose entire test
-/// surface is input rather than paint.
+/// `aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`. This was
+/// its sibling on the paint side. The two halves now agree, which is the
+/// property the routing assertion below is retained to state.
 ///
-/// **Whoever fixes it gets a red test rather than a surprise** — the same
-/// instrument `aListNotAtTheScrollersContentOriginWindowsAgainstTheWrongRows`
-/// uses for divergence 14. Every `#expect` below says so in its own failure
-/// message. Delete or invert this test; do not "repair" it.
-///
-/// The 300pt filler is what makes the mask **empty** rather than merely
-/// misplaced, and the difference is worth having in the fixture: with a 150pt
-/// filler (the geometry the routing pin uses) the outer has only 50pt of travel,
-/// the intersection is still non-empty, and the inner shows a 50pt band of
-/// itself in the wrong place — wrong, but a reader could mistake it for a
-/// rounding problem. At 300 the outer has 200pt of travel and the failure is
-/// total.
+/// The 300pt filler is what made the old mask **empty** rather than merely
+/// misplaced, and it is retained: with a 150pt filler (the geometry the routing
+/// pin uses) the outer has only 50pt of travel and the old intersection was
+/// still non-empty, so the fixture would have been able to read "nearly right"
+/// as right. At 300 the outer has 200pt of travel and the before/after answers
+/// are 0 and 100 — unconfusable.
 @Test @MainActor func aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     let (window, platformWindow) = try makeFakeWindow(device: device, size: 200) {
@@ -127,18 +130,29 @@ private func wheel(at position: Point<Pixels>, deltaY: Float) -> InputEvent {
     #expect(rows.map { $0.bounds.origin.y } == [100, 150, 200],
             "and each is emitted at the right WINDOW position — layout and translation are correct")
 
+    // The instrument has to be able to read a mask that is NOT the viewport:
+    // before the fix every one of these was (0, 300) 0x0, and the three
+    // assertions below would each have failed on their own. Requiring the
+    // masks to agree with the SCROLL REGION — a number produced by the other
+    // half of the framework, `insertHitbox`, which always translated — is what
+    // makes this a cross-check rather than two copies of one belief.
+    let region = regions[1].bounds
     for row in rows {
-        #expect(row.contentMask.size.height == 0,
+        #expect(row.contentMask.size.height == 100,
                 """
-                WRONG ON PURPOSE — divergence 15. This asserts today's defect: \
-                a nested scroller's content mask is computed in the engine's \
-                untranslated space, so it comes out empty and nothing inside \
-                the inner ScrollView draws. If you are reading this because it \
-                went red, you have probably fixed `Frame.pushClip` by adding \
-                `+ activeOffset` to its incoming bounds — delete this test (and \
-                CLAUDE.md's divergence 15) rather than repairing it.
+                divergence 15 CLOSED (OM-U): a nested scroller's content mask is \
+                now intersected in surface space, so it is the inner viewport's \
+                own 100pt height. Before the fix this read 0 and nothing inside \
+                the inner ScrollView drew at all.
                 """)
-        #expect(row.contentMask.origin.y == 300,
-                "and the empty mask sits at the inner viewport's UNTRANSLATED y, which names the cause")
+        #expect(row.contentMask.origin.y == 100,
+                "and it sits at the inner viewport's TRANSLATED y — 100, not the engine's 300")
+        #expect(row.contentMask.origin.y == region.origin.y.value
+                    && row.contentMask.size.height == region.size.height.value,
+                """
+                and the paint half agrees with the routing half: the mask is \
+                exactly the rect the wheel is routed to. These two were computed \
+                in different coordinate spaces until OM-U.
+                """)
     }
 }
