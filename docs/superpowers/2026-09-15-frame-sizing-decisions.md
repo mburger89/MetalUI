@@ -1092,6 +1092,101 @@ support.
 
 ---
 
+## FR-T — `width(percent:)` takes a FRACTION, and two of the design's three percentage arms were wrong
+
+**Where it came from.** Lane 3, writing spec test 3.1. The design's three arms
+were "in a 300pt `Row`, `.width(percent: 50)` reads 150", "at the root it reads
+the offered width, not half of it", and "in a `Column`, `.width(percent: 100)`
+resolves against an unbounded cross axis and the child lands at x ≈ −14850 —
+mechanism not investigated, assert a range". Running them refuted the first
+two and **explained** the third.
+
+**What was measured** (a scratch test file, deleted before the lane's first
+commit; every figure re-taken in the committed test):
+
+| spelling | 300pt `Row` (sibling's x) | as the ROOT | in a 300pt `Column` (the mark's rect) |
+|---|---|---|---|
+| `.width(percent: 0.5)` | **150** | **150** | 150, at x = 75 |
+| `.width(percent: 1.0)` | 295 (the 5pt sibling shrank it) | 300 | 300, at x = 0 |
+| `.width(percent: 50)` | 300 — **shrunk back**, and the sibling squeezed to 0 | **15000** | 15000, at x = **−7350** |
+| `.width(percent: 100)` | 300, likewise | **30000** | 30000, at x = **−14850** |
+| `.width(Pixels(150))` — the control | 150 | 150 | 150, at x = 75 |
+
+**The finding.** `Length.percent` stores a **fraction**, not a percentage:
+`resolveLength` is `parent.map { Double(f * Float($0)) }`
+(`Sources/MetalUILayout/Resolve.swift:47`), and every one of its call sites in
+the layout fixtures passes `0.5`, `0.25`, `0.10`, `1.5`. `Box.width(percent:)`,
+`height(percent:)` and `flexBasis(percent:)` forward their argument to that
+case untouched. So **the parameter's name says percentage and its unit is a
+fraction**, and `.width(percent: 50)` means 5000%.
+
+Nothing caught it because the only callers are `ModifierTests`' modifier
+table (`percent: 13`, `14`, `44`), which asserts the `Style` field each
+modifier writes and never lays anything out.
+
+**Three consequences for the design's arms.**
+
+1. *Arm 1 is refuted.* `.width(percent: 50)` in a 300pt `Row` does not read
+   150; it resolves to 15000 and is then shrunk back to 300, taking the
+   sibling's 5pt with it. The CSS answer the arm wanted is spelled
+   `.width(percent: 0.5)`, and the test now carries that as its control.
+2. *Arm 2 is refuted, and the source comment it came from is stale.* The root
+   resolves its own percentage against the extent that axis was offered — ruling
+   `SZ-A`, whose own comment in `resolveRootSize` records that "That row has
+   been deleted from CLAUDE.md" — so `.width(percent: 0.5)` at the root reads
+   150, the WebKit answer. The claim in the design came from `Box.swift`'s
+   `width(percent:)` doc comment, which still described the pre-`SZ-A`
+   fallback. The design also mis-attributed it to CLAUDE.md divergence 4, which
+   is about an **`auto`** root axis and is a different thing.
+3. *Arm 3 is not a `Column` defect, and needs no range.* 30000 is 100 × 300 and
+   15000 is 50 × 300; a `Column` centres on its cross axis (EP-8), so a
+   30000pt-wide child in a 300pt column sits at (300 − 30000) / 2 = −14850
+   exactly. The same fraction spelled 0.5 lands at x = 75 in the same column.
+   The test asserts the exact rects.
+
+**The ruling.** The unit stays as it is for now, **pinned wrong on purpose** by
+`aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock` and
+documented on all four declarations (`width(percent:)`, `height(percent:)`,
+`flexBasis(percent:)` and `Length.percent` itself, which had no doc comment at
+all). `FR-H`'s disposition — keep as an explicit MetalUI divergence with a
+test — is unchanged; this ruling only corrects what the divergence *is*.
+
+**Reasoning, i.e. why not simply divide by 100 here.** The change is one line
+per modifier and the blast radius is small — measured, not guessed: making
+`width(percent:)` write `.percent(percent / 100)` reddens exactly **two** tests
+in 1247, this one and `everyPublicModifierWritesItsOwnFieldAndOnlyThatField`.
+Three things argue against taking it in this lane:
+
+- It is a **silent** behaviour change to public API. Every existing caller that
+  wrote `percent: 0.5` meaning half keeps compiling and starts meaning 0.5%.
+  There is no diagnostic available: the parameter type is `Float` either way.
+- There is **no oracle**. Every behaviour claim on this branch is probe-backed
+  against SwiftUI, and SwiftUI has no percentage sizing at all (`FR-H`) — its
+  nearest, `containerRelativeFrame`, resolves against a named container. The
+  only oracle is CSS/WebKit, and **no golden fixture uses these modifiers**;
+  the fixtures build `Style` values directly, where the fraction is correct and
+  documented.
+- Lane 3 is a documentation lane by design (`FR-I`, and the task's own lane
+  split). Changing a unit is a semantic change, and the honest place for it is
+  the task that owns the percentage helpers' future.
+
+**The fix, so the owner does not re-derive it**: divide by 100 in
+`width(percent:)`, `height(percent:)` and `flexBasis(percent:)`; update
+`ModifierTests`' three rows (which assert `.percent(13)`, `.percent(14)`,
+`.percent(44)`); and invert this test's arms so the control becomes
+`percent: 50` and the wrong-on-purpose arm disappears. The alternative — rename
+the parameter to `fraction:` — is a `renamed:` deprecation and runs into
+`FR-I`'s 0-warning gate with three call sites, which is cheap; it is the better
+move if the owner wants no silent change. **Owner: plan task 6.**
+
+**What it costs if wrong.** A caller writing `.width(percent: 50)` today gets a
+box 100× too wide, silently, and in a `Row` the flex shrink hides it — the box
+reads exactly the parent's width, which looks like `width: 100%` working. That
+is the worst shape a bug can have, and it survived until a test placed the same
+spelling in a `Column`. Keeping it pinned is what makes the next reader see it.
+
+---
+
 ## Carried into this task, and where each went
 
 | carried item | source | where it landed |

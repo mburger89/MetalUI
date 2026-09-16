@@ -536,7 +536,11 @@ skipping.
 
 `FR-F` (`width`/`height` stay), `FR-G` (`min*`/`max*` stay, now measured),
 `FR-H` (percentage sizing stays as a divergence), `FR-Q` (the rem inventory),
-`FR-I` (no deprecation lands here; the recipe and the owner).
+`FR-I` (no deprecation lands here; the recipe and the owner), and **`FR-T`,
+raised by lane 3 itself**: `width(percent:)` takes a **fraction**, so two of
+test 3.1's three designed arms below are refuted and the third is explained.
+The rows are rewritten to what was measured; the original wording is quoted
+inside `FR-T` so the correction is legible.
 
 ### Source change
 
@@ -547,7 +551,10 @@ observably (a frame wraps; these do not). `minWidth`/`minHeight` gain the
 sentence that a zero value is the only way to cancel §4.5's automatic minimum —
 which a frame layer cannot do, with `FR-G`'s N7/N9 numbers named.
 `width(percent:)`/`height(percent:)` gain the containing-block divergence and
-its test's name. `padding(_ edges:)`, `margin(_ edges:)` and
+its test's name — **and, per `FR-T`, the fraction unit, with the stale
+pre-`SZ-A` root claim deleted rather than repeated**. `flexBasis(percent:)` and
+`Length.percent` itself (which had no doc comment at all) gain the same
+sentence, which is the one place the unit can be read from the type. `padding(_ edges:)`, `margin(_ edges:)` and
 `borderWidth(_ edges:)` gain one sentence each recording that a `Length` may be
 `.rems`, resolved against `Frame`'s single per-frame `rootFontSize` (`FR-Q`),
 which is where the brief's "rem helpers" clause is answered: there is no rem
@@ -558,13 +565,21 @@ sizing helper to decide about, only a box-model unit that is already pinned by
 
 | # | test | pins | before | mutation that must redden it |
 |---|---|---|---|---|
-| 3.1 | `aPercentageWidthResolvesAgainstItsContainingBlockAndNotTheProposal` (`FR-H`, **divergence, pinned as measured**) | Three arms: in a 300pt `Row`, `.width(percent: 50)` reads 150 (the control, and what CSS says); at the root it reads the offered width, not half of it (CLAUDE.md divergence 4's row, first test of it); **in a `Column`, `.width(percent: 100)` resolves against an unbounded cross axis** and the child lands at x ≈ −14850 in a 300pt column. The third arm asserts a range (< −1000), not an exact float, because its mechanism is not established | new tests; arms measured (scratch M4) | the `Column` arm is a characterization of a defect: its mutation is `.width(percent: 100)` → `.width(px(100))`, which moves the child to a sane position |
-| 3.2 | `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt` (`FR-F`, `FR-G`) | Two halves. **Node count**: `.width`, `.height`, `.minWidth`, `.maxWidth`, `.minHeight`, `.maxHeight` each leave `tree.nodeCount` at the unwrapped value where `.frame(width:)` adds one. **The automatic minimum**, on the demo's own shape (`main.swift:878-881`: a `flexGrow(1)`, `flexBasis(0)` box holding 400pt of content in a 200pt `Column` under an 80pt header): `.minHeight(px(0))` gives the content **120**, no `minHeight` gives **400**, and `.frame(minHeight: 0)` gives **400** — with `flexGrow`/`flexBasis` on the layer and on the inner box alike. `try #require(120 != 400)` opens that half | **green on arrival**, every number measured this round (scratch N7, N8, N9, N9b) | route `width(_:)` through `frame(width:)` — the node-count half reddens. **This mutation is `FR-F`'s refusal made executable**: it also fails to compile in the demo and five test files, which the mutation record names. For the second half: make the frame layer's `minSize` reach its child — the `.frame(minHeight: 0)` arm would then read 120 and redden, which is the arm's whole point |
+| 3.1 | `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock` (`FR-H`, `FR-T`; **divergence, pinned as measured**) | **Rewritten by lane 3 after running the designed arms** (`FR-T`; the original row read `aPercentageWidthResolvesAgainstItsContainingBlockAndNotTheProposal` and is quoted there). `.width(percent: 0.5)` reads **150** in a 300pt `Row`, **150** as the ROOT — the root fallback the design cited was fixed by `SZ-A` and its CLAUDE.md row deleted — and 150 at x = 75 in a `Column`; `height(percent: 0.5)` reads 100 against a 200pt axis. Then, wrong on purpose: `.width(percent: 50)` is **15000** wide at x = **−7350**, and `percent: 100` is **30000** at **−14850**. The "≈30000pt `Column` defect, mechanism not investigated" is 100 × 300 centred on EP-8's cross axis, so the arm asserts the **exact rect**, not the range the design asked for | new tests, green on arrival (characterizations); every number measured this lane | make `width(percent:)` write `.percent(percent / 100)` — the candidate fix — and **five arms redden** (2 tests, 6 issues, the other being `everyPublicModifierWritesItsOwnFieldAndOnlyThatField`); or resolve `withoutMeasuring`'s dimension against no basis in `resolveRootSize` (the pre-`SZ-A` spelling) and the **root arm alone** reddens |
+| 3.2 | `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt` (`FR-F`, `FR-G`) | Two halves. **Node count**: `.width`, `.height`, `.minWidth`, `.maxWidth`, `.minHeight`, `.maxHeight` each leave `tree.nodeCount` at the unwrapped value where `.frame(width:)` adds one. **The automatic minimum**, on the demo's own shape (`main.swift:878-881`: a `flexGrow(1)`, `flexBasis(0)` box holding 400pt of content in a 200pt `Column` under an 80pt header): `.minHeight(px(0))` gives the content **120**, no `minHeight` gives **400**, and `.frame(minHeight: 0)` gives **400** — with `flexGrow`/`flexBasis` on the layer and on the inner box alike. `try #require(120 != 400)` opens that half | **green on arrival**, every number measured this round (scratch N7, N8, N9, N9b) route `width(_:)`/`height(_:)` through `frame(...)` — **`FR-F`'s refusal made executable, and a COMPILE result rather than a red test**: a modifier returning `Self` cannot add a node, so the return type must change and the package stops building. Measured this lane: `swift build --build-tests` halts in `MetalUIDemo` at **2** errors, and building `MetalUITests` alone reports **70** distinct error sites across six files. The frame arm has an ordinary mutation — `_wrap` twice in `frame(width:height:alignment:)`, which reddens it and seven others. For the second half: `minHeight(_:)` writing nothing reddens the opening `#require`; the two `.frame(minHeight: 0)` arms are pinned against a future fix (make a layer's `minSize` reach its child) and have no mutation short of it |
 
 ### Expected counts
 
 1245 → **1247** tests (`FR-R` item 1; this row originally read 1243 → 1245).
 Guards 63. Goldens 97.
+
+**Measured, 2026-09-15:** `Test run with 1247 tests in 1 suite passed after
+33.455 seconds`, 0 `error:`, 0 `warning:`; `find Tests -name '*.json' | wc -l`
+= 97 with `git diff --stat c4b5853 -- '*.json'` empty; per-file
+`grep -c canTypecheck` sums to 64 outside `Typecheck.swift`, one a comment in
+`UnitSafetyTests.swift`, so **63** — unmoved, as designed. Lane 3 adds no
+guard, so it mutates none red; the two it inherits were proved to run by lanes
+1 and 2.
 
 ## Lane 4 — verification
 
@@ -628,6 +643,6 @@ doc changes cite lane 2's API by name.
 | An oversized child overflowing both axes rather than being squeezed on one | one flex node cannot; the inner node is the caller's element (`FR-N`) | plan task 6 |
 | `idealWidth`/`idealHeight` on the legacy path, possibly through `flexBasis` | unmeasured idea | plan task 7 |
 | Renaming `ProposalAlignment` to `Alignment` | collides with the parallel track; cosmetic until the legacy path is gone | plan task 7 |
-| The `Column` percentage defect (≈30000pt) | mechanism not investigated; pinned as measured by 3.1 | plan task 6 |
+| ~~The `Column` percentage defect (≈30000pt)~~ **closed by `FR-T`**: it is 100 × 300, the fraction unit seen through EP-8's cross-axis centring. What is deferred instead is **correcting `percent:`'s unit** (divide by 100, or rename the parameter to `fraction:`) | a silent behaviour change to public API with no oracle above CSS, and no fixture reaches these modifiers; `FR-T` holds the recipe and the measured blast radius (2 tests) | plan task 6 |
 | Tightening `SA-J` to reject a negative minimum at registration, rather than flooring it in `framedSize` | `FR-L` matches SwiftUI's *answers*; SwiftUI also diagnoses a negative fixed size and maximum, which MetalUI already traps. Changing what `SA-J` accepts is the kernel track's ruling to change | plan task 7 |
 | `Component` distribution of `.frame`, and B-7's snap | `MC-L` assigns it | plan task 5 |

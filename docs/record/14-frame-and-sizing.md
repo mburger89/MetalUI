@@ -68,7 +68,7 @@ because the file that produced them is gone. `Mark` is a childless
 | L14 | L9 plus `.flexShrink(0)` on each layer | marks at **100 and 300** — 200 each, no shrink. **Superseded as the lowering** by `FR-P`: N11 shows `flexShrink = 0` pins an axis the caller never declared, and N10 shows an axis-named `minSize` is equivalent where it was right | matches SwiftUI |
 | M1 | `Mark(20).frame(width: 100).frame(width: 50)` | root **50**, leaf at x = **15**. Reversed: root **100**, leaf at x = **40**. Unchanged without `.flexShrink(0)` — the inner frame does not shrink inside another frame | E1 (50, leaf 15) and E2 (100, leaf 40) exactly |
 | M2 | greediness in a 300pt `Row` | `flexGrow(1)` fills to 295; `flexGrow(1) + maxWidth(80)` stops at **80**; plain reads 20. In a `Column`, `alignSelf(.stretch)` puts a child at x = 0 where an unstretched box's child is centred at 140 | D4's 80 — reachable, but only on the axis that happens to be main |
-| M4 | `width(percent: 100)` | in a `Row` the sibling moves to x = **300** (fills); capped by `maxWidth(80)` it reads 80. **In a `Column` the child lands at x ≈ −14850**, implying a box about 30000pt wide. Mechanism not investigated | — |
+| M4 | `width(percent: 100)` | in a `Row` the sibling moves to x = **300** (fills); capped by `maxWidth(80)` it reads 80. **In a `Column` the child lands at x ≈ −14850**, implying a box about 30000pt wide. Mechanism not investigated — **investigated by lane 3 and it is not a defect**: `percent:` takes a FRACTION, so this is 100 × 300 centred on EP-8's cross axis. Ruling `FR-T` | — |
 
 **Three claims the plan made about the reverted 2026-09-12 conversion, tested.**
 The plan says the trial "broke list virtualization, hit testing, and text
@@ -469,14 +469,111 @@ added no integration obligation beyond the ones §14 already lists, except that
 property a merge must not break: re-introducing a second one compiles, and only
 `MC-A`'s solver-budget guard will say so.
 
+#### Lane 3 — the sizing inventory, 2026-09-15
+
+Two commits:
+
+| commit | what |
+|---|---|
+| `10dcc60` | the tests: 3.1 and 3.2 appended to `Tests/MetalUITests/FrameSizingTests.swift`, reusing lane 2's `Mark`/`render`/`widthInRow`/`nodeCount` fixtures (they are file-private, which is why the tests live in that file rather than a new one) |
+| `a316916` | the documentation: `Box.swift`'s `MARK: Size` section and the three `Edges<Length>` overloads, plus `flexBasis(percent:)` and `Length.percent` in `MetalUICore/Units.swift` |
+
+**There was no red run, and that is the lane's shape rather than a lapse.**
+Lane 3 is the documentation lane: both of its tests characterize shipped
+behaviour, so they were green the moment they compiled (`Test run with 1247
+tests in 1 suite passed after 32.741 seconds` on `10dcc60`, 0 `error:`, 0
+`warning:`). Their whole proof is the mutation table below; the same treatment
+lane 2 gave its tests 2.6, 2.7, 2.8 and 2.10.
+
+**The design's own arms were run first, and two of them were wrong** — ruling
+`FR-T`, which quotes the original spec row. A scratch file
+(`ZZScratchLane3Tests.swift`, deleted before `10dcc60`; `git status --short`
+showed only the modified test file afterwards) measured the percentage matrix
+across three parents and two spellings:
+
+| spelling | 300pt `Row`, sibling's x | as the ROOT | in a 300pt `Column`, the mark's rect |
+|---|---|---|---|
+| `percent: 0.5` | **150** | **150** | 150 at x = 75 |
+| `percent: 1.0` | 295 | 300 | 300 at x = 0 |
+| `percent: 50` | 300, shrunk back, sibling squeezed to 0 | **15000** | 15000 at x = **−7350** |
+| `percent: 100` | 300, likewise | **30000** | 30000 at x = **−14850** |
+| `Pixels(150)`, the control | 150 | 150 | 150 at x = 75 |
+
+`Length.percent` is a fraction (`resolveLength` is `f * parent`), the three
+`percent:` modifiers forward it untouched, and `ModifierTests`' table — the
+only caller — asserts the `Style` field rather than a layout. So the design's
+arm 1 (`percent: 50` "reads 150") and arm 2 (the root "falls back to the
+offered space", fixed by `SZ-A` and deleted from CLAUDE.md) are refuted, and
+arm 3's "≈30000pt, mechanism not investigated" is 100 × 300 through EP-8's
+cross-axis centring. The test asserts exact rects rather than the range the
+design asked for.
+
+**Test 3.2's numbers, re-measured rather than carried.** Node counts on a
+`Row` holding one 20×20 mark: bare **2**; `.width`, `.height`, `.minWidth`,
+`.maxWidth`, `.minHeight`, `.maxHeight` **2** each; `.frame(width:)` and
+`.frame(minWidth:)` **3**. The automatic minimum, on the demo's shape (an 80pt
+header above a `flexGrow(1)`/`flexBasis(0)` `Column` holding a 400pt mark, in a
+300×200 frame) reproduced `N7`…`N9b` exactly: **120 / 400 / 400 / 400**.
+
+**Mutations.** Each applied to a `cp` backup's file, the WHOLE suite run under
+`swift test --build-system native --no-parallel`, the file restored and `git
+status --short` checked empty. No other agent was live in this worktree. Every
+run read `Test run with 1247 tests`.
+
+| # | mutation | tests reddened |
+|---|---|---|
+| L1 | `width(percent:)` writes `.percent(percent / 100)` — **the candidate fix** | **2** (6 issues): 3.1 at five arms (`fractionInRow → 2.0`, both `Column` rects, the root rect, the row control) and `everyPublicModifierWritesItsOwnFieldAndOnlyThatField`. This is the measured blast radius `FR-T` quotes |
+| L2 | `resolveRootSize`'s `withoutMeasuring` resolves against no basis (`declared(dim)`, the pre-`SZ-A` spelling) | **2** (3 issues): 3.1's **root arm alone** — arms A and C stay green, so the arm discriminates — and the engine oracle `rootPercentageMatchesWebKit` |
+| L3 | `minHeight(_:)` writes nothing | **2**: 3.2's opening `#require` (`(demoSpelling → 400.0) != (noMinimum → 400.0)`) and `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` |
+| L4 | `frame(width:height:alignment:)` `_wrap`s twice | **8** (18 issues): 3.2's frame arm (`(framed → 4) == (bare + 1 → 3)`), 2.6, 2.8, `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`, `chainedFramesRemainConcreteAndNestTheirLayoutNodes`, `legacyModifierChainsInferOneConcreteType`, `aGenericWrapOverAChainIsIdenticalToTheFlatChain`, `aModifierChainIsIdenticalToHandBuiltNestedBoxes`, `stateSurvivesFramesUnderALegacyModifierChain` |
+| L5 | `width(_:)`/`height(_:)` routed through `frame(width:)`/`frame(height:)` — **`FR-F`'s refusal made executable** | **the package stops compiling**, which is the finding: a modifier returning `Self` cannot add a node, so the conversion must change the return type. `swift build --build-tests` halts in `MetalUIDemo` at **2** errors (`main.swift:266`'s `-> Box<Text>` helper, `:290`'s `typealias Chrome`); building `MetalUITests` alone, which skips the demo, reports **70** distinct error sites across six files — `AccessibilityTreeTests` 60, `AccessibilityEndToEndTests` 4, `ModifierTests` 2, `EnvironmentTests` 2, `ProposalNodeIDTests` 1, `AnimationTests` 1 |
+
+**What has no mutation, said plainly.** 3.2's six-modifier arms cannot be
+mutated while the package still compiles: "returns `Self`, therefore adds no
+node" is enforced by the return type, and L5 is what that looks like when you
+try. 3.2's two `.frame(minHeight: 0)` arms are pinned against a *future* fix
+(making a layer's `minSize` reach into its child, plan task 6) and have no
+mutation short of building it. Neither gap is hidden behind a count.
+
+**Stale source comments corrected.** `Box.swift`'s `width(percent:)` claimed
+the root "falls back to the offered space, so `width(percent: 50)` in an
+800-wide window gives 800 where WebKit gives 400" and pointed at CLAUDE.md;
+`SZ-A` fixed that and `resolveRootSize`'s own comment records that the CLAUDE.md
+row was deleted. The design copied the claim into spec test 3.1's arm 2, which
+is how a stale comment became a planned test. `Length.percent` had **no** doc
+comment at all, which is the root of `FR-T`: nothing in the type said what the
+unit was.
+
+**Counts, on `a316916` after `swift package clean`.** `Test run with 1247 tests
+in 1 suite passed after 33.455 seconds`, 0 `error:`, 0 `warning:`. Goldens 97,
+`git diff --stat c4b5853 -- '*.json'` empty. Guards: per-file
+`grep -c canTypecheck` sums to **64** outside `Typecheck.swift`, one the comment
+in `UnitSafetyTests.swift`, so **63** — unmoved, as designed. Lane 3 adds no
+guard and therefore mutated none red.
+
+**Untouched by this lane, for the merge**: no shared file was edited.
+`Box.swift` changed in comments only, in the `MARK: Size` block and on three
+`Edges<Length>` overloads; `Units.swift` (`MetalUICore`) gained one doc comment
+on an existing case. No declaration, signature or body moved, so the parallel
+paint-modifier track's appends to `Box.swift` cannot conflict with anything but
+comment text.
+
+**Left for lane 4.** The whole-suite/goldens/guards re-take after a clean, the
+demo and preview pixel comparison against `c4b5853`, and the
+`IOConsoleLocked` check with real release-window captures. Lane 3 changed no
+executable line in `Sources/`, so it cannot move a pixel; lane 1's kernel change
+is still the thing that comparison is for.
+
 ### Open at the end of the critic round
 
 - Two of `MC-Q` finding 7's four handed-over shapes are **not** covered by this
   design: a **nil axis** in a modifier-order chain, and a **stretching `Box`
   parent** (EP-8). The shrinking row is `FR-P`'s `minSize` pin (test 2.2) and
   the smaller frame is tests 2.5 and 2.8.
-- The `Column` percentage defect (M4, ≈30000pt) is pinned as measured by spec
-  test 3.1 and its mechanism is not investigated.
+- ~~The `Column` percentage defect (M4, ≈30000pt)~~ — **closed by lane 3**, see
+  `FR-T`. There is no `Column` defect; `width(percent:)` takes a fraction and
+  30000 is 100 × 300. What replaced it as an open item is the unit itself,
+  deferred to plan task 6.
 - `FR-D`'s `flexBasis`-as-ideal idea is unmeasured.
 - **`SA-J` still accepts a negative minimum**, which `FR-L` now floors at 0 in
   `framedSize` rather than rejecting at registration. SwiftUI diagnoses a
