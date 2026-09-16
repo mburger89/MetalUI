@@ -680,12 +680,34 @@ private func render<Root: Element>(_ root: Root, _ width: Float, _ height: Float
     return frame
 }
 
+/// A root layout answering a fixed 58×20 over its content and recording the
+/// proposal each `placeSubviews` receives: the only way to see the proposal a
+/// window root is PLACED at (a leaf root never sees it).
+private final class RootPlacementLog: @unchecked Sendable {
+    var placements: [ProposedSize] = []
+}
+
+private struct RootPlacementRecorder: ProposalLayout {
+    let log: RootPlacementLog
+    func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
+        LayoutMeasurement(size: SizeD(width: 58, height: 20))
+    }
+    func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {
+        log.placements.append(proposal)
+    }
+}
+
 /// CN-J: a native window root is measured at the window's size and placed
 /// CENTRED at its own answer; a greedy root fills.
 ///
 /// - R control: a greedy root in 100×100 is proposed [100×100] and fills
 ///   (0, 0) 100×100.
-/// - R1 `HStack(0){a 58x20}` root in 100×100: a at (21, 40) 58×20.
+/// - R1 `HStack(0){a 58x20}` root in 100×100: a at (21, 40) 58×20, and a
+///   proposed only [100×100] — the root is PLACED at the window's proposal,
+///   not at its answer. Seen through a custom root layout answering 58×20,
+///   whose `placeSubviews` records [100×100] and whose bounds are (21, 40)
+///   58×20. Mutation (verifier V2): place the root at proposal = its answer
+///   (the recorder reads [58×20]).
 /// - R2 a fixed 58×20 root: proposed [100×100], at (21, 40) 58×20.
 /// - R3 fixed r 58×20 `.overlay{greedy a}`: r at (21, 40); a proposed
 ///   [58×20] at (21, 40) 58×20 — a root's overlay content is proposed the
@@ -707,6 +729,13 @@ private func render<Root: Element>(_ root: Root, _ width: Float, _ height: Float
         let log = Lane4Log()
         _ = render(HStack(spacing: Pixels(0)) { pFixed("a", 58, 20, log) }, 100, 100)
         #expect(log.bounds["a"] == rect(21, 40, 58, 20), "R1 a")
+    }
+    do { // R1, the root's placement proposal
+        let log = Lane4Log()
+        let placed = RootPlacementLog()
+        _ = render(ProposalLayoutContainer(RootPlacementRecorder(log: placed)) { pFixed("a", 58, 20, log) },
+                   100, 100)
+        #expect(placed.placements == [pp(100, 100)], "R1 root placement proposal")
     }
     do { // R2
         let log = Lane4Log()

@@ -512,19 +512,7 @@ public final class LayoutTree {
     @discardableResult
     public func computeNativeLayout(root: LayoutNodeID, proposal: ProposedSize,
                                     in bounds: LayoutRect) -> LayoutMeasurement {
-        beginLayout()
-        defer { endLayout() }
-        let run = NativeLayoutRun(tree: self)
-        activeNativeRun = run
-        defer {
-            run.isActive = false
-            activeNativeRun = nil
-            lastNativeLayoutWork = run.work
-        }
-        let result = measureNative(root, proposal: proposal, run: run)
-        placeNative(root, in: bounds, proposal: proposal, run: run)
-        roundNativeStoredRects(root)
-        return result
+        runNativeLayout(root: root, proposal: proposal) { _ in bounds }
     }
 
     /// Measures `root` at `proposal` and places it CENTRED in `container` at its
@@ -535,11 +523,29 @@ public final class LayoutTree {
     /// caller's bounds.
     ///
     /// The same run, bracket, checkpoints and work record as
-    /// `computeNativeLayout(root:proposal:in:)`. An infinite answer traps at
-    /// checkpoint 3, as a rect built from it would anywhere else.
+    /// `computeNativeLayout(root:proposal:in:)`, because both entries are one
+    /// implementation, `runNativeLayout`, differing only in the bounds they
+    /// place at (so the tests of either entry's bracket pin both). An infinite
+    /// answer traps at checkpoint 3, as a rect built from it would anywhere
+    /// else.
     @discardableResult
     public func computeNativeLayout(root: LayoutNodeID, proposal: ProposedSize,
                                     centredIn container: LayoutRect) -> LayoutMeasurement {
+        runNativeLayout(root: root, proposal: proposal) { answer in
+            LayoutRect(x: container.x + (container.width - answer.size.width) / 2,
+                       y: container.y + (container.height - answer.size.height) / 2,
+                       width: answer.size.width, height: answer.size.height)
+        }
+    }
+
+    /// The one implementation of both `computeNativeLayout` entries: the
+    /// `isLayingOut` bracket (SA-I), one `NativeLayoutRun` marked inactive on
+    /// return (SA-H), measurement of `root` at `proposal`, placement at the
+    /// bounds `placement` derives from that answer with `proposal` as the
+    /// root's placement proposal (probe R1: the root's child is proposed only
+    /// the host's size), rounding, and the work record (SA-M).
+    private func runNativeLayout(root: LayoutNodeID, proposal: ProposedSize,
+                                 placement: (LayoutMeasurement) -> LayoutRect) -> LayoutMeasurement {
         beginLayout()
         defer { endLayout() }
         let run = NativeLayoutRun(tree: self)
@@ -550,10 +556,7 @@ public final class LayoutTree {
             lastNativeLayoutWork = run.work
         }
         let result = measureNative(root, proposal: proposal, run: run)
-        let bounds = LayoutRect(x: container.x + (container.width - result.size.width) / 2,
-                                y: container.y + (container.height - result.size.height) / 2,
-                                width: result.size.width, height: result.size.height)
-        placeNative(root, in: bounds, proposal: proposal, run: run)
+        placeNative(root, in: placement(result), proposal: proposal, run: run)
         roundNativeStoredRects(root)
         return result
     }

@@ -325,3 +325,125 @@ private struct PassThroughLayout: ProposalLayout {
     #expect(stderr.contains("during native measurement"),
             "aborted, but not at the measurement rect-write check this test is about:\n\(stderr)")
 }
+
+// MARK: - One node, one parent, at every registrar (CN-L)
+
+/// The registrars `aNativeRegistrarWithChildrenRejectsANodeThatAlreadyHasAParent`
+/// walks, in `LayoutTree.swift`'s `recordParent` call order.
+private let registrarNames = ["linearStack", "frame", "overlayAttachment", "padding", "fixedSize", "aspectRatio", "layoutPriority", "scrollViewport", "overlay", "custom"]
+
+/// Registers a leaf under a native frame (which records the parent), then
+/// registers a second node of kind `registrar` whose child is that SAME leaf
+/// when `sharingTheLeaf`, or a fresh leaf otherwise, and lays the second node
+/// out. A file-scope function taking only literals, because an exit-test body
+/// may not capture.
+private func registerALeafUnderAFrameThenUnder(registrar: Int, sharingTheLeaf: Bool) {
+    let tree = LayoutTree(generation: 0)
+    let first = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+    _ = tree.newNativeFrame(child: first, width: 20, height: 20)
+    let child = sharingTheLeaf
+        ? first
+        : tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+    let other = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 5, height: 5)) }
+    let second: LayoutNodeID
+    switch registrar {
+    case 0: second = tree.newNativeLinearStack(children: [child], axis: .horizontal)
+    case 1: second = tree.newNativeFrame(child: child, width: 30, height: 30)
+    case 2: second = tree.newNativeOverlayAttachment(child: child, overlay: other)
+    case 3: second = tree.newNativePadding(child: child, insets: Edges(top: 1, right: 1, bottom: 1, left: 1))
+    case 4: second = tree.newNativeFixedSize(child: child)
+    case 5: second = tree.newNativeAspectRatio(child: child, ratio: 2)
+    case 6: second = tree.newNativeLayoutPriority(child: child, priority: 1)
+    case 7: second = tree.newNativeScrollViewport(child: child, axis: .vertical)
+    case 8: second = tree.newNativeOverlay(children: [child])
+    default: second = tree.newNativeLayout(PassThroughLayout(), children: [child])
+    }
+    tree.computeNativeLayout(root: second, proposal: proposal, in: bounds)
+}
+
+/// **Ruling CN-L at each of the ten native registrars with children**: a node
+/// that already has a native parent (here a frame) traps when a second
+/// registrar of each kind lists it, with the parent record's message.
+/// `aNativeNodeRegisteredTwiceTraps` (`ProposalNodeIDTests.swift`) reaches
+/// only the stack and frame sites through the element API.
+///
+/// Positive control, in process: each registrar over a FRESH leaf registers
+/// and lays out without trapping, so every arm's death is the shared leaf's.
+///
+/// Mutation (verifier V7): delete `recordParent` from the eight registrars
+/// other than the linear stack and frame; each of their arms exits successfully.
+@Test func aNativeRegistrarWithChildrenRejectsANodeThatAlreadyHasAParent() async {
+    for registrar in registrarNames.indices {
+        registerALeafUnderAFrameThenUnder(registrar: registrar, sharingTheLeaf: false)
+    }
+    do { // linearStack
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            registerALeafUnderAFrameThenUnder(registrar: 0, sharingTheLeaf: true)
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("MC-G hole 4"), "linearStack: aborted, but not at the parent record:\n\(stderr)")
+    }
+    do { // frame
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            registerALeafUnderAFrameThenUnder(registrar: 1, sharingTheLeaf: true)
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("MC-G hole 4"), "frame: aborted, but not at the parent record:\n\(stderr)")
+    }
+    do { // overlayAttachment
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            registerALeafUnderAFrameThenUnder(registrar: 2, sharingTheLeaf: true)
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("MC-G hole 4"), "overlayAttachment: aborted, but not at the parent record:\n\(stderr)")
+    }
+    do { // padding
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            registerALeafUnderAFrameThenUnder(registrar: 3, sharingTheLeaf: true)
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("MC-G hole 4"), "padding: aborted, but not at the parent record:\n\(stderr)")
+    }
+    do { // fixedSize
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            registerALeafUnderAFrameThenUnder(registrar: 4, sharingTheLeaf: true)
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("MC-G hole 4"), "fixedSize: aborted, but not at the parent record:\n\(stderr)")
+    }
+    do { // aspectRatio
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            registerALeafUnderAFrameThenUnder(registrar: 5, sharingTheLeaf: true)
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("MC-G hole 4"), "aspectRatio: aborted, but not at the parent record:\n\(stderr)")
+    }
+    do { // layoutPriority
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            registerALeafUnderAFrameThenUnder(registrar: 6, sharingTheLeaf: true)
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("MC-G hole 4"), "layoutPriority: aborted, but not at the parent record:\n\(stderr)")
+    }
+    do { // scrollViewport
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            registerALeafUnderAFrameThenUnder(registrar: 7, sharingTheLeaf: true)
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("MC-G hole 4"), "scrollViewport: aborted, but not at the parent record:\n\(stderr)")
+    }
+    do { // overlay
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            registerALeafUnderAFrameThenUnder(registrar: 8, sharingTheLeaf: true)
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("MC-G hole 4"), "overlay: aborted, but not at the parent record:\n\(stderr)")
+    }
+    do { // custom
+        let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+            registerALeafUnderAFrameThenUnder(registrar: 9, sharingTheLeaf: true)
+        }
+        let stderr = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+        #expect(stderr.contains("MC-G hole 4"), "custom: aborted, but not at the parent record:\n\(stderr)")
+    }
+}

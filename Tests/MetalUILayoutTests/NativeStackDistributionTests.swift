@@ -1605,3 +1605,55 @@ extension Arm {
         #expect(arm["b"] == rect(40, 0, 20, 20), "X12 b")
     }
 }
+
+/// Records the proposal each `placeSubviews` call receives.
+private final class PlacementLog: @unchecked Sendable {
+    var placements: [ProposedSize] = []
+}
+
+/// The probe's `half` leaf as a childless custom layout, so the proposal it is
+/// PLACED at is observable: a kernel leaf never sees its placement proposal.
+private struct PlacementRecordingHalf: ProposalLayout {
+    let log: PlacementLog
+
+    func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
+        LayoutMeasurement(size: SizeD(width: (proposal.width ?? 40) / 2, height: 10))
+    }
+
+    func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize, subviews: PlacementSubviews) {
+        log.placements.append(proposal)
+    }
+}
+
+/// CN-E's placement-proposal clause, which the rects of
+/// `aZStackPlacesItsChildrenAtItsOwnSizeWithinTheirUnion` cannot see: a
+/// `ZStack` places each child with its OWN size B as the child's placement
+/// proposal. Probe `swiftui-stack-algorithms.swift`'s placement logs read the
+/// displayed (last) placement of the half-width child h at 30×20 in Z1 (a
+/// `ZStack` answering 30×20 at 60×40) and at 60×40 in Z4 (answering 60×40 at
+/// 100×100).
+///
+/// The kernel places once, so each log holds exactly one entry.
+///
+/// Mutation (verifier V3): pass the `ZStack`'s parent proposal instead of B to
+/// each child's `placeNative` — Z1 reads [60×40], Z4 [100×100].
+@Test func aZStackPlacesEachChildWithItsOwnSizeAsTheProposal() {
+    do { // Z1
+        let arm = Arm()
+        let log = PlacementLog()
+        let h = arm.tree.newNativeLayout(PlacementRecordingHalf(log: log), children: [])
+        let root = arm.zstack("z", [h, arm.fixed("o", 20, 20)])
+        #expect(arm.run(root, 60, 40) == size(30, 20), "Z1 size")
+        #expect(log.placements == [p(30, 20)], "Z1 h placement proposal")
+        #expect(arm.tree.layout(h) == rect(3, 5, 15, 10), "Z1 h (SwiftUI 2.5, 5)")
+    }
+    do { // Z4
+        let arm = Arm()
+        let log = PlacementLog()
+        let h = arm.tree.newNativeLayout(PlacementRecordingHalf(log: log), children: [])
+        let root = arm.zstack("z", [h, arm.fixed("o", 60, 40)])
+        #expect(arm.run(root, 100, 100) == size(60, 40), "Z4 size")
+        #expect(log.placements == [p(60, 40)], "Z4 h placement proposal")
+        #expect(arm.tree.layout(h) == rect(15, 15, 30, 10), "Z4 h")
+    }
+}
