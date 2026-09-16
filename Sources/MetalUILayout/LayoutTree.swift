@@ -408,9 +408,9 @@ public final class LayoutTree {
     /// platform default**, decided per adjacent pair: 0 when the earlier
     /// child's trailing edge or the later child's leading edge is a
     /// zero-spacing edge (`zeroSpacingEdges`: a spacer's, seen through its
-    /// wrappers; SP2, SP3, K3a–K3q), else `ProposalSpacing.platformDefault`
-    /// (S). The default stays 0 for kernel callers; `HStack`/`VStack` pass nil
-    /// unless given a spacing.
+    /// wrappers and containers; SP2, SP3, K3a–K3q, V1–V8), else
+    /// `ProposalSpacing.platformDefault` (S). The default stays 0 for kernel
+    /// callers; `HStack`/`VStack` pass nil unless given a spacing.
     ///
     /// **A given spacing must be finite** (ruling SA-J): SwiftUI answers nan
     /// and ±inf (P1, P9). **Negative spacing is accepted, unclamped**: `{20;
@@ -996,20 +996,28 @@ public final class LayoutTree {
     }
 
     /// Which of `id`'s edges along `axis` take no default spacing (ruling
-    /// CN-H; probe K3 group, every figure at nil×nil between two 20pt views):
+    /// CN-H as amended; probe K3 and V groups, every figure at nil×nil between
+    /// two 20pt views):
     ///
-    /// - a spacer: both (SP2, SP3, SP7);
+    /// - a spacer: both, when the stack that marked it (`spacerAxes`, CN-C) is
+    ///   along `axis` or no stack marked it (SP2, SP3, K3g, V3); neither when
+    ///   a stack across `axis` did (K3h, V1d, V1h, V3h, V7h);
     /// - `layoutPriority`, `frame`, `fixedSize`, `aspectRatio`: the child's
     ///   (K3d, K3b, K3e, K3f, K3q);
     /// - an overlay attachment: its PRIMARY's (K3c); a spacer on the content
     ///   side is not seen (K3i);
     /// - `padding`: the child's, on an edge whose inset is exactly 0 (K3a,
     ///   K3o's cross-axis inset, K3q); a non-zero inset gives that edge the
-    ///   default again (K3m, K3n, K3p);
-    /// - a `ZStack` (`overlay`) with at least one child: an edge is zero only
-    ///   if it is zero on EVERY child (K3g, K3l; K3j, K3k with a leaf child);
-    /// - anything else — a leaf, a nested linear stack (K3h), a scroll
-    ///   viewport, a custom layout, an empty `ZStack`: neither.
+    ///   default again (K3m, K3n, K3p, V6);
+    /// - a linear stack along `axis`: its first child's leading edge and its
+    ///   last child's trailing edge, whatever its own spacing (V1, V1b, V1c,
+    ///   V1e, V1i, V1k);
+    /// - a linear stack across `axis`, or a custom layout: an edge is zero if
+    ///   it is zero on ANY child (V3b, V3e, V3f, V7, V7b, V7d, V7f, V7i);
+    /// - a `ZStack` (`overlay`): an edge is zero only if it is zero on EVERY
+    ///   child (K3g, K3l, V7g, V7j, V7k; K3j, K3k with a leaf child);
+    /// - any of those three with no children: both (V1f, V1g, V3d, V4, V4b);
+    /// - a leaf or a scroll viewport: neither (V8, whatever its content).
     ///
     /// Leading/trailing are left/right for a horizontal stack and top/bottom
     /// for a vertical one; no layout direction is read (divergence 25).
@@ -1017,7 +1025,8 @@ public final class LayoutTree {
                                   axis: ProposalStackAxis) -> (leading: Bool, trailing: Bool) {
         switch nativeNode(id) {
         case .spacer:
-            return (true, true)
+            let zero = spacerAxes[id.index].map { $0 == axis } ?? true
+            return (zero, zero)
         case .layoutPriority, .frame, .fixedSize, .aspectRatio, .overlayAttachment:
             return zeroSpacingEdges(children(id)[0], axis: axis)
         case .padding(let insets):
@@ -1025,12 +1034,19 @@ public final class LayoutTree {
             let (leading, trailing) = axis == .horizontal ? (insets.left, insets.right)
                                                           : (insets.top, insets.bottom)
             return (child.leading && leading == 0, child.trailing && trailing == 0)
-        case .overlay:
+        case .linearStack(let stackAxis, _, _) where stackAxis == axis:
             let nodes = children(id)
-            guard !nodes.isEmpty else { return (false, false) }
+            guard let first = nodes.first, let last = nodes.last else { return (true, true) }
+            return (zeroSpacingEdges(first, axis: axis).leading, zeroSpacingEdges(last, axis: axis).trailing)
+        case .linearStack, .custom:
+            let nodes = children(id)
+            guard !nodes.isEmpty else { return (true, true) }
             let edges = nodes.map { zeroSpacingEdges($0, axis: axis) }
+            return (edges.contains(where: \.leading), edges.contains(where: \.trailing))
+        case .overlay:
+            let edges = children(id).map { zeroSpacingEdges($0, axis: axis) }
             return (edges.allSatisfy(\.leading), edges.allSatisfy(\.trailing))
-        case .leaf, .linearStack, .scrollViewport, .custom:
+        case .leaf, .scrollViewport:
             return (false, false)
         }
     }
