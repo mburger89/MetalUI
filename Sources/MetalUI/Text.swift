@@ -381,6 +381,17 @@ public struct Text: Element, StyledElement {
         // the border and inside the opacity scope and the clip — a bordered
         // `Text` draws its ring over its own glyphs (`OM-V`), and a faded one
         // fades them with its fill rather than leaving them opaque.
+        //
+        // **Both of those sentences are pinned — by the `Text` arm of
+        // `everyDecorationScopingSiteContainsItsOwnContent` — and neither was
+        // until the lane's review round** (`OM-AI`). Keeping this call and
+        // moving `paintGlyphs` OUTSIDE the closure leaves the border at the
+        // right box with the right widths and this element's own fill correctly
+        // faded, so `everyDecorationPaintingSiteDrawsItsBorder` cannot see it,
+        // while the glyphs read alpha 1.0 where they should read 0.5, escape
+        // the clip, and are drawn OVER the ring rather than under it — measured:
+        // the border rect lands at paint position 0 and the two glyphs at 1
+        // and 2.
         pass.paintDecoration(decoration, in: bounds, for: id) {
             paintGlyphs(bounds: bounds, layout: &layout, pass: &pass)
         }

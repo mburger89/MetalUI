@@ -738,6 +738,137 @@ screen, it is a separate commit whose diff is the demo file alone (spec §7 lane
 - **`Decoration` now has nine stored properties and five of them are new.**
   `swift package clean` before the first run of any commit that adds a tenth.
 
+##### Review round — three issues, two of them findings about instruments
+
+The lane's verifier ran twenty-one mutations of its own, sixteen of which
+reddened as recorded. **Two did not**, and they are the round's substance.
+
+**Issue 1 (major, `OM-AI`) — the SCOPE half of both helpers was pinned at one
+site each.** Four mutations, applied singly with the FULL suite run, all green
+at `Test run with 1256 tests in 1 suite passed`:
+
+| mutation | behaviourally | seen by |
+|---|---|---|
+| `Text.paint` keeps `paintDecoration(…) { }` and calls `paintGlyphs` after it | `Text("hi").background(.accent).opacity(0.5)` emits glyph alphas **1.0** where the unmutated tree emits **0.5**; the background rect stays 0.5 in both | nothing |
+| `Stack.paint` likewise with `content.paintGroup` | `Stack { Box().background(.accent) }.opacity(0.5)` emits the child at **1.0** where the unmutated tree emits **0.5** | nothing |
+| `Stack.prepaint` passes `Decoration()` to `registerAndScope` | a `.clipped()` `Stack` registers hitboxes outside the box it draws | nothing |
+| `ModifiedElement.prepaintLayerBody` passes `Decoration()` | the same, per layer | nothing |
+
+The lane's own M4 and M10 dropped the whole helper call, or the clip *inside*
+the helper, so neither reached this finer shape:
+`everyDecorationPaintingSiteDrawsItsBorder` asserts that ONE rect exists with
+the right box and widths, which a site that keeps the call and paints its
+children outside the closure satisfies completely.
+
+Two instruments answer it:
+
+- **`everyDecorationScopingSiteContainsItsOwnContent`** (new) — four arms,
+  `Box` / `Stack` / `Text` / a **two-layer** `ModifiedElement` (`OM-AD`'s
+  reason), each asserting three things about the site's own content: its alpha
+  is the element's `opacity` multiple, its `contentMask` is the element's own
+  40x40 box under `.clipped()`, and the border's position in the **finalized**
+  paint order is after it. The order clause needs `Scene.drawList` rather than
+  either array's indices, because a `Text`'s content is glyphs and its border is
+  a rect (`paintPositions(_:)` in the test file).
+- **`clippedAlsoClipsTheHitboxesInsideIt`** — was one `Box` fixture, is now a
+  three-arm table (`Box` 60, `Stack` 50, `ModifiedElement` 50; `Stack` and
+  `.frame` both centre, so the overflowing child starts at −10 and
+  `Frame.insertHitbox` meets the root clip first). `Text` has no children and no
+  arm. The click moved from y 50 to y 45, which is inside the 60x60 child at
+  every site and below the 40x40 clip at every site.
+
+The mutation round for them, each applied singly and reverted:
+
+| # | mutation | reddened |
+|---|---|---|
+| MV1 | `Text.paint` glyphs outside the closure | `everyDecorationScopingSiteContainsItsOwnContent`, all three clauses at the `Text` arm (`faded.alpha` off by 0.5, mask, `border 0 > content 2`) |
+| MV2 | `Stack.paint` children outside the closure | the same three at the `Stack` arm |
+| MV5 | `Box.paint` children outside the closure | the same three at the `Box` arm |
+| MV6 | `ModifiedElement.paintLayer` content outside the closure | the same three at the `ModifiedElement` arm |
+| MV3 | `Stack.prepaint` passes `Decoration()` | `clippedAlsoClipsTheHitboxesInsideIt`, `Stack` arm, at its `#require` (both arms read 50) |
+| MV4 | `ModifiedElement.prepaintLayerBody` passes `Decoration()` | the same, `ModifiedElement` arm (both read 50) |
+| MV7 | `Box.prepaint` passes `Decoration()` | the same, `Box` arm (both read 60) |
+
+Three doc claims were corrected in the same change rather than left standing
+over tests that could not see them: `DecorationScope.swift`'s "`clippedAlsoClips…`
+is the pin", `Text.paint`'s "a faded one fades them with its fill" and "a
+bordered `Text` draws its ring over its own glyphs", and `paintDecoration`'s
+"`everyDecorationPaintingSiteDrawsItsBorder` is the per-site guard here" — now
+"two per-site guards, because the call has two halves".
+
+**Issue 2 (major, `OM-AH`) — spec §6.2's `.opacity(0.5).opacity(0.5)` row was
+filed as an AGREEMENT and is a divergence.** Measured in this worktree through a
+real `Window`, reading the emitted rect's alpha:
+
+| spelling | alpha |
+|---|---|
+| `Box().width(40).height(40).background(.accent)` | 1.0 |
+| `…​.opacity(0.5)` | 0.5 |
+| `…​.opacity(0.5).opacity(0.5)` | **0.5** |
+| `Box { Box()…​.opacity(0.5) }.opacity(0.5)` | 0.25 |
+| `…​.opacity(0.5).padding(2).opacity(0.5)` | 0.25 |
+
+`Frame.activeOpacity` multiplies *scopes*; an element contributes exactly one
+scope whose value is one field, so two writes to that field cannot become two.
+SwiftUI's G1/G2 is **one view with two calls**. `docs/probes/swiftui-border-clip-paint.swift` was **re-run in this round**
+(`/usr/bin/swift docs/probes/swiftui-border-clip-paint.swift`, empty stderr): all
+twenty-six recorded lines reproduce, controls K0/K1 included, so the header is
+evidence taken now and not a transcript. The row is now "not
+expressible", `OM-H`'s count goes four → five, and `OM-N`'s evidence paragraph
+loses the sentence that cited G1/G2 as support for it. `StyledElement.opacity(_:)`'s
+doc comment said "Opacities compose by multiplication, as SwiftUI's do", which
+is the sentence that would make a caller write the one spelling that does not;
+it and `Decoration.opacity`'s doc now name the divergence and the two spellings
+that multiply.
+
+`aSecondOpacityOnOneElementReplacesTheFirstWhereSwiftUIMultiplies` is the pin.
+Its disagreeing arms are the nested and the layered spellings; mutating
+`StyledElement.opacity(_:)` to `$0.setOpacity($0.opacity * value)` reddens it
+(`abs(twice - once) → 0.25`) **and nothing else in the suite**, which is the gap
+restated as a measurement.
+
+`opacityMultipliesAndFadesTheElementsOwnBackground`'s own doc previously read as
+a G1/G2 agreement while its fixture silently substituted nested boxes for
+SwiftUI's single-view chain; the substitution is now named in the doc and at the
+line.
+
+**Issue 3 (minor) — `Decoration` grew and a measured number in `Sources/` went
+stale.** `AnimatedStyle.swift`'s storage doc said a settled `$anim` entry costs
+"one `Style` (228) plus one `Decoration` (**12**)". Re-measured at this commit:
+
+| type | stride | size |
+|---|---|---|
+| `Decoration` | **80** | 77 |
+| `BorderStyle` | **20** | — |
+| `Style` | 228 | — |
+| `AnimatedElementState` | **320** | — |
+
+The line is corrected and carries the arithmetic consequence: 68 bytes of extra
+payload per settled entry, and a `$anim` entry is minted unconditionally per
+registering element (a 500-row `List` is 1,007), so ~6.8 MB at n = 100,000
+against the ~51 MB the animation milestone measured. **The end-to-end per-entry
+figures (643 bytes at n = 20,000) are NOT re-taken**, and the reason is stated at
+the line rather than left implicit: the harness that produced them is the
+animation milestone's isolated-process one, and task 13 — which stops these
+fields snapping — is where it should be re-run.
+
+##### Counts, re-taken after the review round
+
+| reading | value | against `5a28933` |
+|---|---|---|
+| `swift test --build-system native --no-parallel` | `Test run with 1258 tests in 1 suite passed after 37.688 seconds.` | **+2** on 1256 |
+| `error:` / `warning:` in the run | **0** / **0** | unchanged |
+| `find Tests -name "*.json" \| wc -l` | **97** | unchanged; `git diff --stat c4b5853 -- Tests` lists no `.json` |
+| guards, `grep -c canTypecheck` per file | 19 / 10 / 5 / 3 / 3 / 2 / 6 / 6 / 8 / 3 = **65 hits, 64 guards** | unchanged |
+
+`swift package clean` was run before this suite: `Decoration` did not change
+shape in this round, but `AnimatedStyle.swift`'s doc sits beside the type whose
+storage did, and the clean is cheap against the symptom (record §06).
+
+No `Sources/` behaviour changed in the review round — every source edit is a doc
+comment — so the demo/preview pixel comparison recorded above stands unchanged
+and was not re-taken.
+
 #### Lane 3 — hit testing: `allowsHitTesting` and `contentShape`
 
 *Not started.*
@@ -750,9 +881,11 @@ screen, it is a separate commit whose diff is the demo file alone (spec §7 lane
 
 ### Carried into the integration step
 
-- **Seven** divergence rows with no numbers yet: the default hit region
+- **Eight** divergence rows with no numbers yet: the default hit region
   (`OM-I`), a padded click target (`OM-K` — and its order-sensitivity, which
   SwiftUI's P1/P2 do not have), `.opacity` reaching a later background (`OM-N`),
+  **a second `.opacity` on one element REPLACING the first where SwiftUI's two
+  calls multiply (`OM-AH`, the review round)**,
   `.cornerRadius` not clipping (`OM-G`), a `Component`'s `width`/`height`
   overwriting (`OM-F`), **`.border.cornerRadius` following the arc where
   SwiftUI's clipped square border does not (`OM-W`, round 2)**, and **`.opacity`

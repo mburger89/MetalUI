@@ -15,9 +15,18 @@ import MetalUICore
 /// **Why a file of its own rather than four copies.** A site that forgot the
 /// clip would register hitboxes that escape the box their element clips —
 /// visible nowhere, reproducible only by clicking on content that is not drawn.
-/// `clippedAlsoClipsTheHitboxesInsideIt` is the pin, and
-/// `everyDecorationPaintingSiteDrawsItsBorder`'s paint-side sibling is what
-/// catches a missing call at three of the four sites.
+///
+/// **Two guards, and the second was missing until the lane's review round**
+/// (`OM-AI`). `everyDecorationPaintingSiteDrawsItsBorder` sees whether a site
+/// CALLS the helper. Nothing saw the shape of the call: passing `Decoration()`
+/// here — keeping the registration, dropping the scope — at `Stack.prepaint` or
+/// at `ModifiedElement.prepaintLayerBody` left the whole suite green, because
+/// `clippedAlsoClipsTheHitboxesInsideIt` was one `Box` fixture. It is now a
+/// table with a `Box`, a `Stack` and a two-layer `ModifiedElement` arm, and each
+/// of those three mutations reddens its own arm. `Text` has no children, so its
+/// scope is a no-op and it has no arm; the paint-side sibling of the same
+/// finding is `everyDecorationScopingSiteContainsItsOwnContent`, which covers
+/// all four.
 ///
 /// **`accessibleText` and `synthesizesAccessibility` are forwarded, and they
 /// are not optional decoration** (`OM-X`). `Text.prepaint` calls the five-

@@ -33,6 +33,13 @@
 // **The first recording's five points could not separate D2 from M1** — every
 // one of them agreed — so the spec's "`.border.cornerRadius` is the same as
 // MetalUI's one-emission answer" row was unfalsifiable rather than true.
+// RE-RUN 2026-09-15 (plan task 5 lane 2's REVIEW round), script form, empty
+// stderr: all twenty-six lines below reproduce, controls included. The re-run was
+// for arms G1/G2, which the spec's §6.2 matrix had read as an agreement with
+// MetalUI — they are one view with two `.opacity` calls, where MetalUI's legacy
+// path writes one `Decoration` field twice and the last write wins. Divergence
+// `OM-AH`; the probe was right and the row was wrong.
+//
 // Script form under /usr/bin/swift (Apple Swift 6.4, swiftlang-6.4.0.33.1) and
 // compiled form under `xcrun swiftc` (the same 6.4): byte-identical stdout,
 // exit 0 both, compiled stderr empty, run stderr empty.

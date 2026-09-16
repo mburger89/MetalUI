@@ -105,6 +105,42 @@ private func isBordered(_ rect: MUIRect, with token: ColorToken, in theme: Theme
         && rect.borderColor.l == want.l && rect.borderColor.a > 0
 }
 
+/// Where each primitive sits in the **finalized** paint order, across both
+/// arrays.
+///
+/// `Scene` stores rects and glyphs in two arrays (one pipeline each) and
+/// `finalize()` restores a total order over both in `drawList`. A `Text`'s
+/// border is a rect and its content is glyphs, so "the border is emitted after
+/// the content" is a claim about that merged order and cannot be read off
+/// either array's own indices.
+private func paintPositions(_ scene: Scene) -> (rects: [Int], glyphs: [Int]) {
+    var rects = [Int](repeating: -1, count: scene.rects.count)
+    var glyphs = [Int](repeating: -1, count: scene.glyphs.count)
+    var next = 0
+    for run in scene.drawList {
+        for i in run.start..<(run.start + run.count) {
+            switch run.kind {
+            case .rect: rects[i] = next
+            case .glyph: glyphs[i] = next
+            }
+            next += 1
+        }
+    }
+    return (rects, glyphs)
+}
+
+/// What one site's CONTENT reads: the alpha it was emitted with, the clip it was
+/// emitted under, and where it sits in the finalized paint order.
+private struct ContentReading {
+    var alpha: Float
+    var mask: MUIBounds
+    var position: Int
+}
+
+private func describe(_ b: MUIBounds) -> String {
+    "[\(b.origin.x) \(b.origin.y) \(b.size.width)x\(b.size.height)]"
+}
+
 private func describe(_ r: MUIRect) -> String {
     let b = r.bounds
     let m = r.contentMask
@@ -514,6 +550,173 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
     try check("ModifiedElement outermost layer", BorderSubject.modifiedOutermost)
 }
 
+// MARK: - the SCOPE half, per site
+
+/// **Every decoration-scoping site puts its own content INSIDE the scope**
+/// (`OM-AI`) — the opacity, the clip, and the border's position relative to the
+/// content.
+///
+/// `everyDecorationPaintingSiteDrawsItsBorder` above is the *emission* guard: it
+/// sees whether a site calls `paintDecoration` at all. It cannot see the shape
+/// of the call, and the shape is half the helper. A site that keeps the call and
+/// paints its content **outside** the `content()` closure —
+///
+/// ```swift
+/// pass.paintDecoration(decoration, in: bounds, for: id) { }
+/// content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+/// ```
+///
+/// — still draws its border at the right box with the right widths, still fades
+/// its own fill, and is wrong in three ways at once: the children are not faded,
+/// the children are not clipped, and the border lands **under** them, which is
+/// the focus ring invisible on the exact call it exists for (`OM-V`). That
+/// mutation was applied at `Stack.paint` and at `Text.paint` and the whole suite
+/// stayed green, which is what this test exists for: measured in the mutated
+/// tree, `Stack { Box().background(.accent) }.opacity(0.5)` emitted its child at
+/// alpha **1.0** where the unmutated tree emits **0.5**, and
+/// `Text("hi").background(.accent).opacity(0.5)` emitted glyph alphas **1.0**
+/// where the unmutated tree emits **0.5** — with the element's own background
+/// rect still reading 0.5 in both, which is exactly why the emission guard
+/// cannot see it.
+///
+/// One arm per site, each with a content emission that is a **separate**
+/// primitive from the element's own decoration: a 60x60 `flexShrink(0)` child
+/// that overflows the 40x40 subject (so the clip has something to cut), and for
+/// `Text` the glyphs. The `ModifiedElement` arm is a **two-layer** chain with
+/// the decoration on the outermost layer, for `OM-AD`'s reason — a one-layer
+/// chain cannot tell a scope that contains the layers inside it from one that
+/// contains only the content.
+@Test @MainActor func everyDecorationScopingSiteContainsItsOwnContent() throws {
+    @MainActor func check<E: Element>(
+        _ site: String,
+        _ make: @escaping @MainActor (_ opacity: Float, _ clipped: Bool, _ bordered: Bool) -> E,
+        read: @escaping @MainActor (Scene) throws -> ContentReading
+    ) throws {
+        @MainActor func reading(_ opacity: Float, _ clipped: Bool,
+                                _ bordered: Bool) throws -> (ContentReading, Scene) {
+            let (window, _) = try render(side: 200) {
+                inRow { make(opacity, clipped, bordered) }
+            }
+            return (try read(window.lastScene), window.lastScene)
+        }
+
+        // (i) the content is inside the OPACITY scope.
+        let (plain, _) = try reading(1, false, false)
+        try #require(plain.alpha > 0,
+                     why("\(site): set up — the content must paint at all, got \(plain.alpha)"))
+        let (faded, _) = try reading(0.5, false, false)
+        #expect(abs(faded.alpha - plain.alpha * 0.5) < 0.001,
+                why("\(site): the element's opacity scope must contain its own CONTENT, not "
+                    + "only its own fill (OM-N, OM-AI): expected \(plain.alpha * 0.5), got "
+                    + "\(faded.alpha)"))
+
+        // (ii) the content is inside the CLIP. The unclipped arm is the control:
+        // without it, "the mask is the element's box" would also hold for a mask
+        // that was always the element's box.
+        try #require(plain.mask.size.width == 200 && plain.mask.size.height == 200,
+                     why("\(site): set up — without `.clipped()` the content's mask is the whole "
+                         + "surface; got " + describe(plain.mask)))
+        let (clipped, _) = try reading(1, true, false)
+        #expect(clipped.mask.origin.x == 0 && clipped.mask.origin.y == 0
+                    && clipped.mask.size.width == 40 && clipped.mask.size.height == 40,
+                why("\(site): `.clipped()` must cut the CONTENT to the element's own 40x40 box; "
+                    + "got " + describe(clipped.mask)))
+
+        // (iii) the border is emitted AFTER the content, in the order that
+        // survives `finalize()` across both primitive arrays.
+        let (content, scene) = try reading(1, false, true)
+        let positions = paintPositions(scene)
+        let borderIndex = try #require(scene.rects.firstIndex { $0.borderColor.a > 0 },
+                                       why("\(site): nothing painted a border: "
+                                           + scene.rects.map(describe).joined(separator: " | ")))
+        #expect(positions.rects[borderIndex] > content.position,
+                why("\(site): the border is an OVERLAY (OM-V, probe B3) — it must be painted "
+                    + "after this element's own content. border at "
+                    + "\(positions.rects[borderIndex]), content at \(content.position)"))
+    }
+
+    /// The 60x60 child, wherever the site put it.
+    @MainActor func readChildRect(_ scene: Scene) throws -> ContentReading {
+        let positions = paintPositions(scene)
+        let index = try #require(scene.rects.firstIndex {
+            $0.bounds.size.width == 60 && $0.bounds.size.height == 60
+        }, why("no 60x60 content rect: " + scene.rects.map(describe).joined(separator: " | ")))
+        return ContentReading(alpha: scene.rects[index].background.a,
+                              mask: scene.rects[index].contentMask,
+                              position: positions.rects[index])
+    }
+
+    /// A `Text`'s content is its glyphs, and **all** of them must agree — one
+    /// faded glyph and one opaque one would be a scope that closed early.
+    @MainActor func readGlyphs(_ scene: Scene) throws -> ContentReading {
+        let positions = paintPositions(scene)
+        try #require(scene.glyphs.count >= 2,
+                     why("set up — the text must have shaped at least two glyphs, got "
+                         + "\(scene.glyphs.count)"))
+        let first = scene.glyphs[0]
+        try #require(scene.glyphs.allSatisfy {
+            $0.color.a == first.color.a
+                && $0.contentMask.origin.x == first.contentMask.origin.x
+                && $0.contentMask.size.width == first.contentMask.size.width
+        }, why("the glyphs disagree about their alpha or their clip: "
+               + scene.glyphs.map { "a=\($0.color.a) mask" + describe($0.contentMask) }
+                   .joined(separator: " | ")))
+        // The LAST glyph's position, so "the border is after the content" is a
+        // claim about all of them.
+        let last = positions.glyphs.max() ?? -1
+        return ContentReading(alpha: first.color.a, mask: first.contentMask, position: last)
+    }
+
+    @MainActor func boxSite(_ opacity: Float, _ clipped: Bool, _ bordered: Bool)
+        -> Box<Box<EmptyGroup>> {
+        var subject = Box {
+            Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface)
+        }.width(px(40)).height(px(40))
+        if opacity < 1 { subject = subject.opacity(opacity) }
+        if clipped { subject = subject.clipped() }
+        if bordered { subject = subject.border(.separator, width: px(4)) }
+        return subject
+    }
+
+    @MainActor func stackSite(_ opacity: Float, _ clipped: Bool, _ bordered: Bool)
+        -> Stack<Box<EmptyGroup>> {
+        var subject = Stack {
+            Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface)
+        }.width(px(40)).height(px(40))
+        if opacity < 1 { subject = subject.opacity(opacity) }
+        if clipped { subject = subject.clipped() }
+        if bordered { subject = subject.border(.separator, width: px(4)) }
+        return subject
+    }
+
+    @MainActor func textSite(_ opacity: Float, _ clipped: Bool, _ bordered: Bool) -> Text {
+        var subject = Text("hi").width(px(40)).height(px(40))
+        if opacity < 1 { subject = subject.opacity(opacity) }
+        if clipped { subject = subject.clipped() }
+        if bordered { subject = subject.border(.separator, width: px(4)) }
+        return subject
+    }
+
+    /// TWO layers, the decoration on the outermost: `.padding(2)` is the inner
+    /// layer and `.frame(40x40)` the outer one, so a scope that reached only its
+    /// own layer's content would miss the child entirely (`OM-AD`).
+    @MainActor func modifiedSite(_ opacity: Float, _ clipped: Bool, _ bordered: Bool)
+        -> ModifiedElement<Box<EmptyGroup>> {
+        var subject = Box().width(px(60)).height(px(60)).flexShrink(0).background(.surface)
+            .padding(Edges(all: .pixels(px(2))))
+            .frame(width: px(40), height: px(40))
+        if opacity < 1 { subject = subject.opacity(opacity) }
+        if clipped { subject = subject.clipped() }
+        if bordered { subject = subject.border(.separator, width: px(4)) }
+        return subject
+    }
+
+    try check("Box", boxSite, read: readChildRect)
+    try check("Stack", stackSite, read: readChildRect)
+    try check("Text", textSite, read: readGlyphs)
+    try check("ModifiedElement outermost layer", modifiedSite, read: readChildRect)
+}
+
 // MARK: - `.border` x `.cornerRadius`: OM-W's divergence
 
 /// **PINNED WRONG ON PURPOSE.** MetalUI's rounded border follows the corner
@@ -577,14 +780,23 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 
 // MARK: - 7, 8, 10a: opacity
 
-/// **Opacity multiplies, and it fades the element's own background** — probe
-/// arms G1, G2 and G3.
+/// **Two opacity SCOPES multiply, and a scope fades the element's own
+/// background** — probe arms G1, G2 and G3.
 ///
 /// G1/G2: `red.opacity(0.5)` samples rgb(1.00,0.58,0.58) over white and
 /// `.opacity(0.5).opacity(0.5)` samples rgb(1.00,0.80,0.80), so two halves
 /// compose to a quarter rather than replacing each other. `Frame.activeOpacity`
 /// already multiplies; what this pins is that `paintDecoration` opens the scope
 /// around the element's **own fill** and not only around its children (`OM-N`).
+///
+/// **The multiplying arm is NESTED boxes, and SwiftUI's G1/G2 is one view with
+/// two `.opacity` calls — that is a substitution, and it is deliberate.** Two
+/// `.opacity` calls on ONE MetalUI element write the same `Decoration.opacity`
+/// field, so the second REPLACES the first and the pair reads 0.5, not 0.25:
+/// `OM-H`'s not-expressible mechanism in its fifth instance, pinned as a
+/// divergence by `aSecondOpacityOnOneElementReplacesTheFirstWhereSwiftUIMultiplies`
+/// below (`OM-AH`). What multiplies here is two *scopes* — two elements, or two
+/// layers of one chain — which is what `Frame.activeOpacity` composes.
 ///
 /// Read off the emitted rect's alpha rather than off pixels: `Frame.fill`
 /// multiplies `color.a * activeOpacity` on the way into the scene, so the alpha
@@ -603,8 +815,10 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
             why("the element's OWN fill is inside its opacity scope (OM-N, probe G3): expected "
                 + "\(opaque * 0.5), got \(half)"))
 
-    // Nested, for the multiplication — probe G2. The inner box's own fill sees
-    // both scopes.
+    // Nested, for the multiplication — probe G2, with the substitution this
+    // test's doc names: SwiftUI's G2 is one view with two `.opacity` calls,
+    // which on the legacy path is `OM-AH`'s divergence, so the multiplying arm
+    // here is two SCOPES. The inner box's own fill sees both.
     let quarter = try alpha {
         Box {
             Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5)
@@ -667,6 +881,66 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
             why("the two orders are not distinguishable on the legacy path at all — both "
                 + "modifiers write one Decoration (OM-H). got \(opacityFirst) and "
                 + "\(backgroundFirst)"))
+}
+
+/// **PINNED WRONG ON PURPOSE.** A second `.opacity` on ONE element **replaces**
+/// the first; SwiftUI's G1/G2 multiply (`OM-AH`).
+///
+/// The fifth instance of `OM-H`'s mechanism, and the one the first draft of the
+/// spec's §6.2 matrix filed as an **agreement** ("`.opacity(0.5).opacity(0.5)` |
+/// multiplies | G1/G2 | same (`Frame.activeOpacity`)"). `Frame.activeOpacity`
+/// does multiply — but nothing puts two values into it here: both calls write
+/// `Decoration.opacity`, the last one wins, and the element opens exactly one
+/// scope.
+///
+/// Probe `swiftui-border-clip-paint` G1/G2 is one view:
+/// `red.opacity(0.5)` reads rgb(1.00,0.58,0.58) and
+/// `red.opacity(0.5).opacity(0.5)` reads rgb(1.00,0.80,0.80).
+///
+/// **Three arms, because "replaces" needs two things to be true**: the doubled
+/// call reads the SAME alpha as the single one, and a shape that genuinely
+/// multiplies reads a quarter in the same fixture. The nested arm is the
+/// disagreeing one — without it, "0.5 == 0.5" would also hold in a framework
+/// where nothing multiplied at all.
+///
+/// The spelling that multiplies is a scope between the two calls: a nested `Box`,
+/// or a layer — `.opacity(0.5).padding(2).opacity(0.5)` reads 0.25, because
+/// `.padding` opens a new `ModifierLayer` and the second call configures that.
+@Test @MainActor func aSecondOpacityOnOneElementReplacesTheFirstWhereSwiftUIMultiplies() throws {
+    @MainActor func alpha<E: Element>(_ make: @escaping @MainActor () -> E) throws -> Float {
+        let (window, _) = try render { inRow { make() } }
+        return try rect(window.lastScene, 40, 40).background.a
+    }
+
+    let once = try alpha { Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5) }
+    let twice = try alpha {
+        Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5).opacity(0.5)
+    }
+    let nested = try alpha {
+        Box {
+            Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5)
+        }.opacity(0.5)
+    }
+    let layered = try alpha {
+        Box().width(px(40)).height(px(40)).background(.accent).opacity(0.5)
+            .padding(Edges(all: .pixels(px(2))))
+            .opacity(0.5)
+    }
+    let opaque = try alpha { Box().width(px(40)).height(px(40)).background(.accent) }
+    try #require(abs(nested - once) > 0.001,
+                 why("set up — two SCOPES must read differently from one, or `replaces` below "
+                     + "is unfalsifiable. nested \(nested), single \(once)"))
+
+    #expect(abs(twice - once) < 0.001,
+            why("DIVERGENCE (OM-AH): a second `.opacity` on the same element REPLACES the first "
+                + "— both write one `Decoration` field (OM-H). SwiftUI's G2 composes to a "
+                + "quarter. single \(once), doubled \(twice)"))
+    #expect(abs(nested - opaque * 0.25) < 0.001,
+            why("and the spelling that DOES multiply is two scopes: expected "
+                + "\(opaque * 0.25), got \(nested)"))
+    #expect(abs(layered - opaque * 0.25) < 0.001,
+            why("a LAYER between the two calls multiplies too — `.padding` opens one, and the "
+                + "second `.opacity` configures it: expected \(opaque * 0.25), got \(layered)"))
 }
 
 /// **An outer layer's opacity and clip contain the layers INSIDE it**, not only
@@ -866,7 +1140,8 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
                 + "intersection emptied. mask \(scrolled.mask), paint \(scrolled.paint)"))
 }
 
-/// **`.clipped()` clips the hitboxes inside it as well as the pixels.**
+/// **`.clipped()` clips the hitboxes inside it as well as the pixels, at every
+/// site that registers children** (`OM-AI`).
 ///
 /// The prepaint half of the clip, and the reason `registerAndScope` exists
 /// rather than four copies of a `registerHandlers` call. `ScrollView.prepaint`
@@ -875,49 +1150,87 @@ private func rect(_ scene: Scene, _ w: Float, _ h: Float) throws -> MUIRect {
 /// so a user could click content that is not on screen — visible nowhere,
 /// reproducible only by clicking on nothing.
 ///
-/// Two readings: the registered region's height, and a real synthesized click
-/// below the clip. The click is what makes it a behaviour rather than a stored
-/// number.
+/// **One arm per site, and that is the fix for what this test used to be.** It
+/// was one `Box` fixture, so passing `Decoration()` to `registerAndScope` at
+/// `Stack.prepaint` or at `ModifiedElement.prepaintLayerBody` — each of which
+/// keeps the call and drops the scope — reddened **nothing** in the whole suite.
+/// `Text` has no children, so its clip scope is a no-op and it has no arm here;
+/// the paint-side scope at all four sites is
+/// `everyDecorationScopingSiteContainsItsOwnContent`.
+///
+/// Two readings per arm: the registered region's height, and a real synthesized
+/// click below the clip. The click is what makes it a behaviour rather than a
+/// stored number.
+///
+/// **`unclippedRegion` differs per arm and is not a fudge.** `Stack` and
+/// `.frame` both centre their content, so the overflowing 60x60 child starts at
+/// −10 and `Frame.insertHitbox` intersects it with the root clip before the
+/// element's own — 50, not 60. Each arm states its own number, and the
+/// `#require` that the two arms disagree is what makes any of them a finding.
 @Test @MainActor func clippedAlsoClipsTheHitboxesInsideIt() throws {
-    @MainActor func measure(clipped: Bool) throws -> (region: Float, clicksBelow: Int) {
-        let counter = ClickCounter()
-        let device = try #require(MTLCreateSystemDefaultDevice(),
-                                  "no Metal device; run on macOS hardware")
-        let (window, platform) = try makeFakeWindow(device: device, size: 200) {
-            Row {
-                { () -> Box<Box<EmptyGroup>> in
-                    let box = Box {
-                        Box().width(px(60)).height(px(60)).flexShrink(0)
-                            .background(.surface).onClick { counter.bump() }
-                    }.width(px(40)).height(px(40))
-                    return clipped ? box.clipped() : box
-                }()
-            }.alignItems(.flexStart)
+    @MainActor func check<E: Element>(
+        _ site: String, unclippedRegion: Float,
+        _ make: @escaping @MainActor (_ clipped: Bool, _ counter: ClickCounter) -> E
+    ) throws {
+        @MainActor func measure(clipped: Bool) throws -> (region: Float, clicksBelow: Int) {
+            let counter = ClickCounter()
+            let device = try #require(MTLCreateSystemDefaultDevice(),
+                                      "no Metal device; run on macOS hardware")
+            let (window, platform) = try makeFakeWindow(device: device, size: 200) {
+                Row { make(clipped, counter) }.alignItems(.flexStart)
+            }
+            window.drawFrameIfNeeded()
+            let boxes = window.lastHitboxes
+            try #require(boxes.count == 1,
+                         why("\(site): set up — the child registers exactly one hitbox, got "
+                             + "\(boxes.count)"))
+            // (20, 45) is inside the 60x60 child at every site and below the
+            // 40x40 clip at every site.
+            platform.simulateInput(.mouseDown(MouseEvent(position: pt(20, 45))))
+            platform.simulateInput(.mouseUp(MouseEvent(position: pt(20, 45))))
+            return (boxes[0].bounds.size.height.value, counter.count)
         }
-        window.drawFrameIfNeeded()
-        let boxes = window.lastHitboxes
-        try #require(boxes.count == 1, "set up — the child registers exactly one hitbox")
-        // (20, 50) is inside the 60x60 child and below the 40x40 clip.
-        platform.simulateInput(.mouseDown(MouseEvent(position: pt(20, 50))))
-        platform.simulateInput(.mouseUp(MouseEvent(position: pt(20, 50))))
-        return (boxes[0].bounds.size.height.value, counter.count)
+
+        let unclipped = try measure(clipped: false)
+        let clipped = try measure(clipped: true)
+        try #require(unclipped.region != clipped.region,
+                     why("\(site): set up — the two arms must differ: unclipped \(unclipped), "
+                         + "clipped \(clipped)"))
+
+        #expect(unclipped.region == unclippedRegion && unclipped.clicksBelow == 1,
+                why("\(site): the control — without `.clipped()` the child's whole "
+                    + "\(unclippedRegion)pt is hittable and a click at y 45 lands. got "
+                    + "\(unclipped)"))
+        #expect(clipped.region == 40,
+                why("\(site): `.clipped()` registers the child against the clip, not against "
+                    + "its own box; got \(clipped.region)"))
+        #expect(clipped.clicksBelow == 0,
+                why("\(site): and a click below the clip — on content that is not drawn — does "
+                    + "not reach the handler; got \(clipped.clicksBelow)"))
     }
 
-    let unclipped = try measure(clipped: false)
-    let clipped = try measure(clipped: true)
-    try #require(unclipped.region != clipped.region,
-                 why("set up — the two arms must differ: unclipped \(unclipped), clipped "
-                     + "\(clipped)"))
-
-    #expect(unclipped.region == 60 && unclipped.clicksBelow == 1,
-            why("the control: without `.clipped()` the child's whole 60pt is hittable and a "
-                + "click at y 50 lands. got \(unclipped)"))
-    #expect(clipped.region == 40,
-            why("`.clipped()` registers the child against the clip, not against its own box; "
-                + "got \(clipped.region)"))
-    #expect(clipped.clicksBelow == 0,
-            why("and a click below the clip — on content that is not drawn — does not reach "
-                + "the handler; got \(clipped.clicksBelow)"))
+    try check("Box", unclippedRegion: 60) { clipped, counter in
+        let box = Box {
+            Box().width(px(60)).height(px(60)).flexShrink(0)
+                .background(.surface).onClick { counter.bump() }
+        }.width(px(40)).height(px(40))
+        return clipped ? box.clipped() : box
+    }
+    try check("Stack", unclippedRegion: 50) { clipped, counter in
+        let stack = Stack {
+            Box().width(px(60)).height(px(60)).flexShrink(0)
+                .background(.surface).onClick { counter.bump() }
+        }.width(px(40)).height(px(40))
+        return clipped ? stack.clipped() : stack
+    }
+    // TWO layers, the clip on the outermost, for `OM-AD`'s reason.
+    try check("ModifiedElement outermost layer", unclippedRegion: 50) { clipped, counter in
+        let chain = Box().width(px(60)).height(px(60)).flexShrink(0)
+            .background(.surface).onClick { counter.bump() }
+            .padding(Edges(all: .pixels(px(2))))
+            .frame(width: px(40), height: px(40))
+        return clipped ? chain.clipped() : chain
+    }
 }
 
 // MARK: - 11: the animation deferral

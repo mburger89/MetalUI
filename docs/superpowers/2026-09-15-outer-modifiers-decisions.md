@@ -304,12 +304,13 @@ task 11 as the owner of closing it.
 
 ---
 
-## OM-H — every order expectation comes from a probe arm, and FOUR orders are not expressible
+## OM-H — every order expectation comes from a probe arm, and FIVE orders are not expressible
 
-**Ruling.** The spec's §6 tables are the expectations, each citing its arm. Four
+**Ruling.** The spec's §6 tables are the expectations, each citing its arm. Five
 SwiftUI behaviours are **not expressible** on the legacy path and are recorded
-rather than approximated (the fourth added in round 2 by `OM-W`; the heading and
-count are corrected here rather than left to be reconciled):
+rather than approximated (the fourth added in round 2 by `OM-W`, the fifth in
+the lane-2 review round by `OM-AH`; the heading and count are corrected here
+rather than left to be reconciled):
 
 - `.cornerRadius(r).background(c)` leaving the background square (C3);
 - `.cornerRadius(r).border(w)` drawing a square border over rounded content (D1);
@@ -317,18 +318,23 @@ count are corrected here rather than left to be reconciled):
 - **`.border(w).cornerRadius(r)` clipping a SQUARE border by the radius, so the
   corner arc's interior is unbordered** (D2 vs M1, `OM-W`) — the row the first
   draft called an agreement.
+- **`.opacity(v).opacity(v)` on one view multiplying to `v²`** (G1/G2, `OM-AH`)
+  — the row the first draft *also* called an agreement, and the only one of the
+  five that is a second write to the SAME field rather than two fields whose
+  order is lost.
 
 A fifth candidate was **measured and is not one**: `.allowsHitTesting(false)`
 written before rather than after a gesture reads the same in SwiftUI (N1 == N2,
 `OM-T`), so MetalUI's inability to tell the two orders apart is agreement.
 
-**Reasoning.** All four are the same mechanism: `background`, `cornerRadius`,
+**Reasoning.** All five are the same mechanism: `background`, `cornerRadius`,
 `border` and `opacity` are fields of **one** `Decoration`, so their order
-*within one layer* is not observable. The alternative — making each of them open
+*within one layer* is not observable — and neither is a second write to one of
+them. The alternative — making each of them open
 a new layer — buys the four cases at the cost of a layout node per paint
 modifier (which would not be layout-neutral: a bare `Style()` flex wrapper
 becomes the flex item in its parent's line in place of its child) or a
-node-less layer kind with no well-defined box. Neither is worth four corner
+node-less layer kind with no well-defined box. Neither is worth five corner
 cases. A caller who needs them writes a `Box` between the two modifiers, which
 *is* a layer, and layers do order.
 
@@ -341,9 +347,18 @@ ruling — `.border(w).cornerRadius(r)` (D2) is **not** MetalUI's single-emissio
 answer (M1). The mechanism is identical to the other three, so only the count
 and the list changed.
 
-**Cost if wrong.** A caller writing one of the four orders gets the other
+**Cost if wrong.** A caller writing one of the five orders gets the other
 answer silently. Each is pinned by a named test that asserts MetalUI's number
 and cites the SwiftUI arm it disagrees with.
+
+**Review round (`OM-AH`): the fifth row was the second one filed as an
+agreement, which makes the pattern the finding.** Both mistakes have the same
+shape — a spec row written from what the MECHANISM could do (`Frame.activeOpacity`
+multiplies; `MUIRect` can carry a radius and a border) rather than from what the
+two modifiers the row names actually produce together. The rule that follows: a
+§6 row may only be filed "same" when MetalUI's answer for **that exact
+spelling** has been read off a run, not derived from a helper that is capable of
+the behaviour.
 
 ---
 
@@ -517,8 +532,14 @@ between them).
 **Evidence.** `swiftui-border-clip-paint` G3 (`background(red).opacity(0.5)`
 samples rgb(1.00,0.58,0.58) over white — faded) and G4
 (`opacity(0.5).background(red)` samples rgb(1.00,0.15,0.00) — the full fill).
-G1/G2 additionally establish that opacity **multiplies** (0.58 after one 0.5,
-0.80 after two), which is what `Frame.activeOpacity` already does.
+
+**G1/G2 are NOT evidence for this ruling, and this paragraph used to claim they
+were** (review round, `OM-AH`). They establish that SwiftUI's opacity multiplies
+across two calls **on one view** — 0.58 after one 0.5, 0.80 after two — which
+`Frame.activeOpacity` does *not* reproduce for that spelling, because both calls
+write this one field. What `Frame.activeOpacity` multiplies is nested *scopes*.
+The divergence is `OM-AH`'s; nothing in this ruling rests on it, and the
+sentence that read "which is what `Frame.activeOpacity` already does" is struck.
 
 **Cost if wrong.** One order paints differently from SwiftUI. Pinned by
 `opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot`.
@@ -1346,3 +1367,93 @@ comment now says so instead of naming the mutation that does not work.
 **Cost if wrong.** A guard whose recorded mutation does not redden it is a
 decoration; this ruling is what keeps the recorded mutation honest.
 
+
+---
+
+## OM-AH — a second `.opacity` on one element REPLACES the first; SwiftUI multiplies
+
+**Ruling.** `.opacity(v)` written twice on the same legacy element reads `v`,
+not `v²`: both calls write `Decoration.opacity` and the last one wins. SwiftUI's
+two calls on one view compose by multiplication. This is a **recorded
+divergence**, pinned wrong on purpose, and the fifth instance of `OM-H`'s
+mechanism — not, as the spec's §6.2 matrix said until this round, an agreement.
+
+**Reasoning.** `Frame.activeOpacity` multiplies, and that is what made the wrong
+row plausible: nested scopes genuinely compose to a quarter. But an element
+contributes exactly **one** scope, whose value is one field, so two writes to
+that field cannot become two scopes. Keeping today's behaviour rather than
+making `opacity(_:)` multiply into the field: multiplying would make
+`.opacity(1)` non-idempotent in a way no other `StyledElement` modifier is
+(`.background(a).background(b)` is `b`, `.cornerRadius(4).cornerRadius(8)` is
+8), would make the value a function of how many times the modifier was applied
+rather than of what was declared, and would break the one spelling callers do
+write — a conditional re-application, `base.opacity(x)` where `base` already
+carries one. The spelling that multiplies is a scope between the two calls, and
+it already works.
+
+**Evidence.** Probe `docs/probes/swiftui-border-clip-paint.swift`, arms G1 and
+G2, re-read this round: `red.opacity(0.5)` samples rgb(1.00,0.58,0.58) over
+white and `red.opacity(0.5).opacity(0.5)` samples rgb(1.00,0.80,0.80) — one
+view, two calls, a quarter. MetalUI, measured in this worktree through a real
+`Window` over `FakePlatformWindow` (the emitted rect's alpha, which *is* the
+composition — `Frame.fill` multiplies `color.a * activeOpacity` on the way into
+the scene):
+
+| spelling | alpha |
+|---|---|
+| `Box().background(.accent)` | 1.0 (the token's own) |
+| `…​.opacity(0.5)` | 0.5 |
+| `…​.opacity(0.5).opacity(0.5)` | **0.5** — the divergence |
+| `Box { Box()…​.opacity(0.5) }.opacity(0.5)` | 0.25 |
+| `…​.opacity(0.5).padding(2).opacity(0.5)` | 0.25 |
+
+**Cost if wrong.** A caller who writes two `.opacity` calls on one element gets
+a half where SwiftUI gives a quarter, silently. Pinned by
+`aSecondOpacityOnOneElementReplacesTheFirstWhereSwiftUIMultiplies`, whose
+disagreeing arms are the two spellings that do multiply. The doc comments on
+`StyledElement.opacity(_:)` and `Decoration.opacity` say it at the call site,
+because a caller reading "opacities compose by multiplication, as SwiftUI's do"
+— which is what they said — would write exactly the spelling that does not.
+
+---
+
+## OM-AI — the SCOPE half of `paintDecoration`/`registerAndScope` needs its own per-site guard
+
+**Ruling.** `OM-P`'s "a guard per site" is two guards per phase, not one. A site
+that calls the helper with an **empty** `content()` closure and paints its own
+children afterwards satisfies every existing site guard and is wrong in three
+ways at once. The paint-side scope guard is
+`everyDecorationScopingSiteContainsItsOwnContent` (four arms: `Box`, `Stack`,
+`Text`, a two-layer `ModifiedElement`); the prepaint-side one is
+`clippedAlsoClipsTheHitboxesInsideIt`, which is a three-arm table rather than
+the single `Box` fixture it was.
+
+**Reasoning.** `everyDecorationPaintingSiteDrawsItsBorder` asserts that ONE rect
+exists carrying the right box and the right widths. That is a claim about the
+helper's *emissions*, and the helper's other half is a *scope*: the opacity, the
+clip, and the border's position relative to the content are all properties of
+what the closure contains. A site can keep the call and lose all three. The same
+asymmetry on the prepaint side is worse, because one fixture covered three
+sites.
+
+**Evidence, measured this round — four mutations, applied singly, FULL suite,
+all green** at `Test run with 1256 tests in 1 suite passed`:
+
+| mutation | what it breaks | what saw it before |
+|---|---|---|
+| `Text.paint` keeps `paintDecoration(…) { }` and calls `paintGlyphs` after it | glyph alpha 1.0 where it should be 0.5; glyphs escape the clip; ring drawn under them | nothing |
+| `Stack.paint` likewise with `content.paintGroup` | child rect alpha 1.0 where it should be 0.5 (the element's own fill stays 0.5, which is why the emission guard is blind) | nothing |
+| `Stack.prepaint` passes `Decoration()` to `registerAndScope` | a `.clipped()` `Stack` registers hitboxes outside the box it draws | nothing |
+| `ModifiedElement.prepaintLayerBody` passes `Decoration()` | the same, per layer | nothing |
+
+All four redden their own arm now, and `Box.paint`, `Box.prepaint` and
+`ModifiedElement.paintLayer` were mutated the same way to confirm the tables
+bite at every site rather than at one.
+
+**Cost if wrong.** The failure is invisible in every other instrument: the
+element still draws its background, its border, its focus ring and its hover
+colour at the right box in the right colour. What is lost is everything *inside*
+it — which is the half a reader of `DecorationScope.swift` was told was pinned.
+Those doc claims are corrected in the same change (`Text.paint`'s "a faded one
+fades them with its fill" and `DecorationScope.swift`'s "`clippedAlsoClips…` is
+the pin") rather than left standing over a test that could not see them.

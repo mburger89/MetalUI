@@ -621,15 +621,26 @@ the leaf at (8, 8). All three agree with SwiftUI's shape.
 | `.border.cornerRadius(12)` | a **square** border clipped by the radius: the arc's interior is unbordered | D2 vs **M1** | **not expressible**: MetalUI's rounded stroke follows the arc. Divergence, pinned (`OM-W`) |
 | `.border(w)` | drawn **inside** the box | B1/B2 | same (`MUIRect.borderWidths`) |
 | `.border(w)` over a child that fills the box | an **overlay** — the child does not hide it | **B3** | same, after `OM-V` makes the border a second emission **after** the children |
-| `.opacity(0.5).opacity(0.5)` | multiplies | G1/G2 | same (`Frame.activeOpacity`) |
+| `.opacity(0.5).opacity(0.5)` on ONE view | multiplies to a quarter | G1/G2 | **not expressible**: the second call REPLACES the first (both write one `Decoration` field), so it reads 0.5. Divergence, pinned (`OM-AH`) |
+| `.opacity(0.5)` then a SCOPE then `.opacity(0.5)` | — | — | multiplies (`Frame.activeOpacity`): a nested `Box` or a layer reads 0.25. Same as SwiftUI's nested spelling |
 | `.background.opacity(0.5)` | the fill fades | G3 | same |
 | `.opacity(0.5).background` | the fill does **not** fade | G4 | it does fade. Divergence, pinned (`OM-N`) |
 
-The **four** "not expressible" rows are all the same mechanism: on the legacy
+The **five** "not expressible" rows are all the same mechanism: on the legacy
 path `background`, `cornerRadius`, `border` and `opacity` are fields of **one**
-`Decoration`, so their relative order within one layer is not observable. A
-caller who needs SwiftUI's answer puts a `Box` between them — which is a layer,
-and layers do order.
+`Decoration`, so their relative order within one layer — and a second write to
+the same field — is not observable. A caller who needs SwiftUI's answer puts a
+`Box` between them — which is a layer, and layers do order.
+
+**Review round (`OM-AH`): the double-`.opacity` row was the fifth, and the first
+draft filed it as an AGREEMENT on a confusion between two things that both
+multiply.** `Frame.activeOpacity` does multiply, and nested scopes do compose to
+a quarter — but SwiftUI's G1/G2 is one view with two `.opacity` calls, which on
+the legacy path puts two values into one field. Measured in this worktree
+through a real `Window`: `Box().background(.accent).opacity(0.5)` → alpha
+**0.5**; `…​.opacity(0.5).opacity(0.5)` → alpha **0.5**; nested boxes → **0.25**;
+`…​.opacity(0.5).padding(2).opacity(0.5)` → **0.25**. The row above it, the one
+with no probe arm, is the spelling that agrees.
 
 **Round 2 (`OM-W`, critic finding 4): the `.border.cornerRadius` row was the
 fourth, and the first draft called it an agreement on evidence that could not

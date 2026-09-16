@@ -296,8 +296,16 @@ func resolvedBorder(_ decoration: Decoration, for id: GlobalElementID,
 /// `ModifiedElement`'s per-layer `paintLayer`. A site that called `pass.fill`
 /// itself would be silently unbordered, unfaded and unclipped with no
 /// diagnostic — the failure `everyBackgroundPaintingSiteHonoursHoverAndFocus`
-/// was written for, one field over. `everyDecorationPaintingSiteDrawsItsBorder`
-/// is the per-site guard here.
+/// was written for, one field over.
+///
+/// **TWO per-site guards, because the call has two halves** (`OM-AI`).
+/// `everyDecorationPaintingSiteDrawsItsBorder` sees whether a site calls this at
+/// all. `everyDecorationScopingSiteContainsItsOwnContent` sees whether the
+/// site's own content is inside the `content()` closure — a site that calls this
+/// with an EMPTY closure and paints its children afterwards satisfies the first
+/// guard completely while leaving those children unfaded, unclipped and drawn
+/// over the border. That mutation was applied at `Stack.paint` and `Text.paint`
+/// and the whole suite stayed green until the second guard existed.
 ///
 /// **The order, and each step's reason:**
 ///

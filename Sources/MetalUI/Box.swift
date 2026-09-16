@@ -300,6 +300,11 @@ public struct Decoration: Sendable, Hashable {
     /// caller actually writes was chosen. Recorded divergence, and the
     /// **proposal** path already answers the second order SwiftUI's way
     /// (`OM-AA` a), so the two paths disagree with each other as well.
+    ///
+    /// **One field, so a second `.opacity(_:)` on the same element REPLACES the
+    /// first rather than multiplying into it** (`OM-AH`) — the same mechanism
+    /// once more. `Frame.activeOpacity` multiplies *scopes*, and this field
+    /// contributes exactly one.
     public private(set) var opacity: Float
 
     /// Whether this element clips what it contains to its own box, rounded by
@@ -1091,9 +1096,19 @@ extension StyledElement {
     /// background and border included — and of everything inside it.
     ///
     /// Traps outside `0...1`, at the call site rather than a frame later inside
-    /// `PaintPass.opacity`. Opacities compose by multiplication, as SwiftUI's do
-    /// (probe `swiftui-border-clip-paint` G1/G2: 0.58 after one 0.5, 0.80 after
-    /// two).
+    /// `PaintPass.opacity`.
+    ///
+    /// **Opacity SCOPES multiply; two calls on ONE element do not** (`OM-AH`).
+    /// `Frame.activeOpacity` composes nested scopes by multiplication, so a
+    /// faded element inside a faded one reads a quarter — but a second call here
+    /// writes the same `Decoration.opacity` field, so the last one wins and
+    /// `.opacity(0.5).opacity(0.5)` reads **0.5**. SwiftUI's G1/G2 are one view
+    /// with two calls and read the equivalent of 0.25 (rgb(1.00,0.58,0.58) after
+    /// one, rgb(1.00,0.80,0.80) after two). Recorded divergence — `OM-H`'s
+    /// not-expressible mechanism in its fifth instance — pinned by
+    /// `aSecondOpacityOnOneElementReplacesTheFirstWhereSwiftUIMultiplies`. The
+    /// spelling that multiplies puts a scope between the two calls: a nested
+    /// `Box`, or a layer (`.opacity(0.5).padding(2).opacity(0.5)` reads 0.25).
     ///
     /// **`.opacity(0.5).background(x)` fades the background too, and SwiftUI's
     /// does not** (G4). See `Decoration.opacity` for why that order was the one
