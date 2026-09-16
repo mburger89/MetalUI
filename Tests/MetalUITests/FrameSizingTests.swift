@@ -360,40 +360,86 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
 
 // MARK: - 2.7 a frame around a `List` still builds every row
 
-/// **A legacy frame around a `List` still builds every row** — the "it broke
-/// list virtualization" half of the same reverted conversion, refuted
-/// (scratch `L12`).
+/// **A legacy frame around a `List` builds exactly the rows the unframed list
+/// builds** — the "it broke list virtualization" half of the same reverted
+/// conversion, refuted (scratch `L12`).
 ///
-/// Forty 14pt rows in a 600pt viewport, so every row is inside the window.
-/// The framed spelling builds the same rows as the unframed one and as
-/// `.width(200)`, which writes the element's own box instead of wrapping it.
+/// **Forty 40pt rows in a 600pt viewport**, so the window is genuinely
+/// windowing — 1600pt of content against 600pt of viewport — and the
+/// observable is the SET of row indices built, not a count that every arm
+/// would reach anyway. The framed spelling must build the same set as the
+/// unframed one and as `.width(200)`, which writes the element's own box
+/// instead of wrapping it.
 ///
-/// Mutation (critic finding 16 — **localized**, so that it separates
-/// virtualization from painting): give the frame layer itself a fixed
-/// `size.height` of 40 in `FrameSpec.style()`. The framed arm's row count then
-/// collapses while the other two hold. The previous candidate — dropping the
-/// layer's child list — reddened every framed element in the suite and proved
-/// nothing about this test.
+/// **No mutation of `FrameSpec.style()` can move the row SET, and that is a
+/// measured property of the engine rather than a weak test.** The designed
+/// mutation (critic finding 16) — a fixed `size.height` of 40 on the frame
+/// layer — was run over the whole suite and left this test green even against a
+/// real window: `List` computes its window against the enclosing **scroller's**
+/// origin and viewport, ignoring where the list itself sits (CLAUDE.md
+/// divergence 14), so geometry the layer imposes cannot reach the window at
+/// all. The two frames below are still required — frame 0 has no measured
+/// viewport and builds every row (MP-I) — but the window is insensitive to the
+/// wrapper by construction.
+///
+/// So the test also pins the rows' WIDTH, and measuring it turned up something
+/// worth keeping: **`.frame(width: 200)` around a `List` does NOT narrow its
+/// rows, where `.width(200)` does.** With 400pt rows the three arms read 400
+/// (unframed), **200** (`.width(200)`, which writes the list's own box) and
+/// **400** (framed). The frame layer is 200 wide and the list overflows it:
+/// flex §4.5's automatic minimum floors the list at its rows' own min-content
+/// width, and a wrapper cannot reach into its child to cancel that — the same
+/// mechanism ruling `FR-G` measured for `.minHeight(0)`, seen from the other
+/// side. It is the sharpest available statement of "these two sizing
+/// vocabularies are not the same operation" (`FR-F`).
+///
+/// **This test's only mutation is therefore a non-localized one** — dropping
+/// the layer's child list in `ModifiedElement.requestLayout`, which reddens
+/// most of the suite. It is recorded in the lane's mutation table rather than
+/// claimed as this test's own, and the honest summary is that the test is a
+/// characterization the lowering cannot move.
 @Test @MainActor func aLegacyFrameAroundAListStillBuildsEveryRow() throws {
     struct Datum: Identifiable { let id: String }
     let data = (0..<40).map { Datum(id: "row-\($0)") }
 
-    func rowCount<Wrapped: Element>(_ wrap: @escaping (List<[Datum], Mark>) -> Wrapped) throws -> Int {
+    // TWO frames, sharing one `StateTable`. Frame 0 has no measured viewport
+    // and builds every row (MP-I), so only the second frame is windowed and
+    // only the second frame's rows are the observable.
+    // `-1` for "row 0 was never built": a `#require` inside a nested function
+    // expands without a throwing call and costs a `warning:` against the hard
+    // 0-warning gate, and every assertion below names a real width, so the
+    // sentinel cannot pass for one.
+    func rowsBuilt<Wrapped: Element>(_ wrap: @escaping (List<[Datum], Mark>) -> Wrapped)
+        -> (rows: [Int], width: Float) {
         let log = SizeLog()
         var root = ScrollView {
-            wrap(List(data, rowHeight: px(14)) { Mark($0.id, log: log) })
+            wrap(List(data, rowHeight: px(40)) { Mark($0.id, log: log, width: 400, height: 20) })
         }
-        Frame(contentSize: Size(width: px(400), height: px(600)), scaleFactor: 1).render(&root)
-        return log.bounds.keys.filter { $0.hasPrefix("row-") }.count
+        let size = Size(width: px(400), height: px(600))
+        let table = StateTable()
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&root)
+        log.bounds.removeAll()
+        Frame(contentSize: size, scaleFactor: 1, stateTable: table).render(&root)
+        let rows = log.bounds.keys
+            .compactMap { $0.hasPrefix("row-") ? Int($0.dropFirst(4)) : nil }
+            .sorted()
+        return (rows, log.bounds["row-0"]?.size.width.value ?? -1)
     }
 
-    let bare = try rowCount { $0 }
-    let styled = try rowCount { $0.width(px(200)) }
-    let framed = try rowCount { $0.frame(width: px(200)) }
-    try #require(bare == 40, "the instrument never built every row unframed: \(bare)")
+    let bare = rowsBuilt { $0 }
+    let styled = rowsBuilt { $0.width(px(200)) }
+    let framed = rowsBuilt { $0.frame(width: px(200)) }
+    try #require(bare.rows.isEmpty == false, "the unframed list built no rows at all")
+    try #require(bare.width != styled.width,
+                 "the instrument cannot see a row's width: \(bare.width), \(styled.width)")
 
-    #expect(styled == 40, "`.width(200)` built \(styled) rows")
-    #expect(framed == 40, "`.frame(width: 200)` built \(framed) rows")
+    #expect(styled.rows == bare.rows, "`.width(200)` built \(styled.rows) against \(bare.rows)")
+    #expect(framed.rows == bare.rows, "`.frame(width: 200)` built \(framed.rows) against \(bare.rows)")
+    #expect(bare.width == 400 && styled.width == 200 && framed.width == 400,
+            """
+            a framed list keeps its rows' own width where `.width(200)` narrows them: \
+            bare \(bare.width), styled \(styled.width), framed \(framed.width)
+            """)
 }
 
 // MARK: - 2.8 an oversized child is squeezed (ruling FR-N)
@@ -442,7 +488,7 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
 ///
 /// `flexGrow = 1` fills the parent's **main** axis and `alignSelf = .stretch`
 /// fills its **cross** axis, so setting both is correct whichever way the
-/// parent runs — the fill arm reads (140, 90) in a `Row` and in a `Column`
+/// parent runs — the centred arm reads (140, 90) in a `Row` and in a `Column`
 /// alike (scratch `N14`). A **single** infinite maximum lowers to nothing: the
 /// same lowering applied to one axis consumes a whole axis nobody asked for
 /// (scratch `N15`: a `Column` sibling pushed from y = 20 to y = 195), and the
@@ -450,22 +496,37 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
 /// identical geometry. That is a declared-but-inert row CLAUDE.md owes at
 /// integration, and the fix needs the parent's axis (plan task 6).
 ///
-/// Mutations: drop `alignSelf = .stretch` (the `Row` arm's y and the `Column`
-/// arm's x redden); drop `flexGrow = 1` (the other halves); extend the fill
-/// lowering to a single infinite maximum (the inert arm reddens).
+/// **The two `.topLeading` arms are here because a centred mark cannot see the
+/// cross axis, and a mutation proved it**: dropping `alignSelf = .stretch` left
+/// the whole suite green, because a mark centred in a 20pt-tall layer at y = 90
+/// and a mark centred in a 200pt-tall layer at y = 0 sit at the same y. Pinned
+/// to the layer's leading corner the two disagree — (0, 0) filled, (0, 90) in a
+/// `Row` with no stretch and (140, 0) in a `Column` with no stretch.
+///
+/// Mutations: drop `alignSelf = .stretch` (both `.topLeading` arms redden);
+/// drop `flexGrow = 1` (the two centred arms redden, at the opening
+/// `#require`); extend the fill lowering to a single infinite maximum (the
+/// inert arm reddens, at the same `#require`).
 @Test @MainActor func anInfiniteMaximumFillsOnlyWhenBothAxesAreInfinite() throws {
-    let filledRow = try render { log in
-        Row {
-            Mark("mark", log: log, width: 20, height: 20)
-                .frame(maxWidth: px(.infinity), maxHeight: px(.infinity))
-        }
+    func mark(_ parentIsRow: Bool, _ alignment: ProposalAlignment) throws -> Origin {
+        let log = parentIsRow
+            ? try render { log in
+                Row {
+                    Mark("mark", log: log, width: 20, height: 20)
+                        .frame(maxWidth: px(.infinity), maxHeight: px(.infinity),
+                               alignment: alignment)
+                }
+              }
+            : try render { log in
+                Column {
+                    Mark("mark", log: log, width: 20, height: 20)
+                        .frame(maxWidth: px(.infinity), maxHeight: px(.infinity),
+                               alignment: alignment)
+                }
+              }
+        return Origin(try #require(log.bounds["mark"]))
     }
-    let filledColumn = try render { log in
-        Column {
-            Mark("mark", log: log, width: 20, height: 20)
-                .frame(maxWidth: px(.infinity), maxHeight: px(.infinity))
-        }
-    }
+
     let inert = try render { log in
         Row {
             Mark("mark", log: log, width: 20, height: 20).frame(maxWidth: px(.infinity))
@@ -475,14 +536,17 @@ private func widthInRow<Chain: Element>(rowWidth: Float = 300, siblingWidth: Flo
         Row { Mark("mark", log: log, width: 20, height: 20) }
     }
 
-    let filledOrigin = Origin(try #require(filledRow.bounds["mark"]))
+    let filledOrigin = try mark(true, .center)
     let inertOrigin = Origin(try #require(inert.bounds["mark"]))
     try #require(filledOrigin != inertOrigin,
                  "both spellings placed the mark alike: \(filledOrigin), \(inertOrigin)")
 
-    #expect(filledOrigin == Origin(140, 90), "a Row parent: \(filledOrigin)")
-    #expect(Origin(try #require(filledColumn.bounds["mark"])) == Origin(140, 90),
-            "a Column parent fills the same way")
+    #expect(filledOrigin == Origin(140, 90), "a Row parent, centred: \(filledOrigin)")
+    #expect(try mark(false, .center) == Origin(140, 90), "a Column parent fills the same way")
+    #expect(try mark(true, .topLeading) == Origin(0, 0),
+            "a Row parent: the layer must fill the CROSS axis too")
+    #expect(try mark(false, .topLeading) == Origin(0, 0),
+            "a Column parent: the layer must fill the CROSS axis too")
     #expect(inertOrigin == Origin(try #require(bare.bounds["mark"])),
             "a single infinite maximum must place the mark where no frame does")
 
