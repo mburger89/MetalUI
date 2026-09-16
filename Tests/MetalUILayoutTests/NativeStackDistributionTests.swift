@@ -893,7 +893,11 @@ extension Arm {
 ///
 /// - K2b `HStack(0){a20; Spacer().aspectRatio(1, .fit); b20}` at 200×50:
 ///   90×20, b offered 90 last and placed at 70 (the spacer is 50×0).
-/// - K2c `Spacer().fixedSize()`: 48×20, b at 28.
+/// - K2c `Spacer().fixedSize()`: 48×20, b at 28. K2c does NOT show the mark
+///   (the siblings set the height either way); probe revision 6 does: K2g
+///   `HStack(0){Spacer().fixedSize()}` at nil is 8×0 (its ZStack control K2f
+///   is 8×8), and K2i `{a20; Spacer(minLength: 30).fixedSize(); b20}` at nil
+///   is 70×20 (its ZStack control K2j is 70×30).
 /// - K2d `Spacer().frame(maxWidth: .infinity)`: 200×20, b at 180.
 /// - K2e `{a20; p 10×10 .overlay{Spacer()}; b20}`: 50×20, the overlay-side
 ///   spacer 10×0 on p's 10×10 (its background reads (25, 10), its centre).
@@ -906,7 +910,8 @@ extension Arm {
 ///
 /// Before the lane K2b's stack is 50 tall. Mutations: stop the walk at `frame`
 /// (K2d, SP19 move); skip the overlay's content side (K2e moves); walk into an
-/// `overlay` node (K2a moves).
+/// `overlay` node (K2a moves); stop the walk at `fixedSize` (K2g, K2i move;
+/// K2c does not).
 @Test func theCrossAxisMarkReachesASpacerThroughEveryWrapperButAStack() {
     do { // K2b
         let arm = Arm()
@@ -926,6 +931,19 @@ extension Arm {
         #expect(arm.run(root, 200, 50) == size(48, 20), "K2c size")
         #expect(arm.proposals("b").last == p(172, 50), "K2c b")
         #expect(arm["b"] == rect(28, 0, 20, 20), "K2c b rect")
+    }
+    do { // K2g: a lone fixed-size spacer answers 0 on the stack's cross axis
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.fixedSize("fs", arm.defaultSpacer("sp"))])
+        #expect(arm.measure(root, nil, nil) == size(8, 0), "K2g size")
+    }
+    do { // K2i: a 30pt fixed-size spacer does not set the stack's height
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.fixed("a", 20, 20),
+                                    arm.fixedSize("fs", arm.spacer("sp", minLength: 30)),
+                                    arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, nil, nil) == size(70, 20), "K2i size")
+        #expect(arm["b"] == rect(50, 0, 20, 20), "K2i b rect")
     }
     do { // K2d
         let arm = Arm()

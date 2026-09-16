@@ -318,7 +318,36 @@ stores x − 0 × ∞ = NaN, so the x term traps one node later with the same
 "non-finite rect" message. L8b proves the test sees checkpoint 3. The width
 term alone was already unpinned before this lane (`anInfiniteStoredRectTraps`
 has the same shape); a root-bounds arm with an infinite width would pin it.
-Not added here.
+Not added here; added in the verifier round below.
+
+### Verifier round (lane 2)
+
+The verifier's mutations M3d (the walk stops at `fixedSize`), M10 (checkpoint
+3's width term), M11 (`reset` keeps the marks) and M12 (`.aspectRatio` places
+its child in the node's bounds) left the suite green.
+
+- **M3d, the major.** The only evidence for the mark reaching through
+  `fixedSize` was K2c, whose 20pt siblings set the stack's height whether the
+  spacer is marked or not. Probe revision 6 adds K2f–K2j, which discriminate:
+  `HStack(0){Spacer().fixedSize()}` at nil is **8×0** against its `ZStack`
+  control's 8×8 (K2g/K2f), and `{a20; Spacer(minLength: 30).fixedSize(); b20}`
+  is **70×20** against the `ZStack`-wrapped control's 70×30 (K2i/K2j). SwiftUI
+  does mark through `fixedSize`; `CN-C` stands, its citation corrected (probe
+  reading, decisions doc, `markSpacers`' doc). The K2g and K2i arms join
+  test 2.2.
+- **M11.** `aResetTreeMeasuresItsNewRegistrationsFromScratch` gains a spacer
+  arm: a spacer marked by an `HStack`, a reset, and a bare spacer at the same
+  index measured at 100×50 answers 100×50 (SPB3), not 100×0.
+- **M10.** New exit test `anInfinitelyWideRootBoundsTraps`: a leaf root in
+  bounds (0, 0, ∞, 10) keeps a finite x, so only the width term traps.
+- **M12, recorded as unpinned, not pinned.** `.aspectRatio` places its child
+  at the child's measured answer; every arm places the node in bounds equal
+  to that answer, so placing the child in the bounds is indistinguishable.
+  The clause is observable only where bounds exceed the answer — a window-root
+  aspect ratio — and which SwiftUI placement applies there is unprobed. Owner:
+  lane 4's root placement (`CN-J`).
+- `ProposalSpacing`'s doc no longer says default stack spacing uses the
+  constant: no stack reads it until lane 3 (`CN-H`).
 
 ### Demo comparison (`CN-S` row 2)
 

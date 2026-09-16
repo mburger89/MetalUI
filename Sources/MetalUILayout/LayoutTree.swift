@@ -952,7 +952,7 @@ public final class LayoutTree {
     /// Marks every spacer `id` reaches with `axis` (ruling CN-C), called by
     /// `newNativeLinearStack` for each child at registration. The walk goes
     /// through `layoutPriority`, `padding`, `frame`, `fixedSize`,
-    /// `aspectRatio` (K2b, K2c, K2d, SP19, SP20) and BOTH children of an
+    /// `aspectRatio` (K2b, K2g/K2i, K2d, SP19, SP20) and BOTH children of an
     /// overlay attachment (X8's primary, K2e's overlay content), and stops at
     /// anything else: a `ZStack` (`overlay`, K2a), a nested linear stack
     /// (SP18b, whose own marks stand), a scroll viewport, a custom layout or a

@@ -459,6 +459,21 @@ private struct ScriptedLayout: ProposalLayout {
             "aborted, but not at checkpoint 3:\n\(Trap.stderr(result))")
 }
 
+/// Checkpoint 3's WIDTH term on its own: root bounds of infinite width with a
+/// finite origin store a finite x, so only the width term can trap (containers
+/// lane 2's verifier round; the other checkpoint-3 arms reach an x term first).
+/// Mutation, measured: removing `bounds.width.isFinite` alone reddens this test.
+@Test func anInfinitelyWideRootBoundsTraps() async {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        let tree = LayoutTree(generation: 0)
+        let leaf = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }
+        tree.computeNativeLayout(root: leaf, proposal: ProposedSize(width: 100, height: 100),
+                                 in: LayoutRect(x: 0, y: 0, width: .infinity, height: 10))
+    }
+    #expect(Trap.stderr(result).contains("non-finite rect"),
+            "aborted, but not at checkpoint 3:\n\(Trap.stderr(result))")
+}
+
 /// A measurement may be infinite; a stored rect may not. A custom layout
 /// places a proposal-echoing leaf at an ∞ proposal: its ∞ answer passes
 /// checkpoint 2 and becomes an ∞-wide rect at checkpoint 3. SwiftUI stores
@@ -499,7 +514,7 @@ private struct ScriptedLayout: ProposalLayout {
 /// x − 0 × ∞ = NaN, so the x term traps one node later with the same message.
 /// Removing the x AND width terms reddens this test,
 /// `anInfiniteStoredRectTraps` and `aNonFinitePlacementPositionTraps`. The
-/// width term alone is not pinned by any test (record §17, lane 2).
+/// width term alone is pinned by `anInfinitelyWideRootBoundsTraps`.
 @Test func aCustomLayoutPlacingAChildAtAnInfiniteProposalTraps() async {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
         let tree = LayoutTree(generation: 0)

@@ -254,8 +254,10 @@ aspect ratio changes, by the same −3 / −1 / −3 the prototype moved (66/51/
   (SPB1 100×0, SPB2 8×0, SPB5 0×50, X8's overlay proposed 180×0); outside one
   it is flexible on both axes (SPB3 100×50, SPB4 8×8, SPB6 through a `ZStack`,
   contract probe E). **The mark reaches** through `.frame` (SP19, K2d),
-  `.padding` (SP20), `aspectRatio` (K2b: stack height 20), `fixedSize` (K2c:
-  20), the overlay's primary (X8) **and the overlay's content** (K2e: a spacer
+  `.padding` (SP20), `aspectRatio` (K2b: stack height 20), `fixedSize` (probe
+  revision 6: K2g 8×0 against its `ZStack` control K2f 8×8, K2i height 20
+  against K2j 30; K2c's height 20 cannot tell, its siblings set it either
+  way), the overlay's primary (X8) **and the overlay's content** (K2e: a spacer
   in the overlay of a 10×10 primary answers 10×0). **It does not reach** through
   a `ZStack` (K2a: `ZStack { Spacer() }` claims the 50pt cross proposal) or a
   nested stack, which re-decides it (SP18b).

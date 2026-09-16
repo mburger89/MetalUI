@@ -217,6 +217,12 @@ private func recordingStack(_ tree: LayoutTree, widths: [Double], height: Double
 ///
 /// Green on arrival. Red run: a persistent cache keyed on `(id.index, proposal)`
 /// that `reset` does not clear.
+///
+/// The spacer arm (containers lane 2, ruling CN-C): a stack's cross-axis mark
+/// does not survive a reset. A default spacer marked by an `HStack` at index 0,
+/// then reset, then a bare default spacer registered at index 0 and measured
+/// at 100×50 answers 100×50 (probe SPB3), not the stale mark's 100×0.
+/// Mutation, measured: deleting `spacerAxes.removeAll` in `reset` reddens it.
 @Test func aResetTreeMeasuresItsNewRegistrationsFromScratch() {
     let tree = LayoutTree(generation: 0)
     let proposal = ProposedSize(width: 100, height: 50)
@@ -238,4 +244,15 @@ private func recordingStack(_ tree: LayoutTree, widths: [Double], height: Double
     #expect(before.counts == [3, 3])
     #expect(tree.layout(leaves[0]) == LayoutRect(x: 0, y: 15, width: 50, height: 20))
     #expect(tree.layout(leaves[1]) == LayoutRect(x: 50, y: 15, width: 25, height: 20))
+
+    do { // a reset clears the spacer marks
+        let spacerTree = LayoutTree(generation: 0)
+        let marked = spacerTree.newNativeSpacer()
+        _ = spacerTree.newNativeLinearStack(children: [marked], axis: .horizontal, spacing: 0)
+        spacerTree.reset(generation: 1)
+        let bare = spacerTree.newNativeSpacer()
+        #expect(bare.index == marked.index, "the bare spacer must reuse the marked index")
+        #expect(spacerTree.measureNativeLayout(root: bare, proposal: proposal).size
+                == SizeD(width: 100, height: 50))
+    }
 }

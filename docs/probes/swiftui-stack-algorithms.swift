@@ -42,6 +42,14 @@
 // G4r and G4f arms after R4; the 607 output lines before them are byte-identical
 // to revision 4's record (`diff` empty).
 //
+// RE-RECORDED 2026-09-16 (revision 6, lane 2's verifier round), same machine
+// and toolchain, exit 0, run twice with byte-identical output. Additive only:
+// the K2f-K2j arms after G4f; the 613 output lines before them are
+// byte-identical to revision 5's record (`diff` empty). K2c cannot show
+// whether the cross-axis mark reaches a spacer through `fixedSize` (its 20pt
+// siblings set the height either way); K2g and K2i can, against controls K2f
+// and K2j that differ.
+//
 // READING (each claim names its arms):
 // - Default spacing is 8 horizontally between every pair measured (S), and 8
 //   vertically between non-text views; vertically a Text edge is font-derived
@@ -66,7 +74,9 @@
 //   (K3j, K3k 56), a nested stack (K3h 56) and a spacer on the OVERLAY side of
 //   `.overlay` (K3i 56) get default spacing.
 // - The stack's cross-axis mark on a spacer is a DIFFERENT walk: it reaches
-//   through `aspectRatio` (K2b, height 20), `fixedSize` (K2c, height 20), a
+//   through `aspectRatio` (K2b, height 20), `fixedSize` (revision 6: K2g
+//   8x0 against the ZStack control K2f 8x8; K2i height 20 against K2j 30 —
+//   K2c's height 20 does not discriminate), a
 //   flexible frame (K2d) and the OVERLAY side of `.overlay` (K2e: the overlay
 //   spacer answers 10x0 on a 10x10 primary), and NOT through a ZStack (K2a: a
 //   ZStack{Spacer()} claims the 50pt cross proposal) or a nested stack (SP18b).
@@ -775,6 +785,19 @@
 //   G4f HStack(0){b fixed 20 .frame(maxWidth: .infinity); a 0..80} at 200x50 (bounded flexible sibling) @200x50: size 200x20
 //       leaf b: proposed [infx50, 120x50, 120x20] at (50, 0) 20x20 calls 3
 //       leaf a: proposed [infx50, 100x50] at (120, 0) 80x20 calls 2
+//   K2f control ZStack{Spacer().fixedSize()} .background{bg} at nil @nilxnil: size 8x8
+//       leaf bg: proposed [8x8] at (4, 4) 0x0 calls 1
+//   K2g HStack(0){Spacer().fixedSize()} .background{bg} at nil @nilxnil: size 8x0
+//       leaf bg: proposed [8x0] at (4, 0) 0x0 calls 1
+//   K2h control HStack(0){a20; Spacer(minLength: 30); b20} (bare, marked) @nilxnil: size 70x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (50, 0) 20x20 calls 2
+//   K2i HStack(0){a20; Spacer(minLength: 30).fixedSize(); b20} @nilxnil: size 70x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (50, 0) 20x20 calls 2
+//   K2j control HStack(0){a20; ZStack{Spacer(minLength: 30).fixedSize()}; b20} @nilxnil: size 70x30
+//       leaf a: proposed [nilxnil, nilx30] at (0, 5) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx30] at (50, 5) 20x20 calls 2
 //   DONE
 
 import AppKit
@@ -1642,6 +1665,29 @@ enum Kind: String, CaseIterable { case rect, color, text, leaf, image, hstack, b
     }
     run("G4f HStack(0){b fixed 20 .frame(maxWidth: .infinity); a 0..80} at 200x50 (bounded flexible sibling)", p(200, 50)) {
         HStack(spacing: 0) { fixed("b", 20, 20).frame(maxWidth: .infinity); flexW("a", 0, 80, 80) }
+    }
+
+    // Revision 6 (lane 2 verifier): does the stack's cross-axis mark reach a
+    // spacer through `.fixedSize()`? K2c cannot tell (its 20pt siblings set the
+    // height either way). Here the spacer's own cross answer would exceed its
+    // siblings'. Controls: the same wrapped spacer inside a ZStack (unmarked,
+    // K2a), and a bare Spacer(minLength: 30) beside the same siblings.
+    // (A bare spacer tree has no leaf, so the lone-spacer arms hang a zero
+    // background leaf on the whole view, as SPB2/SPB4 do.)
+    run("K2f control ZStack{Spacer().fixedSize()} .background{bg} at nil", none) {
+        ZStack { Spacer().fixedSize() }.background { fixed("bg", 0, 0) }
+    }
+    run("K2g HStack(0){Spacer().fixedSize()} .background{bg} at nil", none) {
+        HStack(spacing: 0) { Spacer().fixedSize() }.background { fixed("bg", 0, 0) }
+    }
+    run("K2h control HStack(0){a20; Spacer(minLength: 30); b20} (bare, marked)", none) {
+        HStack(spacing: 0) { fixed("a", 20, 20); Spacer(minLength: 30); fixed("b", 20, 20) }
+    }
+    run("K2i HStack(0){a20; Spacer(minLength: 30).fixedSize(); b20}", none) {
+        HStack(spacing: 0) { fixed("a", 20, 20); Spacer(minLength: 30).fixedSize(); fixed("b", 20, 20) }
+    }
+    run("K2j control HStack(0){a20; ZStack{Spacer(minLength: 30).fixedSize()}; b20}", none) {
+        HStack(spacing: 0) { fixed("a", 20, 20); ZStack { Spacer(minLength: 30).fixedSize() }; fixed("b", 20, 20) }
     }
 
 }
