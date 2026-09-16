@@ -402,3 +402,165 @@ Exactly `CN-S` row 2. Moved rects, from the scene dumps:
   is unpinned.
 - Default spacing beside a spacer is lane 3's (`CN-H`); nothing here inserts
   it.
+
+## Lane 3 — platform-default spacing and typed stack alignments (`CN-H`, `CN-I`)
+
+2026-09-16. Commits: `6adf624` (tests and guards, red), `f916d1c`
+(implementation), `91ea9af` (probe revision 7, SC5c/SC5), `ef431b0` (the SC5
+arm in test 3.1), then this record with the as-built addenda to `CN-H` and
+`CN-I` and the spec's count note.
+
+### Red first
+
+Five tests — 3.2 appended to `Tests/MetalUILayoutTests/NativeStackDistributionTests.swift`,
+3.1, 3.3, 3.4, 3.5 to `Tests/MetalUITests/ContainerIntegrationTests.swift` —
+and three guards in a new `Tests/MetalUITests/ContainerCompileGuards.swift`.
+
+**Against `4830b22` the test targets do not compile**: `'nil' is not
+compatible with expected argument type 'Double'` at every `spacing: nil`
+(`NativeStackDistributionTests.swift:1196`, `:1200`;
+`ContainerIntegrationTests.swift:269`, `:276`, `:284`, `:292`, `:300`), and for
+3.4 `cannot find type 'VerticalAlignment' in scope` (`:397`), `cannot find type
+'HorizontalAlignment' in scope` (`:409`), `argument 'spacing' must precede
+argument 'alignment'` (`:401`, `:413`, `:447`).
+
+To see runtime red lines, a **temporary, uncommitted shim** gave the kernel
+registrar (and the two `MetalUI` forwards) `spacing: Double?` mapping nil to
+the pre-lane explicit 8, and 3.4 was removed from the build (3.5's two
+new-order calls respelled in the old order). Native build, filtered:
+`Test run with 7 tests in 0 suites failed … with 40 issues`. The shim was
+reverted with `git checkout` on the three `Sources` files (clean before it);
+`git status --short` showed only the new tests.
+
+| # | test | first failure |
+|---|---|---|
+| 3.1 | `aStackWithoutSpacingPutsEightBetweenViewsAndNothingBesideASpacer` (9) | `:285` `kernelRun(tree, root) == SizeD(width: 48, height: 20)` (kernel SP2; also SP3, SP7 and the element SP2/SP3/SP7) |
+| 3.2 | `defaultSpacingBesideASpacerIsDecidedPerEdgeThroughItsWrappers` (24) | `:1268` `answer == size(40, 20)` (K3a, first of the zero-spacing loop; also K3c, K3f, K3q, K3n, K3p) |
+| 3.3 | `explicitStackSpacingIsUsedForEveryGapIncludingBesideASpacer` | green on arrival, its `#require` (SP3 ≠ SP4) holding |
+| 3.4 | `hStackAndVStackPlaceChildrenAtTheirTypedAlignments` | does not compile (above) |
+| 3.5 | `aProposalTextStackUsesEightWhereSwiftUIUsesFontSpacing` | green on arrival, its `#require`s holding |
+| G1 | `aHorizontalCaseIsNotAnHStackAlignmentNorAVerticalCaseAVStacks` (4) | `ContainerCompileGuards.swift:59` `!hStack.succeeded` (both negatives compiled) |
+| G2 | `theTypedStackInitializersCompileInSwiftUIsArgumentOrder` (1) | `:90` `result.succeeded` — `argument 'spacing' must precede argument 'alignment'`, `'nil' is not compatible with expected argument type 'Pixels'` |
+| G3 | `theSpacingFirstStackInitializersAreDeprecated` (2) | `:108` `deprecations(result) == 2` (0) |
+
+Green on arrival inside 3.2 under the shim: the default-8 arms (K3 control,
+K3h, K3i, K3j, K3k, K3m), which an explicit 8 also produces.
+
+### What changed
+
+`Sources/MetalUILayout/LayoutTree.swift`: `newNativeLinearStack(spacing:
+Double? = 0)` — a given spacing still traps unless finite; the private
+`NativeNode.linearStack` stores `Double?`. `stackGaps(_:axis:spacing:)` returns
+one gap per adjacent pair (the given spacing, or per pair 0 at a zero-spacing
+edge, else `ProposalSpacing.platformDefault`); `solveLinearStack`'s total and
+`placeNative`'s cursor read it. `zeroSpacingEdges(_:axis:)`: a spacer both;
+`layoutPriority`, `frame`, `fixedSize`, `aspectRatio` and an overlay
+attachment's primary the child's; `padding` the child's AND a zero inset on
+that edge; a non-empty `overlay` the AND over its children; anything else
+neither. No stored property changed on `LayoutTree`; `HStack`/`VStack`'s stored
+property types did, so the suite ran after `swift package clean`.
+`Frame.requestNativeLinearStack` and `LayoutPass.requestNativeLinearStack`
+take `Double?` (default 0).
+
+`Sources/MetalUI/StackAlignment.swift` (new): `VerticalAlignment { top,
+center, bottom }`, `HorizontalAlignment { leading, center, trailing }`, internal
+`proposalAlignment` mappings and factor-reading initializers.
+`NativeElements.swift`: `HStack`/`VStack` store `spacing: Pixels?` and the
+typed alignment; `init(alignment:spacing:content:)` with `.center`/`nil`
+defaults; the spacing-first `ProposalAlignment` initializer is kept,
+deprecated, without defaults, forwarding the cross factor. `ProposalScrollView`'s
+several-children lowering passes `nil`. `main.swift`'s two `VStack(spacing:
+…, alignment: .leading)` and `NativeLayoutIntegrationTests.swift`'s one moved
+to the new order. Doc comments: `newNativeLinearStack`, `HStack`, `VStack`,
+`Spacer`, `LayoutPass.requestNativeLinearStack`, `ProposalSpacing` (no longer
+"no stack reads this constant yet"), `ProposalScrollView`'s lowering comment.
+
+**Existing tests that changed: none** (the spec's stage-3 list). Only the one
+call site's argument order moved. `aNaNStackSpacingTraps` is green.
+
+### Suite
+
+After `swift package clean`, `swift build --build-system native
+--build-tests`, unfiltered: **`Test run with 1331 tests in 1 suite passed`**,
+0 `error:`, no `warning:` besides SwiftPM's deprecation notice. Default build
+system (`swift build`, `swift test --no-parallel`): six summary lines, 65 + 725
++ 55 + 28 + 436 + 22 = **1331**, all passed, 0 `error:`, 0 `warning:`. Guards
+(`grep -c canTypecheck`): 66 + 3 = **69**; the three printed their
+diagnostics in the native run, so they ran. Goldens: 97, unchanged against
+`9e439cb` (`git diff --quiet`).
+
+The spec expected 1327: it did not count the three guards, which are `@Test`s,
+and predates lane 2's verifier round (+1). 1323 + 5 + 3 = 1331.
+
+### Mutations
+
+`f916d1c` (and `ef431b0` for M9), each applied in this worktree, built
+`--build-system native --build-tests`, the unfiltered suite run, `git checkout
+-q Sources` (committed tree), `git status --short` empty after each.
+
+| mutation | red (named test in bold) |
+|---|---|
+| M1 nil → 8 at every pair ("apply 8 beside spacers") | **3.2** (24 issues), **3.1** (9) |
+| M2 nil → 0 at every pair ("default nil → 0") | **3.1** (7), **3.5** (its `#require` `textText != control`), 3.2 (17), `aProposalScrollViewStacksDirectChildrenWithSwiftUIsDefaultSpacing`, `aHorizontalProposalScrollViewAlsoStacksDirectChildrenVertically`, `hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt`, `vStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt` |
+| M3 `zeroSpacingEdges` reads `isNativeSpacer` | **3.2** only (22): K3a, K3b, K3c, K3e, K3f, K3g as the spec named, and K3l, K3o, K3q, K3n, K3p |
+| M4 padding transparent whatever its inset | **3.2** only (6): K3m, K3n, K3p |
+| M5 an overlay attachment's zero edges from either child (walks into the content) | **3.2** only (3): K3i |
+| M6 OR instead of AND over a `ZStack`'s children | **3.2** only (4): K3j, K3k |
+| M7 an explicit spacing becomes 0 at a zero-spacing edge | **3.3** (SP4), `aNativeLinearStackDividesConcreteSurplusBetweenSpacers` (3), `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects` (11) |
+| M8 `VerticalAlignment.top` maps to `.center` | **3.4** only (1: A1 `.top` a) |
+| M9 `ProposalScrollView` lowers with an explicit 8 | **nothing red at `f916d1c`** — a finding, see below; after `ef431b0`, **3.1**'s SC5 arm (`:359`, filtered run) |
+| G1 `VerticalAlignment` gains `leading` | **G1** only (2: `:59`, `:60`) |
+| G2 the new `HStack` initializer's parameters swapped | first attempt: `MetalUI` itself failed to build (its deprecated initializer forwards in the new order) and the run is discarded; re-run with that forward and test 3.4's call site moved to the mutant order: **G2** only (1: `:90`, `argument 'spacing' must precede argument 'alignment'`) |
+| G3 `HStack`'s `@available(deprecated)` removed | **G3** only (1: `:108`, 1 deprecation) |
+
+**M9, a finding.** At `f916d1c` nothing pinned the `nil` in
+`ProposalScrollView`'s lowering beside a spacer: M2 shows the non-spacer gap is
+pinned by two existing tests, but nil and an explicit 8 differ only at a
+spacer's edge, and the mutant was proven to differ (SC5 reads b 28 below a under
+it, 20 without it). Nor was it probed: SC3 shows the lowering is a default
+stack, not how a spacer inside it is spaced. Probe revision 7 (`91ea9af`,
+additive after K2j, run twice under `/usr/bin/swift`, Apple Swift 6.4, macOS
+27.0 26A428, exit 0, byte-identical, 639 lines, the first 626 identical to
+revision 6's record) measured it: vertically SC5c 28, SC5 20, so SwiftUI's
+lowering does take no spacing beside the spacer; horizontally both read b at
+(0, 180) and cannot discriminate. `ef431b0` adds the vertical arm to 3.1.
+
+Not measured: whether the new spacing walk changes any work count — it calls no
+measurement, and `nestedStacksUnderAnUnspecifiedCrossProposalDoBoundedWork` and
+the branching-tree test stayed green unmutated.
+
+### Demo comparison (`CN-S` row 3)
+
+`ioreg -n Root -d1 -a` read `IOConsoleLocked` `<true/>`: no real window
+captures. Stand-in: lane 1's harness (`scratchpad/harness/gen.py`, twelve images
+through a real `Window` over `FakePlatformWindow`) on `git archive f916d1c`,
+against lane 2's `63387f6` images (lane 2's later commits changed only comments
+under `Sources/`) and lane 1's `9e439cb` images. **Lane 3 has no pixel
+evidence** (`CN-S`): every preview stack gap names a spacing or sits between
+two views, and `demoContent()` names no proposal type.
+
+| comparison | differing pixels |
+|---|---|
+| controls, head: light vs dark / default vs modal / default vs animation / f0 vs f3 / preview light vs dark | 1 048 576 / 1 030 498 / 210 027 / 0 / 1 048 576 |
+| all twelve images vs lane 2 | **0**, scenes identical |
+| eight legacy images + `small560-default-light` vs `9e439cb` | **0**, scenes identical |
+| `preview-light`, `preview-dark` vs `9e439cb` | **188** each, bbox (264, 845)–(431, 865) |
+| `small560-preview-light` vs `9e439cb` | **64 199**, bbox (0, 0)–(559, 559) |
+
+Exactly `CN-S` row 3 (= row 2); the moved rects are lane 2's.
+
+### Not done here, and why
+
+- `CLAUDE.md`, `AGENTS.md`, the plan and the record index: the Docs phase.
+  Candidates: the inert row "`HStack`/`VStack`'s `alignment:` main-axis half"
+  stays, re-worded to name the deprecated `init(spacing:alignment:content:)`
+  (`CN-I`); the vocabulary line `HStack`/`VStack(spacing: 8, alignment:
+  .center)` becomes `(alignment:spacing:)` with typed alignments and a nil
+  default; `ProposalScrollView`'s "direct children 8pt vertical" probe bullet
+  gains "none beside a spacer (SC5)"; a new divergence for `ProposalText`'s
+  8pt vertical text-edge spacing (SwiftUI 0 / 4.74 / 8.15, `CN-H`, pin 3.5,
+  owner task 11).
+- K3f's placement (SwiftUI places b at 40 while reporting 40 wide) is not
+  pinned; only its size is, as the spec says.
+- The horizontal `ProposalScrollView` beside-spacer case is unprobed in a
+  discriminating form (SC5 horizontal cannot tell).

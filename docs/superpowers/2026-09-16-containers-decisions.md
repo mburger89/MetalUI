@@ -542,6 +542,20 @@ not pinned by a SwiftUI-disagreeing test (a pin would have to assert 8 against
 a probe that reads 0 — it is pinned as MetalUI's rule with the probe numbers in
 its doc comment).
 
+**Lane 3, as built** (`f916d1c`; record §17). As ruled. `solveLinearStack`'s
+total and the placement cursor both read one private `stackGaps(_:axis:spacing:)`;
+the walk is `zeroSpacingEdges(_:axis:)`, an exhaustive switch recomputed per
+solve (no stored property). Every K3 arm reads the probe's number, and the per-arm
+mutations of test 3.2 moved the arms the spec named (the `isNativeSpacer`
+mutant also moves K3l, K3o, K3q, K3n and K3p). **One clause was unpinned and
+unprobed:** `ProposalScrollView`'s lowering with `nil` rather than an explicit 8
+differs only beside a spacer, and lowering with 8 left the suite green. Probe
+revision 7 (SC5c/SC5) shows SwiftUI's vertical `ScrollView{a; Spacer(minLength:
+0); b}` puts b 20 below a, against 28 without the spacer, so the clause is
+SwiftUI's; test 3.1 carries the SC5 arm, red under that mutant. The horizontal
+arm cannot discriminate (the implicit stack is proposed 200 tall and the greedy
+spacer absorbs any gap).
+
 ---
 
 ## CN-I — typed stack alignments, in SwiftUI's argument order
@@ -577,6 +591,14 @@ stays, re-worded at the Docs phase to name the deprecated
 deprecation warning, and one writing `HStack(alignment: .leading)` in the new
 order a compile error — SwiftUI's own error. Three typecheck guards pin both and
 the deprecation.
+
+**Lane 3, as built** (`f916d1c`; record §17). As ruled, the two enums in
+`Sources/MetalUI/StackAlignment.swift` with internal `proposalAlignment`
+mappings and internal factor-reading initializers used only by the deprecated
+initializers. `HStack.spacing`/`VStack.spacing` are `Pixels?` and `alignment`
+the typed enum. Guard G2's mutation (swap the new initializer's parameters)
+also breaks `MetalUI`'s own forwarding call and test 3.4's call site; both were
+moved to the mutant order for that run so the guard itself could be observed red.
 
 ---
 

@@ -378,7 +378,10 @@ extra red `aNaNStackSpacingTraps` is its NaN sentinel for `nil` (`CN-R`); with
 `Double?` it must stay green, and the lane checks that it does.
 
 **Demo:** `CN-S` row 3 — measured identical to row 2; lane 3 has no pixel
-evidence. **Expected counts:** 1322 + 5 = **1327**; guards **69**. The inert
+evidence. **Expected counts:** 1322 + 5 = **1327**; guards **69**. (As built:
+**1331** — the three guards are `@Test`s too, and lane 2's verifier round added
+one test, so 1323 + 5 + 3; later lanes' expected totals are 4 higher than
+written. Test 3.1 also carries SC5, probe revision 7; record §17.) The inert
 row "`HStack`/`VStack`'s `alignment:` main-axis half" **stays**, re-worded to
 name the deprecated initializer (`CN-I`);
 `aNativeLinearStackUsesItsAlignmentOnTheCrossAxisOnly` stays as the kernel's
