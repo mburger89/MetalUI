@@ -369,7 +369,14 @@ public typealias NativePadding<Content: ProposalElementGroup> = Padding<Content>
 @available(*, deprecated, renamed: "FixedSize")
 public typealias NativeFixedSize<Content: ProposalElementGroup> = FixedSize<Content>
 
-/// A flexible proposal-layout spacer for use inside ``HStack``.
+/// A flexible proposal-layout spacer for use inside ``HStack`` or ``VStack``.
+///
+/// A nil `minLength` is 8, SwiftUI's platform default
+/// (`ProposalSpacing.platformDefault`; ruling CN-C). Inside a stack it takes
+/// what the other children leave (priority −∞) and answers 0 on the stack's
+/// cross axis, through `.padding`, `.frame`, `.fixedSize`, `.aspectRatio`,
+/// `.layoutPriority` and either side of `.overlay`; outside a stack, or inside
+/// a ``ZStack``, it is flexible on both axes.
 public struct Spacer: Element {
     public var minLength: Pixels?
 

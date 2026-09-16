@@ -99,11 +99,11 @@ private func buildReferenceTree(_ tree: LayoutTree) -> (root: LayoutNodeID, all:
 /// **Shape 15:** the twin's rects are `try #require`d NOT all zero, so "every
 /// rect is zero" is a claim a placing entry point could fail.
 ///
-/// The answer is **157×91** after plan task 6's lane 1 (ruling CN-B): the
-/// root's second child holds spacers that, unmarked until lane 2's CN-C,
-/// claim the 71pt cross proposal the distribution offers it (derivation in
-/// `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects`). Lane 2
-/// is expected to restore 157×38 (containers design, `CN-U`).
+/// The answer is **157×38** (derivation in
+/// `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects`). Plan
+/// task 6's lane 1 (ruling CN-B) read 157×91, because the root's second child
+/// holds spacers that, unmarked until lane 2's CN-C, claimed the 71pt cross
+/// proposal the distribution offered it; lane 2's marks restore 38.
 @Test func measuringANativeTreeWritesNoRect() throws {
     let zero = LayoutRect(x: 0, y: 0, width: 0, height: 0)
     let proposal = ProposedSize(width: 157, height: 91)
@@ -120,7 +120,7 @@ private func buildReferenceTree(_ tree: LayoutTree) -> (root: LayoutNodeID, all:
                  "the twin must store rects, or 'every rect is zero' discriminates nothing")
 
     #expect(measurement == placed)
-    #expect(measurement == LayoutMeasurement(size: SizeD(width: 157, height: 91)))
+    #expect(measurement == LayoutMeasurement(size: SizeD(width: 157, height: 38)))
     for (index, id) in measuredIDs.all.enumerated() {
         #expect(measured.layout(id) == zero, "node \(index)")
         #expect(measured.measuredWidth(id) == 0, "measured width of node \(index)")

@@ -323,9 +323,13 @@ extension ProposalElementGroup {
 
     /// Constrains this proposal-layout subtree to a width-to-height ratio.
     ///
-    /// A concrete parent proposal is inscribed by `.fit` or circumscribed by
-    /// `.fill`; a single proposed axis determines the other. The modifier
-    /// never reads the legacy CSS `Style.aspectRatio` field.
+    /// Proposes a ratio-shaped size to the content — a two-axis proposal
+    /// inscribed by `.fit` or circumscribed by `.fill`, one proposed axis
+    /// determining the other, ∞ a concrete axis, nil×nil passed through — and
+    /// answers the content's answer to it, as SwiftUI does (ruling CN-G): a
+    /// fixed-size child keeps its own size, a child that takes the offer takes
+    /// the ratio's shape. The modifier never reads the legacy CSS
+    /// `Style.aspectRatio` field.
     ///
     /// **The kernel's rule, checked at construction** so the two layers cannot
     /// disagree (ruling SA-K item 4): the ratio must be finite and non-zero; a

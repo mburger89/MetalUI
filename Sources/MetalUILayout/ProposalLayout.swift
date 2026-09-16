@@ -77,7 +77,12 @@ public struct MeasurementSubview {
     /// nodes, and never through `frame`, padding, an overlay attachment or any
     /// other wrapper (ruling SA-D). SwiftUI exposes no such test (probes E,
     /// E2), and since ruling CN-B no built-in stack reads it: a spacer's
-    /// behaviour in a stack follows from its −∞ `priority`.
+    /// behaviour in a stack follows from its −∞ `priority`, and its zero on a
+    /// built-in stack's cross axis from a mark the stack sets at registration
+    /// (ruling CN-C), which a custom layout cannot set. A custom layout that
+    /// wants the built-in's cross size can leave `isSpacer` subviews out of
+    /// it, as `ReferenceLinearStack` does; the mark's walk reaches further
+    /// (through padding, frames, `fixedSize`, `aspectRatio` and overlays).
     public var isSpacer: Bool {
         run.requireActive()
         return run.tree.isNativeSpacer(node)

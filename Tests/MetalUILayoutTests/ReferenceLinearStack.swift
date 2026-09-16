@@ -13,9 +13,21 @@
 //
 // **Rewritten for ruling CN-B** (plan task 6, lane 1): SwiftUI's distribution
 // — priority groups, lower groups' minimums reserved, least flexible first,
-// the sum of the answers — and CN-E's second pass at a nil cross proposal. It
-// no longer reads `isSpacer`: a spacer's −∞ `priority` is all a stack needs,
-// which is also all SwiftUI's own proxy offers (contract probe E).
+// the sum of the answers — and CN-E's second pass at a nil cross proposal. A
+// spacer's −∞ `priority` is all its DISTRIBUTION needs, which is also all
+// SwiftUI's own proxy offers (contract probe E).
+//
+// **Lane 2 (ruling CN-C) adds one read of `isSpacer`, and one approximation.**
+// A built-in stack marks its spacers at registration so that each answers 0 on
+// the stack's cross axis. A `ProposalLayout` cannot mark a node — neither can
+// SwiftUI's: a spacer under a custom layout is flexible on both axes (contract
+// probe E) — so this reference leaves every `isSpacer` subview out of its own
+// cross size instead. The two agree on every rect except a spacer's cross
+// extent (the built-in stores 0, this stores the spacer's answer), which the
+// equivalence test does not compare. `isSpacer` reaches a spacer bare or under
+// `layoutPriority`; the mark's walk also passes `padding`, `frame`,
+// `fixedSize`, `aspectRatio` and overlay attachments, which the reference tree
+// does not build.
 import MetalUICore
 import MetalUILayout
 
@@ -44,23 +56,27 @@ struct ReferenceLinearStack: ProposalLayout {
     func sizeThatFits(proposal: ProposedSize, subviews: MeasurementSubviews) -> LayoutMeasurement {
         LayoutMeasurement(size: solve(proposal: proposal,
                                       priorities: subviews.map { priority($0.priority) },
+                                      spacers: subviews.map(\.isSpacer),
                                       measure: { subviews[$0].sizeThatFits($1) }).size)
     }
 
     func placeSubviews(in bounds: LayoutRect, proposal: ProposedSize,
                        subviews: PlacementSubviews) {
         let priorities = subviews.map { priority($0.priority) }
+        let spacers = subviews.map(\.isSpacer)
         let measure: (Int, ProposedSize) -> LayoutMeasurement = { subviews[$0].sizeThatFits($1) }
         var solveProposal = proposal
         switch axis {
         case .horizontal where proposal.height == nil:
-            solveProposal.height = solve(proposal: proposal, priorities: priorities, measure: measure).size.height
+            solveProposal.height = solve(proposal: proposal, priorities: priorities, spacers: spacers,
+                                         measure: measure).size.height
         case .vertical where proposal.width == nil:
-            solveProposal.width = solve(proposal: proposal, priorities: priorities, measure: measure).size.width
+            solveProposal.width = solve(proposal: proposal, priorities: priorities, spacers: spacers,
+                                        measure: measure).size.width
         default:
             break
         }
-        let solution = solve(proposal: solveProposal, priorities: priorities, measure: measure)
+        let solution = solve(proposal: solveProposal, priorities: priorities, spacers: spacers, measure: measure)
         var cursor = axis == .horizontal ? bounds.x : bounds.y
         for index in subviews.indices {
             let answer = solution.answers[index]
@@ -86,7 +102,7 @@ struct ReferenceLinearStack: ProposalLayout {
     private func mainLength(_ size: SizeD) -> Double { axis == .horizontal ? size.width : size.height }
     private func crossLength(_ size: SizeD) -> Double { axis == .horizontal ? size.height : size.width }
 
-    private func solve(proposal: ProposedSize, priorities: [Double],
+    private func solve(proposal: ProposedSize, priorities: [Double], spacers: [Bool],
                        measure: (Int, ProposedSize) -> LayoutMeasurement)
         -> (answers: [SizeD], proposals: [ProposedSize], size: SizeD) {
         let count = priorities.count
@@ -127,7 +143,8 @@ struct ReferenceLinearStack: ProposalLayout {
         }
 
         let mainTotal = answers.reduce(gaps) { $0 + mainLength($1) }
-        let crossMax = answers.map(crossLength).max() ?? 0
+        // A spacer's cross answer is left out: the built-in's is 0 (CN-C).
+        let crossMax = answers.indices.filter { !spacers[$0] }.map { crossLength(answers[$0]) }.max() ?? 0
         return (answers, proposals,
                 axis == .horizontal ? SizeD(width: mainTotal, height: crossMax)
                                     : SizeD(width: crossMax, height: mainTotal))

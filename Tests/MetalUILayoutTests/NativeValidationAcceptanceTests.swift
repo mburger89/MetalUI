@@ -188,8 +188,11 @@ import MetalUILayout
 
 // MARK: - Aspect ratio (P8, P8b, P8c)
 
-/// SwiftUI accepts a negative ratio (P8, P8b). With ratio −2 over a fixed 10×10
-/// child:
+/// SwiftUI accepts a negative ratio (P8, P8b). With ratio −2 over a
+/// proposal-echoing child — P8 measured `Color`, which takes the offer, and
+/// since ruling CN-G the modifier answers its child, so the child is the
+/// kernel's `Color` (a fixed child would answer its own 10×10, probe K4j;
+/// plan task 6, lane 2):
 /// - `.fit` at 100×80: `100 / −2 = −50 <= 80`, the width branch: 100×−50;
 /// - `.fill` at 100×80: `−50 >= 80` is false, the height branch: −160×80;
 /// - `.fit` at nil×80: 80 × −2 = −160, so −160×80;
@@ -201,7 +204,9 @@ import MetalUILayout
     await #expect(processExitsWith: .success) {
         func size(_ mode: AspectRatioContentMode, _ width: Double?, _ height: Double?) -> SizeD {
             let tree = LayoutTree(generation: 0)
-            let child = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            let child = tree.newNativeLeaf { proposal in
+                LayoutMeasurement(size: SizeD(width: proposal.width ?? 0, height: proposal.height ?? 0))
+            }
             let ratio = tree.newNativeAspectRatio(child: child, ratio: -2, contentMode: mode)
             return tree.computeNativeLayout(root: ratio, proposal: ProposedSize(width: width, height: height),
                                             in: LayoutRect(x: 0, y: 0, width: 100, height: 80)).size
@@ -222,7 +227,8 @@ import MetalUILayout
 /// The two-axis branch compares `width / ratio <= height` (`.fit`, `>=` for
 /// `.fill`), which picks SwiftUI's branch in all 24 P8c arms where the old
 /// `width / height <= ratio` picks it in 12 (ruling SA-K item 2). Four arms the
-/// old predicate gets wrong, over a fixed 10×10 child:
+/// old predicate gets wrong, over a proposal-echoing child (P8c's `Color`;
+/// since ruling CN-G the modifier answers its child, plan task 6 lane 2):
 /// - 2 `.fit` at 100×−10: `50 <= −10` is false, height branch: −20×−10
 ///   (the old predicate answered 100×50);
 /// - 2 `.fill` at 100×−10: `50 >= −10`, width branch: 100×50 (old −20×−10);
@@ -234,7 +240,9 @@ import MetalUILayout
     await #expect(processExitsWith: .success) {
         func size(_ ratio: Double, _ mode: AspectRatioContentMode, _ width: Double, _ height: Double) -> SizeD {
             let tree = LayoutTree(generation: 0)
-            let child = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 10, height: 10)) }
+            let child = tree.newNativeLeaf { proposal in
+                LayoutMeasurement(size: SizeD(width: proposal.width ?? 0, height: proposal.height ?? 0))
+            }
             let node = tree.newNativeAspectRatio(child: child, ratio: ratio, contentMode: mode)
             return tree.computeNativeLayout(root: node, proposal: ProposedSize(width: width, height: height),
                                             in: LayoutRect(x: 0, y: 0, width: 100, height: 100)).size

@@ -78,6 +78,9 @@ private struct ReferenceTree {
     var priorityZeroLeafOfA: LayoutNodeID
     var secondSpacerOfB: LayoutNodeID
     var lastLeafOfB: LayoutNodeID
+    /// B's two spacers and the `layoutPriority` node over the second: the
+    /// nodes whose cross extent the reference does not reproduce (CN-C).
+    var spacerNodes: [LayoutNodeID]
 
     init(_ tree: LayoutTree, transposed: Bool = false,
          stack: (LayoutTree, [LayoutNodeID], ProposalStackAxis, Double, ProposalAlignment) -> LayoutNodeID) {
@@ -109,6 +112,7 @@ private struct ReferenceTree {
         priorityZeroLeafOfA = a60
         secondSpacerOfB = bSpacer2
         lastLeafOfB = b11
+        spacerNodes = [bSpacer, bInnerSpacer, bSpacer2]
         self.all = all
     }
 }
@@ -150,36 +154,44 @@ private func layOutReference(
 /// vertically.
 ///
 /// The literal rects were re-derived by hand for ruling CN-B before the run
-/// (plan task 6, lane 1; the unnamed spacer has minimum 0 until lane 2's CN-C):
+/// (plan task 6, lane 1), and again for lane 2's CN-C (the unnamed spacer's
+/// minimum is 8; both of B's spacers answer 0 on B's cross axis):
 /// - Root (V) at 157×91: A and B are one priority group, probed at
-///   (157, ∞) and (157, 0). A is 13 tall at both (flexibility 0); B's spacers
-///   claim the cross proposal (lane 2 zeroes it), so B answers ∞ and 18
-///   (flexibility ∞). A is served first at (91 − 7) / 2 = 42 → 13; B at 71 →
-///   71. **The root measures 157×91.** A at (13, 17, 157, 13), B at
-///   (13, 37, 157, 71).
+///   (157, ∞) and (157, 0). A is 13 tall at both and B 18 (its spacers are 0
+///   tall), so both have flexibility 0 and are served in order: A at
+///   (91 − 7) / 2 = 42 → 13; B at 71 → 18. **The root measures 157×38.** A at
+///   (13, 17, 157, 13), B at (13, 37, 157, 18). (Lane 1, with unmarked
+///   spacers, read 157×91: B claimed its 71pt cross offer.)
 /// - A (H, 157 − 9 = 148): priority 1 is offered 148 minus the lower
 ///   minimums (a60 0, a50 0, a20 20) = 128 and a80 answers 80; 68 remain.
 ///   Priority 0 reserves a50's 0 and serves a20 (flexibility 0) at 34 → 20,
 ///   then a60 at 48 → 48. Priority −1 gets 0. Cursor 13 + 80 + 3 = 96, so
 ///   **A's priority-0 leaf is (96, 17 + 13 − 11, 48, 11) = (96, 19, 48, 11)**.
 /// - B (H, 157 − 20 = 137, cross 71): priority 2 is offered 137 minus the
-///   others' minimums (30 + 10 + 20 + 11 = 71) = 66, and its spacer answers 66;
-///   71 remain. Priority 0 reserves the min-10 spacer's 10 and serves b30,
-///   b20, b11 (all flexibility 0) at 20.3 → 30, 15.5 → 20, 11 → 11. The
-///   min-10 spacer gets the last 10. Cursor 13 → 48 → 63 → 88, so **B's second
-///   spacer is (88, 37, 66, 71)**; cursor 88 + 66 + 5 = 159, so **B's last leaf
-///   is (159, 37 + (71 − 8) / 2, 11, 8) = (159, 68.5, 11, 8), stored rounded
-///   as (159, 69, 11, 8)** (`roundLayout` rounds each edge half away from zero:
-///   68.5 → 69, 76.5 → 77).
+///   others' minimums (30 + 10 + 20 + 11 = 71) = 66, and its spacer answers
+///   max(8, 66) = 66; 71 remain. Priority 0 reserves the min-10 spacer's 10
+///   and serves b30, b20, b11 (all flexibility 0) at 20.3 → 30, 15.5 → 20,
+///   11 → 11. The min-10 spacer gets the last 10. B is 18 tall. Cursor 13 → 48
+///   → 63 → 88, so **B's second spacer is (88, 37 + (18 − 0) / 2, 66, 0) =
+///   (88, 46, 66, 0)**; cursor 88 + 66 + 5 = 159, so **B's last leaf is
+///   (159, 37 + (18 − 8) / 2, 11, 8) = (159, 42, 11, 8)**.
+///
+/// **Spacer cross extents are not compared** (CN-C): the built-in stack marks
+/// its spacers, so each stores 0 on B's cross axis; a `ProposalLayout` cannot
+/// mark a node (a custom layout's spacer is flexible on both axes, contract
+/// probe E), so the reference leaves spacers out of its cross size and stores
+/// their answers. For those three nodes only the main-axis extent (x and width;
+/// y and height transposed, where the measured width is not compared either)
+/// is compared.
 ///
 /// Shape 15: a priority-blind and an order-blind (no flexibility sort)
 /// reference must each DISAGREE with the built-in on both trees.
 @Test func aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects() throws {
     let builtIn = layOutReference(builtInStack)
-    #expect(builtIn.measurement == LayoutMeasurement(size: SizeD(width: 157, height: 91)))
+    #expect(builtIn.measurement == LayoutMeasurement(size: SizeD(width: 157, height: 38)))
     #expect(builtIn.tree.layout(builtIn.ids.priorityZeroLeafOfA) == LayoutRect(x: 96, y: 19, width: 48, height: 11))
-    #expect(builtIn.tree.layout(builtIn.ids.secondSpacerOfB) == LayoutRect(x: 88, y: 37, width: 66, height: 71))
-    #expect(builtIn.tree.layout(builtIn.ids.lastLeafOfB) == LayoutRect(x: 159, y: 69, width: 11, height: 8))
+    #expect(builtIn.tree.layout(builtIn.ids.secondSpacerOfB) == LayoutRect(x: 88, y: 46, width: 66, height: 0))
+    #expect(builtIn.tree.layout(builtIn.ids.lastLeafOfB) == LayoutRect(x: 159, y: 42, width: 11, height: 8))
 
     for transposed in [false, true] {
         let builtIn = layOutReference(transposed: transposed, builtInStack)
@@ -189,10 +201,21 @@ private func layOutReference(
         }
         try #require(builtIn.rects.count == custom.rects.count)
         #expect(custom.measurement == builtIn.measurement, "transposed \(transposed)")
+        let spacerIndices = Set(builtIn.ids.spacerNodes.compactMap { builtIn.ids.all.firstIndex(of: $0) })
+        try #require(spacerIndices.count == 3)
         for index in builtIn.rects.indices {
-            #expect(custom.rects[index] == builtIn.rects[index], "node \(index), transposed \(transposed)")
-            #expect(custom.widths[index] == builtIn.widths[index],
-                    "measured width of node \(index), transposed \(transposed)")
+            let (c, b) = (custom.rects[index], builtIn.rects[index])
+            if spacerIndices.contains(index) {
+                #expect(transposed ? (c.y, c.height) == (b.y, b.height) : (c.x, c.width) == (b.x, b.width),
+                        "spacer node \(index)'s main extent, transposed \(transposed)")
+            } else {
+                #expect(c == b, "node \(index), transposed \(transposed)")
+            }
+            // A transposed spacer's measured width is its cross extent.
+            if !(transposed && spacerIndices.contains(index)) {
+                #expect(custom.widths[index] == builtIn.widths[index],
+                        "measured width of node \(index), transposed \(transposed)")
+            }
         }
 
         let priorityBlind = layOutReference(transposed: transposed) { tree, children, axis, spacing, alignment in

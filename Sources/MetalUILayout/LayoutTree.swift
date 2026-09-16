@@ -52,6 +52,14 @@ public final class LayoutTree {
     private var measuredWidths: [Double] = []
     private var nativeNodes: [Int: NativeNode] = [:]
 
+    /// The axis of the linear stack that marked each spacer, by node index
+    /// (ruling CN-C). A marked spacer answers 0 on that stack's CROSS axis.
+    /// Written at registration by `newNativeLinearStack`'s walk
+    /// (`markSpacers`), cleared by `reset(generation:)`, never written during
+    /// layout. A stored property on a public class read across a module
+    /// boundary: `swift package clean` after changing it (CN-R).
+    private var spacerAxes: [Int: ProposalStackAxis] = [:]
+
     /// The native run in progress, `nil` outside a native layout call.
     ///
     /// Held only so `setLayout` can read `measureDepth` (ruling SA-H clause 4:
@@ -231,10 +239,13 @@ public final class LayoutTree {
     /// there is no shrinking in SwiftUI. Chained frames: the outer size wins and
     /// the inner keeps its own (E1, E2).
     ///
-    /// **One deliberate divergence** (`FR-B`): at an INFINITE proposal SwiftUI
-    /// answers `inf` and MetalUI answers the child, because SwiftUI's own answer
-    /// traps one step later in its placement and an infinite measurement would
-    /// otherwise reach `LayoutRect`, `Bounds` and the renderer.
+    /// **At an INFINITE proposal a frame with a maximum answers `inf`** (probe
+    /// `D12`; ruling CN-F, which reverses `FR-B`'s old divergence of answering
+    /// the child). A stack's flexibility probe asks every child at main ∞, so
+    /// answering the child would report a greedy frame over a fixed child as
+    /// rigid (`swiftui-stack-algorithms.swift` G4r, G4f). Built-in placement
+    /// never proposes ∞ at a finite root; a caller that places such a frame at
+    /// ∞ traps at checkpoint 3, where SwiftUI crashes in its own placement.
     ///
     /// Placement puts the child at `alignment` inside the bounds the frame was
     /// given — not inside its own measurement — defaulting to SwiftUI's centre.
@@ -314,15 +325,21 @@ public final class LayoutTree {
 
     /// Registers an aspect-ratio proposal wrapper around exactly one child.
     ///
-    /// The wrapper derives a ratio-constrained proposal from its parent, then
-    /// reports and places that resolved rectangle. `.fit` inscribes the
-    /// rectangle inside a concrete proposal; `.fill` circumscribes it. An
-    /// unspecified parent axis is derived from its specified counterpart.
+    /// **The wrapper proposes a ratio-shaped size and answers its child's
+    /// answer to it** (probes AR1–AR4, K4–K4j; ruling CN-G), placing the child
+    /// at that answer. `.fit` inscribes the shape inside a two-axis proposal
+    /// (`width / ratio <= height` takes the width), `.fill` circumscribes it;
+    /// one concrete axis derives the other; nil×nil proposes nil×nil. **∞ is a
+    /// concrete axis, not nil** (K4d–K4h): ∞×∞ proposes ∞×∞ and 500×∞ proposes
+    /// 500×281.25 at 16:9. A fixed child keeps its own size (AR1: 168×95 at
+    /// 500×300); only a child that takes the offer takes the ratio's shape
+    /// (AR3).
     ///
     /// **The ratio must be finite and non-zero** (ruling SA-J): SwiftUI answers
     /// nan for NaN and ±∞, and 0 answers 0×inf on a one-axis proposal (P8, P9).
     /// **A negative ratio is accepted**, as SwiftUI accepts it (P8, P8b; ruling
-    /// SA-K item 2): −2 `.fit` at 100×80 answers 100×−50.
+    /// SA-K item 2): −2 `.fit` at 100×80 proposes 100×−50, which a child that
+    /// takes the offer answers.
     public func newNativeAspectRatio(child: LayoutNodeID, ratio: Double,
                                      contentMode: AspectRatioContentMode = .fit) -> LayoutNodeID {
         _ = nativeNode(child)
@@ -353,9 +370,16 @@ public final class LayoutTree {
 
     /// Registers a native flexible spacer with an optional minimum length.
     ///
-    /// A spacer answers its minimum on an unspecified axis and
-    /// `max(minimum, proposal)` on a concrete one, ∞ at ∞ (contract probe E;
-    /// ruling CN-F). A linear stack gives it no special case: its priority is
+    /// **A nil minimum is `ProposalSpacing.platformDefault`, 8** (probe SP1,
+    /// SP6, K1; ruling CN-C). A spacer answers its minimum on an unspecified
+    /// axis and `max(minimum, proposal)` on a concrete one, ∞ at ∞ (contract
+    /// probe E; ruling CN-F) — **except on the cross axis of the linear stack
+    /// that marks it, where it answers 0** (SPB1, SPB2, SPB5, SP13). A stack
+    /// marks the spacers it reaches through `layoutPriority`, `padding`,
+    /// `frame`, `fixedSize`, `aspectRatio` and both children of an overlay
+    /// attachment, when the stack registers (`markSpacers`); an unmarked
+    /// spacer, alone or in a `ZStack`, is flexible on both axes (SPB3, SPB4,
+    /// K2a). A linear stack gives it no other special case: its priority is
     /// −∞ unless a `layoutPriority` node wraps it (ruling CN-C), so it is
     /// served after every other child and takes what they leave (SP8, SP9,
     /// SP10, X6).
@@ -368,7 +392,7 @@ public final class LayoutTree {
             precondition(minLength.isFinite, "spacer minLength must be finite (SA-J), got \(minLength)")
         }
         let id = appendNode(style: .default, children: [])
-        nativeNodes[id.index] = .spacer(minLength: minLength ?? 0)
+        nativeNodes[id.index] = .spacer(minLength: minLength ?? ProposalSpacing.platformDefault)
         return id
     }
 
@@ -382,12 +406,16 @@ public final class LayoutTree {
     /// **Spacing must be finite** (ruling SA-J): SwiftUI answers nan and ±inf
     /// (P1, P9). **Negative spacing is accepted, unclamped**: `{20; 20}` at −10
     /// answers 30, and at −100 answers −60, as SwiftUI does (P1).
+    ///
+    /// **Marks its spacers** with `axis` (ruling CN-C; `markSpacers`), so each
+    /// answers 0 on this stack's cross axis.
     public func newNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
                                      spacing: Double = 0,
                                      alignment: ProposalAlignment = .center) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
         precondition(spacing.isFinite, "linear stack spacing must be finite (SA-J), got \(spacing)")
         let id = appendNode(style: .default, children: children)
+        for child in children { markSpacers(child, axis: axis) }
         nativeNodes[id.index] = .linearStack(axis: axis, spacing: spacing,
                                              alignment: alignment)
         return id
@@ -396,7 +424,8 @@ public final class LayoutTree {
     /// Registers a proposal-layout scrolling viewport around one native child.
     ///
     /// The content receives an unspecified proposal along the scrolling axis,
-    /// while the viewport adopts a concrete parent proposal when one exists.
+    /// while the viewport adopts a concrete parent proposal when one exists —
+    /// ∞ included, so it answers ∞ at ∞ (probe SC1; ruling CN-F).
     /// Geometry stays untransformed here; the owning element applies its stored
     /// scroll offset during prepaint and paint.
     public func newNativeScrollViewport(child: LayoutNodeID,
@@ -587,6 +616,7 @@ public final class LayoutTree {
         layouts.removeAll(keepingCapacity: true)
         measuredWidths.removeAll(keepingCapacity: true)
         nativeNodes.removeAll(keepingCapacity: true)
+        spacerAxes.removeAll(keepingCapacity: true)
     }
 
     /// The storage index for `id`, after checking it belongs to this tree.
@@ -647,9 +677,11 @@ public final class LayoutTree {
             run.work.measureCalls += 1
             result = measure(proposal)
         case .spacer(let minLength):
+            // CN-C: 0 on the cross axis of the stack that marked it.
+            let mark = spacerAxes[id.index]
             result = LayoutMeasurement(size: SizeD(
-                width: spacerLength(for: proposal.width, minimum: minLength),
-                height: spacerLength(for: proposal.height, minimum: minLength)
+                width: mark == .vertical ? 0 : spacerLength(for: proposal.width, minimum: minLength),
+                height: mark == .horizontal ? 0 : spacerLength(for: proposal.height, minimum: minLength)
             ))
         case .overlay:
             result = children(id).reduce(LayoutMeasurement(size: .zero)) { current, child in
@@ -698,18 +730,11 @@ public final class LayoutTree {
                                                                vertical: vertical),
                                    run: run)
         case .aspectRatio(let ratio, let contentMode):
-            let child = children(id)[0]
-            let intrinsic = measureNative(child, proposal: proposal, run: run)
-            let size = aspectRatioSize(proposal: proposal, intrinsic: intrinsic.size,
-                                       ratio: ratio, contentMode: contentMode)
-            let constrained = measureNative(child,
-                                            proposal: ProposedSize(width: size.width, height: size.height),
-                                            run: run)
-            result = LayoutMeasurement(
-                size: size,
-                firstBaseline: constrained.firstBaseline,
-                lastBaseline: constrained.lastBaseline
-            )
+            // CN-G: the child's answer to the ratio-shaped proposal.
+            result = measureNative(children(id)[0],
+                                   proposal: aspectRatioProposal(proposal, ratio: ratio,
+                                                                 contentMode: contentMode),
+                                   run: run)
         case .layoutPriority:
             result = measureNative(children(id)[0], proposal: proposal, run: run)
         case .scrollViewport(let axis):
@@ -809,14 +834,11 @@ public final class LayoutTree {
                         proposal: childProposal, run: run)
         case .aspectRatio(let ratio, let contentMode):
             let child = children(id)[0]
-            let intrinsic = measureNative(child, proposal: proposal, run: run)
-            let size = aspectRatioSize(proposal: proposal, intrinsic: intrinsic.size,
-                                       ratio: ratio, contentMode: contentMode)
-            let childProposal = ProposedSize(width: size.width, height: size.height)
-            _ = measureNative(child, proposal: childProposal, run: run)
+            let childProposal = aspectRatioProposal(proposal, ratio: ratio, contentMode: contentMode)
+            let measurement = measureNative(child, proposal: childProposal, run: run)
             placeNative(child,
                         in: LayoutRect(x: bounds.x, y: bounds.y,
-                                       width: size.width, height: size.height),
+                                       width: measurement.size.width, height: measurement.size.height),
                         proposal: childProposal, run: run)
         case .layoutPriority:
             let child = children(id)[0]
@@ -920,9 +942,31 @@ public final class LayoutTree {
               height: resolvedViewportDimension(proposal.height, content: content.height))
     }
 
+    /// One viewport axis: the proposal when there is one — ∞ included (probe
+    /// SC1 at ∞×∞; ruling CN-F) — else the content's answer.
     private func resolvedViewportDimension(_ proposal: Double?, content: Double) -> Double {
-        guard let proposal, proposal.isFinite else { return content }
+        guard let proposal else { return content }
         return proposal
+    }
+
+    /// Marks every spacer `id` reaches with `axis` (ruling CN-C), called by
+    /// `newNativeLinearStack` for each child at registration. The walk goes
+    /// through `layoutPriority`, `padding`, `frame`, `fixedSize`,
+    /// `aspectRatio` (K2b, K2c, K2d, SP19, SP20) and BOTH children of an
+    /// overlay attachment (X8's primary, K2e's overlay content), and stops at
+    /// anything else: a `ZStack` (`overlay`, K2a), a nested linear stack
+    /// (SP18b, whose own marks stand), a scroll viewport, a custom layout or a
+    /// leaf. A spacer keeps the first mark it gets, which is its nearest
+    /// stack's: an inner stack registers before the stack that contains it.
+    private func markSpacers(_ id: LayoutNodeID, axis: ProposalStackAxis) {
+        switch nativeNode(id) {
+        case .spacer:
+            if spacerAxes[id.index] == nil { spacerAxes[id.index] = axis }
+        case .layoutPriority, .padding, .frame, .fixedSize, .aspectRatio, .overlayAttachment:
+            for child in children(id) { markSpacers(child, axis: axis) }
+        case .leaf, .overlay, .linearStack, .scrollViewport, .custom:
+            return
+        }
     }
 
     /// Whether `id` is a spacer, directly or under any depth of `layoutPriority`
@@ -1091,9 +1135,11 @@ public final class LayoutTree {
     ///   proposal 10, child 20) answers 20; `H14` (`minWidth: 0` added, the
     ///   same numbers) answers 10. Writing `(min ?? 0) == 0` reads 20 for both
     ///   and is wrong.
-    /// - **`proposal.isFinite` keeps `FR-B`'s divergence.** At an infinite
-    ///   proposal SwiftUI answers `inf` (`D12`) and then crashes in its own
-    ///   placement on the NaN origin that follows; MetalUI answers the child.
+    /// - **An infinite proposal is greedy too** (ruling CN-F, reversing
+    ///   `FR-B`): SwiftUI answers `inf` (`D12`), and a stack's flexibility
+    ///   probe at main ∞ needs that answer to serve a greedy frame after its
+    ///   rigid siblings (G4r, G4f). There is deliberately no `isFinite` gate;
+    ///   a caller that PLACES the answer at ∞ traps at checkpoint 3.
     /// - **The declared bounds are floored at 0** (`FR-L`): SwiftUI never
     ///   answers a negative size. `hi`'s floor is unreachable through
     ///   `newNativeFrame` today, which rejects a negative maximum at
@@ -1111,7 +1157,7 @@ public final class LayoutTree {
         let lo = Swift.max(0, min ?? 0)
         let hi = max.map { Swift.max(0, $0) } ?? .infinity
         let base: Double
-        if max != nil, let proposal, proposal.isFinite {
+        if max != nil, let proposal {
             base = min == nil ? Swift.max(proposal, child) : proposal
         } else if proposal == nil, let ideal {
             base = ideal                         // probes C1, C3, C4
@@ -1164,38 +1210,32 @@ public final class LayoutTree {
                      height: vertical ? nil : parent.height)
     }
 
-    private func aspectRatioSize(proposal: ProposedSize, intrinsic: SizeD,
-                                 ratio: Double,
-                                 contentMode: AspectRatioContentMode) -> SizeD {
-        let width = proposal.width.flatMap { $0.isFinite ? $0 : nil }
-        let height = proposal.height.flatMap { $0.isFinite ? $0 : nil }
-        switch (width, height) {
+    /// The proposal `aspectRatio` hands its child (ruling CN-G). ∞ is a
+    /// concrete axis here, never filtered to nil (K4d–K4h).
+    private func aspectRatioProposal(_ proposal: ProposedSize, ratio: Double,
+                                     contentMode: AspectRatioContentMode) -> ProposedSize {
+        switch (proposal.width, proposal.height) {
         case let (.some(width), .some(height)):
             // `width / ratio` is the height the width branch would give. `.fit`
             // takes that branch when it fits the proposed height, `.fill` when it
             // covers it. For a positive ratio and positive axes this is the old
             // `width / height <= ratio`; unlike it, it picks SwiftUI's branch for
             // a negative ratio and at zero or negative axes, 24 of 24 P8c arms
-            // against 12 (ruling SA-K item 2).
+            // against 12 (ruling SA-K item 2), and with ∞ in it (K4d, K4e, K4h).
             let usesWidth: Bool
             switch contentMode {
             case .fit: usesWidth = width / ratio <= height
             case .fill: usesWidth = width / ratio >= height
             }
             return usesWidth
-                ? SizeD(width: width, height: width / ratio)
-                : SizeD(width: height * ratio, height: height)
+                ? ProposedSize(width: width, height: width / ratio)
+                : ProposedSize(width: height * ratio, height: height)
         case let (.some(width), .none):
-            return SizeD(width: width, height: width / ratio)
+            return ProposedSize(width: width, height: width / ratio)      // K4, K4c
         case let (.none, .some(height)):
-            return SizeD(width: height * ratio, height: height)
+            return ProposedSize(width: height * ratio, height: height)    // K4b
         case (.none, .none):
-            guard intrinsic.width > 0, intrinsic.height > 0 else { return .zero }
-            let intrinsicRatio = intrinsic.width / intrinsic.height
-            if intrinsicRatio <= ratio {
-                return SizeD(width: intrinsic.width, height: intrinsic.width / ratio)
-            }
-            return SizeD(width: intrinsic.height * ratio, height: intrinsic.height)
+            return proposal                                               // AR2
         }
     }
 

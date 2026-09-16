@@ -696,10 +696,13 @@ private struct NativeProposalProbe: ProposalElement {
     #expect(probe.prepaintBounds?.size == Size(width: Pixels(30), height: Pixels(10)))
 }
 
-/// The macOS SwiftUI probe records a 2:1 `.fit` child responding 100 by 50 to
-/// a 100 by 80 proposal. Aspect-ratio is therefore a proposal modifier, not
+/// The macOS SwiftUI probe records a 2:1 `.fit` child being asked 100 by 50
+/// at a 100 by 80 proposal. Aspect-ratio is therefore a proposal modifier, not
 /// the inert legacy style field: it asks its child that ratio-correct question
-/// and reports the inscribed rectangle.
+/// — and, since ruling CN-G (plan task 6, lane 2), answers the child's answer
+/// (`swiftui-stack-algorithms.swift` AR1: a fixed 168×95 child stays 168×95
+/// at 500×300). This fixed 20×10 child therefore stays 20×10, centred by the
+/// root `ZStack` in the 100×80 window at (40, 35).
 @MainActor
 @Test func aspectRatioFitInscribesTheParentProposalBeforeMeasuringItsChild() {
     let probe = NativeLayoutProbe()
@@ -713,14 +716,16 @@ private struct NativeProposalProbe: ProposalElement {
 
     #expect(probe.proposals.contains(ProposedSize(width: 100, height: 50)),
             "a 2:1 fit rectangle is inscribed in the 100 by 80 proposal")
-    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(0), y: Pixels(15)),
-                                           size: Size(width: Pixels(100), height: Pixels(50))))
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(40), y: Pixels(35)),
+                                           size: Size(width: Pixels(20), height: Pixels(10))))
 }
 
-/// The companion macOS SwiftUI probe records a 2:1 `.fill` child responding
-/// 160 by 80 to the same proposal. This makes fill's observable overflow
-/// distinct from `.fit` and prevents the two modes from collapsing to one
-/// min-dimension implementation.
+/// The companion macOS SwiftUI probe records a 2:1 `.fill` child being asked
+/// 160 by 80 at the same proposal. This makes fill's circumscribed proposal
+/// distinct from `.fit`'s and prevents the two modes from collapsing to one
+/// min-dimension implementation. Since ruling CN-G the modifier answers its
+/// child (AR1), so the fixed 20×10 child is centred at (40, 35), as in the
+/// `.fit` test; the proposal is what differs.
 @MainActor
 @Test func aspectRatioFillCircumscribesTheParentProposalBeforeMeasuringItsChild() {
     let probe = NativeLayoutProbe()
@@ -734,8 +739,8 @@ private struct NativeProposalProbe: ProposalElement {
 
     #expect(probe.proposals.contains(ProposedSize(width: 160, height: 80)),
             "a 2:1 fill rectangle circumscribes the 100 by 80 proposal")
-    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(-30), y: Pixels(0)),
-                                           size: Size(width: Pixels(160), height: Pixels(80))))
+    #expect(probe.prepaintBounds == Bounds(origin: Point(x: Pixels(40), y: Pixels(35)),
+                                           size: Size(width: Pixels(20), height: Pixels(10))))
 }
 
 @MainActor

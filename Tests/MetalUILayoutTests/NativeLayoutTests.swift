@@ -325,31 +325,10 @@ private final class NativeProposalRecorder: @unchecked Sendable {
     #expect(widthArm(tree, childWidth: 20, proposal: 300, idealWidth: 80).answer == 20, "C control")
 }
 
-/// **An infinite proposal answers the child — a deliberate divergence**
-/// (ruling FR-B). SwiftUI's probe arm `D12` answers `inf` and places its 20pt
-/// child at `x = inf`; an earlier pass of the same harness crashed inside
-/// SwiftUI's own placement on the NaN origin that follows
-/// (`SwiftUICore/Layout.swift:1535: Fatal error: view origin is invalid`).
-/// Adopting that answer would import a crash rather than a behaviour, so the
-/// kernel treats a non-finite proposal as unspecified.
-///
-/// The stored rect assertion is the reason the divergence exists: an infinite
-/// measurement reaches `LayoutRect`, `Bounds` and then the renderer.
-@Test func aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity() {
-    let tree = LayoutTree(generation: 0)
-    let child = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }
-    let frame = tree.newNativeFrame(child: child, maxWidth: .infinity)
-
-    let measurement = tree.computeNativeLayout(
-        root: frame,
-        proposal: ProposedSize(width: .infinity, height: 40),
-        in: LayoutRect(x: 0, y: 0, width: 100, height: 40)
-    )
-
-    #expect(measurement.size.width == 20, "D12: SwiftUI answers inf; MetalUI answers the child")
-    #expect(tree.layout(frame).width.isFinite)
-    #expect(tree.layout(child).width.isFinite && tree.layout(child).x.isFinite)
-}
+// `aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity` (ruling FR-B)
+// was replaced by `anInfiniteProposalIsAnsweredWithInfinity` in
+// `NativeStackDistributionTests.swift` when ruling CN-F reversed FR-B (plan
+// task 6, lane 2).
 
 /// **An ideal dimension is used only on an axis with no proposal** (ruling
 /// FR-A's second base). `C1` (ideal 80, no proposal) answers 80 and proposes 80
@@ -531,8 +510,10 @@ private final class NativeProposalRecorder: @unchecked Sendable {
 /// gaps. The priority-0 group reserves the spacer's minimum 10 and is offered
 /// 80; both leaves have flexibility 0 (probed at (∞, 40) and (0, 40)), so the
 /// first is offered 40 and answers 30, the second 50 and answers 20. The spacer
-/// is offered the 40 left and answers 40. Rects: (0, 15, 30, 10),
-/// (35, 0, 40, 40), (80, 15, 20, 10); every proposal carries the 40pt cross.
+/// is offered the 40 left and answers 40 wide — and, re-derived for lane 2's
+/// CN-C, 0 tall, because the stack marks it: the stack answers 100×10, not
+/// 100×40. Placed in bounds 100×40, rects: (0, 15, 30, 10), (35, 20, 40, 0),
+/// (80, 15, 20, 10); every proposal carries the 40pt cross.
 @Test func aNativeLinearStackDividesConcreteSurplusBetweenSpacers() {
     let tree = LayoutTree(generation: 0)
     let leadingLog = NativeProposalLog()
@@ -555,12 +536,12 @@ private final class NativeProposalRecorder: @unchecked Sendable {
         in: LayoutRect(x: 0, y: 0, width: 100, height: 40)
     )
 
-    #expect(measurement.size == SizeD(width: 100, height: 40))
+    #expect(measurement.size == SizeD(width: 100, height: 10))
     #expect(leadingLog.proposals.allSatisfy { $0.height == 40 } && trailingLog.proposals.allSatisfy { $0.height == 40 })
     #expect(leadingLog.proposals.last == ProposedSize(width: 40, height: 40))
     #expect(trailingLog.proposals.last == ProposedSize(width: 50, height: 40))
     #expect(tree.layout(leading) == LayoutRect(x: 0, y: 15, width: 30, height: 10))
-    #expect(tree.layout(spacer) == LayoutRect(x: 35, y: 0, width: 40, height: 40))
+    #expect(tree.layout(spacer) == LayoutRect(x: 35, y: 20, width: 40, height: 0))
     #expect(tree.layout(trailing) == LayoutRect(x: 80, y: 15, width: 20, height: 10))
 }
 

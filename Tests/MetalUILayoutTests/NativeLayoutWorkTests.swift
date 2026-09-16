@@ -101,7 +101,9 @@ private struct BranchingTree {
 ///
 /// **The kernel's proposal sequence, by hand** — re-derived for ruling CN-B
 /// (plan task 6, lane 1: the flexibility-ordered distribution, and
-/// `ReferenceLinearStack` rewritten to it). "miss" runs a body; "hit" is a
+/// `ReferenceLinearStack` rewritten to it), and for ruling CN-G (lane 2: AR
+/// proposes its ratio-shaped size once and answers b2's answer; the tree has
+/// no spacer, so CN-C's marks change nothing). "miss" runs a body; "hit" is a
 /// lookup that found its key; "call" is user code (a leaf closure or a custom
 /// `sizeThatFits`). Proposals are written (width, height); c is a cross height.
 ///
@@ -113,11 +115,12 @@ private struct BranchingTree {
 /// 27 and a3 27 (2 misses, 2 calls). Priority −1 offers P4 0 (hit). A answers
 /// 100×12 at every c. **11 misses, 4 hits, 8 calls.**
 ///
-/// **B at (100, c)** (overlay, each child at (100, c)): c = ∞ — B, b1, AR, b2 at
-/// (100, ∞), whose ratio size is (100, 50), b2 at (100, 50), b3: 6 misses, 4
-/// calls, 100×50; c = 0 — the same six, b2 at (100, 0) then (0, 0): 6 misses,
-/// 4 calls, 30×14; c = 94 — b2 at (100, 50) is a hit: 5 misses, 1 hit, 3
-/// calls, 100×50.
+/// **B at (100, c)** (overlay, each child at (100, c)): AR proposes (100, 50)
+/// when 100 / 2 ≤ c, else (2c, c). c = ∞ — B, b1, AR, b2 at (100, 50), b3: 5
+/// misses, 3 calls, 100×50; c = 0 — the same five, b2 at (0, 0): 5 misses, 3
+/// calls, 30×14; c = 94 — b2 at (100, 50) is a hit: 4 misses, 1 hit, 2 calls,
+/// 100×50. (Lane 1's AR also measured b2 at its parent's proposal first: 6/4,
+/// 6/4, 5/1/3.)
 ///
 /// **C at (100, c)** (the reference stack, one group of three): miss C, call
 /// its `sizeThatFits`. It probes c1, F and c3 at (∞, c) and (0, c) (F → c2 at
@@ -128,8 +131,8 @@ private struct BranchingTree {
 /// **Measure R at (100, 200)** (V, one group of three): miss R. It probes A,
 /// B and C at (100, ∞) and (100, 0) — flexibilities A 0, B 36, C ∞ — and
 /// serves A at 66.67 (→ 12), B at 94 (→ 50), C at 138 (→ 138). So A, B and C
-/// are each evaluated three times: A 33 misses, 12 hits, 24 calls; B 17
-/// misses, 1 hit, 11 calls; C 39 misses, 30 calls. **90 misses, 13 hits, 65
+/// are each evaluated three times: A 33 misses, 12 hits, 24 calls; B 14
+/// misses, 1 hit, 8 calls; C 39 misses, 30 calls. **87 misses, 13 hits, 62
 /// calls.**
 ///
 /// **Place R** at (100, 200), cross 100 given, so no second pass: its solve
@@ -137,17 +140,19 @@ private struct BranchingTree {
 /// - Place A (proposal (100, 66.67)): its solve re-asks its 12 lookups (12
 ///   hits); placing P1 and P4 re-asks a1 and a4 (2 hits). **14.**
 /// - Place B: b1, AR, b3 at (100, 94) (3 hits); placing AR re-asks b2 at
-///   (100, 94) and (100, 50) (2 hits). **5.**
+///   (100, 50) (1 hit). **4.**
 /// - Place C: its `placeSubviews` re-solves at (100, 138) (9 hits) and records
 ///   each child; the kernel measures each record (3 hits) and placing F re-asks
 ///   c2 at (65, 138) (1 hit). **13.**
-/// **41 hits.**
+/// **40 hits.**
 ///
-/// Totals: misses **90**; hits 13 + 41 = **54**; calls **65** (before CN-B: 25,
-/// 27, 16). The staged prototype read 66 / 51 / 47 (CN-B's table); it did not
-/// carry this file's rewritten reference stack, so its C evaluated differently
-/// — a difference recorded in `docs/record/17-containers.md`, not an edit to
-/// these literals.
+/// Totals: misses **87**; hits 13 + 40 = **53**; calls **62** (lane 1: 90, 54,
+/// 65; before CN-B: 25, 27, 16). The staged prototype read 66 / 51 / 47 after
+/// lane 1 and 63 / 50 / 44 after lane 2 (CN-B's table); it did not carry this
+/// file's rewritten reference stack, so its C evaluated differently — a
+/// difference recorded in `docs/record/17-containers.md`, not an edit to these
+/// literals. Lane 2 moves the same three counts the prototype did: −3 misses,
+/// −1 hit, −3 calls.
 ///
 /// **(4)**: A is placed at (7, 11), 12 tall; a3 lands at x = 7 + 40 + 2 + 27 + 2
 /// = 78, y = 11 + (12 − 8) × 0.5 = 13, at its offer 27 and its own 8:
@@ -173,9 +178,9 @@ private struct BranchingTree {
 
     // (2) and (3), against the hand-derived literals above.
     let work = tree.lastNativeLayoutWork
-    #expect(work.measureCalls == 65, "measureCalls")
-    #expect(work.cacheHits == 54, "cacheHits")
-    #expect(work.cacheMisses == 90, "cacheMisses")
+    #expect(work.measureCalls == 62, "measureCalls")
+    #expect(work.cacheHits == 53, "cacheHits")
+    #expect(work.cacheMisses == 87, "cacheMisses")
 
     // (4) A compressed leaf is stored at its hand-derived allocation.
     #expect(tree.layout(fixture.a3) == LayoutRect(x: 78, y: 13, width: 27, height: 8))
