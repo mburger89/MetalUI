@@ -15,16 +15,34 @@ import MetalUILayout
 /// `LayoutTree.solveLinearStack`): by layout priority, lower groups' minimums
 /// reserved, least flexible child first, answering the sum of its children's
 /// answers; a ``Spacer`` is served last.
+///
+/// **Spacing** (ruling CN-H): `nil`, the default, is SwiftUI's platform
+/// default — 8 between two views and none beside a ``Spacer``, decided per
+/// edge through its wrappers (probe S, SP2, SP3, K3); a number is used for
+/// every gap. MetalUI does not adopt SwiftUI's font-derived vertical spacing at
+/// a text edge (a `VStack` of ``ProposalText``s gets 8 where SwiftUI's is 0).
 public struct HStack<Content: ProposalElementGroup>: Element {
     public var content: Content
-    public var spacing: Pixels
-    public var alignment: ProposalAlignment
+    /// `nil` is the platform default (CN-H).
+    public var spacing: Pixels?
+    public var alignment: VerticalAlignment
 
-    public init(spacing: Pixels = Pixels(8), alignment: ProposalAlignment = .center,
+    /// SwiftUI's `HStack(alignment:spacing:content:)` (ruling CN-I).
+    public init(alignment: VerticalAlignment = .center, spacing: Pixels? = nil,
                 @ElementBuilder content: () -> Content) {
         self.content = content()
         self.spacing = spacing
         self.alignment = alignment
+    }
+
+    /// The spacing-first spelling over the nine-case alignment. It reads only
+    /// `alignment`'s vertical factor, so `.leading` places as `.center`; its
+    /// spacing is explicit, never the platform default.
+    @available(*, deprecated, message: "Use init(alignment:spacing:content:) with a VerticalAlignment, in SwiftUI's argument order.")
+    public init(spacing: Pixels, alignment: ProposalAlignment,
+                @ElementBuilder content: () -> Content) {
+        self.init(alignment: VerticalAlignment(verticalFactorOf: alignment), spacing: spacing,
+                  content: content)
     }
 
     public struct Layout {
@@ -38,8 +56,8 @@ public struct HStack<Content: ProposalElementGroup>: Element {
         let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
                                                                            pass: &pass)
         let node = pass.requestNativeLinearStack(children: children, axis: .horizontal,
-                                                 spacing: Double(spacing.value),
-                                                 alignment: alignment)
+                                                 spacing: spacing.map { Double($0.value) },
+                                                 alignment: alignment.proposalAlignment)
         return (node, Layout(node: node.layoutNodeID, content: contentLayout))
     }
 
@@ -57,17 +75,30 @@ public struct HStack<Content: ProposalElementGroup>: Element {
 }
 
 /// A native proposal-layout vertical stack, distributing its height as
-/// ``HStack`` distributes its width (ruling CN-B).
+/// ``HStack`` distributes its width (ruling CN-B), with the same spacing rule
+/// (CN-H).
 public struct VStack<Content: ProposalElementGroup>: Element {
     public var content: Content
-    public var spacing: Pixels
-    public var alignment: ProposalAlignment
+    /// `nil` is the platform default (CN-H).
+    public var spacing: Pixels?
+    public var alignment: HorizontalAlignment
 
-    public init(spacing: Pixels = Pixels(8), alignment: ProposalAlignment = .center,
+    /// SwiftUI's `VStack(alignment:spacing:content:)` (ruling CN-I).
+    public init(alignment: HorizontalAlignment = .center, spacing: Pixels? = nil,
                 @ElementBuilder content: () -> Content) {
         self.content = content()
         self.spacing = spacing
         self.alignment = alignment
+    }
+
+    /// The spacing-first spelling over the nine-case alignment. It reads only
+    /// `alignment`'s horizontal factor, so `.top` places as `.center`; its
+    /// spacing is explicit, never the platform default.
+    @available(*, deprecated, message: "Use init(alignment:spacing:content:) with a HorizontalAlignment, in SwiftUI's argument order.")
+    public init(spacing: Pixels, alignment: ProposalAlignment,
+                @ElementBuilder content: () -> Content) {
+        self.init(alignment: HorizontalAlignment(horizontalFactorOf: alignment), spacing: spacing,
+                  content: content)
     }
 
     public struct Layout {
@@ -81,8 +112,8 @@ public struct VStack<Content: ProposalElementGroup>: Element {
         let (children, contentLayout) = content.requestProposalGroupLayout(under: id, at: &cursor,
                                                                            pass: &pass)
         let node = pass.requestNativeLinearStack(children: children, axis: .vertical,
-                                                 spacing: Double(spacing.value),
-                                                 alignment: alignment)
+                                                 spacing: spacing.map { Double($0.value) },
+                                                 alignment: alignment.proposalAlignment)
         return (node, Layout(node: node.layoutNodeID, content: contentLayout))
     }
 
@@ -376,7 +407,9 @@ public typealias NativeFixedSize<Content: ProposalElementGroup> = FixedSize<Cont
 /// what the other children leave (priority −∞) and answers 0 on the stack's
 /// cross axis, through `.padding`, `.frame`, `.fixedSize`, `.aspectRatio`,
 /// `.layoutPriority` and either side of `.overlay`; outside a stack, or inside
-/// a ``ZStack``, it is flexible on both axes.
+/// a ``ZStack``, it is flexible on both axes. A stack with no `spacing:` puts
+/// no spacing beside it, through the same wrappers except a non-zero padding
+/// edge and an overlay's content side (ruling CN-H).
 public struct Spacer: Element {
     public var minLength: Pixels?
 

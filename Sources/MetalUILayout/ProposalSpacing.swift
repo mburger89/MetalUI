@@ -3,9 +3,9 @@
 /// `Spacer()`'s nil minimum is this constant, not the gap its neighbours would
 /// get (probe `docs/probes/swiftui-stack-algorithms.swift` SP1, SP6, K1;
 /// ruling CN-C in `docs/superpowers/2026-09-16-containers-decisions.md`).
-/// Default stack spacing (S; ruling CN-H) is the same value, but no stack
-/// reads this constant yet: `HStack`/`VStack` still hard-code `Pixels(8)`
-/// until containers lane 3 wires them to it.
+/// It is also the default stack spacing between two views (S; ruling CN-H):
+/// a linear stack registered with `spacing: nil` puts it between each adjacent
+/// pair that has no zero-spacing edge (a spacer's, through its wrappers).
 public enum ProposalSpacing {
     /// 8 points.
     public static let platformDefault: Double = 8

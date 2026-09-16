@@ -147,8 +147,12 @@ public struct LayoutPass {
     }
 
     /// Registers a native linear stack for the proposal-layout migration.
+    ///
+    /// `spacing` nil is SwiftUI's platform default, 8 between views and none
+    /// at a spacer's edge (ruling CN-H; `LayoutTree.newNativeLinearStack`).
+    /// The default stays 0 for callers that name no spacing.
     public func requestNativeLinearStack(children: [ProposalNodeID], axis: ProposalStackAxis,
-                                         spacing: Double = 0,
+                                         spacing: Double? = 0,
                                          alignment: ProposalAlignment = .center) -> ProposalNodeID {
         ProposalNodeID(frame.requestNativeLinearStack(children: children.map(\.layoutNodeID), axis: axis,
                                                       spacing: spacing, alignment: alignment))

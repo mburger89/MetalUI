@@ -1556,7 +1556,7 @@ public final class Frame {
     }
 
     func requestNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
-                                  spacing: Double = 0,
+                                  spacing: Double? = 0,
                                   alignment: ProposalAlignment = .center) -> LayoutNodeID {
         tree.newNativeLinearStack(children: children, axis: axis, spacing: spacing,
                                   alignment: alignment)

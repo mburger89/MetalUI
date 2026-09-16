@@ -396,24 +396,35 @@ public final class LayoutTree {
         return id
     }
 
-    /// Registers a native linear stack with explicit inter-item spacing.
+    /// Registers a native linear stack.
     ///
     /// A linear stack uses the supplied alignment only on its cross axis:
     /// horizontal stacks read its vertical component and vertical stacks read
     /// its horizontal component. The default is SwiftUI's centred stack
     /// alignment.
     ///
-    /// **Spacing must be finite** (ruling SA-J): SwiftUI answers nan and ±inf
-    /// (P1, P9). **Negative spacing is accepted, unclamped**: `{20; 20}` at −10
-    /// answers 30, and at −100 answers −60, as SwiftUI does (P1).
+    /// **`spacing`** (ruling CN-H): a number is used verbatim for every gap,
+    /// beside a spacer included (probe S control, SP4). **`nil` is SwiftUI's
+    /// platform default**, decided per adjacent pair: 0 when the earlier
+    /// child's trailing edge or the later child's leading edge is a
+    /// zero-spacing edge (`zeroSpacingEdges`: a spacer's, seen through its
+    /// wrappers; SP2, SP3, K3a–K3q), else `ProposalSpacing.platformDefault`
+    /// (S). The default stays 0 for kernel callers; `HStack`/`VStack` pass nil
+    /// unless given a spacing.
+    ///
+    /// **A given spacing must be finite** (ruling SA-J): SwiftUI answers nan
+    /// and ±inf (P1, P9). **Negative spacing is accepted, unclamped**: `{20;
+    /// 20}` at −10 answers 30, and at −100 answers −60, as SwiftUI does (P1).
     ///
     /// **Marks its spacers** with `axis` (ruling CN-C; `markSpacers`), so each
     /// answers 0 on this stack's cross axis.
     public func newNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
-                                     spacing: Double = 0,
+                                     spacing: Double? = 0,
                                      alignment: ProposalAlignment = .center) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
-        precondition(spacing.isFinite, "linear stack spacing must be finite (SA-J), got \(spacing)")
+        if let spacing {
+            precondition(spacing.isFinite, "linear stack spacing must be finite (SA-J), got \(spacing)")
+        }
         let id = appendNode(style: .default, children: children)
         for child in children { markSpacers(child, axis: axis) }
         nativeNodes[id.index] = .linearStack(axis: axis, spacing: spacing,
@@ -869,6 +880,7 @@ public final class LayoutTree {
                 break
             }
             let solution = solveLinearStack(id, axis: axis, spacing: spacing, proposal: solveProposal, run: run)
+            let gaps = stackGaps(id, axis: axis, spacing: spacing)
             var cursor = axis == .horizontal ? bounds.x : bounds.y
             for (index, child) in children(id).enumerated() {
                 let answer = solution.answers[index].size
@@ -878,12 +890,12 @@ public final class LayoutTree {
                     childBounds = LayoutRect(x: cursor,
                                              y: bounds.y + (bounds.height - answer.height) * alignment.verticalFactor,
                                              width: answer.width, height: answer.height)
-                    cursor += answer.width + spacing
+                    cursor += answer.width + (index < gaps.count ? gaps[index] : 0)
                 case .vertical:
                     childBounds = LayoutRect(x: bounds.x + (bounds.width - answer.width) * alignment.horizontalFactor,
                                              y: cursor,
                                              width: answer.width, height: answer.height)
-                    cursor += answer.height + spacing
+                    cursor += answer.height + (index < gaps.count ? gaps[index] : 0)
                 }
                 placeNative(child, in: childBounds, proposal: solution.proposals[index], run: run)
             }
@@ -969,6 +981,60 @@ public final class LayoutTree {
         }
     }
 
+    /// The gap after each of a linear stack's children but the last (ruling
+    /// CN-H): `spacing` for every pair when one is given; otherwise, per pair,
+    /// 0 when the earlier child's trailing edge or the later child's leading
+    /// edge is a zero-spacing edge, else `ProposalSpacing.platformDefault`.
+    private func stackGaps(_ id: LayoutNodeID, axis: ProposalStackAxis, spacing: Double?) -> [Double] {
+        let nodes = children(id)
+        guard nodes.count > 1 else { return [] }
+        if let spacing { return Array(repeating: spacing, count: nodes.count - 1) }
+        let edges = nodes.map { zeroSpacingEdges($0, axis: axis) }
+        return (1..<nodes.count).map { index in
+            edges[index - 1].trailing || edges[index].leading ? 0 : ProposalSpacing.platformDefault
+        }
+    }
+
+    /// Which of `id`'s edges along `axis` take no default spacing (ruling
+    /// CN-H; probe K3 group, every figure at nil×nil between two 20pt views):
+    ///
+    /// - a spacer: both (SP2, SP3, SP7);
+    /// - `layoutPriority`, `frame`, `fixedSize`, `aspectRatio`: the child's
+    ///   (K3d, K3b, K3e, K3f, K3q);
+    /// - an overlay attachment: its PRIMARY's (K3c); a spacer on the content
+    ///   side is not seen (K3i);
+    /// - `padding`: the child's, on an edge whose inset is exactly 0 (K3a,
+    ///   K3o's cross-axis inset, K3q); a non-zero inset gives that edge the
+    ///   default again (K3m, K3n, K3p);
+    /// - a `ZStack` (`overlay`) with at least one child: an edge is zero only
+    ///   if it is zero on EVERY child (K3g, K3l; K3j, K3k with a leaf child);
+    /// - anything else — a leaf, a nested linear stack (K3h), a scroll
+    ///   viewport, a custom layout, an empty `ZStack`: neither.
+    ///
+    /// Leading/trailing are left/right for a horizontal stack and top/bottom
+    /// for a vertical one; no layout direction is read (divergence 25).
+    private func zeroSpacingEdges(_ id: LayoutNodeID,
+                                  axis: ProposalStackAxis) -> (leading: Bool, trailing: Bool) {
+        switch nativeNode(id) {
+        case .spacer:
+            return (true, true)
+        case .layoutPriority, .frame, .fixedSize, .aspectRatio, .overlayAttachment:
+            return zeroSpacingEdges(children(id)[0], axis: axis)
+        case .padding(let insets):
+            let child = zeroSpacingEdges(children(id)[0], axis: axis)
+            let (leading, trailing) = axis == .horizontal ? (insets.left, insets.right)
+                                                          : (insets.top, insets.bottom)
+            return (child.leading && leading == 0, child.trailing && trailing == 0)
+        case .overlay:
+            let nodes = children(id)
+            guard !nodes.isEmpty else { return (false, false) }
+            let edges = nodes.map { zeroSpacingEdges($0, axis: axis) }
+            return (edges.allSatisfy(\.leading), edges.allSatisfy(\.trailing))
+        case .leaf, .linearStack, .scrollViewport, .custom:
+            return (false, false)
+        }
+    }
+
     /// Whether `id` is a spacer, directly or under any depth of `layoutPriority`
     /// nodes: the public proxies' `isSpacer`. **No built-in reads it** since
     /// ruling CN-B: a spacer takes surplus through its −∞ priority
@@ -1018,7 +1084,7 @@ public final class LayoutTree {
     /// main 0 only. Under the purity assumption (SA-H) the allocations equal
     /// SwiftUI's; the extra measurements are counted by
     /// `nestedStacksUnderAnUnspecifiedCrossProposalDoBoundedWork`.
-    private func solveLinearStack(_ id: LayoutNodeID, axis: ProposalStackAxis, spacing: Double,
+    private func solveLinearStack(_ id: LayoutNodeID, axis: ProposalStackAxis, spacing: Double?,
                                   proposal: ProposedSize,
                                   run: NativeLayoutRun) -> (answers: [LayoutMeasurement],
                                                             proposals: [ProposedSize], size: SizeD) {
@@ -1032,7 +1098,7 @@ public final class LayoutTree {
         func mainLength(_ measurement: LayoutMeasurement) -> Double {
             axis == .horizontal ? measurement.size.width : measurement.size.height
         }
-        let gaps = Double(Swift.max(0, nodes.count - 1)) * spacing
+        let gaps = stackGaps(id, axis: axis, spacing: spacing).reduce(0, +)
         var proposals = Array(repeating: offer(main), count: nodes.count)
         var answers: [LayoutMeasurement]
 
@@ -1309,7 +1375,8 @@ private enum NativeNode {
     case layoutPriority(Double)
     case spacer(minLength: Double)
     case scrollViewport(axis: ProposalStackAxis)
-    case linearStack(axis: ProposalStackAxis, spacing: Double, alignment: ProposalAlignment)
+    /// `spacing` nil is the platform default, decided per pair (CN-H).
+    case linearStack(axis: ProposalStackAxis, spacing: Double?, alignment: ProposalAlignment)
     case custom(any ProposalLayout)
 }
 

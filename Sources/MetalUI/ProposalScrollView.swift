@@ -51,13 +51,16 @@ public struct ProposalScrollView<Content: ProposalElementGroup>: Element {
         // pixel probes with 20pt red and 30pt blue children observed an 8pt
         // gap (red, background, blue) for both axes. Horizontal content is an
         // explicit `HStack`, which remains a single transparent child here.
+        // The lowering is a default-spacing `VStack` (probe SC3), so it takes
+        // the platform default per pair — 8 between views, none at a spacer's
+        // edge (ruling CN-H) — rather than an explicit 8.
         let contentAxis: ProposalStackAxis = axis == .vertical ? .vertical : .horizontal
         let contentNode: ProposalNodeID
         if children.count == 1 {
             contentNode = children[0]
         } else {
             contentNode = pass.requestNativeLinearStack(children: children, axis: .vertical,
-                                                         spacing: 8)
+                                                         spacing: nil)
         }
         let node = pass.requestNativeScrollViewport(
             child: contentNode,

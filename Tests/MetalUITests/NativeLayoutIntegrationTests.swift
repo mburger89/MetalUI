@@ -1023,7 +1023,7 @@ private struct NativeProposalProbe: ProposalElement {
 @Test func aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI() {
     let probe = NativeLayoutProbe()
     let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(60)), scaleFactor: 1)
-    var root = VStack(spacing: Pixels(0), alignment: .leading) {
+    var root = VStack(alignment: .leading, spacing: Pixels(0)) {
         NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
             .frame(minWidth: Pixels(40), maxWidth: Pixels(80))
     }

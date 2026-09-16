@@ -974,7 +974,7 @@ func nativeLayoutPreviewContent() -> some Element {
         Color(.background)
         ZStack {
             Color(.surface)
-            VStack(spacing: Pixels(20), alignment: .leading) {
+            VStack(alignment: .leading, spacing: Pixels(20)) {
                 // Omitted spacing uses the recorded SwiftUI HStack default.
                 HStack {
                     Rectangle(width: Pixels(72), height: Pixels(72), color: .accent)
@@ -990,7 +990,7 @@ func nativeLayoutPreviewContent() -> some Element {
                 // measured with an unspecified vertical proposal. Scroll with
                 // the wheel to exercise the native clip and input path.
                 ProposalScrollView(.vertical) {
-                    VStack(spacing: Pixels(8), alignment: .leading) {
+                    VStack(alignment: .leading, spacing: Pixels(8)) {
                         Text("Proposal scroll content stays intrinsically tall.")
                             .proposalLayout()
                             .foregroundColor(.textPrimary)
