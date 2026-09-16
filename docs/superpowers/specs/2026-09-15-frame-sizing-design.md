@@ -642,6 +642,11 @@ and `anIdealDimensionOnTheLegacyFrameTraps`); stand-in controls 1 048 576 /
 1 030 498 / 210 027 (bbox (16, 113, 966×895)); **base vs head 0 in all ten
 images**; the preview zero explained by `FR-U` with instruments I1 (0) and I2
 (224 lines); captures refused (`FR-V`), `MC-J` owed.
+**Re-taken 2026-09-16 at `7d5a3a7`** after another `swift package clean`:
+every figure identical (1247 / 0 / 1 / 97 / 63; A and B redden the same tests;
+controls 1 048 576 / 1 030 498 / 210 027; ten zeros; I1 0, I2 224), and the
+fresh stand-in images are also 0 against the 2026-09-15 ones. Captures refused
+by the CGS check (`FR-V`); `IOConsoleLocked` read `true` this time.
 
 ## Order, and what each lane may assume
 

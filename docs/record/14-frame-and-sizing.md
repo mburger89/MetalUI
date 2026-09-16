@@ -679,6 +679,33 @@ the same standing as after §13, and the check to run first is the CGS one.
 / 97 / 63. Nothing in `Sources/` or `Tests/` moved; `git status --short` is
 empty after every mutation and instrument.
 
+**Re-taken in full, 2026-09-16 04:02–04:20 PDT, at `7d5a3a7`** — the lane's
+implementer report was lost with the session that wrote it, and a count is
+stale the moment it is trusted rather than measured, so the whole table above
+was re-run in this worktree rather than read back. `swift package clean`,
+`swift build --build-system native --build-tests` (27 s), then:
+
+| check | re-take | matches the table |
+|---|---|---|
+| suite | `Test run with 1247 tests in 1 suite passed after 36.731 seconds`; `error:` 0; `warning:` 1, SwiftPM's notice; both `FR-J`/`FR-S` fixture prints present, so the new guards ran | yes |
+| goldens | diff against `c4b5853` empty; 97 | yes |
+| guards | the same ten files, the same per-file counts, 64 − 1 = **63** | yes |
+| mutation A (`ElementGroup.frame()` deleted, `FrameLayer.swift:197-198`) | `1247 … failed … with 2 issues`; **1** test, `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths` at `:102` and `:104`; `FR-J … succeeded=false deprecations=1` | yes |
+| mutation B (`idealWidth:` label renamed on the proposal overload, `NativeModifiedContent.swift:296`) | `1247 … failed … with 2 issues`; **2** tests, `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload` at `:171` and `anIdealDimensionOnTheLegacyFrameTraps` at `FrameSizingTests.swift:268` | yes |
+| stand-in controls, fresh images | 1 048 576 / 1 030 498 / 210 027, bbox (16, 113, 966×895); preview light vs dark 1 048 576; f0 vs f3 0 | yes |
+| base vs head, ten images | **0 ×10** | yes |
+| fresh images vs the 2026-09-15 images, both trees | 0 in every pair checked (five per tree) — the stand-in is deterministic across runs, not only across frames | new |
+| rect dumps, six per tree | 518 / 15 711 and 16 / 97 at every size; base vs head **0 lines ×6**; fresh vs 2026-09-15 0 ×12 | yes |
+| I1 (`base = proposal`) / I2 (`framedProposal − 10`) on the scratch head kernel | I1 **0** lines on all six; I2 **224** on each of the three preview dumps, 0 on the three default dumps | yes |
+| captures | `IOConsoleLocked` now reads **`true`**; `CGSSessionScreenIsLocked = 1` (locked at 1789543593), `CGDisplayIsAsleep = 1`, `CGDisplayIsActive = 0`, `CGPreflightScreenCaptureAccess = true`. Not attempted — `FR-V`'s check says no, and the flag that said yes last time now agrees with it | refused, as before |
+
+The scratch trees were re-checked before use: `l4-base/Sources` is
+byte-identical to `git archive c4b5853` and `l4-head/Sources` to this worktree
+at `7d5a3a7` (`b513fa3..7d5a3a7` touches no `Sources/` or `Tests/` file). The
+worktree read `git status --short` empty after each mutation and the scratch
+kernel diffed clean against it after each instrument. Nothing in the table
+moved, so no ruling changes; `FR-V` gains its corroborating re-read.
+
 ### Open at the end of the critic round
 
 - Two of `MC-Q` finding 7's four handed-over shapes are **not** covered by this

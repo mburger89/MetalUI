@@ -16,6 +16,11 @@ against `c4b5853`, preview included, and `FR-U` says why the preview zero is
 not evidence about `FR-M`. The real-window captures were attempted on an
 `IOConsoleLocked = false` session and refused by a locked, asleep display;
 `FR-V` replaces the check. `MC-J` stays owed.
+**Re-taken in full 2026-09-16 at `7d5a3a7`** (record §14, lane 4's re-take
+table): every number above reads the same, the stand-in is 0 against its own
+2026-09-15 images as well as against `c4b5853`, and `IOConsoleLocked` this time
+read `true` under the same locked, asleep CGS state — `FR-V` corroborated, not
+contradicted. `MC-J` still owed.
 
 **Status, 2026-09-15, after lane 2:** the legacy frame has SwiftUI's whole
 parameter surface. `FR-A`, `FR-B`, `FR-C`, `FR-D`, `FR-E`, `FR-J`, `FR-K`,
@@ -1265,6 +1270,13 @@ at (614, 259), from both builds), `screencapture -x -R…` printed `could not
 create image from rect` four times, and a full-screen capture was 4112×2658
 with 0 non-black pixels. No input was sent; the pointer read (602.15, 674.36)
 before and after and was not moved.
+
+**Re-read 2026-09-16 04:02 PDT.** `IOConsoleLocked` read `<true/>` while the
+CGS dictionary read the same as above (`CGSSessionScreenIsLocked = 1`, locked
+at `CGSSessionScreenLockedTime = 1789543593`, `CGDisplayIsAsleep = 1`,
+`CGDisplayIsActive = 0`). So the flag flips between readings of one locked
+session: it is not a screen-lock signal in either direction, and the ruling
+stands. No launch was attempted this time.
 
 **The ruling.** The check to run before a capture is
 `CGSSessionScreenIsLocked` (0) **and** `CGDisplayIsAsleep` (false) from a
