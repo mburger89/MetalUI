@@ -757,6 +757,60 @@ greedy root did not move under `CN-J`. The 560 preview's scroll view narrows
 the same way inside a compressed layout. `demoContent()` names no proposal
 type, so the legacy zeros are not evidence for this lane (`CN-S`).
 
+### Verifier round (`cdd3c74`)
+
+The verifier (at `b1a4c42`) found four gaps, each a mutation that left the
+unfiltered suite green. Fixed:
+
+- **Two copies of the run bracket (major).** `computeNativeLayout(root:proposal:centredIn:)`
+  was a line-for-line copy of the `in:` entry's bracket (`beginLayout`/`endLayout`,
+  `activeNativeRun`, `run.isActive = false`, `lastNativeLayoutWork`), and the
+  Frame path uses only the copy. Both entries now call one private
+  `runNativeLayout(root:proposal:placement:)`, which differs per entry only in
+  the bounds closure. No test changed. `measureNativeLayout` keeps its own
+  bracket, as before (record §09's unpinned sub-clause).
+- **CN-E's placement proposal (major).** A kernel leaf never sees the proposal
+  it is placed at, so nothing pinned "B as the child's placement proposal".
+  New `aZStackPlacesEachChildWithItsOwnSizeAsTheProposal`
+  (`NativeStackDistributionTests.swift`): the half-width child is a childless
+  custom layout that records `placeSubviews`' proposal, [30×20] in Z1 and
+  [60×40] in Z4. Those are the last placements in the probe's logs.
+- **CN-L at eight unpinned registrars (minor).** New
+  `aNativeRegistrarWithChildrenRejectsANodeThatAlreadyHasAParent`
+  (`NativeBoundaryTrapTests.swift`) has ten exit-test arms, one per registrar
+  with children. Each registers a leaf under a frame, then under a registrar of
+  that kind, and checks for "MC-G hole 4" on stderr. As a positive control,
+  each registrar lays out over a fresh leaf in process.
+- **R1's root placement proposal (minor).** `aNativeRootIsCentredAtItsAnswer`
+  gains an arm with a `ProposalLayoutContainer` root that answers 58×20 in a
+  100×100 window and records `placeSubviews`' proposal, [100×100].
+
+These new tests went green on arrival because they pin behaviour that already
+existed. Each was shown to catch its mutation instead. The worktree was
+committed at `cdd3c74` and `LayoutTree.swift` was restored from a copy after
+each mutation. Each mutant was built with `--build-system native --build-tests`
+and the unfiltered suite was run; `git status --short` was empty after every
+one.
+
+| mutation | red |
+|---|---|
+| V3 `.overlay` places each child at the parent's proposal, not B | **`aZStackPlacesEachChildWithItsOwnSizeAsTheProposal`** only (2) |
+| V2 place the root at proposal = its answer (now in the shared run, so both entries) | **`aNativeRootIsCentredAtItsAnswer`** (1: the new R1 arm) and 20 other kernel tests placed at bounds smaller than their proposal — 52 issues |
+| V8 drop `lastNativeLayoutWork = run.work` | `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal`, `nativeLayoutWorkIsPerCall`, `nestedStacksUnderAnUnspecifiedCrossProposalDoBoundedWork` (6) |
+| V9 drop `run.isActive = false` | `aSubviewUsedAfterItsLayoutRunTraps` (2) |
+| V10 drop `beginLayout()`/`defer { endLayout() }` | `computeLayoutCalledFromANativeMeasureClosureTraps`, `computeNativeLayoutReenteredFromAMeasureClosureTraps`, `nativeLayoutHoldsTheLayingOutFlagOnlyWhileItRuns`, `registeringALegacyLeafDuringNativeLayoutTraps`, `registeringANativeNodeDuringNativeLayoutTraps`, `resettingATreeDuringLayoutTraps`, `setStyleOnALegacyNodeDuringNativeLayoutTraps` (10) |
+| V7 delete `recordParent` from the eight registrars other than stack and frame | **`aNativeRegistrarWithChildrenRejectsANodeThatAlreadyHasAParent`** only (16: eight arms, each with exit status and message) |
+
+Since the entries share one run, V8–V10 now redden the `in:` entry's existing
+bracket tests, and those tests also cover the Frame path. Suite: `swift build
+--build-system native --build-tests`, then the unfiltered run gives
+**`Test run with 1348 tests in 1 suite passed`** (1346 + 2), with 0 `error:`
+and no `warning:` apart from SwiftPM's deprecation notice. Goldens: 97,
+unchanged against `9e439cb`. No guard was added. The change touches no
+stored property and no paint path; the eight legacy demo images are
+unaffected by construction (`computeNativeLayout` does not run for a legacy
+root).
+
 ### Not done here, and why
 
 - `CLAUDE.md`, `AGENTS.md`, the plan and the record index: the Docs phase.

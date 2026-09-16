@@ -693,6 +693,15 @@ roots). All six moved by centring alone. One of the thirteen,
 discrimination under centring (an 80pt and a 40pt frame put the leaf at the
 same x). A 200pt sibling restored it, and a filtered instrument check shows it.
 
+**Verifier round** (`cdd3c74`; record §17). The centred entry was a copy of
+the `in:` entry's run bracket, and no test covered that copy (verifier V8–V10
+stayed green). Both entries now share one private `runNativeLayout`, and the
+existing bracket, run-lifetime and work-record tests redden under each
+mutation. R1's placement proposal ([100×100]) now has its own arm in
+`aNativeRootIsCentredAtItsAnswer`. CN-E's "B as the child's placement
+proposal" is pinned by `aZStackPlacesEachChildWithItsOwnSizeAsTheProposal`
+(Z1 [30×20], Z4 [60×40]).
+
 ---
 
 ## CN-K — overlay and background content: several views are a centred `ZStack`, none is nothing, `.background` takes content and sits beneath for hits
@@ -796,6 +805,12 @@ unfiltered suite truncates in-process at
 `aResetTreeMeasuresItsNewRegistrationsFromScratch`, which is an existing
 test's shape-13 truncation. Test 4.9's reset arm is red only when it runs
 filtered.
+
+**Verifier round** (`cdd3c74`). Test 4.9 reaches only the stack and frame
+sites, so deleting `recordParent` from the other eight left the suite green
+(V7). `aNativeRegistrarWithChildrenRejectsANodeThatAlreadyHasAParent` now has
+one exit arm per registrar with children, ten in all, and V7 reddens its eight
+arms.
 
 ---
 
