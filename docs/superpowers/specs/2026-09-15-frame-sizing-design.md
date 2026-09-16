@@ -4,7 +4,11 @@ Plan task 4 of `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, on
 branch `feat/frame-sizing` in the worktree
 `/Users/maxburger/Developer/MetalUI-frame-sizing`, from `c4b5853`.
 
-Rulings `FR-A`…`FR-Q` live in
+**Status: lane 1 is landed** (commits `901917a`, `9bd130c`, `389c452`). Lanes 2,
+3 and 4 are design only. Lane 1's three design corrections, each measured by
+running, are ruling `FR-R`, and the numbers below already carry them.
+
+Rulings `FR-A`…`FR-R` live in
 [`../2026-09-15-frame-sizing-decisions.md`](../2026-09-15-frame-sizing-decisions.md);
 the record is `docs/record/14-frame-and-sizing.md`. The track runs beside a
 second one (task 5's paint modifiers) in its own worktree, and an integration
@@ -140,7 +144,12 @@ divergence and its test, and the documentation those rulings make necessary
 
 `FR-A` (the response rule), `FR-B` (an infinite proposal), `FR-L` (negative
 sizes), `FR-M` (an absent minimum), `FR-J` (the deprecated no-argument
-`frame()`).
+`frame()`), `FR-R` (the three corrections this lane measured).
+
+**Landed 2026-09-15.** Three commits: `901917a` step 0, `9bd130c` the red tests,
+`389c452` the source. `Test run with 1234 tests in 1 suite passed`, 0 `error:`,
+0 `warning:`, 97 goldens unmoved, guards 61 → 62. Every red line, every
+mutation and every reddened test name is in `docs/record/14-frame-and-sizing.md`.
 
 ### Step 0, alone, first: the shared-file seam
 
@@ -226,9 +235,14 @@ Five things about it that are deliberate and must not be "simplified":
   a negative size and floors a declared negative min/max at 0 (probe H4, H6,
   H10); the floor is on the **declared** bound, which is why `framedProposal`
   keeps `-.infinity` for an absent minimum (H2 forwards −30 unchanged).
+  **`hi`'s floor is unreachable** through `newNativeFrame`, which traps on a
+  negative maximum (`SA-J`), and dropping it reddens nothing — it is kept as a
+  backstop and the gap is named, `FR-R` item 2.
 - **The ideal branch stays second.** It is unreachable from the first (the
   greedy branch requires a non-nil proposal), so the order is documentation
-  rather than logic — but swapping them is one of test 1.4's mutations.
+  rather than logic. **Swapping the two is therefore not a mutation** — run, it
+  reddens nothing (`FR-R` item 3); deleting the ideal branch is what reddens
+  test 1.4.
 
 Also in lane 1: `newNativeFrame`'s doc comment (the "Frame response" bullet
 list) is rewritten to the rule above, and the deprecated no-argument overload
@@ -273,9 +287,9 @@ mutation.
 | 1.1 | `aFrameWithAMinimumAndAMaximumGrowsTowardItsProposal` | Four arms over one `LayoutTree`, each a 20×20 leaf under `newNativeFrame`, read through `measureNativeLayout`, **all with a minimum declared** so `FR-M` is not in play: D control (min 40/max 80 at 100) → **80**; D1 (at 60) → 60; D2 (at 30) → 40; D13 (min 40/max 80, a 200pt child, at 100) → 80. Each arm also `#expect`s the child's proposal | **red**, to be re-measured on arrival: D control and D1 read 40 today; D2 (40) and D13 (80) are already right and are this test's internal controls | restore `max == .infinity` as the greedy gate (D control, D1 redden; D2, D13 stay green) |
 | 1.2 | `aFrameWithNoMaximumAnswersItsChildRatherThanItsProposal` | D7 (min 40 alone at 100) → 40; D8 (at 30) → 40; D9 (at nil) → 40; D15 (min 400 at 100) → 400; C control (ideal 80 at a concrete 300) → 20 | green on arrival | make the greedy branch unconditional (`if let proposal, proposal.isFinite`) — D7, D15 and C control redden |
 | 1.3 | `aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity` (`FR-B`, **pinned against SwiftUI on purpose**: SwiftUI's D12 answers `inf`) | `maxWidth: .infinity` at `ProposedSize(width: .infinity, …)` answers the child's 20, and the stored rect is finite | green on arrival | drop `proposal.isFinite` from the greedy gate — the answer becomes `inf` |
-| 1.4 | `anIdealDimensionIsUsedOnlyWhenThatAxisHasNoProposal` | C1 (ideal 80 at nil) → 80, child proposed 80; C control (ideal 80 at 300) → 20, child proposed 300; C3 (ideal 80 at nil over a 200pt child) → **80**, the ideal beating the child; C4 (min 40/ideal 80/max 120 at nil) → 80; C5 (the same at 300) → 120 | C1/C3/C4 green; **C5 red**: today's `framedSize` falls through to the child clamp and reads 40 | swap the first two branches of `framedSize` (C1 and C4 answer the child); delete the ideal branch (C1, C3, C4 redden) |
+| 1.4 | `anIdealDimensionIsUsedOnlyWhenThatAxisHasNoProposal` | C1 (ideal 80 at nil) → 80, child proposed 80; C control (ideal 80 at 300) → 20, child proposed 300; C3 (ideal 80 at nil over a 200pt child) → **80**, the ideal beating the child; C4 (min 40/ideal 80/max 120 at nil) → 80; C5 (the same at 300) → 120 | C1/C3/C4 green; **C5 red**: today's `framedSize` falls through to the child clamp and reads 40 | delete the ideal branch. (Swapping the first two branches was also listed here and is **withdrawn**: run, it reddens nothing — `FR-R` item 3) |
 | 1.5 | `aFrameWithoutAMinimumNeverAnswersLessThanItsChild` (`FR-M`) | The finding the 54-arm probe could not see. Seven arms, each `#expect`ing the answer AND the child's proposal: H8 (max 80, **no min**, proposal 10, child 20) → **20**; H14 (`minWidth: 0` + max 80, the same numbers) → **10**; H7 (proposal 0) → 20; H11 (min 5/max 80 at 10) → 10; H13 (min 5/max 80 at 10 over a 200pt child) → 10; H15 (max 80, no min, at 10 over a 200pt child) → 80; H16 (max `.infinity`, no min, at 100 over a 200pt child) → **200**. `try #require(H8 != H14)` opens the test (shape 15): they are the same numbers and must disagree | **red**, measured on the patched kernel: today H8 reads 20 (right, via the non-greedy branch), H14 reads 20 (**wrong**, should be 10) and H16 reads **100** (wrong, should be 200 — a live bug in the shipped `max == .infinity` branch) | write the presence test as a value test, `(min ?? 0) == 0` — H14 reddens; drop the `Swift.max(proposal, child)` — H8, H7, H15, H16 redden |
-| 1.6 | `aFrameNeverAnswersANegativeSize` (`FR-L`) | Five arms: H2 (max 80, no min, proposal −30, child 20) → **20**, child proposed **−30**; H4 (min −50/max 80 at −30) → **0**, child proposed **0**; H6 (min −50/max −10 at 100) → 0; H3 (min −50 at 100) → 20; H9 (min −50 at nil) → 20. `try #require` that H2's and H4's child proposals differ, since the whole ruling is that a declared bound floors and an absent one does not | **red**: today H4 and H6 read −30 and −10 through `framedProposal`'s unfloored bounds | drop the `Swift.max(0, …)` from `framedSize`'s `lo`/`hi` (H4, H6 redden); drop it from `framedProposal` (H4's child proposal reddens) |
+| 1.6 | `aFrameNeverAnswersANegativeSize` (`FR-L`) | **Four** arms: H2 (max 80, no min, proposal −30, child 20) → **20**, child proposed **−30**; H4 (min −50/max 80 at −30) → **0**, child proposed **0**; H3 (min −50 at 100) → 20; H9 (min −50 at nil) → 20. `try #require` that H2's and H4's child proposals differ, since the whole ruling is that a declared bound floors and an absent one does not. **H6 and H10 are NOT arms** (`FR-R` item 2): `SA-J` traps on a negative maximum and a negative fixed size where SwiftUI floors them, so they have no MetalUI spelling; `aNegativeFrameMaximumTraps` and `aNegativeFixedFrameDimensionTraps` pin the rejection and the doc comment names them | **red**: today H4 reads −30 through `framedProposal`'s unfloored bounds | drop the `Swift.max(0, …)` from `framedSize`'s **`lo`** (H4's answer reddens); drop it from `framedProposal` (the opening `#require` reddens). Dropping it from **`hi`** reddens nothing — the unreachable branch `FR-R` item 2 records |
 | 1.7 | `aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum` (existing, **re-fixtured**) | Same fixture; the measurement becomes **80×60** (width: min 40 given, so base = proposal 100, clamped to 80; height: base = proposal 60, inside [30, 70]). The child's stored rect `(15, −1, 20, 90)` does **not** move — placement uses the rect the caller passed | **red after the source change**, confirmed by running: it pins 40×70 today, which is `SA-N` item 1's wrong-on-purpose pin | as 1.1 |
 | 1.8 | `aNativeFrameUsesIdealDimensionsOnlyForUnspecifiedAxes` (existing, **re-fixtured**, critic finding 1) | Same fixture; the measurement becomes **70×60**. Width: the proposal is nil, so the ideal 70 is used, clamped into [40, 80] → 70. Height: a minimum (20) *is* declared and a maximum (70) is given at a concrete 60, so base = 60, clamp(60, 20, 70) = **60** — where the doc comment today says "the height is the child's 10 clamped to 20…70 = 20". **That sentence is a statement of the rule this lane deletes and must be rewritten, not renumbered.** The child rect `(10, 14, 30, 10)` does not move | **red after the source change**, confirmed by running | as 1.1 |
 | 1.9 | `aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI` | The same finding one level up, through `ProposalElementGroup.frame(minWidth:maxWidth:)` inside a window-sized root: a 20pt proposal leaf under `.frame(minWidth: 40, maxWidth: 80)` in a 200-wide root measures 80 and centres the leaf at x = 30 | **red**, measured: 40 and x = 10 | as 1.1 |
@@ -304,9 +318,17 @@ the whole suite: **exactly two tests redden**, 1.7 and 1.8, and nothing else in
 
 ### Expected counts
 
-1226 → **1233** tests (1.1–1.6 and 1.9 added; 1.7 and 1.8 edited in place; 1.10
-is a guard). Guards 61 → **62**. Goldens 97, unmoved — lane 1 touches no CSS
-path. Step 0 moves none of the three.
+1226 → **1234** tests: 1.1–1.6, 1.9 and **1.10** added (a typecheck guard is an
+ordinary `@Test` and counts toward the suite total — `FR-R` item 1, which
+corrects this row's original 1233); 1.7 and 1.8 edited in place. Guards 61 →
+**62**. Goldens 97, unmoved — lane 1 touches no CSS path. Step 0 moves none of
+the three.
+
+**Measured, 2026-09-15:** `Test run with 1234 tests in 1 suite passed after
+30.393 seconds`, 0 `error:`, 0 `warning:`; `find Tests -name '*.json' | wc -l`
+= 97 and `git diff --stat c4b5853 -- '*.json'` empty; per-file
+`grep -c canTypecheck` sums to 63 outside `Typecheck.swift`, one of which is a
+comment in `UnitSafetyTests.swift`, so **62** guards.
 
 ## Lane 2 — the legacy frame's SwiftUI surface
 
@@ -456,9 +478,11 @@ untouched, and lane 2 says so after running it, not before.
 
 ### Expected counts
 
-1233 → **1243** tests (2.1–2.10; 2.4's exit tests count as one test). Guards 62 →
-**63**: the overload fixture. Goldens 97, unmoved — `FrameSpec.style()` produces
-CSS the fixtures never exercise, and no fixture uses a modifier.
+1234 → **1245** tests: 2.1–2.10 (2.4's exit tests count as one test) **plus the
+overload fixture**, which is a `@Test` like every other guard (`FR-R` item 1;
+this row originally read 1233 → 1243 and omitted it). Guards 62 → **63**: the
+overload fixture. Goldens 97, unmoved — `FrameSpec.style()` produces CSS the
+fixtures never exercise, and no fixture uses a modifier.
 
 ## Lane 3 — the sizing inventory
 
@@ -493,7 +517,8 @@ sizing helper to decide about, only a box-model unit that is already pinned by
 
 ### Expected counts
 
-1243 → **1245** tests. Guards 63. Goldens 97.
+1245 → **1247** tests (`FR-R` item 1; this row originally read 1243 → 1245).
+Guards 63. Goldens 97.
 
 ## Lane 4 — verification
 
@@ -503,7 +528,8 @@ sizing helper to decide about, only a box-model unit that is already pinned by
    by five test targets — which is CLAUDE.md's documented incremental-layout
    hazard. Clean before the verification run, not after a symptom.
 2. **Whole suite**, `swift test --build-system native --no-parallel`, read from
-   the `Test run with N tests` line: **1245**, 0 `error:`, 0 `warning:`.
+   the `Test run with N tests` line: **1247** (`FR-R` item 1; this read 1245
+   before lane 1 measured that a guard counts), 0 `error:`, 0 `warning:`.
 3. **Goldens**: `git diff --stat c4b5853 -- '*.json'` empty;
    `find Tests -name '*.json' | wc -l` = 97.
 4. **Guards**: `grep -c canTypecheck` per file sums to **64** with one comment

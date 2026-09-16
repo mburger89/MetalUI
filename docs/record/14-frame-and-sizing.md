@@ -2,19 +2,23 @@
 
 The record for plan task 4. Spec
 `docs/superpowers/specs/2026-09-15-frame-sizing-design.md`; rulings `FR-A`…
-`FR-Q` in `docs/superpowers/2026-09-15-frame-sizing-decisions.md` (next unused
-`FR-R`); probes `docs/probes/swiftui-frame-semantics.swift` (54 arms) and
+`FR-R` in `docs/superpowers/2026-09-15-frame-sizing-decisions.md` (next unused
+`FR-S`); probes `docs/probes/swiftui-frame-semantics.swift` (54 arms) and
 `docs/probes/swiftui-frame-negative-sizes.swift` (17 arms). The track runs in
 its own worktree, `/Users/maxburger/Developer/MetalUI-frame-sizing`, beside the
 paint-modifier track, and is merged by an integration step that owns
 `CLAUDE.md`, the plan, `docs/record/README.md` and the other track's files.
 **Nothing in this file has been copied into those yet.**
 
-Two integration obligations this track creates for CLAUDE.md, which it may not
-edit itself: a **declared-but-inert row** for a single-axis
-`.frame(maxWidth: .infinity)` on the legacy path (`FR-O`), and the fact that
+Integration obligations this track creates for CLAUDE.md, which it may not edit
+itself: a **declared-but-inert row** for a single-axis
+`.frame(maxWidth: .infinity)` on the legacy path (`FR-O`); the fact that
 `.frame(width:height:)`'s lowering now pins its declared axis with an
-axis-named `minSize` (`FR-P`).
+axis-named `minSize` (`FR-P`); and, from lane 1, that **a frame with a maximum
+is greedy on the proposal path** (`FR-A`) with two divergences worth a line —
+an infinite proposal answers the child rather than infinity (`FR-B`), and a
+negative maximum or fixed size **traps** where SwiftUI floors it at 0 (`FR-L`,
+`FR-R` item 2). The suite total moves 1226 → **1234** on lane 1 alone.
 
 ### Design session, 2026-09-15, at `c4b5853`
 
@@ -212,8 +216,102 @@ suite/guard/golden counts it re-took, and lane 4's pixel comparison — image
 dimensions, differing-pixel counts and the control counts that must be
 non-zero.*
 
-(Not started. The design and the critic round are committed; no source file has
-changed.)
+#### Lane 1 — the shared-file seam, then the kernel's flexible frame, 2026-09-15
+
+Three commits, in this order:
+
+| commit | what |
+|---|---|
+| `901917a` | **step 0, alone**: `ModifiedElement.swift`'s trailing `frame(width:height:)` extension replaced IN PLACE by a forwarding declaration into the new `Sources/MetalUI/FrameLayer.swift` (`FrameSpec` + `style()`, today's style verbatim). No behaviour change, no test touched |
+| `9bd130c` | the red tests: 1.1–1.6 and 1.9 new, 1.7 and 1.8 re-fixtured in place, 1.10 a new typecheck fixture in `Tests/MetalUITests/FrameSizingCompileGuards.swift` |
+| `389c452` | the source: `framedSize`, `framedProposal`, `newNativeFrame`'s doc comment, and the deprecated `frame()` on both protocols |
+
+**Step 0's run.** `Test run with 1226 tests in 1 suite passed after 30.990
+seconds`, 0 `error:`, 0 `warning:`; 97 goldens, `git diff --stat c4b5853 --
+'*.json'` empty. The seam moved none of the three counts, which is what it was
+for.
+
+**The red run**, `swift test --build-system native --no-parallel` on `9bd130c`:
+`Test run with 1234 tests in 1 suite failed after 30.849 seconds with 11
+issues`.
+
+| test | issue, verbatim |
+|---|---|
+| 1.7 `aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum` | `NativeLayoutTests.swift:173:5: Expectation failed: (measurement.size → SizeD(width: 40.0, height: 70.0)) == (SizeD(width: 80, height: 60) → …)` |
+| 1.8 `aNativeFrameUsesIdealDimensionsOnlyForUnspecifiedAxes` | `:214:5: (measurement.size → SizeD(width: 70.0, height: 20.0)) == (SizeD(width: 70, height: 60) → …)` |
+| 1.1 `aFrameWithAMinimumAndAMaximumGrowsTowardItsProposal` | `:297:5: (dControl.answer → 40.0) == (80 → 80.0)` and `:301:5: (d1.answer → 40.0) == (60 → 60.0)`. **D2 and D13 stayed green** — the arms that read the same under both rules, this test's internal controls |
+| 1.4 `anIdealDimensionIsUsedOnlyWhenThatAxisHasNoProposal` | `:374:5: (… minWidth: 40, idealWidth: 80, maxWidth: 120).answer → 40.0) == (120 → 120.0)`, C5. C1, C control, C3 and C4 green |
+| 1.5 `aFrameWithoutAMinimumNeverAnswersLessThanItsChild` | `:394:9: (h8.answer → 20.0) != (h14.answer → 20.0)` — the opening shape-15 `#require`; the two arms agreed, which is `FR-M` |
+| 1.6 `aFrameNeverAnswersANegativeSize` | `:432:9: (h2.childProposals → [Optional(-30.0)]) != (h4.childProposals → [Optional(-30.0)])` — the opening `#require`; both forwarded −30 |
+| 1.9 `aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI` | `NativeLayoutIntegrationTests.swift:1019:5: (probe.prepaintBounds?.origin.x → Pixels(value: 10.0)) == (Pixels(30) → …)` — exactly the 40-and-x-10 the spec predicted |
+| 1.10 `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths` | `:102/:104/:106` — `succeeded=false deprecations=0`, `error: cannot convert value of type 'ModifiedContent<ProposalLeaf>' to specified type 'ProposalLeaf'` and `'ModifiedElement<LegacyLeaf>'` likewise |
+
+1.2 and 1.3 were **green on arrival**, as the spec says; their proof is their
+mutations below.
+
+**The green run**, on `389c452`: `Test run with 1234 tests in 1 suite passed
+after 30.393 seconds`, 0 `error:`, 0 `warning:`. Goldens 97, diff against
+`c4b5853` empty. Guards: per-file `grep -c canTypecheck` sums to **63** outside
+`Typecheck.swift`, one of which is the comment in `UnitSafetyTests.swift`, so
+**62** real — 61 → 62 as designed.
+
+**Test 1.9's container, chosen by mechanism.** The spec said "in a 200-wide
+root"; three containers had to be reasoned through before one could show the
+finding, and the reasoning is recorded so nobody re-derives it. An `HStack`
+proposes `nil` on its main axis (`stackChildProposal`), so a greedy frame there
+answers its child either way and the arm cannot discriminate. A `ZStack`, and
+the framed element as the root, both place the frame in the FULL window bounds
+— `placeNative`'s `.frame` case places its child inside the bounds it was
+handed, not inside its own measurement — so the leaf lands at x = 90 under both
+rules. A **`VStack(alignment: .leading)`** proposes its own width to every
+child and places each at `bounds.x` at the child's *measured* width, which is
+the only shape in which the frame's answer is observable as an x: 80 → x = 30,
+40 → x = 10.
+
+**Mutations**, each applied to a `cp` backup's file, the WHOLE suite run, the
+file restored and `git status --short` checked empty. Every run read `Test run
+with 1234 tests`.
+
+| # | mutation | tests reddened |
+|---|---|---|
+| M1 | `max != nil` → `max == .infinity` (the shipped greedy gate) | **7**: 1.1, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9 |
+| M2 | the greedy branch unconditional (`if let proposal, proposal.isFinite`) | **5**: 1.2, 1.4, 1.6, and two nobody wrote for it — `aNativeFrameForwardsAnOptionalAxisAndAdoptsThatChildResponse`, `negativeAndNegativeInfiniteFrameMinimumsAndAnInfiniteMaximumAreAccepted` |
+| M3 | `proposal.isFinite` dropped | **1**: 1.3 only. Nothing else in 1234 tests sees `FR-B` |
+| M4 | the first two branches **swapped** | **none** — they are mutually exclusive. `FR-R` item 3; the spec's claim is withdrawn |
+| M5 | `min == nil` → `(min ?? 0) == 0` | **1**: 1.5, at its `#require` (`h8.answer → 20.0 != h14.answer → 20.0`). H14 is the only arm that can see it |
+| M6 | `Swift.max(proposal, child)` → `proposal` | **2**: 1.5 (`h8 → 10.0 != h14 → 10.0`) and 1.6 (`h2.answer → 0.0 == 20`) |
+| M7a | `framedSize`'s `lo` unfloored | **1**: 1.6 (`h4.answer → -30.0 == 0`) |
+| M7b | `framedSize`'s **`hi`** unfloored | **none** — unreachable; `SA-J` traps on a negative maximum first. `FR-R` item 2 |
+| M8 | `framedProposal`'s `lo` unfloored | **1**: 1.6, at its `#require` |
+| M9 | the ideal branch deleted | **4**: 1.4, 1.8, `anIdealFrameWidthBecomesItsOuterWidthWhenTheAxisIsUnspecified`, `anIdealFrameHeightBecomesItsOuterHeightWhenTheAxisIsUnspecified` |
+| M10 | the `frame()` declaration on `ElementGroup` deleted | **1**: 1.10 — `succeeded=false deprecations=1`, `error: cannot convert value of type 'ModifiedElement<LegacyLeaf>' to specified type 'LegacyLeaf'`. The LEGACY call falls through to `frame(width:height:)` |
+| M11 | the `frame()` declaration on `ProposalElementGroup` deleted | **1**: 1.10 — `succeeded=false deprecations=1`, `error: cannot convert value of type 'ModifiedContent<ProposalLeaf>' to specified type 'ProposalLeaf'`. **Critic finding 11's simplification, reinstating `SA-N` item 9, now measured on the real module rather than on the skeleton** |
+
+M10 and M11 each needed `swift build --build-system native --build-tests` before
+the suite run, because the fixture typechecks against the built `MetalUI`
+module, not against the sources. **That is also the proof the new guard RUNS in
+this worktree** (CLAUDE.md, "When CI lands"): it was red on arrival at `9bd130c`,
+green at `389c452`, and red again under each of two source deletions.
+
+**The sweep the critic round predicted, confirmed.** The design said applying
+`FR-A` + `FR-L` + `FR-M` reddens exactly two existing tests, 1.7 and 1.8. The
+green run confirms it from the other side: with those two re-fixtured and
+nothing else edited, all 1234 pass. M1 and M2 additionally name three existing
+tests that would have caught a *wrong* fix —
+`aNativeFrameForwardsAnOptionalAxisAndAdoptsThatChildResponse`,
+`negativeAndNegativeInfiniteFrameMinimumsAndAnInfiniteMaximumAreAccepted` and
+the two ideal-frame integration tests — which is the coverage the design could
+not see by reading.
+
+**Three design corrections, ruling `FR-R`:** the expected total is 1234 (a
+typecheck guard is a `@Test`); probe arms H6 and H10 have no MetalUI spelling,
+so test 1.6 carries four arms and `framedSize`'s `hi` floor is an unreachable
+backstop; and swapping `framedSize`'s first two branches is not a mutation.
+
+**Left for lane 2 and after.** `FrameSpec` still carries only `width`/`height`
+and `style()` still produces exactly the pre-existing style — step 0 was a move,
+not a change. `ProposalAlignment`, the min/max bounds and the lowering table are
+lane 2's.
 
 ### Open at the end of the critic round
 
@@ -228,7 +326,9 @@ changed.)
   `framedSize` rather than rejecting at registration. SwiftUI diagnoses a
   negative fixed size and a negative maximum and tolerates a negative minimum;
   MetalUI traps on the first two and floors the third. Tightening the
-  registration is the kernel track's ruling to change — task 7.
+  registration is the kernel track's ruling to change — task 7. **Lane 1 found
+  the consequence**: `framedSize`'s `hi` floor is unreachable and no test can
+  see it (`FR-R` item 2).
 - N2 and N12 did not discriminate: the flex automatic minimum floors those
   shapes before any pin can matter. The cross-axis finding rests on N11 alone,
   which is why N11 gets its own test (2.10) rather than an arm inside 2.2.

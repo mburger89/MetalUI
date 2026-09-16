@@ -2,9 +2,16 @@
 
 Rulings for `docs/superpowers/specs/2026-09-15-frame-sizing-design.md`, on
 `feat/frame-sizing` from `c4b5853`. Ids are **lettered**, `FR-A`…; next unused
-is **`FR-R`**. A bare `FR-3` is a typo, not a citation.
+is **`FR-S`**. A bare `FR-3` is a typo, not a citation.
 
-**Status, 2026-09-15, after the critic round:** design only. No source file has
+**Status, 2026-09-15, after lane 1:** the kernel's flexible frame is
+implemented. `FR-A`, `FR-B`, `FR-J`, `FR-L` and `FR-M` are **landed and
+mutation-tested**; `FR-R` was added by lane 1 for three things the design got
+wrong that only running could show. `FR-C`…`FR-I`, `FR-K`, `FR-N`…`FR-Q` are
+still design only. The suite reads `Test run with 1234 tests in 1 suite passed`,
+0 `error:`, 0 `warning:`, 97 goldens unmoved, 62 typecheck guards.
+
+**Status, 2026-09-15, after the critic round:** design only. No source file had
 changed — every source patch below was applied, measured and restored from a
 `cp` backup, with `git status --short` empty afterwards each time. Two probes
 are committed and re-runnable: `docs/probes/swiftui-frame-semantics.swift` (54
@@ -101,7 +108,17 @@ SwiftUI layout idiom. Wrong in the other direction — greedy without a maximum
 — `.frame(minWidth: 40)` would make every view fill its parent, which probe
 D7/D15 refute directly.
 
-**Mutations.** Recorded by lane 1 (spec tests 1.1, 1.2, 1.4, 1.5, 1.6).
+**Mutations, run by lane 1** — each applied to `LayoutTree.swift`, the WHOLE
+suite run under `swift test --build-system native --no-parallel`, the source
+restored from a `cp` backup and `git status --short` checked empty afterwards.
+Every run read `Test run with 1234 tests`:
+
+| mutation | tests reddened |
+|---|---|
+| `max != nil` → `max == .infinity` (the old greedy gate) | **7**: `aFrameWithAMinimumAndAMaximumGrowsTowardItsProposal` (1.1), `anIdealDimensionIsUsedOnlyWhenThatAxisHasNoProposal` (1.4), `aFrameWithoutAMinimumNeverAnswersLessThanItsChild` (1.5), `aFrameNeverAnswersANegativeSize` (1.6), `aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum` (1.7), `aNativeFrameUsesIdealDimensionsOnlyForUnspecifiedAxes` (1.8), `aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI` (1.9) |
+| the greedy branch made unconditional (`if let proposal, proposal.isFinite`) | **5**: `aFrameWithNoMaximumAnswersItsChildRatherThanItsProposal` (1.2), 1.4, 1.6, and two tests nobody wrote for this — `aNativeFrameForwardsAnOptionalAxisAndAdoptsThatChildResponse` and `negativeAndNegativeInfiniteFrameMinimumsAndAnInfiniteMaximumAreAccepted` |
+| the ideal branch deleted | **4**: 1.4, 1.8, `anIdealFrameWidthBecomesItsOuterWidthWhenTheAxisIsUnspecified`, `anIdealFrameHeightBecomesItsOuterHeightWhenTheAxisIsUnspecified` |
+| the two branches **swapped** | **none** — see `FR-R`; they are mutually exclusive, so the order is documentation, and the spec's claim that this reddens 1.4 is withdrawn |
 
 ---
 
@@ -132,6 +149,10 @@ from it.
 scroll view on the scrolling axis reports its content size rather than
 expanding. That is the conservative failure; the alternative is an infinite
 rect in the scene.
+
+**Mutation, run by lane 1.** Dropping `proposal.isFinite` from the greedy gate
+reddens **exactly one** test, `aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity`
+(spec test 1.3), out of 1234. Nothing else in the suite can see this divergence.
 
 ---
 
@@ -469,6 +490,21 @@ overload per path. The cost of *not* having it — or of having only one, which
 is the same thing on the path that matters — is that `.frame()` keeps compiling
 into a real, centring, size-nothing layer that a reader will not expect.
 
+**Mutations, run by lane 1 against the real module** (the skeleton's answer,
+re-taken where it counts). Each deletion was applied, `swift build
+--build-system native --build-tests` re-run so the fixture typechecks against
+the mutated module, and the whole suite run; `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`
+reddens both times and nothing else does:
+
+| deletion | what the fixture then reports |
+|---|---|
+| the `ElementGroup` declaration (`FrameLayer.swift`) | `succeeded=false deprecations=1`; `error: cannot convert value of type 'ModifiedElement<LegacyLeaf>' to specified type 'LegacyLeaf'`. The **legacy** call falls through to `frame(width:height:)` and builds a layer |
+| the `ProposalElementGroup` declaration (`NativeModifiedContent.swift`) | `succeeded=false deprecations=1`; `error: cannot convert value of type 'ModifiedContent<ProposalLeaf>' to specified type 'ProposalLeaf'`. The **proposal** call falls through to the refined protocol's all-defaulted `frame(width:height:alignment:)` — finding 11's simplification, reinstating `SA-N` item 9, now measured on the real module and not only on the skeleton |
+
+The guard is the only test in the suite that sees either deletion, which is why
+it asserts the inferred type and the deprecation **count** rather than only
+that the call compiles.
+
 ---
 
 ## FR-K — one alignment type, and it keeps its `Proposal` name for now
@@ -564,6 +600,14 @@ negative minimum that a caller meant as "no minimum" starts clamping at 0
 instead of at −∞ — unobservable, because every base is non-negative. If it is
 wrong in the other direction, a negative size reaches the renderer.
 
+**Mutations, run by lane 1**, each over the whole suite:
+
+| mutation | tests reddened |
+|---|---|
+| `framedSize`'s `lo` unfloored (`min ?? 0`) | **1**: `aFrameNeverAnswersANegativeSize` at H4 — `h4.answer → -30.0` where 0 is expected |
+| `framedProposal`'s `lo` unfloored (`min ?? -.infinity`) | **1**: the same test's opening `#require` — H2 and H4 then propose the same −30.0 to their children |
+| `framedSize`'s **`hi`** unfloored (`max ?? .infinity`) | **none**. `newNativeFrame` rejects a negative maximum at registration, so the `hi` floor is unreachable — `FR-R` records the gap rather than deleting the line |
+
 ---
 
 ## FR-M — an absent minimum is not `minWidth: 0`, and the kernel rule was wrong because of it
@@ -622,6 +666,13 @@ automatically a defect.
 parent's width instead of its content's, so content that should overflow gets
 clipped or compressed instead — the failure is a layout that looks plausible
 and is silently smaller than its contents.
+
+**Mutations, run by lane 1**, each over the whole suite:
+
+| mutation | tests reddened |
+|---|---|
+| the presence test written as a value test, `(min ?? 0) == 0` | **1**: `aFrameWithoutAMinimumNeverAnswersLessThanItsChild`, at its opening `#require` — `h8.answer → 20.0 != h14.answer → 20.0`. H14 is the only arm in 1234 tests that can see the difference |
+| `Swift.max(proposal, child)` dropped (`base = proposal`) | **2**: the same test — now `h8.answer → 10.0 != h14.answer → 10.0` — and `aFrameNeverAnswersANegativeSize`, whose H2 answers 0.0 instead of 20 |
 
 ---
 
@@ -809,6 +860,88 @@ whether the brief's rem clause was answered or forgotten — which is exactly wh
 the critic could not tell.
 
 ---
+
+## FR-R — three things lane 1 found by running that the design had wrong
+
+**Where it came from.** Lane 1, implementing `FR-A`/`FR-L`/`FR-M`. Each item
+below was a sentence the design wrote from the SwiftUI probes and could not have
+checked without a MetalUI run; each is corrected here and in the spec rather
+than left as a citation that no longer resolves.
+
+### 1. The expected suite total is 1234, not 1233 — a typecheck guard is a test
+
+The spec's lane 1 count read "1226 → **1233** tests (1.1–1.6 and 1.9 added; 1.7
+and 1.8 edited in place; **1.10 is a guard**)". A typecheck guard is an ordinary
+`@Test` function — `EnvironmentCompileGuards`, `ProposalLayoutCompileGuards` and
+`ModifiedElementCompileGuards` all count toward the suite total today — so
+1.10's own test counts too. Measured: `Test run with 1234 tests`.
+
+The same slip runs downstream, because every later count was derived from 1233.
+Corrected in the spec: lane 2 **1234 → 1245** (ten tests plus its overload
+fixture), lane 3 **1245 → 1247**, lane 4 verifies **1247**. **The guard
+arithmetic was already right** and does not move: 61 → 62 after lane 1, → 63
+after lane 2, which is a per-file `grep -c canTypecheck` sum of 64 including the
+one comment hit in `UnitSafetyTests.swift` and excluding `Typecheck.swift`'s
+declaration.
+
+This is critic finding 3 (internally inconsistent counts) recurring for a reason
+the critic round did not have: it is not arithmetic, it is a wrong model of what
+a guard is.
+
+### 2. Probe arms H6 and H10 have no MetalUI spelling, so test 1.6 cannot carry them
+
+`FR-L` reads SwiftUI as flooring **every** declared bound at 0 — H4's minimum
+−50, H6's maximum −10 and H10's fixed −60 all answer 0 — and spec test 1.6
+listed H6 as an arm. **H6 and H10 cannot be registered in MetalUI**: ruling
+`SA-J`'s `validateFrameAxis` traps on a negative maximum
+(`precondition(max >= 0)`) and on a negative fixed dimension, and both
+rejections are already pinned, by `aNegativeFrameMaximumTraps` and
+`aNegativeFixedFrameDimensionTraps`. So MetalUI **rejects** where SwiftUI
+**floors**, on exactly two of the three, and only the minimum's floor is
+reachable — a negative minimum being the one `SA-J` accepts.
+
+Test 1.6 therefore carries H2, H4, H3 and H9, and its doc comment names the two
+trap tests that pin the other answer. Nothing observable changes: SwiftUI never
+answers a negative size and neither does MetalUI; they differ in whether the
+input is diagnosed or silently floored, which record §14's open list already
+recorded and which task 7 owns.
+
+**The consequence for the source**, measured: `framedSize`'s
+`hi = max.map { Swift.max(0, $0) } ?? .infinity` is **unreachable**. Dropping
+its `Swift.max(0, …)` and running the whole suite reddens **nothing**
+(`Test run with 1234 tests in 1 suite passed`), where the matching mutation on
+`lo` reddens test 1.6 immediately.
+
+**The ruling: keep the line, name the gap.** It is a backstop for kernel
+callers, the same shape and the same justification as `validateFrameAxis`'s own
+fixed-plus-flexible check ("this one signature keeps the check as a backstop for
+kernel callers"), and it is what makes the code read as `FR-L`'s rule rather
+than as half of it. Deleting it would trade an untested defensive line for a
+silent negative answer the day `SA-J` is relaxed — and relaxing `SA-J` is
+already on the deferral list, from the other direction. The source comment says
+it is unreachable and cites this ruling, so no later reader mistakes the gap for
+coverage.
+
+### 3. Swapping `framedSize`'s first two branches is not a mutation
+
+The spec offered "swap the first two branches of `framedSize` (C1 and C4 answer
+the child)" as one of test 1.4's mutations. Run, it reddens **nothing**: the
+greedy branch requires `let proposal` and the ideal branch requires
+`proposal == nil`, so the two are mutually exclusive and the order carries no
+behaviour. The spec's own prose had already said the order "is documentation
+rather than logic" and then contradicted itself by listing it as a mutation.
+
+The mutation that does the job is **deleting** the ideal branch, which reddens
+four tests: 1.4, 1.8, and the two integration tests
+`anIdealFrameWidthBecomesItsOuterWidthWhenTheAxisIsUnspecified` and
+`anIdealFrameHeightBecomesItsOuterHeightWhenTheAxisIsUnspecified`.
+
+**What it costs if wrong.** Item 1 costs a wrong number in three later lanes'
+verification steps, which would read as an unexplained test-count drift at
+integration. Item 2 costs a lane writing an arm that cannot compile, and — left
+uncorrected — a reader believing the `hi` floor is tested. Item 3 costs a lane
+reporting a mutation as "did not redden, instrument broken" and going looking
+for a fault that is not there.
 
 ## Carried into this task, and where each went
 
