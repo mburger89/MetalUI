@@ -21,6 +21,11 @@ table): every number above reads the same, the stand-in is 0 against its own
 2026-09-15 images as well as against `c4b5853`, and `IOConsoleLocked` this time
 read `true` under the same locked, asleep CGS state — `FR-V` corroborated, not
 contradicted. `MC-J` still owed.
+**Record written 2026-09-16 at `6c18389`** (record §14, "For the integrator"):
+the lane 3 and lane 4 verifier rounds' seven minor issues applied — `FR-Q`'s
+addendum (a fourth rem entry point, `inset(_ edges:)`), `FR-H`'s pointer to
+`FR-T`, `FR-V`'s saved probe, `Box.swift`'s comment corrections, and three
+record corrections. No ruling changed; the next unused letter stays `FR-W`.
 
 **Status, 2026-09-15, after lane 2:** the legacy frame has SwiftUI's whole
 parameter surface. `FR-A`, `FR-B`, `FR-C`, `FR-D`, `FR-E`, `FR-J`, `FR-K`,
@@ -445,6 +450,11 @@ comparison would catch, after the fact.
 ---
 
 ## FR-H — percentage sizing stays, as an explicit MetalUI divergence with a test
+
+**Read `FR-T` first.** The three arms below were re-run by lane 3 and two are
+refuted (arm 1's "reads 150" and arm 2's root fallback); the third is
+explained, not investigated. `FR-T` holds the measured matrix. The
+disposition — keep, with a divergence test — stands.
 
 **The inventory position.** `width(percent:)`, `height(percent:)` and
 `flexBasis(percent:)` are CSS-derived, have no SwiftUI counterpart at all
@@ -957,6 +967,20 @@ paragraph. The cost of *not* writing it is that a later reader cannot tell
 whether the brief's rem clause was answered or forgotten — which is exactly what
 the critic could not tell.
 
+**Addendum, 2026-09-16 — the inventory was short by one entry point** (lane
+3's verifier, its instrument M7). `inset(_ edges: Edges<Dimension>)`
+(`Box.swift`) takes a `Dimension`, which wraps a `Length`, and
+`FlexEngine.swift`'s `placeAbsolute` resolves each inset through
+`resolveDimension` with `rootFontSize`. Measured with a scratch test, deleted
+afterwards: an absolutely positioned mark with
+`.inset(left: .length(.rems(Rems(2))))` lands at x = **32** against a 0px
+control's x = 0 (root font size 16). `Style` is public and `Box(style:)` is a
+public init, so every `Length` field is reachable that way too; this
+inventory's scope is modifiers. **Four** public entry points, not three:
+`padding(_ edges:)`, `margin(_ edges:)`, `borderWidth(_ edges:)` and
+`inset(_ edges:)`. The disposition is unchanged, and `Box.swift`'s four
+comments now say four.
+
 ---
 
 ## FR-R — three things lane 1 found by running that the design had wrong
@@ -1280,7 +1304,11 @@ stands. No launch was attempted this time.
 
 **The ruling.** The check to run before a capture is
 `CGSSessionScreenIsLocked` (0) **and** `CGDisplayIsAsleep` (false) from a
-`swiftc`-compiled probe, not `IOConsoleLocked`, which reports the *console
+`swiftc`-compiled probe — saved as
+**`docs/probes/appkit-screen-lock-state.swift`** (added 2026-09-16 when the
+record was written, at lane 4's verifier's request; its header carries the
+three locked readings, the run command and the `CFDictionary?` bridging note)
+— not `IOConsoleLocked`, which reports the *console
 session* (still this user's) rather than the screen lock. The task brief's
 recipe is wrong on this point and every later lane that copies it will launch
 two windows for nothing. The captures stay owed to `MC-J`, on a session where

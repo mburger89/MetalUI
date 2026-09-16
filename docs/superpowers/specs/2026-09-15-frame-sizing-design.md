@@ -4,12 +4,23 @@ Plan task 4 of `docs/superpowers/plans/2026-09-12-swiftui-alignment.md`, on
 branch `feat/frame-sizing` in the worktree
 `/Users/maxburger/Developer/MetalUI-frame-sizing`, from `c4b5853`.
 
-**Status: lanes 1 and 2 are landed** (lane 1: `901917a`, `9bd130c`, `389c452`;
-lane 2: `c5a02a0`, `44a79b5`, `dda9c6f`). Lanes 3 and 4 are design only. Lane
-1's three design corrections are ruling `FR-R` and lane 2's is ruling `FR-S`,
-each measured by running, and the numbers below already carry them.
+**Status: complete — all four lanes landed and verified `ok`** (lane 1:
+`901917a`, `9bd130c`, `389c452`; lane 2: `c5a02a0`, `44a79b5`, `dda9c6f`;
+lane 3: `10dcc60`, `a316916`, `b513fa3`; lane 4: `7d5a3a7`, `6c18389`; the
+record and the verifiers' corrections in the commit after `6c18389`). Lanes 1
+and 2 were verified in the session cut off on 2026-09-15 at 21:46 PDT and
+their verdicts are lost (record §14 reconstructs what can be); lanes 3 and 4
+were verified in the continuation, both `ok` with minor issues, all applied.
+The design corrections each lane found by running are rulings `FR-R` (lane
+1), `FR-S` (lane 2), `FR-T` (lane 3) and `FR-U`/`FR-V` (lane 4), and the
+numbers below already carry them. Final counts on this branch: **1247 tests,
+97 goldens, 63 guards, 0 `error:` / 0 `warning:`**. What the task's own text
+asks for and this track does NOT deliver — moving `width`/`height`/min/max
+onto the frame representation and deprecating them — is refused with
+measurements (`FR-F`…`FR-I`) and owned by plan task 7, so the plan's task 4
+entry is **not** ticked (record §14, "For the integrator").
 
-Rulings `FR-A`…`FR-S` live in
+Rulings `FR-A`…`FR-V` live in
 [`../2026-09-15-frame-sizing-decisions.md`](../2026-09-15-frame-sizing-decisions.md);
 the record is `docs/record/14-frame-and-sizing.md`. The track runs beside a
 second one (task 5's paint modifiers) in its own worktree, and an integration

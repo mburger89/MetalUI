@@ -605,17 +605,27 @@ extension StyledElement {
     //
     // - `Box(decoration:).width(36)` paints a 36pt-wide decorated box;
     //   `Box(decoration:).frame(width: 36)` paints the decoration at the
-    //   child's own size inside a 36pt layer.
-    // - a handler or a `hoverBackground` declared *before* a `.frame` stays on
-    //   the inner element, at the inner element's size, as it does in SwiftUI.
+    //   child's own size inside a 36pt layer (the design session's scratch
+    //   L8, `FR-F`; UNPINNED — no committed test renders a decoration inside
+    //   a frame).
+    // - a `hoverBackground` declared *before* a `.frame` stays on the inner
+    //   element, at the inner element's size, as a `.background` before a
+    //   `.frame` does in SwiftUI (`docs/probes/swiftui-modifier-order.swift`,
+    //   arm O1: the inner leaf reads 20×20 inside a 60×60 frame). A handler
+    //   declared before a `.frame` stays there too (scratch L4: a 0×0 hitbox
+    //   at (30, 20), `FR-F`); that SwiftUI's gesture hit area does the same is
+    //   by reading, unprobed.
     // - the clamps below can cancel flex §4.5's automatic minimum; a frame
     //   layer's `minSize` cannot reach into its child to do it (`minHeight`'s
     //   comment has the numbers).
     //
     // **None of the eight is deprecated, and that is a ruling rather than an
     // oversight** (`FR-I`): the branch gates on 0 `warning:`, so a `renamed:`
-    // hint means migrating every caller in the same change — 685 of them for
-    // `width`/`height` alone. Plan task 7, which removes the legacy engine,
+    // hint means migrating every caller in the same change — several hundred
+    // for `width`/`height` alone (`git grep -oE '\.(width|height)\(' --
+    // Sources Tests | wc -l`: 686 at `c4b5853`, and every test added since
+    // moves it, so the number is not written here). Plan task 7, which
+    // removes the legacy engine,
     // owns the migration and `FR-F` holds its recipe. New code should reach for
     // `.frame(...)`.
 
@@ -727,10 +737,11 @@ extension StyledElement {
     /// The per-edge form of `padding(_:)`; edges are applied to the new outer
     /// layer rather than overwriting this element's own style.
     ///
-    /// **This is one of the three modifiers through which `Length.rems` is
-    /// publicly reachable** (ruling `FR-Q`, with `margin(_ edges:)` and
-    /// `borderWidth(_ edges:)`; `gap` takes `Pixels` only, and there is no rem
-    /// *sizing* modifier anywhere). A rem resolves in
+    /// **This is one of the four modifiers through which `Length.rems` is
+    /// publicly reachable** (ruling `FR-Q` and its addendum, with
+    /// `margin(_ edges:)`, `borderWidth(_ edges:)` and — through `Dimension`,
+    /// which wraps a `Length` — `inset(_ edges:)`; `gap` takes `Pixels` only,
+    /// and there is no rem *sizing* modifier anywhere). A rem resolves in
     /// `MetalUILayout/Resolve.swift` against `Frame.rootFontSize` — a single
     /// per-frame `let`, default 16, not a per-element font size — and is
     /// already pinned by `ResolveTests`. SwiftUI has neither, so it is a
@@ -749,7 +760,7 @@ extension StyledElement {
     }
 
     /// See `margin(_:)` — `.auto` is deliberately out of reach. A per-edge
-    /// `Length` may be `.rems`, the second of the three public rem entry points
+    /// `Length` may be `.rems`, one of the four public rem entry points
     /// (`FR-Q`; see `padding(_ edges:)` for the inventory).
     public func margin(_ edges: Edges<Length>) -> Self {
         modifying {
@@ -768,10 +779,9 @@ extension StyledElement {
         modifying { $0.border = Edges(all: .pixels(points)) }
     }
 
-    /// The per-edge form of `borderWidth(_:)`, and the third of the three
-    /// public rem entry points (`FR-Q`; see `padding(_ edges:)` for the
-    /// inventory). Like the single-value form it changes layout and draws
-    /// nothing.
+    /// The per-edge form of `borderWidth(_:)`, and one of the four public rem
+    /// entry points (`FR-Q`; see `padding(_ edges:)` for the inventory). Like
+    /// the single-value form it changes layout and draws nothing.
     public func borderWidth(_ edges: Edges<Length>) -> Self {
         modifying { $0.border = edges }
     }
@@ -882,6 +892,14 @@ extension StyledElement {
     /// Percentages resolve **per axis**: `left`/`right` against the containing
     /// block's width, `top`/`bottom` against its height. This is not the
     /// padding/border rule, where CSS resolves every percentage against width.
+    ///
+    /// A `Dimension` wraps a `Length`, so an edge may be `.length(.rems(…))`:
+    /// this is the **fourth** public reach to `Length.rems`, missed by the
+    /// `FR-Q` inventory and added by its addendum (lane 3's verifier measured
+    /// an absolute box's `.inset(left: .length(.rems(Rems(2))))` at x = 32
+    /// against a 0px control's 0, root font size 16; `placeAbsolute` resolves
+    /// each edge with `rootFontSize`). See `padding(_ edges:)` for the
+    /// inventory.
     public func inset(_ edges: Edges<Dimension>) -> Self {
         modifying { $0.inset = edges }
     }

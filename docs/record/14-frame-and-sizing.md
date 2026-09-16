@@ -2,25 +2,44 @@
 
 The record for plan task 4. Spec
 `docs/superpowers/specs/2026-09-15-frame-sizing-design.md`; rulings `FR-A`…
-`FR-R` in `docs/superpowers/2026-09-15-frame-sizing-decisions.md` (next unused
-`FR-S`); probes `docs/probes/swiftui-frame-semantics.swift` (54 arms) and
-`docs/probes/swiftui-frame-negative-sizes.swift` (17 arms). The track runs in
+`FR-V` in `docs/superpowers/2026-09-15-frame-sizing-decisions.md` (next unused
+`FR-W`); probes `docs/probes/swiftui-frame-semantics.swift` (54 arms),
+`docs/probes/swiftui-frame-negative-sizes.swift` (17 arms),
+`docs/probes/swift-frame-overload-resolution.swift` (the Swift compiler, three
+variants by flag) and `docs/probes/appkit-screen-lock-state.swift` (the
+pre-capture check; a probe of the machine, not of SwiftUI). The track runs in
 its own worktree, `/Users/maxburger/Developer/MetalUI-frame-sizing`, beside the
 paint-modifier track, and is merged by an integration step that owns
 `CLAUDE.md`, the plan, `docs/record/README.md` and the other track's files.
-**Nothing in this file has been copied into those yet.**
+**Nothing in this file has been copied into those yet**; "For the integrator",
+the last section, says what each should say.
+
+**How this file was written.** The design-session, critic-round and lane
+sections were written as each landed (commits `4796bbb`, `d70a4a5`, `8a0fd9c`,
+`66e5498`, `798b1fb`, `b513fa3`, `7d5a3a7`, `6c18389`). The session that ran
+lanes 1 and 2 and verified them was cut off by a usage limit on 2026-09-15 at
+21:46 PDT: lane 3's and lane 4's verifier verdicts survive and are quoted in
+their "Verifier round" subsections; lane 1's and lane 2's do not, and "Lanes 1
+and 2 — the verifier tables, reconstructed" says what can and cannot be
+recovered, figure by figure. The summary sections from "What landed, in one
+place" onward were written on 2026-09-16 at `6c18389`, in the commit after it.
 
 Integration obligations this track creates for CLAUDE.md, which it may not edit
-itself: a **declared-but-inert row** for a single-axis
-`.frame(maxWidth: .infinity)` on the legacy path (`FR-O`); the fact that
-`.frame(width:height:alignment:)`'s lowering now pins its declared axis with an
-axis-named `minSize` (`FR-P`) and that `ElementGroup` must keep exactly ONE
-fixed `frame` overload (`FR-S`, or long modifier chains stop compiling); and, from lane 1, that **a frame with a maximum
-is greedy on the proposal path** (`FR-A`) with two divergences worth a line —
-an infinite proposal answers the child rather than infinity (`FR-B`), and a
-negative maximum or fixed size **traps** where SwiftUI floors it at 0 (`FR-L`,
-`FR-R` item 2). The suite total moves 1226 → **1234** on lane 1 and → **1245** after lane 2;
-guards 61 → 62 → **63**.
+itself, are itemised under "For the integrator". The short list: a
+**declared-but-inert row** for a single-axis `.frame(maxWidth: .infinity)` on
+the legacy path (`FR-O`); `.frame(width:height:alignment:)`'s lowering pins
+its declared axis with an axis-named `minSize` (`FR-P`); `ElementGroup` must
+keep exactly ONE fixed `frame` overload (`FR-S`, or long modifier chains stop
+compiling); **a frame with a maximum is greedy on the proposal path** (`FR-A`,
+`FR-M`) with two divergences worth a line — an infinite proposal answers the
+child rather than infinity (`FR-B`), and a negative maximum or fixed size
+**traps** where SwiftUI floors it at 0 (`FR-L`, `FR-R` item 2); three legacy
+divergences pinned wrong on purpose (`FR-E`, `FR-N`, `FR-O`);
+`idealWidth`/`idealHeight` trap on the legacy path (`FR-D`);
+**`width(percent:)` takes a fraction** (`FR-T`); and `IOConsoleLocked` is not
+the screen-lock check (`FR-V`). The suite total moves 1226 → 1234 (lane 1) →
+1245 (lane 2) → **1247** (lane 3); guards 61 → 62 → **63**; goldens **97**
+throughout, `git diff --stat c4b5853 -- '*.json'` empty at every lane.
 
 ### Design session, 2026-09-15, at `c4b5853`
 
@@ -469,6 +488,79 @@ added no integration obligation beyond the ones §14 already lists, except that
 property a merge must not break: re-introducing a second one compiles, and only
 `MC-A`'s solver-budget guard will say so.
 
+#### Lanes 1 and 2 — the verifier tables, reconstructed, 2026-09-16
+
+Both lanes were verified `ok` by independent agents in the session that was
+cut off on 2026-09-15 at 21:46 PDT, and **both verdicts are lost** with it:
+neither the verifiers' suite lines, their own mutations, their issue lists nor
+the required changes they asked for survive anywhere in the repo or the
+scratchpad. This subsection is the honest substitute, written on 2026-09-16
+at `6c18389`. Every figure below is labelled **quoted** (it is in a committed
+file and can be re-read), **corroborated** (an independent later run reproduced
+it), or **reconstructed** (inferred from what the commits and the decisions doc
+say; not itself a measurement).
+
+**What survives of the verdicts themselves.** One sentence, from the
+continuation brief: "Lanes 1 and 2 verified ok (suite 1245 at lane 2's
+verification)." That 1245 is consistent with lane 2's own green run
+(`44a79b5`, `Test run with 1245 tests in 1 suite passed`) and with `FR-R`
+item 1's corrected count; it is the only verifier-originated number for either
+lane. **Reconstructed**: that both verdicts had `goldensUnchanged: true`
+(every lane's own run read 97 with an empty diff, and lane 4's clean re-take
+at `b513fa3` and again at `7d5a3a7` read the same), and that whatever issues
+they raised were applied before the lane's record commit — commit `dda9c6f`
+("strengthen 2.7 and 2.9, which two mutations could not redden") is the shape
+a verifier-fix commit takes, and lane 2's record says those two mutations
+were run by the lane itself, so it may equally be the lane's own finding.
+Nothing distinguishes the two readings now.
+
+**The mutation tables, cross-checked today.** The lane sections above carry
+the implementers' tables (`8a0fd9c`: eleven mutations; `66e5498`: eighteen).
+The decisions doc carries a per-ruling "Mutations" line for each ruling the
+lanes landed. The two were compared line by line on 2026-09-16, and **every
+row in one appears in the other with the same reddened set** — so the tables
+are internally consistent, which is the most that can be said without the
+verifiers' independent runs:
+
+| ruling | its Mutations line names | record rows | consistent |
+|---|---|---|---|
+| `FR-A` | the greedy gate restored to `== .infinity`; the branch made unconditional; the ideal branch deleted; the two branches swapped (none) | lane 1 M1, M2, M9, M4 | yes, sets identical |
+| `FR-B` | `proposal.isFinite` dropped → 1.3 alone | M3 | yes |
+| `FR-J` | the `ElementGroup` and the `ProposalElementGroup` `frame()` declarations deleted, each → 1.10 alone | M10, M11 | yes |
+| `FR-L` | `lo` unfloored in `framedSize` and in `framedProposal`; `hi` unfloored (none) | M7a, M8, M7b | yes |
+| `FR-M` | presence test as a value test; `Swift.max` dropped | M5, M6 | yes |
+| `FR-C` | `justifyContent` dropped; `alignItems` dropped; axes swapped; `size.width` dropped; `flexDirection = .column` | lane 2 M1, M2, M3, M9, M11 | yes |
+| `FR-D` | the `idealWidth` precondition unconditional | M8 | yes |
+| `FR-E` | `minSize` dropped from the flexible minimum row; `maxSize` dropped | M6, M7 | yes |
+| `FR-N` | `flexDirection = .column` | M11 | yes |
+| `FR-O` | `alignSelf` dropped; `flexGrow` dropped; the fill extended to a single axis | M12, M13, M14 | yes |
+| `FR-P` | `minSize` dropped from the fixed rows; the pin replaced by `flexShrink = 0` | M4, M5 | yes |
+| `FR-S` | the two-parameter overload re-declared; the proposal fixed overload removed; the proposal `idealWidth:` label renamed | M16, M15, M18 | yes |
+| (record only) | the frame layer's `size.height` of 40 (critic finding 16); the outermost layer's child list dropped | M10, M17 | in the record and the critic ledger, not under a ruling |
+
+**What was independently re-run later, and by whom** — the only corroboration
+of any lane 1 or lane 2 mutation that exists:
+
+| lane / mutation | re-run by | result |
+|---|---|---|
+| lane 1 M10, `ElementGroup.frame()` deleted | lane 4 (A), twice: 2026-09-15 at `b513fa3`, 2026-09-16 at `7d5a3a7`; lane 4's verifier a third time at `6c18389` | **corroborated**: `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths` alone, `succeeded=false deprecations=1`, `1247 … failed … with 2 issues` |
+| lane 2 M18, the proposal `idealWidth:` label renamed | lane 4 (B), the same three times | **corroborated**: `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload` and `anIdealDimensionOnTheLegacyFrameTraps`, `failed … with 2 issues` |
+| lane 2's `_wrap` on `frame(width:height:alignment:)` doubled | lane 3 (L4) and lane 3's verifier (M4) | **corroborated with a smaller set**: 7 tests / 13 issues, not the lane's 8 / 18 — see lane 3's L4 row and its verifier round |
+| the kernel patch sweep (`FR-A` + `FR-L` + `FR-M`: exactly two existing tests redden) | the critic round, then lane 1's green run from the other side | **quoted**, both in this file |
+
+Everything else in the two lane tables — the reddened sets of lane 1's M1–M9
+and M11 and lane 2's M1–M17 — is **quoted from the implementer's commit and
+uncorroborated**. The guard-runs-in-this-worktree claims (lane 1's M10/M11,
+lane 2's M18) are corroborated by lane 4's re-runs above; lane 1's second
+guard proof, M11, has no re-run of its own.
+
+**What cannot be reconstructed, said plainly.** Whether either verifier ran a
+mutation the lane had not; whether either raised an issue the lane's record
+commit does not reflect; and the verifier's own suite line for lane 1. The
+practices doc's rule — findings come from mutation, not inspection — is met
+for lanes 1 and 2 by the implementers' runs and by the four corroborations,
+not by the independent verification the process intended.
+
 #### Lane 3 — the sizing inventory, 2026-09-15
 
 Two commits:
@@ -525,7 +617,7 @@ run read `Test run with 1247 tests`.
 | L1 | `width(percent:)` writes `.percent(percent / 100)` — **the candidate fix** | **2** (6 issues): 3.1 at five arms (`fractionInRow → 2.0`, both `Column` rects, the root rect, the row control) and `everyPublicModifierWritesItsOwnFieldAndOnlyThatField`. This is the measured blast radius `FR-T` quotes |
 | L2 | `resolveRootSize`'s `withoutMeasuring` resolves against no basis (`declared(dim)`, the pre-`SZ-A` spelling) | **2** (3 issues): 3.1's **root arm alone** — arms A and C stay green, so the arm discriminates — and the engine oracle `rootPercentageMatchesWebKit` |
 | L3 | `minHeight(_:)` writes nothing | **2**: 3.2's opening `#require` (`(demoSpelling → 400.0) != (noMinimum → 400.0)`) and `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` |
-| L4 | `frame(width:height:alignment:)` `_wrap`s twice | **8** (18 issues): 3.2's frame arm (`(framed → 4) == (bare + 1 → 3)`), 2.6, 2.8, `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`, `chainedFramesRemainConcreteAndNestTheirLayoutNodes`, `legacyModifierChainsInferOneConcreteType`, `aGenericWrapOverAChainIsIdenticalToTheFlatChain`, `aModifierChainIsIdenticalToHandBuiltNestedBoxes`, `stateSurvivesFramesUnderALegacyModifierChain` |
+| L4 | `frame(width:height:alignment:)` `_wrap`s twice | **as the lane recorded it: 8 tests, 18 issues**, 2.6 and 2.8 among them. **Re-taken by the lane's verifier (its M4, below) with an identical-style second `_wrap`: 7 tests, 13 issues, and 2.6 and 2.8 stay green** — an identical frame nested in an identical frame gives identical geometry, so only node-count, type-shape and identity tests see it: 3.2's frame arm (`(framed → 4) == (bare + 1 → 3)`), `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`, `chainedFramesRemainConcreteAndNestTheirLayoutNodes`, `legacyModifierChainsInferOneConcreteType`, `aGenericWrapOverAChainIsIdenticalToTheFlatChain`, `aModifierChainIsIdenticalToHandBuiltNestedBoxes`, `stateSurvivesFramesUnderALegacyModifierChain`. The lane's spelling of the mutant that reddened 2.6 and 2.8 was not recorded and could not be reproduced, so the verifier's set is the one to cite; the essential claim, that 3.2's frame arm reddens, holds either way |
 | L5 | `width(_:)`/`height(_:)` routed through `frame(width:)`/`frame(height:)` — **`FR-F`'s refusal made executable** | **the package stops compiling**, which is the finding: a modifier returning `Self` cannot add a node, so the conversion must change the return type. `swift build --build-tests` halts in `MetalUIDemo` at **2** errors (`main.swift:266`'s `-> Box<Text>` helper, `:290`'s `typealias Chrome`); building `MetalUITests` alone, which skips the demo, reports **70** distinct error sites across six files — `AccessibilityTreeTests` 60, `AccessibilityEndToEndTests` 4, `ModifierTests` 2, `EnvironmentTests` 2, `ProposalNodeIDTests` 1, `AnimationTests` 1 |
 
 **What has no mutation, said plainly.** 3.2's six-modifier arms cannot be
@@ -563,6 +655,50 @@ demo and preview pixel comparison against `c4b5853`, and the
 `IOConsoleLocked` check with real release-window captures. Lane 3 changed no
 executable line in `Sources/`, so it cannot move a pixel; lane 1's kernel change
 is still the thing that comparison is for.
+
+#### Lane 3 — verifier round, 2026-09-16 (at `b513fa3`)
+
+**Verdict `ok: true`**, quoted: `Test run with 1247 tests in 1 suite passed
+after 44.839 seconds` (`swift test --build-system native --no-parallel` after
+`swift build --build-system native --build-tests`; 0 `error:`, 0 `warning:` in
+the test log, the only warning SwiftPM's own `--build-system native`
+deprecation notice on stderr; only `regenerateAllGoldens` and
+`aListsWorkIsTheSameFor100kRowsAsFor500` skipped; `FREEZE-ALLOC` strict half
+not checked on this toolchain, as documented). Goldens 97, diff against
+`c4b5853` empty. Guards: per-file `grep -c canTypecheck` sums to 64 outside
+`Typecheck.swift`, one the `UnitSafetyTests.swift` comment, so **63**; lane 3
+adds none (`FrameSizingTests.swift` has 0). The verifier confirmed by diff
+that lane 3's `Sources/` change (`798b1fb..b513fa3 -- Sources`) is comment
+lines and two blank lines only, so it cannot move a demo or preview pixel;
+the display read `IOConsoleLocked false` and the real-window captures were
+left to lane 4, as the spec assigns. Red-first: both tests are declared
+characterizations, green on arrival by the lane's own account (`10dcc60` at
+21:33 precedes the doc commits at 21:43 and 21:46; no implementation commit
+exists), their proof the mutation table — consistent with lane 2's treatment
+of its own characterizations. Worktree clean afterwards.
+
+**Mutations, the verifier's**, each over the whole suite:
+
+| # | mutation | tests reddened |
+|---|---|---|
+| M1 = the lane's L1 | `Box.swift` `width(percent:)` writes `.percent(percent / 100)` — the candidate fix | **2**: `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock` (5 issues) and `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` (1). Lane 3's L1 exactly |
+| M2 = L2 | `FlexEngine.swift` `resolveRootSize`/`withoutMeasuring` resolves `declared(dim)` against no basis (the pre-`SZ-A` spelling) | **2**: 3.1 at **the root arm alone** (`FrameSizingTests.swift:698`; arms A and C stayed green) and `rootPercentageMatchesWebKit` (2 issues). L2 exactly |
+| M3 = L3 | `minHeight(_:)` writes nothing | **2**: 3.2 at its opening `#require` (`demoSpelling == noMinimum`) and `everyPublicModifierWritesItsOwnFieldAndOnlyThatField`. L3 exactly |
+| M4 = L4 | `frame(width:height:alignment:)` `_wrap`s twice with the same `FrameSpec` style | **7** (13 issues): 3.2's frame arm (`framed == bare + 1`), `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`, `aGenericWrapOverAChainIsIdenticalToTheFlatChain`, `aModifierChainIsIdenticalToHandBuiltNestedBoxes` (5 issues), `chainedFramesRemainConcreteAndNestTheirLayoutNodes`, `legacyModifierChainsInferOneConcreteType` (3 issues), `stateSurvivesFramesUnderALegacyModifierChain`. **2.6 and 2.8 stayed green**, against the lane's 8 / 18 — the L4 row above is amended |
+| M5 = L5, a compile result | `width(_:)` returns `ModifiedElement<LayerBase>` via `frame(width:)`; `swift build --build-system native --build-tests` | the build halts in `MetalUIDemo` at **2** errors in `main.swift` (matches the lane's "2 errors"; the 70-site `MetalUITests` figure was not re-taken) |
+| M6, the verifier's own | `height(percent:)` writes `.percent(percent / 100)` | **2**: 3.1 at its `halfHigh` arm alone, and `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` |
+| M7, an instrument | scratch `ZZVerifierRemInsetTests.swift`: an absolutely positioned `Mark` with `.inset(left: .length(.rems(Rems(2))))` against a 0px control; deleted afterwards | **none — it PASSED**, `VERIFIER-M7 inset left: control 0.0, 2rem 32.0`, which is the finding: `Length.rems` is publicly reachable through `inset(_ edges: Edges<Dimension>)` (`FlexEngine.swift`'s `placeAbsolute` resolves each inset with `rootFontSize`), a fourth entry point the `FR-Q` inventory and the new `padding(_ edges:)` comment said did not exist |
+
+**Five minor issues, and where each went** (all applied 2026-09-16 in the
+commit after `6c18389`, by the record writer):
+
+| # | issue | disposition |
+|---|---|---|
+| 1 | the rem inventory is short by one entry point (`inset(_ edges:)`, M7) | **applied**: `Box.swift`'s `padding(_ edges:)`, `margin(_ edges:)` and `borderWidth(_ edges:)` comments say four; `inset(_ edges:)` gains the sentence with M7's numbers; `FR-Q` gains an addendum; this file records it here. `FR-Q`'s disposition (keep, out of this task) is unaffected |
+| 2 | the decisions doc's header said "next unused is `FR-T`" and its latest status line was lane 2's | **overtaken before it was read**: lane 4's `7d5a3a7` bumped the header to `FR-W` and added a lane-4 status line; the record round added a further status line. Nothing more to do |
+| 3 | `FR-H`'s body still asserts the three arms `FR-T` refutes, with no pointer | **applied**: a "Read `FR-T` first" paragraph at the top of `FR-H` |
+| 4 | the L4 row overstates its reddened set (8 / 18 with 2.6 and 2.8; re-taken 7 / 13 without them) | **applied**: the row now carries both figures, names the verifier's set as the one to cite, and says the lane's mutant spelling was not recorded and could not be reproduced |
+| 5 | three sentences in `Box.swift`'s `MARK: Size` comment were unprobed, unpinned or stale: the "handler … as it does in SwiftUI" clause has a probe for its background half only (`swiftui-modifier-order.swift` O1) and none for a gesture; the `Box(decoration:).frame(width: 36)` sentence is scratch L8 with no committed test; "685 of them" was already 706 on `HEAD` (686 at `c4b5853`) | **applied**: O1 cited for the background half; the handler half split into MetalUI's measured L4 and a "by reading, unprobed" tag for SwiftUI's gesture area; the decoration sentence tagged "scratch L8, UNPINNED"; the literal replaced by the grep (`git grep -oE '\.(width\|height)\(' -- Sources Tests \| wc -l`, 686 at `c4b5853`), re-checked today: 686 / 706 |
 
 #### Lane 4 — verification, 2026-09-15
 
@@ -679,7 +815,7 @@ the same standing as after §13, and the check to run first is the CGS one.
 / 97 / 63. Nothing in `Sources/` or `Tests/` moved; `git status --short` is
 empty after every mutation and instrument.
 
-**Re-taken in full, 2026-09-16 04:02–04:20 PDT, at `7d5a3a7`** — the lane's
+**Re-taken in full, 2026-09-16 04:02–04:08 PDT, at `7d5a3a7`** (first written as 04:02–04:20; the last artifact, `l4-px-inst-I2/rects-preview-920x560.txt`, is stamped 04:07:39 and the commit `6c18389` 04:08:40 — corrected by the lane's verifier) — the lane's
 implementer report was lost with the session that wrote it, and a count is
 stale the moment it is trusted rather than measured, so the whole table above
 was re-run in this worktree rather than read back. `swift package clean`,
@@ -706,6 +842,39 @@ worktree read `git status --short` empty after each mutation and the scratch
 kernel diffed clean against it after each instrument. Nothing in the table
 moved, so no ruling changes; `FR-V` gains its corroborating re-read.
 
+#### Lane 4 — verifier round, 2026-09-16 (at `6c18389`)
+
+**Verdict `ok: true`**, quoted: `Test run with 1247 tests in 1 suite passed
+after 39.530 seconds` (after `swift package clean` + `swift build
+--build-system native --build-tests`; `error:` 0; `warning:` 1 = SwiftPM's own
+`--build-system native` deprecation notice; exactly two tests skipped; both new
+guards' fixture prints present — `FR-J no-argument frame: succeeded=true
+deprecations=2`, `FR-S overload resolution: succeeded=true messages=[]` — so
+they ran rather than skipped; guards 64 hits in 10 test files minus the
+`UnitSafetyTests.swift:13` comment = **63**; goldens 97, diff against
+`c4b5853` empty; `git status --short` empty at the end, HEAD `6c18389`).
+
+**Mutations and instruments, the verifier's**, each over the whole suite or
+the stand-in:
+
+| # | mutation | result |
+|---|---|---|
+| A (lane 4 / `FR-J`) | the deprecated `ElementGroup.frame()` deleted, `FrameLayer.swift:197-198` | **1**: `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths` (`FrameSizingCompileGuards.swift:102`, `:104`; `succeeded=false deprecations=1`); `1247 … failed after 38.896 seconds with 2 issues` |
+| B (lane 4 / `FR-S`) | the proposal flexible overload's `idealWidth:` label renamed, `NativeModifiedContent.swift:296` | **2**: `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload` (`:171`, `cannot convert value of type 'ModifiedElement<ProposalLeaf>' to specified type 'ModifiedContent<ProposalLeaf>'` at the flexible and ideal spellings) and `anIdealDimensionOnTheLegacyFrameTraps` (`FrameSizingTests.swift:268`); `failed … with 2 issues` |
+| L3 (lane 3 spot-check, never independently verified before this) | `minHeight(_:)` writes nothing (`Box.swift:697`) | **2**: 3.2 (`FrameSizingTests.swift:817`) and `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` (`ModifierTests.swift:305`); `failed … with 2 issues`, exactly lane 3's pair |
+| L1 (lane 3 spot-check, `FR-T`'s candidate fix) | `width(percent:)` writes `.percent(percent / 100)` (`Box.swift:659`) | **2**: 3.1 at `:696`, `:698`, `:700`, `:705`, `:707` — five arms — and `everyPublicModifierWritesItsOwnFieldAndOnlyThatField`; `failed … with 6 issues`, exactly the blast radius `FR-T` quotes |
+| I1 (`FR-U`'s instrument, scratch head kernel only) | `framedSize`'s greedy line put back to the pre-`FR-M` rule `base = proposal` (`LayoutTree.swift:1105`); `siRectDump` at 920×560, 828×503, 1024×1024 vs base | **nothing** — 0 differing lines in all six dumps, which is the finding `FR-U` records (double centring; the child at −17pt either way); the head kernel restored and diffed identical to the worktree |
+| I2 (I1's positive control) | `framedProposal` returns `proposal − 10` (`LayoutTree.swift:1067`) | 224 differing lines in each of the three preview dumps; 0 in the three default dumps — the instrument sees the preview's kernel frame and is blind to the legacy path, as recorded |
+| the pixel stand-in, re-taken fresh in both scratch trees | `l4-base/Sources` byte-identical to `git archive c4b5853`; `l4-head/Sources` and `Tests` identical to the worktree bar the generated `SIPixelStandIn.swift`; ten 1024×1024 images per tree through a real `Window` over `FakePlatformWindow` | controls: light vs dark 1 048 576; default vs modal 1 030 498; default vs animation look 210 027, bbox (16, 113, 966×895); preview light vs dark 1 048 576; f0 vs f3 0. **Base vs head: 0 differing pixels in all ten**; the fresh images byte-identical to the 2026-09-15/16 `l4-px-*` images (20 / 20); rect dumps 518 rects / 15 711 glyphs (default) and 16 / 97 (preview) at all three sizes, 0 differing lines × 6; the preview's 920×560 inner surface rect confirmed at (0, −34) 1840×1188 device px = 594pt in a 560pt window |
+
+**Two minor issues, and where each went** (both applied 2026-09-16 in the
+commit after `6c18389`):
+
+| # | issue | disposition |
+|---|---|---|
+| 1 | the re-take paragraph dated the run 04:02–04:20 PDT; the last artifact (`l4-px-inst-I2/rects-preview-920x560.txt`) is stamped 04:07:39 and `6c18389` is 04:08:40 | **applied**: the paragraph reads 04:02–04:08 and says why. Numbers unaffected |
+| 2 | `FR-V` rules that the check runs "from a swiftc-compiled probe", but no such probe was saved; the working `l4-diag.swift` lived only in the scratchpad and the scratchpad's `l4-lockcheck.swift` variant does not compile (`CGSessionCopyCurrentDictionary()` returns `CFDictionary?`, so `.takeRetainedValue()` is an error) | **applied**: saved as `docs/probes/appkit-screen-lock-state.swift`, the `l4-diag.swift` shape (`as? [String: Any]`, `CGDisplayIsAsleep`, `CGDisplayIsActive`, `CGPreflightScreenCaptureAccess`), with the two lane-4 readings and a third taken when the file was saved (2026-09-16 04:20:39 PDT: still locked, still asleep, `IOConsoleLocked` `<true/>`) in its header, the `CFDictionary?` note, and no positive control — every reading so far is locked, and the header says the first unlocked one is the control it lacks. `FR-V` and this file cite it |
+
 ### Open at the end of the critic round
 
 - Two of `MC-Q` finding 7's four handed-over shapes are **not** covered by this
@@ -730,4 +899,559 @@ moved, so no ruling changes; `FR-V` gains its corroborating re-read.
 - The release-window captures stay owed (`MC-J`, `EV-P`); lane 4 checked
   `IOConsoleLocked`, found it `false`, launched, and was refused anyway — the
   screen was locked and the display asleep by the CGS session dictionary, which
-  is the check to run instead (`FR-V`).
+  is the check to run instead (`FR-V`). The check is saved as
+  `docs/probes/appkit-screen-lock-state.swift`.
+
+### What landed, in one place
+
+Eighteen commits on `feat/frame-sizing` from `c4b5853`, in order; `Sources/`
+moved in four of them and `Tests/` in five:
+
+| commit | lane | what |
+|---|---|---|
+| `4796bbb` | design | spec, decisions doc (`FR-A`…`FR-K`), the 54-arm probe |
+| `d70a4a5` | critic round | 15 of 16 findings applied, one refused with a measurement; `FR-L`…`FR-Q`; the 17-arm negative-sizes probe |
+| `901917a` | 1, step 0 | `ModifiedElement.swift`'s trailing `frame(width:height:)` replaced in place by a forwarding declaration into the new `Sources/MetalUI/FrameLayer.swift` — the shared-file seam, no behaviour change |
+| `9bd130c` | 1, red | 1.1–1.6 and 1.9 new, 1.7/1.8 re-fixtured, 1.10 the first guard in the new `FrameSizingCompileGuards.swift` |
+| `389c452` | 1, green | `framedSize`/`framedProposal` (`LayoutTree.swift`): greedy at any maximum, `max(proposal, child)` when no minimum, declared bounds floored at 0, `proposal.isFinite` kept; the deprecated `frame()` on both protocols |
+| `8a0fd9c` | 1, record | `FR-R`; eleven mutations |
+| `c5a02a0` | 2, red | 2.1–2.10 in the new `FrameSizingTests.swift`; the second guard broadened |
+| `44a79b5` | 2, green | `FrameSpec`'s six bounds and alignment, `style()`'s lowering table, the flexible overload with `FR-D`'s trap, the fixed overload amended in place to carry `alignment:` (`FR-S`), both hand-spelled `frameStyle` oracles given the `minSize` pin |
+| `dda9c6f` | 2 | 2.7 and 2.9 strengthened after two mutations reddened nothing |
+| `66e5498` | 2, record | `FR-S`; eighteen mutations |
+| `316237b` | 2 | two source doc comments refreshed (`NativeModifiedContent.swift`, `EnvironmentScope.swift`) |
+| `798b1fb` | 2, record | why the demo's pixels cannot move (a compile-time fact) |
+| `10dcc60` | 3, tests | 3.1 and 3.2 appended to `FrameSizingTests.swift`; the fraction finding |
+| `a316916` | 3, docs | `Box.swift`'s `MARK: Size` section and three `Edges<Length>` overloads; `flexBasis(percent:)` and `Length.percent` (`Units.swift`) — comments only |
+| `b513fa3` | 3, record | `FR-T`; five mutations; two stale claims |
+| `7d5a3a7` | 4, record | verification; `FR-U`, `FR-V` |
+| `6c18389` | 4, record | the whole of lane 4 re-taken at `7d5a3a7`, every figure identical |
+| the commit after `6c18389` | record | this file's summary sections; the lane 3 and lane 4 verifiers' seven minor issues applied (comments in `Box.swift`, `FR-H`/`FR-Q`/`FR-V`, the saved lock probe, three record corrections); the spec's Status |
+
+**Source files, `git diff --stat c4b5853..6c18389 -- Sources`:**
+
+| file | lines | what changed |
+|---|---|---|
+| `Sources/MetalUI/FrameLayer.swift` | +199, new | `FrameSpec` (internal, `FR-C`) and `style()`, the one CSS lowering of a SwiftUI frame; the flexible legacy overload; the deprecated `ElementGroup.frame()` |
+| `Sources/MetalUILayout/LayoutTree.swift` | 104 | `framedSize`, `framedProposal`, `newNativeFrame`'s doc comment — lane 1's kernel change and its comments |
+| `Sources/MetalUI/NativeModifiedContent.swift` | 30 | the deprecated `ProposalElementGroup.frame()`; the fixed proposal frame's doc comment |
+| `Sources/MetalUI/ModifiedElement.swift` | 22 | step 0's forwarding declaration, then `alignment:` added in place (`FR-S`); **its file header, line 4, still spells the legacy frame `.frame(width:height:)`** — left for integration on purpose (lane 2's stale-comment sweep) |
+| `Sources/MetalUI/Box.swift` | 118 + this commit | comments only: the `MARK: Size` section, the eight sizing modifiers, four `Edges` overloads (`padding`, `margin`, `borderWidth`, `inset`), `flexBasis(percent:)` |
+| `Sources/MetalUI/EnvironmentScope.swift` | 8 | a comment: "`.frame(width:height:)` may follow a scope" refreshed |
+| `Sources/MetalUICore/Units.swift` | 11 | a doc comment on `Length.percent`, which had none |
+
+No shared file beyond `ModifiedElement.swift` and `Box.swift` was touched, and
+`Box.swift` in comments only; `Component.swift`, `Element.swift`,
+`ElementGroup.swift`, `Frame.swift`, `Passes.swift` and `Handlers.swift` are
+untouched (`git diff --stat c4b5853..HEAD -- Sources` lists none of them).
+
+**Counts after this record's own commit**, which touches `Sources/` in
+`Box.swift` comments only (re-taken rather than assumed, 2026-09-16 04:30 PDT,
+`swift build --build-system native --build-tests` then `swift test
+--build-system native --no-parallel`): `Test run with 1247 tests in 1 suite
+passed after 41.538 seconds`; `error:` 0; `warning:` 2, both SwiftPM's own
+`'--build-system native' has been deprecated` notice (build and test share one
+log); `FR-J no-argument frame: succeeded=true deprecations=2` and `FR-S
+overload resolution: succeeded=true messages=[]` printed, so both new guards
+ran; only the two gated tests skipped; goldens 97, `git diff --stat c4b5853 --
+'*.json'` empty; guards 64 hits across the ten files less the
+`UnitSafetyTests.swift` comment = **63**.
+
+### Tests and guards, per file
+
+**1226 → 1247, +21, all additions** (`git diff c4b5853..HEAD -- Tests` adds 21
+`@Test` lines and removes none):
+
+| file | new tests | re-fixtured in place | guards |
+|---|---|---|---|
+| `Tests/MetalUILayoutTests/NativeLayoutTests.swift` (19 → 25) | 6: 1.1 `aFrameWithAMinimumAndAMaximumGrowsTowardItsProposal`, 1.2 `aFrameWithNoMaximumAnswersItsChildRatherThanItsProposal`, 1.3 `aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity`, 1.4 `anIdealDimensionIsUsedOnlyWhenThatAxisHasNoProposal`, 1.5 `aFrameWithoutAMinimumNeverAnswersLessThanItsChild`, 1.6 `aFrameNeverAnswersANegativeSize` | 1.7 `aNativeFrameClampsItsProposalAndResponseToMinimumAndMaximum` (40×70 → 80×60), 1.8 `aNativeFrameUsesIdealDimensionsOnlyForUnspecifiedAxes` (70×20 → 70×60, doc comment rewritten) | 0 |
+| `Tests/MetalUITests/NativeLayoutIntegrationTests.swift` (41 → 42) | 1: 1.9 `aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI` | | 0 |
+| `Tests/MetalUITests/FrameSizingCompileGuards.swift` (new) | 2, both guards | | **2**, both `typecheckFile` (whole file, Swift 6): 1.10 `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths` (lane 1), `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload` (lane 2). Each prints its fixture result (`FR-J …`, `FR-S …`) so a log shows whether it ran |
+| `Tests/MetalUITests/FrameSizingTests.swift` (new) | 12: 2.1 `aLegacyFramePlacesItsChildAtEachOfTheNineAlignments`, 2.2 `aLegacyFixedFrameDoesNotShrinkAsAFlexItem`, 2.3 `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`, 2.4 `anIdealDimensionOnTheLegacyFrameTraps` (exit tests), 2.5 `chainedLegacyFramesAgreeWithSwiftUIsOrderingRules`, 2.6 `aLegacyFrameProposesItsWidthToAMeasuredLeaf`, 2.7 `aLegacyFrameAroundAListStillBuildsEveryRow`, 2.8 `aLegacyFrameSqueezesAnOversizedChildWhereSwiftUIOverflows`, 2.9 `anInfiniteMaximumFillsOnlyWhenBothAxesAreInfinite`, 2.10 `aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare`, 3.1 `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock`, 3.2 `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt` | | 0 |
+| `Tests/MetalUITests/ModifiedElementTests.swift`, `ModifierCompositionProofTests.swift` | 0 | the two hand-spelled `frameStyle(width:height:)` oracles gained `minSize` — **drift obligations**, kept in step by hand (`FR-P`) | |
+
+Guards **61 → 63**, per file at `6c18389`: `PhaseSeparationTests` 19,
+`ErasureCompileGuards` 10, `EnvironmentCompileGuards` 8,
+`ProposalNodeIDCompileGuards` 6, `ProposalLayoutCompileGuards` 6,
+`ElementGroupTrapTests` 5, `AXNodeTests` 3, `UnitSafetyTests` 2 (3 hits, line
+13 a comment), `ModifiedElementCompileGuards` 2, **`FrameSizingCompileGuards`
+2**. Each new guard was mutated red in this worktree at least three times
+(lane 1's M10/M11 and lane 2's M18 on arrival; lane 4's A and B twice; the
+lane 4 verifier's A and B). Goldens **97** at every commit, diff against
+`c4b5853` empty; `Sources/MetalUILayout/LayoutTree.swift` changed and no
+golden moved, which is expected — the change is inside `framedSize`, behind
+`isNativeLayoutNode(root)`, and no fixture builds a native node (record §09).
+
+### Probes
+
+| probe | arms | what it settled | positive controls |
+|---|---|---|---|
+| `docs/probes/swiftui-frame-semantics.swift` | 54 (`A`…`F`) | the whole frame rule: child proposal, response, the nine alignments, chaining, measured leaves; that a finite `maxWidth` frame GROWS (`SA-N` item 1, closed) | every group opens with a control whose answer must differ; script and compiled forms diffed EMPTY (295 lines); its first pass crashed SwiftUI at D12 (`view origin is invalid: (nan, 190.0)`), recorded |
+| `docs/probes/swiftui-frame-negative-sizes.swift` | 17 (`H`) | SwiftUI never answers a negative size and floors DECLARED bounds at 0 (`FR-L`); an absent minimum is not `minWidth: 0` (`FR-M`: H8 20 vs H14 10); `maxWidth: .infinity` over an oversized child answers the child (H16) — the shipped kernel's live bug | script and compiled forms diffed EMPTY (101 lines); the compiled form prints exactly two SwiftUI diagnostics (H6, H10) |
+| `docs/probes/swift-frame-overload-resolution.swift` | 3 variants × 8 spellings | a probe of the COMPILER: the refined protocol wins every `frame` spelling; `frame()` on `ElementGroup` alone reinstates `SA-N` item 9 (`FR-J`); two fixed legacy overloads are silently ambiguous-free and exponentially slow (`FR-S`, measured on the real module: fails at threshold 16000 with two, 186 with one) | each `frame` body prints which declaration ran; variant C is the pre-lane-2 shape |
+| `docs/probes/appkit-screen-lock-state.swift` | — | a probe of the MACHINE: `CGSSessionScreenIsLocked` + `CGDisplayIsAsleep` are the pre-capture check, `IOConsoleLocked` is not (`FR-V`) | **none yet** — three locked readings; the first unlocked reading is the control it lacks; the full-screen non-black pixel count is the backstop |
+| cited, not new: `docs/probes/swiftui-modifier-order.swift` arm O1 | | a `.background` before a `.frame` sits at the content's size in SwiftUI — the background half of `Box.swift`'s section comment | (task 3's) |
+
+Seventy-one SwiftUI arms across the two frame probes; the rule they fix, in
+one place, is the spec's "The rule, in one place" block.
+
+### Red runs, in one place
+
+| lane | red | green |
+|---|---|---|
+| 1 | `9bd130c`: `Test run with 1234 tests in 1 suite failed after 30.849 seconds with 11 issues` — 1.1, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10 red; 1.2 and 1.3 green on arrival (proved by M2 and M3) | `389c452`: `1234 … passed after 30.393 seconds` |
+| 2 | red run 1, `c5a02a0` against the unchanged source: the test target does not compile, 13 errors (`extra argument 'alignment' in call` ×2, `argument passed to call that takes no arguments` ×10 — every flexible spelling — and the ideal arm); red run 2 against a scratch stub declaring the overloads with step 0's lowering: `1245 … failed after 34.371 seconds with 10 issues` — 2.1, 2.2, 2.3, 2.4, 2.5, 2.9 red, plus `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget` (`FR-S`); 2.6, 2.7, 2.8, 2.10 green on arrival as characterizations | `44a79b5`: `1245 … passed after 34.599 seconds` |
+| 3 | none — both tests are characterizations, green at `10dcc60` (`1247 … passed after 32.741 seconds`); their proof is L1–L5 | `a316916` after `swift package clean`: `1247 … passed after 33.455 seconds` |
+| 4 | no test | `b513fa3` after clean: `1247 … passed after 37.954 seconds`; `7d5a3a7` after clean: `36.731 seconds`; the verifier: `39.530 seconds` |
+
+### Mutations that stayed green, and what has no mutation
+
+Each is a coverage statement, named rather than hidden in a count:
+
+- **Lane 1 M4**, `framedSize`'s first two branches swapped: **nothing** — they
+  are mutually exclusive, so the order is documentation (`FR-R` item 3). The
+  spec's claim that it reddens 1.4 is withdrawn.
+- **Lane 1 M7b**, `framedSize`'s `hi` unfloored: **nothing** — `SA-J` traps on
+  a negative maximum at registration, so the floor is an unreachable backstop
+  (`FR-R` item 2). Tightening `SA-J` is task 7's.
+- **Lane 2's first `alignSelf = .stretch` drop**: nothing in 1245 — a mark
+  centred in a 20pt-tall layer at y = 90 and one centred in a 200pt-tall layer
+  at y = 0 sit at the same y. Fixed by adding two `.topLeading` arms to 2.9
+  (`dda9c6f`); M12 then reddens exactly those.
+- **Lane 2 M10**, a fixed `size.height` of 40 on the frame layer: 2.6 and 2.9,
+  **never 2.7**, twice (divergence 14: `List` windows against the scroller,
+  not the layer). 2.7's only mutation is the broad M17 (the outermost layer's
+  child list dropped, ~25 tests / 102 issues), and its doc comment says so.
+- **Lane 3's 3.2, six `Self`-returning arms**: no mutation while the package
+  compiles — "returns `Self`, therefore adds no node" is enforced by the return
+  type, and L5/M5 is what an attempt looks like (a build halt).
+- **Lane 3's 3.2, the two `.frame(minHeight: 0)` arms**: pinned against a
+  *future* fix (a layer's `minSize` reaching its child, plan task 6); no
+  mutation short of building it.
+- **Lane 4 I1**, the greedy line put back to `base = proposal`: 0 differing
+  dump lines by design — `FR-U`'s finding, with I2 (224 lines) as its control.
+- **Lane 3's verifier M7**: an instrument that PASSED and thereby found the
+  fourth rem entry point.
+
+**Unpinned or unprobed, by reading:** `Box(decoration:).frame(width: 36)`
+painting the decoration at the child's size (scratch L8; no committed test);
+SwiftUI's gesture hit area for a handler declared before a `.frame` (the
+background half is probed, O1); the nil axis in a modifier-order chain and a
+stretching `Box` parent (EP-8), handed over by `MC-Q` finding 7 and not
+covered; `FR-D`'s `flexBasis`-as-ideal idea; whether SwiftUI's preview-shaped
+content overflows its window 17pt top and bottom as the kernel's now does
+(`FR-U`); lane 1's M11 (the `ProposalElementGroup` `frame()` deleted) has no
+re-run beyond the lane's own; and, on the legacy path, that `Style.padding` on
+a `Text` behaves as it does on a custom leaf (CLAUDE.md already says so).
+
+### Hazards this track introduced or exposed
+
+1. **`ElementGroup` must keep exactly ONE fixed `frame` overload** (`FR-S`). A
+   second one compiles, resolves without ambiguity, and makes a twelve-modifier
+   chain fail `-solver-scope-threshold=16000` where one needs 186; the only
+   test that says so is `MC-A`'s `aTwentyFourModifierChainTypechecksWithinASolverWorkBudget`.
+   A merge that re-introduces `frame(width:height:)` beside
+   `frame(width:height:alignment:)` breaks it.
+2. **Two hand-spelled `frameStyle` oracles are drift obligations.**
+   `ModifiedElementTests.swift` and `ModifierCompositionProofTests.swift` each
+   duplicate `FrameSpec.style()`'s fixed rows, and running each candidate
+   lowering over the whole suite showed nothing moves when they diverge
+   (1231/1231). Change the lowering and the oracles in one commit.
+3. **`width(percent:)`, `height(percent:)` and `flexBasis(percent:)` take a
+   FRACTION** (`FR-T`): `percent: 50` is 5000%, and in a `Row` flex-shrink
+   hides it — the box reads exactly its parent's width, which looks like
+   `width: 100%` working. Pinned wrong on purpose by 3.1; the unit is task 6's.
+4. **`.frame(idealWidth:)`/`.frame(idealHeight:)` on a legacy element TRAP**
+   at run time (`FR-D`, exit test 2.4). A port from the proposal path to the
+   legacy one is a type change and then a crash, with a message naming the
+   parameter.
+5. **A single-axis `.frame(maxWidth: .infinity)` on the legacy path is inert**
+   (`FR-O`): a node, an id level and a `$anim` entry that does not fill; only
+   the both-axes spelling lowers to `flexGrow = 1` + `alignSelf = .stretch`.
+   Owes CLAUDE.md a declared-but-inert row.
+6. **Two more legacy divergences, pinned wrong on purpose**: a finite maximum
+   clamps but never grows into the proposal (`FR-E`, 2.3: `.frame(maxWidth: 80)`
+   over 20 reads 20, SwiftUI 80), and a child bigger than its frame is squeezed
+   on the layer's main axis and overflows the cross axis, where SwiftUI
+   overflows both (`FR-N`, 2.8: (0, 20) 60×160 against SwiftUI's 200×160 at
+   (−70, −60)).
+7. **The kernel's frame floors declared negative bounds at 0 and forwards a
+   negative proposal when no minimum is declared** (`FR-L`, H2/H4); a negative
+   fixed size or maximum traps first (`SA-J`) where SwiftUI diagnoses and
+   floors — so `framedSize`'s `hi` floor is unreachable (`FR-R` item 2).
+8. **An infinite proposal answers the child** (`FR-B`, 1.3) where SwiftUI
+   answers infinity and then traps on placement. Reachable from
+   `ProposalScrollView`'s scrolling axis.
+9. **`FR-M` moved the preview's outermost frame answer by 34pt with no pixel
+   change** (`FR-U`): the `ZStack` and the frame both centre. Any later demo
+   edit that gives either a non-centred alignment, or a sibling that reads the
+   frame's size, will show the change — and it will be the fix landing, not a
+   regression. The preview's content overflows its 920×560 window 17pt top and
+   bottom, centred; the preview's first human look is still owed and will see
+   a clipped border.
+10. **`IOConsoleLocked` is not the screen-lock check** (`FR-V`): it read
+    `<false/>` on a locked, asleep display and `<true/>` on the same session
+    later. Run `docs/probes/appkit-screen-lock-state.swift` first; the
+    full-screen non-black count is the backstop.
+11. **The typecheck guards skip in a worktree that has never been built
+    natively** and the count reads the same; both new guards print their
+    fixture result (`FR-J …`, `FR-S …`) so a log shows whether they ran.
+12. **`Length.rems` is publicly reachable through four `Edges` modifiers**
+    (`padding`, `margin`, `borderWidth`, `inset`) and resolves against a single
+    per-frame `rootFontSize` (`FR-Q` and its addendum); there is no rem sizing
+    modifier. The inventory was short by one until the lane 3 verifier's
+    instrument found `inset`.
+13. **`ModifiedElement.swift`'s header, line 4, still names the legacy frame
+    `.frame(width:height:)`**; left for integration to avoid a hunk at the
+    parallel track's append point.
+
+### Deferred, each with an owner
+
+| deferral | why | owner |
+|---|---|---|
+| deprecating `width`/`height`/`min*`/`max*` with `renamed:` hints, and moving them onto the frame representation | 706 `.width(`/`.height(` sites (686 at `c4b5853`) against a 0-`warning:` gate; a trial conversion fails to compile in the demo and five test files; `.minHeight(0)` cancels flex §4.5's automatic minimum on the element itself, which no frame layer can (`FR-G`, measured 120 / 400 / 400 / 400) | plan task 7; `FR-F` holds the recipe, `FR-I` the schedule |
+| a greedy FINITE maximum on the legacy path | needs the parent's main axis, which a layer cannot see (M2, M4; `FR-E`) | task 6 |
+| a SINGLE-axis infinite maximum filling | same reason; the both-axes case is delivered (`FR-O`, N14/N15) | task 6 |
+| an oversized child overflowing both axes rather than being squeezed on one | one flex node cannot; the inner node is the caller's element (`FR-N`) | task 6 |
+| `idealWidth`/`idealHeight` on the legacy path, possibly through `flexBasis` | unmeasured idea (`FR-D`) | task 7 |
+| renaming `ProposalAlignment` to `Alignment` | collides with the parallel track; cosmetic until the legacy path is gone (`FR-K`) | task 7 |
+| correcting `percent:`'s unit (divide by 100, or rename the parameter `fraction:`) | a silent behaviour change to public API with no oracle above CSS; blast radius measured at 2 tests (`FR-T`) | task 6 |
+| tightening `SA-J` to reject a negative minimum at registration | `FR-L` matches SwiftUI's answers; changing what `SA-J` accepts is the kernel track's ruling | task 7 |
+| `Component` distribution of `.frame`, and B-7's snap | `MC-L` assigns it | task 5 |
+| the nil axis in a modifier-order chain and a stretching `Box` parent (EP-8) | `MC-Q` finding 7's two uncovered shapes | task 6 |
+| the release-window captures of the default demo and the preview against `c4b5853` (`MC-J`'s method) | refused by a locked, asleep display on two attempts and one further read; the stand-in reads 0 × 10 | whoever next has an unlocked session — check with the saved probe first |
+| the preview's first human look, now including the 17pt overflow (`FR-U`) | no look recorded | CLAUDE.md's human-verification table |
+| a test that renders a `Box(decoration:)` inside a `.frame` | scratch L8 is unpinned | whoever next touches `FrameSpec.style()` |
+
+### For the integrator
+
+**Verdict: all four lanes verified `ok: true`** — lanes 1 and 2 in the
+session cut off on 2026-09-15 (verdicts lost; the brief's "suite 1245 at lane
+2's verification" is the only surviving figure; see "Lanes 1 and 2 — the
+verifier tables, reconstructed"), lane 3 at `b513fa3` and lane 4 at `6c18389`
+in the continuation, each with minor issues only, all applied in the commit
+after `6c18389`. This track adds no `Sources/` change after `44a79b5` beyond
+comments. The release-window captures are still owed. Re-take every count
+after merging with the paint-modifier track. The figures here are this
+branch's alone: **1247 tests, 97 goldens, 63 guards, 0 `error:` / 0
+`warning:`** (the lone `warning:` in a `--build-system native` log is SwiftPM's
+own deprecation notice).
+
+**`CLAUDE.md` (rules only; mirror each change in `AGENTS.md` with
+`cp CLAUDE.md AGENTS.md`, then `cmp`):**
+
+1. **Ruling table.** Add a row: `` | `FR-` | frame and sizing, plan task 4
+   (`FR-A`…`FR-V`, next is `FR-W`) | lettered | ``. Add `FR-3` to the
+   bare-typo sentence. Add to "Where things are": `` - frame and sizing (task
+   4, `FR-`): `specs/2026-09-15-frame-sizing-design.md`,
+   `2026-09-15-frame-sizing-decisions.md`, record §14; probes
+   `docs/probes/swiftui-frame-semantics.swift` (54 arms),
+   `…-frame-negative-sizes.swift` (17), `swift-frame-overload-resolution.swift`
+   (the compiler), `appkit-screen-lock-state.swift` (the pre-capture check). ``
+2. **Counts.** Change 1226 / 61 to this branch's **1247 / 63** (+21 tests:
+   lane 1 +8 including one guard, lane 2 +11 including one guard, lane 3 +2;
+   +2 guards), then re-take after the merge. Add `FrameSizingCompileGuards` 2
+   to the per-file guard list and to the "count with per-file `grep -c
+   canTypecheck` across …" sentence. Change "the other 21 — …" to "the other
+   23 — `ProposalLayoutCompileGuards`' six, `ModifiedElementCompileGuards`'
+   two, `ProposalNodeIDCompileGuards`' six, `FrameSizingCompileGuards`' two
+   and seven of `EnvironmentCompileGuards`' — use `typecheckFile`". In "CI —
+   what lapses silently", change "all 61 guards skip" to 63, and add: "the two
+   `FrameSizingCompileGuards` fixtures print `FR-J no-argument frame:
+   succeeded=…` and `FR-S overload resolution: succeeded=…`; grep a log for
+   them to know they ran".
+3. **Identity.** In the wrapper bullet, change "`.padding(_:)` and
+   `.frame(width:height:)` on a legacy element" to "`.padding(_:)` and every
+   legacy `.frame(...)` spelling". Nothing else in the bullet changes: a frame
+   is still one layer, one node, one id level, and `.id()` still goes last.
+4. **Containers.** Replace the sentence run from "`.frame(width:height:)` is a
+   centring flex container … (flex-shrink down to min-content; by reading)."
+   with:
+   > "**The legacy frame has SwiftUI's whole parameter surface** —
+   > `.frame(width:height:alignment:)` and
+   > `.frame(minWidth:idealWidth:maxWidth:minHeight:idealHeight:maxHeight:alignment:)`
+   > on `ElementGroup` — and lowers to ONE `Style` in `FrameLayer.swift`'s
+   > `FrameSpec.style()` (`FR-C`): a flex container on `.row`,
+   > `justifyContent`/`alignItems` switched over the nine `ProposalAlignment`
+   > cases (`aLegacyFramePlacesItsChildAtEachOfTheNineAlignments`, the
+   > probe's B1–B8 exactly); a fixed axis pinned by `size` AND an axis-named
+   > `minSize`, never `flexShrink = 0`, which is axis-blind (`FR-P`:
+   > `aLegacyFixedFrameDoesNotShrinkAsAFlexItem`,
+   > `aSingleAxisFixedFrameDoesNotPinTheAxisItDidNotDeclare`); `minSize`/`maxSize`
+   > for the bounds; `flexGrow = 1` + `alignSelf = .stretch` only when BOTH
+   > maximums are infinite (`FR-O`). It sizes itself and does not impose that
+   > size on its content: a content-sized child is centred (a 0×0 mark at
+   > (30, 20) in a 60×40 frame, measured), a measured `Text` re-wraps at the
+   > frame's width (`aLegacyFrameProposesItsWidthToAMeasuredLeaf`, SwiftUI's
+   > F1 numbers), a fixed frame never shrinks as a flex item, chained frames
+   > give the outer the size and let the inner overflow
+   > (`chainedLegacyFramesAgreeWithSwiftUIsOrderingRules`, E1/E2), and a frame
+   > around a `List` builds the same rows. **Three legacy divergences are
+   > pinned wrong on purpose:** a finite maximum clamps but never grows into
+   > the proposal (`FR-E`: `.frame(maxWidth: 80)` over 20 reads 20, SwiftUI
+   > 80); a child bigger than its frame is squeezed on the layer's main axis
+   > and overflows the cross axis, where SwiftUI overflows both (`FR-N`); a
+   > single-axis infinite maximum is inert (`FR-O`, inert table).
+   > `idealWidth`/`idealHeight` **trap** on the legacy path (`FR-D`, exit
+   > test). `.frame()` with no arguments is a deprecated no-op on both paths
+   > (`FR-J`, guard). **`ElementGroup` must keep exactly ONE fixed `frame`
+   > overload** (`FR-S`): a second compiles, and only `MC-A`'s solver-budget
+   > guard says so (two overloads fail at threshold 16000; one needs 186). The
+   > two hand-spelled `frameStyle` oracles in `ModifiedElementTests` and
+   > `ModifierCompositionProofTests` are duplicates of the lowering that the
+   > suite will not tell you have drifted; change them with it."
+5. **Sizing modifiers — a new paragraph after Containers:**
+   > "**`width`, `height`, `minWidth`, `maxWidth`, `minHeight`, `maxHeight`,
+   > `width(percent:)` and `height(percent:)` write THIS element's own CSS box
+   > and return `Self`; `.frame(...)` wraps** (`FR-F`, `FR-G`;
+   > `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt` counts
+   > the nodes). They are not deprecated (`FR-I`): the 0-`warning:` gate makes
+   > a `renamed:` hint a migration of every caller — 706 `.width(`/`.height(`
+   > sites — and task 7 owns it (`FR-F` holds the recipe: convert, move
+   > decoration/handler/hover/alignment modifiers after the frame, fix the
+   > stored `Box<…>` types, re-take the demo pixels). **`.minHeight(0)` is the
+   > only way to cancel flex §4.5's automatic minimum; a frame layer's
+   > `minSize` cannot reach its child** (`FR-G`, the demo's own shape: 120 /
+   > 400 / 400 / 400). **`width(percent:)`, `height(percent:)` and
+   > `flexBasis(percent:)` take a FRACTION** — `percent: 0.5` is half,
+   > `percent: 50` is 5000% and reads as the parent's width in a `Row` because
+   > flex-shrink hides it (`FR-T`, pinned wrong on purpose by
+   > `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock`; task
+   > 6 owns the unit). There is no rem sizing modifier; `Length.rems` is
+   > reachable through `padding(_ edges:)`, `margin(_ edges:)`,
+   > `borderWidth(_ edges:)` and `inset(_ edges:)` and resolves against the
+   > per-frame `rootFontSize` (`FR-Q`)."
+6. **The proposal path.** In "Probed, and the kernel disagrees (`SA-N`)",
+   delete the two task-4 items (the finite-`maxWidth` growth and the
+   argument-less `.frame()`): both are fixed. Add, under "`ProposalLayout` is
+   the public algorithm protocol" or as its own bullet:
+   > "**The kernel's flexible frame is greedy** (`FR-A`, `FR-M`, seventy-one
+   > probe arms): with a maximum and a finite proposal it answers the
+   > proposal clamped into `[min, max]` when a minimum is declared, and
+   > `max(proposal, child)` clamped when none is — the test is on the
+   > minimum's PRESENCE, not its value (H8 answers 20, H14 with `minWidth: 0`
+   > answers 10; `aFrameWithoutAMinimumNeverAnswersLessThanItsChild`). An
+   > ideal is used only on an axis with no proposal. Declared negative bounds
+   > floor at 0 and an absent minimum forwards a negative proposal (`FR-L`,
+   > `aFrameNeverAnswersANegativeSize`); `framedSize`'s `hi` floor is
+   > unreachable because `SA-J` traps first (`FR-R`). An infinite proposal
+   > answers the child, where SwiftUI answers infinity and then traps on
+   > placement (`FR-B`, divergence). A `VStack(alignment: .leading)` is the
+   > one container in which a frame's answer is observable as an x
+   > (`aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI`)."
+   In "Vocabulary", change "`.frame(width:height:)` on a proposal value picks
+   the proposal overload (`proposalLayoutFrameUsesTheTypedProposalWrapper`), on
+   anything else `ModifiedElement`" to "every `.frame` spelling on a proposal
+   value picks the proposal overload
+   (`everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload`, seven
+   inference rows; `swift-frame-overload-resolution.swift`), on anything else
+   `ModifiedElement`; `.frame()` is deprecated on both".
+7. **Probe-backed values.** Add a line at the top of the list: "The frame rule
+   (child proposal, response, alignment, chaining, negative sizes) has two
+   saved, re-runnable probes with positive controls,
+   `docs/probes/swiftui-frame-semantics.swift` and
+   `…-negative-sizes.swift`; the spec's "The rule, in one place" block is the
+   71-arm summary."
+8. **Practices.** Add:
+   > "**A probe whose every arm agrees with two candidate rules has not
+   > distinguished them.** The 54-arm frame probe fitted `base = proposal`
+   > because every arm with a maximum proposed MORE than its child answered;
+   > a second probe with the arm that separates the rules refuted it (`FR-M`).
+   > Write the separating arm before ruling."
+   And, under the mutation bullets: "**An instrument that passes can be the
+   finding**: a scratch test written to check an inventory claim (`FR-Q`'s
+   'three entry points') passed at x = 32 and found the fourth."
+9. **Human verification table.** Add a row:
+   > "frame and sizing (plan task 4): release-window capture of the default
+   > demo AND the `METALUI_NATIVE_LAYOUT_PREVIEW=1` window against a build of
+   > `c4b5853`, by `MC-J`'s method | **open**: attempted once with
+   > `IOConsoleLocked` reading `false` and refused (`could not create image
+   > from rect` ×4; a full-screen capture 0 non-black of 10 929 696); the
+   > screen was locked and the display asleep by the CGS session dictionary
+   > (`FR-V`). Stand-in: offscreen `FakePlatformWindow` pixels, ten images,
+   > **0 differing in all ten**, re-taken twice; the preview zero is expected
+   > and says nothing about `FR-M` (`FR-U`: the frame's answer moved 34pt and
+   > two centred alignments cancel). Record §14"
+   In the proposal-preview row add: "at 920×560 the preview's content is
+   594pt tall, centred, overflowing 17pt top and bottom (`FR-U`); a look would
+   report a clipped border". Change the standing check in the two capture
+   rows from `ioreg … IOConsoleLocked` to "`docs/probes/appkit-screen-lock-state.swift`:
+   `CGSSessionScreenIsLocked` 0 and `displayAsleep` false; `IOConsoleLocked`
+   read `false` on a locked, asleep display".
+10. **Unprobed kernel behaviour** bullet "`.frame(maxWidth: .infinity)` in a
+    stack does not expand (stack children get a nil main offer)" stays; it is
+    a stack fact, not a frame one, and `FR-A` does not change it.
+
+**Declared-but-inert table**, in `CLAUDE.md`:
+
+- **Add a row:**
+  > "a single-axis `.frame(maxWidth: .infinity)` or `.frame(maxHeight:
+  > .infinity)` on a legacy element | a layer that costs a node, an id level
+  > and a `$anim` entry and does not fill; only the both-axes spelling lowers
+  > to `flexGrow = 1` + `alignSelf = .stretch` (`FR-O`, pinned by
+  > `anInfiniteMaximumFillsOnlyWhenBothAxesAreInfinite`); task 6 owns the
+  > single axis"
+- **Add a row:**
+  > "`ElementGroup.frame()` / `ProposalElementGroup.frame()` with no
+  > arguments | deprecated no-ops returning `self` on both paths (`FR-J`,
+  > guard `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`); declared on BOTH
+  > protocols on purpose — on `ElementGroup` alone the proposal call resolves
+  > to the all-defaulted fixed overload and builds a layer silently"
+- **Edit the leaf-padding row** if it still says `.frame` imposes nothing:
+  unchanged in substance; a frame layer's `minSize` is the layer's own, not
+  the leaf's.
+
+**Divergence table.** Add, as `vs SwiftUI` unless stated, under the next
+unused numbers (35 onward on this branch; the integrator assigns):
+
+> "A legacy frame's finite maximum clamps but never grows into the proposal:
+> `.frame(maxWidth: 80)` over a 20pt child reads 20, SwiftUI's D4 reads 80
+> (`FR-E`). Pinned wrong on purpose by
+> `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`;
+> task 6."
+
+> "A child larger than its legacy frame is squeezed on the layer's main axis
+> and overflows the cross axis — (0, 20) 60×160 in a 60×40 frame — where
+> SwiftUI's A5 keeps 200×160 at (−70, −60) (`FR-N`). Pinned wrong on purpose
+> by `aLegacyFrameSqueezesAnOversizedChildWhereSwiftUIOverflows`; task 6."
+
+> "The kernel's frame at an infinite proposal answers its child; SwiftUI
+> answers `inf × 20` and then traps on placement (`view origin is invalid`)
+> (`FR-B`, D12). Pinned by
+> `aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity`; deliberate."
+
+> "A negative fixed size or maximum on the proposal path traps at
+> registration (`SA-J`) where SwiftUI diagnoses and floors it at 0 (H6, H10);
+> a negative minimum is floored at 0 as SwiftUI does (`FR-L`, `FR-R` item 2).
+> Task 7."
+
+> "`idealWidth`/`idealHeight` on a legacy frame trap; SwiftUI uses them on an
+> unspecified axis (C1) (`FR-D`). Pinned by
+> `anIdealDimensionOnTheLegacyFrameTraps`; task 7."
+
+> "`unfixed defect` / vs CSS: `width(percent:)`, `height(percent:)` and
+> `flexBasis(percent:)` take a fraction — `percent: 50` is 5000%, 15000pt in
+> a 300pt parent, and in a `Row` flex-shrink hides it (`FR-T`). Pinned wrong
+> on purpose by `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock`;
+> task 6."
+
+The `FR-O` single-axis case belongs in the inert table, not here.
+
+**The plan's task 4 entry: do NOT tick it.** The task's own text has five
+clauses and this track meets three:
+
+- *"Specify and implement `.frame(width:height:alignment:)`, optional axes,
+  min/ideal/max constraints, alignment within an offered proposal, and the
+  ordering rules for chained frames"* — **done on both paths**: the kernel's
+  flexible frame is greedy and probe-correct (`FR-A`, `FR-M`, `FR-L`), the
+  legacy frame has the whole surface and a probe-backed lowering (`FR-C`,
+  `FR-P`), the nine alignments and the ordering rules are pinned (2.1, 2.5);
+  `ideal` on the legacy path is a trap, not an implementation (`FR-D`).
+- *"Move `width`, `height`, min/max sizing and alignment-facing convenience
+  APIs onto that representation"* — **refused with measurements** (`FR-F`,
+  `FR-G`): 706 call sites, a compile failure in the demo and five test files,
+  and `.minHeight(0)`'s automatic-minimum override that no layer can express.
+  Owner: task 7, recipe written.
+- *"deprecate APIs whose observable meaning cannot match SwiftUI"* — **one
+  deprecation only** (`frame()`, `FR-J`); the rest refused by the 0-warning
+  gate (`FR-I`).
+- *"this task makes it the single semantic path"* — **not met**: two engines
+  and two sizing vocabularies stay live; what is single is the parameter
+  surface, the alignment vocabulary, the documented rule set and the one
+  lowering function (`FR-C`).
+
+Proposed text under the unchanged body, replacing the 2026-09-14 progress note:
+
+> *Progress 2026-09-16 on `feat/frame-sizing` (`4796bbb..`this commit),
+> still open.* Spec `specs/2026-09-15-frame-sizing-design.md`; rulings
+> `FR-A`…`FR-V` in `../2026-09-15-frame-sizing-decisions.md`; four probes
+> in `docs/probes/` (71 SwiftUI arms with positive controls); record §14.
+> Four lanes, each red first where it had a behaviour change, each verified
+> (lanes 1–2's verdicts lost with the 2026-09-15 session; lanes 3–4's
+> quoted). Suite 1247 (1226 + 8 + 11 + 2), 97 goldens unmoved, 63 guards
+> (61 + 2), 0 `error:` / 0 `warning:`.
+> - **The kernel's flexible frame — fixed** (lane 1, `FR-A`, `FR-B`, `FR-L`,
+>   `FR-M`): greedy at any maximum, `max(proposal, child)` with no minimum,
+>   declared negatives floored, an infinite proposal answering the child.
+>   `SA-N` items 1 and 9 closed.
+> - **The legacy frame's SwiftUI surface — done** (lane 2, `FR-C`, `FR-D`,
+>   `FR-K`, `FR-O`, `FR-P`, `FR-S`): optional axes, min/max, the nine
+>   alignments, chained-frame ordering, one lowering in `FrameLayer.swift`;
+>   `ideal` traps; `.frame()` deprecated on both paths. Three divergences
+>   pinned wrong on purpose (`FR-E`, `FR-N`, `FR-O`).
+> - **The sizing inventory — ruled, not converted** (lane 3, `FR-F`…`FR-I`,
+>   `FR-Q`, `FR-T`): `width`/`height`/min/max/percent stay as CSS-box
+>   modifiers, documented, with the node-count and automatic-minimum
+>   differences pinned; `width(percent:)` found to take a fraction.
+>
+> **Not done, by ruling:** moving `width`/`height`/min/max onto the frame
+> representation and deprecating them (`FR-F`, `FR-G`, `FR-I`; task 7, recipe
+> in `FR-F`); a greedy finite maximum, a single-axis infinite maximum and an
+> overflowing oversized child on the legacy path (task 6); `ideal` on the
+> legacy path (task 7); the `percent:` unit (task 6). **Carried:** the
+> release-window captures (`MC-J`), refused by a locked display; check with
+> `docs/probes/appkit-screen-lock-state.swift`, not `IOConsoleLocked`
+> (`FR-V`).
+
+In the plan's "Current starting point": the bullet "A frame grows toward a
+larger finite proposal only when `maxWidth` or `maxHeight` is `.infinity`
+(`LayoutTree.swift:734-736`) … min 40 and max 80 at a proposal of 100 with a
+20pt child give 40 … No SwiftUI probe for that case is recorded" is history
+(`FR-A`; the test now pins 80 and the probe is saved). The bullet "Direct
+`width`/`height` still mutate style. … it broke list virtualization, hit
+testing, and text measurement" is corrected by `FR-F`: two of the three
+claims are refuted by measurement (a frame layer's width reaches a measured
+leaf and re-wraps it; a framed `List` paints the same rows) and the third is
+SwiftUI's own behaviour; what blocks the conversion is the type-level blast
+radius and the 0-warning gate. `Box.swift:593-599` still mutates `Style`, by
+ruling.
+
+**README:**
+
+- In "What it looks like", after the legacy sample's `.width(Pixels(36))`,
+  add one sentence: "`.width` writes the element's own CSS box; `.frame(width:)`
+  — SwiftUI's spelling, with min/max and alignment — wraps it in a layer,
+  and the two differ (record §14)."
+- The suite-count sentence (1226 / 97 / 61 at `2456c69`): re-take after the
+  merge; this branch alone reads 1247 / 97 / 63.
+- "About a dozen of the integration tests cite a SwiftUI probe result in
+  their own doc comments. `NativeLayoutTests` cites none. The probes survive
+  only as prose, and most record no positive control." → "`NativeLayoutTests`
+  and `FrameSizingTests` now cite two saved probes with positive controls
+  (`docs/probes/swiftui-frame-semantics.swift`, `…-negative-sizes.swift`); the
+  earlier probes survive only as prose."
+- In "Twelve measured divergences …": re-count after the integrator assigns
+  the six rows above.
+- Under "SwiftUI alignment", add the frame-sizing spec
+  (`specs/2026-09-15-frame-sizing-design.md`) and record §14
+  (`docs/record/14-frame-and-sizing.md`).
+
+**Other owned documents:**
+
+- `docs/record/README.md`: add a row, `` | `14-frame-and-sizing.md` | plan
+  task 4: the kernel's greedy flexible frame, the legacy frame's SwiftUI
+  surface and its one lowering, the sizing inventory (`width`/`height` refused
+  with measurements; `percent:` is a fraction); four lanes, the lost lane 1–2
+  verdicts reconstructed, lane 3–4 verifier tables, the pixel stand-in and
+  `FR-U`/`FR-V` | ``.
+- The SA decisions doc, `SA-N` items 1 and 9: add status lines, "**Closed
+  2026-09-15 by `FR-A`/`FR-M`** (`feat/frame-sizing`, `389c452`): the kernel
+  is greedy at any maximum" and "**Closed by `FR-J`**: `frame()` is a
+  deprecated no-op on both paths, guarded".
+- Record §09: "Open, and material: does a SwiftUI flexible frame with a
+  finite `maxWidth` grow" (§2) and the "Unprobed, and material" item "whether
+  a finite `maxWidth` frame grows" are answered (it does; `FR-A`, and the
+  probe is saved); the 2026-09-14 erratum's "Owners: plan tasks 4–7" loses
+  its task-4 items.
+- The MC decisions doc, `MC-L`: the rows "`width`/`height`/min/max as layers;
+  legacy `.frame` min/ideal/max/alignment | task 4" and "legacy `.frame`
+  against SwiftUI outside test 10's scope … | task 4" gain a status: the
+  legacy `.frame` half is delivered (`FR-C`, `FR-P`), the shrinking-row shape
+  is `FR-P`'s pin and the smaller frame is `FR-N`, the nil axis and the
+  stretching `Box` parent stay open (task 6); the `width`/`height` half is
+  refused and reassigned to task 7 (`FR-F`). "That is the number task 4 must
+  re-measure before converting `width`/`height`" — not re-measured, because
+  the conversion did not happen; it moves to task 7 with the conversion.
+- `Sources/MetalUI/ModifiedElement.swift`, line 4: "`.padding(_:)` and
+  `.frame(width:height:)`" → "`.padding(_:)` and `.frame(...)`" — the one
+  word lane 2 left for the merge.
