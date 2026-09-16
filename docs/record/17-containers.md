@@ -828,3 +828,183 @@ root).
   bounds-minus-insets pin (`SA-N`, task 5) no longer shows at a centred root.
 - Two-axis scrolling (SCG2 `.both` centring): task 10 (`CN-M`).
 - H3 is a recorded difference, not adopted (`CN-K`).
+
+## Lane 5 — the legacy path: single-child frame, `fraction:`, three divergence pins (`CN-N`, `CN-O`, `CN-P`)
+
+2026-09-16. Commits: `1f56652` (tests and guard, red), `c73706f`
+(implementation and the moved tests), `f21d626` (5.1's inner-layer arms after
+mutation M12, and each test's measured mutation lines), then this record with
+the as-built addenda to `CN-N`, `CN-O`, `CN-P` and the spec's count note.
+
+### Probes, re-run first
+
+`/usr/bin/swift docs/probes/swiftui-frame-semantics.swift` and
+`…/swiftui-stack-algorithms.swift`, macOS 27.0 (26A428), both exit 0. The arms
+this lane cites read as recorded in the headers: `A5` `child at (-70.0, -60.0)
+size 200.0x160.0`, `B9` `child at (0.0, 0.0) size 200.0x160.0`; `S rect|rect:
+hstack 8  vstack 8` with its control `hstack(0) 0 hstack(20) 20 vstack(20) 20`;
+`A5` `leaf a: proposed [100x80] at (0, 0) 100x80`; `SC2` vertical `size 50x100`.
+The frame-semantics run printed fewer duplicate `child proposed` lines in its G
+group than its macOS 26 header, the call-count difference the decisions doc's
+preamble already records; no placement differed.
+
+### Today's answers, before any source change
+
+`CN-N` left an absolutely positioned child and a `ScrollView` inside a
+one-child legacy frame open. At `8e1dfa7`, exploratory scratch tests (never
+committed) printed the arms that became 5.6 and 5.7; the values are in those
+tests' doc comments. They were taken before `ModifiedElement.swift` changed and
+read identically after it (the suite below), so the open item closes with no
+difference.
+
+### Red first
+
+Eight `@Test`s: 5.1, 5.2, 5.6, 5.7 in `Tests/MetalUITests/FrameSizingTests.swift`
+(5.1 replaces `aLegacyFrameSqueezesAnOversizedChildWhereSwiftUIOverflows`, 5.2
+replaces `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock`),
+5.3–5.5 in `ContainerIntegrationTests.swift`, G4 in `ContainerCompileGuards.swift`.
+
+**Against `8e1dfa7` the test target does not compile**: `extraneous argument
+label 'fraction:' in call` at `FrameSizingTests.swift:682`, `:685`, `:690`,
+`:693`, `:696`, `:699` (every `fraction:` call in 5.2).
+
+A **temporary, uncommitted shim** (`Sources/MetalUI/ZZShim.swift`: the three
+`fraction:` methods forwarding to `percent:`) let the targets build; the eight
+tests ran filtered (`Test run with 8 tests in 0 suites failed … with 8 issues`),
+then the shim was deleted and `git status --short` showed only the tests.
+
+| # | test | first failure |
+|---|---|---|
+| 5.1 | `aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes` (4) | `:514` `single == Rect(-70, 20, 200, 160)` — reads (0, 20) 60×160 (`FR-N`); also the pinned and top-leading arms, and the two-node control's expected width (written 60, measured 57, corrected before the commit: CSS shrinks by base size) |
+| 5.2 | `aFractionSizeResolvesAgainstItsContainingBlock` | does not compile (above); green under the shim, as a rename must be |
+| 5.3 | `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight` | green on arrival, its `#require` holding (a pin) |
+| 5.4 | `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal` | green on arrival (a pin) |
+| 5.5 | `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents` | green on arrival (a pin) |
+| 5.6 | `anAbsolutelyPositionedChildInsideASingleChildLegacyFrameKeepsItsPlacement` | green on arrival by construction |
+| 5.7 | `aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel` | green on arrival by construction |
+| G4 | `thePercentSizingModifiersAreDeprecatedRenamesOfFraction` (4) | `ContainerCompileGuards.swift:142` `deprecations(result) == 3` (0), and `:144` for each of the three names |
+
+### What changed
+
+`Sources/MetalUI/ModifiedElement.swift`: `ModifierLayer.isFrame` (internal
+stored property, default `false`) and `lowered(_:childCount:)`, which returns
+the style with `display = .stack` for a frame layer over exactly one node.
+`requestLayout` applies it to each inner layer and to the outermost, before
+`animated`. The fixed `frame(width:height:alignment:)` passes `isFrame: true`.
+`Sources/MetalUI/FrameLayer.swift`: the flexible overload passes `isFrame:
+true`; `FrameSpec.style()`'s nine-case `switch` also writes `justifyItems`
+(`.start`/`.center`/`.end`); the lowering table gains the one-node row; the
+overload's doc no longer lists the squeeze as a live divergence.
+`Sources/MetalUI/Box.swift`: `width(fraction:)`, `height(fraction:)`,
+`flexBasis(fraction:)`; the three `percent:` methods are
+`@available(*, deprecated, renamed: …)` and forward. Doc comments:
+`Units.swift`'s `Length.percent`, `NativeModifiedContent.swift`'s fixed
+`frame`.
+
+`ModifierLayer` is a public struct whose stored properties changed, so the
+suite ran after `swift package clean`.
+
+**Existing tests that changed** (the spec's list, and no other):
+`aFrameLayersClipAndBorderBoundTheChildTheFrameCannotShrink` (child now at
+A5's (−70, −60) 200×160; its clip and border claims unchanged);
+`everyPublicModifierWritesItsOwnFieldAndOnlyThatField`'s three rows renamed
+`…(fraction:)`; the two replaced tests. The hand-spelled `frameStyle`
+oracles in `ModifiedElementTests.swift` and
+`ModifierCompositionProofTests.swift` gained `justifyItems = .center` and
+`display = .stack`, per their drift obligation (they were green either way).
+`aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`,
+`chainedFramesRemainConcreteAndNestTheirLayoutNodes` and
+`aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembers` stayed green,
+as the spec measured.
+
+### Suite
+
+After `swift package clean`, `swift build --build-system native --build-tests`
+(no `error:`, no `warning:` besides SwiftPM's deprecation notice), unfiltered at
+`c73706f`: **`Test run with 1354 tests in 1 suite passed`**, 0 `error:`.
+Default build system (`swift build`, `swift test --no-parallel`): six summary
+lines, 65 + 744 + 55 + 28 + 440 + 22 = **1354**, all passed, 0 `error:`, 0
+`warning:`. Again at `f21d626`, native: 1354 passed, 0 `error:`. 1348 + 8 − 2 =
+1354; the spec's 1344 predates lane 4's count (1346, then 1348 after its
+verifier round) and did not count G4 as a test. Guards (`grep -c
+canTypecheck`, `Typecheck.swift` excluded, one `UnitSafetyTests` hit a comment):
+**70**. G4 printed its three diagnostics, so it ran. Goldens: 97, unchanged
+against `9e439cb` (`git diff --quiet`).
+
+### Mutations
+
+Each was applied in this worktree at `c73706f` (M12 again at `f21d626`),
+built with `--build-system native --build-tests`, and run through the
+unfiltered suite. Afterwards `git checkout -q Sources Tests` restored the tree,
+and `git status --short` was empty every time. The script is
+`scratchpad/lane5/mutate.py`.
+
+| mutation | red (issues) |
+|---|---|
+| M1 a single-child frame lowers as a flex row again | **5.1** (3), `aFrameLayersClipAndBorderBoundTheChildTheFrameCannotShrink` (1) |
+| M2 every frame layer lowers as a stack | **5.1** (1: the two-node control's `#require`), `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembers` (1), `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren` (2), `chainedFramesRemainConcreteAndNestTheirLayoutNodes` (2) |
+| M3 `fraction:` writes `.percent(fraction * 100)` | **5.2** (1), `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` (3) |
+| M4 the legacy `Stack` container stretches (`alignItems`/`justifyItems` `.stretch` in `Stack.init`) | **5.4** (1) and the design's seven: `allNineAlignmentsMapToTheirPairAndTheNineAreDistinct` (19), `aNestedHandlerWinsOverItsContainingStackToo` (2), `aPressReleasedOverSomethingCoveringItIsNotAClick`, `clippedAlsoClipsTheHitboxesInsideIt`, `stackDefaultsToCentreNotStretch` (2), `stackWritesDisplayAndBothAlignmentFields` (2), `theTopmostOfTwoOverlappingHandlersRuns` (2) — 8 tests, 30 issues |
+| M5 `Row`/`Column` default gap 8 | **5.3** (1), and 24 others — 25 tests, 59 issues: the design's 22 minus the replaced percentage test, plus 5.2 (3), 5.6 (7), 5.7 (4), which build legacy rows |
+| M6 the proposal scroll viewport answers its proposal on the cross axis (lane 4's line reverted) | **5.5** (1), `aProposalScrollViewAnswersItsContentOnItsNonScrollingAxis` (6), `aProposalScrollViewsDirectChildrenAreACentredDefaultSpacedVStackOnEitherAxis` (4), `twoProposalScrollViewsInOneOverlayKeepSeparateOffsets` (1) |
+| M7 remove `height(percent:)`'s `@available` | **G4** only (2) |
+| M8 the lowered frame layer is made `.static` | **5.6** only (1: its `#require`, A reading B's (15, 10)) |
+| M9 the lowered stack stretches its one child | **5.7** (1: its `#require`, A's viewport stretched to 100 and scrolling 37), 5.1 (2), and 16 other frame tests — 18 tests, 42 issues |
+| M10 `FrameSpec.style()` writes no `justifyItems` (a stack then stretches) | **5.7** (3), 5.1 (2), `aLegacyFramePlacesItsChildAtEachOfTheNineAlignments` (6), and 13 others — 16 tests, 43 issues |
+| M11 lower the outermost layer **after** `animated` | **none** — an equivalent mutant (see below) |
+| M12 inner layers not lowered | **none** at `c73706f` — the finding; at `f21d626` **5.1** only (2: the padded and doubly framed arms) |
+
+**M11, proved equivalent rather than banked.** `animated` never assigns
+`display`. The snapping fields pass through from the style it is given, and
+the `$anim` baseline's snapping fields are never read back
+(`AnimatedStyle.swift`, "wasted work, not a wrong value"). So the registered
+style is the same in either order. The only difference is one
+`StateTable.writeCount` write when a frame's node count changes. `CN-N`'s
+addendum records the clause as a convention, not a pinned behaviour.
+
+**M12, the finding.** The ruling lowers "per layer", but every 5.1 arm had the
+frame as the outermost layer. A frame under a `.padding(4)` and a frame under
+a second frame were added to 5.1: the child reads (−66, 20) and (−60, 20),
+where the row lowering squeezes it.
+
+### Demo comparison (`CN-S` row 5)
+
+`ioreg -n Root -d1 -a` read `IOConsoleLocked` `<true/>`, so no real windows were
+captured. As a stand-in, the harness (`scratchpad/harness/gen.py`) rendered
+twelve images through a real `Window` over `FakePlatformWindow`, in fresh
+`git archive` trees of `9e439cb` and `c73706f`. It was built with the default
+build system.
+
+| comparison | differing pixels |
+|---|---|
+| controls, base and head alike: light vs dark / default vs modal / default vs animation / f0 vs f3 / preview light vs dark | 1 048 576 / 1 030 498 / 210 027 / 0 / 1 048 576 |
+| eight legacy images + `small560-default-light` vs `9e439cb` | **0**, scenes identical |
+| `preview-light`, `preview-dark` vs `9e439cb` | **1 109** each, bbox (264, 212)–(939, 865) |
+| `small560-preview-light` vs `9e439cb` | **65 449**, bbox (0, 0)–(559, 559) |
+| all twelve vs lane 4's images (`1ae17cc`) | **0**, scenes identical |
+
+The table is exactly `CN-S` row 5. The two `.frame` calls in `main.swift`
+(`:1003`, `:1032`) are on proposal elements, and the demo has no `percent:`,
+so no image reaches this lane's code. As `CN-S` says, these zeros show only
+that nothing else moved; they are not evidence for the lane.
+
+### Not done here, and why
+
+- `CLAUDE.md`, `AGENTS.md`, the plan and the record index are left for the Docs
+  phase. Candidates:
+  - the "Containers" paragraph's `.frame(width:height:)` sentences, which
+    say the frame "does not stretch or impose" and that a long child is
+    "bounded by the frame's width (flex-shrink …)". Over exactly one node the
+    child now keeps its size and overflows, and over several it still shrinks;
+  - divergence 36 (`FR-N`) retired;
+  - the inert table and vocabulary gain `fraction:`, and `percent:` is
+    deprecated;
+  - the deprecation count (`@available(*, deprecated` hits) rises by three;
+  - the three `CN-P` divergences, owner task 7.
+- `CN-Q`'s legacy frame items (greedy finite maximum, single-axis infinite
+  maximum, nil-axis frame under a stretching `Box`), legacy `.overlay`, and
+  lowering the legacy containers go to **task 7**, unchanged. None was
+  attempted.
+- A frame over a multi-member `Component` still lays its members out as a
+  row. SwiftUI frames each member (`G7`), and neither lowering gives that
+  answer (`CN-N`).

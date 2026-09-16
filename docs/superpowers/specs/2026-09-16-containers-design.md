@@ -499,7 +499,12 @@ round).
 **Demo:** `CN-S` row 5 (identical to row 4, measured); lane 5 has no pixel
 evidence (`CN-S`). **Expected counts:** 1339 + 7 − 2 = **1344**; guards **70**;
 goldens 97 (no file under `Sources/MetalUILayout/` except `LayoutTree.swift`
-changes in any lane, and every lane runs the fixtures).
+changes in any lane, and every lane runs the fixtures). (As built: **1354** — 1348
+at the lane's start, plus eight `@Test`s (G4 is a test), minus the two
+replaced; guards 70; goldens unchanged; the demo read row 5 exactly. The
+`justifyItems` mapping is written by `FrameSpec.style()`'s switch rather than
+derived in `requestLayout` (`CN-N`'s addendum); 5.1 gained two inner-layer
+arms after a mutation. Record §17.)
 
 ## 7. Order, and what each lane may assume
 

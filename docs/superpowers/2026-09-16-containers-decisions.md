@@ -889,6 +889,38 @@ lowering, and a difference is a finding.
 single-child legacy frame loses them (a `Stack` ignores both). No test or demo
 site writes that, and SwiftUI has neither.
 
+**Lane 5, as built** (`c73706f`, `f21d626`; record §17). As ruled, with two
+choices and one finding:
+
+- **`justifyItems` is written by `FrameSpec.style()`'s one `switch`** over the
+  nine cases, next to `justifyContent` and `alignItems`, on every frame layer;
+  a flex row ignores it. `ModifierLayer.lowered(_:childCount:)` only sets
+  `display = .stack`, since only `requestLayout` knows the node count. Deriving
+  `justifyItems` from `justifyContent` there would have been a second mapping
+  that a later `Self`-returning `.justifyContent` after the frame could feed
+  values a stack has no counterpart for. The two hand-spelled oracle styles
+  (`ModifiedElementTests`, `ModifierCompositionProofTests`) gained
+  `justifyItems` and `display: .stack`, per their drift obligation. Mutation
+  M10 (no `justifyItems` write) reddens 16 tests.
+- **"Before `animated`" is not observable.** Mutation M11 (lower after
+  `animated`) left the unfiltered suite green, and by reading it is
+  equivalent: `animated` never assigns `display` (a snapping field passes
+  through), and the `$anim` baseline's snapping fields are never read back
+  (`AnimatedStyle.swift`'s note), so the only difference is a
+  `StateTable.writeCount` write when a frame's node count changes between one
+  and several. The order is kept as ruled, for the baseline to hold the style
+  the layer registers with; it is a convention, not a pinned behaviour.
+- **The inner-layer clause was unpinned** until mutation M12 ("lower only the
+  outermost layer") left the suite green; 5.1 gained a frame under a padding
+  and a frame under a second frame (child at (−66, 20) and (−60, 20)), and M12
+  now reddens them (2 issues).
+- **The open item is closed with no difference**: 5.6 (an absolutely
+  positioned child, six arms) and 5.7 (a `ScrollView`, four arms, through a real
+  `Window` with a wheel) took their answers at `8e1dfa7` and read identically
+  after the lowering. A legacy frame never imposes its size on a scroll view,
+  on either lowering: the viewport stays the content's height unless something
+  else (a `Box` with a declared height) bounds it.
+
 ---
 
 ## CN-O — the `percent:` sizing modifiers are renamed `fraction:`; the old spelling is deprecated with its meaning unchanged
@@ -907,6 +939,16 @@ use it).
 
 **What it costs if wrong.** A caller keeps `percent: 0.5` with a warning that
 names the fix; nothing changes size.
+
+**Lane 5, as built** (`c73706f`; record §17). As ruled. The three `percent:`
+methods forward to their `fraction:` counterparts. Every call site moved: the
+old 5.2 test (replaced), `ModifierTests`' three rows (renamed `…(fraction:)`);
+doc comments in `Box.swift`, `Units.swift` and `ModifierTests.swift`'s header
+re-worded. The remaining `percent:` hits in `Sources/` and `Tests/` are the
+deprecated declarations, their doc comments, guard G4's fixture, and history
+in comments. G4 printed its three diagnostics (`'width(percent:)' is
+deprecated: renamed to 'width(fraction:)'` …) in the native run; mutation M7
+(remove one `@available`) reddens it alone.
 
 ---
 
@@ -960,6 +1002,18 @@ reddens.
 
 **What it costs if wrong.** A caller porting a legacy `Row {}` to `HStack {}`
 gains 8pt gaps silently; the pin makes the difference findable by name.
+
+**Lane 5, as built** (`1f56652`; record §17). The three pins are
+`aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`,
+`aLegacyStackOffersFitContentWhereAZStackOffersItsProposal` and
+`aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents`
+(`ContainerIntegrationTests.swift`), all green on arrival. Measured on the
+lane's tree: the `Stack`-stretch mutation reddens **8** tests, the pin the
+eighth, beside the design's seven; the `Row`/`Column` gap-8 mutation reddens
+**25** — the design's 22, minus the replaced percentage test, plus 5.2, 5.3,
+5.6 and 5.7, which build legacy rows; lane 4's cross-axis line reverted
+reddens the pin and three lane-4 tests. Probe arms S, A5 and SC2 were re-run
+2026-09-16 and read as recorded.
 
 ---
 
