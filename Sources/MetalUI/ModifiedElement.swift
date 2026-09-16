@@ -45,12 +45,41 @@ public struct ModifierLayer {
     var decoration: Decoration
     var handlers: Handlers
     var elementID: ElementID?
+    /// Whether a `.frame(...)` overload built this layer (ruling `CN-N`). A frame
+    /// layer over EXACTLY ONE node registers as a one-cell `display: .stack`,
+    /// so an oversized child overflows both axes as SwiftUI's does; over zero or
+    /// several nodes it keeps `FR-C`'s flex row. The choice is
+    /// `lowered(_:childCount:)`'s, made in `requestLayout` per layer.
+    var isFrame: Bool
 
-    init(style: Style) {
+    init(style: Style, isFrame: Bool = false) {
         self.style = style
         self.decoration = Decoration()
         self.handlers = Handlers()
         self.elementID = nil
+        self.isFrame = isFrame
+    }
+
+    /// The `Style` this layer registers with around `childCount` nodes (ruling
+    /// `CN-N`). A frame layer over exactly one node becomes `display: .stack`:
+    /// the stack reads `alignItems` (vertical) and `justifyItems` (horizontal),
+    /// both written by `FrameSpec.style()`'s one `switch` over the nine
+    /// alignments, and offers its child fit-content, so the child keeps its own
+    /// size and overflows the frame centred on the alignment
+    /// (`aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes`, probe arms
+    /// `A5`/`B9`). The flex fields the row lowering wrote stay and are ignored
+    /// by a stack; item fields the layer carries in ITS parent (`flexGrow`,
+    /// `alignSelf`, `minSize`, `position`) are untouched.
+    ///
+    /// **Several nodes keep the row**: a frame over a two-member `Component`
+    /// lays the members out side by side, where SwiftUI frames each member
+    /// (component-distribution `G7`); neither lowering is that answer, and the
+    /// row is today's.
+    func lowered(_ style: Style, childCount: Int) -> Style {
+        guard isFrame, childCount == 1 else { return style }
+        var style = style
+        style.display = .stack
+        return style
     }
 }
 
@@ -174,6 +203,9 @@ public struct ModifiedElement<Content: ElementGroup>: Element, StyledElement {
             for k in inner.indices {
                 // Layer k+1's id is layer k's parent, by the construction above.
                 if k > 0, let parent = layerID.parent { layerID = parent }
+                // Before `animated`, so the `$anim` baseline holds the style
+                // the layer registers with (ruling CN-N).
+                inner[k].style = inner[k].lowered(inner[k].style, childCount: children.count)
                 (inner[k].style, inner[k].decoration) = animated(inner[k].style, inner[k].decoration,
                                                                  for: layerID, pass: &pass)
                 let node = pass.requestNode(style: inner[k].style, children: children)
@@ -181,6 +213,7 @@ public struct ModifiedElement<Content: ElementGroup>: Element, StyledElement {
                 children = [node]
             }
         }
+        outermost.style = outermost.lowered(outermost.style, childCount: children.count)
         (outermost.style, outermost.decoration) = animated(outermost.style, outermost.decoration,
                                                            for: id, pass: &pass)
         let node = pass.requestNode(style: outermost.style, children: children)
@@ -302,6 +335,7 @@ extension ElementGroup {
     public func frame(width: Pixels? = nil, height: Pixels? = nil,
                       alignment: ProposalAlignment = .center) -> ModifiedElement<LayerBase> {
         _wrap(ModifierLayer(style: FrameSpec(width: width, height: height,
-                                             alignment: alignment).style()))
+                                             alignment: alignment).style(),
+                            isFrame: true))
     }
 }

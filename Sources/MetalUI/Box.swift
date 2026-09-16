@@ -821,38 +821,47 @@ extension StyledElement {
     }
 
     /// This element's own CSS `width`, as a **fraction** of the containing
-    /// block's width. SwiftUI has no counterpart at all, which is why this one
-    /// is kept as an explicit MetalUI divergence with a test (`FR-H`); its
-    /// nearest, `containerRelativeFrame`, resolves against a named container
-    /// rather than a containing block.
+    /// block's width: `width(fraction: 0.5)` is half. SwiftUI has no
+    /// counterpart at all, which is why this one is kept as an explicit
+    /// MetalUI divergence with a test (`FR-H`); its nearest,
+    /// `containerRelativeFrame`, resolves against a named container rather
+    /// than a containing block. Pinned by
+    /// `aFractionSizeResolvesAgainstItsContainingBlock`
+    /// (`Tests/MetalUITests/FrameSizingTests.swift`).
     ///
-    /// **The parameter is a fraction and its name says otherwise** (ruling
-    /// `FR-T`): `Length.percent` is `f * parent` in `resolveLength`, so
-    /// `width(percent: 0.5)` is half the containing block and
-    /// **`width(percent: 50)` is 5000%** — 15000pt inside a 300pt parent.
-    /// Measured and pinned wrong on purpose by
-    /// `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock`
-    /// (`Tests/MetalUITests/FrameSizingTests.swift`), which also records that
-    /// the "≈30000pt `Column` defect" is nothing but 100 × 300 seen through a
-    /// centring parent. Correcting the unit is a silent behaviour change to a
-    /// public API with no oracle above CSS; plan task 6 owns it.
+    /// **Renamed from `width(percent:)`** (ruling `CN-O`), whose label said
+    /// percentage while `Length.percent` is `f * parent` in `resolveLength`, so
+    /// `width(percent: 50)` meant 5000% (ruling `FR-T`). The old spelling is
+    /// kept, deprecated, with its meaning unchanged.
     ///
     /// The **root** is not a special case: ruling `SZ-A` made `resolveRootSize`
-    /// resolve a root percentage against the extent that axis was offered
+    /// resolve a root fraction against the extent that axis was offered
     /// (oracle `rootPercentageMatchesWebKit`,
-    /// `Tests/MetalUILayoutTests/SizingFixtureTests.swift`), and CLAUDE.md's
-    /// row for the old fallback was deleted. This comment used to claim the
-    /// fallback was still live; it was not, and the test's middle arm is what
-    /// keeps that honest.
-    public func width(percent: Float) -> Self {
-        modifying { $0.size.width = .length(.percent(percent)) }
+    /// `Tests/MetalUILayoutTests/SizingFixtureTests.swift`); the test's root
+    /// arm keeps that honest through the public modifier.
+    public func width(fraction: Float) -> Self {
+        modifying { $0.size.width = .length(.percent(fraction)) }
     }
 
     /// This element's own CSS `height`, as a **fraction** of the containing
-    /// block's height — see `width(percent:)` for the unit (ruling `FR-T`) and
-    /// for the divergence `FR-H` keeps it under.
+    /// block's height — see `width(fraction:)` for the unit and for the
+    /// divergence `FR-H` keeps it under.
+    public func height(fraction: Float) -> Self {
+        modifying { $0.size.height = .length(.percent(fraction)) }
+    }
+
+    /// The old name of `width(fraction:)`, deprecated by ruling `CN-O`: the
+    /// argument is a FRACTION, so `width(percent: 50)` is 5000%. Unchanged
+    /// meaning; guard `thePercentSizingModifiersAreDeprecatedRenamesOfFraction`.
+    @available(*, deprecated, renamed: "width(fraction:)")
+    public func width(percent: Float) -> Self {
+        width(fraction: percent)
+    }
+
+    /// The old name of `height(fraction:)` — see `width(percent:)`.
+    @available(*, deprecated, renamed: "height(fraction:)")
     public func height(percent: Float) -> Self {
-        modifying { $0.size.height = .length(.percent(percent)) }
+        height(fraction: percent)
     }
 
     /// Writes this element's own CSS `min-width`. SwiftUI's spelling is
@@ -1005,11 +1014,17 @@ extension StyledElement {
         modifying { $0.flexBasis = .length(.pixels(points)) }
     }
 
-    /// A **fraction** of the containing block's main axis, not a percentage —
-    /// the third modifier with `width(percent:)`'s unit, and ruling `FR-T`'s
-    /// third site. `flexBasis(percent: 50)` is 5000%.
+    /// A **fraction** of the containing block's main axis: `0.5` is half —
+    /// the third modifier with `width(fraction:)`'s unit (ruling `CN-O`).
+    public func flexBasis(fraction: Float) -> Self {
+        modifying { $0.flexBasis = .length(.percent(fraction)) }
+    }
+
+    /// The old name of `flexBasis(fraction:)`, deprecated by ruling `CN-O`
+    /// (`FR-T`'s third site): `flexBasis(percent: 50)` is 5000%.
+    @available(*, deprecated, renamed: "flexBasis(fraction:)")
     public func flexBasis(percent: Float) -> Self {
-        modifying { $0.flexBasis = .length(.percent(percent)) }
+        flexBasis(fraction: percent)
     }
 
     /// `.baseline` lays out as `.flexStart` — see `alignItems(_:)`.

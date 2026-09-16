@@ -268,9 +268,10 @@ extension ProposalElementGroup {
     /// between the paths by changing nothing but the element type. What is only
     /// available here is the **proposal**: this overload owns its child's
     /// measurement proposal as well as its resolved size and alignment, which is
-    /// why the legacy lowering diverges in three named places — a finite maximum
-    /// clamps but never grows (`FR-E`), an oversized child is squeezed on one
-    /// axis (`FR-N`), a single infinite maximum is inert (`FR-O`) — and why
+    /// why the legacy lowering diverges in named places — a finite maximum
+    /// clamps but never grows (`FR-E`), a single infinite maximum is inert
+    /// (`FR-O`), and an oversized child is squeezed on one axis when the frame
+    /// wraps several nodes (`FR-N`, closed for one node by `CN-N`) — and why
     /// `idealWidth`/`idealHeight` trap there (`FR-D`). Which overload a call
     /// resolves to is pinned by
     /// `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload`.

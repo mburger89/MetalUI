@@ -512,6 +512,10 @@ private func frameStyle(width: Float, height: Float) -> Style {
     var style = Style()
     style.alignItems = .center
     style.justifyContent = .center
+    style.justifyItems = .center
+    // Every oracle frame here wraps exactly one node, so it is kept in step
+    // with ruling CN-N's one-cell stack lowering (plan task 6, lane 5).
+    style.display = .stack
     style.size = Size(width: .length(.pixels(px(width))), height: .length(.pixels(px(height))))
     style.minSize = Size(width: .length(.pixels(px(width))), height: .length(.pixels(px(height))))
     return style

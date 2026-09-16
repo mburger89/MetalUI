@@ -54,12 +54,12 @@ public enum Length: Hashable, Sendable {
     /// `resolveLength` is `f * parent`, and every call site in `Sources/` and
     /// in the layout fixtures passes `0.5`, `0.25`, `0.10`.
     ///
-    /// **`MetalUI`'s `width(percent:)`/`height(percent:)`/`flexBasis(percent:)`
-    /// forward their argument to this case untouched**, so those parameters are
-    /// fractions wearing a percentage's name and `width(percent: 50)` means
-    /// 5000% — ruling `FR-T`
-    /// (`docs/superpowers/2026-09-15-frame-sizing-decisions.md`), pinned by
-    /// `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock`.
+    /// **`MetalUI`'s `width(fraction:)`/`height(fraction:)`/`flexBasis(fraction:)`
+    /// forward their argument to this case untouched**, pinned by
+    /// `aFractionSizeResolvesAgainstItsContainingBlock`. Their old `percent:`
+    /// names, fractions wearing a percentage's name (`width(percent: 50)` means
+    /// 5000%, ruling `FR-T`), are deprecated renames (ruling `CN-O`,
+    /// `docs/superpowers/2026-09-16-containers-decisions.md`).
     case percent(Float)
 }
 

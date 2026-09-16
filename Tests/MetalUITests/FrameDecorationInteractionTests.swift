@@ -134,16 +134,18 @@ private struct TwoMembers: Component {
     }
 }
 
-// MARK: - 1. FR-N x OM-G / OM-V: a frame layer's clip and border bound the child it cannot shrink
+// MARK: - 1. CN-N x OM-G / OM-V: a frame layer's clip and border bound the child it cannot shrink
 
 /// **A `.clipped()` and a `.border` written after a legacy frame act on the
-/// FRAME's box, so the cross-axis overflow `FR-N` leaves behind is cut and
-/// outlined at 60x40, not at the child's 60x160.**
+/// FRAME's box, so the overflow of a child bigger than the frame is cut and
+/// outlined at 60x40, not at the child's 200x160.**
 ///
-/// `FR-N` (frame track): a 200x160 child in a `.frame(width: 60, height: 40)`
-/// is squeezed to 60 on the layer's main axis and overflows the cross axis —
-/// under a `.flexStart` row it reads (0, −60) 60x160 (the same numbers the
-/// track's test reads at y = 20 under a cross-centring `Row`). `OM-G`/`OM-V`
+/// Ruling `CN-N` (plan task 6, lane 5; it closed the frame track's `FR-N`): a
+/// 200x160 child in a `.frame(width: 60, height: 40)` — a frame over exactly one
+/// node, so a one-cell stack — keeps its size and overflows both axes, centred:
+/// under a `.flexStart` row it reads (−70, −60) 200x160, SwiftUI's `A5`. Before
+/// lane 5 it was squeezed to 60 on the layer's main axis and read (0, −60)
+/// 60x160; the clip and border claims below did not change. `OM-G`/`OM-V`
 /// (outer-modifier track): `.clipped()` is a paint scope on the layer it is
 /// written on and `.border` is emitted after that layer's content. On either
 /// branch alone the pair could not be written: the frame had no decoration
@@ -165,17 +167,17 @@ private struct TwoMembers: Component {
             }
         }
         let scene = window.lastScene
-        return (try rect(scene, 60, 160), scene)
+        return (try rect(scene, 200, 160), scene)
     }
 
     let plain = try arm(clipped: false)
     let clipped = try arm(clipped: true)
 
-    // FR-N's geometry, re-read under this fixture: squeezed on the row axis,
-    // overflowing the column axis, centred, so 60 tall of overflow above and
-    // below a 40pt frame at y = 0.
-    try #require(plain.child.bounds.origin.x == 0 && plain.child.bounds.origin.y == -60,
-                 why("set up — FR-N's squeezed, overflowing child; got " + describe(plain.child)))
+    // CN-N's geometry (A5), re-read under this fixture: overflowing both axes,
+    // centred, so 70 wide and 60 tall of overflow either side of a 60x40 frame
+    // at (0, 0).
+    try #require(plain.child.bounds.origin.x == -70 && plain.child.bounds.origin.y == -60,
+                 why("set up — CN-N's overflowing child; got " + describe(plain.child)))
     try #require(describe(plain.child.contentMask) != describe(clipped.child.contentMask),
                  why("the two arms' masks must differ, or nothing here measures `.clipped()`: "
                      + describe(plain.child)))
@@ -185,7 +187,7 @@ private struct TwoMembers: Component {
                 + describe(plain.child)))
     #expect(clipped.child.contentMask.origin.x == 0 && clipped.child.contentMask.origin.y == 0
                 && clipped.child.contentMask.size.width == 60 && clipped.child.contentMask.size.height == 40,
-            why("clipped, the mask is the FRAME layer's 60x40 box, not the child's 60x160; got "
+            why("clipped, the mask is the FRAME layer's 60x40 box, not the child's 200x160; got "
                 + describe(clipped.child)))
 
     // The border is the frame's box, drawn after the child (OM-V), in both arms.

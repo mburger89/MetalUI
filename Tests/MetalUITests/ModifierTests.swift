@@ -18,8 +18,8 @@ private struct TableAction: Action {}
 // element tests call a handful of them and assert on the *rect* that comes out,
 // so they cover the few they use and say nothing about the rest. Measured before
 // this file existed: nine mutations applied **at once** — `minWidth(_:)` writing
-// `minSize.height`, `maxHeight(_:)` writing `maxSize.width`, `width(percent:)`
-// writing `size.height`, `flexShrink(_:)` writing `flexGrow`, `flexBasis(_:)`
+// `minSize.height`, `maxHeight(_:)` writing `maxSize.width`, `width(percent:)` (now
+// `width(fraction:)`, ruling CN-O) writing `size.height`, `flexShrink(_:)` writing `flexGrow`, `flexBasis(_:)`
 // treating points as a percentage, `borderWidth(_:)` writing `padding`, and
 // `justifyContent(_:)`, `flexWrap(_:)`, `alignContent(_:)` each writing nothing
 // at all — left the whole 302-test suite green.
@@ -170,11 +170,11 @@ private struct ModifierCase {
         ModifierCase(name: "height(_:)",
                      apply: { $0.height(px(12)) },
                      effect: { s, _, _, _ in s.size.height = .length(.pixels(px(12))) }),
-        ModifierCase(name: "width(percent:)",
-                     apply: { $0.width(percent: 13) },
+        ModifierCase(name: "width(fraction:)",
+                     apply: { $0.width(fraction: 13) },
                      effect: { s, _, _, _ in s.size.width = .length(.percent(13)) }),
-        ModifierCase(name: "height(percent:)",
-                     apply: { $0.height(percent: 14) },
+        ModifierCase(name: "height(fraction:)",
+                     apply: { $0.height(fraction: 14) },
                      effect: { s, _, _, _ in s.size.height = .length(.percent(14)) }),
         ModifierCase(name: "minWidth(_:)",
                      apply: { $0.minWidth(px(15)) },
@@ -242,8 +242,8 @@ private struct ModifierCase {
         ModifierCase(name: "flexBasis(_ points:)",
                      apply: { $0.flexBasis(px(43)) },
                      effect: { s, _, _, _ in s.flexBasis = .length(.pixels(px(43))) }),
-        ModifierCase(name: "flexBasis(percent:)",
-                     apply: { $0.flexBasis(percent: 44) },
+        ModifierCase(name: "flexBasis(fraction:)",
+                     apply: { $0.flexBasis(fraction: 44) },
                      effect: { s, _, _, _ in s.flexBasis = .length(.percent(44)) }),
         ModifierCase(name: "alignSelf(_:)",
                      apply: { $0.alignSelf(.flexEnd) },

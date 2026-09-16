@@ -15,9 +15,10 @@ import MetalUIPlatform
 // `D4`, `E1`…) and `docs/probes/swiftui-frame-negative-sizes.swift` (17 arms,
 // `H…`). Where MetalUI's CSS lowering cannot reach SwiftUI's answer the test
 // pins MetalUI's number **wrong on purpose** and carries SwiftUI's in its doc
-// comment: `FR-E` (a finite maximum clamps but never grows), `FR-N` (an
-// oversized child is squeezed on one axis) and `FR-O` (a single-axis infinite
-// maximum is inert).
+// comment: `FR-E` (a finite maximum clamps but never grows) and `FR-O` (a
+// single-axis infinite maximum is inert). `FR-N` (an oversized child squeezed on
+// one axis) was closed by plan task 6's ruling `CN-N`, whose tests (5.1, 5.6,
+// 5.7) and `CN-O`'s (5.2, fractional sizing) are in this file too.
 //
 // Every measurement here is a rendered `Frame` — no golden moves, nothing
 // sleeps. Red runs and the mutation that reddens each test are recorded in the
@@ -648,6 +649,9 @@ private func nodeCount<Root: Element>(_ make: (SizeLog) -> Root) throws -> Int {
 // Lane 3 is a documentation lane: its source change is `Box.swift`'s
 // `MARK: Size` comments. These two tests are what make that documentation
 // falsifiable — every sentence added there names one of them.
+//
+// (3.1 was replaced by plan task 6's 5.2, when ruling `CN-O` renamed the
+// `percent:` modifiers `fraction:`.)
 //
 // Both are **characterizations**: they were green the moment they compiled,
 // because they describe shipped behaviour rather than new behaviour. Their

@@ -49,11 +49,13 @@ struct FrameSpec: Sendable, Hashable {
 
     /// The one place the CSS approximation of a SwiftUI frame lives (ruling
     /// FR-C), row by row with the measurement behind it. The layer is a flex
-    /// container on its default `.row` direction.
+    /// container on its default `.row` direction, or a one-cell stack over
+    /// exactly one node (ruling `CN-N`, the second row).
     ///
     /// | asked for | `Style` | evidence |
     /// |---|---|---|
     /// | any frame | `justifyContent`/`alignItems` from a `switch` over the nine alignment CASES | scratch L6: all nine place a 20×20 child at the probe's B1–B8 offsets exactly (test 2.1) |
+    /// | a frame over **exactly one** node | `display: .stack` (set in `ModifiedElement.requestLayout` by `ModifierLayer.lowered`, which alone knows the node count), reading `alignItems` and the `justifyItems` the same `switch` writes (a flex row ignores `justifyItems`, a stack ignores `justifyContent`) | ruling `CN-N`, probe arms A5/B9: a 200×160 child in a 60×40 frame keeps its size at (−70, −60), or (0, 0) top-leading (test 5.1, which replaced 2.8) |
     /// | `width`/`height` | `size.<axis>` **and `minSize.<axis>`** — an axis-named pin, never `flexShrink = 0` | ruling FR-P, scratch N10/N11 (tests 2.2 and 2.10) |
     /// | `minWidth`/`minHeight` | `minSize.<axis>` | scratch L10, agreeing with probe arms D7/D8/D9 |
     /// | a finite `maxWidth`/`maxHeight` | `maxSize.<axis>` — **a clamp, never greedy** | ruling FR-E: MetalUI reads 20 where SwiftUI's D4 reads 80 (test 2.3) |
@@ -75,15 +77,15 @@ struct FrameSpec: Sendable, Hashable {
         var style = Style()
 
         switch alignment {
-        case .topLeading:     style.justifyContent = .flexStart; style.alignItems = .flexStart
-        case .top:            style.justifyContent = .center;    style.alignItems = .flexStart
-        case .topTrailing:    style.justifyContent = .flexEnd;   style.alignItems = .flexStart
-        case .leading:        style.justifyContent = .flexStart; style.alignItems = .center
-        case .center:         style.justifyContent = .center;    style.alignItems = .center
-        case .trailing:       style.justifyContent = .flexEnd;   style.alignItems = .center
-        case .bottomLeading:  style.justifyContent = .flexStart; style.alignItems = .flexEnd
-        case .bottom:         style.justifyContent = .center;    style.alignItems = .flexEnd
-        case .bottomTrailing: style.justifyContent = .flexEnd;   style.alignItems = .flexEnd
+        case .topLeading:     style.justifyContent = .flexStart; style.alignItems = .flexStart;      style.justifyItems = .start
+        case .top:            style.justifyContent = .center;    style.alignItems = .flexStart;      style.justifyItems = .center
+        case .topTrailing:    style.justifyContent = .flexEnd;   style.alignItems = .flexStart;      style.justifyItems = .end
+        case .leading:        style.justifyContent = .flexStart; style.alignItems = .center;         style.justifyItems = .start
+        case .center:         style.justifyContent = .center;    style.alignItems = .center;         style.justifyItems = .center
+        case .trailing:       style.justifyContent = .flexEnd;   style.alignItems = .center;         style.justifyItems = .end
+        case .bottomLeading:  style.justifyContent = .flexStart; style.alignItems = .flexEnd;        style.justifyItems = .start
+        case .bottom:         style.justifyContent = .center;    style.alignItems = .flexEnd;        style.justifyItems = .center
+        case .bottomTrailing: style.justifyContent = .flexEnd;   style.alignItems = .flexEnd;        style.justifyItems = .end
         }
 
         // A declared axis is pinned by `minSize` on THAT axis, so an
@@ -129,15 +131,19 @@ extension ElementGroup {
     /// by changing nothing but the element type.
     ///
     /// **What it does and does not reach.** The legacy path lowers to CSS, and
-    /// three of SwiftUI's answers are out of reach on one flex node. Each is a
-    /// ruling with a test that pins MetalUI's number wrong on purpose:
+    /// SwiftUI's answers that one CSS node cannot reach are rulings with tests
+    /// (the first and third pin MetalUI's number wrong on purpose; plan task 6
+    /// deferred both to task 7, `CN-Q`):
     ///
     /// - a **finite** maximum clamps but never grows into the proposal
     ///   (`FR-E`): `.frame(maxWidth: 80)` over a 20pt child reads 20 where
     ///   SwiftUI's probe arm D4 reads 80, because a CSS layer cannot see a
-    ///   proposal for one named axis. Plan task 6 owns the fix;
-    /// - a child bigger than the frame is squeezed on the layer's main axis
-    ///   rather than overflowing both (`FR-N`, test 2.8);
+    ///   proposal for one named axis;
+    /// - a child bigger than the frame used to be squeezed on the layer's main
+    ///   axis (`FR-N`); since ruling `CN-N` a frame over exactly one node is a
+    ///   one-cell stack and the child overflows both axes as in SwiftUI (test
+    ///   5.1), while a frame over several nodes (a multi-member `Component`)
+    ///   keeps the row and still squeezes;
     /// - a **single** infinite maximum is present and inert, where both
     ///   infinite maximums fill (`FR-O`, test 2.9).
     ///
@@ -169,7 +175,8 @@ extension ElementGroup {
             """)
         return _wrap(ModifierLayer(style: FrameSpec(minWidth: minWidth, maxWidth: maxWidth,
                                                     minHeight: minHeight, maxHeight: maxHeight,
-                                                    alignment: alignment).style()))
+                                                    alignment: alignment).style(),
+                                   isFrame: true))
     }
 
     /// SwiftUI's own rejection of an argument-less frame, verbatim (ruling
