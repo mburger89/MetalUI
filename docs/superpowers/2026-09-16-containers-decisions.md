@@ -2,22 +2,38 @@
 
 Rulings for `docs/superpowers/specs/2026-09-16-containers-design.md`, on
 `feat/containers` from `9e439cb`. Ids are **lettered**, `CN-A`…; next unused is
-**`CN-T`**. A bare `CN-3` is a typo, not a citation.
+**`CN-V`**. A bare `CN-3` is a typo, not a citation.
 
-**Status, 2026-09-16, design only.** No file under `Sources/` or `Tests/`
-changed in a commit. Every source patch cited below as a *prototype* was
-applied in this worktree, built, run and restored with `git checkout Sources/`
-(or `cp` from a scratch copy), with `git status --short` showing only the
-design's own docs afterwards; the scratch test files the prototypes used were
-deleted. Baseline at `9e439cb` plus the probe commits: `swift build
+**Status, 2026-09-16, design only, after critic round 1.** No file under
+`Sources/` or `Tests/` changed in a commit. Every source patch cited below as a
+*prototype* was applied in this worktree, built, run and restored with
+`git checkout Sources/ Tests/`, with `git status --short` showing only the
+design's own docs afterwards; scratch test files were deleted. Baseline at
+`9e439cb` plus the probe commits, after `swift package clean`: `swift build
 --build-system native --build-tests`, then `swift test --build-system native
---no-parallel` → `Test run with 1303 tests in 1 suite passed after 39.247
-seconds`, 0 `error:`, no `warning:` besides SwiftPM's own deprecation notice.
-One committed, re-runnable probe: `docs/probes/swiftui-stack-algorithms.swift`
-(run under `/usr/bin/swift`, Apple Swift 6.4, macOS 27.0; exit 0; run twice per
-revision, byte-identical output, recorded in its header).
+--no-parallel` → `Test run with 1303 tests in 1 suite passed`, 0 `error:`, no
+`warning:` besides SwiftPM's own deprecation notice.
 
-Arm names below (G1, SP19, A10, SC2, R1, Q1, AR1, …) are that probe's.
+Probes (arm names below are theirs):
+
+- `docs/probes/swiftui-stack-algorithms.swift` — revision 4 (`cef0acd`,
+  `f10e779`), run under `/usr/bin/swift`, Apple Swift 6.4, macOS 27.0 (26A428);
+  exit 0; run twice per revision with byte-identical output, recorded in its
+  header. Revision 4 corrected two revision-3 readings (the ZStack placement
+  rule, and "framing a spacer hides its flexibility"), both marked in the
+  header.
+- `docs/probes/swiftui-overlay-presentation.swift` (`cef0acd`, `a163bb9`) —
+  compiled form only (the script form fails to JIT); overlay clipping, paint
+  order, presentations and background/overlay click order.
+
+**Call counts in SwiftUI are OS-dependent; allocations are not.**
+`swiftui-frame-semantics.swift`, re-run 2026-09-16 on macOS 27.0 against its
+record from 26.6.2, prints fewer duplicate flexibility probes in G1 (one
+`0.0xnil`/`infxnil` pair per pass, not two) and identical placements. No ruling
+here rests on a SwiftUI call count; `CN-B`'s cost figures are MetalUI's.
+
+The critic round's findings and what was done with each are in
+[Critic round 1](#critic-round-1--dispositions) at the end.
 
 ---
 
@@ -58,27 +74,31 @@ available:
   `List` virtualization, hit testing and text measurement; `FR-F` refuted two of
   the three by measurement, but what it did establish — the type-level blast
   radius and the 0-warning gate — is unchanged.
-- **What shape 3 costs, prototyped in full** (every kernel change in `CN-B`…`CN-G`,
-  `CN-J` and the scroll cross axis of `CN-M`, applied together, then
-  reverted): **27 existing tests change** (listed in the spec, "Existing tests
-  that change"), all on the proposal path; the legacy demo renders
-  **0 differing pixels** in all eight legacy images and a 560×560 legacy image;
-  the proposal preview differs by **1 109 pixels** at 1024×1024 (two rects,
-  both explained by probe arms) and by **64 945 pixels** at 560×560 (13 of 16
-  rects: fixed-size content now overflows instead of being squeezed, which is
-  G9/X13's answer). The spec's "Measured costs" section carries the rect-by-rect table.
+- **What shape 3 costs, prototyped in full and staged per lane** (`CN-R`): the
+  suite's red lists and the pixel figures for every lane are in the spec
+  (§6 and the appendix). All changed tests are on the proposal path except
+  lane 5's two legacy-frame tests; the eight legacy demo images and the
+  560×560 legacy image read **0 differing pixels at every stage**.
 
 **The ruling.** Shape 3. This task makes `HStack`, `VStack`, `ZStack`,
 `Spacer`, `.overlay`/`.background` content and `ProposalScrollView` behave as
 the probe says, and gives the legacy frame layer the one SwiftUI answer a
 single CSS node can express (`CN-N`). **No legacy container is lowered onto the
 kernel, and no legacy default changes** (`CN-P`). The switch of the default demo
-root and of the legacy spellings is task 7's, root by root, and its
-prerequisites are named in the spec's deferral table: proposal registrations for
-`Text` with decorations and handlers, `Box` as a leaf, `ModifiedElement` layers
-(the `ModifiedContent` unification), a windowed proposal `List` with its
-`ScrollContext` and row identity, a proposal `Deferred`, and accessibility
-records and the disabled gate on proposal elements.
+root and of the legacy spellings is task 7's, root by root.
+
+**Task 6 stays open** (`CN-T`): its text says "Replace containers", and no
+legacy container is replaced. `CN-T` proposes the amended text; the design does
+not tick the task on its own.
+
+**What task 7's root switch needs first** (the prerequisites, each owned in
+`CN-Q`): proposal registrations for `Text` with decorations and handlers, `Box`
+as a leaf, `ModifiedElement` layers (the `ModifiedContent` unification), a
+windowed proposal `List` with its `ScrollContext` and row identity (moved to
+task 7 by `CN-T`), a proposal portal for `Deferred`, the legacy layout
+modifiers the demo uses (`flexGrow`, `flexBasis`, `alignSelf`, `minHeight`,
+`position`/`inset`), and accessibility records and the disabled gate on
+proposal elements.
 
 **Reasoning.** Shape 1 or 2 inside five lanes would either stop half-way — a
 tree whose root is native but whose leaves are not traps — or reintroduce an
@@ -88,14 +108,15 @@ onto algorithms that are not yet SwiftUI's.
 
 **Identity.** Nothing in this task changes an element id, a `$state`/`$focus`/
 `$anim` path, a `List` row name or vanishing-`if` adoption: no lane adds or
-removes an element level, and the two new kernel nodes (`CN-K`'s implicit
-`ZStack`) are layout nodes with no element identity.
+removes an element level. The new kernel node (`CN-K`'s implicit `ZStack` over
+several overlay nodes) is a layout node with no element identity; the new
+`BackgroundModifier` numbers its content exactly as `OverlayModifier` does.
 
 **What it costs if wrong.** Two layout authorities stay live for another task,
 and the legacy containers keep their CSS answers (spacing 0, flex-shrink
-compression, fit-content `Stack` children), recorded as divergences (`CN-P`).
-If task 7 finds a root that cannot switch because of something this task could
-have ported, that is a missed item, not a broken tree.
+compression, fit-content `Stack` children), recorded as divergences with task 7
+as owner (`CN-P`). If task 7 finds a root that cannot switch because of
+something this task could have ported, that is a missed item, not a broken tree.
 
 ---
 
@@ -131,27 +152,61 @@ at allocations. Every one of those is contradicted by an arm above.
 are not SwiftUI's and are not observable in any allocation:
 
 - **Eager probing.** SwiftUI evaluates flexibility lazily and stops at a
-  flexibility of 0 (G3's second child gets one call). The kernel probes every
-  member of a group of two or more at main 0 and main ∞, and probes a
-  lower-priority child only at main 0; a group of one is not probed. Under
-  `SA-H`'s purity assumption the allocations are identical to a stable sort.
+  flexibility of 0 (G3's second child gets one call; the exact lists vary by OS
+  release, see the header). The kernel probes every member of a group of two or
+  more at main 0 and main ∞, and probes a lower-priority child only at main 0; a
+  group of one is not probed. Under `SA-H`'s purity assumption the allocations
+  are identical to a stable sort.
 - **The distribution is one function used by both measurement and placement**,
   so what a stack reports and where it places cannot disagree (CLAUDE.md's
   "measures at nil, places at allocations" item).
 
-**Measured cost** (prototype, before `CN-F` and `CN-G`):
-`aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` reads 47 measure
-calls, 52 hits, 66 misses against today's 16/27/25. On alternating nested
-H/V stacks of two leaves and a spacer per level, depth 1–7 (4 to 382 nodes),
-leaf calls go from 1 per leaf to 9 per leaf (6, 36, 72, …, 1152 against 2, 4,
-8, …, 128), **linear in node count** at every depth measured; the same shape
-with per-leaf distinct clamps read the same counts. The lane re-derives the
-branching tree's literals by hand before running (`SA-M`).
+**Measured cost** (staged prototype, clean build, `CN-R`; MetalUI's counts,
+not SwiftUI's):
+
+- `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal`: today
+  16 calls / 27 hits / 25 misses; after lane 1 **47 / 51 / 66**; after lanes 2
+  and 3 **44 / 50 / 63**; after lanes 4 and 5 **46 / 48 / 66**. (The design's
+  earlier "47 / 52 / 66, under P1" was taken from a prototype that also carried
+  `CN-C`'s default minimum and marks; it is superseded by these.)
+- **Nested alternating stacks** (level k = stack{leaf 10…80, fixed 20×20,
+  `Spacer()`, level k−1}, spacing 4; 3 to 15 leaves), proposed 400×300 at a
+  finite root, and inside a vertical scroll viewport — **the nil cross
+  proposal that runs `CN-E`'s second pass**:
+
+  | depth | leaves | today (both) | finite root, lanes 2–5 | in scroll viewport, lanes 2–5 |
+  |---|---|---|---|---|
+  | 1 | 3 | 3 calls, 1.0/leaf | 9 calls, 3.0/leaf | 18 calls, 6.0/leaf |
+  | 2 | 5 | 5, 1.0 | 33, 6.6 | 20, 4.0 |
+  | 3 | 7 | 7, 1.0 | 51, 7.3 | 72, 10.3 |
+  | 4 | 9 | 9, 1.0 | 69, 7.7 | 74, 8.2 |
+  | 5 | 11 | 11, 1.0 | 87, 7.9 | 120, 10.9 |
+  | 6 | 13 | 13, 1.0 | 105, 8.1 | 122, 9.4 |
+  | 7 | 15 | 15, 1.0 | 123, 8.2 | 168, 11.2 |
+
+  Calls grow by 18 per level at a finite root and by 2–48 per level in the
+  viewport (alternating: a vertical level under a nil height re-solves); no
+  depth multiplies the previous one. Lane 1 alone reads the same calls
+  (hits and misses differ by a few, as the spacer's cross axis is lane 2's).
+- **Shaping** (`ShapingCache.misses`, a fresh cache, one cold frame of
+  `ProposalText`s in stacks): 3 texts in one `HStack`, 6 misses today, **12**
+  after lane 1, finite root or in a `ProposalScrollView` (lookups 12 and 21);
+  7 texts in three nested stacks, 14 today, **28** after (lookups 64 and 78).
+  Each text is shaped at 4 distinct widths per cold frame instead of 2.
+  `Shaper.runCallCounter` is not reached: `ProposalText` measures without the
+  tokenizer.
+
+**Every lane-1 performance test is written against a literal derived by hand
+before its run** (`SA-M`, shape 12); the prototype figures above are the check
+the derivation must meet, and a disagreement is a finding for the decisions
+doc, not an edit to the literal.
 
 **What it costs if wrong.** Every proposal-path stack allocates differently
 from SwiftUI on the trees the tests do not build. The probe arms are
 three-child at most; the lane's tests add a three-group, three-flexibility
-tree (G13, G14) so a two-child special case cannot pass.
+tree (G13, G14) so a two-child special case cannot pass. The work cost is up to
+11 leaf calls per leaf and twice the shaping on a cold frame; the cache is still
+per call (`SA-H`), so a warm frame pays it again.
 
 ---
 
@@ -159,40 +214,56 @@ tree (G13, G14) so a two-child special case cannot pass.
 
 **The finding.**
 
-- `Spacer()`'s nil `minLength` is **8** (SP1 48; SP6; `SA-N` item 2's P5).
+- `Spacer()`'s nil `minLength` is **8** (SP1 48; SP6; `SA-N` item 2's P5), a
+  constant rather than the gap its neighbours would get: `VStack { Text; Spacer();
+  Text }` is 40 tall at default spacing and at spacing 0 (K1, K1c), where
+  text|text is 0 (K0, K1b).
 - A spacer has **priority −∞** unless given one (SP8's first child is offered
   (200 − 8) / 2 = 96; X5; X6 gives a `.layoutPriority(1)` spacer all 100).
   `SA-D`'s contract probe already read −∞ through a custom layout's proxy (E2).
+  Priority is hidden by a flexible frame (K2d), `aspectRatio` (K2b), `fixedSize`
+  (K2c) and padding (SP20), passes through an overlay's primary (X8) and a
+  single-child `ZStack` (K2a: 96).
 - Inside a linear stack a spacer answers **0 on the stack's cross axis**
   (SPB1 100×0, SPB2 8×0, SPB5 0×50, X8's overlay proposed 180×0); outside one
   it is flexible on both axes (SPB3 100×50, SPB4 8×8, SPB6 through a `ZStack`,
-  contract probe E). The axis reaches through `.frame` (SP19's stack is 20
-  tall), `.padding` (SP20) and `.overlay` (X8), and a nested stack re-decides
-  it (SP18b: `VStack { Spacer() }` in an `HStack` is 0 wide).
-- Framing a spacer hides its priority **and** its flexibility (SP19: the
-  stack answers 50); padding hides only the priority (SP20: still flexible,
-  served last within priority 0); an overlay hides neither (X8).
+  contract probe E). **The mark reaches** through `.frame` (SP19, K2d),
+  `.padding` (SP20), `aspectRatio` (K2b: stack height 20), `fixedSize` (K2c:
+  20), the overlay's primary (X8) **and the overlay's content** (K2e: a spacer
+  in the overlay of a 10×10 primary answers 10×0). **It does not reach** through
+  a `ZStack` (K2a: `ZStack { Spacer() }` claims the 50pt cross proposal) or a
+  nested stack, which re-decides it (SP18b).
+- A **fixed** frame makes a spacer rigid (SP19, `.frame(width: 10)`: the stack
+  answers 50). A **flexible** frame keeps it greedy (K2d: the stack answers
+  200). The design's earlier "framing hides flexibility" read SP19 alone and was
+  wrong.
 - At an infinite proposal a spacer answers ∞ (contract probe E).
 
 **The ruling.** `newNativeSpacer(minLength: nil)` stores the platform default,
 one public constant `ProposalSpacing.platformDefault = 8` (`MetalUILayout`),
 also used by `CN-H`. A spacer node answers `max(minLength, proposal)` per axis
 with ∞ allowed and nil → `minLength`, except on the cross axis of the linear
-stack that owns it, where it answers 0. **Ownership is decided at
+stack that marks it, where it answers 0. **Marking is decided at
 registration:** `newNativeLinearStack` walks each child through
-`layoutPriority`, `overlayAttachment` (primary side), `padding`, `frame`,
-`fixedSize` and `aspectRatio` and marks the spacers it reaches with its axis;
-the walk stops at any other node, so an inner stack's marks stand. The stack's
-priority reader returns −∞ for a spacer reached bare and `nativeLayoutPriority`
-otherwise, so an explicit `.layoutPriority` wins. The public proxies'
-`priority` reports −∞ for a spacer, as SwiftUI's does (E2). `isSpacer` stays
-public with its current reach (bare or under `layoutPriority`); its only
-built-in reader becomes `CN-H`'s spacing rule.
+`layoutPriority`, `padding`, `frame`, `fixedSize`, `aspectRatio`, and **both
+children** of `overlayAttachment`, and marks the spacers it reaches with its
+axis; the walk stops at any other node (`overlay`, `linearStack`,
+`scrollViewport`, `custom`, `leaf`), so an inner stack's marks stand.
+`reset(generation:)` clears the marks.
 
-**Not probed, and chosen:** whether the stack axis reaches a spacer on the
-*overlay* side of `.overlay`, or through `.aspectRatio`/`.fixedSize` (marked,
-by analogy with frame and padding). A `ZStack` inside a stack does not pass the
-axis on (only SPB6's `ZStack`-alone arm exists).
+The stack's priority reader (`CN-D`) returns −∞ for a spacer reached bare or
+through an overlay's primary or a single-child stack, the value of a
+`layoutPriority` node, and 0 otherwise. The public proxies' `priority` reports
+the same reader, so a spacer reads −∞ as SwiftUI's proxy does (E2). `isSpacer`
+stays public with its current reach (bare or under `layoutPriority`); it is no
+longer read by any built-in (`CN-H` uses its own walk).
+
+**Split across lanes** (`CN-S`, the spec's §6): the −∞ priority and the ∞
+answer are lane 1's, because the distribution cannot be pinned without them;
+the default 8 and the cross-axis mark are lane 2's.
+
+**Measured** (staged prototype): all K2 arms, SP19, SP20 and X8 read the probe's
+allocations under the walk above; lane 2 alone adds 5 red tests (spec appendix).
 
 **What it costs if wrong.** A spacer claims or refuses a cross-axis size a
 SwiftUI one would not, which moves a stack's cross size (SP13: 20 tall, not
@@ -205,10 +276,12 @@ SwiftUI one would not, which moves a stack's cross size (SP13: 20 tall, not
 **The finding.** G11: `HStack { HStack { a.layoutPriority(1) }; b }` gives a
 80 at 100 (priority 1 wins); G11c, the same with a second (0-wide) child in the
 inner stack, gives 50/50. The contract probe's L3 reads the same through a
-proxy for all three stack kinds, and 0 for a single-child custom layout.
+proxy for all three stack kinds, and 0 for a single-child custom layout. K2a:
+a single-child `ZStack` passes a spacer's −∞ through (its sibling is offered
+96).
 
-**The ruling.** `nativeLayoutPriority` of a `linearStack` or `overlay` node
-with exactly one child is that child's stack priority (so a lone spacer's −∞
+**The ruling.** The stack priority of a `linearStack` or `overlay` node with
+exactly one child is that child's stack priority (so a lone spacer's −∞
 passes too); a custom layout reads 0. Closes `SA-N` item 8, and flips
 `aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules`' wrong-on-
 purpose 0.
@@ -227,17 +300,44 @@ share; the discriminating arm pair is in the test.
   answers but **places** after re-running the distribution at its own cross
   size (Q1: reports 30×80, places a 30×20 child at y 0 and the next at y 20;
   X10, X11, G17).
-- A `ZStack` offers every child its proposal and **places** each at
-  `proposal ?? its own size` per axis (A5n 20×20; X12 100×20; Q2 reports
-  30×60 and places at 30×60).
+- **Amended, critic round 1.** A `ZStack` measures every child at its proposal.
+  It **places** every child at a proposal equal to **its own size B** (the size
+  it answered, which is the size its parent placed it at), re-measures each
+  child there, and aligns each child within the **union U** of those answers,
+  with U's origin at the `ZStack`'s origin (Z1: at 60×40 it answers 30×20; the
+  half-width leaf is placed at proposal 30×20, answers 15×10, and sits at
+  (2.5, 5) inside the 20×20 union, not at (7.5, 5) inside 30×20; Z4 places at
+  60×40, not 100×100; Q2's children, placed at 30×60, answer 30×20 and sit at
+  y 0, not y 20; Z3). The design's earlier "places at `proposal ?? own size`"
+  agreed with A5, A5n, X12 and Q2 but not with Z1, which is the only arm whose
+  children shrink between the two proposals.
 
 **The ruling.** Adopt all three. The second pass runs only in placement and
 only when the cross proposal is nil; its allocations are stored, its size is
-not reported.
+not reported. The `ZStack` rule uses the node's **stored bounds size** as B.
+
+**Coupled to `CN-J`, measured.** The `ZStack` rule is SwiftUI's only when a
+`ZStack` is placed at its own answer. Today's native root is placed at the full
+window whatever it answers; with the rule and without `CN-J`, a `ZStack` root
+put its union at the window's top-left and **14 more tests went red** in the
+first staged run (the overlay, clip, `onTap` and hover tests whose roots are
+`ZStack`s, e.g. `aTapOnAnOverlaysPrimaryWritesOnlyThePrimarysState`: primary at
+(0, 0) instead of (20, 20)). So the second-pass clause is lane 1's and the
+`ZStack` clause lands with `CN-J` in lane 4.
+
+**Kernel-caller consequence.** `computeNativeLayout(root:proposal:in:)` with
+bounds **larger** than the root's answer now puts a `ZStack` root's union at the
+bounds' origin. Three kernel tests do exactly that and change in lane 4
+(`aNativeOverlayForwardsOneProposalMeasuresTheLargestChildAndCentresEachChild`,
+`aNativeOverlayPlacesEveryChildAtTheRequestedAlignment`,
+`everyProposalAlignmentPlacesAnOverlayChildAtItsNamedPosition`); the lane
+rebuilds each with bounds equal to the answer and a smaller child aligned inside
+a larger sibling (probe A3's shape), so the nine alignments stay distinct.
 
 **What it costs if wrong.** A greedy child in a nil-proposed stack stays at its
 ideal instead of matching its widest sibling (the common `VStack` of labels and
-a `.frame(maxWidth: .infinity)` divider).
+a `.frame(maxWidth: .infinity)` divider); a `ZStack` whose children shrink when
+re-proposed sits off-centre by half the shrinkage.
 
 ---
 
@@ -246,10 +346,7 @@ a `.frame(maxWidth: .infinity)` divider).
 **The finding.** SwiftUI answers ∞ at ∞ for `.frame(maxWidth: .infinity)`
 (D12), for a spacer (contract probe E) and for a `ScrollView` on its scrolling
 axis (SC1 at inf×inf). `CN-B`'s flexibility probe asks every child at main ∞,
-so a kernel that answers the child there reports a greedy frame as rigid. In the
-prototype without this change, `.frame(maxWidth: .infinity)` placed before an
-80pt rigid sibling at 100 would be served first and overflow to 130 (by reading
-of the prototype's sort; SwiftUI serves the rigid child first).
+so a kernel that answers the child there reports a greedy frame as rigid.
 
 **Why `FR-B`'s reason no longer holds.** `FR-B` kept `proposal.isFinite`
 because an infinite measurement would reach `LayoutRect`. After `CN-B` the
@@ -258,47 +355,71 @@ proposals are allocations (finite whenever the stack's own proposal is), a
 frame places at a clamp of its finite proposal, a viewport offers nil, and the
 root is finite. Checkpoint 3 still traps a non-finite rect, so a custom layout
 that places at ∞ traps exactly where SwiftUI crashes (D12's recorded
-`view origin is invalid`).
+`view origin is invalid`; this round's K4f reproduced the same crash, which is
+why the probe measures such arms without placing them).
 
-**The ruling.** Drop `proposal.isFinite` from `framedSize`'s greedy gate, from
-`spacerLength` and from `resolvedViewportDimension` on the scrolling axis.
-`aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity` is replaced by a
-test asserting the three infinite answers. **Measured:** the prototype suite
-with this change added two red tests to the previous 25 and no trap
-(`aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity`,
-`aHorizontalProposalScrollViewAlsoStacksDirectChildrenVertically`); the preview
-was byte-identical to the prototype without it.
+**The ruling.** Drop `proposal.isFinite` from `spacerLength` (lane 1), from
+`framedSize`'s greedy gate and from `resolvedViewportDimension` on the scrolling
+axis (lane 2). `aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity` is
+replaced by a test asserting the three infinite answers.
+
+**Measured.** No stage of the staged prototype trapped; lane 2's stage adds
+`aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity` to the red list.
 
 **What it costs if wrong.** An infinite rect reaches checkpoint 3 and traps
 with the node named. That is louder than `FR-B`'s silent under-expansion, and
-no built-in path is known to reach it; the lane adds an exit test for the one
+no built-in path is known to reach it; lane 2 adds an exit test for the one
 path that can (a custom layout placing at ∞).
 
 ---
 
-## CN-G — `aspectRatio` answers its child's answer to the ratio-shaped proposal
+## CN-G — `aspectRatio` answers its child's answer to the ratio-shaped proposal; infinity is a concrete axis
 
 **The finding.** AR1: a fixed 168×95 child under `.aspectRatio(16/9, .fit)` at
 500×300 is proposed 500×281.25 and the modifier answers **168×95**; AR2 at nil
 answers 168×95 with the child proposed nil×nil; AR3, a child that takes the
 offer, answers the ratio size 500×281.25; AR4 keeps it 168×95 inside an
-`HStack`. The kernel answers the ratio size whatever the child does.
+`HStack`. Critic round 1 added the other branches:
+
+- one axis: 500×nil proposes 500×281.25 (K4, K4c), nil×300 proposes 533.33×300
+  (K4b), and the modifier answers the child (168×95 fixed, 500×281.25 flexible);
+- **∞ is a concrete axis, not nil**: inf×inf proposes inf×inf (K4d `.fit`),
+  500×inf proposes 500×281.25 (K4e, K4g), `.fill` at 500×inf proposes inf×inf
+  (K4h) — exactly the two-axis `width / ratio <= height` (`>=` for `.fill`)
+  comparison with ∞ in it; a flexible child at inf×inf answers inf×inf (K4f);
+- a negative ratio at 100×100 proposes 100×−100 (K4i, K4j) and answers the
+  child (a clamping leaf 100×0; a fixed one 30×30).
+
+The kernel answers the ratio size whatever the child does, and treats ∞ as nil
+(`aspectRatioSize` filters `isFinite`).
+
+**The ruling.** At nil×nil the modifier proposes nil×nil. Otherwise it proposes
+the ratio-shaped size from the two-axis or one-axis branch, **with ∞ taken as a
+concrete value** (no `isFinite` filter), answers the child's answer, and places
+the child at that answer. The intrinsic nil×nil branch of `aspectRatioSize` is
+no longer reached and goes. Closes `SA-N` item 3.
 
 **Why here and not in task 7.** It was task 7's (`SA-N` item 3), but `CN-B`
-makes it visible: prototyped without it, the preview's `PreviewToggle`
-(`Rectangle(168×95).aspectRatio(16/9)` in the bottom `HStack`) is offered a
-finite allocation and grows to **496×279** — 155 248 differing pixels. With it,
-the toggle reads 168×95 (SwiftUI's AR1) against today's 168×94, **188 pixels**.
+makes it visible: staged without it (lane 1 alone), the preview's
+`PreviewToggle` (`Rectangle(168×95).aspectRatio(16/9)` in the bottom `HStack`)
+is offered a finite allocation and grows to 496×279 — **155 248 differing
+pixels** per preview image. With it (lane 2), **188 pixels**, the toggle
+168×94 → 168×95.
 
-**The ruling.** At a nil×nil proposal the modifier proposes nil×nil and answers
-the child; otherwise it proposes today's ratio-shaped size and answers the
-child's answer, placing the child at that answer. Closes `SA-N` item 3.
-
-**Measured risk, owed to the lane.** In the full prototype
-`aNegativeAspectRatioIsAcceptedOnEveryProposedBranch` failed with its exit
-status `.signal(SIGTRAP)` instead of `.success`: some negative-ratio branch now
-reaches a trap. `SA-K` item 2 accepts negative ratios, so the lane finds the
-trapping checkpoint and fixes the rule, not the test.
+**The trap the design handed to the lane, diagnosed.** Under the prototype
+`aNegativeAspectRatioIsAcceptedOnEveryProposedBranch` exits with SIGTRAP. No
+checkpoint fires: the SIGTRAP is **the test's own `precondition`**. Its child is
+a fixed 10×10 leaf and it asserts the modifier answers the ratio size
+(100×−50 and so on). Those numbers come from input-validation probe P8/P8b,
+whose child was `Color`, which **takes the offer**. Under `CN-G` a fixed child
+answers 10×10 (measured: all four arms 10×10), and a proposal-echoing child
+answers exactly the P8 numbers (measured: 100×−50, −160×80, −160×80,
+100×−50). `aspectRatioUsesSwiftUIsBranchAtZeroAndNegativeProposalAxes` has the
+same fixture and the same cause. **The rule stands; the fixtures change**: both
+tests' child becomes a proposal-echoing leaf (the kernel's `Color`), which is
+what P8 measured, and K4j (a fixed child keeps its own size at a negative
+ratio) becomes an arm of test 2.5. `SA-K` item 2 (negative ratios accepted) is
+unchanged.
 
 **What it costs if wrong.** A fixed child under `.aspectRatio` sizes by its own
 answer rather than the ratio; `aspectRatioFitInscribes…`/`…Fill…` flip and pin
@@ -306,7 +427,7 @@ AR1/AR3.
 
 ---
 
-## CN-H — platform-default spacing: 8 between views, none next to a spacer; explicit spacing verbatim
+## CN-H — platform-default spacing: 8 between views, none at a spacer's edge; explicit spacing verbatim
 
 **The finding.** Horizontally every measured pair is 8 (S: rect, color, custom
 layout, text, image, nested stack, button, padded text, toggle). Vertically
@@ -315,13 +436,39 @@ non-text pairs are 8; a **Text edge is font-derived**: text|text 0, rect|text
 nothing (G23). **No default spacing is inserted next to a spacer** (SP2 48 =
 SP1; SP3 40), but **explicit spacing is** (SP4 80).
 
+**Amended, critic round 1: the rule is per edge and sees through wrappers.**
+Against the control K3 (48):
+
+- a spacer's zero spacing survives `.padding(0)` (K3a 40), a frame (K3b 40,
+  K3q 50), the overlay primary (K3c 40), `layoutPriority` (K3d 40), `fixedSize`
+  (K3e 40), `aspectRatio` (K3f 40) and a `ZStack` all of whose children are
+  spacers (K3g, K3l 40);
+- a **non-zero padding inset gives that edge default spacing** again (K3m 64 =
+  20+8+8+8+20; K3n 52 with only the leading edge padded; K3o 40, a cross-axis
+  edge; K3p 52 vertically);
+- a `ZStack` with a non-spacer child (K3j, K3k 56), a nested stack (K3h 56) and a
+  spacer on an overlay's **content** side (K3i 56) get default spacing.
+
+The design's `isNativeSpacer` (bare or under `layoutPriority` only) would have
+put 8 in K3a, K3b, K3c, K3e, K3f and K3g.
+
 **The ruling.** `HStack`/`VStack` take `spacing: Pixels? = nil`. The kernel's
-`newNativeLinearStack` takes `spacing: Double?`; nil means, per adjacent pair,
-0 if either node `isNativeSpacer`, else `ProposalSpacing.platformDefault`; a
-number is used for every gap. `ProposalScrollView`'s lowering of several
-children passes nil. **Not adopted:** the text-edge vertical values. MetalUI's
-`ProposalText` has no font metrics in the kernel and no spacing preference
-channel; it gets 8 (a divergence, owner task 11 with baseline alignment).
+`newNativeLinearStack` takes `spacing: Double?`; a number is used for every gap;
+nil means, per adjacent pair, **0 if the earlier child's trailing edge or the
+later child's leading edge is a zero-spacing edge**, else
+`ProposalSpacing.platformDefault`. A node's leading/trailing zero-spacing edges
+(along the stack's axis) are: both for a spacer; the child's for
+`layoutPriority`, `frame`, `fixedSize`, `aspectRatio` and `overlayAttachment`
+(its primary); the child's AND an inset of exactly 0 on that edge for `padding`;
+for an `overlay` node with at least one child, the AND of its children's; none
+for anything else. `ProposalScrollView`'s lowering of several children passes
+nil. **Not adopted:** the text-edge vertical values. MetalUI's `ProposalText`
+has no font metrics in the kernel and no spacing preference channel; it gets 8
+(a divergence, owner task 11 with baseline alignment).
+
+**Measured** (staged prototype): K3a 40, K3b 40, K3c 40, K3m 64, K3n 52, K3g 40,
+K3j 56, K3h 56, K3i 56, each the probe's number; the same arms read 56/56/56/64/
+60/56/56/56/56 before the lane.
 
 **What it costs if wrong.** A `VStack` of `ProposalText`s is 8pt per gap
 looser than SwiftUI's; two labels in one `VStack` differ by one gap. Recorded,
@@ -354,53 +501,100 @@ ambiguous; it forwards the cross-axis factor as today. The three call sites
 move to the new order. `ZStack` keeps the nine-case `ProposalAlignment`; the
 kernel keeps `ProposalAlignment` on `newNativeLinearStack`.
 
+**Amended, critic round 1: the inert row is not retired.** The deprecated
+initializer still accepts `.leading` for an `HStack` and uses only the vertical
+factor. CLAUDE.md's inert row "`HStack`/`VStack`'s `alignment:` main-axis half"
+stays, re-worded at the Docs phase to name the deprecated
+`init(spacing:alignment:content:)`, until that initializer is deleted.
+
 **What it costs if wrong.** An external caller writing the old order gets a
-deprecation warning, and one writing `HStack(alignment: .leading)` a compile
-error — SwiftUI's own error. Three typecheck guards pin both and the deprecation.
+deprecation warning, and one writing `HStack(alignment: .leading)` in the new
+order a compile error — SwiftUI's own error. Three typecheck guards pin both and
+the deprecation.
 
 ---
 
 ## CN-J — a native root is placed centred at its own answer
 
 **The finding.** R1 and R2: a hosting view proposes its bounds and places a
-58×20 root at (21, 40) in 100×100; a greedy root fills (R control). The kernel
-stores the root at the full window and a root stack packs from the leading
-edge (`hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt` pins x
-28).
+58×20 root at (21, 40) in 100×100; a greedy root fills (R control). A root's
+overlay and background content is proposed the root's size, not the host's
+(R3, R4: 58×20). The kernel stores the root at the full window and a root stack
+packs from the leading edge (`hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt`
+pins x 28).
 
 **The ruling.** `Frame.computeRootLayout` measures a native root at the window
 proposal and places it at `((w − answer.w) / 2, (h − answer.h) / 2)` at its
 answer, in one native run: a new `LayoutTree.computeNativeLayout(root:proposal:centredIn:)`.
-The legacy root is untouched. The preview's root is a greedy `ZStack` and did
-not move (0 pixels, prototype).
+The legacy root is untouched. Lands in lane 4 with `CN-E`'s `ZStack` clause.
+
+**Measured.** The preview's root is a greedy `ZStack` and did not move at
+stage 4. `fixedSizeModifierWithholdsOnlyItsSelectedAxisFromTheChildProposal`
+goes red at stage 4: its root `ZStack` now answers 30×10, is placed at 30×10,
+and (by `CN-E`) re-proposes its child (nil, 10) where the test expects
+(nil, 80). That is the probe's rule, and the lane updates the expectation.
 
 **What it costs if wrong.** A small native root sits in the window's centre
 instead of its top-left; loud, and pinned by R1's numbers.
 
 ---
 
-## CN-K — overlay and background content: several views are a `ZStack`, none is nothing, and `.background` takes content
+## CN-K — overlay and background content: several views are a centred `ZStack`, none is nothing, `.background` takes content and sits beneath for hits
 
-**The finding.** A10: two views in one `.overlay` are laid out as a `ZStack`
-with the overlay's alignment, itself proposed the primary's size (o1 at
-(20, 10), o2 at (15, 15)). A11/A11b: an empty conditional in `.overlay` or
-`.background` leaves the primary alone. A9: `.background(alignment:content:)`
-proposes the primary's size and aligns like an overlay. Today a non-single
-overlay traps (`precondition` in `NativeOverlayModifier.swift:73`), and the
-proposal `.background` takes only a `ColorToken`.
+**The finding.** A10, K5a, K5b: two views in one `.overlay` lay out as a
+`ZStack`, itself proposed the primary's size. **Amended, critic round 1:** that
+implicit `ZStack` is **centred whatever the modifier's alignment**; the
+alignment only positions it (K5g `.topLeading`: the half-width leaf at
+(2.5, 5) inside a union at (0, 0), not (0, 0); K5h `.background(alignment:
+.bottomTrailing)`: union at (30, 20), leaf at (32.5, 25); K5c, an explicit
+`ZStack`, the same). The content is **placed at the primary's size as its
+proposal**, positioned by its answer (K5: a half-width leaf's only placement
+proposal is 60×40; K5d: an `HStack` in an overlay is re-solved at 60×40, its
+half-width child placed at 40×40). A11/A11b: an empty conditional in `.overlay`
+or `.background` leaves the primary alone. A9: `.background(alignment:content:)`
+proposes the primary's size and aligns like an overlay. Hits
+(`swiftui-overlay-presentation.swift`): a click over a view and its
+`.background` content reaches **the view** (H1 centre: primary 1, background 0);
+outside the view it reaches the background (H1 edge); an overlay takes both
+(H2). A view **without** a gesture still blocks the background's gesture (H3
+centre 0).
+
+Today a non-single overlay traps (`precondition` in
+`NativeOverlayModifier.swift:73`), and the proposal `.background` takes only a
+`ColorToken`.
+
+**The critic's proposed amendment is rejected.** Critic finding 2 read K5a/K5b
+as "the attachment places its content at the content's own answer". K5 (one
+leaf: placed at 60×40, not 30×10) and K5d (an `HStack` re-solved at 60×40, not
+at its 40×20 answer) refute that; the kernel's `overlayAttachment` already
+places at the primary's size, and what K5a/K5b show is the `ZStack` placement
+rule of `CN-E`. Measured on the staged prototype: with `CN-E`'s `ZStack` clause
+and no attachment change, K5a, Z1 and K5d read the probe's rects (K5a leaf at
+x 18 and Z1 at x 3 where SwiftUI reads 17.5 and 2.5: the kernel's stored rects
+are rounded, `roundLayout`; the lane's tests use integral arms).
 
 **The ruling.** `OverlayModifier` lowers several overlay nodes to one kernel
-`overlay` node with the modifier's alignment, and zero nodes to the primary
-alone (no attachment node). New `.background(alignment:content:)` on
-`ProposalElementGroup`, returning a `BackgroundModifier` that registers the same
-`overlayAttachment` and paints the secondary **before** the primary. Its content
-numbers under `.child(of: id, at: -1)`, exactly as `MC-P` numbers an overlay's.
-The primary side keeps its one-node precondition (a primary is the view being
-modified; SwiftUI has no zero-view receiver).
+`overlay` node **with alignment `.center`**, then the attachment with the
+modifier's alignment; zero nodes to the primary alone (no attachment node). New
+`.background(alignment:content:)` on `ProposalElementGroup`, returning a
+`BackgroundModifier` that registers the same lowering, **prepaints its content
+before the primary** (so the primary's hitbox registers later and ranks above
+it in `topmostOpaqueHitbox`, `Hitbox.swift`) and **paints its content before
+the primary**. Its content numbers under `.child(of: id, at: -1)`, exactly as
+`MC-P` numbers an overlay's. The primary side keeps its one-node precondition (a
+primary is the view being modified; SwiftUI has no zero-view receiver).
+
+**H3 is a recorded difference, not adopted.** A MetalUI element without
+`onClick`/`onTap` registers no opaque hitbox, so a click over a non-clickable
+primary reaches a clickable background beneath it; SwiftUI's primary blocks.
+That is the kind of difference divergence 23 records for overlays; the Docs
+phase numbers it.
 
 **What it costs if wrong.** An overlay of a conditional stops trapping and
 starts drawing nothing, which is the SwiftUI answer; a multi-view overlay's
-placement is pinned by A10's numbers.
+placement is pinned by K5a/K5g's numbers; a background whose content registered
+last would take the primary's clicks while painting beneath it — pinned by a
+click test and its prepaint-order mutation.
 
 ---
 
@@ -412,12 +606,23 @@ records that a duplicate-parent precondition truncates the suite at that test.
 
 **The ruling.** The native registrars record each child's parent and trap on a
 second one, or on a child listed twice in one parent, with a message naming
-`MC-G` hole 4. Legacy `newNode` is not checked (outside the hole, unmeasured).
-The pin becomes an exit test **before** the precondition lands.
+`MC-G` hole 4. `reset(generation:)` clears the record. Legacy `newNode` is not
+checked (outside the hole, unmeasured). The pin becomes an exit test **before**
+the precondition lands.
+
+**Prototyped, critic round 1** (staged prototype, stages 4 and 5): a parent
+record in every native registrar with children, cleared by `reset`. With the pin
+skipped (as its exit-test replacement would be), the unfiltered suite ran to its
+summary line; **no other test tripped the trap** (the stage-4 red list has no
+test the other lane-4 rulings do not explain). Scratch exit tests: a leaf listed
+twice in one stack exits with failure; one leaf under two frames exits with
+failure; one leaf under a frame, `reset(generation: 1)`, then a fresh leaf under
+a fresh frame at the same indices exits with **success** — so the record is
+cleared (without the clear, index 0 would still hold its old parent and trap).
 
 **What it costs if wrong.** A real tree that reuses a native node traps where it
-used to lay out one of its two slots; no such tree exists in `Sources/` (both
-arms of the pin are hand-built fixtures).
+used to lay out one of its two slots; no such tree exists in `Sources/`, and the
+unfiltered suite has none either.
 
 ---
 
@@ -437,11 +642,12 @@ arms of the pin are hand-built fixtures).
   the axes (SC3: b at (10, 38) on all three).
 
 **The ruling.** Adopt the non-scrolling-axis answer (the preview's scroll view
-border narrows from 856 to 520 wide, 1 109 pixels, prototype) and the default
-spacing of `CN-H` for the lowering; the other two rules are already the
-kernel's and gain pins. **Two-axis scrolling is deferred to task 10**:
-`ScrollState` holds one offset, a scroll hitbox one axis and the indicator one
-track, and SCG2's centring rule has nothing to attach to until they do.
+border narrows from 856 to 520 wide; each preview image reads 1 109 differing
+pixels at stage 4 against lane 2's 188)
+and the default spacing of `CN-H` for the lowering; the other two rules are
+already the kernel's and gain pins. **Two-axis scrolling is deferred to task
+10**: `ScrollState` holds one offset, a scroll hitbox one axis and the indicator
+one track, and SCG2's centring rule has nothing to attach to until they do.
 
 **What it costs if wrong.** A proposal scroll view is as wide as its content on
 its cross axis rather than as its parent; the preview shows it.
@@ -453,27 +659,37 @@ its cross axis rather than as its parent; the preview shows it.
 **The finding.** `FR-N`: a single flex node squeezes an oversized child on its
 main axis and overflows the cross axis, where SwiftUI's A5 (frame-semantics
 probe) overflows both, 200×160 at (−70, −60) in a 60×40 frame.
-**Prototype** (every frame layer lowered to `display: .stack` with
-`alignItems`/`justifyItems` from the alignment): the child reads exactly
-(−70, −60) 200×160; the suite read **5 red tests, 8 issues**:
-`aLegacyFrameSqueezesAnOversizedChildWhereSwiftUIOverflows` and
-`aFrameLayersClipAndBorderBoundTheChildTheFrameCannotShrink` (both now at
-SwiftUI's numbers), and three tests of a frame over a **two-member**
-`Component` (`aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`,
-`chainedFramesRemainConcreteAndNestTheirLayoutNodes`,
-`aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembers`), whose members
-were layered instead of laid out as a row. `aLegacyFrameProposesItsWidthToAMeasuredLeaf`
-stayed green: a `Text` in a one-cell stack still re-wraps at the frame width.
-The default demo uses no legacy `.frame`.
+
+**Prototypes.**
+
+- *Every* frame layer lowered to `display: .stack` (design round): 5 red tests /
+  8 issues, three of them frames over a **two-member** `Component`, whose members
+  were layered instead of laid out as a row.
+- **The ruling's own lowering, exactly one node** (critic round 1, stage 5 of
+  the staged prototype: `ModifierLayer.isFrame` set by both frame overloads; in
+  `ModifiedElement.requestLayout`, before `animated`, a frame layer whose
+  children number exactly one gets `display = .stack` and `justifyItems` from
+  its `justifyContent`): **2 red tests**, both the ones meant to move —
+  `aLegacyFrameSqueezesAnOversizedChildWhereSwiftUIOverflows` and
+  `aFrameLayersClipAndBorderBoundTheChildTheFrameCannotShrink`. The three
+  two-member `Component` tests stayed green, measured. All twelve demo images
+  read the same as stage 4 (the demo has no legacy `.frame`).
 
 **The ruling.** A frame layer whose content contributes **exactly one** node
 registers with `display = .stack`, `alignItems` from the alignment's vertical
 case and `justifyItems` from its horizontal case; with zero or several nodes it
 keeps `FR-C`'s flex lowering. `ModifierLayer` gains an internal `isFrame` flag,
 set by both frame overloads; the choice is made in `ModifiedElement.requestLayout`,
-before `animated`, per layer. SwiftUI's G7 (component-distribution probe) wraps
-**each** member of a two-member custom view in its own frame; neither the row
-nor the stack is that answer, and the row is kept because it is today's.
+before `animated`, per layer (an outer layer's one child is the inner layer's
+node, so a chain of frames lowers every layer). SwiftUI's G7 (component-
+distribution probe) wraps **each** member of a two-member custom view in its own
+frame; neither the row nor the stack is that answer, and the row is kept
+because it is today's.
+
+**Not examined by the prototype, and so stated as open for lane 5:** an
+absolutely positioned child and a `ScrollView` inside a one-child legacy frame.
+Lane 5 adds one test for each against today's answers before changing the
+lowering, and a difference is a finding.
 
 **What it costs if wrong.** A child with `.flexGrow` or `.alignSelf` inside a
 single-child legacy frame loses them (a `Stack` ignores both). No test or demo
@@ -500,7 +716,7 @@ names the fix; nothing changes size.
 
 ---
 
-## CN-P — the legacy containers keep their algorithms, and three divergences are pinned
+## CN-P — the legacy containers keep their algorithms; three divergences are pinned and owned by task 7
 
 **The audit** (the spec's table). The legacy containers agree with SwiftUI on
 centred cross-axis stacking (EP-8, A1/A2), `Stack`'s nine alignments and union
@@ -509,22 +725,44 @@ sizing (A3/A4), and disagree on:
 1. **default spacing** — `Row`/`Column` gap 0, SwiftUI 8 (S);
 2. **what a `Stack` offers a child** — fit-content, where `ZStack` offers its
    proposal (A5: a greedy child fills 100×80; a childless `Box` in a `Stack` is
-   0×0);
+   0×0, measured);
 3. **a `ScrollView`'s cross axis** — the legacy viewport takes its parent's
    (stretch or declared), SwiftUI's takes its content's (SC2);
 4. compression by CSS flex-shrink (proportional to base size) instead of
    flexibility order (G1), expansion only by `flexGrow`, no spacer.
 
 **Measured.** Changing `Row`/`Column`'s default gap to 8 reddens **22 tests**
-(listed in the spec's appendix) and 0 demo pixels (every demo stack spells its gap),
-and would still disagree with SwiftUI next to text vertically (0) and has no
-spacer to be zero beside.
+(listed in the spec's appendix) and 0 demo pixels (every demo stack spells its
+gap), and would still disagree with SwiftUI next to text vertically (0) and has
+no spacer to be zero beside.
 
 **The ruling.** No legacy default changes. Items 1–3 get one characterization
 test each that builds the legacy spelling and its proposal counterpart side by
 side and `#require`s them to disagree by the probe's numbers; item 4 is
-`FlexEngine`'s and is covered by its goldens. They are recorded as divergences
-at integration (numbers assigned there).
+`FlexEngine`'s and is covered by its goldens. **Owner of all four: task 7**,
+whose closing condition ("no production layout request may pass through the
+legacy engine") removes them by lowering or deleting the legacy spellings; they
+are recorded as divergences at integration with that owner.
+
+**Why not adopt the horizontal gap now** (critic finding 14). It is 22 test edits
+for 0 demo pixels on a container task 7 replaces; `Column` would stay at 0, so
+`Row` and `Column` would disagree with each other; and a legacy `Row` ported to
+`HStack` in task 7 gets 8 from `CN-H` anyway. The pin makes the difference
+findable by name until then.
+
+**Pin 5.4's mutation, replaced and measured.** The design's mutation set
+`alignSelf .stretch` on `Stack` children, which the inert table says a `Stack`
+ignores. Replacement: set the legacy `Stack` **container's** `alignItems` and
+`justifyItems` to `.stretch` in `Stack.init`. Measured at `9e439cb` (staged
+prototype, stage 0, environment switch): a sizeless `Box` in a 100×80 `Stack`
+reads (50, 40) 0×0 without it and (0, 0) 100×80 with it, and the unfiltered
+suite reddens 7 tests (`allNineAlignmentsMapToTheirPairAndTheNineAreDistinct`,
+`aNestedHandlerWinsOverItsContainingStackToo`,
+`aPressReleasedOverSomethingCoveringItIsNotAClick`,
+`clippedAlsoClipsTheHitboxesInsideIt`, `stackDefaultsToCentreNotStretch`,
+`stackWritesDisplayAndBothAlignmentFields`,
+`theTopmostOfTwoOverlappingHandlersRuns`). Pin 5.4 must be among the tests it
+reddens.
 
 **What it costs if wrong.** A caller porting a legacy `Row {}` to `HStack {}`
 gains 8pt gaps silently; the pin makes the difference findable by name.
@@ -535,66 +773,209 @@ gains 8pt gaps silently; the pin makes the difference findable by name.
 
 | item | why not here | owner |
 |---|---|---|
-| lowering `Row`/`Column`/`Stack`/`Box`/`ScrollView`/`List`/`Deferred` onto the kernel; switching the default demo root | `CN-A` | task 7 |
+| lowering `Row`/`Column`/`Stack`/`Box`/`ScrollView`/`Deferred` onto the kernel; switching the default demo root; the three `CN-P` divergences | `CN-A` | task 7 |
+| **a windowed proposal `List`** (uniform `rowHeight`, `ScrollContext`, row identity, the `AXTable` records) — the layout half task 7's closing condition needs, since the default demo root contains `List` | windowing and identity are the `MP-`/`TB-`/`AB-L` rulings, a lane of their own; probe K6 fixes its layout answer (greedy: the proposal on each concrete axis, 0 on a nil axis) | **task 7** (moved from task 10 by `CN-T`) |
+| SwiftUI `List` semantics beyond layout: `ForEach`, selection, non-uniform rows, rows outside the window reachable, divergences 14 and 32 | the plan's data-driven controls | task 10 |
 | a greedy **finite** maximum and a **single-axis** infinite maximum on the legacy frame (`FR-E`, `FR-O`); a nil-axis frame under a stretching `Box` (`MC-Q` finding 7) | needs the parent's flex axis at registration: a pass-scoped value every legacy container would have to set (at least `Box`, `Stack`, `ScrollView`, `List`, `Deferred`, `EnvironmentScope`, `Component`, the root), none enforced, on a path task 7 deletes. The proposal path delivers it (FR-A, `CN-B` G4) | task 7 |
 | legacy `.overlay` | `ModifiedElement` holds one subtree; a second is the `ModifiedContent` unification (`OM-` spec §9) | task 7 |
-| a proposal `List` | windowing, `ScrollContext`, row identity (MP-/TB- rulings) — the plan's own task | task 10 |
-| a proposal `Deferred` (portal) | no SwiftUI layout counterpart; presentation belongs with the root switch | task 7 |
+| a proposal `Deferred` (portal) | **measured, critic round 1**: SwiftUI's `.overlay` has neither of `Deferred`'s escapes — its content is clipped by an ancestor `.clipped()` (P1) and is not hoisted above a later sibling (P2; `.zIndex` hoists within one `ZStack`, P3) — and a presented `.sheet`/`.popover` is outside the presenting view's layout and render tree (P4, P5: never laid out, never drawn). So there is no layout-protocol algorithm to port; the portal's counterpart is presentation, which belongs with the root switch | task 7 |
 | two-axis scrolling | `CN-M` | task 10 |
 | text-edge vertical default spacing; `firstTextBaseline`/`lastTextBaseline` stack alignment | needs font metrics and baselines from `ProposalText` (`CN-H`) | task 11 |
 | builder wrappers with zero or several nodes (`ProposalFrame { if flag {…} }`, `Padding`, `FixedSize`, `Background`, `OnTapModifier`) | SwiftUI has no builder frame; `Group` semantics (a modifier applies per view) is the composition audit | task 8 |
 | `SA-N` item 4, padding places its child at the child's size | not a container; its pin is intact | task 7 |
-| the release-window captures | `IOConsoleLocked` read `<true/>` at 2026-09-16 design time | carried (`MC-J`) |
+| a non-clickable primary blocking a background's click (probe H3) | MetalUI's hit model (only `onClick`/`onTap` is opaque) is plan task 12's | task 12 |
+| the release-window captures | `IOConsoleLocked` read `<true/>` at design time, again in critic round 1 | carried (`MC-J`) |
 
 ---
 
 ## CN-R — method: what was run, and where
 
-- **Probe**, `docs/probes/swiftui-stack-algorithms.swift`, three revisions
-  (`75b5f69`, `fbfc1d6`, the A11 revision), each run twice under
-  `/usr/bin/swift` with byte-identical output; each revision's output prefix
-  identical to the previous revision's. Every group has a control that differs
-  from its arms. Two harness defects were found and fixed before recording:
-  the `Probe` layout's own `sizeThatFits` is not always called (an arm printed
-  the previous arm's size), so placement re-reads it and a sentinel `-1x-1`
-  marks an unmeasured arm; views containing only spacers or nothing are never
-  laid out as hosting-view roots, so SPB reads them through a background leaf.
-- **Kernel prototypes** (P1: `CN-B`/`CN-C`/`CN-D`/`CN-E` ZStack; P2: + `CN-G`
-  and `CN-J`; P4: + `CN-M` cross axis; P5: + `CN-F`), each run through the
-  unfiltered suite under `--build-system native`: P1 1303 tests, 50 issues;
-  P2 25 red tests; P5 27 red tests (named in the spec). P1's run also failed
+- **Probes**, as in the header. `swiftui-stack-algorithms.swift` revisions
+  `75b5f69`, `fbfc1d6`, the A11 revision and revision 4 (`cef0acd`, `f10e779`),
+  each run twice under `/usr/bin/swift` with byte-identical output; each
+  revision's output prefix identical to the previous revision's (revision 4:
+  one relabelled line, X9). Every group has a control that differs from its
+  arms. Harness defects found and fixed before recording: the `Probe` layout's
+  own `sizeThatFits` is not always called, so placement re-reads it and a
+  sentinel `-1x-1` marks an unmeasured arm; views containing only spacers or
+  nothing are never laid out as hosting-view roots, so SPB reads them through a
+  background leaf; SwiftUI traps placing an infinite answer, so K4d–K4h and K6e
+  are measured without placement (`runMeasured`). In the overlay/presentation
+  probe, `NSHostingView` shrank the window to fixed-size content until the
+  harness gave it a 200×200 frame and empty sizing options.
+- **The design round's P1 failures, re-run in isolation and explained.**
   `aNodeIDDoesNotSilentlyResolveAgainstAnotherFramesTree` and
-  `everyFrameTakesADistinctTreeGeneration`; neither failed under P2 or P5 and
-  neither was reproduced — recorded, not explained.
-- **Work counts**, a scratch `@testable` test (deleted), under P1 and at
-  `9e439cb`.
-- **Legacy prototypes**: `Row`/`Column` default gap 8 (22 red); every frame layer
-  as `display: .stack` (5 red / 8 issues).
+  `everyFrameTakesADistinctTreeGeneration` (both reading every `Frame`'s tree
+  generation as 0) were reproduced **on the unmodified baseline**, built
+  incrementally over a build that had last compiled a prototype adding a stored
+  property to `LayoutTree`; P1 built incrementally did not fail them, and P1
+  after `swift package clean` did not either (13 red tests, 48 issues, the
+  design's list minus those two). It is CLAUDE.md's cross-module stored-property
+  hazard: `LayoutTree` is a public class in `MetalUILayout` read by `MetalUI`.
+  **Every lane that adds a stored property to `LayoutTree` (`CN-C`'s marks,
+  `CN-L`'s parent record) runs `swift package clean` before its suite.** P1's
+  counts are superseded by the staged prototype's (`CN-B`).
+- **The staged prototype** (critic round 1). One patch implementing every
+  kernel and element change of `CN-B`…`CN-N`, with each ruling gated on a
+  process-wide `CN_STAGE` environment value (1 = lane 1 … 5 = lane 5,
+  cumulative) read once in a scratch `MetalUILayout` file, so one clean build
+  served six unfiltered suite runs; exit tests inherit the environment. The
+  kernel's `Double?` spacing was stood in for by a NaN sentinel (so
+  `aNaNStackSpacingTraps` reads red at stages 3–5 and is not a lane change).
+  Stage 0 read `Test run with 1311 tests … passed` (1303 plus 8 scratch tests)
+  and **0 differing pixels in all twelve images against `9e439cb`'s**, which is
+  the patch's own control. A first staged run placed `ZStack`s by `CN-E`'s rule
+  from stage 1 and read 14 extra red tests there, all vanishing at stage 4
+  (`CN-E`'s coupling note); the recorded stages 1–3 are the re-run with that
+  clause at stage 4. Scratch tests printed the work, shaping, K5a/Z1/K5d,
+  negative-ratio and K3 figures quoted above, and ran the `CN-L` exit tests.
+- **Mutations taken on the prototype at stage 0**: `HStack`'s axis swapped
+  (test 1.11's), 11 red tests (spec); the legacy `Stack` container stretched
+  (pin 5.4's), 7 red tests (`CN-P`).
+- **Legacy prototypes (design round)**: `Row`/`Column` default gap 8 (22 red);
+  every frame layer as `display: .stack` (5 red / 8 issues).
 - **Pixels**, the record §13/§16 harness rebuilt in scratch: `main.swift` up to
   `runDemo()` with its globals prefixed `SI`, rendered through a real `Window`
-  over `FakePlatformWindow` at 1024×1024, ten images, plus two added 560×560
-  images (the default demo and the preview) because the 1024 square never
-  compresses the preview. Base `git archive 9e439cb` in scratch. Controls on the
-  base: light vs dark 1 048 576; default vs modal 1 030 498; default vs
-  animation 210 027; f0 vs f3 0; preview light vs dark 1 048 576 — the same
-  figures record §16 read.
+  over `FakePlatformWindow` at 1024×1024, ten images, plus two 560×560 images
+  (the default demo and the preview) because the 1024 square never compresses
+  the preview. Base `git archive 9e439cb` in scratch. Controls on the base:
+  light vs dark 1 048 576; default vs modal 1 030 498; default vs animation
+  210 027; f0 vs f3 0; preview light vs dark 1 048 576 — the same figures
+  record §16 read.
 
 ---
 
 ## CN-S — what the demo comparison must read, per lane
 
-Against `9e439cb`, cumulative, the twelve images of `CN-R`:
+Against `9e439cb`, cumulative, the twelve images of `CN-R`, measured on the
+staged prototype at each stage:
 
-| after lane | 8 legacy images + `small560-default` | `preview-*` (1024) | `small560-preview` |
+| after lane | 8 legacy images + `small560-default` | `preview-*` (1024), each | `small560-preview` |
 |---|---|---|---|
-| 1 | 0 | 188 each; `PreviewToggle` 168×94 → 168×95 (AR1) | differs; every moved rect traced to G9/X13, A4 or AR1 in the lane record |
-| 2 | 0 | unchanged from lane 1 | unchanged from lane 1 |
-| 3 | 0 | unchanged (greedy root, R control) | unchanged |
-| 4 | 0 | 1 109 each, bbox (264, 212)–(939, 865): lane 1's two rects plus the scroll border 856 → 520 wide (SC2) | 64 945 (prototype P5), each rect traced |
-| 5 | 0 | unchanged from lane 4 | unchanged from lane 4 |
+| 1 | 0, scene identical | **155 248**, bbox (84, 661)–(939, 939): `PreviewToggle` grows to 496×279 (G9/X13 allocation, `CN-G` not yet in) | **93 522** |
+| 2 | 0 | **188**, bbox (264, 845)–(431, 865): the toggle 168×94 → 168×95 (AR1) | **64 199** |
+| 3 | 0 | 188 (unchanged) | 64 199 (unchanged) |
+| 4 | 0 | **1 109**, bbox (264, 212)–(939, 865): lane 2's rect plus the scroll border 856 → 520 wide (SC2) | **65 449** |
+| 5 | 0 | 1 109 (unchanged) | 65 449 (unchanged) |
 
-An instrument must differ first on every lane that expects 0 on an image
-(practices shape 15): the lane mutates the code it changed and shows the
-comparison moves. Any other difference is explained by a probe arm or fixed.
+Each lane traces every moved rect of its row to a probe arm in its record. A
+lane's figure that differs from this table is a finding, explained or fixed
+before the lane closes.
+
+**Which images are evidence for which lane** (critic finding 11):
+
+- **The legacy images are not evidence for lanes 1–4.** No legacy image contains
+  a native node (`demoContent()` names no proposal type; each lane re-checks with
+  a grep), so a kernel change cannot move them and a zero there proves nothing
+  about the lane's code. They are recorded to show the lane moved nothing else.
+- **The preview images are the evidence for lanes 1, 2 and 4**, and their
+  positive control is the moving figure itself (each of those lanes is expected
+  to move them). **Lane 3 has no pixel evidence**: measured, stage 3 reads
+  stage 2's figures in every image (no preview gap sits at a spacer's edge
+  under default spacing), so a zero there proves nothing about `CN-H`; lane 3's
+  evidence is its tests.
+- **Lane 5 has no pixel evidence either.** The demo uses no legacy `.frame` and
+  no `percent:`; the eight legacy images are shown to still read 0, and the
+  harness's ability to see a legacy change is the base controls above (modal,
+  theme, animation), not a lane-5 mutation.
+
 The real release windows are captured only if `IOConsoleLocked` reads
 `<false/>` at that lane's end.
+
+---
+
+## CN-T — task 6 stays open; the plan amendment this design proposes
+
+**The question** (critic finding 4). `CN-A` names a windowed proposal `List` as
+a prerequisite of task 7's root switch, the design's first `CN-Q` gave it to
+task 10, and task 7's text says "No production layout request may pass through
+the legacy engine after this task". The default demo root contains `List`, so
+task 7 could not close before task 10. And task 6's title, "Replace
+containers", is delivered for no legacy container.
+
+**The ruling.**
+
+1. **Ownership.** The windowed proposal `List` (layout, windowing,
+   `ScrollContext`, row identity, its accessibility records) moves to **task 7**;
+   task 10 keeps `List`'s SwiftUI semantics beyond layout (`CN-Q`).
+2. **Task 6 is not ticked by this work.** The Docs phase adds a progress note
+   saying what landed and proposes this amended task text, for the user to
+   accept or not:
+
+   > **6. Port SwiftUI's container algorithms to the proposal path and audit the
+   > legacy containers.** Make `HStack`, `VStack`, `ZStack`, `Spacer`,
+   > `.overlay`/`.background` content and `ProposalScrollView` agree with
+   > SwiftUI's probed distribution, spacing, alignment, root placement and scroll
+   > axes; audit `Row`, `Column`, `Stack`, `Box`, `ScrollView`, `List` and
+   > `Deferred` against them, pin each difference, and hand the replacement of
+   > the legacy spellings to task 7.
+
+   and, for task 7, appends "including a windowed proposal `List` and a
+   proposal portal for `Deferred`" to "Migrate the remaining elements off
+   `FlexEngine`".
+3. If the text is not amended, task 6 stays open until task 7 replaces the
+   legacy containers, and says so in its progress note.
+
+**What it costs if wrong.** A reader of the plan believes the containers are
+replaced when they are not (if ticked), or task 7 cannot close (if `List` stays
+with task 10). Both are prose, and the progress note states the facts either
+way.
+
+---
+
+## CN-U — lanes split and merged to fit five verifiable lanes
+
+**The question** (critic finding 10). The design's lane 1 carried six rulings,
+16 new tests, ~20 changed tests and a rewrite; lanes 1–3 had no expected pixel
+figures.
+
+**The ruling.** Five lanes, in order (spec §6):
+
+1. **Distribution** — `CN-B`, `CN-D`, `CN-E` (second pass), and the parts of
+   `CN-C` (−∞ priority) and `CN-F` (spacer ∞) without which no distribution arm
+   can be pinned.
+2. **Spacer cross axis and minimum, infinite answers, aspect ratio** — the rest
+   of `CN-C`, `CN-F` and `CN-G`.
+3. **Spacing and typed alignments** — `CN-H`, `CN-I`.
+4. **Root, `ZStack` placement, overlay/background content, duplicate
+   registration, scroll axes** — `CN-J`, `CN-E`'s `ZStack` clause, `CN-K`,
+   `CN-L`, `CN-M` (the design's lanes 3 and 4 merged; `CN-E`'s coupling note is
+   why the `ZStack` clause moved here).
+5. **Legacy** — `CN-N`, `CN-O`, `CN-P`.
+
+Each has a staged-prototype red list and a pixel row (`CN-S`).
+
+**Measured cost of the split.** Two existing tests change twice:
+`measuringANativeTreeWritesNoRect` is red after lane 1 alone (157×91: an unmarked
+spacer claims its cross proposal) and green again after lane 2; the branching
+tree's literals read 47/51/66 after lane 1 and 44/50/63 after lane 2. And the
+preview reads 155 248 pixels between lanes 1 and 2 (`CN-S`). Folding `CN-G`
+into lane 1 would remove the last at the cost of the lane size the critic
+objected to; the split is kept and the intermediate figures are expected, not
+findings.
+
+**What it costs if wrong.** One more pair of test edits and one intermediate
+preview image that looks wrong on the branch, never on `master`.
+
+---
+
+## Critic round 1 — dispositions
+
+| # | finding | disposition |
+|---|---|---|
+| 1 | default spacing beside a padded/framed/overlaid spacer | **Applied, and it went further.** Revision 4 adds K3a–K3q with the K3 control; the rule is per edge and a non-zero padding inset restores spacing (K3m, K3n), which "the same walk as `CN-C`" would have got wrong, and the walk differs from `CN-C`'s mark (overlay content, `ZStack`). `CN-H` amended; test 3.2 carries every K3 arm |
+| 2 | `.overlay` places its content with the wrong proposal | **Probe applied; amendment rejected, a different fix taken.** K5, K5d refute "placed at the content's answer"; K5a/K5b/Z1–Z4 show the `ZStack` placement rule (`CN-E` amended) and K5g/K5h that the implicit `ZStack` is centred (`CN-K` amended). Tests 4.2 and 4.3 use a proposal-sensitive (half-width) child for `.overlay` and `.background` |
+| 3 | `List` audit row never probed; no presentation arm | **Applied.** K6–K6f (greedy; no row laid out headlessly) rewrite the audit row; the overlay/presentation probe measures clipping, paint order and presentations (P1–P6), which settles `Deferred`'s deferral with evidence (`CN-Q`) |
+| 4 | deferral order the plan cannot deliver; task 6 stays open | **Applied.** `CN-T`: `List`'s windowed layout to task 7, task 6 stays open, amended text proposed |
+| 5 | CN-L, CN-K, CN-H never prototyped; lane 2's changed tests unmeasured | **Applied.** Staged prototype (`CN-R`); red lists per lane in the spec appendix; `CN-L` with `reset` clearing the record (`CN-L`) |
+| 6 | P1's unexplained failures; counts from a possibly contended window | **Applied.** Reproduced on the unmodified baseline built incrementally; explained as the cross-module stored-property hazard; counts re-taken on a clean build (`CN-R`, `CN-B`) |
+| 7 | eager probing unmeasured at a nil cross proposal; shaping uncounted | **Applied.** Depth 1–7 table in and out of a scroll viewport, and shaping counts (`CN-B`); lane-1 performance tests use hand-derived literals checked against those figures |
+| 8 | aspect-ratio trap undiagnosed; ∞ unstated | **Applied.** The trap is the test's own precondition over a fixed child where P8 used `Color`; ∞ is concrete (K4d–K4h); K4/K4b/K4j join test 2.5 (`CN-G`) |
+| 9 | background content can steal taps | **Applied.** Probe H1 measured; `BackgroundModifier` prepaints content before the primary; test 4.6 clicks over both, with the prepaint-order mutation (`CN-K`). H3 recorded as a difference owned by task 12 |
+| 10 | lane 1 too large; no per-lane pixel figures | **Applied.** `CN-U`; per-lane figures for every image (`CN-S`) |
+| 11 | positive control for zero images impossible on the legacy side | **Applied as the critic's second option.** `CN-S` states which images are and are not evidence for each lane |
+| 12 | two CN-C arms over-read; three choices unprobed | **Applied.** K1, K2a–K2e in the probe; SP19's reading and the "not probed" paragraph rewritten (`CN-C`) |
+| 13 | inert row not retired | **Applied.** `CN-I` keeps it, re-worded |
+| 14 | three legacy divergences unowned; pin 5.4's mutation half inert | **Applied.** Task 7 owns all four; horizontal gap not adopted, with reasons; mutation replaced and measured, 7 red tests (`CN-P`) |
+| 15 | CN-N's green claims rest on the wrong prototype | **Applied.** Exactly-one lowering prototyped: 2 red, the three `Component` tests green; absolute child and `ScrollView` inside a one-child frame stated open for lane 5 (`CN-N`) |
+| 16 | smaller defects | **Applied.** Test 1.11's mutation red list named (11 tests, spec); test 4.12's `#require` replaced by a centring `ZStack` control; X9 relabelled in the probe; OS-dependence of call counts stated in this header |
