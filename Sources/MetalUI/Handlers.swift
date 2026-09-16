@@ -33,6 +33,14 @@
 /// paragraph above is about. The handlers themselves are untouched: re-enabling
 /// registers the same set on the next frame (`reEnablingRestoresClicksButNotFocus`).
 ///
+/// **A fourth gate is pointer-only on purpose: `allowsHitTesting`** (plan task
+/// 5's lane 3, ruling `OM-T`). Unlike `isEnabled` it covers the hitbox and
+/// nothing else — focus, keys, a declared `AXNode` and the accessibility record
+/// all keep working under it, and SwiftUI keeps the same two halves (probe
+/// `swiftui-allows-hit-testing-side-effects`, arms A1 and K1). "Disabled" is a
+/// statement about a control; "hit testing off" is a statement about the
+/// pointer.
+///
 /// **Bubble-only, and today that means "the topmost opaque handler wins".**
 /// Design spec §3.5 cuts the capture phase, because an opaque hitbox already
 /// swallows, which is the case framework spec §8.2 names capture for. What is
@@ -152,6 +160,80 @@ public struct Handlers {
     /// whole-value field rather than needing per-member flags the way the
     /// closure-holding members do.
     public var axNode: AXNode = AXNode()
+
+    // MARK: Hit testing (plan task 5, lane 3)
+    //
+    // **Appended at the END of the stored members**, which is a merge decision
+    // rather than taste: a parallel track is editing these files, and
+    // added-lines-at-a-known-anchor is a conflict a human resolves in one
+    // glance where an interleave is not.
+
+    /// Whether pointer events may reach this element **and everything inside
+    /// it** — SwiftUI's `.allowsHitTesting(_:)`.
+    ///
+    /// **It disables the receiver's OWN hitbox as well as its subtree's**
+    /// (ruling `OM-T`). `.onClick` and `.allowsHitTesting` write the same
+    /// `Handlers` — on a chain, the same outermost `ModifierLayer`'s — so
+    /// `Box().onClick { }.allowsHitTesting(false)` has to be dead, and it is:
+    /// `PrepaintPass.registerAndScope` opens the scope BEFORE the receiver's
+    /// own `registerHandlers` call (`DecorationScope.swift`). SwiftUI reads
+    /// 0 / 0 in both orders (probe `swiftui-content-shape-hit-region`, N1 and
+    /// N2), so the legacy path's inability to tell the two orders apart is
+    /// **agreement** here rather than a divergence — **within one
+    /// `ModifierLayer`**. The scope covers the layer it is written on and
+    /// everything inside it, **not the layers written after it**:
+    /// `.allowsHitTesting(false).padding(40).onClick { }` scopes the inner
+    /// layer and leaves the outer layer's hitbox live (centre 1 / edge 1),
+    /// where SwiftUI reads 0 / 0 (probe arms X0–X3; ruling `OM-AL`, a
+    /// divergence derived from `OM-I`, pinned by
+    /// `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`).
+    ///
+    /// **It removes the pointer target and nothing else.**
+    /// `Frame.registerHandlers` gates only the hitbox insert on
+    /// `hitTestingDisabledDepth`; focus registration, the `$focus` retention
+    /// write, the `focusedElementProducedThisFrame` signal, a declared `AXNode`
+    /// and the accessibility record all sit above that gate and keep firing.
+    /// SwiftUI keeps the same two halves — a `Button` under
+    /// `.allowsHitTesting(false)` is still an `AXButton`, and its
+    /// `keyboardShortcut` still fires (probe
+    /// `swiftui-allows-hit-testing-side-effects`, arms A1 and K1).
+    ///
+    /// **Not folded into `isPointerTarget`.** That gate answers "did this
+    /// element ask for a hitbox at all"; this one is a *scope* that covers
+    /// descendants too, and only a scope can reach an `onClick` declared three
+    /// levels down.
+    ///
+    /// **A `ScrollView` inside the scope still scrolls** (ruling `OM-AK`):
+    /// `Frame.registerScrollRegion` reaches `insertHitbox` without passing the
+    /// depth gate. Recorded rather than changed here, and pinned by
+    /// `aScrollRegionInsideAllowsHitTestingFalseIsStillRegistered`.
+    public var allowsHitTesting: Bool = true
+
+    /// How far to inset this element's hit region from its own box, or `nil`
+    /// for the box itself — a rect-only subset of SwiftUI's
+    /// `.contentShape(_:)` (ruling `OM-J`).
+    ///
+    /// **It configures a hit region; it does not create one** (ruling
+    /// `OM-AB`). `Frame.registerHandlers` inserts a hitbox only when
+    /// `handlers.isPointerTarget`, so this field on an element with no
+    /// `onClick` is written and never read — the same shape as a
+    /// `hoverBackground` with no `onClick`, which never paints.
+    ///
+    /// **Applied in exactly one place**: the bounds `Frame.registerHandlers`
+    /// hands `insertHitbox`. Focus registration, the `$focus` write, the
+    /// declared `AXNode` and the accessibility record all keep the element's
+    /// own bounds, which is what
+    /// `aContentShapeMovesNeitherTheAccessibilityFrameNorTheFocusRegistration`
+    /// pins.
+    ///
+    /// A **negative** inset grows the region, as SwiftUI's does (probe
+    /// `swiftui-content-shape-hit-region` H5), and the result is still
+    /// intersected with the active clip, as every hitbox is — where SwiftUI's
+    /// is not (H6, ruling `OM-AJ`). An inset larger than the box leaves an
+    /// empty region rather than an inside-out one: `Frame.intersect` clamps a
+    /// negative extent to zero and `Bounds.contains` is half-open, so nothing
+    /// can hit it.
+    public var contentShapeInset: Edges<Pixels>?
 
     public init() {}
 

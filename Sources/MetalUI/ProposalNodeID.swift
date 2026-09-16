@@ -30,7 +30,10 @@ import MetalUILayout
 //    (`aProposalMarkedElementThatRegistersALegacyNodeTrapsInsideAProposalContainer`);
 // 4. one typed id used twice (`aNativeNodeRegisteredTwiceIsNotRejected`);
 // 5. a legacy style modifier on a proposal `Component`, whose `StyledComponent`
-//    is a plain `ElementGroup` (`aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`);
+//    is a plain `ElementGroup` — closed at run time by two existing SA-G traps,
+//    `setStyle`'s for `width`/`height` and `newNode`'s native-child check for
+//    `padding`'s wrapper (`OM-Z`; `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration`,
+//    `aPaddingModifierOnAProposalComponentTraps`);
 // 6. a legacy SUBTREE laid out on the side and discarded, which still binds
 //    `@State` and moves `$anim` baselines (the same test as 2, arm b);
 // 7. a typed id stored from an earlier frame, caught at run time by

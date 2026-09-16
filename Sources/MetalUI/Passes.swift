@@ -177,7 +177,8 @@ public struct LayoutPass {
     /// the `Style` of any node it can name — a sibling's, a parent's — during
     /// the request phase, with no signal to the node's owner. Nothing outside
     /// `MetalUI` needs that: `StyledComponent` is in-module and amends only the
-    /// nodes its own component just returned. Shipping public surface with one
+    /// nodes its own component just returned, or the padding wrappers it has
+    /// just registered around them (`OM-E`'s ordered ops). Shipping public surface with one
     /// in-module caller is what this repo's inert-API discipline refuses;
     /// widening later is trivial and unshipping is not. Pinned by
     /// `layoutPassStyleAccessorsAreNotPublic` (`ErasureCompileGuards.swift`), which

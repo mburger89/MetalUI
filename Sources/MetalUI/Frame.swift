@@ -390,10 +390,36 @@ public final class Frame {
     /// inner clip wider than its outer must not widen it, or a nested scroller
     /// paints over its parent's chrome. Pinned by
     /// `nestedClipsIntersectRatherThanReplace`.
+    ///
+    /// **`bounds` is translated by `activeOffset` before the intersection, and
+    /// it was not until plan task 5** (ruling `OM-U`; CLAUDE.md's divergence 15,
+    /// now retired). `activeClip` is in surface space — `fill` and
+    /// `insertHitbox` both translate on the way in — so intersecting an
+    /// untranslated rect into it compared two different coordinate spaces.
+    /// Inside a scrolled ancestor the inner clip came out at the engine's stored
+    /// y rather than the painted one, and once the ancestor had scrolled far
+    /// enough the intersection was **empty**: the subtree laid out correctly,
+    /// routed wheel events correctly, and drew nothing.
+    ///
+    /// It was deferred while `ScrollView` was the only caller. Lane 2 of that
+    /// task put `pass.clipped(to: bounds, …)` behind a public `.clipped()` on
+    /// every `Box`/`Stack`/`Text`/`ModifierLayer`, which changes the defect's
+    /// reach from "a `ScrollView` inside a scrolled `ScrollView`" to "any
+    /// element inside one" — a `.clipped()` row in the demo's 500-row list would
+    /// blank itself on the first scroll. The added term is a **no-op wherever
+    /// `activeOffset == 0`**, which is every non-nested scroller in existence,
+    /// so it moves no existing pixel. Pinned by
+    /// `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` (inverted in
+    /// the same commit) and
+    /// `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`.
     func pushClip(_ bounds: Bounds<Pixels>, offset: Point<Pixels>,
                  radii: Corners<Pixels> = Corners(all: Pixels(0))) {
+        let translated = Bounds(
+            origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                          y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+            size: bounds.size)
         let (clip, clipRadii) = Self.intersect(activeClip, radii: activeClipRadii,
-                                               bounds, radii: radii)
+                                               translated, radii: radii)
         let composed = Point(x: Pixels(activeOffset.x.value + offset.x.value),
                              y: Pixels(activeOffset.y.value + offset.y.value))
         clipStack.append((clip, composed, clipRadii))
@@ -750,10 +776,12 @@ public final class Frame {
     ///   stays ungated (see that write's own paragraph below).
     /// - **the declared AX node gains `.disabled`**.
     ///
-    /// Every caller reaches it: `Box` (and so `Column`/`Row`), `Stack`, `Text`,
-    /// `ModifiedElement` (each layer) and `OnTapModifier`
-    /// (`grep -rn "registerHandlers(" Sources`, five callers),
-    /// `List` rows through their elements and `Component` through its members.
+    /// Every caller reaches it: `Box` (and so `Column`/`Row`), `Stack`, `Text`
+    /// and `ModifiedElement` (each layer) through `PrepaintPass.registerAndScope`
+    /// (`DecorationScope.swift`, since plan task 5's lane 2 — one call site for
+    /// the four), `OnTapModifier` through `PrepaintPass`'s internal overload
+    /// directly, `List` rows through their elements and `Component` through
+    /// its members.
     /// A raw `PrepaintPass.insertHitbox` is NOT gated: an element using the
     /// primitive reads `pass.environment.isEnabled` itself.
     func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
@@ -860,8 +888,20 @@ public final class Frame {
         // ancestor's click (against probe N1/N2), and one under this id would
         // let a press made while disabled click on a release after
         // re-enabling (against probe R, ruling EV-T).
+        //
+        // **The content shape is applied HERE and nowhere else** (ruling OM-J,
+        // plan task 5's lane 3): to the bounds handed to `insertHitbox`, below
+        // the focus registration, the `$focus` write and the
+        // `focusedElementProducedThisFrame` signal above, and above the declared
+        // `AXNode` and the accessibility record below — all five of which keep
+        // the element's own `bounds`. One site rather than four, for this
+        // method's own reason: a conformer insetting its own bounds before
+        // calling here would have to get it right in `Box`, `Stack`, `Text` and
+        // `ModifiedElement`, and a conformer that forgot would be silently
+        // wrong.
         if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
-            _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
+            _ = insertHitbox(Self.hitRegion(bounds, inset: handlers.contentShapeInset),
+                             id: id, opaque: true, handlers: handlers)
         }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and
@@ -934,6 +974,32 @@ public final class Frame {
                                               geometry: accessibilityGeometry(for: bounds)))
             }
         }
+    }
+
+    /// `bounds` inset by a declared content shape, or `bounds` itself — the
+    /// whole of `Handlers.contentShapeInset`'s effect (ruling OM-J).
+    ///
+    /// **A negative inset GROWS the region and is not clamped**, which SwiftUI
+    /// does too (probe `swiftui-content-shape-hit-region`, arm H5: a point 40pt
+    /// outside an 80x80 leaf hits it at `inset(by: -60)`). What bounds the grown
+    /// region is the active clip, applied by `insertHitbox` to every hitbox
+    /// alike — where SwiftUI's `.clipped()` bounds nothing (H6, ruling OM-AJ).
+    ///
+    /// **An inset larger than the box is left inside-out here and is empty by
+    /// the time it lands.** `insertHitbox` intersects with the active clip and
+    /// `Self.intersect` clamps a negative extent to zero, so an over-inset
+    /// region is stored with a zero extent and `Bounds.contains`, being
+    /// half-open on the max edges, can never answer true for it. Clamping here
+    /// as well would say the same thing twice and hide which of the two rules
+    /// is load-bearing.
+    static func hitRegion(_ bounds: Bounds<Pixels>, inset: Edges<Pixels>?) -> Bounds<Pixels> {
+        guard let inset else { return bounds }
+        return Bounds(origin: Point(x: Pixels(bounds.origin.x.value + inset.left.value),
+                                    y: Pixels(bounds.origin.y.value + inset.top.value)),
+                      size: Size(width: Pixels(bounds.size.width.value
+                                                   - inset.left.value - inset.right.value),
+                                 height: Pixels(bounds.size.height.value
+                                                    - inset.top.value - inset.bottom.value)))
     }
 
     /// The state-table key that backs a focused id's retention window — see
@@ -1509,9 +1575,11 @@ public final class Frame {
     }
 
     /// Overwrites a node's `Style` after it has already been registered.
-    /// `StyledComponent`'s write half: a modifier on a `Component` distributes
-    /// by amending each of its top-level nodes' styles in place rather than by
-    /// wrapping them in a new one (spec §5).
+    /// `StyledComponent`'s write half: a `width`/`height` on a `Component`
+    /// distributes by amending each of its top-level nodes' styles in place
+    /// (spec §5, `OM-F`). A `padding` on a `Component` no longer comes here —
+    /// since the outer-modifiers task it wraps each top-level node in a new
+    /// node through `requestNode` (`OM-D`).
     func setStyle(_ id: LayoutNodeID, _ style: Style) {
         tree.setStyle(id, style)
     }
@@ -1564,16 +1632,21 @@ public final class Frame {
     /// when no `clipped(to:offsetBy:)` block is active, which is why no
     /// existing call site's output moves.
     ///
-    /// **`borderColor` is `.transparent` and there is no way to set it**, even
-    /// though `MUIRect` carries it and the fragment shader draws it — the M0
-    /// demo proved that end to end. The blocker is the *width*, not the colour:
-    /// a border width is `Style.border`, an `Edges<Length>` whose percentage
-    /// case resolves against the **containing block's width**, and the engine
-    /// computes that inside `contentBox` and discards it rather than storing it
-    /// on the node. So paint has no resolved width to pair a colour with, and
-    /// re-resolving one here against the box's own width is the exact mistake
-    /// CLAUDE.md's percentage-inset constraint records. Storing the resolved
-    /// edges on `LayoutTree` is what unblocks it.
+    /// **`borderColor` and `borderWidths` are parameters, and both paths reach
+    /// them.** This doc said "`borderColor` is `.transparent` and there is no
+    /// way to set it": that was true of a width derived from `Style.border`, an
+    /// `Edges<Length>` whose percentage case resolves against the **containing
+    /// block's width**, which the engine computes inside `contentBox` and
+    /// discards rather than storing on the node. Re-resolving one here against
+    /// the box's own width is the exact mistake CLAUDE.md's percentage-inset
+    /// constraint records, and storing the resolved edges on `LayoutTree` is
+    /// still what would unblock *that*.
+    ///
+    /// What unblocked a border was declaring one that needs no resolution.
+    /// `NativeModifiedContent`'s `.border` (proposal path) and
+    /// `Decoration.border`/`hoverBorder`/`focusBorder` (legacy path, rulings
+    /// `OM-B`/`OM-L`) both carry `Pixels`, which paint can pair with a colour
+    /// directly. `Style.border` remains engine-side and is still discarded.
     func fill(_ bounds: Bounds<Pixels>, color: Hsla,
               cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
               borderColor: Hsla = .transparent,

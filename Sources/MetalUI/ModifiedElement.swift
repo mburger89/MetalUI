@@ -223,34 +223,60 @@ public struct ModifiedElement<Content: ElementGroup>: Element, StyledElement {
     private mutating func prepaintLayerBody(_ depth: Int, id: GlobalElementID, bounds: Bounds<Pixels>,
                                             layout: inout Layout,
                                             pass: inout PrepaintPass) -> Content.GroupPrepaint {
-        let handlers = depth == inner.count ? outermost.handlers : inner[depth].handlers
-        pass.registerHandlers(handlers, at: bounds, id: id)
-        guard depth > 0 else {
-            return content.prepaintGroup(layout: &layout.content, pass: &pass)
+        let layer = depth == inner.count ? outermost : inner[depth]
+        // Through `registerAndScope`, exactly as `Box.prepaint` is, so a layer
+        // that declares `.clipped()` bounds the hitboxes inside it as well as
+        // the pixels (plan task 5's lane 2, `DecorationScope.swift`).
+        return pass.registerAndScope(layer.handlers, layer.decoration, at: bounds, for: id) {
+            guard depth > 0 else {
+                return content.prepaintGroup(layout: &layout.content, pass: &pass)
+            }
+            let next = layout.inner[depth - 1]
+            return prepaintLayer(depth - 1, id: next.id, bounds: pass.bounds(of: next.node),
+                                 layout: &layout, pass: &pass)
         }
-        let next = layout.inner[depth - 1]
-        return prepaintLayer(depth - 1, id: next.id, bounds: pass.bounds(of: next.node),
-                             layout: &layout, pass: &pass)
     }
 
-    /// Outermost background first, then each inner layer's, then the content
-    /// once: emission order is paint order, so a container's fill lies beneath
-    /// everything inside it, as in `Box.paint`.
+    /// Outermost layer first, then each layer inside it, then the content once
+    /// — **nested, not looped** (plan task 5's lane 2).
+    ///
+    /// **This used to be a loop and could not stay one.** It emitted every
+    /// layer's fill in sequence and then painted the content once, which is
+    /// correct only while a `Decoration` is a set of leaf emissions. An opacity
+    /// and a clip are **scopes**: they have to contain the layers inside them
+    /// and the content, so the layers nest — outermost layer's
+    /// `paintDecoration { next layer's paintDecoration { … { content } } }`, by
+    /// the same recursion `prepaintLayer` above already used. `OM-V`'s border
+    /// needs the same shape for a different reason: it is emitted AFTER the
+    /// layer's content, so a two-layer chain draws inner-then-outer borders as
+    /// the recursion unwinds.
+    ///
+    /// **Background emission order is unchanged**, which is what keeps the demo
+    /// pixel-identical: outermost fill, then each inner fill from outermost in,
+    /// then the content — exactly the sequence the loop produced.
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
                                layout: inout Layout, prepaint: inout Content.GroupPrepaint,
                                pass: inout PaintPass) {
-        if let color = animatedBackground(outermost.decoration, for: id, pass: &pass) {
-            pass.fill(bounds, color: color,
-                      cornerRadii: Corners(all: outermost.decoration.cornerRadius))
-        }
-        for k in inner.indices.reversed() {
-            let placement = layout.inner[k]
-            if let color = animatedBackground(inner[k].decoration, for: placement.id, pass: &pass) {
-                pass.fill(pass.bounds(of: placement.node), color: color,
-                          cornerRadii: Corners(all: inner[k].decoration.cornerRadius))
+        paintLayer(inner.count, id: id, bounds: bounds, layout: &layout,
+                   prepaint: &prepaint, pass: &pass)
+    }
+
+    /// Paints layer `depth` (`inner.count` is the outermost, 0 the innermost)
+    /// and everything inside it, by the recursion `prepaintLayer` mirrors.
+    private mutating func paintLayer(_ depth: Int, id: GlobalElementID, bounds: Bounds<Pixels>,
+                                     layout: inout Layout,
+                                     prepaint: inout Content.GroupPrepaint,
+                                     pass: inout PaintPass) {
+        let decoration = depth == inner.count ? outermost.decoration : inner[depth].decoration
+        pass.paintDecoration(decoration, in: bounds, for: id) {
+            guard depth > 0 else {
+                content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
+                return
             }
+            let next = layout.inner[depth - 1]
+            paintLayer(depth - 1, id: next.id, bounds: pass.bounds(of: next.node),
+                       layout: &layout, prepaint: &prepaint, pass: &pass)
         }
-        content.paintGroup(layout: &layout.content, prepaint: &prepaint, pass: &pass)
     }
 }
 
