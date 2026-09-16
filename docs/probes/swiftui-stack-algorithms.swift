@@ -50,6 +50,15 @@
 // siblings set the height either way); K2g and K2i can, against controls K2f
 // and K2j that differ.
 //
+// RE-RECORDED 2026-09-16 (revision 7, containers lane 3), same machine and
+// toolchain, exit 0, run twice with byte-identical output. Additive only: the
+// SC5c/SC5 arms after K2j; the 626 output lines before them are byte-identical
+// to revision 6's record. Vertically, a ScrollView's direct children
+// {a; Spacer(minLength: 0); b} put b at y 20 against the no-spacer control's
+// 28, so the implicit stack takes no default spacing beside the spacer (SP7's
+// rule). Horizontally SC5 cannot tell (the implicit VStack is proposed 200
+// tall and the greedy spacer absorbs any gap: b at 180 either way).
+//
 // READING (each claim names its arms):
 // - Default spacing is 8 horizontally between every pair measured (S), and 8
 //   vertically between non-text views; vertically a Text edge is font-derived
@@ -798,6 +807,18 @@
 //   K2j control HStack(0){a20; ZStack{Spacer(minLength: 30).fixedSize()}; b20} @nilxnil: size 70x30
 //       leaf a: proposed [nilxnil, nilx30] at (0, 5) 20x20 calls 2
 //       leaf b: proposed [nilxnil, nilx30] at (50, 5) 20x20 calls 2
+//   SC5c control ScrollView(.vertical){a 20x20; b 20x20} at 200x200 @200x200: size 20x200
+//       leaf a: proposed [200xnil, 20xnil] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [200xnil, 20xnil] at (0, 28) 20x20 calls 2
+//   SC5 ScrollView(.vertical){a 20x20; Spacer(minLength: 0); b 20x20} at 200x200 @200x200: size 20x200
+//       leaf a: proposed [200xnil, 20xnil] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [200xnil, 20xnil] at (0, 20) 20x20 calls 2
+//   SC5c control ScrollView(.horizontal){a 20x20; b 20x20} at 200x200 @200x200: size 200x48
+//       leaf a: proposed [nilxinf, nilx0, nilx96, nilx20, 20xinf, 20x0, 20x20] at (0, 0) 20x20 calls 7
+//       leaf b: proposed [nilx172, nilx20, 20x20] at (0, 28) 20x20 calls 3
+//   SC5 ScrollView(.horizontal){a 20x20; Spacer(minLength: 0); b 20x20} at 200x200 @200x200: size 200x200
+//       leaf a: proposed [nilxinf, nilx0, nilx100, 20xinf, 20x0, 20x100] at (0, 0) 20x20 calls 6
+//       leaf b: proposed [nilx180, 20x180] at (0, 180) 20x20 calls 2
 //   DONE
 
 import AppKit
@@ -1688,6 +1709,19 @@ enum Kind: String, CaseIterable { case rect, color, text, leaf, image, hstack, b
     }
     run("K2j control HStack(0){a20; ZStack{Spacer(minLength: 30).fixedSize()}; b20}", none) {
         HStack(spacing: 0) { fixed("a", 20, 20); ZStack { Spacer(minLength: 30).fixedSize() }; fixed("b", 20, 20) }
+    }
+
+    // Revision 7 (containers lane 3): a ScrollView's several direct children
+    // are laid out as a default-spacing VStack (SC3). Is the spacing beside a
+    // spacer among them decided as a VStack's is (none at the spacer's edge,
+    // SP7)? Control SC5c: the same two views with no spacer (8 between them).
+    for (name, axes) in [("vertical", Axis.Set.vertical), ("horizontal", Axis.Set.horizontal)] {
+        run("SC5c control ScrollView(.\(name)){a 20x20; b 20x20} at 200x200", p(200, 200)) {
+            ScrollView(axes) { fixed("a", 20, 20); fixed("b", 20, 20) }
+        }
+        run("SC5 ScrollView(.\(name)){a 20x20; Spacer(minLength: 0); b 20x20} at 200x200", p(200, 200)) {
+            ScrollView(axes) { fixed("a", 20, 20); Spacer(minLength: 0); fixed("b", 20, 20) }
+        }
     }
 
 }
