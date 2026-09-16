@@ -886,8 +886,20 @@ public final class Frame {
         // ancestor's click (against probe N1/N2), and one under this id would
         // let a press made while disabled click on a release after
         // re-enabling (against probe R, ruling EV-T).
+        //
+        // **The content shape is applied HERE and nowhere else** (ruling OM-J,
+        // plan task 5's lane 3): to the bounds handed to `insertHitbox`, below
+        // the focus registration, the `$focus` write and the
+        // `focusedElementProducedThisFrame` signal above, and above the declared
+        // `AXNode` and the accessibility record below — all five of which keep
+        // the element's own `bounds`. One site rather than four, for this
+        // method's own reason: a conformer insetting its own bounds before
+        // calling here would have to get it right in `Box`, `Stack`, `Text` and
+        // `ModifiedElement`, and a conformer that forgot would be silently
+        // wrong.
         if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
-            _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
+            _ = insertHitbox(Self.hitRegion(bounds, inset: handlers.contentShapeInset),
+                             id: id, opaque: true, handlers: handlers)
         }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and
@@ -960,6 +972,32 @@ public final class Frame {
                                               geometry: accessibilityGeometry(for: bounds)))
             }
         }
+    }
+
+    /// `bounds` inset by a declared content shape, or `bounds` itself — the
+    /// whole of `Handlers.contentShapeInset`'s effect (ruling OM-J).
+    ///
+    /// **A negative inset GROWS the region and is not clamped**, which SwiftUI
+    /// does too (probe `swiftui-content-shape-hit-region`, arm H5: a point 40pt
+    /// outside an 80x80 leaf hits it at `inset(by: -60)`). What bounds the grown
+    /// region is the active clip, applied by `insertHitbox` to every hitbox
+    /// alike — where SwiftUI's `.clipped()` bounds nothing (H6, ruling OM-AJ).
+    ///
+    /// **An inset larger than the box is left inside-out here and is empty by
+    /// the time it lands.** `insertHitbox` intersects with the active clip and
+    /// `Self.intersect` clamps a negative extent to zero, so an over-inset
+    /// region is stored with a zero extent and `Bounds.contains`, being
+    /// half-open on the max edges, can never answer true for it. Clamping here
+    /// as well would say the same thing twice and hide which of the two rules
+    /// is load-bearing.
+    static func hitRegion(_ bounds: Bounds<Pixels>, inset: Edges<Pixels>?) -> Bounds<Pixels> {
+        guard let inset else { return bounds }
+        return Bounds(origin: Point(x: Pixels(bounds.origin.x.value + inset.left.value),
+                                    y: Pixels(bounds.origin.y.value + inset.top.value)),
+                      size: Size(width: Pixels(bounds.size.width.value
+                                                   - inset.left.value - inset.right.value),
+                                 height: Pixels(bounds.size.height.value
+                                                    - inset.top.value - inset.bottom.value)))
     }
 
     /// The state-table key that backs a focused id's retention window — see

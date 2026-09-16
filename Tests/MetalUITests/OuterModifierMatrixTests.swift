@@ -111,6 +111,9 @@ private struct HandlerFingerprint: Equatable {
     var actionCount = 0
     var context: KeyContext?
     var axNode = AXNode()
+    /// Plan task 5's lane 3 — the two hit-testing members.
+    var allowsHitTesting = true
+    var contentShapeInset: Edges<Pixels>?
 
     @MainActor init(_ h: Handlers) {
         click = h.onClick != nil
@@ -119,6 +122,8 @@ private struct HandlerFingerprint: Equatable {
         actionCount = h.actions.count
         context = h.keyContext
         axNode = h.axNode
+        allowsHitTesting = h.allowsHitTesting
+        contentShapeInset = h.contentShapeInset
     }
 }
 
@@ -566,6 +571,47 @@ private struct TwoMembers: Component {
                        },
                        storageDiffers(Box().width(px(40)).height(px(40)),
                                       Box().width(px(40)).height(px(40)).onClick { }))
+                  }),
+
+        // MARK: self AND prepaint-only (plan task 5, lane 3)
+        //
+        // Both arms carry an `onClick`, because neither modifier CREATES a hit
+        // region (`OM-AB`): the bare arm registers the 40x40 box and is hit at
+        // the (2, 2) probe, so the declared arm's zero is the modifier and not
+        // a fixture that never registered. `.contentShape(inset: 10)` leaves a
+        // (10, 10) 20x20 region the probe misses; `.allowsHitTesting(false)`
+        // leaves no region at all.
+        MatrixRow(name: "contentShape(inset:)", path: "legacy Element",
+                  kinds: [.selfStorage, .prepaintOnly],
+                  note: "insets the region an onClick registers (OM-J); configures, never "
+                      + "creates (OM-AB); moves no rect and no node (probe L7)",
+                  arms: {
+                      (try observe(probe: pt(2, 2)) { counter in
+                           Box().width(px(40)).height(px(40)).onClick { counter.bump() }
+                       },
+                       try observe(probe: pt(2, 2)) { counter in
+                           Box().width(px(40)).height(px(40)).onClick { counter.bump() }
+                               .contentShape(inset: px(10))
+                       },
+                       storageDiffers(Box().width(px(40)).height(px(40)).onClick { },
+                                      Box().width(px(40)).height(px(40)).onClick { }
+                                          .contentShape(inset: px(10))))
+                  }),
+        MatrixRow(name: "allowsHitTesting(_:)", path: "legacy Element",
+                  kinds: [.selfStorage, .prepaintOnly],
+                  note: "a scope over the receiver's OWN hitbox and its subtree's (OM-T, probe "
+                      + "N1); moves no rect and no node (probe L5)",
+                  arms: {
+                      (try observe(probe: pt(2, 2)) { counter in
+                           Box().width(px(40)).height(px(40)).onClick { counter.bump() }
+                       },
+                       try observe(probe: pt(2, 2)) { counter in
+                           Box().width(px(40)).height(px(40)).onClick { counter.bump() }
+                               .allowsHitTesting(false)
+                       },
+                       storageDiffers(Box().width(px(40)).height(px(40)).onClick { },
+                                      Box().width(px(40)).height(px(40)).onClick { }
+                                          .allowsHitTesting(false)))
                   }),
 
         // MARK: distributes

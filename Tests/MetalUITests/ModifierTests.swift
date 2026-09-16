@@ -58,8 +58,10 @@ private func px(_ v: Float) -> Pixels { Pixels(v) }
 /// `keyContext(_:_:)` that made its element focusable, an `onAction(_:_:)` that
 /// also registered a pointer hitbox by writing `onClick`.
 ///
-/// **`Handlers` has SIX members as of the tombstones-and-AX milestone's Task
-/// 5, and this comment said five (before that, three) until this fix round.**
+/// **`Handlers` has EIGHT members as of plan task 5's lane 3 (`allowsHitTesting`
+/// and `contentShapeInset`, ruling `OM-T`/`OM-J`); it had SIX as of the
+/// tombstones-and-AX milestone's Task 5, and this comment said five (before
+/// that, three) until that milestone's fix round.**
 /// The projection stopped tracking the struct and the comment stopped saying
 /// so, in one commit — the reason the two keymap-task modifiers escaped this
 /// table entirely, back when it happened the first time. It has now happened
@@ -93,6 +95,12 @@ private struct HandlerShape: Equatable {
     /// case below leaves this at the default `AXNode()`, matching
     /// `Handlers.axNode`'s own default — nothing today writes it.
     var axNode = AXNode()
+    /// Plan task 5's lane 3. The default is `true`, so the one case that writes
+    /// it must write `false` — a modifier that wrote nothing would otherwise
+    /// pass. `contentShapeInset` is the whole `Edges` value, not a flag, so the
+    /// per-edge overload's four distinct components catch a transposition.
+    var allowsHitTesting = true
+    var contentShapeInset: Edges<Pixels>?
 }
 
 @MainActor
@@ -123,9 +131,10 @@ private struct ModifierCase {
 ///
 /// The count check is a tripwire on **this table**, not on `Box.swift`: nothing
 /// here can see a modifier added there without a case. Reconcile with
-/// `grep -c "public func" Sources/MetalUI/Box.swift`, which is **47** as of
-/// plan task 5's lane 2: 40 before, minus the two deleted `borderWidth`
-/// overloads (`OM-M`), plus the eight paint-only decoration modifiers, plus
+/// `grep -c "public func" Sources/MetalUI/Box.swift`, which is **50** as of
+/// plan task 5's lane 3: 40 before, minus the two deleted `borderWidth`
+/// overloads (`OM-M`), plus the eight paint-only decoration modifiers (lane
+/// 2), plus lane 3's three hit-testing modifiers, plus
 /// `BorderStyle.withWidths(_:)` — which grep counts and which is not a
 /// modifier. `Decoration.setOpacity(_:)` is `public mutating func` and this
 /// grep does not see it, which is worth knowing before anyone re-derives the
@@ -337,6 +346,29 @@ private struct ModifierCase {
                      apply: { $0.clipped() },
                      effect: { _, d, _, _ in d.clipsContent = true }),
 
+        // MARK: Hit testing (plan task 5, lane 3)
+        //
+        // Three rows for the three modifiers appended after lane 2's eight.
+        // `allowsHitTesting` defaults to `true`, so the row writes `false` — the
+        // only non-default value a `Bool` has. The insets run 66…70, clear of
+        // lane 2's 51…65 and of every `Length`-valued number above, and the
+        // per-edge row's four components are distinct so that `contentShape(
+        // inset: Edges)` rebuilding the value component by component is a
+        // transposition site this table can see.
+        ModifierCase(name: "allowsHitTesting(_:)",
+                     apply: { $0.allowsHitTesting(false) },
+                     effect: { _, _, _, h in h.allowsHitTesting = false }),
+        ModifierCase(name: "contentShape(inset: Pixels)",
+                     apply: { $0.contentShape(inset: px(66)) },
+                     effect: { _, _, _, h in h.contentShapeInset = Edges(all: px(66)) }),
+        ModifierCase(name: "contentShape(inset: Edges)",
+                     apply: { $0.contentShape(inset: Edges(top: px(67), right: px(68),
+                                                            bottom: px(69), left: px(70))) },
+                     effect: { _, _, _, h in
+                         h.contentShapeInset = Edges(top: px(67), right: px(68),
+                                                     bottom: px(69), left: px(70))
+                     }),
+
         // MARK: `Box`'s own — deliberately not on `StyledElement`, so that
         // `Column { … }.flexDirection(.row)` cannot compile.
         ModifierCase(name: "flexDirection(_:)",
@@ -345,11 +377,11 @@ private struct ModifierCase {
     ]
 
     // 38 − 2 (`borderWidth` ×2, ruling `OM-M`) + 8 (lane 2's paint-only
-    // decoration). Plan task 5's lane 3 adds three more (`allowsHitTesting`,
-    // `contentShape` ×2) and takes it to **47**, which is this track's
-    // pre-agreed number — stated here so the parallel frame/sizing track adds
-    // to it rather than colliding with it (spec §8 risk (c)).
-    #expect(cases.count == 44)
+    // decoration) + 3 (lane 3's `allowsHitTesting` and `contentShape` ×2) =
+    // **47**, this track's pre-agreed number — stated in the spec's lane 3
+    // table so the parallel frame/sizing track adds to it rather than
+    // colliding with it (spec §8 risk (c)).
+    #expect(cases.count == 47)
 
     for c in cases {
         var expectedStyle = Style()
@@ -373,7 +405,9 @@ private struct ModifierCase {
                              focusable: got.handlers.isFocusable,
                              actionCount: got.handlers.actions.count,
                              context: got.handlers.keyContext,
-                             axNode: got.handlers.axNode) == expectedHandlers,
+                             axNode: got.handlers.axNode,
+                             allowsHitTesting: got.handlers.allowsHitTesting,
+                             contentShapeInset: got.handlers.contentShapeInset) == expectedHandlers,
                 "\(c.name) wrote the wrong `Handlers` member, or wrote nothing")
     }
 }

@@ -1132,4 +1132,74 @@ extension StyledElement {
     public func clipped() -> Self {
         decorating { $0.clipsContent = true }
     }
+
+    // MARK: Hit testing (plan task 5, lane 3)
+    //
+    // The last three of §5.1's eleven. They are **prepaint-only**, not
+    // paint-only: they change what is registered for hit testing and emit
+    // nothing at all. New modifiers still go at the END of this extension —
+    // see the lane 2 MARK above for why.
+
+    /// Whether pointer events may reach this element **and everything inside
+    /// it** — SwiftUI's `.allowsHitTesting(_:)`.
+    ///
+    /// **`false` kills this element's own `onClick` as well as its subtree's**,
+    /// in either order: `.onClick { }.allowsHitTesting(false)` and
+    /// `.allowsHitTesting(false).onClick { }` are both dead, which is SwiftUI's
+    /// answer in both orders too (probe `swiftui-content-shape-hit-region`,
+    /// arms N1 and N2). Ruling `OM-T`.
+    ///
+    /// **It is a pointer decision and nothing else.** A focusable element under
+    /// it still holds focus and still answers keys; a declared `AXNode` is still
+    /// emitted and an accessibility client still sees the element. SwiftUI keeps
+    /// the same two halves (probe `swiftui-allows-hit-testing-side-effects`,
+    /// arms A1 and K1). For "this control is off", write `.disabled(true)`,
+    /// which takes the keyboard side with it (rulings `EV-E`, `EV-F`).
+    ///
+    /// **Hover and `isActive` follow the hitbox**, because both are resolved
+    /// from the hitbox list: an element with hit testing off is never hovered,
+    /// so a `hoverBackground(_:)` on it never paints.
+    ///
+    /// A `ScrollView` inside the scope still scrolls (`OM-AK`) — see
+    /// `Handlers.allowsHitTesting`.
+    public func allowsHitTesting(_ enabled: Bool) -> Self {
+        handling { $0.allowsHitTesting = enabled }
+    }
+
+    /// Insets this element's hit region from its own box — MetalUI's rect-only
+    /// subset of SwiftUI's `.contentShape(_:)` (`OM-J`).
+    ///
+    /// **`.contentShape(Rectangle())` is MetalUI's DEFAULT, which is why this
+    /// modifier takes an inset instead** (`OM-I`). SwiftUI derives a view's hit
+    /// region from what it draws, so a stack with an empty middle is not
+    /// hittable there until `.contentShape(Rectangle())` makes it so (probe
+    /// `swiftui-content-shape-hit-region`, H1 vs H2); every MetalUI element that
+    /// registers a hitbox is hittable over its whole frame already. Shipping the
+    /// SwiftUI spelling would be an API that compiles and does nothing. What
+    /// SwiftUI can express and MetalUI could not is a region **smaller** than
+    /// the frame (H3), and in a rect-only hitbox world an inset is the whole of
+    /// it. The identity case is `inset: Pixels(0)` — a parameter value, not a
+    /// second no-op spelling.
+    ///
+    /// **It configures a hit region; it does not create one** (`OM-AB`).
+    /// `onClick(_:)` is still the only thing that makes an element a pointer
+    /// target, so this on an element without one writes the field and registers
+    /// nothing — the same shape as `hoverBackground(_:)` with no `onClick`.
+    ///
+    /// **It moves neither the accessibility frame nor the focus registration**:
+    /// the inset is applied at one site, to the bounds `Frame.registerHandlers`
+    /// hands `insertHitbox`, and everything else that call registers keeps the
+    /// element's own box.
+    ///
+    /// A **negative** inset grows the region past the element's box, as
+    /// SwiftUI's does (H5). MetalUI's grown region is still intersected with the
+    /// active clip, as every hitbox is; SwiftUI's is not (H6, `OM-AJ`).
+    public func contentShape(inset: Pixels) -> Self {
+        handling { $0.contentShapeInset = Edges(all: inset) }
+    }
+
+    /// The per-edge form of `contentShape(inset:)`.
+    public func contentShape(inset: Edges<Pixels>) -> Self {
+        handling { $0.contentShapeInset = inset }
+    }
 }
