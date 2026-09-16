@@ -478,10 +478,19 @@ private struct TwoMarks: Component {
 /// keeps the flex row and is still squeezed (to 57, CSS shrink by base size), as
 /// `FR-N` read. It is `#require`d to disagree with the single-child arm.
 ///
+/// **The frame as an inner layer** — the lowering is made per layer, so a
+/// frame under a `.padding(4)` (child at (−66, 20): the frame sits at (4, 80))
+/// and under a second 80×60 frame (child at (−60, 20): the inner frame sits at
+/// (10, 80)) overflow the same way. These two arms were added after the lane:
+/// the mutation "lower only the outermost layer" left the suite green.
+///
 /// Before the lane the single-child arm reads (0, 20) 60×160 (`FR-N`).
-/// Mutations: lower single-child frames as a flex row again (the three
-/// single-child arms redden); lower every frame layer as a stack (the control's
-/// `#require` fails).
+/// Mutations, measured (record §17, lane 5): lower single-child frames as a
+/// flex row again (the single-child arms redden, and
+/// `aFrameLayersClipAndBorderBoundTheChildTheFrameCannotShrink`); lower every
+/// frame layer as a stack (the control's `#require` fails, and three
+/// component-frame tests redden); lower only the outermost layer (the two
+/// inner-layer arms redden).
 @Test @MainActor func aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes() throws {
     let plain = try render { log in
         Row {
@@ -501,6 +510,21 @@ private struct TwoMarks: Component {
                 .frame(width: px(60), height: px(40), alignment: .topLeading)
         }
     }
+    // The frame as an INNER layer: under a padding, and under a second frame.
+    let padded = try render { log in
+        Row {
+            Mark("child", log: log, width: 200, height: 160)
+                .frame(width: px(60), height: px(40))
+                .padding(4)
+        }
+    }
+    let framedTwice = try render { log in
+        Row {
+            Mark("child", log: log, width: 200, height: 160)
+                .frame(width: px(60), height: px(40))
+                .frame(width: px(80), height: px(60))
+        }
+    }
     let twoNodes = try render { log in
         Row {
             TwoMarks(log: log).frame(width: px(60), height: px(40))
@@ -517,6 +541,10 @@ private struct TwoMarks: Component {
             "flexShrink(0) on the layer changes nothing")
     #expect(Rect(try #require(topLeading.bounds["child"])) == Rect(0, 80, 200, 160),
             "B9 (0, 0) from the frame at (0, 80)")
+    #expect(Rect(try #require(padded.bounds["child"])) == Rect(-66, 20, 200, 160),
+            "an inner frame layer lowers too: the frame at (4, 80) under a 4pt padding")
+    #expect(Rect(try #require(framedTwice.bounds["child"])) == Rect(-60, 20, 200, 160),
+            "an inner frame under an outer 80x60 frame: the inner frame at (10, 80)")
     #expect(squeezed.width == 57 && squeezed.height == 160,
             "a frame over two nodes keeps FR-C's flex row and squeezes the child: \(squeezed)")
 }
@@ -870,9 +898,10 @@ private func insets(top: Float?, right: Float?, bottom: Float?, left: Float?) ->
 /// - **F**, `.relative`, insets all 0 on a 20×20 child: abs (30, 80).
 ///
 /// The control: A and B must disagree (the relative frame IS the containing
-/// block). Mutation: lower through `display: .stack` without carrying
-/// `position`'s containing block (make the frame layer `.static` when it
-/// lowers): A, C, D, E and F move to the root's origin.
+/// block). Green before and after the lowering, as intended. Mutation,
+/// measured: lower through `display: .stack` without carrying `position`'s
+/// containing block (make the frame layer `.static` when it lowers) — the
+/// `#require` fails, A reading B's (15, 10).
 @Test @MainActor func anAbsolutelyPositionedChildInsideASingleChildLegacyFrameKeepsItsPlacement() throws {
     func arm(relative: Bool, _ edges: Edges<MetalUICore.Dimension>, alignment: ProposalAlignment = .center,
              flexible: Bool = false) throws -> (abs: Rect, after: Rect) {
@@ -934,8 +963,12 @@ private func insets(top: Float?, right: Float?, bottom: Float?, left: Float?) ->
 ///   region (40, 80) 160×40, c (40, 80), offset 0.
 ///
 /// The control: A and F must disagree on the offset (the instrument can see a
-/// scroll). Mutation: the frame layer lowers to a stack that stretches its one
-/// child (`justifyItems`/`alignItems` `.stretch`): A's and G's rects move.
+/// scroll). Green before and after the lowering, as intended. Mutations,
+/// measured: the lowered stack stretches its one child
+/// (`justifyItems`/`alignItems` `.stretch`) — the `#require` fails, A's viewport
+/// stretched to the frame's 100 and scrolling 37; `FrameSpec.style()` writes no
+/// `justifyItems` (a stack's default is stretch) — A, F and G move (A's region
+/// (30, 0) 120×200).
 @Test @MainActor func aScrollViewInsideASingleChildLegacyFrameKeepsItsViewportAndWheel() throws {
     let device = try #require(MTLCreateSystemDefaultDevice())
     func arm<Content: Element>(at x: Float, _ y: Float, horizontal: Bool = false,
