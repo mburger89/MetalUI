@@ -59,6 +59,13 @@
 // rule). Horizontally SC5 cannot tell (the implicit VStack is proposed 200
 // tall and the greedy spacer absorbs any gap: b at 180 either way).
 //
+// RE-RECORDED 2026-09-16 (revision 8, lane 3's verifier round), same machine
+// and toolchain, exit 0, run twice with byte-identical output. Additive only:
+// the `Pass` layout, the `flexible` helper and the V1-V8 arms after SC5; the
+// 638 output lines before them are byte-identical to revision 7's record
+// (`diff` empty). They settle CN-H's walk for what is neither a wrapper nor a
+// ZStack with children, which revision 7 read from K3h alone.
+//
 // READING (each claim names its arms):
 // - Default spacing is 8 horizontally between every pair measured (S), and 8
 //   vertically between non-text views; vertically a Text edge is font-derived
@@ -82,6 +89,28 @@
 //   40, a cross-axis edge; K3p 52 vertically). A ZStack with a non-spacer child
 //   (K3j, K3k 56), a nested stack (K3h 56) and a spacer on the OVERLAY side of
 //   `.overlay` (K3i 56) get default spacing.
+//   (Refined, revision 8.) K3h's nested stack is CROSS-axis, and its spacer is
+//   oriented by it. Against controls K3 (48) and SP3 (40), with V3c and V4c (56)
+//   for a non-spacer child:
+//   * A spacer's edges are zero only along the axis of the stack that orients
+//     it, or on both axes when no stack does (inside a ZStack or custom layout:
+//     K3g, V3). A VStack's spacer seen from an HStack is a default edge (K3h,
+//     V1d, V1h, V3h, V7h).
+//   * A SAME-axis nested stack's leading edge is its first child's and its
+//     trailing edge its last child's, whatever its own spacing (V1 40, V1b 48
+//     with c at 20, V1c 48 with c at 28, V1e 20x40, V1i 52, V1k 60; V1j 56).
+//   * A CROSS-axis nested stack or a custom layout: an edge is zero if it is
+//     zero on ANY child (V3 40, V3b 40, V3e 40, V7 40, V7b 40, V7d 40, V7i 40;
+//     per edge: V3f 52 = 20+8+4+0+20; V3g two non-spacers 56).
+//   * A ZStack: zero only if zero on EVERY child, per edge (K3j, K3l, V7j 40,
+//     V7k 52 = 20+8+4+0+20).
+//   * Any EMPTY stack, custom layout or ZStack has zero edges (V1f 40, V1g 40,
+//     V3d 40, V4 40, V4b 40).
+//   * A ScrollView's edges are default whatever its content (V8, both axes, 56
+//     like V8c).
+//   * A padding wrapper sits after the gap its non-zero edge keeps: V6
+//     `.padding(.leading, 4)` puts the padded view at x 28 (4 wide, b at 32),
+//     V6c `.padding(.trailing, 4)` at x 20; V6b vertically at y 28.
 // - The stack's cross-axis mark on a spacer is a DIFFERENT walk: it reaches
 //   through `aspectRatio` (K2b, height 20), `fixedSize` (revision 6: K2g
 //   8x0 against the ZStack control K2f 8x8; K2i height 20 against K2j 30 —
@@ -819,6 +848,146 @@
 //   SC5 ScrollView(.horizontal){a 20x20; Spacer(minLength: 0); b 20x20} at 200x200 @200x200: size 200x200
 //       leaf a: proposed [nilxinf, nilx0, nilx100, 20xinf, 20x0, 20x100] at (0, 0) 20x20 calls 6
 //       leaf b: proposed [nilx180, 20x180] at (0, 180) 20x20 calls 2
+//   V1 HStack{a20; HStack{sp}; b20} (same-axis nested stack) @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V1b HStack{a20; HStack{sp; c 0x0}; b20} @nilxnil: size 48x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx0, nilx20] at (20, 10) 0x0 calls 3
+//       leaf b: proposed [nilxnil, nilx20] at (28, 0) 20x20 calls 2
+//   V1c HStack{a20; HStack{c 0x0; sp}; b20} @nilxnil: size 48x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx0, nilx20] at (28, 10) 0x0 calls 3
+//       leaf b: proposed [nilxnil, nilx20] at (28, 0) 20x20 calls 2
+//   V1d HStack{a20; VStack{sp; c 0x0}; b20} (cross-axis nested stack) @nilxnil: size 56x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, 0xnil, nilx20, 0x20] at (28, 20) 0x0 calls 4
+//       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
+//   V1e VStack{a20; VStack{sp}; b20} (same-axis, vertical) @nilxnil: size 20x40
+//       leaf a: proposed [nilxnil, 20xnil] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, 20xnil] at (0, 20) 20x20 calls 2
+//   V1f HStack{a20; HStack{}; b20} (empty same-axis stack) @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V1g HStack{a20; VStack{}; b20} (empty cross-axis stack) @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V1h HStack{a20; VStack{sp; sp}; b20} (cross-axis, only spacers) @nilxnil: size 56x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
+//   V1i HStack{a20; HStack(spacing: 4){sp; c 0x0}; b20} (explicit inner spacing) @nilxnil: size 52x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx0, nilx20] at (24, 10) 0x0 calls 3
+//       leaf b: proposed [nilxnil, nilx20] at (32, 0) 20x20 calls 2
+//   V1j HStack{a20; HStack{c 0x0}; b20} (same-axis, no spacer) @nilxnil: size 56x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx20] at (28, 10) 0x0 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
+//   V1k HStack{a20; HStack{sp.padding(.leading, 4); c 0x0}; b20} (first child's padded edge) @nilxnil: size 60x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx0, nilx20] at (32, 10) 0x0 calls 3
+//       leaf b: proposed [nilxnil, nilx20] at (40, 0) 20x20 calls 2
+//   V3c control HStack{a20; Pass{c 0x0}; b20} (custom layout, no spacer) @nilxnil: size 56x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx20] at (28, 10) 0x0 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
+//   V3 HStack{a20; Pass{sp}; b20} @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V3b HStack{a20; Pass{sp; c 0x0}; b20} @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx20] at (20, 0) 0x0 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V3e HStack{a20; Pass{c 0x0; sp}; b20} @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx20] at (20, 0) 0x0 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V3d HStack{a20; Pass{}; b20} (empty custom layout) @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V3f HStack{a20; Pass{sp.padding(.leading, 4); c 0x0}; b20} (per edge?) @nilxnil: size 52x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx20] at (28, 0) 0x0 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (32, 0) 20x20 calls 2
+//   V3g HStack{a20; Pass{c 0x0; d 0x0}; b20} (two non-spacers) @nilxnil: size 56x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx20] at (28, 10) 0x0 calls 2
+//       leaf d: proposed [nilxnil, nilx20] at (28, 10) 0x0 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
+//   V3h HStack{a20; Pass{VStack{sp}}; b20} (a cross-axis stack's spacer inside) @nilxnil: size 56x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
+//   V4c control HStack{a20; ZStack{c 0x0}; b20} @nilxnil: size 56x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx20] at (28, 10) 0x0 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
+//   V4 HStack{a20; ZStack{}; b20} (empty ZStack) @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V4b HStack{a20; ZStack{if false {c}}; b20} @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V6 HStack{a20; sp.padding(.leading, 4).background{w}; b20} (where the padding sits) @nilxnil: size 52x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (32, 0) 20x20 calls 2
+//       leaf w: proposed [4x0] at (28, 10) 4x0 calls 1
+//   V6b VStack{a20; sp.padding(.top, 4).background{w}; b20} @nilxnil: size 20x52
+//       leaf a: proposed [nilxnil, 20xnil] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, 20xnil] at (0, 32) 20x20 calls 2
+//       leaf w: proposed [0x4] at (10, 28) 0x4 calls 1
+//   V6c control HStack{a20; sp.padding(.trailing, 4).background{w}; b20} @nilxnil: size 52x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (32, 0) 20x20 calls 2
+//       leaf w: proposed [4x0] at (20, 10) 4x0 calls 1
+//   V7 HStack{a20; VStack{ZStack{sp}}; b20} @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V7b HStack{a20; VStack{ZStack{sp}; c 0x0}; b20} @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, 0xnil, nilx20, 0x20] at (20, 20) 0x0 calls 4
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V7c HStack{a20; VStack{HStack{sp}}; b20} @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V7d HStack{a20; VStack{c 0x0; HStack{sp}}; b20} @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, 0xnil, nilx12, 0x12] at (20, 6) 0x0 calls 4
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V7e HStack{a20; VStack{HStack{sp}; HStack{sp}}; b20} @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V7f HStack{a20; VStack{sp.padding(.leading, 4); HStack{sp}}; b20} (per edge?) @nilxnil: size 44x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (24, 0) 20x20 calls 2
+//   V7g HStack{a20; ZStack{HStack{sp}}; b20} (a ZStack over a same-axis stack) @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V7h HStack{a20; ZStack{VStack{sp}}; b20} (a ZStack over a cross-axis stack) @nilxnil: size 56x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
+//   V7i HStack{a20; Pass{VStack{sp}; ZStack{sp}}; b20} @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V7j HStack{a20; ZStack{sp; HStack{sp}}; b20} @nilxnil: size 40x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (20, 0) 20x20 calls 2
+//   V7k HStack{a20; ZStack{sp}.padding(.leading, 4)... ZStack{sp.padding(.leading, 4); sp}; b20} (ZStack per edge?) @nilxnil: size 52x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (32, 0) 20x20 calls 2
+//   V8c control HStack{a20; ScrollView(.vertical){c 0x0}; b20} @nilxnil: size 56x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, 0xnil] at (0, 0) 0x0 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
+//   V8 HStack{a20; ScrollView(.vertical){sp}; b20} @nilxnil: size 56x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
+//   V8c control HStack{a20; ScrollView(.horizontal){c 0x0}; b20} @nilxnil: size 56x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf c: proposed [nilxnil, nilx20, nilx0] at (0, 0) 0x0 calls 3
+//       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
+//   V8 HStack{a20; ScrollView(.horizontal){sp}; b20} @nilxnil: size 56x20
+//       leaf a: proposed [nilxnil, nilx20] at (0, 0) 20x20 calls 2
+//       leaf b: proposed [nilxnil, nilx20] at (36, 0) 20x20 calls 2
 //   DONE
 
 import AppKit
@@ -974,6 +1143,26 @@ func logged(_ n: String, _ w: CGFloat, _ h: CGFloat) -> some View {
 /// invalid", as D12 in swiftui-frame-semantics.swift records), so an arm whose
 /// answer may be infinite reads only its size. The 0x0 placement adds a
 /// `0x0` entry to the proposal list; ignore it.
+/// Revision 8: a custom layout that overrides nothing but the two required
+/// methods — its spacing is `Layout`'s default. Answers the largest child
+/// answer per axis and places every child at its origin.
+struct Pass: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        subviews.reduce(CGSize.zero) { size, subview in
+            let s = subview.sizeThatFits(proposal)
+            return CGSize(width: max(size.width, s.width), height: max(size.height, s.height))
+        }
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for subview in subviews { subview.place(at: bounds.origin, anchor: .topLeading, proposal: proposal) }
+    }
+}
+/// Revision 8: flexible on both axes (ideal 10), for a background that reads
+/// the rect it is placed in.
+func flexible(_ n: String) -> some View {
+    Leaf(name: n, minW: 0, idealW: 10, maxW: .infinity, minH: 0, idealH: 10, maxH: .infinity) { SwiftUI.Color.clear }
+}
+
 struct MeasureOnlyProbe: Layout {
     let proposal: ProposedViewSize
     func sizeThatFits(proposal _: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
@@ -1721,6 +1910,135 @@ enum Kind: String, CaseIterable { case rect, color, text, leaf, image, hstack, b
         }
         run("SC5 ScrollView(.\(name)){a 20x20; Spacer(minLength: 0); b 20x20} at 200x200", p(200, 200)) {
             ScrollView(axes) { fixed("a", 20, 20); Spacer(minLength: 0); fixed("b", 20, 20) }
+        }
+    }
+
+
+    // Revision 8 (lane 3's verifier round): CN-H's walk for what is neither a
+    // wrapper nor a ZStack with children. Every arm at nil, a and b fixed
+    // 20x20, `sp` a Spacer(minLength: 0), c a fixed 0x0. Controls: K3 (48, no
+    // spacer), SP3 (40, a bare spacer), V3c and V4c below (56, a non-spacer
+    // child in a custom layout / ZStack).
+    let sp = { Spacer(minLength: 0) }
+    run("V1 HStack{a20; HStack{sp}; b20} (same-axis nested stack)", none) {
+        HStack { fixed("a", 20, 20); HStack { sp() }; fixed("b", 20, 20) }
+    }
+    run("V1b HStack{a20; HStack{sp; c 0x0}; b20}", none) {
+        HStack { fixed("a", 20, 20); HStack { sp(); fixed("c", 0, 0) }; fixed("b", 20, 20) }
+    }
+    run("V1c HStack{a20; HStack{c 0x0; sp}; b20}", none) {
+        HStack { fixed("a", 20, 20); HStack { fixed("c", 0, 0); sp() }; fixed("b", 20, 20) }
+    }
+    run("V1d HStack{a20; VStack{sp; c 0x0}; b20} (cross-axis nested stack)", none) {
+        HStack { fixed("a", 20, 20); VStack { sp(); fixed("c", 0, 0) }; fixed("b", 20, 20) }
+    }
+    run("V1e VStack{a20; VStack{sp}; b20} (same-axis, vertical)", none) {
+        VStack { fixed("a", 20, 20); VStack { sp() }; fixed("b", 20, 20) }
+    }
+    run("V1f HStack{a20; HStack{}; b20} (empty same-axis stack)", none) {
+        HStack { fixed("a", 20, 20); HStack {}; fixed("b", 20, 20) }
+    }
+    run("V1g HStack{a20; VStack{}; b20} (empty cross-axis stack)", none) {
+        HStack { fixed("a", 20, 20); VStack {}; fixed("b", 20, 20) }
+    }
+    run("V1h HStack{a20; VStack{sp; sp}; b20} (cross-axis, only spacers)", none) {
+        HStack { fixed("a", 20, 20); VStack { sp(); sp() }; fixed("b", 20, 20) }
+    }
+    run("V1i HStack{a20; HStack(spacing: 4){sp; c 0x0}; b20} (explicit inner spacing)", none) {
+        HStack { fixed("a", 20, 20); HStack(spacing: 4) { sp(); fixed("c", 0, 0) }; fixed("b", 20, 20) }
+    }
+    run("V1j HStack{a20; HStack{c 0x0}; b20} (same-axis, no spacer)", none) {
+        HStack { fixed("a", 20, 20); HStack { fixed("c", 0, 0) }; fixed("b", 20, 20) }
+    }
+    run("V1k HStack{a20; HStack{sp.padding(.leading, 4); c 0x0}; b20} (first child's padded edge)", none) {
+        HStack { fixed("a", 20, 20); HStack { sp().padding(.leading, 4); fixed("c", 0, 0) }; fixed("b", 20, 20) }
+    }
+    run("V3c control HStack{a20; Pass{c 0x0}; b20} (custom layout, no spacer)", none) {
+        HStack { fixed("a", 20, 20); Pass { fixed("c", 0, 0) }; fixed("b", 20, 20) }
+    }
+    run("V3 HStack{a20; Pass{sp}; b20}", none) {
+        HStack { fixed("a", 20, 20); Pass { sp() }; fixed("b", 20, 20) }
+    }
+    run("V3b HStack{a20; Pass{sp; c 0x0}; b20}", none) {
+        HStack { fixed("a", 20, 20); Pass { sp(); fixed("c", 0, 0) }; fixed("b", 20, 20) }
+    }
+    run("V3e HStack{a20; Pass{c 0x0; sp}; b20}", none) {
+        HStack { fixed("a", 20, 20); Pass { fixed("c", 0, 0); sp() }; fixed("b", 20, 20) }
+    }
+    run("V3d HStack{a20; Pass{}; b20} (empty custom layout)", none) {
+        HStack { fixed("a", 20, 20); Pass {}; fixed("b", 20, 20) }
+    }
+    run("V3f HStack{a20; Pass{sp.padding(.leading, 4); c 0x0}; b20} (per edge?)", none) {
+        HStack { fixed("a", 20, 20); Pass { sp().padding(.leading, 4); fixed("c", 0, 0) }; fixed("b", 20, 20) }
+    }
+    run("V3g HStack{a20; Pass{c 0x0; d 0x0}; b20} (two non-spacers)", none) {
+        HStack { fixed("a", 20, 20); Pass { fixed("c", 0, 0); fixed("d", 0, 0) }; fixed("b", 20, 20) }
+    }
+    run("V3h HStack{a20; Pass{VStack{sp}}; b20} (a cross-axis stack's spacer inside)", none) {
+        HStack { fixed("a", 20, 20); Pass { VStack { sp() } }; fixed("b", 20, 20) }
+    }
+    run("V4c control HStack{a20; ZStack{c 0x0}; b20}", none) {
+        HStack { fixed("a", 20, 20); ZStack { fixed("c", 0, 0) }; fixed("b", 20, 20) }
+    }
+    run("V4 HStack{a20; ZStack{}; b20} (empty ZStack)", none) {
+        HStack { fixed("a", 20, 20); ZStack {}; fixed("b", 20, 20) }
+    }
+    let never = false
+    run("V4b HStack{a20; ZStack{if false {c}}; b20}", none) {
+        HStack { fixed("a", 20, 20); ZStack { if never { fixed("c", 0, 0) } }; fixed("b", 20, 20) }
+    }
+    run("V6 HStack{a20; sp.padding(.leading, 4).background{w}; b20} (where the padding sits)", none) {
+        HStack { fixed("a", 20, 20); sp().padding(.leading, 4).background { flexible("w") }; fixed("b", 20, 20) }
+    }
+    run("V6b VStack{a20; sp.padding(.top, 4).background{w}; b20}", none) {
+        VStack { fixed("a", 20, 20); sp().padding(.top, 4).background { flexible("w") }; fixed("b", 20, 20) }
+    }
+    run("V6c control HStack{a20; sp.padding(.trailing, 4).background{w}; b20}", none) {
+        HStack { fixed("a", 20, 20); sp().padding(.trailing, 4).background { flexible("w") }; fixed("b", 20, 20) }
+    }
+    // V7: a cross-axis stack's edges, when a child has a zero edge along the
+    // OUTER axis (a ZStack'd spacer, K3g; a same-axis stack of a spacer, V1).
+    // Controls: V1d/V1h (56, a spacer the inner VStack orients).
+    run("V7 HStack{a20; VStack{ZStack{sp}}; b20}", none) {
+        HStack { fixed("a", 20, 20); VStack { ZStack { sp() } }; fixed("b", 20, 20) }
+    }
+    run("V7b HStack{a20; VStack{ZStack{sp}; c 0x0}; b20}", none) {
+        HStack { fixed("a", 20, 20); VStack { ZStack { sp() }; fixed("c", 0, 0) }; fixed("b", 20, 20) }
+    }
+    run("V7c HStack{a20; VStack{HStack{sp}}; b20}", none) {
+        HStack { fixed("a", 20, 20); VStack { HStack { sp() } }; fixed("b", 20, 20) }
+    }
+    run("V7d HStack{a20; VStack{c 0x0; HStack{sp}}; b20}", none) {
+        HStack { fixed("a", 20, 20); VStack { fixed("c", 0, 0); HStack { sp() } }; fixed("b", 20, 20) }
+    }
+    run("V7e HStack{a20; VStack{HStack{sp}; HStack{sp}}; b20}", none) {
+        HStack { fixed("a", 20, 20); VStack { HStack { sp() }; HStack { sp() } }; fixed("b", 20, 20) }
+    }
+    run("V7f HStack{a20; VStack{sp.padding(.leading, 4); HStack{sp}}; b20} (per edge?)", none) {
+        HStack { fixed("a", 20, 20); VStack { ZStack { sp() }.padding(.leading, 4); HStack { sp() } }; fixed("b", 20, 20) }
+    }
+    run("V7g HStack{a20; ZStack{HStack{sp}}; b20} (a ZStack over a same-axis stack)", none) {
+        HStack { fixed("a", 20, 20); ZStack { HStack { sp() } }; fixed("b", 20, 20) }
+    }
+    run("V7h HStack{a20; ZStack{VStack{sp}}; b20} (a ZStack over a cross-axis stack)", none) {
+        HStack { fixed("a", 20, 20); ZStack { VStack { sp() } }; fixed("b", 20, 20) }
+    }
+    run("V7i HStack{a20; Pass{VStack{sp}; ZStack{sp}}; b20}", none) {
+        HStack { fixed("a", 20, 20); Pass { VStack { sp() }; ZStack { sp() } }; fixed("b", 20, 20) }
+    }
+    run("V7j HStack{a20; ZStack{sp; HStack{sp}}; b20}", none) {
+        HStack { fixed("a", 20, 20); ZStack { sp(); HStack { sp() } }; fixed("b", 20, 20) }
+    }
+    run("V7k HStack{a20; ZStack{sp}.padding(.leading, 4)... ZStack{sp.padding(.leading, 4); sp}; b20} (ZStack per edge?)", none) {
+        HStack { fixed("a", 20, 20); ZStack { sp().padding(.leading, 4); sp() }; fixed("b", 20, 20) }
+    }
+    // V8: a ScrollView's edges. Control V8c: a non-spacer content.
+    for (name, axes) in [("vertical", Axis.Set.vertical), ("horizontal", Axis.Set.horizontal)] {
+        run("V8c control HStack{a20; ScrollView(.\(name)){c 0x0}; b20}", none) {
+            HStack { fixed("a", 20, 20); ScrollView(axes) { fixed("c", 0, 0) }; fixed("b", 20, 20) }
+        }
+        run("V8 HStack{a20; ScrollView(.\(name)){sp}; b20}", none) {
+            HStack { fixed("a", 20, 20); ScrollView(axes) { sp() }; fixed("b", 20, 20) }
         }
     }
 
