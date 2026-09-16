@@ -475,6 +475,20 @@ Four readings worth quoting on their own:
   `Frame`, because `Window` does not retain its own. If `Window` ever exposes
   its frame, the two renders collapse to one and the doc comment on `observe`
   says so.
+- **One stale source doc comment, found and deliberately NOT edited.**
+  `StyledElement.borderWidth(_ points:)`'s own doc (`Box.swift:666-671`) says
+  "**There is no border colour anywhere in the framework**, so a border width
+  changes where the children sit and draws nothing: `Frame.fill` emits
+  `borderColor: .transparent` and `borderWidths: 0` **unconditionally**". The
+  last word is false as of the proposal path: `Frame.fill`'s signature
+  (`Frame.swift:1577-1580`) takes `borderColor` and `borderWidths` as
+  parameters, defaulted, and `NativeModifiedContent`'s `.border` passes
+  non-defaults. It is true of every legacy caller, which is the only reason the
+  sentence still reads plausibly. **Lane 2 deletes both `borderWidth` overloads
+  and this doc with them** (`OM-M`), and `Box.swift` is on the brief's
+  merge-collision list, so editing four lines that are about to be removed would
+  buy a conflict for nothing. Lane 2 owns it; if `OM-M` is ever reversed, the
+  word is `unconditionally`.
 - **`HandlerFingerprint` in this file is a second copy** of
   `ModifierTests.swift`'s `HandlerShape` projection, and `CLAUDE.md`'s rule
   ("`HandlerShape` must gain a field in the same change `Handlers` gains a
