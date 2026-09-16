@@ -116,8 +116,12 @@
 //   and may overflow (A6-A9; K5: a half-width leaf's placement proposal is
 //   60x40; K5d: an HStack in an overlay is placed at 60x40 and re-solved there,
 //   h at 40x40). Several views in one overlay or background are a ZStack with
-//   that alignment (A10, K5a = K5b, K5c, K5e), which then applies the ZStack
-//   rule above (K5a: h at (17.5, 15) 15x10, o at (15, 10)). An empty overlay or
+//   the modifier's alignment POSITIONING a CENTRED ZStack (A10, K5a = K5b,
+//   K5e): the implicit ZStack's own alignment is .center whatever the
+//   modifier's (K5g .topLeading: h at (2.5, 5) inside the union at (0, 0), not
+//   (0, 0); K5h .bottomTrailing: union at (30, 20), h at (32.5, 25); K5c the
+//   same with an explicit ZStack). That ZStack then applies the ZStack rule
+//   above (K5a: h at (17.5, 15) 15x10, o at (15, 10)). An empty overlay or
 //   background leaves the primary alone (A11, A11b). A root's overlay and
 //   background content is proposed the ROOT's size, not the host's (R3, R4).
 // - ScrollView (SC, SCG2): the content is proposed nil on each scrolling axis
@@ -714,6 +718,18 @@
 //       leaf primary: proposed [nilxnil] at (0, 0) 60x40 calls 1
 //       leaf h: proposed [30x40] at (22.50, 15) 15x10 calls 1
 //           placements, in order: [30x40 -> (0, 0) 15x10; 30x40 -> (22.50, 15) 15x10]
+//   K5g primary 60x40 .overlay(alignment: .topLeading){half h; o 20x20} (implicit ZStack's own alignment?) @nilxnil: size 60x40
+//       leaf primary: proposed [nilxnil] at (0, 0) 60x40 calls 1
+//       leaf h: proposed [60x40, 30x20] at (2.50, 5) 15x10 calls 2
+//           placements, in order: [60x40 -> (0, 0) 30x10; 30x20 -> (0, 0) 15x10; 30x20 -> (2.50, 5) 15x10]
+//       leaf o: proposed [60x40, 30x20] at (0, 0) 20x20 calls 2
+//           placements, in order: [60x40 -> (0, 0) 20x20; 30x20 -> (0, 0) 20x20]
+//   K5h primary 60x40 .background(alignment: .bottomTrailing){half h; o 20x20} @nilxnil: size 60x40
+//       leaf primary: proposed [nilxnil] at (0, 0) 60x40 calls 1
+//       leaf h: proposed [60x40, 30x20] at (32.50, 25) 15x10 calls 2
+//           placements, in order: [60x40 -> (0, 0) 30x10; 30x20 -> (0, 0) 15x10; 30x20 -> (32.50, 25) 15x10]
+//       leaf o: proposed [60x40, 30x20] at (30, 20) 20x20 calls 2
+//           placements, in order: [60x40 -> (0, 0) 20x20; 30x20 -> (0, 0) 20x20; 30x20 -> (30, 20) 20x20]
 //   Z1 ZStack{half h; o 20x20} at 60x40 (no overlay) @60x40: size 30x20
 //       leaf h: proposed [60x40, 30x20] at (2.50, 5) 15x10 calls 2
 //           placements, in order: [60x40 -> (0, 0) 30x10; 30x20 -> (0, 0) 15x10; 30x20 -> (2.50, 5) 15x10]
@@ -1556,6 +1572,12 @@ enum Kind: String, CaseIterable { case rect, color, text, leaf, image, hstack, b
     }
     run("K5f primary 60x40 .overlay{half h .frame(width: 30)} (content answer = its proposal width)", none) {
         fixed("primary", 60, 40).overlay { half("h").frame(width: 30) }
+    }
+    run("K5g primary 60x40 .overlay(alignment: .topLeading){half h; o 20x20} (implicit ZStack's own alignment?)", none) {
+        fixed("primary", 60, 40).overlay(alignment: .topLeading) { half("h"); logged("o", 20, 20) }
+    }
+    run("K5h primary 60x40 .background(alignment: .bottomTrailing){half h; o 20x20}", none) {
+        fixed("primary", 60, 40).background(alignment: .bottomTrailing) { half("h"); logged("o", 20, 20) }
     }
     run("Z1 ZStack{half h; o 20x20} at 60x40 (no overlay)", p(60, 40)) { ZStack { half("h"); logged("o", 20, 20) } }
     run("Z2 ZStack(.topLeading){half h; o 20x20} at 60x40", p(60, 40)) {
