@@ -991,3 +991,32 @@ private struct NativeProposalProbe: ProposalElement {
     #expect(probe.count == 0,
             "the gesture receives neither half of a click while hit testing is disabled")
 }
+
+/// **The greedy flexible frame, one level up, through the element API**
+/// (ruling FR-A, lane 1 test 1.9). The kernel unit tests read `framedSize`
+/// directly; this one asks whether `ProposalElementGroup.frame(minWidth:maxWidth:)`
+/// in a real `Frame` render carries the finding, which is the spelling a caller
+/// writes.
+///
+/// A `VStack(alignment: .leading)` is the container that makes the answer
+/// observable: a vertical stack proposes its own width to every child and then
+/// places each at the child's *measured* width, from `bounds.x` under a leading
+/// alignment. So the leaf's x is the frame's width minus the leaf's, halved.
+/// At 200pt offered, min 40 / max 80 over a 20pt leaf, the frame answers **80**
+/// and the leaf sits at **x = 30**; before `FR-A` it answered its child clamped
+/// to the minimum, 40, and the leaf sat at x = 10.
+@MainActor
+@Test func aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI() {
+    let probe = NativeLayoutProbe()
+    let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(60)), scaleFactor: 1)
+    var root = VStack(spacing: Pixels(0), alignment: .leading) {
+        NativeProbeLeaf(size: SizeD(width: 20, height: 10), probe: probe, name: "trailing")
+            .frame(minWidth: Pixels(40), maxWidth: Pixels(80))
+    }
+
+    frame.render(&root)
+
+    #expect(probe.prepaintBounds?.origin.x == Pixels(30),
+            "an 80pt frame centres its 20pt leaf at 30; a 40pt one would centre it at 10")
+    #expect(probe.prepaintBounds?.size == Size(width: Pixels(20), height: Pixels(10)))
+}
