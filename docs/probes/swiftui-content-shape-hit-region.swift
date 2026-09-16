@@ -29,6 +29,11 @@
 // a point in its empty space, so a 1 in H2/H3 is the modifier and not the
 // harness.
 //
+// RE-RECORDED AGAIN 2026-09-15 (lane 3), same machine and toolchain, with three
+// additive arms H4–H6: a content shape BIGGER than the frame, and whether an
+// ancestor `.clipped()` bounds it. Every pre-existing arm re-read its recorded
+// value byte for byte in the same run. Exit 0.
+//
 // RE-RECORDED 2026-09-15 (design review round 2), macOS 26.6.2 (25G83), after
 // critic finding 1. One additive arm, N2: `.allowsHitTesting(false)` written
 // BEFORE the gesture rather than after it. N1 alone could not say whether the
@@ -42,6 +47,9 @@
 //     H1 stack, empty middle, tap, NO shape  : centre 0 edge 0
 //     H2 stack + contentShape(Rectangle())   : centre 1 edge 1
 //     H3 stack + contentShape(Rect inset 60) : centre 1 edge 0
+//     H4 80x80 colour + tap (control)        : centre 1 edge 0
+//     H5 the same + contentShape(inset -60)  : centre 1 edge 1
+//     H6 H5 inside a 100x100 .clipped()      : centre 1 edge 1
 //   --- P: is PADDING hit-testable? (40x40 colour, padding 80 = 200x200)
 //     P1 colour.padding(80).onTapGesture     : centre 1 edge 0
 //     P2 colour.onTapGesture.padding(80)     : centre 1 edge 0
@@ -56,6 +64,15 @@
 // - H1 vs H2: SwiftUI's DEFAULT hit region is derived from what the view
 //   draws — a stack's empty middle is not hittable (0/0) until
 //   `.contentShape(Rectangle())` makes it so (1/1).
+// - H4 vs H5: a NEGATIVE inset GROWS the region past the view's own frame —
+//   a point 40pt outside an 80x80 leaf hits it. MetalUI accepts a negative
+//   `contentShape(inset:)` for this reason (ruling OM-J).
+// - H5 vs H6: an ancestor `.clipped()` does **not** bound the grown region in
+//   SwiftUI — the edge point hits through the clip. MetalUI's does: every
+//   registered hitbox is intersected with the active clip in
+//   `Frame.insertHitbox`, which is what makes a hitbox for content that is not
+//   drawn unreachable. A recorded divergence (ruling OM-AJ), pinned by
+//   `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor`.
 // - H3: `.contentShape(Rectangle().inset(by: 60))` SHRINKS the hit region:
 //   the centre still hits, a point 20pt from the edge no longer does. A
 //   content shape can therefore be smaller than the frame, which is the one
@@ -160,6 +177,35 @@ let edge = CGPoint(x: 20, y: 100)
     }
     arm("H3 stack + contentShape(Rect inset 60) ") {
         gappyStack().contentShape(Rectangle().inset(by: 60)).onTapGesture { Count.bump("hit") }
+    }
+    // H4–H6, added 2026-09-15 by lane 3: can a content shape be BIGGER than
+    // the frame, and does an ancestor still bound it? MetalUI accepts a
+    // negative inset (ruling OM-J) and `Frame.insertHitbox` intersects every
+    // registered region with the active clip, so both halves are claims about
+    // MetalUI that wanted SwiftUI arms rather than a derivation.
+    //
+    // **The trailing `.frame(200, 200)` on all three is the instrument, not
+    // decoration.** Without it the `NSHostingView` sizes itself to the root's
+    // 80x80 ideal and AppKit's own `hitTest` throws away every click outside
+    // that 80x80 before SwiftUI sees it — measured: an arm with no outer frame
+    // read 0/0 whether or not the shape was grown, because the clicks never
+    // arrived. The outer frame makes the host 200x200 and centres the subject
+    // in it (x 60…140), so the edge point (20, 100) is a real miss rather than
+    // an undelivered event.
+    arm("H4 80x80 colour + tap (control)        ") {
+        Color.blue.frame(width: 80, height: 80).onTapGesture { Count.bump("hit") }
+            .frame(width: 200, height: 200)
+    }
+    arm("H5 the same + contentShape(inset -60)  ") {
+        Color.blue.frame(width: 80, height: 80)
+            .contentShape(Rectangle().inset(by: -60)).onTapGesture { Count.bump("hit") }
+            .frame(width: 200, height: 200)
+    }
+    arm("H6 H5 inside a 100x100 .clipped()      ") {
+        Color.blue.frame(width: 80, height: 80)
+            .contentShape(Rectangle().inset(by: -60)).onTapGesture { Count.bump("hit") }
+            .frame(width: 100, height: 100).clipped()
+            .frame(width: 200, height: 200)
     }
     print("--- P: is PADDING hit-testable? (40x40 colour, padding 80 = 200x200)")
     arm("P1 colour.padding(80).onTapGesture     ") {

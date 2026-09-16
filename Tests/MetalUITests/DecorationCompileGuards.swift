@@ -146,13 +146,21 @@ func theValidatedDecorationFieldsAreNotAssignableFromOutsideTheModule() throws {
 /// same-named ones**, and each one's receiver still infers the type its own
 /// path uses.
 ///
-/// `.background`, `.border`, `.opacity` and `.clip` already exist on
-/// `ProposalElementGroup`; lane 2 adds `.border`, `.opacity` and `.clipped` to
-/// `extension StyledElement`. No type conforms to both protocols today, so the
-/// two sets cannot be ambiguous — but nothing said so, and "no type conforms to
-/// both" is a fact about the current tree rather than a rule. This fixture
-/// states it as one: a `Box` chain must resolve to `Box`, and an `HStack` chain
-/// to the proposal wrapper, in one file that imports both surfaces.
+/// `.background`, `.border`, `.opacity`, `.clip` and `.allowsHitTesting`
+/// already exist on `ProposalElementGroup`; lane 2 adds `.border`, `.opacity`
+/// and `.clipped` to `extension StyledElement`, and **lane 3 adds
+/// `.allowsHitTesting(_:)` and the two `.contentShape(inset:)` overloads**. No
+/// type conforms to both protocols today, so the two sets cannot be ambiguous —
+/// but nothing said so, and "no type conforms to both" is a fact about the
+/// current tree rather than a rule. This fixture states it as one: a `Box`
+/// chain must resolve to `Box`, and an `HStack` chain to the proposal wrapper,
+/// in one file that imports both surfaces.
+///
+/// **`allowsHitTesting(_:)` is the first name to exist on both surfaces with
+/// the same spelling AND the same argument type** — `.border` differs in its
+/// arguments, `.clipped`/`.clip` in their names — so the legacy half of the
+/// `both` fixture carries it, and the legacy-only `contentShape(inset:)` gets
+/// a disagreeing fixture of its own beside `crossed`.
 ///
 /// Mutated red once (record §15, mutation **G3b**): declaring `clipped()` on
 /// `ElementGroup` — where a proposal element sees it too — makes the `crossed`
@@ -171,9 +179,11 @@ func theLegacyAndProposalDecorationModifiersDoNotCollide() throws {
     let both = try typecheckFile("""
         @MainActor func legacy() -> Box<EmptyGroup> {
             Box().border(.accent, width: Pixels(2)).opacity(0.5).clipped()
+                .allowsHitTesting(false).contentShape(inset: Pixels(2))
         }
         @MainActor func proposal() -> some Element {
             HStack { ProposalText("hi") }.border(.accent, width: Pixels(2)).opacity(0.5)
+                .allowsHitTesting(false)
         }
         """, importing: "MetalUI")
     // The disagreeing half: a spelling that must NOT compile, so "it all
@@ -183,26 +193,43 @@ func theLegacyAndProposalDecorationModifiersDoNotCollide() throws {
             HStack { ProposalText("hi") }.clipped()
         }
         """, importing: "MetalUI")
+    // The same, for lane 3's legacy-only modifier. A second fixture rather
+    // than a second call inside `crossed`, so a failure names which modifier
+    // leaked.
+    let crossedShape = try typecheckFile("""
+        @MainActor func crossed() -> some Element {
+            HStack { ProposalText("hi") }.contentShape(inset: Pixels(2))
+        }
+        """, importing: "MetalUI")
 
     print("""
-        OM-B/OM-N collision: both succeeded=\(both.succeeded) messages=[\(both.messages)]; \
-        crossed succeeded=\(crossed.succeeded) messages=[\(crossed.messages)]
+        OM-B/OM-N/OM-T collision: both succeeded=\(both.succeeded) messages=[\(both.messages)]; \
+        crossed succeeded=\(crossed.succeeded) messages=[\(crossed.messages)]; \
+        crossedShape succeeded=\(crossedShape.succeeded) messages=[\(crossedShape.messages)]
         """)
 
-    try #require(both.succeeded != crossed.succeeded,
+    try #require(both.succeeded != crossed.succeeded && both.succeeded != crossedShape.succeeded,
                  """
-                 the two fixtures must disagree, or this guard accepts or rejects everything:
+                 the fixtures must disagree, or this guard accepts or rejects everything:
                  both:
                  \(both.output)
                  crossed:
                  \(crossed.output)
+                 crossedShape:
+                 \(crossedShape.output)
                  """)
     #expect(both.succeeded,
             """
             a legacy chain must infer `Box` and a proposal chain the proposal wrapper, with \
-            no ambiguity between the two `.border`/`.opacity` surfaces:
+            no ambiguity between the two `.border`/`.opacity`/`.allowsHitTesting` surfaces:
             \(both.output)
             """)
     #expect(!crossed.succeeded,
             "`clipped()` is legacy-only; a proposal element must not see it:\n\(crossed.output)")
+    #expect(!crossedShape.succeeded,
+            """
+            `contentShape(inset:)` is legacy-only until task 12; a proposal element must not \
+            see it:
+            \(crossedShape.output)
+            """)
 }
