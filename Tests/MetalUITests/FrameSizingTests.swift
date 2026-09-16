@@ -620,9 +620,11 @@ private struct StretchingPair: Component {
 /// respelled reads (0, 90) 100×20 and the fill arm (0, 90) 300×20.
 ///
 /// Mutations, measured (record §17, lane 5 fix round): the fixed overload
-/// passes `isFrame: false` (the grow, stretch and workaround pins redden); the
-/// flexible overload passes `isFrame: false` (the fill pin and its workaround
-/// redden).
+/// passes `isFrame: false` (the stretch control's `#require` fails — the
+/// restored row stretches both — so the test stops there; 5.1's six fixed arms
+/// redden too); the flexible overload passes `isFrame: false` (the fill pin
+/// reddens, with 5.1's `D13`/`D14` arms; the fill workaround does not, since the
+/// row fills a `width(fraction: 1)` child too).
 @Test @MainActor func aSingleChildLegacyFrameIgnoresItsChildsFlexGrowAndAlignSelf() throws {
     let grow = try render { log in
         Row { Mark("grow", log: log, height: 20).flexGrow(1).frame(width: px(100), height: px(40)) }

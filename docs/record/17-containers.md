@@ -1000,7 +1000,14 @@ that nothing else moved; they are not evidence for the lane.
   - the inert table and vocabulary gain `fraction:`, and `percent:` is
     deprecated;
   - the deprecation count (`@available(*, deprecated` hits) rises by three;
-  - the three `CN-P` divergences, owner task 7.
+  - the three `CN-P` divergences, owner task 7;
+  - (fix round) an inert-table row, "`.flexGrow`/`.alignSelf` on the only
+    child of a legacy `.frame`": a stack reads neither, so both compile and do
+    nothing, the fill idiom `.flexGrow(1).frame(maxWidth: .infinity,
+    maxHeight: .infinity)` included; workaround `width(fraction: 1)` /
+    `height(fraction: 1)`; pinned by
+    `aSingleChildLegacyFrameIgnoresItsChildsFlexGrowAndAlignSelf`. The
+    "Containers" paragraph's `.frame` sentences should say the same.
 - `CN-Q`'s legacy frame items (greedy finite maximum, single-axis infinite
   maximum, nil-axis frame under a stretching `Box`), legacy `.overlay`, and
   lowering the legacy containers go to **task 7**, unchanged. None was
@@ -1008,3 +1015,58 @@ that nothing else moved; they are not evidence for the lane.
 - A frame over a multi-member `Component` still lays its members out as a
   row. SwiftUI frames each member (`G7`), and neither lowering gives that
   answer (`CN-N`).
+
+### Verifier round (fix round)
+
+The verifier (at `017c813`) returned two majors and a minor, each a mutation
+that left the unfiltered suite green. All three are tests only; no source
+changed. Commit `5add712` (tests), then this record.
+
+**Probe re-run.** `/usr/bin/swift docs/probes/swiftui-frame-semantics.swift`
+(exit 0) printed, as its header records, `D13 frame(minWidth: 40, maxWidth: 80)
+with a 200x160 child, proposal 100x100: size 80.0x160.0` / `child at (-60.0,
+0.0) size 200.0x160.0` and `D14 frame(maxWidth: 80) with a 200x160 child,
+proposal nil: size 80.0x160.0` / `child at (-60.0, 0.0) size 200.0x160.0`; the
+positive control `D` (a 20×20 child) at `(30.0, 0.0)`.
+
+1. **The flexible overload's lowering was unpinned (V1).** 5.1 gained
+   `.frame(minWidth: 40, maxWidth: 80)` and `.frame(maxWidth: 80)` arms around
+   the 200×160 mark in a `Row`: the frame at (0, 20), the child at (−60, 20)
+   200×160, `D13`/`D14` translated.
+2. **A single-child frame's child loses `.flexGrow`/`.alignSelf`, unpinned.**
+   New test 5.8, `aSingleChildLegacyFrameIgnoresItsChildsFlexGrowAndAlignSelf`
+   (pinned as it stands, no SwiftUI claim): in a 300×200 `Frame`,
+   `Row { mark(h 20).flexGrow(1).frame(width: 100, height: 40) }` reads
+   (50, 90) 0×20; the root fill idiom (150, 90) 0×20;
+   `mark(w 20).alignSelf(.stretch).frame(width: 100, height: 40)` in a `Row`
+   (40, 100) 20×0. Controls, `#require`d to disagree: the same marks beside a
+   10×10 mark in one framed component (two nodes, the row) grow to 90 and
+   stretch to 40. Workaround arms: `width(fraction: 1)` reads (0, 90) 100×20
+   and, at the root, (0, 90) 300×20. The verifier's before/after values used
+   another container height; the ratios agree.
+3. **`percent:`'s forwarding was unpinned (V8).** 5.2 gained arm F: the three
+   deprecated spellings at 0.5 must equal their `fraction:` answers. They are
+   called through a `@MainActor` protocol whose `Mark` witnesses are
+   `@available(*, deprecated)` and a generic caller, which the compiler does
+   not diagnose (checked first on a scratch file with `xcrun swiftc
+   -swift-version 6`: no warning), so the 0-warning gate holds.
+
+**Red.** The three additions describe the lane's built behaviour, so they were
+green on arrival; their proof is the mutations. Each ran against `5add712` in
+this worktree, built with `--build-system native --build-tests`, filtered to
+`FrameSizingTests`, the file restored from a copy and `git status --short`
+checked afterwards (the verifier's unfiltered runs had already shown V1 and V8
+redden nothing else):
+
+| mutation | red (issues) |
+|---|---|
+| V1 flexible overload `isFrame: false` (`FrameLayer.swift:179`) | **5.1** (2: the `D13`, `D14` arms), **5.8** (1: the fill pin; its workaround stays green, a row fills a `width(fraction: 1)` child too) |
+| V2 fixed overload `isFrame: false` (`ModifiedElement.swift:339`) | **5.1** (5), **5.8** (1: the stretch control's `#require`, since the restored row stretches both, stopping the test) |
+| V8 `width(percent:)` forwards `fraction: percent * 100` | **5.2** (1: arm F's width) |
+
+**Suite.** Unfiltered at `5add712` plus the doc-comment edit: native
+`Test run with 1355 tests in 1 suite passed`, 0 `error:`, the only `warning:`
+SwiftPM's deprecation notice; default build system six lines summing to
+**1355**, 0 `error:`, 0 `warning:` in build and test output. 1354 + 1 (5.8).
+Goldens: 97, `git diff 9e439cb..HEAD` over them empty. No source changed, so
+the demo images are the verifier's.

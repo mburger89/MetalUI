@@ -920,6 +920,11 @@ choices and one finding:
   after the lowering. A legacy frame never imposes its size on a scroll view,
   on either lowering: the viewport stays the content's height unless something
   else (a `Box` with a declared height) bounds it.
+- **Verifier round.** Both overloads' lowering is now pinned (5.1's `D13`/`D14`
+  arms; mutation V1 reddens them). The cost above is pinned as it stands by
+  5.8, `aSingleChildLegacyFrameIgnoresItsChildsFlexGrowAndAlignSelf`, with
+  its workaround, `width(fraction: 1)`, and it is a Docs-phase inert-table
+  candidate (record §17).
 
 ---
 
@@ -949,6 +954,9 @@ deprecated declarations, their doc comments, guard G4's fixture, and history
 in comments. G4 printed its three diagnostics (`'width(percent:)' is
 deprecated: renamed to 'width(fraction:)'` …) in the native run; mutation M7
 (remove one `@available`) reddens it alone.
+**Verifier round.** "Meaning unchanged" is now pinned: 5.2's arm F calls the
+three deprecated spellings at 0.5 through a non-diagnosed generic shim and
+requires their `fraction:` answers; mutation V8 (`percent * 100`) reddens it.
 
 ---
 
