@@ -29,7 +29,11 @@
 // a point in its empty space, so a 1 in H2/H3 is the modifier and not the
 // harness.
 //
-// RECORDED 2026-09-15, macOS 26.6.2 (25G83). Script form under /usr/bin/swift
+// RE-RECORDED 2026-09-15 (design review round 2), macOS 26.6.2 (25G83), after
+// critic finding 1. One additive arm, N2: `.allowsHitTesting(false)` written
+// BEFORE the gesture rather than after it. N1 alone could not say whether the
+// order is observable, and the spec's §5.2 mechanism registered the receiver's
+// own handlers OUTSIDE the scope it opened. Script form under /usr/bin/swift
 // (Apple Swift 6.4, swiftlang-6.4.0.33.1) and compiled form under `xcrun swiftc`
 // (the same 6.4): byte-identical stdout, exit 0 both, compiled stderr empty.
 //
@@ -46,6 +50,7 @@
 //     P5 colour.padding(80).tap.background   : centre 1 edge 0
 //   --- N: allowsHitTesting on the tappable itself
 //     N1 full Color + tap, hit testing off   : centre 0 edge 0
+//     N2 full Color, hit testing off, THEN tap: centre 0 edge 0
 //
 // WHAT IT SHOWS.
 // - H1 vs H2: SwiftUI's DEFAULT hit region is derived from what the view
@@ -64,7 +69,15 @@
 //   background must come before the gesture to do it. So MetalUI's behaviour
 //   equals SwiftUI's for the filled case (P4) and diverges only for a padded,
 //   background-less click target (P1).
-// - N1: `.allowsHitTesting(false)` removes the region entirely.
+// - N1: `.allowsHitTesting(false)` removes the region entirely — INCLUDING the
+//   receiver's own gesture, which is written before it. A mechanism that opens
+//   the disabled scope only around the CHILDREN reproduces neither N1 nor N2.
+// - **N1 == N2: the order is NOT observable.** A gesture attached AFTER
+//   `.allowsHitTesting(false)` is dead too (0/0), because the modifier empties
+//   the subtree's hit region and the later gesture has nothing to attach to.
+//   MetalUI's legacy path stores both on ONE `Handlers` and so cannot tell the
+//   two orders apart — which here is AGREEMENT, not a divergence, and removes a
+//   row that would otherwise have joined OM-H's not-expressible list.
 
 import SwiftUI
 import AppKit
@@ -172,6 +185,14 @@ let edge = CGPoint(x: 20, y: 100)
     print("--- N: allowsHitTesting on the tappable itself")
     arm("N1 full Color + tap, hit testing off   ") {
         Color.blue.onTapGesture { Count.bump("hit") }.allowsHitTesting(false)
+    }
+    // N2: the REVERSE order. `.allowsHitTesting` is a wrapping modifier in
+    // SwiftUI, so a gesture attached OUTSIDE it should survive. MetalUI's
+    // legacy path stores both on ONE `Handlers` and cannot tell the two orders
+    // apart — added after the first recording, because N1 alone cannot say
+    // whether the order is observable at all.
+    arm("N2 full Color, hit testing off, THEN tap") {
+        Color.blue.allowsHitTesting(false).onTapGesture { Count.bump("hit") }
     }
 }
 

@@ -16,49 +16,63 @@
 //
 // THE INSTRUMENT. Each arm is a 40x40 view over an opaque white backdrop,
 // rendered through `NSHostingView.cacheDisplay(in:to:)` into a bitmap, then
-// sampled at five points: the corner (1, 1), two points stepping in along the
-// diagonal (3, 3) and (6, 6), the top edge's midpoint (20, 1) and the centre
-// (20, 20). Colours are classified by nearest named colour so that the
-// backdrop (white) is distinguishable from an unpainted area.
+// sampled at SEVEN points: the corner (1, 1), two points stepping in along the
+// diagonal (3, 3) and (6, 6), two points INSIDE the corner arc (5, 5) and
+// (7, 7), the top edge's midpoint (20, 1) and the centre (20, 20). Colours are
+// classified by nearest named colour so that the backdrop (white) is
+// distinguishable from an unpainted area.
 //
-// POSITIVE CONTROLS. K0: a plain red 40x40 reads red at all five points — the
-// sampler sees paint everywhere. K1: a white-only arm reads white at all five,
+// POSITIVE CONTROLS. K0: a plain red 40x40 reads red at all seven points — the
+// sampler sees paint everywhere. K1: a white-only arm reads white at all seven,
 // so "white" really does mean "nothing was drawn here".
 //
-// RECORDED 2026-09-15, macOS 26.6.2 (25G83). Script form under /usr/bin/swift
-// (Apple Swift 6.4, swiftlang-6.4.0.33.1) and compiled form under `xcrun swiftc`
-// (the same 6.4): byte-identical stdout, exit 0 both, compiled stderr empty.
+// RE-RECORDED 2026-09-15 (design review round 2), macOS 26.6.2 (25G83), after
+// critic findings 3 and 4. Three changes, all additive: the two `arc` sample
+// points, arm B3 (is the border drawn over a filling CHILD?) and arm M1 (the
+// MetalUI-equivalent single rounded bordered rect, as a reference for D2).
+// **The first recording's five points could not separate D2 from M1** — every
+// one of them agreed — so the spec's "`.border.cornerRadius` is the same as
+// MetalUI's one-emission answer" row was unfalsifiable rather than true.
+// Script form under /usr/bin/swift (Apple Swift 6.4, swiftlang-6.4.0.33.1) and
+// compiled form under `xcrun swiftc` (the same 6.4): byte-identical stdout,
+// exit 0 both, compiled stderr empty, run stderr empty.
 //
 //   --- controls
-//     K0 red 40x40 (control)                  : corner(1,1)=rgb(1.00,0.15,0.00) in(3,3)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
-//     K1 nothing (backdrop control)           : corner(1,1)=white in(3,3)=white in(6,6)=white topmid(20,1)=white centre(20,20)=white
+//     K0 red 40x40 (control)                  : corner(1,1)=rgb(1.00,0.15,0.00) in(3,3)=rgb(1.00,0.15,0.00) arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     K1 nothing (backdrop control)           : corner(1,1)=white in(3,3)=white arc(5,5)=white arc(7,7)=white in(6,6)=white topmid(20,1)=white centre(20,20)=white
 //   --- B: where does .border draw?
-//     B1 red.border(blue, width: 4)           : corner(1,1)=rgb(0.02,0.20,1.00) in(3,3)=rgb(0.02,0.20,1.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
-//     B2 clear.border(blue, width: 4)         : corner(1,1)=rgb(0.02,0.20,1.00) in(3,3)=rgb(0.02,0.20,1.00) in(6,6)=white topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=white
+//     B1 red.border(blue, width: 4)           : corner(1,1)=rgb(0.02,0.20,1.00) in(3,3)=rgb(0.02,0.20,1.00) arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     B2 clear.border(blue, width: 4)         : corner(1,1)=rgb(0.02,0.20,1.00) in(3,3)=rgb(0.02,0.20,1.00) arc(5,5)=white arc(7,7)=white in(6,6)=white topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=white
+//     B3 box{fillingChild}.border(blue, 4)    : corner(1,1)=rgb(0.02,0.20,1.00) in(3,3)=rgb(0.02,0.20,1.00) arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
 //   --- C: corner radius x background
-//     C1 red.cornerRadius(12)                 : corner(1,1)=white in(3,3)=white in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
-//     C2 clear.background(red).cornerRadius(12): corner(1,1)=white in(3,3)=white in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
-//     C3 clear.cornerRadius(12).background(red): corner(1,1)=rgb(1.00,0.15,0.00) in(3,3)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     C1 red.cornerRadius(12)                 : corner(1,1)=white in(3,3)=white arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     C2 clear.background(red).cornerRadius(12): corner(1,1)=white in(3,3)=white arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     C3 clear.cornerRadius(12).background(red): corner(1,1)=rgb(1.00,0.15,0.00) in(3,3)=rgb(1.00,0.15,0.00) arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
 //   --- D: corner radius x border
-//     D1 red.cornerRadius(12).border(blue, 4) : corner(1,1)=rgb(0.02,0.20,1.00) in(3,3)=rgb(0.02,0.20,1.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
-//     D2 red.border(blue, 4).cornerRadius(12) : corner(1,1)=white in(3,3)=white in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     D1 red.cornerRadius(12).border(blue, 4) : corner(1,1)=rgb(0.02,0.20,1.00) in(3,3)=rgb(0.02,0.20,1.00) arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     D2 red.border(blue, 4).cornerRadius(12) : corner(1,1)=white in(3,3)=white arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     M1 RoundedRect(12) fill+strokeBorder 4  : corner(1,1)=white in(3,3)=white arc(5,5)=rgb(0.02,0.20,1.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(0.28,0.16,0.83) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
 //   --- E: clipShape x background
-//     E1 clear.background(red).clipShape(RR 12): corner(1,1)=white in(3,3)=white in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
-//     E2 clear.clipShape(RR 12).background(red): corner(1,1)=rgb(1.00,0.15,0.00) in(3,3)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     E1 clear.background(red).clipShape(RR 12): corner(1,1)=white in(3,3)=white arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     E2 clear.clipShape(RR 12).background(red): corner(1,1)=rgb(1.00,0.15,0.00) in(3,3)=rgb(1.00,0.15,0.00) arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
 //   --- G: opacity — does it multiply, and does it reach a background written after it?
-//     G1 red.opacity(0.5)                   : corner(1,1)=rgb(1.00,0.58,0.58) in(3,3)=rgb(1.00,0.58,0.58) in(6,6)=rgb(1.00,0.58,0.58) topmid(20,1)=rgb(1.00,0.58,0.58) centre(20,20)=rgb(1.00,0.58,0.58)
-//     G2 red.opacity(0.5).opacity(0.5)      : corner(1,1)=rgb(1.00,0.80,0.80) in(3,3)=rgb(1.00,0.80,0.80) in(6,6)=rgb(1.00,0.80,0.80) topmid(20,1)=rgb(1.00,0.80,0.80) centre(20,20)=rgb(1.00,0.80,0.80)
-//     G3 clear.background(red).opacity(0.5) : corner(1,1)=rgb(1.00,0.58,0.58) in(3,3)=rgb(1.00,0.58,0.58) in(6,6)=rgb(1.00,0.58,0.58) topmid(20,1)=rgb(1.00,0.58,0.58) centre(20,20)=rgb(1.00,0.58,0.58)
-//     G4 clear.opacity(0.5).background(red) : corner(1,1)=rgb(1.00,0.15,0.00) in(3,3)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     G1 red.opacity(0.5)                   : corner(1,1)=rgb(1.00,0.58,0.58) in(3,3)=rgb(1.00,0.58,0.58) arc(5,5)=rgb(1.00,0.58,0.58) arc(7,7)=rgb(1.00,0.58,0.58) in(6,6)=rgb(1.00,0.58,0.58) topmid(20,1)=rgb(1.00,0.58,0.58) centre(20,20)=rgb(1.00,0.58,0.58)
+//     G2 red.opacity(0.5).opacity(0.5)      : corner(1,1)=rgb(1.00,0.80,0.80) in(3,3)=rgb(1.00,0.80,0.80) arc(5,5)=rgb(1.00,0.80,0.80) arc(7,7)=rgb(1.00,0.80,0.80) in(6,6)=rgb(1.00,0.80,0.80) topmid(20,1)=rgb(1.00,0.80,0.80) centre(20,20)=rgb(1.00,0.80,0.80)
+//     G3 clear.background(red).opacity(0.5) : corner(1,1)=rgb(1.00,0.58,0.58) in(3,3)=rgb(1.00,0.58,0.58) arc(5,5)=rgb(1.00,0.58,0.58) arc(7,7)=rgb(1.00,0.58,0.58) in(6,6)=rgb(1.00,0.58,0.58) topmid(20,1)=rgb(1.00,0.58,0.58) centre(20,20)=rgb(1.00,0.58,0.58)
+//     G4 clear.opacity(0.5).background(red) : corner(1,1)=rgb(1.00,0.15,0.00) in(3,3)=rgb(1.00,0.15,0.00) arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00) topmid(20,1)=rgb(1.00,0.15,0.00) centre(20,20)=rgb(1.00,0.15,0.00)
 //   --- F: padding x background x corner radius
-//     F1 red20.padding(8).background(blue).cornerRadius(12): corner(1,1)=white in(3,3)=white in(6,6)=rgb(0.02,0.20,1.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
-//     F2 red20.padding(8).cornerRadius(12).background(blue): corner(1,1)=rgb(0.02,0.20,1.00) in(3,3)=rgb(0.02,0.20,1.00) in(6,6)=rgb(0.02,0.20,1.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     F1 red20.padding(8).background(blue).cornerRadius(12): corner(1,1)=white in(3,3)=white arc(5,5)=rgb(0.02,0.20,1.00) arc(7,7)=rgb(0.02,0.20,1.00) in(6,6)=rgb(0.02,0.20,1.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
+//     F2 red20.padding(8).cornerRadius(12).background(blue): corner(1,1)=rgb(0.02,0.20,1.00) in(3,3)=rgb(0.02,0.20,1.00) arc(5,5)=rgb(0.02,0.20,1.00) arc(7,7)=rgb(0.02,0.20,1.00) in(6,6)=rgb(0.02,0.20,1.00) topmid(20,1)=rgb(0.02,0.20,1.00) centre(20,20)=rgb(1.00,0.15,0.00)
 //
 // WHAT IT SHOWS. The fill samples as rgb(1.00,0.15,0.00), the border as
 // rgb(0.02,0.20,1.00), the backdrop as white; no two are confusable.
 // - B1/B2: `.border(c, width: 4)` draws INSIDE the box — the border colour at
 //   (1,1) and (3,3), the content at (6,6). It is not centred on the edge and
 //   not outset.
+// - B3: **`.border` is an OVERLAY.** A child filling the whole 40x40 does not
+//   hide it: the corner still reads the border colour. MetalUI's single
+//   `MUIRect` emitted BEFORE the children would be hidden by that child, which
+//   is why ruling OM-V makes the border a second emission after `content()`.
 // - C1/C2 vs C3: a corner radius rounds what was declared BEFORE it, and it
 //   clips the CONTENT, not only a fill (C1's red leaf loses its corner). A
 //   background written after `.cornerRadius` is square (C3 corner = fill).
@@ -67,6 +81,14 @@
 //   border away at the corner (white) and keeps it at the edge midpoint. A
 //   border does NOT inherit a radius applied before it, and a radius applied
 //   after DOES cut a border declared before it.
+// - **D2 vs M1: `.border.cornerRadius` is NOT MetalUI's one-emission answer.**
+//   At arc(5,5) — inside the corner arc — SwiftUI reads the FILL (D2) where a
+//   single rounded rect with a 4pt inset border reads the BORDER (M1); in(6,6)
+//   likewise differs (fill vs the antialiased blend rgb(0.28,0.16,0.83) across
+//   M1's inner edge). SwiftUI clips a SQUARE border by the radius, leaving the
+//   arc's interior unbordered; a rounded stroke follows the arc. The two agree
+//   at all five of the originally-sampled points, which is why the first
+//   recording called them the same. Ruling OM-W.
 // - E1/E2: `.clipShape(RoundedRectangle)` behaves exactly as `.cornerRadius`.
 // - G1/G2: opacity MULTIPLIES — 0.58 after one 0.5, 0.80 after two.
 // - G3 vs G4: opacity fades a background declared BEFORE it (G3) and does NOT
@@ -119,7 +141,15 @@ func classify(_ c: NSColor?) -> String {
 }
 
 /// Sample points, in the bitmap's top-left origin coordinates.
-let points = [("corner(1,1)", (1, 1)), ("in(3,3)", (3, 3)), ("in(6,6)", (6, 6)),
+///
+/// **`arc(5,5)` and `arc(7,7)` were added after the first recording**, because
+/// the original five could not separate "a square border clipped by a later
+/// radius" from "a rounded stroke": both read white at (1,1) and (3,3), the
+/// fill at (6,6), and the border at the edge midpoint. Inside the corner arc of
+/// a radius-12 rounded rect with a 4pt inset border they differ — see M1 vs D2
+/// in the header.
+let points = [("corner(1,1)", (1, 1)), ("in(3,3)", (3, 3)),
+              ("arc(5,5)", (5, 5)), ("arc(7,7)", (7, 7)), ("in(6,6)", (6, 6)),
               ("topmid(20,1)", (20, 1)), ("centre(20,20)", (20, 20))]
 
 @MainActor func arm<V: View>(_ label: String, _ view: V) {
@@ -141,6 +171,13 @@ let points = [("corner(1,1)", (1, 1)), ("in(3,3)", (3, 3)), ("in(6,6)", (6, 6)),
     arm("B1 red.border(blue, width: 4)           ", red.border(blue, width: 4))
     arm("B2 clear.border(blue, width: 4)         ",
         Color.clear.frame(width: 40, height: 40).border(blue, width: 4))
+    // B3: is the border drawn OVER a child that fills the whole box, or under
+    // it? MetalUI's single emitted `MUIRect` is drawn before the children, so a
+    // filling child would hide it. This arm settles SwiftUI's side directly
+    // rather than inferring it from B1's leaf-is-the-content shape.
+    arm("B3 box{fillingChild}.border(blue, 4)    ",
+        Color.clear.frame(width: 40, height: 40)
+            .overlay(red).border(blue, width: 4))
 
     print("--- C: corner radius x background")
     arm("C1 red.cornerRadius(12)                 ", red.cornerRadius(12))
@@ -154,6 +191,16 @@ let points = [("corner(1,1)", (1, 1)), ("in(3,3)", (3, 3)), ("in(6,6)", (6, 6)),
         red.cornerRadius(12).border(blue, width: 4))
     arm("D2 red.border(blue, 4).cornerRadius(12) ",
         red.border(blue, width: 4).cornerRadius(12))
+    // M1 is the MetalUI EQUIVALENT of D2, not another SwiftUI question: one
+    // rounded rect carrying a fill, a radius and an inset border — exactly what
+    // `paintDecoration`'s single `pass.fill` emits. If D2 and M1 read the same
+    // at every point, MetalUI's one-emission answer reproduces SwiftUI's
+    // `.border.cornerRadius`; where they differ, that order is not expressible.
+    arm("M1 RoundedRect(12) fill+strokeBorder 4  ",
+        RoundedRectangle(cornerRadius: 12).fill(red)
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(blue, lineWidth: 4))
+            .frame(width: 40, height: 40))
 
     print("--- E: clipShape x background")
     arm("E1 clear.background(red).clipShape(RR 12)",

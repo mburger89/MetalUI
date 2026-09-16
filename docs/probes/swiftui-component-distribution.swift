@@ -29,9 +29,15 @@
 // instrument recording exactly one rect when one background is applied to one
 // leaf.
 //
-// RECORDED 2026-09-15, macOS 26.6.2 (25G83). Script form under /usr/bin/swift
-// (Apple Swift 6.4, swiftlang-6.4.0.33.1) and compiled form under `xcrun swiftc`
-// (the same 6.4): byte-identical stdout, exit 0 both, compiled stderr empty.
+// RE-RECORDED 2026-09-15 (design review round 2), macOS 26.6.2 (25G83), after
+// critic findings 11 and 13. Two additive groups: G10–G12 (a CONTENT-SIZED
+// `Text` body, which is the row the spec's §4.4 table claims and which `Solo`'s
+// fixed 30x10 `Color` body does not exercise — the first recording cited G5/G6
+// at `.padding(8)` under a row that said "a `Text` body, `.padding(20)`"), and
+// G13–G16 (the declaration ORDER of two distributing modifiers, which OM-E
+// asserted and no arm measured). Script form under /usr/bin/swift (Apple Swift
+// 6.4, swiftlang-6.4.0.33.1) and compiled form under `xcrun swiftc` (the same
+// 6.4): byte-identical stdout, exit 0 both, compiled stderr empty.
 //
 //   --- controls
 //     G0 inline pair A(); B() (control): outer 88x10 a (0, 0) 30x10 b (38, 0) 50x10 bg none
@@ -49,6 +55,15 @@
 //     G8 Solo().frame(width: 70)       : outer 70x10 a (20, 0) 30x10 b none bg none
 //   --- background on a multi-view custom view
 //     G9 Pair().background(BG)         : outer 88x10 a (0, 0) 30x10 b (38, 0) 50x10 bg (38, 0) 50x10 + (0, 0) 30x10
+//   --- padding on a content-sized (Text) single-leaf custom view
+//     G10 SoloText()                   : outer 13x16 a (0, 0) 13x16 b none bg none
+//     G11 SoloText().padding(20)       : outer 53x56 a (20, 20) 13x16 b none bg none
+//     G12 Solo().padding(20)           : outer 70x50 a (20, 20) 30x10 b none bg none
+//   --- declaration ORDER of two modifiers on a custom view
+//     G13 Pair().padding(4).frame(w:70): outer 148x18 a (20, 4) 30x10 b (88, 4) 50x10 bg none
+//     G14 Pair().frame(w:70).padding(4): outer 164x18 a (24, 4) 30x10 b (100, 4) 50x10 bg none
+//     G15 Solo().padding(4).frame(w:70): outer 70x18 a (20, 4) 30x10 b none bg none
+//     G16 Solo().frame(w:70).padding(4): outer 78x18 a (24, 4) 30x10 b none bg none
 //
 // WHAT IT SHOWS.
 // - G0 == G1 (88x10): a custom view whose body is two views contributes no
@@ -63,6 +78,21 @@
 //   30 and 50 widths and are CENTRED in 70 (a at x=20 of 0..70) — where
 //   MetalUI's `StyledComponent` overwrites the member's own width.
 // - G9: `.background` produces TWO background views, one per member.
+// - **G10/G11: a CONTENT-SIZED (`Text`) body pads too** — 13x16 becomes 53x56,
+//   the leaf at (20, 20). That is the same 13x16 a MetalUI `Text("Hi")`
+//   measures on this machine, and the same 53 a MetalUI `.padding(20)` on the
+//   ELEMENT path produces (record §15, scratch T1/T2), so SwiftUI and MetalUI's
+//   element path agree exactly here and only the COMPONENT path (inert, marker
+//   stays at 13) diverges. G12 is the fixed-size body at the same padding, for
+//   comparison: 30x10 → 70x50.
+// - **G13 vs G14, G15 vs G16: declaration ORDER is observable.** Padding-then-
+//   frame reads 148x18 / 70x18 with the member centred at x 20; frame-then-
+//   padding reads 164x18 / 78x18 with the member at x 24. OM-E's requirement
+//   that a component's ops apply in declaration order has an arm at last. Note
+//   what it does NOT show: SwiftUI's `.frame` WRAPS (the member keeps its own
+//   30) where MetalUI's `Component.width` AMENDS (OM-F), so MetalUI reproduces
+//   the ORDER-SENSITIVITY and not the member geometry — the lane-4 test pins
+//   MetalUI's own numbers and names OM-F's divergence.
 
 import AppKit
 import SwiftUI
@@ -113,6 +143,16 @@ struct Solo: View {
     var body: some View { A() }
 }
 
+/// A custom view whose body is one `Text` — a CONTENT-SIZED leaf, not a leaf
+/// with a declared frame. Added after the first recording: MetalUI's inertness
+/// in this row comes specifically from the content-sized-measured-leaf box
+/// model (CLAUDE.md's inert table), and `Solo` — whose body is a fixed 30x10
+/// `Color` — does not exercise it. Its size is font- and machine-dependent, so
+/// the recorded numbers are this machine's.
+struct SoloText: View {
+    var body: some View { Text("Hi").overlay(Probe(key: "a")) }
+}
+
 func fmt(_ rs: [CGRect]) -> String {
     rs.isEmpty ? "none"
         : rs.map { "(\(Int($0.minX)), \(Int($0.minY))) \(Int($0.width))x\(Int($0.height))" }
@@ -152,6 +192,23 @@ func fmt(_ rs: [CGRect]) -> String {
 
     print("--- background on a multi-view custom view")
     arm("G9 Pair().background(BG)         ") { Pair().background(BG()) }
+
+    // G10/G11: the CONTENT-SIZED leaf body, which is the row the spec's §4.4
+    // table claims and which `Solo` (a fixed 30x10 `Color`) does not exercise.
+    // G12 is `Solo` at the same padding, so the two rows are comparable.
+    print("--- padding on a content-sized (Text) single-leaf custom view")
+    arm("G10 SoloText()                   ") { SoloText() }
+    arm("G11 SoloText().padding(20)       ") { SoloText().padding(20) }
+    arm("G12 Solo().padding(20)           ") { Solo().padding(20) }
+
+    // G13/G14: does the ORDER of two distributing modifiers matter on a custom
+    // view? OM-E asserts it must, and asserted it from padding-accumulation
+    // arms that cannot see it. This is the arm that can.
+    print("--- declaration ORDER of two modifiers on a custom view")
+    arm("G13 Pair().padding(4).frame(w:70)") { Pair().padding(4).frame(width: 70) }
+    arm("G14 Pair().frame(w:70).padding(4)") { Pair().frame(width: 70).padding(4) }
+    arm("G15 Solo().padding(4).frame(w:70)") { Solo().padding(4).frame(width: 70) }
+    arm("G16 Solo().frame(w:70).padding(4)") { Solo().frame(width: 70).padding(4) }
 }
 
 MainActor.assumeIsolated { run() }

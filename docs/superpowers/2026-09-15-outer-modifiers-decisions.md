@@ -5,12 +5,18 @@ Plan task 5. Spec:
 Record: [`../record/15-outer-modifiers.md`](../record/15-outer-modifiers.md).
 Branch `feat/outer-modifiers`, from `c4b5853`.
 
-Rulings are **lettered**: `OM-A` … `OM-S`. **Next unused: `OM-T`.** A bare
-`OM-1` is a typo, not a citation.
+Rulings are **lettered**: `OM-A` … `OM-AC`. **Next unused: `OM-AD`.** A bare
+`OM-1` is a typo, not a citation; the two-letter tails (`OM-AA`…`OM-AC`) are
+deliberate, as `CO-`'s and `TB-`'s are.
 
-**Status: design only.** Nothing in `Sources/` has changed. Every ruling below
-states what was measured and what was only read; `OM-S` is the summary of that
-split. Four SwiftUI probes were written and run in this session:
+**Status: design only, revised once.** Nothing in `Sources/` has changed. Every
+ruling below states what was measured and what was only read; `OM-S` is the
+summary of that split and **`OM-AC` is round 2's correction to it**. The
+dispositions of seventeen critic findings are tabled at the end, under "Design
+review round 2"; rulings amended in round 2 carry a **Round 2** paragraph
+rather than being silently rewritten. Four SwiftUI probes were written and run
+in this session, and **three were extended and re-recorded in round 2** (each
+carries a `RE-RECORDED` block in its own header saying what was added and why):
 
 | probe | what it settles |
 |---|---|
@@ -163,8 +169,13 @@ applies the modifier to **each** member, not around the pair — a wrapping
 implementation predicts 96–104, as `CO-U` already recorded and this session
 re-measured from source rather than citing.
 
-**Cost if wrong.** `Component` has no production caller (`CO-Y`), so the blast
-radius is tests. It rewrites the expectation of one existing test
+**Cost if wrong.** ~~`Component` has no production caller (`CO-Y`)~~ — **round 2:
+false, and `OM-Z` is the correction.** The demo declares `PreviewToggle:
+Component` (`main.swift:918`), used at line 1017 inside the proposal preview.
+The blast radius is still tests, but for a checkable reason rather than an
+inherited one: `PreviewToggle()` is used **bare**, so no `StyledComponent` is
+ever constructed for it and this ruling's change cannot reach it. It rewrites
+the expectation of one existing test
 (`chainedPaddingReplacesRatherThanAccumulates`, `OM-E`) and moves the readings
 of `everyRegisteringSiteAnimatesItsStyle`'s `Component` arm, both named in the
 spec's lane 4. If the wrap turned out to disagree with SwiftUI on some shape not
@@ -199,6 +210,32 @@ reverse) collapses those two into one answer.
 **Evidence.** `swiftui-outer-modifier-order` E1/E2/E3 (28x28, 36x36, 36x36:
 `.padding(4).padding(4)` = `.padding(8)`), and
 `swiftui-component-distribution` G4 = G2 = 120x26 for the same on a component.
+
+**Round 2 (critic finding 11): the declaration-order half was derived, and now
+it is probed — with a caveat the first draft hid.** The accumulation arms
+(E1–E3, G4) cannot see order at all: two paddings commute. Arms G13–G16 were
+added to `swiftui-component-distribution` and do see it:
+
+| arm | SwiftUI |
+|---|---|
+| G13 `Pair().padding(4).frame(width: 70)` | outer **148x18**, member `a` at (20, 4), still 30 wide |
+| G14 `Pair().frame(width: 70).padding(4)` | outer **164x18**, member `a` at (24, 4), still 30 wide |
+| G15 `Solo().padding(4).frame(width: 70)` | outer **70x18**, member at (20, 4) |
+| G16 `Solo().frame(width: 70).padding(4)` | outer **78x18**, member at (24, 4) |
+
+So order **is** observable on a custom view, which is the warrant for `ops`
+being an ordered list rather than an amend-set plus a wrap-set.
+
+**But MetalUI cannot reproduce SwiftUI's numbers here and must not be written as
+if it could.** SwiftUI's `.frame` WRAPS each member, leaving it 30 wide;
+MetalUI's `Component.width` AMENDS, overwriting the member's own width — that is
+`OM-F`, deliberately unchanged by this task. MetalUI's two answers under lane 4
+therefore differ from each other (the property `ops` exists to deliver) while
+differing from SwiftUI's member geometry (the property `OM-F` defers to task 4).
+The spec's lane-4 test 4 is accordingly re-specified: it pins **MetalUI's own**
+two readings, requires them to disagree, and names `OM-F` in its own doc
+comment. The earlier sentence "differ the way SwiftUI's nesting does" is
+withdrawn — it was a prediction about numbers no arm had taken.
 
 **Cost if wrong.** A caller who wrote `.padding(4).padding(4)` expecting 4 gets
 8. No such caller exists in `Sources/`. The old expectation survives in the
@@ -262,31 +299,44 @@ task 11 as the owner of closing it.
 
 ---
 
-## OM-H — every order expectation comes from a probe arm, and three orders are not expressible
+## OM-H — every order expectation comes from a probe arm, and FOUR orders are not expressible
 
-**Ruling.** The spec's §6 tables are the expectations, each citing its arm. Three
+**Ruling.** The spec's §6 tables are the expectations, each citing its arm. Four
 SwiftUI behaviours are **not expressible** on the legacy path and are recorded
-rather than approximated:
+rather than approximated (the fourth added in round 2 by `OM-W`; the heading and
+count are corrected here rather than left to be reconciled):
 
 - `.cornerRadius(r).background(c)` leaving the background square (C3);
 - `.cornerRadius(r).border(w)` drawing a square border over rounded content (D1);
-- `.opacity(v).background(c)` leaving the background opaque (G4, `OM-N`).
+- `.opacity(v).background(c)` leaving the background opaque (G4, `OM-N`);
+- **`.border(w).cornerRadius(r)` clipping a SQUARE border by the radius, so the
+  corner arc's interior is unbordered** (D2 vs M1, `OM-W`) — the row the first
+  draft called an agreement.
 
-**Reasoning.** All three are the same mechanism: `background`, `cornerRadius`,
+A fifth candidate was **measured and is not one**: `.allowsHitTesting(false)`
+written before rather than after a gesture reads the same in SwiftUI (N1 == N2,
+`OM-T`), so MetalUI's inability to tell the two orders apart is agreement.
+
+**Reasoning.** All four are the same mechanism: `background`, `cornerRadius`,
 `border` and `opacity` are fields of **one** `Decoration`, so their order
 *within one layer* is not observable. The alternative — making each of them open
-a new layer — buys the three cases at the cost of a layout node per paint
+a new layer — buys the four cases at the cost of a layout node per paint
 modifier (which would not be layout-neutral: a bare `Style()` flex wrapper
 becomes the flex item in its parent's line in place of its child) or a
-node-less layer kind with no well-defined box. Neither is worth three corner
+node-less layer kind with no well-defined box. Neither is worth four corner
 cases. A caller who needs them writes a `Box` between the two modifiers, which
 *is* a layer, and layers do order.
 
-**Evidence.** The arms above, plus D2 (`.border.cornerRadius` — the radius DOES
-cut a border declared before it, which is MetalUI's single-emission answer, so
-that order agrees).
+**Evidence.** The arms above.
 
-**Cost if wrong.** A caller writing one of the three orders gets the other
+**Round 2 (critic finding 4): the fourth row was originally filed as an
+agreement, and the first draft's own evidence could not have seen otherwise.**
+`OM-W` carries the measurement and supersedes the sentence that closed this
+ruling — `.border(w).cornerRadius(r)` (D2) is **not** MetalUI's single-emission
+answer (M1). The mechanism is identical to the other three, so only the count
+and the list changed.
+
+**Cost if wrong.** A caller writing one of the four orders gets the other
 answer silently. Each is pinned by a named test that asserts MetalUI's number
 and cites the SwiftUI arm it disagrees with.
 
@@ -472,6 +522,13 @@ G1/G2 additionally establish that opacity **multiplies** (0.58 after one 0.5,
 
 ## OM-O — a background and a border are ONE emitted rect
 
+> **SUPERSEDED IN ROUND 2 by `OM-V`, on the critic's finding 3 and a new probe
+> arm (B3).** The ruling as written below is kept verbatim because its "Cost if
+> wrong" paragraph named the exact defect that then materialised, and because
+> the reasoning for *keeping the background emission before the children* still
+> holds. **What changed: the BORDER is a second emission, after `content()`.**
+> Read `OM-V` for the current rule.
+
 **Ruling.** `paintDecoration` emits at most one `MUIRect` per element per layer:
 none when neither a background nor a border resolves; one carrying both
 otherwise, with `color: .transparent` when there is a border and no background.
@@ -531,7 +588,9 @@ when the call is dropped at exactly one site.
 `find Tests -name "*.json" | wc -l` stays **97** and no golden's content changes
 (`git diff --stat c4b5853 -- Tests` lists no `.json`). The only new layout nodes
 in the whole task are lane 4's per-member padding wrappers, which exist only
-under a `Component` and have no production caller.
+under a **modified** `Component` — and the demo's one `Component`,
+`PreviewToggle`, is used bare (`OM-Z`; round 2's correction to "no production
+caller"). No fixture builds a `Component` at all.
 
 **Reasoning.** CLAUDE.md: "Goldens must not move on any milestone that does not
 touch `Sources/MetalUILayout/`; a moved golden means something reached the
@@ -557,9 +616,10 @@ carries the same table with owners.
 | `.contentShape` with a non-rect shape, or a `kind:` | `Hitbox.bounds` is a rect. Task 12 |
 | `.cornerRadius` clipping by default (SwiftUI C1) | it would repaint the demo's sixteen call sites. Task 11 |
 | `Component` `background`/`onClick`/`focusable` | `CO-U`'s mechanism, unchanged |
-| `MC-G` hole 5 | the typed-node work. Task 7 |
+| ~~`MC-G` hole 5~~ | **withdrawn in round 2 (critic finding 6): hole 5 is THIS task's, it is closed here, and `OM-Z` is the ruling.** The modifier-composition decisions doc assigns it to task 5 by name; the first draft moved it to task 7 without saying so |
 | unifying with `ModifiedContent` | two engines until task 7 |
-| divergence NUMBERS for this task's rows | `CLAUDE.md` and `docs/record/04-divergences.md` belong to the integration step; the highest allocated today is 29 |
+| divergence NUMBERS for this task's rows | `CLAUDE.md` and `docs/record/04-divergences.md` belong to the integration step. **Round 2 (critic finding 5): the highest number allocated today is 34, not 29** — `grep -oE "^\| [0-9]+ \|" docs/record/04-divergences.md` runs 20…34 under "2026-09-15: divergences 20–34 (tasks 3, 9 and 12, integrated)". **Next free: 35.** The wrong figure appeared three times (here, spec §9, record §15) and is corrected in all three |
+| divergence-15's one-line fix | **withdrawn in round 2: taken here.** `.clipped()` makes it reachable from every element rather than only from a nested `ScrollView`. `OM-U` |
 
 ---
 
@@ -590,10 +650,11 @@ re-check rather than trust):
 - that `Frame.fill`'s `borderColor`/`borderWidths` parameters reach the shader —
   read from `Frame.fill` and `NativeModifiedContent.paint`; the M0 demo is cited
   by `Frame.fill`'s doc as the end-to-end proof, and no run in this session
-  exercised it. **Lane 2's test 1 is that proof**;
-- that the demo declares no `Component` (`CO-Y`'s "no production caller yet"),
-  which is what makes lane 4's zero-pixel expectation reasonable. Lane 4's
-  verification measures it rather than assuming it.
+  exercised it. **Lane 2's test 1 is that proof**, and round 2 re-specifies it
+  to read PIXELS off the fake surface's texture rather than to re-read
+  `MUIRect.borderWidths`, which is the field it was handed;
+- ~~that the demo declares no `Component`~~ — **false, and `OM-AC` is the
+  correction.** See `OM-Z`.
 
 **Baseline, re-taken in this worktree at `c4b5853`** (`swift build
 --build-system native` first, then `swift test --build-system native
@@ -602,3 +663,531 @@ seconds`, 0 `error:`, 0 `warning:`; `find Tests -name "*.json" | wc -l` = **97**
 `grep -c canTypecheck` over the nine guard files reads 19 + 10 + 5 + 3 + 3 + 2 +
 6 + 6 + 8 = 62, **less the one comment hit in `UnitSafetyTests` = 61 guards**.
 All three agree with record §13's post-integration figures.
+
+---
+
+# Design review round 2 — rulings OM-T … OM-AC
+
+Seventeen critic findings against the design commit `981f78b`. Each is applied
+or explicitly rejected below; the disposition table is at the very end. Three
+probes were extended and re-run in this round, and every new claim below cites
+an arm taken in this session.
+
+---
+
+## OM-T — `allowsHitTesting(false)` disables the receiver's own hitbox, and the order is not observable in SwiftUI either
+
+**Ruling.** `registerAndScope` opens the disabled scope **before** the
+receiver's own `registerHandlers`, not only around `content()`:
+
+```swift
+if handlers.allowsHitTesting {
+    pass.registerHandlers(handlers, at: bounds, id: id, accessibleText:, synthesizesAccessibility:)
+    …content, inside the clip scope when clipsContent…
+} else {
+    pass.allowsHitTesting(false) {
+        pass.registerHandlers(handlers, at: bounds, id: id, accessibleText:, synthesizesAccessibility:)
+        …content, inside the clip scope when clipsContent…
+    }
+}
+```
+
+The receiver's own registration stays **inside** the scope rather than being
+skipped, because `Frame.registerHandlers` gates only the hitbox insert on
+`hitTestingDisabledDepth == 0` (`Frame.swift:863`) — focus registration, the
+`$focus` retention write, the `focusedElementProducedThisFrame` signal, the
+declared `AXNode` and the accessibility record all sit **above** that gate and
+must keep firing. So the scope removes the pointer target and nothing else,
+which is precisely what the spec's §6.3 row `N1` and lane 3's test name already
+claimed.
+
+**Reasoning.** The first draft ordered it "register, then scope the children",
+which cannot produce `N1` at all: `Box().onClick { }.allowsHitTesting(false)`
+writes **one** `Handlers` — both modifiers land on the outermost `ModifierLayer`
+(`ModifiedElement.swift:110-114`) — so the receiver's own registration, made
+outside the scope, would still insert an opaque hitbox. That is the common
+spelling, not a corner, and the proposal path already gets it right
+(`NativeModifiedContent.prepaint` wraps the whole child including its
+`OnTapModifier`), so the two paths would have disagreed on a spelling the demo
+ships live (`MetalUIDemo/main.swift:1019-1023`).
+
+**Evidence.** `swiftui-content-shape-hit-region`:
+
+- **N1** `Color.blue.onTapGesture { }.allowsHitTesting(false)` — centre **0**,
+  edge **0**. The receiver's own gesture is dead. (This arm was in the first
+  recording; the first draft's mechanism contradicted it.)
+- **N2**, added this round, `Color.blue.allowsHitTesting(false)
+  .onTapGesture { }` — centre **0**, edge **0** as well.
+
+**N2 is why this is one clause and not two.** `.allowsHitTesting` is a wrapping
+modifier in SwiftUI, so a gesture written outside it *could* have survived; it
+does not, because the modifier empties the subtree's hit region and the later
+gesture has nothing to attach to. MetalUI's legacy path stores both on one
+`Handlers` and so cannot tell the two orders apart — here that is **agreement**,
+and it removes a row that would otherwise have joined `OM-H`'s not-expressible
+list. Recorded because a reader will assume the opposite from `OM-H`'s
+neighbours.
+
+**Cost if wrong.** If the scope were somehow to reach focus, a
+`.focusable().allowsHitTesting(false)` element would stop answering the
+keyboard, which is the half SwiftUI keeps. Lane 3's test 1 carries both halves
+and its second mutation — extending the scope to the focus registry — must
+redden the keyboard half specifically.
+
+---
+
+## OM-U — `.clipped()` takes divergence 15's one-line fix rather than inheriting it
+
+**Ruling.** `Frame.pushClip` adds `activeOffset` to the incoming `bounds` before
+intersecting:
+
+```swift
+let translated = Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                                      y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+                        size: bounds.size)
+let (clip, clipRadii) = Self.intersect(activeClip, radii: activeClipRadii, translated, radii: radii)
+```
+
+This closes divergence 15. `Tests/MetalUITests/NestedClipTests.swift`'s
+`aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` — today a
+pinned-wrong-on-purpose assertion of the defect — is **inverted** in the same
+commit, and the divergence row's retirement is carried to the integration step
+(which owns `CLAUDE.md` and `docs/record/04-divergences.md`).
+
+**Reasoning.** The first draft put `pass.clipped(to: bounds, …)` on every
+`Box`/`Stack`/`Text`/`ModifierLayer` and never mentioned that `pushClip`
+intersects untranslated. That is not a pre-existing bug this task merely fails
+to fix — it is a **severity change this task causes**. Today the only caller is
+`ScrollView`, which is why the divergence reads as "a `ScrollView` inside a
+scrolled `ScrollView`". After lane 2, any `.clipped()` element anywhere inside a
+scrolled `ScrollView` clips at its *unscrolled* rect and, once scrolled past the
+viewport, gets an empty mask and draws nothing — a `.clipped()` row in the
+demo's 500-row list would blank itself on the first scroll. Shipping that under
+a new modifier, annotated, is exactly the shape CLAUDE.md's inert table exists
+to remove.
+
+**Why it is safe to take here, against the "deferred to a paint milestone"
+deferral.** Record §04's own analysis of the fix (lines 560–561): "the added
+term is `+ activeOffset`, so the fix is a **no-op wherever `activeOffset == 0`**
+— which is every non-nested `ScrollView` in existence". The demo has no nested
+scroller, so the fix cannot move a demo pixel, which lane 4's offscreen
+comparison then measures rather than assumes. It is also outside
+`Sources/MetalUILayout/`, so no golden can move (`OM-Q`).
+
+**Cost if wrong.** If some caller depended on the untranslated intersection, a
+clip would shrink where it used to pass everything. The existing pins are
+`nestedClipsIntersectRatherThanReplace`,
+`aNestedScrollViewInsideAScrolledOneReceivesTheWheelWhereItPaints`,
+`aHitboxInsideAScrolledRegionIsRecordedWhereItPaints` and
+`aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame`; all four must stay
+green, and lane 2's mutation table must name them. If the fix turns out to cost
+more than a line, the fallback is the critic's alternative — a ruling, a
+`aClippedBoxInsideAScrolledScrollViewClipsAtTheWrongRect` pinned wrong on
+purpose, and a divergence row — and the lane records which was taken.
+
+---
+
+## OM-V — the border is a SECOND emission, drawn AFTER the children
+
+**Ruling.** Supersedes `OM-O`. `paintDecoration` emits:
+
+1. the **background** rect before `content()` — `pass.fill(bounds, color:
+   resolvedBackground, cornerRadii:)`, with no border, and **not at all** when
+   no background resolves;
+2. `content()`;
+3. the **border** rect after `content()` — `pass.fill(bounds, color:
+   .transparent, cornerRadii:, borderColor:, borderWidths:)`, only when a border
+   resolves.
+
+An undecorated element still emits nothing. A background-only element still
+emits exactly one rect (the overwhelmingly common case, and the whole of the
+demo). A bordered element costs two.
+
+**Reasoning.** SwiftUI's `.border` is an **overlay**, and MetalUI's children
+live inside the same box the border is drawn inside, so one emission before the
+children means a child that fills the box hides the border completely. The first
+draft filed this in `OM-O`'s "Cost if wrong" paragraph and nowhere else — not in
+the matrix, not in the order table, not in the divergence list, not in a test.
+
+**It is fatal specifically for the focus ring**, which is this task's deliverable
+(`OM-L`). The shape a caller writes is `Box { content }.focusBorder(.accent,
+width: 2)`; if `content` fills the box — a `Text` with a background, a `Row`
+stretched by `EP-8` — the ring is invisible, with no diagnostic, on the exact
+call it was added for. A focus affordance that is sometimes not drawn is worse
+than none.
+
+**Evidence.** `swiftui-border-clip-paint` **B3**, added this round:
+`Color.clear.frame(40, 40).overlay(red).border(blue, width: 4)` reads the
+**border colour** at corner (1,1) and (3,3) with the red child at arc(5,5),
+arc(7,7), in(6,6) and the centre. A filling child does not hide SwiftUI's
+border. B1 shows the same shape with the leaf as its own content, and B2 shows
+the border over a transparent leaf, so the three together separate "border" from
+"fill" unambiguously.
+
+**Cost if wrong.** Every bordered element costs one extra `MUIRect`. `OM-O`'s
+budget argument is real but small: `grep -c cornerRadius Sources/MetalUIDemo` is
+16 and the demo declares no border at all, so today the cost is zero rects and
+after this task it is one per element that opts in. The alternative — a caller
+writing `Stack { content; Box().border(…) }` by hand — reintroduces the
+per-site-omission failure `OM-P` exists to prevent. Lane 2's test 2 is
+re-specified accordingly: `aBackgroundIsEmittedBeforeTheChildrenAndABorderAfter`,
+asserting the order of `Scene.rects` around the child's rect, mutated by
+swapping the two emissions.
+
+---
+
+## OM-W — `.border(w).cornerRadius(r)` is a FOURTH order that is not expressible
+
+**Ruling.** Joins `OM-H`'s list. MetalUI's rounded bordered rect follows the
+arc; SwiftUI's `.border` clipped by a later radius does not. Pinned wrong on
+purpose by `aRoundedBorderFollowsTheArcWhereSwiftUIsClippedSquareBorderDoesNot`,
+which asserts MetalUI's emitted `cornerRadii`/`borderWidths` pair and cites arm
+M1.
+
+**Reasoning — and this is a methodology finding as much as a behaviour one.**
+The first draft's §6.2 called this row "same as MetalUI's one-emission answer".
+It was not measured; it was **inferred from five sample points that all agree**.
+The corner (1,1) and (3,3) are outside the arc (white in both), in(6,6) and the
+centre are deep inside (fill in both), and the edge midpoint is border in both.
+Every point the instrument had was one the two answers share. That is taxonomy
+shape 15 — arms that agree by construction — reached through a probe rather than
+a test.
+
+**Evidence.** Two sample points inside the corner arc, and a reference arm, both
+added this round:
+
+```
+D2 red.border(blue, 4).cornerRadius(12) : arc(5,5)=rgb(1.00,0.15,0.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(1.00,0.15,0.00)
+M1 RoundedRect(12) fill+strokeBorder 4  : arc(5,5)=rgb(0.02,0.20,1.00) arc(7,7)=rgb(1.00,0.15,0.00) in(6,6)=rgb(0.28,0.16,0.83)
+```
+
+`M1` is not another SwiftUI question — it is the MetalUI equivalent written in
+SwiftUI, one rounded rect carrying a fill, a radius and an inset border, which
+is exactly what `paintDecoration`'s emission is. At arc(5,5) SwiftUI reads the
+**fill** and the single rounded rect reads the **border**; in(6,6) differs too
+(fill versus the antialiased blend across M1's inner edge). SwiftUI clips a
+*square* border by the radius, leaving the arc's interior unbordered; a rounded
+stroke follows the arc.
+
+**Cost if wrong.** A caller writing `.border(…).cornerRadius(…)` and expecting
+SwiftUI's clipped-square border gets a rounded stroke. It is the more useful of
+the two answers and the one every design system draws, so the divergence is
+recorded rather than chased. The general escape is `OM-H`'s: put a `Box` between
+them.
+
+---
+
+## OM-X — `registerAndScope` carries the accessibility payload, and the matrix instrument gets mechanism-specific witnesses
+
+**Ruling, part 1 — the signature.**
+
+```swift
+@MainActor
+func registerAndScope<R>(_ handlers: Handlers, _ decoration: Decoration,
+                         at bounds: Bounds<Pixels>, for id: GlobalElementID,
+                         pass: inout PrepaintPass,
+                         accessibleText: String? = nil,
+                         synthesizesAccessibility: Bool = true,
+                         content: () -> R) -> R
+```
+
+and it forwards both to `PrepaintPass`'s five-argument internal overload.
+`Text.prepaint` passes `accessibleText: string.isEmpty ? nil : string,
+synthesizesAccessibility: true`, exactly as it does today
+(`Text.swift:311-313`).
+
+**Reasoning.** The first draft's helper forwarded only the public
+three-argument form while naming `Text.prepaint` as one of its four call sites.
+Routing `Text` through it as written deletes every text leaf's accessibility
+string, which is `AB-F`/`AB-Y`'s whole subject — a silent, total regression of
+another track's deliverable, introduced by a refactor whose stated purpose was
+to stop per-site omissions. The defaults keep `Box`, `Stack` and
+`ModifiedElement` writing what they write today.
+
+**Lane 3's mutation table must name the tests that catch it.** Dropping the two
+parameters must redden the `Text` arms of `aTextLeafPublishesItsStringAsAValue`
+and `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`, plus the
+`Text` arms of the environment track's `D2`; the lane records the actual names
+and counts from the red run rather than these, which are read from source.
+
+**Ruling, part 2 — the matrix instrument.** Lane 1's
+`everyOuterModifierIsWrapsOrPaintOnlyOrDistributesAsTheMatrixSays` measures a
+**five**-tuple, not a triple:
+
+`(nodeDelta, outerSizeDelta, rectDelta, hitRegionDelta, hitCountAtEdge)`
+
+— the last two read from `Window.lastHitboxes` (the registered region for the
+row's id, and whether a synthesized click at the box's edge reaches it). And the
+derivation is **not** "read the kind off the tuple": each kind is asserted
+against its own mechanism-specific witness, because the tuple alone cannot
+separate them.
+
+**Reasoning.** The critic's finding 8 is right and its counterexamples are all
+real: "self" (`.id()`), "prepaint-only" (`onClick`) and a genuinely inert
+modifier all read `(0, 0, 0)`; `hidden()` reads a non-zero `outerDelta` and
+would classify as "wraps"; pre-deletion `borderWidth` on a sized box reads
+`(0, 0, 0)` — the very API this audit exists to expose. An instrument that
+cannot see the thing the audit is for is the audit agreeing with itself.
+
+The witnesses:
+
+| kind | witness |
+|---|---|
+| **wraps** | `nodeDelta > 0` **and** `outerSizeDelta > 0` |
+| **self** | `nodeDelta == 0`, and the written field differs between "declared" and "not declared" on the **outermost** `ModifierLayer` — the same reflection `everyPublicModifierWritesItsOwnFieldAndOnlyThatField` uses |
+| **paint-only** | `nodeDelta == 0 && outerSizeDelta == 0` **and** `rectDelta != 0` (a rect appears, disappears, or changes a field) |
+| **prepaint-only** | `nodeDelta == 0 && outerSizeDelta == 0 && rectDelta == 0` **and** `hitRegionDelta != 0` or `hitCountAtEdge` moves |
+| **distributes** | the measurement is repeated on a two-member `Component` and the delta appears **twice**, once per member |
+
+Every row still `#require`s its two arms to disagree before any kind is
+compared, and **the kind derivation itself carries that requirement** — a row
+whose "declared" and "not declared" measurements are equal fails as a broken
+instrument rather than passing as "inert".
+
+**Cost if wrong.** A modifier filed under the wrong kind in a table that cannot
+tell the kinds apart is a documentation artefact wearing a test's name. The
+per-kind witnesses are more code than one tuple comparison; that is the price of
+the instrument being able to fail.
+
+---
+
+## OM-Y — the new public state is validated where it is WRITTEN, not only where it is initialised
+
+**Ruling.** `BorderStyle.widths` is `public private(set)`, with the validating
+`init`s and a `withWidths(_:) -> BorderStyle` builder as the only ways to set
+it. `Decoration.opacity` is likewise `public private(set)` with a validating
+`setOpacity(_:)`; `Decoration`'s explicit public memberwise `init`
+(`Box.swift:220`) gains all five new parameters and validates the two that need
+it.
+
+**Reasoning.** The first draft put the preconditions on `BorderStyle.init` and
+`StyledElement.opacity(_:)` while leaving both fields public stored `var`s, and
+`Decoration` is public and reachable through `Box(style:decoration:)`. So
+`var d = Decoration(); d.opacity = 2` and `var b = BorderStyle(.accent, width:
+px(1)); b.widths = Edges(all: px(-5))` both reach paint unchecked. Two exit
+tests would then have pinned a door beside an open window — the shape this
+repo's trap discipline exists to prevent, arrived at by writing the trap at the
+modifier "so the failure names the call site" and forgetting that the field is
+the other call site.
+
+**Ruling, part 2 — lane 2 test 14's arm must use a value ABOVE 1.**
+`PaintPass.opacity` already carries `precondition((0...1).contains(value))`
+(`Passes.swift:639`). An exit test that paints with a **negative** opacity
+aborts in the pass whether or not `StyledElement.opacity`'s own precondition is
+there, so the mutation "remove the modifier's precondition" reddens nothing —
+the test passes for the wrong reason over half its input range. A value `> 1`
+does not have that problem, because `paintDecoration` opens the opacity scope
+only when the value is **below** 1, so an unvalidated `1.5` never reaches
+`PaintPass.opacity` at all and the mutation is visible. **The lane records which
+value was run.** The same reasoning is why the negative-border-width test is
+sound as written: nothing downstream of `BorderStyle` validates a width.
+
+**Cost if wrong.** A negative width reaches `max(halfSize - border, 0.0)` in the
+fragment shader (`shaders.metal:129-133`) and produces an inner rect *larger*
+than the outer one, with no diagnostic anywhere above it; an out-of-range
+opacity either traps far from its call site or multiplies the frame's opacity
+above 1. Both are pinned by exit tests, and after this ruling both are pinned at
+every public write.
+
+---
+
+## OM-Z — `Component` distribution over a proposal body: hole 5 is closed here, by a trap that already exists
+
+**Ruling.** `MC-G` hole 5 — "a legacy style modifier on a proposal `Component`
+compiles" — is **this task's**, as the modifier-composition decisions doc
+assigns it (`2026-09-15-modifier-composition-decisions.md:1679`, owner "task
+5"), and lane 4 closes it rather than deferring it. Both
+`ComponentModifierOp` kinds trap on a native top-level node:
+
+- `.amend` reaches `LayoutTree.setStyle`, which traps on a native node
+  (`LayoutTree.swift:465-471`, ruling `SA-G`) — today's behaviour, unchanged;
+- `.wrap` reaches `LayoutTree.newNode(style:children:)`, which **also already
+  traps**: `for child in children { precondition(nativeNodes[slot(child)] ==
+  nil, "legacy layout node given a native child — a proposal subtree cannot sit
+  under a CSS container (SA-G)") }` (`LayoutTree.swift:130-136`).
+
+Lane 4 adds one exit test for the `.wrap` route —
+`aPaddingModifierOnAProposalComponentTraps` — beside the existing `.amend` pin.
+No new precondition is written.
+
+**Round 2 correction to the critic (finding 6, second half): the claim that
+`newNode(style:children:)` does not trap is FALSE.** It traps, the message names
+`SA-G`, and the trap is already pinned by an exit test in
+`Tests/MetalUILayoutTests/NativeBoundaryTrapTests.swift` (the arm at its line
+42: "A native node handed to a legacy `newNode` as a child traps at
+registration"). So lane 4 does **not** silently build a legacy flex node around
+a native node; it swaps one named `SA-G` trap for another. The finding's first
+half is upheld in full and is what follows.
+
+**Round 2 correction to this track (finding 6, first half): "the demo declares
+no `Component`" is FALSE, and it was a citation rather than a measurement.**
+`Sources/MetalUIDemo/main.swift:918` declares `private struct PreviewToggle:
+Component`, used at line 1017 inside `nativeLayoutPreviewContent()` — inside the
+very proposal preview lane 4's verification requires to be pixel-identical. The
+first draft cited `CO-Y`'s "no production caller yet", which is a claim about a
+milestone that has since been overtaken by task 3's preview.
+
+**So the zero-pixel expectation is re-derived on the right premise.**
+`PreviewToggle()` is used **bare** — no modifier — so no `StyledComponent` is
+ever constructed for it, so lane 4, which changes `StyledComponent` alone,
+cannot reach it. That is a statement about a call site, checkable by grep and
+measured by the comparison itself, rather than a statement about the codebase
+having no components. Lane 4 states it that way and reports the grep.
+
+**Cost if wrong.** If some other `Component` call site acquires a modifier
+before this lands, the comparison reports a non-zero pixel count and the lane
+explains it rather than discovering it later. If `PreviewToggle` ever gains a
+`.padding`, it traps loudly at `SA-G` — which is hole 5 behaving as designed and
+not a regression.
+
+---
+
+## OM-AA — opacity is path-dependent, and `Deferred` does not reset it
+
+**Ruling, part (a).** `.background(x).opacity(0.5)` and
+`.opacity(0.5).background(x)` both fade the fill on the **legacy** path
+(`OM-N`), and on the **proposal** path they already differ — `.opacity` is its
+own `ModifiedContent` layer there, so the second order leaves the fill opaque,
+which is SwiftUI's answer and ships today. Recorded as a **cross-path**
+inconsistency in its own right: the same-looking chain answers differently
+depending on which element system the caller is on. It is not fixed here — task
+7's unification is the fix — and `OM-N`'s divergence row gains the sentence
+"…and the proposal path, which agrees with SwiftUI, disagrees with the legacy
+path".
+
+**Reasoning.** `OM-N` filed only the SwiftUI disagreement. A caller porting a
+subtree between the two paths — which is what tasks 6 and 7 are for — would find
+a fade appear or vanish with no modifier changed. Two paths disagreeing with
+each other is a different and more dangerous fact than one path disagreeing with
+SwiftUI, and it belongs in the audit the plan asked for.
+
+**Ruling, part (b).** `Deferred` resets clip and scroll offset (`AP-I`) and
+**does not reset opacity**: `Frame.pushLayer` and `pushRootClip`
+(`Frame.swift:367, 416`) leave `opacityStack` untouched. That stays true, and
+the answer is pinned rather than changed:
+`aDeferredPortalInsideAFadedSubtreeIsStillFaded` (lane 2).
+
+**Reasoning for keeping it.** The moment `.opacity` exists on the legacy path,
+`AP-I`'s two-member reset acquires a newly reachable third candidate, so the
+answer has to be chosen deliberately. Keeping today's behaviour is right for
+two reasons. First, the mechanism: `Deferred`'s resets exist because a portal
+must not inherit *geometry* it has escaped — a modal must not slide with the
+content it covers. Opacity is not geometry; a subtree faded to 0.5 with a
+tooltip inside it reads as one faded thing, which is what a caller writing the
+fade meant. Second, the cost of the alternative is unbounded and unprobed:
+SwiftUI has no `Deferred`, so there is nothing to measure, and a reset would
+make a scrim inside a faded panel jump to full opacity with no spelling to get
+the other answer back. Zero code, one test, recorded reasoning.
+
+**Cost if wrong.** A modal presented from inside a faded subtree is faded. The
+escape, if it is ever wanted, is to declare the `Deferred` outside the faded
+element — which is a structural change, not a modifier, and the test names that
+as the workaround.
+
+---
+
+## OM-AB — `contentShape(inset:)` with no click handler registers nothing, and says so
+
+**Ruling.** `contentShape(inset:)`'s doc comment states that it configures a hit
+region and does not create one: `Frame.registerHandlers` inserts a hitbox only
+when `handlers.isPointerTarget` (`onClick != nil`), so
+`Box().contentShape(inset: Pixels(20))` with no `onClick` compiles, writes the
+field, and registers nothing. Pinned by
+`aContentShapeWithoutAClickHandlerRegistersNothing` (lane 3).
+
+**Reasoning.** `OM-J` argued at length that shipping `.contentShape(Rectangle())`
+would be an API that compiles and does nothing, and then shipped a modifier with
+its own inert configuration undocumented. The repo already treats the identical
+shape as worth a named test one field over —
+`hoverBackgroundWithoutAClickHandlerNeverPaints` — so the precedent is set and
+the cost is a paragraph and an assertion.
+
+**Why it is documented rather than made non-inert.** Making it register a hitbox
+on its own would turn a hit-region *modifier* into a hit-region *creator*,
+which is neither SwiftUI's behaviour (`.contentShape` on a gesture-less view is
+inert there too, for the same reason: nothing is listening) nor expressible
+without deciding what an opaque, handler-less hitbox means for
+`topmostOpaqueHitbox` ranking. The honest answer is that this modifier
+configures something another modifier creates, and saying so is the fix.
+
+**Cost if wrong.** A caller writes `.contentShape(inset:)` expecting a hit
+region and gets none. One test and one paragraph; the failure is now named.
+
+---
+
+## OM-AC — method, round 2: what was re-measured, what was corrected, and what the verification rests on
+
+**Corrections to `OM-S`'s two "read, not measured" entries.**
+
+1. "The demo declares no `Component`" — **false**, corrected by `OM-Z` and by
+   `grep -n "Component" Sources/MetalUIDemo/main.swift`. It was an inherited
+   citation (`CO-Y`) presented as a fact about the current tree. The lesson is
+   the practices doc's: a claim copied from another milestone's ruling is read,
+   not measured, however confident the ruling was.
+2. "`Frame.fill`'s border parameters reach the shader" — still read, and lane
+   2's test 1 is re-specified so that it is the proof rather than a re-read of
+   the field: `aBorderIsPaintedInsideTheElementsBoxAndChangesNoLayout` must
+   sample **pixels** from the fake surface's readable texture
+   (`Tests/MetalUITests/Fakes.swift:20-63` already renders to one), not assert
+   `MUIRect.borderWidths`, which is the value the test itself handed in.
+
+**The display-lock reading: the critic's correction is REJECTED on its facts and
+APPLIED on its substance.**
+
+- Re-run in this session: `ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked`
+  reads `<false/>` — unlocked, agreeing with the first draft's reading and not
+  with the critic's `<true/>`.
+- Both readings are true of their moment. The conclusion is that **the reading is
+  volatile and is not a property of the machine**, so recording it in a design
+  document as a standing fact was the error, whichever value it held.
+- Applied: the **offscreen comparison is the primary evidence**, not a fallback;
+  the real-window capture is conditional and **the lock state is re-taken at
+  lane-4 time and reported with its timestamp**. The unqualified sentence "the
+  display is unlocked on this machine" is removed from the spec and the record.
+
+**Measured this round** (all in this worktree, at `c4b5853`, `git status
+--short` clean throughout):
+
+| run | result |
+|---|---|
+| `swiftui-border-clip-paint`, both forms, +2 sample points, +B3, +M1 | byte-identical stdout, exit 0, compile and run stderr both 0 bytes |
+| `swiftui-component-distribution`, both forms, +G10–G12, +G13–G16 | byte-identical, exit 0, stderr 0 bytes |
+| `swiftui-content-shape-hit-region`, both forms, +N2 | byte-identical, exit 0, stderr 0 bytes |
+| `swiftui-outer-modifier-order`, unchanged, re-run | exit 0, stderr 0 bytes; stdout still matches its header line for line |
+| every recorded header line re-checked against live stdout, all four probes | complete, no drift |
+| `grep -oE "^\| [0-9]+ \|" docs/record/04-divergences.md` | 20…**34** |
+| `grep -n "Component" Sources/MetalUIDemo/main.swift` | `918: private struct PreviewToggle: Component` |
+| `LayoutTree.newNode`'s native-child precondition, and its existing exit-test pin | present (`LayoutTree.swift:130-136`; `NativeBoundaryTrapTests.swift:42`) |
+| `Frame.registerHandlers`' gate placement (hitbox gated, focus/AX not) | `Frame.swift:863` below the focus block |
+| `ioreg … IOConsoleLocked` | `<false/>` |
+
+**Still read, not measured, and the implementing lane must re-check:** that
+`pushClip`'s one-line fix is genuinely one line and genuinely a no-op at
+`activeOffset == 0` (`OM-U` — lane 2 measures it by keeping four named tests
+green and by the demo comparison); and that no site other than the four named
+calls `registerHandlers` in a way `registerAndScope` would bypass (`grep -rn
+"registerHandlers(" Sources` at lane-3 time, not at design time).
+
+---
+
+## Disposition of the seventeen round-2 findings
+
+| # | subject | disposition | where |
+|---|---|---|---|
+| 1 | `allowsHitTesting(false)` does not disable the receiver | **applied** — scope opened before the receiver's own registration; N2 added | `OM-T` |
+| 2 | `.clipped()` inherits divergence 15 | **applied** — the one-line `pushClip` fix is taken in lane 2, its pinned-wrong test inverted | `OM-U` |
+| 3 | the border paints under the children | **applied** — second emission after `content()`; B3 added; `OM-O` superseded | `OM-V` |
+| 4 | `.border.cornerRadius` row false; five points cannot see it | **applied** — arc points and reference arm M1 added, row moved to not-expressible | `OM-W` |
+| 5 | highest divergence is 34, not 29 | **applied** — corrected in all three places; next free 35 | `OM-R`, spec §9, record §15 |
+| 6 | the demo DOES declare a `Component`; `.wrap` over a native child | **applied in part, corrected in part** — premise re-measured and the expectation re-derived; hole 5 claimed for this task; the claim that `newNode` does not trap is refuted by source and an existing exit test | `OM-Z` |
+| 7 | `registerAndScope` drops `Text`'s AX payload | **applied** — two parameters added, defaulted; mutation named | `OM-X` part 1 |
+| 8 | the matrix instrument cannot derive its five kinds | **applied** — five-tuple, per-kind witnesses, disagreement required of the derivation | `OM-X` part 2 |
+| 9 | the two new traps are bypassable | **applied** — `public private(set)` plus validating setters; memberwise `init` updated | `OM-Y` part 1 |
+| 10 | lane 2 test 14's mutation masked below zero | **applied** — the arm must use a value above 1, and the lane records it | `OM-Y` part 2 |
+| 11 | `OM-E`'s order claim is derived | **applied** — G13–G16 added; the "the way SwiftUI's nesting does" clause withdrawn | `OM-E` round-2 block |
+| 12 | `contentShape(inset:)` inert with no `onClick` | **applied** — doc paragraph and a pin | `OM-AB` |
+| 13 | §4.4's SwiftUI column mis-cites its arms | **applied** — `SoloText` arms G10–G12 added, the row restated with the right numbers | spec §4.4, probe header |
+| 14 | the display-lock reading does not reproduce | **rejected on facts, applied on substance** — it reads `<false/>` here too; the reading is volatile, so the offscreen comparison becomes primary and the lock is re-taken at lane-4 time | `OM-AC` |
+| 15 | merge collisions larger than the risk table says | **applied** — three collisions added, `StyledComponent`'s storage named as a coordination item, the tripwire pre-agreed | spec §8 |
+| 16 | opacity path-dependence; `Deferred` does not reset opacity | **applied** — a ruling each, and a pin for (b) | `OM-AA` |
+| 17 | five smaller items | **applied, all five** — `border(_:widths:)` row added; `hoverBorder`/`focusBorder` gain the `widths:` form for symmetry; `Decoration`'s memberwise `init` updated; lane 2 test 1 reads pixels; the order-sensitive padded-hit-region row added to §6.3 | spec §5.1, §6.3, §7 |
