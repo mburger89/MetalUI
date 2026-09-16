@@ -441,6 +441,26 @@ status --short` checked. Every run read `Test run with 1245 tests`.
 | M17 | the outermost layer's child list dropped (`ModifiedElement.requestLayout`) | **~25 tests, 102 issues**, 2.7 among them — the only mutation that reddens 2.7, and the reason it is recorded here rather than claimed as that test's own |
 | M18 | `ProposalElementGroup`'s flexible overload's `idealWidth:` label renamed | **2**: the new guard (`cannot convert value of type 'ModifiedElement<ProposalLeaf>' to specified type 'ModifiedContent<ProposalLeaf>'`) and 2.4's proposal control (`.success → .signal(SIGTRAP)` — the proposal element fell into the legacy trap). **This is the proof the new guard runs in this worktree** rather than skipping |
 
+**The demo's pixels cannot move, and it is a compile-time fact rather than a
+comparison.** `Sources/MetalUIDemo/main.swift` contains exactly two `.frame(`
+call sites, 1003 and 1032, and **both are on proposal elements** — the chain at
+1003 ends in `.border(...)` and the one at 1032 is the preview's outermost
+element, and neither of those spellings exists on a `ModifiedElement`. So the
+demo reaches `FrameSpec.style()` nowhere, and lane 2 changed nothing else that
+a rendered frame can see. (Mutation M15 is the same fact read backwards: remove
+the proposal path's fixed overload and `main.swift:1004` stops compiling,
+because the chain becomes a `ModifiedElement`.) Lane 4 still owes the offscreen
+comparison of the whole demo and preview against `c4b5853`, for lane 1's kernel
+change.
+
+**Stale-comment sweep.** `NativeModifiedContent.swift`'s fixed proposal frame
+and `EnvironmentScope.swift`'s "`.frame(width:height:)` may follow a scope" were
+refreshed (`316237b`). **`ModifiedElement.swift`'s file header, line 4, still
+spells the legacy frame `.frame(width:height:)`** and was left alone on purpose:
+it is the top of a file the parallel paint-modifier track also edits, and a
+second hunk there trades a comment's accuracy for a merge conflict. Integration
+owns that one word.
+
 **Left for lane 3 and after.** `Box.swift`'s `MARK: Size` documentation, the
 percentage divergence test (3.1) and the node-count/automatic-minimum test
 (3.2) are untouched; `FR-F`…`FR-I` and `FR-Q` are still design only. Lane 2
