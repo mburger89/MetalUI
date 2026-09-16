@@ -5,7 +5,13 @@
 //
 // HOW TO RUN (ruling SA-O):
 //
-//   /usr/bin/swift docs/probes/swiftui-overlay-presentation.swift
+//   xcrun swiftc docs/probes/swiftui-overlay-presentation.swift -o /tmp/cn-overlay
+//   OS_ACTIVITY_DT_MODE=1 /tmp/cn-overlay 2>/dev/null
+//
+// COMPILED FORM ONLY. The script form (`/usr/bin/swift <file>`) fails before
+// running with "JIT session error: Symbols not found:
+// [ ___isPlatformVersionAtLeast ]" (an availability check that `ImageRenderer`
+// or `.popover` pulls in); measured 2026-09-16.
 //
 // It renders with `ImageRenderer` (no window) for the P arms, and opens and
 // orders out one small window per click for the H arms, with the harness of
@@ -25,10 +31,54 @@
 // two points and must disagree for the instrument to see which handler fired.
 //
 // RECORDED 2026-09-16 by the containers design session (critic round), macOS
-// 27.0 (26A428), `/usr/bin/swift` = Apple Swift 6.4 (swiftlang-6.4.0.33.1).
-// Output: see the block below (filled in from the run).
+// 27.0 (26A428), `xcrun swiftc` = Apple Swift 6.4 (swiftlang-6.4.0.33.1).
+// Exit 0. Run twice; byte-identical stdout (stderr carries only AppKit's
+// linkd/intents connection noise). One harness defect was found and fixed
+// before recording, described where it was fixed (NSHostingView shrank the
+// window to its fixed-size content, so the first recording clicked the wrong
+// points: H0's centre click missed).
 //
-// READING: see the block below.
+// READING:
+// - An overlay's content is clipped by an ancestor `.clipped()` (P1 white at
+//   (25, 50) against P1c's blue) and is NOT hoisted above a later sibling (P2:
+//   green at the centre, where P2c reads blue); `.zIndex(1)` hoists it within
+//   one ZStack (P3). So SwiftUI's `.overlay` has neither of `Deferred`'s two
+//   escapes (every ancestor clip; paint order above every sibling).
+// - A presented `.sheet` or `.popover` is not in the presenting view's layout
+//   or render tree: its content is never laid out (0 calls) and never drawn
+//   (white), where an overlay's is laid out (3 calls) and drawn (red): P4, P5
+//   against P6. No layout-protocol measurement of a presentation can be taken
+//   from the presenting view; it is hosted by its own window.
+// - Clicks: a `.background`'s content is BENEATH the view it backs for hit
+//   testing (H1: a click over both reaches the primary; the background takes
+//   one only outside the primary), and an `.overlay`'s is above it (H2: the
+//   overlay takes both). A primary with NO gesture still blocks the
+//   background's gesture beneath it (H3: centre 0, edge 1); MetalUI's
+//   non-clickable elements do not block (the kind of difference divergence 23
+//   records).
+//
+// OUTPUT:
+//
+//   --- P: paint, 100x100 ImageRenderer at scale 1
+//   P0 control: red 20x20 centred on white: image 100x100; (50, 50) red(255,56,60,255); (5, 5) white(255,255,255,255)
+//   P1c control: red 10x10 .overlay{blue 60x60} in a 20x20 frame, NOT clipped: image 100x100; (50, 50) blue(0,136,255,255); (25, 50) blue(0,136,255,255)
+//   P1 the same inside a .clipped() 20x20 frame (does overlay content escape an ancestor clip?): image 100x100; (50, 50) blue(0,136,255,255); (25, 50) white(255,255,255,255)
+//   P2 ZStack{red 20 .overlay{blue 60}; green 40} (is overlay content hoisted over a LATER sibling?): image 100x100; (50, 50) green(52,199,89,255); (25, 50) blue(0,136,255,255)
+//   P2c control ZStack{green 40; red 20 .overlay{blue 60}}: image 100x100; (50, 50) blue(0,136,255,255); (25, 50) blue(0,136,255,255)
+//   P3 ZStack{red 20 .overlay{blue 60} .zIndex(1); green 40}: image 100x100; (50, 50) blue(0,136,255,255); (25, 50) blue(0,136,255,255)
+//   P4 white .sheet(isPresented: true){Leaf s: red} (is presented content in the render or layout tree?): image 100x100; (50, 50) white(255,255,255,255); sheet content layout calls 0
+//   P5 white .popover(isPresented: true){Leaf p: red}: image 100x100; (50, 50) white(255,255,255,255); popover content layout calls 0
+//   P6 control white .overlay{Leaf o: red 20x20}: image 100x100; (50, 50) red(255,56,60,255); overlay content layout calls 3
+//   --- H: which of a view and its secondary content takes a click
+//     H0 control: red 100x100 + tap alone click centre (100,100): primary 1, secondary 0
+//     H0 control: red 100x100 + tap alone click edge (35,100): primary 0, secondary 0
+//     H1 red 100 + tap .background{blue 150 + tap} click centre (100,100): primary 1, secondary 0
+//     H1 red 100 + tap .background{blue 150 + tap} click edge (35,100): primary 0, secondary 1
+//     H2 red 100 + tap .overlay{blue 150 + tap} click centre (100,100): primary 0, secondary 1
+//     H2 red 100 + tap .overlay{blue 150 + tap} click edge (35,100): primary 0, secondary 1
+//     H3 red 100 (no tap) .background{blue 150 + tap} click centre (100,100): primary 0, secondary 0
+//     H3 red 100 (no tap) .background{blue 150 + tap} click edge (35,100): primary 0, secondary 1
+//   DONE
 
 import AppKit
 import SwiftUI
