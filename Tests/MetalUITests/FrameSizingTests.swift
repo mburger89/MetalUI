@@ -484,6 +484,15 @@ private struct TwoMarks: Component {
 /// (10, 80)) overflow the same way. These two arms were added after the lane:
 /// the mutation "lower only the outermost layer" left the suite green.
 ///
+/// **The flexible overload lowers too** (`CN-N` covers both `.frame` overloads):
+/// the probe's `D13`, `.frame(minWidth: 40, maxWidth: 80)`, and `D14`,
+/// `.frame(maxWidth: 80)`, each around a 200×160 child (re-run 2026-09-16,
+/// output identical), answer 80×160 and place the child at **(−60, 0)**. In the
+/// `Row` each frame sits at (0, 20), so the child reads (−60, 20) 200×160.
+/// Before the lane these two arms read the child squeezed to the frame's 80.
+/// These arms were added in lane 5's fix round: making the flexible overload
+/// pass `isFrame: false` (verifier mutation V1) left the suite green.
+///
 /// Before the lane the single-child arm reads (0, 20) 60×160 (`FR-N`).
 /// Mutations, measured (record §17, lane 5): lower single-child frames as a
 /// flex row again (the single-child arms redden, and
@@ -530,6 +539,17 @@ private struct TwoMarks: Component {
             TwoMarks(log: log).frame(width: px(60), height: px(40))
         }
     }
+    // The FLEXIBLE overload, probe arms D13 and D14.
+    let minMax = try render { log in
+        Row {
+            Mark("child", log: log, width: 200, height: 160).frame(minWidth: px(40), maxWidth: px(80))
+        }
+    }
+    let maxOnly = try render { log in
+        Row {
+            Mark("child", log: log, width: 200, height: 160).frame(maxWidth: px(80))
+        }
+    }
 
     let single = Rect(try #require(plain.bounds["child"]))
     let squeezed = Rect(try #require(twoNodes.bounds["child"]))
@@ -545,8 +565,109 @@ private struct TwoMarks: Component {
             "an inner frame layer lowers too: the frame at (4, 80) under a 4pt padding")
     #expect(Rect(try #require(framedTwice.bounds["child"])) == Rect(-60, 20, 200, 160),
             "an inner frame under an outer 80x60 frame: the inner frame at (10, 80)")
+    #expect(Rect(try #require(minMax.bounds["child"])) == Rect(-60, 20, 200, 160),
+            "D13 (-60, 0) from the flexible frame at (0, 20)")
+    #expect(Rect(try #require(maxOnly.bounds["child"])) == Rect(-60, 20, 200, 160),
+            "D14 (-60, 0) from the flexible frame at (0, 20)")
     #expect(squeezed.width == 57 && squeezed.height == 160,
             "a frame over two nodes keeps FR-C's flex row and squeezes the child: \(squeezed)")
+}
+
+// MARK: - 5.8 a single-child frame ignores its child's flex item fields (ruling CN-N)
+
+/// A growing mark and a stretching mark, each beside a 10×10 mark, as ONE
+/// component: a frame around it wraps two nodes and keeps `FR-C`'s flex row —
+/// the control for test 5.8.
+private struct GrowingPair: Component {
+    let log: SizeLog
+    var content: some ElementGroup {
+        Mark("grow", log: log, height: 20).flexGrow(1)
+        Mark("second", log: log, width: 10, height: 10)
+    }
+}
+
+private struct StretchingPair: Component {
+    let log: SizeLog
+    var content: some ElementGroup {
+        Mark("stretch", log: log, width: 20).alignSelf(.stretch)
+        Mark("second", log: log, width: 10, height: 10)
+    }
+}
+
+/// **The only child of a legacy `.frame` loses its `.flexGrow` and
+/// `.alignSelf`** — ruling `CN-N`'s cost, pinned as it stands (lane 5 fix
+/// round; no SwiftUI claim: neither field has a SwiftUI spelling). A frame over
+/// exactly one node is a one-cell `display: .stack`, and a stack reads neither
+/// item field, so both compile and do nothing — including the fill idiom
+/// `.flexGrow(1).frame(maxWidth: .infinity, maxHeight: .infinity)`.
+///
+/// Arms, in a 300×200 `Frame`:
+///
+/// - **grow**: `Row { mark(h 20).flexGrow(1).frame(width: 100, height: 40) }` —
+///   the frame sits at (0, 80), and the width-less mark centred in it at
+///   (50, 90) 0×20 (before the lane (0, 90) 100×20);
+/// - **fill** at the root: `mark(h 20).flexGrow(1).frame(maxWidth: .infinity,
+///   maxHeight: .infinity)` — (150, 90) 0×20 (before, (0, 90) 300×20);
+/// - **stretch**: `mark(w 20).alignSelf(.stretch).frame(width: 100, height:
+///   40)` — (40, 100) 20×0 (before, (40, 80) 20×40).
+///
+/// **Controls** (`#require`d to disagree with the pins): the same marks framed
+/// together with a 10×10 sibling in one component — two nodes, the flex row —
+/// still grow to 90 wide and stretch to 40 high.
+///
+/// **The workaround is `width(fraction: 1)`** (and `height(fraction: 1)`): the
+/// stack offers its content box as the containing block, so the grow arm
+/// respelled reads (0, 90) 100×20 and the fill arm (0, 90) 300×20.
+///
+/// Mutations, measured (record §17, lane 5 fix round): the fixed overload
+/// passes `isFrame: false` (the grow, stretch and workaround pins redden); the
+/// flexible overload passes `isFrame: false` (the fill pin and its workaround
+/// redden).
+@Test @MainActor func aSingleChildLegacyFrameIgnoresItsChildsFlexGrowAndAlignSelf() throws {
+    let grow = try render { log in
+        Row { Mark("grow", log: log, height: 20).flexGrow(1).frame(width: px(100), height: px(40)) }
+    }
+    let fill = try render { log in
+        Mark("grow", log: log, height: 20).flexGrow(1)
+            .frame(maxWidth: px(.infinity), maxHeight: px(.infinity))
+    }
+    let stretch = try render { log in
+        Row { Mark("stretch", log: log, width: 20).alignSelf(.stretch).frame(width: px(100), height: px(40)) }
+    }
+    let growPair = try render { log in
+        Row { GrowingPair(log: log).frame(width: px(100), height: px(40)) }
+    }
+    let stretchPair = try render { log in
+        Row { StretchingPair(log: log).frame(width: px(100), height: px(40)) }
+    }
+    let growWorkaround = try render { log in
+        Row { Mark("grow", log: log, height: 20).width(fraction: 1).frame(width: px(100), height: px(40)) }
+    }
+    let fillWorkaround = try render { log in
+        Mark("grow", log: log, height: 20).width(fraction: 1)
+            .frame(maxWidth: px(.infinity), maxHeight: px(.infinity))
+    }
+
+    let grown = Rect(try #require(growPair.bounds["grow"]))
+    let stretched = Rect(try #require(stretchPair.bounds["stretch"]))
+    let pinnedGrow = Rect(try #require(grow.bounds["grow"]))
+    let pinnedStretch = Rect(try #require(stretch.bounds["stretch"]))
+    try #require(grown.width != pinnedGrow.width,
+                 "the two-node control and the single-child pin agree on width: \(grown), \(pinnedGrow)")
+    try #require(stretched.height != pinnedStretch.height,
+                 "the two-node control and the single-child pin agree on height: \(stretched), \(pinnedStretch)")
+
+    #expect(grown.width == 90, "control: flexGrow in a two-node frame's row takes the rest: \(grown)")
+    #expect(stretched.height == 40, "control: alignSelf(.stretch) in a two-node frame's row: \(stretched)")
+    #expect(pinnedGrow == Rect(50, 90, 0, 20), "flexGrow on a single-child frame's child is inert: \(pinnedGrow)")
+    #expect(Rect(try #require(fill.bounds["grow"])) == Rect(150, 90, 0, 20),
+            "the fill idiom's flexGrow is inert under a single-child flexible frame")
+    #expect(pinnedStretch == Rect(40, 100, 20, 0),
+            "alignSelf(.stretch) on a single-child frame's child is inert: \(pinnedStretch)")
+    #expect(Rect(try #require(growWorkaround.bounds["grow"])) == Rect(0, 90, 100, 20),
+            "the workaround, width(fraction: 1), fills the frame")
+    #expect(Rect(try #require(fillWorkaround.bounds["grow"])) == Rect(0, 90, 300, 20),
+            "the workaround fills the root flexible frame")
 }
 
 // MARK: - 2.9 an infinite maximum (ruling FR-O)
@@ -686,6 +807,29 @@ private func nodeCount<Root: Element>(_ make: (SizeLog) -> Root) throws -> Int {
 // proof is therefore entirely in their mutations, which are named in each doc
 // comment and measured in `docs/record/14-frame-and-sizing.md`.
 
+/// Calls the deprecated `percent:` spellings without a deprecation warning at
+/// the call site (the suite's 0-warning gate): a deprecated witness reached
+/// through a generic requirement is not diagnosed.
+@MainActor
+private protocol DeprecatedPercentSpellings {
+    func viaWidthPercent(_ value: Float) -> Self
+    func viaHeightPercent(_ value: Float) -> Self
+    func viaFlexBasisPercent(_ value: Float) -> Self
+}
+
+extension Mark: DeprecatedPercentSpellings {
+    @available(*, deprecated)
+    func viaWidthPercent(_ value: Float) -> Mark { width(percent: value) }
+    @available(*, deprecated)
+    func viaHeightPercent(_ value: Float) -> Mark { height(percent: value) }
+    @available(*, deprecated)
+    func viaFlexBasisPercent(_ value: Float) -> Mark { flexBasis(percent: value) }
+}
+
+@MainActor private func widthPercent<T: DeprecatedPercentSpellings>(_ t: T, _ v: Float) -> T { t.viaWidthPercent(v) }
+@MainActor private func heightPercent<T: DeprecatedPercentSpellings>(_ t: T, _ v: Float) -> T { t.viaHeightPercent(v) }
+@MainActor private func flexBasisPercent<T: DeprecatedPercentSpellings>(_ t: T, _ v: Float) -> T { t.viaFlexBasisPercent(v) }
+
 // MARK: - 5.2 fractional sizing (rulings FR-H, FR-T, CN-O)
 
 /// **`width(fraction:)`, `height(fraction:)` and `flexBasis(fraction:)` take a
@@ -704,6 +848,11 @@ private func nodeCount<Root: Element>(_ make: (SizeLog) -> Root) throws -> Int {
 /// - **C**, 0.5 centred on a 300pt `Column`'s cross axis: x 75;
 /// - **D**, `height(fraction: 0.5)` against the `Column`'s 200pt height: 100;
 /// - **E**, `flexBasis(fraction: 0.5)` in the 300pt `Row`: 150.
+///
+/// - **F**, the deprecated `width`/`height`/`flexBasis(percent: 0.5)`, reached
+///   through a generic shim so the call sites raise no deprecation warning,
+///   must equal A, D and E (lane 5 fix round: making `width(percent:)` forward
+///   `fraction: percent * 100`, verifier mutation V8, left the suite green).
 ///
 /// The control is 0.25 in the same `Row` (75), `#require`d to disagree with A.
 ///
@@ -740,6 +889,18 @@ private func nodeCount<Root: Element>(_ make: (SizeLog) -> Root) throws -> Int {
     #expect(Rect(try #require(halfHigh.bounds["a"])) == Rect(140, 0, 20, 100),
             "D: `height(fraction:)` resolves against the containing block's HEIGHT")
     #expect(basis == 150, "E: `flexBasis(fraction:)` against the Row's main axis: \(basis)")
+
+    // F: the deprecated `percent:` spellings keep their meaning (CN-O): each
+    // resolves exactly as its `fraction:` rename does at 0.5.
+    let percentWidth = try widthInRow { log in widthPercent(Mark("a", log: log, height: 20), 0.5) }
+    let percentHigh = try render { log in
+        Column { heightPercent(Mark("a", log: log, width: 20), 0.5) }
+    }
+    let percentBasis = try widthInRow { log in flexBasisPercent(Mark("a", log: log, height: 20), 0.5) }
+    #expect(percentWidth == half, "F: width(percent: 0.5) must equal width(fraction: 0.5): \(percentWidth)")
+    #expect(Rect(try #require(percentHigh.bounds["a"])) == Rect(try #require(halfHigh.bounds["a"])),
+            "F: height(percent: 0.5) must equal height(fraction: 0.5)")
+    #expect(percentBasis == basis, "F: flexBasis(percent: 0.5) must equal flexBasis(fraction: 0.5): \(percentBasis)")
 }
 
 // MARK: - 3.2 the sizing modifiers write their own box (rulings FR-F, FR-G)
