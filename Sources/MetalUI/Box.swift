@@ -1320,6 +1320,12 @@ extension StyledElement {
     /// `onClick(_:)` is still the only thing that makes an element a pointer
     /// target, so this on an element without one writes the field and registers
     /// nothing — the same shape as `hoverBackground(_:)` with no `onClick`.
+    /// **On a chain, write it after the last wrapping modifier**, on the layer
+    /// that carries the `onClick`: `.contentShape(inset: 20).padding(40)
+    /// .onClick { }` leaves the inset on the inner element and the padded
+    /// layer hittable over its whole frame, where SwiftUI honours the inset
+    /// (probe arm S1; a divergence pinned by
+    /// `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`).
     ///
     /// **It moves neither the accessibility frame nor the focus registration**:
     /// the inset is applied at one site, to the bounds `Frame.registerHandlers`

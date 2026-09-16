@@ -572,3 +572,72 @@ private struct TwoMembers: Component {
     #expect(scopeInside == control,
             why("a scope written BEFORE the frame sits inside it (EV-X): the frame layer's handlers are live; got \(scopeInside)"))
 }
+
+// MARK: - 7. OM-J x MC-A: a content shape across a wrapping layer
+
+/// **`.contentShape(inset:)` written BEFORE a wrapping modifier, with the
+/// `onClick` written after it, is inert: the inset lands on the inner layer,
+/// whose `Handlers` carry no click, so the outer layer registers its whole
+/// frame. Written after the wrapper it insets the wrapper's box.** SwiftUI
+/// honours both orders.
+///
+/// Probe `docs/probes/swiftui-content-shape-hit-region.swift`, arms S0–S3
+/// (added by this integration step, 2026-09-16, positive control S3 reads edge
+/// 1): a 120x120 colour padded by 40 in a 200x200 window, clicked at the
+/// centre (100, 100), in the colour's outer band (50, 100) and in the padding
+/// (10, 100).
+///
+/// - S1 `colour.contentShape(inset 20).padding(40).tap` reads 1 / 0 / 0 in
+///   SwiftUI; MetalUI reads 1 / 1 / 1. **Pinned wrong on purpose** — a
+///   divergence (lane 3's verifier measured it; the outer-modifier track
+///   carried it unprobed). It is `OM-I` and `OM-AL`'s mechanism: the default
+///   region is the frame, and a per-layer field does not reach a click on a
+///   layer written after it.
+/// - S2 `colour.padding(40).contentShape(inset 20).tap` reads 1 / 1 / 0 in
+///   both. Agreement.
+///
+/// The two orders are `#require`d to register different regions before
+/// either is believed.
+@Test @MainActor func aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt() throws {
+    @MainActor func arm<E: Element>(_ make: @escaping @MainActor (ClickCounter) -> E)
+        throws -> (regions: [String], clicks: [Int]) {
+        var clicks: [Int] = []
+        var regions: [String] = []
+        for point in [pt(100, 100), pt(50, 100), pt(10, 100)] {
+            let counter = ClickCounter()
+            let (window, platform) = try render { make(counter) }
+            regions = window.lastHitboxes.map(describe)
+            click(platform, at: point)
+            clicks.append(counter.count)
+            withExtendedLifetime(window) {}
+        }
+        return (regions, clicks)
+    }
+
+    let insetBefore = try arm { counter in
+        Box().width(px(120)).height(px(120)).background(.surface)
+            .contentShape(inset: px(20))
+            .padding(px(40))
+            .onClick { counter.bump() }
+    }
+    let insetAfter = try arm { counter in
+        Box().width(px(120)).height(px(120)).background(.surface)
+            .padding(px(40))
+            .contentShape(inset: px(20))
+            .onClick { counter.bump() }
+    }
+
+    try #require(insetBefore.regions != insetAfter.regions,
+                 why("the two orders must register different regions: "
+                     + "\(insetBefore.regions) vs \(insetAfter.regions)"))
+    #expect(insetAfter.regions == ["[20.0 20.0 160.0x160.0]"],
+            why("written after the padding, the inset insets the padded box: \(insetAfter.regions)"))
+    #expect(insetAfter.clicks == [1, 1, 0],
+            why("S2: SwiftUI reads centre 1, band 1, edge 0; got \(insetAfter.clicks)"))
+    // Pinned wrong on purpose: SwiftUI's S1 reads [1, 0, 0].
+    #expect(insetBefore.regions == ["[0.0 0.0 200.0x200.0]"],
+            why("written before the padding, the inset is inert and the padded layer registers "
+                + "its whole frame: \(insetBefore.regions)"))
+    #expect(insetBefore.clicks == [1, 1, 1],
+            why("S1 diverges: SwiftUI reads [1, 0, 0]; MetalUI hits everywhere; got \(insetBefore.clicks)"))
+}

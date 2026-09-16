@@ -1,7 +1,7 @@
 import MetalUICore
 import MetalUILayout
 
-// The legacy path's outer modifiers, `.padding(_:)` and `.frame(width:height:)`,
+// The legacy path's outer modifiers, `.padding(_:)` and every `.frame(...)` spelling,
 // as ONE flat wrapper type (lane 2 of
 // `docs/superpowers/specs/2026-09-15-modifier-composition-design.md`; rulings
 // MC-A, MC-B, MC-C, MC-I, MC-K in

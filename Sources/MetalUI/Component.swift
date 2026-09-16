@@ -390,7 +390,17 @@ enum ComponentModifierOp {
 /// `border`/`focusBorder`/`opacity`/`clipped`/`contentShape` are deliberately
 /// **not** offered on a component —
 /// `decorationBackedModifiersAreNotOfferedOnAComponent` and the `.background()`
-/// typecheck guard in `ErasureCompileGuards.swift` pin the absence.
+/// typecheck guard in `ErasureCompileGuards.swift` pin the absence. The side
+/// door stays open: `anyComponent.frame(...)` returns a `ModifiedElement`, so
+/// `.frame(…).opacity(…).clipped().border(…)` compiles on any component and
+/// scopes its members without distributing (measured at integration,
+/// `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembers`).
+///
+/// **Ops reach node-contributing members only.** `requestGroupLayout` maps them
+/// over the nodes the body returned, so a member that contributes none (a
+/// `Deferred`, a false `if`) receives no wrapper and no amend: its `.padding`
+/// is dropped, as the old amend dropped it (by reading, unpinned; SwiftUI
+/// unprobed).
 ///
 /// **On a proposal body every op traps** (`OM-Z`, closing `MC-G` hole 5): an
 /// amend reaches `LayoutTree.setStyle`, which refuses a native node, and a

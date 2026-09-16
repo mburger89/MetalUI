@@ -294,6 +294,49 @@ let edge = CGPoint(x: 20, y: 100)
         Color.blue.frame(width: 120, height: 120).allowsHitTesting(false).padding(40)
             .contentShape(Rectangle()).onTapGesture { Count.bump("hit") }
     }
+    // S0–S3, added 2026-09-16 by the tasks 4–5 integration step (lane 3's
+    // verifier finding, carried as an open item by the outer-modifier track):
+    // `.contentShape` across a padding layer, in both orders. MetalUI's
+    // `.contentShape(inset: 20).padding(40).onClick { }` puts the inset on the
+    // INNER layer, whose `Handlers` carry no `onClick`, so it registers nothing
+    // and the outer layer's frame-shaped hitbox is live. These arms need a
+    // third click point, in the colour's own outer 20pt band, so they use
+    // `arm3` (centre (100,100), band (50,100), edge (10,100)); the existing
+    // arms and their two points are unchanged.
+    print("--- S: contentShape across a padding layer (120x120 colour at 40…160, padding 40)")
+    arm3("S0 colour.padding(40).tap (control)          ") {
+        Color.blue.frame(width: 120, height: 120).padding(40)
+            .onTapGesture { Count.bump("hit") }
+    }
+    arm3("S1 colour.shape(inset 20).padding(40).tap    ") {
+        Color.blue.frame(width: 120, height: 120)
+            .contentShape(Rectangle().inset(by: 20)).padding(40)
+            .onTapGesture { Count.bump("hit") }
+    }
+    arm3("S2 colour.padding(40).shape(inset 20).tap    ") {
+        Color.blue.frame(width: 120, height: 120).padding(40)
+            .contentShape(Rectangle().inset(by: 20))
+            .onTapGesture { Count.bump("hit") }
+    }
+    arm3("S3 colour.padding(40).shape(Rectangle()).tap ") {
+        Color.blue.frame(width: 120, height: 120).padding(40)
+            .contentShape(Rectangle())
+            .onTapGesture { Count.bump("hit") }
+    }
+}
+
+/// `arm` with three points, each in a fresh window: the centre, a point in the
+/// subject's outer band, and an edge point in the padding.
+@MainActor func arm3<V: View>(_ label: String, _ make: @escaping () -> V) {
+    var counts: [Int] = []
+    for p in [CGPoint(x: 100, y: 100), CGPoint(x: 50, y: 100), CGPoint(x: 10, y: 100)] {
+        _ = Count.take("hit")
+        let w = makeWindow(make())
+        click(w, at: p)
+        counts.append(Count.take("hit"))
+        w.orderOut(nil)
+    }
+    print("  \(label): centre \(counts[0]) band \(counts[1]) edge \(counts[2])")
 }
 
 MainActor.assumeIsolated { run() }

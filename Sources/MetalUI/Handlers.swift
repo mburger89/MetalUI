@@ -217,7 +217,10 @@ public struct Handlers {
     /// `OM-AB`). `Frame.registerHandlers` inserts a hitbox only when
     /// `handlers.isPointerTarget`, so this field on an element with no
     /// `onClick` is written and never read — the same shape as a
-    /// `hoverBackground` with no `onClick`, which never paints.
+    /// `hoverBackground` with no `onClick`, which never paints. On a
+    /// `ModifiedElement` chain each layer has its own `Handlers`, so an inset
+    /// on a layer inside the one carrying the `onClick` is never read either
+    /// (probe arm S1, a divergence; integration record §16).
     ///
     /// **Applied in exactly one place**: the bounds `Frame.registerHandlers`
     /// hands `insertHitbox`. Focus registration, the `$focus` write, the
