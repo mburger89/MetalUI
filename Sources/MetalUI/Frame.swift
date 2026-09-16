@@ -1623,7 +1623,7 @@ public final class Frame {
 
     /// Emits one filled rect, optionally with rounded corners.
     ///
-    /// Borders and explicit z-order are still ahead (§7.3): every rect here is
+    /// Explicit z-order is still ahead (§7.3): every rect here is
     /// emitted at `order: 0`, and `Scene.finalize()` sorts stably, so equal
     /// orders keep emission sequence — which is why a container's own
     /// background paints under its children provided it emits first.
