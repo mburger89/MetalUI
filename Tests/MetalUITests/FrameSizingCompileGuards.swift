@@ -106,3 +106,68 @@ func theNoArgumentFrameIsADeprecatedNoOpOnBothPaths() throws {
     #expect(result.messages.contains("Please pass one or more parameters"),
             "the deprecation must carry SwiftUI's own message:\n\(result.output)")
 }
+
+/// **Every `frame` spelling on a proposal element resolves to the PROPOSAL
+/// overload, now that the legacy path declares the same signatures**
+/// (lane 2's overload fixture; rulings `FR-C`, `FR-D`, `FR-S`, critic finding 5).
+///
+/// Until this lane the two paths' `frame` overloads had *different* parameter
+/// lists, so a call could be resolved by its argument labels alone. They are
+/// identical now, and the only thing choosing between them is that
+/// `ProposalElementGroup`'s extension is more specialized.
+///
+/// **Mis-resolution here is silent, which is why the fixture asserts the
+/// inferred TYPE rather than that the call compiles.** A legacy overload
+/// winning on a proposal element produces a `ModifiedElement<…>` wrapping a
+/// native subtree — that compiles, and then meets ruling `SA-G` (`newNode`
+/// refuses a native child) at run time; and `.frame(idealWidth: 80)` resolving
+/// to the `ElementGroup` overload would turn a working SwiftUI idiom into
+/// `FR-D`'s trap. Test 2.4's fourth arm is the run-time half of the same claim.
+///
+/// The legacy arms are the other half: the same four spellings on a legacy leaf
+/// must infer `ModifiedElement<LegacyLeaf>`, so a fixture that passed because
+/// BOTH paths had regressed to one overload would still fail.
+@Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
+func everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload() throws {
+    let result = try typecheckFile(bothLeavesSource + """
+        @MainActor public func probe() {
+            let fixed = ProposalLeaf().frame(width: Pixels(10))
+            let pinnedFixed: ModifiedContent<ProposalLeaf> = fixed
+            _ = pinnedFixed
+
+            let flexible = ProposalLeaf().frame(minWidth: Pixels(10), idealWidth: Pixels(20),
+                                                maxWidth: Pixels(30))
+            let pinnedFlexible: ModifiedContent<ProposalLeaf> = flexible
+            _ = pinnedFlexible
+
+            let ideal = ProposalLeaf().frame(idealWidth: Pixels(20))
+            let pinnedIdeal: ModifiedContent<ProposalLeaf> = ideal
+            _ = pinnedIdeal
+
+            let aligned = ProposalLeaf().frame(alignment: .topLeading)
+            let pinnedAligned: ModifiedContent<ProposalLeaf> = aligned
+            _ = pinnedAligned
+
+            let legacyFixed = LegacyLeaf().frame(width: Pixels(10))
+            let pinnedLegacyFixed: ModifiedElement<LegacyLeaf> = legacyFixed
+            _ = pinnedLegacyFixed
+
+            let legacyAligned = LegacyLeaf().frame(width: Pixels(10), height: Pixels(10),
+                                                   alignment: .topLeading)
+            let pinnedLegacyAligned: ModifiedElement<LegacyLeaf> = legacyAligned
+            _ = pinnedLegacyAligned
+
+            let legacyFlexible = LegacyLeaf().frame(minWidth: Pixels(10), maxWidth: Pixels(30))
+            let pinnedLegacyFlexible: ModifiedElement<LegacyLeaf> = legacyFlexible
+            _ = pinnedLegacyFlexible
+
+            let legacyAlignmentOnly = LegacyLeaf().frame(alignment: .topLeading)
+            let pinnedLegacyAlignmentOnly: ModifiedElement<LegacyLeaf> = legacyAlignmentOnly
+            _ = pinnedLegacyAlignmentOnly
+        }
+        """, importing: "MetalUI")
+    print("FR-S overload resolution: succeeded=\(result.succeeded) messages=[\(result.messages)]")
+
+    #expect(result.succeeded,
+            "every frame spelling must infer its own path's wrapper type:\n\(result.output)")
+}
