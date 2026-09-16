@@ -719,14 +719,22 @@ private func nodeCount<Root: Element>(_ make: (SizeLog) -> Root) throws -> Int {
 /// unmodified element leaves it; `.frame(width:)` adds one. Two vocabularies,
 /// two different operations, one observable that cannot be argued with.
 ///
-/// Half one's mutation is `FR-F`'s refusal made executable, and it is a
-/// **compile** result rather than a red test: routing `width(_:)` and
-/// `height(_:)` through `frame(width:)`/`frame(height:)` cannot keep their
-/// `-> Self` return type, so the package stops building — measured in this
-/// lane at 11 errors across `main.swift`, `EnvironmentTests`, `ModifierTests`,
-/// `AccessibilityTreeTests` and `ProposalNodeIDTests` (record §14). That a
-/// sizing modifier cannot be made to wrap without changing its signature IS
-/// the reason the conversion is deferred to plan task 7.
+/// Half one's mutation for the six is `FR-F`'s refusal made executable, and it
+/// is a **compile** result rather than a red test: a modifier that returns
+/// `Self` cannot add a node, so routing `width(_:)`/`height(_:)` through
+/// `frame(width:)`/`frame(height:)` must change their return type, and the
+/// package then stops building. Measured this lane: `swift build
+/// --build-tests` halts in `MetalUIDemo` at **2** errors (`main.swift:266`'s
+/// `-> Box<Text>` helper and `:290`'s `typealias Chrome`), and building
+/// `MetalUITests` alone — which skips the demo — reports **70** distinct error
+/// sites across six files (`AccessibilityTreeTests` 60,
+/// `AccessibilityEndToEndTests` 4, `ModifierTests` 2, `EnvironmentTests` 2,
+/// `ProposalNodeIDTests` 1, `AnimationTests` 1). That is why the conversion is
+/// deferred to plan task 7 rather than done here.
+///
+/// The frame arm of half one has an ordinary mutation: make the legacy
+/// `frame(width:height:alignment:)` `_wrap` twice, and `framed == bare + 1`
+/// reddens (along with seven other tests).
 ///
 /// **Half two, the automatic minimum**, on the demo's own shape
 /// (`main.swift:878-881`): a `flexGrow(1)`, `flexBasis(0)` box holding 400pt of

@@ -49,6 +49,17 @@ public struct Rems: ScalarUnit {
 public enum Length: Hashable, Sendable {
     case pixels(Pixels)
     case rems(Rems)
+
+    /// A **fraction** of the containing block, not a percentage: `0.5` is half.
+    /// `resolveLength` is `f * parent`, and every call site in `Sources/` and
+    /// in the layout fixtures passes `0.5`, `0.25`, `0.10`.
+    ///
+    /// **`MetalUI`'s `width(percent:)`/`height(percent:)`/`flexBasis(percent:)`
+    /// forward their argument to this case untouched**, so those parameters are
+    /// fractions wearing a percentage's name and `width(percent: 50)` means
+    /// 5000% — ruling `FR-T`
+    /// (`docs/superpowers/2026-09-15-frame-sizing-decisions.md`), pinned by
+    /// `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock`.
     case percent(Float)
 }
 
