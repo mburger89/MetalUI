@@ -564,3 +564,213 @@ Exactly `CN-S` row 3 (= row 2); the moved rects are lane 2's.
   pinned; only its size is, as the spec says.
 - The horizontal `ProposalScrollView` beside-spacer case is unprobed in a
   discriminating form (SC5 horizontal cannot tell).
+
+## Lane 4 — root, `ZStack` placement, overlay and background content, duplicate registration, scroll axes (`CN-J`, `CN-E`'s `ZStack` clause, `CN-K`, `CN-L`, `CN-M`, `MC-L`'s item)
+
+2026-09-16. Commits: `400e844` (tests, red), `1ae17cc` (implementation and
+the existing tests it moved), then this record with the as-built addenda.
+Baseline: `6133316`, `Test run with 1333 tests in 1 suite passed` (native,
+unfiltered).
+
+### Red first
+
+Fifteen spec tests, sixteen `@Test`s: 4.4 has a kernel half
+(`aZStackPlacesItsChildrenAtItsOwnSizeWithinTheirUnion`,
+`NativeStackDistributionTests.swift`) and an element half
+(`aZStackRootPlacesItsChildrenAtItsOwnSizeWithinTheirUnion`,
+`ContainerIntegrationTests.swift`), because the two halves live in different
+test targets. 4.9 replaces the pin in `ProposalNodeIDTests.swift`, whose
+private leaf types its arms reuse. The rest are in `ContainerIntegrationTests.swift`.
+Removed: `aNativeNodeRegisteredTwiceIsNotRejected`,
+`aProposalScrollViewStacksDirectChildrenWithSwiftUIsDefaultSpacing`,
+`aHorizontalProposalScrollViewAlsoStacksDirectChildrenVertically`.
+
+**Against `6133316` the test targets do not compile**: `incorrect argument
+label in call (have 'root:proposal:centredIn:', expected 'root:proposal:in:')`
+(`ContainerIntegrationTests.swift:720`, `:724`), `trailing closure passed to
+parameter of type 'ColorToken' that does not accept a closure` at every
+`.background { … }` (`:712`, `:830`, `:837`, `:843`, `:902`, `:953`, `:994`,
+`:1076`), and `type 'ColorToken' has no member 'bottomTrailing'` /
+`cannot convert value of type 'ProposalAlignment' to expected argument type
+'ColorToken'` at `.background(alignment:)` (`:778`, `:985`).
+
+A **temporary, uncommitted shim** (`Sources/MetalUI/ZZShim.swift`:
+`.background(alignment:content:)` returning an `OverlayModifier`, and
+`computeNativeLayout(root:proposal:centredIn:)` forwarding to `in:` the full
+container) let the targets build; each test was run **filtered on its own**
+(several trap: shape 13), then the shim was deleted and `git status --short`
+showed only the tests.
+
+| # | test | first failure |
+|---|---|---|
+| 4.1 | `aNativeRootIsCentredAtItsAnswer` (6) | `:695` R1 `log.bounds["a"] == rect(21, 40, 58, 20)` (also R2, R3, R4 and both kernel arms) |
+| 4.2 | `severalViewsInAnOverlayOrBackgroundAreACentredZStackPositionedByTheAlignment` | **process trapped**: `NativeOverlayModifier.swift:73: Precondition failed: a native overlay modifier requires one primary and one overlay node` |
+| 4.3 | `overlayAndBackgroundContentIsPlacedAtThePrimarysSize` | trapped at the same line (its K5e arm) |
+| 4.4 kernel | `aZStackPlacesItsChildrenAtItsOwnSizeWithinTheirUnion` (15) | `NativeStackDistributionTests.swift:1549` Z1 `arm.proposals("h") == [p(60, 40), p(30, 20)]`; `:1550` Z1 h `rect(3, 5, 15, 10)` |
+| 4.4 element | `aZStackRootPlacesItsChildrenAtItsOwnSizeWithinTheirUnion` (5) | `:869` Z1 proposals; `:870` Z1 h `rect(18, 15, 15, 10)` |
+| 4.5 | `anEmptyOverlayOrBackgroundLeavesThePrimaryAlone` | trapped at `NativeOverlayModifier.swift:73` |
+| 4.6 | `aClickOverABackgroundAndItsPrimaryReachesThePrimary` (1) | `:961` `#require(overlayCentre != backgroundCentre)` (the shim's background is an overlay) |
+| 4.7 | `aBackgroundIsProposedThePrimarysSizeAlignedAndPaintedBeneath` (1) | `:995` `#require(overlay != background)` |
+| 4.8 | `aBackgroundsContentKeepsItsStateWhenThePrimaryChangesShape` (1) | `:1079` `#require(log.bounds["p"] == rect(20, 20, 60, 60))` (the root filled the window) |
+| 4.9 | `aNativeNodeRegisteredTwiceTraps` (4) | `ProposalNodeIDTests.swift:263` `expected exit status ".failure", but ".exitCode(EXIT_SUCCESS)"` (arm a; arm b at `:273`) |
+| 4.10 | `everyZStackAndOverlayAlignmentPlacesAndSizesAsTheProbeReads` (26) | `:1144` A3 big `rect(20, 30, 60, 40)` — red for the root's offset alone: the relative placements already agreed, as the spec said |
+| 4.11 | `aProposalScrollViewAnswersItsContentOnItsNonScrollingAxis` (6) | `:1182` SC2 vertical c `rect(25, 0, 50, 30)` |
+| 4.12 | `aProposalScrollViewPlacesSmallContentAtTheLeadingEdgeOfItsScrollingAxis` | green on arrival, its `#require` holding |
+| 4.13 | `aProposalScrollViewAnswersItsProposalOnItsScrollingAxis` | green on arrival (the kernel agrees since lane 2) |
+| 4.14 | `aProposalScrollViewsDirectChildrenAreACentredDefaultSpacedVStackOnEitherAxis` (4) | `:1291` SC3 vertical a `rect(75, 0, 50, 30)` (and the horizontal arm, `:1297`) |
+| 4.15 | `twoProposalScrollViewsInOneOverlayKeepSeparateOffsets` | trapped at `NativeOverlayModifier.swift:73` |
+
+### What changed
+
+`Sources/MetalUILayout/LayoutTree.swift`:
+- `computeNativeLayout(root:proposal:centredIn:)` (public): one run, measure
+  at the proposal, place at `((w − answer.w)/2, (h − answer.h)/2)` in the
+  container at the answer (`CN-J`).
+- `.overlay` placement (`CN-E`): B = the stored bounds' size; each child is
+  measured at B and placed at its answer aligned within the union U of those
+  answers, U at the bounds' origin, with B as its placement proposal.
+- `.scrollViewport` measurement answers the content's size on the
+  non-scrolling axis (`scrollViewportSize(axis:proposal:content:)`, `CN-M`).
+- A stored `nativeParents: [Int: Int]` and `recordParent(_:of:)`, called after
+  `appendNode` by all ten native registrars with children; it traps with
+  `… registered under a second parent … (MC-G hole 4, ruling CN-L)`.
+  `reset(generation:)` clears it. **A stored property on a public class read
+  across a module boundary: the suite ran after `swift package clean`.**
+- Doc comments: `newNativeOverlay`, `newNativeScrollViewport`.
+
+`Sources/MetalUI/`:
+- `Frame.computeRootLayout` calls the centred entry; its doc comment no longer
+  says it "runs the flex engine" for both roots.
+- `NativeOverlayModifier.swift`: the one-node precondition on the overlay side
+  is gone; `OverlayModifier` lowers through
+  `LayoutPass.requestSecondaryContentAttachment(primary:secondary:alignment:modifier:)`
+  (internal, in `NativeBackgroundModifier.swift`): the primary must be exactly
+  one node; zero secondary nodes return the primary's node; one is the
+  attachment's content; several are one kernel `overlay` at `.center`, which
+  the attachment positions with the modifier's alignment (`CN-K`).
+- `NativeBackgroundModifier.swift` (new): `BackgroundModifier` and
+  `.background(alignment:content:)`; the same lowering; content numbered from
+  0 under `.child(of: id, at: -1)`; **prepaint and paint run the background
+  before the primary**. `ProposalElementGroup.swift` gains
+  `extension BackgroundModifier: ProposalElement {}`.
+- `ProposalNodeID.swift`'s header: hole 4 closed at run time.
+- Doc comments: `ZStack`, `ProposalScrollView`'s lowering (SC3, `CN-M`).
+
+The demo (`main.swift`) needed no change.
+
+### The nineteen existing tests
+
+Measured red at `1ae17cc`'s implementation before the edits, then each re-read
+and re-derived by hand. **The spec's stage-4 list** (13 besides the two
+removed and the replaced pin) — all red, each for the reason named:
+
+| test | moved by | now |
+|---|---|---|
+| `aNativeOverlayForwardsOneProposalMeasuresTheLargestChildAndCentresEachChild` | the `ZStack` rule (bounds larger than the answer) | rebuilt at bounds = answer (40×50), second child 20×50 so both offsets are integral; each leaf asked (120, 80) then (40, 50), 2 calls each |
+| `aNativeOverlayPlacesEveryChildAtTheRequestedAlignment` | the `ZStack` rule | bounds = the 50×40 answer; first at (33, 47) |
+| `everyProposalAlignmentPlacesAnOverlayChildAtItsNamedPosition` | the `ZStack` rule (a lone child is its own union) | a 100×80 sibling makes the union; the nine expected rects are unchanged |
+| `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal` | the `ZStack` rule (B placed at 100×50 proposes its children 100×50) | re-derived by hand: 64 calls / 51 hits / 90 misses (lanes 2–3: 62 / 53 / 87; place B now 3 misses, 2 hits, 2 calls where it was 4 hits). The prototype's 46/48/66 is not comparable (`CN-B`'s lane 1 note) |
+| `aNativeRootRunsThroughTheFramePipelineWithoutInvokingFlexLayout` | centring and the `ZStack` rule | proposals [140×90, 40×20], 2 calls, bounds (50, 35) 40×20 |
+| `anOverlaysIdentityDoesNotDependOnTheIndicesItsPrimaryConsumed` | centring (bounds only) | overlay at (20, 20), clicks at (25, 25); the identity claims unchanged |
+| `aProposalLayoutContainerRendersThroughTheFramePipeline` | centring | the 82×41 padding root at (29, 24.5): (36, 36), (56, 46), (86, 61), rounded |
+| `hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt` | centring | 49 and 45 (58×10 at x 21; 50×10 at x 25) |
+| `vStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt` | centring | 34 and 30 |
+| `nativeModifierChainsRemainConcreteAndWrapInDeclarationOrder` | centring (the padding root no longer fills the window, so the padding's stored-bounds-minus-insets divergence does not show) | (50, 45) |
+| `spacerMinimumLengthSurvivesAConstrainedStackProposal` | centring (a 50pt root in a 20pt window at x −15) | (25, 15) |
+| `fixedSizeModifierWithholdsOnlyItsSelectedAxisFromTheChildProposal` | centring and the `ZStack` rule | proposals [(nil, 80), (nil, 10)], `NativeProposalProbe` gains an `expectedProposals:` initializer |
+| `aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI` | centring | **a finding**: centring alone would put an 80pt and a 40pt frame's leaf at the same x (90). A 200×10 sibling keeps the stack as wide as the window; the leaf reads x 30. Instrument check: with the frame's `maxWidth` removed (a 40pt, non-greedy frame) the test reads x 10 and is red (filtered, `:1047`) |
+
+**Outside the stage-4 list** (six, all moved by centring; none moved by
+anything else):
+- `anIdealFrameWidthBecomesItsOuterWidthWhenTheAxisIsUnspecified` and
+  `…Height…`: lane 1 wrapped each stack in `.fixedSize`, so the root answers
+  less than the window on the cross axis and centring now shows: (80, 15) and
+  (15, 80). The prototype predates that wrapping.
+- `aDefaultSpacerAndAGreedyFrameThroughTheElementAPI` (SP1),
+  `aStackWithoutSpacingPutsEightBetweenViewsAndNothingBesideASpacer` (element
+  half), `explicitStackSpacingIsUsedForEveryGapIncludingBesideASpacer`: written
+  in lanes 2–3 after the prototype, with `.fixedSize()` roots in a larger
+  window. Expectations carry the centring offset, derived in each doc comment.
+- `aProposalTextStackUsesEightWhereSwiftUIUsesFontSpacing`: its three roots
+  differ in height, so centring moved each marker differently; each root now
+  sits in a 300×300 top-leading frame, keeping its arithmetic.
+
+### Suite
+
+After `swift package clean`, `swift build --build-system native
+--build-tests` (0 `error:`, no `warning:` besides SwiftPM's deprecation
+notice), unfiltered: **`Test run with 1346 tests in 1 suite passed`**, 0
+`error:`. 1333 + 16 − 3 = 1346. The spec's 1339 was written before lane 3's
+guards were counted as tests and before lane 3's verifier round (1333 at this
+lane's start), and it counted 4.4 as one test. Default build system (`swift
+build`, `swift test --no-parallel`): six summary lines, 65 + 738 + 55 + 28 +
+438 + 22 = **1346**, all passed, 0 `error:`, 0 `warning:`. No test besides 4.9's arms
+tripped `CN-L`'s trap. Goldens: 97, unchanged against `9e439cb`
+(`git diff --quiet`). No guard added.
+
+### Mutations
+
+`1ae17cc`, each applied in this worktree, built `--build-system native
+--build-tests`, the unfiltered suite run, `git checkout -q Sources`, `git
+status --short` empty after each.
+
+| mutation | red (named test in bold) |
+|---|---|
+| M1 place the root at the full container (`centredIn:` ignores the answer) | **4.1** (6), 4.4 element (6), 4.6, 4.8, 4.10 (28), 4.11 (4), 4.14 (4), and 24 existing root-placement tests — 108 issues, 31 tests |
+| M2 the implicit `ZStack` takes the modifier's alignment | **4.2** only (2: K5g's h and K5h's h) |
+| M3 the attachment places its content at the content's own answer | **4.3** only (5: K5d's two rects, the background K5d's two, K5f's proposal) |
+| M4a a `ZStack` places at its parent's proposal | **4.4** kernel (15) and element (5), 4.2 (8), 4.3 (3), `aNativeOverlayForwardsOne…`, the branching-tree counts, `aNativeRootRunsThrough…`, `fixedSizeModifier…` |
+| M4b centre in the bounds instead of the union | **4.4** kernel (4) and element (2), 4.2 (6), 4.3 (2) |
+| M5 an empty slot registers an attachment over a zero-size leaf | **4.5** only (2: both node counts) |
+| M6 prepaint the primary before the background | **4.6** only (1: H1 centre) |
+| M7 paint the background after the primary | **4.7** only (1: background order) |
+| M8 number the background under the primary's cursor | **4.8** only (3: first/second/third readings) |
+| M9a delete `recordParent`'s precondition | **4.9** only (4: both arms' exit status and message) |
+| M9b do not clear `nativeParents` in `reset` | **the unfiltered suite truncates**: `aResetTreeMeasuresItsNewRegistrationsFromScratch` traps in-process at the parent record, no summary line (shape 13). Filtered, **4.9**'s reset arm reads `expected exit status ".success", but ".signal(SIGTRAP)"` (`:283`). So an existing in-process test already pins the clear, and truncates the suite if it is lost |
+| M10 swap `horizontalFactor`/`verticalFactor` in `.overlay` placement | **4.10** (6), `everyProposalAlignmentPlacesAnOverlayChildAtItsNamedPosition` (6) |
+| M11 answer the proposal on the cross axis | **4.11** (6), 4.14 (4), 4.15 (1: narrow covers wide, so the first wheel's `#require` fails) |
+| M12 centre the content in the viewport | **4.12** (1), 4.11 (4), 4.14 (4), four existing scroll-viewport tests |
+| M13 answer the content at ∞ on the scrolling axis | **4.13** (2), `anInfiniteProposalIsAnsweredWithInfinity` (2) |
+| M14 lower several children horizontally for `.horizontal` | **4.14** only (2: the horizontal a and b) |
+| M15 key `ProposalScrollView`'s state and region on the parent id | **4.15** only (1: narrow moved with wide) |
+
+### Demo comparison (`CN-S` row 4)
+
+`ioreg -n Root -d1 -a` read `IOConsoleLocked` `<true/>`: no real window
+captures. Stand-in: the harness (`scratchpad/harness/gen.py`, twelve images
+through a real `Window` over `FakePlatformWindow`) on `git archive 1ae17cc`.
+
+| comparison | differing pixels |
+|---|---|
+| controls, head: light vs dark / default vs modal / default vs animation / f0 vs f3 / preview light vs dark | 1 048 576 / 1 030 498 / 210 027 / 0 / 1 048 576 |
+| eight legacy images + `small560-default-light` vs `9e439cb` | **0**, scenes identical |
+| `preview-light`, `preview-dark` vs `9e439cb` | **1 109** each, bbox (264, 212)–(939, 865) |
+| `small560-preview-light` vs `9e439cb` | **65 449**, bbox (0, 0)–(559, 559) |
+| `preview-*` vs lane 3 (`f916d1c`) | 921 each, bbox (596, 212)–(939, 307) |
+| `small560-preview-light` vs lane 3 | 14 998, bbox (388, 191)–(543, 354) |
+
+Exactly `CN-S` row 4. **The moved rect, traced:** against lane 3 the 1024
+preview's scene differs only in 48 `MUISize(width: 856.0` → `520.0` fields —
+the `ProposalScrollView`'s border, clip and mask rects — so its viewport now
+answers its content's width (SC2, `CN-M`); no origin moved, so the preview's
+greedy root did not move under `CN-J`. The 560 preview's scroll view narrows
+the same way inside a compressed layout. `demoContent()` names no proposal
+type, so the legacy zeros are not evidence for this lane (`CN-S`).
+
+### Not done here, and why
+
+- `CLAUDE.md`, `AGENTS.md`, the plan and the record index: the Docs phase.
+  Candidates: the SwiftUI-alignment section's root paragraph ("stored at the
+  full window … a root stack packs from the leading edge", with
+  `hStackUsesThePlatformDefaultSpacingUnlessTheCallerOverridesIt`'s x = 28,
+  now 49); the "Single-child proposal wrappers" sentence (both `.overlay` slots
+  no longer precondition one node — only the primary does); `MC-G`'s holes
+  ("one id used twice does not trap" now traps; "A precondition closing the
+  orphan or duplicate hole truncates the suite" is half-done); the vocabulary
+  gains `.background(alignment:content:)`; `ProposalScrollView` answers its
+  content on the cross axis; the `Deferred`/overlay divergence for H3 (a
+  non-clickable proposal primary does not block its background's click); the
+  kernel-caller `ZStack` placement note (`CN-E`); padding's
+  bounds-minus-insets pin (`SA-N`, task 5) no longer shows at a centred root.
+- Two-axis scrolling (SCG2 `.both` centring): task 10 (`CN-M`).
+- H3 is a recorded difference, not adopted (`CN-K`).

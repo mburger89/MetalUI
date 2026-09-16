@@ -382,6 +382,15 @@ ideal instead of matching its widest sibling (the common `VStack` of labels and
 a `.frame(maxWidth: .infinity)` divider); a `ZStack` whose children shrink when
 re-proposed sits off-centre by half the shrinkage.
 
+**Lane 4, as built** (`1ae17cc`; record §17). The `ZStack` clause as ruled:
+`placeNative`'s `.overlay` case measures each child at the stored bounds' size,
+aligns its answer within the union at the bounds' origin, and passes the
+bounds' size as the child's placement proposal. The kernel-caller tests were
+rebuilt at bounds equal to the answer. The branching tree's third count moved
+with it, re-derived by hand: 64 calls / 51 hits / 90 misses (B, placed at
+100×50, now proposes its children that size). Mutations M4a and M4b in record
+§17.
+
 ---
 
 ## CN-F — an infinite proposal is answered with infinity by a frame, a spacer and a scroll viewport (reverses `FR-B`)
@@ -673,6 +682,17 @@ and (by `CN-E`) re-proposes its child (nil, 10) where the test expects
 **What it costs if wrong.** A small native root sits in the window's centre
 instead of its top-left; loud, and pinned by R1's numbers.
 
+**Lane 4, as built** (`1ae17cc`; record §17). As ruled, as a new public
+`computeNativeLayout(root:proposal:centredIn:)`. The root is centred only by
+`Frame.computeRootLayout`; `computeNativeLayout(root:proposal:in:)` still
+places at the caller's bounds. Nineteen existing tests moved: thirteen on the
+stage-4 list and six written or reshaped after the prototype (lane 1's
+`.fixedSize` wrapping of the ideal-frame tests, lanes 2–3's `.fixedSize()`
+roots). All six moved by centring alone. One of the thirteen,
+`aFlexibleFrameElementGrowsToItsProposalThroughTheElementAPI`, lost its
+discrimination under centring (an 80pt and a 40pt frame put the leaf at the
+same x). A 200pt sibling restored it, and a filtered instrument check shows it.
+
 ---
 
 ## CN-K — overlay and background content: several views are a centred `ZStack`, none is nothing, `.background` takes content and sits beneath for hits
@@ -732,6 +752,12 @@ placement is pinned by K5a/K5g's numbers; a background whose content registered
 last would take the primary's clicks while painting beneath it — pinned by a
 click test and its prepaint-order mutation.
 
+**Lane 4, as built** (`1ae17cc`; record §17). As ruled. `BackgroundModifier`
+lives in `Sources/MetalUI/NativeBackgroundModifier.swift`, with the shared
+lowering. The overlay side's one-node precondition is gone from both
+modifiers; the primary's stays, with the modifier's name in its message.
+Mutations M2, M3, M5–M8 each redden only their own test (record §17).
+
 ---
 
 ## CN-L — a native node registered under two parents traps (`MC-G` hole 4)
@@ -760,6 +786,17 @@ cleared (without the clear, index 0 would still hold its old parent and trap).
 used to lay out one of its two slots; no such tree exists in `Sources/`, and the
 unfiltered suite has none either.
 
+**Lane 4, as built** (`1ae17cc`; record §17). As ruled: a stored
+`nativeParents: [Int: Int]`, written by `recordParent(_:of:)` after
+`appendNode` in the ten native registrars with children, and cleared by
+`reset`. The suite ran after `swift package clean`. The pin became the exit
+test in `400e844`, before the precondition landed in `1ae17cc`. No other test
+tripped the trap. **Measured:** without the clear in `reset` (M9b), the
+unfiltered suite truncates in-process at
+`aResetTreeMeasuresItsNewRegistrationsFromScratch`, which is an existing
+test's shape-13 truncation. Test 4.9's reset arm is red only when it runs
+filtered.
+
 ---
 
 ## CN-M — scroll axes
@@ -787,6 +824,12 @@ one track, and SCG2's centring rule has nothing to attach to until they do.
 
 **What it costs if wrong.** A proposal scroll view is as wide as its content on
 its cross axis rather than as its parent; the preview shows it.
+
+**Lane 4, as built** (`1ae17cc`; record §17). As ruled:
+`scrollViewportSize(axis:proposal:content:)`. The 1024 preview's scene
+differs from lane 3's only in the scroll view's 48 widths, 856 → 520 (record
+§17). Tests 4.12 and 4.13 were green on arrival as the spec said, and their
+mutations (M12, M13) redden them.
 
 ---
 

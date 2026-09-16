@@ -448,7 +448,11 @@ kernel-caller note so the nine stay distinct);
 axis" before it is edited; a test moved by none is a finding.
 
 **Expected counts:** 1327 + 15 − 3 = **1339**. **Demo:** `CN-S` row 4 (preview
-1 109 each, small 65 449) — the lane records each moved rect.
+1 109 each, small 65 449) — the lane records each moved rect. (As built: **1346** — 1333
+at the lane's start, plus sixteen `@Test`s (4.4's kernel and element halves are
+in different targets), minus three; nineteen existing tests moved, six of them
+outside the list above, all by centring; the demo read row 4 exactly. Record
+§17.)
 
 ### Lane 5 — the legacy path: single-child frame, `fraction:`, three divergence pins
 
