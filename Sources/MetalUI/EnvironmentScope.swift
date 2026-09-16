@@ -48,9 +48,11 @@ public struct EnvironmentScopeLayout<ContentLayout> {
 /// `.padding(_:)` does compile after a scope; whether it sits inside or outside
 /// the scope is not measured (ruling EV-X).
 ///
-/// **`.frame(width:height:)` may follow a scope**, because it is declared on
-/// `ElementGroup` and returns a `StyledElement`, so any `StyledElement`
-/// modifier may follow *it*. **Such a modifier sits OUTSIDE the scope**, as in
+/// **`.frame(...)` may follow a scope** — both overloads,
+/// `frame(width:height:alignment:)` and the flexible
+/// `frame(minWidth:idealWidth:maxWidth:…)` plan task 4 added — because each is
+/// declared on `ElementGroup` and returns a `StyledElement`, so any
+/// `StyledElement` modifier may follow *it*. **Such a modifier sits OUTSIDE the scope**, as in
 /// SwiftUI (ruling EV-X, probe `swiftui-disabled-ancestor-and-order.swift` O2,
 /// O3, O6): in `X().theme(.dark).frame(width: 20, height: 20).background(.surface)`
 /// the frame layer paints with the enclosing theme, and only `X` paints dark.

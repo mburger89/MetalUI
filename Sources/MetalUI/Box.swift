@@ -589,41 +589,134 @@ extension StyledElement {
     }
 
     // MARK: Size
+    //
+    // **These eight write THIS element's own CSS box. `.frame(...)` is
+    // SwiftUI's spelling and it is a different operation** — plan task 4's
+    // sizing inventory, rulings `FR-F`, `FR-G` and `FR-H`
+    // (`docs/superpowers/2026-09-15-frame-sizing-decisions.md`).
+    //
+    // A modifier here overwrites a field of the receiver's `Style` and returns
+    // `Self`. `.frame(...)` wraps the receiver in a new outer layer of a
+    // `ModifiedElement` and returns that. The difference is observable, and
+    // `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt`
+    // (`Tests/MetalUITests/FrameSizingTests.swift`) pins it: each of the eight
+    // leaves `LayoutTree.nodeCount` exactly where the unmodified element leaves
+    // it, and `.frame(width:)` adds one. Three consequences a caller meets:
+    //
+    // - `Box(decoration:).width(36)` paints a 36pt-wide decorated box;
+    //   `Box(decoration:).frame(width: 36)` paints the decoration at the
+    //   child's own size inside a 36pt layer (the design session's scratch
+    //   L8, `FR-F`; UNPINNED — no committed test renders a decoration inside
+    //   a frame).
+    // - a `hoverBackground` declared *before* a `.frame` stays on the inner
+    //   element, at the inner element's size, as a `.background` before a
+    //   `.frame` does in SwiftUI (`docs/probes/swiftui-modifier-order.swift`,
+    //   arm O1: the inner leaf reads 20×20 inside a 60×60 frame). A handler
+    //   declared before a `.frame` stays there too (scratch L4: a 0×0 hitbox
+    //   at (30, 20), `FR-F`); that SwiftUI's gesture hit area does the same is
+    //   by reading, unprobed.
+    // - the clamps below can cancel flex §4.5's automatic minimum; a frame
+    //   layer's `minSize` cannot reach into its child to do it (`minHeight`'s
+    //   comment has the numbers).
+    //
+    // **None of the eight is deprecated, and that is a ruling rather than an
+    // oversight** (`FR-I`): the branch gates on 0 `warning:`, so a `renamed:`
+    // hint means migrating every caller in the same change — several hundred
+    // for `width`/`height` alone (`git grep -oE '\.(width|height)\(' --
+    // Sources Tests | wc -l`: 686 at `c4b5853`, and every test added since
+    // moves it, so the number is not written here). Plan task 7, which
+    // removes the legacy engine,
+    // owns the migration and `FR-F` holds its recipe. New code should reach for
+    // `.frame(...)`.
 
+    /// Writes this element's own CSS `width`. SwiftUI's spelling is
+    /// `.frame(width:)`, which wraps instead — see the section comment above.
     public func width(_ points: Pixels) -> Self {
         modifying { $0.size.width = .length(.pixels(points)) }
     }
 
+    /// Writes this element's own CSS `height`. SwiftUI's spelling is
+    /// `.frame(height:)`, which wraps instead — see the section comment above.
     public func height(_ points: Pixels) -> Self {
         modifying { $0.size.height = .length(.pixels(points)) }
     }
 
-    /// A percentage of the **containing block's** corresponding axis.
+    /// This element's own CSS `width`, as a **fraction** of the containing
+    /// block's width. SwiftUI has no counterpart at all, which is why this one
+    /// is kept as an explicit MetalUI divergence with a test (`FR-H`); its
+    /// nearest, `containerRelativeFrame`, resolves against a named container
+    /// rather than a containing block.
     ///
-    /// On the root this does not do what it says: `resolveRootSize` falls back
-    /// to the offered space, so `width(percent: 50)` in an 800-wide window gives
-    /// 800 where WebKit gives 400. CLAUDE.md carries the row.
+    /// **The parameter is a fraction and its name says otherwise** (ruling
+    /// `FR-T`): `Length.percent` is `f * parent` in `resolveLength`, so
+    /// `width(percent: 0.5)` is half the containing block and
+    /// **`width(percent: 50)` is 5000%** — 15000pt inside a 300pt parent.
+    /// Measured and pinned wrong on purpose by
+    /// `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock`
+    /// (`Tests/MetalUITests/FrameSizingTests.swift`), which also records that
+    /// the "≈30000pt `Column` defect" is nothing but 100 × 300 seen through a
+    /// centring parent. Correcting the unit is a silent behaviour change to a
+    /// public API with no oracle above CSS; plan task 6 owns it.
+    ///
+    /// The **root** is not a special case: ruling `SZ-A` made `resolveRootSize`
+    /// resolve a root percentage against the extent that axis was offered
+    /// (oracle `rootPercentageMatchesWebKit`,
+    /// `Tests/MetalUILayoutTests/SizingFixtureTests.swift`), and CLAUDE.md's
+    /// row for the old fallback was deleted. This comment used to claim the
+    /// fallback was still live; it was not, and the test's middle arm is what
+    /// keeps that honest.
     public func width(percent: Float) -> Self {
         modifying { $0.size.width = .length(.percent(percent)) }
     }
 
-    /// See `width(percent:)` for the root-element caveat.
+    /// This element's own CSS `height`, as a **fraction** of the containing
+    /// block's height — see `width(percent:)` for the unit (ruling `FR-T`) and
+    /// for the divergence `FR-H` keeps it under.
     public func height(percent: Float) -> Self {
         modifying { $0.size.height = .length(.percent(percent)) }
     }
 
+    /// Writes this element's own CSS `min-width`. SwiftUI's spelling is
+    /// `.frame(minWidth:)`, which wraps instead — and, as `minHeight(_:)`
+    /// records, the two are not interchangeable at a value of 0.
     public func minWidth(_ points: Pixels) -> Self {
         modifying { $0.minSize.width = .length(.pixels(points)) }
     }
 
+    /// Writes this element's own CSS `min-height`. SwiftUI's spelling is
+    /// `.frame(minHeight:)`, which wraps instead.
+    ///
+    /// **A zero here is the only way to cancel flex §4.5's automatic
+    /// (content-based) minimum, and no frame layer can do it** — ruling
+    /// `FR-G`, measured on the demo's own shape (`MetalUIDemo/main.swift`'s
+    /// list: a `flexGrow(1)`, `flexBasis(0)` box holding 400pt of content in a
+    /// 200pt `Column` under an 80pt header):
+    ///
+    /// | spelling | the content's height |
+    /// |---|---|
+    /// | `.minHeight(Pixels(0))` — the demo's own | **120**, shrunk into the space left |
+    /// | no minimum — the control | **400** |
+    /// | `.frame(minHeight: 0)`, `flexGrow`/`flexBasis` on the layer | **400** |
+    /// | `.frame(minHeight: 0)`, `flexGrow`/`flexBasis` on the inner box | **400** |
+    ///
+    /// The layer's `minSize` is the *layer's* minimum; the element inside keeps
+    /// its own automatic one. Pinned by
+    /// `theSizingModifiersWriteTheirOwnElementsBoxRatherThanWrappingIt`. That
+    /// one live caller is why these four clamps are kept rather than migrated.
     public func minHeight(_ points: Pixels) -> Self {
         modifying { $0.minSize.height = .length(.pixels(points)) }
     }
 
+    /// Writes this element's own CSS `max-width`. SwiftUI's spelling is
+    /// `.frame(maxWidth:)`, which wraps instead — and differs in more than the
+    /// node: a legacy frame clamps at its maximum but never grows toward its
+    /// proposal, where SwiftUI's does (ruling `FR-E`).
     public func maxWidth(_ points: Pixels) -> Self {
         modifying { $0.maxSize.width = .length(.pixels(points)) }
     }
 
+    /// Writes this element's own CSS `max-height`. SwiftUI's spelling is
+    /// `.frame(maxHeight:)`, which wraps instead — see `maxWidth(_:)`.
     public func maxHeight(_ points: Pixels) -> Self {
         modifying { $0.maxSize.height = .length(.pixels(points)) }
     }
@@ -643,6 +736,17 @@ extension StyledElement {
 
     /// The per-edge form of `padding(_:)`; edges are applied to the new outer
     /// layer rather than overwriting this element's own style.
+    ///
+    /// **This is one of the four modifiers through which `Length.rems` is
+    /// publicly reachable** (ruling `FR-Q` and its addendum, with
+    /// `margin(_ edges:)`, `borderWidth(_ edges:)` and — through `Dimension`,
+    /// which wraps a `Length` — `inset(_ edges:)`; `gap` takes `Pixels` only,
+    /// and there is no rem *sizing* modifier anywhere). A rem resolves in
+    /// `MetalUILayout/Resolve.swift` against `Frame.rootFontSize` — a single
+    /// per-frame `let`, default 16, not a per-element font size — and is
+    /// already pinned by `ResolveTests`. SwiftUI has neither, so it is a
+    /// MetalUI divergence kept under `FR-H`'s disposition; it is a box-model
+    /// unit rather than a frame parameter, so plan task 4 left it alone.
     public func padding(_ edges: Edges<Length>) -> ModifiedElement<LayerBase> {
         var style = Style()
         style.padding = edges
@@ -655,7 +759,9 @@ extension StyledElement {
         modifying { $0.margin = Edges(all: .length(.pixels(points))) }
     }
 
-    /// See `margin(_:)` — `.auto` is deliberately out of reach.
+    /// See `margin(_:)` — `.auto` is deliberately out of reach. A per-edge
+    /// `Length` may be `.rems`, one of the four public rem entry points
+    /// (`FR-Q`; see `padding(_ edges:)` for the inventory).
     public func margin(_ edges: Edges<Length>) -> Self {
         modifying {
             $0.margin = Edges(top: .length(edges.top), right: .length(edges.right),
@@ -673,6 +779,9 @@ extension StyledElement {
         modifying { $0.border = Edges(all: .pixels(points)) }
     }
 
+    /// The per-edge form of `borderWidth(_:)`, and one of the four public rem
+    /// entry points (`FR-Q`; see `padding(_ edges:)` for the inventory). Like
+    /// the single-value form it changes layout and draws nothing.
     public func borderWidth(_ edges: Edges<Length>) -> Self {
         modifying { $0.border = edges }
     }
@@ -719,6 +828,9 @@ extension StyledElement {
         modifying { $0.flexBasis = .length(.pixels(points)) }
     }
 
+    /// A **fraction** of the containing block's main axis, not a percentage —
+    /// the third modifier with `width(percent:)`'s unit, and ruling `FR-T`'s
+    /// third site. `flexBasis(percent: 50)` is 5000%.
     public func flexBasis(percent: Float) -> Self {
         modifying { $0.flexBasis = .length(.percent(percent)) }
     }
@@ -780,6 +892,14 @@ extension StyledElement {
     /// Percentages resolve **per axis**: `left`/`right` against the containing
     /// block's width, `top`/`bottom` against its height. This is not the
     /// padding/border rule, where CSS resolves every percentage against width.
+    ///
+    /// A `Dimension` wraps a `Length`, so an edge may be `.length(.rems(…))`:
+    /// this is the **fourth** public reach to `Length.rems`, missed by the
+    /// `FR-Q` inventory and added by its addendum (lane 3's verifier measured
+    /// an absolute box's `.inset(left: .length(.rems(Rems(2))))` at x = 32
+    /// against a 0px control's 0, root font size 16; `placeAbsolute` resolves
+    /// each edge with `rootFontSize`). See `padding(_ edges:)` for the
+    /// inventory.
     public func inset(_ edges: Edges<Dimension>) -> Self {
         modifying { $0.inset = edges }
     }

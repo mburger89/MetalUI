@@ -263,9 +263,17 @@ extension ProposalElementGroup {
 
     /// Applies a SwiftUI-style fixed proposal-layout frame.
     ///
-    /// Unlike the legacy CSS wrapper with the same spelling, this overload is
-    /// available only on a fully proposal-layout subtree and therefore owns
-    /// its child's measurement proposal, resolved size, and alignment.
+    /// The legacy CSS wrapper now takes the same parameters, in the same order,
+    /// with the same defaults (plan task 4, ruling `FR-C`), so a call site ports
+    /// between the paths by changing nothing but the element type. What is only
+    /// available here is the **proposal**: this overload owns its child's
+    /// measurement proposal as well as its resolved size and alignment, which is
+    /// why the legacy lowering diverges in three named places — a finite maximum
+    /// clamps but never grows (`FR-E`), an oversized child is squeezed on one
+    /// axis (`FR-N`), a single infinite maximum is inert (`FR-O`) — and why
+    /// `idealWidth`/`idealHeight` trap there (`FR-D`). Which overload a call
+    /// resolves to is pinned by
+    /// `everyFrameSpellingOnAProposalElementResolvesToTheProposalOverload`.
     ///
     /// **SwiftUI's two `frame` overloads, not one.** A fixed and a flexible
     /// dimension cannot be passed together, on one axis or across both,
@@ -296,6 +304,22 @@ extension ProposalElementGroup {
                                      alignment: alignment)
         )
     }
+
+    /// SwiftUI's own rejection of an argument-less frame, verbatim (ruling
+    /// FR-J).
+    ///
+    /// **This declaration is load-bearing even though `ProposalElementGroup`
+    /// refines `ElementGroup`, which declares the same overload.** With only the
+    /// `ElementGroup` one, `leaf.frame()` on a proposal element resolves to the
+    /// all-defaulted `frame(width:height:alignment:)` above — more specialized,
+    /// so it wins — and infers `ModifiedContent<Leaf>` with no deprecation
+    /// diagnostic at all, which is `SA-N` item 9 surviving on the path that
+    /// matters. Measured against a skeleton of the real protocol shape under
+    /// `-swift-version 6`, and pinned by the typecheck fixture
+    /// `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`, which asserts the
+    /// inferred type on **both** paths so deleting either declaration reddens it.
+    @available(*, deprecated, message: "Please pass one or more parameters.")
+    public func frame() -> Self { self }
 
     /// Constrains this proposal-layout subtree to a width-to-height ratio.
     ///
