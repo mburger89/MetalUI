@@ -173,3 +173,54 @@ private func rect(_ x: Float, _ y: Float, _ width: Float, _ height: Float) -> Bo
         #expect(cache.lookups == 21, "scroll viewport: lookups")
     }
 }
+
+/// Lane 2 through the element API (CN-C, CN-F).
+///
+/// - SP1 `HStack(spacing: 0){a20; Spacer(); b20}` under `.fixedSize()` (so
+///   the stack is proposed nil×nil, as the probe's arm is): b at x 28, the
+///   default minimum 8.
+/// - G4 `HStack(spacing: 0){a fixed 20; b fixed 20 .frame(maxWidth:
+///   .infinity)}`, a 200×50 window root: b centred in 180 at x 100 (y 15: the
+///   root is stored at the full window until lane 4's CN-J). Revision 5's G4r,
+///   the frame declared first: b at 80, a at 180.
+///
+/// Before the lane SP1's b reads 20 (a nil minimum was 0) and G4r's frame is
+/// served first at 100 (b at 40, a at 100). Mutation: nil → 0 in
+/// `newNativeSpacer`.
+@MainActor
+@Test func aDefaultSpacerAndAGreedyFrameThroughTheElementAPI() {
+    do { // SP1
+        let log = BoundsLog()
+        let frame = Frame(contentSize: Size(width: Pixels(100), height: Pixels(50)), scaleFactor: 1)
+        var root = HStack(spacing: Pixels(0)) {
+            fixed("a", 20, 20, log)
+            Spacer()
+            fixed("b", 20, 20, log)
+        }.fixedSize()
+        frame.render(&root)
+        #expect(log.bounds["a"] == rect(0, 0, 20, 20), "SP1 a")
+        #expect(log.bounds["b"] == rect(28, 0, 20, 20), "SP1 b")
+    }
+    do { // G4
+        let log = BoundsLog()
+        let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(50)), scaleFactor: 1)
+        var root = HStack(spacing: Pixels(0)) {
+            fixed("a", 20, 20, log)
+            fixed("b", 20, 20, log).frame(maxWidth: Pixels(.infinity))
+        }
+        frame.render(&root)
+        #expect(log.bounds["a"] == rect(0, 15, 20, 20), "G4 a")
+        #expect(log.bounds["b"] == rect(100, 15, 20, 20), "G4 b")
+    }
+    do { // G4r
+        let log = BoundsLog()
+        let frame = Frame(contentSize: Size(width: Pixels(200), height: Pixels(50)), scaleFactor: 1)
+        var root = HStack(spacing: Pixels(0)) {
+            fixed("b", 20, 20, log).frame(maxWidth: Pixels(.infinity))
+            fixed("a", 20, 20, log)
+        }
+        frame.render(&root)
+        #expect(log.bounds["b"] == rect(80, 15, 20, 20), "G4r b")
+        #expect(log.bounds["a"] == rect(180, 15, 20, 20), "G4r a")
+    }
+}

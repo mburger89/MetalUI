@@ -739,3 +739,427 @@ private func nestedStacks(_ tree: LayoutTree) -> LayoutNodeID {
                                  in: LayoutRect(x: 0, y: 0, width: 400, height: 300))
     #expect(scrolled.lastNativeLayoutWork.measureCalls == 72, "inside a vertical scroll viewport")
 }
+
+// MARK: - Lane 2: spacer cross axis and minimum, infinite answers, aspect ratio
+
+// Lane 2 of the same spec: the rest of CN-C (a nil minimum is 8; a spacer
+// answers 0 on the cross axis of the linear stack that marks it, the mark
+// reaching through `layoutPriority`, `padding`, `frame`, `fixedSize`,
+// `aspectRatio` and both children of an overlay attachment), the rest of CN-F
+// (a frame and a scroll viewport answer ∞ at ∞) and CN-G (`aspectRatio`
+// answers its child's answer to the ratio-shaped proposal, ∞ a concrete axis).
+// Spacers below use the nil default unless an arm names a minimum.
+
+extension Arm {
+    func defaultSpacer(_ name: String) -> LayoutNodeID {
+        self.name(tree.newNativeSpacer(), name)
+    }
+
+    func frame(_ name: String, _ child: LayoutNodeID, width: Double? = nil,
+               maxWidth: Double? = nil) -> LayoutNodeID {
+        self.name(tree.newNativeFrame(child: child, width: width, maxWidth: maxWidth), name)
+    }
+
+    func padding(_ name: String, _ child: LayoutNodeID, _ inset: Double) -> LayoutNodeID {
+        self.name(tree.newNativePadding(child: child,
+                                        insets: Edges(top: inset, right: inset, bottom: inset, left: inset)), name)
+    }
+
+    func fixedSize(_ name: String, _ child: LayoutNodeID) -> LayoutNodeID {
+        self.name(tree.newNativeFixedSize(child: child), name)
+    }
+
+    func aspectRatio(_ name: String, _ child: LayoutNodeID, _ ratio: Double,
+                     _ mode: AspectRatioContentMode = .fit) -> LayoutNodeID {
+        self.name(tree.newNativeAspectRatio(child: child, ratio: ratio, contentMode: mode), name)
+    }
+
+    func overlay(_ name: String, _ primary: LayoutNodeID, _ content: LayoutNodeID) -> LayoutNodeID {
+        self.name(tree.newNativeOverlayAttachment(child: primary, overlay: content), name)
+    }
+
+    func zstack(_ name: String, _ children: [LayoutNodeID]) -> LayoutNodeID {
+        self.name(tree.newNativeOverlay(children: children), name)
+    }
+
+    /// The probe's `Leaf(minW: 0, idealW: 10, maxW: .infinity, …)` on both axes.
+    func flexible(_ name: String) -> LayoutNodeID {
+        leaf(name, minW: 0, idealW: 10, maxW: .infinity, minH: 0, idealH: 10, maxH: .infinity)
+    }
+}
+
+// MARK: 2.1 default minimum and cross axis
+
+/// CN-C: `Spacer()`'s nil minimum is 8, and inside a linear stack a spacer
+/// answers 0 on that stack's cross axis; outside one it is flexible on both.
+///
+/// - SP1 `HStack(0){a20; Spacer(); b20}` at nil: 48×20, b at 28. SP6 the
+///   same vertically: 20×48, b at y 28. K1: `VStack{text; Spacer(); text}` is
+///   40 (two 16pt leaves stand in for the texts, spacing 0 as K1c).
+/// - SPB1 `HStack(0){Spacer()}` at 100×50: 100×0; SPB2 at nil: 8×0; SPB5
+///   `VStack(0){Spacer()}` at 100×50: 0×50.
+/// - SP13 `HStack(0){Spacer(); a}` at 100×50: 100×20 (not 50), a offered 92
+///   at x 80; SP14 vertically: 20×50, a offered 100×42 at y 30.
+/// - SP18b `HStack(0){VStack{Spacer()}; a20}` at 100×50: 20×50 — the inner
+///   stack's mark stands, so the VStack is 0 wide and 50 tall; a at y 15.
+///   SP21 `VStack(0){HStack(0){Spacer()}; a20}`: 100×20, a at x 40.
+/// - SP22 `HStack(0){a20; Spacer()}` at 100×nil: 100×20, a offered 92×nil
+///   then placed at 92×20.
+/// - SPB3/SPB4, outside a stack: `Spacer()` at 100×50 answers 100×50, at nil
+///   8×8.
+///
+/// Before the lane: the default is 0 (SP1 40) and a spacer claims its cross
+/// proposal (SP13 100×50). Mutations: nil → 0 in `newNativeSpacer`; delete the
+/// marking.
+@Test func aSpacerDefaultsToEightAndAnswersZeroOnItsStacksCrossAxis() {
+    do { // SP1
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.fixed("a", 20, 20), arm.defaultSpacer("sp"), arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, nil, nil) == size(48, 20), "SP1 size")
+        #expect(arm["b"] == rect(28, 0, 20, 20), "SP1 b")
+    }
+    do { // SP6
+        let arm = Arm()
+        let root = arm.vstack("s", [arm.fixed("a", 20, 20), arm.defaultSpacer("sp"), arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, nil, nil) == size(20, 48), "SP6 size")
+        #expect(arm["b"] == rect(0, 28, 20, 20), "SP6 b")
+    }
+    do { // K1
+        let arm = Arm()
+        let root = arm.vstack("s", [arm.fixed("a", 13, 16), arm.defaultSpacer("sp"), arm.fixed("b", 13, 16)])
+        #expect(arm.run(root, nil, nil) == size(13, 40), "K1 size")
+    }
+    do { // SPB1, SPB2
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.defaultSpacer("sp")])
+        #expect(arm.measure(root, 100, 50) == size(100, 0), "SPB1")
+        #expect(arm.measure(root, nil, nil) == size(8, 0), "SPB2")
+    }
+    do { // SPB5
+        let arm = Arm()
+        let root = arm.vstack("s", [arm.defaultSpacer("sp")])
+        #expect(arm.measure(root, 100, 50) == size(0, 50), "SPB5")
+    }
+    do { // SP13
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.defaultSpacer("sp"), arm.fixed("a", 20, 20)])
+        #expect(arm.run(root, 100, 50) == size(100, 20), "SP13 size")
+        #expect(arm.proposals("a") == [p(92, 50)], "SP13 a")
+        #expect(arm["a"] == rect(80, 0, 20, 20), "SP13 a rect")
+    }
+    do { // SP14
+        let arm = Arm()
+        let root = arm.vstack("s", [arm.defaultSpacer("sp"), arm.fixed("a", 20, 20)])
+        #expect(arm.run(root, 100, 50) == size(20, 50), "SP14 size")
+        #expect(arm.proposals("a") == [p(100, 42)], "SP14 a")
+        #expect(arm["a"] == rect(0, 30, 20, 20), "SP14 a rect")
+    }
+    do { // SP18b
+        let arm = Arm()
+        let inner = arm.vstack("v", [arm.defaultSpacer("sp")])
+        let root = arm.hstack("s", [inner, arm.fixed("a", 20, 20)])
+        #expect(arm.run(root, 100, 50) == size(20, 50), "SP18b size")
+        #expect(arm.proposals("a") == [p(100, 50)], "SP18b a")
+        #expect(arm["a"] == rect(0, 15, 20, 20), "SP18b a rect")
+    }
+    do { // SP21
+        let arm = Arm()
+        let inner = arm.hstack("h", [arm.defaultSpacer("sp")])
+        let root = arm.vstack("s", [inner, arm.fixed("a", 20, 20)])
+        #expect(arm.run(root, 100, 50) == size(100, 20), "SP21 size")
+        #expect(arm.proposals("a") == [p(100, 50)], "SP21 a")
+        #expect(arm["a"] == rect(40, 0, 20, 20), "SP21 a rect")
+    }
+    do { // SP22
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.fixed("a", 20, 20), arm.defaultSpacer("sp")])
+        #expect(arm.run(root, 100, nil) == size(100, 20), "SP22 size")
+        #expect(arm.proposals("a") == [p(92, nil), p(92, 20)], "SP22 a")
+        #expect(arm["a"] == rect(0, 0, 20, 20), "SP22 a rect")
+    }
+    do { // SPB3, SPB4
+        let arm = Arm()
+        let spacer = arm.defaultSpacer("sp")
+        #expect(arm.measure(spacer, 100, 50) == size(100, 50), "SPB3")
+        #expect(arm.measure(spacer, nil, nil) == size(8, 8), "SPB4")
+    }
+}
+
+// MARK: 2.2 the marking walk
+
+/// CN-C's walk: `newNativeLinearStack` marks a spacer reached through
+/// `layoutPriority`, `padding`, `frame`, `fixedSize`, `aspectRatio` and both
+/// children of an overlay attachment; it stops at anything else.
+///
+/// - K2b `HStack(0){a20; Spacer().aspectRatio(1, .fit); b20}` at 200×50:
+///   90×20, b offered 90 last and placed at 70 (the spacer is 50×0).
+/// - K2c `Spacer().fixedSize()`: 48×20, b at 28.
+/// - K2d `Spacer().frame(maxWidth: .infinity)`: 200×20, b at 180.
+/// - K2e `{a20; p 10×10 .overlay{Spacer()}; b20}`: 50×20, the overlay-side
+///   spacer 10×0 on p's 10×10 (its background reads (25, 10), its centre).
+/// - SP19 `Spacer().frame(width: 10)`: 50×20, b at 30. SP20
+///   `Spacer().padding(5)`: 200×20, b at 180.
+/// - X8 `HStack(0){Spacer().overlay{o 20x20}; a20}`: 200×20, o offered
+///   180×0 and placed at (80, 0); a offered 192 at 180.
+/// - Stops: K2a `{a20; ZStack{Spacer()}; b20}` is 200×50 with a and b at y 15
+///   (the ZStack's spacer is unmarked and claims 50); SP18b is 2.1's.
+///
+/// Before the lane K2b's stack is 50 tall. Mutations: stop the walk at `frame`
+/// (K2d, SP19 move); skip the overlay's content side (K2e moves); walk into an
+/// `overlay` node (K2a moves).
+@Test func theCrossAxisMarkReachesASpacerThroughEveryWrapperButAStack() {
+    do { // K2b
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.fixed("a", 20, 20),
+                                    arm.aspectRatio("ar", arm.defaultSpacer("sp"), 1),
+                                    arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, 200, 50) == size(90, 20), "K2b size")
+        #expect(arm.proposals("a").last == p(200.0 / 3, 50), "K2b a")
+        #expect(arm.proposals("b").last == p(90, 50), "K2b b")
+        #expect(arm["b"] == rect(70, 0, 20, 20), "K2b b rect")
+    }
+    do { // K2c
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.fixed("a", 20, 20),
+                                    arm.fixedSize("fs", arm.defaultSpacer("sp")),
+                                    arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, 200, 50) == size(48, 20), "K2c size")
+        #expect(arm.proposals("b").last == p(172, 50), "K2c b")
+        #expect(arm["b"] == rect(28, 0, 20, 20), "K2c b rect")
+    }
+    do { // K2d
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.fixed("a", 20, 20),
+                                    arm.frame("f", arm.defaultSpacer("sp"), maxWidth: .infinity),
+                                    arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, 200, 50) == size(200, 20), "K2d size")
+        #expect(arm["b"] == rect(180, 0, 20, 20), "K2d b rect")
+    }
+    do { // K2e
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.fixed("a", 20, 20),
+                                    arm.overlay("ov", arm.fixed("p", 10, 10), arm.defaultSpacer("sp")),
+                                    arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, 200, 50) == size(50, 20), "K2e size")
+        #expect(arm["p"] == rect(20, 5, 10, 10), "K2e p")
+        #expect(arm["sp"] == rect(20, 10, 10, 0), "K2e overlay-side spacer")
+        #expect(arm["b"] == rect(30, 0, 20, 20), "K2e b rect")
+    }
+    do { // SP19
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.fixed("a", 20, 20),
+                                    arm.frame("f", arm.defaultSpacer("sp"), width: 10),
+                                    arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, 200, 50) == size(50, 20), "SP19 size")
+        #expect(arm["b"] == rect(30, 0, 20, 20), "SP19 b rect")
+    }
+    do { // SP20
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.fixed("a", 20, 20),
+                                    arm.padding("pad", arm.defaultSpacer("sp"), 5),
+                                    arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, 200, 50) == size(200, 20), "SP20 size")
+        #expect(arm.proposals("b").last == p(90, 50), "SP20 b")
+        #expect(arm["b"] == rect(180, 0, 20, 20), "SP20 b rect")
+    }
+    do { // X8
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.overlay("ov", arm.defaultSpacer("sp"), arm.fixed("o", 20, 20)),
+                                    arm.fixed("a", 20, 20)])
+        #expect(arm.run(root, 200, 50) == size(200, 20), "X8 size")
+        #expect(arm.proposals("a").last == p(192, 50), "X8 a")
+        #expect(arm.proposals("o").last == p(180, 0), "X8 o")
+        #expect(arm["o"] == rect(80, 0, 20, 20), "X8 o rect")
+        #expect(arm["a"] == rect(180, 0, 20, 20), "X8 a rect")
+    }
+    do { // K2a: the walk stops at a ZStack
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.fixed("a", 20, 20),
+                                    arm.zstack("z", [arm.defaultSpacer("sp")]),
+                                    arm.fixed("b", 20, 20)])
+        #expect(arm.run(root, 200, 50) == size(200, 50), "K2a size")
+        #expect(arm.proposals("a").last == p(96, 50), "K2a a")
+        #expect(arm["a"] == rect(0, 15, 20, 20), "K2a a rect")
+        #expect(arm["b"] == rect(180, 15, 20, 20), "K2a b rect")
+    }
+}
+
+// MARK: 2.3 infinite answers
+
+/// CN-F, reversing FR-B: a frame with a maximum and a scroll viewport answer
+/// ∞ at an ∞ proposal, so a greedy frame over a fixed child reports its
+/// flexibility to a stack.
+///
+/// - D12 (`swiftui-frame-semantics.swift`) `.frame(maxWidth: .infinity)` over
+///   a 20pt child at ∞×∞: inf×20.
+/// - SC1 at ∞×∞, a `ScrollView` of a flexible ideal-50×300 child: inf×inf on
+///   the vertical and on the horizontal axis.
+/// - G4 `HStack(0){a fixed 20; b fixed 20 .frame(maxWidth: .infinity)}` at
+///   200×50: the frame takes 180, b at 100. Revision 5: G4r, the frame
+///   declared first, still takes 180 (b at 80, a at 180); G4f, beside a
+///   bounded 0..80 sibling, is served after it (a 80 at 120, b at 50).
+///
+/// Before the lane the frame answers its child at ∞ (FR-B): D12 reads 20, and
+/// G4r's frame is served first at 100. Mutations: restore `isFinite` in
+/// `framedSize` (D12, G4r, G4f move); restore it in
+/// `resolvedViewportDimension` (SC1 moves).
+@Test func anInfiniteProposalIsAnsweredWithInfinity() {
+    do { // D12
+        let arm = Arm()
+        let root = arm.frame("f", arm.fixed("c", 20, 20), maxWidth: .infinity)
+        #expect(arm.measure(root, .infinity, .infinity) == size(.infinity, 20), "D12")
+    }
+    do { // SC1, vertical and horizontal
+        for axis in [ProposalStackAxis.vertical, .horizontal] {
+            let arm = Arm()
+            let content = arm.leaf("c", minW: 0, idealW: 50, maxW: .infinity, minH: 0, idealH: 300, maxH: .infinity)
+            let viewport = arm.tree.newNativeScrollViewport(child: content, axis: axis)
+            #expect(arm.measure(viewport, .infinity, .infinity) == size(.infinity, .infinity), "SC1 \(axis)")
+        }
+    }
+    do { // G4
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.fixed("a", 20, 20),
+                                    arm.frame("f", arm.fixed("b", 20, 20), maxWidth: .infinity)])
+        #expect(arm.run(root, 200, 50) == size(200, 20), "G4 size")
+        #expect(arm["f"] == rect(20, 0, 180, 20), "G4 frame")
+        #expect(arm["b"] == rect(100, 0, 20, 20), "G4 b")
+    }
+    do { // G4r
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.frame("f", arm.fixed("b", 20, 20), maxWidth: .infinity),
+                                    arm.fixed("a", 20, 20)])
+        #expect(arm.run(root, 200, 50) == size(200, 20), "G4r size")
+        #expect(arm["b"] == rect(80, 0, 20, 20), "G4r b")
+        #expect(arm["a"] == rect(180, 0, 20, 20), "G4r a")
+        #expect(arm.proposals("a").last == p(100, 50), "G4r a is served first")
+    }
+    do { // G4f
+        let arm = Arm()
+        let root = arm.hstack("s", [arm.frame("f", arm.fixed("b", 20, 20), maxWidth: .infinity),
+                                    arm.flexW("a", 0, 80, 80)])
+        #expect(arm.run(root, 200, 50) == size(200, 20), "G4f size")
+        #expect(arm["b"] == rect(50, 0, 20, 20), "G4f b")
+        #expect(arm["a"] == rect(120, 0, 80, 20), "G4f a")
+    }
+}
+
+// MARK: 2.5 aspect ratio answers its child
+
+/// CN-G: `aspectRatio` proposes the ratio-shaped size and answers its child's
+/// answer to it.
+///
+/// - AR1 fixed 168×95 `.aspectRatio(16/9, .fit)` at 500×300: proposes
+///   500×281.25, answers 168×95. AR2 at nil: proposes nil×nil, 168×95. AR3 a
+///   child that takes the offer: 500×281.25.
+/// - AR4 `HStack(12){a 168×64; that; b 168×64}` at 856×300: 528×95; the
+///   child is asked 533.33×300, 0×0 and 332×186.75, and sits at x 180; b at
+///   360.
+/// - K4 500×nil proposes 500×281.25 (168×95); K4b nil×300 proposes
+///   533.33×300 (168×95); K4c a flexible child at 500×nil answers 500×281.25.
+/// - K4i/K4j ratio −1 at 100×100 proposes 100×−100: a clamping child answers
+///   100×0, a fixed 30×30 one 30×30.
+///
+/// Before the lane AR1 answers 500×281.25. Mutation: answer the ratio size.
+@Test func anAspectRatioAnswersItsChildsAnswerToTheRatioProposal() {
+    let ratio = 16.0 / 9.0
+    do { // AR1
+        let arm = Arm()
+        let root = arm.aspectRatio("ar", arm.fixed("c", 168, 95), ratio)
+        #expect(arm.run(root, 500, 300) == size(168, 95), "AR1 size")
+        #expect(arm.proposals("c") == [p(500, 500 / ratio)], "AR1 c")
+        #expect(arm["c"] == rect(0, 0, 168, 95), "AR1 c rect")
+    }
+    do { // AR2
+        let arm = Arm()
+        let root = arm.aspectRatio("ar", arm.fixed("c", 168, 95), ratio)
+        #expect(arm.run(root, nil, nil) == size(168, 95), "AR2 size")
+        #expect(arm.proposals("c") == [p(nil, nil)], "AR2 c")
+    }
+    do { // AR3
+        let arm = Arm()
+        let root = arm.aspectRatio("ar", arm.flexible("c"), ratio)
+        #expect(arm.measure(root, 500, 300) == size(500, 500 / ratio), "AR3 size")
+    }
+    do { // AR4
+        let arm = Arm()
+        let root = arm.hstack("s", spacing: 12, [arm.fixed("a", 168, 64),
+                                                 arm.aspectRatio("ar", arm.fixed("c", 168, 95), ratio),
+                                                 arm.fixed("b", 168, 64)])
+        #expect(arm.run(root, 856, 300) == size(528, 95), "AR4 size")
+        #expect(arm.proposals("c") == [p(300 * ratio, 300), p(0, 0), p(332, 332 / ratio)], "AR4 c")
+        #expect(arm["c"] == rect(180, 0, 168, 95), "AR4 c rect")
+        #expect(arm.x("b") == 360, "AR4 b")
+    }
+    do { // K4, K4b
+        let arm = Arm()
+        let root = arm.aspectRatio("ar", arm.fixed("c", 168, 95), ratio)
+        #expect(arm.measure(root, 500, nil) == size(168, 95), "K4 size")
+        #expect(arm.measure(root, nil, 300) == size(168, 95), "K4b size")
+        #expect(arm.proposals("c") == [p(500, 500 / ratio), p(300 * ratio, 300)], "K4, K4b c")
+    }
+    do { // K4c
+        let arm = Arm()
+        let root = arm.aspectRatio("ar", arm.flexible("c"), ratio)
+        #expect(arm.measure(root, 500, nil) == size(500, 500 / ratio), "K4c size")
+    }
+    do { // K4i, K4j
+        let flexible = Arm()
+        let k4i = flexible.aspectRatio("ar", flexible.flexible("c"), -1)
+        #expect(flexible.run(k4i, 100, 100) == size(100, 0), "K4i size")
+        #expect(flexible.proposals("c") == [p(100, -100)], "K4i c")
+        let fixed = Arm()
+        let k4j = fixed.aspectRatio("ar", fixed.fixed("c", 30, 30), -1)
+        #expect(fixed.run(k4j, 100, 100) == size(30, 30), "K4j size")
+        #expect(fixed.proposals("c") == [p(100, -100)], "K4j c")
+    }
+}
+
+// MARK: 2.6 infinity is a concrete axis
+
+/// CN-G: ∞ is a concrete proposal axis to `aspectRatio`, not nil — the
+/// two-axis `width / ratio <= height` (`>=` for `.fill`) comparison with ∞ in
+/// it. Measured only, as the probe's `runMeasured` arms are (placing an
+/// infinite answer traps in both).
+///
+/// - K4d fixed 168×95 `.fit` at ∞×∞: proposes ∞×∞, answers 168×95.
+/// - K4e fixed at 500×∞: proposes 500×281.25. K4g a flexible child there:
+///   500×281.25.
+/// - K4f a flexible child at ∞×∞: proposes and answers ∞×∞.
+/// - K4h fixed `.fill` at 500×∞: proposes ∞×∞, answers 168×95.
+///
+/// Before the lane K4d proposes the intrinsic-shaped size. Mutation: filter ∞
+/// to nil in the ratio proposal.
+@Test func anAspectRatioTreatsInfinityAsAConcreteAxis() {
+    let ratio = 16.0 / 9.0
+    do { // K4d
+        let arm = Arm()
+        let root = arm.aspectRatio("ar", arm.fixed("c", 168, 95), ratio)
+        #expect(arm.measure(root, .infinity, .infinity) == size(168, 95), "K4d size")
+        #expect(arm.proposals("c") == [p(.infinity, .infinity)], "K4d c")
+    }
+    do { // K4e
+        let arm = Arm()
+        let root = arm.aspectRatio("ar", arm.fixed("c", 168, 95), ratio)
+        #expect(arm.measure(root, 500, .infinity) == size(168, 95), "K4e size")
+        #expect(arm.proposals("c") == [p(500, 500 / ratio)], "K4e c")
+    }
+    do { // K4f
+        let arm = Arm()
+        let root = arm.aspectRatio("ar", arm.flexible("c"), ratio)
+        #expect(arm.measure(root, .infinity, .infinity) == size(.infinity, .infinity), "K4f size")
+        #expect(arm.proposals("c") == [p(.infinity, .infinity)], "K4f c")
+    }
+    do { // K4g
+        let arm = Arm()
+        let root = arm.aspectRatio("ar", arm.flexible("c"), ratio)
+        #expect(arm.measure(root, 500, .infinity) == size(500, 500 / ratio), "K4g size")
+        #expect(arm.proposals("c") == [p(500, 500 / ratio)], "K4g c")
+    }
+    do { // K4h
+        let arm = Arm()
+        let root = arm.aspectRatio("ar", arm.fixed("c", 168, 95), ratio, .fill)
+        #expect(arm.measure(root, 500, .infinity) == size(168, 95), "K4h size")
+        #expect(arm.proposals("c") == [p(.infinity, .infinity)], "K4h c")
+    }
+}

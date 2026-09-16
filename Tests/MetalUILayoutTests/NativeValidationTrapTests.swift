@@ -483,6 +483,35 @@ private struct ScriptedLayout: ProposalLayout {
             "aborted, but not at checkpoint 3:\n\(Trap.stderr(result))")
 }
 
+/// A custom layout placing a greedy frame at an ∞ proposal traps at
+/// checkpoint 3 (ruling CN-F, containers lane 2's test 2.4). Since CN-F a
+/// `.frame(maxWidth: .infinity)` over a fixed 20pt child answers ∞ at ∞, as
+/// SwiftUI's does, so its stored rect would be ∞ wide: SwiftUI crashes placing
+/// that answer (`swiftui-frame-semantics.swift` D12's recorded "view origin is
+/// invalid", reproduced by `swiftui-stack-algorithms.swift` K4f's first run).
+/// `anInfiniteStoredRectTraps` above is the same checkpoint reached by a
+/// proposal-echoing leaf; this is the frame, which answered its child (20)
+/// under FR-B and so did not trap before the lane. Mutation: remove checkpoint
+/// 3's width term.
+@Test func aCustomLayoutPlacingAChildAtAnInfiniteProposalTraps() async {
+    let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        let tree = LayoutTree(generation: 0)
+        let leaf = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) }
+        let frame = tree.newNativeFrame(child: leaf, maxWidth: .infinity)
+        let layout = ScriptedLayout(
+            measure: { _, _ in LayoutMeasurement(size: SizeD(width: 20, height: 20)) },
+            place: { bounds, _, subviews in
+                subviews[0].place(at: Point(x: bounds.x, y: bounds.y),
+                                  proposal: ProposedSize(width: .infinity, height: 10))
+            })
+        let root = tree.newNativeLayout(layout, children: [frame])
+        tree.computeNativeLayout(root: root, proposal: ProposedSize(width: 100, height: 100),
+                                 in: LayoutRect(x: 0, y: 0, width: 100, height: 100))
+    }
+    #expect(Trap.stderr(result).contains("non-finite rect"),
+            "aborted, but not at checkpoint 3:\n\(Trap.stderr(result))")
+}
+
 /// SwiftUI accepts a +∞ placement position and stores (inf, 0, 20, 20) (M).
 @Test func aNonFinitePlacementPositionTraps() async {
     let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
