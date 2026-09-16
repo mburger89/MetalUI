@@ -277,7 +277,8 @@ staged prototype read 72 calls (depth 3, viewport) / 51 calls (finite) and 12
 misses; a derivation that disagrees is a finding (`CN-B`).
 
 **Existing tests that change** (stage 1, 14): `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal`
-(re-derive by hand; prototype 47/51/66), `aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules`
+(re-derive by hand; prototype 47/51/66; **lane 1 read 65/54/90**, because the
+prototype kept the old `ReferenceLinearStack` — `CN-B`'s "Lane 1, as built"), `aCustomLayoutReadsPriorityAndSpacernessWithTheBuiltInStacksRules`
 (its wrong-on-purpose 0 flips to 2, and a spacer's priority reads −∞),
 `aCustomLayoutReimplementingTheLinearStackMatchesTheBuiltInRects` (compares a
 **vertical** tree too, closing record §09's "horizontal only"; spacer cross

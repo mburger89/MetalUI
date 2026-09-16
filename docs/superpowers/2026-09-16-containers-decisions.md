@@ -201,6 +201,27 @@ before its run** (`SA-M`, shape 12); the prototype figures above are the check
 the derivation must meet, and a disagreement is a finding for the decisions
 doc, not an edit to the literal.
 
+**Lane 1, as built** (`31fd2ba`; record §17). Two of the figures above held and
+one did not:
+
+- **Held:** the nested tree at depth 3 reads **51** calls at a finite root and
+  **72** in a vertical scroll viewport, and three `ProposalText`s read **12**
+  shaping misses (12 lookups at a finite root, 21 in a scroll viewport) — each
+  literal derived by hand from the lane's own tree before the run, and equal
+  to the prototype's.
+- **Did not hold:** `aBranchingNativeTreeMeasuresEachLeafOncePerDistinctProposal`
+  reads **65 calls / 54 hits / 90 misses**, not 47 / 51 / 66. Its branch C is a
+  `ReferenceLinearStack`, which this lane rewrote to `CN-B` (the spec requires
+  it); the prototype kept the old reference, whose `sizeThatFits` measured
+  every child at (nil, nil) whatever its proposal. Under the rewrite C's
+  answer depends on its cross proposal (an echo leaf), so R's distribution
+  probes and serves C three times at distinct keys. The literals were
+  re-derived by hand from the rewritten reference before the run, the
+  derivation is the test's doc comment, and the run matched it. **The spec's
+  44 / 50 / 63 (lanes 2–3) and 46 / 48 / 66 (lanes 4–5) for this test are
+  prototype figures of the same old reference and are void**; lanes 2 and 4
+  re-derive from `31fd2ba`'s tree.
+
 **What it costs if wrong.** Every proposal-path stack allocates differently
 from SwiftUI on the trees the tests do not build. The probe arms are
 three-child at most; the lane's tests add a three-group, three-flexibility
