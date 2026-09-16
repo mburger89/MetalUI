@@ -701,7 +701,7 @@ an arm taken in this session.
 
 ---
 
-## OM-T — `allowsHitTesting(false)` disables the receiver's own hitbox, and the order is not observable in SwiftUI either
+## OM-T — `allowsHitTesting(false)` disables the receiver's own hitbox, and the order is not observable in SwiftUI either (within one `ModifierLayer`; see `OM-AL`)
 
 **Ruling.** `registerAndScope` opens the disabled scope **before** the
 receiver's own `registerHandlers`, not only around `content()`:
@@ -759,6 +759,12 @@ neighbours.
 keyboard, which is the half SwiftUI keeps. Lane 3's test 1 carries both halves
 and its second mutation — extending the scope to the focus registry — must
 redden the keyboard half specifically.
+
+**Narrowed 2026-09-16 (lane 3's review round, verifier finding 1).** "The
+order is not observable" and "agreement" hold **within one `ModifierLayer`**
+— N1 and N2 both write the outermost layer's `Handlers`. With a wrapping
+modifier between the scope and the click, MetalUI's two orders differ and
+SwiftUI's do not (probe arms X0–X3); that is `OM-AL`, a recorded divergence.
 
 ---
 
@@ -1538,3 +1544,71 @@ click inside is dead. The behaviour is named at `Handlers.allowsHitTesting`'s
 doc and at the modifier's, and the test's failure message says "PINNED WRONG
 ON PURPOSE". Integration extends the inert-table row's reach to the legacy
 path rather than adding a row.
+
+---
+
+## OM-AL — an inner layer's `allowsHitTesting(false)` does not reach a click on a layer written after it; SwiftUI's does, and it is recorded rather than fixed
+
+**Ruling.** The pointer-disable scope covers **the layer it is written on and
+everything inside it, not the layers written after it.** On a legacy chain
+that crosses a `ModifierLayer` boundary the two orders therefore differ:
+
+| spelling | MetalUI centre / edge | SwiftUI (probe arm) |
+|---|---|---|
+| `Box().padding(40).onClick { }` (control) | 1 / 1 (`OM-K`) | 1 / 0 (X0) |
+| `Box().allowsHitTesting(false).padding(40).onClick { }` | **1 / 1**, one live (0, 0) 200x200 region | **0 / 0** (X1) |
+| `Box().padding(40).allowsHitTesting(false).onClick { }` | 0 / 0, no region | 0 / 0 (X2) |
+| X1's chain + `.contentShape(Rectangle())` before the tap | — | **1 / 1** (X3) |
+
+A recorded divergence, pinned wrong on purpose by
+`anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`
+(`HitRegionTests.swift`), whose X1 and X2 arms are `#require`d to disagree
+before either number is asserted. `OM-T`'s "not observable / agreement" is
+narrowed to "within one `ModifierLayer`", and spec §6.3 gains the X rows.
+
+**Mechanism.** `.allowsHitTesting(false)` is a `Self`-returning modifier and
+writes the receiver's `Handlers`; on `Box().allowsHitTesting(false)` that is
+the `Box`'s own, which `.padding(40)` then wraps as the inner layer's, and
+`.onClick` writes the new outermost layer's. `ModifiedElement.prepaintLayerBody`
+calls `registerAndScope` once per layer, outermost first, so the outer layer
+has already inserted its 200x200 hitbox by the time the inner layer's scope
+opens. In the reverse order both modifiers land on the outermost layer and the
+chain is N1 again.
+
+**Reasoning — why this is `OM-I` across a layer and not a new mechanism, and
+why it is not fixed.** X3 is the evidence. SwiftUI's `.allowsHitTesting(false)`
+empties the subtree's hit **region**; it does not kill a later layer's gesture.
+`.contentShape(Rectangle())` written after the padding gives the outer gesture
+a region again and X3 reads 1 / 1. MetalUI's default hit region is always the
+element's frame (`OM-I`: H1 reads 0 / 0 in SwiftUI and 1 / 1 in MetalUI), so
+its X1 answer **is** SwiftUI's X3 — the outer layer has a region because every
+layer has one, and there is no spelling for "no region" to lose. The candidate
+fix — an inner layer's scope suppressing the layers written after it — would
+reproduce X1 and contradict X3 in the same change. **It is cheap, not hard**:
+mutation MA of the review round (`ModifiedElement.prepaint` opening
+`pass.allowsHitTesting(false)` around the whole chain when any layer, or the
+content read through `as? any StyledElement`, has the flag off) is eleven
+lines, and it reddens exactly the pinning test's `#require(x1 != x2)` and
+nothing else in the suite. Not taken because of X3, and because a scope that
+reaches outward from an inner layer is not what `.allowsHitTesting` means in
+SwiftUI either — it is the missing "no region" default doing the work there.
+The same shape as `OM-K`: padding
+is hit-testable in MetalUI because the padded layer's region is its frame, and
+this row is that fact with the scope on the inner layer.
+
+**Evidence.** `docs/probes/swiftui-content-shape-hit-region.swift`, arms
+X0–X3, recorded 2026-09-16 00:03 PDT (the verifier's scratch copy read X0, X1
+and X3 identically at 23:58 PDT the day before; X2 is new). Positive controls:
+X0's centre 1 (the click arrives), X3's edge 1 (a region declared after the
+scope is live). MetalUI's numbers: the test above, and the verifier's scratch
+test (`X1 … centre 1 edge 1 regions [(0,0) 200x200]`, `X1r … centre 0 edge 0
+regions []`), which it reproduces.
+
+**Cost if wrong.** A caller who dims a chain by writing `.allowsHitTesting(false)`
+*first* and a click *last* finds the click live. The remedy is in the modifier's
+doc: **write the scope last**. If a later task gives MetalUI a "no region"
+default (closing `OM-I`), this row closes with it and the X1 arm's expectation
+flips to 0 / 0 — the `#require(x1 != x2)` would then be the first thing to
+fail, which is the intended signal.
+
+---

@@ -1043,7 +1043,8 @@ possible. No demo was launched and no input was sent in this lane.
 - **`OM-AK` extends an inert-table row's reach.** CLAUDE.md's
   "`.allowsHitTesting(false)` over a scroller — gates click hitboxes only" was
   written for the proposal path; it is now true of any legacy element too.
-- **`OM-AJ` needs a divergence number** (the carried list below is now nine).
+- **`OM-AJ` and `OM-AL` need divergence numbers** (the carried list below is
+  now ten).
 - **`CLAUDE.md`'s `HandlerShape` sentence must name both structs** — both
   gained the two fields in `e1c33b5`, and the doc comment on `HandlerShape`
   now says `Handlers` has EIGHT members.
@@ -1057,6 +1058,109 @@ possible. No demo was launched and no input was sent in this lane.
   (`MetalUI-frame-sizing`, seen in `ps`); nothing touched this checkout, and
   no measurement here was taken in a contended window.
 
+##### Review round — one major, three minors, and a probe extended
+
+The verifier (2026-09-15 23:50–00:00 PDT, at `2859350`) re-ran both probes
+byte for byte, ran nineteen mutations (V1–V19b; every one reddened what the
+table above predicted, and V0 — a scratch hover test — confirmed a doc claim),
+and raised one major and three minors. Fixed at the commit after `2859350`.
+
+**Major — an order-sensitive chain across a layer boundary was an unrecorded
+divergence.** `OM-T` and spec §6.3's N2 row said "the order is not
+observable"; that holds only while both modifiers land on one
+`ModifierLayer`. With `.padding(40)` between them, `Box().allowsHitTesting(false)
+.padding(40).onClick { }` scopes the inner layer and leaves the outer layer's
+200x200 hitbox live (centre 1 / edge 1), where SwiftUI reads 0 / 0; the
+reverse order reads 0 / 0 on both. Disposition:
+
+- `swiftui-content-shape-hit-region.swift` gained arms **X0–X3**, re-recorded
+  2026-09-16 00:03 PDT under `/usr/bin/swift`, exit 0, every pre-existing arm
+  byte for byte: X0 `colour.padding(40).tap` (control) **1 / 0**; X1
+  `colour.hitOff.padding(40).tap` **0 / 0**; X2 `colour.padding(40).hitOff.tap`
+  **0 / 0** (new — the verifier probed X0, X1 and X3 only); X3 X1 +
+  `.contentShape(Rectangle())` then tap **1 / 1**.
+- **X3 decides the disposition: recorded, not fixed.** SwiftUI's modifier
+  empties the subtree's hit *region* and a later `.contentShape` restores it
+  for the outer gesture; MetalUI's region is always the frame (`OM-I`), so its
+  X1 answer *is* SwiftUI's X3. A fix that let an inner layer's scope suppress
+  the layers written after it would reproduce X1 and contradict X3 in one
+  stroke. Ruling **`OM-AL`**; `OM-T` narrowed in place to "within one
+  `ModifierLayer`"; spec §6.3 gains the four X rows and the N2 row's caveat.
+- Pinned wrong on purpose by
+  `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`
+  (`HitRegionTests.swift`): X0 `#require`d live at both points, X1 and X2
+  `#require`d to **disagree**, then X1 asserted 1 / 1 with one `(0,0) 200x200`
+  region and X2 0 / 0 with none. The doc comments on `Handlers.allowsHitTesting`,
+  `StyledElement.allowsHitTesting` (with the remedy: write the scope last)
+  and `registerAndScope` now say the scope is per layer.
+
+**Minor 1 — "hover follows the hitbox" was unpinned.** Now
+`aHoverBackgroundNeverPaintsUnderAllowsHitTestingFalse`: two arms under one
+`mouseMoved` over a 40x40 `Box().background(.surface).hoverBackground(.accent)
+.onClick { }`; the control `#require`d to paint `.accent`, the scoped arm
+asserted `.surface`. The `isActive` half of the sentence is marked by reading,
+unpinned, in the doc comment (nothing paints a pressed state).
+
+**Minor 2 — the display-lock reading below is stale.** `ioreg` read
+`<true/>` at 23:50:41 and 00:00:01 (the verifier) and again at **00:03:44 PDT
+2026-09-16** (this round); the `<false/>` at 23:33:05 was a window, not a
+state. Lane 4 re-reads the lock before attempting `screencapture -R`.
+
+**Minor 3 — the matrix carries legacy rows only.** Spec §3.2 now says so and
+names the proposal-path pins for `allowsHitTesting`
+(`allowsHitTestingFalsePreventsDescendantOnTapDispatch`,
+`aPressIsRefusedWhereHitTestingIsDisabled`); adding a proposal-row shape to
+the instrument is left to the integration step, as the verifier suggested.
+
+**Mutations of the round — three, applied singly, run filtered over
+`HitRegionTests|OuterModifierMatrixTests|ModifierTests` plus
+`clippedAlsoClipsTheHitboxesInsideIt`, `everyBackgroundPaintingSiteHonoursHoverAndFocus`,
+`aPressIsRefusedWhereHitTestingIsDisabled` and
+`allowsHitTestingFalsePreventsDescendantOnTapDispatch` (21 tests), reverted
+from a `cp` backup, `git diff -- Sources | grep -c MUTATION` = 0 after.**
+
+| # | mutation | reddened (issues) |
+|---|---|---|
+| MA | **the candidate fix**: `ModifiedElement.prepaint` opens `pass.allowsHitTesting(false)` around the whole chain when any layer, or the content read through `as? any StyledElement`, has the flag off | `anInnerLayersAllowsHitTesting…`'s `#require(x1 != x2)` **alone** — 1. The only test in the suite that sees the fix; test 1's N1/N2 both stay on one layer and cannot |
+| MB | `registerAndScope` registers the receiver OUTSIDE the scope and scopes the children only (the verifier's V1) | 12: test 1 N1, test 2 ×4, test 2a ×4, the matrix row, **the new hover test's scoped arm** (`:824`, the control is hovered and so is the scoped arm), and the new X test's `x1 != x2` (both orders now register the outer hitbox) |
+| MC | `Box.prepaint` forces `allowsHitTesting = true` (the verifier's V4 at the `Box` site) | 6: test 1 N1 and child, test 2 `Box`, test 2a `Box`, the matrix row, **the hover test's scoped arm** |
+
+MB and MC together say the hover test measures the scope through the `Box`
+site's registration and not a pointer that never arrived; MA says the X test
+is the one instrument for the layer-crossing rule.
+
+##### Counts, re-taken after the review round
+
+| reading | value | against `e1c33b5` |
+|---|---|---|
+| `swift test --build-system native --no-parallel` (after `swift build --build-system native --build-tests`) | `Test run with 1269 tests in 1 suite passed after 40.034 seconds.` (and 39.302 s on the first run of the re-verification, before the mutation round) | **+2** on 1267: the `OM-AL` pin and the hover pin, both in `HitRegionTests.swift` |
+| `error:` / `warning:` | **0** / **1** — SwiftPM's own `--build-system native` deprecation notice | unchanged |
+| skipped | the two gated tests only (`grep -i skipped` also matches two test *names*, `displayNoneChildrenAreSkipped…` and `skippedFrameKeeps…`, which passed) | unchanged |
+| `find Tests -name "*.json" \| wc -l` | **97**; `git diff --stat c4b5853 -- Tests` lists no `.json` | unchanged |
+| guards, `grep -c canTypecheck` per file | 19 / 10 / 5 / 6 / 2 / 6 / 8 / 3 / 3 / 3 = **65 hits, 64 guards** | unchanged; the round adds no guard |
+| `grep -c "public func" Sources/MetalUI/Box.swift` | **50** | unchanged |
+| `ModifierTests`' `cases.count` tripwire | **47** | unchanged |
+| `grep -cE "sleep" Tests/MetalUITests/HitRegionTests.swift` | **0** | unchanged |
+| `swiftui-content-shape-hit-region.swift` under `/usr/bin/swift` | exit 0; all **18** arm lines (H0–H6, P1–P5, N1–N2, X0–X3) byte-identical to the header, re-run 2026-09-16 00:10 PDT | X0–X3 new |
+
+**Re-verification, 2026-09-16 00:05–00:15 PDT, on the fixed tree.** The
+review-round agent was cut off after writing the fix and before running the
+suite (this table was a placeholder in its uncommitted tree); the re-verifier
+took every reading above, re-ran the probe, and re-applied MA, MB and MC from
+a `cp` backup with the same 21-test filter, each restored byte for byte
+(`cmp` against the backup; `git diff -- Sources | grep -c MUTATION` = 0):
+
+| # | reddened (issues) | as the table above predicted |
+|---|---|---|
+| MA | **1**: `anInnerLayersAllowsHitTesting…` `:765`, the `#require(x1 != x2)` | yes — alone |
+| MB | **12**: test 1 `:188`, test 2 ×4 `:254`, test 2a ×4 `:305`, matrix `:697`, hover `:824` (`#expect(scoped == "surface")`), X test `:765` | yes |
+| MC | **6**: test 1 `:188` and `:218`, test 2 `:254`, test 2a `:305`, matrix `:697`, hover `:824` | yes |
+
+The display lock, re-read for minor 2: `<false/>` at **00:10:11** and again at
+**00:13:24 PDT** — so it flips on this machine within minutes (`<true/>` at
+23:50, 00:00 and 00:03; `<false/>` at 23:33, 00:10 and 00:13). Lane 4 reads
+it immediately before each `screencapture -R`, not once.
+
 #### Lane 4 — `Component` padding wraps, and the verification
 
 *Not started.*
@@ -1065,10 +1169,13 @@ possible. No demo was launched and no input was sent in this lane.
 
 ### Carried into the integration step
 
-- **Nine** divergence rows with no numbers yet: the default hit region
+- **Ten** divergence rows with no numbers yet: the default hit region
   (`OM-I`), a padded click target (`OM-K` — and its order-sensitivity, which
   SwiftUI's P1/P2 do not have), **a grown content shape bounded by an
-  ancestor's clip where SwiftUI's hits through it (`OM-AJ`, lane 3)**,
+  ancestor's clip where SwiftUI's hits through it (`OM-AJ`, lane 3)**, **an
+  inner layer's `allowsHitTesting(false)` not reaching a click on a layer
+  written after it, where SwiftUI's two orders both read 0 / 0 (`OM-AL`, lane
+  3's review round; `OM-I` seen across a layer, probe arms X0–X3)**,
   `.opacity` reaching a later background (`OM-N`),
   **a second `.opacity` on one element REPLACING the first where SwiftUI's two
   calls multiply (`OM-AH`, the review round)**,

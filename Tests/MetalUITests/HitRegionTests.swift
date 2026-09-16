@@ -693,3 +693,135 @@ func allowsHitTestingFalseRemovesTheRECEIVERSOwnPointerTargetAndItsSubtreesAndKe
             why("and the region registered is the element's own box, not a shape derived from "
                 + "what it painted: " + regions.joined(separator: " | ")))
 }
+
+// MARK: - OM-AL: what the scope does not reach, across a layer
+
+/// **An inner layer's `allowsHitTesting(false)` does not reach an `onClick` on
+/// a layer written after it, and SwiftUI's does** — a recorded divergence
+/// (`OM-AL`), derived from `OM-I` rather than a new mechanism.
+///
+/// Probe `swiftui-content-shape-hit-region`, the X arms (120x120 colour,
+/// padding 40, 200x200 window; centre (100, 100), edge (20, 100) in the
+/// padding):
+///
+/// | arm | spelling | SwiftUI | MetalUI |
+/// |---|---|---|---|
+/// | X0 | `.padding(40).onClick` (control) | 1 / 0 | 1 / 1 (`OM-K`) |
+/// | X1 | `.allowsHitTesting(false).padding(40).onClick` | **0 / 0** | **1 / 1** |
+/// | X2 | `.padding(40).allowsHitTesting(false).onClick` | 0 / 0 | 0 / 0 |
+/// | X3 | X1 + `.contentShape(Rectangle())` before the tap | 1 / 1 | — (MetalUI's X1) |
+///
+/// `OM-T`'s "the order is not observable" holds within ONE `ModifierLayer`:
+/// N1 and N2 both land on the outermost layer's `Handlers`. Here `.padding`
+/// sits between them, so X1's scope is on the inner layer and its click on the
+/// outer one; `registerAndScope` opens the scope when it reaches the inner
+/// layer, after the outer layer has already registered a live 200x200 hitbox.
+/// X2 puts both on the outer layer and is N1 again.
+///
+/// **Why it is not fixed**: X3. SwiftUI's modifier empties the subtree's hit
+/// REGION and does not kill a later gesture — a `.contentShape(Rectangle())`
+/// after the padding gives it a region again and X3 reads 1/1. MetalUI's
+/// default region is always the frame (`OM-I`), so its X1 answer is SwiftUI's
+/// X3; a scope that suppressed the layers written after it would reproduce X1
+/// and contradict X3 in the same stroke.
+///
+/// The X1 and X2 arms are `#require`d to DISAGREE before either number is
+/// asserted: a mechanism that made the inner scope reach outward would make
+/// them agree at 0/0, and that is the one change this test exists to notice.
+@Test @MainActor func anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+
+    // A 120x120 colour padded by 40 in a 200x200 window: the probe's X shape.
+    @MainActor func arm(_ counter: ClickCounter,
+                        _ chain: @escaping @MainActor (Box<EmptyGroup>) -> ModifiedElement<Box<EmptyGroup>>)
+        throws -> (centre: Int, edge: Int, regions: [String]) {
+        let (window, platform) = try makeFakeWindow(device: device, size: 200) {
+            chain(Box().width(px(120)).height(px(120)).background(.accent).id("subject"))
+        }
+        window.drawFrameIfNeeded()
+        let regions = window.lastHitboxes.map(describe)
+        click(platform, at: pt(100, 100))
+        let centre = counter.count
+        click(platform, at: pt(20, 100))
+        return (centre, counter.count - centre, regions)
+    }
+
+    let x0Counter = ClickCounter()
+    let x0 = try arm(x0Counter) { $0.padding(px(40)).onClick { x0Counter.bump() } }
+    try #require(x0.centre == 1 && x0.edge == 1 && x0.regions.count == 1,
+                 why("X0, the control: the padded click target must be live at both points "
+                     + "(SwiftUI 1/0, MetalUI 1/1 by OM-K), or every reading below is the "
+                     + "harness: \(x0)"))
+
+    let x1Counter = ClickCounter()
+    let x1 = try arm(x1Counter) {
+        $0.allowsHitTesting(false).padding(px(40)).onClick { x1Counter.bump() }
+    }
+    let x2Counter = ClickCounter()
+    let x2 = try arm(x2Counter) {
+        $0.padding(px(40)).allowsHitTesting(false).onClick { x2Counter.bump() }
+    }
+
+    try #require(x1 != x2,
+                 why("the two orders must DISAGREE, or the inner layer's scope has started reaching "
+                     + "the layers written after it — which is not a fix (probe X3): X1 \(x1) vs "
+                     + "X2 \(x2)"))
+    #expect(x1.centre == 1 && x1.edge == 1
+                && x1.regions == ["[0.0 0.0 200.0x200.0] opaque=true scroll=nil"],
+            why("PINNED WRONG ON PURPOSE (OM-AL): .allowsHitTesting(false).padding(40).onClick "
+                + "scopes the INNER layer and registers the OUTER layer's 200x200 hitbox live — "
+                + "SwiftUI's X1 reads 0/0. \(x1)"))
+    #expect(x2.centre == 0 && x2.edge == 0 && x2.regions.isEmpty,
+            why("X2: the reverse order puts both on the outer layer and is N1 again — 0/0, no "
+                + "region, as SwiftUI's X2. \(x2)"))
+}
+
+// MARK: - hover follows the hitbox
+
+/// **A `hoverBackground` on an element under `allowsHitTesting(false)` never
+/// paints**, because hover is resolved from the hitbox list and the element
+/// registers no hitbox — the sentence in `StyledElement.allowsHitTesting`'s
+/// doc comment, pinned (lane 3's review round).
+///
+/// Two arms under one `mouseMoved` over the subject: the control paints its
+/// hover colour and the scoped arm paints its plain background. The control
+/// is `#require`d to be hovered first, so "never paints" is a statement about
+/// the scope and not about a pointer that never arrived.
+/// `everyBackgroundPaintingSiteHonoursHoverAndFocus` owns the hover chain per
+/// site; this test owns the one modifier that removes its input.
+@Test @MainActor func aHoverBackgroundNeverPaintsUnderAllowsHitTestingFalse() throws {
+    let device = try #require(MTLCreateSystemDefaultDevice(), "no Metal device; run on macOS hardware")
+
+    @MainActor func fill(_ disabled: Bool) throws -> String {
+        let (window, platform) = try makeFakeWindow(device: device, size: 100) {
+            let base = Box().width(px(40)).height(px(40))
+                .background(.surface).hoverBackground(.accent).id("subject").onClick { }
+            return disabled ? base.allowsHitTesting(false) : base
+        }
+        window.drawFrameIfNeeded()
+        platform.simulateInput(.mouseMoved(MouseEvent(position: pt(20, 20))))
+        window.setNeedsRedraw()
+        window.drawFrameIfNeeded()
+        let rect = try #require(window.lastScene.rects.first {
+            $0.bounds.size.width == 40 && $0.bounds.size.height == 40
+        }, "the subject painted no 40x40 rect")
+        let theme = window.theme
+        for token in [ColorToken.surface, .accent] {
+            let want = theme[token]
+            if rect.background.h == want.h && rect.background.s == want.s
+                && rect.background.l == want.l && rect.background.a == want.a {
+                return "\(token)"
+            }
+        }
+        return "neither surface nor accent: \(rect.background)"
+    }
+
+    let control = try fill(false)
+    try #require(control == "accent",
+                 why("set up: the hovered control must paint its hoverBackground, or the scoped "
+                     + "arm's plain fill says nothing about the scope — painted \(control)"))
+    let scoped = try fill(true)
+    #expect(scoped == "surface",
+            why("under .allowsHitTesting(false) the element registers no hitbox, is never hovered, "
+                + "and its hoverBackground never paints — painted \(scoped)"))
+}

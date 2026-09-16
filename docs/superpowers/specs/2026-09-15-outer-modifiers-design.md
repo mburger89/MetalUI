@@ -190,6 +190,14 @@ exist.
   L2…L9: `.border`, `.opacity`, `.clipShape`, `.cornerRadius`,
   `.allowsHitTesting`, `.contentShape`, `.focusable` and `.overlay` all leave a
   20x20 leaf 20x20 where `.padding(8)` (L1) reads 36x36.
+- **The proposal column is pinned by the proposal path's own tests, not by
+  the matrix instrument** (`OuterModifierMatrixTests` carries legacy rows
+  only — 19 `legacy Element`, 2 `legacy Component`). For `allowsHitTesting`
+  those are `allowsHitTestingFalsePreventsDescendantOnTapDispatch`
+  (`NativeLayoutIntegrationTests`) and `aPressIsRefusedWhereHitTestingIsDisabled`
+  (`AccessibilityTreeTests`); for the paint-only wrappers, the proposal
+  tests each modifier landed with (task 2). Adding a proposal-row shape to the
+  matrix is the integration step's call, not a lane's.
 - **A `Component` has no "self" column.** It contributes no node and owns no
   `Decoration`, so every modifier on it distributes or does not exist. That is
   why the focus ring, the border, opacity and the clip are **not** offered on a
@@ -674,7 +682,11 @@ the **fill** where the rounded bordered rect reads the **border**. Pinned by
 | `.onClick.padding(80)` | 1 / 0 | P2 | **1 / 0** — but for a different reason, and **order-sensitively**: only the OUTERMOST layer carries handlers, so the hitbox is at the inner box here and at the padded box above. SwiftUI's two orders agree; MetalUI's do not. Pinned (`OM-K`, extended) |
 | `.padding(80).background.onClick` | 1 / 1 | P4 | same |
 | `.onClick.allowsHitTesting(false)` | 0 / 0 | N1 | same, after lane 3 — **including the receiver's own hitbox** (`OM-T`) |
-| `.allowsHitTesting(false).onClick` | 0 / 0 | **N2** | same. The order is not observable in SwiftUI either, so MetalUI's one-`Handlers` storage **agrees** here — this is not a not-expressible row (`OM-T`) |
+| `.allowsHitTesting(false).onClick` | 0 / 0 | **N2** | same. The order is not observable in SwiftUI either, so MetalUI's one-`Handlers` storage **agrees** here — this is not a not-expressible row (`OM-T`). **Within one `ModifierLayer` only** — see the X rows |
+| `.padding(40).onClick` (120x120 colour, padding 40; control) | 1 / 0 | X0 | **1 / 1** (`OM-K` again) |
+| `.allowsHitTesting(false).padding(40).onClick` | 0 / 0 | **X1** | **1 / 1**, a live (0, 0) 200x200 region: the scope is on the INNER layer, the click on the OUTER one, and the outer layer's region is its frame. Divergence, pinned wrong on purpose (`OM-AL`, lane 3's review round) |
+| `.padding(40).allowsHitTesting(false).onClick` | 0 / 0 | **X2** | 0 / 0 — both on the outer layer; N1 again. **So MetalUI's two orders differ here and SwiftUI's do not** |
+| X1's chain + `.contentShape(Rectangle())` before the tap | 1 / 1 | **X3** | — . X3 is why `OM-AL` is `OM-I` across a layer and not fixed: SwiftUI's scope empties the REGION and a later shape restores it; MetalUI's region is always the frame |
 
 ### 6.4 `Component` (probe `swiftui-component-distribution`)
 

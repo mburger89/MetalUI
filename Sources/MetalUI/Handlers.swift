@@ -179,7 +179,14 @@ public struct Handlers {
     /// own `registerHandlers` call (`DecorationScope.swift`). SwiftUI reads
     /// 0 / 0 in both orders (probe `swiftui-content-shape-hit-region`, N1 and
     /// N2), so the legacy path's inability to tell the two orders apart is
-    /// **agreement** here rather than a divergence.
+    /// **agreement** here rather than a divergence — **within one
+    /// `ModifierLayer`**. The scope covers the layer it is written on and
+    /// everything inside it, **not the layers written after it**:
+    /// `.allowsHitTesting(false).padding(40).onClick { }` scopes the inner
+    /// layer and leaves the outer layer's hitbox live (centre 1 / edge 1),
+    /// where SwiftUI reads 0 / 0 (probe arms X0–X3; ruling `OM-AL`, a
+    /// divergence derived from `OM-I`, pinned by
+    /// `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`).
     ///
     /// **It removes the pointer target and nothing else.**
     /// `Frame.registerHandlers` gates only the hitbox insert on

@@ -43,7 +43,12 @@ import MetalUICore
 /// `.allowsHitTesting` write the *same* outermost `ModifierLayer`'s `Handlers`,
 /// so registering outside that scope would leave
 /// `Box().onClick { }.allowsHitTesting(false)` an opaque pointer target, which
-/// is probe arm N1 read backwards (`OM-T`). `Handlers.contentShapeInset` needed
+/// is probe arm N1 read backwards (`OM-T`). **The scope is per layer**: a
+/// `ModifiedElement` calls this once per layer, outermost first, so an inner
+/// layer's `allowsHitTesting(false)` opens after the outer layer has already
+/// registered — `.allowsHitTesting(false).padding(40).onClick { }` leaves the
+/// outer click live where SwiftUI's is dead (`OM-AL`, a recorded divergence
+/// that is `OM-I`'s across a layer). `Handlers.contentShapeInset` needed
 /// nothing here at all: it is applied inside `Frame.registerHandlers`, to the
 /// hitbox bounds alone (`OM-J`), so it cannot reach focus or accessibility by
 /// construction rather than by four correct call sites.

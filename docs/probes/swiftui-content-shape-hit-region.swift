@@ -29,6 +29,14 @@
 // a point in its empty space, so a 1 in H2/H3 is the modifier and not the
 // harness.
 //
+// RE-RECORDED 2026-09-16 00:03 PDT (lane 3's review round), same machine and
+// toolchain, with four additive arms X0–X3: `.allowsHitTesting(false)` with a
+// `.padding` layer between it and the gesture, in both orders, and the X1
+// chain with a later `.contentShape(Rectangle())`. Every pre-existing arm
+// re-read its recorded value byte for byte in the same run. Exit 0. The
+// verifier's scratch copy (23:58 PDT) read X0, X1 and X3 identically; X2 is
+// new here.
+//
 // RE-RECORDED AGAIN 2026-09-15 (lane 3), same machine and toolchain, with three
 // additive arms H4–H6: a content shape BIGGER than the frame, and whether an
 // ancestor `.clipped()` bounds it. Every pre-existing arm re-read its recorded
@@ -59,6 +67,11 @@
 //   --- N: allowsHitTesting on the tappable itself
 //     N1 full Color + tap, hit testing off   : centre 0 edge 0
 //     N2 full Color, hit testing off, THEN tap: centre 0 edge 0
+//   --- X: allowsHitTesting across a padding layer (120x120 colour, padding 40)
+//     X0 colour.padding(40).tap (control)      : centre 1 edge 0
+//     X1 colour.hitOff.padding(40).tap         : centre 0 edge 0
+//     X2 colour.padding(40).hitOff.tap         : centre 0 edge 0
+//     X3 X1 + contentShape(Rectangle()) then tap: centre 1 edge 1
 //
 // WHAT IT SHOWS.
 // - H1 vs H2: SwiftUI's DEFAULT hit region is derived from what the view
@@ -95,6 +108,23 @@
 //   MetalUI's legacy path stores both on ONE `Handlers` and so cannot tell the
 //   two orders apart — which here is AGREEMENT, not a divergence, and removes a
 //   row that would otherwise have joined OM-H's not-expressible list.
+//   **That agreement holds within ONE `ModifierLayer` only** — see X.
+// - X0 vs X1 vs X2: with a `.padding(40)` between the scope and the gesture,
+//   SwiftUI reads 0/0 in BOTH orders (X1, X2), against the control's 1/0
+//   (X0). In MetalUI the two orders differ: `.allowsHitTesting(false)
+//   .padding(40).onClick { }` (X1's spelling) puts the scope on the INNER
+//   layer and the click on the OUTER one, and the outer layer's hitbox is
+//   live — centre 1, edge 1; the reverse (X2's spelling) puts both on the
+//   outer layer and reads 0/0. A recorded divergence (ruling OM-AL), pinned by
+//   `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`.
+// - X3 is WHY the divergence is OM-I's and not a new mechanism. SwiftUI's
+//   `.allowsHitTesting(false)` empties the subtree's hit REGION and does not
+//   kill a later layer's gesture: `.contentShape(Rectangle())` written after
+//   the padding gives the outer gesture a region again and X3 reads 1/1.
+//   MetalUI's default region is always the frame (OM-I, H1 vs H2), so its X1
+//   answer IS SwiftUI's X3 — there is no spelling for "no region" to lose. A
+//   MetalUI fix that let an inner layer's scope suppress the layers written
+//   after it would reproduce X1 and contradict X3 in the same stroke.
 
 import SwiftUI
 import AppKit
@@ -239,6 +269,30 @@ let edge = CGPoint(x: 20, y: 100)
     // whether the order is observable at all.
     arm("N2 full Color, hit testing off, THEN tap") {
         Color.blue.allowsHitTesting(false).onTapGesture { Count.bump("hit") }
+    }
+    // X0–X3, added 2026-09-16 by lane 3's review round (verifier finding 1):
+    // the same two orders with a WRAPPING modifier between the scope and the
+    // gesture. N1 == N2 says nothing about a chain that crosses a layer, and
+    // MetalUI's `.allowsHitTesting(false).padding(40).onClick { }` puts the
+    // scope on the INNER layer and the click on the OUTER one. A 120x120 colour
+    // padded by 40 fills the 200x200 window, so the edge point (20, 100) lies
+    // in the padding and the centre in the colour.
+    print("--- X: allowsHitTesting across a padding layer (120x120 colour, padding 40)")
+    arm("X0 colour.padding(40).tap (control)      ") {
+        Color.blue.frame(width: 120, height: 120).padding(40)
+            .onTapGesture { Count.bump("hit") }
+    }
+    arm("X1 colour.hitOff.padding(40).tap         ") {
+        Color.blue.frame(width: 120, height: 120).allowsHitTesting(false).padding(40)
+            .onTapGesture { Count.bump("hit") }
+    }
+    arm("X2 colour.padding(40).hitOff.tap         ") {
+        Color.blue.frame(width: 120, height: 120).padding(40).allowsHitTesting(false)
+            .onTapGesture { Count.bump("hit") }
+    }
+    arm("X3 X1 + contentShape(Rectangle()) then tap") {
+        Color.blue.frame(width: 120, height: 120).allowsHitTesting(false).padding(40)
+            .contentShape(Rectangle()).onTapGesture { Count.bump("hit") }
     }
 }
 

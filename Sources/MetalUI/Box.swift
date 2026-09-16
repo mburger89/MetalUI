@@ -1150,6 +1150,16 @@ extension StyledElement {
     /// answer in both orders too (probe `swiftui-content-shape-hit-region`,
     /// arms N1 and N2). Ruling `OM-T`.
     ///
+    /// **The scope covers the layer it is written on and everything inside it,
+    /// not the layers written after it.** With a wrapping modifier between the
+    /// two, the orders differ: `.allowsHitTesting(false).padding(40).onClick { }`
+    /// scopes the inner layer and the outer layer's click is live, while
+    /// `.padding(40).allowsHitTesting(false).onClick { }` is dead. SwiftUI reads
+    /// 0 / 0 in both (probe arms X1, X2) — a recorded divergence, `OM-AL`,
+    /// which is `OM-I`'s default-region divergence seen across a layer (arm X3:
+    /// SwiftUI's own answer becomes 1 / 1 once a `.contentShape(Rectangle())`
+    /// gives the outer gesture a region). Write the scope LAST to dim a chain.
+    ///
     /// **It is a pointer decision and nothing else.** A focusable element under
     /// it still holds focus and still answers keys; a declared `AXNode` is still
     /// emitted and an accessibility client still sees the element. SwiftUI keeps
@@ -1159,7 +1169,9 @@ extension StyledElement {
     ///
     /// **Hover and `isActive` follow the hitbox**, because both are resolved
     /// from the hitbox list: an element with hit testing off is never hovered,
-    /// so a `hoverBackground(_:)` on it never paints.
+    /// so a `hoverBackground(_:)` on it never paints (pinned for hover by
+    /// `aHoverBackgroundNeverPaintsUnderAllowsHitTestingFalse`; `isActive` is
+    /// by reading, unpinned — no built-in element paints a pressed state).
     ///
     /// A `ScrollView` inside the scope still scrolls (`OM-AK`) — see
     /// `Handlers.allowsHitTesting`.
