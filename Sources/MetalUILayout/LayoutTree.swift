@@ -69,6 +69,20 @@ public final class LayoutTree {
     /// after changing it (CN-R).
     private var nativeParents: [Int: Int] = [:]
 
+    /// Grid marks, by node index (ruling GR-A; `markNativeGridRow`,
+    /// `markNativeGridCell`): the row token and row alignment of the last row
+    /// mark over each node (an enclosing `GridRow` marks after the one it
+    /// contains, so it wins, nil alignment included; GR-T), and each node's
+    /// `gridCellColumns` count. Written before a grid registers and read once,
+    /// by `newNativeGrid`; cleared by `reset(generation:)`. `nextGridRowToken`
+    /// makes each row mark's token fresh; it is never reset, which keeps tokens
+    /// unique. Stored properties on a public class read across a module
+    /// boundary: `swift package clean` after changing them (CN-R).
+    private var gridRowTokens: [Int: Int] = [:]
+    private var gridRowAlignments: [Int: ProposalAlignment] = [:]
+    private var gridCellColumns: [Int: Int] = [:]
+    private var nextGridRowToken = 0
+
     /// The native run in progress, `nil` outside a native layout call.
     ///
     /// Held only so `setLayout` can read `measureDepth` (ruling SA-H clause 4:
@@ -473,9 +487,9 @@ public final class LayoutTree {
 
     /// Registers a custom proposal-layout algorithm over native children.
     ///
-    /// The one protocol-backed node kind; the eleven built-ins stay enum cases
-    /// (ruling SA-B). Every child must already be native, as for every other
-    /// native container.
+    /// The one protocol-backed node kind; the twelve built-ins (the grid
+    /// included, GR-A) stay enum cases (ruling SA-B). Every child must already
+    /// be native, as for every other native container.
     public func newNativeLayout(_ layout: some ProposalLayout,
                                 children: [LayoutNodeID]) -> LayoutNodeID {
         for child in children { _ = nativeNode(child) }
@@ -688,6 +702,9 @@ public final class LayoutTree {
         nativeNodes.removeAll(keepingCapacity: true)
         spacerAxes.removeAll(keepingCapacity: true)
         nativeParents.removeAll(keepingCapacity: true)
+        gridRowTokens.removeAll(keepingCapacity: true)
+        gridRowAlignments.removeAll(keepingCapacity: true)
+        gridCellColumns.removeAll(keepingCapacity: true)
     }
 
     /// The storage index for `id`, after checking it belongs to this tree.
@@ -837,6 +854,8 @@ public final class LayoutTree {
         case .linearStack(let axis, let spacing, _):
             result = LayoutMeasurement(size: solveLinearStack(id, axis: axis, spacing: spacing,
                                                               proposal: proposal, run: run).size)
+        case .grid:
+            result = LayoutMeasurement(size: measureGrid(id, proposal: proposal, run: run))
         }
         run.measureDepth -= 1
         precondition(!result.size.width.isNaN && !result.size.height.isNaN
@@ -990,6 +1009,8 @@ public final class LayoutTree {
                 }
                 placeNative(child, in: childBounds, proposal: solution.proposals[index], run: run)
             }
+        case .grid:
+            placeGrid(id, in: bounds, proposal: proposal, run: run)
         }
     }
 
@@ -1068,9 +1089,10 @@ public final class LayoutTree {
     /// `aspectRatio` (K2b, K2g/K2i, K2d, SP19, SP20) and BOTH children of an
     /// overlay attachment (X8's primary, K2e's overlay content), and stops at
     /// anything else: a `ZStack` (`overlay`, K2a), a nested linear stack
-    /// (SP18b, whose own marks stand), a scroll viewport, a custom layout or a
-    /// leaf. A spacer keeps the first mark it gets, which is its nearest
-    /// stack's: an inner stack registers before the stack that contains it.
+    /// (SP18b, whose own marks stand), a scroll viewport, a custom layout, a
+    /// grid (GR-R, probe GE29 vs GE30) or a leaf. A spacer keeps the first mark
+    /// it gets, which is its nearest stack's: an inner stack registers before
+    /// the stack that contains it.
     private func markSpacers(_ id: LayoutNodeID, axis: ProposalStackAxis) {
         switch nativeNode(id) {
         case .spacer:
@@ -1078,6 +1100,9 @@ public final class LayoutTree {
         case .layoutPriority, .padding, .frame, .fixedSize, .aspectRatio, .overlayAttachment:
             for child in children(id) { markSpacers(child, axis: axis) }
         case .leaf, .overlay, .linearStack, .scrollViewport, .custom:
+            return
+        case .grid:
+            // GR-R (GE29 vs GE30): a stack does not mark a Spacer inside a grid.
             return
         }
     }
@@ -1118,7 +1143,9 @@ public final class LayoutTree {
     /// - a `ZStack` (`overlay`): an edge is zero only if it is zero on EVERY
     ///   child (K3g, K3l, V7g, V7j, V7k; K3j, K3k with a leaf child);
     /// - any of those three with no children: both (V1f, V1g, V3d, V4, V4b);
-    /// - a leaf or a scroll viewport: neither (V8, whatever its content).
+    /// - a leaf or a scroll viewport: neither (V8, whatever its content);
+    /// - a grid: positional over its cells' stored edges
+    ///   (`nativeGridZeroSpacingEdges`; ruling GR-R, probe GE).
     ///
     /// Leading/trailing are left/right for a horizontal stack and top/bottom
     /// for a vertical one; no layout direction is read (divergence 25).
@@ -1149,6 +1176,9 @@ public final class LayoutTree {
             return (edges.allSatisfy(\.leading), edges.allSatisfy(\.trailing))
         case .leaf, .scrollViewport:
             return (false, false)
+        case .grid(let plan):
+            // GR-R: positional, over the plan's stored cell edges.
+            return nativeGridZeroSpacingEdges(plan, axis: axis)
         }
     }
 
@@ -1495,6 +1525,8 @@ private enum NativeNode {
     /// `spacing` nil is the platform default, decided per pair (CN-H).
     case linearStack(axis: ProposalStackAxis, spacing: Double?, alignment: ProposalAlignment)
     case custom(any ProposalLayout)
+    /// A grid, its plan resolved at registration (ruling GR-A; `NativeGrid.swift`).
+    case grid(NativeGridPlan)
 }
 
 /// Temporary source-compatible name for ``ProposalMeasureFunction``.
@@ -1508,3 +1540,132 @@ public typealias NativeStackAxis = ProposalStackAxis
 /// Temporary source-compatible name for ``ProposalAlignment``.
 @available(*, deprecated, renamed: "ProposalAlignment")
 public typealias NativeAlignment = ProposalAlignment
+
+// MARK: - Grids (plan task 7, stage G; ruling GR-A)
+
+extension LayoutTree {
+    /// Marks `cells` as one grid row: a fresh row token and `alignment` (its
+    /// vertical factor is read), **overwriting** any earlier row mark on each
+    /// node, a nil alignment included (rulings GR-A, GR-T; probe GG3,
+    /// GG10–GG12). An enclosing `GridRow` registers after the one it contains,
+    /// so its mark wins. `cells` may be empty. Marks on a node that never sits
+    /// under a grid are inert.
+    ///
+    /// **Traps on a node that already has a native parent**: the grid that
+    /// reads the mark registers after it, so a parented node's mark could never
+    /// be read.
+    public func markNativeGridRow(_ cells: [LayoutNodeID], alignment: ProposalAlignment? = nil) {
+        let token = nextGridRowToken
+        nextGridRowToken += 1
+        for cell in cells {
+            let index = slot(cell)
+            precondition(nativeParents[index] == nil,
+                         "a grid row mark written after its node was parented (GR-A), node \(index)")
+            gridRowTokens[index] = token
+            gridRowAlignments[index] = alignment
+        }
+    }
+
+    /// Marks `node` as a grid cell spanning `columns` columns (ruling GR-F;
+    /// `gridCellColumns`). **Lane 1: a later mark replaces an earlier one**;
+    /// lane 3 sums them and adds the anchor, column-alignment and unsized-axes
+    /// marks. 0 lays out as 1 (GX14). A negative count traps with the parameter
+    /// named, where SwiftUI traps (GT1; SA-J). Traps on a node that already has
+    /// a native parent, as `markNativeGridRow` does.
+    public func markNativeGridCell(_ node: LayoutNodeID, columns: Int? = nil) {
+        let index = slot(node)
+        precondition(nativeParents[index] == nil,
+                     "a grid cell mark written after its node was parented (GR-A), node \(index)")
+        if let columns {
+            precondition(columns >= 0, "grid cell columns must not be negative (GR-F, SA-J), got \(columns)")
+            gridCellColumns[index] = columns
+        }
+    }
+
+    /// Registers a grid over native children (spec §4; rulings GR-A…GR-D).
+    ///
+    /// Consecutive children carrying one row token (`markNativeGridRow`) form a
+    /// row; any other child is a non-row cell spanning every column. Columns
+    /// are as wide as their widest single-column cell and rows as tall as their
+    /// tallest cell; the grid answers the sums plus the gaps. A nil spacing is
+    /// the platform default decided per boundary (0 beside a zero-spacing
+    /// edge, GR-D); a given spacing is used verbatim, negative included.
+    ///
+    /// **Checks, in order:** each child is native, with a message naming its
+    /// position, before any other read of it (SA-G); each given spacing is
+    /// finite, the message naming `horizontalSpacing` or `verticalSpacing`
+    /// (SA-J; SwiftUI answers nan and inf, GS9, GS10); each child has no other
+    /// parent (CN-L). The plan — rows, spans, gaps, priorities, edges — is
+    /// resolved here, once, and marks written later are not read.
+    ///
+    /// **Lane 1 lays a grid out at a nil×nil proposal only**; any other
+    /// proposal traps until lane 2's solve lands.
+    public func newNativeGrid(children: [LayoutNodeID], alignment: ProposalAlignment = .center,
+                              horizontalSpacing: Double? = nil,
+                              verticalSpacing: Double? = nil) -> LayoutNodeID {
+        for (position, child) in children.enumerated() {
+            precondition(nativeNodes[slot(child)] != nil, "grid child \(position) is a legacy node (SA-G)")
+        }
+        if let horizontalSpacing {
+            precondition(horizontalSpacing.isFinite,
+                         "grid horizontalSpacing must be finite (SA-J), got \(horizontalSpacing)")
+        }
+        if let verticalSpacing {
+            precondition(verticalSpacing.isFinite,
+                         "grid verticalSpacing must be finite (SA-J), got \(verticalSpacing)")
+        }
+        let id = appendNode(style: .default, children: children)
+        recordParent(id, of: children)
+        let inputs = children.map { child in
+            let horizontal = zeroSpacingEdges(child, axis: .horizontal)
+            let vertical = zeroSpacingEdges(child, axis: .vertical)
+            return NativeGridChild(node: child, rowToken: gridRowTokens[child.index],
+                                   rowAlignment: gridRowAlignments[child.index],
+                                   columns: gridCellColumns[child.index],
+                                   priority: nativeLayoutPriority(child),
+                                   horizontalEdges: NativeGridEdges(leading: horizontal.leading,
+                                                                    trailing: horizontal.trailing),
+                                   verticalEdges: NativeGridEdges(leading: vertical.leading,
+                                                                  trailing: vertical.trailing))
+        }
+        nativeNodes[id.index] = .grid(makeNativeGridPlan(inputs, alignment: alignment,
+                                                         horizontalSpacing: horizontalSpacing,
+                                                         verticalSpacing: verticalSpacing))
+        return id
+    }
+
+    /// The plan of a grid node, nil for any other node: a test observable.
+    func nativeGridPlan(_ id: LayoutNodeID) -> NativeGridPlan? {
+        if case .grid(let plan) = nativeNode(id) { return plan }
+        return nil
+    }
+
+    /// A grid's answer, measuring its cells through the run's cache. Its own
+    /// function so `measureNative`'s frame gains no locals (spec §4.5).
+    private func measureGrid(_ id: LayoutNodeID, proposal: ProposedSize, run: NativeLayoutRun) -> SizeD {
+        guard let plan = nativeGridPlan(id) else { preconditionFailure("measureGrid on a node that is not a grid") }
+        var answers: [SizeD] = []
+        answers.reserveCapacity(plan.cells.count)
+        for cell in plan.cells {
+            answers.append(measureNative(cell.node, proposal: proposal, run: run).size)
+        }
+        return solveNativeGrid(plan, proposal: proposal) { index, _ in answers[index] }.size
+    }
+
+    /// Places a grid's cells (spec §4.3): the solve again at `proposal`, every
+    /// measurement a cache hit, then each cell at its rect and placement
+    /// proposal. The grid's cells start at `bounds`' origin whatever its size
+    /// (as `ZStack`'s union does, CN-E).
+    private func placeGrid(_ id: LayoutNodeID, in bounds: LayoutRect, proposal: ProposedSize,
+                           run: NativeLayoutRun) {
+        guard let plan = nativeGridPlan(id) else { preconditionFailure("placeGrid on a node that is not a grid") }
+        let measure = { (index: Int, cellProposal: ProposedSize) -> SizeD in
+            self.measureNative(plan.cells[index].node, proposal: cellProposal, run: run).size
+        }
+        let solution = solveNativeGrid(plan, proposal: proposal, measure: measure)
+        let placements = nativeGridCellRects(plan, solution: solution, x: bounds.x, y: bounds.y, measure: measure)
+        for (cell, placement) in zip(plan.cells, placements) {
+            placeNative(cell.node, in: placement.rect, proposal: placement.proposal, run: run)
+        }
+    }
+}

@@ -76,6 +76,25 @@ final class NativeLayoutRun {
     /// carried. Legacy's figure for comparison: 107 (≈9.8 KB, carried from
     /// `LayoutContext.maxDepth`). **Release is unmeasured.**
     ///
+    /// **Re-taken 2026-09-17 by the grids track (lane 1, ruling GR-M)**, same
+    /// method, `/usr/bin/swift` 6.4 debug, laid out at 400×400 (a grid at
+    /// nil×nil, its only lane-1 branch); record §20:
+    ///
+    /// | kind | at `cb2e708` | with lane 1's `.grid` case |
+    /// |---|---|---|
+    /// | padding | 197 / 198 | 194 / 195 |
+    /// | one-child vertical `linearStack` | **128 / 129** | **127 / 128** |
+    /// | one-cell grid (nil×nil) | — | 170 / 171 |
+    ///
+    /// **The stack's ceiling no longer supports 88**: 0.60 × 127 = 76.2, so
+    /// `SA-L`'s rule gives 72. It had already moved at `cb2e708` (128), before
+    /// any grid code, so the drop from 151 predates this track; 88 is unchanged
+    /// here and the finding is left to `LR-Q`'s stage 6b re-bisection. The
+    /// grid's first two implementations measured 110 and 117 (a solver frame
+    /// and `Array.map` on the recursion path); lane 1 measures a nil grid's
+    /// cells directly in `LayoutTree.measureGrid`. Lane 2's finite solve is on
+    /// that path again and re-bisects.
+    ///
     /// **No parity with legacy is claimed.** One legacy level ported as
     /// `.padding(…).frame(width:)` is at least three native levels, so a
     /// ported tree near legacy's 64 can exceed 88 native levels and trap where
