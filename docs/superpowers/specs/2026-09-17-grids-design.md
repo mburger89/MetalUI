@@ -1,6 +1,6 @@
 # Grids — design (plan task 7, stage G)
 
-`feat/grids` from `cb2e708`. Rulings `GR-A`…`GR-V` in
+`feat/grids` from `cb2e708`. Rulings `GR-A`…`GR-W` in
 [`../2026-09-17-grids-decisions.md`](../2026-09-17-grids-decisions.md); probes
 `docs/probes/swiftui-grid.swift` (**revision 5**; arm ids below are its),
 `docs/probes/swiftui-grid-corpus.txt` (its `corpus` mode at revision 5) and
@@ -10,8 +10,9 @@ Parent design:
 §4.1 row G ("no legacy twin; depends on nothing; exit test is its own probe's
 arms; goldens 0; demo 0 px").
 
-**Status, 2026-09-17: design only, revised after one critic round (`GR-Q`).**
-Nothing under `Sources/` or `Tests/` changed. Baseline at `cb2e708`, measured in
+**Status, 2026-09-17: lane 1 built** (`432cb3d` red, `82a63fe`; as-built
+amendments in `GR-W`, record §20 "Lane 1"). Lanes 2–4 not started. The design
+was revised after one critic round (`GR-Q`). Baseline at `cb2e708`, measured in
 this worktree: `Test run with 1409 tests in 1 suite passed` (native,
 unfiltered), 97 goldens, 71 guards.
 
@@ -70,7 +71,7 @@ stage (`GR-L`).
 | layer | file | what |
 |---|---|---|
 | kernel | `Sources/MetalUILayout/NativeGrid.swift` (new) | `ProposalAxes`; `NativeGridPlan` (cells, row and column indexes, gaps, edges), `NativeGridCell`; the pure solver `solveNativeGrid(_:proposal:measure:)` → `NativeGridSolution` (with its internal bookkeeping counter, `GR-U`); `nativeGridCellRects(_:solution:origin:measure:)`; `nativeGridZeroSpacingEdges(_:axis:)` |
-| kernel | `Sources/MetalUILayout/LayoutTree.swift` (localized, `GR-A`) | three stored mark dictionaries declared right after `nativeParents`, cleared by lines appended at the end of `reset`; `NativeNode.grid(NativeGridPlan)` as the last case; a `.grid` arm, last, in `measureNative`, `placeNative`, `markSpacers`, `zeroSpacingEdges`, `nativeLayoutPriority`; one extension at the end of the file holding the registrars and the plan's walk |
+| kernel | `Sources/MetalUILayout/LayoutTree.swift` (localized, `GR-A`) | three stored mark dictionaries and a row-token counter (`GR-W`) declared right after `nativeParents`, cleared by lines appended at the end of `reset`; `NativeNode.grid(NativeGridPlan)` as the last case; a `.grid` arm, last, in `measureNative`, `placeNative`, `markSpacers`, `zeroSpacingEdges`, `nativeLayoutPriority`; one extension at the end of the file holding the registrars and the plan's walk |
 | elements | `Sources/MetalUI/Grid.swift` (new) | `Grid`, `GridRow`, `GridCellModifier`, the four cell modifiers, and the public `LayoutPass` registrars (`LayoutPass.frame` and `Frame.tree` are internal to `MetalUI`) |
 
 **Not touched:** `Frame.swift`, `Passes.swift`, `NativeElements.swift`,
@@ -396,8 +397,8 @@ each asserting its stderr fragment); depth tests appended to
 | 1.7 | `explicitGridSpacingIsVerbatimAndNegativeSpacingIsAccepted` | GA2, GA3, GS8 (60×45) | no registrar | clamp a given spacing at 0 (GS8 reads 70×50) |
 | 1.8 | `gridAndRowAlignmentPlaceCellsInTheirSlots` | GL1, GL2, GL3, GL9, GL12 | no registrar | ignore the row alignment (GL3's a at y 5) |
 | 1.9 | `consecutiveCellsOfOneRowTokenAreOneRowAndTheOutermostRowMarkWins` | kernel spellings of GG3 (two marks, the enclosing one overwriting), GG10, GG11, GG12 (the enclosing mark's alignment replaces the inner's, nil included), GG9 (a linear stack holding marked nodes is a non-row child), and two adjacent rows of equal alignment staying two rows | no registrar | (a) compare rows by alignment instead of token (the adjacent rows merge); (b) keep the inner alignment when the enclosing mark's is nil (GG12's a at y 20) |
-| 1.10 | `aGridSeenFromAStackHasPositionalZeroSpacingEdges` | kernel spellings at nil of GE1–GE7, GE16, GE23–GE26 | no registrar | (a) answer "any cell", as `.custom` does (GE3's b at x 30, GE24's b at y 10); (b) answer neither edge (GE1's s at x 38) |
-| 1.11 | `aStackDoesNotMarkASpacerInsideAGrid` | GE29 vs GE30 at nil (`#require` they differ) | no registrar | walk `markSpacers` into a grid's children (GE29's s at x 38) |
+| 1.10 | `aGridSeenFromAStackHasPositionalZeroSpacingEdges` | kernel spellings at nil of GE1–GE7, GE16, GE23–GE26: **the stacks' answers, measured only** (`GR-W`: placing would propose the grid a concrete cross axis, lane 2's branch) | no registrar | (a) answer "any cell", as `.custom` does (GE3 reads 68×20, GE24 30×48); (b) answer neither edge (GE1 reads 84×20) |
+| 1.11 | `aStackDoesNotMarkASpacerInsideAGrid` | GE29 vs GE30 at nil (`#require` they differ), measured only, and GE29's grid answer 28×20 | no registrar | walk `markSpacers` into a grid's children (GE29 reads 68×20, its grid 20×20) |
 | 1.12 | `aGridsWorkAtNilIsOneLeafCallPerDistinctProposal` (`NativeGridWorkTests.swift`) | GP3 = 7 leaf calls; cache hits and misses **derived by hand before the run** and recorded in the doc comment | no registrar | re-measure every cell at its slot even when the slot equals its answer (GP3 reads 8) |
 | 1.13 | `resetClearsGridRowMarks` | two nodes marked as one row in generation 1; after `reset(generation: 2)`, two 30×10 leaves at the same indexes under a grid are two non-row cells: **30×28**, not one row's 68×10 | no registrar | do not clear the row-token dictionary in `reset` (68×10) |
 | 1.14 | `aNegativeGridCellColumnsTraps` (exit, stderr names `columns`) | GT1 | no precondition | drop it |
@@ -417,7 +418,8 @@ is a finding.
 
 **Depth gate** (`GR-M`): before committing, bisect the debug ceiling of a chain
 of one-cell grids on a 1 MB `Thread` by `SA-L`'s method and record it in
-`NativeLayoutRun.maxDepth`'s table; below 147, stop and report.
+`NativeLayoutRun.maxDepth`'s table; below 147, stop and report. **As built: 170**
+(`GR-W`); lane 2 re-bisects with its finite solve on the recursion path.
 
 **Expected count:** 1409 + 22 = **1431**; guards 71. **Demo:** 0 px (`GR-M`).
 
@@ -446,7 +448,7 @@ transcribed verbatim with its comment header kept).
 | 2.8 | `aSpanAtAFiniteProposalIsOfferedTheWidthOutsideItAndWidensItsOpenColumnsFirst` | GX8, GX9 (a 30 wide in its column, b 262), GX10 (a at 60.5, b at 219.5), GX12 (x proposed 300; a 176, b 116 slots) | not in the tree | (a) propose a span the sum of its columns' shares plus inner gaps (probe variant 2; GX10's x moves); (b) drop step 12 (GX9's b reads 231, a's column 61) |
 | 2.9 | `theModelsDisagreementsWithSwiftUIArePinned` — pinned wrong on purpose; SwiftUI's figures in its doc comment | the model's figures: **GX17** 200×100, a (0,36 30×10), b (38,0 134×82), c (180,31 20×20), x (25,90 150×10); **GX18** 200×100, a (0,0 104×82), b (112,36 30×10), c (150,36 50×10), x (70,90 60×10); **GS4** 45×40, a (0,0 15×10), c (15,15 30×20), s (0,10 15×30); **GS5** 164×136, a (48,0 40×40), b (34,63 68×10), c (144,48 20×40), d (53,96 30×40); GX19 (control, agreeing with SwiftUI) 200×100, x (80,90 40×10) | not in the tree | skip `absorbSpan` at proposals other than nil×nil (GX17 and GS5 move; the lane records the figures) |
 | 2.10 | `aGridPassesNoPriorityToAnEnclosingStack` | kernel spellings of GE8 (46/46), GE10 (36/38/10), GE11 (50/50), with GE27 (0/92) and GE28 (92/8) as controls, `#require` GE8 ≠ GE27 and GE11 ≠ GE28 | not in the tree | `.grid` in `nativeLayoutPriority` passes a one-cell grid's child priority, as a one-child stack does (GE8 reads 0/92, GE11 reads 92/8) |
-| 2.11 | `aGridInAStackLaysOutAsTheModelInAStack` | kernel spellings of GE17–GE22 | not in the tree | GZ0's control (GE17 moves; the lane records it) |
+| 2.11 | `aGridInAStackLaysOutAsTheModelInAStack` | kernel spellings of GE17–GE22, and the rects of GE1–GE7, GE16, GE23–GE26, GE29, GE30 laid out (moved from 1.10/1.11 by `GR-W`) | not in the tree | GZ0's control (GE17 moves; the lane records it) |
 | 2.12 | `aGridsWorkAtFiniteProposalsIsOneLeafCallPerDistinctProposal` (`NativeGridWorkTests.swift`) | GP1 = 16 leaf calls, GP2 = 15; hits and misses derived by hand before the run | not in the tree | re-measure every cell at its slot (GP1 reads more; the lane records it) |
 | 2.13 | `theGridProbeCorpusAgreesCaseByCase` — reads `GridCorpus.swift`, `#require`s 120 cases and, in this lane, filters to those with no anchor, column alignment or unsized axis: `#require` **18** | the corpus | not in the tree | GZ0's control (the lane records how many of the 18 redden) |
 | 2.14 | `theSolversBookkeepingIsLinearInTheCells` (`NativeGridWorkTests.swift`) — `solveNativeGrid` directly on a grid of *n* rows `[fixed 20×10, clampW(0, 50, 10), flexW(10)]` at 300 × nil (three groups): `bookkeepingSteps` at *n* = 200 equals a literal, and `steps(200) − 2 · steps(100)` is at most a constant, both derived by hand from the indexed solver before the run | — (`GR-U`) | **red first** against a first finite branch in the model's shape (a scan of every cell per column and per group, the gaps by cell pairs); the lane records that count, then indexes | replace the column index in the commit check with a scan of every cell |

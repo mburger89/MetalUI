@@ -1,12 +1,12 @@
 # Grids decisions (plan task 7, stage G)
 
 Rulings for [`specs/2026-09-17-grids-design.md`](specs/2026-09-17-grids-design.md),
-on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-V`; next unused
-is **`GR-W`**. A bare `GR-3` is a typo, not a citation.
+on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-W`; next unused
+is **`GR-X`**. A bare `GR-3` is a typo, not a citation.
 
-**Status, 2026-09-17, design only, after one critic round** (`GR-Q` records how
-each of its fourteen findings was applied). No file under `Sources/` or
-`Tests/` changed. Baseline measured in this worktree at `cb2e708`: `swift build
+**Status, 2026-09-17: lane 1 built** (`GR-W` records its as-built amendments);
+the design was revised after one critic round (`GR-Q` records how each of its
+fourteen findings was applied). Baseline measured in this worktree at `cb2e708`: `swift build
 --build-system native --build-tests`, then `swift test --build-system native
 --no-parallel` → `Test run with 1409 tests in 1 suite passed after 42.821
 seconds`, 0 `error:`, no `warning:` besides SwiftPM's deprecation notice;
@@ -815,3 +815,46 @@ comment).
 **Cost if wrong.** If `ProposalText`'s flexibility at 0 does not order labels
 before values, the value column is offered a share instead of the remainder;
 test 4.11 fails and the lane records what the text measured.
+
+---
+
+## GR-W — lane 1 as built: stack arms measured, a nil grid's cells measured outside the solver, the plan a class, a row-token counter
+
+**Ruling** (lane 1, 2026-09-17; measurements in record §20, "Lane 1").
+
+1. **Tests 1.10 and 1.11 assert answers, not rects.** The spec placed the GE
+   arms in lane 1, but a linear stack places each child at its own measured
+   cross size (`CN-E`), so an `HStack` at nil×nil proposes its grid nil×20 —
+   probe GE1's own line reads `b … <- nilx20` — and that is the finite branch,
+   lane 2's. Lane 1 asserts each stack's answer at nil×nil, where the stack
+   measures the grid at nil×nil, and GE29's grid answer (28×20, the VStack's
+   width derived from the stack's 76). Every gap the edge rule decides is in
+   those answers: mutation (a) reads GE3 68 and GE24 48, (b) GE1 84, and the
+   `markSpacers` mutant reads GE29 68×20 with its grid 20×20 (the spec
+   predicted "s at x 38", a rect; it also reddens GE25 and GE26, whose Spacer
+   an `HStack` then marks). **The GE rects (GE1–GE7, GE16, GE23–GE26,
+   GE29, GE30) move to lane 2's test 2.11.**
+2. **The depth gate.** Bisected by `SA-L`'s method (debug, 1 MB `Thread`, one
+   `swift test --skip-build` per depth, first failing depth completing on
+   4 MB): a one-cell grid at nil×nil completes **170** and dies at 171, ≥ 147.
+   Two earlier shapes failed the gate and were not kept: the solver measuring
+   through its closure with `Array.map` (110) and with a loop (117). So
+   `LayoutTree.measureGrid` measures a nil grid's cells itself and hands the
+   solver their answers; and `NativeGridPlan` is a `final class` (as a struct
+   the grid read 164). **Lane 2's finite solve interleaves measurement with
+   state, puts the solver back on the recursion path, and re-bisects against
+   the same gate.**
+3. **Finding, not this track's to fix:** the same instrument reads the
+   one-child vertical stack at **128** at `cb2e708` (127 with lane 1), where
+   `NativeLayoutRun.maxDepth`'s table reads 151; `SA-L`'s rule on 127 gives
+   72, not 88. Padding reads 197 (194). 88 is unchanged here; the table gains a
+   dated re-take and the finding goes to `LR-Q`'s stage 6b re-bisection.
+4. **A fourth stored property**: `nextGridRowToken`, so each row mark's token
+   is fresh (spec §3 named three dictionaries). Never reset: tokens stay
+   unique across generations, and only equality within one plan is read.
+5. **The grid's edges are the plan's stored cell edges**, read at
+   registration; an enclosing stack cannot change them (`markSpacers` stops at
+   a grid, `GR-R`).
+
+**Cost if wrong.** (1) defers rects a lane; (2) binds lane 2 to a frame budget;
+(3) is pre-existing and recorded, not hidden.

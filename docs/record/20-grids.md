@@ -202,6 +202,135 @@ GG10–GG16 and GN1–GN10, read in `GR-T` and `GR-V`.
 No source, test or demo image changed; the lanes' counts, work literals, the
 bookkeeping literal of `GR-U` and the depth ceiling are still predictions.
 
+## Lane 1 — the plan and the nil proposal (2026-09-17)
+
+Commits: `432cb3d` (tests, red: does not compile), `82a63fe` (implementation),
+then this record with `GR-W` and the spec's amended rows.
+
+### Red first
+
+`432cb3d` after `swift package clean`, native build: the test target does not
+compile, 23 errors, all absent API — `value of type 'LayoutTree' has no member
+'newNativeGrid'` (`NativeGridTests.swift:101`, `NativeGridWorkTests.swift:47`,
+`NativeGridTrapTests.swift:46`, `:59`, `:72`, `:117`,
+`NativeDepthGuardTests.swift:152`, `:172`, `NativeBoundaryTrapTests.swift:112`,
+`NativeGridTests.swift:756`), `… 'markNativeGridRow'`
+(`NativeGridTests.swift:95`, `:594`, `:604`, `:630`, `:751`;
+`NativeGridWorkTests.swift:45`, `:46`; `NativeGridTrapTests.swift:87`), `…
+'markNativeGridCell'` (`NativeGridTests.swift:83`; `NativeGridTrapTests.swift:31`,
+`:101`), `cannot find type 'NativeGridPlan' in scope` and `… 'nativeGridPlan'`
+(`NativeGridTests.swift:139`). One test-helper defect was fixed before the
+commit: `Arm.grid(_ name: String = "grid", …, _ children:)` bound an unlabeled
+children array to `name` (43 conversion errors). The work literals of 1.12
+(7 leaf calls, 5 hits, 8 misses) were derived by hand in its doc comment
+before the first run and matched it. Every lane-1 test passed on the first
+green build.
+
+### As built
+
+- `Sources/MetalUILayout/NativeGrid.swift`: `ProposalAxes`; `NativeGridChild`,
+  `NativeGridCell`, `NativeGridEdges`; `NativeGridPlan` (a `final class`);
+  `makeNativeGridPlan` (rows, spans, indexes, gaps: one pass per row, one
+  interval merge per row boundary); `solveNativeGrid` (nil×nil; any other
+  proposal is `preconditionFailure("grids lane 2: …")`); `nativeGridCellRects`;
+  `nativeGridZeroSpacingEdges`.
+- `LayoutTree.swift`: `gridRowTokens`, `gridRowAlignments`, `gridCellColumns`
+  and `nextGridRowToken` after `nativeParents`; three clearing lines at the end
+  of `reset`; `case grid(NativeGridPlan)` last; `.grid` arms last in
+  `measureNative`, `placeNative`, `markSpacers` (stop), `zeroSpacingEdges`
+  (positional over the plan's stored edges); `nativeLayoutPriority` left to its
+  `default` (0) for lane 2's explicit arm. One extension at the end:
+  `markNativeGridRow`, `markNativeGridCell(_:columns:)`, `newNativeGrid`,
+  `nativeGridPlan(_:)` (test observable), `measureGrid`, `placeGrid`. Doc
+  comments updated: "eleven built-ins" → twelve, `markSpacers`' and
+  `zeroSpacingEdges`' lists gain the grid, `maxDepth`'s table a dated re-take.
+- `Sources/MetalUI/Grid.swift`: the three `LayoutPass` registrars.
+- Tests: `NativeGridTests.swift` (1.1–1.11, 1.13), `NativeGridWorkTests.swift`
+  (1.12), `NativeGridTrapTests.swift` (1.14–1.20, plain import),
+  `NativeDepthGuardTests.swift` (1.21, 1.22 appended),
+  `everyNativeRegistrarAcceptsNativeChildrenWithoutTrapping` 26 → 29 nodes.
+
+### Suite
+
+`swift package clean`, `swift build --build-system native --build-tests` (0
+`error:`, only SwiftPM's deprecation `warning:`), `swift test --build-system
+native --no-parallel` unfiltered: **`Test run with 1431 tests in 1 suite passed
+after 45.894 seconds`** (1409 + 22, as spec §7). Goldens 97; guards 71 (73
+`canTypecheck` hits less the declaration and the comment).
+
+### Depth gate (`GR-W` item 2)
+
+Method: a scratch test (never committed) building N nested nodes over a 10×10
+leaf and laying them out on a `Thread` with a 1 MB stack, `maxDepth`
+temporarily 100 000, one `swift test --build-system native --skip-build
+--filter` per depth, bisected between 50 and 600; each first failing depth
+re-run on 4 MB completes. Stack and padding at 400×400, grids at nil×nil.
+
+| build | padding | vertical stack | one-cell grid |
+|---|---|---|---|
+| `cb2e708` (`git archive` in scratch) | 197 / 198 | **128 / 129** | — |
+| first grid: solver measures through `Array.map`, plan bound in the arms | — | 126 / 127 | **110 / 111** (measurement-only 117 after `map` → loop) |
+| nil cells measured in `measureGrid`, plan a struct, plan bound in the arms | 192 / 193 | 126 / 127 | 170 / 171 |
+| … arms pass the id, plan a struct | 193 / 194 | 127 / 128 | 164 / 165 |
+| **as committed**: arms pass the id, plan a class | 194 / 195 | **127 / 128** | **170 / 171** |
+
+Measurement-only and full layout gave the same grid ceiling (170). The gate
+(≥ 147) passes. **Finding**: the stack reads 128 at `cb2e708` where the table
+(2026-09-14) reads 151, so `SA-L`'s rule gives 72, not 88, before any grid
+code; not changed here (owner: `LR-Q`'s stage 6b re-bisection).
+
+### Mutations
+
+Each applied after `82a63fe` from a copy, `git status --short` showing only the
+mutated file during and nothing after, then the full native suite
+(1431 each). Tests reddened, and the figure where the spec asked for one:
+
+| # | mutation | reddened |
+|---|---|---|
+| M1.1 | column width from its first single-column cell | 1.1 (GA1 58×58, b at 38), 1.3, 1.6, 1.7, 1.8, 1.9, 1.10, 1.12 |
+| M1.2 | group by token equality including nil | 1.2 (GA8 38×20), 1.13 |
+| M1.3 | absorb each span in source order among the single-column cells | 1.3 (GX7 a at 8, b at 67), 1.4 |
+| M1.4 | spread a shortfall over every spanned column | 1.4 (d at 25, e at 88) |
+| M1.5 | always place at the slot | 1.5 (GR1 a 15×15 at (3, 3) rounded), 1.12, 1.22 (a child grid proposed its 10×10 slot reaches lane 2's trap) |
+| M1.6 | `platformDefault` before every column ≥ 1 | 1.6 (GS2 = GS3 = [0, 8, 8]: its `#require` stops the test before GS6), 1.3, 1.4, 1.7, 1.10, 1.11 |
+| M1.7 | clamp a given spacing at 0 | 1.7 (GS8 70×50) |
+| M1.8 | ignore the row alignment | 1.8 (GL3 a at y 5), 1.9 |
+| M1.9a | rows by alignment, not token | 1.1, 1.3–1.10, 1.12 (adjacent rows 124×30) |
+| M1.9b | keep the inner alignment when the enclosing mark's is nil | 1.9 (GG12 a at y 20) |
+| M1.10a | edges from any cell | 1.10 (GE3 68×20, GE24 30×48), 1.11 |
+| M1.10b | neither edge | 1.10 (GE1 84×20), 1.11 |
+| M1.11 | `markSpacers` walks into a grid | 1.10 (GE25 60×20, GE26 96×20), 1.11 (GE29 68×20, grid 20×20) |
+| M1.12 | also measure every cell at its slot | 1.12 (8 calls, 8 hits, 9 misses), 1.5, 1.22 |
+| M1.13 | `reset` keeps the row tokens | 1.13 (68×10) |
+| M1.14 | drop the negative-columns precondition | 1.14 |
+| M1.15 | drop the grid's legacy-child check | 1.15 |
+| M1.16 | drop the `horizontalSpacing` check | 1.16 |
+| M1.17 | drop the `verticalSpacing` check | 1.17 |
+| M1.18 | drop `markNativeGridRow`'s parent check | 1.18 |
+| M1.19 | drop `markNativeGridCell`'s parent check | 1.19 |
+| M1.20 | skip `recordParent` in `newNativeGrid` | 1.20 |
+| M1.21 | `maxDepth` 89 | 1.21, `aLoweredChainOneLevelPastTheNativeDepthLimitTraps` |
+| M1.22 | `maxDepth` 87 | 1.22, `aLoweredChainOneLevelPastTheNativeDepthLimitTraps` |
+
+No mutation left the suite green.
+
+### Demo
+
+`CN-R`'s harness (`scratchpad/harness/gen-lib.py`, `DEMO_PIXELS_SMALL=1`) in
+`git archive`s of `cb2e708` and `82a63fe`: **12 of 12 images 0 differing
+pixels, scenes identical.** Controls on the head images: light vs dark f0
+1 048 576; vs modal-light 1 030 498; vs animation-light 210 027; f0 vs f3 0;
+preview light vs dark 1 048 576 (stage 1's figures). `grep -rn "Grid\b"
+Sources/MetalUIDemoContent Sources/MetalUIDemo`: no hits. No real window was
+captured (lane 4's).
+
+### For lane 2
+
+- The GE rects of 1.10/1.11 are 2.11's (`GR-W`).
+- `solveNativeGrid`'s finite branch puts the solver back on the measurement
+  recursion path: keep its frame small and re-bisect against 147.
+- `nativeLayoutPriority` has no `.grid` arm yet (its `default` returns 0).
+
 ## For the integrator
 
 (Written by lane 4; see spec §6, lane 4.)
