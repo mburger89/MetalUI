@@ -1296,6 +1296,7 @@ public final class LayoutTree {
     /// - an overlay attachment: its primary's, at any depth (probe L2, X8);
     /// - a linear stack or overlay (`ZStack`) with **exactly one** child: that
     ///   child's (G11, K2a, L3); with any other count, 0 (G11c, L3);
+    /// - a grid: 0, however many cells (ruling GR-R, grid probe GE8, GE11);
     /// - anything else, a custom layout included: 0 (L3). `frame`, `padding`,
     ///   `aspectRatio` and `fixedSize` hide a priority, as in SwiftUI (L2).
     ///
@@ -1315,6 +1316,10 @@ public final class LayoutTree {
         case .linearStack, .overlay:
             let nodes = children(id)
             return nodes.count == 1 ? nativeLayoutPriority(nodes[0]) : 0
+        case .grid:
+            // GR-R (GE8 = GE9 vs GE27, GE11 vs GE28): a grid passes no priority,
+            // one cell or many.
+            return 0
         default:
             return 0
         }
@@ -1598,8 +1603,9 @@ extension LayoutTree {
     /// parent (CN-L). The plan — rows, spans, gaps, priorities, edges — is
     /// resolved here, once, and marks written later are not read.
     ///
-    /// **Lane 1 lays a grid out at a nil×nil proposal only**; any other
-    /// proposal traps until lane 2's solve lands.
+    /// At a proposal with a non-nil axis the cells are served in
+    /// flexibility-ordered, priority-grouped groups with shares and commits
+    /// (`NativeGrid.swift`, rulings GR-E, GR-F, GR-U).
     public func newNativeGrid(children: [LayoutNodeID], alignment: ProposalAlignment = .center,
                               horizontalSpacing: Double? = nil,
                               verticalSpacing: Double? = nil) -> LayoutNodeID {
@@ -1641,7 +1647,10 @@ extension LayoutTree {
     }
 
     /// A grid's answer, measuring its cells through the run's cache. Its own
-    /// function so `measureNative`'s frame gains no locals (spec §4.5).
+    /// function so `measureNative`'s frame gains no locals (spec §4.5). At
+    /// nil×nil the cells are measured here and the solver gets their answers
+    /// (ruling GR-W: the depth gate); at any other proposal the solver measures
+    /// through a closure, because its proposals depend on earlier answers.
     private func measureGrid(_ id: LayoutNodeID, proposal: ProposedSize, run: NativeLayoutRun) -> SizeD {
         guard let plan = nativeGridPlan(id) else { preconditionFailure("measureGrid on a node that is not a grid") }
         guard proposal.width == nil, proposal.height == nil else {
