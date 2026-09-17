@@ -36,7 +36,7 @@ private func fixedHeight(_ h: Float) -> Style {
 /// `fixedHeight` plus the `min-height: 0` that stops CSS Sizing §4.5's
 /// automatic minimum floating the box back up to its content's height — the
 /// half of §4.5 this engine implements (CLAUDE.md divergence 5), and the same
-/// override `Sources/MetalUIDemo/main.swift` writes around its own scroll list.
+/// override `Sources/MetalUIDemoContent/DemoContent.swift` writes around its own scroll list.
 private func boundedHeight(_ h: Float) -> Style {
     var s = fixedHeight(h)
     s.minSize.height = .length(.pixels(Pixels(0)))

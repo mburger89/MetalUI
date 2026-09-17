@@ -887,7 +887,7 @@ extension StyledElement {
     ///
     /// **A zero here is the only way to cancel flex §4.5's automatic
     /// (content-based) minimum, and no frame layer can do it** — ruling
-    /// `FR-G`, measured on the demo's own shape (`MetalUIDemo/main.swift`'s
+    /// `FR-G`, measured on the demo's own shape (`MetalUIDemoContent/DemoContent.swift`'s
     /// list: a `flexGrow(1)`, `flexBasis(0)` box holding 400pt of content in a
     /// 200pt `Column` under an 80pt header):
     ///
@@ -1144,7 +1144,7 @@ extension StyledElement {
     /// So `hidden()` is safe on a subtree of `Box`es and wrong on anything that
     /// draws its own content. Use a conditional in the `@ElementBuilder` block
     /// instead — `if showIt { … }` — which removes the element from the tree
-    /// rather than from the item list; `Sources/MetalUIDemo/main.swift`'s modal
+    /// rather than from the item list; `Sources/MetalUIDemoContent/DemoContent.swift`'s modal
     /// does exactly that, and carries the vanishing-`if` identity caveat at its
     /// call site. CLAUDE.md's declared-but-inert table has the row.
     public func hidden() -> Self {

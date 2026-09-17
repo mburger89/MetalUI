@@ -53,7 +53,7 @@ import MetalUILayout
 /// `demoLikeRows(_:)` fixture, whose rows carry **no `@State` whatsoever**:
 /// `storage.count` is exactly `2n + 7`, so 40 rows read 87, **125 rows read 257
 /// and cross**, and 500 rows read 1007. The demo's own list is 500 rows
-/// (`main.swift:133`), so the demo crosses the gate on its cold frame. Read the
+/// (`demoRowCount`, `Sources/MetalUIDemoContent/DemoContent.swift`), so the demo crosses the gate on its cold frame. Read the
 /// old claim — "a 500-row list crosses it and a 40-row one never does" — as
 /// accidentally still true at those two endpoints and wrong about the reason
 /// and about everything between 125 and 500. **Below the threshold

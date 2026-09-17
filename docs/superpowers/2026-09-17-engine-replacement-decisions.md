@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-AA`**. A bare `LR-3` is a typo, not a citation.
+unused is **`LR-AB`**. A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -1102,3 +1102,92 @@ gets the child's size. Whether SwiftUI's `HStack` answers the same for that fram
 is **unprobed**: frame probe C control is the same frame at a finite proposal
 outside a stack, and no stack-algorithms arm puts an ideal-only frame over a fixed
 child in one.
+
+---
+
+## LR-AA — lane 5's corrections: what the corpus may spell, what the bounds log missed, what a window test must check first, and where the depth boundary is measured
+
+**The questions.** Spec 5.1 names "the counter chrome" and "the demo header … in
+lowerable spelling" without saying what is changed; 5.4–5.6 put "the counter
+chrome inside `DifferentialRoot`" in a real `Window`, whose frames trap rather
+than report; §5.2 gave `compareInWindows` a width and a height; 5.6 named the
+counter's `$state0`, `$focus`, `$anim` slots and a `$ax` slot; 5.8 said 29 padded
+`Box`es are 87 native levels without saying under what root; M5f and M5g were
+two mutants.
+
+**What was measured** (record §18, lane 5).
+
+- **The demo's own `CounterPanel` does not lower**: `CounterPanel.chrome` ends
+  with `.alignSelf(.flexStart)`, reported `box.alignSelf` (5.3's entry 7). **The
+  demo's header does not lower either**, and not only for its `flexGrow`s: its
+  `.height(72)` is written after `.padding(16)`, so it lands on the padding
+  layer, a one-child row whose default alignment is stretch — reported
+  `modifierLayer.alignItems.stretch` (5.3's entry 3), although the row is 40 tall
+  and nothing could show the stretch.
+- **The bounds log missed `AnyElement`.** 5.1's transparent-groups tree read 10
+  elements where the hand derivation said 11: `AnyElement`'s own
+  `prepaintGroup` — a copy of `Element.prepaintGroup`'s hand-off — did not call
+  `recordElementBounds`, so the harness could not see an erased element's rect.
+  Removing the record again (mutation MA) reddens only 5.1.
+- **A window test can truncate the run.** The first re-run of M4h (the frame-layer
+  check compares without `lowered`) ended with no summary line: 5.6's `.frame`
+  layer reported inside a proposal-authority `Window`, and a window's frame traps
+  (`Frame.swift:1532`, `modifierLayer.style`).
+- 5.6's first run: an **unwritten** `@State` count has no `StateTable` entry, and
+  the unlabelled counter has no `$ax` slot (a synthesized node is a record,
+  `AB-U`); the "+" button, whose label is declared, has one.
+- The depth chain: `NativeLayoutRun.enter` is entered once per `measureNative` and
+  `placeNative` frame; the chain's deepest path is frame → padding → stack per
+  `Box` and frame → padding → leaf for the innermost, so **3n** as the frame's
+  root. Inside `DifferentialRoot` the root's frame and overlay add 2: 29 boxes
+  would be 89 and trap.
+- M5f (every lowered `Box` wrapped in a `padding(0)`) and M5g (a fourth native
+  level per `Box`) are the same edit.
+
+**The ruling.**
+
+1. **The corpus spells the demo's trees with the stage-2 fields removed, and
+   says so per tree.** The chrome is `CounterPanel.chrome(count:minus:plus:)`,
+   imported from `MetalUIDemoContent`, with `style.alignSelf = nil`
+   (`StageOneCorpus.counterChrome`); the header's bar declares a width instead of
+   growing, the row's `flexGrow` is dropped, and the padding layer carrying
+   `.height(72)` also declares `.alignItems(.center)`; the stack cluster drops its
+   `alignSelf`. The whole demo, unchanged, is 5.3's.
+2. **5.4–5.6 use a test-only `LowerableCounter`**, which repeats
+   `CounterPanel.requestLayout`'s wiring (one `@State`, the chrome's closures, the
+   two `onAction` handlers) over the corpus chrome, and drops only publishing
+   `counterID` and focusing itself. It is the lane's one copy; stage 2 replaces it
+   with `CounterPanel()`.
+3. **`AnyElement`'s group entry records its bounds** (`ElementGroup.swift`), and
+   `Frame.elementBounds`' doc names four sites, not three.
+4. **`Window` gains two internal test observables**, `recordsElementBounds`
+   (passed to every `Frame`) and `lastElementBounds` (captured beside
+   `lastScene`). `compareInWindows` is `WindowPair` plus a drive: two windows,
+   **square**, the harness root the window's size — the fake surface is square,
+   and a native root is centred at its answer (`CN-J`) where the legacy root
+   sits at the origin, so only a root the window's own size is at (0, 0) under
+   both. It takes the Metal device from the caller's
+   `try #require(MTLCreateSystemDefaultDevice())`.
+5. **Every window test pre-flights its tree under diagnostics** (in
+   `WindowPair.init`, and per animation end state in 5.6) and requires an empty
+   report before it opens a window, so a reporting mutant reddens by name
+   (practices shape 13).
+6. **5.6's slots are owned where they are minted**: `$state0` (after a click on
+   "+"), `$focus` and `$anim` under the counter; `$ax` under "+".
+7. **5.8/5.9 render the chain as a production frame's root**, not inside
+   `DifferentialRoot`: 29 boxes = 87 levels lays out, 30 = 90 traps. The nodes
+   are counted too (87).
+8. **M5f and M5g are one mutant** (a native `padding(0)` around every lowered
+   `Box`); the record names what it reddened under both labels.
+
+**What it costs if wrong.** If a later stage lowers `alignSelf` and forgets
+`LowerableCounter`, the window tests keep proving a counter the demo does not
+build; stage 2's exit test must swap it. A `WindowPair` of a non-square root
+cannot be built; a stage that needs one (a root placement ruling, stage 6b)
+resizes the fake window. `AnyElement`'s group entry still skips `AB-O`'s
+`display: none` suppression — by reading, it never calls
+`suppressingAccessibilityIfHidden`; unmeasured, outside stage 1, recorded as a
+finding and not fixed here. The pre-flight
+checks the first frame's tree only: a tree that becomes unlowerable after input
+still traps inside its window.
+

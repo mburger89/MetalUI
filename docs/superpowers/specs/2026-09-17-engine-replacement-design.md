@@ -428,10 +428,18 @@ Test support (`Tests/MetalUITests/LayoutDifferential.swift`, new):
     static func compare<E: Element>(width: Float, height: Float, scaleFactor: Float = 1,
                                     _ make: @MainActor () -> E) -> Report
     /// The same comparison through a real `Window` per authority, with
-    /// `DifferentialRoot` as the window's root content (lane 5).
-    static func compareInWindows<E: Element>(width: Int, height: Int, _ make: @escaping @MainActor () -> E,
-                                             drive: @MainActor (Window, FakePlatformWindow) -> Void) -> Report
+    /// `DifferentialRoot` as the window's root content (lane 5; `LR-AA`: square,
+    /// the root the window's size, built on `WindowPair`, which pre-flights the
+    /// tree under diagnostics before it opens a window).
+    static func compareInWindows<Content: ElementGroup>(device: any MTLDevice, size: Int,
+                                                        _ make: @escaping @MainActor () -> Content,
+                                                        drive: @MainActor (Window, FakePlatformWindow) throws -> Void) throws -> Report
 }
+@MainActor struct WindowPair { init(device:size:startsDisplayLink:_:) throws; func both(_:); func report() -> LayoutDifferential.Report }
+
+// Window (lane 5, LR-AA): internal test observables
+var recordsElementBounds: Bool                                  // passed to every Frame
+private(set) var lastElementBounds: [GlobalElementID: Bounds<Pixels>]  // captured beside lastScene
 ```
 
 `compare` renders `DifferentialRoot { make() }` twice at W×H — legacy, then
@@ -675,17 +683,25 @@ Files: `Package.swift` (a `MetalUIDemoContent` library target, `LR-S`),
 `LoweringPipelineParityTests.swift`. The lane's first commit is the move alone,
 verified by the twelve images (0 px against `c2290fc`, the generator reading the
 library instead of copying `main.swift`) and the unchanged suite count.
+**Lane 5 also changed** (`LR-AA`): `Window.swift` (`recordsElementBounds`,
+`lastElementBounds`; `swift package clean`), `ElementGroup.swift` (`AnyElement`'s
+group entry records its bounds — the corpus found the log blind to it),
+`LayoutDifferential.swift` (`WindowPair`, `compareInWindows`), and doc comments
+that cited `Sources/MetalUIDemo/main.swift` for content now in
+`Sources/MetalUIDemoContent/DemoContent.swift`. The corpus's demo trees drop the
+stage-2 fields they carry (`LR-AA` item 1), and 5.4–5.6 use a test-only
+`LowerableCounter` (item 2).
 
 | # | test | red before (on lane 4's tree) | mutation |
 |---|---|---|---|
-| 5.1 | `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement` — the counter chrome, the demo header and stack cluster in lowerable spelling, T5/T5b/T6/T7, a `ModifierCompositionProofTests` chain, and transparent groups (`if`, `for`, `EnvironmentScope`, `.disabled`, `AnyElement`); per tree `try #require(report.elements == N)` with N derived by hand | the corpus file does not exist; the lane runs each tree against lane 4 first and records any disagreement as a finding before writing the literal | **M5a** the proposal-side harness root proposes nil×nil; also re-run one mutation from each of M2–M4 and name 5.1 among the reddened |
+| 5.1 | `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement` — the counter chrome, the demo header and stack cluster in lowerable spelling (`LR-AA`), T5/T5b/T6/T7, a `ModifierCompositionProofTests` chain (over a `Box`, not its custom `CountingLeaf`), and transparent groups (`if`/`else`, `if`, `for`, `EnvironmentScope`, `.disabled`, `AnyElement`), ten trees; per tree `try #require(report.elements == N)` with N derived by hand, and literal rects where no text decides them | the corpus file does not exist; the lane runs each tree against lane 4 first and records any disagreement as a finding before writing the literal. **Red on `f508003`**: the transparent groups read 10 elements where the derivation says 11 (`AnyElement` recorded no bounds, `LR-AA`) | **M5a** the proposal-side harness root proposes nil×nil; also re-run one mutation from each of M2–M4 and name 5.1 among the reddened (M2e, M3b, M4h); **MA** `AnyElement`'s record removed |
 | 5.2 | `theStageOneCorpusPinsEveryKnownDisagreementWithItsProbeArm` — T8 text hug (T2/T7), `Stack` fit-content (A5), flexible frame (D), row overflow (G9): literal rects on both sides, `try #require` disagreement | — | **M5b** a probe-backed branch reverted (M2f) reddens it |
 | 5.3 | `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` — **`demoContent()` imported from `MetalUIDemoContent`**, one frame at 920×560 inside the harness root under diagnostics; the multiset of `(site, field)` as a literal the lane measures, each entry annotated with its owning stage (measured by the lane, not predicted: scratch P2's whole-demo census in §2.7 item 2 is not this literal, because P2 built the `List`'s rows and lane 1's `List` check does not) | site-level only | **M5c** two-child stretch made lowerable (the count moves) |
-| 5.4 | `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements` — `compareInWindows` with the counter chrome **inside `DifferentialRoot`**; click "+" twice, focus, `Increment` action; the label reads the same count | — | **M5d** lowered stack spacing + 50 (the click misses) |
-| 5.5 | `aLoweredWindowPublishesTheSameAccessibilityTree` — the same root; `FakePlatformWindow.publishAccessibilityTree` under both authorities | — | M5d |
-| 5.6 | `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths` — the same root; `StateTable.ids` equal; a `Box` width and a frame layer width at t = 0, 0, 0.5 read 196, 196, 258 under both (measured by the prototype for the `Box`) | — | **M5e** `lowerLegacyNode` given the style captured before `animated(…)` |
-| 5.7 | `aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork` (`SA-M`'s method) — `Column { Row { a; b }; Row { c; Box { d }.padding(4) } }` of fixed leaves under the proposal authority: the native node count and `lastNativeLayoutWork` (`measureCalls`, `cacheHits`, `cacheMisses`) as literals derived by hand **before** the run | the file does not exist; the literals are written first and the run must match them, or the derivation is recorded as wrong before correcting it | **M5f** every lowered node wrapped in an extra `padding(0)` (node count and calls move) |
-| 5.8 | `aLoweredChainAtTheNativeDepthLimitLaysOut` (`LR-Q`) — **an exit test whose child expects success**, so a mutation that makes it trap reddens it without truncating the suite: 29 nested `Box`es, each `.padding(1)`, a declared size and `.alignItems(.flexStart)` (content → padding → frame = 3 native levels each, 87 in all; the lane confirms the per-level count by hand against `NativeLayoutRun.enter` before writing 29) | — | **M5g** the lowering emits a fourth native level per `Box` (an extra `padding(0)`; 116 levels, the child traps) |
+| 5.4 | `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements` — a `WindowPair` (400²) with the counter (`LowerableCounter`, `LR-AA`) **inside `DifferentialRoot`**; click "+" twice, focus, "=" bound to `Increment`; the count reads 2 then 3 under both, every observation agreeing after each step | does not compile (`Window.lastElementBounds`) | **M5d** lowered stack spacing + 50 (the click misses); **MW** `lastElementBounds` not captured |
+| 5.5 | `aLoweredWindowPublishesTheSameAccessibilityTree` — the same root, activated, clicked and focused; every tree `FakePlatformWindow` received, equal in order under both authorities, the two buttons' frames literal | does not compile | M5d |
+| 5.6 | `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths` — the same root; `StateTable.ids` equal, containing the counter's `$state0` (after a click), `$focus`, `$anim` and the "+" button's `$ax` (`LR-AA` item 6); a `Box` width and a frame layer width at t = 100, 100, 100.5 through the display link read 196, 196, 258 under both (measured by the prototype for the `Box`) | does not compile | **M5e** `lowerLegacyNode` given the style captured before `animated(…)`; MW |
+| 5.7 | `aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork` (`SA-M`'s method) — `Column { Row { a; b }; Row { c; Box { d }.padding(4) } }` of fixed leaves (10×20, 30×10, 20×10, 10×10) in a 200×100 harness root under the proposal authority: 16 native nodes, 118 misses, 94 hits, 4 calls, derived by hand **before** the run (the first run matched) | the file does not exist; the literals are written first and the run must match them, or the derivation is recorded as wrong before correcting it | **M5f** every lowered `Box` wrapped in an extra `padding(0)` (node count and work move) |
+| 5.8 | `aLoweredChainAtTheNativeDepthLimitLaysOut` (`LR-Q`) — **an exit test whose child expects success**, so a mutation that makes it trap reddens it without truncating the suite: 29 nested `Box`es, each `Style.padding` 1, a declared size and `.alignItems(.flexStart)` (content → padding → frame = 3 native levels each, 87 in all, counted against `NativeLayoutRun.enter`), **as a production frame's root** — inside `DifferentialRoot` the root adds 2 levels (`LR-AA` item 7); the child prints 87 nodes | — | **M5g** the lowering emits a fourth native level per `Box` — the same edit as M5f (`LR-AA` item 8) |
 | 5.9 | `aLoweredChainOneLevelPastTheNativeDepthLimitTraps` — exit test: 30 such `Box`es (90 levels); stderr names `SA-L`'s message | — | **M5h** `NativeLayoutRun.maxDepth` raised to 96 (the child succeeds) |
 
 **Stage 1's exit test is 5.1**; 5.3 is stage 2's entry.
@@ -694,8 +710,9 @@ library instead of copying `main.swift`) and the unchanged suite count.
 guard G1 (a guard is a `@Test` and counts toward the suite); the amended pin is
 not new. Expected at the end: **1401 tests**, **97 goldens**, **71 guards** — to
 be re-measured, not trusted. Measured so far: lane 1 +12 (1369), lane 2 +10
-(1379), lane 3 +7 (1386), lane 3's verifier round +2 (1388), lane 4 +9 (1397) —
-lanes 1, 2 and 3 each added verifier-round tests the plan did not count.
+(1379), lane 3 +7 (1386), lane 3's verifier round +2 (1388), lane 4 +9 (1397),
+lane 4's verifier round +3 (1400), lane 5 +9 (**1409**, 97 goldens, 71 guards) —
+lanes 1–4 each added verifier-round tests the plan did not count.
 
 ## 7. Demo comparison (`LR-M`)
 
@@ -715,7 +732,8 @@ library; it is not evidence for any lane (critic round 1 finding 8).
   harness's power to see a change is the base controls in §1.
 - **Lane 5 adds two images** — the counter chrome **inside `DifferentialRoot`**,
   rendered through a `Window` under each authority — expected equal, with the
-  M5d mutant as the control that must differ.
+  M5d mutant as the control that must differ. (Lane 5: the corpus chrome,
+  `StageOneCorpus.counterChrome`, in a 560² root in a 560² window, `LR-AA`.)
 - **Real release-window captures.** The orchestrator's trigger is
   `IOConsoleLocked` reading `<false/>`. At design time it did, and captures were
   skipped because the session dictionary read locked (`FR-V`) — an override of

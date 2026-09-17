@@ -939,3 +939,161 @@ native` notice). Goldens 97, `git diff --name-only c2290fc` lists no `.json`. No
 guard added. `Sources/` is unchanged since `4446336`, so the pixel comparison above
 stands, and no new SwiftUI claim was made, so no probe was re-run.
 `IOConsoleLocked` read `<true/>` at 01:13 PDT; no real-window capture.
+
+## Lane 5 — demo content as a library; corpus; pipeline parity; depth and work
+
+Commits: `f508003` (the library move alone), `abd424d` (tests, red: does not
+compile), `d863ede` (implementation), `44f6e21` (window tests pre-flight their
+trees, after a mutant truncated the run), and this record with the spec's lane-5
+rows, `LR-AA` and doc comments that cited `main.swift` for moved content.
+
+### The move (`f508003`, `LR-S`)
+
+Everything in `Sources/MetalUIDemo/main.swift` before `runDemo()` moved to
+`Sources/MetalUIDemoContent/DemoContent.swift`, a library target in no product;
+`MetalUIDemo` and `MetalUITests` depend on it. `@MainActor` on `demoModel`,
+`demoRows`, `demoWindow`, `counterID`, `didFocusCounter`; `public` only where
+`main.swift` reads a name (`DemoModel` and its two properties, `demoModel`, the
+eight actions with `public init()`, `demoWindow`, `counterID`, `demoContent()`,
+`nativeLayoutPreviewContent()`); the two doc comments that said "top-level code in
+`main.swift`" and the comments that pointed "below" at `runDemo`'s code rewritten.
+
+- Suite: `Test run with 1400 tests in 1 suite passed after 42.212 seconds`
+  (unchanged); build 0 `error:`, only SwiftPM's `--build-system native` notice.
+- Pixels: the `CN-R` harness's generator rewritten to **import** the library
+  (`scratchpad/harness/gen-lib.py`: `@testable import MetalUIDemoContent`, no copy
+  of `main.swift`, no `nonisolated(unsafe)` rewrite), generated into a `git
+  archive` of `f508003`, `DEMO_PIXELS_SMALL=1`, compared with lane 1's `c2290fc`
+  images (`lr1-px-base`): **12 of 12 read 0 differing pixels, scene identical.**
+  Controls on the head images: light vs dark f0 1 048 576; vs modal-light
+  1 030 498; vs animation-light 210 027; f0 vs f3 0; preview light vs dark
+  1 048 576 — the §1 baseline's figures.
+
+### Red first
+
+- **5.1**, run on `f508003` with `LoweringCorpusTests.swift` alone (the parity
+  file not yet written): `Test run with 3 tests in 0 suites failed … with 1
+  issue` — `LoweringCorpusTests.swift:320:9: Expectation failed:
+  withBranch.elements == 11`. The transparent-groups tree recorded 10 elements:
+  `AnyElement`'s own `prepaintGroup` did not record bounds (`LR-AA`). Every other
+  corpus tree, 5.2 and 5.3 passed on arrival — lanes 2–4 did the lowering, so they
+  are characterization, proven by their mutations below.
+- **5.4–5.6**, at `abd424d` after `swift package clean`: the test target does not
+  compile — `LayoutDifferential.swift:265:20: error: value of type 'Window' has no
+  member 'recordsElementBounds'`, `:285:31` and `:285:69` `… 'lastElementBounds'`
+  (with two follow-on `type '_' is not optional` at `:295:19`, `:296:19`),
+  `LoweringPipelineParityTests.swift:151:33`, `:152:33`, `:277:63` `…
+  'lastElementBounds'`, `:275:16` `… 'recordsElementBounds'`.
+- **5.7**: the literals (16 nodes, 118 misses, 94 hits, 4 calls) were derived by
+  hand in the test's doc comment before the first run; the first run matched all
+  four.
+- **5.8, 5.9** pin the existing guard; their mutations below are their evidence.
+
+**Findings from the first runs** (before commit, recorded in `LR-AA`): the demo's
+`CounterPanel` chrome reports `box.alignSelf`; the demo's header, in its own
+spelling, reports `modifierLayer.alignItems.stretch` (a dump of the scratch run:
+`header: elements=5 agree=1 differ=4 … unlowerable=[modifierLayer.alignItems.stretch]`);
+the first 5.6 found no `$state0` id before the count was written and no `$ax` slot
+on the unlabelled counter (the "+" button has one); `CountingLeaf` (the
+modifier-composition chain's leaf) is a custom element, so the corpus chain is
+over a `Box`.
+
+### 5.3's measured census
+
+`demoContent()` at 920×560 in the harness root, diagnostics on, modal and
+animation off: 20 entries, in registration order — `box.flexGrow` (header bar),
+`box.flexGrow` (header row), `modifierLayer.alignItems.stretch` (header padding
+layer), `box.alignItems.stretch`, `box.flexGrow` (sidebar column),
+`stack.alignSelf` (stack cluster), `box.alignSelf` (counter chrome),
+`list.noLowering`, `box.flexShrink` (the `List`'s zero-row `Box`),
+`scrollView.noLowering`, `box.minSize`, `box.flexGrow`, `box.flexBasis` (the box
+around the scroller), `box.alignItems.stretch`, `box.flexGrow` (main pane column),
+`modifierLayer.flexGrow` (main pane padding layer), `box.alignItems.stretch`,
+`box.flexGrow` (body row), `box.alignItems.stretch`, `box.flexGrow` (outer
+column). As a multiset: `box.flexGrow` 7, `box.alignItems.stretch` 4, one each of
+the other nine. The same run: 2 036 element ids, 2 000 of them legacy-only (the
+legacy side builds the list's rows; the lowered `List` reports before any row).
+
+### Suite
+
+- `d863ede` after `swift package clean` (`Window` gained stored properties):
+  `Test run with 1409 tests in 1 suite passed after 46.143 seconds` (1400 + 9); 0
+  `error:`; the one `warning:` is the `--build-system native` notice.
+- Final tree (this record's commit: docs, and doc comments only under
+  `Sources/`), 02:05 PDT: `Test run with 1409 tests in 1 suite passed after
+  46.062 seconds`; 0 `error:` in build and test logs; no other `warning:`.
+  Goldens 97, `git diff --name-only c2290fc` lists no `.json`. Guards 71 (no guard
+  added this lane).
+
+### Mutations
+
+Each: mutant applied by script (target asserted unique), file copied aside first,
+native build, full unfiltered `swift test --build-system native --no-parallel
+--skip-build`, restored from the copy, `git status --short` empty after every one.
+M5a, M2e, M2f, M3b and M5c ran on `d863ede`; the rest on `44f6e21`. Issue counts
+in parentheses.
+
+| mutation | reddened |
+|---|---|
+| **M5a** the proposal-side harness root proposes nil×nil (a native `fixedSize` under its frame) | `theStageOneCorpusLowersWithNoDiagnosticAndAgreesElementByElement` (4), `aLoweredBranchingTreeRegistersAndMeasuresAHandDerivedAmountOfNativeWork` (3), `aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock` (1) |
+| **M2e** (lane 2's, re-run) the lowered text measured at 13pt whatever its size | 5.1 (9), `aLoweredWindowDispatchesClicksFocusAndKeysToTheSameElements` (8), `aLoweredWindowPublishesTheSameAccessibilityTree` (3), `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth` (12), `aLoweredContainerPaddingSitsInsideItsDeclaredSize` (3) |
+| **M2f** = **M5b** the lowered text answers the proposed width | `theStageOneCorpusPinsEveryKnownDisagreementWithItsProbeArm` (1), 5.1 (18), 5.4 (8), 5.5 (3), `everyContainerFieldIsIgnoredOnALoweredLeaf` (24), `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth` (16), `aLoweredPaddingLayerAgreesWithTheLegacyWrapper` (6), `aLoweredContainerPaddingSitsInsideItsDeclaredSize` (3), `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent` (2), `aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock` (2), `aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin` (1) |
+| **M3b** (lane 3's, re-run) stack spacing dropped | 5.1 (23), 5.4 (18), 5.5 (1), `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths` (2), and lane 3's 3.1 (12), 3.2 (6), 3.4 (5), 3.7 (5), 3.8 (1) |
+| **M4h** (lane 4's, re-run) the frame-layer check compares `frameSpec.style()` without `lowered` | **first run on `d863ede`: no summary line** — `MetalUI/Frame.swift:1532: Fatal error: MetalUI: modifierLayer.style has no proposal lowering`, inside 5.6's window (1 095 test lines printed). After `44f6e21`'s pre-flight: 5.1 (11), 5.2 (3), 5.6 (1, its pre-flight), and lane 4's 4.4 (72), 4.5 (6), 4.6 (1), 4.7 (6), 4.8 (4), 4.11 (16) |
+| **M5c** two-child stretch made lowerable | `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (1), `stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem` (2) |
+| **M5d** lowered stack spacing + 50 | 5.4 (18), 5.5 (1), 5.6 (2), 5.1 (23), 5.2 (1), 5.7 (3), and lane 3's 3.1 (24), 3.2 (6), 3.3 (36), 3.4 (5), 3.5 (4), 3.6 (1), 3.7 (6), 3.8 (3) — 133 issues |
+| **M5e** `Box` lowers its declared style | 5.6 (1), `aLoweredBoxRegistersItsAnimatedWidth` (2), `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap` (2) |
+| **M5f** = **M5g** every lowered `Box` wrapped in a native `padding(0)` | 5.7 (3), `aLoweredChainAtTheNativeDepthLimitLaysOut` (2) |
+| **M5h** `NativeLayoutRun.maxDepth` 96 | `aLoweredChainOneLevelPastTheNativeDepthLimitTraps` (2) |
+| **MA** `AnyElement`'s bounds record removed | 5.1 (1) |
+| **MW** `Window.lastElementBounds` not captured | 5.4 (1), 5.6 (2) |
+
+Every mutation reddened the test the spec names; none left the suite green; after
+`44f6e21` none truncated it.
+
+### Pixels
+
+- **The twelve** (`gen-lib.py`, into a `git archive` of `d863ede`, the last
+  commit changing behaviour under `Sources/`; later `Sources/` changes are doc
+  comments), against `lr1-px-base` (`c2290fc`): **12 of 12 read 0 differing
+  pixels, scene identical**; controls as for the move, figure for figure.
+- **The two-authority chrome pair** (`LR-M`): `DifferentialRoot(560×560) {
+  StageOneCorpus.counterChrome() }` through a 560² fake `Window` under each
+  authority: **`chrome-legacy` vs `chrome-proposal` 0 differing pixels, scene
+  files byte-identical**; the image is not blank (216 distinct pixel values; vs
+  `small560-default-light` 308 354). **Control, M5d** applied to a `git archive` of
+  `44f6e21`: `chrome-legacy` vs `chrome-proposal` **8 214** differing pixels, scene
+  files differ; the twelve's controls on that tree unchanged (1 048 576,
+  1 030 498, 210 027, 0, 1 048 576).
+
+### Probe
+
+Re-run this lane under `/usr/bin/swift`, exit 0 each:
+`swiftui-engine-replacement-stage1.swift` (79 lines), `swiftui-frame-semantics.swift`
+(291), `swiftui-stack-algorithms.swift` (787); every output line appears verbatim in
+the file's recorded header. Arms cited by 5.2: stage-1 **T2** (`Text(long) @60xnil:
+size 45x112`), **T7** (text frame 60x112, `geometry text: (7.50, 0) 45x112`);
+stack-algorithms **A5** (`ZStack{…} at 100x80 @100x80: size 100x80`), **G9** and
+**X13** (160x20); frame **D control** (`frame(minWidth: 40, maxWidth: 80), proposal
+100x100: size 80.0x20.0`).
+
+### Screen lock
+
+`ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked` → `<true/>` at 02:01 PDT. No
+real-window capture was attempted.
+
+### Findings for later phases
+
+- The demo's own `CounterPanel` and header do not lower in stage 1
+  (`box.alignSelf`; `modifierLayer.alignItems.stretch` from `.height(72)` after
+  `.padding`): stage 2's exit test replaces `LowerableCounter` with
+  `CounterPanel()` and the corpus's respellings with the demo's (`LR-AA`).
+- `AnyElement`'s group entry, by reading, also skips `AB-O`'s
+  `suppressingAccessibilityIfHidden`; unmeasured.
+- 5.6 found no `StateTable` id for a declared, read, never-written `@State` in
+  `LowerableCounter`; CLAUDE.md's "`@State` … seeding marks" paragraph should be
+  checked against it (not investigated further). Docs phase.
+- CLAUDE.md's non-test target count ("eight") is nine after `LR-S`; its citations
+  of `main.swift` for demo content now point at `DemoContent.swift`. Docs phase.
+- A window test under the proposal authority traps rather than reports; any later
+  stage's window test needs `WindowPair`'s pre-flight or an exit test.

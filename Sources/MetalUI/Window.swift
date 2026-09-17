@@ -316,7 +316,7 @@ public final class Window {
     /// **The read-back is guarded, and that is what keeps a concurrent write
     /// from being discarded.** The hand-in and the read-back straddle the whole
     /// of `renderRoot`, so together they are a read-modify-write over a value
-    /// `focus(_:)` — public, and called from `MetalUIDemo`'s `CounterPanel`
+    /// `focus(_:)` — public, and called from `MetalUIDemoContent`'s `CounterPanel`
     /// during its own `requestLayout` — can change in between. The frame's
     /// answer is applied only while this property is still what the frame was
     /// handed; see `drawFrameIfNeeded` for why that condition is exactly "the
@@ -399,7 +399,7 @@ public final class Window {
     /// point.
     ///
     /// **Safe to call from inside a frame's own render**, which is what
-    /// `MetalUIDemo`'s `CounterPanel` does from its `requestLayout` — and the
+    /// `MetalUIDemoContent`'s `CounterPanel` does from its `requestLayout` — and the
     /// sentence above is true of an in-frame call as well: the *next* frame
     /// validates it, not this one. That is a property of the guarded read-back
     /// in `drawFrameIfNeeded`, not of this method, and it did not hold until
@@ -918,7 +918,7 @@ public final class Window {
         // DECISION rather than its value.** The hand-in above and this line
         // straddle the whole of `renderRoot`, so they are a read-modify-write
         // over a value anything in the tree can change in between: `focus(_:)`
-        // is public and `MetalUIDemo`'s `CounterPanel` calls it from its own
+        // is public and `MetalUIDemoContent`'s `CounterPanel` calls it from its own
         // `requestLayout`. An unconditional copy would write back the id the
         // frame was *handed*, silently discarding that call — and discarding it
         // on every subsequent frame too, since set-during-render and

@@ -171,7 +171,7 @@ public struct ScrollView<Content: ElementGroup>: Element {
     ///
     /// **`ScrollView` has no `Decoration` and paints no background of its
     /// own** — the caller supplies one, typically a wrapping
-    /// `Box(decoration:)`, exactly as `Sources/MetalUIDemo/main.swift` does.
+    /// `Box(decoration:)`, exactly as `Sources/MetalUIDemoContent/DemoContent.swift` does.
     /// This property is what lets the caller give this element's CLIPS the
     /// same curve as that background: ruling CL-A. Nothing enforces that the
     /// two values agree — this element cannot see its container's
