@@ -20,8 +20,13 @@ import MetalUILayout
 // field itself; a lowered container consumes its children's records and wraps each
 // (`planLegacyItems`, below). Lane 1 lowers the cross axis — stretch as a greedy item
 // frame W aliased as the element's rect, a non-stretch `alignSelf` as an unaliased
-// alignment frame — and still reports the item fields later lanes own, at the
-// child's site, after the container's own rows.
+// alignment frame. Lane 2 lowers the main axis — `flexGrow` as W greedy on it
+// (equal declared factors; unequal ones report `flexGrow.weights` on the parent), a
+// zero `flexBasis` on an unsized grower as `auto`, `flexShrink: 0` as `fixedSize`,
+// a positive shrink as nothing (SwiftUI's compression), a px/rem `minSize` as W's
+// minimum and a `maxSize` as W's maximum on a greedy axis, both folded into a
+// declared size (rulings LR-AE, LR-AF, LR-AG, LR-AS). The item fields later lanes
+// own are still reported, at the child's site, after the container's own rows.
 
 extension LayoutPass {
     /// Lowers one legacy node — `style` already animated — over native `children`.
@@ -72,7 +77,7 @@ extension LayoutPass {
         let isStack = declared.display == .stack
         let plans = planLegacyItems(received, parent: declared,
                                     parentKind: isStack ? .stack : .flex(isRow: declared.flexDirection.isRow),
-                                    fields: &fields)
+                                    parentSite: site, fields: &fields)
         let kind: LoweredItem.Kind = isStack ? .stack : .flex(isRow: declared.flexDirection.isRow)
 
         if style.display == .stack {
@@ -226,7 +231,8 @@ extension LayoutPass {
         // flex fields; a child's `minSize`, `maxSize` or `margin` still reports.
         var plans: [LegacyItemPlan] = received.map { _ in LegacyItemPlan() }
         if children.count == 1 {
-            plans = planLegacyItems(received, parent: declared, parentKind: .stack, fields: &fields)
+            plans = planLegacyItems(received, parent: declared, parentKind: .stack, parentSite: .modifierLayer,
+                                    fields: &fields)
         }
         if !fields.isEmpty {
             return recordLoweredItem(report(fields), animated: layer.style, declared: declared,
@@ -299,7 +305,10 @@ extension LayoutPass {
 
     /// `node` → native padding (`style.padding`, when any edge is non-zero) → a
     /// fixed native frame (`style.size`, when either axis is declared) aligned by
-    /// `alignment`. Returns the outermost node registered.
+    /// `alignment`. Returns the outermost node registered. Since stage 2's lane 2 a
+    /// declared axis is folded with the style's own px/rem `minSize`/`maxSize`,
+    /// `max(min, min(size, max))` — CSS's used size — from the animated style (the
+    /// values half of ruling LR-AS).
     private func paddedAndSized(_ node: LayoutNodeID, _ style: Style,
                                 alignment: ProposalAlignment) -> LayoutNodeID {
         var node = node
@@ -310,8 +319,16 @@ extension LayoutPass {
         if insets.top != 0 || insets.right != 0 || insets.bottom != 0 || insets.left != 0 {
             node = frame.requestNativePadding(child: node, insets: insets)
         }
-        let width = resolvedDimension(style.size.width)
-        let height = resolvedDimension(style.size.height)
+        // A declared size is folded with its own `minSize`/`maxSize` at registration,
+        // CSS's used size `max(min, min(size, max))` (stage 2, lane 2, ruling LR-AG).
+        func folded(_ size: Dimension, _ minimum: Dimension, _ maximum: Dimension) -> Double? {
+            guard var value = resolvedDimension(size) else { return nil }
+            if let hi = resolvedDimension(maximum) { value = Swift.min(value, hi) }
+            if let lo = resolvedDimension(minimum) { value = Swift.max(value, lo) }
+            return value
+        }
+        let width = folded(style.size.width, style.minSize.width, style.maxSize.width)
+        let height = folded(style.size.height, style.minSize.height, style.maxSize.height)
         if width != nil || height != nil {
             node = frame.requestNativeFrame(child: node, width: width, height: height,
                                             alignment: alignment)
@@ -438,13 +455,18 @@ extension LayoutPass {
 // MARK: - Stage 2: item records and the wrappers a parent registers around them
 
 /// What a lowered container registers around one child (plan task 7, stage 2, spec
-/// §3 item 2): at most the item frame W and the alignment frame, innermost first.
-/// Lane 1 plans the cross axis only.
+/// §3 item 2): at most `fixedSize`, the item frame W and the alignment frame,
+/// innermost first. Lane 1 plans the cross axis; lane 2 the main axis.
 struct LegacyItemPlan {
-    /// W's bounds per axis — `(minimum, maximum)` — on each axis it is greedy on;
-    /// `nil` on an axis it hugs. W is registered when either axis is set.
-    var itemFrameWidth: (min: Double, max: Double)?
-    var itemFrameHeight: (min: Double, max: Double)?
+    /// `fixedSize` on the parent's main axis, for `flexShrink: 0` on an `auto` main
+    /// size (lane 2, ruling LR-AF): `true` for a row parent (horizontal).
+    var fixedSizeHorizontal: Bool?
+    /// W's bounds per axis — `(minimum, maximum)` — on each axis it constrains: a
+    /// greedy axis (stretched or grown) has a maximum (∞ when none is declared); a
+    /// non-greedy axis with a declared minimum has only that minimum. `nil` on an
+    /// axis W leaves to its child. W is registered when either axis is set.
+    var itemFrameWidth: (min: Double?, max: Double?)?
+    var itemFrameHeight: (min: Double?, max: Double?)?
     var itemFrameAlignment: ProposalAlignment = .topLeading
     /// The alignment frame: greedy on one axis (`horizontal` for a column parent's
     /// cross axis), placing the child by `factor` there.
@@ -463,43 +485,79 @@ extension LayoutPass {
     }
 
     /// Plans each received child's wrappers for a parent of `parentKind` whose
-    /// **declared** style is `parent`, and appends — in child order, each child's in
-    /// `LR-AQ`'s field order — the item fields this stage cannot lower yet, at the
-    /// child's own site (spec §4's report order: after the container's own rows).
-    /// `received[i]` is `nil` for a child no legacy site recorded (a proposal
-    /// element), which gets no wrapper.
+    /// **declared** style is `parent`, and appends the item fields this stage cannot
+    /// lower: `flexGrow.weights` once at `parentSite`, then — in child order, each
+    /// child's in `LR-AQ`'s field order — the rest at the child's own site (spec §4's
+    /// report order: after the container's own rows). `received[i]` is `nil` for a
+    /// child no legacy site recorded (a proposal element), which gets no wrapper.
+    ///
+    /// **Which wrappers exist, and on which axis W is greedy, read the declared
+    /// style; W's minima and maxima read the animated one** (ruling LR-AS).
     ///
     /// **Stretch** (ruling LR-AC): a child whose cross size is `auto` and whose
     /// effective alignment — `alignSelf`, else the parent's `alignItems` (a stack
     /// parent: `justifyItems` horizontally, `alignItems` vertically) — is `nil` or
     /// `.stretch` gets W greedy on that axis, **unless the parent has exactly one
     /// child and no declared size on that axis** (the elision; stage 1's `LR-E`
-    /// principle 3). W carries the child's own `minSize`/`maxSize` on that axis from
-    /// its animated style (`LR-AG`, `LR-AS`), a minimum of **0** when none is
-    /// declared — CSS's stretched size is the line even below the content (`LR-AW`)
-    /// — and is aligned by the child's content alignment. A `.frame` layer child is
-    /// stretched the same way on an axis its frame leaves `nil` (`MC-Q` finding 7).
+    /// principle 3). On a stretched axis W's minimum is the declared `minSize`, else
+    /// **0** — CSS's stretched size is the line even below the content (`LR-AW`).
+    /// A `.frame` layer child is stretched the same way on an axis its frame leaves
+    /// `nil` (`MC-Q` finding 7).
+    ///
+    /// **Grow** (a flex parent, lane 2, ruling LR-AE): `flexGrow > 0` gets W greedy on
+    /// the parent's main axis — in a one-child container too (`LR-AR`) — when every
+    /// growing sibling's declared factor is equal; unequal factors report
+    /// `flexGrow.weights` at the parent's site. On a grown axis W's minimum comes
+    /// **only** from a declared `minSize` (F3: without one a greedy frame never
+    /// answers below its child, CSS's automatic minimum for rigid content).
+    ///
+    /// **Basis** (lane 2, `LR-AE` as amended): `auto` lowers to nothing; a zero basis
+    /// (any unit) on a grower with an `auto` main size lowers as `auto`; with a
+    /// declared main size it lowers only when a main `minSize` is declared too (W's
+    /// minimum is that minimum; the declared size stays on the element's own frame),
+    /// and otherwise reports `flexBasis` (CSS's floor is min(size, content)). Any
+    /// other basis reports `flexBasis`.
+    ///
+    /// **Shrink** (lane 2, ruling LR-AF): `flexShrink == 0` on an `auto` main size is
+    /// `fixedSize` on the main axis, innermost; any positive shrink lowers to nothing
+    /// (SwiftUI's compression, divergence 55); a negative one reports `flexShrink`.
+    ///
+    /// **Minima and maxima** (lane 2, ruling LR-AG), per axis whose `size` is
+    /// `auto`: a px/rem `minSize` is W's minimum (a non-greedy axis too — a floor); a
+    /// px/rem `maxSize` is W's maximum on a greedy axis and reports `maxSize`
+    /// elsewhere. On an axis with a declared `size` both fold into the element's own
+    /// frame at its registration (`paddedAndSized`), and W carries only a greedy
+    /// axis's maximum. A percentage reports `minSize`/`maxSize` (lane 4 renames it).
     ///
     /// **`alignSelf`** in a flex parent (ruling LR-AD): where the child is not
     /// stretched and its alignment factor (`.stretch` and `.baseline` place at the
     /// start) differs from the parent's, an alignment frame greedy on the cross axis
     /// places it — in a one-child container too (`LR-AR`). A stack parent ignores
-    /// `alignSelf`, as the legacy stack does.
+    /// `alignSelf`, `flexGrow`, `flexShrink` and `flexBasis`, as the legacy stack does.
     ///
-    /// **The free-space re-check** (ruling LR-AR, the stretch half): a child flex
-    /// container that W makes greedy on its own **main** axis, with no declared main
-    /// size and `justifyContent` `space-*`, reports `justifyContent.<case>` at its
-    /// site.
+    /// **The free-space re-check** (ruling LR-AR): a child flex container that W
+    /// constrains on its own **main** axis — greedy (stretched or grown) or floored by
+    /// a minimum, either of which can leave free space inside it — with no declared
+    /// main size and `justifyContent` `space-*`, reports `justifyContent.<case>` at
+    /// its site.
     ///
-    /// **Reported, lane 1** (a flex parent): `flexGrow`, `flexShrink`, `flexBasis`
-    /// (lane 2), `alignSelf.baseline` (task 11), `minSize`/`maxSize` anywhere but a
-    /// stretched axis, or a percentage there (lanes 2 and 4), `margin` (lane 4). A
-    /// stack parent reports only `minSize`/`maxSize` off a stretched axis and
-    /// `margin`. A `.frame` layer child reports nothing: its item fields are its own
-    /// frame's.
+    /// **Still reported** at the child's site: `alignSelf.baseline` (task 11) and
+    /// `margin` (lane 4). A `.frame` layer child reports nothing: its item fields are
+    /// its own frame's.
     func planLegacyItems(_ received: [LoweredItem?], parent: Style, parentKind: LoweredItem.Kind,
-                         fields: inout [UnlowerableField]) -> [LegacyItemPlan] {
+                         parentSite: LoweringSite, fields: inout [UnlowerableField]) -> [LegacyItemPlan] {
         let single = received.count == 1
+        // The weights check (LR-AE): every growing sibling's declared factor.
+        var weightsReported = false
+        if case .flex = parentKind {
+            let factors = Set(received.compactMap { $0 }
+                .filter { $0.kind != .frameLayer && $0.declared.flexGrow > 0 }
+                .map(\.declared.flexGrow))
+            if factors.count > 1 {
+                fields.append(UnlowerableField(site: parentSite, field: "flexGrow.weights"))
+                weightsReported = true
+            }
+        }
         var plans: [LegacyItemPlan] = []
         for item in received {
             var plan = LegacyItemPlan()
@@ -509,8 +567,10 @@ extension LayoutPass {
             }
             let d = item.declared, a = item.animated
             func stretches(_ value: AlignItems?) -> Bool { value == nil || value == .stretch }
-            // Whether the child is stretched on each axis.
-            var horizontal = false, vertical = false
+            // Whether the child is stretched, and grown, on each axis.
+            var stretchedH = false, stretchedV = false, grownH = false, grownV = false
+            // Whether a zero basis takes W's main minimum from the declared minimum.
+            var basisMinimum = false
             var reports: [String] = []
             switch parentKind {
             case .flex(let isRow):
@@ -523,11 +583,29 @@ extension LayoutPass {
                 let crossAuto = (isRow ? d.size.height : d.size.width) == .auto
                 let parentCross = isRow ? parent.size.height : parent.size.width
                 let stretched = effective && crossAuto && !(single && parentCross == .auto)
-                if isRow { vertical = stretched } else { horizontal = stretched }
+                if isRow { stretchedV = stretched } else { stretchedH = stretched }
                 if item.kind != .frameLayer {
-                    if d.flexGrow != 0 { reports.append("flexGrow") }
-                    if d.flexShrink != 1 { reports.append("flexShrink") }
-                    if d.flexBasis != .auto { reports.append("flexBasis") }
+                    let mainAuto = (isRow ? d.size.width : d.size.height) == .auto
+                    let mainMinimum = isRow ? d.minSize.width : d.minSize.height
+                    if d.flexGrow < 0 { reports.append("flexGrow") }
+                    if d.flexGrow > 0 && !weightsReported {
+                        if isRow { grownH = true } else { grownV = true }
+                    }
+                    if d.flexShrink < 0 {
+                        reports.append("flexShrink")
+                    } else if d.flexShrink == 0 && mainAuto {
+                        plan.fixedSizeHorizontal = isRow
+                    }
+                    if d.flexBasis != .auto {
+                        if isZero(d.flexBasis) && d.flexGrow > 0 {
+                            if !mainAuto {
+                                if resolvedDimension(mainMinimum) != nil { basisMinimum = true }
+                                else { reports.append("flexBasis") }
+                            }
+                        } else {
+                            reports.append("flexBasis")
+                        }
+                    }
                     if d.alignSelf == .baseline { reports.append("alignSelf.baseline") }
                 }
                 if !stretched {
@@ -538,22 +616,57 @@ extension LayoutPass {
                     }
                 }
             case .stack, .leaf, .frameLayer:
-                horizontal = alignsByStretching(parent.justifyItems) && d.size.width == .auto
+                stretchedH = alignsByStretching(parent.justifyItems) && d.size.width == .auto
                     && !(single && parent.size.width == .auto)
-                vertical = stretches(parent.alignItems) && d.size.height == .auto
+                stretchedV = stretches(parent.alignItems) && d.size.height == .auto
                     && !(single && parent.size.height == .auto)
             }
-            if item.kind != .frameLayer {
-                func reported(_ size: Size<Dimension>) -> Bool {
-                    (size.width != .auto && !(horizontal && !isPercent(size.width)))
-                        || (size.height != .auto && !(vertical && !isPercent(size.height)))
+
+            // W's bounds on one axis (nil: W leaves the axis to its child), and the
+            // reports that axis's minimum and maximum make.
+            var minimumReported = false, maximumReported = false
+            func axis(size: Dimension, declaredMin: Dimension, declaredMax: Dimension,
+                      animatedMin: Dimension, animatedMax: Dimension,
+                      stretched: Bool, grown: Bool) -> (min: Double?, max: Double?)? {
+                if item.kind == .frameLayer {
+                    // Lane 1: a frame layer's own bounds, repeated on a stretched axis.
+                    guard stretched else { return nil }
+                    let lo = resolvedDimension(animatedMin) ?? 0
+                    return (lo, Swift.max(lo, Swift.max(0, resolvedDimension(animatedMax) ?? .infinity)))
                 }
-                if reported(d.minSize) { reports.append("minSize") }
-                if reported(d.maxSize) { reports.append("maxSize") }
+                if isPercent(declaredMin) { minimumReported = true }
+                if isPercent(declaredMax) { maximumReported = true }
+                let hasMin = resolvedDimension(declaredMin) != nil
+                let hasMax = resolvedDimension(declaredMax) != nil
+                let greedy = stretched || grown
+                if size != .auto {
+                    // Folded into the element's own frame; W carries a greedy axis's
+                    // maximum, and a zero basis's declared minimum.
+                    guard greedy else { return nil }
+                    let lo = grown && basisMinimum ? resolvedDimension(animatedMin) : nil
+                    return (lo, Swift.max(lo ?? 0, Swift.max(0, resolvedDimension(animatedMax) ?? .infinity)))
+                }
+                if greedy {
+                    let lo = resolvedDimension(animatedMin) ?? (stretched ? 0 : nil)
+                    return (lo, Swift.max(lo ?? 0, Swift.max(0, resolvedDimension(animatedMax) ?? .infinity)))
+                }
+                if hasMax { maximumReported = true }
+                return hasMin ? (resolvedDimension(animatedMin), nil) : nil
+            }
+            plan.itemFrameWidth = axis(size: d.size.width, declaredMin: d.minSize.width, declaredMax: d.maxSize.width,
+                                       animatedMin: a.minSize.width, animatedMax: a.maxSize.width,
+                                       stretched: stretchedH, grown: grownH)
+            plan.itemFrameHeight = axis(size: d.size.height, declaredMin: d.minSize.height,
+                                        declaredMax: d.maxSize.height,
+                                        animatedMin: a.minSize.height, animatedMax: a.maxSize.height,
+                                        stretched: stretchedV, grown: grownV)
+            if item.kind != .frameLayer {
+                if minimumReported { reports.append("minSize") }
+                if maximumReported { reports.append("maxSize") }
                 if LoweredItem.hasMargin(d) { reports.append("margin") }
             }
             if case .flex(let childIsRow) = item.kind,
-               childIsRow ? horizontal : vertical,
+               (childIsRow ? plan.itemFrameWidth : plan.itemFrameHeight) != nil,
                (childIsRow ? d.size.width : d.size.height) == .auto {
                 switch d.justifyContent {
                 case .spaceBetween?: reports.append("justifyContent.spaceBetween")
@@ -563,26 +676,23 @@ extension LayoutPass {
                 }
             }
             fields += reports.map { UnlowerableField(site: item.site, field: $0) }
-
-            func bounds(_ minimum: Dimension, _ maximum: Dimension) -> (min: Double, max: Double) {
-                let lo = resolvedDimension(minimum) ?? 0
-                return (lo, Swift.max(lo, Swift.max(0, resolvedDimension(maximum) ?? .infinity)))
-            }
-            if horizontal { plan.itemFrameWidth = bounds(a.minSize.width, a.maxSize.width) }
-            if vertical { plan.itemFrameHeight = bounds(a.minSize.height, a.maxSize.height) }
             plan.itemFrameAlignment = item.contentAlignment
             plans.append(plan)
         }
         return plans
     }
 
-    /// Registers each child's planned wrappers, innermost first, aliasing the child's
-    /// node to its item frame (ruling LR-AB item 3), and returns the nodes the
-    /// container registers in the children's place.
+    /// Registers each child's planned wrappers, innermost first — `fixedSize`, the
+    /// item frame W, the alignment frame — aliasing the child's node to W (ruling
+    /// LR-AB item 3), and returns the nodes the container registers in the children's
+    /// place.
     func registerLegacyItems(_ children: [LayoutNodeID], _ plans: [LegacyItemPlan]) -> [LayoutNodeID] {
         var nodes: [LayoutNodeID] = []
         for (child, plan) in zip(children, plans) {
             var node = child
+            if let horizontal = plan.fixedSizeHorizontal {
+                node = frame.requestNativeFixedSize(child: node, horizontal: horizontal, vertical: !horizontal)
+            }
             if plan.itemFrameWidth != nil || plan.itemFrameHeight != nil {
                 node = frame.requestNativeFrame(child: node,
                                                 minWidth: plan.itemFrameWidth?.min,

@@ -254,12 +254,13 @@ private func diagnostics<C: ElementGroup>(@ElementBuilder _ make: @MainActor () 
                  [field(.modifierLayer, "position"), field(.modifierLayer, "inset")]))
     arms.append(("ScrollView", diagnostics { ScrollView { ProbeLeaf(width: 10, height: 10) } },
                  [field(.scrollView, "noLowering")]))
-    // `list` first; then the zero-row `Box` it lays out under diagnostics — its
-    // spacer (a childless `Box` with `flexShrink: 0`, lowered since lane 2); the
-    // container itself lowers since lane 3 and reports nothing — and no row `Box`.
+    // `list` first, and nothing else: the zero-row `Box` it lays out under
+    // diagnostics lowers (the container since stage 1's lane 3; its spacer's
+    // `flexShrink: 0` since stage 2's lane 2 — a declared 0 height, already rigid,
+    // so no `fixedSize`), and no row `Box` is built.
     arms.append(("List", diagnostics {
         List(probeItems(3), rowHeight: px(10)) { _ in ProbeLeaf(width: 10, height: 10) }
-    }, [field(.list, "noLowering"), field(.box, "flexShrink")]))
+    }, [field(.list, "noLowering")]))
     let amendChild = await #expect(processExitsWith: .success,
                                    observing: [\.standardOutputContent, \.standardErrorContent]) {
         await MainActor.run {

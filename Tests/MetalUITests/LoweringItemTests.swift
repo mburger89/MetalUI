@@ -705,8 +705,8 @@ private struct AtOrigin: ProposalLayout {
 ///   `box.margin.unconsumed`; a `Text` with `.flexGrow(1)` → `text.flexGrow.unconsumed`;
 /// - a legacy `ScrollView` over the same child reports only `scrollView.noLowering`
 ///   (the site marks the record it receives);
-/// - the control `Row { same }` consumes the record: no `…unconsumed` entry (lane 1
-///   still reports `box.flexGrow` there, at the child's site; lane 2 lowers it);
+/// - the control `Row { same }` consumes the record: no `…unconsumed` entry, and
+///   since lane 2 no entry at all (lane 1 reported `box.flexGrow` there);
 /// - **the frame's root** (a `Frame` rendering the element itself, no harness):
 ///   `.maxWidth(600)` and `.minWidth(50)` always report (CSS applies them to a root);
 ///   `.flexGrow(1)`, `.flexShrink(0)`, `.flexBasis(0)` and `.alignSelf(.flexEnd)` each
@@ -754,7 +754,7 @@ private struct AtOrigin: ProposalLayout {
                  [field(.text, "flexGrow.unconsumed")]))
 
     arms.append(("legacy ScrollView", report { ScrollView { grow() } }, [field(.scrollView, "noLowering")]))
-    arms.append(("control Row", report { Row { grow() } }, [field(.box, "flexGrow")]))
+    arms.append(("control Row", report { Row { grow() } }, []))
 
     // The frame's root.
     func rootFrame<E: Element>(_ authority: LayoutAuthority, _ element: E) -> Frame {
@@ -902,11 +902,8 @@ private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
                     }
                 }
                 let r = LayoutDifferential.compare(width: 400, height: 400) {
-                    if isRow {
-                        Row(gap: px(gap)) { fixed(40, 10); g() }.width(px(300))
-                    } else {
-                        Column(gap: px(gap)) { fixed(10, 40); g() }.height(px(300))
-                    }
+                    isRow ? AnyElement(Row(gap: px(gap)) { fixed(40, 10); g() }.width(px(300)))
+                          : AnyElement(Column(gap: px(gap)) { fixed(10, 40); g() }.height(px(300)))
                 }
                 try #require(r.elements == (grower == .row ? 6 : 4), "\(name): \(r.elements)")
                 expectCorpusAgreement(r, name)

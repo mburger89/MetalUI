@@ -148,11 +148,13 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
 /// to read. Directly under the harness root (a proposal overlay) no lowered
 /// container consumes the leaf's record, so each reports `<field>.unconsumed` after
 /// the root returns, in `LR-AQ`'s order (`flexGrow` before `margin` in the combined
-/// row). Inside a lowered `Row` the parent consumes the record and reports what lane
-/// 1 cannot lower, at the leaf's site under the stage-1 name: seven more arms per
-/// site (`minSize` on the row's main axis, `maxSize` on its unstretched cross axis,
-/// and `alignSelf` as `.baseline`, which reports `alignSelf.baseline` — a `.center`
-/// `alignSelf` lowers since lane 1). 51 arms.
+/// row). Inside a lowered `Row` the parent consumes the record and reports what
+/// stage 2 cannot lower, at the leaf's site under the stage-1 name: seven more arms
+/// per site (`minSize` a percentage, `maxSize` on the row's unstretched cross axis, a
+/// negative `flexGrow` and `flexShrink` — lane 2 lowers a positive grow, a zero
+/// shrink and a px minimum — `flexBasis` a length, and `alignSelf` as `.baseline`,
+/// which reports `alignSelf.baseline`: a `.center` `alignSelf` lowers since lane 1).
+/// 51 arms.
 ///
 /// Mutations that must redden it: **M2c**, the `margin` check deleted; **V3**, the
 /// height half of the floor check deleted; **V4**, `display: none` no longer
@@ -238,13 +240,15 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
                      row.expected.map { field(.text, $0) }))
     }
     // Consumed by a lowered `Row` (stage 2, lane 1): the parent reports at the leaf's
-    // site, under the stage-1 name, what lane 1 does not lower.
+    // site, under the stage-1 name, what stage 2 does not lower. Re-spelled in lane 2,
+    // which lowers a px `minSize`, a positive `flexGrow` and `flexShrink: 0`: the
+    // `minSize` arm is a percentage, and the grow and shrink arms are negative.
     let consumed: [(name: String, edit: (inout Style) -> Void)] = [
-        ("minSize", { $0.minSize.width = .length(.pixels(px(5))) }),
+        ("minSize", { $0.minSize.width = .length(.percent(0.5)) }),
         ("maxSize", { $0.maxSize.height = .length(.pixels(px(50))) }),
         ("margin", { $0.margin.top = .length(.pixels(px(3))) }),
-        ("flexGrow", { $0.flexGrow = 1 }),
-        ("flexShrink", { $0.flexShrink = 0 }),
+        ("flexGrow", { $0.flexGrow = -1 }),
+        ("flexShrink", { $0.flexShrink = -1 }),
         ("flexBasis", { $0.flexBasis = .length(.pixels(px(10))) }),
         ("alignSelf.baseline", { $0.alignSelf = .baseline }),
     ]
