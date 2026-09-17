@@ -756,3 +756,36 @@ private let none = ProposedSize(width: nil, height: nil)
     let grid = tree.newNativeGrid(children: [a, b])
     #expect(tree.measureNativeLayout(root: grid, proposal: ProposedSize(width: nil, height: nil)).size == size(30, 28))
 }
+
+/// GR-A: `reset(generation:)` clears the column-span marks. A node marked
+/// `columns: 2` in generation 1; after the reset, a 100×10 leaf registered at
+/// its index is an unmarked one-cell row above a row of two 30×10 cells, so it
+/// widens only the first column: 138×28. The control marks the same leaf
+/// `columns: 2` in generation 2, so its shortfall is shared by both columns:
+/// 100×28. `markNativeGridCell(_:columns: nil)` writes nothing, so a stale mark
+/// on a reused index is read by `newNativeGrid` unless `reset` clears it.
+///
+/// Mutation (verifier V1): do not clear the column-span dictionary in `reset`
+/// (100×28).
+@Test func resetClearsGridCellColumnMarks() throws {
+    func arm(markBeforeReset: Bool, markAfterReset: Bool) throws -> SizeD {
+        let tree = LayoutTree(generation: 1)
+        let stale = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 100, height: 10)) }
+        if markBeforeReset { tree.markNativeGridCell(stale, columns: 2) }
+        tree.reset(generation: 2)
+        let wide = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 100, height: 10)) }
+        let left = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 30, height: 10)) }
+        let right = tree.newNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 30, height: 10)) }
+        try #require(wide.index == stale.index, "the new leaf reuses the marked index")
+        tree.markNativeGridCell(wide, columns: markAfterReset ? 2 : nil)
+        tree.markNativeGridRow([wide])
+        tree.markNativeGridRow([left, right])
+        let grid = tree.newNativeGrid(children: [wide, left, right])
+        return tree.measureNativeLayout(root: grid, proposal: ProposedSize(width: nil, height: nil)).size
+    }
+    let afterReset = try arm(markBeforeReset: true, markAfterReset: false)
+    let control = try arm(markBeforeReset: false, markAfterReset: true)
+    try #require(afterReset != control, "an unmarked cell and a two-column span must answer differently")
+    #expect(afterReset == size(138, 28), "a mark from before the reset \(afterReset)")
+    #expect(control == size(100, 28), "the control's two-column span \(control)")
+}
