@@ -2111,3 +2111,85 @@ reported tree's census lists more entries than the fields an author must fix fir
 production traps on the first either way. (3) An author placing a legacy element
 with an item field directly under a proposal container gets a trap naming
 `…unconsumed`, which is the ruling's intent (`LR-AQ`).
+
+---
+
+## LR-AX — stage 2 lane 2's corrections: arms the design spelled that could not show their subject, the re-check's reach, negative factors, and how the animated and depth pins are driven
+
+**Evidence.** Record §19, lane 2: the red run on lane 1's lowering (1439 tests, all
+16 lane-2 tests red, every legacy-side literal passing), the legacy measurements
+taken before the literals were written (scratch, deleted), the implementation's first
+full run (1439, 9 issues in 4 tests — three amended pins and one test's own
+spelling), 43 mutations each reddening named tests, the stage-2 probe (revision 3,
+243 lines) and stack-algorithms probe (787 lines) re-run twice / once this lane,
+identical to their records.
+
+**The rulings.**
+
+1. **2.4's sized-container arm is re-spelled.** The design's arm (`Row { a40; b40 }
+   .width(200).justifyContent(.flexEnd)…` in a 150 share) cannot show the
+   divergence it names: the element's own 200 frame sits in W at the row's content
+   factor f and its rigid content at f again inside it, so every child lands at
+   f·(150 − 200) + f·(200 − 80) = f·(150 − 80) — CSS's position under any one
+   factor. A **grower** inside can: `Row { a40; g.flexGrow(1) }.width(200)…` lays g
+   out 160 wide lowered (at the declared 200) against legacy 110 (in 150), the item
+   rect agreeing at 150.
+2. **2.5's sibling declares `flexShrink(0)`.** Measured before the literal: legacy
+   shrinks a childless `Box().width(50)` beside a max-content text to **0** (its
+   automatic minimum is its content's), where the lowered row keeps a declared 50
+   rigid — divergence 55, already pinned by 2.6 and 2.9, not 2.5's subject.
+3. **2.13 is driven one window per authority, in turn, not through `WindowPair`.**
+   `withAnimation`'s parked transaction is consumed by exactly one frame build
+   (CLAUDE.md, Animation), and `WindowPair`'s one `make` closure cannot give each
+   window its own model. Each state is still pre-flighted through
+   `LayoutDifferential.compare` (`LR-AA`). **Arm B is `(0 → 2, 2)`, not `(1 → 2, 2)`**:
+   the design's start state reports `flexGrow.weights` and would trap the proposal
+   window before any tick; (0 → 2, 2) starts with one grower and is unequal
+   mid-flight all the same. **Arm B runs in a child process**, because its mutation
+   (M2o) makes a production window trap mid-flight, which in-process ends the run
+   with no summary line (practices shape 13). **Arm C's row declares 300** beside a
+   rigid 260: the design's "hugging row" is offered the harness root's width and a
+   grower fills it (cause R).
+4. **The free-space re-check covers any W on the child's own main axis**, not only
+   a greedy one: a declared `minSize` on an unsized `space-*` container is W's
+   floor, and a floor above the content is free space CSS distributes (legacy b at
+   180 in `Row { Row { 20; 20 }.justifyContent(.spaceBetween).minWidth(200); 40 }`)
+   where the lowered stack would pack from the start. It reports; 2.12's minimum arm
+   pins it (M2m′). `LR-AR` is extended, not changed.
+5. **A negative `flexGrow` or `flexShrink` reports `flexGrow` / `flexShrink`.** CSS
+   rejects both; lowering them as absent would be silent. The leaf report test's
+   in-`Row` arms, whose positive grow and zero shrink now lower, are re-spelled to
+   the negative values (M2r).
+6. **Report order**: `flexGrow.weights` (at the parent's site) comes first among a
+   container's child reports, before any child's own fields. **A percentage
+   `minSize`/`maxSize` keeps stage 1's `minSize`/`maxSize` name**; lane 4's 4.7
+   renames it `…percent`.
+7. **W on a declared axis.** A grown item with a declared main size keeps its size
+   (folded with its own `minSize`/`maxSize`) on its own frame; W is greedy with the
+   declared maximum and a minimum only for a zero basis with a declared minimum
+   (`LR-AE` as amended). A non-greedy `auto` axis with a px/rem minimum registers W
+   with that minimum and no maximum (a floor), in a stack parent too.
+8. **2.14's shape** — 21 nested `Row`s, each inner row declaring `flexShrink(0)`,
+   `flexGrow(1)` and `alignSelf(.flexEnd)` beside a fixed 10×10, the outermost a
+   sized production root — reaches **88** native levels exactly with a sized, padded
+   leaf innermost and **89** with a padded one-child container innermost, so the
+   pair pins the boundary to one level (stage 1's 5.8/5.9 bracket 87–90). Node counts
+   130 and 131, derived by hand. The whole demo's deepest native run under the
+   proposal authority is **18** in both modal states (scratch counter in
+   `NativeLayoutRun.enter`, restored; stage 1 measured 12).
+9. **2.15 asserts the modal's six ids by presence only** (their rects are stage 5's
+   `position`/`inset`), and the `List`'s two ids one index later when the modal is
+   shown. The 30 modal-off pairs are asserted in both states. Stage 1's M1t (the
+   parent's `flexGrow` report dropped) is retired: the report no longer exists.
+10. **A builder `if`/`else` at the harness content's top adds an id level**: 2.1's
+    first spelling put its container one level down and found no rect at
+    `child(containerID, 1)`; the arm is spelled with `AnyElement` instead. Measured
+    (scratch, deleted): `if flag { Row { a; b } } else { Column { … } }` under the
+    harness root records the row at `0/0/0` and its children at `0/0/0/0` and
+    `0/0/0/1` — the branch's own `0/0` records no rect.
+
+**What it costs if wrong.** (1)–(3) are test shapes: a wrong one leaves a divergence
+unpinned, which the named mutations check. (4) A floored `space-*` container traps
+under the proposal authority until stage 8's recipe respells it. (5) An author's
+negative factor traps instead of being ignored. (8) Raising `maxDepth` or adding a
+fifth wrapper per item moves both depth pins; lane 4 re-derives them with a margin.

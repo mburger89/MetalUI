@@ -8,7 +8,8 @@ import MetalUIText
 @testable import MetalUI
 
 // Plan task 7, stage 2, lanes 1 and 2 (`docs/superpowers/specs/2026-09-17-engine-stage-2-design.md`
-// §3, §4.1 and §6 lane 1; rulings LR-AB, LR-AC, LR-AD, LR-AQ, LR-AR, LR-AW): flex
+// §3, §4.1 and §6 lanes 1–2; rulings LR-AB, LR-AC, LR-AD, LR-AQ, LR-AR, LR-AW, and for
+// lane 2 LR-AE, LR-AF, LR-AG, LR-AS, LR-AX): flex
 // ITEM fields lowered by the parent under the proposal layout authority — the child
 // records a `LoweredItem`, the lowered container wraps it (a greedy cross-axis item
 // frame W for stretch, aliased as the element's rect; an unaliased alignment frame

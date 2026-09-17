@@ -77,6 +77,11 @@
 // lines, then DONE; filtered stderr empty. Screen locked and asleep
 // (CGSSessionScreenIsLocked = 1, displayAsleep main: 1 at 08:40).
 //
+// RE-RUN 2026-09-17 by the stage-2 lane-2 implementer, before its tests (unchanged
+// source), same OS and toolchain: exit 0; run twice, stdout byte-identical, 243
+// lines, identical to the OUTPUT below line for line (leading whitespace
+// ignored). Lane 2 cites F1–F10, X4, X10, X12, X18 from this run.
+//
 // READING (each arm against its control; "CSS" is the legacy engine's answer
 // for the legacy spelling the arm stands in for, from the engine's rules, not
 // from this probe).

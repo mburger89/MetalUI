@@ -503,3 +503,222 @@ not read (`FR-V`).
   (1.6), X4 (1.7), X16 (1.9), X14 (1.15). The stage-1 census (5.3) is now an
   ordered literal of 13 entries.
 - Retired stage-1 mutations: M3f and M5c (the stretch rows they mutated are gone).
+
+## Lane 2 — the main axis, animated fields, depth, the exit test (2026-09-17, PDT)
+
+Implementer's record. Commits: `27a9e23` (red), `f25889a` (implementation and
+amended pins), `30737bd` (2.12's minimum arm), and this record's commit (docs, probe
+re-run note, `LR-AX`, spec rows marked *lane 2*). Rulings: `LR-AX`.
+
+### Probes re-run before the tests
+
+- `swiftui-engine-replacement-stage2.swift` (revision 3, unchanged source), its HOW
+  TO RUN filter: run twice, exit 0, 243 lines, the two runs byte-identical and
+  identical to the header's OUTPUT (leading whitespace ignored). Lane 2 cites F1–F10,
+  X4, X10, X12, X18.
+- `swiftui-stack-algorithms.swift`: exit 0, 787 lines, identical to its OUTPUT block
+  (G1, G9, G4r, A5, S cited).
+
+### Legacy answers measured before literals were written (scratch, deleted)
+
+`LayoutDifferential.render(authority: .legacy, …)` in a scratch test: the demo's
+element ids and legacy rects (2036 ids; the table in 2.15's doc comment); 2.5's
+design shape — the text 252×16, the `Box().width(50)` beside it **0×10 at x 252**
+(`LR-AX` item 2); F9's text 107×16 (min-content 107.22), the zero-basis box 0 wide;
+the 2.9 replica — sidebar **88**, main pane at x 100, 788 wide, as on the demo; the
+shaping cache: "-" 9.62, "+" 13.31, "Count 0" 76.42 (22pt, 26 tall), "3" 8.07 (13pt,
+16), the paragraph 48 tall at 756 and 64 at 648 (`proposalTextMeasurement` 751.87×48
+and 641.89×64), "Text renders" 26 at both.
+
+### Red first (`27a9e23`, on lane 1's lowering `25fd9fb`)
+
+`swift build --build-system native --build-tests`: 0 `error:` (the first build had
+one class of error — an exit test's body calling a local `@ElementBuilder` function,
+moved to file scope as `animatedWeightsArm`). `swift test --build-system native
+--no-parallel --skip-build`: **`Test run with 1439 tests in 1 suite failed after
+45.627 seconds with 92 issues`**, exactly the 16 lane-2 tests red:
+
+| test | issues | first red line |
+|---|---|---|
+| 2.15 `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` | 4 | `LoweringCorpusTests.swift:494` report ≠ `[list.noLowering, scrollView.noLowering]` |
+| 2.1 `aGrowingChildTakesTheRemainingMainSpace` | 4 | `LoweringItemTests.swift:912` `r.unlowerable.isEmpty` |
+| 2.2 `growingSiblingsShareTheSurplusEquallyWhereCSSAddsItToTheirBases` | 12 | `:963` `r.unlowerable.isEmpty` |
+| 2.3 `unequalGrowWeightsAreReportedOnTheParent` | 7 | `:996` report ≠ `[box.flexGrow.weights]` |
+| 2.4 `aZeroBasisGrowerTakesItsShareDownToItsContent` | 14 | `:1048` `r.unlowerable.isEmpty` |
+| 2.5 `aZeroShrinkKeepsItsNaturalMainSizeAndOverflows` | 12 | `:1138` `r.unlowerable.isEmpty` |
+| 2.6 `aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight` | 2 | `:1179` `r.unlowerable.isEmpty` |
+| 2.7 `aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent` | 12 | `:1209` `r.unlowerable.isEmpty` |
+| 2.8 `aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere` | 8 | `:1251` `r.unlowerable.isEmpty` |
+| 2.9 `theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt` | 2 | `:1298` `r.unlowerable.isEmpty` |
+| 2.10 `aGrowerOnAHuggingContainersMainAxisFillsItsProposal` | 2 | `:1336` `r.unlowerable.isEmpty` |
+| 2.11 `aGrowInsideAOneChildPaddingFillsTheWrapperWhereCSSLeavesItUngrown` | 2 | `:1358` `r.unlowerable.isEmpty` |
+| 2.12 `aGrownUnsizedSpaceDistributionContainerIsReported` | 7 | `:1379` report ≠ `[box.justifyContent.spaceBetween]` |
+| 2.13 `anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues` | 1 | `:1476` arm A's pre-flight `unlowerable.isEmpty` |
+| 2.14 limit `aLoweredItemChainWithThreeWrappersPerLevelAtTheNativeDepthLimitLaysOut` | 2 | `LoweringPipelineParityTests.swift:479` exit `.signal(SIGTRAP)` (the chain's first report) |
+| 2.14 trap `…OnePastTheNativeDepthLimitTraps` | 1 | `:508` stderr lacks `native layout recursion exceeded 88 levels` |
+
+**Every legacy-side literal passed** (2.2's 190/110 and 240/60, 2.4's F9 text and
+sized-container arm, 2.6's 50/50 and 65/35, 2.9's 88/100/788, 2.10, 2.11), and 2.15's
+derived figures reproduced P3's (`[439, 310, 26, 48, 439, 26, 64, 455, 16]`, the
+expectation at its line 594 passed). 2.13's legacy series were not reached (its
+pre-flight `#require` threw first) and are first checked by the implementation run.
+
+**2.1's spelling was corrected after the red run** (`f25889a`): its container was
+built with a builder `if`/`else`, which adds an id level (`LR-AX` item 10), so the
+implementation run found no rect at `child(containerID, 1)`. Re-spelled with
+`AnyElement` and re-run against lane 1's `LegacyLowering.swift` (copied aside,
+`git checkout`, native build, filtered run, restored; `git status --short` showed
+only the test file): red at `:909` `r.unlowerable.isEmpty` and `:912` the grown
+extent.
+
+### Implementation (`f25889a`)
+
+`LegacyLowering.swift` only: `LegacyItemPlan` gains `fixedSizeHorizontal`, and W's
+per-axis bounds become `(min: Double?, max: Double?)`; `planLegacyItems` takes the
+parent's site and plans the weights check, grow, basis, shrink, minima and maxima
+(`LR-AE`, `LR-AF`, `LR-AG`, `LR-AS`, `LR-AX`); `registerLegacyItems` registers
+`fixedSize` innermost; `paddedAndSized` folds a declared size with its own
+`minSize`/`maxSize`. No `Frame`/`Passes` edit, no stored property (no `swift package
+clean` needed).
+
+**First full run**: `Test run with 1439 tests in 1 suite failed after 43.351 seconds
+with 9 issues` — 2.1's id level (above) and three pins, whose red lines named what
+moved: `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` (`List: [list.noLowering]`,
+expected `[list.noLowering, box.flexShrink]`), `anItemFieldNoLoweredContainerConsumesIsReportedByName`
+(`control Row: []`, expected `[box.flexGrow]`), `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf`
+(six in-`Row` arms: `minSize`, `flexGrow`, `flexShrink` on `Box` and `Text` read
+`[]`). Amended as `LR-AX` item 5 and the spec's lane-2 amended-pins note say. 2.13,
+2.14 and 2.15 passed on the first implementation run, 2.15 with all 30 pairs.
+
+**Suite**: `Test run with 1439 tests in 1 suite passed after 44.226 seconds` (1424 +
+15; 2.15 replaces stage 1's 5.3). After `30737bd` and this record's docs, **final**,
+10:46 PDT: build 0 `error:`, one `warning:` (SwiftPM's `--build-system native`
+notice); `Test run with 1439 tests in 1 suite passed after 45.946 seconds`, 0
+`error:`, no other `warning:`; goldens 97; `git diff --name-only cb2e708 -- '*.json'`
+empty. Guards 71 (none added).
+
+### The exit test's census (2.15)
+
+Modal off: report `[list.noLowering, scrollView.noLowering]`; 2036 ids, 6 agreeing
+(root, header layer, header row, avatar, bar, hairline), 30 disagreeing, 2000
+legacy-only, 0 lowered-only — every pair equal to P3's and scratch R2's table above
+(the literal list and derivations are in the test). Modal on: `[stack.position,
+stack.inset, list.noLowering, scrollView.noLowering]`, 2042 ids, 6 agreeing, 36
+disagreeing: the 30 (the `List` and its row box one index later) plus the modal's
+six ids. No row fell outside the five causes. The whole demo's **deepest native run**
+under the proposal authority: **18** in both modal states (78 and 88 native nodes),
+by a scratch `max` in `NativeLayoutRun.enter` restored afterwards (`git status
+--short` clean); stage 1 measured 12.
+
+### Mutations
+
+`scratchpad/s2l2/mut/run.py` (lane 1's runner, new table): committed tree
+(`30737bd`), file copied aside, target asserted unique, applied, native build, full
+unfiltered `swift test --build-system native --no-parallel --skip-build`, restored
+from the copy, `git status --short` read after each — **empty after all 43**. No
+build error, no truncated run (every log has its summary line). Lane 1's mutations
+were re-run too, re-spelled against the restructured `planLegacyItems` (the whole
+table re-taken, practices record-shape 3). Issue counts in parentheses.
+
+| mutation | what | reddened |
+|---|---|---|
+| **M2a** | grow on the cross axis | 2.1 (36), 2.2 (8), 2.3 (4), 2.4 (9), 2.7 (3), 2.8 (4), 2.10 (1), 2.11 (1), 2.12 (5), 2.13 (2), 2.15 (3) |
+| **M2b** | W's main minimum 0 without a declared one (both branches) | 2.2 (1), 2.4 (3) |
+| **M2c** | weights check removed | 2.3 (1) |
+| **M2d** | a non-zero length basis lowered as `auto` | 2.4 (1), leaf 2.3 (2) |
+| **M2d′** | a zero basis given W's minimum 0 | 2.4 (3) |
+| **M2d″** | a sized zero-basis grower lowered | 2.4 (1) |
+| **M2e** | `fixedSize` on the cross axis | 2.5 (10) |
+| **M2f** | a shrink ≠ 0, 1 reported | 2.6 (2) |
+| **M2g** | W drops the minimum (greedy and floor) | 2.7 (6), 2.12 (1), 2.13 (1) |
+| **M2h** | the fold's minimum skipped | 2.7 (3) |
+| **M2h′** | the fold's maximum skipped | 2.8 (3) |
+| **M2i** | a non-greedy maximum lowered onto W | 2.8 (1), leaf 2.3 (2), 1.12 (1) |
+| **M2j** | a declared size lowered as `frame(maxWidth:maxHeight:)` | 2.15 (32), stage 1's 4.4 `aLoweredFixedFrameLayerAgrees…` (18), 5.7 (3), 1.11 (3), 2.2 (1), 2.4 (4), 2.5 (4), 2.6 (1), 2.7 (3), 2.13 (1), 3.6 (1), 4.6 `anIdealFrameLowers…` (1), 5.2 (1) |
+| **M2k** | grow only where the parent declares its main size | 2.10 (1), 2.11 (1), 2.14 limit (1), 2.14 trap (2), 2.15 (3) |
+| **M2l** | grow elided in a one-child container | 2.11 (1) |
+| **M2m** | the re-check only for stretch | 2.12 (2) |
+| **M2m′** | the re-check only for a greedy W | 2.12 (1) |
+| **M2n** | W's existence from `animated.flexGrow > 0.5` | 2.13 (2), 2.3 (2) |
+| **M2o** | weights from the animated style | 2.13 (2: arm B's child exits on the trap) |
+| **M2p** | W's minimum from the declared style | 2.13 (1) |
+| **M2q** | `maxDepth` 96 | 2.14 trap (2), stage 1's 5.9 (2) |
+| **M2r** | a negative `flexGrow` not reported | leaf 2.3 (2) |
+| **M5c′** | the weights check always reporting | 2.15 (4), 1.13 (1), 2.1 (52), 2.2 (12), 2.3 (6), 2.4 (14), 2.7 (4), 2.8 (4), 2.9 (2), 2.10 (2), 2.11 (2), 2.12 (7), 2.13 (1), 2.14 limit (2), 2.14 trap (1) |
+| **M1a** | W not aliased | 1.1 (54), 1.2 (12), 1.3 (1), 1.4 (6), 1.7 (1), 1.8 (6), 1.9 (4), 1.10 (10), 1.11 (1), 1.14 (2), `stretchAndSpaceDistribution…` (6), 2.1 (32), 2.2 (8), 2.3 (4), 2.4 (6), 2.5 (3), 2.7 (6), 2.8 (3), 2.10 (1), 2.11 (1), 2.12 (2), 2.13 (3), 2.15 (3) |
+| **M1b** | stretch on the main axis | 1.1 (56), 1.2 (12), 1.3 (1), 1.4 (8), 1.7 (1), 1.8 (6), 1.10 (10), 1.11 (4), 1.14 (7), `stretchAndSpaceDistribution…` (6), 2.5 (5), 2.9 (1), 2.15 (3) |
+| **M1c** | W aligned `.topLeading` | 1.1 (8), 1.2 (8), 1.8 (4), 1.14 (4), 2.1 (8), 2.12 (4) |
+| **M1d** | the one-child elision removed | 1.3 (1), 1.11 (4), `stretchAndSpaceDistribution…` (2), `aLoweredPaddingLayerAgreesWithTheLegacyWrapper` (9), `theStageOneCorpusLowersWith…` (4), 5.7 (5), 2.15 (2) |
+| **M1e** | W's maximum always ∞ | 1.4 (6), 2.8 (3) |
+| **M1r** | W's minimum absent when undeclared | 1.4 (2), **1.10 (4)** — lane 1's M1r (`min == 0 → nil`) reddened 1.4 alone; this spelling also reaches 1.10's 4-wide column (by reading: W with no minimum answers the text's widest glyph there, not the line) |
+| **M1f** | alignment factor 0 | 1.5 (2), 1.15 (1) |
+| **M1g** | alignment frame not greedy | 1.5 (2), 1.6 (1), 1.15 (1), 5.4 (18), 5.5 (1), 5.6 (2) |
+| **M1h** | stretch only in a parent declaring its cross size | 1.1 (28), 1.4 (4), 1.7 (1), 1.11 (5), 2.15 (3) |
+| **M1i** | frame-layer records skipped | 1.8 (6) |
+| **M1j′** | a stack parent's stretch removed | 1.9 (4) |
+| **M1k** | alias not in `measuredWidth(of:)` | 1.10 (1) |
+| **M1m** | the unconsumed check removed | 1.13 (18), leaf 2.3 (16), 4.1 (1), `stretchAndSpaceDistribution…` (1) |
+| **M1m′** | `ScrollView` does not mark | 1.13 (1). **Not 2.15**: the demo's `ScrollView` receives the `List`'s `Box` and the modal's `Deferred` stack, neither declaring an item field (as lane 1 found) |
+| **M1n** | the alignment frame aliased | 1.5 (2), 1.6 (1), 1.15 (1), 5.4 (9), 5.5 (3) |
+| **M1o** | stretch for `.center` | 1.12 (9), 1.15 (1), 2.1 (16), 2.4 (9), 2.5 (4), 2.11 (1), 2.12 (4), 2.15 (8), 5.1 (23), 5.2 (1), 5.4 (8), 5.5 (3), 5.7 (6), `aLoweredContainerPaddingSitsInsideItsDeclaredSize` (3) |
+| **M1p** | the re-check removed | 1.14 (3), 2.12 (2) |
+| **M1q** | `alignSelf` elided in a one-child container | 1.15 (1), 5.4 (18), 5.5 (1), 5.6 (2) |
+| **M1u** | the root not exempt | 1.13 (4) |
+
+Lane 1's **M1j** (a stack lowering `alignSelf`) was not re-run: its insertion
+point is the same stack branch as M1j′ and nothing in lane 2 touched the stack's
+`alignSelf` handling. **M1t** is retired (`LR-AX` item 9). Every lane-2 test is
+reddened by its spec mutation; 2.15 by M1a, M2a, M1d, M2k and M5c′ (M1m′: not, as
+spec §7 allowed).
+
+### Pixels (CN-R)
+
+`gen-lib.py` with lane 1's chrome lines (`Column { CounterPanel() }.width(560)`),
+generated into a `git archive` of `f25889a` (the last commit changing `Sources/`),
+`DEMO_PIXELS_SMALL=1`, compared with lane 1's `cb2e708` images (`s2l1/px-base`, the
+same commit's archive): **12 of 12 read 0 differing pixels, scene identical.**
+Controls on the head images: light vs dark f0 1 048 576; vs modal-light 1 030 498;
+vs animation-light 210 027; f0 vs f3 0; preview light vs dark 1 048 576. **The
+two-authority chrome pair** on `f25889a`: 0 differing pixels, scenes identical, 216
+distinct pixel values; **control**, M5d (lowered stack spacing + 50) applied to the
+same archive and restored: 8 214 differing pixels, scenes differ.
+
+### Screen lock and captures
+
+`appkit-screen-lock-state` at 10:09 and 10:44 PDT: `CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1`. No real-window capture was taken. `IOConsoleLocked` not
+read (`FR-V`).
+
+### Deferred from lane 2, by name
+
+- **Unequal grow weights**: reported (`flexGrow.weights`), deleted concept, stage 10.
+- **A non-zero or fractional `flexBasis`, a zero basis on a sized grower without a
+  minimum**: reported, stage 8 / 10.
+- **`maxSize` on a non-greedy axis**: reported, stage 8.
+- **Percentage `minSize`/`maxSize`**: reported under stage 1's names; lane 4's 4.7
+  renames them.
+- **A floored `space-*` container** (`LR-AX` item 4) and a grown or stretched one
+  (`LR-AR`): reported, stage 8's recipe.
+- **Negative grow or shrink**: reported; no owner needed beyond stage 8's recipe.
+- **Divergence 55 in production**: stage 6b.
+- `margin`, `border`, `Style` padding on a `Text`, the `BM-4` floor and depth with
+  four wrappers per level: lane 4. Justify distribution and reverse: lane 5.
+
+### For the integrator
+
+- **New divergences pinned by this lane** (proposal authority only): growers share
+  equally (F2/F3, 2.2); a zero-basis `Text` grower breaks inside its word (F9,
+  2.4); a sized zero-basis container lays out at its declared size inside its item
+  rect (F4, 2.4, re-spelled); positive shrink is SwiftUI's compression whatever its
+  weight (55, 2.6, 2.9); a grower fills a hugging container's main axis (X18, 2.10);
+  a grow inside a one-child padding fills it (X12, 2.11); an animated `flexGrow`
+  snaps its structure and equal declared factors stay equal mid-flight (2.13 — the
+  CLAUDE.md snap list gains both).
+- **CLAUDE.md's "Unprobed kernel behaviour" and inert tables**: a legacy
+  `flexGrow` under the proposal authority now reaches a greedy frame; divergence 55
+  is lowered to SwiftUI's answer (6b brings it to production).
+- **Depth**: the demo's deepest native run is 18 (was 12); 2.14 pins 88/89 exactly
+  with three wrappers per level. Lane 4 re-derives the pair with four.
+- **Shared file**: `LegacyLowering.swift` only (`planLegacyItems` restructured,
+  `registerLegacyItems`, `paddedAndSized`'s fold); the call sites of
+  `planLegacyItems` gained `parentSite:`.
