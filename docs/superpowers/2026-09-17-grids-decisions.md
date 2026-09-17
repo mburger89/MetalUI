@@ -1,11 +1,12 @@
 # Grids decisions (plan task 7, stage G)
 
 Rulings for [`specs/2026-09-17-grids-design.md`](specs/2026-09-17-grids-design.md),
-on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-P`; next unused
-is **`GR-Q`**. A bare `GR-3` is a typo, not a citation.
+on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-V`; next unused
+is **`GR-W`**. A bare `GR-3` is a typo, not a citation.
 
-**Status, 2026-09-17, design only.** No file under `Sources/` or `Tests/`
-changed. Baseline measured in this worktree at `cb2e708`: `swift build
+**Status, 2026-09-17, design only, after one critic round** (`GR-Q` records how
+each of its fourteen findings was applied). No file under `Sources/` or
+`Tests/` changed. Baseline measured in this worktree at `cb2e708`: `swift build
 --build-system native --build-tests`, then `swift test --build-system native
 --no-parallel` → `Test run with 1409 tests in 1 suite passed after 42.821
 seconds`, 0 `error:`, no `warning:` besides SwiftPM's deprecation notice;
@@ -14,23 +15,28 @@ the declaration in `Typecheck.swift` and the comment in `UnitSafetyTests`).
 
 Probes (arm ids below are theirs):
 
-- `docs/probes/swiftui-grid.swift`, revision 4 (`ed3471e`, `c1f793d`,
-  `01a3462`, `ce84b8b`), `/usr/bin/swift`, Apple Swift 6.4, macOS 27.0 (26A428); exit 0,
-  each revision run twice with byte-identical output, recorded in its header
-  with the reading. It holds the **reference model** (`solve`, `ModelGrid`),
-  the fuzz comparison of that model with `Grid` (group GZ, with a control GZ0
-  that must disagree) and the `corpus` mode.
-- `docs/probes/swiftui-grid-corpus.txt` — the `corpus` mode's stdout, 120 grids
-  on which SwiftUI and the model agree, sha256 recorded in both files.
+- `docs/probes/swiftui-grid.swift`, **revision 5** (`ed3471e`, `c1f793d`,
+  `01a3462`, `ce84b8b`, `beb4242`, `c0c499b`, `ea591cd`), `/usr/bin/swift`, Apple Swift 6.4,
+  macOS 27.0 (26A428). Default run exit 0, twice, byte-identical, recorded in
+  its header with the reading; modes `corpus`, `model-arms`, `classify-spans`
+  (exit 0, twice each, byte-identical), `huge-columns` and
+  `trap-negative-columns` (exit 133 by design, twice each). It holds the
+  **reference model** (`solve`, `ModelGrid`), the fuzz comparison of that model
+  with `Grid` (GZ0–GZ12, with a control GZ0 that must disagree), and the model's
+  run over every arm a `Case` can spell (`model-arms`).
+- `docs/probes/swiftui-grid-corpus.txt` — the `corpus` mode's stdout at revision
+  5, 120 grids on which SwiftUI and the model agree, sha256
+  `d93bc71a…a886f366` recorded in both files. Revisions 1–4's corpus is
+  superseded (`GR-Q` finding 1).
 - `docs/probes/swiftui-lazy-grid-scope.swift` (`ed3471e`) — LazyVGrid/LazyHGrid
   against Grid, and laziness; exit 0, run twice, byte-identical.
 
 **Call counts.** The containers decisions note that SwiftUI's duplicate
 flexibility probes vary by OS release. The grid probe's "measured, in order"
-lists are distinct calls only (SwiftUI caches), and `GR-B`'s work literal is
-the kernel's own count of distinct `(node, proposal)` pairs, which the lists
-happen to equal on GP1/GP2 under the model; a later OS changing its list does
-not change the ruling.
+lists are distinct calls only (SwiftUI caches), and the kernel's work literals
+are its own count of distinct `(node, proposal)` pairs, which the lists happen
+to equal on GP1/GP2 under the model; a later OS changing its list does not
+change a ruling.
 
 ---
 
@@ -41,10 +47,11 @@ three public registrars: `markNativeGridRow(_:alignment:)`,
 `markNativeGridCell(_:columns:anchor:columnAlignment:unsizedAxes:)` and
 `newNativeGrid(children:alignment:horizontalSpacing:verticalSpacing:)`. Marks
 are written by the element layer before the grid registers; the grid resolves
-its plan (rows, spans, attributes, priorities, zero-spacing edges) **once, at
-registration**, and stores it in the case. The solver is a pure function in a
-new file, `Sources/MetalUILayout/NativeGrid.swift`, called from the `.grid` arms
-of `measureNative`/`placeNative`.
+its plan (rows, spans, attributes, priorities, zero-spacing edges, gaps and the
+row/column indexes of `GR-U`) **once, at registration**, and stores it in the
+case. The solver is a pure function in a new file,
+`Sources/MetalUILayout/NativeGrid.swift`, called from the `.grid` arms of
+`measureNative`/`placeNative`.
 
 **Why not `ProposalLayout`** (`SA-B`: "the built-ins stay cases"; `SA-D`: the
 proxies expose priority, `isSpacer` and a cached `sizeThatFits`, nothing else):
@@ -61,24 +68,42 @@ proxies expose priority, `isSpacer` and a cached `sizeThatFits`, nothing else):
    knows.
 3. The kernel's existing walks (`nativeLayoutPriority`, `zeroSpacingEdges`) are
    already the probed rules (GWP, GS12–GS17), so a case reuses them unchanged.
+4. A grid seen from a stack needs its own edge rule (`GR-R`), which a
+   `ProposalLayout` would get as `.custom`'s "any child" — GE3 refutes that.
 
-**Cost if wrong.** `LayoutTree.swift` is shared with the stage-2 track: the
-edits are appended (three stored mark dictionaries, `reset` lines, one enum
-case, one arm in each exhaustive switch, registrars in an extension at the end)
-and the algorithm is in its own file. Three stored properties on a public class
-read across a module boundary: **`swift package clean` before the lane-1 and
-lane-2 suites** (`CN-R`). If a later task wants grids as a public
-`ProposalLayout`, the solver is already a pure function over a plan and a
-measure closure.
+**Placement in shared files** (the stage-2 track edits `LayoutTree.swift`,
+`Frame.swift` and `Passes.swift` in parallel; critic finding 10):
+
+- `LayoutTree.swift`: the three stored mark dictionaries are declared
+  immediately after `nativeParents`; their clearing lines are appended at the
+  end of `reset(generation:)`; `case grid(NativeGridPlan)` is the **last** case
+  of `NativeNode`; each `.grid` arm is the **last** arm before any `default` in
+  `measureNative`, `placeNative`, `markSpacers`, `zeroSpacingEdges` and
+  `nativeLayoutPriority`; the registrars and the plan's walk are one extension
+  at the end of the file.
+- **`Frame.swift` and `Passes.swift` are not edited.** `Frame.tree` and
+  `LayoutPass.frame` are internal to `MetalUI`, so the `LayoutPass` registrars
+  (`requestNativeGrid`, `markNativeGridRow`, `markNativeGridCell`) are a public
+  extension in `Sources/MetalUI/Grid.swift` that calls `frame.tree` directly.
+
+**Cost if wrong.** Three stored properties on a public class read across a
+module boundary: **`swift package clean` before the lane-1 and lane-3 suites**
+(`CN-R`), and **at integration**, since both tracks add stored properties to
+public classes. If a later task wants grids as a public `ProposalLayout`, the
+solver is already a pure function over a plan and a measure closure.
 
 ---
 
-## GR-B — the kernel is the probe's reference model; the stage's exit test replays its corpus
+## GR-B — the kernel is the probe's reference model; where the model and SwiftUI disagree, the kernel follows the model and says so
 
 **Ruling.** The grid kernel implements the reference model in
-`docs/probes/swiftui-grid.swift` (`solve` and `ModelGrid.placeSubviews`), whose
-rules are spec §4. It is not a SwiftUI source port: it was fitted to the arms
-and then tested against `Grid` on generated grids.
+`docs/probes/swiftui-grid.swift` at revision 5 (`solve` and
+`ModelGrid.placeSubviews`), whose rules are spec §4. It is not a SwiftUI source
+port: it was fitted to the arms and tested against `Grid` on generated grids.
+**Precedence** (critic finding 7): the model is normative for everything it
+implements **except the gap rule**, where the kernel uses the zero-spacing-edge
+walk GS12–GS18 probe (`GR-D`); on a bare Spacer cell, the only Spacer the model
+knows, the two agree.
 
 **Evidence** (GZ, fixed seeds, sizes within 0.01 and every leaf rect):
 
@@ -87,33 +112,42 @@ and then tested against `Grid` on generated grids.
 | GZ0 control, the model with commits ignored | 212 of 300 (must disagree) |
 | GZ1 plain grids | **1000 of 1000** |
 | GZ2 alignment, anchors, column alignment, unsized axes, explicit spacing | 988 of 1000 |
-| GZ3 Spacer cells | 479 of 500 |
+| GZ3 Spacer cells (bare since revision 5) | 469 of 500 |
 | GZ4 layout priority | 441 of 500 |
-| GZ5 non-row children | 476 of 500 |
-| GZ6 spans | 374 of 500 |
-| GZ7 infinite proposals, answers only, everything | 222 of 300 |
-| GZ8 everything | 659 of 1000 |
+| GZ5 non-row children | 482 of 500 |
+| GZ6 spans | 376 of 500 |
+| GZ7 infinite proposals, answers only, everything | 231 of 300 |
+| GZ8 everything | 662 of 1000 |
+| GZ9 plain grids, infinite proposals (answers) | **300 of 300** |
+| GZ10 plain grids, a zero proposal axis | **300 of 300** |
+| GZ11 a plain grid beside a leaf in an `HStack` | **300 of 300** |
+| GZ12 a plain grid below a leaf in a `VStack` | **300 of 300** |
 
-Every disagreement printed involves a span or non-row child, a priority, a
-Spacer or an unsized axis; none is a plain grid. The model was refined during
-the design round against these groups, one rule at a time, with the counts
-recorded in record §20 (the unsized-axis variant choice is one of them).
+**The model on the arms** (`model-arms`, new at revision 5): of the 95 arms a
+`Case` spells (every one's SwiftUI answer checked against the arm's own line, 0
+transcription mismatches), **91 agree**. The four that do not are pinned as
+the model's figures, the SwiftUI figures in the pin's doc comment (spec test
+2.9): GS4 (a Spacer below a priority-0 cell in one column: SwiftUI 90×40, model
+45×40), GS5 (a column holding only a span: SwiftUI 76.67×136, model 164×136),
+GX17 and GX18 (the span overflow, `GR-F`). Before revision 5 the spec named GS4,
+GS5 and GX9 as agreement arms without the model having run on them; GX9 now
+agrees through the model's step 12 (`GR-F`).
 
-**The exit test** is `theGridProbeCorpusAgreesCaseByCase` (spec test 1.18,
-unfiltered by lane 2): the 120 grids of `docs/probes/swiftui-grid-corpus.txt`, each built from
-native leaves standing for the probe's leaf kinds, laid out at its proposal at
-(0, 0), and compared with the recorded answer and with `roundLayout` of every
-recorded rect. Lane 1 runs the 19 cases that use no anchor, column alignment or
-unsized axis.
+**The exit test** is `theGridProbeCorpusAgreesCaseByCase`: the 120 grids of
+`docs/probes/swiftui-grid-corpus.txt`, each built from native leaves standing for
+the probe's leaf kinds, laid out at its proposal at (0, 0), and compared with
+the recorded answer and with `roundLayout` of every recorded rect. Lane 2 runs
+the **18** cases with no anchor, column alignment or unsized axis; lane 3 runs
+all 120.
 
 **Why a corpus of agreeing cases.** It tests SwiftUI's behaviour where the
 model reproduces it, which is what the kernel ports; the disagreeing cases are
-the divergence `GR-O` names, and three of them are pinned by name (`GR-F`).
+the divergence `GR-O` item 2.
 
 **Cost if wrong.** A rule the model gets right only by coincidence on the
 corpus would be ported as fact. The GZ counts bound that: the plain-grid rules
-are 1000 of 1000 on independent seeds; the interaction rules are not, and are
-named as such.
+hold on 2200 independent generated grids (GZ1, GZ9–GZ12); the interaction rules
+do not, and are named as such.
 
 ---
 
@@ -149,8 +183,9 @@ and the rule is pinned by test 1.5.
 
 - Default 8 on both axes, explicit spacing verbatim (GA1–GA3). **Negative
   spacing is accepted and unclamped** (GS8 60×45), as `SA-J` accepts it on
-  stacks. **NaN and ±∞ trap** at registration: SwiftUI answers nan and inf
-  (GS9, GS10), the rule `SA-J` applies to stacks.
+  stacks. **NaN and ±∞ trap** at registration, the precondition naming
+  `horizontalSpacing` or `verticalSpacing`: SwiftUI answers nan and inf (GS9,
+  GS10), the rule `SA-J` applies to stacks.
 - The gap before column *j* is the **largest** spacing of any pair of adjacent
   cells in one row that meet at *j*, and **0 where no pair meets there** (GS5,
   GS6); the gap before row *r* the largest over pairs of cells covering one
@@ -162,14 +197,12 @@ and the rule is pinned by test 1.5.
   `zeroSpacingEdges` walk (`CN-H`): through a frame (GS12, GS17 vs GS18), a
   one-child stack or `ZStack` (GS14, GS15), a padding edge whose inset is 0
   (GS13), and not an overlay's content side (GS16). A grid cell's Spacer is
-  unmarked (no stack marks it), so both its edges are zero.
+  unmarked — no enclosing stack marks it (`GR-R`, GE29) — so both its edges are
+  zero.
 - **Not adopted:** SwiftUI's font-derived spacing, 0 between rows of `Text`
-  (GS7 36×32). MetalUI gives 8, as `CN-H` does for a `VStack` of `ProposalText`.
-  A divergence (`GR-O`), owned by task 11 (text edges, as `LR-N` already lists).
-
-**A grid's own edges, seen from a stack it sits in, are unprobed.** The kernel
-treats `.grid` in `zeroSpacingEdges` as a leaf (neither edge zero), by reading;
-recorded in `GR-O`.
+  (GS7 36×32; GN2, GN5, GN7 at finite widths). MetalUI gives 8, as `CN-H` does
+  for a `VStack` of `ProposalText`. A divergence (`GR-O`), owned by task 11
+  (text edges, as `LR-N` already lists), **pinned** by spec test 4.12.
 
 **Cost if wrong.** A boundary rule that differs by view kind in a way GS did not
 exercise (for example a `ProposalText` beside a Spacer inside a padding) would
@@ -179,7 +212,7 @@ place a column 8pt off; the walk is the one already probed for stacks.
 
 ## GR-E — finite proposals: flexibility groups, shares and commits; priority and Spacer
 
-**Ruling** (reading 4 and 5; spec §4.3 states it as an algorithm):
+**Ruling** (reading 4 and 5; spec §4.2 states it as an algorithm):
 
 1. Every cell is measured at 0×0 and ∞×∞ (GP1).
 2. Its **key** is (layout priority, descending; the number of proposal-finite
@@ -206,12 +239,18 @@ padding, flexible frame, aspect ratio, overlay content). Higher groups are
 served **with no reservation** for lower ones, and the grid can answer wider
 than its proposal (GQ2 130 at 100, GQ3 120, GQ4 210×120). This differs from
 `CN-B`'s stack, which reserves lower minimums; the grid is its own algorithm.
-**A Spacer is priority −∞** (GS1: s at 142×42; GQ6–GQ8), which the walk already
-returns, and is flexible on both axes (unmarked, `CN-C`).
+**A bare Spacer is priority −∞** (GS1: s at 142×42; GQ6–GQ8): SwiftUI's subview
+proxy reads −∞ for a bare Spacer, through a background or a `gridCellColumns`,
+and the written value for a `.layoutPriority`, **0 included** (GQ10), so
+`Spacer().layoutPriority(0)` is an ordinary flexible cell (GQ9: 200×100, s
+152×62). The kernel's walk returns exactly that (a `layoutPriority` node's
+value, whatever it wraps). A Spacer is flexible on both axes (unmarked,
+`CN-C`, `GR-R`).
 
-**Cost if wrong.** GZ4 (441/500) and GZ3 (479/500) are the measured limits of
+**Cost if wrong.** GZ4 (441/500) and GZ3 (469/500) are the measured limits of
 this rule set with priorities and Spacers; a user layout in the remainder lays
-out differently from SwiftUI by a column's share. Recorded as a divergence.
+out differently from SwiftUI by a column's share, in either direction (GS4:
+SwiftUI 90 wide, the kernel 45). Recorded as a divergence.
 
 ---
 
@@ -220,38 +259,69 @@ out differently from SwiftUI by a column's share. Recorded as a divergence.
 **Ruling** (reading 6):
 
 - `gridCellColumns(n)` spans *n* columns, clamped to the columns left in the row
-  (GX6). A non-row child is one cell spanning every column and ignores
-  `gridCellColumns` (GX3, GX4, GX13).
-- A span's width shortfall (its answer minus its slot) is spread equally over
-  its spanned columns **that hold no single-column cell anywhere in the grid**,
-  or over all of them if every one does (GX1 51/41; GX11 col 1 82, col 2 10).
+  (GX6, GX21 at 100_000). The grid's column count is the widest row's sum of
+  spans, and a column that only a span covers is a column (GX23: its third
+  column takes x's whole shortfall). A non-row child is one cell spanning every column and
+  ignores `gridCellColumns` (GX3, GX4, GX13).
+- A span's width shortfall (its answer minus its slot) is spread equally over a
+  target set of its spanned columns. **At a nil×nil proposal** the targets are
+  the spanned columns that hold no single-column cell anywhere in the grid, or
+  all of them if every one does (GX1 51/41; GX11 col 1 82, col 2 10). **At any
+  other proposal** (model step 12, revision 5) the targets are first the spanned
+  columns that still hold an unprocessed single-column cell, then that nil rule
+  (GX9: x's shortfall goes to b's open column, and a's committed column stays
+  30, where revision 4's model gave a 61 and b 231; GX10: no open column, both
+  widen to 151/141).
 - At a finite proposal a spanning cell is proposed W′ minus, for each column
   outside it, the share if the column is open or its current width if not,
   plus its inner gaps (GX8 300×46, GX10 300×82, GX12 300×96); it does not keep
   its columns open (GX9: b at 262); its shortfall is applied after its group's
   single-column cells (GX10 151/141).
 - **Two `gridCellColumns` on one view add their values above 1** (GX15: 3 and 2
-  span 5; GX16: 2 and 1 span 2; GWI1, GWI2 through padding). Ported: odd, but
-  probed in both orders and through a wrapper.
+  span 5; GX16: 2 and 1 span 2; GWI1, GWI2 through padding; GG15 through a
+  `GridRow`). Ported: odd, but probed in both orders and through two wrappers.
 - `gridCellColumns(-1)` **traps** (GT1: exit 133); the kernel traps with the
-  parameter named (`SA-J`).
+  parameter named (`SA-J`). Counts above 32 bits: `GR-S`.
 - `gridCellColumns(0)` **lays out as 1**. SwiftUI places such a cell in column 0
   without consuming it (GX14: c at x 0, d shares column 0). Accepted (`SA-J`:
   SwiftUI does not reject it) and not reproduced: a divergence (`GR-O`).
 
 **Not ported: SwiftUI's span overflow.** When a span's shortfall is spread while
-a spanned column is still open, SwiftUI proposes the open column more than the
-grid has: GX17 answers **284×100 at 200×100** (b proposed 218) for content that
-fits in 200, and GX18 answers **231.33** where control GX19, which differs only
-in the non-row child's width (60 → 40), answers 200. The model answers
-**200×100** for both (spec 1.15 lists its rects). A grid wider than its proposal
-for fitting fixed content is a defect, not a design `EP-5` asks MetalUI to
-follow; it is the largest share of GZ6's 126 disagreements. Pinned wrong on
-purpose by test 1.15; divergence (`GR-O`), no owner.
+a spanned column is still open, SwiftUI can propose the open column more than
+the grid has: GX17 answers **284×100 at 200×100** (b proposed 218) for content
+that fits in 200, and GX18 answers **231.33** where control GX19, which differs
+only in the non-row child's width (60 → 40), answers 200. The model answers
+**200×100** for both (spec test 2.9 lists its rects). A grid wider than its
+proposal for fitting fixed content is a defect, not a design `EP-5` asks
+MetalUI to follow. Pinned wrong on purpose; divergence (`GR-O`), no owner.
 
-**Cost if wrong.** A layout that relies on SwiftUI's overflow (unlikely: it
-clips or overlaps) differs; the model's answer is at most the proposal where
-SwiftUI's exceeds it.
+**What the span residual is** (critic finding 4; `classify-spans`, GZ6's seed,
+revision 5). Of the model's **124** disagreements with SwiftUI on 500 grids with
+spans:
+
+| symptom | nil×nil | nil width | nil height | finite × finite | total |
+|---|---|---|---|---|---|
+| SwiftUI wider than a finite proposal, the model within it (the overflow) | — | — | 0 | 3 | **3** |
+| the model wider than SwiftUI | 1 | 1 | 12 | 50 | **64** |
+| SwiftUI wider than the model, not the overflow | 0 | 0 | 7 | 24 | **31** |
+| equal sizes, different rects | 0 | 1 | 8 | 17 | **26** |
+
+By one-rule model variants: 60 of the 124 agree under a variant that keeps a
+span's columns open while it is unprocessed (variant 4: 18), counts a column
+holding no single-column cell as open for every share and never commits it
+(variant 6: 16), or either (26); 1 under spreading every shortfall over all
+spanned columns; 63 under none. Neither open-column variant was adopted: the
+design round measured spans that block a commit as worse on non-row children
+(record §20 step 4), and variant 6 lowered GZ8 from 657 to 646 while raising
+GZ6 from 374 to 410 (measured before step 12).
+
+**Cost if wrong** (restated). With spans at a non-nil proposal the kernel can
+answer **wider or narrower** than SwiftUI: wider in 64 of GZ6's disagreements
+(150×nil: the model 193, SwiftUI 184.5; 60×60: 138 vs 126), narrower in 31
+(300×200: the model 66, SwiftUI 126, with no overflow involved), and equal-sized
+with different rects in 26. Only 3 of 124 are the overflow ruled out above. A
+layout with spans can therefore differ from SwiftUI by up to a column's share;
+the overflow is the one case where the kernel is deliberately different.
 
 ---
 
@@ -262,7 +332,7 @@ SwiftUI's exceeds it.
 - `Grid(alignment:)` is the nine-case `ProposalAlignment` (SwiftUI's
   `Alignment`), both axes, and places non-row children (GL1, GL2, GL12).
 - `GridRow(alignment:)` is `VerticalAlignment?` (`CN-I`'s type) and overrides
-  the grid vertically for its cells (GL3, GL9).
+  the grid vertically for its cells (GL3, GL9). Nested rows: `GR-T`.
 - `gridColumnAlignment(_:)` takes `HorizontalAlignment` and sets the horizontal
   alignment of the whole column from any row (GL4, GL5). **The first
   declaration in row order, then cell order, wins** (GL6, GL7). A spanning cell
@@ -270,13 +340,19 @@ SwiftUI's exceeds it.
 - `gridCellAnchor(_:)` overrides both, on both axes, and applies to a non-row
   child (GL10, GL11, GL13).
 - **On one view the inner declaration wins** for anchor and column alignment
-  (GL15, GL16; GWI3, GWI4 through padding).
+  (GL15, GL16; GWI3, GWI4 through padding; GG13, GG14 through a `GridRow`).
 - **The anchor is a `ProposalAlignment`, not a `UnitPoint`.** SwiftUI accepts
   any unit point (GL14: (0.25, 1) puts a at (10, 20)). MetalUI has no
   `UnitPoint`, and the kernel's anchors (`PlacementSubview.place`) are nine-case;
   the nine SwiftUI spellings (`.topLeading` …) are source-compatible. A
-  divergence (`GR-O`), owned by task 11 (which owns shapes and overlays, where
-  a `UnitPoint` would also serve).
+  divergence (`GR-O`), owned by task 11, **pinned** by guard G4 (spec lane 4:
+  `.gridCellAnchor(UnitPoint(x: 0.25, y: 1))` does not compile).
+- **The kernel reads one factor of two nine-case parameters**:
+  `markNativeGridRow(alignment:)` reads the vertical factor and
+  `markNativeGridCell(columnAlignment:)` the horizontal one, as
+  `newNativeLinearStack(alignment:)` reads only its cross factor. The element
+  API cannot pass the other half (`VerticalAlignment`, `HorizontalAlignment`);
+  a kernel caller can, and it is inert (`GR-O`'s inert list).
 
 **Cost if wrong.** A caller needing a fractional anchor cannot spell it; no
 nine-point placement differs.
@@ -291,7 +367,8 @@ row's current height — instead of a share (GU1 30×172 vs GU2; GU6 152×10). I
 answer **still widens** its column or row (GU4, GU5 148; GU6 78×78). Its key and
 group are unchanged. A divider-like non-row child stops widening the grid (GU9
 58 vs GU10 200); a lone cell unsized on both axes answers 0×0 (GU11).
-Declarations on one view form a **union** (GU12, GU13, GWI5).
+Declarations on one view form a **union** (GU12, GU13, GWI5; GG16 through a
+`GridRow`).
 
 **The ordering variant was measured, not chosen by reading** (record §20): on
 400 generated grids with attributes (seed 31), counting an unsized axis in the
@@ -329,12 +406,15 @@ list without the overlay content side (which K2e reads for spacer marks but GW
 rejects for grid attributes).
 
 **Combination along the chain**: row membership from the **outermost** row mark
-(a `GridRow` marks the nodes it receives, and an enclosing `GridRow` registers
-later: GG3 flattens); anchor and column alignment from the **innermost** mark;
-columns the sum of the marks above 1 (`GR-F`); unsized axes the union.
+(`GR-T`); anchor and column alignment from the **innermost** mark; columns the
+sum of the marks above 1 (`GR-F`, `GR-S`); unsized axes the union.
+
+**Marks on a node that never sits under a grid are inert** (nothing reads them;
+`GR-O`'s inert list), as is a `GridRow`'s alignment and a `GridCellModifier`
+outside a grid (GG1, GG2).
 
 **Cost if wrong.** A wrapper MetalUI adds later that registers a node needs an
-arm in this walk, or attributes written inside it vanish silently; test 2.9
+arm in this walk, or attributes written inside it vanish silently; test 3.10
 enumerates the node kinds and must gain an arm with it.
 
 ---
@@ -360,33 +440,42 @@ enumerates the node kinds and must gain an arm with it.
   `.gridCellUnsizedAxes(_: ProposalAxes)` on `extension ProposalElementGroup`:
   **layout- and identity-transparent** (no node, no cursor index, `parent` and
   `cursor` forwarded), `EnvironmentScope`'s shape, marking **every** node its
-  content returns — so on a `GridRow` it applies to each cell, as SwiftUI's
-  does (GG5, GG6).
+  content returns **after** its content registers — so on a `GridRow` it
+  applies to each cell, as SwiftUI's does (GG5, GG6), and loses to a cell's own
+  attribute (GG13, GG14; `GR-T`).
+- The three `LayoutPass` registrars are a public extension in `Grid.swift`
+  (`GR-A`).
 - **No legacy spelling** (the task text); `Grid`'s content is
-  `ProposalElementGroup`, so legacy content does not compile (guard).
+  `ProposalElementGroup`, so legacy content does not compile (guard G1).
 
 **Why a row has identity.** Stable ids under the grid: a cell's id is (grid, row
 index, cell index), so removing a cell from one row does not renumber another
-row's cells and move their `@State` (test 3.8). With a transparent row every
+row's cells and move their `@State` (test 4.9). With a transparent row every
 cell would number flat under the grid and a vanishing cell in row 0 would shift
 every later row's state. The universal trailing-sibling rule still holds inside
 a row and between rows (a vanishing `if` around a row makes the next row adopt
 its id). No SwiftUI identity claim is made (not probed); task 8 owns the audit.
 
-**A modifier that registers a node on a multi-cell `GridRow` traps** (the
-existing one-node preconditions of `ModifiedContent`, `OnTapModifier`,
-`OverlayModifier`/`BackgroundModifier`'s primary), where SwiftUI applies it to
-each cell (GG4, GG7). On a one-cell row it wraps the cell, and `GR-I`'s walk
-keeps the wrapper a row cell, which lays out as SwiftUI's distribution does. A
-divergence (`GR-O`), owned by task 8 ("`Group` … modifier placement"), pinned
-by an exit test.
+**Every proposal modifier on a multi-cell `GridRow` traps** (restated, critic
+finding 6). `ModifiedContent.nativeWrapperNode` (`NativeModifiedContent.swift`)
+preconditions exactly one node for **every** `LayoutModifier` case, including
+the paint-only `.background(ColorToken)`, `.clip`, `.border`, `.opacity` and
+`.allowsHitTesting`, which register no node of their own; `OnTapModifier`
+preconditions one node too (`NativeTappable.swift:27`), and so do the
+`.overlay`/`.background { }` primaries. Only the groups that register nothing —
+`GridCellModifier` and `EnvironmentScope` (`.disabled`, `.environment`) — pass
+over several cells. SwiftUI applies each modifier to each cell (GG4 padding,
+GG7 onTapGesture). On a one-cell row a modifier wraps the cell, and `GR-I`'s
+walk keeps the wrapper a row cell. A divergence (`GR-O`), owned by task 8
+("`Group` … modifier placement"), pinned by test 4.13's three exit arms
+(`.padding`, `.onTap`, `.background(ColorToken)`).
 
 **Cost if wrong.** If task 8 decides rows should be identity-transparent,
 changing it resets every grid cell's state once; nothing else moves.
 
 ---
 
-## GR-K — the pipeline: hit testing, accessibility, disabled, paint, animation
+## GR-K — the pipeline: hit testing, accessibility, disabled, paint, animation, the bounds log
 
 **Ruling.** A grid and a row paint nothing and register nothing of their own.
 
@@ -399,10 +488,23 @@ changing it resets every grid cell's state once; nothing else moves.
   grid is no exception, and a cell's `.onTap` still presses through the bridge.
   Task 12 owns proposal-path accessibility.
 - **Disabled.** `.disabled` on a grid is an `EnvironmentScope` around it; the
-  gate in `Frame.registerHandlers` suppresses every cell's hitbox.
+  gate in `Frame.registerHandlers` suppresses every cell's hitbox. The gate is
+  shared code: its test through a grid (4.19) is a regression pin whose
+  discriminating mutation is that gate's, applied and reverted in a shared file.
 - **Animation.** Nothing on the proposal path animates (CLAUDE.md); grids snap.
 - **Root.** A native grid root is centred at its answer (`CN-J`), with no code
   of its own.
+- **The bounds log** (`LR-AA` item 3, critic finding 14). `LR-AA` requires a new
+  group entry that hands off to its members to record their bounds. `GridRow`
+  and `GridCellModifier` are **exempt: they have no node and no bounds**, and
+  they hand off by calling their content's `prepaintGroup`, so every cell —
+  each an `Element` or a wrapper over one — records through
+  `Element.prepaintGroup` (or `ModifiedElement`'s layer entry) exactly as a
+  stack child does. `Grid` itself records through `Element.prepaintGroup`.
+  Pinned by test 4.20 (`Frame.elementBounds` holds every cell at its placed rect
+  and no entry for a row), whose mutation is the `AnyElement` miss: a
+  `GridRow.prepaintGroup` that re-implements the hand-off without
+  `recordElementBounds`.
 
 **Cost if wrong.** None beyond the existing rulings cited.
 
@@ -432,25 +534,31 @@ lazy grids, task 7 cannot close until G2 lands.
 
 ## GR-M — method: lanes, red first, clean builds, mutations, demo
 
-- **Four lanes** (spec §6), in order: 1 kernel algorithm, 2 kernel cell
-  attributes and the exit test, 3 elements and identity, 4 pipeline. Each is
-  written red first; "red before" for a test of a new API is its absence.
-- Lanes 1 and 2 add stored properties to `LayoutTree` → **`swift package
-  clean`** before their suites. Lane 3 adds public types only.
+- **Four lanes** (spec §6, rebalanced by `GR-Q` finding 11), in order: 1 the plan
+  and the nil proposal, 2 the finite solve, 3 cell attributes, 4 elements,
+  identity and the pipeline. Each is written red first; "red before" for a test
+  of a new API is its absence.
+- Lanes 1 and 3 add stored properties to `LayoutTree` → **`swift package
+  clean`** before their suites. Lanes 2 and 4 add none; take one if an
+  incremental build misbehaves (CLAUDE.md).
 - Every lane: `swift build --build-system native --build-tests`, `swift test
   --build-system native --no-parallel` unfiltered, reading the `Test run with N
   tests` line against spec §7's expected count; 0 `error:`/`warning:` besides
   SwiftPM's notice; 97 goldens unmoved (no lane touches the CSS engine — but
-  lanes 1 and 2 edit `LayoutTree.swift`, whose shared storage can move a golden,
+  lanes 1–3 edit `LayoutTree.swift`, whose shared storage can move a golden,
   so the goldens run).
 - **Mutations**: commit first, copy the file, apply the named mutation, `git
   status --short`, full suite, name every test it reddens, restore from the
-  copy, `git status --short` again. Each new typecheck guard is mutated red once.
+  copy, `git status --short` again. Each new typecheck guard is mutated red
+  once. **Before banking a mutation the lane shows the mutant differs** where
+  the spec predicts a figure it cannot compute in advance (practices).
 - **Depth.** A grid is one native level. `SA-L` says the limit is 0.60 of the
   smallest debug ceiling on a 1 MB thread; a new node kind can lower it. Lane 1
   re-bisects a chain of one-cell grids by `SA-L`'s method (debug, 1 MB `Thread`,
   `--skip-build` per depth) and **stops if the ceiling is below 147**
-  (0.60 × 147 = 88.2), reporting rather than lowering `maxDepth`.
+  (0.60 × 147 = 88.2), reporting rather than lowering `maxDepth`. The depth
+  tests use **literals** (critic finding 2): a leaf under 88 one-cell grids is
+  89 levels and traps; under 87 it is 88 levels and lays out.
 - **Demo** (`CN-R`'s harness, as record §16/§17 describe it, rebuilt in the
   lane's scratch; controls non-zero first: light vs dark, default vs modal,
   default vs animation): every lane renders the default demo and the proposal
@@ -473,30 +581,49 @@ lazy grids, task 7 cannot close until G2 lands.
 | `LazyVGrid`, `LazyHGrid`, `GridItem` (`.fixed`/`.flexible`/`.adaptive`), laziness | proposed stage **G2**, after stage 4 (`GR-L`; the integrator adds it) |
 | `UnitPoint` anchors (`gridCellAnchor(UnitPoint(x:y:))`) | task 11 (`GR-G`) |
 | SwiftUI's font-derived 0 between `Text` rows | task 11 (text edges, with `LR-N`'s entry) |
-| a node-registering modifier distributing over a multi-cell `GridRow` | task 8 (`GR-J`) |
+| a modifier distributing over a multi-cell `GridRow` | task 8 (`GR-J`) |
 | `.id()` on `Grid`/`GridRow` | task 8 (explicit identity; no built-in proposal element has `.id()`) |
 | proposal-path accessibility, grids included | task 12 (`AB-Q`) |
-| a grid's own zero-spacing edges seen from an enclosing stack (unprobed) | stage G follow-up, before stage 6b's root switch puts a grid in a stack in production |
-| the model's residual disagreements (GZ2–GZ8) | recorded divergence; reopened by a probe arm that a user layout hits (task 15's closeout audit) |
+| the model's residual disagreements (GZ2–GZ8; GS4, GS5 among the arms) | recorded divergence; reopened by a probe arm that a user layout hits (task 15's closeout audit) |
 | a legacy `Grid` spelling | none: the task text adds none |
+
+(Revision 4's row "a grid's own zero-spacing edges seen from an enclosing stack"
+is removed: probed and ruled, `GR-R`.)
 
 ---
 
-## GR-O — divergences this stage creates (numbers assigned at integration)
+## GR-O — divergences and inert declarations this stage creates (numbers assigned at integration)
+
+**Divergences**, each with its pin:
 
 1. **SwiftUI's span overflow is not ported** (`GR-F`; GX17, GX18): pinned wrong
-   on purpose by test 1.15.
-2. **Residual rule interactions** (`GR-B`, `GR-E`, `GR-H`): with spans,
+   on purpose by test 2.9.
+2. **Residual rule interactions** (`GR-B`, `GR-E`, `GR-F`, `GR-H`): with spans,
    priorities, Spacers or unsized axes the kernel is the model, which disagrees
-   with `Grid` on GZ2 12/1000, GZ3 21/500, GZ4 59/500, GZ5 24/500, GZ6 126/500,
-   GZ7 78/300, GZ8 341/1000 generated grids.
-3. **`gridCellColumns(0)` lays out as 1** (GX14): pinned by test 2.10.
-4. **Anchors are nine-point** (GL14): no `UnitPoint`.
-5. **`Text` rows get 8, not 0** (GS7): as `CN-H`'s stacks.
-6. **A node-registering modifier on a multi-cell `GridRow` traps** (GG4, GG7):
-   pinned by test 4.6.
-7. **A grid's edges in an enclosing stack take default spacing**, by reading,
-   unprobed (`GR-D`).
+   with `Grid` — in either direction — on GZ2 12/1000, GZ3 31/500, GZ4 59/500,
+   GZ5 18/500, GZ6 124/500, GZ7 69/300 (answers), GZ8 338/1000 generated grids,
+   and on arms GS4 and GS5: pinned by test 2.9.
+3. **`gridCellColumns(0)` lays out as 1** (GX14): pinned by test 3.11.
+4. **Anchors are nine-point** (GL14): no `UnitPoint`; pinned by guard G4.
+5. **`Text` rows get 8, not 0** (GS7, GN2, GN5, GN7): as `CN-H`'s stacks; pinned
+   wrong on purpose by test 4.12.
+6. **Every proposal modifier on a multi-cell `GridRow` traps** (GG4, GG7;
+   `GR-J`): pinned by test 4.13.
+7. **A column count above `Int32.max` traps, naming `columns`**, where SwiftUI
+   lays a 40-bit count out as its low 32 bits (GX22: 1 << 40 as `columns(0)`)
+   and traps at `Int.max` (GX20) (`GR-S`): pinned by test 3.6.
+
+(Revision 4's item 7, "a grid's edges in an enclosing stack take default
+spacing", is withdrawn: `GR-R` ports SwiftUI's positional rule.)
+
+**Declared but inert** (for the integrator's inert table):
+
+- `markNativeGridRow(alignment:)`'s horizontal factor and
+  `markNativeGridCell(columnAlignment:)`'s vertical factor (`GR-G`);
+- grid marks on a node that never sits under a grid, and a `GridRow`'s
+  alignment or a `GridCellModifier` outside a `Grid` (`GR-I`);
+- `NativeGridSolution`'s bookkeeping counter (`GR-U`): a test observable with no
+  production reader.
 
 ---
 
@@ -505,8 +632,186 @@ lazy grids, task 7 cannot close until G2 lands.
 Stage G adds a proposal-path container with no legacy twin (design §4.1 row G:
 goldens 0 retired, demo 0 px). It does not touch the legacy engine, the layout
 authority, the lowering table or the harness of stage 1; nothing in
-`LegacyLowering.swift`, `LayoutAuthority.swift`, `Box.swift` or
-`ModifiedElement.swift` changes. The integrator's documentation obligations
-(CLAUDE.md vocabulary and unprobed-behaviour lists, the divergence and inert
-tables, design §4.1 and §8, the plan's task 7 note, record README) are listed
-in record §20's "For the integrator", written by lane 4.
+`LegacyLowering.swift`, `LayoutAuthority.swift`, `Box.swift`,
+`ModifiedElement.swift`, `Frame.swift` or `Passes.swift` changes. The
+integrator's documentation obligations (CLAUDE.md vocabulary and
+unprobed-behaviour lists, the divergence and inert tables, design §4.1 and §8,
+the plan's task 7 note, record README, and a `swift package clean` before the
+merged suite) are listed in record §20's "For the integrator", written by lane
+4.
+
+---
+
+## GR-Q — the critic round: each finding and what was done
+
+The design (`88d0472`…`3981a4e`) was reviewed before any lane ran. Every finding
+was applied; none was rejected. Measurements are in record §20, "Critic round".
+
+| # | finding | disposition |
+|---|---|---|
+| 1 | the corpus and the Spacer fuzz never used a bare Spacer (`CellMods` applied `.layoutPriority(0)`) | **applied.** Probe revision 5 applies each attribute only when written; GQ9/GQ10 record why it matters; the corpus is regenerated (sha256 `d93bc71a…`); GZ3 is 469/500; `GR-B`, `GR-E` restated |
+| 2 | depth tests 1.26/1.27 off by one | **applied.** Literals: 88 grids trap (mutant `maxDepth` 89), 87 lay out (mutant 87) (`GR-M`; tests 1.21, 1.22) |
+| 3 | a grid inside a container behaved by reading | **applied.** Arms GE1–GE30 and fuzz GZ9–GZ12 (`GR-R`); the three `.grid` arms are now probed rules |
+| 4 | `GR-F`'s cost claim contradicted by GZ6 | **applied.** `classify-spans` mode; `GR-F` and `GR-O` item 2 restated |
+| 5 | named mutations that cannot redden their tests | **applied**, per test: 1.2 (a mutation on nil-token grouping; GA7 moves to lane 4, where an element mutation exists), 1.9 → 2.4 (the precondition checks each leaf's proposal set, so either `max` spelling fails; moved to the `@testable` file), 1.20 → 1.13 (two tokened nodes: 68×10 vs 30×28), 1.21 → 1.15 (the grid's own check message, so dropping it changes stderr), 1.23 → 1.17 (registration only, stderr names the parameter), 1.24 → 1.18 and 1.19 (both mark registrars), G1 (mutant: a legacy-content overload), 4.4 → 4.19 (the shared gate's mutation, `GR-K`) |
+| 6 | `GR-J`/`GR-O` 6 wording: every modifier traps, not only node-registering ones | **applied.** `GR-J` restated; test 4.13 has `.padding`, `.onTap` (GG7) and `.background(ColorToken)` arms |
+| 7 | spec precedence contradicted the gap rule; the model never ran on the arms | **applied.** `GR-B`'s precedence; `model-arms` mode (91 of 95 agree); GS4, GS5 move to the pinned disagreements; GX9 fixed by model step 12 |
+| 8 | divergences without pins; no text cells | **applied.** GN1–GN10; pins: guard G4 (nine-point), test 4.12 (Text rows), test 4.11 (a form); item 7 withdrawn by `GR-R` |
+| 9 | solver bookkeeping unbounded and unpinned | **applied.** `GR-U`: indexed plan, a bookkeeping counter, test 2.14 red first against the scanning solver |
+| 10 | merge collisions with stage 2 | **applied.** `GR-A`'s placement: no `Frame.swift`/`Passes.swift` edits; `.grid` last in each switch; marks after `nativeParents`; clean at integration |
+| 11 | lane 1 too large | **applied.** Rebalanced as suggested (spec §6, §7) |
+| 12 | test 3.9 unspellable | **applied.** Test 4.10 compares ids side by side in one frame and changes the anchor's value, not its presence |
+| 13 | unlisted choices and inert APIs | **applied.** Nested rows and row-level attributes probed (GG10–GG16, `GR-T`); inert list in `GR-O`; very large and 40-bit column counts probed and ruled (`GR-S`, GX20–GX23) |
+| 14 | `LR-AA`'s bounds-log rule | **applied.** `GR-K`'s exemption and test 4.20 |
+
+---
+
+## GR-R — a grid seen from a stack: positional zero-spacing edges, no priority, no Spacer marks
+
+**Ruling** (reading 12; GE1–GE30, GZ9–GZ12).
+
+- **`zeroSpacingEdges(.grid, axis)`** is positional. Along `.horizontal`: the
+  leading edge is zero if **any** cell starting at column 0 has a zero leading
+  edge, the trailing edge if any cell ending at the last column has a zero
+  trailing edge. Along `.vertical`: top if any cell of row 0 has a zero top
+  edge, bottom if any cell of the last row has a zero bottom edge. A cell's
+  edge is the existing walk on its node. A non-row child starts at 0 and ends
+  at the last column. **A grid with no cells: both edges zero.**
+  Evidence: GE1 (a leading Spacer: 0) vs control GE2 (a leaf: 8); GE3 (a
+  trailing Spacer: leading 8, trailing 0 — the "any child" rule of `.custom`
+  would give 0 on both); GE4 (a Spacer leading one row of two: 0); GE5; GE6 (a
+  top-row Spacer: 0) vs GE7; GE23 (row 0 is also the last row: top and bottom
+  0); GE24 (a Spacer in the last row only: top 8, bottom 0); GE25 (a non-row
+  Spacer: both 0); GE26 (a Spacer starting a short last row: leading 0,
+  trailing 8); GE16 (an empty grid: its neighbours touch).
+- **`nativeLayoutPriority(.grid)` is 0**, one cell or many: GE8 (a one-cell grid
+  of a priority-1 cell) lays out as control GE9, 46/46, where the same HStack
+  without the grid gives 0/92 (GE27); a one-cell grid of a Spacer takes an
+  equal share (GE11: 50/50) where a bare Spacer gives 92/8 (GE28). Unlike a
+  one-child stack (GWP15, GWP16), a grid passes nothing through.
+- **`markSpacers` stops at `.grid`**: a stack does not mark a Spacer inside a
+  grid. GE29 (`HStack { a; VStack { Grid { [Spacer, b] } }; c }`): a and the
+  Spacer touch, so the Spacer's horizontal edges are zero; GE30 (the same
+  `VStack` holding the Spacer itself, which marks it vertical): 8. Inside the
+  grid the Spacer's gaps are what they are with no stack (GE12 = GE13, GE14 =
+  GE15), which the kernel gets for free: the plan is built when the grid
+  registers, before any enclosing stack does.
+- **A grid's answers at a stack's proposals** follow the model: plain grids at
+  infinite proposals 300/300 (GZ9), at a zero axis 300/300 (GZ10), beside a leaf
+  in an `HStack` 300/300 (GZ11) and in a `VStack` 300/300 (GZ12); GE17–GE22.
+
+**Cost if wrong.** An edge rule that holds for Spacers but not for another
+zero-edge kind (a zero-inset padding over a Spacer, say) would put 8pt between a
+grid and its neighbour; the per-cell edge is the walk already probed.
+
+---
+
+## GR-S — column counts are honoured up to `Int32.max` and trap above it
+
+**Finding** (`huge-columns`, GX23). `gridCellColumns(100_000)` is clamped to the
+columns left in its row (GX21: c covers columns 0…99_999 and d sits in column
+100_000 at x 66, 71×38 — the empty columns take no width without a shortfall);
+the grid's column count is the widest row's sum of spans, empty columns included
+(GX23). `gridCellColumns(1 << 40)` lays out as `columns(0)` (GX22: SwiftUI keeps
+the low 32 bits); `gridCellColumns(Int.max)` traps (GX20, exit 133), and so did
+`Int.max / 2` and `Int.max − 1` in scratch. SwiftUI's own ceiling between
+100_000 and 2^31 is unmeasured.
+
+**Ruling.** Counts up to `Int32.max` are honoured as SwiftUI honours them, the
+column count included, so a grid's column state and bookkeeping are O(its
+column count), as SwiftUI's are (GX21 lays out 100_001 columns in both).
+`markNativeGridCell` **traps, naming `columns`**, when a single count or a
+node's sum of counts exceeds `Int32.max`; `newNativeGrid` traps, naming
+`gridCellColumns`, when a row's sum of spans does (by reading: no arm sums
+several large spans in one row). Negative counts trap as before (`GR-F`, GT1).
+
+**The `SA-J` exception.** `SA-J` rejects a parameter only where SwiftUI rejects
+it, and GX22 is a misreading, not a rejection. Honouring a 40-bit count means
+either reproducing the truncation (a silent wrong layout) or allocating 2^40
+columns (a failure with no message); the kernel traps with the parameter named
+instead. A divergence (`GR-O` item 7), pinned by test 3.6.
+
+**Cost if wrong.** A caller passing a count above 2^31 that SwiftUI would
+truncate to a usable one gets a trap; a count near `Int32.max` asks for
+gigabytes of column state and fails in both (unmeasured).
+
+---
+
+## GR-T — nested rows and row-level cell attributes
+
+**Ruling** (reading 10; GG3, GG10–GG16).
+
+- **A row nested in a row flattens and takes the outermost row's alignment,
+  nil included.** GG10 (outer `.top`, inner `.bottom`): a at y 0; GG11 (outer
+  `.bottom`, inner `.top`): a at y 20; GG12 (outer unaligned, inner `.bottom`):
+  a at y 10, centred by the grid. The kernel's `markNativeGridRow` therefore
+  overwrites both the token **and the alignment** of every node it marks,
+  writing nil when the enclosing row has none (an enclosing `GridRow`
+  registers after an inner one).
+- **A cell attribute written on a `GridRow` applies to each cell and loses to
+  the cell's own**: anchor (GG13: c keeps its `.topLeading`), column alignment
+  (GG14: a keeps `.leading`); columns add (GG15: 2 on the cell and 2 on the row
+  span 4); unsized axes form a union (GG16). This is `GR-I`'s combination with
+  the row modifier as the outer mark: `GridCellModifier` marks after its content
+  has registered, so a cell's own modifier has already marked.
+
+**Cost if wrong.** A form that aligns one row and nests another row inside it
+places the inner cells by the outer alignment; that is SwiftUI's reading.
+
+---
+
+## GR-U — the solver's bookkeeping is indexed and counted
+
+**Ruling** (critic finding 9). The model's own shape scans every cell for every
+column and group (open counts, commits) and every cell pair for the gaps,
+O(groups · ncols · cells) and O(cells²) on every measurement of every frame
+(`SA-H`: no cache across calls). The kernel does not port that shape:
+
+- **The plan** (built once at registration) holds each cell's row, first column
+  and span; the cells of each row in order; the single-column cells of each
+  column; and the gaps, computed in one pass per row (adjacent pairs) and one
+  merge of two rows' column intervals per row boundary — O(cells + ncols +
+  nrows).
+- **The solver** keeps, per priority level, the number of unprocessed
+  single-column cells in each column and of cells in each row, and the number
+  of open columns and rows; processing a cell decrements them; the commit check
+  after a group visits only the columns and rows of that group's cells (and
+  every column and row after the first group). A spanning cell's proposal sums
+  over the columns outside it, O(ncols) per spanning cell.
+- **Bound:** O(cells + ncols + nrows + groups + spanning cells · ncols) per solve.
+- **Counter:** `NativeGridSolution` carries an internal `bookkeepingSteps`, +1 per
+  cell, column or row record visited by the key sort's comparisons excepted
+  (O(cells log cells), not counted), the open-count updates, the commit checks
+  and the span sums. Test 2.14 pins a literal on a 200-row × 3-column grid of
+  three groups and the linearity `steps(200) − 2 · steps(100)` ≤ a constant, both
+  derived by hand; it is written red first against a first solver in the
+  model's shape (the lane records that count), then indexed. Measurement work
+  stays `lastNativeLayoutWork`'s (`SA-M`).
+
+**Cost if wrong.** A counter that misses a scan site proves a bound the code does
+not have; the red-first run against the scanning solver is the check that the
+counter sees the scans.
+
+---
+
+## GR-V — Text cells
+
+**Finding** (GN1–GN10). A form — labels in column 0, values in column 1 — at
+200 × nil answers 196×64: the label column is the widest label (50), the value
+column is offered 200 − 50 − 8 = 142 and the long value wraps to 138; the
+first row's value (81 wide) does not wrap; rows of `Text` meet with no gap (GN2,
+GN5, GN7, as GS7). At 120 × nil both values wrap (GN3). A text-like leaf that
+wraps into `ceil(natural / width)` lines agrees with the model in that shape at
+200, 120 and 60 wide (GN8–GN10).
+
+**Ruling.** A `ProposalText` cell is an ordinary leaf; the kernel adds nothing
+for text. Two element tests hold the form's structure with MetalUI's own text
+measurements, claiming no font figure: test 4.11 (the value column is offered
+the proposal minus the label column and one gap, and the value cell answers its
+own measurement there) and test 4.12 (rows of `ProposalText` are 8 apart:
+divergence `GR-O` item 5, pinned wrong on purpose, SwiftUI's 0 in its doc
+comment).
+
+**Cost if wrong.** If `ProposalText`'s flexibility at 0 does not order labels
+before values, the value column is offered a share instead of the remainder;
+test 4.11 fails and the lane records what the text measured.
