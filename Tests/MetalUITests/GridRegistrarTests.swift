@@ -34,6 +34,8 @@ private struct GridUnderTest: ProposalElement {
     var rowAlignments: [ProposalAlignment?]
     var rows: [[(name: String, width: Double, height: Double)]]
     var spans: [String: Int] = [:]
+    var horizontalSpacing: Double?
+    var verticalSpacing: Double?
 
     mutating func requestProposalLayout(_ id: GlobalElementID,
                                         pass: inout LayoutPass) -> (ProposalNodeID, Void) {
@@ -50,7 +52,9 @@ private struct GridUnderTest: ProposalElement {
             pass.markNativeGridRow(marked, alignment: rowAlignments[index])
             children.append(contentsOf: marked)
         }
-        let grid = pass.requestNativeGrid(children: children, alignment: alignment)
+        let grid = pass.requestNativeGrid(children: children, alignment: alignment,
+                                          horizontalSpacing: horizontalSpacing,
+                                          verticalSpacing: verticalSpacing)
         probe.grid = grid
         return (grid, ())
     }
@@ -146,4 +150,32 @@ private func r(_ x: Double, _ y: Double, _ width: Double, _ height: Double) -> L
     #expect(rects["a"] == r(0, 0, 30, 10), "GX1 a: \(String(describing: rects["a"]))")
     #expect(rects["b"] == r(59, 0, 20, 20), "GX1 b: \(String(describing: rects["b"]))")
     #expect(rects["c"] == r(0, 28, 100, 10), "GX1 c: \(String(describing: rects["c"]))")
+}
+
+/// `LayoutPass.requestNativeGrid` hands its `horizontalSpacing` and
+/// `verticalSpacing` to the kernel: GA1 `[a 30x10, b 20x20] [c 10x30, d 40x10]`
+/// at 3/5 puts b at x 33 and c at y 25, where the nil-spacing control (the 8pt
+/// platform default per pair) puts them at 38 and 28 (GA1, GA3, `GR-D`).
+/// `.topLeading` throughout, as in the span test above.
+///
+/// Mutation (the lane-1 verifier's H1): `requestNativeGrid` forwards
+/// `horizontalSpacing: nil, verticalSpacing: nil` whatever it was given — the
+/// spaced arm reads the control's 38 and 28 and fails, and the control holds.
+@MainActor
+@Test func requestNativeGridForwardsItsSpacingToTheKernel() throws {
+    let rows = [[(name: "a", width: 30.0, height: 10.0), (name: "b", width: 20.0, height: 20.0)],
+                [(name: "c", width: 10.0, height: 30.0), (name: "d", width: 40.0, height: 10.0)]]
+    let defaulted = GridProbe()
+    let control = cellRects(GridUnderTest(probe: defaulted, alignment: .topLeading,
+                                          rowAlignments: [nil, nil], rows: rows), defaulted)
+    try #require(control["b"] == r(38, 0, 20, 20), "the default-spacing control b: \(String(describing: control["b"]))")
+    try #require(control["c"] == r(0, 28, 10, 30), "the default-spacing control c: \(String(describing: control["c"]))")
+
+    let probe = GridProbe()
+    let rects = cellRects(GridUnderTest(probe: probe, alignment: .topLeading, rowAlignments: [nil, nil],
+                                        rows: rows, horizontalSpacing: 3, verticalSpacing: 5), probe)
+    #expect(rects["a"] == r(0, 0, 30, 10), "GA3 a: \(String(describing: rects["a"]))")
+    #expect(rects["b"] == r(33, 0, 20, 20), "GA3 b: \(String(describing: rects["b"]))")
+    #expect(rects["c"] == r(0, 25, 10, 30), "GA3 c: \(String(describing: rects["c"]))")
+    #expect(rects["d"] == r(33, 25, 40, 10), "GA3 d: \(String(describing: rects["d"]))")
 }

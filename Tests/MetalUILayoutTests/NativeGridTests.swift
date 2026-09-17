@@ -136,6 +136,17 @@ private final class Arm {
         return answer
     }
 
+    /// Measures `root` at `proposal`, then lays it out at `proposal` in
+    /// `bounds` — which need not be the answer, as a window root's are not
+    /// (`CN-J`). Returns the answer.
+    @discardableResult
+    func run(_ root: LayoutNodeID, _ width: Double?, _ height: Double?, in bounds: LayoutRect) -> SizeD {
+        let proposal = ProposedSize(width: width, height: height)
+        let answer = tree.measureNativeLayout(root: root, proposal: proposal).size
+        tree.computeNativeLayout(root: root, proposal: proposal, in: bounds)
+        return answer
+    }
+
     /// Measures only.
     func measure(_ root: LayoutNodeID, _ width: Double?, _ height: Double?) -> SizeD {
         tree.measureNativeLayout(root: root, proposal: ProposedSize(width: width, height: height)).size
@@ -425,9 +436,23 @@ private let none = ProposedSize(width: nil, height: nil)
 ///   GS16 an 8×8 leaf with a Spacer overlay: 8, 8. GS17 `[a] [Spacer.frame(height:
 ///   8)] [c]`: 0, 0. GS18 its control with an 8×8 leaf: 8, 8.
 /// - GS6 (GS5 at nil) laid out: 68×136; GQ6 (GS1 at nil): 58×58.
+/// - GD-H1 and GD-V1 put the LARGER pair FIRST, so "largest" and "the last pair
+///   seen" answer differently; every arm above has it last.
+///   GD-H1 `[c 10x30, d 40x10] [Spacer, b 20x20]`: the 8 of row 0's (c, d)
+///   survives row 1's (Spacer, b) 0, so the grid is 58 wide, not 50.
+///   GD-V1 `[b 20x20, Spacer] [d 40x10, c 10x30]`: the 8 of column 0's (b, d)
+///   survives column 1's (Spacer, c) 0, so it is 58 tall, not 50.
+///   Both are read from SwiftUI by `docs/probes/swiftui-grid-gap-order.swift`
+///   (arms H1 and V1, against GA1 and GQ6 as positive controls) — the arms in
+///   `docs/probes/swiftui-grid.swift` cannot tell the two rules apart.
 ///
 /// Mutation: `platformDefault` before every column j ≥ 1 regardless of pairs
 /// and edges (GS2's plan reads 8, 8; GS6 reads 76).
+///
+/// Mutation (GR-D's "largest", the lane-1 verifier's H2/H3): both reductions in
+/// `makeNativeGridPlan` take the LAST pair meeting at a gap instead of the
+/// largest (`hgapValues[column] = value`, `best = value`) — GD-H1's hgap reads
+/// [0, 0] and its size 50×58; GD-V1's vgap reads [0, 0] and its size 58×50.
 @Test func eachGapIsTheLargestPairSpacingMeetingThere() throws {
     func gaps(_ build: (Arm) -> LayoutNodeID) throws -> (h: [Double], v: [Double]) {
         let arm = Arm()
@@ -498,6 +523,32 @@ private let none = ProposedSize(width: nil, height: nil)
         #expect(arm["d"] == r(18, 38, 40, 10), "GQ6 d")
         #expect(arm["s"] == r(0, 0, 10, 20), "GQ6 s")
     }
+
+    // The larger pair FIRST, one axis each: the only arms here that "largest"
+    // and "the last pair seen" answer differently.
+    let gdh1 = try gaps { a in a.grid([row(a.fx("c", 10, 30), a.fx("d", 40, 10)), row(a.spacer("s"), a.fx("b", 20, 20))]) }
+    #expect(gdh1.h == [0, 8] && gdh1.v == [0, 8], "GD-H1 \(gdh1)")
+    let gdv1 = try gaps { a in a.grid([row(a.fx("b", 20, 20), a.spacer("s")), row(a.fx("d", 40, 10), a.fx("c", 10, 30))]) }
+    #expect(gdv1.h == [0, 8] && gdv1.v == [0, 8], "GD-V1 \(gdv1)")
+
+    do { // GD-H1 laid out
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("c", 10, 30), arm.fx("d", 40, 10)), row(arm.spacer("s"), arm.fx("b", 20, 20))])
+        #expect(arm.run(root, nil, nil) == size(58, 58), "GD-H1 size")
+        #expect(arm["c"] == r(0, 0, 10, 30), "GD-H1 c")
+        #expect(arm["d"] == r(18, 10, 40, 10), "GD-H1 d")
+        #expect(arm["b"] == r(28, 38, 20, 20), "GD-H1 b")
+        #expect(arm["s"] == r(0, 38, 10, 20), "GD-H1 s")
+    }
+    do { // GD-V1 laid out
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("b", 20, 20), arm.spacer("s")), row(arm.fx("d", 40, 10), arm.fx("c", 10, 30))])
+        #expect(arm.run(root, nil, nil) == size(58, 58), "GD-V1 size")
+        #expect(arm["b"] == r(10, 0, 20, 20), "GD-V1 b")
+        #expect(arm["d"] == r(0, 38, 40, 10), "GD-V1 d")
+        #expect(arm["c"] == r(48, 28, 10, 30), "GD-V1 c")
+        #expect(arm["s"] == r(48, 0, 10, 20), "GD-V1 s")
+    }
 }
 
 // MARK: - 1.7 explicit spacing
@@ -546,8 +597,17 @@ private let none = ProposedSize(width: nil, height: nil)
 /// - GL1 GA1 at `.topLeading`; GL2 at `.bottomTrailing`; GL3 GA1 with row 0
 ///   `.top`; GL9 `Grid(.bottom){[row .top: a 10x10, b 10x30] [c 10x10, d
 ///   10x30]}`; GL12 `Grid(.leading){[a 40x10, b 10x30] x 10x10}`.
+/// - GL-B1 is GL1 laid out in bounds LARGER than its answer and at a non-zero
+///   origin (7, 11, 200×200), as a window root's are (`CN-J`): spec §4.3's
+///   "the cells start at `bounds`' origin whatever its size, as ZStack's union
+///   does (`CN-E`)". Every other arm here lays a grid out in bounds of its own
+///   answer at the origin, so none of them can see it.
 ///
 /// Mutation: ignore the row alignment (GL3's a at y 5).
+///
+/// Mutation (spec §4.3's origin, the lane-1 verifier's H9): `placeGrid` centres
+/// the cells in `bounds` instead of starting at `bounds.x`/`bounds.y` — GL-B1's
+/// a reads (68, 82), not (7, 11).
 @Test func gridAndRowAlignmentPlaceCellsInTheirSlots() {
     func ga1(_ arm: Arm, _ alignment: ProposalAlignment, row0: ProposalAlignment? = nil) -> LayoutNodeID {
         arm.grid(alignment: alignment, [row(arm.fx("a", 30, 10), arm.fx("b", 20, 20), alignment: row0),
@@ -594,6 +654,16 @@ private let none = ProposedSize(width: nil, height: nil)
         #expect(arm["a"] == r(0, 10, 40, 10), "GL12 a")
         #expect(arm["b"] == r(48, 0, 10, 30), "GL12 b")
         #expect(arm["x"] == r(0, 38, 10, 10), "GL12 x")
+    }
+    do { // GL-B1: GL1 in bounds larger than its answer, at a non-zero origin
+        let arm = Arm()
+        let bounds = LayoutRect(x: 7, y: 11, width: 200, height: 200)
+        #expect(arm.run(ga1(arm, .topLeading), nil, nil, in: bounds) == size(78, 58), "GL-B1 answer")
+        #expect(arm["grid"] == r(7, 11, 200, 200), "GL-B1 grid")
+        #expect(arm["a"] == r(7, 11, 30, 10), "GL-B1 a")
+        #expect(arm["b"] == r(45, 11, 20, 20), "GL-B1 b")
+        #expect(arm["c"] == r(7, 39, 10, 30), "GL-B1 c")
+        #expect(arm["d"] == r(45, 39, 40, 10), "GL-B1 d")
     }
 }
 
