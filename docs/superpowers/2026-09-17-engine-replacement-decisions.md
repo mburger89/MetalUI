@@ -202,7 +202,10 @@ at W×H under each authority — legacy: a `.topLeading` `Stack` node sized W×H
 proposal: a native `.topLeading` overlay in a W×H fixed frame — with bounds
 recording, accessibility collection and a fresh `StateTable` each, and reports
 per `GlobalElementID` agreement, disagreement, one-sided ids and unlowerable
-fields, plus four whole-frame equalities: scene rects and glyphs (bytes),
+fields, plus four whole-frame equalities: the scene (bytes, both as emitted —
+rects and glyphs with their clips — and as finalized for the GPU — rects, glyphs
+and `drawList` after the layer/order sort, so paint order and layer are compared;
+lane-1 verifier finding, arm 1.9d),
 hitboxes (id, bounds, layer, opacity), accessibility emissions **including
 `geometry`**, and `StateTable` ids. Every harness test requires an arm that
 disagrees (spec 1.8, 1.9).

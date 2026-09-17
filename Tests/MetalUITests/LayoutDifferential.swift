@@ -10,7 +10,7 @@ import MetalUIRender
 // LR-D). A tree is rendered twice — under the legacy layout authority, then under
 // the proposal authority with diagnostics on — inside `DifferentialRoot`, and the
 // two frames are compared element by element (`Frame.elementBounds`) and
-// observation by observation (scene bytes, hitboxes, accessibility records with
+// observation by observation (scene bytes as emitted and as finalized, hitboxes, accessibility records with
 // their geometry, `StateTable` ids).
 //
 // `compareInWindows` (the same comparison through a real `Window`) is lane 5's.
@@ -147,7 +147,12 @@ enum LayoutDifferential {
         var loweredOnly: [GlobalElementID]
         /// The proposal frame's diagnostics, in registration order.
         var unlowerable: [UnlowerableField]
-        /// Scene rects and glyphs, byte for byte.
+        /// The scene, byte for byte, twice: as emitted (`Frame.scene`: rects and
+        /// glyphs in emission order, each carrying its clip) and as the GPU receives
+        /// it (`Frame.finalizedScene()`: rects, glyphs and `drawList`, after the
+        /// `(layer, order, sequence)` sort) — so paint order, clip, layer and the
+        /// rect/glyph interleave are all compared. The `drawList` clause is not
+        /// separately pinned: no harness arm emits glyphs.
         var scenesEqual: Bool
         /// Id, bounds, layer and opacity of every hitbox, in order.
         var hitboxesEqual: Bool
@@ -201,8 +206,12 @@ enum LayoutDifferential {
             }
         }
         func bytes<T>(_ xs: [T]) -> [UInt8] { xs.withUnsafeBytes { Array($0) } }
+        let finalA = legacy.finalizedScene(), finalB = lowered.finalizedScene()
         let scenesEqual = bytes(legacy.scene.rects) == bytes(lowered.scene.rects)
             && bytes(legacy.scene.glyphs) == bytes(lowered.scene.glyphs)
+            && bytes(finalA.rects) == bytes(finalB.rects)
+            && bytes(finalA.glyphs) == bytes(finalB.glyphs)
+            && finalA.drawList == finalB.drawList
         func hitboxKey(_ frame: Frame) -> [String] {
             frame.hitboxes.map { "\($0.id)|\($0.bounds)|\($0.layer)|\($0.opaque)" }
         }
