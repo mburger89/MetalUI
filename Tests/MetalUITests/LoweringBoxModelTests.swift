@@ -451,7 +451,16 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
 /// arrival once lane 4 lands; red before, where an `.auto` margin reports `margin` at
 /// the child's site.
 ///
-/// Mutation that must redden it: **M4g**, `.auto` reported.
+/// **Two arms, and the second is the one a mutation can see.** Inside a lowered `Row`
+/// the parent consumes the record, and counting `.auto` as a margin there would
+/// register a padding whose insets are all 0 — a node more, the same geometry, no
+/// report — so the consumed arm cannot tell the two apart (measured: M4g left the
+/// whole suite green until this arm was added). Directly under the harness root
+/// nobody consumes the record, and `LR-AQ`'s report is where the difference shows:
+/// an `.auto` margin must report **nothing** where a px one reports
+/// `margin.unconsumed` (2.3's row).
+///
+/// Mutation that must redden it: **M4g**, `.auto` counted as a margin.
 @MainActor
 @Test func anAutoMarginLowersAsZero() throws {
     let autoMargin = style { $0.margin = Edges(all: .auto) }
@@ -463,6 +472,18 @@ private let longString = "alpha bravo charlie delta echo foxtrot golf"
     #expect([r.loweredBounds[containerID], r.loweredBounds[child(containerID, 0)],
              r.loweredBounds[child(containerID, 1)]]
             == [bounds(0, 0, 40, 10), bounds(0, 0, 20, 10), bounds(20, 0, 20, 10)])
+
+    // Unconsumed, under the harness root: nothing is reported, where a px margin
+    // reports `margin.unconsumed`.
+    let unconsumed = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
+        Box(style: autoMargin).width(px(20)).height(px(10))
+    }.unlowerableFields
+    #expect(unconsumed.isEmpty, "auto margin under the root: \(unconsumed)")
+    let control = LayoutDifferential.render(authority: .proposal, width: 300, height: 200) {
+        Box(style: style { $0.margin = Edges(all: .length(.pixels(px(3)))) })
+            .width(px(20)).height(px(10))
+    }.unlowerableFields
+    try #require(control == [field(.box, "margin.unconsumed")], "\(control)")
 }
 
 // MARK: - 4.7 — percentages keep reporting, by name
