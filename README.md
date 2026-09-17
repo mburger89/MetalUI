@@ -325,7 +325,7 @@ transforms, and text colour animation.
   - [containers spec](docs/superpowers/specs/2026-09-16-containers-design.md)
     (plan task 6, done: the legacy containers are audited; replacing them is task 7)
   - [engine replacement spec](docs/superpowers/specs/2026-09-17-engine-replacement-design.md)
-    (plan task 7, stage 1 of 13 landed: legacy elements lower onto the kernel
+    (plan task 7, stage 1 of 14 landed: legacy elements lower onto the kernel
     under an internal proposal authority; production still uses the CSS engine)
 - [`docs/practices/verifying-tests-can-fail.md`](docs/practices/verifying-tests-can-fail.md)
   — sixteen numbered shapes of test that cannot fail, every one observed here.

@@ -107,7 +107,7 @@ CLAUDE.md AGENTS.md` before committing.
   `docs/probes/swiftui-stack-algorithms.swift` (revision 10, the V1–V8 spacing
   arms and V1l/V1m among them) and `swiftui-overlay-presentation.swift` (compiled form
   only).
-- **Engine replacement (plan task 7, `LR-`; stage 1 of thirteen landed, task
+- **Engine replacement (plan task 7, `LR-`; stage 1 of fourteen landed, task
   open)**: `specs/2026-09-17-engine-replacement-design.md` (the inventory of
   `FlexEngine` consumers is its §2, the stage plan its §4),
   `2026-09-17-engine-replacement-decisions.md`, record §18; probe
@@ -862,7 +862,7 @@ in `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` in the same change.**
   infinite maxima, alignment); anything written after `.frame` that changes its
   style reports `modifierLayer.style`. Stretch and `space-*` lower only where
   CSS cannot show them (one child and no declared cross size; no main size).
-  **A branch that lowers from a style needs an animated arm**: four lanes'
+  **A branch that lowers from a style needs an animated arm**: three lanes'
   verifiers found a declared-style mutant green.
 - **Lowered answers are SwiftUI's where probes say, and differ from the legacy
   engine on the same tree** — text hugs its widest line, a `Stack` offers its

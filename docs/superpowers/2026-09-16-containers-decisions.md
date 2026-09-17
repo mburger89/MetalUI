@@ -1070,7 +1070,7 @@ reddens the pin and three lane-4 tests. Probe arms S, A5 and SC2 were re-run
 
 *Amended 2026-09-17 (plan task 7 stage 1):* task 7's handed items now have
 stages (`LR-L`, engine-replacement spec §4): lowering `Row`/`Column`/`Stack`/`Box`
-is stage 1 (done under an internal proposal authority), `ScrollView` stage 3,
+is stage 1 (done on stage 1's subset under an internal proposal authority; their flex-item fields are stage 2), `ScrollView` stage 3,
 `Deferred` stage 5 and the root switch 6b; the windowed `List` stage 4; legacy
 `.overlay` stage 11; the greedy finite and single-axis infinite maxima lowered
 under the proposal authority in stage 1, in production at 6b; the nil-axis frame

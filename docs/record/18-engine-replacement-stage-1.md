@@ -1191,7 +1191,7 @@ touched only doc comments under `Sources/`.
 | commit | phase | what |
 |---|---|---|
 | `59fd180` | design | spec, decisions `LR-A`…`LR-P`, probe revision 1, this record's design round |
-| `0db713a` | critic round 1 | thirteen-stage plan, per-site checks, the below-word clamp withdrawn, `LR-Q`…`LR-W`; probe revision 2 (group W) |
+| `0db713a` | critic round 1 | thirteen-stage plan (fourteen stages counting G: the count is corrected by the branch checker), per-site checks, the below-word clamp withdrawn, `LR-Q`…`LR-W`; probe revision 2 (group W) |
 | `4ceb3e0`, `68200dc` | lane 1 | red (does not compile); authority, every site's own check, bounds log, harness |
 | `ea7ac56`, `a155251`, `3ab7f0f`, `e95cb5f` | lane 1 verifier round | 1.5b backstop exit test, 1.5's amend arm in a child, 1.9 arm d (red); the harness compares the finalized scene and draw list; record |
 | `4e15733`, `57c6250`, `913680b`, `8a28c4d`, `73ce03f` | lane 2 | red; childless `Box` and `Text` lowered; 2.8's narrow arms (red on `57c6250`); the wrap-width fix and `measuredNode` removed (`LR-X`); record |
@@ -1372,7 +1372,7 @@ from archives.
   depth boundary is bracketed (87 lays out, 90 traps), not pinned** (minor 1).
 - **Lane 5 V5-2 vs 5.5**: 5.5 stays green with an empty bounds log (minor 4).
 
-**Across four lanes the same class stayed green first**: a lowering branch that
+**Across three lanes the same class stayed green first**: a lowering branch that
 reads the **declared** style where it must read the **animated** one (V7 lane 2,
 V1 lane 3, V4 and V2 lane 4). Each lane's own tests used static values; each
 verifier found the mutant green and a pin was added. Lane 5's V5-6 then reddened
@@ -1522,7 +1522,7 @@ every count after the merge, after `swift package clean` (hazard 1).
 
 1. **Ruling table.** Add `` | `LR-` | engine replacement, plan task 7 (`LR-A`…`LR-AA`, next is `LR-AB`) | lettered, two-letter tails deliberate | ``; add
    `LR-3` to the bare-typo sentence. Add to "Where things are": `` - engine
-   replacement (task 7, `LR-`, stage 1 of thirteen):
+   replacement (task 7, `LR-`, stage 1 of fourteen):
    `specs/2026-09-17-engine-replacement-design.md` (the stage plan is its §4),
    `2026-09-17-engine-replacement-decisions.md`, record §18; probe
    `docs/probes/swiftui-engine-replacement-stage1.swift` (revision 2). ``
@@ -1564,7 +1564,7 @@ every count after the merge, after `swift package clean` (hazard 1).
    > maxima, alignment), and anything written after `.frame` that changes its
    > style reports `modifierLayer.style`. Stretch and `space-*` lower only where
    > CSS cannot show them (one child and no declared cross size; no main size).
-   > **A branch that lowers from a style needs an animated arm**: four lanes'
+   > **A branch that lowers from a style needs an animated arm**: three lanes'
    > verifiers found a declared-style mutant green. Lowered answers are SwiftUI's
    > where probes say and differ from the legacy engine on the same tree (text
    > hugs its widest line, a `Stack` offers its proposal, a flexible frame is
@@ -1657,7 +1657,7 @@ every count after the merge, after `swift package clean` (hazard 1).
 **The plan's task 7 entry: do NOT tick it.** Append under the existing notes:
 
 > *Progress 2026-09-17 on `feat/engine-replacement` (`59fd180..`record commit),
-> stage 1 of 13, still open.* Spec `specs/2026-09-17-engine-replacement-design.md`
+> stage 1 of 14, still open.* Spec `specs/2026-09-17-engine-replacement-design.md`
 > (stage plan §4); rulings `LR-A`…`LR-AA` in
 > `../2026-09-17-engine-replacement-decisions.md`; probe
 > `docs/probes/swiftui-engine-replacement-stage1.swift`; record §18. **Stages:**
@@ -1697,14 +1697,14 @@ every count after the merge, after `swift package clean` (hazard 1).
   [`18-engine-replacement-stage-1.md`](docs/record/18-engine-replacement-stage-1.md)
   for task 7's first stage". In the specs list: "[engine replacement
   spec](docs/superpowers/specs/2026-09-17-engine-replacement-design.md) (plan task
-  7, stage 1 of 13 landed: legacy elements lower onto the kernel under an
+  7, stage 1 of 14 landed: legacy elements lower onto the kernel under an
   internal proposal authority; production still uses the CSS engine)".
 
 **Other owned documents:**
 
 - `docs/record/README.md`: add `` | `18-engine-replacement-stage-1.md` | plan
   task 7 stage 1 on `feat/engine-replacement`: the inventory of `FlexEngine`
-  consumers, the thirteen-stage plan, the layout authority and per-site checks,
+  consumers, the fourteen-stage plan, the layout authority and per-site checks,
   the bounds log and differential harness, leaf/container/`Stack`/layer lowering,
   the demo content library, pipeline parity, depth and work pins; five lanes,
   red runs, verifier verdicts (all `ok`, lane 5 four minors) and mutation tables;
@@ -1754,3 +1754,45 @@ every count after the merge, after `swift package clean` (hazard 1).
   decisions doc (`CN-Q` stages), the plan's task 7 progress note (not ticked).
   Lane 5's four minors remain open; `LR-AA` items 4 and 7 and spec §5.2/5.8 are
   unamended because the minors are unfixed.
+
+## Branch checker (2026-09-17, `c2290fc..05d21b9`)
+
+- **Suite.** `swift package clean`, `swift build --build-system native
+  --build-tests` (0 `error:`, only SwiftPM's deprecation `warning:`), unfiltered
+  `swift test --build-system native --no-parallel` → `Test run with 1409 tests in
+  1 suite passed after 43.044 seconds.`; only the two gated tests skipped;
+  `aPlainImportCannotChooseTheLayoutAuthority` ran and passed. Goldens 97
+  (`git diff --name-only c2290fc` lists no `.json`); guards 71 by per-file
+  `grep -c canTypecheck` (13 files, `UnitSafetyTests`' comment excluded);
+  `cmp CLAUDE.md AGENTS.md` identical.
+- **Probe.** `docs/probes/swiftui-engine-replacement-stage1.swift` exit 0, 79
+  lines, every line verbatim in its header.
+- **Pixels, independently.** `git archive` of `c2290fc` (`gen.py`) and of
+  `05d21b9` (`gen-lib.py chrome`), `DEMO_PIXELS_SMALL=1`: **12 of 12 read 0
+  differing pixels, scenes identical.** Controls on the head: light vs dark f0
+  1 048 576; vs modal 1 030 498; vs animation 210 027; f0 vs f3 0; preview light
+  vs dark 1 048 576; 544 distinct values. Chrome pair 0, scenes identical, 216
+  distinct values; **with lowered stack spacing + 50 in the archive** the chrome
+  pair reads **8 214** and the twelve legacy images still 0 against the base.
+  `IOConsoleLocked` `<true/>` at 02:36 PDT: no real-window capture.
+- **Mutations** (committed tree, file copied aside, full build and unfiltered
+  suite, restored, `git status --short` empty; none truncated):
+
+  | mutation | reddened |
+  |---|---|
+  | A: container stretch lowerable with two children (`childCount != 1 \|\|` dropped, = M3f) | `stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem` (2), `theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn` (1) |
+  | B: `Box` hands `lowerLegacyNode` its declared style (= M5e) | `aLoweredBoxRegistersItsAnimatedWidth` (2), `aLoweredContainerLaysOutItsAnimatedWidthPaddingAndGap` (2), `aLoweredTreeMintsTheSameStateSlotsAndAnimatesTheSameWidths` (1) |
+  | C: `List`'s window forced empty under the **legacy** authority (the branch's one edit on the legacy windowing line) | 32 tests, 44 issues, among them `aListBuildsOnlyTheRowsIntersectingTheViewportPlusOverscan`, `aListRowsStateSurvivesABoundedExcursionButNotALongerOne` (8), `aScrolledListPublishesItsLogicalCountAndItsRealizedRowsWithTheirIndices`, `theResidentEntrySetStaysBoundedWhileScrolling10kRows`, `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`, 5.3 |
+
+- **Doc defects fixed.** The stage plan has **fourteen** stages (1, 2, 3, 4, 5,
+  G, 6a, 6b, 7a, 7b, 8, 9, 10, 11; the design's nine counted G), not thirteen:
+  corrected in the spec, `LR-L`, this record, the record index, the plan note,
+  `README.md` and `CLAUDE.md`. "Four lanes" whose verifiers found a
+  declared-style mutant green are three (lanes 2, 3, 4): corrected here and in
+  `CLAUDE.md`. Stage 2's exit test named `Deferred` and "absolute" as site
+  diagnostics; `Deferred` has no `LoweringSite` and `position`/`inset` are fields.
+  `CN-Q`'s amendment said the containers' lowering was "done"; it is done on
+  stage 1's subset.
+- **Not fixed (code).** `LoweringPipelineParityTests.swift:405`'s doc comment
+  still calls 87 "the deepest `NativeLayoutRun.maxDepth` (88) allows" (lane 5
+  minor 1).

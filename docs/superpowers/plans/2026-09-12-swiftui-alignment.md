@@ -391,7 +391,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   finite and single-axis infinite maxima, a frame over a multi-member
   `Component`, `SA-N`'s padding item and divergences 35, 52–56 (`CN-Q`).
   *Progress 2026-09-17 on `feat/engine-replacement` (`59fd180..aea19ed`, from
-  `c2290fc`), stage 1 of 13, still open.* Spec
+  `c2290fc`), stage 1 of 14, still open.* Spec
   `specs/2026-09-17-engine-replacement-design.md` (inventory §2, stage plan §4);
   rulings `LR-A`…`LR-AA` in `../2026-09-17-engine-replacement-decisions.md`;
   probe `docs/probes/swiftui-engine-replacement-stage1.swift` (revision 2);

@@ -485,7 +485,7 @@ reason those tests exist.
 
 ---
 
-## LR-L — the whole task is thirteen stages (nine before critic round 1), and stage 1 is the lowering foundation
+## LR-L — the whole task is fourteen stages (nine before critic round 1), and stage 1 is the lowering foundation
 
 **The plan** is spec §4. Its ordering constraints:
 
@@ -520,7 +520,7 @@ rule (e.g. stretch), stage 1's tests that pin the observable-only rule change
 with them; they are few (spec 3.5) and named.
 
 **Critic round 1** (findings 11, 14, 16, 18, 20). The plan above is replaced by
-spec §4's thirteen stages: 1, 2, 3, 4, 5, G, **6a** (custom elements and
+spec §4's fourteen stages: 1, 2, 3, 4, 5, G, **6a** (custom elements and
 CSS-answer tests, `LR-R`), **6b** (root switch), **7a** (goldens), **7b**
 (non-golden CSS-engine tests, `LR-U`), **8** (sizing recipe), **9** (engine
 deletion), **10** (`Style` fields and the closing check, `LR-P`), **11**
