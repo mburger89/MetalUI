@@ -51,8 +51,9 @@ CLAUDE.md AGENTS.md` before committing.
   | `FR-` | frame and sizing, plan task 4 (`FR-A`…`FR-V`, next is `FR-W`) | lettered |
   | `OM-` | outer modifiers, plan task 5 (`OM-A`…`OM-AM`, next is `OM-AN`) | lettered, two-letter tails are deliberate |
   | `CN-` | containers, plan task 6 (`CN-A`…`CN-U`, next is `CN-V`) | lettered |
+  | `LR-` | engine replacement, plan task 7 (`LR-A`…`LR-AA`, next is `LR-AB`) | lettered, two-letter tails are deliberate |
 
-  A bare `CS-3`, `TB-3`, `CO-3`, `AN-3`, `SA-3`, `MC-3`, `EV-3`, `AB-3`, `FR-3`, `OM-3`, `CN-3` etc. is a typo, not a citation. Sweep
+  A bare `CS-3`, `TB-3`, `CO-3`, `AN-3`, `SA-3`, `MC-3`, `EV-3`, `AB-3`, `FR-3`, `OM-3`, `CN-3`, `LR-3` etc. is a typo, not a citation. Sweep
   for stray citations case-insensitively. The animation milestone (M4 spec 3,
   on `feat/animation`) is specced at
   `docs/superpowers/specs/2026-09-03-animation-design.md`, planned at
@@ -106,13 +107,19 @@ CLAUDE.md AGENTS.md` before committing.
   `docs/probes/swiftui-stack-algorithms.swift` (revision 10, the V1–V8 spacing
   arms and V1l/V1m among them) and `swiftui-overlay-presentation.swift` (compiled form
   only).
+- **Engine replacement (plan task 7, `LR-`; stage 1 of thirteen landed, task
+  open)**: `specs/2026-09-17-engine-replacement-design.md` (the inventory of
+  `FlexEngine` consumers is its §2, the stage plan its §4),
+  `2026-09-17-engine-replacement-decisions.md`, record §18; probe
+  `docs/probes/swiftui-engine-replacement-stage1.swift` (revision 2).
 - **Practices:** `docs/practices/verifying-tests-can-fail.md` — read before
   writing tests. Sixteen numbered shapes of test that cannot fail, seven ways a
   record goes wrong, all observed here.
 - **Full record:** `docs/record/README.md` indexes the sections; `01`–`08`
   are the split pre-2026-09-09 file, `09` is the SwiftUI-alignment record,
   `10`–`12` the task 3/9/12 tracks and `13` their integration, `14`–`15`
-  the task 4/5 tracks and `16` their integration, `17` task 6 (containers).
+  the task 4/5 tracks and `16` their integration, `17` task 6 (containers),
+  `18` task 7's stage 1 (engine replacement).
 
 ## Build and test
 
@@ -127,8 +134,23 @@ swift run MetalUIDemo            # and: swift run -c release MetalUIDemo
 METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout preview window (value must be exactly "1")
 ```
 
-- **Counts, dated:** **1357 tests**, **97** browser-fixture goldens, **70**
-  `swiftc -typecheck` guards, 0 `error:`, 0 `warning:` — re-taken 2026-09-16
+- **Counts, dated:** **1409 tests**, **97** browser-fixture goldens, **71**
+  `swiftc -typecheck` guards, 0 `error:`, 0 `warning:` — measured 2026-09-17 on
+  `feat/engine-replacement` (plan task 7 stage 1) at the Docs phase, after
+  `swift package clean`, unfiltered `swift test --build-system native
+  --no-parallel` after `swift build --build-system native --build-tests` (one
+  summary line; only the two gated tests skipped; the lone `warning:` is
+  SwiftPM's deprecation notice). Goldens unmoved against `c2290fc`. Delta from
+  1357 / 97 / 70: **+52 tests** (lane 1 +12, lane 2 +10, lane 3 +9, lane 4 +12,
+  lane 5 +9), **0 goldens, +1 guard** (`LayoutAuthorityCompileGuards`); record
+  §18. Guards per file:
+  `PhaseSeparationTests` 19, `ErasureCompileGuards` 10,
+  `EnvironmentCompileGuards` 8, `ProposalNodeIDCompileGuards` 6,
+  `ProposalLayoutCompileGuards` 6, `ElementGroupTrapTests` 5,
+  `ContainerCompileGuards` 4, `AXNodeTests` 3, `DecorationCompileGuards` 3,
+  `UnitSafetyTests` 2 (3 hits, one a comment), `ModifiedElementCompileGuards` 2,
+  `FrameSizingCompileGuards` 2, `LayoutAuthorityCompileGuards` 1.
+  Before that: 1357 / 97 / 70 — re-taken 2026-09-16
   at the containers closeout (`f80c2aa`: 1355 + the two `hidden()` regression
   tests, record §17 "Closeout"); first measured on `feat/containers` (plan
   task 6) after `swift package clean`, unfiltered
@@ -137,13 +159,7 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout previe
   tests skipped; the lone `warning:` is SwiftPM's deprecation notice). Goldens
   unmoved against `9e439cb`. Delta from 1303 / 97 / 66: **+52 tests** (lane 1
   +13, lane 2 +7, lane 3 +10, lane 4 +15, lane 5 +7), **0 goldens, +4 guards**
-  (all `ContainerCompileGuards`); record §17. Guards per file:
-  `PhaseSeparationTests` 19, `ErasureCompileGuards` 10,
-  `EnvironmentCompileGuards` 8, `ProposalNodeIDCompileGuards` 6,
-  `ProposalLayoutCompileGuards` 6, `ElementGroupTrapTests` 5,
-  `ContainerCompileGuards` 4, `AXNodeTests` 3, `DecorationCompileGuards` 3,
-  `UnitSafetyTests` 2 (3 hits, one a comment), `ModifiedElementCompileGuards` 2,
-  `FrameSizingCompileGuards` 2.
+  (all `ContainerCompileGuards`); record §17.
   Before that: 1303 / 97 / 66 on `integrate/tasks-4-5` (2026-09-16, tasks 4/5;
   six summary lines under the default build system, record §16).
   Before that: 1226 / 97 / 61 at `2456c69` (2026-09-15, tasks 3/9/12).
@@ -180,17 +196,19 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout previe
   `ProposalLayoutCompileGuards`, `ModifiedElementCompileGuards`,
   `ProposalNodeIDCompileGuards`, `EnvironmentCompileGuards`,
   `FrameSizingCompileGuards`, `DecorationCompileGuards`,
-  `ContainerCompileGuards`, `MetalUICoreTests/UnitSafetyTests` (one hit is a comment) and
+  `ContainerCompileGuards`, `LayoutAuthorityCompileGuards`,
+  `MetalUICoreTests/UnitSafetyTests` (one hit is a comment) and
   `MetalUITests/AXNodeTests`.
   `Tests/MetalUITestSupport/Typecheck.swift` also matches and holds only the
   declaration — count guards, not files. **Two helpers:** 40 guards (the 39
   older ones and one of `EnvironmentCompileGuards`') use
   `typecheck(_:importing:)`, which wraps the fixture in a function in
   Swift 5 mode, so every fixture type is local and no `public` or file-scope
-  `extension` compiles; the other 30 — `ProposalLayoutCompileGuards`'
+  `extension` compiles; the other 31 — `ProposalLayoutCompileGuards`'
   six, `ModifiedElementCompileGuards`' two, `ProposalNodeIDCompileGuards`' six,
   `FrameSizingCompileGuards`' two, `DecorationCompileGuards`' three,
-  `ContainerCompileGuards`' four and seven of `EnvironmentCompileGuards`' — use
+  `ContainerCompileGuards`' four, `LayoutAuthorityCompileGuards`' one and seven
+  of `EnvironmentCompileGuards`' — use
   `typecheckFile(_:importing:)` (whole file, `-swift-version 6`), pinned by
   its own instrument guard `typecheckFileChecksInTheSwift6LanguageMode`. A
   guard about what an **external module** can write uses `typecheckFile`
@@ -217,10 +235,14 @@ METALUI_NATIVE_LAYOUT_PREVIEW=1 swift run MetalUIDemo   # proposal-layout previe
   instead (`Undefined symbols … direct field offset`; record §12). Symptoms: SIGSEGV or a
   truncated run with no summary line, or an assertion whose *expected* side
   holds a value its own source cannot produce. Clean before debugging.
-- **Targets:** eight one-way-dependent non-test targets (`MetalUICore`,
+- **Targets:** nine one-way-dependent non-test targets (`MetalUICore`,
   `MetalUILayout`, `MetalUIText`, `MetalUIShaderTypes`, `MetalUIRender`,
-  `MetalUIPlatform`, `MetalUI`, `MetalUIDemo`) plus `MetalUITestSupport`
-  under `Tests/`. Spec §3.1's "seven" excludes the demo; do not reconcile.
+  `MetalUIPlatform`, `MetalUI`, `MetalUIDemoContent`, `MetalUIDemo`) plus
+  `MetalUITestSupport` under `Tests/`. `MetalUIDemoContent` holds the demo's
+  content (`demoContent()`, `CounterPanel`, `nativeLayoutPreviewContent()`) in
+  a library that is in no product, so tests import the demo's own tree
+  (`LR-S`); `MetalUIDemo` is `runDemo()` only. Spec §3.1's "seven" excludes the
+  demo; do not reconcile.
 
 Four constraints that fail silently:
 
@@ -320,8 +342,13 @@ fixed (`hiddenAfterASingleChildLegacyFrameStillHidesTheElement`,
 `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`; record §17,
 "Closeout"). **Two legacy divergences stay pinned wrong
 on purpose**, owner now task 7 (`CN-Q`): a finite maximum clamps but never
-grows (35); a single-axis infinite maximum is inert (inert table). `idealWidth`/`idealHeight` **trap** on the legacy path
-(`FR-D`, exit test). `.frame()` with no arguments is a deprecated no-op on both
+grows (35); a single-axis infinite maximum is inert (inert table); both are
+SwiftUI's answer under the proposal authority already
+(`aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`), and
+production gains them at the root switch (stage 6b). `idealWidth`/`idealHeight`
+**trap** when the legacy engine registers the frame (at render, not
+construction, `LR-H`; exit test); under the proposal authority a legacy frame
+lowers them onto the kernel frame. `.frame()` with no arguments is a deprecated no-op on both
 paths (`FR-J`, guard). **`ElementGroup` must keep exactly ONE fixed `frame`
 overload** (`FR-S`): a second compiles, and only `MC-A`'s solver-budget guard
 says so. The two hand-spelled `frameStyle` oracles in `ModifiedElementTests`
@@ -514,7 +541,10 @@ VoiceOver. `onClickIsLiveOnEveryConformerThatCanRegisterOne`,
 `ModifiedElement` has an inner-layer and an outermost-layer arm in every
 per-site guard (`MC-I`). **Any hook added to `Element`'s group defaults
 (`requestGroupLayout`/`prepaintGroup`/`paintGroup`) must be mirrored per layer
-in `ModifiedElement`** (`MC-B`): a layer gets no group default of its own. The
+in `ModifiedElement`, and in `AnyElement`'s group entry, a hand copy**
+(`MC-B`; `LR-AA`: the bounds record was missed there; by reading, `AB-O`'s
+`suppressingAccessibilityIfHidden` is still missing there, unmeasured): a
+layer gets no group default of its own. The
 one such hook today, `AB-O`'s `display: none` suppression, was missed by both
 tracks and caught only by the merged suite (record §13). `Handlers` is
 not `Equatable` and has **eight** stored members; `HandlerShape`
@@ -792,7 +822,7 @@ The plan intends to replace the CSS engine; today a SwiftUI-style
 propose/measure/place engine and API sit **beside** it. Record §09; task 2's
 completion rulings are `SA-` (decisions doc above).
 
-**Two layout authorities, chosen by the window root alone.**
+**Two layout engines, chosen by the window root alone.**
 `Frame.computeRootLayout` checks only `tree.isNativeLayoutNode(root)`. A
 native root is measured at the window proposal and **placed centred at its own
 answer** (`CN-J`, probe R1/R2) by
@@ -807,6 +837,53 @@ cases, which stay cases, plus `custom(any ProposalLayout)` (`SA-B`). Each
 native node still appends a placeholder `Style.default` row to the legacy
 arrays, through the private `appendNode`. Rounding is the legacy
 `roundLayout`, cumulative-edge.
+
+**The layout authority (task 7 stage 1, `LR-A`…`LR-AA`).** Every `Frame` has
+an internal `layoutAuthority`, `.legacy` by default and in production;
+`Window.layoutAuthority` sets it for every frame the window builds (a write
+dirties) and stays internal until stage 6b (guard
+`aPlainImportCannotChooseTheLayoutAuthority`). Under `.proposal` **every legacy
+site checks the authority itself before registering**: `Box`, `Stack`, `Text`
+and both `ModifiedElement` registrars lower onto kernel nodes (stage 1's
+subset, spec §5.4); `ScrollView`, `List` (before it builds its `Box`),
+`StyledComponent`'s amend and wrap, and the public
+`LayoutPass.requestNode`/`requestLeaf` (a custom element) do not lower.
+Anything unlowerable **traps naming `<site>.<field>`**, or, on a frame built
+with `reportsUnlowerableFields`, is recorded in `Frame.unlowerableFields` and
+answered by a 0×0 native leaf. `Frame.requestNode`/`requestLeaf` keep a
+backstop that traps naming only the registrar. A report is `display.none` alone
+if hidden, else the container rows then the every-node rows; production traps
+on the first. **A new legacy registration site gains its own check and an arm
+in `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` in the same change.**
+- **Lowering is border-box, as SwiftUI modifiers:** content (leaf / linear
+  stack / overlay) → native padding → fixed `.topLeading` frame, **built from
+  the animated `Style` and checked against the declared one**. A frame layer
+  lowers to one kernel frame from its animated style plus `FrameSpec` (ideals,
+  infinite maxima, alignment); anything written after `.frame` that changes its
+  style reports `modifierLayer.style`. Stretch and `space-*` lower only where
+  CSS cannot show them (one child and no declared cross size; no main size).
+  **A branch that lowers from a style needs an animated arm**: four lanes'
+  verifiers found a declared-style mutant green.
+- **Lowered answers are SwiftUI's where probes say, and differ from the legacy
+  engine on the same tree** — text hugs its widest line, a `Stack` offers its
+  proposal, a flexible frame is greedy, a row overflows, an ideal is honoured —
+  under the proposal authority only. A proposal element inside a lowered
+  container is one authority and lays out; under `.legacy` it still traps
+  (`LR-T`). `.frame(idealWidth:)` traps at **legacy registration**, not at
+  construction (`LR-H`).
+- **The differential harness** (tests): `LayoutDifferential.compare` renders a
+  tree inside `DifferentialRoot` (a top-leading fixed-size root on both sides,
+  `LR-D`) under each authority and compares rects per element, the finalized
+  scene and draw list, hitboxes, accessibility emissions with geometry, and
+  `StateTable.ids`. Never put a wrapping `Text` or a greedy child directly under
+  the root: the root's own legacy `Stack` offers fit-content (divergence 53).
+  **Under `.proposal` a window frame traps rather than reports**, so a window
+  test pre-flights its tree under diagnostics (`WindowPair`) with a
+  `try #require` on an empty report, or the run truncates (shape 13). **The
+  bounds log (`Frame.recordElementBounds`) is recorded at four sites** — the
+  root in `Frame.render`, `Element.prepaintGroup`, `AnyElement.prepaintGroup`,
+  each inner `ModifiedElement` layer; a new group entry that hands off to
+  members records too (`LR-AA`, mutation MA).
 
 **`ProposalLayout` is the public algorithm protocol** (`SA-A`…`SA-F`):
 `sizeThatFits(proposal:subviews:)` and `placeSubviews(in:proposal:subviews:)`,
@@ -953,7 +1030,11 @@ negative guard.
 one counter across measurement and placement. It is 0.60 of the smallest debug
 ceiling on a 1 MB thread, rounded down to a multiple of 8. It is not
 `LayoutContext.maxDepth` and claims no parity with it. Raise it only after
-re-bisecting all four node kinds.
+re-bisecting all four node kinds. A padded, sized legacy container lowers to 3
+native levels; the default demo's deepest lowered path is estimated at 22
+(`LR-Q`); 29 lowered `Box`es as a root (87 levels) lay out and 30 (90) trap
+(record §18, tests 5.8/5.9) — the exact 88/89 boundary rests on `SA-L`'s pins
+and 5.9's message.
 
 **Work counters** (`SA-M`). Count native work with the internal
 `LayoutTree.lastNativeLayoutWork` (`measureCalls`, `cacheHits`,
@@ -1086,7 +1167,7 @@ a frame's answer is observable as an x
   `ProposalScrollView` takes an id, so the trailing-sibling remedy cannot name
   a built-in proposal element. A custom element or `Component` conformed to
   `ProposalElementGroup` can still declare `var elementID` (the demo's
-  `PreviewToggle` does, `main.swift:921`). `@State`
+  `PreviewToggle` does, `DemoContent.swift:929`). `@State`
   binds, but no built-in proposal element declares any; `.onTap` is the only
   pointer handler (hover via `hoverColor`); nothing is focusable, handles keys
   or emits an AX node, and nothing publishes to accessibility — `onTap` still
@@ -1160,6 +1241,12 @@ ones that cost a round of rework each. History in record §02.
   (record §13). A per-layer mutation that reddens only the integration tests
   is the finding that the tracks' own suites could not see it (record §16,
   M1).
+- **A mutant that stays green may be the correct spelling.** Prove it
+  different; if it is the better answer, correct the design (`LR-X`: lane 2's
+  paint-wrap mutant was right).
+- **A window test in a mode that traps pre-flights in a mode that reports**,
+  or a reporting mutant truncates the run instead of reddening it (record §18,
+  lane 5, M4h).
 
 ## Human verification — what is closed and what stays open
 
@@ -1182,6 +1269,7 @@ or any of text's three §4.2 failure modes; these are looks.
 | accessibility bridge: record §12's VoiceOver script, items 1–9 (activation in both orders, static text, buttons, the list by ear and by Inspector, focus, frames while scrolling, theme and modal, animation noise, identity adoption) | open, nobody has run it |
 | tasks 4 and 5 integrated (frame and sizing; outer modifiers): release-window capture of the default demo AND the preview window against a build of `c4b5853`, by `MC-J`'s method | **open**: the display was locked at every capture moment of both tracks and at integration (`IOConsoleLocked` `<true/>` 2026-09-16 09:29; `FR-V`: it has also read `false` on a locked, asleep display, and `docs/probes/appkit-screen-lock-state.swift`'s CGS check has no positive control yet). Stand-in: offscreen `FakePlatformWindow` pixels, ten images, merged vs `c4b5853`, **0 differing pixels and identical scene dumps in all ten**, with an instrument (element padding doubled plus the kernel's frame proposal less 10) that moves every image including the preview (record §16). At 920×560 the preview's content is 594pt tall, centred, overflowing 17pt top and bottom (`FR-U`): a look would report a clipped border |
 | containers (plan task 6, `feat/containers`): release-window capture of the default demo and the preview against `9e439cb` | **open**: `IOConsoleLocked` read `<true/>` at every lane and at the record pass. Stand-in: offscreen `FakePlatformWindow` pixels, legacy images 0 differing in all nine, preview 1 109 per 1024 image (three rects: `CN-G`'s toggle and the `CN-M` scroll view) and 65 449 at 560 (every rect: `CN-B`'s distribution and `CN-J`'s centred, overflowing root as well), re-taken by the branch checker with identical figures (record §17). The lock check itself should be the CGS probe (`FR-V`), which no lane ran |
+| engine replacement stage 1 (plan task 7, `feat/engine-replacement`): release-window capture of the default demo and the preview against `c2290fc` | **open**: `IOConsoleLocked` read `<true/>` at every lane, at the record pass and at the Docs phase. Stand-in: offscreen `FakePlatformWindow` pixels, **0 differing in all twelve** images at every lane and from archives by lane 5's verifier; the two-authority chrome pair 0 (control 8 214). Nothing in production runs under the proposal authority, so no demo look is owed until stage 6b (record §18) |
 | the focus ring (`focusBorder`) reads as a focus affordance | open: the demo declares none, so a look needs a demo-only commit first |
 | tasks 3, 9, 12 integrated: release-window capture of the default demo AND the `METALUI_NATIVE_LAYOUT_PREVIEW=1` window against a build of `f64e58a`, by `MC-J`'s method (`CGWindowListCopyWindowInfo` bounds, `screencapture -x -R…`, no input) | **open**: the session was locked at every track and at integration. Stand-in: offscreen `FakePlatformWindow` pixels of `demoContent()` (light/dark, f0/f3, modal, settled **A**) and the preview, merged vs `f64e58a`, **0 differing pixels in all ten**, with a paint-order instrument that differs (record §13). It cannot see the drawable, the real window, input, hover, focus or a mid-flight animation |
 
@@ -1198,7 +1286,7 @@ before believing it.
 
 ## Known divergences — expected, measured, not defects
 
-Forty-seven entries; labels are stable ids. Retired and never reused: 3, 5, 6
+Forty-eight entries; labels are stable ids. Retired and never reused: 3, 5, 6
 (sizing, fixed), 7 (renumbering), 8 (`Text.paint` wrap, fixed), 12 and 17
 (tombstones, closed for a **bounded** two-generation window above 256
 entries), 15 (nested scroll mask, fixed by `OM-U`: `pushClip` adds
@@ -1234,9 +1322,9 @@ now spelled `fraction:` with `percent:` deprecated, `CN-O`). Full entries with r
 | 32 | vs SwiftUI | A `List` is an `AXTable` of realized rows; SwiftUI publishes an `AXOutline` (`AB-L`, R16); rows beyond the window are unreachable. |
 | 33 | vs SwiftUI | A labelled generic node is `AXGroup`, not `AXUnknown` (`AB-F`, 10b, R6, R11). |
 | 34 | vs SwiftUI | `Stack` publishes declaration order, not front to back (`AB-P`, arm 4). Unpinned. |
-| 35 | vs SwiftUI | A legacy frame's finite maximum clamps but never grows into the proposal: `.frame(maxWidth: 80)` over a 20pt child reads 20, SwiftUI 80 (`FR-E`, D4). Pinned wrong on purpose by `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`; task 7 (`CN-Q`). |
+| 35 | vs SwiftUI | A legacy frame's finite maximum clamps but never grows into the proposal: `.frame(maxWidth: 80)` over a 20pt child reads 20, SwiftUI 80 (`FR-E`, D4). Pinned wrong on purpose by `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`; lowered to SwiftUI's answer under the proposal authority (`aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`); production at task 7 stage 6b. |
 | 38 | vs SwiftUI | A negative fixed size or maximum on the proposal path traps at registration (`SA-J`) where SwiftUI diagnoses and floors it at 0 (H6, H10); a negative minimum is floored as SwiftUI does (`FR-L`, `FR-R`). Task 7. |
-| 39 | vs SwiftUI | `idealWidth`/`idealHeight` on a legacy frame trap; SwiftUI uses them on an unspecified axis (`FR-D`, C1). Pinned by `anIdealDimensionOnTheLegacyFrameTraps`; task 7. |
+| 39 | vs SwiftUI | `idealWidth`/`idealHeight` on a legacy frame trap when the legacy engine registers the frame (at render; since `LR-H` not at construction); SwiftUI uses them on an unspecified axis (`FR-D`, C1). Under the proposal authority they lower. Pinned by the amended `anIdealDimensionOnTheLegacyFrameTraps`; task 7 stage 6b. |
 | 41 | vs SwiftUI | The default hit region is the element's whole frame; SwiftUI's is content-derived — a stack's empty middle reads 0 (`OM-I`, H1). Pinned by `metalUIsDefaultHitRegionIsTheElementsWholeFrame`. |
 | 42 | vs SwiftUI | A padded click target is hittable in its padding, and only when the `onClick` is written after the padding; SwiftUI reads edge 0 in both orders (`OM-K`, P1/P2). Pinned by `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot`. |
 | 43 | vs SwiftUI | A grown (negative-inset) content shape is intersected with an ancestor's clip; SwiftUI's hits through `.clipped()` (`OM-AJ`, H6). Pinned by `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor`. |
@@ -1248,13 +1336,14 @@ now spelled `fraction:` with `percent:` deprecated, `CN-O`). Full entries with r
 | 49 | vs SwiftUI | `.border.cornerRadius` draws a rounded stroke that follows the arc; SwiftUI draws a square border clipped by the radius (`OM-W`, D2 vs M1). Pinned by `aRoundedBorderFollowsTheArcWhereSwiftUIsClippedSquareBorderDoesNot`. |
 | 50 | vs SwiftUI | `.contentShape(inset:)` written before a wrapping modifier, with the `onClick` after it, is inert: the padded layer is hittable over its whole frame (centre/band/edge 1/1/1) where SwiftUI honours the inset (1/0/0); the reverse order agrees (probe S1/S2, record §16). Pinned wrong on purpose by `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`. |
 | 51 | vs SwiftUI | `ProposalText` beside `ProposalText` in a `VStack` is 8pt apart; SwiftUI's text edges are font-derived (text\|text 0, rect\|text 4.74, text\|rect 8.15; probe S, `CN-H`). Pinned by `aProposalTextStackUsesEightWhereSwiftUIUsesFontSpacing`; task 11. |
-| 52 | vs SwiftUI | Legacy `Row`/`Column` default to gap 0; `HStack`/`VStack` to 8 (probe S, `CN-P` 1). Pinned by `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`; task 7. |
-| 53 | vs SwiftUI | A legacy `Stack` offers a child fit-content; `ZStack` offers its proposal (A5: a greedy child fills 100×80; a childless `Box` is 0×0) (`CN-P` 2). Pinned by `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal`; task 7. |
-| 54 | vs SwiftUI | A legacy `ScrollView` takes its cross axis from its parent; SwiftUI's takes its content's (SC2, `CN-P` 3). Pinned by `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents`; task 7. |
-| 55 | vs SwiftUI | Legacy `Row`/`Column` compress by flex-shrink in proportion to base size and expand only by `flexGrow`, with no `Spacer`; a SwiftUI stack serves least flexible first (G1, `CN-P` 4). Covered by the CSS goldens; task 7. |
-| 56 | vs SwiftUI | A legacy `.frame` over a multi-member `Component` lays the members out as a flex row; SwiftUI frames each member (G7, `CN-N`). Pinned as it stands by `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren` and `chainedFramesRemainConcreteAndNestTheirLayoutNodes`; task 7. |
+| 52 | vs SwiftUI | Legacy `Row`/`Column` default to gap 0; `HStack`/`VStack` to 8 (probe S, `CN-P` 1). Pinned by `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight`; task 7 stage 2. |
+| 53 | vs SwiftUI | A legacy `Stack` offers a child fit-content; `ZStack` offers its proposal (A5: a greedy child fills 100×80; a childless `Box` is 0×0) (`CN-P` 2). Pinned by `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal`; lowered to SwiftUI's answer under the proposal authority (`aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent`); production at task 7 stage 6b. |
+| 54 | vs SwiftUI | A legacy `ScrollView` takes its cross axis from its parent; SwiftUI's takes its content's (SC2, `CN-P` 3). Pinned by `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents`; task 7 stage 3. |
+| 55 | vs SwiftUI | Legacy `Row`/`Column` compress by flex-shrink in proportion to base size and expand only by `flexGrow`, with no `Spacer`; a SwiftUI stack serves least flexible first (G1, `CN-P` 4). Covered by the CSS goldens; lowered to SwiftUI's answer under the proposal authority (`aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren`); production at task 7 stage 6b. |
+| 56 | vs SwiftUI | A legacy `.frame` over a multi-member `Component` lays the members out as a flex row; SwiftUI frames each member (G7, `CN-N`). Pinned as it stands by `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren` and `chainedFramesRemainConcreteAndNestTheirLayoutNodes`; task 7 stage 3. |
 | 57 | vs SwiftUI | A non-clickable proposal primary does not block a click to its `.background` content; SwiftUI's does (overlay-presentation H3, `CN-K`). Unpinned; task 12. |
 | 58 | design | A `ZStack` placed by a kernel caller in bounds larger than its answer puts the union of its children at the bounds' origin (`CN-E`); SwiftUI has no such placement. Pinned by `aZStackPlacesItsChildrenAtItsOwnSizeWithinTheirUnion`. |
+| 59 | vs SwiftUI | `ProposalText` (and a lowered `Text`) proposed a width below its narrowest word answers its widest character with the hung space (11.18 at 13pt for probe T's string, 592 tall) where SwiftUI answers the proposal (stage-1 probe T3/T4, `LR-X`). Pinned wrong on purpose by `aProposalTextBelowItsNarrowestWordAnswersItsWidestCharacterWhereSwiftUIAnswersTheProposal`; task 7 stage 2. |
 | 18 | vs SwiftUI | `@State` behind a removed `if` is retained, not reset; indefinitely below 256 entries — but 256 is easier to reach than it reads, since every registering element mints a `$anim` entry unconditionally (measured on the committed `demoLikeRows(_:)` test fixture, which has no `.padding`: `2n + 7`, crossing at **125 rows**, 1007 at 500; the demo's own 500-row list is not that fixture and, since each row's `.padding` became a wrapper in `f1944f8` (now a `ModifiedElement` layer), holds more by an unmeasured amount). Reset explicitly or keep the value in data. Element-level consequence is unpinned. |
 
 ## Declared but inert — verify, do not remember
@@ -1283,11 +1372,12 @@ implement, add one. Full mechanisms and the grep for each row in record §05.
 | `ProposedSize.zero` / `.infinity` | no container proposes them on both axes; linear stacks do ask each child for its main-axis minimum and maximum (main 0 and main ∞, cross proposal kept, `CN-B`) |
 | `.allowsHitTesting(false)` over a scroller, on either path | gates click hitboxes only; a `ScrollView`/`ProposalScrollView` inside still scrolls and still wins topmost-opaque (the legacy modifier: `OM-AK`, `aScrollRegionInsideAllowsHitTestingFalseIsStillRegistered`) |
 | `contentShape(inset:)` on an element with no `onClick` | writes `Handlers.contentShapeInset`, registers nothing (`OM-AB`, `aContentShapeWithoutAClickHandlerRegistersNothing`); on a chain, `contentShape(inset:)` or `allowsHitTesting(false)` on an inner layer reaches no click written on a later layer (divergences 44, 50) |
-| a single-axis `.frame(maxWidth: .infinity)` or `.frame(maxHeight: .infinity)` on a legacy element | a layer that costs a node, an id level and a `$anim` entry and does not fill; only the both-axes spelling lowers to `flexGrow = 1` + `alignSelf = .stretch` (`FR-O`, `anInfiniteMaximumFillsOnlyWhenBothAxesAreInfinite`); task 7 (`CN-Q`) |
+| a single-axis `.frame(maxWidth: .infinity)` or `.frame(maxHeight: .infinity)` on a legacy element | a layer that costs a node, an id level and a `$anim` entry and does not fill; only the both-axes spelling lowers to `flexGrow = 1` + `alignSelf = .stretch` (`FR-O`, `anInfiniteMaximumFillsOnlyWhenBothAxesAreInfinite`); under the proposal authority the layer lowers to a greedy kernel frame and fills (`aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`); production unchanged until task 7 stage 6b |
 | `.flexGrow` / `.alignSelf` on the only child of a legacy `.frame` | the one-node frame is a `display: .stack`, which reads neither; both compile and do nothing, the fill idiom `.flexGrow(1).frame(maxWidth: .infinity, maxHeight: .infinity)` included; `width(fraction: 1)`/`height(fraction: 1)` fill (`CN-N`, `aSingleChildLegacyFrameIgnoresItsChildsFlexGrowAndAlignSelf`) |
 | `ElementGroup.frame()` / `ProposalElementGroup.frame()` with no arguments | deprecated no-ops returning `self` (`FR-J`, guard `theNoArgumentFrameIsADeprecatedNoOpOnBothPaths`); declared on BOTH protocols on purpose — on `ElementGroup` alone the proposal call resolves to the all-defaulted fixed overload and builds a layer silently |
+| `LayoutAuthority.proposal` / `Window.layoutAuthority` | internal; works, pinned, and set by no production code until task 7 stage 6b — every production frame is `.legacy` |
 | `GlyphAtlas.evictUnusedSince`, `LayoutTree.reset(generation:)` | zero callers; guards kept for whoever calls them |
-| `Frame.scrollRegions` / `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount`, `LayoutTree.lastNativeLayoutWork`, `MeasurementSubview.isSpacer` / `PlacementSubview.isSpacer` | test observables with no production reader (`isSpacer`: read by no built-in since `CN-B`) |
+| `Frame.scrollRegions` / `Window.lastScrollRegions`, `StateTable.isDirty`, `StateTable.writeCount`, `LayoutTree.lastNativeLayoutWork`, `MeasurementSubview.isSpacer` / `PlacementSubview.isSpacer`, `Frame.elementBounds`, `Frame.unlowerableFields`, `Window.recordsElementBounds`/`lastElementBounds`, `StateTable.ids` | test observables with no production reader (`isSpacer`: read by no built-in since `CN-B`) |
 | `AXNode.children`, `AXNode.actions`, `Frame.axNodes`/`axNode(for:)`, `AXEmission.synthesizes` | always `[]` (hierarchy comes from records, `AB-C`) / declared, never read (`AB-H`) / no production reader, the bridge reads records; `axNode(for:)` validity lags one frame / no reader |
 | `ElementGroup.LayerBase` / `_wrap(_:)` on a custom conformer | a conformer that declares `LayerBase` and forwards `_wrap` to another value compiles, and its `.padding`/`.frame` silently drop the receiver (`MC-A`); no access-control spelling closes it |
 | `EnvironmentValues.layoutDirection` | carried; no layout reads it (divergence 25) |
@@ -1324,7 +1414,10 @@ registering `ModifiedElement` layer (and a `$anim` entry) per built row, and
 since the accessibility bridge the demo's three labels write `$ax` slots every
 frame, so they are stale by an unmeasured amount. (Divergence 18's `2n + 7` is unaffected: it was measured on
 the `demoLikeRows(_:)` fixture, which has no `.padding`; only its extrapolation
-to the demo is stale.) The proposal engine has no timing. Count its work with
+to the demo is stale.) Since `LR-S` the demo's `demoRows` and `demoModel` are
+library globals, initialized lazily inside the first frame, so the cold frame
+includes 500 `DemoListRow`s' construction (unmeasured). The proposal engine
+has no timing. Count its work with
 `LayoutTree.lastNativeLayoutWork` (`SA-M`): on the branching tree in
 `NativeLayoutWorkTests.swift` one call is 64 measure calls, 51 hits, 90 misses
 (`CN-B`: stacks probe children at main 0 and ∞; 16 / 27 / 25 before); nested
@@ -1349,7 +1442,7 @@ has the mechanisms.
 - **Every typecheck guard skips when `.build` is not where `#filePath`
   resolution expects** — and that includes **the default build system**.
   `swiftbuild` writes modules flat into `.build/out/Products/Debug/` with no
-  `Modules` directory, so under it alone **all 70 guards skip**, the total does
+  `Modules` directory, so under it alone **all 71 guards skip**, the total does
   not move and the run passes. `--build-system native` writes
   `.build/<triple>/debug/Modules`, **and that directory survives**: once a
   checkout has ever been built that way the guards run under the default system

@@ -108,9 +108,9 @@ swift build
 swift test --no-parallel
 ```
 
-On `feat/containers` (2026-09-16, plan task 6) the suite reports **1357
-tests**. That total includes **97** layout goldens generated from WebKit and
-**70** `swiftc -typecheck` guards.
+On `feat/engine-replacement` (2026-09-17, plan task 7 stage 1) the suite
+reports **1409 tests**. That total includes **97** layout goldens generated
+from WebKit and **71** `swiftc -typecheck` guards.
 Read the printed count rather than the exit status. The guards skip silently
 when `.build` is not laid out the way they expect; see
 [`CLAUDE.md`](CLAUDE.md) for how to count them.
@@ -216,7 +216,7 @@ README.
 
 ## How it is put together
 
-Eight one-way-dependent targets:
+Nine one-way-dependent targets:
 
 | target | job |
 |---|---|
@@ -227,7 +227,8 @@ Eight one-way-dependent targets:
 | `MetalUIRender` | Metal pipeline, instanced quads, atlas upload |
 | `MetalUIPlatform` | AppKit window, display link, event plumbing (AppKit is the only platform implementation) |
 | `MetalUI` | the element API: legacy `Box`, `Row`, `Column`, `Stack`, `Text`, `ScrollView`, `List` and `Deferred`; proposal `HStack`, `VStack`, `ZStack`, `Spacer`, `Rectangle`, `Color`, `ProposalScrollView`, `ProposalText`, `ProposalFrame`, `Padding`, `Background` and `FixedSize`; plus `@State`, `@Observable` and animation |
-| `MetalUIDemo` | the executable above |
+| `MetalUIDemoContent` | the demo's content (`demoContent()`, the counter, the proposal preview), a library the tests import |
+| `MetalUIDemo` | the executable above (`runDemo()`) |
 
 The layout engines never learn what text is: they call a measure closure. The
 renderer uploads a CPU-side glyph atlas and `MetalUIText` never learns that
@@ -255,7 +256,7 @@ controls (`docs/probes/swiftui-frame-semantics.swift`, `…-negative-sizes.swift
 and `docs/probes/` holds the other re-runnable SwiftUI probes; the earliest
 probes survive only as prose.
 
-Forty-seven measured divergences from CSS, SwiftUI or WebKit are tabled in
+Forty-eight measured divergences from CSS, SwiftUI or WebKit are tabled in
 [`CLAUDE.md`](CLAUDE.md). One is an unfixed defect (19, one element value
 placed twice shares a `@State` box); the rest are deliberate decisions or known
 limits. Divergence 15 was fixed by task 5; 36, 37 and 40 were retired by task 6
@@ -301,7 +302,9 @@ transforms, and text colour animation.
   [`13-integration-tasks-3-9-12.md`](docs/record/13-integration-tasks-3-9-12.md)
   for their integration, `14`–`15` for tasks 4 and 5, and
   [`16-integration-tasks-4-5.md`](docs/record/16-integration-tasks-4-5.md) for
-  theirs, and [`17-containers.md`](docs/record/17-containers.md) for task 6.
+  theirs, [`17-containers.md`](docs/record/17-containers.md) for task 6, and
+  [`18-engine-replacement-stage-1.md`](docs/record/18-engine-replacement-stage-1.md)
+  for task 7's first stage.
 - [`docs/superpowers/`](docs/superpowers/) — a decisions document per
   completed milestone, each ruling with its reasoning and what it costs if wrong.
 - SwiftUI alignment:
@@ -321,6 +324,9 @@ transforms, and text colour animation.
     and [outer modifiers spec](docs/superpowers/specs/2026-09-15-outer-modifiers-design.md)
   - [containers spec](docs/superpowers/specs/2026-09-16-containers-design.md)
     (plan task 6, done: the legacy containers are audited; replacing them is task 7)
+  - [engine replacement spec](docs/superpowers/specs/2026-09-17-engine-replacement-design.md)
+    (plan task 7, stage 1 of 13 landed: legacy elements lower onto the kernel
+    under an internal proposal authority; production still uses the CSS engine)
 - [`docs/practices/verifying-tests-can-fail.md`](docs/practices/verifying-tests-can-fail.md)
   — sixteen numbered shapes of test that cannot fail, every one observed here.
 

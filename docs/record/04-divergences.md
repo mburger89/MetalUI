@@ -806,3 +806,24 @@ forwarding unchanged (guard
 `aFractionSizeResolvesAgainstItsContainingBlock`.
 
 **35's owner** moves from task 6 to task 7 (`CN-Q`). Never reuse 36, 37 or 40.
+
+## 2026-09-17: divergence 59, and owners amended (plan task 7 stage 1)
+
+Added to `CLAUDE.md`'s table at the stage-1 Docs phase (record §18). No
+divergence is retired: production frames still run under the legacy authority.
+
+| # | kind | ruling (decisions doc) | pin |
+|---|---|---|---|
+| 59 | vs SwiftUI | `LR-X`, `swiftui-engine-replacement-stage1.swift` T3/T4 | `aProposalTextBelowItsNarrowestWordAnswersItsWidestCharacterWhereSwiftUIAnswersTheProposal`, wrong on purpose (task 7 stage 2) |
+
+**Amended, not retired:**
+
+- **39**: the trap moved from construction to legacy registration (`LR-H`); the
+  pin `anIdealDimensionOnTheLegacyFrameTraps` was amended to render the frame.
+  Under the proposal authority the ideals lower onto the kernel frame; stage 6b.
+- **35, 53, 55**: SwiftUI's answer under the proposal authority already, pinned
+  by `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`,
+  `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent` and
+  `aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren`; production at stage
+  6b (`LR-L`).
+- **52** → task 7 stage 2; **54** and **56** → stage 3 (`LR-L`).

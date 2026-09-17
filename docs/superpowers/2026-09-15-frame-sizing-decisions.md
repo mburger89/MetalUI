@@ -278,6 +278,11 @@ the full one.
 
 ## FR-D — `idealWidth`/`idealHeight` trap on the legacy path
 
+*Amended 2026-09-17 (plan task 7 stage 1):* **the trap moved to legacy
+registration by `LR-H`** (it fires when the legacy engine registers the frame, at
+render, not at construction); under the proposal authority a legacy frame lowers
+its ideals onto the kernel frame. Production keeps the trap until stage 6b.
+
 **The finding.** An ideal dimension is defined entirely by "what this view
 wants when nothing is proposed" (probe C control versus C1: the same frame
 answers 20 at a concrete proposal and 80 at none). The CSS engine has no
@@ -318,6 +323,11 @@ code, so a trap fired for another reason does not pass.
 ---
 
 ## FR-E — the legacy frame clamps at a maximum but never grows into the proposal
+
+*Amended 2026-09-17:* lowered to SwiftUI's greedy answer under the proposal
+authority by `LR-H` (task 7 stage 1,
+`aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`);
+production at stage 6b.
 
 **The finding.** `FR-A`'s greedy rule needs the proposal for **one named
 axis**. A legacy layer is a flex item of a parent whose main axis it cannot
@@ -813,6 +823,10 @@ cannot overflow both axes), 2.1, and the two `ComponentTests` frame tests.
 ---
 
 ## FR-O — an infinite maximum fills when BOTH axes are infinite, and is inert when only one is
+
+*Amended 2026-09-17:* a single-axis infinite maximum is lowered to a greedy
+kernel frame under the proposal authority by `LR-H` (task 7 stage 1, same pin as
+`FR-E`'s); production at stage 6b.
 
 **Where it came from.** The critic round's finding 7: lowering an infinite
 maximum to nothing makes `.frame(maxWidth: .infinity)` — the commonest SwiftUI

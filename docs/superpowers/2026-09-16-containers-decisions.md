@@ -1068,6 +1068,15 @@ reddens the pin and three lane-4 tests. Probe arms S, A5 and SC2 were re-run
 | a non-clickable primary blocking a background's click (probe H3) | MetalUI's hit model (only `onClick`/`onTap` is opaque) is plan task 12's | task 12 |
 | the release-window captures | `IOConsoleLocked` read `<true/>` at design time, again in critic round 1 | carried (`MC-J`) |
 
+*Amended 2026-09-17 (plan task 7 stage 1):* task 7's handed items now have
+stages (`LR-L`, engine-replacement spec §4): lowering `Row`/`Column`/`Stack`/`Box`
+is stage 1 (done under an internal proposal authority), `ScrollView` stage 3,
+`Deferred` stage 5 and the root switch 6b; the windowed `List` stage 4; legacy
+`.overlay` stage 11; the greedy finite and single-axis infinite maxima lowered
+under the proposal authority in stage 1, in production at 6b; the nil-axis frame
+under a stretching `Box` stage 2; a frame over a multi-member `Component` stage
+3; `SA-N` item 4 stage 2.
+
 ---
 
 ## CN-R — method: what was run, and where

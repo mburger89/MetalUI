@@ -390,6 +390,38 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   proposal portal for `Deferred`, legacy `.overlay`, the legacy frame's greedy
   finite and single-axis infinite maxima, a frame over a multi-member
   `Component`, `SA-N`'s padding item and divergences 35, 52–56 (`CN-Q`).
+  *Progress 2026-09-17 on `feat/engine-replacement` (`59fd180..aea19ed`, from
+  `c2290fc`), stage 1 of 13, still open.* Spec
+  `specs/2026-09-17-engine-replacement-design.md` (inventory §2, stage plan §4);
+  rulings `LR-A`…`LR-AA` in `../2026-09-17-engine-replacement-decisions.md`;
+  probe `docs/probes/swiftui-engine-replacement-stage1.swift` (revision 2);
+  record §18. **Stages:** 1 lowering foundation; 2 flex-item semantics onto
+  SwiftUI's; 3 `ScrollView` and `Component` distribution; 4 windowed proposal
+  `List`; 5 `Deferred` presentation and absolute positioning; G grids; 6a custom
+  elements and the public legacy registrars deprecated; 6b the root switch
+  (`noProductionFrameReachesTheLegacyEngine`); 7a goldens replaced; 7b
+  non-golden CSS tests retired; 8 sizing vocabulary onto `.frame`; 9 engine
+  deleted; 10 `Style`'s CSS fields and the `dlsym` closing check; 11 modifier
+  unification. **Stage 1 delivered** (five lanes, each red first, all verified
+  `ok`; lane 5 with four open minors — 5.8's doc comment and the bracketed depth
+  boundary, `compareInWindows` with no caller, the lazy demo globals, 5.5
+  passing on an empty bounds log): a per-frame layout authority (internal,
+  legacy by default); every legacy site reporting or trapping by name; an
+  element-bounds log and a differential harness comparing rects, scene,
+  hitboxes, accessibility and state slots; `Text`, childless and container
+  `Box`, `Row`, `Column`, `Stack`, `.padding` and `.frame` layers lowered onto
+  the kernel on the stage-1 subset, animated; legacy ideal under the proposal
+  authority (the legacy trap moved to registration, `LR-H`); mixed trees ruled
+  (`LR-T`); the demo's content in a `MetalUIDemoContent` library (`LR-S`);
+  pipeline parity (clicks, focus, keys, accessibility, state slots, animation),
+  work and depth pins. Suite 1409 (1357 + 52), 97 goldens unmoved, 71 guards,
+  re-taken after `swift package clean` at the Docs phase; twelve offscreen demo
+  images 0 differing pixels at every lane; real-window captures not taken
+  (`IOConsoleLocked` true throughout). **Not done:** no production frame runs
+  under the proposal authority; nothing deleted; no golden retired. Unspecified,
+  ideal, min/max, fixed-size, priority, compression, expansion and custom
+  layouts exist on the proposal path; grids are still absent (stage G). The
+  handed items above each have a stage (`CN-Q`'s 2026-09-17 amendment).
 
 - [ ] **8. Audit composition and identity.**
   Verify `Group`, conditional content, explicit identity, `Component`, and

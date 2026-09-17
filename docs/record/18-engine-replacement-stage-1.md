@@ -1718,3 +1718,39 @@ every count after the merge, after `swift package clean` (hazard 1).
   frame 3.
 - Decisions doc `LR-AA` items 4 and 7 and spec §5.2 / 5.8's row: amend for minors
   1 and 2 when they are fixed.
+
+## Docs phase (2026-09-17)
+
+- **Re-take.** `swift package clean`, `swift build --build-system native
+  --build-tests` → exit 0, 0 `error:`, one `warning:` (SwiftPM's
+  `--build-system native` deprecation notice); `swift test --build-system native
+  --no-parallel`, unfiltered → `Test run with 1409 tests in 1 suite passed after
+  42.786 seconds.`, 0 `error:`, the same lone deprecation `warning:`; skipped:
+  `regenerateAllGoldens`, `aListsWorkIsTheSameFor100kRowsAsFor500`; guard output
+  lines printed, so the typecheck guards ran. Goldens `find Tests -name "*.json"
+  | wc -l` → 97. Guards per file (`grep -c canTypecheck`): `PhaseSeparationTests`
+  19, `ErasureCompileGuards` 10, `EnvironmentCompileGuards` 8,
+  `ProposalNodeIDCompileGuards` 6, `ProposalLayoutCompileGuards` 6,
+  `ElementGroupTrapTests` 5, `ContainerCompileGuards` 4, `AXNodeTests` 3,
+  `DecorationCompileGuards` 3, `UnitSafetyTests` 3 (one a comment),
+  `ModifiedElementCompileGuards` 2, `FrameSizingCompileGuards` 2,
+  `LayoutAuthorityCompileGuards` 1 → **71**. `@available(*, deprecated` hits: 34.
+- **`IOConsoleLocked`** read `<true/>` again; no real-window capture.
+- **Checked against source before writing the rules:** `Window.layoutAuthority`
+  (internal, `didSet` dirties), `Frame.unguardedLegacyRegistration` (traps unless
+  `reportsUnlowerableFields`, then a 0×0 native leaf), the four
+  `recordElementBounds` call sites (`Frame.render`, `Element.prepaintGroup`,
+  `AnyElement`'s `prepaintGroup`, the inner `ModifiedElement` layer), the absence
+  of `suppressingAccessibilityIfHidden` in `AnyElement`'s entry, every test name
+  cited in `CLAUDE.md`'s new text, and `Package.swift`'s nine non-test targets.
+  One correction to the integrator notes: `PreviewToggle` is at
+  `DemoContent.swift:929`, not 932.
+- **Documents changed:** `CLAUDE.md`/`AGENTS.md` (ruling table, Where things are,
+  counts, guards, targets, the layout-authority paragraph, the group-default
+  hook rule, frame sizing, depth guard, practices, performance, human
+  verification, divergences 35/39/52–56 and new 59, inert table), `README.md`,
+  `docs/record/README.md`, `docs/record/04-divergences.md`, the frame-sizing
+  decisions doc (`FR-D`, `FR-E`, `FR-O` amendment notes), the containers
+  decisions doc (`CN-Q` stages), the plan's task 7 progress note (not ticked).
+  Lane 5's four minors remain open; `LR-AA` items 4 and 7 and spec §5.2/5.8 are
+  unamended because the minors are unfixed.
