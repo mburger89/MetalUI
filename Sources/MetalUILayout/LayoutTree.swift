@@ -1644,6 +1644,11 @@ extension LayoutTree {
     /// function so `measureNative`'s frame gains no locals (spec §4.5).
     private func measureGrid(_ id: LayoutNodeID, proposal: ProposedSize, run: NativeLayoutRun) -> SizeD {
         guard let plan = nativeGridPlan(id) else { preconditionFailure("measureGrid on a node that is not a grid") }
+        guard proposal.width == nil, proposal.height == nil else {
+            return solveNativeGrid(plan, proposal: proposal) { index, cellProposal in
+                self.measureNative(plan.cells[index].node, proposal: cellProposal, run: run).size
+            }.size
+        }
         var answers: [SizeD] = []
         answers.reserveCapacity(plan.cells.count)
         for cell in plan.cells {

@@ -1381,7 +1381,13 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 ///
 /// - GE8 `HStack{a flexible; Grid{[c flexible priority 1]}}` at 100×100: 46/46,
 ///   against GE27 (the same HStack with no grid) 0/92.
-/// - GE10 `HStack{a flexible; Grid{[c flexible priority 1, d 10x10]}}`: 36/38/10.
+/// - GE10 `HStack{a flexible; Grid{[c flexible priority 1, d 10x10]}}`: **pinned
+///   wrong on purpose** at the kernel's 46/38/10 (the stack 110 wide); SwiftUI
+///   reads 36/38/10. Not the grid's doing (ruling GR-X): the grid and `a` both
+///   answer ∞ at main ∞, and MetalUI's stack breaks that tie in declaration
+///   order (CN-B) where SwiftUI served the grid, larger at 0 (18), first; probe
+///   `swiftui-grid-stack-ties.swift` T1, and T7 with no grid. The grid's own
+///   answer to its 46 offer (56 = 38 + 8 + 10) is the model's.
 /// - GE11 `HStack{a flexible; Grid{[Spacer s]}}`: 50/50, against GE28 (no grid)
 ///   92/8.
 ///
@@ -1398,7 +1404,7 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 
     let ge10 = Arm()
     ge10.run(ge10.hstack("stack", [ge10.fl("a"), ge10.grid([row(ge10.prio(ge10.fl("c"), 1), ge10.fx("d", 10, 10))])]), 100, 100)
-    expectRects(ge10, "GE10", ["a": r(0, 0, 36, 100), "c": r(44, 0, 38, 100), "d": r(90, 45, 10, 10)])
+    expectRects(ge10, "GE10 (pinned wrong on purpose, GR-X)", ["a": r(0, 0, 46, 100), "c": r(54, 0, 38, 100), "d": r(100, 45, 10, 10)])
 
     let ge11 = Arm()
     ge11.run(ge11.hstack("stack", [ge11.fl("a"), ge11.grid([row(ge11.spacer("s"))])]), 100, 100)
@@ -1415,6 +1421,14 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 /// each agreeing with SwiftUI in the probe), and the edge arms of 1.10/1.11 are
 /// laid out here, where the stack proposes the grid a concrete cross axis
 /// (GR-W).
+///
+/// **GE19 is pinned wrong on purpose** (ruling GR-X): SwiftUI reads the stack
+/// 200×100, z (0,0 200×34), a (0,42 152×20), b (170,42), c (71,70), d (160,80),
+/// serving the grid (58 tall at 0, ∞ at ∞) before the flexible z declared
+/// first; MetalUI's stack keeps declaration order on that tie (CN-B), so z takes
+/// 46 and the grid answers 58 to its 46 offer: 200×112. The cause is the stack's,
+/// not the grid's: the control T7 (`VStack{z flexible; b height ≥ 58}`, no grid)
+/// reads z 46 here where SwiftUI reads 34 (probe `swiftui-grid-stack-ties.swift`).
 ///
 /// Mutation (GZ0's control): every group offered W′/ncols, commits ignored (GE17
 /// moves; recorded by the lane).
@@ -1435,8 +1449,15 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
     do { // GE19
         let arm = Arm()
         arm.run(arm.vstack("stack", [arm.fl("z"), ga1Grid(arm, flexibleA: true)]), 200, 100)
-        #expect(arm["stack"] == r(0, 0, 200, 100), "GE19 size")
-        expectRects(arm, "GE19", ["a": r(0, 42, 152, 20), "b": r(170, 42, 20, 20), "c": r(71, 70, 10, 30), "d": r(160, 80, 40, 10), "z": r(0, 0, 200, 34)])
+        #expect(arm["stack"] == r(0, 0, 200, 112), "GE19 size (pinned wrong on purpose, GR-X)")
+        expectRects(arm, "GE19 (pinned wrong on purpose, GR-X)",
+                    ["a": r(0, 54, 152, 20), "b": r(170, 54, 20, 20), "c": r(71, 82, 10, 30), "d": r(160, 92, 40, 10), "z": r(0, 0, 200, 46)])
+    }
+    do { // T7, the stack-only control for GE19 (probe swiftui-grid-stack-ties.swift): SwiftUI z 34, b 58
+        let arm = Arm()
+        let b = arm.leaf("b") { SizeD(width: $0.width ?? 10, height: Swift.max($0.height ?? 10, 58)) }
+        arm.run(arm.vstack("stack", [arm.fl("z"), b]), 200, 100)
+        expectRects(arm, "T7 (pinned wrong on purpose, GR-X)", ["stack": r(0, 0, 200, 112), "z": r(0, 0, 200, 46), "b": r(0, 54, 200, 58)])
     }
     do { // GE20
         let arm = Arm()

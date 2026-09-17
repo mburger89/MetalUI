@@ -106,6 +106,10 @@ struct NativeGridSolution {
     var answers: [SizeD]
     /// The grid's answer: the sums plus the gaps.
     var size: SizeD
+    /// Ruling GR-U's counter: cell, column and row records visited by the
+    /// finite solve's open-count updates, commit checks and span sums. 0 at
+    /// nil×nil.
+    var bookkeepingSteps = 0
 }
 
 /// Builds a grid's plan from its children in order (spec §4.1).
@@ -214,7 +218,7 @@ func makeNativeGridPlan(_ children: [NativeGridChild], alignment: ProposalAlignm
 func solveNativeGrid(_ plan: NativeGridPlan, proposal: ProposedSize,
                      measure: (Int, ProposedSize) -> SizeD) -> NativeGridSolution {
     guard proposal.width == nil, proposal.height == nil else {
-        preconditionFailure("grids lane 2: a grid solved at a non-nil proposal \(proposal)")
+        return solveNativeGridAtAProposal(plan, proposal: proposal, measure: measure)
     }
     var widths = Array(repeating: 0.0, count: plan.columnCount)
     var heights = Array(repeating: 0.0, count: plan.rowCount)
@@ -306,4 +310,143 @@ func nativeGridZeroSpacingEdges(_ plan: NativeGridPlan, axis: ProposalStackAxis)
         return (plan.rowCells[0].contains { plan.cells[$0].verticalEdges.leading },
                 plan.rowCells[plan.rowCount - 1].contains { plan.cells[$0].verticalEdges.trailing })
     }
+}
+
+/// SCANNING FIRST BRANCH (red first for GR-U): the model's shape, every open
+/// count and commit check a scan of every cell.
+private func solveNativeGridAtAProposal(_ plan: NativeGridPlan, proposal: ProposedSize,
+                                        measure: (Int, ProposedSize) -> SizeD) -> NativeGridSolution {
+    let cells = plan.cells
+    var steps = 0
+    var widths = Array(repeating: 0.0, count: plan.columnCount)
+    var heights = Array(repeating: 0.0, count: plan.rowCount)
+    var proposals = Array(repeating: proposal, count: cells.count)
+    var answers = Array(repeating: SizeD(width: 0, height: 0), count: cells.count)
+    var infinite = Array(repeating: 0, count: cells.count)
+    var finite = Array(repeating: 0.0, count: cells.count)
+    for index in cells.indices {
+        let zero = measure(index, ProposedSize(width: 0, height: 0))
+        let inf = measure(index, ProposedSize(width: .infinity, height: .infinity))
+        if proposal.width != nil {
+            if inf.width.isInfinite { infinite[index] += 1 } else { finite[index] += inf.width - zero.width }
+        }
+        if proposal.height != nil {
+            if inf.height.isInfinite { infinite[index] += 1 } else { finite[index] += inf.height - zero.height }
+        }
+    }
+    func sameKey(_ x: Int, _ y: Int) -> Bool {
+        cells[x].priority == cells[y].priority && infinite[x] == infinite[y] && finite[x] == finite[y]
+    }
+    let order = cells.indices.sorted { x, y in
+        if cells[x].priority != cells[y].priority { return cells[x].priority > cells[y].priority }
+        if infinite[x] != infinite[y] { return infinite[x] < infinite[y] }
+        if finite[x] != finite[y] { return finite[x] < finite[y] }
+        return x < y
+    }
+    let wPrime = proposal.width.map { $0 - plan.hgap.reduce(0, +) }
+    let hPrime = proposal.height.map { $0 - plan.vgap.reduce(0, +) }
+    var done = Array(repeating: false, count: cells.count)
+    var committedColumns = Array(repeating: false, count: plan.columnCount)
+    var committedRows = Array(repeating: false, count: plan.rowCount)
+    func spanWidth(_ cell: NativeGridCell) -> Double {
+        widths[cell.column..<(cell.column + cell.span)].reduce(0, +) + innerGaps(plan, cell)
+    }
+    var start = 0
+    while start < order.count {
+        var end = start + 1
+        while end < order.count, sameKey(order[end], order[start]) { end += 1 }
+        let level = cells[order[start]].priority
+        var open = Array(repeating: false, count: plan.columnCount)
+        for column in 0..<plan.columnCount {
+            for (index, cell) in cells.enumerated() {
+                steps += 1
+                if cell.span == 1, cell.column == column, cell.priority == level, !done[index] { open[column] = true; break }
+            }
+        }
+        var openRows = 0
+        for row in 0..<plan.rowCount {
+            for (index, cell) in cells.enumerated() {
+                steps += 1
+                if cell.row == row, cell.priority == level, !done[index] { openRows += 1; break }
+            }
+        }
+        let openColumns = open.filter { $0 }.count
+        let shareW = wPrime.map { w -> Double in
+            if w.isInfinite { return w }
+            steps += plan.columnCount
+            let committed = zip(widths, committedColumns).reduce(0.0) { $0 + ($1.1 ? $1.0 : 0) }
+            return (w - committed) / Double(Swift.max(openColumns, 1))
+        }
+        let shareH = hPrime.map { h -> Double in
+            if h.isInfinite { return h }
+            steps += plan.rowCount
+            let committed = zip(heights, committedRows).reduce(0.0) { $0 + ($1.1 ? $1.0 : 0) }
+            return (h - committed) / Double(Swift.max(openRows, 1))
+        }
+        for index in order[start..<end] {
+            let cell = cells[index]
+            var width: Double?
+            if let wPrime, let shareW {
+                if cell.span == 1 {
+                    width = Swift.max(shareW, widths[cell.column])
+                } else if wPrime.isInfinite {
+                    width = wPrime
+                } else {
+                    var outside = 0.0
+                    for column in 0..<plan.columnCount where !(cell.column..<(cell.column + cell.span)).contains(column) {
+                        steps += 1
+                        outside += open[column] ? shareW : widths[column]
+                    }
+                    steps += cell.span
+                    width = Swift.max(wPrime - outside + innerGaps(plan, cell), spanWidth(cell))
+                }
+            }
+            let height = shareH.map { Swift.max($0, heights[cell.row]) }
+            let cellProposal = ProposedSize(width: width, height: height)
+            let answer = measure(index, cellProposal)
+            proposals[index] = cellProposal
+            answers[index] = answer
+            heights[cell.row] = Swift.max(heights[cell.row], answer.height)
+            if cell.span == 1 { widths[cell.column] = Swift.max(widths[cell.column], answer.width) }
+            done[index] = true
+        }
+        for index in order[start..<end] where cells[index].span > 1 {
+            let cell = cells[index]
+            let columns = cell.column..<(cell.column + cell.span)
+            steps += cell.span
+            let shortfall = answers[index].width - spanWidth(cell)
+            guard shortfall > 0 else { continue }
+            var targets: [Int] = []
+            for column in columns {
+                for (other, candidate) in cells.enumerated() {
+                    steps += 1
+                    if candidate.span == 1, candidate.column == column, !done[other] { targets.append(column); break }
+                }
+            }
+            if targets.isEmpty { targets = columns.filter { plan.columnSingleCells[$0].isEmpty } }
+            if targets.isEmpty { targets = Array(columns) }
+            for column in targets { widths[column] += shortfall / Double(targets.count) }
+        }
+        for column in 0..<plan.columnCount where !committedColumns[column] {
+            var blocked = false
+            for (index, cell) in cells.enumerated() {
+                steps += 1
+                if cell.span == 1, cell.column == column, !done[index], cell.priority >= level { blocked = true; break }
+            }
+            if !blocked { committedColumns[column] = true }
+        }
+        for row in 0..<plan.rowCount where !committedRows[row] {
+            var blocked = false
+            for (index, cell) in cells.enumerated() {
+                steps += 1
+                if cell.row == row, !done[index], cell.priority >= level { blocked = true; break }
+            }
+            if !blocked { committedRows[row] = true }
+        }
+        start = end
+    }
+    let size = SizeD(width: widths.reduce(0, +) + plan.hgap.reduce(0, +),
+                     height: heights.reduce(0, +) + plan.vgap.reduce(0, +))
+    return NativeGridSolution(columnWidths: widths, rowHeights: heights, proposals: proposals,
+                              answers: answers, size: size, bookkeepingSteps: steps)
 }
