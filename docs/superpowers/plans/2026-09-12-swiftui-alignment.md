@@ -179,7 +179,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
 
   **Carried, not blocking:** release-window captures of the default demo and
   the preview against `f64e58a` (an offscreen pixel stand-in reads 0 differing
-  pixels, record §13); the `_wrap` hole; the shape-13 sweep; a shared
+  pixels, record §13; *real captures taken 2026-09-17, 0 differing pixels on both
+  windows, record §03*); the `_wrap` hole; the shape-13 sweep; a shared
   `malloc_logger` counter. **Owned by later tasks** (`MC-L`): task 4 —
   `width`/`height`/min/max as layers and legacy `.frame` semantics; task 5 —
   `Component` distribution, B-7, hole 5 and paint-only layers; task 6 — hole 4
@@ -228,7 +229,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   lowering function. Also open: a greedy finite maximum, a single-axis infinite
   maximum and an overflowing oversized child on the legacy path (task 6),
   `ideal` on the legacy path (task 7), the `percent:` unit (task 6), the
-  release-window captures (`MC-J`; `FR-V`). *2026-09-16, task 6
+  release-window captures (`MC-J`; `FR-V`; *taken 2026-09-17, 0 differing
+  pixels on both windows, record §03*). *2026-09-16, task 6
   (`feat/containers`, record §17):* the oversized child overflows for a frame
   over one node (`CN-N`) and `percent:` is renamed `fraction:` (`CN-O`); the
   greedy finite and single-axis infinite maxima move to task 7 (`CN-Q`).
@@ -267,7 +269,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   not add a proposal-row shape). Also open, beyond the task's text: the
   `.cornerRadius`/`.background` and `.cornerRadius`/`.border` orders
   (`swiftui-border-clip-paint` C3, D1) have no test; the focus ring's look;
-  the release-window captures.
+  the release-window captures (*taken 2026-09-17, 0 differing pixels on both
+  windows, record §03*).
 
 - [x] **6. Port SwiftUI's container algorithms to the proposal path and audit the legacy containers.**
   Make `HStack`, `VStack`, `ZStack`, `Spacer`, `.overlay`/`.background`
@@ -417,7 +420,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   work and depth pins. Suite 1409 (1357 + 52), 97 goldens unmoved, 71 guards,
   re-taken after `swift package clean` at the Docs phase; twelve offscreen demo
   images 0 differing pixels at every lane; real-window captures not taken
-  (`IOConsoleLocked` true throughout). **Not done:** no production frame runs
+  (`IOConsoleLocked` true throughout; *taken 2026-09-17 against `c2290fc`, 0
+  differing pixels on both windows, record §03*). **Not done:** no production frame runs
   under the proposal authority; nothing deleted; no golden retired. Unspecified,
   ideal, min/max, fixed-size, priority, compression, expansion and custom
   layouts exist on the proposal path; grids are still absent (stage G). The

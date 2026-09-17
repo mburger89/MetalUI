@@ -32,7 +32,8 @@
 //     /tmp/lockstate 2>&1 | grep -v 'Connection\]'
 //     ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked     # for comparison only
 //
-// The capture may be attempted only when `CGSSessionScreenIsLocked` is 0 AND
+// The capture may be attempted only when `CGSSessionScreenIsLocked` is absent
+// or 0 (reading 5: absent when unlocked) AND
 // `displayAsleep main` is false. `preflightScreenCaptureAccess` is the
 // permission, not the lock: it read `true` on every locked reading. The
 // backstop, whatever any flag says, is the full-screen capture's non-black
@@ -44,7 +45,8 @@
 // 'CFDictionary' has no member 'takeRetainedValue'`); bridge it with
 // `as? [String: Any]` as below.
 //
-// RECORDED OUTPUT — four readings, all locked (1–3 one lock, 4 a later one), macOS
+// RECORDED OUTPUT — five readings: 1–4 locked (1–3 one lock, 4 a later one), 5
+// UNLOCKED, the positive control; macOS
 // 26.6.2 (25G83), Apple Swift 6.4 (swiftlang-6.4.0.33.1), one 2056×1329 @2x
 // display:
 //
@@ -102,10 +104,23 @@
 //
 //    The lock time moved (1789543593 → 1789569027), so the screen was
 //    unlocked and re-locked between readings 3 and 4 with nobody capturing.
-//    STILL NO POSITIVE CONTROL: the rule "0 and not asleep ⇒ a capture
-//    succeeds" has never been observed. Owed: an unlocked reading taken
-//    together with a full-screen `screencapture -x` whose non-black pixel
-//    count is above 0.
+//    STILL NO POSITIVE CONTROL at this reading (closed by reading 5).
+//
+// 5. 2026-09-17 06:57:23 PDT, at `12abda1`, UNLOCKED — the positive control,
+//    on macOS 27.0, same toolchain and display. `IOConsoleLocked` `<false/>`.
+//    Every key as in reading 3 EXCEPT that `CGSSessionScreenIsLocked` and
+//    `CGSSessionScreenLockedTime` are ABSENT (no line printed; they are not
+//    0), and `kCGSSessionSecureInputPID` is absent too:
+//
+//      displayAsleep main: 0
+//      displayActive main: 1
+//      preflightScreenCaptureAccess: true
+//
+//    Together with it, a full-screen `screencapture -x` wrote a 4112×2658 PNG
+//    with 10 929 102 non-black pixels of 10 929 696 (against 0 at reading 1),
+//    and the release-window captures in record §03 succeeded. So the rule is
+//    "the lock keys are absent (or 0) and the display is not asleep", and it
+//    has now been observed in both directions.
 
 import CoreGraphics
 import AppKit

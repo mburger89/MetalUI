@@ -1252,3 +1252,56 @@ entry is `AN-R`.
   at integration (a full `screencapture -x` wrote an all-black 4112×2658 PNG).
   An offscreen `FakePlatformWindow` pixel comparison stands in and reads 0
   differing pixels in ten images; what it cannot see is listed in record §13.
+
+
+## Release-window captures, 2026-09-17 — the four owed comparisons, closed
+
+Four entries owed a real-window comparison and each had only an offscreen
+`FakePlatformWindow` stand-in, because the screen was locked at every attempt:
+tasks 3/9/12 against `f64e58a` (`MC-J`, `EV-P`), tasks 4/5 against `c4b5853`
+(record §16), task 6 against `9e439cb` (record §17) and task 7 stage 1 against
+`c2290fc` (record §18). With the user present and the screen unlocked, all four
+were taken in one run on 2026-09-17 around 06:50 PDT, macOS 27.0, one 2056×1329
+@2x display, release builds from `git archive` of each commit and of `12abda1`.
+
+**Lock check first** (`FR-V`), which is also the lock probe's first positive
+control: `docs/probes/appkit-screen-lock-state.swift` printed no
+`CGSSessionScreenIsLocked` or `CGSSessionScreenLockedTime` line (the keys are
+absent when unlocked, not 0), `displayAsleep main: 0`, `displayActive main: 1`;
+`IOConsoleLocked` read `<false/>`; a full-screen `screencapture -x` had
+10 929 102 non-black pixels of 10 929 696. The probe's header carries this as
+reading 5.
+
+**Method** (`docs/probes/window-capture/capture.sh`, committed with its three
+Swift helpers). It is not `MC-J`'s `-R<rect>`: each window is captured by id
+(`screencapture -x -o -l <id>`), so desktop corners, neighbouring windows and
+the launch position (it varied by up to 8pt between launches) stay out of the
+image. No input was sent and the pointer was not moved. Each window was
+captured twice, 1.5 s apart, after a 3 s settle, and every pair read 0.
+
+| step | default window | preview window |
+|---|---|---|
+| `f64e58a` → `c4b5853` (tasks 3, 9, 12) | 0 | 0 |
+| `c4b5853` → `9e439cb` (tasks 4, 5) | 0 | 0 |
+| `9e439cb` → `c2290fc` (task 6) | 0 | **114 132**, bbox (168,182)–(1671,1051) |
+| `c2290fc` → `12abda1` (task 7 stage 1) | 0 | 0 |
+
+All images 1840×1176. **Control:** default against preview at `12abda1` differs
+by 890 803 pixels, so a 0 is a real 0. `f64e58a` → `12abda1` on the default
+window also reads 0 directly.
+
+**The one difference is task 6's recorded change, confirmed by eye** on the two
+captures: the `ProposalScrollView` is as wide as its content instead of the
+window's width (`CN-M`), and the column moves by the toggle's extra point
+(`CN-G`). Nothing else in the preview moved.
+
+**What this closes and what it does not.** It closes the four capture rows in
+`CLAUDE.md`'s human-verification table: the real drawable, presented in a real
+window at the display's scale, matches between each base and its successor.
+It is a no-input still, so it says nothing about hover, focus, clicks, the
+modal (**M**), the animation look (**A**), scrolling, a mid-flight animation or
+text's §4.2 failure modes; those rows stay as they were. It also does not
+re-take the pixel readings of the 2026-09-10 animation entry. One prediction is
+worth noting against the image: record §16 said a look at the 920×560 preview
+would report a clipped border (`FR-U`); the `c4b5853` and later preview
+captures show no clipped content at any window edge. That was not investigated.
