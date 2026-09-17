@@ -431,66 +431,201 @@ private func sortedLoweredRects(_ r: LayoutDifferential.Report) -> [Bounds<Pixel
     try #require(arms == 4)
 }
 
-// MARK: - 5.3 — the whole demo's census
+// MARK: - 5.3 = stage 2's 2.15 — the whole demo's census, and every disagreement with its cause
 
-/// **5.3 — stage 2's entry.** `demoContent()`, **imported from `MetalUIDemoContent`**
-/// (ruling LR-S), one frame at 920×560 inside the harness root under diagnostics
-/// (modal and animation off): the `(site, field)` entries it reports, **in order**,
-/// as a literal, each annotated with the element it names, the lowered container
-/// that reports it and its owning stage.
+/// A text of width `width` centred in `extent` at absolute `x`, as the frame rounds
+/// it: cumulative edges (`Rounding.swift`), so x is `round(x₀)` and the width
+/// `round(x₀ + width) − round(x₀)`.
+private func centredRounded(at x: Float, in extent: Float, width: Double) -> (x: Float, width: Float) {
+    let x0 = Double(x) + (Double(extent) - width) / 2
+    return (Float(x0.rounded()), Float((x0 + width).rounded() - x0.rounded()))
+}
+
+/// **2.15 — stage 2's exit test** (spec §7, ruling LR-AN as amended; stage 1's 5.3,
+/// rewritten in stage 2's lane 2). `demoContent()`, **imported from
+/// `MetalUIDemoContent`** (ruling LR-S), at 920×560 in the harness root under
+/// diagnostics, animation off.
 ///
-/// **Re-measured in stage 2, lane 1** (record §19). Item fields are read by the
-/// parent since then (ruling LR-AB): a child's entry is reported when its lowered
-/// container registers, after that container's own rows, at the child's site; a
-/// stretch or `alignSelf` lowers, so stage 1's four `alignItems.stretch`, the
-/// header layer's `modifierLayer.alignItems.stretch`, `stack.alignSelf` and
-/// `box.alignSelf` are gone (rulings LR-AC, LR-AD), and the scroller box's three
-/// fields read in `LR-AQ`'s order. Nothing is `…unconsumed`: the `List`'s zero-row
-/// `Box` consumes its spacer, and the `ScrollView` marks what it receives.
+/// **1. The report, exactly.** Modal off: `[list.noLowering, scrollView.noLowering]`;
+/// modal on: `[stack.position, stack.inset, list.noLowering, scrollView.noLowering]`.
+/// No stage-2 field and no `…unconsumed` entry: every item field the demo declares
+/// lowers (grow, stretch, `alignSelf`, the scroller box's zero basis and minimum, the
+/// `List` spacer's `flexShrink(0)` on a declared height).
 ///
-/// | # | entry | element (reported by) | stage |
+/// **2. Every disagreement, with its cause** (modal off: 2036 ids, 6 agreeing — the
+/// harness root, the header's layer, row, avatar and bar, the hairline — 30
+/// disagreeing, 2000 legacy-only, the `List`'s rows, 0 lowered-only). Rects no text
+/// reaches are literals; rects a text reaches are derived below from the shaping
+/// cache (`LR-F`): lowered text sizes from `proposalTextMeasurement` at the widths
+/// this test derives (648 for the main column, 168 for the sidebar), legacy ones from
+/// the same cache at 756 and 60 — and at `nil` for the legacy main column's
+/// intrinsic height, which CSS takes from its items' max-content contributions (the
+/// paragraph one line tall; which is why the legacy column is 278 tall and its
+/// paragraph overflows it).
+///
+/// | cause | probe arm | isolating pin | rows (legacy → lowered) |
 /// |---|---|---|---|
-/// | 1 | `box.flexGrow` | the header's bar (the header `Row`) | 2 |
-/// | 2 | `box.flexGrow` | the header `Row` (its padding layer) | 2 |
-/// | 3 | `box.flexGrow` | the sidebar `Column` (its padding layer) | 2 |
-/// | 4 | `list.noLowering` | the `List`, checked before it builds its `Box` | 4 |
-/// | 5 | `box.flexShrink` | the `List`'s spacer (its zero-row `Box`, diagnostics only) | 2 (4 replaces it) |
-/// | 6 | `scrollView.noLowering` | the `ScrollView` | 3 |
-/// | 7–9 | `box.flexGrow`, `box.flexBasis`, `box.minSize` | the `Box` around the scroller (the main pane's `Column`) | 2 |
-/// | 10 | `box.flexGrow` | the main pane's `Column` (its padding layer) | 2 |
-/// | 11 | `modifierLayer.flexGrow` | the main pane's padding layer (the body `Row`) | 2 |
-/// | 12 | `box.flexGrow` | the body `Row` (the outer `Column`) | 2 |
-/// | 13 | `box.flexGrow` | the outer `Column` (the outer padding layer) | 2 |
+/// | **R** the harness root offers its proposal (divergence 53) and the demo's greedy column fills it | stack-algorithms A5; stage-2 X4, X18 | `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent`, 1.7, 2.10 | outer padding layer 920×439 → 920×560; outer column 888×407 → 888×528; body row 888×310 → 888×431; the sidebar's and main pane's layers' and the main column's heights; the scroller `Box`'s height 0 → 73 |
+/// | **55** a declared 196 sidebar is served first where CSS shrinks it to 88 | F5; stack-algorithms G9, G4r | 2.9 | sidebar layer 88 → 196 wide; its column, "Library" and the four bars 60 → 168 wide; main-pane layer x 116 → 224, 788 → 680 wide; main column 756 → 648; every main-pane descendant x + 108; "Text renders" 756 → 648 wide; the paragraph 756×48 → 648×64; the scroller `Box` y 439 → 455 |
+/// | **X9** a stretched single-child container does not stretch its child (`LR-AC`) | X9 | 1.3 | the sidebar column 282 → 160 tall |
+/// | **3** `ScrollView` has no lowering | — (site-level) | stage 3 | the `ScrollView` (420×0 → 0×0 at the box's origin) |
+/// | **4** `List` has no lowering | — (site-level) | stage 4 | the `List` (420×14000 → 0×0 at 0, 0) and its row `Box` (420×0 → 0×0) |
 ///
-/// The modal is off, so `Deferred`, `position` and `inset` do not appear (stage 5).
-/// Nothing but entries 4 and 6 is site-level: every other entry names a field stage
-/// 2 owns — which is what stage 2's exit test rewrites this literal to (lane 2).
+/// **Measured first against the prediction** (prototype P3 and scratch R2, record
+/// §19): identical in both modal states, every pair (record §19, lane 2).
 ///
-/// Mutations that must redden it (stage 2, lane 1): **M1t**, the parent's `flexGrow`
-/// report dropped (eight entries leave); stage 1's **M5c** is retired with the
-/// stretch row it mutated.
+/// **3. Modal on**: 2042 ids, 6 agreeing, **36** disagreeing — the 30 above (the
+/// `List` and its row box one index later, after the `Deferred`) plus the modal's six
+/// ids (the `Deferred`, its `Stack`, the card's padding layer, its column and two
+/// texts), which are stage 5's (`position`, `inset`) and asserted by id only.
+///
+/// Mutations that must redden it: **M1a** (stretch not aliased), **M2a** (grow on the
+/// cross axis), **M1d** (the elision removed: the X9 row moves), **M2k** (cause R's
+/// rows move), **M1m′** (only if the demo reaches a `noLowering` site's records —
+/// recorded either way), **M5c′** (the `flexGrow.weights` check always reporting).
 @MainActor
 @Test func theWholeDemoReportsExactlyTheFieldsAndSitesLaterStagesOwn() throws {
-    demoModel.showModal = false
-    demoModel.animationDemoActive = false
-    let report = LayoutDifferential.compare(width: 920, height: 560) { demoContent() }
-
     func entry(_ site: LoweringSite, _ field: String) -> UnlowerableField {
         UnlowerableField(site: site, field: field)
     }
-    #expect(report.unlowerable == [
-        entry(.box, "flexGrow"),                // header bar
-        entry(.box, "flexGrow"),                // header Row
-        entry(.box, "flexGrow"),                // sidebar Column
-        entry(.list, "noLowering"),             // stage 4
-        entry(.box, "flexShrink"),              // the List's spacer (stage 4 replaces it)
-        entry(.scrollView, "noLowering"),       // stage 3
-        entry(.box, "flexGrow"),                // the Box around the scroller
-        entry(.box, "flexBasis"),
-        entry(.box, "minSize"),
-        entry(.box, "flexGrow"),                // main pane Column
-        entry(.modifierLayer, "flexGrow"),      // main pane padding layer
-        entry(.box, "flexGrow"),                // body Row
-        entry(.box, "flexGrow"),                // outer Column
-    ], "\(report.unlowerable)")
+    demoModel.animationDemoActive = false
+    demoModel.showModal = false
+    let report = LayoutDifferential.compare(width: 920, height: 560) { demoContent() }
+    #expect(report.unlowerable == [entry(.list, "noLowering"), entry(.scrollView, "noLowering")],
+            "\(report.unlowerable)")
+    try #require(report.elements == 2036, "\(report.elements)")
+    #expect(report.agreeing.count == 6 && report.legacyOnly.count == 2000 && report.loweredOnly.isEmpty,
+            "agreeing \(report.agreeing.count) legacyOnly \(report.legacyOnly.count) loweredOnly \(report.loweredOnly.count)")
+
+    // Ids.
+    let outerLayer = child(rootID, 0), outerColumn = child(outerLayer, 0)
+    let headerLayer = child(outerColumn, 0), headerRow = child(headerLayer, 0)
+    let hairline = child(outerColumn, 1), body = child(outerColumn, 2)
+    let sidebarLayer = child(body, 0), sidebar = child(sidebarLayer, 0)
+    let mainLayer = child(body, 1), main = child(mainLayer, 0)
+    let cluster = child(main, 0), badge = child(cluster, 2)
+    let counter = child(main, 1, "counter")
+    let scrollerBox = child(main, 4), scroll = child(scrollerBox, 0)
+
+    // Text, from the shaping cache.
+    let cache = ShapingCache()
+    let f13 = cache.resolveFont(family: nil, size: 13), f22 = cache.resolveFont(family: nil, size: 22)
+    func legacyHeight(_ s: String, _ font: ResolvedFont, _ width: Double?) -> Float {
+        Float(cache.shaped(s, font: font, wrappingAt: width).totalHeight.rounded())
+    }
+    func loweredHeight(_ s: String, _ font: ResolvedFont, _ width: Double) -> Float {
+        Float(proposalTextMeasurement(s, font: font, cache: cache,
+                                      proposal: ProposedSize(width: width, height: nil)).size.height.rounded())
+    }
+    func natural(_ s: String, _ font: ResolvedFont) -> Double { cache.shaped(s, font: font, wrappingAt: nil).widestLine }
+
+    // Legacy heights (CSS): the main column's intrinsic height is its items' max-content
+    // contributions — cluster 128, chrome 60, the two texts one line each, the scroller 0 —
+    // plus four gaps of 12; the body row is that column's padded height; the outer layer
+    // pads the header, the hairline and the body.
+    let legacyMain = 128 + 60 + legacyHeight("Text renders", f22, nil) + legacyHeight(demoParagraph, f13, nil) + 4 * 12
+    let legacyBody = 16 + legacyMain + 16
+    let legacyOuter = 16 + 72 + 12 + 1 + 12 + legacyBody + 16
+    let legacyRenders = legacyHeight("Text renders", f22, 756), legacyParagraph = legacyHeight(demoParagraph, f13, 756)
+    let legacyParagraphY = 129 + 128 + 12 + 60 + 12 + legacyRenders + 12
+    let legacyScrollerY = legacyParagraphY + legacyParagraph + 12
+    // Lowered: the root's 560 (cause R) and the 196 sidebar (cause 55).
+    let loweredBody: Float = 560 - 16 - 72 - 12 - 1 - 12 - 16
+    let loweredMain = loweredBody - 32
+    let loweredRenders = loweredHeight("Text renders", f22, 648), loweredParagraph = loweredHeight(demoParagraph, f13, 648)
+    let loweredParagraphY = 129 + 128 + 12 + 60 + 12 + loweredRenders + 12
+    let loweredScrollerY = loweredParagraphY + loweredParagraph + 12
+    let library = loweredHeight("Library", f13, 168)
+    try #require(legacyHeight("Library", f13, 60) == library)
+
+    typealias Row = (id: GlobalElementID, legacy: Bounds<Pixels>, lowered: Bounds<Pixels>)
+    func shifted(_ id: GlobalElementID, _ b: Bounds<Pixels>) -> Row {
+        (id, b, Bounds(origin: Point(x: b.origin.x + px(108), y: b.origin.y), size: b.size))
+    }
+    func centredText(_ id: GlobalElementID, _ s: String, _ font: ResolvedFont, x: Float, y: Float,
+                     extent: Float, lineHeight: Float) -> Row {
+        let t = centredRounded(at: x, in: extent, width: natural(s, font))
+        return shifted(id, bounds(t.x, y + (extent - lineHeight) / 2, t.width, lineHeight))
+    }
+    var expected: [Row] = [
+        // R
+        (outerLayer, bounds(0, 0, 920, legacyOuter), bounds(0, 0, 920, 560)),
+        (outerColumn, bounds(16, 16, 888, legacyOuter - 32), bounds(16, 16, 888, 528)),
+        (body, bounds(16, 113, 888, legacyBody), bounds(16, 113, 888, loweredBody)),
+        // 55 (and R, X9)
+        (sidebarLayer, bounds(16, 113, 88, legacyBody), bounds(16, 113, 196, loweredBody)),
+        (sidebar, bounds(30, 127, 60, legacyBody - 28), bounds(30, 127, 168, library + 4 * 26 + 4 * 10)),
+        (child(sidebar, 0), bounds(30, 127, 60, library), bounds(30, 127, 168, library)),
+    ]
+    for bar in 1...4 {
+        let y = 127 + library + 10 + Float(bar - 1) * 36
+        expected.append((child(sidebar, bar), bounds(30, y, 60, 26), bounds(30, y, 168, 26)))
+    }
+    expected += [
+        (mainLayer, bounds(116, 113, 788, legacyBody), bounds(224, 113, 680, loweredBody)),
+        (main, bounds(132, 129, 756, legacyMain), bounds(240, 129, 648, loweredMain)),
+        shifted(cluster, bounds(132, 129, 360, 128)),
+        shifted(child(cluster, 0), bounds(132, 129, 360, 128)),
+        shifted(child(cluster, 1), bounds(232, 157, 160, 72)),
+        shifted(badge, bounds(298, 179, 28, 28)),
+        centredText(child(badge, 0), "3", f13, x: 298, y: 179, extent: 28, lineHeight: 16),
+        shifted(counter, bounds(132, 269, 260, 60)),
+        shifted(child(counter, 0), bounds(144, 281, 36, 36)),
+        centredText(child(child(counter, 0), 0), "-", f22, x: 144, y: 281, extent: 36, lineHeight: 26),
+        shifted(child(counter, 1), bounds(192, 281, 140, 36)),
+        shifted(child(child(counter, 1), 0), {
+            let t = centredRounded(at: 192, in: 140, width: natural("Count 0", f22))
+            return bounds(t.x, 286, t.width, 26)
+        }()),
+        shifted(child(counter, 2), bounds(344, 281, 36, 36)),
+        centredText(child(child(counter, 2), 0), "+", f22, x: 344, y: 281, extent: 36, lineHeight: 26),
+        (child(main, 2), bounds(132, 341, 756, legacyRenders), bounds(240, 341, 648, loweredRenders)),
+        (child(main, 3), bounds(132, legacyParagraphY, 756, legacyParagraph),
+         bounds(240, loweredParagraphY, 648, loweredParagraph)),
+        (scrollerBox, bounds(132, legacyScrollerY, 420, 0),
+         bounds(240, loweredScrollerY, 420, 129 + loweredMain - loweredScrollerY)),
+        // 3 and 4, site-level
+        (scroll, bounds(132, legacyScrollerY, 420, 0), bounds(240, loweredScrollerY, 0, 0)),
+        (child(scroll, 0), bounds(132, legacyScrollerY, 420, 14000), bounds(0, 0, 0, 0)),
+        (child(child(scroll, 0), 0), bounds(132, legacyScrollerY, 420, 0), bounds(0, 0, 0, 0)),
+    ]
+    try #require(expected.count == 30)
+    // The predictions the derivations must reproduce (P3, R2; record §19).
+    #expect([legacyOuter, legacyBody, legacyRenders, legacyParagraph, legacyScrollerY,
+             loweredRenders, loweredParagraph, loweredScrollerY, library] == [439, 310, 26, 48, 439, 26, 64, 455, 16])
+
+    let agreeingExpected: Set<GlobalElementID> = [rootID, headerLayer, headerRow, child(headerRow, 0),
+                                                  child(headerRow, 1), hairline]
+    #expect(Set(report.agreeing) == agreeingExpected)
+    let disagreeing = Dictionary(uniqueKeysWithValues: report.disagreeing.map { ($0.id, ($0.legacy, $0.lowered)) })
+    try #require(report.disagreeing.count == 30, "\(report.disagreeing.count)")
+    for row in expected {
+        let got = disagreeing[row.id]
+        #expect(got?.0 == row.legacy && got?.1 == row.lowered,
+                "\(row.id): expected \(row.legacy) → \(row.lowered), got \(String(describing: got))")
+    }
+
+    // 3. Modal on.
+    demoModel.showModal = true
+    defer { demoModel.showModal = false }
+    let modal = LayoutDifferential.compare(width: 920, height: 560) { demoContent() }
+    #expect(modal.unlowerable == [entry(.stack, "position"), entry(.stack, "inset"),
+                                  entry(.list, "noLowering"), entry(.scrollView, "noLowering")],
+            "\(modal.unlowerable)")
+    try #require(modal.elements == 2042, "\(modal.elements)")
+    #expect(Set(modal.agreeing) == agreeingExpected)
+    try #require(modal.disagreeing.count == 36, "\(modal.disagreeing.count)")
+    let modalPairs = Dictionary(uniqueKeysWithValues: modal.disagreeing.map { ($0.id, ($0.legacy, $0.lowered)) })
+    let deferred = child(scroll, 0), stack = child(deferred, 0), card = child(stack, 0), column = child(card, 0)
+    for id in [deferred, stack, card, column, child(column, 0), child(column, 1)] {
+        #expect(modalPairs[id] != nil, "modal id \(id)")
+    }
+    for row in expected {
+        // The `List` and its row box sit one index later, after the `Deferred`.
+        let id = row.id == child(scroll, 0) ? child(scroll, 1)
+            : row.id == child(child(scroll, 0), 0) ? child(child(scroll, 1), 0) : row.id
+        let got = modalPairs[id]
+        #expect(got?.0 == row.legacy && got?.1 == row.lowered,
+                "modal \(id): expected \(row.legacy) → \(row.lowered), got \(String(describing: got))")
+    }
 }

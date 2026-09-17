@@ -1,11 +1,13 @@
 import Foundation
+import Metal
+import Observation
 import Testing
 import MetalUICore
 @testable import MetalUILayout
 import MetalUIText
 @testable import MetalUI
 
-// Plan task 7, stage 2, lane 1 (`docs/superpowers/specs/2026-09-17-engine-stage-2-design.md`
+// Plan task 7, stage 2, lanes 1 and 2 (`docs/superpowers/specs/2026-09-17-engine-stage-2-design.md`
 // §3, §4.1 and §6 lane 1; rulings LR-AB, LR-AC, LR-AD, LR-AQ, LR-AR, LR-AW): flex
 // ITEM fields lowered by the parent under the proposal layout authority — the child
 // records a `LoweredItem`, the lowered container wraps it (a greedy cross-axis item
@@ -850,4 +852,667 @@ private struct AtOrigin: ProposalLayout {
     try #require(r.legacyBounds[layer] != r.loweredBounds[layer])
     #expect([layer, inner].map { r.legacyBounds[$0] } == [bounds(32, 10, 36, 26), bounds(40, 18, 20, 10)])
     #expect([layer, inner].map { r.loweredBounds[$0] } == [bounds(32, 10, 36, 90), bounds(40, 82, 20, 10)])
+}
+
+// MARK: - Stage 2, lane 2 — the main axis (spec §6 lane 2; rulings LR-AE, LR-AF, LR-AG, LR-AR, LR-AS)
+//
+// **Red before**: every test below was run on lane 1's lowering (`25fd9fb`), where
+// `flexGrow`, `flexShrink`, `flexBasis` and a `minSize`/`maxSize` off a stretched
+// axis are still reported by the parent at the child's site (record §19, lane 2).
+
+/// A 13pt system-font shaping cache and font, the lowered and legacy `Text`'s
+/// default (`LR-F`: a rect a text decides is derived from the cache, not a literal).
+@MainActor
+private func systemFont(_ size: Double = 13) -> (ShapingCache, ResolvedFont) {
+    let cache = ShapingCache()
+    return (cache, cache.resolveFont(family: nil, size: size))
+}
+
+/// **2.1** (`LR-AE`; stage-2 probe F1). A grower beside a rigid sibling takes the
+/// remaining main space: under the proposal authority a greedy main-axis item frame
+/// W, aliased as the grower's rect, served after the rigid sibling. Parents `Row(gap:
+/// g) { 40×10; G }.width(300)` and the transpose `Column(gap: g) { 10×40; G
+/// }.height(300)`, g ∈ {0, 12}, × growers G:
+///
+/// - a childless `Box` (a 10 cross size): main extent 260 − g at 40 + g;
+/// - `Text("ab")`: the same main extent (its glyphs are one line at either width);
+/// - `Row { 10×10; 20×10 }.justifyContent(.flexEnd)`: the same, its children at the
+///   main end of the grown box — in the row parent at x 270 and 280 (W carries the
+///   row's main factor); in the column parent the grown row is 30 wide and its
+///   children sit on its vertical centre, y 40 + g + (260 − g − 10)/2 (W carries the
+///   row's cross factor).
+///
+/// Every arm agrees in every observation.
+///
+/// Mutation that must redden it: **M2a** W greedy on the cross axis instead.
+@MainActor
+@Test func aGrowingChildTakesTheRemainingMainSpace() throws {
+    enum Grower: CaseIterable { case box, text, row }
+    var arms = 0
+    for isRow in [true, false] {
+        for gap: Float in [0, 12] {
+            for grower in Grower.allCases {
+                let name = "\(isRow ? "Row" : "Column") gap \(gap) \(grower)"
+                func g() -> AnyElement {
+                    switch grower {
+                    case .box: AnyElement(isRow ? Box().height(px(10)).flexGrow(1).background(.accent)
+                                                : Box().width(px(10)).flexGrow(1).background(.accent))
+                    case .text: AnyElement(Text("ab").flexGrow(1))
+                    case .row: AnyElement(Row { fixed(10, 10); fixed(20, 10) }.justifyContent(.flexEnd).flexGrow(1))
+                    }
+                }
+                let r = LayoutDifferential.compare(width: 400, height: 400) {
+                    if isRow {
+                        Row(gap: px(gap)) { fixed(40, 10); g() }.width(px(300))
+                    } else {
+                        Column(gap: px(gap)) { fixed(10, 40); g() }.height(px(300))
+                    }
+                }
+                try #require(r.elements == (grower == .row ? 6 : 4), "\(name): \(r.elements)")
+                expectCorpusAgreement(r, name)
+                let grown = try #require(r.loweredBounds[child(containerID, 1)])
+                if isRow {
+                    #expect(grown.origin.x == px(40 + gap) && grown.size.width == px(260 - gap), "\(name): \(grown)")
+                } else {
+                    #expect(grown.origin.y == px(40 + gap) && grown.size.height == px(260 - gap), "\(name): \(grown)")
+                }
+                if grower == .row {
+                    let inner = child(containerID, 1)
+                    let placed = [0, 1].map { r.loweredBounds[child(inner, $0)] }
+                    if isRow {
+                        #expect(placed == [bounds(270, 0, 10, 10), bounds(280, 0, 20, 10)], "\(name): \(placed)")
+                    } else {
+                        let y = 40 + gap + (260 - gap - 10) / 2
+                        #expect(placed == [bounds(0, y, 10, 10), bounds(10, y, 20, 10)], "\(name): \(placed)")
+                    }
+                }
+                arms += 1
+            }
+        }
+    }
+    try #require(arms == 12)
+}
+
+/// **2.2 — divergence pin** (`LR-AE`; stage-2 probes F2, F3 against control F0; F4,
+/// F8). Two growers share the surplus **equally** under the proposal authority, where
+/// CSS (`flex-basis: auto`) adds equal shares to their bases. `Row { a.flexGrow(1);
+/// b.flexGrow(1) }.width(300)`, a and b fixed 10 tall:
+///
+/// - widths 100 and 20: legacy 190 / 110 (bases + 90 each), lowered **150 / 150**
+///   (F2);
+/// - widths 200 and 20: legacy 240 / 60, lowered **200 / 100** (F3: a greedy frame
+///   with no minimum never answers below its child);
+/// - both arms with `.flexBasis(0).minWidth(0)` on each: **150 / 150** on both
+///   sides (CSS's zero basis with its minimum removed; F4/F8's minimum presence) —
+///   the declared width stays on the element's own frame, inside W.
+///
+/// Mutation that must redden it: **M2b** W given a main minimum of 0 without a
+/// declared minimum (the 200/20 arm reads 150/150).
+@MainActor
+@Test func growingSiblingsShareTheSurplusEquallyWhereCSSAddsItToTheirBases() throws {
+    let a = child(containerID, 0), b = child(containerID, 1)
+    for (wa, legacyA, loweredA) in [(Float(100), Float(190), Float(150)), (200, 240, 200)] {
+        let r = LayoutDifferential.compare(width: 400, height: 100) {
+            Row {
+                Box().width(px(wa)).height(px(10)).flexGrow(1).background(.accent)
+                Box().width(px(20)).height(px(10)).flexGrow(1).background(.accent)
+            }
+            .width(px(300))
+        }
+        try #require(r.elements == 4)
+        #expect(r.unlowerable.isEmpty, "\(wa): \(r.unlowerable)")
+        try #require(r.legacyBounds[a] != r.loweredBounds[a], "\(wa)")
+        #expect([a, b].map { r.legacyBounds[$0] }
+                == [bounds(0, 0, legacyA, 10), bounds(legacyA, 0, 300 - legacyA, 10)], "\(wa) legacy")
+        #expect([a, b].map { r.loweredBounds[$0] }
+                == [bounds(0, 0, loweredA, 10), bounds(loweredA, 0, 300 - loweredA, 10)], "\(wa) lowered")
+
+        let zero = LayoutDifferential.compare(width: 400, height: 100) {
+            Row {
+                Box().width(px(wa)).height(px(10)).flexGrow(1).flexBasis(px(0)).minWidth(px(0)).background(.accent)
+                Box().width(px(20)).height(px(10)).flexGrow(1).flexBasis(px(0)).minWidth(px(0)).background(.accent)
+            }
+            .width(px(300))
+        }
+        try #require(zero.elements == 4)
+        expectCorpusAgreement(zero, "\(wa) zero basis, minimum 0")
+        #expect([a, b].map { zero.loweredBounds[$0] } == [bounds(0, 0, 150, 10), bounds(150, 0, 150, 10)], "\(wa) zero")
+    }
+}
+
+/// **2.3** (`LR-AE`). Unequal **declared** grow factors among siblings have no
+/// SwiftUI spelling: `Row { a.flexGrow(1); b.flexGrow(2) }` reports
+/// `box.flexGrow.weights` exactly once, at the parent's site, and nothing else;
+/// equal factors lower whatever their value — `(2, 2)` and `(0.5, 0.5)` agree at
+/// 150/150 (CSS's factor sum is not below 1 in either).
+///
+/// Mutation that must redden it: **M2c** the weights check removed (the report
+/// reads empty).
+@MainActor
+@Test func unequalGrowWeightsAreReportedOnTheParent() throws {
+    func row(_ fa: Float, _ fb: Float) -> some ElementGroup {
+        Row { Box().height(px(10)).flexGrow(fa); Box().height(px(10)).flexGrow(fb) }.width(px(300))
+    }
+    #expect(report { row(1, 2) } == [field(.box, "flexGrow.weights")])
+    for (fa, fb) in [(Float(2), Float(2)), (0.5, 0.5)] {
+        let r = LayoutDifferential.compare(width: 400, height: 100) { row(fa, fb) }
+        try #require(r.elements == 4)
+        expectCorpusAgreement(r, "(\(fa), \(fb))")
+        #expect([0, 1].map { r.loweredBounds[child(containerID, $0)] } == [bounds(0, 0, 150, 10), bounds(150, 0, 150, 10)])
+    }
+}
+
+/// **2.4** (`LR-AE` as amended; stage-2 probes F4, F9, F10). A zero basis on a
+/// grower with no declared main size lowers exactly as `auto`: W's main minimum
+/// comes only from a declared `minSize`, so a grower takes its share **down to its
+/// content** and no further (CSS's automatic minimum for rigid content).
+///
+/// - at 300, `Row { Row { 40×10; 40×10 }.flexGrow(1).flexBasis(0); Box().height(10)
+///   .flexGrow(1).flexBasis(0) }`: 150 / 150; agrees;
+/// - at 150, the inner row over 100×10 and 100×10: **200** (overflowing) and 0 at x
+///   200 (F10); agrees;
+/// - **divergence arm** (F9): `Text("alphabravocharlie").flexGrow(1).flexBasis(0)`
+///   beside a zero-basis `Box` at 100: lowered the text is **50** wide (broken
+///   inside its word) and as tall as the shaping cache wraps it at 50; legacy it is
+///   the word's min-content wide and one line tall;
+/// - **report arms**: `Box().width(200).flexGrow(1).flexBasis(0)` (a sized
+///   zero-basis grower with no minimum: CSS floors it at min(size, content)),
+///   `flexBasis(0)` without grow, `flexBasis(40)` and `flexBasis(fraction: 0.5)`
+///   each report exactly `box.flexBasis`;
+/// - **divergence arm** (F4, a sized container): `Row { Row { 40×10; g }.width(200)
+///   .flexGrow(1).flexBasis(0).minWidth(0); Box().height(10).flexGrow(1)
+///   .flexBasis(0) }.width(300)`, g `Box().height(10).flexGrow(1)`: the item rect
+///   agrees (150), but the lowered row lays its content out at its declared 200
+///   inside it — g is **160** wide, its right edge 50 past the item's — where legacy
+///   lays it out in 150 (g 110). **Corrected from the design's arm** (children
+///   `a40; b40` under `.justifyContent(.flexEnd)`): rigid children sit at
+///   f·(150 − 200) + f·(200 − 80) = f·(150 − 80) inside W under any one factor f,
+///   exactly where CSS puts them, so that arm cannot show the divergence; a grower
+///   inside can (record §19, lane 2).
+///
+/// Mutations that must redden it: **M2d** a non-zero length basis lowered as `auto`
+/// (the `flexBasis(40)` arm reads empty); **M2d′** a zero basis given W's minimum 0
+/// with no declared minimum (the F10 arm answers 75 / 75); **M2d″** a sized
+/// zero-basis grower lowered instead of reported.
+@MainActor
+@Test func aZeroBasisGrowerTakesItsShareDownToItsContent() throws {
+    let inner = child(containerID, 0), sibling = child(containerID, 1)
+    let share = LayoutDifferential.compare(width: 400, height: 100) {
+        Row {
+            Row { fixed(40, 10); fixed(40, 10) }.flexGrow(1).flexBasis(px(0))
+            Box().height(px(10)).flexGrow(1).flexBasis(px(0)).background(.accent)
+        }
+        .width(px(300))
+    }
+    try #require(share.elements == 6)
+    expectCorpusAgreement(share, "zero-basis share")
+    #expect([inner, sibling].map { share.loweredBounds[$0] } == [bounds(0, 0, 150, 10), bounds(150, 0, 150, 10)])
+
+    let content = LayoutDifferential.compare(width: 400, height: 100) {
+        Row {
+            Row { fixed(100, 10); fixed(100, 10) }.flexGrow(1).flexBasis(px(0))
+            Box().height(px(10)).flexGrow(1).flexBasis(px(0)).background(.accent)
+        }
+        .width(px(150))
+    }
+    try #require(content.elements == 6)
+    expectCorpusAgreement(content, "zero-basis grower over rigid content (F10)")
+    #expect([inner, sibling].map { content.loweredBounds[$0] } == [bounds(0, 0, 200, 10), bounds(200, 0, 0, 10)])
+
+    let word = "alphabravocharlie"
+    let text = LayoutDifferential.compare(width: 400, height: 200) {
+        Row {
+            Text(word).flexGrow(1).flexBasis(px(0))
+            Box().height(px(10)).flexGrow(1).flexBasis(px(0))
+        }
+        .width(px(100))
+    }
+    try #require(text.elements == 4)
+    #expect(text.unlowerable.isEmpty, "\(text.unlowerable)")
+    let (cache, font) = systemFont()
+    let legacyText = try #require(text.legacyBounds[inner])
+    let loweredText = try #require(text.loweredBounds[inner])
+    try #require(legacyText != loweredText)
+    #expect(legacyText.size == Size(width: Pixels(Float(cache.minContentWidth(word, font: font).rounded())),
+                                    height: px(16)), "legacy \(legacyText)")
+    let at50 = proposalTextMeasurement(word, font: font, cache: cache, proposal: ProposedSize(width: 50, height: nil))
+    try #require(at50.size.height > 16)
+    #expect(loweredText.size == Size(width: px(50), height: Pixels(Float(at50.size.height.rounded()))),
+            "lowered \(loweredText)")
+
+    #expect(report { Row { Box().width(px(200)).height(px(10)).flexGrow(1).flexBasis(px(0)); fixed(10, 10) } }
+            == [field(.box, "flexBasis")], "sized zero-basis grower")
+    #expect(report { Row { Box().height(px(10)).flexBasis(px(0)); fixed(10, 10) } } == [field(.box, "flexBasis")],
+            "zero basis without grow")
+    #expect(report { Row { Box().height(px(10)).flexBasis(px(40)); fixed(10, 10) } } == [field(.box, "flexBasis")],
+            "flexBasis(40)")
+    #expect(report { Row { Box().height(px(10)).flexBasis(fraction: 0.5); fixed(10, 10) } } == [field(.box, "flexBasis")],
+            "flexBasis(fraction:)")
+
+    let sized = LayoutDifferential.compare(width: 400, height: 100) {
+        Row {
+            Row { fixed(40, 10); Box().height(px(10)).flexGrow(1).background(.accent) }
+                .width(px(200)).flexGrow(1).flexBasis(px(0)).minWidth(px(0))
+            Box().height(px(10)).flexGrow(1).flexBasis(px(0))
+        }
+        .width(px(300))
+    }
+    try #require(sized.elements == 6)
+    #expect(sized.unlowerable.isEmpty, "\(sized.unlowerable)")
+    let g = child(inner, 1)
+    #expect([inner, sibling].map { sized.legacyBounds[$0] } == [bounds(0, 0, 150, 10), bounds(150, 0, 150, 10)])
+    #expect([inner, sibling].map { sized.loweredBounds[$0] } == [bounds(0, 0, 150, 10), bounds(150, 0, 150, 10)])
+    try #require(sized.legacyBounds[g] != sized.loweredBounds[g])
+    #expect(sized.legacyBounds[g] == bounds(40, 0, 110, 10))
+    #expect(sized.loweredBounds[g] == bounds(40, 0, 160, 10))
+}
+
+/// **2.5** (`LR-AF`; stage-2 probe F7 against control F6). `flexShrink(0)` on an
+/// `auto` main size lowers to `fixedSize` on the parent's main axis: the item keeps
+/// its natural main size and overflows.
+///
+/// - `Row { Text(long).flexShrink(0); Box().width(50).height(10).flexShrink(0)
+///   }.width(100)`: the text one line, its shaped width, the box after it;
+/// - the transpose, `Column { Text(long).flexShrink(0); Box().width(10).height(50)
+///   .flexShrink(0) }.alignItems(.stretch).width(100).height(20)`: the text 100 wide
+///   and as tall as the cache wraps it at 100, the box below it.
+///
+/// Both agree. **Corrected from the design's arm**, whose sibling `Box().width(50)`
+/// kept the default shrink: CSS shrinks that childless box to **0** (its automatic
+/// minimum is its content's, 0; measured legacy 0×10 at x 252) where the lowered
+/// row keeps a declared 50 rigid — divergence 55, pinned by 2.6 and 2.9, not this
+/// test's subject (record §19, lane 2). The column declares `.alignItems(.stretch)`
+/// so the text's width is the line on both sides (a centred lowered text hugs its
+/// widest line, `LR-F`).
+///
+/// Mutation that must redden it: **M2e** `fixedSize` on the cross axis (the row's
+/// text wraps at 100).
+@MainActor
+@Test func aZeroShrinkKeepsItsNaturalMainSizeAndOverflows() throws {
+    let (cache, font) = systemFont()
+    let row = LayoutDifferential.compare(width: 400, height: 200) {
+        Row { Text(longString).flexShrink(0); Box().width(px(50)).height(px(10)).flexShrink(0).background(.accent) }
+            .width(px(100))
+    }
+    try #require(row.elements == 4)
+    expectCorpusAgreement(row, "row")
+    let oneLine = Float(cache.shaped(longString, font: font, wrappingAt: nil).widestLine.rounded())
+    try #require(oneLine > 100)
+    #expect(row.loweredBounds[child(containerID, 0)]?.size == Size(width: Pixels(oneLine), height: px(16)))
+    #expect(row.loweredBounds[child(containerID, 1)]?.origin.x == Pixels(oneLine))
+
+    let column = LayoutDifferential.compare(width: 400, height: 200) {
+        Column { Text(longString).flexShrink(0); Box().width(px(10)).height(px(50)).flexShrink(0).background(.accent) }
+            .alignItems(.stretch).width(px(100)).height(px(20))
+    }
+    try #require(column.elements == 4)
+    expectCorpusAgreement(column, "column")
+    let tall = Float(cache.shaped(longString, font: font, wrappingAt: 100).totalHeight.rounded())
+    try #require(tall > 20)
+    #expect(column.loweredBounds[child(containerID, 0)] == bounds(0, 0, 100, tall))
+    #expect(column.loweredBounds[child(containerID, 1)]?.origin.y == Pixels(tall))
+}
+
+/// **2.6 — divergence pin** (`LR-AF`, divergence 55; stack-algorithms probe G9).
+/// Every positive `flexShrink` lowers to nothing, whatever its weight: SwiftUI has
+/// no shrink, and two rigid 80s in a 100 row overflow. `Row { Box().width(80)
+/// .flexShrink(s₁); Box().width(80).flexShrink(s₂) }.width(100)`, 10 tall:
+///
+/// - (1, 1): legacy 50 / 50, lowered 80 / 80 from x 0;
+/// - (1, 3): legacy **65 / 35** (CSS scales each shrink by its base: 60 × 80/320 and
+///   60 × 240/320), lowered 80 / 80.
+///
+/// Mutation that must redden it: **M2f** a shrink other than 1 reported (the (1, 3)
+/// arm reports).
+@MainActor
+@Test func aPositiveShrinkLowersAsSwiftUIsCompressionWhateverItsWeight() throws {
+    let a = child(containerID, 0), b = child(containerID, 1)
+    for (weight, legacyA) in [(Float(1), Float(50)), (3, 65)] {
+        let r = LayoutDifferential.compare(width: 300, height: 100) {
+            Row {
+                Box().width(px(80)).height(px(10)).flexShrink(1).background(.accent)
+                Box().width(px(80)).height(px(10)).flexShrink(weight).background(.accent)
+            }
+            .width(px(100))
+        }
+        try #require(r.elements == 4)
+        #expect(r.unlowerable.isEmpty, "\(weight): \(r.unlowerable)")
+        try #require(r.legacyBounds[a] != r.loweredBounds[a])
+        #expect([a, b].map { r.legacyBounds[$0] }
+                == [bounds(0, 0, legacyA, 10), bounds(legacyA, 0, 100 - legacyA, 10)], "\(weight) legacy")
+        #expect([a, b].map { r.loweredBounds[$0] } == [bounds(0, 0, 80, 10), bounds(80, 0, 80, 10)], "\(weight) lowered")
+    }
+}
+
+/// **2.7** (`LR-AG`; stage-2 probes F4, F8). A declared minimum on an `auto` axis is
+/// W's minimum, aliased; on a declared size it folds into the element's own frame:
+///
+/// - `Row { Box().height(10).minWidth(50); 20×10 }.width(300)`: 50 wide, the fixed
+///   box at x 50 (W non-greedy, a floor);
+/// - the demo scroller's shape, `Column { 420×20; Box { Box().height(400) }
+///   .width(420).flexGrow(1).flexBasis(0).minHeight(0) }.height(300)`: the box takes
+///   its **280** share below its 400 content (the minimum's presence), its child
+///   overflowing at y 20;
+/// - `Row { Box().width(40).minWidth(60).height(10); 20×10 }.width(300)`: the static
+///   fold, **60**.
+///
+/// Every arm agrees.
+///
+/// Mutations that must redden it: **M2g** W drops the minimum (the scroller box
+/// answers 400, the first box 0); **M2h** the static fold skipped (60 → 40).
+@MainActor
+@Test func aMinimumFloorsAnItemAndLetsAGrowerGoBelowItsContent() throws {
+    let floor = LayoutDifferential.compare(width: 400, height: 100) {
+        Row { Box().height(px(10)).minWidth(px(50)).background(.accent); fixed(20, 10) }.width(px(300))
+    }
+    try #require(floor.elements == 4)
+    expectCorpusAgreement(floor, "minWidth floor")
+    #expect([0, 1].map { floor.loweredBounds[child(containerID, $0)] } == [bounds(0, 0, 50, 10), bounds(50, 0, 20, 10)])
+
+    let scroller = LayoutDifferential.compare(width: 500, height: 400) {
+        Column {
+            fixed(420, 20)
+            Box { Box().height(px(400)).background(.accent) }
+                .width(px(420)).flexGrow(1).flexBasis(px(0)).minHeight(px(0)).background(.surface)
+        }
+        .height(px(300))
+    }
+    try #require(scroller.elements == 5)
+    expectCorpusAgreement(scroller, "the demo scroller's shape")
+    let box = child(containerID, 1)
+    #expect([box, child(box, 0)].map { scroller.loweredBounds[$0] } == [bounds(0, 20, 420, 280), bounds(0, 20, 0, 400)])
+
+    let fold = LayoutDifferential.compare(width: 400, height: 100) {
+        Row { Box().width(px(40)).minWidth(px(60)).height(px(10)).background(.accent); fixed(20, 10) }.width(px(300))
+    }
+    try #require(fold.elements == 4)
+    expectCorpusAgreement(fold, "static fold")
+    #expect([0, 1].map { fold.loweredBounds[child(containerID, $0)] } == [bounds(0, 0, 60, 10), bounds(60, 0, 20, 10)])
+}
+
+/// **2.8** (`LR-AG`; stage-2 probe X10, frame probe D4). A maximum lowers only where
+/// SwiftUI's greedy maximum answers CSS's clamp:
+///
+/// - on a grower, `Row { Box().height(10).flexGrow(1).maxWidth(80); 20×10 }.width(300)`:
+///   **80**, the fixed box at x 80 (W's maximum);
+/// - on a declared size, `Box().width(120).maxWidth(80)` in the same row: **80**
+///   (the static fold);
+/// - on a hugging axis, `Row { Text(long).maxWidth(80); 20×10 }`: reports exactly
+///   `text.maxSize` (stage 8).
+///
+/// Mutation that must redden it: **M2i** a non-greedy maximum lowered onto W (the
+/// report arm reads empty).
+@MainActor
+@Test func aMaximumLowersOnAGreedyOrSizedAxisAndIsReportedElsewhere() throws {
+    let grower = LayoutDifferential.compare(width: 400, height: 100) {
+        Row { Box().height(px(10)).flexGrow(1).maxWidth(px(80)).background(.accent); fixed(20, 10) }.width(px(300))
+    }
+    try #require(grower.elements == 4)
+    expectCorpusAgreement(grower, "maximum on a grower")
+    #expect([0, 1].map { grower.loweredBounds[child(containerID, $0)] } == [bounds(0, 0, 80, 10), bounds(80, 0, 20, 10)])
+
+    let sized = LayoutDifferential.compare(width: 400, height: 100) {
+        Row { Box().width(px(120)).height(px(10)).maxWidth(px(80)).background(.accent); fixed(20, 10) }.width(px(300))
+    }
+    try #require(sized.elements == 4)
+    expectCorpusAgreement(sized, "maximum on a declared size")
+    #expect(sized.loweredBounds[child(containerID, 0)] == bounds(0, 0, 80, 10))
+
+    #expect(report { Row { Text(longString).maxWidth(px(80)); fixed(20, 10) } } == [field(.text, "maxSize")])
+}
+
+/// **2.9 — divergence pin** (`LR-AF`, divergence 55; stage-2 probe F5, stack-algorithms
+/// G9 and G4r). The demo body row's shape at 920×560, inside a stretched 888-wide
+/// column: a sidebar `Column(gap: 10) { Text("Library"); four 26-tall bars }
+/// .alignItems(.stretch).flexGrow(1).padding(14).width(196)` beside a main pane
+/// `Column(gap: 12) { Text(the demo's paragraph); 420×20 }.alignItems(.stretch)
+/// .flexGrow(1).padding(16).flexGrow(1)`, row gap 12. Legacy CSS shrinks the
+/// declared 196 to **88** (the main pane's base is its paragraph's one-line width,
+/// measured 2026-09-17 on this shape as on the demo), the main pane at x 100;
+/// lowered the declared 196 is rigid and served first — **196**, the main pane at x
+/// 208, **680** wide.
+///
+/// Mutation that must redden it: **M2j** a declared main size lowered as a greedy
+/// `frame(maxWidth: size)` with no minimum.
+@MainActor
+@Test func theDemosBodyRowKeepsTheSidebarAtItsDeclaredWidthWhereCSSShrinksIt() throws {
+    let r = LayoutDifferential.compare(width: 920, height: 560) {
+        Column {
+            Row(gap: px(12)) {
+                Column(gap: px(10)) {
+                    Text("Library")
+                    Box().height(px(26)).background(.accent)
+                    Box().height(px(26)).background(.surfaceSecondary)
+                    Box().height(px(26)).background(.surfaceSecondary)
+                    Box().height(px(26)).background(.surfaceSecondary)
+                }
+                .alignItems(.stretch).flexGrow(1).padding(px(14)).width(px(196)).background(.surface)
+                Column(gap: px(12)) { Text(demoParagraph); fixed(420, 20) }
+                    .alignItems(.stretch).flexGrow(1).padding(px(16)).flexGrow(1).background(.surface)
+            }
+            .alignItems(.stretch)
+            fixed(888, 1)
+        }
+        .alignItems(.stretch).width(px(888))
+    }
+    #expect(r.unlowerable.isEmpty, "\(r.unlowerable)")
+    let row = child(containerID, 0), sidebar = child(row, 0), main = child(row, 1)
+    let legacySidebar = try #require(r.legacyBounds[sidebar])
+    let loweredSidebar = try #require(r.loweredBounds[sidebar])
+    try #require(legacySidebar.size.width != loweredSidebar.size.width)
+    #expect(legacySidebar.size.width == px(88) && r.legacyBounds[main]?.origin.x == px(100)
+            && r.legacyBounds[main]?.size.width == px(788), "legacy \(legacySidebar) \(String(describing: r.legacyBounds[main]))")
+    #expect(loweredSidebar.size.width == px(196) && r.loweredBounds[main]?.origin.x == px(208)
+            && r.loweredBounds[main]?.size.width == px(680), "lowered \(loweredSidebar) \(String(describing: r.loweredBounds[main]))")
+}
+
+/// The demo's paragraph (`demoContent()`, `DemoContent.swift`), copied: it is a
+/// literal inside the demo's builder, not a symbol. 2.15 derives the demo's text
+/// rects from it, so a copy that drifted from the demo reddens 2.15.
+let demoParagraph = """
+     CoreText shapes this paragraph, a shelf packer places \
+     each glyph in an R8 atlas exactly once, and the fragment \
+     shader tints the coverage it samples with the theme's \
+     text colour. Drag the window's edge and watch the line \
+     breaks move: layout asks this leaf to measure itself at \
+     the width it was offered, and paint re-shapes at the \
+     width layout settled on.
+     """
+
+/// **2.10 — divergence pin** (`LR-AC`, cause R's isolating pin; stage-2 probe X18
+/// against X17). `Column { 30×20; Box().width(30).height(10).flexGrow(1) }` in a
+/// 200×200 harness root: the root offers the column 200 tall, and the grower's
+/// greedy W fills it — lowered column **30×200**, the grower 30×180 at y 20. Legacy
+/// the column is fit-content, **30×30**, and the grower keeps its 10 (no free space).
+///
+/// Mutation that must redden it: **M2k** W not greedy when the parent declares no main
+/// size.
+@MainActor
+@Test func aGrowerOnAHuggingContainersMainAxisFillsItsProposal() throws {
+    let r = LayoutDifferential.compare(width: 200, height: 200) {
+        Column { fixed(30, 20); Box().width(px(30)).height(px(10)).flexGrow(1).background(.accent) }
+    }
+    try #require(r.elements == 4)
+    #expect(r.unlowerable.isEmpty, "\(r.unlowerable)")
+    let grower = child(containerID, 1)
+    try #require(r.legacyBounds[containerID] != r.loweredBounds[containerID])
+    #expect([containerID, grower].map { r.legacyBounds[$0] } == [bounds(0, 0, 30, 30), bounds(0, 20, 30, 10)])
+    #expect([containerID, grower].map { r.loweredBounds[$0] } == [bounds(0, 0, 30, 200), bounds(0, 20, 30, 180)])
+}
+
+/// **2.11 — divergence pin** (`LR-AR`; scratch R2's S2, stage-2 probe X12 against
+/// X11). `Row { 40×10; Box().width(30).height(10).flexGrow(1).padding(8) }.width(200)`:
+/// the grow sits inside a one-child `.padding` layer, is declared, and so is lowered,
+/// not elided — the lowered layer fills the row's leftover, **160×26**, the child
+/// **144** wide at (48, 8). Legacy the layer hugs, 46×26 at (40, 0), the child 30 wide.
+///
+/// Mutation that must redden it: **M2l** grow elided in a one-child container (lowered
+/// reads as legacy).
+@MainActor
+@Test func aGrowInsideAOneChildPaddingFillsTheWrapperWhereCSSLeavesItUngrown() throws {
+    let r = LayoutDifferential.compare(width: 300, height: 100) {
+        Row { fixed(40, 10); Box().width(px(30)).height(px(10)).flexGrow(1).background(.accent).padding(px(8)) }
+            .width(px(200))
+    }
+    try #require(r.elements == 5)
+    #expect(r.unlowerable.isEmpty, "\(r.unlowerable)")
+    let layer = child(containerID, 1), inner = child(layer, 0)
+    try #require(r.legacyBounds[layer] != r.loweredBounds[layer])
+    #expect([layer, inner].map { r.legacyBounds[$0] } == [bounds(40, 0, 46, 26), bounds(48, 8, 30, 10)])
+    #expect([layer, inner].map { r.loweredBounds[$0] } == [bounds(40, 0, 160, 26), bounds(48, 8, 144, 10)])
+}
+
+/// **2.12** (`LR-AR`, the grow half; scratch R2's S1). A W greedy on a child flex
+/// container's own main axis because it **grows** gives an unsized `space-*`
+/// container free space: `Row { Row { 20×10; 20×10 }.justifyContent(j).flexGrow(1);
+/// 40×10 }.width(300)` with `.spaceBetween` reports exactly
+/// `box.justifyContent.spaceBetween` at the inner row's site; controls `.flexEnd`
+/// (b at x 240) and `.center` (a at 110, b at 130) agree.
+///
+/// Mutation that must redden it: **M2m** the grow half of the re-check removed (the
+/// report reads empty).
+@MainActor
+@Test func aGrownUnsizedSpaceDistributionContainerIsReported() throws {
+    func tree(_ justify: JustifyContent) -> some ElementGroup {
+        Row { Row { fixed(20, 10); fixed(20, 10) }.justifyContent(justify).flexGrow(1); fixed(40, 10) }.width(px(300))
+    }
+    #expect(report { tree(.spaceBetween) } == [field(.box, "justifyContent.spaceBetween")])
+    let inner = child(containerID, 0)
+    for (justify, a) in [(JustifyContent.flexEnd, Float(220)), (.center, 110)] {
+        let r = LayoutDifferential.compare(width: 400, height: 100) { tree(justify) }
+        try #require(r.elements == 6, "\(justify)")
+        expectCorpusAgreement(r, "\(justify)")
+        #expect([0, 1].map { r.loweredBounds[child(inner, $0)] } == [bounds(a, 0, 20, 10), bounds(a + 20, 0, 20, 10)],
+                "\(justify)")
+    }
+}
+
+// MARK: 2.13 — animated item fields
+
+/// 2.13's arm B, at file scope: an exit test's body captures nothing.
+@MainActor
+@ElementBuilder
+private func animatedWeightsArm(_ on: Bool) -> some ElementGroup {
+    Row {
+        Box().height(Pixels(10)).flexGrow(on ? 2 : 0).background(.accent)
+        Box().height(Pixels(10)).flexGrow(2).background(.accent)
+    }
+    .width(Pixels(300))
+}
+
+@Observable
+private final class ItemAnimationModel {
+    var on = false
+}
+
+/// One authority's widths of `ids` across an animation of `model.on` false → true:
+/// ticks at t = 100 (before), `withAnimation(.linear(duration: 1))`, then 100 (the
+/// frame that starts the transaction), 100.25, 100.5 and 101.5 (settled), through a
+/// fake `Window` driven by `simulateTick` (no sleep). One window per authority, in
+/// turn, each with its own model: `withAnimation`'s parked transaction is consumed by
+/// exactly one frame build, so two live windows cannot share one (CLAUDE.md,
+/// Animation; the reason this is not `WindowPair`, whose one `make` closure both
+/// windows read).
+@MainActor
+private func animatedWidths<C: ElementGroup>(_ authority: LayoutAuthority, ids: [GlobalElementID],
+                                              @ElementBuilder _ make: @escaping @MainActor (Bool) -> C) throws -> [[Float]] {
+    let device = try #require(MTLCreateSystemDefaultDevice())
+    let model = ItemAnimationModel()
+    let (window, platform) = try makeFakeWindow(device: device, size: 400, startsDisplayLink: true) {
+        DifferentialRoot(width: 400, height: 400) { make(model.on) }
+    }
+    window.layoutAuthority = authority
+    window.recordsElementBounds = true
+    func read() -> [Float] { ids.map { window.lastElementBounds[$0]?.size.width.value ?? -1 } }
+    platform.simulateTick(timestamp: 100)
+    var series = [read()]
+    withAnimation(.linear(duration: 1)) { model.on = true }
+    for t in [100, 100.25, 100.5, 101.5] {
+        platform.simulateTick(timestamp: t)
+        series.append(read())
+    }
+    return series
+}
+
+/// **2.13** (`LR-AS`). An animated item field: **structure** (which wrappers exist,
+/// the weights check) reads the declared style and snaps; **values** (W's minimum
+/// and maximum) read the animated one and interpolate. Widths at t = 100 before the
+/// change, then 100, 100.25, 100.5 and 101.5 of a 1 s linear `withAnimation`:
+///
+/// - **Arm A — divergence** (no SwiftUI claim: SwiftUI has no `flexGrow`). `Row {
+///   40×10; Box().height(10).flexGrow(0 → 1) }.width(300)`: legacy **0, 0, 65, 130,
+///   260** (CSS grows a lone item by its factor's share when the factors sum below
+///   1); lowered **0, 260, 260, 260, 260** — W exists from the frame the change is
+///   declared.
+/// - **Arm B — divergence**, in a child process. `Row { a.flexGrow(0 → 2); b.flexGrow(2)
+///   }.width(300)`: lowered 150 / 150 at every tick after the change and no report
+///   at any (the weights check reads the declared (2, 2)); legacy 0 / 300, 0 / 300,
+///   60 / 240, 100 / 200, 150 / 150. **Corrected from the design's `(1 → 2, 2)`**:
+///   its start state (1, 2) reports `flexGrow.weights` and would trap the proposal
+///   window before the animation begins; (0 → 2, 2) starts with one grower and is
+///   unequal mid-flight all the same (record §19, lane 2). The child process is the
+///   guard against M2o, whose mid-flight report traps a production window and would
+///   otherwise end the run with no summary line (practices shape 13).
+/// - **Arm C — agrees.** `Row { 260×10; Box().height(10).flexGrow(1).minWidth(40 →
+///   80) }.width(300)`: 40, 40, 50, 60, 80 on both sides. **Corrected from the
+///   design's "hugging row"**: under the harness root a hugging row is offered the
+///   root's width and a grower fills it (cause R), so the row declares 300 and the
+///   rigid sibling leaves the grower 40 (record §19, lane 2).
+///
+/// Every state is pre-flighted through `LayoutDifferential.compare` first (`LR-AA`).
+///
+/// Mutations that must redden it: **M2n** W's existence read from the animated style
+/// with a threshold of 0.5 (arm A's lowered 100.25 tick hugs); **M2o** the weights check
+/// reads the animated style (arm B's child traps mid-flight); **M2p** W's minimum read
+/// from the declared style (arm C's lowered widths jump to 80).
+@MainActor
+@Test func anAnimatedItemFieldSnapsItsStructureAndInterpolatesItsValues() async throws {
+    let row = child(rootID, 0)
+    // Arm A.
+    @ElementBuilder func armA(_ on: Bool) -> some ElementGroup {
+        Row { fixed(40, 10); Box().height(px(10)).flexGrow(on ? 1 : 0).background(.accent) }.width(px(300))
+    }
+    for on in [false, true] {
+        try #require(LayoutDifferential.compare(width: 400, height: 400) { armA(on) }.unlowerable.isEmpty, "A \(on)")
+    }
+    let aLegacy = try animatedWidths(.legacy, ids: [child(row, 1)]) { armA($0) }
+    let aLowered = try animatedWidths(.proposal, ids: [child(row, 1)]) { armA($0) }
+    #expect(aLegacy == [[0], [0], [65], [130], [260]], "A legacy \(aLegacy)")
+    #expect(aLowered == [[0], [260], [260], [260], [260]], "A lowered \(aLowered)")
+
+    // Arm C.
+    @ElementBuilder func armC(_ on: Bool) -> some ElementGroup {
+        Row { fixed(260, 10); Box().height(px(10)).flexGrow(1).minWidth(px(on ? 80 : 40)).background(.accent) }
+            .width(px(300))
+    }
+    for on in [false, true] {
+        try #require(LayoutDifferential.compare(width: 400, height: 400) { armC(on) }.unlowerable.isEmpty, "C \(on)")
+    }
+    let cLegacy = try animatedWidths(.legacy, ids: [child(row, 1)]) { armC($0) }
+    let cLowered = try animatedWidths(.proposal, ids: [child(row, 1)]) { armC($0) }
+    #expect(cLegacy == [[40], [40], [50], [60], [80]], "C legacy \(cLegacy)")
+    #expect(cLowered == cLegacy, "C lowered \(cLowered)")
+
+    // Arm B, in a child process.
+    let result = await #expect(processExitsWith: .success,
+                               observing: [\.standardOutputContent, \.standardErrorContent]) {
+        await MainActor.run {
+            let rowID = GlobalElementID.child(of: GlobalElementID.child(of: nil, at: 0, name: nil), at: 0, name: nil)
+            let ids = [GlobalElementID.child(of: rowID, at: 0, name: nil), GlobalElementID.child(of: rowID, at: 1, name: nil)]
+            var preflight: [String] = []
+            for on in [false, true] {
+                preflight.append("\(LayoutDifferential.compare(width: 400, height: 400) { animatedWeightsArm(on) }.unlowerable)")
+            }
+            let legacy = (try? animatedWidths(.legacy, ids: ids) { animatedWeightsArm($0) }) ?? []
+            let lowered = (try? animatedWidths(.proposal, ids: ids) { animatedWeightsArm($0) }) ?? []
+            let line = "LANE2-2.13B preflight=\(preflight) legacy=\(legacy) lowered=\(lowered)\n"
+            FileHandle.standardOutput.write(Data(line.utf8))
+        }
+    }
+    let out = String(decoding: result?.standardOutputContent ?? [], as: UTF8.self)
+    let err = String(decoding: result?.standardErrorContent ?? [], as: UTF8.self)
+    let expected = "LANE2-2.13B preflight=[\"[]\", \"[]\"] "
+        + "legacy=[[0.0, 300.0], [0.0, 300.0], [60.0, 240.0], [100.0, 200.0], [150.0, 150.0]] "
+        + "lowered=[[0.0, 300.0], [150.0, 150.0], [150.0, 150.0], [150.0, 150.0], [150.0, 150.0]]\n"
+    #expect(out.contains(expected), "stdout:\n\(out)\nstderr:\n\(err)")
 }
