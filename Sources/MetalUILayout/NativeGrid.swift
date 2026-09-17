@@ -55,8 +55,9 @@ struct NativeGridCell {
     let node: LayoutNodeID
     let row: Int
     let column: Int
-    /// Columns covered, at least 1, clamped to the columns left in the row. A
-    /// non-row cell spans every column.
+    /// Columns covered, at least 1, never clamped (ruling GR-Z: the column
+    /// count is the widest row's sum of spans). A non-row cell spans every
+    /// column.
     let span: Int
     let isRowCell: Bool
     /// `nativeLayoutPriority` of the child (the finite solve's groups).

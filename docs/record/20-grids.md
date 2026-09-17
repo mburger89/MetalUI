@@ -503,6 +503,115 @@ hits. No real window was captured (lane 4's, `GR-M`).
 - A stack's infinite-flexibility tie (`GR-O` 8) will move any corpus or arm with
   a grid beside a flexible sibling; none of lane 3's arms has one.
 
+## Second critic round (2026-09-17, after lane 2, probe revision 6)
+
+The design and lanes 1–2 as built were reviewed a second time, in the worktree
+at `cdd9209`. **Fifteen findings, all fifteen applied** (`GR-Y` has the table;
+`GR-Z`…`GR-AF` are the new rulings). What was measured, in order.
+
+### What the reviewer verified, and what it left standing
+
+Suite 1446, exit 0, only SwiftPM's deprecation `warning:`; goldens 97 and `git
+diff cb2e708 -- '*.json'` empty; 73 `canTypecheck` hits (71 guards). Both probes
+re-run twice: `swiftui-grid.swift`'s default run byte-identical run to run and
+its `model-arms` block byte-identical to the header's recorded lines 736–841;
+`swiftui-grid-stack-ties.swift` byte-identical twice, T7 reproducing `z 34` with
+no grid.
+
+### Probe revision 6 (`1844256`)
+
+- **The default run's stdout is committed** (finding 14):
+  `docs/probes/swiftui-grid-default-run.txt`, 435 lines of stdout under an
+  18-line header, sha256 `5d2030386ae93bba614ff68f203e8d56a1bf284bad9912232f261088172f61ba`
+  (`tail -n +19 … | shasum -a 256`), run twice, byte-identical.
+- **`divergences`** (finding 3): the same generator, seed 4242 and budget as
+  `corpus`, printing the cases that run discards. Output: `65 printed of 185
+  generated; 120 agree`, exactly the corpus's own trailer, sha256
+  `36021ffc…8c9bdaf8`, twice, byte-identical →
+  `docs/probes/swiftui-grid-divergences.txt`.
+- **`span-row <n>`, arm GX24** (finding 8): one row of two cells each
+  `gridCellColumns(n)`, so a row's **sum** is 2n — the shape ruling `GR-S` traps
+  above `Int32.max` and no arm had. Each run alone, `/usr/bin/time -l`:
+
+  | n | row sum | answer | real | max RSS |
+  |---|---|---|---|---|
+  | 3 | 6 | 71×38 | ~1 s | — |
+  | 100_000 | 200_000 | 71×38 | ~1 s | — |
+  | 1_000_000 | 2_000_000 | 71×38 | 7.0 s | 1.38 GB |
+  | 10_000_000 | 20_000_000 | 71×38 | 31.5 s | 5.95 GB |
+
+  The answer never moves (three real columns, the rest empty), so SwiftUI
+  **honours a row sum**, at ≈300 bytes and ≈1.5 µs per column. `Int32.max`
+  would be ≈640 GB: SwiftUI's ceiling above 10⁷ is allocation, not a check, and
+  cannot be probed — the run cannot be made. Test 3.6 arm (c) ships on that,
+  and the allocation ceiling becomes divergence `GR-O` item 10 (`GR-AB`).
+- **Additive, checked:** after the edit the default run is byte-identical to
+  revision 5's (`cmp` against the pre-edit capture, twice, including after the
+  reading's prose fix) and the `corpus` mode's sha256 is still
+  `d93bc71a…a886f366`.
+
+### Code (`1b6c698`): suite 1446 → **1449**, goldens 97, guards 71
+
+- **Finding 1, the span clamp.** `Swift.min(span(child), columnCount − column)`
+  is unreachable: `columnCount` is the largest row sum of spans, so within a row
+  `columnCount − column` ≥ the rest of that row's spans ≥ this cell's. Deleted,
+  with the proof in the source (`GR-Z`). No mutation can redden it — that is the
+  finding — so the texts that called clamping a probed rule were restated
+  instead: spec §4.1, `GR-F`, `GR-S`, `NativeGridCell.span`'s comment, test
+  1.3's doc comment, and the probe's own reading (GX6's arm **label** is left
+  alone: it is in the recorded stdout).
+- **Finding 2, GX13.** A fourth arm in test 1.2: `[a 30×10, b 20×20, e 5×5]`
+  with a non-row `x 10×10` marked `columns(1)` is 71×38, x offered the whole 71
+  and centred at 30.5, e at 66. Derived from the probe line before running and
+  correct first run.
+- **Finding 12, the marks.** `markNativeGridRow`/`markNativeGridCell` gained a
+  `nativeNodes[index] != nil` precondition, before the parent check, each with
+  its own message; two arms in `aLegacyNodeUnderAGridOrCarryingAGridMarkTraps`
+  (renamed from `aLegacyNodeRegisteredUnderANativeGridTraps`; no new `@Test`).
+- **Finding 10, the registrars.** `Tests/MetalUITests/GridRegistrarTests.swift`,
+  three `@Test`s through a real `Frame`, reading cell rects relative to the
+  grid's own rect (a native root is placed at its answer, centred, by
+  `computeNativeLayout(root:proposal:centredIn:)`). All figures derived by hand
+  from §4.1–§4.3 — one-row `[a 30×10, b 20×20]` is 58×20 and `[…] [c 100×10
+  span 2]` is 100×38 with columns 51/41 — and all correct on the first run.
+
+### Mutations (each: commit, copy, mutate, `git status --short`, full suite, restore, `git status --short`)
+
+| # | mutation | file | reddens |
+|---|---|---|---|
+| M3.1 | honour a non-row child's column mark: `isRow ? span(child) : (child.columns.map { Swift.max(1, $0) } ?? columnCount)` | `NativeGrid.swift` | `anEmptyGridOrRowIsNothingAndNonRowChildrenMakeOneColumn` (2 issues: GX13's x rect and x's proposals). GA8, GX3, GX4 unmoved, as intended |
+| M3.2 | drop `markNativeGridRow`'s legacy check | `LayoutTree.swift` | `aLegacyNodeUnderAGridOrCarryingAGridMarkTraps` (2: the child exits `EXIT_SUCCESS`, and the stderr fragment) |
+| M3.3 | drop `markNativeGridCell`'s legacy check | `LayoutTree.swift` | the same test (2), at arm c |
+| M3.4 (V2) | `requestNativeGrid` passes `alignment: .center` always | `Grid.swift` | `requestNativeGridForwardsItsAlignmentToTheKernel` (1) **and** `markNativeGridCellForwardsItsColumnCountToTheKernel` (2), whose arms are `.topLeading`; both controls held |
+| M3.5 (V2b) | `markNativeGridRow` passes `alignment: nil` | `Grid.swift` | `markNativeGridRowForwardsItsAlignmentToTheKernel` (1) |
+| M3.6 | `markNativeGridCell` passes `columns: nil` | `Grid.swift` | `markNativeGridCellForwardsItsColumnCountToTheKernel` (1: b at the control's 108) |
+
+Every restore was confirmed with `git status --short` (clean), and the suite was
+1449 green before and after.
+
+### Scoped to later lanes, not done here
+
+- **Lane 3**: the placement re-bisection (finding 6, `GR-AC` item 4) **first**,
+  before any new behaviour; test 3.12, the divergence pin (finding 3); 2.14's
+  `ncols` and spanning arms (finding 7); test 3.13, the kernel's per-column cost
+  (finding 8); GX13's column-alignment half (finding 2); the no-grid T7 arm's
+  move into the stack's own test file (finding 9).
+- **Lane 4**: tests 4.9b and 4.9c, identity adoption inside a row and between
+  rows (finding 13, `GR-AF`); test 4.21, a `maxDepth − 1` chain per node kind on
+  a 1 MB thread (finding 5, `GR-AC`); the preview's grid and CLAUDE.md's open
+  human-verification row (finding 4, `GR-AE`).
+- **Not this track's**: `SA-L`'s margin (owner `LR-Q`'s stage 6b), `CN-B`'s
+  stack tie (owner plan task 6), the model's residual disagreements (owner plan
+  task 15's closeout). Each now has a named owner in `GR-N`.
+
+### Demo
+
+Not re-run for this round: no lane-3 or lane-4 source landed, and the code
+commit touches only the grid plan, the two mark registrars and tests — none of
+which any demo or preview content reaches (`grep -rn "Grid\b"
+Sources/MetalUIDemoContent Sources/MetalUIDemo`: no hits, re-checked). Lane 3
+takes the next comparison, lane 4 the first non-zero one (`GR-AE`).
+
 ## For the integrator
 
 (Written by lane 4; see spec §6, lane 4.)

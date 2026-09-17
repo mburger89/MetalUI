@@ -1,34 +1,47 @@
 # Grids decisions (plan task 7, stage G)
 
 Rulings for [`specs/2026-09-17-grids-design.md`](specs/2026-09-17-grids-design.md),
-on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-X`; next unused
-is **`GR-Y`**. A bare `GR-3` is a typo, not a citation.
+on `feat/grids` from `cb2e708`. Ids are **lettered**, `GR-A`…`GR-AF`; next
+unused is **`GR-AG`**. A bare `GR-3` is a typo, not a citation.
 
 **Status, 2026-09-17: lanes 1 and 2 built** (`GR-W` and `GR-X` record their
 as-built amendments);
-the design was revised after one critic round (`GR-Q` records how each of its
-fourteen findings was applied). Baseline measured in this worktree at `cb2e708`: `swift build
+the design was revised after **two** critic rounds — `GR-Q` records how each of
+the first round's fourteen findings was applied, `GR-Y` how each of the second
+round's fifteen was, and `GR-Z`…`GR-AF` are that round's new rulings. Baseline measured in this worktree at `cb2e708`: `swift build
 --build-system native --build-tests`, then `swift test --build-system native
 --no-parallel` → `Test run with 1409 tests in 1 suite passed after 42.821
 seconds`, 0 `error:`, no `warning:` besides SwiftPM's deprecation notice;
 `find Tests -name "*.json" | wc -l` 97; guards 71 (73 `canTypecheck` hits, less
 the declaration in `Typecheck.swift` and the comment in `UnitSafetyTests`).
+After the second critic round's code (`1b6c698`): **1449** tests, 97 goldens,
+71 guards.
 
 Probes (arm ids below are theirs):
 
-- `docs/probes/swiftui-grid.swift`, **revision 5** (`ed3471e`, `c1f793d`,
-  `01a3462`, `ce84b8b`, `beb4242`, `c0c499b`, `ea591cd`), `/usr/bin/swift`, Apple Swift 6.4,
+- `docs/probes/swiftui-grid.swift`, **revision 6** (`ed3471e`, `c1f793d`,
+  `01a3462`, `ce84b8b`, `beb4242`, `c0c499b`, `ea591cd`, `1844256`), `/usr/bin/swift`, Apple Swift 6.4,
   macOS 27.0 (26A428). Default run exit 0, twice, byte-identical, recorded in
-  its header with the reading; modes `corpus`, `model-arms`, `classify-spans`
-  (exit 0, twice each, byte-identical), `huge-columns` and
-  `trap-negative-columns` (exit 133 by design, twice each). It holds the
+  its header with the reading; modes `corpus`, `model-arms`, `classify-spans`,
+  `divergences` (exit 0, twice each, byte-identical), `span-row`, `huge-columns`
+  and `trap-negative-columns` (the last two exit 133 by design, twice each). It
+  holds the
   **reference model** (`solve`, `ModelGrid`), the fuzz comparison of that model
   with `Grid` (GZ0–GZ12, with a control GZ0 that must disagree), and the model's
-  run over every arm a `Case` can spell (`model-arms`).
+  run over every arm a `Case` can spell (`model-arms`). **Revision 6 is additive**:
+  the default run's stdout is byte-identical to revision 5's and the corpus's
+  sha256 is unchanged, both re-measured after the edit.
+- `docs/probes/swiftui-grid-default-run.txt` — the **default** run's stdout,
+  sha256 `5d203038…172f61ba`, 435 lines, committed at revision 6 so the reading
+  in the probe's header can be diffed against a re-run rather than checked arm
+  by arm (`GR-Y` finding 14).
 - `docs/probes/swiftui-grid-corpus.txt` — the `corpus` mode's stdout at revision
   5, 120 grids on which SwiftUI and the model agree, sha256
   `d93bc71a…a886f366` recorded in both files. Revisions 1–4's corpus is
   superseded (`GR-Q` finding 1).
+- `docs/probes/swiftui-grid-divergences.txt` — the `divergences` mode's stdout,
+  sha256 `36021ffc…8c9bdaf8`: the **65** grids the corpus run discards, each
+  with SwiftUI's answer and the model's (`GR-AA`).
 - `docs/probes/swiftui-lazy-grid-scope.swift` (`ed3471e`) — LazyVGrid/LazyHGrid
   against Grid, and laziness; exit 0, run twice, byte-identical.
 
@@ -87,6 +100,24 @@ proxies expose priority, `isSpacer` and a cached `sizeThatFits`, nothing else):
   (`requestNativeGrid`, `markNativeGridRow`, `markNativeGridCell`) are a public
   extension in `Sources/MetalUI/Grid.swift` that calls `frame.tree` directly.
 
+**Merge state, re-checked in the second critic round** (finding 15). `git diff
+cb2e708..feat/engine-stage-2 -- Sources/MetalUILayout/LayoutTree.swift` is one
+hunk, in `placeNative`'s `.padding` case (`LR-AU`), ~85 lines above this track's
+`case .grid:` in the same `switch`: textually mergeable. Neither track touches
+`NativeElements.swift`; the other track's `Frame.swift`/`Passes.swift` edits are
+files `GR-A` deliberately leaves alone. Three integration items, the third new:
+
+1. both tracks add stored properties to public classes → **`swift package
+   clean`** before the merged suite;
+2. `case grid(NativeGridPlan)` forces only same-file switches, all of them
+   already updated here;
+3. **`LR-AU` changes where a padded child is placed, and lanes 3–4 have
+   padded-cell arms** (3.10's padding with a non-zero inset, 4.2's
+   `.padding(Edges)`). The two rules agree only while a padding's rect equals
+   its own answer, which holds inside a grid because cells are placed at their
+   answers (spec §4.3) — so the arms should survive, but the integrator
+   **re-derives that**, rather than only re-running them green.
+
 **Cost if wrong.** Three stored properties on a public class read across a
 module boundary: **`swift package clean` before the lane-1 and lane-3 suites**
 (`CN-R`), and **at integration**, since both tracks add stored properties to
@@ -141,9 +172,18 @@ the recorded answer and with `roundLayout` of every recorded rect. Lane 2 runs
 the **18** cases with no anchor, column alignment or unsized axis; lane 3 runs
 all 120.
 
+**The GZ table is a dated baseline, not a report** (second critic round, finding
+3; `GR-AA`). The counts above were taken at probe revision 5 on 2026-09-17 and a
+later change to the model or the kernel **must not lower any of them**: a change
+that trades agreement in one group for another says so and re-takes the whole
+table, as `GR-F` did for step 12.
+
 **Why a corpus of agreeing cases.** It tests SwiftUI's behaviour where the
-model reproduces it, which is what the kernel ports; the disagreeing cases are
-the divergence `GR-O` item 2.
+model reproduces it, which is what the kernel ports. The corpus is therefore
+structurally unable to see the divergence — which is why the 65 discarded cases
+are committed too, as `docs/probes/swiftui-grid-divergences.txt`, and a handful
+of them is pinned wrong on purpose (`GR-AA`, test 3.12). The disagreement is
+divergence `GR-O` item 2.
 
 **Cost if wrong.** A rule the model gets right only by coincidence on the
 corpus would be ported as fact. The GZ counts bound that: the plain-grid rules
@@ -259,11 +299,15 @@ SwiftUI 90 wide, the kernel 45). Recorded as a divergence.
 
 **Ruling** (reading 6):
 
-- `gridCellColumns(n)` spans *n* columns, clamped to the columns left in the row
-  (GX6, GX21 at 100_000). The grid's column count is the widest row's sum of
-  spans, and a column that only a span covers is a column (GX23: its third
+- `gridCellColumns(n)` spans *n* columns, **never clamped** (`GR-Z`, second
+  critic round finding 1: the grid's column count is the widest row's sum of
+  spans, so the columns left in a row are always at least the cell's span).
+  GX6's `[a, b] [x span 5]` answers 58 because columns 2–4 are empty and take no
+  width, and GX21's `columns(100_000)` genuinely covers columns 0…99_999. A
+  column that only a span covers is a column (GX23: its third
   column takes x's whole shortfall). A non-row child is one cell spanning every column and
-  ignores `gridCellColumns` (GX3, GX4, GX13).
+  ignores `gridCellColumns` (GX3, GX4, GX13; GX13 pinned since the second critic
+  round by test 1.2's fourth arm).
 - A span's width shortfall (its answer minus its slot) is spread equally over a
   target set of its spanned columns. **At a nil×nil proposal** the targets are
   the spanned columns that hold no single-column cell anywhere in the grid, or
@@ -554,24 +598,33 @@ lazy grids, task 7 cannot close until G2 lands.
   once. **Before banking a mutation the lane shows the mutant differs** where
   the spec predicts a figure it cannot compute in advance (practices).
 - **Depth.** A grid is one native level. `SA-L` says the limit is 0.60 of the
-  smallest debug ceiling on a 1 MB thread; a new node kind can lower it. Lane 1
+  smallest debug ceiling **over every node kind** on a 1 MB thread; a new node
+  kind can lower it. Lane 1
   re-bisects a chain of one-cell grids by `SA-L`'s method (debug, 1 MB `Thread`,
-  `--skip-build` per depth) and **stops if the ceiling is below 147**
-  (0.60 × 147 = 88.2), reporting rather than lowering `maxDepth`. The depth
+  `--skip-build` per depth) and **stops if the grid's ceiling is below 147**
+  (0.60 × 147 = 88.2), reporting rather than lowering `maxDepth`. **The gate on
+  the grid alone is not `SA-L`'s rule** — the binding ceiling is the smallest
+  over all kinds, and at `cb2e708` that is the one-child vertical stack's 128,
+  whose 0.60 is 76, already below `maxDepth` 88 (`GR-W` item 3). The gate,
+  the breach and its owner are restated in `GR-AC`; the depth
   tests use **literals** (critic finding 2): a leaf under 88 one-cell grids is
   89 levels and traps; under 87 it is 88 levels and lays out.
 - **Demo** (`CN-R`'s harness, as record §16/§17 describe it, rebuilt in the
   lane's scratch; controls non-zero first: light vs dark, default vs modal,
   default vs animation): every lane renders the default demo and the proposal
   preview offscreen through `FakePlatformWindow` for `cb2e708` and its own tree.
-  **Expected 0 differing pixels, scene identical, in every image, at every
-  lane.** No demo or preview content names a grid (lanes check with `grep -rn
-  "Grid\b" Sources/MetalUIDemoContent Sources/MetalUIDemo`), so the images are
-  evidence only that the lane moved nothing else. **Real windows**: at lane 4's
+  **Expected 0 differing pixels, scene identical, in every image, through lane
+  3.** Through lane 3 no demo or preview content names a grid (lanes check with
+  `grep -rn "Grid\b" Sources/MetalUIDemoContent Sources/MetalUIDemo`), so the
+  images are evidence only that the lane moved nothing else. **Lane 4 puts a
+  grid in the preview** (`GR-AE`), so its preview delta is non-zero by design
+  and reported as such; the default demo stays 0 px there too. **Real windows**:
+  at lane 4's
   end, run `docs/probes/appkit-screen-lock-state.swift` and, if it prints no
   `CGSSessionScreenIsLocked` line and `displayAsleep main: 0`, run
   `docs/probes/window-capture/capture.sh <scratch> cb2e708 <HEAD>` and record
-  its table (expected 0 differing pixels in both windows).
+  its table (expected 0 differing pixels in the default window, the grid's own
+  region in the preview window).
 
 ---
 
@@ -585,7 +638,10 @@ lazy grids, task 7 cannot close until G2 lands.
 | a modifier distributing over a multi-cell `GridRow` | task 8 (`GR-J`) |
 | `.id()` on `Grid`/`GridRow` | task 8 (explicit identity; no built-in proposal element has `.id()`) |
 | proposal-path accessibility, grids included | task 12 (`AB-Q`) |
-| the model's residual disagreements (GZ2–GZ8; GS4, GS5 among the arms) | recorded divergence; reopened by a probe arm that a user layout hits (task 15's closeout audit) |
+| the model's residual disagreements (GZ2–GZ8; GS4, GS5 among the arms) | **plan task 15, the replacement closeout** (`GR-AA`): re-run the GZ table and the divergence corpus against the baseline in `GR-B`, and decide there whether to close the gap; a count below the baseline is a regression to be fixed, not reported |
+| `CN-B`'s stack breaking an infinite-flexibility tie in declaration order (`GR-O` item 8, probe T7, **no grid involved**) | **plan task 6, the stacks task** (`SA-N`'s stack row already belongs to it); the grid stage only measured it |
+| the `0.60 × smallest ceiling` margin `SA-L` asks for, breached by the one-child vertical stack at `cb2e708` (128 → 76 < 88) | **`LR-Q`'s stage 6b re-bisection**, dated 2026-09-17 (`GR-AC`); the grid's own chain stays above the gate and lane 4 pins the hard half |
+| a grid on screen in front of a human (VoiceOver, hover, input, a mid-flight window) | **plan task 15's closeout look**, on the row lane 4 adds to CLAUDE.md's human-verification table (`GR-AE`) |
 | a legacy `Grid` spelling | none: the task text adds none |
 
 (Revision 4's row "a grid's own zero-spacing edges seen from an enclosing stack"
@@ -603,7 +659,13 @@ is removed: probed and ruled, `GR-R`.)
    priorities, Spacers or unsized axes the kernel is the model, which disagrees
    with `Grid` — in either direction — on GZ2 12/1000, GZ3 31/500, GZ4 59/500,
    GZ5 18/500, GZ6 124/500, GZ7 69/300 (answers), GZ8 338/1000 generated grids,
-   and on arms GS4 and GS5: pinned by test 2.9.
+   and on arms GS4 and GS5: pinned by test 2.9 **and by test 3.12**, which
+   holds a representative handful of the 65 committed divergence cases
+   (`docs/probes/swiftui-grid-divergences.txt`) wrong on purpose, at the model's
+   figures with SwiftUI's in the doc comment. Roughly one generated grid in
+   three that uses spans, priorities or Spacers lays out differently from
+   SwiftUI; the GZ table is the dated baseline. **Owner: plan task 15's
+   closeout** (`GR-AA`, `GR-N`).
 3. **`gridCellColumns(0)` lays out as 1** (GX14): pinned by test 3.11.
 4. **Anchors are nine-point** (GL14): no `UnitPoint`; pinned by guard G4.
 5. **`Text` rows get 8, not 0** (GS7, GN2, GN5, GN7): as `CN-H`'s stacks; pinned
@@ -613,13 +675,33 @@ is removed: probed and ruled, `GR-R`.)
 7. **A column count above `Int32.max` traps, naming `columns`**, where SwiftUI
    lays a 40-bit count out as its low 32 bits (GX22: 1 << 40 as `columns(0)`)
    and traps at `Int.max` (GX20) (`GR-S`): pinned by test 3.6.
-8. **(Lane 2, not created by this stage but first measured here; `GR-X`.) A
+8. **(Lane 2, not created by this stage and NOT GRID-SPECIFIC; `GR-X`.) A
    linear stack serves two children whose answers at main ∞ are both infinite
    in declaration order**, where SwiftUI served the one larger at main 0 first
-   (probe `swiftui-grid-stack-ties.swift` T7, no grid: `VStack{z flexible; b
-   height ≥ 58}` at 200×100 reads z 34, MetalUI z 46 and the stack 112 tall).
-   Grid arms GE10 and GE19 turn on it. Pinned wrong on purpose by tests 2.10
-   (GE10) and 2.11 (GE19 and T7). Owner: `CN-B`'s stack, not the grid.
+   (probe `swiftui-grid-stack-ties.swift` T7, **no grid at all**: `VStack{z
+   flexible; b height ≥ 58}` at 200×100 reads z 34, MetalUI z 46 and the stack
+   112 tall). It affects every `HStack`/`VStack` in the framework; grid arms
+   GE10 and GE19 merely expose it. Pinned wrong on purpose by tests 2.10
+   (GE10) and 2.11 (GE19), and — since the second critic round, finding 9 — the
+   **no-grid** T7 arm moves out of 2.11 into the stack's own test file (lane 3),
+   so a later reader does not take it for grid behaviour. **Owner: plan task 6,
+   the stacks task** (`GR-N`), not this stage.
+
+9. **A vanishing `if` inside a grid moves the cells after it** (second critic
+   round, finding 13; `GR-AF`): `OptionalGroup` returns no node **without
+   advancing the cursor**, so the framework's universal trailing-sibling
+   adoption (CLAUDE.md) applies inside a `GridRow` and between rows — a removed
+   cell hands its `@State`, its focus and its `onTap` to the next cell in the
+   row, and a removed whole `GridRow` hands its row's to the next row. No
+   built-in proposal element has `.id()`, so the documented remedy cannot be
+   spelled until task 8. Pinned wrong on purpose by lane 4's tests 4.9b (within a
+   row) and 4.9c (whole row).
+
+10. **A column count the kernel accepts can still be unrunnable** (`GR-AB`): at
+    ~300 bytes per column in SwiftUI and O(ncols) arrays per solve in the
+    kernel, a count in the hundreds of millions fails by allocation in both,
+    with no message, below the `Int32.max` trap. Measured, not capped; arm in
+    test 3.6's doc comment and lane 3's counter arm.
 
 (Revision 4's item 7, "a grid's edges in an enclosing stack take default
 spacing", is withdrawn: `GR-R` ports SwiftUI's positional rule.)
@@ -719,22 +801,33 @@ grid and its neighbour; the per-cell edge is the walk already probed.
 
 ## GR-S — column counts are honoured up to `Int32.max` and trap above it
 
-**Finding** (`huge-columns`, GX23). `gridCellColumns(100_000)` is clamped to the
-columns left in its row (GX21: c covers columns 0…99_999 and d sits in column
-100_000 at x 66, 71×38 — the empty columns take no width without a shortfall);
+**Finding** (`huge-columns`, GX23, and — since the second critic round —
+`span-row`, GX24). `gridCellColumns(100_000)` is **not** clamped (`GR-Z`): GX21's
+c genuinely covers columns 0…99_999 and d sits in column
+100_000 at x 66, 71×38, the empty columns taking no width without a shortfall;
 the grid's column count is the widest row's sum of spans, empty columns included
 (GX23). `gridCellColumns(1 << 40)` lays out as `columns(0)` (GX22: SwiftUI keeps
 the low 32 bits); `gridCellColumns(Int.max)` traps (GX20, exit 133), and so did
-`Int.max / 2` and `Int.max − 1` in scratch. SwiftUI's own ceiling between
-100_000 and 2^31 is unmeasured.
+`Int.max / 2` and `Int.max − 1` in scratch.
+
+**A row's SUM is honoured too, and the ceiling is allocation** (second critic
+round, finding 8; GX24, `span-row <n>`: one row of **two** cells each marked
+`columns(n)`). The answer is 71×38 at n = 3, 100_000, 1_000_000 and 10_000_000
+— a sum of 2n columns, all but three empty — and the cost is about **300 bytes
+and 1.5 µs per column**: 7.0 s / 1.38 GB at 2 × 10⁶ columns, 31.5 s / 5.95 GB at
+2 × 10⁷. A sum of `Int32.max` would be ~640 GB, so **SwiftUI's own ceiling
+between 10⁷ and 2^31 is allocation, not a check**, and no arm can probe it: the
+run cannot be made. That is measurement, not reading — the earlier "by reading:
+no arm sums several large spans in one row" is retired.
 
 **Ruling.** Counts up to `Int32.max` are honoured as SwiftUI honours them, the
 column count included, so a grid's column state and bookkeeping are O(its
 column count), as SwiftUI's are (GX21 lays out 100_001 columns in both).
 `markNativeGridCell` **traps, naming `columns`**, when a single count or a
 node's sum of counts exceeds `Int32.max`; `newNativeGrid` traps, naming
-`gridCellColumns`, when a row's sum of spans does (by reading: no arm sums
-several large spans in one row). Negative counts trap as before (`GR-F`, GT1).
+`gridCellColumns`, when a row's sum of spans does — GX24 measures that SwiftUI
+honours such a sum, so the trap is a deliberate divergence, not a guess.
+Negative counts trap as before (`GR-F`, GT1).
 
 **The `SA-J` exception.** `SA-J` rejects a parameter only where SwiftUI rejects
 it, and GX22 is a misreading, not a rejection. Honouring a 40-bit count means
@@ -743,8 +836,10 @@ columns (a failure with no message); the kernel traps with the parameter named
 instead. A divergence (`GR-O` item 7), pinned by test 3.6.
 
 **Cost if wrong.** A caller passing a count above 2^31 that SwiftUI would
-truncate to a usable one gets a trap; a count near `Int32.max` asks for
-gigabytes of column state and fails in both (unmeasured).
+truncate to a usable one gets a trap; a count *below* the trap asks for
+O(count) column state in both engines and dies by allocation with no message —
+now measured for SwiftUI (above) and a divergence of its own (`GR-AB`,
+`GR-O` item 10) rather than an aside.
 
 ---
 
@@ -799,9 +894,25 @@ O(groups · ncols · cells) and O(cells²) on every measurement of every frame
   model's shape (the lane records that count), then indexed. Measurement work
   stays `lastNativeLayoutWork`'s (`SA-M`).
 
+**Pinned in one dimension only, and the counter is partial** (second critic
+round, finding 7). As built, 2.14 varies **rows** on a fixed 3-column,
+**span-free** grid, so of the bound's five terms only `cells`, `nrows` and
+`groups` are exercised: the `ncols` term (the first group's full commit sweep,
+`serve`'s `steps += plan.columnCount` per spanning cell, `spanWidth`'s `steps +=
+cell.span`) never varies and `spanning cells · ncols` is not exercised at all.
+**Lane 3 adds two arms** to 2.14: one varying `ncols` at a fixed row count, one
+with spanning cells, each with a literal derived by hand before the run.
+**Uncounted sites, deliberately** (they are O(1) per cell or once per solve and
+the counter would only track the same n): `startGroup`'s group-boundary
+`sameKey` scan, `init`'s O(ncols + nrows + cells) allocations, `innerGaps`'
+`reduce` and `size`'s two `reduce`s. So `GR-U`'s "the red-first run against the
+scanning solver is the check that the counter sees the scans" holds for the
+sites that solver used, and this list is the rest.
+
 **Cost if wrong.** A counter that misses a scan site proves a bound the code does
 not have; the red-first run against the scanning solver is the check that the
-counter sees the scans.
+counter sees the scans, and the uncounted list above is what that check did not
+cover.
 
 ---
 
@@ -936,3 +1047,242 @@ stack beside a flexible sibling lays out differently from SwiftUI by a share
 should be re-read. (2) is a stack-depth budget, re-measured. (3)–(5) are test
 strength, measured by mutation.
 
+
+---
+
+## GR-Y — the second critic round: each finding and what was done
+
+The design and lanes 1–2 as built (`cb2e708`…`cdd9209`) were reviewed a second
+time, in the worktree, with the suite re-run (1446) and every probe re-run
+twice. **Fifteen findings; all fifteen applied, none rejected** — five in code
+now (`1b6c698`), four in the probes and their committed stdout (`1844256`), the
+rest as restatements here and as named rows in lanes 3 and 4. Measurements are
+in record §20, "Second critic round".
+
+| # | finding | disposition |
+|---|---|---|
+| 1 | the span clamp is unreachable dead code and §4.1 / `GR-F` document clamping as a probed rule | **applied, in code.** `Swift.min` deleted with the structural proof beside it (`GR-Z`); §4.1, `GR-F`, `GR-S`, `NativeGridCell.span`'s comment and test 1.3's doc comment restated. GX6 and GX21 are empty columns, not clamping |
+| 2 | GX13 is normative and pinned by nothing | **applied, in code.** A fourth arm in test 1.2 (71×38, x offered the whole grid), with the mutation that honours a written mark on a non-row child; the non-row **column-alignment** half goes to lane 3 (3.1, 3.3), which is where column alignment exists |
+| 3 | the exit test cannot see the divergence it bounds, and `GR-O` item 2 has no owner | **applied.** The 65 discarded cases are committed with both answers (`divergences` mode, `GR-AA`); lane 3's test 3.12 pins a handful wrong on purpose; `GR-B`'s GZ table is a dated baseline a later change may not lower; the owner is plan task 15's closeout (`GR-N`) |
+| 4 | no human ever sees a grid, and the design guarantees it | **applied.** Lane 4 puts a small `Grid`/`GridRow` in the **preview** content — its pixel delta becomes non-zero by design and is reported with its region — and adds the open row to CLAUDE.md's human-verification table (`GR-AE`) |
+| 5 | the depth gate checks the grid's ceiling, `SA-L`'s is the smallest over kinds | **applied.** `GR-M` restated as `0.60 × min(ceiling over every kind) ≥ maxDepth`; the breach at `cb2e708` (stack 128 → 76 < 88) is dated and owned by `LR-Q`'s stage 6b, and lane 4 pins the hard half as an exit test per kind (`GR-AC`) |
+| 6 | placement re-measures through the two frame shapes the bisection rejected, and was never bisected | **applied.** Lane 3's first item, before any new behaviour: re-bisect with a chain whose slot differs from its answer at every level, and if the ceiling falls below 147 route `placeGrid` through `measureGrid(_:atAProposal:)` and hoist `nativeGridCellRects`' measurement out of its `map` (`GR-AC`) |
+| 7 | `GR-U`'s bound is pinned in one dimension and the counter has uncounted sites | **applied.** Two more arms on 2.14 in lane 3 (`ncols` at fixed rows; spanning cells), and `GR-U` now lists the four uncounted sites and why |
+| 8 | test 3.6 arm (c) traps where SwiftUI is unmeasured, and counts below the trap are unrecoverable | **applied, probed now.** GX24 (`span-row <n>`): SwiftUI honours a two-cell row sum at 2 × 10⁷ columns, ~300 B and ~1.5 µs each, so `Int32.max` would be ~640 GB and cannot be run. Arm (c) ships with that behind it; the allocation ceiling is divergence `GR-O` item 10 (`GR-AB`) with a lane-3 arm |
+| 9 | a general `linearStack` defect filed as a grid divergence with a file for an owner | **applied.** `GR-N` gains a row owned by plan task 6; `GR-O` item 8 says it is not grid-specific; lane 3 moves the no-grid T7 arm out of test 2.11 into the stack's own test file |
+| 10 | three public registrars exported for two lanes with no caller and a green mutation | **applied, in code now.** `Tests/MetalUITests/GridRegistrarTests.swift`: three tests through a real `Frame`, one per argument the verifier showed could be dropped (V2, V2b, the column count), each mutated red (`GR-AD`) |
+| 11 | §4.2's normative bookkeeping paragraph states a rule the code does not implement | **applied.** Restated as "decremented after each group, so a group's open columns are its start-of-group snapshot", matching `NativeGrid.swift`; the difference is load-bearing (GX17's group) |
+| 12 | the mark registrars accept a legacy node silently | **applied, in code now.** A `precondition` naming the node in both, with exit-test arms asserting each stderr fragment (`GR-AD`) |
+| 13 | identity inside a row carries the worst failure mode with no remedy and no pin | **applied.** Divergence `GR-O` item 9 and lane 4's tests 4.9b (within a row) and 4.9c (whole row), pinned wrong on purpose (`GR-AF`) |
+| 14 | the default probe run's stdout is not committed | **applied.** `docs/probes/swiftui-grid-default-run.txt`, sha256 `5d203038…172f61ba`, with the verifying commands in its header |
+| 15 | merge collisions with `feat/engine-stage-2`: low, with one caveat | **applied.** `GR-A` gains the third integration item: `LR-AU` changes where a padded child is placed and lanes 3–4 have padded-cell arms, to be **re-derived** at integration, not merely re-run |
+
+---
+
+## GR-Z — a span is never clamped; the column count makes a clamp unreachable
+
+**Ruling** (second critic round, finding 1). `makeNativeGridPlan` computes a row
+cell's span as `max(1, Σ its column marks)` and **does not clamp it**. The
+`Swift.min(span, columnCount − column)` lane 1 wrote is deleted, and every text
+that called clamping a probed rule — spec §4.1, `GR-F`, `GR-S`,
+`NativeGridCell.span`'s doc comment, test 1.3's — is restated.
+
+**Why it could never bind.** `columnCount` is the largest sum of spans over the
+row groups. Within one group, `column` at a cell is the sum of the previous
+cells' spans, so `columnCount − column` ≥ (this row's total) − (the previous
+spans) ≥ this cell's span. A proof, not a green mutation: deleting the `min`
+leaves the suite green precisely because nothing can reach it.
+
+**Neither engine clamps.** The probe lines read as clamping are three empty
+columns: GX6's `[a, b] [x span 5]` has five columns, of which 2–4 hold no cell,
+take no width and meet no adjacent pair, so the answer is the same 58; GX21's
+`columns(100_000)` genuinely covers columns 0…99_999 with d in column 100_000;
+GX23 established that the column count **is** the widest row's sum of spans.
+
+**Cost if wrong.** If some future rule made a row's sum exceed the column count
+— a per-row cap, say — spans would silently overflow their row rather than being
+cut. Nothing here introduces one, and `GR-S`'s traps are on the sum itself.
+
+---
+
+## GR-AA — the divergence corpus, the GZ baseline, and their owner
+
+**Ruling** (second critic round, finding 3). The replay corpus is, by
+construction, the grids on which the model already agrees with SwiftUI, so no
+test in this stage can see agreement getting **worse**. Three additions:
+
+1. **The discarded cases are committed.** `divergences` prints, from the same
+   generator, seed and budget as `corpus`, the 65 cases that run throws away,
+   each with SwiftUI's answer and rects and the model's:
+   `docs/probes/swiftui-grid-divergences.txt`, sha256 `36021ffc…8c9bdaf8`, run
+   twice, byte-identical.
+2. **A handful is pinned wrong on purpose.** Lane 3's test 3.12 transcribes a
+   representative set — at least one per symptom of `GR-F`'s
+   `classify-spans` table (the model wider, SwiftUI wider, equal sizes and
+   different rects) and one that needs no span — and asserts the **model's**
+   figures with SwiftUI's in the doc comment, beside test 2.9.
+3. **The GZ table is a dated baseline** (`GR-B`), not a report: a later change
+   may not lower any group's count, and one that trades groups re-takes the
+   whole table.
+
+**Owner: plan task 15, the replacement closeout** (`GR-N`), which re-runs the GZ
+table and the divergence corpus, compares them with the baseline and decides
+there whether to close the gap. The earlier "reopened by a probe arm that a user
+layout hits" was not an owner.
+
+**Cost if wrong.** A pinned handful is a sample: a regression that misses all of
+them and lowers a GZ count is caught only at task 15's re-run, not by the suite.
+That is the honest bound, and it is why the counts are dated here.
+
+---
+
+## GR-AB — a column count below the trap can still be unrunnable
+
+**Ruling** (second critic round, finding 8). The kernel keeps `GR-S`'s
+`Int32.max` traps and adds **no cap below them**, because SwiftUI has none
+either: GX24 lays out a two-cell row sum of 2 × 10⁷ columns, at about 300 bytes
+and 1.5 µs per column (7.0 s / 1.38 GB at 2 × 10⁶; 31.5 s / 5.95 GB at 2 × 10⁷).
+Both engines therefore die by allocation somewhere between 10⁷ and 2^31, with no
+message — a **divergence with a measurement** (`GR-O` item 10), not a check.
+
+A cap would have to name a number neither engine names, and `SA-J` forbids
+rejecting what SwiftUI accepts; relaxing a trap later is additive, inventing one
+is not.
+
+**The kernel's own per-column cost is lane 3's arm**: `newNativeGrid` builds
+`columnSingleCells` and `hgap` per column and each solve allocates `widths`,
+`levelInColumn`, `unprocessedSingles` and `committedColumn`, with `columnX` at
+placement — so lane 3 registers a grid with a large column count and reads
+`bookkeepingSteps` (work, never wall clock) to state the kernel's shape beside
+SwiftUI's 300 B/column, and records the count it used.
+
+**Cost if wrong.** A caller who writes `.gridCellColumns(1_000_000_000)` gets a
+frame that allocates tens of gigabytes and dies without a diagnostic. The
+divergence says so; nothing prevents it.
+
+---
+
+## GR-AC — the depth gate is over every node kind, and placement is bisected too
+
+**Ruling** (second critic round, findings 5 and 6).
+
+1. **The gate is `0.60 × min(ceiling over every native node kind) ≥ maxDepth`**,
+   `SA-L`'s rule, not "the grid's ceiling ≥ 147". The grid's own chain still has
+   to clear 147 for the grid not to be the binding kind; that is necessary, not
+   sufficient.
+2. **The rule is already breached at `cb2e708`, by the stack, not the grid**
+   (`GR-W` item 3): the one-child vertical stack completes 128 levels on a 1 MB
+   debug thread (127 with `.grid` present), so 0.60 × 127 = 76 < `maxDepth` 88.
+   **Dated obligation, 2026-09-17, owner `LR-Q`'s stage 6b re-bisection**
+   (`GR-N`): re-bisect all kinds and either lower `maxDepth` or re-derive the
+   margin. The grid track does not lower `maxDepth`: it is shared storage on the
+   other track's path and every `SA-L` figure moves with it.
+3. **Lane 4 pins the half that can be tested**: one exit test per native node
+   kind in `NativeLayoutRun.maxDepth`'s table — padding, a fixed frame, the
+   one-child vertical `linearStack`, a custom `ProposalLayout` — **and the
+   grid**, each building a chain of
+   `maxDepth − 1` nodes on a **1 MB** `Thread` and expecting `.success`. It
+   cannot see the 0.60 margin, but it fails the day any kind's ceiling falls
+   below `maxDepth` itself — which is the condition the margin exists to keep
+   far away. Its mutation is `maxDepth` raised by 40 (every arm's child dies).
+4. **The placement path is re-bisected in lane 3, before any new behaviour.**
+   Lane 1 and lane 2 rejected two frame shapes for the depth guard — measuring
+   from inside an `Array.map` (110 levels) and from inside the solve (65) — and
+   `placeGrid` still uses **both**: `solveNativeGrid(_:proposal:measure:)`
+   drives the solver from its own loop with a measuring closure, and
+   `nativeGridCellRects` measures inside a `map`. That is safe only while every
+   placement-time measurement is a cache hit, and `GR-C` deliberately measures
+   at a **fresh** proposal whenever the slot differs from the answer. The
+   bisection chain (one-cell grids over a leaf answering `min(proposal, 10)`)
+   has slot == answer at every level, so the fresh branch was never on the
+   measured stack. Lane 3 re-bisects with a chain whose slot differs from its
+   answer at every level (a two-cell row, or the `odd` leaf) and, if the ceiling
+   falls below the gate, routes `placeGrid` through
+   `measureGrid(_:atAProposal:)`'s shape and hoists `nativeGridCellRects`'
+   measurement out of its closure, re-bisecting after.
+
+**Cost if wrong.** (2) is pre-existing and disclosed; (4) is the one that could
+overflow a stack the guard admits, which is why it is lane 3's first item and
+not lane 4's.
+
+---
+
+## GR-AD — the public registrars are pinned, and a grid mark rejects a legacy node
+
+**Ruling** (second critic round, findings 10 and 12), both applied in code at
+`1b6c698`.
+
+- **`Sources/MetalUI/Grid.swift`'s three `LayoutPass` registrars are pinned
+  now**, not in lane 4: `Tests/MetalUITests/GridRegistrarTests.swift` lays a
+  grid out through a real `Frame` and reads its cells' rects relative to the
+  grid's own (a native root is centred, `CN-J`). One test per argument the
+  lane-1 verifier showed could be dropped with the suite green — `.topLeading`
+  vs `.center` for `requestNativeGrid`, a row `.top` for `markNativeGridRow`,
+  GX1's span for `markNativeGridCell` — each with a `#require`d control that
+  answers differently. Public API with no caller is CLAUDE.md's "an API that
+  exists, compiles and does nothing"; two lanes of it was too long.
+- **`markNativeGridRow` and `markNativeGridCell` trap on a legacy node**, each
+  naming it ("a grid row/cell mark written on a legacy node (SA-G), node *i*"),
+  before the parent check. Both previously checked only the generation and the
+  parent, so a mark on a legacy node was accepted and the `SA-G` lie surfaced
+  either inside `newNativeGrid` with a different message or never at all. Every
+  other `SA-G` lie in the tree is a compile error or traps where it is written.
+
+**Cost if wrong.** The three pins fix the registrars' defaults in place: a later
+lane that changes an argument's meaning must change them. The two preconditions
+reject a mark on a legacy node that could previously have been written and
+ignored — no caller in the tree does it, and the arms are exit tests.
+
+---
+
+## GR-AE — a grid reaches the preview, and the human look is a named open row
+
+**Ruling** (second critic round, finding 4). `GR-M`'s "0 differing pixels
+everywhere" would close the stage with a grid rendered in no window, and every
+earlier proposal container reached the preview. So **lane 4 adds a small
+`Grid`/`GridRow` to the `METALUI_NATIVE_LAYOUT_PREVIEW=1` preview content**: a
+two-row, two-column grid of `Rectangle`s with one `.onTap` cell, sized to sit
+inside the existing preview column.
+
+- The **default demo** stays grid-free and stays at **0 differing pixels**.
+- The **preview** delta is **non-zero by design**: lane 4 reports the differing
+  pixel count, the bounding box of the difference, and that the scene log's new
+  rects are exactly the grid's cells; anything outside that box is a defect.
+- CLAUDE.md's human-verification table gains an **open** row —
+  "the proposal preview's grid: cells in two rows and two columns, the tap cell
+  reacts, nothing else moved" — which is task 15's closeout look (`GR-N`).
+  Nobody has looked at a grid on screen, and the row says so rather than the
+  record implying a look happened.
+
+**Cost if wrong.** The preview's pixel comparison stops being a pure "moved
+nothing else" signal at lane 4; the bounding box is what keeps it evidence. If
+the grid's own region is wrong nobody notices until the look.
+
+---
+
+## GR-AF — identity inside a row: a vanishing cell or row is adopted, pinned wrong on purpose
+
+**Ruling** (second critic round, finding 13). Cells mint stable ids under the
+grid (`GR-J`: a `GridRow` takes one cursor index and numbers its cells from 0
+under its own id), and the framework's **universal** trailing-sibling rule holds
+inside a row and between rows: `OptionalGroup.requestProposalGroupLayout`
+returns no node **without advancing the cursor**, so
+
+- a vanishing `if` around a **cell** shifts the rest of that row: the next cell
+  adopts the vanished cell's id, and with it its `@State`, its focus and its
+  `onTap` — CLAUDE.md's "a release can run the wrong `onClick`";
+- a vanishing `if` around a whole **`GridRow`** shifts every later row the same
+  way.
+
+The documented remedy is naming the trailing sibling with `.id()`, and **no
+built-in proposal element has one** (task 8, `GR-N`), so inside a grid it cannot
+be spelled today. Lane 4 pins both, wrong on purpose, beside 4.9's good case:
+**4.9b** (a cell removed from a row; the next cell reads the removed cell's
+counter) and **4.9c** (a whole row removed; the next row does), each naming the
+change that would fix it. Divergence `GR-O` item 9, so the integrator's
+divergence table carries it rather than one ruling's prose.
+
+**Cost if wrong.** A form that shows a field conditionally hands its state to
+the next field. That is the framework's rule everywhere, but a grid is exactly
+where conditional cells are natural, so it is recorded as a divergence rather
+than left implicit.

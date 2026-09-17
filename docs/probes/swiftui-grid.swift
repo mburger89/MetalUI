@@ -214,8 +214,11 @@
 //    GS1's Spacer an ordinary flexible cell [GQ9: 200x100, s 152x62].
 // 6. Spans. A span's width shortfall is spread equally over its spanned columns
 //    that hold no single-column cell, else over all of them [GX1 51/41; GX11:
-//    col 1 grows to 82 and col 2 stays 10]. A span is clamped to the columns
-//    left [GX6]. A non-row child spans every column and ignores
+//    col 1 grows to 82 and col 2 stays 10]. A span is NEVER clamped (revision
+//    6): the column count is the widest row's sum of spans, so GX6's arm label
+//    "clamped to the grid" is a misnomer — [a, b] [x span 5] has FIVE columns
+//    and answers 58 because columns 2-4 are empty, take no width and meet no
+//    pair. A non-row child spans every column and ignores
 //    gridCellColumns [GX3, GX4, GX13]. At a finite proposal a spanning cell is
 //    proposed W' minus the other columns' shares or committed widths plus its
 //    inner gaps [GX8 300x46, GX10 300x82, GX12 300x96], does not keep its
@@ -228,7 +231,10 @@
 //    column absorbs x's shortfall, a's committed column stays 30]. The model
 //    still misreads GS5 (SwiftUI shares 292 over all 3 columns where the model
 //    opens only the column with single-column cells: 76.67 vs 164). A column
-//    count of 100_000 is clamped to the columns left [GX21]; 1 << 40 lays out
+//    count of 100_000 is honoured, not clamped [GX21: c covers columns
+//    0...99_999 and d sits in column 100_000]; a ROW SUM is honoured too, at
+//    ~300 bytes and ~1.5 us per column [GX24, revision 6, `span-row`: two cells
+//    of 10_000_000 each answer 71x38 in 31.5 s and 5.95 GB]; 1 << 40 lays out
 //    as columns(0) [GX22: SwiftUI keeps 32 bits of the count]; Int.max traps
 //    [GX20; Int.max / 2 and Int.max - 1 too, in scratch, record §20]. The
 //    column count is the widest row's sum of spans, and a column that only a
