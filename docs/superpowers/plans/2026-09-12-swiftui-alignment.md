@@ -282,9 +282,8 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   `CN-A`…`CN-U` in `../2026-09-16-containers-decisions.md`; probes
   `docs/probes/swiftui-stack-algorithms.swift` (revision 10) and
   `swiftui-overlay-presentation.swift`; record §17. Five lanes, each red first;
-  lanes 1, 2, 4 and 5 verified `ok`, lane 3 `ok: false` (its re-verification
-  was cut short; the record pass ran the missing mutations itself and found
-  one unpinned clause, mutation F, since pinned by the closeout). Suite 1355
+  all five verified `ok` (lane 3 only at the closeout, whose independent
+  verifier re-ran its mutations C–K; record §17's last section). Suite 1355
   (1303 + 52) at the Docs phase, 1357 after the closeout; 97 goldens unmoved,
   70 guards.
   - **Proposal containers — SwiftUI's** (lanes 1–4): stack distribution
@@ -336,9 +335,9 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   (`hiddenAfterASingleChildLegacyFrameStillHidesTheElement`,
   `aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient`); F is
   decided — probe revision 10's V1l/V1m confirm the trailing clause and test
-  3.6's new arms redden under F. **Lane 3 stays `ok: false`**: D–K have still
-  been run only by the record pass, never by an independent verifier. Suite
-  1357, 97 goldens unmoved, 70 guards.
+  3.6's new arms redden under F. The closeout's independent verifier then
+  re-ran C–K, every one red on named tests, and passed lane 3 (`ok: true`).
+  Suite 1357, 97 goldens unmoved, 70 guards.
 
   **Proposed amendment (`CN-T`), for the user to accept or not:** retitle this
   task "Port SwiftUI's container algorithms to the proposal path and audit the
@@ -350,7 +349,7 @@ recorded as sentences for `a15ec83..7cfcddc` still have no source.
   legacy spellings to task 7* — and append "including a windowed proposal
   `List` and a proposal portal for `Deferred`" to task 7's "Migrate the
   remaining elements off `FlexEngine`". If accepted, tick this task (lane 3's
-  re-verification first). If not, it stays open until task 7 replaces the
+  re-verification is done). If not, it stays open until task 7 replaces the
   legacy containers.
 
   *Superseded note, 2026-09-14 (at `7cfcddc`):* no listed legacy container was

@@ -14,9 +14,10 @@ SwiftUI's probed algorithms (lanes 1–4); on the legacy path a frame over one
 node overflows both axes and `percent:` is renamed `fraction:` (lane 5). No
 legacy container is lowered or replaced (`CN-A`), so task 6 stays open
 (`CN-T`). 1303 → **1355** tests, 66 → **70** guards, 97 goldens unmoved.
-**Lanes 1, 2, 4 and 5 verified `ok`; lane 3 `ok: false`** (its re-verification
-was cut short; the record pass's own run of the missing mutations found one
-unpinned, unprobed clause). "For the integrator", the last section, says what
+**All five lanes verified `ok`.** Lane 3 read `ok: false` until the closeout:
+its re-verification was cut short, the record pass's own run of the missing
+mutations found one unpinned clause (F, since pinned), and the closeout's
+independent verifier re-ran C–K and passed it (last section). "For the integrator", the last section, says what
 CLAUDE.md, the plan, README and the two tables should say.
 
 ## Lane 1 — distribution (`CN-B`, `CN-D`, `CN-E`'s second pass, `CN-C`'s −∞, `CN-F`'s spacer)
@@ -2144,3 +2145,49 @@ printed. **1357** = 1355 + 2 (the two tests of item 1; item 2 added arms to an
 existing test). Goldens 97, `git diff 9e439cb` over them empty. Guards 70
 (per-file `grep -c canTypecheck` unchanged). The default build system was not
 re-run.
+
+
+## Independent verifier (closeout, at `64db233`): lane 3 `ok`
+
+The closeout's verifier re-ran lane 3's mutations C–K itself, which no one
+other than the record pass had done, and verified the closeout's two fixes.
+Verdict **`ok: true`**, no blocker or major issue. Its one minor issue was
+this record still calling lane 3 `ok: false`, which this section and the
+status lines above correct.
+
+- **Suite**, after `swift package clean` and a native build:
+  `Test run with 1357 tests in 1 suite passed after 41.083 seconds`, 0
+  `error:`, the only `warning:` SwiftPM's deprecation notice, only the two
+  gated tests skipped, the container guard lines printed. 97 goldens, empty
+  diff against `9e439cb`; 70 guards; `cmp CLAUDE.md AGENTS.md` identical.
+- **Probe** `swiftui-stack-algorithms.swift` revision 10: two runs,
+  byte-identical, 787 lines, matching the header. V1l and V1m 60×20 with c at
+  28 and b at 40; controls V1c 48 and V1j 56 in the same run.
+- **Demo** (the `CN-R` harness, `git archive` of `9e439cb` and `64db233`):
+  controls non-zero first (light/dark 1,048,576; default/modal 1,030,498;
+  default/animation 210,027; f0/f3 0; preview light/dark 1,048,576). All
+  eight legacy images and the 560 default are 0 with identical scenes; the
+  1024 previews 1,109 each and the 560 preview 65,449, equal to `CN-S` row 5.
+
+Every mutation below was run on the unfiltered suite, restored from a copy,
+and reddened named tests. C reads 26 issues where the record pass read 24;
+the two extra are the new V1m arm.
+
+| mutation | reddened (issues) |
+|---|---|
+| C: a same-axis nested stack has no zero-spacing edge (`return (false, false)`) | defaultSpacingBesideANestedContainerFollowsItsChildrensEdges (26 issues: V1b, V1c, V1e, V1i, V1m size+b and the rest; +2 over the record pass's 24, from the new V1m arm) |
+| D: a cross-axis stack or custom layout combines its children's edges with AND (allSatisfy) | defaultSpacingBesideANestedContainerFollowsItsChildrensEdges (14) |
+| E: a spacer's edges ignore its orientation (let zero = true) | defaultSpacingBesideANestedContainerFollowsItsChildrensEdges (8); defaultSpacingBesideASpacerIsDecidedPerEdgeThroughItsWrappers (2) |
+| E2: an unmarked spacer has no zero edge (?? false) | defaultSpacingBesideANestedContainerFollowsItsChildrensEdges (18); defaultSpacingBesideASpacerIsDecidedPerEdgeThroughItsWrappers (4) |
+| F: a same-axis stack's trailing edge read from its last child's LEADING edge | defaultSpacingBesideANestedContainerFollowsItsChildrensEdges (4: V1l size 52 and b x 32; V1m size 68 and b x 48) |
+| G (M4b): padding's left and right insets swapped in zeroSpacingEdges | defaultSpacingBesideASpacerIsDecidedPerEdgeThroughItsWrappers (2) |
+| H (M12): VerticalAlignment(verticalFactorOf:) maps 1 to .center | theDeprecatedSpacingFirstStackInitializersForwardSpacingAndTheCrossFactor (4) |
+| H2: HorizontalAlignment(horizontalFactorOf:) maps 1 to .center | theDeprecatedSpacingFirstStackInitializersForwardSpacingAndTheCrossFactor (4) |
+| I (M13): the deprecated HStack initializer forwards spacing: nil | theDeprecatedSpacingFirstStackInitializersForwardSpacingAndTheCrossFactor (11) |
+| I2: the deprecated VStack initializer forwards spacing: nil | theDeprecatedSpacingFirstStackInitializersForwardSpacingAndTheCrossFactor (11) |
+| J: a custom layout treated as a leaf (no zero edge) | defaultSpacingBesideANestedContainerFollowsItsChildrensEdges (12) |
+| K: a cross-axis linear stack treated as a same-axis one | defaultSpacingBesideANestedContainerFollowsItsChildrensEdges (6) |
+| HID1: lowered() without the `style.display != .none` clause (the unconditional .stack at b442c9e) | hiddenAfterASingleChildLegacyFrameStillHidesTheElement (4: rows 3 and 5 read 40, rows 6 and 7 read 48; rows 1, 2 and 4 stayed green); aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient (8: all four arms, 1 emission and 1 published node each) |
+| HID2: only the outermost layer overwrites display with .stack (inner layers keep the fix) | hiddenAfterASingleChildLegacyFrameStillHidesTheElement (2: rows 3 and 5, sibling at 40); aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient (4: the two outermost arms, frame(width:height:).hidden() and frame(minWidth:maxWidth:).hidden()) |
+| HID3: only inner layers overwrite display with .stack (outermost keeps the fix) | hiddenAfterASingleChildLegacyFrameStillHidesTheElement (2: rows 6 and 7, sibling at 48); aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient (4: the two .padding(4) arms) |
+| HID4 (accessibility arm): ModifiedElement.prepaintLayer drops the per-inner-layer suppressingAccessibilityIfHidden wrap | aHiddenOneNodeFrameLayerPublishesNothingToAnAccessibilityClient (4: the two .padding(4) arms); aHiddenInnerModifierLayerSuppressesEverythingInsideIt (2, pre-existing) |
