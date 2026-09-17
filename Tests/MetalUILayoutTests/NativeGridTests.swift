@@ -211,8 +211,17 @@ private let none = ProposedSize(width: nil, height: nil)
 /// non-row children has one column (GA8: `{x 30x10; y 10x20}` at nil is 30×38,
 /// y centred at 10).
 ///
-/// Mutation: group consecutive children by token equality including nil (GA8's
-/// x and y become one row, 48×20).
+/// **GX13** (second critic round, finding 2): a non-row child's column mark is
+/// **ignored** — it spans every column whatever it says (GR-F). `[a 30x10,
+/// b 20x20, e 5x5] x 10x10 columns(1)` at nil is 71×38 with x measured at the
+/// whole 71 and centred in it, not measured at column 0's 30. Normative in spec
+/// §4.1 and implemented since lane 1, and until this arm no test read it.
+///
+/// Mutations: (a) group consecutive children by token equality including nil
+/// (GA8's x and y become one row, 48×20); (b) honour a non-row child's column
+/// mark when it has one — `isRow ? span(child) : (child.columns.map { max(1,
+/// $0) } ?? columnCount)`, which leaves GA8, GX3 and GX4 (no marks) untouched
+/// and moves GX13's x.
 @Test func anEmptyGridOrRowIsNothingAndNonRowChildrenMakeOneColumn() {
     do { // GA5
         let arm = Arm()
@@ -232,21 +241,32 @@ private let none = ProposedSize(width: nil, height: nil)
         #expect(arm["x"] == r(0, 0, 30, 10), "GA8 x")
         #expect(arm["y"] == r(10, 18, 10, 20), "GA8 y")
     }
+    do { // GX13: the non-row child's columns(1) is ignored.
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 20), arm.fx("e", 5, 5)),
+                             .full(arm.span(arm.fx("x", 10, 10), 1))])
+        #expect(arm.run(root, nil, nil) == size(71, 38), "GX13 size")
+        #expect(arm["e"] == r(66, 7.5, 5, 5), "GX13 e")
+        #expect(arm["x"] == r(30.5, 28, 10, 10), "GX13 x")
+        #expect(arm.proposals("x") == [proposal(nil, nil), proposal(71, 10)],
+                "GX13 x is offered the whole grid, not column 0: \(arm.proposals("x"))")
+    }
 }
 
 // MARK: - 1.3 spans at nil
 
 /// GR-F at nil: every cell is measured once; single-column cells widen their
 /// columns first, then each spanning cell spreads its shortfall, in source
-/// order; a non-row child spans every column; a span is clamped to the
-/// columns left.
+/// order; a non-row child spans every column. **Nothing is clamped** (GR-Z):
+/// the column count is the widest row's sum of spans, so a span always fits.
 ///
 /// - GX1 `[a 30x10, b 20x20] [c 100x10 span 2]`: 100×38, columns 51/41.
 /// - GX2 `[a, b] [c 10x10 span 2]`: 58×38, c centred in 58.
 /// - GX3 `[a, b] x 100x10 (non-row) [c 10x30, d 40x10]`: 100×76, columns 41/51.
 /// - GX4 `[a, b] x hf (non-row)`: x placed at its 58 slot answers 29.
 /// - GX5 `[a, b, c 5x5] [x 100x10 span 2, y 1x1]`: 113×38.
-/// - GX6 `[a, b] [x 10x10 span 5]`: clamped, 58×38.
+/// - GX6 `[a, b] [x 10x10 span 5]`: 58×38 — x spans all **five** columns and
+///   columns 2–4 are empty, take no width and meet no pair (GX21, GX23).
 /// - GX7 `[x 100x10 span 2] [a, b]`: the span declared first reads GX1's
 ///   columns.
 ///

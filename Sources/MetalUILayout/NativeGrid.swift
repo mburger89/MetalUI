@@ -118,9 +118,14 @@ struct NativeGridSolution {
 ///   with no token is a non-row cell, a row of its own (GA8).
 /// - A row cell's span is `max(1, columns)` (lane 1 treats 0 as 1, GX14); the
 ///   column count is the largest sum of spans in a row, 1 if there is no row
-///   (GX23); row cells take columns left to right, a span clamped to the
-///   columns left (GX6); a non-row cell starts at 0 and spans every column and
-///   ignores its column mark (GX3, GX13).
+///   (GX23); row cells take columns left to right; a non-row cell starts at 0
+///   and spans every column and ignores its column mark (GX3, GX13).
+/// - **Nothing clamps a span** (second critic round, finding 1; ruling GR-Z).
+///   The column count is the largest row sum of spans, so within a row the
+///   columns left at a cell, `columnCount − column`, are at least the rest of
+///   that row's spans and so at least this cell's: a clamp could never bind.
+///   GX6's `[a, b] [x span 5]` answers 58 because columns 2–4 are empty, take
+///   no width and meet no pair, not because x was cut to 2 (GX21, GX23).
 /// - `hgap[j]` is the largest pair value over adjacent cells of one row meeting
 ///   at j, 0 where none meets (GS5, GS6); `vgap[r]` the largest over cells of
 ///   rows r−1 and r covering one column (GS4). A pair's value is the explicit
@@ -156,7 +161,9 @@ func makeNativeGridPlan(_ children: [NativeGridChild], alignment: ProposalAlignm
         var indexes: [Int] = []
         var column = 0
         for child in children[group] {
-            let cellSpan = isRow ? Swift.max(1, Swift.min(span(child), columnCount - column)) : columnCount
+            // No clamp: `columnCount` ≥ this row's sum of spans ≥ `column` +
+            // this cell's span (ruling GR-Z).
+            let cellSpan = isRow ? span(child) : columnCount
             let cellColumn = isRow ? column : 0
             if cellSpan == 1 { columnSingleCells[cellColumn].append(cells.count) }
             indexes.append(cells.count)

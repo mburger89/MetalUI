@@ -1556,14 +1556,20 @@ extension LayoutTree {
     /// so its mark wins. `cells` may be empty. Marks on a node that never sits
     /// under a grid are inert.
     ///
-    /// **Traps on a node that already has a native parent**: the grid that
-    /// reads the mark registers after it, so a parented node's mark could never
-    /// be read.
+    /// **Traps on a legacy node** (SA-G) and **on a node that already has a
+    /// native parent**: the grid that reads the mark registers after it, so a
+    /// parented node's mark could never be read. Without the first check a mark
+    /// on a legacy node is accepted and then either traps inside
+    /// `newNativeGrid` with a different message or, if that node never reaches
+    /// a grid, is inert for ever — an `SA-G` lie with no diagnostic where it is
+    /// written (second critic round, finding 12; ruling GR-AD).
     public func markNativeGridRow(_ cells: [LayoutNodeID], alignment: ProposalAlignment? = nil) {
         let token = nextGridRowToken
         nextGridRowToken += 1
         for cell in cells {
             let index = slot(cell)
+            precondition(nativeNodes[index] != nil,
+                         "a grid row mark written on a legacy node (SA-G), node \(index)")
             precondition(nativeParents[index] == nil,
                          "a grid row mark written after its node was parented (GR-A), node \(index)")
             gridRowTokens[index] = token
@@ -1575,10 +1581,12 @@ extension LayoutTree {
     /// `gridCellColumns`). **Lane 1: a later mark replaces an earlier one**;
     /// lane 3 sums them and adds the anchor, column-alignment and unsized-axes
     /// marks. 0 lays out as 1 (GX14). A negative count traps with the parameter
-    /// named, where SwiftUI traps (GT1; SA-J). Traps on a node that already has
-    /// a native parent, as `markNativeGridRow` does.
+    /// named, where SwiftUI traps (GT1; SA-J). Traps on a legacy node and on a
+    /// node that already has a native parent, as `markNativeGridRow` does.
     public func markNativeGridCell(_ node: LayoutNodeID, columns: Int? = nil) {
         let index = slot(node)
+        precondition(nativeNodes[index] != nil,
+                     "a grid cell mark written on a legacy node (SA-G), node \(index)")
         precondition(nativeParents[index] == nil,
                      "a grid cell mark written after its node was parented (GR-A), node \(index)")
         if let columns {
