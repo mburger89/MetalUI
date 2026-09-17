@@ -74,7 +74,14 @@ private final class LeafLog: @unchecked Sendable {
 /// calls). Total **15 calls** (the probe's list has 15), **16 misses**, **13
 /// hits**; calls per leaf a 3, b 4, c 4, d 4.
 ///
-/// Mutation: re-measure every cell at its slot (the lane records the figures).
+/// **The spec's mutation does not discriminate here** (record §20 lane 2):
+/// re-measuring every cell at its slot changes nothing on GP1, whose four slots
+/// already differ from their answers, or on GP2, whose one equal slot (a's
+/// 152×62) is also the proposal it was measured at. It reddens 1.5, 1.12, 2.1,
+/// 2.9 and 2.13 instead.
+///
+/// Mutation (substituted): the finite solve also measures every cell at nil×nil
+/// first (GP1 reads 20 calls, 21 misses).
 @Test func aGridsWorkAtFiniteProposalsIsOneLeafCallPerDistinctProposal() {
     func arm(flexibleA: Bool, _ width: Double, _ height: Double, bounds: SizeD) -> (LayoutTree, [LeafLog], SizeD) {
         let tree = LayoutTree(generation: 0)

@@ -1017,17 +1017,28 @@ private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
 /// - GP4 GP2 at ∞×∞: ∞×∞. GP8 GA1 at ∞×∞: 78×58. Both measured only: an
 ///   infinite answer traps at checkpoint 3 when stored (SA-J).
 ///
-/// Mutation: propose a nil grid axis as 0 (GP5's a answers 152×0).
+/// The logs are asserted as well as the rects (as the probe's "measured, in
+/// order" lists read them): GP5's a is asked 152 × nil in its group and placed
+/// at its 152×20 slot; GP6's a is asked nil × 62 and, its 10×62 slot equalling
+/// that answer, placed there. **The rects alone cannot see the mutant below**:
+/// a proposed 152×0 answers 152×0, and its 152×20 slot re-measures it to the
+/// same rect (measured, record §20 lane 2).
+///
+/// Mutation: propose a nil grid axis as 0 (GP5's a is asked 152×0).
 @Test func oneAxisNilAndInfiniteProposalsAnswerAsTheProbeReads() {
     do { // GP5
         let arm = Arm()
         #expect(arm.run(ga1(arm, flexibleA: true), 200, nil) == size(200, 58), "GP5 size")
         expectRects(arm, "GP5", ["a": r(0, 0, 152, 20), "b": r(170, 0, 20, 20), "c": r(71, 28, 10, 30), "d": r(160, 38, 40, 10)])
+        #expect(arm.proposals("a") == [proposal(0, 0), proposal(.infinity, .infinity), proposal(152, nil), proposal(152, 20)],
+                "GP5 a: \(arm.proposals("a"))")
     }
     do { // GP6
         let arm = Arm()
         #expect(arm.run(ga1(arm, flexibleA: true), nil, 100) == size(58, 100), "GP6 size")
         expectRects(arm, "GP6", ["a": r(0, 0, 10, 62), "b": r(28, 21, 20, 20), "c": r(0, 70, 10, 30), "d": r(18, 80, 40, 10)])
+        #expect(arm.proposals("a") == [proposal(0, 0), proposal(.infinity, .infinity), proposal(nil, 62)],
+                "GP6 a: \(arm.proposals("a"))")
     }
     do { // GP4
         let arm = Arm()
