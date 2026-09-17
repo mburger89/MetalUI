@@ -100,6 +100,19 @@ public struct AXNode: Equatable {
     /// nobody but the declarer can supply.
     public var logicalCount: Int?
 
+    /// A realized row's index in its virtualized container's logical sequence —
+    /// spec §9's "3 of 500", the 3 half (ruling AB-L).
+    ///
+    /// **A hint, never a declaration, and internal.** `List` sets it on each row
+    /// it realizes, and only while a client is active and its window is bounded
+    /// (AB-X). `Frame.registerHandlers` strips it before `isEmpty`'s gate, so a
+    /// row hint never emits into `Frame.axNodes` and never writes a `$ax` slot
+    /// (AB-U); it reaches a client only through the frame's accessibility
+    /// record, where `AccessibilityTreeBuilder` maps it to `.row`. Not on the
+    /// public initializer and not `public`, so a third-party virtualized
+    /// container cannot publish row indices (AB-Q item 10).
+    var logicalIndex: Int?
+
     /// The resolved bounds, absolute to the root — meaningless, and fixed at
     /// zero, until `emitAXNode` fills it in from `prepaint`'s own resolved
     /// geometry. Settable only from inside this module; see this type's own

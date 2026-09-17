@@ -108,6 +108,50 @@ public final class Window {
         }
     }
 
+    /// The root environment every scope in this window starts from (ruling
+    /// EV-H): `isEnabled`, `layoutDirection`, `locale`, `dynamicTypeSize` and
+    /// custom keys, at `EnvironmentValues()`'s defaults (with the current
+    /// locale, below) until set.
+    ///
+    /// **Every write dirties the window, a no-op included.** Unlike `theme`
+    /// above there is no equality guard, and there cannot be one:
+    /// `EnvironmentValues` stores custom keys as `Any`. Constraining keys to
+    /// `Equatable` would diverge from SwiftUI's unconstrained `Value`. So write
+    /// from input, never from a phase — a phase-time write every frame keeps
+    /// the display link awake, `@State`'s rule. Pinned as a stated cost by
+    /// `theWindowsEnvironmentReachesTheFrameAndASetRepaints`.
+    ///
+    /// **Two fields are not taken from here.** The frame re-stamps `theme`
+    /// from `theme` above and `pixelLength` from the surface's scale factor, so
+    /// `window.environment.theme = .dark` — which compiles inside this module —
+    /// changes nothing (`Frame.rootEnvironment`).
+    ///
+    /// **Starts at `EnvironmentValues()` with `Locale.current` stamped over its
+    /// bare locale** (ruling EV-Y): a bare value holds `Locale(identifier: "")`,
+    /// as SwiftUI's does, and a window stamps the user's, as a SwiftUI host does.
+    public var environment = EnvironmentValues.windowDefault() {
+        didSet { setNeedsRedraw() }
+    }
+
+    /// The layout authority every frame this window builds runs under (plan task
+    /// 7, ruling LR-B): `.legacy` until stage 6b switches the default. A write
+    /// marks the window dirty, as `environment`'s does, a no-op included.
+    /// **Internal**, pinned by `aPlainImportCannotChooseTheLayoutAuthority`.
+    var layoutAuthority: LayoutAuthority = .legacy {
+        didSet { setNeedsRedraw() }
+    }
+
+    /// Whether every frame this window builds records its element bounds
+    /// (`Frame.recordsElementBounds`), read back through `lastElementBounds`.
+    /// **Test observability** for plan task 7's differential harness through a real
+    /// window (`WindowPair`, lane 5); no production reader. Off by default, so a
+    /// frame pays nothing.
+    var recordsElementBounds = false
+
+    /// The most recent frame's `Frame.elementBounds` — empty unless
+    /// `recordsElementBounds`. Captured alongside `lastScene`, for its reason.
+    private(set) var lastElementBounds: [GlobalElementID: Bounds<Pixels>] = [:]
+
     /// Raw input, for whatever no element claimed.
     ///
     /// **The window's fallback, not its first look — and that sentence is the
@@ -272,7 +316,7 @@ public final class Window {
     /// **The read-back is guarded, and that is what keeps a concurrent write
     /// from being discarded.** The hand-in and the read-back straddle the whole
     /// of `renderRoot`, so together they are a read-modify-write over a value
-    /// `focus(_:)` — public, and called from `MetalUIDemo`'s `CounterPanel`
+    /// `focus(_:)` — public, and called from `MetalUIDemoContent`'s `CounterPanel`
     /// during its own `requestLayout` — can change in between. The frame's
     /// answer is applied only while this property is still what the frame was
     /// handed; see `drawFrameIfNeeded` for why that condition is exactly "the
@@ -284,6 +328,10 @@ public final class Window {
     /// gone by the time a key event arrives, and there is no frame in flight to
     /// ask instead.
     private(set) var lastFocusRegistry = FocusRegistry()
+
+    /// Whether an accessibility client is present, and what this window last
+    /// published to it (`WindowAccessibility`, rulings AB-B, AB-M).
+    let accessibility = WindowAccessibility()
 
     /// The focused element and every ancestor of it, **innermost first** —
     /// empty when nothing is focused.
@@ -351,7 +399,7 @@ public final class Window {
     /// point.
     ///
     /// **Safe to call from inside a frame's own render**, which is what
-    /// `MetalUIDemo`'s `CounterPanel` does from its `requestLayout` — and the
+    /// `MetalUIDemoContent`'s `CounterPanel` does from its `requestLayout` — and the
     /// sentence above is true of an in-frame call as well: the *next* frame
     /// validates it, not this one. That is a property of the guarded read-back
     /// in `drawFrameIfNeeded`, not of this method, and it did not hold until
@@ -422,6 +470,9 @@ public final class Window {
         stateTable.onWrite = { [weak self] in self?.setNeedsRedraw() }
 
         platformWindow.onResize = { [weak self] _, _ in self?.setNeedsRedraw() }
+        platformWindow.onAccessibilityRequest = { [weak self] request in
+            self?.handleAccessibilityRequest(request) ?? false
+        }
         platformWindow.onAppearanceChange = { [weak self] appearance in
             // Assigning drives `theme`'s `didSet`, which is what marks the
             // window dirty — §7.9's "swap the active theme and mark §4.4's
@@ -836,7 +887,11 @@ public final class Window {
                           mousePosition: lastMousePosition,
                           activeElement: active,
                           focusedElement: focusHandedIn,
-                          transaction: transaction)
+                          transaction: transaction,
+                          collectsAccessibility: accessibility.isActive,
+                          layoutAuthority: layoutAuthority,
+                          recordsElementBounds: recordsElementBounds)
+        frame.rootEnvironment = environment
         withObservationTracking {
             // Reading the sentinel arms the next frame's flush; see ordering
             // note 3 above. Everything the element tree reads during all three
@@ -850,6 +905,7 @@ public final class Window {
         let scene = frame.finalizedScene()
         lastScene = scene
         lastHitboxes = frame.hitboxes
+        lastElementBounds = frame.elementBounds
         lastFocusRegistry = frame.focusRegistry
         // Read BACK, not merely handed in: `Frame.resolveFocus()` cleared it if
         // this frame did not produce the focused element (design spec §4.2).
@@ -862,7 +918,7 @@ public final class Window {
         // DECISION rather than its value.** The hand-in above and this line
         // straddle the whole of `renderRoot`, so they are a read-modify-write
         // over a value anything in the tree can change in between: `focus(_:)`
-        // is public and `MetalUIDemo`'s `CounterPanel` calls it from its own
+        // is public and `MetalUIDemoContent`'s `CounterPanel` calls it from its own
         // `requestLayout`. An unconditional copy would write back the id the
         // frame was *handed*, silently discarding that call — and discarding it
         // on every subsequent frame too, since set-during-render and
@@ -896,6 +952,20 @@ public final class Window {
         // answer is the whole answer, and a flag that only ever went true is
         // a window whose display link never pauses again.
         hasActiveAnimations = frame.hasActiveAnimations
+
+        // After the focus read-back, so a published focus is the frame's
+        // decision (AB-J). Builds only while a client is active (AB-B). A
+        // `List` still waiting for its viewport asks for one more frame, which
+        // this honours at most once per run of asking frames (AB-X rule 3).
+        if accessibility.frameDidRender(
+            emissionCount: frame.axEmissions.count,
+            retry: frame.wantsAccessibilityRetry,
+            AccessibilityTreeBuilder.build(emissions: frame.axEmissions, focused: focusedElement,
+                                           hitboxes: frame.hitboxes,
+                                           focusRegistry: frame.focusRegistry),
+            to: platformWindow) {
+            setNeedsRedraw()
+        }
 
         // **Before `encode`, and the ordering is the whole point.** Paint has
         // just packed whatever glyphs this frame needed and the scene holds

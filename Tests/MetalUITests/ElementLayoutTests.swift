@@ -219,11 +219,17 @@ private func rect(_ r: LayoutRect) -> (Float, Float, Float, Float) {
 private enum Fixture {
     static let contentSize = Size(width: px(400), height: px(120))
 
-    static func styles() -> (root: Style, column: Style, a: Style, b: Style, c: Style) {
+    static func styles() -> (rootPadding: Style, root: Style, columnPadding: Style,
+                             column: Style, a: Style, b: Style, c: Style) {
+        // Public `.padding` now wraps. These two styles belong to its outer
+        // boxes; the inner `Row` and `Column` retain their own sizing and
+        // alignment styles below.
+        var rootPadding = Style()
+        rootPadding.padding = Edges(all: .pixels(px(10)))
+        rootPadding.gap = Axes(both: .pixels(px(8)))
+
         var root = Style()
         root.flexDirection = .row
-        root.padding = Edges(all: .pixels(px(10)))
-        root.gap = Axes(both: .pixels(px(8)))
         // **Ruling EP-8, and the one line that stops these styles mirroring the
         // element tree.** `Style`'s `alignItems` default is `nil`, which the
         // engine reads as CSS's `stretch`; `Column.init`/`Row.init` now write
@@ -234,11 +240,13 @@ private enum Fixture {
         // reddens `aNestedLayoutMatchesTheEngineRunDirectly`.
         root.alignItems = .center
 
+        var columnPadding = Style()
+        columnPadding.padding = Edges(all: .pixels(px(5)))
+        columnPadding.gap = Axes(both: .pixels(px(4)))
+
         var column = Style()
         column.flexDirection = .column
         column.size = Size(width: .length(.pixels(px(150))), height: .length(.pixels(px(90))))
-        column.padding = Edges(all: .pixels(px(5)))
-        column.gap = Axes(both: .pixels(px(4)))
         column.alignItems = .center
 
         var a = Style()
@@ -248,7 +256,7 @@ private enum Fixture {
         var c = Style()
         c.size = Size(width: .length(.pixels(px(90))), height: .length(.pixels(px(60))))
 
-        return (root, column, a, b, c)
+        return (rootPadding, root, columnPadding, column, a, b, c)
     }
 
     /// The same tree built straight onto a `LayoutTree` and run through
@@ -260,8 +268,10 @@ private enum Fixture {
         let a = tree.newNode(style: s.a, children: [])
         let b = tree.newNode(style: s.b, children: [])
         let column = tree.newNode(style: s.column, children: [a, b])
+        let columnPadding = tree.newNode(style: s.columnPadding, children: [column])
         let c = tree.newNode(style: s.c, children: [])
-        let root = tree.newNode(style: s.root, children: [column, c])
+        let row = tree.newNode(style: s.root, children: [columnPadding, c])
+        let root = tree.newNode(style: s.rootPadding, children: [row])
 
         computeLayout(tree, root: root,
                       available: AvailableSpaceSize(
@@ -314,12 +324,14 @@ private enum Fixture {
 /// **The literal numbers below moved and the sizes did not**, which is the
 /// second half of the same claim. Derived from the boxes, not read off a run:
 ///
-/// - Root content box: x [10, 390], y [10, 110] — cross extent **100**.
-///   - `column` (150x90): x = 10, y = 10 + (100 - 90) / 2 = **15**.
-///   - `c` (90x60): x = 10 + 150 + 8 = 168, y = 10 + (100 - 60) / 2 = **30**.
-/// - Column content box: x [15, 155] — cross extent **140** — y [20, 100].
-///   - `a` (100x30): y = 20, x = 15 + (140 - 100) / 2 = **35**.
-///   - `b` (60x20): y = 20 + 30 + 4 = 54, x = 15 + (140 - 60) / 2 = **55**.
+/// - The root padding wrapper's content box is x [10, 390], y [10, 110]. Its
+///   inner row is stretch-aligned, so it is 250×100: the 160×100 padded-column
+///   wrapper followed by `c` (90×60).
+/// - The padded-column wrapper begins at (10, 10); its 150×90 inner column
+///   begins at (15, 15). `a` centres at **(40, 15)** and `b` at **(60, 45)**.
+/// - `c` follows the 160-point outer column box at x = **170** and centres at
+///   y = **30**. The gaps now belong to the wrappers, each of which has only
+///   one child, so neither gap participates in these inner placements.
 ///
 /// Every one of those is an integer, so `roundLayout` is a no-op here and these
 /// numbers pin centring alone.
@@ -342,9 +354,9 @@ private enum Fixture {
     // asserted with a value distinct from its neighbours.
     // Was (15, 15, 100, 30) / (15, 49, 60, 20) / (168, 10, 90, 60) under
     // stretch, when every child sat at its line's leading edge.
-    #expect(rect(log.bounds["a"]!) == (35, 20, 100, 30))
-    #expect(rect(log.bounds["b"]!) == (55, 54, 60, 20))
-    #expect(rect(log.bounds["c"]!) == (168, 30, 90, 60))
+    #expect(rect(log.bounds["a"]!) == (40, 15, 100, 30))
+    #expect(rect(log.bounds["b"]!) == (60, 45, 60, 20))
+    #expect(rect(log.bounds["c"]!) == (170, 30, 90, 60))
 }
 
 /// The builder invents no layout nodes.
@@ -362,7 +374,7 @@ private enum Fixture {
 
     frame.render(&tree)
 
-    #expect(frame.tree.nodeCount == 5)
+    #expect(frame.tree.nodeCount == 7)
     #expect(frame.tree.nodeCount == Fixture.directEngineRects().nodeCount)
 }
 
@@ -670,13 +682,18 @@ private func pathID(_ names: String...) -> GlobalElementID {
     var row = Row {
         Probe("only", log: log).flexGrow(1)
     }
+    // This configures the row, then padding wraps it. Reversing these calls
+    // would configure the wrapper instead, which is SwiftUI's modifier order.
+    .alignItems(.stretch)
+    .width(px(376)).height(px(104))
     .padding(Edges(top: .pixels(px(4)), right: .pixels(px(8)),
                    bottom: .pixels(px(12)), left: .pixels(px(16))))
-    // Not the default since EP-8 — see the doc comment for why it stays.
-    .alignItems(.stretch)
 
     frame.render(&row)
 
+    #expect(row.style.padding == Edges(top: .pixels(px(4)), right: .pixels(px(8)),
+                                       bottom: .pixels(px(12)), left: .pixels(px(16))),
+            "each edge must be stored on the outer padding wrapper unchanged")
     // origin = (left, top); size = content box = (400-16-8, 120-4-12).
     #expect(rect(log.bounds["only"]!) == (16, 4, 376, 104))
 }

@@ -217,6 +217,12 @@ living in the datum `List` re-reads every frame — and it is written up in the
 `anOffScreenListRowsModelReadIsNotTracked`. A reader who finds it and reaches
 for label 19 should stop here.
 
+**Erratum 2026-09-14 (at `7cfcddc`; record §09):** "label 19 is still
+available" is stale. Label 19 has since been assigned to "One element VALUE
+placed twice shares one `@State` box" (`git show a15ec83:CLAUDE.md`, line 458).
+If SwiftUI turns out to differ here, the next unused label is needed (20 in that
+table, which has no higher one), not 19; labels 3, 5, 6, 7, 8, 12 and 17 are retired and never reused.
+
 **1. Colour.** The layer's colorspace is Display P3 (spec §7.8) while
 `Hsla.rgb(_:)` authors in sRGB, so `0x38BDF8` renders somewhat more saturated
 than the hex implies.
@@ -705,3 +711,119 @@ a different observable: a focused element removed behind an `if` keeps focus
 indefinitely below threshold, and its still-produced ancestors keep claiming its
 keystrokes.
 
+
+---
+
+## 2026-09-15: divergences 20–34 (tasks 3, 9 and 12, integrated)
+
+Added to `CLAUDE.md`'s table at integration (record §13). Labels 20 onward were
+never used before. Each entry's full mechanism, probe arms and pins live in the
+ruling it cites; they are not repeated here.
+
+| # | kind | ruling (decisions doc) | pin |
+|---|---|---|---|
+| 20 | design | `MC-C` (modifier composition) | `aLayerAddedAtRunTimeIsAdoptedByTheNewOutermostLayer`; `aLayerAddedAtRunTimeKeepsTheOutermostAccessibilityNodeAndRepublishesTheWrappedOne` |
+| 21 | vs SwiftUI | `EV-F` (a), probe K2 | `aFocusedElementThatBecomesDisabledLosesFocusAtOnce` |
+| 22 | vs SwiftUI | `EV-F` (b), probe K6 | `aDisabledAncestorsRawKeyHandlerDoesNotSeeAKey`, `aDisabledPaneContributesNoKeyContext` |
+| 23 | vs SwiftUI | `EV-E`, probes P2f/P2g | `aDisabledClickTargetPassesTheClickToWhatIsUnderIt` |
+| 24 | vs SwiftUI | `EV-J`, `EV-U`, pixel-length X1/X2 | — |
+| 25 | vs SwiftUI | `EV-K`, probe H | E17, pinned wrong on purpose |
+| 26 | vs SwiftUI | probe K5 (environment track) | — (pre-existing, measured) |
+| 27 | vs SwiftUI | `AB-G`, arms 7, 8 | — |
+| 28 | vs SwiftUI | `AB-H`, P0/P1 | `aPressIsRefusedWhereHitTestingIsDisabled` |
+| 29 | vs SwiftUI | `AB-G`, R7 | — |
+| 30 | vs SwiftUI | `AB-T`, C1, C5, C5i | arm 7 of `aLabelOrValueOnAPlainContainerOrWrapperIsDistributedToItsChildren` |
+| 31 | vs SwiftUI | `AB-J`, arm 13 | — |
+| 32 | vs SwiftUI | `AB-L`, R16 | — |
+| 33 | vs SwiftUI | `AB-F`, 10b, R6, R11 | — |
+| 34 | vs SwiftUI | `AB-P`, arm 4 | unpinned |
+
+## 2026-09-16: divergences 35–50, and 15 retired (tasks 4 and 5, integrated)
+
+Added to `CLAUDE.md`'s table at integration (record §16). Each entry's full
+mechanism, probe arms and pins live in the ruling it cites.
+
+| # | kind | ruling (decisions doc) | pin |
+|---|---|---|---|
+| 35 | vs SwiftUI | `FR-E`, frame probe D4 | `aLegacyFrameClampsToItsMinimumAndMaximumWithoutGrowingIntoTheProposal`, wrong on purpose |
+| 36 | vs SwiftUI | `FR-N`, A5 | `aLegacyFrameSqueezesAnOversizedChildWhereSwiftUIOverflows`, wrong on purpose |
+| 37 | vs SwiftUI | `FR-B`, D12 | `aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity` (deliberate) |
+| 38 | vs SwiftUI | `FR-L`, `FR-R`, `SA-J`; negative-sizes H6, H10 | — (task 7) |
+| 39 | vs SwiftUI | `FR-D`, C1 | `anIdealDimensionOnTheLegacyFrameTraps` |
+| 40 | unfixed defect | `FR-T` | `aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock`, wrong on purpose |
+| 41 | vs SwiftUI | `OM-I`, content-shape H1 | `metalUIsDefaultHitRegionIsTheElementsWholeFrame` |
+| 42 | vs SwiftUI | `OM-K`, P1/P2 | `aPaddedClickTargetIsHittableInItsPaddingWhereSwiftUIIsNot` |
+| 43 | vs SwiftUI | `OM-AJ`, H6 | `aNegativeContentShapeInsetGrowsTheHitRegionAndIsStillClippedByAnAncestor` |
+| 44 | vs SwiftUI | `OM-AL`, X1–X3 | `anInnerLayersAllowsHitTestingDoesNotReachAClickOnALayerWrittenAfterIt`, wrong on purpose |
+| 45 | vs SwiftUI | `OM-N`, `OM-AA` a (folded in: the same fact seen from both paths), G3/G4 | `opacityReachesABackgroundWrittenAfterItWhereSwiftUIDoesNot` |
+| 46 | vs SwiftUI | `OM-AH`, G1/G2 | `aSecondOpacityOnOneElementReplacesTheFirstWhereSwiftUIMultiplies` |
+| 47 | vs SwiftUI | `OM-G`, border-clip C1 | `aBareCornerRadiusDoesNotClipTheChildren` (C3/D1 orders unpinned) |
+| 48 | vs SwiftUI | `OM-F`, component G7/G8 | `aComponentsWidthStillOverwritesItsMembersDeclaredWidth` |
+| 49 | vs SwiftUI | `OM-W`, D2 vs M1 | `aRoundedBorderFollowsTheArcWhereSwiftUIsClippedSquareBorderDoesNot` |
+| 50 | vs SwiftUI | record §16; content-shape S1 (S2 agrees, S3 the control) | `aContentShapeWrittenBeforeAWrappingModifierDoesNotReachAClickWrittenAfterIt`, wrong on purpose |
+
+**15 retired** (`OM-U`): `pushClip` now adds `activeOffset`, so a `ScrollView`
+inside a scrolled `ScrollView` gets its own mask. Pins:
+`aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` (inverted, name
+kept) and `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`. Never reuse
+the label.
+
+## 2026-09-16: divergences 36, 37 and 40 retired, 51–58 added (plan task 6, containers)
+
+Added to `CLAUDE.md`'s table by the containers Docs phase (record §17). Rulings
+are in `docs/superpowers/2026-09-16-containers-decisions.md`; probe arms in
+`docs/probes/swiftui-stack-algorithms.swift` unless stated.
+
+| # | kind | ruling | pin |
+|---|---|---|---|
+| 51 | vs SwiftUI | `CN-H`, probe S (text edges font-derived) | `aProposalTextStackUsesEightWhereSwiftUIUsesFontSpacing` (task 11) |
+| 52 | vs SwiftUI | `CN-P` 1, probe S | `aLegacyRowAndColumnDefaultToNoSpacingWhereHStackAndVStackDefaultToEight` (task 7) |
+| 53 | vs SwiftUI | `CN-P` 2, A5 | `aLegacyStackOffersFitContentWhereAZStackOffersItsProposal` (task 7) |
+| 54 | vs SwiftUI | `CN-P` 3, SC2 | `aLegacyScrollViewTakesItsCrossAxisFromItsParentWhereAProposalScrollViewTakesItsContents` (task 7) |
+| 55 | vs SwiftUI | `CN-P` 4, G1 | — (covered by the CSS goldens; task 7) |
+| 56 | vs SwiftUI | `CN-N`, component G7 | `aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`, `chainedFramesRemainConcreteAndNestTheirLayoutNodes`, as it stands (task 7) |
+| 57 | vs SwiftUI | `CN-K`, `swiftui-overlay-presentation.swift` H3 | unpinned (task 12) |
+| 58 | design | `CN-E` | `aZStackPlacesItsChildrenAtItsOwnSizeWithinTheirUnion` |
+
+**36 retired** (`CN-N`): a legacy frame over exactly one node lowers to a
+one-cell `display: .stack`, so an oversized child keeps its size and overflows
+both axes as SwiftUI's A5 does. Its pin
+`aLegacyFrameSqueezesAnOversizedChildWhereSwiftUIOverflows` was replaced by
+`aSingleChildLegacyFrameOverflowsAnOversizedChildOnBothAxes`. A frame over
+several nodes keeps the flex row (divergence 56).
+
+**37 retired** (`CN-F`, reversing `FR-B`): the kernel's frame with an infinite
+maximum answers ∞ at an infinite proposal, as SwiftUI's D12 does. Its pin
+`aFrameAtAnInfiniteProposalAnswersItsChildRatherThanInfinity` was deleted and
+replaced by `anInfiniteProposalIsAnsweredWithInfinity`.
+
+**40 retired** (`CN-O`, resolving `FR-T`): the sizing modifiers always took a
+fraction; they are now spelled `width(fraction:)`, `height(fraction:)` and
+`flexBasis(fraction:)`, and the `percent:` spellings are deprecated renames
+forwarding unchanged (guard
+`thePercentSizingModifiersAreDeprecatedRenamesOfFraction`). Its pin
+`aPercentageSizeTakesAFractionAndResolvesAgainstItsContainingBlock` is now
+`aFractionSizeResolvesAgainstItsContainingBlock`.
+
+**35's owner** moves from task 6 to task 7 (`CN-Q`). Never reuse 36, 37 or 40.
+
+## 2026-09-17: divergence 59, and owners amended (plan task 7 stage 1)
+
+Added to `CLAUDE.md`'s table at the stage-1 Docs phase (record §18). No
+divergence is retired: production frames still run under the legacy authority.
+
+| # | kind | ruling (decisions doc) | pin |
+|---|---|---|---|
+| 59 | vs SwiftUI | `LR-X`, `swiftui-engine-replacement-stage1.swift` T3/T4 | `aProposalTextBelowItsNarrowestWordAnswersItsWidestCharacterWhereSwiftUIAnswersTheProposal`, wrong on purpose (task 7 stage 2) |
+
+**Amended, not retired:**
+
+- **39**: the trap moved from construction to legacy registration (`LR-H`); the
+  pin `anIdealDimensionOnTheLegacyFrameTraps` was amended to render the frame.
+  Under the proposal authority the ideals lower onto the kernel frame; stage 6b.
+- **35, 53, 55**: SwiftUI's answer under the proposal authority already, pinned
+  by `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps`,
+  `aLoweredStackOffersItsProposalWhereTheLegacyStackOffersFitContent` and
+  `aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren`; production at stage
+  6b (`LR-L`).
+- **52** → task 7 stage 2; **54** and **56** → stage 3 (`LR-L`).

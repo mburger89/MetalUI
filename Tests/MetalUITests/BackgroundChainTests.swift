@@ -90,6 +90,31 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
             .background(.surface).hoverBackground(.accent).focusBackground(.separator)
             .focusable().onClick {}
     }
+    /// Ruling MC-I: a `.padding`/`.frame` chain is ONE `ModifiedElement` that
+    /// registers and paints each layer in a loop, so it gets two subjects over
+    /// a two-layer chain. Here the INNER layer (padding 5 around a 30x30 box)
+    /// is the 40x40 subject, at (8, 8) inside the outermost padding-8 layer,
+    /// which declares no background and no handler — so the one hitbox and the
+    /// one 40x40 rect are the inner layer's. The outermost layer is sized
+    /// 56x56 so the root does not stretch it to the window.
+    static func modifiedInner() -> some Element {
+        Box().width(px(30)).height(px(30))
+            .padding(Edges(all: .pixels(px(5))))
+            .background(.surface).hoverBackground(.accent).focusBackground(.separator)
+            .focusable().onClick {}
+            .padding(Edges(all: .pixels(px(8))))
+            .width(px(56)).height(px(56))
+    }
+    /// The same chain with the subject on the OUTERMOST layer (40x40 at the
+    /// origin) and nothing declared on the inner one.
+    static func modifiedOutermost() -> some Element {
+        Box().width(px(24)).height(px(24))
+            .padding(Edges(all: .pixels(px(4))))
+            .padding(Edges(all: .pixels(px(4))))
+            .width(px(40)).height(px(40))
+            .background(.surface).hoverBackground(.accent).focusBackground(.separator)
+            .focusable().onClick {}
+    }
 }
 
 /// Each background-painting site paints `focusBackground` while focused,
@@ -149,6 +174,8 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
     try check("Box", Subject.box)
     try check("Stack", Subject.stack)
     try check("Text", Subject.text)
+    try check("ModifiedElement inner layer", Subject.modifiedInner)
+    try check("ModifiedElement outermost layer", Subject.modifiedOutermost)
 }
 
 /// **The RESOLVED token is what animates, on every site** — one value, not
@@ -225,4 +252,6 @@ private func describe(_ rect: MUIRect, in theme: Theme) -> String {
     try focusAndHover("Box", Subject.box)
     try focusAndHover("Stack", Subject.stack)
     try focusAndHover("Text", Subject.text)
+    try focusAndHover("ModifiedElement inner layer", Subject.modifiedInner)
+    try focusAndHover("ModifiedElement outermost layer", Subject.modifiedOutermost)
 }

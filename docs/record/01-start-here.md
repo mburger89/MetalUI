@@ -474,6 +474,25 @@ the greps that establish it.
   (`List`) and the real design question (`Deferred` returns `nodes[0]`, and a
   component contributes zero or many).
 
+  **Erratum 2026-09-14 (at `7cfcddc`; record §09), two corrections to the
+  paragraph above.** (a) "there is no node to nest with the way SwiftUI's
+  `.frame()` does" is no longer true of `.frame`.
+  `ElementGroup.frame(width:height:)` returns a `FrameModifier` node that wraps
+  a component's body without overwriting its children
+  (`aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren`,
+  `ComponentTests.swift:607`). Distribution, and the 70/70 result, still hold
+  for a component's `.width`/`.height`/`.padding`. (b) **Unverified, by reading
+  only:** the same `.frame` probably opens a way around composition (2).
+  `FrameModifier<Content: ElementGroup>` is itself an `Element`
+  (`FrameModifier.swift:10`, `:62-67`), and `Deferred<Content: Element>`
+  (`Deferred.swift:41`) and `List<Data, Row: Element>` (`List.swift:216`) ask
+  only for `Element`, so `Deferred { MyComponent().frame(…) }` and a `List` row
+  closure returning `MyComponent().frame(…)` should compile. Neither has been
+  typechecked, and whether `Deferred`'s `nodes[0]` question is then answered
+  correctly at runtime is untested. The "Verified by `swiftc -typecheck`"
+  sentence above dates from the fix wave and covers the bare-component
+  rejection only.
+
   **A third composition, measured 2026-09-10 (review finding B-7): a caller's
   modifier on a component NEVER animates.** `everyRegisteringSiteAnimatesItsStyle`
   carries a `Component` arm with two halves. In the control half the width is
@@ -916,6 +935,13 @@ the greps that establish it.
   inert on their own: a `hoverBackground` with no `onClick` registers no hitbox
   and never resolves as hovered; a `focusBackground` with no `focusable()` and
   nothing moving focus never paints.
+
+  **Erratum 2026-09-14 (at `7cfcddc`; record §09):** `Frame.fill` no longer
+  hard-codes zero border widths. It and `PaintPass.fill` take `borderColor:` and
+  `borderWidths:` (`7c71996`), and the proposal-path `.border(_:width:cornerRadius:)`
+  draws with them (`nativeBorderPaintsOverContentWithoutChangingItsFrame`).
+  There is still no focus ring: no legacy element and no focus path passes a
+  border.
 
 - **`Text` measures and draws, and three things about it are load-bearing.**
   M2 landed `MetalUIText` (CoreText, no Metal), a shaping cache and a glyph

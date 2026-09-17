@@ -127,7 +127,7 @@ extension Component {
         // 1's earlier count — 5 issues across 4 tests, on the then-801-test
         // file — was correct for that file and is superseded here, not
         // wrong; `StyledComponent` did not exist yet.)
-        StateBinder.bind(self, table: pass.frame.stateTable, id: id)
+        StateBinder.bind(self, in: pass.frame, id: id)
 
         // One index from the PARENT's cursor, and a fresh cursor for the
         // content. Threading the outer cursor into the content instead would
@@ -259,21 +259,57 @@ extension Component {
     }
 }
 
-/// A component with a `Style` amendment applied to each of its top-level nodes.
+/// One caller's modifier on a `Component`, applied to each of the component's
+/// top-level nodes **in the order the modifiers were written** (outer
+/// modifiers task, ruling `OM-E`).
 ///
-/// **Modifiers on a `Component` DISTRIBUTE rather than wrap, and that is
-/// measured** (spec §5). SwiftUI's `MyRow().padding(8)`, where `MyRow`'s body is
-/// a 30x10 and a 50x10 view, measures 120x26 — `(30+16) + 8 + (50+16)`, each
-/// child padded — bit-identical to `Group { A; B }.padding(8)`. A wrapping
-/// implementation predicts 96-104. The two are one mechanism with §2's
-/// transparency: `MyRow()` IS its children, so a modifier applied to it applies
-/// to each of them, because there is no single thing to wrap.
+/// Two kinds, because the legacy path now has two kinds of modifier. `.amend`
+/// is distribution as the `Component` milestone measured it (`CO-U`): a plain
+/// write onto the member node's own `Style`, which is what `width`/`height`
+/// still are (`OM-F`). `.wrap` is what `.padding` became when `MC-A` made it a
+/// wrapper on the `Element` path: a real legacy node registered around the
+/// member, carrying the same `Style` a `ModifierLayer` carries.
 ///
-/// This type contributes **no layout node of its own** — it returns the
-/// component's nodes unchanged, having amended their styles — so a modified
-/// component is exactly as layout-transparent as a bare one.
+/// `StyledComponent.requestGroupLayout` walks the list once per member with a
+/// "current node": an amend writes the current node, a wrap replaces it. That
+/// is what makes `.padding(4).width(70)` (the padded box is 70 wide) and
+/// `.width(70).padding(4)` (the member is 70 wide, then padded to 78) differ —
+/// `aModifierOnAComponentAppliesInTheOrderItIsWritten`. Keeping an amend set
+/// beside a wrap set would collapse those two into one answer.
+enum ComponentModifierOp {
+    /// Writes into the current node's own `Style`. `width`/`height`.
+    case amend(@Sendable (inout Style) -> Void)
+    /// Registers a legacy node with `style` around the current node, which the
+    /// new node then replaces. `padding`.
+    case wrap(Style)
+}
+
+/// A component with a caller's modifiers applied to each of its top-level
+/// nodes, in the order written.
 ///
-/// **It also mints no identity of its own.** `requestGroupLayout` forwards the
+/// **Modifiers on a `Component` DISTRIBUTE rather than wrap the group, and
+/// that is measured** (spec §5; re-measured from source in the outer-modifiers
+/// task, probe `docs/probes/swiftui-component-distribution.swift`). SwiftUI's
+/// `MyRow().padding(8)`, where `MyRow`'s body is a 30x10 and a 50x10 view,
+/// measures 120x26 — `(30+16) + 8 + (50+16)`, each child padded — bit-identical
+/// to `Group { A; B }.padding(8)` (arms G2/G3). A wrap around the pair predicts
+/// 96-104. The two are one mechanism with §2's transparency: `MyRow()` IS its
+/// children, so a modifier applied to it applies to each of them, because
+/// there is no single thing to wrap.
+///
+/// **What "applies to each" means differs per modifier, and `ops` carries the
+/// difference** (`ComponentModifierOp`). `.padding` WRAPS each top-level node
+/// in a real padding node (`OM-D`) — SwiftUI's box model, so a content-sized
+/// `Text` body pads (13x16 → 53x56, G10/G11), a fixed 30x10 body pads to 70x50
+/// with the leaf at (20, 20) (G12), and two calls ACCUMULATE (`OM-E`, G4).
+/// `width`/`height` still AMEND the member's own `Style` (`OM-F`), which
+/// overwrites whatever the member declared — see below. So this type
+/// contributes **no node of the component's own** and **one node per member
+/// per `.padding`**: a modified component is exactly as layout-transparent as
+/// a bare one (`aModifierOnAComponentDistributesToEachTopLevelChild` counts
+/// the nodes).
+///
+/// **It mints no identity of its own.** `requestGroupLayout` forwards the
 /// `parent` and `cursor` it was given straight through to `component`
 /// unchanged, so `MyComponent()` and `MyComponent().padding(4)` produce the
 /// *identical* `GlobalElementID` for `MyComponent` — a modifier is not a level
@@ -281,55 +317,56 @@ extension Component {
 /// component's parent) silently resets the component's `@State`, because its
 /// slot id is a child of whatever id `StateBinder.bind` was called with.
 /// `addingAModifierDoesNotResetAComponentsState` (`ComponentTests.swift`) pins
-/// it, and Step 8's mutation reddens exactly that test.
+/// it, and Step 8's mutation reddens exactly that test. The wrapper nodes a
+/// `.wrap` registers have no element behind them and no id: they are layout
+/// nodes only, painted by nothing, and that is also why they cannot animate
+/// (below).
 ///
-/// **A CALLER'S MODIFIER OVERWRITES THE COMPONENT'S OWN LAYOUT, silently, and
-/// this is inherent to the design rather than a defect.** `amend` runs
-/// `var style = pass.style(node); amend(&style); pass.setStyle(node, style)`,
-/// and every `amend` this file declares is a plain `=` on one `Style` field —
-/// so a caller reaches *through* the component and obliterates whatever the
-/// component's author wrote on that same field. **Measured** on a component
-/// whose author declared `.width(30)` on child `a` and `.width(50)` on child
-/// `b`, rendered in a 300x40 `Row`:
+/// **A CALLER'S `width`/`height` OVERWRITES THE COMPONENT'S OWN LAYOUT,
+/// silently, and this is a recorded divergence rather than a defect** (`OM-F`,
+/// owned by plan task 4). `.amend` runs `var style = pass.style(node);
+/// amend(&style); pass.setStyle(node, style)`, and every amend this file
+/// declares is a plain `=` on one `Style` field — so a caller reaches
+/// *through* the component and obliterates whatever the component's author
+/// wrote on that same field. **Measured** on a component whose author declared
+/// `.width(30)` on child `a` and `.width(50)` on child `b`, rendered in a
+/// 300x40 `Row` (`aComponentsWidthStillOverwritesItsMembersDeclaredWidth`):
 ///
 /// ```
 /// bare          a: 30.0   b: 50.0
 /// .width(70)    a: 70.0   b: 70.0
 /// ```
 ///
-/// SwiftUI has no equivalent because its `.frame()` composes by **nesting** —
-/// the caller's frame wraps the body's. There is no node here to nest with:
-/// distribution amends the child's own node, which is the same node the
-/// component's author styled. Nothing signals the collision and nothing can,
-/// short of a merge policy that would then disagree with `StyledElement`'s own
-/// `modifying` (`Box.swift`), which assigns rather than merges. Recorded in
-/// the component spec's §9 risk table as well.
+/// SwiftUI's `.frame(width: 70)` on the same custom view WRAPS each member and
+/// keeps it 30 and 50 wide, centred in 70 (probe arms G7/G8). Making
+/// `Component.width` wrap is a sizing-semantics change the outer-modifiers
+/// task was told not to make; task 4's frame work owns it. Until then, a
+/// component's declared sizes belong inside the component.
 ///
-/// **`padding` on a component whose content is a bare LEAF is completely
-/// inert** — measured, `Component { Text("Hi") }.padding(20)` moves a following
-/// marker leaf's `x` not at all (**13.0 bare, 13.0 padded**), where the same
-/// modifier on a component of `Box`-backed children moves it (80.0 → 90.0).
-/// That is not this type failing: it is CLAUDE.md's standing inert row —
-/// `Style.padding`/`border`/`margin` on a leaf is ignored entirely, since
-/// `measureNode` returns a leaf's measure result unchanged — composing with
-/// distribution. Each is documented alone and together they are silent, and a
-/// single-`Text` component is the most likely first component anyone writes.
+/// **Order is observable, and it is MetalUI's order, not SwiftUI's member
+/// geometry.** `.padding(4).width(70)` reads outer 70 with the member 30 wide
+/// at the 4 inset; `.width(70).padding(4)` reads outer 78 with the member
+/// itself 70 wide. SwiftUI's G15/G16 read the same outer 70/78 but keep the
+/// member 30 wide (centred at x 20, then at x 24), because its `.frame` wraps
+/// where `width` here amends — `OM-F` again, seen through order.
 ///
 /// **A CALLER'S MODIFIER ON A COMPONENT NEVER ANIMATES. It snaps, even inside
 /// `withAnimation`.** This is a defect (review finding B-7), not a design
-/// choice, and it is pinned wrong on purpose. `requestGroupLayout` below runs
-/// `amend` and `pass.setStyle` only after `component.requestGroupLayout` has
-/// returned. By then each member element has already called
+/// choice, and it is pinned wrong on purpose, on two nodes since lane 4.
+/// `.amend` runs `pass.setStyle` only after `component.requestGroupLayout` has
+/// returned; by then each member element has already called
 /// `animated(_:_:for:pass:)` and stored its `$anim` baseline, so the baseline
 /// never holds the caller's value, and `setStyle` overwrites the interpolated
-/// result with the raw target on every frame.
+/// result with the raw target on every frame. `.wrap` registers its node under
+/// no element id at all, so there is no slot for `animated` to compare against
+/// even if it were called.
 ///
-/// Measured with `.linear(duration: 1)` and `.width(196)` changed to
-/// `.width(320)`, together with `.height(40)` to `.height(80)` and
-/// `.padding(4)` to `.padding(20)`: the node reads (320, 80, 20) at t = 0 and
-/// again at t = 0.5, where (196, 40, 4) and then (258, 60, 12) are correct.
-/// The same width declared inside the component animates, 196 then 258. This
-/// is not the `.auto` snap: the fixture's member declares pixel sizes.
+/// Measured with `.linear(duration: 1)` and `.width(196).height(40).padding(4)`
+/// changed to `.width(320).height(80).padding(20)`: the member reads (320, 80)
+/// and the wrapper's `padding.left` reads 20 at t = 0 and again at t = 0.5,
+/// where (196, 40) / 4 and then (258, 60) / 12 are correct. The same width
+/// declared inside the component animates, 196 then 258. This is not the
+/// `.auto` snap: the fixture's member declares pixel sizes.
 /// `everyRegisteringSiteAnimatesItsStyle`'s `Component` arm
 /// (`AnimationTests.swift`) pins both readings.
 ///
@@ -346,15 +383,43 @@ extension Component {
 /// property its `content` reads) rather than as a modifier on it.
 ///
 /// **Only `Style`-backed modifiers can work this way.** `LayoutTree.setStyle`
-/// reaches a node's `Style`; nothing reaches `Decoration` or `Handlers` per
-/// node, because those are per-ELEMENT state registered by each
-/// `StyledElement`'s own `prepaint`. So `background`, `onClick`, `focusable`
-/// and `keyContext` are deliberately **not** offered on a component —
+/// reaches a node's `Style` and `requestNode` takes one; nothing reaches
+/// `Decoration` or `Handlers` per node, because those are per-ELEMENT state
+/// registered by each `StyledElement`'s own `prepaint`. So `background`,
+/// `onClick`, `focusable`, `keyContext`, and the outer-modifiers task's
+/// `border`/`focusBorder`/`opacity`/`clipped`/`contentShape` are deliberately
+/// **not** offered on a component —
 /// `decorationBackedModifiersAreNotOfferedOnAComponent` and the `.background()`
-/// typecheck guard in `ErasureCompileGuards.swift` pin the absence.
+/// typecheck guard in `ErasureCompileGuards.swift` pin the absence. The side
+/// door stays open: `anyComponent.frame(...)` returns a `ModifiedElement`, so
+/// `.frame(…).opacity(…).clipped().border(…)` compiles on any component and
+/// scopes its members without distributing (measured at integration,
+/// `aComponentsFrameCarriesTheNewDecorationsAndScopesItsMembers`).
+///
+/// **Ops reach node-contributing members only.** `requestGroupLayout` maps them
+/// over the nodes the body returned, so a member that contributes none (a
+/// `Deferred`, a false `if`) receives no wrapper and no amend: its `.padding`
+/// is dropped, as the old amend dropped it (by reading, unpinned; SwiftUI
+/// unprobed).
+///
+/// **On a proposal body every op traps** (`OM-Z`, closing `MC-G` hole 5): an
+/// amend reaches `LayoutTree.setStyle`, which refuses a native node, and a
+/// wrap reaches `LayoutTree.newNode`, which refuses a native child — both
+/// ruling SA-G's own preconditions, no new one. Pinned by
+/// `aLegacyStyleModifierOnAProposalComponentTrapsAtRegistration` and
+/// `aPaddingModifierOnAProposalComponentTraps`
+/// (`NativeBoundaryIntegrationTests.swift`). **That is the legacy authority's
+/// answer.** Under the proposal authority (plan task 7) each op checks the
+/// authority first and traps by its own name, `component.amend` or
+/// `component.wrap`, before either precondition — and under diagnostics an
+/// amend is recorded and skipped (ruling LR-C; pinned by
+/// `aListAndAComponentAmendTrapByTheirOwnSiteUnderTheProposalAuthority` and
+/// `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`).
 public struct StyledComponent<C: Component>: ElementGroup {
     var component: C
-    var amend: @Sendable (inout Style) -> Void
+    /// In declaration order. `Component.padding/width/height` start the list
+    /// with one op; `StyledComponent`'s three append.
+    var ops: [ComponentModifierOp]
 
     public mutating func requestGroupLayout(under parent: GlobalElementID?,
                                             at cursor: inout Int,
@@ -362,12 +427,36 @@ public struct StyledComponent<C: Component>: ElementGroup {
         -> ([LayoutNodeID], C.GroupLayout) {
         // `parent` and `cursor` forwarded UNCHANGED — see the type's own doc.
         let (nodes, layout) = component.requestGroupLayout(under: parent, at: &cursor, pass: &pass)
-        for node in nodes {
-            var style = pass.style(node)
-            amend(&style)
-            pass.setStyle(node, style)
+        // Per member, in declaration order, with a current node: an amend
+        // writes it, a wrap replaces it. The parent receives the OUTERMOST
+        // node of each member — which is the member itself when no op wrapped.
+        let outermost = nodes.map { member -> LayoutNodeID in
+            var current = member
+            for op in ops {
+                switch op {
+                case .amend(let amend):
+                    // Each op checks the authority itself (plan task 7, ruling
+                    // LR-C, critic round 1 finding 1): under the proposal
+                    // authority an amend traps by name — or, under diagnostics,
+                    // is recorded and SKIPPED, so `SA-G`'s `setStyle`
+                    // precondition is never the message — and a wrap traps or
+                    // registers a 0×0 native leaf. Stage 3 lowers both.
+                    if pass.lowersToProposal {
+                        pass.frame.noteUnlowerable(UnlowerableField(site: .component, field: "amend"))
+                    } else {
+                        var style = pass.style(current)
+                        amend(&style)
+                        pass.setStyle(current, style)
+                    }
+                case .wrap(let style):
+                    current = pass.lowersToProposal
+                        ? pass.frame.unlowerable(UnlowerableField(site: .component, field: "wrap"))
+                        : pass.frame.requestNode(style: style, children: [current])
+                }
+            }
+            return current
         }
-        return (nodes, layout)
+        return (outermost, layout)
     }
 
     public mutating func prepaintGroup(layout: inout C.GroupLayout,
@@ -383,71 +472,66 @@ public struct StyledComponent<C: Component>: ElementGroup {
     }
 }
 
+/// The `Style` a padding wrapper carries: the same one `StyledElement.padding`
+/// gives a `ModifierLayer` (`Box.swift`), so the two paths share one box
+/// model — an `auto`-sized legacy node whose only `Style` field is `padding`.
+private func paddingWrapperStyle(_ points: Pixels) -> Style {
+    var style = Style()
+    style.padding = Edges(all: .pixels(points))
+    return style
+}
+
 extension Component {
-    /// Padding on each top-level child (spec §5). Signature matches
-    /// `StyledElement.padding(_ points:)` (`Box.swift:643`) exactly — a
-    /// forwarded modifier whose parameter type drifts from its original is
-    /// worse than none, because a caller reads the two as the same modifier.
+    /// Padding around each top-level node (`OM-D`). Signature matches
+    /// `StyledElement.padding(_ points:)` (`Box.swift`) exactly — a forwarded
+    /// modifier whose parameter type drifts from its original is worse than
+    /// none, because a caller reads the two as the same modifier — and so does
+    /// the mechanism: one wrapper node per call, accumulating.
     public func padding(_ points: Pixels) -> StyledComponent<Self> {
-        StyledComponent(component: self) { $0.padding = Edges(all: .pixels(points)) }
+        StyledComponent(component: self, ops: [.wrap(paddingWrapperStyle(points))])
     }
 
-    /// Matches `StyledElement.width(_ points:)` (`Box.swift:603`).
+    /// Matches `StyledElement.width(_ points:)` (`Box.swift`). An amend of each
+    /// member's own width (`OM-F`).
     public func width(_ points: Pixels) -> StyledComponent<Self> {
-        StyledComponent(component: self) { $0.size.width = .length(.pixels(points)) }
+        StyledComponent(component: self, ops: [.amend { $0.size.width = .length(.pixels(points)) }])
     }
 
-    /// Matches `StyledElement.height(_ points:)` (`Box.swift:607`).
+    /// Matches `StyledElement.height(_ points:)` (`Box.swift`). An amend of
+    /// each member's own height (`OM-F`).
     public func height(_ points: Pixels) -> StyledComponent<Self> {
-        StyledComponent(component: self) { $0.size.height = .length(.pixels(points)) }
+        StyledComponent(component: self, ops: [.amend { $0.size.height = .length(.pixels(points)) }])
     }
 }
 
-/// Fix round 1. `StyledComponent<C>` is an `ElementGroup`, not a `Component`,
-/// so the `extension Component { padding / width / height }` above is
-/// unreachable on the value any of those three returns — `Leafless().width(10)`
-/// has no `.height`, and even `.padding(4).padding(4)` fails to typecheck.
-/// Measured with `swiftc -typecheck`:
-/// `error: value of type 'StyledComponent<Leafless>' has no member 'height'`.
-/// Undetected because no test exercised `width`/`height` at all, nor any
-/// two-modifier call — the recurring lesson this project's practices doc
-/// names: a feature that works alone and a feature that works alone can be
-/// wrong together.
+/// `StyledComponent<C>` is an `ElementGroup`, not a `Component`, so the
+/// `extension Component { padding / width / height }` above is unreachable on
+/// the value any of those three returns — `Leafless().width(10)` had no
+/// `.height` until these were added (the Component milestone's fix round 1,
+/// found with `swiftc -typecheck`: `error: value of type
+/// 'StyledComponent<Leafless>' has no member 'height'`).
 ///
-/// These three CHAIN onto whatever `amend` this `StyledComponent` already
-/// carries, rather than replacing it, so `.padding(4).width(10)` distributes
-/// both. **The later call wins where two touch the SAME field** — matched
-/// against `StyledElement.modifying` (`Box.swift:293`), which does not merge
-/// or accumulate: it assigns the field directly (`$0.padding = newValue`), so
-/// a second `.padding(_:)` on a `Box` simply overwrites the first one's value.
-/// Composing here by running `previous` first and the new field assignment
-/// second reproduces exactly that: the later assignment always lands on top,
-/// because Swift closures run in the order given and the field write is a
-/// plain `=`, not a merge. **Not accumulation** — `.padding(4).padding(4)`
-/// leaves a component padded by 4, not 8; asserted directly by
-/// `chainedPaddingReplacesRatherThanAccumulates`.
+/// These three APPEND to `ops`, so `.padding(4).width(10)` and
+/// `.width(10).padding(4)` are different lists and lay out differently
+/// (`OM-E`). Two `width`s on one member still resolve as `StyledElement.modifying`
+/// does — the later assignment lands on top, a plain `=` — while two
+/// `padding`s are two wrappers and ACCUMULATE
+/// (`chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement`). An earlier
+/// version of this comment said "not accumulation — `.padding(4).padding(4)`
+/// leaves a component padded by 4", which was true of the amend it described
+/// and is inverted by `OM-D` on probe evidence (G4, E1–E3).
 extension StyledComponent {
     public func padding(_ points: Pixels) -> StyledComponent<C> {
-        let previous = amend
-        return StyledComponent(component: component) { style in
-            previous(&style)
-            style.padding = Edges(all: .pixels(points))
-        }
+        StyledComponent(component: component, ops: ops + [.wrap(paddingWrapperStyle(points))])
     }
 
     public func width(_ points: Pixels) -> StyledComponent<C> {
-        let previous = amend
-        return StyledComponent(component: component) { style in
-            previous(&style)
-            style.size.width = .length(.pixels(points))
-        }
+        StyledComponent(component: component,
+                        ops: ops + [.amend { $0.size.width = .length(.pixels(points)) }])
     }
 
     public func height(_ points: Pixels) -> StyledComponent<C> {
-        let previous = amend
-        return StyledComponent(component: component) { style in
-            previous(&style)
-            style.size.height = .length(.pixels(points))
-        }
+        StyledComponent(component: component,
+                        ops: ops + [.amend { $0.size.height = .length(.pixels(points)) }])
     }
 }

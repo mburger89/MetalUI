@@ -207,6 +207,11 @@ func theFrameBehindAPassIsNotReachableFromOutsideTheModule() throws {
 /// below pass just as well against a `Theme` that reaches no pass at all, which
 /// is a thing a refactor could plausibly do while every colour assertion in
 /// `ThemeTests` keeps passing through `Frame.theme` directly.
+///
+/// The theme is scoped since plan task 9 (ruling EV-G) and these three still
+/// hold unchanged; the environment spelling — `pass.environment.theme` and
+/// `@Environment(\.theme)` — is guarded by
+/// `theThemeIsNotReachableThroughTheEnvironment` (`EnvironmentCompileGuards.swift`).
 @Test(.enabled(if: canTypecheck(module: "MetalUI"), skipReason))
 func readingTheThemeDuringPaintCompiles() throws {
     let result = try typecheck("""

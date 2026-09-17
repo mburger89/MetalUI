@@ -1,0 +1,82 @@
+import MetalUICore
+import MetalUILayout
+
+/// Which layout engine a frame's legacy elements register with (plan task 7,
+/// `docs/superpowers/specs/2026-09-17-engine-replacement-design.md` §3; rulings
+/// LR-A, LR-B).
+///
+/// - `.legacy` — every legacy element registers CSS nodes and the frame runs
+///   `FlexEngine`, exactly as before task 7. **The default, and the only
+///   authority production uses until stage 6b.**
+/// - `.proposal` — every legacy element lowers its (animated) `Style` onto kernel
+///   nodes, keeping its ids, `prepaint` and `paint`. A site with no lowering yet
+///   traps, naming itself and the field (`Frame.unlowerable(_:)`, ruling LR-C).
+///
+/// **It belongs to the frame, not to an element or an environment value** (LR-B):
+/// a tree that switched authority below its root would be ruling SA-G's mixed
+/// tree. `Window.layoutAuthority` passes it to every frame the window builds.
+///
+/// **Internal until stage 6b**, which decides whether any public spelling
+/// survives; pinned by the plain-import guard
+/// `aPlainImportCannotChooseTheLayoutAuthority`.
+enum LayoutAuthority: Sendable, Equatable {
+    case legacy
+    case proposal
+}
+
+/// A legacy registration site, as it names itself in a diagnostic.
+///
+/// **Every site passes its own** (ruling LR-C, critic round 1): `Frame` never
+/// infers the caller, because the two sites that motivated the per-site checks —
+/// `List`, which registers through a `Box` it builds, and `StyledComponent`'s
+/// amend, which registers nothing — are exactly the ones an inference would
+/// misname.
+enum LoweringSite: String, Sendable {
+    case box
+    case stack
+    case text
+    case modifierLayer
+    case scrollView
+    case list
+    case component
+    case customElement
+}
+
+/// One field (or one whole site) with no proposal lowering, as recorded by a
+/// frame built with `reportsUnlowerableFields`.
+///
+/// `field` is `"noLowering"` for a site that lowers nothing yet — in lane 1 every
+/// site; lanes 2–4 replace `box`, `stack`, `text` and `modifierLayer` with
+/// field-level names (`"flexGrow"`, `"alignItems.stretch"`, …). `component`
+/// reports `"amend"` or `"wrap"`, `customElement` `"requestNode"` or
+/// `"requestLeaf"`.
+struct UnlowerableField: Hashable, Sendable, CustomStringConvertible {
+    let site: LoweringSite
+    let field: String
+
+    var description: String { "\(site.rawValue).\(field)" }
+
+    /// The plan-task-7 stage that owns this entry (spec §4.1), for the trap
+    /// message. A site-level entry of a site stage 1 lowers is stage 1's; a
+    /// field-level entry of one of those sites is stage 2's unless a lane says
+    /// otherwise.
+    var owningStage: String {
+        switch site {
+        case .box, .stack, .text, .modifierLayer:
+            return field == "noLowering" ? "1" : "2"
+        case .scrollView, .component:
+            return "3"
+        case .list:
+            return "4"
+        case .customElement:
+            return "6a"
+        }
+    }
+
+    /// `"MetalUI: <site>.<field> has no proposal lowering (plan task 7, stage
+    /// <n>); …"` — the message spec §5.2 fixes, which the exit tests read.
+    var trapMessage: String {
+        "MetalUI: \(description) has no proposal lowering (plan task 7, stage \(owningStage)); "
+            + "a tree containing it cannot run under the proposal layout authority."
+    }
+}

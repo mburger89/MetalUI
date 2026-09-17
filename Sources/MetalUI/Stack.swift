@@ -102,8 +102,15 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
         // M4 spec 3 §5 — see `Box.requestLayout`'s identical line. Stored
         // back on `self` so `paint`'s read of `self.decoration` later this
         // frame sees the substituted (possibly mid-transition) values.
+        let declared = style
         (style, decoration) = animated(style, decoration, for: id, pass: &pass)
-        let node = pass.requestNode(style: style, children: children)
+        // The site's own authority check — see `Box.requestLayout`'s (ruling LR-C).
+        // Under the proposal authority a `Stack` lowers onto a native overlay with
+        // its nine-point alignment, inside native padding and a fixed frame (plan
+        // task 7, lane 4, ruling LR-G); the checks read `declared`.
+        let node = pass.lowersToProposal
+            ? pass.lowerLegacyNode(style, declared: declared, children: children, site: .stack)
+            : pass.frame.requestNode(style: style, children: children)
         return (node, Layout(node: node, content: contentLayout))
     }
 
@@ -120,12 +127,17 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
         // `Frame.registerHandlers`, so the one line below is the whole of it on
         // both types. `aDeclaredAXNodeIsEmittedByEveryConformerThatRegistersHandlers`
         // (`AXEmitSiteTests.swift`) has a `stack` arm.
-        pass.registerHandlers(handlers, at: bounds, id: id)
+        // Through `registerAndScope` since plan task 5's lane 2, exactly as
+        // `Box.prepaint` is — see `DecorationScope.swift` for why a
+        // `Decoration` now needs a scope around the children.
+        //
         // `bounds` is this stack's own rect and is deliberately not passed
         // down: the engine stores rects **absolute to the root**, so each
         // child looks its own up rather than being offset by its parent.
         // Adding `bounds` here would double-count every ancestor's origin.
-        return content.prepaintGroup(layout: &layout.content, pass: &pass)
+        return pass.registerAndScope(handlers, decoration, at: bounds, for: id) {
+            content.prepaintGroup(layout: &layout.content, pass: &pass)
+        }
     }
 
     public mutating func paint(_ id: GlobalElementID, bounds: Bounds<Pixels>,
@@ -161,11 +173,15 @@ public struct Stack<Content: ElementGroup>: Element, StyledElement {
         // `Stack` through `extension StyledElement` and painting the plain
         // background. `everyBackgroundPaintingSiteHonoursHoverAndFocus`
         // (`BackgroundChainTests.swift`) is now the per-site pin.
-        if let color = animatedBackground(decoration, for: id, pass: &pass) {
-            pass.fill(bounds, color: color,
-                      cornerRadii: Corners(all: decoration.cornerRadius))
+        //
+        // **Through `paintDecoration` since plan task 5's lane 2**, for the
+        // same reason this call went through `animatedBackground` in the first
+        // place: the border, the opacity scope and the clip were about to live
+        // in `Box.paint` alone, which is the shape that left both pointer-state
+        // modifiers inert here for a whole milestone.
+        pass.paintDecoration(decoration, in: bounds, for: id) {
+            content.paintGroup(layout: &layout.content,
+                               prepaint: &prepaint, pass: &pass)
         }
-        content.paintGroup(layout: &layout.content,
-                           prepaint: &prepaint, pass: &pass)
     }
 }

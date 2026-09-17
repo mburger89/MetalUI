@@ -2,6 +2,7 @@ import MetalUICore
 import MetalUILayout
 import MetalUIRender
 import MetalUIText
+import MetalUIPlatform
 
 /// The single owner of one frame's mutable state (spec §4.1).
 ///
@@ -135,20 +136,140 @@ public final class Frame {
     /// the default below is the only value the engine has ever seen.
     let rootFontSize: Double
 
-    /// The active theme (spec §7.9), fixed for the whole frame.
+    /// The theme in effect at the element being visited (spec §7.9): the
+    /// nearest `.theme(_:)` scope's, else the root's (ruling EV-G).
     ///
-    /// A `let`, so the two halves of one frame cannot resolve the same token
-    /// differently: a theme swapped mid-paint would give the first half of the
-    /// tree light colours and the second half dark ones, and every rect would
-    /// still be individually correct. `Window` swaps the theme *between* frames
-    /// and marks §4.4's dirty flag.
+    /// **Scoped now, and still fixed per scope for the whole frame.** It used
+    /// to be a `let`, so the two halves of one frame could not resolve the same
+    /// token differently. That property survives scoping: the root theme is a
+    /// `let` (`rootTheme`), and a scope computes its values once, in layout,
+    /// and re-pushes the stored result in prepaint and paint (ruling EV-V), so
+    /// one element reads one theme in every phase. `Window` still swaps the
+    /// root theme *between* frames and marks §4.4's dirty flag.
+    ///
+    /// Read **in place** from `environmentTop`, not through
+    /// `environmentSnapshot()`, so it costs no copy and is not counted
+    /// (ruling EV-O).
     ///
     /// Reachable from `PaintPass` only. Nothing in layout or prepaint consumes a
     /// colour — `LayoutPass` contributes `Style`, which has no colour field at
     /// all, and `PrepaintPass` reads resolved rects — so exposing it there would
-    /// be an API with no reader. Adding it to another pass is one forwarding
-    /// property when a phase acquires a use for it.
-    let theme: Theme
+    /// be an API with no reader. `EnvironmentValues.theme` is internal for the
+    /// same reason.
+    var theme: Theme { environmentTop.theme }
+
+    /// The theme this frame was built with — `Window.theme`, handed in through
+    /// `init`. The root environment's `theme` is stamped from this and from
+    /// nothing else (ruling EV-H), so an in-module write to
+    /// `rootEnvironment.theme` is silently re-stamped.
+    private let rootTheme: Theme
+
+    // MARK: - Environment (rulings EV-A, EV-H, EV-O, EV-U, EV-V)
+
+    /// The environment in effect at the element being visited.
+    ///
+    /// Starts as `rootEnvironment` and is replaced only inside
+    /// `withEnvironment`, which restores it when its body returns — so the
+    /// call stack is the stack, and an unbalanced push is not expressible
+    /// (the discipline `clipStack` and `scrollContextStack` use). Read in place
+    /// by `theme`; handed out as a copy only by `environmentSnapshot()`.
+    private(set) var environmentTop: EnvironmentValues
+
+    private var storedRootEnvironment: EnvironmentValues
+
+    /// True from `render`'s first line to its last, and nowhere else (ruling
+    /// EV-Z). Not cleared in a `defer`, for the reason `render`'s atlas bracket
+    /// gives: the only way out of `render` early is a trap, which aborts.
+    private var isRendering = false
+
+    /// The values every scope starts from: `Window.environment`, set by
+    /// `Window.drawFrameIfNeeded` on the line after it builds this frame. A
+    /// `Frame` built without a window (every test) keeps `EnvironmentValues()`,
+    /// whose locale is the root locale `Locale(identifier: "")` (ruling EV-Y).
+    ///
+    /// **The setter re-stamps two fields** (rulings EV-H, EV-U): `theme`
+    /// from the `theme:` this frame was built with, and `pixelLength` from its
+    /// scale factor. `Window.theme` stays the root theme's only source, and no
+    /// value can lie about the device, so `window.environment.theme = .dark` —
+    /// which compiles inside the module — changes nothing.
+    ///
+    /// **It also resets the top, so it traps while `render` runs** (ruling
+    /// EV-Z). From inside a phase it would replace every open scope's values
+    /// for the rest of that scope's content, and a scope's restoring `defer`
+    /// would then put the enclosing values back — silently. Set it before a
+    /// render or between two renders. Pinned by
+    /// `aRootEnvironmentWriteDuringARenderTraps` (one arm per phase) and
+    /// `aRootEnvironmentWriteBeforeAndBetweenRendersDoesNotTrap`.
+    var rootEnvironment: EnvironmentValues {
+        get { storedRootEnvironment }
+        set {
+            precondition(!isRendering,
+                         "Frame.rootEnvironment set during render: it would replace every open scope's values (ruling EV-Z)")
+            var values = newValue
+            values.theme = rootTheme
+            values.pixelLength = Self.pixelLength(forScaleFactor: scaleFactor)
+            storedRootEnvironment = values
+            environmentTop = values
+        }
+    }
+
+    /// One device pixel in points, or 1 when the surface has not reported a
+    /// usable scale — a 0 or NaN from a backend still configuring itself would
+    /// otherwise hand every reader an infinity.
+    private static func pixelLength(forScaleFactor scale: Float) -> Double {
+        guard scale.isFinite, scale > 0 else { return 1 }
+        return 1 / Double(scale)
+    }
+
+    /// A writer's values: `write` applied to a copy of the **current top**, so
+    /// a transform composes with what it inherits and a nearer writer wins
+    /// (ruling EV-A). Called once per scope per frame, by
+    /// `EnvironmentScope.requestGroupLayout` only (ruling EV-V).
+    ///
+    /// **A `.transform` cannot change `theme` or `pixelLength`**: both are put
+    /// back from the top it copied, after the transform runs, because
+    /// `.environment(\.self, EnvironmentValues())` compiles outside the module
+    /// and would otherwise reset them (ruling EV-U). `.theme` is the one write
+    /// that sets a theme.
+    func scopedValues(applying write: EnvironmentWrite) -> EnvironmentValues {
+        environmentTransformCount += 1
+        var values = environmentTop
+        switch write {
+        case .transform(let transform):
+            transform(&values)
+            values.theme = environmentTop.theme
+            values.pixelLength = environmentTop.pixelLength
+        case .theme(let theme):
+            values.theme = theme
+        }
+        return values
+    }
+
+    /// Runs `body` with `values` as the top, restoring the previous top when it
+    /// returns. The saved top lives in this call's own local, so nesting is the
+    /// call stack.
+    func withEnvironment<R>(_ values: EnvironmentValues, _ body: () -> R) -> R {
+        environmentPushCount += 1
+        let saved = environmentTop
+        environmentTop = values
+        defer { environmentTop = saved }
+        return body()
+    }
+
+    /// A copy of the top, for a public reader: `pass.environment`, or a bind of
+    /// a type that declares an `@Environment`. The framework's own reads
+    /// (`theme`) read the top in place and do not come through here.
+    func environmentSnapshot() -> EnvironmentValues {
+        environmentSnapshotCount += 1
+        return environmentTop
+    }
+
+    /// Test observables for ruling EV-O. A tree with no writer pushes 0 and
+    /// transforms 0; W writers push 3W and transform W per frame; a tree with
+    /// no reader snapshots 0, however large. No production reader.
+    private(set) var environmentPushCount = 0
+    private(set) var environmentSnapshotCount = 0
+    private(set) var environmentTransformCount = 0
 
     /// Layout nodes for this frame.
     ///
@@ -218,6 +339,12 @@ public final class Frame {
     /// closure form that pushes it keeps the stack balanced.
     private var layerStack: [Int] = []
 
+    /// Multiplicative opacity scopes used by native paint modifiers.
+    private var opacityStack: [Float] = []
+    var activeOpacity: Float { opacityStack.reduce(1, *) }
+    func pushOpacity(_ opacity: Float) { opacityStack.append(opacity) }
+    func popOpacity() { opacityStack.removeLast() }
+
     /// The layer currently in effect. `0` — ordinary paint order — when no
     /// `deferred` block is active, the same "nothing special" answer
     /// `activeClip` gives an empty `clipStack`.
@@ -231,10 +358,30 @@ public final class Frame {
 
     /// Pushes the root layer. Balanced by `popLayer`, reached only through
     /// `deferred`'s `defer`.
-    func pushLayer() { layerStack.append(Self.rootLayer) }
+    ///
+    /// **While collecting accessibility it also opens a portal** (ruling AB-V):
+    /// each `Deferred` scope gets a fresh per-frame ordinal, nested ones
+    /// included, and every record made inside carries the innermost. The layer
+    /// itself cannot serve: every portal shares `rootLayer`, so a portal nested
+    /// in a portal would look like its parent's content.
+    func pushLayer() {
+        layerStack.append(Self.rootLayer)
+        if collectsAccessibility {
+            portalCount += 1
+            portalStack.append(portalCount)
+        }
+    }
 
     /// Pops one level pushed by `pushLayer`.
-    func popLayer() { layerStack.removeLast() }
+    func popLayer() {
+        layerStack.removeLast()
+        if collectsAccessibility { portalStack.removeLast() }
+    }
+
+    /// Portal ordinals issued this frame, and the ones open now, innermost last
+    /// (AB-V). Untouched while not collecting.
+    private var portalCount = 0
+    private var portalStack: [Int] = []
 
     /// Pushes an **intersected** clip (radii included, see `intersect(_:radii:_:radii:)`)
     /// and an **accumulated** offset.
@@ -243,10 +390,36 @@ public final class Frame {
     /// inner clip wider than its outer must not widen it, or a nested scroller
     /// paints over its parent's chrome. Pinned by
     /// `nestedClipsIntersectRatherThanReplace`.
+    ///
+    /// **`bounds` is translated by `activeOffset` before the intersection, and
+    /// it was not until plan task 5** (ruling `OM-U`; CLAUDE.md's divergence 15,
+    /// now retired). `activeClip` is in surface space — `fill` and
+    /// `insertHitbox` both translate on the way in — so intersecting an
+    /// untranslated rect into it compared two different coordinate spaces.
+    /// Inside a scrolled ancestor the inner clip came out at the engine's stored
+    /// y rather than the painted one, and once the ancestor had scrolled far
+    /// enough the intersection was **empty**: the subtree laid out correctly,
+    /// routed wheel events correctly, and drew nothing.
+    ///
+    /// It was deferred while `ScrollView` was the only caller. Lane 2 of that
+    /// task put `pass.clipped(to: bounds, …)` behind a public `.clipped()` on
+    /// every `Box`/`Stack`/`Text`/`ModifierLayer`, which changes the defect's
+    /// reach from "a `ScrollView` inside a scrolled `ScrollView`" to "any
+    /// element inside one" — a `.clipped()` row in the demo's 500-row list would
+    /// blank itself on the first scroll. The added term is a **no-op wherever
+    /// `activeOffset == 0`**, which is every non-nested scroller in existence,
+    /// so it moves no existing pixel. Pinned by
+    /// `aNestedScrollViewInsideAScrolledOneGetsAnEmptyContentMask` (inverted in
+    /// the same commit) and
+    /// `aClippedBoxInsideAScrolledScrollViewClipsWhereItPaints`.
     func pushClip(_ bounds: Bounds<Pixels>, offset: Point<Pixels>,
                  radii: Corners<Pixels> = Corners(all: Pixels(0))) {
+        let translated = Bounds(
+            origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                          y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+            size: bounds.size)
         let (clip, clipRadii) = Self.intersect(activeClip, radii: activeClipRadii,
-                                               bounds, radii: radii)
+                                               translated, radii: radii)
         let composed = Point(x: Pixels(activeOffset.x.value + offset.x.value),
                              y: Pixels(activeOffset.y.value + offset.y.value))
         clipStack.append((clip, composed, clipRadii))
@@ -503,6 +676,18 @@ public final class Frame {
     /// `GlobalElementID` for anything that must outlive one.
     private(set) var hitboxes: [Hitbox] = []
 
+    /// Pointer-disable scopes are inherited by descendants during prepaint.
+    /// Keyboard registration stays outside this gate: disabling hit testing is
+    /// a pointer decision, not an instruction to discard a focused control's
+    /// key handler.
+    private var hitTestingDisabledDepth = 0
+
+    func withHitTestingDisabled(_ body: () -> Void) {
+        hitTestingDisabledDepth += 1
+        defer { hitTestingDisabledDepth -= 1 }
+        body()
+    }
+
     /// Records a hitbox at the rect it actually **paints** at: translated by
     /// the active offset, then intersected with the active clip, carrying the
     /// active layer.
@@ -568,12 +753,62 @@ public final class Frame {
     /// consumes the point. Non-opaque would mean a modal scrim could not
     /// swallow clicks aimed at what it covers, which is the sibling property of
     /// the wheel swallow this milestone's exit criterion 4 is about.
+    ///
+    /// **The disabled gate is here too, and only here** (rulings EV-E, EV-F,
+    /// EV-T). `environmentTop.isEnabled` is read once, in place, and when it is
+    /// false:
+    ///
+    /// - **no hitbox is registered**, whatever `handlers` holds. A click over
+    ///   the disabled target therefore reaches whatever enabled hitbox lies
+    ///   under it — an enabled ancestor with an `onClick` (aligned with SwiftUI,
+    ///   probe `swiftui-disabled-ancestor-and-order.swift` N1/N2) or an enabled
+    ///   sibling drawn under it (a divergence, SwiftUI's shape blocks, P2f; the
+    ///   same difference every non-clickable MetalUI overlay already has). With
+    ///   no hitbox the target is neither hovered nor `isActive`, and a press or
+    ///   a release made while it was disabled fails `Window.dispatchClick`'s
+    ///   `hit.id == pressed` (probe R), with no `Window` edit.
+    /// - **no focus registration**: not `isFocusable`, `actions`, `onKey` or
+    ///   `keyContext`. A focus request on it is cleared at the prepaint/paint
+    ///   boundary, a focused element that becomes disabled loses focus, and a
+    ///   disabled ancestor's raw `onKey` does not see a key (the last two are
+    ///   divergences from probe K2/K6, ruling EV-F).
+    /// - **no `$focus` retention write** — while `focusedElementProducedThisFrame`
+    ///   stays ungated (see that write's own paragraph below).
+    /// - **the declared AX node gains `.disabled`**.
+    ///
+    /// Every caller reaches it: `Box` (and so `Column`/`Row`), `Stack`, `Text`
+    /// and `ModifiedElement` (each layer) through `PrepaintPass.registerAndScope`
+    /// (`DecorationScope.swift`, since plan task 5's lane 2 — one call site for
+    /// the four), `OnTapModifier` through `PrepaintPass`'s internal overload
+    /// directly, `List` rows through their elements and `Component` through
+    /// its members.
+    /// A raw `PrepaintPass.insertHitbox` is NOT gated: an element using the
+    /// primitive reads `pass.environment.isEnabled` itself.
     func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
                           id: GlobalElementID) {
-        // The keyboard side first, and unconditionally: focus registration is
-        // not gated on the pointer gate below, and an element can ask for one
-        // without the other. `register` gates itself on `isKeyTarget`.
-        focusRegistry.register(handlers, id: id)
+        registerHandlers(handlers, at: bounds, id: id, accessibleText: nil,
+                         synthesizesAccessibility: true)
+    }
+
+    /// The implementation, and **the one place the disabled gate lives**
+    /// (ruling EV-W item 4): the 3-argument overload above is a bare forward,
+    /// because `Text` and `OnTapModifier` reach this method directly through
+    /// `PrepaintPass`'s internal overload, so a gate in the 3-argument method
+    /// would leave them ungated (measured: D2's "text" and "proposal" arms and
+    /// D3 redden).
+    func registerHandlers(_ handlers: Handlers, at bounds: Bounds<Pixels>,
+                          id: GlobalElementID, accessibleText: String?,
+                          synthesizesAccessibility: Bool) {
+        // Read in place, not through `environmentSnapshot()`, so the gate costs
+        // no counted snapshot (ruling EV-O).
+        let enabled = environmentTop.isEnabled
+        // The keyboard side first: focus registration is not gated on the
+        // pointer gate below, and an element can ask for one without the
+        // other. `register` gates itself on `isKeyTarget`; a disabled element
+        // does not reach it at all (ruling EV-F).
+        if enabled {
+            focusRegistry.register(handlers, id: id)
+        }
         // **Independent of `isKeyTarget`/`isFocusable` — this is "was the
         // currently-focused id produced this frame at all", not "did it ask
         // to stay focused".** `Box.prepaint`, `Stack.prepaint` and
@@ -613,7 +848,19 @@ public final class Frame {
             // focusable. The consequence is a wrongly-sticky focus on an
             // element that has never been a key target — not a clobber, not a
             // crash, and not reachable without an explicit `Window.focus` call
-            // on a non-focusable element.
+            // on an ENABLED, produced, non-focusable element.
+            //
+            // **`.disabled` does not reach it** (ruling EV-F, critic finding 7):
+            // every `.focusable()` element under `.disabled` is non-focusable,
+            // so without the `if enabled` below a focus request on one would
+            // write the slot, and removing the element and focusing its id
+            // again would stick. The write is gated on `enabled` alone — not on
+            // `isKeyTarget`, which is the general fix below and a focus-contract
+            // change — and `focusedElementProducedThisFrame` above stays
+            // ungated, so the pre-existing hazard is exactly as reachable as it
+            // was. Pinned both ways by
+            // `aFocusRequestWhileDisabledLeavesNoRetentionSlot`: its disabled arm
+            // leaves no slot, its instrument arm (enabled, not focusable) sticks.
             //
             // **Deliberately not fixed, and the reason is the SHAPE of the fix
             // rather than its size.** The obvious patch — gate this write on
@@ -631,11 +878,30 @@ public final class Frame {
             // contract rather than a patch, and it does not go in unreviewed in
             // the last commit before a merge — the same judgement
             // `Window.applyScroll` was given during the input milestone.
-            stateTable.withState(Self.focusRetentionSlot(for: focused),
-                                 initial: true) { _ in }
+            if enabled {
+                stateTable.withState(Self.focusRetentionSlot(for: focused),
+                                     initial: true) { _ in }
+            }
         }
-        if handlers.isPointerTarget {
-            _ = insertHitbox(bounds, id: id, opaque: true, handlers: handlers)
+        // Disabled: NO hitbox — not a blocker with empty handlers, and no
+        // derived id (ruling EV-E, third pass). A blocker would eat an enabled
+        // ancestor's click (against probe N1/N2), and one under this id would
+        // let a press made while disabled click on a release after
+        // re-enabling (against probe R, ruling EV-T).
+        //
+        // **The content shape is applied HERE and nowhere else** (ruling OM-J,
+        // plan task 5's lane 3): to the bounds handed to `insertHitbox`, below
+        // the focus registration, the `$focus` write and the
+        // `focusedElementProducedThisFrame` signal above, and above the declared
+        // `AXNode` and the accessibility record below — all five of which keep
+        // the element's own `bounds`. One site rather than four, for this
+        // method's own reason: a conformer insetting its own bounds before
+        // calling here would have to get it right in `Box`, `Stack`, `Text` and
+        // `ModifiedElement`, and a conformer that forgot would be silently
+        // wrong.
+        if enabled, hitTestingDisabledDepth == 0, handlers.isPointerTarget {
+            _ = insertHitbox(Self.hitRegion(bounds, inset: handlers.contentShapeInset),
+                             id: id, opaque: true, handlers: handlers)
         }
         // **Accessibility rides here too, and it was not always here.** The
         // gate used to live in `Box.prepaint` alone, so `Stack.prepaint` and
@@ -647,8 +913,9 @@ public final class Frame {
         // — `AXNode.isEmpty`'s own doc names this as `Handlers`' "empty means
         // not a hit target" rule, one type over.
         //
-        // **Kept LAST in this method**, so the `$ax` write follows the
-        // `$focus` write above — `Box.prepaint`'s order before this moved, and
+        // **Kept AFTER the `$focus` write above** (and before only the
+        // accessibility record below, which writes no slot), so the `$ax` write
+        // follows the `$focus` write — `Box.prepaint`'s order before this moved, and
         // the order `theSevenRetentionSlotsAreMutuallyDistinct`
         // (`AXNodeTests.swift`) calls the two in by hand. **That test does not
         // pin this ordering, and it is not what keeps it red:** it calls
@@ -662,11 +929,77 @@ public final class Frame {
         // `[LayoutNodeID]`, not a `GlobalElementID` per child
         // (`ElementGroup.swift`), so no container can name its own children's
         // ids without a change to that protocol's associated types (ruling
-        // `TB-M`). Whoever assembles a real tree either extends `ElementGroup`
-        // for it or walks `GlobalElementID.parent` over the flat `axNodes` map.
-        if !handlers.axNode.isEmpty {
-            emitAXNode(handlers.axNode, at: bounds, id: id, children: [])
+        // `TB-M`). **The accessibility bridge assembles its tree elsewhere and
+        // leaves this `[]`** (ruling AB-C): `AccessibilityTreeBuilder` walks
+        // `GlobalElementID.parent` over this frame's `axEmissions`, whose
+        // record order — which `axNodes`' keys cannot carry — is declaration
+        // order.
+        //
+        // **A row hint is not a declaration** (ruling AB-L): `logicalIndex` is
+        // stripped before the test, so a `List` row that carries only its index
+        // emits nothing here and writes no `$ax` slot (AB-U).
+        //
+        // **A disabled element's declared node gains `.disabled`** (ruling
+        // EV-E). Presence and role still come from the ungated `handlers`: a
+        // disabled button is still a button. The client's record below carries
+        // `isEnabled: enabled` (ruling EV-W item 4).
+        var declaration = handlers.axNode
+        declaration.logicalIndex = nil
+        if !declaration.isEmpty {
+            var node = handlers.axNode
+            if !enabled { node.traits.insert(.disabled) }
+            emitAXNode(node, at: bounds, id: id, children: [])
         }
+        // **A client's record, separate from the emission above and never a
+        // substitute for it** (ruling AB-U). With no client this is one `Bool`
+        // read. While collecting, anything with something to say appends a
+        // record — a declared node, and (when this conformer synthesizes) a
+        // click target, a focusable or adjustable element, or a text leaf —
+        // and nothing here writes `axNodes` or `StateTable`, so a synthesized
+        // node cannot change retention and `noConformerEmitsAnAXNodeItDidNotDeclare`
+        // stays true whether or not a client is active.
+        if collectsAccessibility, !isAccessibilitySuppressed(for: id) {
+            let adjustable = handlers.actions[ObjectIdentifier(AccessibilityAdjustment.self)] != nil
+            let hasSomethingToSay = !declaration.isEmpty || handlers.axNode.logicalIndex != nil
+                || (synthesizesAccessibility
+                    && (handlers.onClick != nil || handlers.isFocusable || adjustable
+                        || accessibleText != nil))
+            if hasSomethingToSay {
+                axEmissions.append(AXEmission(id: id, declared: handlers.axNode,
+                                              text: accessibleText,
+                                              isClickable: handlers.onClick != nil,
+                                              isEnabled: enabled,
+                                              synthesizes: synthesizesAccessibility,
+                                              portal: portalStack.last ?? 0,
+                                              geometry: accessibilityGeometry(for: bounds)))
+            }
+        }
+    }
+
+    /// `bounds` inset by a declared content shape, or `bounds` itself — the
+    /// whole of `Handlers.contentShapeInset`'s effect (ruling OM-J).
+    ///
+    /// **A negative inset GROWS the region and is not clamped**, which SwiftUI
+    /// does too (probe `swiftui-content-shape-hit-region`, arm H5: a point 40pt
+    /// outside an 80x80 leaf hits it at `inset(by: -60)`). What bounds the grown
+    /// region is the active clip, applied by `insertHitbox` to every hitbox
+    /// alike — where SwiftUI's `.clipped()` bounds nothing (H6, ruling OM-AJ).
+    ///
+    /// **An inset larger than the box is left inside-out here and is empty by
+    /// the time it lands.** `insertHitbox` intersects with the active clip and
+    /// `Self.intersect` clamps a negative extent to zero, so an over-inset
+    /// region is stored with a zero extent and `Bounds.contains`, being
+    /// half-open on the max edges, can never answer true for it. Clamping here
+    /// as well would say the same thing twice and hide which of the two rules
+    /// is load-bearing.
+    static func hitRegion(_ bounds: Bounds<Pixels>, inset: Edges<Pixels>?) -> Bounds<Pixels> {
+        guard let inset else { return bounds }
+        return Bounds(origin: Point(x: Pixels(bounds.origin.x.value + inset.left.value),
+                                    y: Pixels(bounds.origin.y.value + inset.top.value)),
+                      size: Size(width: Pixels(bounds.size.width.value
+                                                   - inset.left.value - inset.right.value),
+                                 height: Pixels(bounds.size.height.value
+                                                    - inset.top.value - inset.bottom.value)))
     }
 
     /// The state-table key that backs a focused id's retention window — see
@@ -700,6 +1033,94 @@ public final class Frame {
     /// still valid".
     private(set) var axNodes: [GlobalElementID: AXNode] = [:]
 
+    /// Whether an accessibility client is active for this frame's window
+    /// (ruling AB-B). `Window` passes `WindowAccessibility.isActive`; a `Frame`
+    /// built anywhere else defaults to `false`.
+    ///
+    /// **A `let`, for `theme`'s reason**: half a frame collecting would publish
+    /// half a tree. **What it turns on is records, not emissions**: `axNodes`,
+    /// the `$ax` slot and everything else this frame does are identical either
+    /// way (AB-U), which is what keeps a screen reader from changing app state.
+    let collectsAccessibility: Bool
+
+    /// This frame's accessibility records, in prepaint order — **empty unless
+    /// `collectsAccessibility`**. Read by `AccessibilityTreeBuilder` once per
+    /// frame. See `AXEmission`.
+    private(set) var axEmissions: [AXEmission] = []
+
+    /// Set by a collecting `List` whose window is unbounded only because its
+    /// scroller has not measured a viewport yet (ruling AB-X rule 3). `Window`
+    /// hands it to `WindowAccessibility.frameDidRender`, which dirties the window
+    /// only when the previous drawn frame did not ask too.
+    private(set) var wantsAccessibilityRetry = false
+
+    /// Ask for one more frame so an accessibility client sees what this frame
+    /// could not publish. A no-op unless collecting.
+    ///
+    /// **Not `requestAnotherFrame()`**: `wantsAnotherFrame` is honoured on every
+    /// frame, so a scroller that never measures a viewport (zero height) would
+    /// keep the display link awake forever. This one is capped by its reader.
+    func requestAccessibilityRetry() {
+        guard collectsAccessibility else { return }
+        wantsAccessibilityRetry = true
+    }
+
+    /// The exceptions of the open suppression scopes, outermost first.
+    private var accessibilitySuppressionExceptions: [GlobalElementID?] = []
+
+    /// Runs `body` with accessibility records suppressed for everything except
+    /// `exception` — for a subtree a client must not see even though it runs
+    /// `prepaint` (`display: none`, ruling AB-O; a `List`'s unbounded window,
+    /// which excepts the list's own node, AB-X). Closure form for `clipped(to:offsetBy:)`'s
+    /// reason: an unbalanced scope is not expressible. A no-op while not
+    /// collecting.
+    func withAccessibilitySuppressed<R>(except exception: GlobalElementID?, _ body: () -> R) -> R {
+        guard collectsAccessibility else { return body() }
+        accessibilitySuppressionExceptions.append(exception)
+        defer { accessibilitySuppressionExceptions.removeLast() }
+        return body()
+    }
+
+    /// Runs `body` inside an accessibility suppression scope when `node`'s style
+    /// is `display: none`, and plainly otherwise — the one `display: none` check
+    /// (ruling AB-O), shared by `Element.prepaintGroup` (a whole element) and
+    /// `ModifiedElement`'s per-layer prepaint (each inner layer, which receives
+    /// no group default of its own — ruling MC-B's "any hook in those defaults
+    /// is mirrored per layer"). The style is read only while collecting.
+    /// Pinned per layer by `aHiddenInnerModifierLayerSuppressesEverythingInsideIt`.
+    func suppressingAccessibilityIfHidden<R>(_ node: LayoutNodeID, _ body: () -> R) -> R {
+        guard collectsAccessibility, style(node).display == .none else { return body() }
+        return withAccessibilitySuppressed(except: nil, body)
+    }
+
+    /// True inside a suppression scope, unless `id` is the **outermost** scope's
+    /// exception: a `List` suppressing its rows keeps its own node, and a
+    /// hidden ancestor (`except: nil`, outermost) still silences that `List`.
+    func isAccessibilitySuppressed(for id: GlobalElementID) -> Bool {
+        guard let outermost = accessibilitySuppressionExceptions.first else { return false }
+        return outermost != id
+    }
+
+    /// A record's geometry: `bounds` translated exactly as `insertHitbox`
+    /// translates it, that rect intersected with the active clip — the rect a
+    /// hitbox would register at — and the hitbox's layer (AB-E, AB-W). The
+    /// record's `order` is not known here: `AccessibilityTreeBuilder` fills it
+    /// from the record's first position.
+    private func accessibilityGeometry(for bounds: Bounds<Pixels>) -> AccessibilityGeometry {
+        let translated = translatedByActiveOffset(bounds)
+        return AccessibilityGeometry(frame: translated,
+                                     visibleFrame: Self.intersect(activeClip, translated),
+                                     layer: activeLayer)
+    }
+
+    /// `bounds` moved by the active scroll translation — what `insertHitbox`,
+    /// `fill` and `emitAXNode` each apply before storing or emitting.
+    private func translatedByActiveOffset(_ bounds: Bounds<Pixels>) -> Bounds<Pixels> {
+        Bounds(origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
+                             y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
+               size: bounds.size)
+    }
+
     /// Records `node` as `id`'s accessibility node, resolving its `frame` and
     /// `children` from the parameters rather than from whatever `node` itself
     /// carried — see `AXNode`'s own doc on why a declared value's `frame` and
@@ -725,7 +1146,15 @@ public final class Frame {
     func emitAXNode(_ node: AXNode, at bounds: Bounds<Pixels>, id: GlobalElementID,
                     children: [GlobalElementID]) -> AXNode {
         var resolved = node
-        resolved.frame = bounds
+        // Translated by the active scroll offset, exactly as `insertHitbox`
+        // translates a hitbox (ruling AB-E). **It was not, until the
+        // accessibility bridge's lane 1**: a node inside a `ScrollView`
+        // scrolled by 40 reported its content-space y of 100 where it was on
+        // screen at 60, measured by
+        // `aNodeInsideAScrolledScrollViewReportsItsOnScreenFrame` before the
+        // fix. Unclipped, unlike the hitbox: a frame is where the node IS, and a
+        // client reads what is scrolled out of view too (arm R17).
+        resolved.frame = translatedByActiveOffset(bounds)
         resolved.children = children
         resolved.isValid = true
         axNodes[id] = resolved
@@ -1027,7 +1456,11 @@ public final class Frame {
          mousePosition: Point<Pixels>? = nil,
          activeElement: GlobalElementID? = nil,
          focusedElement: GlobalElementID? = nil,
-         transaction: Animation? = nil) {
+         transaction: Animation? = nil,
+         collectsAccessibility: Bool = false,
+         layoutAuthority: LayoutAuthority = .legacy,
+         reportsUnlowerableFields: Bool = false,
+         recordsElementBounds: Bool = false) {
         self.tree = LayoutTree(generation: Frame.nextTreeGeneration)
         Frame.nextTreeGeneration += 1
         self.contentSize = contentSize
@@ -1036,18 +1469,97 @@ public final class Frame {
         self.stateTable = stateTable
         self.shapingCache = shapingCache
         self.glyphAtlas = glyphAtlas
-        self.theme = theme
+        self.rootTheme = theme
+        var root = EnvironmentValues()
+        root.theme = theme
+        root.pixelLength = Self.pixelLength(forScaleFactor: scaleFactor)
+        self.storedRootEnvironment = root
+        self.environmentTop = root
         self.timestamp = timestamp
         self.mousePosition = mousePosition
         self.activeElement = activeElement
         self.focusedElement = focusedElement
         self.transaction = transaction
+        self.collectsAccessibility = collectsAccessibility
+        self.layoutAuthority = layoutAuthority
+        self.reportsUnlowerableFields = reportsUnlowerableFields
+        self.recordsElementBounds = recordsElementBounds
+    }
+
+    // MARK: - Layout authority (plan task 7, rulings LR-B, LR-C, LR-D)
+
+    /// Which engine this frame's legacy elements register with. See
+    /// `LayoutAuthority`. **A `let`, for `collectsAccessibility`'s reason**: half
+    /// a tree lowered is ruling SA-G's mixed tree. `Window` passes its own
+    /// `layoutAuthority`; a frame built anywhere else defaults to `.legacy`.
+    let layoutAuthority: LayoutAuthority
+
+    /// Whether a site with no proposal lowering records an `UnlowerableField` and
+    /// carries on instead of trapping. **Set only by tests** (the differential
+    /// harness): a diagnostic is what lets a lowering test read red without
+    /// truncating the suite (ruling LR-C). Production frames never set it, and the
+    /// exit tests that pin each trap run with it off.
+    let reportsUnlowerableFields: Bool
+
+    /// What the sites reported, in registration order — **empty unless
+    /// `reportsUnlowerableFields`**.
+    private(set) var unlowerableFields: [UnlowerableField] = []
+
+    /// Whether `elementBounds` is filled. Set only by tests (the differential
+    /// harness, ruling LR-D).
+    let recordsElementBounds: Bool
+
+    /// Each element's resolved bounds this frame, by id — **empty unless
+    /// `recordsElementBounds`**. Written at the four places an element's bounds
+    /// are handed to its `prepaint`: the root (`render`), every group member
+    /// (`Element.prepaintGroup`, and `AnyElement`'s own group entry, a copy of it —
+    /// lane 5), and every inner `ModifiedElement` layer (`prepaintLayer`). An id
+    /// placed twice keeps its last rect.
+    private(set) var elementBounds: [GlobalElementID: Bounds<Pixels>] = [:]
+
+    /// Records `bounds` for `id` when this frame records element bounds.
+    func recordElementBounds(_ id: GlobalElementID, _ bounds: Bounds<Pixels>) {
+        guard recordsElementBounds else { return }
+        elementBounds[id] = bounds
+    }
+
+    /// A legacy site met a field (or is a site) with no proposal lowering.
+    /// **Traps** with `field.trapMessage` unless this frame reports; reporting,
+    /// records the entry and returns. The site is always the caller's own
+    /// argument (ruling LR-C). For a site that registers nothing in place of the
+    /// field — `StyledComponent`'s amend — this is the whole check.
+    func noteUnlowerable(_ field: UnlowerableField) {
+        guard reportsUnlowerableFields else { preconditionFailure(field.trapMessage) }
+        unlowerableFields.append(field)
+    }
+
+    /// `noteUnlowerable(_:)`, then — reporting — a 0×0 native leaf in place of
+    /// the node the site would have registered, so the frame completes. Whatever
+    /// the site had already registered below it is orphaned: its rects are unset
+    /// and the harness reports them, which is noise, not silence (ruling LR-C's
+    /// cost).
+    func unlowerable(_ field: UnlowerableField) -> LayoutNodeID {
+        noteUnlowerable(field)
+        return requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
     }
 
     // MARK: - Layout phase
 
+    /// Registers a legacy CSS node. **Internal and undeprecated** (stage 6a pins
+    /// tests about CSS answers to the legacy authority through it, ruling LR-R);
+    /// every in-module legacy site calls this rather than `LayoutPass`'s public
+    /// forwarder, which reports `customElement`.
+    ///
+    /// **Under the proposal authority it is a backstop, not a site check**: every
+    /// legacy site checks the authority itself before it gets here (ruling LR-C),
+    /// so reaching this means a site forgot. It cannot name that site (`Frame`
+    /// never infers one), so in production it traps with a site-less message, and
+    /// under diagnostics it returns a 0×0 native leaf **without recording** — the
+    /// missing entry is what `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`
+    /// reads, without truncating the suite.
     func requestNode(style: Style, children: [LayoutNodeID]) -> LayoutNodeID {
-        tree.newNode(style: style, children: children)
+        guard layoutAuthority == .legacy else { return unguardedLegacyRegistration("requestNode") }
+        return tree.newNode(style: style, children: children)
     }
 
     /// Registers a **leaf** — a childless node that reports its own content size
@@ -1057,8 +1569,90 @@ public final class Frame {
     /// do with a measured content size — §9.2's content branch, §4.5's automatic
     /// minimum, an `auto` cross size — was reachable only for containers before
     /// it existed, because `tree.measure()` was `nil` on every production node.
+    ///
+    /// Under the proposal authority, the same backstop as `requestNode`.
     func requestLeaf(style: Style, measure: @escaping MeasureFunction) -> LayoutNodeID {
-        tree.newLeaf(style: style, measure: measure)
+        guard layoutAuthority == .legacy else { return unguardedLegacyRegistration("requestLeaf") }
+        return tree.newLeaf(style: style, measure: measure)
+    }
+
+    /// `requestNode`/`requestLeaf`'s backstop under the proposal authority.
+    private func unguardedLegacyRegistration(_ registrar: String) -> LayoutNodeID {
+        precondition(reportsUnlowerableFields, """
+            MetalUI: Frame.\(registrar) reached under the proposal layout authority by a \
+            site that did not check the authority itself (plan task 7, ruling LR-C).
+            """)
+        return requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
+    }
+
+    func requestNativeLeaf(measure: @escaping ProposalMeasureFunction) -> LayoutNodeID {
+        tree.newNativeLeaf(measure: measure)
+    }
+
+    func requestNativeOverlay(children: [LayoutNodeID],
+                              alignment: ProposalAlignment = .center) -> LayoutNodeID {
+        tree.newNativeOverlay(children: children, alignment: alignment)
+    }
+
+    func requestNativeOverlayAttachment(child: LayoutNodeID, overlay: LayoutNodeID,
+                                        alignment: ProposalAlignment = .center) -> LayoutNodeID {
+        tree.newNativeOverlayAttachment(child: child, overlay: overlay, alignment: alignment)
+    }
+
+    func requestNativeFrame(child: LayoutNodeID, width: Double? = nil,
+                            height: Double? = nil,
+                            minWidth: Double? = nil, idealWidth: Double? = nil,
+                            maxWidth: Double? = nil,
+                            minHeight: Double? = nil, idealHeight: Double? = nil,
+                            maxHeight: Double? = nil,
+                            alignment: ProposalAlignment = .center) -> LayoutNodeID {
+        tree.newNativeFrame(child: child, width: width, height: height,
+                            minWidth: minWidth, idealWidth: idealWidth,
+                            maxWidth: maxWidth,
+                            minHeight: minHeight, idealHeight: idealHeight,
+                            maxHeight: maxHeight,
+                            alignment: alignment)
+    }
+
+    func requestNativePadding(child: LayoutNodeID,
+                              insets: Edges<Double>) -> LayoutNodeID {
+        tree.newNativePadding(child: child, insets: insets)
+    }
+
+    func requestNativeFixedSize(child: LayoutNodeID,
+                                horizontal: Bool = true,
+                                vertical: Bool = true) -> LayoutNodeID {
+        tree.newNativeFixedSize(child: child, horizontal: horizontal, vertical: vertical)
+    }
+
+    func requestNativeAspectRatio(child: LayoutNodeID, ratio: Double,
+                                  contentMode: AspectRatioContentMode = .fit) -> LayoutNodeID {
+        tree.newNativeAspectRatio(child: child, ratio: ratio, contentMode: contentMode)
+    }
+
+    func requestNativeLayoutPriority(child: LayoutNodeID, priority: Double) -> LayoutNodeID {
+        tree.newNativeLayoutPriority(child: child, priority: priority)
+    }
+
+    func requestNativeSpacer(minLength: Double? = nil) -> LayoutNodeID {
+        tree.newNativeSpacer(minLength: minLength)
+    }
+
+    func requestNativeScrollViewport(child: LayoutNodeID,
+                                     axis: ProposalStackAxis) -> LayoutNodeID {
+        tree.newNativeScrollViewport(child: child, axis: axis)
+    }
+
+    func requestNativeLinearStack(children: [LayoutNodeID], axis: ProposalStackAxis,
+                                  spacing: Double? = 0,
+                                  alignment: ProposalAlignment = .center) -> LayoutNodeID {
+        tree.newNativeLinearStack(children: children, axis: axis, spacing: spacing,
+                                  alignment: alignment)
+    }
+
+    func requestNativeLayout(_ layout: some ProposalLayout,
+                             children: [LayoutNodeID]) -> LayoutNodeID {
+        tree.newNativeLayout(layout, children: children)
     }
 
     /// Reads back a node's current `Style` — `StyledComponent`'s read half of
@@ -1069,17 +1663,36 @@ public final class Frame {
     }
 
     /// Overwrites a node's `Style` after it has already been registered.
-    /// `StyledComponent`'s write half: a modifier on a `Component` distributes
-    /// by amending each of its top-level nodes' styles in place rather than by
-    /// wrapping them in a new one (spec §5).
+    /// `StyledComponent`'s write half: a `width`/`height` on a `Component`
+    /// distributes by amending each of its top-level nodes' styles in place
+    /// (spec §5, `OM-F`). A `padding` on a `Component` no longer comes here —
+    /// since the outer-modifiers task it wraps each top-level node in a new
+    /// node through `requestNode` (`OM-D`).
     func setStyle(_ id: LayoutNodeID, _ style: Style) {
         tree.setStyle(id, style)
     }
 
-    /// Runs the flex engine over the tree, between `requestLayout` and
-    /// `prepaint`. Not reachable from any pass: elements contribute nodes, the
-    /// frame runs the engine on the finished root.
+    /// Lays the finished tree out, between `requestLayout` and `prepaint`. Not
+    /// reachable from any pass: elements contribute nodes, the frame runs the
+    /// engine on the finished root.
+    ///
+    /// **The root alone chooses the engine** (ruling SA-G). A legacy root runs
+    /// the CSS flex engine at the content size. A native root is measured at the
+    /// content size and placed CENTRED at its own answer
+    /// (`computeNativeLayout(root:proposal:centredIn:)`, ruling CN-J, probe
+    /// R1/R2); a root that takes the whole offer fills the window.
     func computeRootLayout(root: LayoutNodeID) {
+        if tree.isNativeLayoutNode(root) {
+            _ = tree.computeNativeLayout(
+                root: root,
+                proposal: ProposedSize(width: Double(contentSize.width.value),
+                                       height: Double(contentSize.height.value)),
+                centredIn: LayoutRect(x: 0, y: 0,
+                               width: Double(contentSize.width.value),
+                               height: Double(contentSize.height.value))
+            )
+            return
+        }
         computeLayout(
             tree,
             root: root,
@@ -1104,7 +1717,7 @@ public final class Frame {
 
     /// Emits one filled rect, optionally with rounded corners.
     ///
-    /// Borders and explicit z-order are still ahead (§7.3): every rect here is
+    /// Explicit z-order is still ahead (§7.3): every rect here is
     /// emitted at `order: 0`, and `Scene.finalize()` sorts stably, so equal
     /// orders keep emission sequence — which is why a container's own
     /// background paints under its children provided it emits first.
@@ -1113,18 +1726,25 @@ public final class Frame {
     /// when no `clipped(to:offsetBy:)` block is active, which is why no
     /// existing call site's output moves.
     ///
-    /// **`borderColor` is `.transparent` and there is no way to set it**, even
-    /// though `MUIRect` carries it and the fragment shader draws it — the M0
-    /// demo proved that end to end. The blocker is the *width*, not the colour:
-    /// a border width is `Style.border`, an `Edges<Length>` whose percentage
-    /// case resolves against the **containing block's width**, and the engine
-    /// computes that inside `contentBox` and discards it rather than storing it
-    /// on the node. So paint has no resolved width to pair a colour with, and
-    /// re-resolving one here against the box's own width is the exact mistake
-    /// CLAUDE.md's percentage-inset constraint records. Storing the resolved
-    /// edges on `LayoutTree` is what unblocks it.
+    /// **`borderColor` and `borderWidths` are parameters, and both paths reach
+    /// them.** This doc said "`borderColor` is `.transparent` and there is no
+    /// way to set it": that was true of a width derived from `Style.border`, an
+    /// `Edges<Length>` whose percentage case resolves against the **containing
+    /// block's width**, which the engine computes inside `contentBox` and
+    /// discards rather than storing on the node. Re-resolving one here against
+    /// the box's own width is the exact mistake CLAUDE.md's percentage-inset
+    /// constraint records, and storing the resolved edges on `LayoutTree` is
+    /// still what would unblock *that*.
+    ///
+    /// What unblocked a border was declaring one that needs no resolution.
+    /// `NativeModifiedContent`'s `.border` (proposal path) and
+    /// `Decoration.border`/`hoverBorder`/`focusBorder` (legacy path, rulings
+    /// `OM-B`/`OM-L`) both carry `Pixels`, which paint can pair with a colour
+    /// directly. `Style.border` remains engine-side and is still discarded.
     func fill(_ bounds: Bounds<Pixels>, color: Hsla,
-              cornerRadii: Corners<Pixels> = Corners(all: Pixels(0))) {
+              cornerRadii: Corners<Pixels> = Corners(all: Pixels(0)),
+              borderColor: Hsla = .transparent,
+              borderWidths: Edges<Pixels> = Edges(all: Pixels(0))) {
         let translated = Bounds(
             origin: Point(x: Pixels(bounds.origin.x.value + activeOffset.x.value),
                           y: Pixels(bounds.origin.y.value + activeOffset.y.value)),
@@ -1133,10 +1753,14 @@ public final class Frame {
             bounds: translated.scaled(by: scaleFactor),
             contentMask: activeClip.scaled(by: scaleFactor),
             maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
-            background: color,
-            borderColor: .transparent,
+            background: Hsla(h: color.h, s: color.s, l: color.l, a: color.a * activeOpacity),
+            borderColor: Hsla(h: borderColor.h, s: borderColor.s, l: borderColor.l,
+                              a: borderColor.a * activeOpacity),
             cornerRadii: cornerRadii.scaled(by: scaleFactor),
-            borderWidths: Edges(all: ScaledPixels(0)),
+            borderWidths: Edges(top: borderWidths.top.scaled(by: scaleFactor),
+                                right: borderWidths.right.scaled(by: scaleFactor),
+                                bottom: borderWidths.bottom.scaled(by: scaleFactor),
+                                left: borderWidths.left.scaled(by: scaleFactor)),
             order: 0), layer: activeLayer)
     }
 
@@ -1199,7 +1823,8 @@ public final class Frame {
         scene.insert(MUIGlyph(bounds: placedBounds, slot: packed.slot,
                               contentMask: activeClip.scaled(by: scaleFactor),
                               maskCornerRadii: activeClipRadii.scaled(by: scaleFactor),
-                              color: color, order: 0), layer: activeLayer)
+                              color: Hsla(h: color.h, s: color.s, l: color.l,
+                                          a: color.a * activeOpacity), order: 0), layer: activeLayer)
     }
 
     /// This frame's primitives, in paint order. Call after `render`.
@@ -1228,6 +1853,7 @@ public final class Frame {
     /// one contributes its own positional component instead of stopping the
     /// path. See `ElementGroup.swift` for the cursor that supplies the index.
     func render<E: Element>(_ element: inout E) {
+        isRendering = true
         // The root is the only id with no parent, and the only one this file
         // builds. `at: 0` is not inert: an unnamed root element takes
         // `.positional(0)`, which is what gives a `Row { … }` rendered straight
@@ -1240,7 +1866,7 @@ public final class Frame {
         // never runs for the root at all — so this is a second, independent
         // seeding site. A root element with `@State` would otherwise never be
         // bound to a table or an id.
-        StateBinder.bind(element, table: stateTable, id: rootID)
+        StateBinder.bind(element, in: self, id: rootID)
 
         // Unlike the atlas's bracket below, this one wraps layout as well as
         // paint: a `Text`'s `MeasureFunction` shapes during `requestLayout`
@@ -1256,10 +1882,19 @@ public final class Frame {
 
         computeRootLayout(root: root)
         let rootBounds = bounds(of: root)
+        recordElementBounds(rootID, rootBounds)
 
         var prepaintPass = PrepaintPass(frame: self)
-        var prepaintState = element.prepaint(rootID, bounds: rootBounds,
-                                             layout: &state, pass: &prepaintPass)
+        // The root's `prepaint` is called here, not through `prepaintGroup`, so
+        // `Element.prepaintGroup`'s `display: none` check cannot reach it: a
+        // hidden root still prepaints (`hidden()` filters layout only), and
+        // without this every record inside it would publish (ruling AB-AD,
+        // `aHiddenRootPublishesNothing`). Accessibility only, as there.
+        var prepaintState = collectsAccessibility && style(root).display == .none
+            ? withAccessibilitySuppressed(except: nil) {
+                element.prepaint(rootID, bounds: rootBounds, layout: &state, pass: &prepaintPass)
+            }
+            : element.prepaint(rootID, bounds: rootBounds, layout: &state, pass: &prepaintPass)
 
         // Hover resolves HERE — after `prepaint` has returned, so every
         // hitbox the frame will ever have is already registered, and before
@@ -1324,6 +1959,7 @@ public final class Frame {
         // not "reserved") depends on sweep ordering, and a future edit should
         // not preserve their `isLive` lines *for* this reason.
         stateTable.sweep()
+        isRendering = false
     }
 }
 

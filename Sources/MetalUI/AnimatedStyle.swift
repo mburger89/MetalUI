@@ -5,7 +5,8 @@ import MetalUILayout
 /// its animated `Style`/`Decoration` through before handing them to the layout
 /// engine. M4 spec 3 (`docs/superpowers/specs/2026-09-03-animation-design.md`)
 /// §5: there is no single choke point (`Box`, `Stack` and `ScrollView`'s two
-/// nodes each call `LayoutPass.requestNode`/`requestLeaf` independently), so
+/// nodes each call the legacy registrar — `Frame.requestNode` since plan task 7's
+/// per-site authority checks — independently), so
 /// this is the mechanism they all call instead — Task 4 wires the four sites,
 /// this task builds and pins the mechanism itself.
 ///
@@ -73,8 +74,27 @@ import MetalUILayout
 /// an `AnimatedFieldState` for ONLY the fields genuinely still interpolating
 /// right now. A settled element (the overwhelming majority of every frame,
 /// for any element not mid-transition) costs one `Style` (`MemoryLayout<Style>.stride`
-/// = 228) plus one `Decoration` (12) plus an EMPTY dictionary, rather than a
+/// = 228) plus one `Decoration` plus an EMPTY dictionary, rather than a
 /// 64-bucket table of 28 mostly-redundant entries.
+///
+/// **`Decoration` was 12 bytes when that sentence was written and is 80 now**
+/// (plan task 5's lane 2 added five stored properties: three `BorderStyle?` at
+/// 20 bytes each, an opacity and a clip flag). Re-measured 2026-09-15 in this
+/// worktree: `MemoryLayout<Decoration>.stride` = **80** (size 77),
+/// `MemoryLayout<BorderStyle>.stride` = **20**,
+/// `MemoryLayout<AnimatedElementState>.stride` = **320**. The per-entry figures
+/// below (643 bytes at n = 20,000, ~51 MB at n = 100,000) were taken on the
+/// 12-byte `Decoration` and are **not** re-taken here: the isolated-process
+/// harness that produced them is the animation milestone's, and re-running it is
+/// task 13's, where the new fields also stop snapping. The bound to carry
+/// forward is the arithmetic one — a `$anim` entry is minted unconditionally per
+/// registering element (a 500-row `List` is 1,007 of them, `CLAUDE.md`), so this
+/// change adds **68 bytes of payload** per settled entry (`Decoration` 12 → 80;
+/// the enclosing `AnimatedElementState`'s own delta is that plus whatever
+/// alignment takes), ~68 KB at n = 1,000 and ~6.8 MB at n = 100,000, against the
+/// ~51 MB the milestone already measured.
+/// Recorded in `docs/record/15-outer-modifiers.md` rather than left for the next
+/// reader to discover as a stale measured number.
 ///
 /// **Measured on the SHIPPED shape, in isolated processes at n = 20,000:
 /// 7,636 → 643 bytes per entry, a ~91.6% reduction** — a bare-`Int` control

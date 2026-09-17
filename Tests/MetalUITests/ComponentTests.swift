@@ -21,7 +21,10 @@ import MetalUILayout
 // the cursor arithmetic that gives a component an id, and `content`
 // materialized once rather than re-evaluated per phase. Task 3's six
 // (`aModifierOnAComponentDistributesToEachTopLevelChild` through
-// `chainedPaddingReplacesRatherThanAccumulates`) pin distribution.
+// `chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement`) pin distribution,
+// and the lane-4 section at the end of the file (outer modifiers, `OM-D`,
+// `OM-E`, `OM-F`) pins that `.padding` on a component WRAPS each top-level
+// node, accumulating, while `width`/`height` still amend.
 //
 // The assertions below are structural and geometric together. A component that
 // wrongly contributed its own flex container would still produce the right
@@ -545,6 +548,14 @@ private final class CallCounter {
 /// leaves paint at, and the same discriminator the brief wanted — each leaf's
 /// rect moves under distribution, neither leaf's rect moves under wrapping —
 /// is observable here instead.
+///
+/// **Since the outer-modifiers task (`OM-D`) the discriminator reads
+/// differently but still discriminates.** A component's `.padding` now wraps
+/// each member, so the leaves keep their 0x0 and their ORIGINS move instead:
+/// `a` to x 4 inside its own wrapper and `b` to x 12 (after `a`'s 8-wide
+/// wrapper, plus its own 4). One wrapper around the pair would put both at
+/// x 4; the old amend put `a` at 0 with 8x8. The node count (+2, one per
+/// member) is the other half of the reading.
 private struct TwoAutoLeaves: Component {
     let log: ComponentLog
     var elementID: ElementID?
@@ -562,16 +573,27 @@ private struct TwoAutoLeaves: Component {
 /// `HStack { MyRow().padding(8) }` is 120x26 where `MyRow`'s body is a 30x10 and
 /// a 50x10, which is `(30+16) + 8 + (50+16)` — each child padded — and is
 /// bit-identical to `Group { A; B }.padding(8)`. Wrapping predicts 96-104. That
-/// SwiftUI measurement is about the DESIGN (distribute, don't wrap); it is not
-/// reproducible as a literal number here, because SwiftUI's `.padding()` grows
-/// a fixed-size frame (content-box-shaped) where this engine's `.padding()`
-/// is border-box only (`Style.swift:97`) and cannot move a box with an
-/// explicit size at all — see `TwoAutoLeaves`' own doc for the mismatch this
-/// forced, measured against the brief's literal fixture before it was changed.
+/// SwiftUI measurement is about the DESIGN (distribute, don't wrap). **Until
+/// the outer-modifiers task it was not reproducible as a literal number
+/// here**, because the amend wrote border-box `Style.padding` onto a leaf that
+/// already fixed its size — see `TwoAutoLeaves`' own doc for the mismatch that
+/// forced, measured against the brief's literal fixture before it was
+/// changed. Since lane 4 (`OM-D`) it IS reproduced literally:
+/// `aTwoMemberComponentsPaddingIsAppliedToEachMember` reads G2's 120x26 with
+/// `a` at (8, 8) and `b` at (62, 8).
 ///
 /// **Both halves are asserted and both are needed.** The node count alone cannot
 /// tell distribution from a modifier that did nothing at all; the rects alone
 /// cannot tell distribution from wrapping in every fixture. Together they can.
+///
+/// **Rewritten in the outer-modifiers task (lane 4, `OM-D`).** `.padding` on a
+/// component is no longer an amend of each member's `Style.padding` but a
+/// WRAPPER NODE around each member — still per member (distribution), now with
+/// SwiftUI's box model. The node count therefore grows by the member count,
+/// and each leaf is offset by the padding inside its own wrapper rather than
+/// enlarged. `aComponentsPaddingWrapsEachTopLevelNode` below pins the probe's
+/// numbers; this test keeps the two-member shape that separates per-member
+/// from around-the-pair.
 @MainActor
 @Test func aModifierOnAComponentDistributesToEachTopLevelChild() {
     let bareLog = ComponentLog()
@@ -584,19 +606,117 @@ private struct TwoAutoLeaves: Component {
     var padded = Row { TwoAutoLeaves(log: padLog).padding(px(4)) }
     padFrame.render(&padded)
 
-    // Transparency survives the modifier: still no node of the component's own.
-    #expect(padFrame.tree.nodeCount == bareFrame.tree.nodeCount,
-            "a modified component must still add no node; got \(padFrame.tree.nodeCount) against \(bareFrame.tree.nodeCount)")
+    // Transparency survives the modifier — no node of the COMPONENT's own —
+    // and the padding is one wrapper PER MEMBER (OM-D): two members, two new
+    // nodes. One node around the pair would read +1; an amend +0.
+    #expect(padFrame.tree.nodeCount == bareFrame.tree.nodeCount + 2,
+            "a padded component must add exactly one wrapper per member; got \(padFrame.tree.nodeCount) against \(bareFrame.tree.nodeCount)")
 
-    // And EACH leaf grew by the padding on both axes — distribution, not one
-    // padding around the pair.
+    // EACH leaf sits 4 inside its own wrapper: `a` at x 4, and `b` at x 12 —
+    // after `a`'s 8-wide wrapper, plus its own 4. One wrapper around the pair
+    // would put both leaves at x 4; the old amend put `a` at 0 and `b` at 8.
+    // The leaves' own sizes do not move (0 wide: `Leaf` has no measure and no
+    // children); the wrappers are what grew.
     let bareA = rect(bareLog.bounds["a"]!)
     let padA = rect(padLog.bounds["a"]!)
-    #expect(padA.2 == bareA.2 + 8, "leaf a's width gains 2x4; got \(padA.2) against \(bareA.2)")
+    #expect(bareA == (0, 30, 0, 0), "got \(bareA)")
+    #expect(padA == (4, 30, 0, 0), "leaf a sits 4 inside its own wrapper; got \(padA)")
     let bareB = rect(bareLog.bounds["b"]!)
     let padB = rect(padLog.bounds["b"]!)
-    #expect(padB.2 == bareB.2 + 8,
-            "leaf b's width gains 2x4 too — this is the assertion that separates distribution from wrapping")
+    #expect(bareB == (0, 30, 0, 0), "got \(bareB)")
+    #expect(padB == (12, 30, 0, 0),
+            "leaf b sits after a's 8-wide wrapper and 4 inside its own — this is the reading that separates one wrapper per member from one around the pair; got \(padB)")
+}
+
+/// A SwiftUI-style frame is deliberately unlike this framework's older
+/// distributing `.width(_:)`: it wraps the component's transparent body in
+/// one outer layout node. The body therefore keeps the sizes its author chose,
+/// while the caller controls the outer footprint and alignment.
+@MainActor
+@Test func aFrameWrapsAComponentsBodyWithoutOverwritingItsChildren() {
+    let bareLog = ComponentLog()
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var bare = Row { TwoLeaves(log: bareLog) }
+    bareFrame.render(&bare)
+
+    let framedLog = ComponentLog()
+    let framedFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var framed = Row { TwoLeaves(log: framedLog).frame(width: px(100), height: px(40)) }
+    framedFrame.render(&framed)
+
+    #expect(framedFrame.tree.nodeCount == bareFrame.tree.nodeCount + 1,
+            "a frame must add its own layout node rather than amend each body node")
+
+    // The caller's frame is 100 points wide, but the component's two children
+    // retain their own 30- and 50-point widths. They are centred as a unit in
+    // the wrapper, so the body's leading edge moves by (100 - 80) / 2.
+    #expect(rect(framedLog.bounds["a"]!) == (10, 15, 30, 10))
+    #expect(rect(framedLog.bounds["b"]!) == (40, 5, 50, 30))
+    #expect(rect(bareLog.bounds["a"]!) == (0, 15, 30, 10))
+    #expect(rect(bareLog.bounds["b"]!) == (30, 5, 50, 30))
+}
+
+/// A frame is a typed structural wrapper, not an implicit `AnyElement`.
+///
+/// The explicit stored type is the regression shape that direct conversion of
+/// legacy sizing modifiers broke: both wrapper layers must remain available to
+/// the generic `Row` builder, and the two different widths must nest rather
+/// than overwrite each other.
+///
+/// **The TYPE is flat and the NODES still nest** (ruling MC-A): the second
+/// `.frame` adds a layer to the same `ModifiedElement<TwoLeaves>` rather than a
+/// type level, and each layer still registers its own node.
+@MainActor
+@Test func chainedFramesRemainConcreteAndNestTheirLayoutNodes() {
+    let log = ComponentLog()
+    let stored: ModifiedElement<TwoLeaves> = TwoLeaves(log: log).frame(width: px(100), height: px(40))
+    var tree: Row<ModifiedElement<TwoLeaves>> = Row {
+        stored.frame(width: px(120), height: px(40))
+    }
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+
+    frame.render(&tree)
+
+    #expect(frame.tree.nodeCount == 5, "row, two typed frame nodes, and two body leaves")
+    #expect(rect(log.bounds["a"]!) == (20, 15, 30, 10))
+    #expect(rect(log.bounds["b"]!) == (50, 5, 50, 30))
+}
+
+/// Padding on an ordinary element composes by wrapping, as it does in SwiftUI.
+/// A `Leaf` has no child layout to inset, so the old direct-style spelling left
+/// it at x = 0. A wrapper must add one node and offset the fixed-size leaf by
+/// the requested padding without shrinking its 30 × 10 footprint.
+@MainActor
+@Test func paddingWrapsAnElementAndExpandsItsOuterFootprint() {
+    let bareLog = ComponentLog()
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var bare = Row { Leaf("leaf", log: bareLog).width(px(30)).height(px(10)) }
+    bareFrame.render(&bare)
+
+    let paddedLog = ComponentLog()
+    let paddedFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var padded = Row { Leaf("leaf", log: paddedLog).width(px(30)).height(px(10)).padding(px(4)) }
+    paddedFrame.render(&padded)
+
+    #expect(paddedFrame.tree.nodeCount == bareFrame.tree.nodeCount + 1)
+    #expect(rect(bareLog.bounds["leaf"]!) == (0, 15, 30, 10))
+    #expect(rect(paddedLog.bounds["leaf"]!) == (4, 15, 30, 10))
+}
+
+/// Each padding call creates a separate outer box, so distinct values add
+/// instead of the later call replacing the earlier one.
+@MainActor
+@Test func chainedPaddingCreatesNestedWrappers() {
+    let log = ComponentLog()
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var tree = Row {
+        Leaf("leaf", log: log).width(px(30)).height(px(10)).padding(px(4)).padding(px(8))
+    }
+    frame.render(&tree)
+
+    #expect(frame.tree.nodeCount == 4,
+            "row, two padding wrappers, and the leaf each contribute one node")
+    #expect(rect(log.bounds["leaf"]!) == (12, 15, 30, 10))
 }
 
 /// Spec §5's limit. Only `Style`-backed modifiers can be distributed, because
@@ -698,40 +818,291 @@ private struct TwoAutoLeaves: Component {
     #expect(rect(log.bounds["b"]!).3 == 15, "got \(rect(log.bounds["b"]!))")
 }
 
-/// `.padding(_:).padding(_:)` — chained onto the SAME field, unlike
-/// width/height above. `StyledElement.modifying` (`Box.swift:293`) does not
-/// merge two calls to the same modifier; it assigns the field directly, so a
-/// second `.padding(_:)` on a `Box` simply overwrites the first one's value.
-/// `StyledComponent`'s chained `padding(_:)` reproduces exactly that — run
-/// and measured here rather than assumed: the SECOND value wins outright,
-/// and the two do NOT accumulate (4 then 8 reads as a border box padded by
-/// 8, not by 4, and not by 12).
+/// `.padding(_:).padding(_:)` on a component ACCUMULATES, as it does on an
+/// element — outer modifiers lane 4, ruling `OM-E`, probe
+/// `swiftui-component-distribution` G4 (`Pair().padding(4).padding(4)` equals
+/// `.padding(8)`, 120x26) and `swiftui-outer-modifier-order` E1–E3.
 ///
-/// **This test is BLIND to the drop-`previous` mutation that
-/// `widthAndHeightComposeOnAChainedModifier` catches — measured, not
-/// inferred.** Dropping `previous(&style)` from the chained `padding(_:)`
-/// makes its outer closure do `style.padding = 8` unconditionally, and that
-/// is byte-identical to composing-then-overwriting to 8, because `Style()`'s
-/// default padding is `0` either way: there is nothing for the earlier
-/// `.padding(4)` call to have left behind that the later one does not
-/// already clobber. So a same-field chain genuinely cannot observe
-/// replace-versus-compose — not because this test is weak, but because the
-/// two implementations are indistinguishable on one field. Composition is
-/// only observable where two DIFFERENT fields are involved, which is exactly
-/// what `widthAndHeightComposeOnAChainedModifier` is for: the two tests are
-/// complementary, not redundant — it takes both to cover the change this fix
-/// round made.
+/// **This test REPLACES `chainedPaddingReplacesRatherThanAccumulates`**, whose
+/// expectation ("the second call wins outright, 16 not 24") was measured on
+/// the amend and was right about the amend: two writes to one `Style.padding`
+/// field cannot accumulate. Each `.padding` is now its own wrapper node
+/// (`OM-D`), so a second call adds a second wrapper outside the first, exactly
+/// as `ModifiedElement`'s `_wrap` appends a layer
+/// (`chainedPaddingCreatesNestedWrappers`: the element path's leaf lands at
+/// x 12 for 4 then 8, and so does the component path's here).
+///
+/// Three arms, because two would not say which of three answers the chain
+/// gives: `.padding(4)` alone puts leaf `a` at x 4, `.padding(8)` alone at 8,
+/// and the chain at 12 — "the first call wins" reads 4, "the last call wins"
+/// reads 8, and only accumulation reads 12. The two controls are `#require`d
+/// to disagree first, so a broken fixture fails as one rather than passing as
+/// "the chain equals one of them".
 @MainActor
-@Test func chainedPaddingReplacesRatherThanAccumulates() {
+@Test func chainedPaddingAccumulatesOnAComponentAsItDoesOnAnElement() throws {
+    @MainActor func leafA<G: ElementGroup>(_ subject: G, _ log: ComponentLog) -> (x: Float, nodes: Int) {
+        let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
+        var tree = Row { subject }
+        frame.render(&tree)
+        return (rect(log.bounds["a"]!).0, frame.tree.nodeCount)
+    }
+
+    let bareLog = ComponentLog()
+    let bare = leafA(TwoAutoLeaves(log: bareLog), bareLog)
+    let fourLog = ComponentLog()
+    let four = leafA(TwoAutoLeaves(log: fourLog).padding(px(4)), fourLog)
+    let eightLog = ComponentLog()
+    let eight = leafA(TwoAutoLeaves(log: eightLog).padding(px(8)), eightLog)
+    let chainLog = ComponentLog()
+    let chain = leafA(TwoAutoLeaves(log: chainLog).padding(px(4)).padding(px(8)), chainLog)
+
+    try #require(four.x != eight.x,
+                 "the two controls must disagree, or the chain's reading proves nothing; got \(four) and \(eight)")
+    #expect(four.x == 4 && eight.x == 8, "controls: got \(four) and \(eight)")
+    #expect(chain.x == 12,
+            "4 then 8 must accumulate to 12 (first-wins 4, last-wins 8); got \(chain.x)")
+    // One wrapper per member per call: +2 for one call, +4 for two.
+    #expect(four.nodes == bare.nodes + 2 && eight.nodes == bare.nodes + 2,
+            "one call adds one wrapper per member; got \(four.nodes), \(eight.nodes) against \(bare.nodes)")
+    #expect(chain.nodes == bare.nodes + 4,
+            "two calls add two wrappers per member; got \(chain.nodes) against \(bare.nodes)")
+}
+
+// MARK: - Outer modifiers, lane 4 (OM-D, OM-E, OM-F): a component's padding WRAPS each member
+
+// Plan task 5, `docs/superpowers/specs/2026-09-15-outer-modifiers-design.md`
+// §4.4, §5.4 and §6.4. Every expectation below is a SwiftUI number from probe
+// `docs/probes/swiftui-component-distribution.swift` (arm ids in each doc
+// comment), except where a test says it pins MetalUI's OWN reading and names
+// the divergence (`OM-F`).
+//
+// The fixtures are the probe's: `Pair` (a 30x10 and a 50x10), `Solo` (one
+// 30x10) and `SoloText` (one content-sized `Text("Hi")`). `TwoLeaves` above is
+// NOT `Pair` — its second member is 30 tall, for the transparency tests' own
+// reason — so the G2 shape gets its own fixture.
+
+/// The probe's `SoloText`: a component whose body is one CONTENT-SIZED leaf.
+/// This is the row CLAUDE.md's inert table made inert on the old amend
+/// (`Style.padding` on a content-sized leaf is ignored), and the most likely
+/// first component anyone writes.
+private struct SoloText: Component {
+    var content: some ElementGroup { Text("Hi") }
+}
+
+/// The probe's `Solo`: one fixed 30x10 leaf.
+private struct SoloLeaf: Component {
+    let log: ComponentLog
+    var content: some ElementGroup { Leaf("solo", log: log).width(px(30)).height(px(10)) }
+}
+
+/// The probe's `Pair`: a 30x10 and a 50x10.
+private struct PairLeaves: Component {
+    let log: ComponentLog
+    var content: some ElementGroup {
+        Leaf("a", log: log).width(px(30)).height(px(10))
+        Leaf("b", log: log).width(px(50)).height(px(10))
+    }
+}
+
+/// The subject's outer footprint, read the way record §15's scratch arms read
+/// it: a 1x1 marker leaf declared after the subject in a `Row` gives its
+/// outer WIDTH as the marker's x, and the same in a `Column` gives its outer
+/// HEIGHT as the marker's y. `.alignItems(.flexStart)` on both, because a
+/// `Row` centres on the cross axis (EP-8) and the subject's y would otherwise
+/// be the row's answer rather than the modifier's. `nodes` is the row render's
+/// node count.
+@MainActor
+private func outerFootprint<G: ElementGroup>(_ subject: G, log: ComponentLog = ComponentLog())
+    -> (width: Float, height: Float, nodes: Int) {
+    let rowLog = ComponentLog()
+    let rowFrame = Frame(contentSize: Size(width: px(300), height: px(100)), scaleFactor: 1)
+    var row = Row {
+        subject
+        Leaf("marker", log: rowLog).width(px(1)).height(px(1))
+    }.alignItems(.flexStart)
+    rowFrame.render(&row)
+
+    let columnLog = ComponentLog()
+    let columnFrame = Frame(contentSize: Size(width: px(300), height: px(100)), scaleFactor: 1)
+    var column = Column {
+        subject
+        Leaf("marker", log: columnLog).width(px(1)).height(px(1))
+    }.alignItems(.flexStart)
+    columnFrame.render(&column)
+
+    return (rect(rowLog.bounds["marker"]!).0,
+            rect(columnLog.bounds["marker"]!).1,
+            rowFrame.tree.nodeCount)
+}
+
+/// **`.padding` on a component wraps each top-level node in a real padding
+/// node** (`OM-D`), producing SwiftUI's numbers on both body kinds:
+///
+/// - **G10/G11**: `SoloText()` is 13x16 and `.padding(20)` makes it **53x56**.
+///   The 13x16 is the system font's answer for `Text("Hi")` on this machine —
+///   the SAME 13x16 MetalUI's own `Text("Hi")` measures (record §15, scratch
+///   T1) — and 53 is the SAME 53 MetalUI's ELEMENT path already produces for
+///   `Text("Hi").padding(20)` (scratch T2). So SwiftUI and the element path
+///   agree digit for digit, and before this lane the COMPONENT path alone was
+///   inert here (the marker stayed at 13).
+/// - **G12**: `Solo()` is 30x10 and `.padding(20)` makes it **70x50** with the
+///   leaf at (20, 20). Before this lane the amend absorbed the declared 30x10
+///   into CSS border-box padding and the node read 40x40.
+///
+/// The literal 13x16 is the font's, not the modifier's: if it ever reads
+/// otherwise, the mechanism claim is the RELATIVE one (`+40` on each axis)
+/// and the literals are the machine's.
+@MainActor
+@Test func aComponentsPaddingWrapsEachTopLevelNode() throws {
+    // The content-sized body (G10/G11).
+    let bareText = outerFootprint(SoloText())
+    let paddedText = outerFootprint(SoloText().padding(px(20)))
+    #expect(bareText.width == 13 && bareText.height == 16,
+            "SoloText bare: SwiftUI's G10 and record §15 T1 both read 13x16 on this machine; got \(bareText)")
+    #expect(paddedText.width == bareText.width + 40 && paddedText.height == bareText.height + 40,
+            "SoloText.padding(20) must grow the footprint by 40 on each axis, as G11 does; got \(paddedText) against \(bareText)")
+    #expect(paddedText.width == 53 && paddedText.height == 56,
+            "SoloText.padding(20): SwiftUI's G11 reads 53x56; got \(paddedText)")
+    #expect(paddedText.nodes == bareText.nodes + 1,
+            "one member, one wrapper node; got \(paddedText.nodes) against \(bareText.nodes)")
+
+    // The fixed-size body (G12).
+    let bareLog = ComponentLog()
+    let bareLeaf = outerFootprint(SoloLeaf(log: bareLog), log: bareLog)
+    let paddedLog = ComponentLog()
+    let paddedLeaf = outerFootprint(SoloLeaf(log: paddedLog).padding(px(20)), log: paddedLog)
+    #expect(bareLeaf.width == 30 && bareLeaf.height == 10, "Solo bare: G5 reads 30x10; got \(bareLeaf)")
+    #expect(paddedLeaf.width == 70 && paddedLeaf.height == 50,
+            "Solo.padding(20): SwiftUI's G12 reads 70x50 (today's amend reads 40x40); got \(paddedLeaf)")
+    #expect(paddedLeaf.nodes == bareLeaf.nodes + 1,
+            "one member, one wrapper node; got \(paddedLeaf.nodes) against \(bareLeaf.nodes)")
+    // The leaf keeps its own 30x10 and sits at the padding inset — the last
+    // render `outerFootprint` did is the column's, whose flex-start puts the
+    // subject at the origin, so the leaf's rect is (20, 20, 30, 10) exactly.
+    #expect(rect(paddedLog.bounds["solo"]!) == (20, 20, 30, 10),
+            "the leaf keeps 30x10 and sits at (20, 20) inside its wrapper, as G12's `a` does; got \(rect(paddedLog.bounds["solo"]!))")
+}
+
+/// **G2's shape, exactly**: a two-member component at `.padding(8)` is 120x26
+/// with `a` at (8, 8) 30x10 and `b` at (62, 8) 50x10 — `(30+16) + 8 + (50+16)`,
+/// each member padded, one wrapper per member. This is `CO-U`'s measurement
+/// re-taken from source, and the shape a wrap around the PAIR cannot produce
+/// (it predicts 96–104 and puts `b` at x 46). The `Row` carries `.gap(8)`
+/// because SwiftUI's `HStack` spacing is implicit and MetalUI's is explicit;
+/// the marker therefore sits at 128 and the outer width is `128 - 8`.
+@MainActor
+@Test func aTwoMemberComponentsPaddingIsAppliedToEachMember() throws {
+    @MainActor func arms<G: ElementGroup>(_ subject: G, _ log: ComponentLog)
+        -> (a: (Float, Float, Float, Float), b: (Float, Float, Float, Float), marker: Float, nodes: Int) {
+        let markerLog = ComponentLog()
+        let frame = Frame(contentSize: Size(width: px(300), height: px(100)), scaleFactor: 1)
+        var tree = Row {
+            subject
+            Leaf("marker", log: markerLog).width(px(1)).height(px(1))
+        }.gap(px(8)).alignItems(.flexStart)
+        frame.render(&tree)
+        return (rect(log.bounds["a"]!), rect(log.bounds["b"]!),
+                rect(markerLog.bounds["marker"]!).0, frame.tree.nodeCount)
+    }
+
+    let bareLog = ComponentLog()
+    let bare = arms(PairLeaves(log: bareLog), bareLog)
+    let paddedLog = ComponentLog()
+    let padded = arms(PairLeaves(log: paddedLog).padding(px(8)), paddedLog)
+
+    // G0/G1: the bare pair is 88x10, `a` at (0, 0), `b` at (38, 0).
+    try #require(bare.a == (0, 0, 30, 10) && bare.b == (38, 0, 50, 10) && bare.marker == 96,
+                 "the control must read G1's 88x10 pair (marker at 88 + 8); got \(bare)")
+
+    #expect(padded.a == (8, 8, 30, 10), "G2: a at (8, 8) 30x10; got \(padded.a)")
+    #expect(padded.b == (62, 8, 50, 10),
+            "G2: b at (62, 8) 50x10 — after a's 46-wide wrapper, the 8 gap, and its own 8 inset; got \(padded.b)")
+    #expect(padded.marker - 8 == 120, "G2: outer width 120; got \(padded.marker - 8)")
+    #expect(padded.nodes == bare.nodes + 2,
+            "two members, two wrapper nodes; got \(padded.nodes) against \(bare.nodes)")
+}
+
+/// **A component's modifiers apply in the order they are written** (`OM-E`):
+/// `.padding(4).width(70)` sizes the PADDED box to 70 and leaves the member
+/// 30 wide; `.width(70).padding(4)` sizes the MEMBER to 70 and then pads it,
+/// for an outer 78. `StyledComponent` keeps an ordered op list with a "current
+/// node" per member — a `.wrap` replaces the current node, an `.amend` writes
+/// it — so a `width` written after a `padding` lands on the wrapper.
+///
+/// **This test pins MetalUI's OWN two readings, and they are NOT SwiftUI's
+/// member geometry** (`OM-F`, a recorded divergence owned by task 4). SwiftUI's
+/// G15 (`Solo().padding(4).frame(width: 70)`) reads 70x18 with the member still
+/// 30 wide, CENTRED at x 20; G16 (`.frame(width: 70).padding(4)`) reads 78x18
+/// with the member 30 wide at x 24. SwiftUI's `.frame` WRAPS and keeps the
+/// member's size; MetalUI's `Component.width` AMENDS and overwrites it, so the
+/// second order here makes the member itself 70 wide, and the first order
+/// leaves the 30-wide member at the wrapper's leading inset (x 4) rather than
+/// centred. The OUTER widths agree with SwiftUI in both orders (70 and 78);
+/// the member's does not. What this test proves is that the two orders
+/// DIFFER — the property an ordered op list exists to deliver, and which an
+/// amend-set-plus-wrap-set collapses — `#require`d before either reading is
+/// compared.
+@MainActor
+@Test func aModifierOnAComponentAppliesInTheOrderItIsWritten() throws {
+    @MainActor func reading<G: ElementGroup>(_ subject: G, _ log: ComponentLog)
+        -> (leaf: (Float, Float, Float, Float), outer: Float) {
+        let markerLog = ComponentLog()
+        let frame = Frame(contentSize: Size(width: px(300), height: px(100)), scaleFactor: 1)
+        var tree = Row {
+            subject
+            Leaf("marker", log: markerLog).width(px(1)).height(px(1))
+        }.alignItems(.flexStart)
+        frame.render(&tree)
+        return (rect(log.bounds["solo"]!), rect(markerLog.bounds["marker"]!).0)
+    }
+
+    let padThenWidthLog = ComponentLog()
+    let padThenWidth = reading(SoloLeaf(log: padThenWidthLog).padding(px(4)).width(px(70)), padThenWidthLog)
+    let widthThenPadLog = ComponentLog()
+    let widthThenPad = reading(SoloLeaf(log: widthThenPadLog).width(px(70)).padding(px(4)), widthThenPadLog)
+
+    try #require(padThenWidth.leaf != widthThenPad.leaf || padThenWidth.outer != widthThenPad.outer,
+                 "the two orders must disagree, or the op list is not ordered; both read \(padThenWidth)")
+
+    // MetalUI's own numbers. G15's outer 70 agrees; its member (30 wide at
+    // x 20, centred) does not — the wrapper is a flex-start box, not a
+    // centring frame (OM-F: `width` is not `frame`).
+    #expect(padThenWidth.outer == 70, "padding(4).width(70): the padded box is 70 wide; got \(padThenWidth.outer)")
+    #expect(padThenWidth.leaf == (4, 4, 30, 10),
+            "padding(4).width(70): the member keeps 30x10 at the 4 inset; got \(padThenWidth.leaf)")
+    // G16's outer 78 agrees; its member (30 wide at x 24) does not — the
+    // amend overwrote the member's own 30 with 70 (OM-F).
+    #expect(widthThenPad.outer == 78, "width(70).padding(4): 70 + 8; got \(widthThenPad.outer)")
+    #expect(widthThenPad.leaf == (4, 4, 70, 10),
+            "width(70).padding(4): the member itself is 70 wide (OM-F), at the 4 inset; got \(widthThenPad.leaf)")
+}
+
+/// **`width` on a component still OVERWRITES each member's own declared width**
+/// — pinned wrong on purpose (`OM-F`), owned by task 4. SwiftUI's G7
+/// (`Pair().frame(width: 70)`) reads outer 148 with the members STILL 30 and
+/// 50 wide, centred in 70 each; G8 (`Solo().frame(width: 70)`) reads 70 with
+/// the member 30 at x 20. MetalUI's `Component.width` is an amend of the
+/// member's own `Style.size.width`, so both members read 70 here — `CO-U`'s
+/// measurement (30/50 → 70/70), re-taken. When task 4 makes `width` wrap,
+/// this test flips to G7's numbers.
+@MainActor
+@Test func aComponentsWidthStillOverwritesItsMembersDeclaredWidth() {
+    let bareLog = ComponentLog()
+    let bareFrame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var bare = Row { TwoLeaves(log: bareLog) }
+    bareFrame.render(&bare)
+
     let log = ComponentLog()
-    let frame = Frame(contentSize: Size(width: px(300), height: px(60)), scaleFactor: 1)
-    var tree = Row { TwoAutoLeaves(log: log).padding(px(4)).padding(px(8)) }
+    let frame = Frame(contentSize: Size(width: px(300), height: px(40)), scaleFactor: 1)
+    var tree = Row { TwoLeaves(log: log).width(px(70)) }
     frame.render(&tree)
 
-    // Content is 0 (Leaf has no children and no measure), so the border box
-    // is padding alone: 2x8 = 16 if the second call wins, 2x4 = 8 if the
-    // first call wins, 2x(4+8) = 24 if the two accumulated.
-    #expect(rect(log.bounds["a"]!).2 == 16,
-            "the second .padding(_:) call must win outright; got \(rect(log.bounds["a"]!).2)")
-    #expect(rect(log.bounds["b"]!).2 == 16, "got \(rect(log.bounds["b"]!).2)")
+    #expect(rect(bareLog.bounds["a"]!).2 == 30 && rect(bareLog.bounds["b"]!).2 == 50,
+            "control: the members declare 30 and 50; got \(rect(bareLog.bounds["a"]!)) and \(rect(bareLog.bounds["b"]!))")
+    #expect(rect(log.bounds["a"]!).2 == 70,
+            "WRONG ON PURPOSE — OM-F. SwiftUI's G7 keeps the member 30 wide inside a 70 frame; MetalUI's amend makes the member itself 70. If this reads 30, task 4 landed; flip to G7. Got \(rect(log.bounds["a"]!))")
+    #expect(rect(log.bounds["b"]!).2 == 70,
+            "WRONG ON PURPOSE — OM-F, member b: G7 keeps it 50; got \(rect(log.bounds["b"]!))")
+    #expect(frame.tree.nodeCount == bareFrame.tree.nodeCount,
+            "an amend adds no node; got \(frame.tree.nodeCount) against \(bareFrame.tree.nodeCount)")
 }
