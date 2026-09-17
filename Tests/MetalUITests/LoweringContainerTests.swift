@@ -286,10 +286,14 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
 /// - a main-axis gap in percent: `gap.percent` (a cross-axis percent gap is read by
 ///   nothing on a single line and is not reported);
 /// - every-node rows on a container: `margin`; `padding.floor`;
-/// - a hidden container reports `display.none` alone, even with a reverse direction.
+/// - a hidden container reports `display.none` alone, even with a reverse direction;
+/// - a `Box` container declaring `display: .stack` reports `noLowering` (the overlay
+///   lowering is lane 4's) — added after mutation M3l (the check deleted, so the
+///   stack lowered as a flex row) left the suite green.
 ///
 /// Mutation that must redden it: **M3f**, stretch always lowerable (the two-child
-/// arm reports nothing and disagrees).
+/// arm reports nothing and disagrees); each reported row's check deleted reddens
+/// its own arm (record §18, lane 3, M3i–M3r).
 @MainActor
 @Test func stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem() throws {
     let single = LayoutDifferential.compare(width: 100, height: 100) { Box { fixed(20, 10) } }
@@ -374,11 +378,15 @@ private func chromeButton(_ label: String, _ axLabel: String) -> Box<Text> {
         ("margin on a container", report { Row { fixed(20, 10) }.margin(px(3)) }, [field(.box, "margin")]),
         ("padding floor on a container", report { Box(style: padded(10)) { fixed(20, 10) } },
          [field(.box, "padding.floor")]),
+        ("display: .stack on a Box container (lane 4's overlay)",
+         report { Box(style: { var s = Style(); s.display = .stack; return s }()) {
+             fixed(20, 10); fixed(30, 10)
+         } }, [field(.box, "noLowering")]),
         ("hidden reverse container",
          report { Box { fixed(20, 10); fixed(30, 10) }.flexDirection(.rowReverse).hidden() },
          [field(.box, "display.none")]),
     ]
-    try #require(arms.count == 15)
+    try #require(arms.count == 16)
     for arm in arms {
         #expect(arm.entries == arm.expected, "\(arm.name): \(arm.entries)")
     }
