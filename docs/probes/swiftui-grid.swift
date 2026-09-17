@@ -55,6 +55,12 @@
 // model differ, 0 because an answer was infinite". `trap-negative-columns`: exit
 // 133 (SIGTRAP) after printing its first line, run twice.
 //
+// RE-RECORDED 2026-09-17 (revision 2, the same design session), same machine
+// and toolchain, exit 0, run twice with byte-identical output. Additive only:
+// arms GS12-GS18 (`armsS2`), printed after GG9; every other line is
+// byte-identical to revision 1's output (`diff` of the rest empty). The corpus
+// run is unchanged (it does not call the arms).
+//
 // THE READING (arm ids in brackets; "share" and "commit" are defined in 4).
 //
 // 1. Cells. A column is as wide as its widest single-column cell, a row as tall
@@ -73,7 +79,11 @@
 //    [GS4: 0 above a Spacer]. A pair's spacing is the explicit spacing if one
 //    is given [GS11: 12 beside a Spacer], else 0 if either cell is a Spacer
 //    [GS2 48 vs control GS3 64] and 8 otherwise — so one non-spacer pair at a
-//    boundary gives 8 [GS1 190 = 142 + 8 + 40]. Text cells get 0 vertically
+//    boundary gives 8 [GS1 190 = 142 + 8 + 40]. A Spacer is seen through a
+//    frame [GS12, GS17 vs control GS18], a one-child HStack or ZStack [GS14,
+//    GS15] and a padding edge whose inset is 0 [GS13: 8 before the padded
+//    leading edge, 0 after], and not on an overlay's content side [GS16]: the
+//    stacks' zero-spacing-edge rule, ruling CN-H. Text cells get 0 vertically
 //    [GS7 36x32], font-derived; not adopted (GR-D).
 // 3. Nil proposal. Every cell is measured once at nil [GP3], single-column
 //    cells widen their columns, then spanning cells widen theirs [GX7 = GX1:
@@ -435,6 +445,14 @@
 //   GG7 GridRow{a; b}.onTapGesture{} in GA1 (still a row) @nilxnil: size 78x58 | a (0,5 30x10) <- 30x20 | b (48,0 20x20) <- 40x20 | c (10,28 10x30) <- 30x30 | d (38,38 40x10) <- 40x30
 //   GG8 rows through if and ForEach @nilxnil: size 78x58 | a (0,5 30x10) <- 30x20 | b (48,0 20x20) <- 40x20 | c (10,28 10x30) <- 30x30 | d (38,38 40x10) <- 40x30
 //   GG9 an HStack containing a GridRow is a non-row child: [a, b] HStack{GridRow{c 10x30; d 40x10}} @nilxnil: size 58x58 | a (0,5 30x10) <- 30x20 | b (38,0 20x20) <- nilxnil | c (0,28 10x30) <- nilx30 | d (18,38 40x10) <- nilx30
+//   === GS (revision 2): a Spacer seen through wrappers and containers, for the gap
+//   GS12 [a 30x10, Spacer.frame(width: 8), c 10x10] at nil x 80 @nilx80: size 48x80 | a (0,35 30x10) <- 30x80 | c (38,35 10x10) <- 10x80 | s (30,0 8x80) <- 8x80
+//   GS13 [a 30x10, Spacer.padding(.leading, 4), c 10x10] at nil x 80 @nilx80: size 60x80 | a (0,35 30x10) <- 30x80 | c (50,35 10x10) <- 10x80 | s (42,0 8x80) <- 8x80
+//   GS14 [a 30x10, HStack(spacing: 0){Spacer}, c 10x10] at nil x 80 @nilx80: size 48x10 | a (0,0 30x10) <- nilx80 | c (38,0 10x10) <- nilx80 | s (30,5 8x0) <- 8x0
+//   GS15 [a 30x10, ZStack{Spacer}, c 10x10] at nil x 80 @nilx80: size 48x70 | a (0,30 30x10) <- 30x70 | c (38,30 10x10) <- 10x70 | s (30,0 8x70) <- 8x70
+//   GS16 [a 30x10, 8x8 leaf with a Spacer overlay, c 10x10] at nil x 80 @nilx80: size 64x10 | a (0,0 30x10) <- nilx80 | s (38,1 8x8) <- 8x10 | c (54,0 10x10) <- nilx80
+//   GS17 [a 30x10] [Spacer.frame(height: 8)] [c 10x10] at 80 x nil @80xnil: size 80x28 | a (25,0 30x10) <- 80x10 | c (35,18 10x10) <- 80x10 | s (0,10 80x8) <- 80x8
+//   GS18 control for GS17: [a] [8x8 leaf] [c] at 80 x nil @80xnil: size 30x44 | a (0,0 30x10) <- 80xnil | s (11,18 8x8) <- 30x8 | c (10,34 10x10) <- 30x10
 //   === GZ: the reference model (solve/ModelGrid above) against SwiftUI's Grid on generated grids
 //     DIFFERS Grid(center, h nil, v nil) [c1:fixed(150, 20), c2:clampW(10, 40, 40)] @150xnil
 //       SwiftUI 168x40 c1(0,10 150x20) c2(158,0 10x40)
@@ -1252,6 +1270,16 @@ func p(_ w: CGFloat?, _ h: CGFloat?) -> ProposedViewSize { ProposedViewSize(widt
     arm("GG9 an HStack containing a GridRow is a non-row child: [a, b] HStack{GridRow{c 10x30; d 40x10}}", none) { Grid { GridRow { fx("a",30,10); fx("b",20,20) }; HStack { GridRow { fx("c",10,30); fx("d",40,10) } } } }
 }
 
+@MainActor func armsS2() {
+    print("=== GS (revision 2): a Spacer seen through wrappers and containers, for the gap")
+    arm("GS12 [a 30x10, Spacer.frame(width: 8), c 10x10] at nil x 80", p(nil,80)) { Grid { GridRow { fx("a",30,10); Spacer().background(fl("s")).frame(width: 8); fx("c",10,10) } } }
+    arm("GS13 [a 30x10, Spacer.padding(.leading, 4), c 10x10] at nil x 80", p(nil,80)) { Grid { GridRow { fx("a",30,10); Spacer().background(fl("s")).padding(.leading, 4); fx("c",10,10) } } }
+    arm("GS14 [a 30x10, HStack(spacing: 0){Spacer}, c 10x10] at nil x 80", p(nil,80)) { Grid { GridRow { fx("a",30,10); HStack(spacing: 0) { Spacer().background(fl("s")) }; fx("c",10,10) } } }
+    arm("GS15 [a 30x10, ZStack{Spacer}, c 10x10] at nil x 80", p(nil,80)) { Grid { GridRow { fx("a",30,10); ZStack { Spacer().background(fl("s")) }; fx("c",10,10) } } }
+    arm("GS16 [a 30x10, 8x8 leaf with a Spacer overlay, c 10x10] at nil x 80", p(nil,80)) { Grid { GridRow { fx("a",30,10); fx("s",8,8).overlay(Spacer()); fx("c",10,10) } } }
+    arm("GS17 [a 30x10] [Spacer.frame(height: 8)] [c 10x10] at 80 x nil", p(80,nil)) { Grid { GridRow { fx("a",30,10) }; GridRow { Spacer().background(fl("s")).frame(height: 8) }; GridRow { fx("c",10,10) } } }
+    arm("GS18 control for GS17: [a] [8x8 leaf] [c] at 80 x nil", p(80,nil)) { Grid { GridRow { fx("a",30,10) }; GridRow { fx("s",8,8) }; GridRow { fx("c",10,10) } } }
+}
 // ---------------- corpus ----------------
 func lit(_ v: CGFloat?) -> String { v.map { "\(Double($0))" } ?? "nil" }
 func kindLit(_ k: LK) -> String {
@@ -1322,7 +1350,7 @@ if CommandLine.arguments.contains("corpus") {
     exit(0)
 }
 MainActor.assumeIsolated {
-    armsA(); armsP(); armsF(); armsR(); armsS(); armsX(); armsQ(); armsL(); armsU(); armsW(); armsG()
+    armsA(); armsP(); armsF(); armsR(); armsS(); armsX(); armsQ(); armsL(); armsU(); armsW(); armsG(); armsS2()
     print("=== GZ: the reference model (solve/ModelGrid above) against SwiftUI's Grid on generated grids")
     controlIgnoresCommits = true
     _ = fuzz("GZ0 control: the model with commits ignored (must disagree)", seed: 101, count: 300, [], show: 1)
