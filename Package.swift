@@ -83,11 +83,18 @@ let package = Package(
         // here so the tests may `@testable import` it. `ShapingCache.misses` is
         // internal, and the two-frame cache test is the only thing in the repo
         // that can see a per-frame cache — see `Frame.shapingCache`.
+        // `MetalUIDemoContent` is named so the tests import the demo's own tree
+        // (`demoContent()`, the counter, the proposal preview) rather than a copy
+        // of it (plan task 7, stage 1, lane 5; ruling LR-S).
         .testTarget(
             name: "MetalUITests",
-            dependencies: ["MetalUI", "MetalUIText", "MetalUITestSupport"]
+            dependencies: ["MetalUI", "MetalUIText", "MetalUITestSupport", "MetalUIDemoContent"]
         ),
-        .executableTarget(name: "MetalUIDemo", dependencies: ["MetalUI"]),
+        // The demo's content, a library so `MetalUITests` can import it (ruling
+        // LR-S). In no product: it is demo content, not framework API. It makes
+        // the non-test targets nine; CLAUDE.md's "eight" is the Docs phase's.
+        .target(name: "MetalUIDemoContent", dependencies: ["MetalUI"]),
+        .executableTarget(name: "MetalUIDemo", dependencies: ["MetalUI", "MetalUIDemoContent"]),
     ],
     swiftLanguageModes: [.v6]
 )
