@@ -590,6 +590,37 @@ So the mutant was the correct spelling and the design wrong; `LR-X`, `913680b`
 | M2m `Text`'s authority check forced false (legacy registration under the proposal authority) | `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn`, `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf`, `everyContainerFieldIsIgnoredOnALoweredLeaf`, `aLoweredTextAgreesWithTheLegacyTextAtItsNaturalWidth`, `aLoweredTextHugsItsWidestLineWhereTheLegacyTextFillsItsContainingBlock`, `aLoweredTextWithADeclaredWidthKeepsItsBoundsAndGlyphOrigin` (81) |
 | M2n the `padding.text` check deleted | `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf` (1) |
 
+### Verifier round 1
+
+The verifier (suite 1377 at `73ce03f`, 12 of 12 images 0 differing pixels) found
+four sub-clauses green under mutation, each proven non-equivalent by a scratch
+run: **V3** the height half of `padding.floor` deleted (100×10 box padded 8
+vertically: legacy 100×16, lowered 100×10, nothing reported); **V4** `display:
+none` appended rather than returned alone; **V5** the `dropLast()` recording loop
+deleted (only the last field recorded; production would trap on it); **V7** `Box`
+lowering its declared style. Tests added in `a9fceb5` (committed before any
+mutation, no source change): 2.3 gains four combined rows on both sites (floor
+width-only, floor height-only, `display.none` + margin → `[display.none]`, margin
++ flexGrow → `[margin, flexGrow]`; `try #require(arms.count == 37)`), exit test
+2.3b `aLeafWithTwoUnlowerableFieldsTrapsNamingTheFirstInProduction`, and 2.3c
+`aLoweredBoxRegistersItsAnimatedWidth` (20 at the transaction's start, 60
+half-way, under both authorities). They pin current behaviour, so each was
+reddened by its mutation rather than on arrival. Each mutation as in round 2
+(copy aside, full unfiltered suite with `--skip-build`, restored, `git status
+--short` empty):
+
+| mutation | reddened |
+|---|---|
+| V3 the floor check's height branch deleted | `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf` (2: Box and Text height-only arms) |
+| V4 `display.none` appended, other checks run | `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf` (2) |
+| V5 the `dropLast()` `noteUnlowerable` loop deleted | `aLeafWithTwoUnlowerableFieldsTrapsNamingTheFirstInProduction`, `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf` (4) |
+| V7 `Box` passes `declared` as the lowered style | `aLoweredBoxRegistersItsAnimatedWidth` (2) |
+
+Suite on `a9fceb5` (no stored property changed, so no clean): `Test run with 1379
+tests in 1 suite passed after 41.802 seconds` (1377 + 2); 0 `error:`, one
+`warning:` (SwiftPM's `--build-system native` notice). Goldens 97, untouched. No
+source changed, so the pixel comparison below stands.
+
 ### Pixels
 
 `CN-R`'s harness (`gen.py`, `DEMO_PIXELS_SMALL=1`) generated into a `git archive`
