@@ -15,7 +15,7 @@ the declaration in `Typecheck.swift` and the comment in `UnitSafetyTests`).
 Probes (arm ids below are theirs):
 
 - `docs/probes/swiftui-grid.swift`, revision 4 (`ed3471e`, `c1f793d`,
-  `01a3462`, and the revision-4 commit), `/usr/bin/swift`, Apple Swift 6.4, macOS 27.0 (26A428); exit 0,
+  `01a3462`, `ce84b8b`), `/usr/bin/swift`, Apple Swift 6.4, macOS 27.0 (26A428); exit 0,
   each revision run twice with byte-identical output, recorded in its header
   with the reading. It holds the **reference model** (`solve`, `ModelGrid`),
   the fuzz comparison of that model with `Grid` (group GZ, with a control GZ0

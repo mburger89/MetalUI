@@ -94,7 +94,7 @@ scratch (the probe's `host`, `modelGrid`, `realGrid`), at the arm's proposal:
 | `swiftui-grid.swift` | 1 | `ed3471e` | default ×2, `corpus` ×2, `trap-negative-columns` ×1 (a second run at revision 3) | byte-identical; exit 0, 0, 133 |
 | `swiftui-grid.swift` | 2 (GS12–GS18) | `c1f793d` | default ×2 | byte-identical; every revision-1 line identical |
 | `swiftui-grid.swift` | 3 (GP9–GP11, ∞ share in the model) | `01a3462` | default ×2, `corpus` ×1 | byte-identical; revision-2 lines identical; corpus sha256 unchanged |
-| `swiftui-grid.swift` | 4 (GF14–GF18: a greedy frame and a Color as cells) | the commit after `88d0472` | default ×2 | byte-identical; revision-3 lines identical; corpus sha256 unchanged |
+| `swiftui-grid.swift` | 4 (GF14–GF18: a greedy frame and a Color as cells) | `ce84b8b` | default ×2 | byte-identical; revision-3 lines identical; corpus sha256 unchanged |
 | `swiftui-lazy-grid-scope.swift` | 1 | `ed3471e` | ×2 | byte-identical |
 
 All under `/usr/bin/swift` (Apple Swift 6.4, swiftlang-6.4.0.33.1), macOS 27.0
