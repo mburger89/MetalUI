@@ -644,3 +644,91 @@ SwiftUI claim; the arms it cites (T2, T3, T4, B1) are from that run.
 
 `ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked` → `<true/>` at 22:42 and
 22:54 PDT. No real-window capture was attempted.
+
+## Lane 3 — containers: `Row`, `Column`, `Box` with children; mixed trees
+
+Commits: `ae2027a` (tests, red), `35c588e` (implementation), `24fa898` (3.5's
+`display: .stack` arm, after M3l), and this record with spec and `LR-Y`.
+
+### Red first
+
+- `ae2027a`, on lane 2's `a74ce8a` sources (`swift test --build-system native
+  --no-parallel --filter "LoweringContainerTests|everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn"`):
+  `Test run with 8 tests in 0 suites failed after 0.271 seconds with 144
+  issues` — 3.1 36, 3.2 9, 3.3 54, 3.4 14, 3.5 25, 3.6 4, 3.7 1, and 1.5 1 (its
+  amended `List` arm: the zero-row `Box` still read `box.noLowering`). Every
+  failure reads the site-level entry or its 0×0 rect, e.g.
+  `LoweringContainerTests.swift:89:32: Expectation failed: r.unlowerable.isEmpty`,
+  `:322:5: twoChild.unlowerable == [field(.box, "alignItems.stretch")]`, and all
+  fifteen 3.5 report arms at `:383:9`. 3.6's four legacy literals passed on
+  arrival (legacy 50/50 at x 0 and 50, row 100×20), so the legacy side measured
+  as derived.
+- **The first red run truncated** (no summary line):
+  `MetalUI/Frame.swift:1531: Fatal error: MetalUI: box.noLowering has no proposal
+  lowering` — 3.7's `Window` half renders **without** diagnostics, and the report
+  check above it was an `#expect`, so the test went on to drive the window
+  (practices shape 13). The check became a `try #require` before the commit; the
+  run above is the second.
+
+### Suite
+
+- `35c588e` (no stored property on a public type changed, so no clean): `Test run
+  with 1386 tests in 1 suite passed after 41.892 seconds` (1379 + 7); 0 `error:`;
+  the one `warning:` is SwiftPM's `--build-system native` notice.
+- `24fa898` + this record's docs (Sources unchanged since `35c588e`), 23:58 PDT:
+  `Test run with 1386 tests in 1 suite passed after 41.965 seconds`; 0 `error:`, no
+  `warning:` besides the notice (also after touching the four changed files and
+  rebuilding); the `CONTAINER GUARD` lines printed (7), so the guards ran.
+  Goldens: 97; `git diff --stat c2290fc -- '*.json'` empty. No guard added.
+
+### Mutations
+
+Each on the committed tree (M3a–M3k, M3m–M3s on `35c588e`; M3l's second run on
+`24fa898`): `LegacyLowering.swift` copied aside, mutant applied, `swift build
+--build-system native --build-tests`, full unfiltered `swift test --build-system
+native --no-parallel --skip-build`, restored from the copy, `git status --short`
+empty after every one. Issue counts in parentheses.
+
+| mutation | reddened |
+|---|---|
+| M3a the stack's cross factor `1 − f` (`flexStart` ↔ `flexEnd`) | `aLoweredRowAndColumnAgreeWithTheLegacyContainersOverFixedChildren` (16), `aLoweredSizedContainerPlacesItsContentByJustifyContentAndAlignItems` (24) |
+| M3b stack spacing 0 | 3.1 (12), `aLoweredContainerSpacesItsChildrenByTheGapOnItsMainAxis` (6), `aLoweredContainerPaddingSitsInsideItsDeclaredSize` (5), `aProposalElementInsideALoweredContainerLaysOutUnderTheProposalAuthorityAndTrapsUnderTheLegacyOne` (5) |
+| M3c the gap's axes swapped | 3.2 (6) |
+| M3d the size frame's main and cross factors swapped | 3.3 (24), `aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren` (2) |
+| M3e padding registered outside the size frame (shared with the leaf path) | 3.4 (6), `aLoweredBoxPaddingSitsInsideItsDeclaredSize` (3) |
+| M3f stretch always lowerable | `stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem` (3) |
+| M3g the container's size frame aligned `.center` | 3.3 (32), 3.4 (2), 3.6 (2) |
+| M3h a native child reported as `box.nativeChild` | `everyLegacySiteIsReportedByNameWhenDiagnosticsAreOn` (1), 3.1 (36), 3.2 (9), 3.3 (54), 3.4 (14), 3.5 (10), 3.6 (4), 3.7 (1) — every child is native under this authority, so it cannot single out 3.7 |
+| M3i the `gap.percent` check deleted | 3.5 (1) |
+| M3j `space-*` reported whatever the main size | 3.5 (3) |
+| M3k stretch's declared-cross-size half deleted | 3.5 (1) |
+| M3l the `display: .stack` → `noLowering` check deleted — on `35c588e` | **nothing** (`Test run with 1386 tests in 1 suite passed`). Not equivalent: the report goes from `[box.noLowering]` to empty and the children lower as a flex row instead of an overlay. `24fa898` added the arm |
+| M3l — on `24fa898` | 3.5 (1) |
+| M3m the every-node rows not appended for a container | 3.5 (2: `margin`, `padding.floor`) |
+| M3n `display.none` not checked first | 3.5 (1: the hidden reverse arm reads `reverse`, …) |
+| M3o the `reverse` check deleted | 3.5 (2) |
+| M3p the `alignItems.baseline` check deleted | 3.5 (1) |
+| M3q the `flexWrap` check deleted | 3.5 (1) |
+| M3r the `alignContent` check deleted | 3.5 (1) |
+| M3s the axis inverted (`!isRow`) | 3.1 (24), 3.2 (6), 3.3 (36), 3.4 (5), 3.5 (4), 3.6 (3), 3.7 (7) |
+
+### Pixels
+
+`CN-R`'s harness (`gen.py`, `DEMO_PIXELS_SMALL=1`) generated into a `git archive`
+of `35c588e` (built in the scratchpad, outside the worktree, while M3b–M3h ran in
+the worktree; the archive is a pinned, isolated tree), compared with lane 1's
+`c2290fc` images (`lr1-px-base`): **12 of 12 read 0 differing pixels, scene
+identical.** Controls on the head images: `default-light-f0` vs `default-dark-f0`
+1 048 576; vs `modal-light` 1 030 498; vs `animation-light` 210 027; vs
+`default-light-f3` 0; `preview-light` vs `preview-dark` 1 048 576. `24fa898`
+changed only `Tests/`, so the measurement stands for the lane's final Sources.
+
+### Probe
+
+Lane 3 makes no new SwiftUI claim; 3.6 cites stack-algorithms G9/X13 and 3.4
+stage-1 B1/B3, from their recorded runs. Not re-run.
+
+### Screen lock
+
+`ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked` → `<true/>` at 23:41 and 23:59
+PDT. No real-window capture was attempted.

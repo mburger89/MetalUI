@@ -364,11 +364,16 @@ var ids: Set<GlobalElementID> { get }            // test observable (inert-table
 extension LayoutPass {
     /// Lowers one legacy node — `style` already animated — over native children.
     /// `declared` is the pre-animation style, read only by the checks. Lane 2: a
-    /// childless node lowers through `lowerLegacyLeaf` over a 0×0 native leaf; a
-    /// node with children reports `(site, "noLowering")` until lane 3. Lane 4 adds
-    /// `frameSpec: FrameSpec? = nil`.
+    /// childless node lowers through `lowerLegacyLeaf` over a 0×0 native leaf.
+    /// Lane 3: a node with children lowers to linear stack → padding → frame
+    /// (§5.4's container table); a `display: .stack` container reports
+    /// `(site, "noLowering")` until lane 4. Lane 4 adds `frameSpec: FrameSpec? = nil`.
     func lowerLegacyNode(_ style: Style, declared: Style, children: [LayoutNodeID],
                          site: LoweringSite) -> LayoutNodeID
+    /// Lane 3: §5.4's container "otherwise" column, then `legacyLeafDiagnostics`
+    /// (`LR-Y`: `display.none` alone first, `display: .stack` → `noLowering` alone).
+    func legacyContainerDiagnostics(_ declared: Style, childCount: Int,
+                                    site: LoweringSite) -> [UnlowerableField]
     /// Lane 2: the leaf table's checks on `declared`; then `content()` → native
     /// padding (non-zero `Style.padding`) → fixed `.topLeading` frame (a declared
     /// `Style.size`). Returns the element's node; `content()` is not called when
@@ -454,13 +459,17 @@ counter chrome's legacy rects.
 | `Style` field | lowering | otherwise |
 |---|---|---|
 | `flexDirection` `.row`/`.column` | native linear stack, horizontal/vertical | `.rowReverse`/`.columnReverse` → reported `reverse` |
-| `gap` (main axis; px, rem × `rootFontSize`) | stack `spacing`, explicit | `%` → reported `gap.percent` |
-| `alignItems` `.flexStart`/`.center`/`.flexEnd` | stack cross alignment; and the size frame's cross alignment | `.baseline` → reported (task 11) |
+| `gap` (main axis: `horizontal` for a row, `vertical` for a column; px, rem × `rootFontSize`) | stack `spacing`, explicit | a main-axis `%` → reported `gap.percent`; the cross-axis gap is read by nothing on one line and is not checked (`LR-Y`) |
+| `alignItems` `.flexStart`/`.center`/`.flexEnd` | stack cross alignment; and the size frame's cross alignment | `.baseline` → reported `alignItems.baseline` (task 11) |
 | `alignItems` `nil`/`.stretch` (a `Box`'s default) | **lowerable only where CSS cannot show it**: exactly 1 child **and** no declared cross-axis size | else reported `alignItems.stretch` (stage 2) |
 | `justifyContent` `nil`/`.flexStart`/`.center`/`.flexEnd` | the size frame's main-axis alignment | — |
-| `justifyContent` `.spaceBetween`/`.spaceAround`/`.spaceEvenly` | lowerable only with no declared main-axis size (no free space exists) | else reported (stage 2) |
-| `display: .stack` (`Stack`) | native overlay; alignment from `alignItems` × `justifyItems` (nine) | either `.stretch` → reported |
-| `flexWrap` ≠ `.noWrap`, `alignContent` ≠ nil | — | reported (deleted concept, stage 9/10) |
+| `justifyContent` `.spaceBetween`/`.spaceAround`/`.spaceEvenly` | lowerable only with no declared main-axis size (no free space exists) | else reported `justifyContent.spaceBetween`/`.spaceAround`/`.spaceEvenly` (stage 2) |
+| `display: .stack` (`Stack`) | native overlay; alignment from `alignItems` × `justifyItems` (nine) — lane 4; on a `Box` container before lane 4, reported `noLowering` alone (`LR-Y`) | either `.stretch` → reported |
+| `flexWrap` ≠ `.noWrap`, `alignContent` ≠ nil | — | reported `flexWrap`, `alignContent` (deleted concept, stage 9/10) |
+
+A container's report is `display.none` alone if hidden; else the container rows
+in this table's order, then the **every node** rows (`LR-Y`); production traps
+on the first.
 | `aspectRatio`, `overflow`; `justifyItems` on a flex node | ignored — the legacy engine ignores them too (inert table) | — |
 
 **Leaves** (a childless `Box`, a `Text`; critic round 1 finding 6). The legacy
@@ -603,9 +612,9 @@ reach it through `box`); `Tests/MetalUITests/LoweringContainerTests.swift`.
 | 3.2 | `aLoweredContainerSpacesItsChildrenByTheGapOnItsMainAxis` — `gap(horizontal: 4, vertical: 20)` on a row and a column | reported | **M3c** the gap's axes swapped |
 | 3.3 | `aLoweredSizedContainerPlacesItsContentByJustifyContentAndAlignItems` — 100×60 × 3 × 3 | reported | **M3d** the frame's main and cross alignments swapped |
 | 3.4 | `aLoweredContainerPaddingSitsInsideItsDeclaredSize` — the counter chrome's shape (B3) and a sized padded container | reported | **M3e** padding outside the frame |
-| 3.5 | `stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem` — single-child auto `Box` (agrees), two-child stretch row, sized single-child stretch, `spaceBetween` with and without a main size, reverse, baseline | reported | **M3f** stretch always lowerable (the two-child arm reports nothing and disagrees) |
+| 3.5 | `stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem` — agreeing: single-child auto `Box` over a fixed child and over a `Row`, unsized `spaceBetween`; reported, one arm each (`try #require` 16): two-child stretch (legacy rect pinned), sized single-child stretch, the three `space-*` with a main size, both reverses, baseline, wrap, `alignContent`, main-axis `gap.percent`, cross-axis `%` gap (not reported), `margin` and `padding.floor` on a container, a hidden reverse container (`display.none` alone), a `display: .stack` `Box` container (`noLowering`, added after M3l, `LR-Y`) | reported | **M3f** stretch always lowerable (the two-child arm reports nothing and disagrees); M3i–M3r each row's check deleted |
 | 3.6 | `aLoweredRowOverflowsWhereTheLegacyRowShrinksItsChildren` — `Row { 80; 80 }.width(100)`: legacy 50/50, lowered 80/80 from x 0; `try #require` disagreement (divergence 55; stack-algorithms **G9**, **X13**) | reported | **M3g** the size frame aligned `.center` (lowered x −30) |
-| 3.7 | `aProposalElementInsideALoweredContainerLaysOutUnderTheProposalAuthorityAndTrapsUnderTheLegacyOne` (`LR-T`) — `Column { Box; HStack {…}; ProposalScrollView {…}.frame(…) }`: proposal arm lays out with an empty report, literal rects, one scroll region, and a wheel event through a `Window` moves the `ProposalScrollView`'s offset; legacy arm is an exit test naming `SA-G`'s `newNode` message | reported (`box`) | **M3h** the container branch reports `box.nativeChild` for a native child (the proposal arm's empty report reddens) |
+| 3.7 | `aProposalElementInsideALoweredContainerLaysOutUnderTheProposalAuthorityAndTrapsUnderTheLegacyOne` (`LR-T`) — `Column { Box; HStack {…}; ProposalScrollView {…}.frame(…) }`: proposal arm lays out with an empty report (**a `try #require`**: the `Window` half renders without diagnostics, and as an `#expect` the red run truncated there, practices shape 13), literal rects, one scroll region, and a wheel event through a `Window` moves the `ProposalScrollView`'s offset; legacy arm is an exit test naming `SA-G`'s `newNode` message | reported (`box`) | **M3h** the container branch reports `box.nativeChild` for a native child (the proposal arm's empty report reddens; every child is native under this authority, so the mutant reddens every lane-3 test) |
 
 ### Lane 4 — `Stack` and `ModifiedElement` layers; ideal under the proposal authority
 
@@ -659,7 +668,9 @@ library instead of copying `main.swift`) and the unchanged suite count.
 **Counts.** Stage 1 adds 11 + 8 + 7 + 9 + 9 = **44 tests**, one of them the
 guard G1 (a guard is a `@Test` and counts toward the suite); the amended pin is
 not new. Expected at the end: **1401 tests**, **97 goldens**, **71 guards** — to
-be re-measured, not trusted.
+be re-measured, not trusted. Measured so far: lane 1 +12 (1369), lane 2 +10
+(1379), lane 3 +7 (1386) — lanes 1 and 2 each added verifier-round tests the
+plan did not count.
 
 ## 7. Demo comparison (`LR-M`)
 

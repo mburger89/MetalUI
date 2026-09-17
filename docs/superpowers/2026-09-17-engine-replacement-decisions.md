@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-Y`**. A bare `LR-3` is a typo, not a citation.
+unused is **`LR-Z`**. A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -992,4 +992,43 @@ so the second option (the whole suite pins it) was taken.
 the element's node is no longer the node the leaf was proposed by — the wrap width
 must then be read from the node directly around the leaf, and this ruling's
 reasoning (wrap at the width the leaf was proposed) says which one.
+
+---
+
+## LR-Y — lane 3's container checks: field names, order, the main-axis gap, and `display: .stack` on a `Box`
+
+**The question.** Spec §5.4's container table named what is reported but not the
+entries' spellings for every row, their order against the every-node rows, which
+axis `gap %` means, or what a `Box` container declaring `display: .stack` reports
+before lane 4 lowers the overlay.
+
+**What was measured** (record §18, lane 3). The seven lane-3 tests agree element
+by element, scene, hitboxes, accessibility and state slots on every agreeing arm
+(including the demo's counter chrome with its glyphs, B3), at literal rects
+derived by hand. Mutations M3a–M3s each reddened named tests, except **M3l** (the
+`display: .stack` check deleted, so a stack `Box` lowered as a flex row) — green,
+and non-equivalent by construction (the report goes from `[box.noLowering]` to
+empty and the stack's children are placed in a row rather than overlaid); 3.5
+gained an arm and M3l then reddened it.
+
+**The ruling.**
+
+- Entries: `reverse`, `gap.percent`, `alignItems.baseline`, `alignItems.stretch`,
+  `justifyContent.spaceBetween`/`.spaceAround`/`.spaceEvenly`, `flexWrap`,
+  `alignContent`; the site is the caller's (`box` for `Box`, `Row`, `Column`).
+- Order: `display.none` alone if hidden (`LR-J`); `noLowering` alone for
+  `display: .stack`; else the container rows in the table's order, then the
+  every-node rows (`legacyLeafDiagnostics`, including `padding.floor` and `margin`
+  on a container). Production traps on the first.
+- `gap.percent` is checked on the **main axis only** (`Axes.horizontal` for a row,
+  `vertical` for a column). The cross-axis gap separates lines; with `flexWrap`
+  reported, a lowerable container has one line, so it is read by nothing. 3.5 pins
+  both halves.
+- A `Box` container with `display: .stack` reports `noLowering` until lane 4, which
+  replaces it with the overlay lowering.
+
+**What it costs if wrong.** If a later stage lowers wrapping, the cross-axis gap
+becomes observable and its `%` must be checked; M3i's arm names only the main
+axis. If lane 4 routes `Stack` through `lowerLegacyNode`, it must remove the
+`noLowering` row and amend 3.5's arm in the same change.
 
