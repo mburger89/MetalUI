@@ -52,6 +52,9 @@
 //   Revision 3 (stage 2, lane 1, appended before DONE):
 //   Z0, Z1 — a greedy cross frame over a child taller than the line, without and
 //        with a declared minimum of 0.
+//   Revision 4 (stage 2, lane 3, appended before DONE):
+//   N0–N2 — where a padding places its child: the clamped negative response in
+//        a stack, and a proposal-filling child under asymmetric insets.
 //
 // RECORDED 2026-09-17 07:20 PDT by the stage-2 design session, macOS 27.0
 // (26A428), `/usr/bin/swift` = Apple Swift 6.4 (swiftlang-6.4.0.33.1). Exit
@@ -81,6 +84,14 @@
 // source), same OS and toolchain: exit 0; run twice, stdout byte-identical, 243
 // lines, identical to the OUTPUT below line for line (leading whitespace
 // ignored). Lane 2 cites F1–F10, X4, X10, X12, X18 from this run.
+//
+// REVISION 4 RECORDED 2026-09-17 11:20 PDT by the stage-2 lane-3 implementer,
+// same OS and toolchain, before its tests: exit 0; run twice, stdout
+// byte-identical, 254 lines — the revision-3 OUTPUT's 242 lines before DONE
+// unchanged and in order (leading whitespace ignored), N0–N2's eleven lines,
+// then DONE; filtered stderr empty. Screen locked and asleep
+// (CGSSessionScreenIsLocked = 1, displayAsleep main: 1 at 11:15). Lane 3 cites
+// Y0–Y9 and N0–N2 from this run.
 //
 // READING (each arm against its control; "CSS" is the legacy engine's answer
 // for the legacy spelling the arm stands in for, from the engine's rules, not
@@ -167,6 +178,14 @@
 //   `minHeight: 0` it answers the row's 30 and the child overflows it (Z1:
 //   frame (20, 0) 20x30, child at y -10) — CSS's stretched size, which is the
 //   line whatever the content. The presence rule of F4 on the cross axis.
+// - N: a padding places its child at the padding's origin plus the leading/top
+//   inset at the CHILD's own answer, never at the padding's rect minus its
+//   insets. N1: -15 on a 20x20 child answers 0x0 (the pad at (0, 10) 0x0 in
+//   the stack) and the child sits at (-15, -5) 20x20, where the rect minus the
+//   insets would be 30x30; control N0 puts the child at (5, 5) 20x20 in a 30x30
+//   pad. N2: a proposal-filling child offered 100x100 under (top 1, leading 4,
+//   bottom 3, trailing 2) is offered 94x96 and placed at (4, 1) 94x96 — the
+//   two rules agree whenever the pad's rect is its answer and nothing clamps.
 //
 // OUTPUT:
 //
@@ -412,6 +431,17 @@
 //       leaf a: at (0, 10) 20x10
 //       leaf b: at (20, -10) 20x50
 //       geometry bframe: (20, 0) 20x30
+//   N0 control HStack(0){a20x20.padding(5); b20x20} @nilxnil: size 50x30
+//       leaf a: at (5, 5) 20x20
+//       leaf b: at (30, 5) 20x20
+//       geometry pad: (0, 0) 30x30
+//   N1 HStack(0){a20x20.padding(-15); b20x20} @nilxnil: size 20x20
+//       leaf a: at (-15, -5) 20x20
+//       leaf b: at (0, 0) 20x20
+//       geometry pad: (0, 10) 0x0
+//   N2 fill.padding(top:1,leading:4,bottom:3,trailing:2) at 100x100 @100x100: size 100x100
+//       leaf e: at (4, 1) 94x96
+//       geometry pad: (0, 0) 100x100
 //   DONE
 
 import AppKit
@@ -842,6 +872,27 @@ enum Count {
     }
 }
 
+// Revision 4 (stage 2, lane 3; rulings LR-AU, LR-AY): where a padding PLACES its
+// child when the padding's own rect is not its child's size plus the insets. N0
+// is the control (5 all round: the child at (5, 5), the sibling at 30). N1:
+// -15 all round, whose response clamps at 0 per axis, beside a sibling. N2: a
+// proposal-filling leaf under asymmetric insets offered 100x100 — the child is
+// offered the proposal minus the insets and placed at the leading/top inset.
+@MainActor func revisionFourProbes() {
+    run("N0 control HStack(0){a20x20.padding(5); b20x20}", none) {
+        HStack(spacing: 0) { fixed("a", 20, 20).padding(5).geo("pad"); fixed("b", 20, 20) }
+    }
+    run("N1 HStack(0){a20x20.padding(-15); b20x20}", none) {
+        HStack(spacing: 0) { fixed("a", 20, 20).padding(-15).geo("pad"); fixed("b", 20, 20) }
+    }
+    run("N2 fill.padding(top:1,leading:4,bottom:3,trailing:2) at 100x100", p(100, 100)) {
+        Leaf(name: "e", minW: 0, idealW: 10, maxW: .infinity, minH: 0, idealH: 10, maxH: .infinity) {
+            SwiftUI.Color.clear
+        }
+        .padding(EdgeInsets(top: 1, leading: 4, bottom: 3, trailing: 2)).geo("pad")
+    }
+}
+
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 MainActor.assumeIsolated {
@@ -850,5 +901,6 @@ MainActor.assumeIsolated {
     revisionTwoProbes()
     breakProbes()
     revisionThreeProbes()
+    revisionFourProbes()
 }
 print("DONE")
