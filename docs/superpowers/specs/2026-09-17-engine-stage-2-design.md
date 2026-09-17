@@ -1,9 +1,11 @@
 # Engine replacement, stage 2 — flex-item semantics onto SwiftUI's (design)
 
-**Status, 2026-09-17 (PDT): designed, critic round 1 applied; lanes 1 and 2
+**Status, 2026-09-17 (PDT): designed, critic round 1 applied; lanes 1–4
 implemented** (lane 1: `0e4a209` red, `ba908ad` implementation, corrections `LR-AW`
 marked *lane 1*; lane 2: `27a9e23` red, `f25889a` implementation, `30737bd`,
-corrections `LR-AX` marked *lane 2*; record §19).
+corrections `LR-AX` marked *lane 2*; lane 3: `8a2d753` and `d0c439a`, corrections
+`LR-AY`; lane 4: `ff8b05c` red, `55621aa` implementation, `9a4a130`, corrections
+`LR-AZ` marked *lane 4*; record §19).
 Branch `feat/engine-stage-2` from `cb2e708`. Plan task 7, stage 2 of the fourteen
 in [`2026-09-17-engine-replacement-design.md`](2026-09-17-engine-replacement-design.md)
 §4.1 (its row 2) and §8 (its stage-2 row). Rulings `LR-AB`…`LR-AV` in
@@ -203,10 +205,10 @@ field string in `UnlowerableField`.
 | `maxSize` px/rem on a greedy axis (grown or stretched) | W's maximum on that axis | the same | X10 |
 | `minSize`/`maxSize` on an axis with a declared `size` | folded at registration into the element's own fixed frame: `clamp(size, min, max)` | the same | — (static) |
 | `maxSize` on a non-greedy `auto` axis (a centring `Row`'s cross axis included) | report `maxSize` (stage 8) | the same | X10's greediness; S4 |
-| `minSize`/`maxSize` a fraction | report `minSize.percent`/`maxSize.percent` (stage 8) | the same | C1, C2 |
-| `margin` px/rem, any sign (lane 4) | padding outside the alignment frame, not aliased | the same | P3, P4; divergence past the clamp |
-| `margin` `.auto` | nothing — the legacy engine resolves it to 0 (inert table) | nothing | — |
-| `margin` a fraction | report `margin.percent` (stage 8) | the same | C1, C2 |
+| `minSize`/`maxSize` a fraction | report `minSize.percent`/`maxSize.percent` (stage 8; renamed from stage 1's bare `minSize`/`maxSize` in lane 4) | the same | C1, C2 |
+| `margin` px/rem, any sign (lane 4) | padding outside the alignment frame, not aliased | *lane 4:* **nothing** — a `Stack` and a `.frame` layer ignore a child's margin entirely, in size and in position (`LR-AZ`) | P3, P4; divergence past the clamp |
+| `margin` `.auto` | nothing — the legacy engine resolves it to 0 (inert table); *lane 4:* visible only through `LR-AQ`'s unconsumed report (`LR-AZ`) | nothing | — |
+| `margin` a fraction | report `margin.percent` (stage 8) | *lane 4:* nothing (as above) | C1, C2 |
 | any item field on a record **no lowered container consumes** | report `<site>.<field>.unconsumed` (`LR-AQ`) | — | finding 1 |
 
 A **frame layer** as an item: its kernel frame already carries its own
@@ -459,16 +461,17 @@ wrap width), `LoweringState.swift` (`textLeaves`); tests
 | # | test | red before | mutation |
 |---|---|---|---|
 | 4.1 | `aStyleBorderLowersAsInsetsInsideTheDeclaredSize` — asymmetric `Style.border` (1, 2, 3, 4) on a sized container and a leaf, with padding; agrees | `box.border` | **M4a** border insets transposed top/left |
-| 4.2 | **divergence pin** `paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt` — `Text("alpha")` with `Style.padding` 10 beside a sibling in a harness column: legacy 33-wide box at the column origin, lowered text box = shaped width + 20 × 16 + 20, glyph origin (10, 10) from the box (P6). **Stretched arm**: a multi-line `Text` with `Style.padding` 10 in a 200-wide `Column{…}.alignItems(.stretch)` with a sibling: the lowered glyphs wrap at 180 (the leaf's measured width), the line count from the shaping cache at 180, no glyph past x 190 | `text.padding.text` | **M4b** glyphs painted at the element node's origin; **M4b′** glyphs wrapped at the element's (aliased) width (the stretched arm gains width and loses lines) |
-| 4.3 | **divergence pin** `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox` — a 10×10 child with `.width(10).height(10)` and `Style.padding` 12 on a `Box` (child at (12, 12), P1), a `Row` (its content alignment: child at (12, 0), P7) and a `Column` ((0, 12), P8): legacy 34×34 with the child at (12, 12) in all three, lowered 10×10 | `box.padding.floor` | **M4c** the lowered frame given `max(size, padding sum)`; **M4c′** the frame aligned `.topLeading` whatever the container (the `Row` and `Column` arms) |
-| 4.4 | `aMarginLowersAsPaddingOutsideTheItem` — asymmetric px and rem margins on a fixed child in a `Row`, a `Column` and a `Stack`; a **stretched** item with cross margins (`.alignItems(.stretch)`; practices shape 9's "stretch × margins" pair); a **grown** item with main margins; agrees, element rects exclude the margin (P3) | `box.margin` | **M4d** the margin padding aliased; **M4e** the margin inside W |
+| 4.2 | **divergence pin** `paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt` — `Text("alpha")` with `Style.padding` 10 beside a sibling in a `Column{…}.alignItems(.flexStart)` (*lane 4:* `.flexStart`, so the centred sibling's offset is not `x.5`): legacy 33×16 box at the column origin, lowered text box = `round(widest + 20)` × 36 = 53×36, and **every lowered glyph is its legacy twin translated by exactly (10, 10)** (P6) — a per-glyph comparison rather than a bearing-sensitive literal. **Stretched arm** (*lane 4:* a **140**-wide `Column{…}.alignItems(.stretch)`, not 200: at 200 the leaf's 180 and the element's 200 break the same 2 lines, so the line count could not discriminate; at 140 the leaf's 120 breaks 3): the lowered text is 20 + 48 = 68 tall and no glyph reaches past x 130 | `text.padding.text` | **M4b** glyphs painted at the element node's origin; **M4b′** glyphs wrapped at the element's (aliased) width (the stretched arm reads 2 lines and a glyph past 130) |
+| 4.3 | **divergence pin** `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox` — a rigid 10×10 child (`.flexShrink(0)`) in a 10×10 container with `Style.padding` 12: a `Box` (child at (12, 12), P1), a `Row` ((12, 0), P7) and a `Column` ((0, 12), P8). *Lane 4, measured:* legacy is **24×24**, not 34×34 (`max(specified, padding + border)`, so the content box is 0 on each axis), with the child at (12, 12) / (12, **7**) / (**7**, 12); lowered 10×10 (`LR-AZ` item 1) | `box.padding.floor` | **M4c** the lowered frame given `max(size, padding sum)`; **M4c′** the frame aligned `.topLeading` whatever the container (the `Row` and `Column` arms) |
+| 4.4 | `aMarginLowersAsPaddingOutsideTheItem` — asymmetric px and rem margins on a fixed child in a `Row` and a `Column`; a **`Stack`** and a **`.frame` layer**, which *lane 4 measured to ignore the margin entirely* (`LR-AZ` item 2) and which therefore agree by ignoring it on both paths; a **stretched** item with cross margins (`.alignItems(.stretch)`; practices shape 9's "stretch × margins" pair); a **grown** item with main margins; agrees, element rects exclude the margin (P3). Seven arms | `box.margin` | **M4d** the margin padding aliased; **M4e** the margin inside W |
 | 4.5 | `aNegativeMarginOverlapsItsSibling` — `Row { a20.margin(-8); b20 }` agrees (P4: a at −8, b at 4); **divergence pin** at −15 on 20, where SwiftUI's response clamps at 0 and CSS's margin box is −10 | reported | **M4f** negative margins clamped at registration |
-| 4.6 | `anAutoMarginLowersAsZero` — characterization: `margin(.auto)` via `Style` agrees | reported (`margin`) | **M4g** `.auto` reported |
+| 4.6 | `anAutoMarginLowersAsZero` — characterization: `margin(.auto)` via `Style` agrees, **and reports nothing as an unconsumed record under the harness root**, with a px margin's `margin.unconsumed` as the control. *Lane 4:* the second arm was added because the first cannot see M4g — a 0-inset padding is a no-op (`LR-AZ` item 3) | reported (`margin`) | **M4g** `.auto` counted as a margin |
 | 4.7 | `percentagesStillReportByNameWithTheirOwner` — one arm each: `size.percent`, `padding.percent`, `border.percent`, `margin.percent`, `minSize.percent`, `maxSize.percent`, `gap.percent`, `flexBasis` (fraction); `try #require` on the arm count | — (each already reports, some under an older name) | **M4h** `margin.percent` lowered as 0 |
-| 4.8 | `aLoweredItemChainWithFourWrappersPerLevel…` — 2.14's pair with a `margin` added per level; the level count re-derived from 88 | the margin reports until this lane | **M4i** `maxDepth` raised by 8 |
+| 4.8 | `aLoweredItemChainWithFourWrappersPerLevel…AtTheNativeDepthLimitLaysOut` / `…OnePastTheNativeDepthLimitTraps` — 2.14's pair with a `margin` added per level. *Lane 4:* **16** inner rows, five native levels each (four wrappers + the row's stack), and the innermost child **two** levels rather than 2.14's three — 9 + 5·N is never 88 — so the pair is 88 / 89 at **122** / 123 nodes | the margin reports until this lane | **M4i** `maxDepth` raised by 8 |
 
-**Demo expectation**: legacy images 0 px; preview 0 px. The exit test re-runs
-unchanged (the demo declares no margin, border or leaf padding).
+**Demo expectation — met, measured** (record §"Lane 4"): all twelve `CN-R` images
+read 0 differing pixels, scenes identical, and the exit test re-ran unchanged (the
+demo declares no margin, border or leaf padding).
 
 ### Lane 5 — justify distribution and reverse directions (`LR-AJ`)
 

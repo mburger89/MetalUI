@@ -854,3 +854,232 @@ whose rect differs from its answer and no text below its widest broken line.
 - **Shared files touched**: `LayoutTree.swift` (one case, commit 1) and
   `Sources/MetalUI/ProposalText.swift` (one expression, commit 2). No signature,
   no stored property, no public spelling changed.
+
+---
+
+## Lane 4 — the box model (2026-09-17, PDT)
+
+Implementer's record. Commits: `ff8b05c` (red), `55621aa` (implementation and
+amended pins), `9a4a130` (4.6's unconsumed arm), and this record's commit (docs,
+`LR-AZ`, the spec's lane-4 rows). Rulings: `LR-AZ`.
+
+### Probe re-run before the tests
+
+Stage-2 probe `docs/probes/swiftui-engine-replacement-stage2.swift` (revision 4,
+unchanged source), its HOW TO RUN filter: run twice, exit 0, **254 lines**, the two
+runs byte-identical and identical to the header's OUTPUT block line for line
+(leading whitespace ignored); filtered stderr empty. Lane 4 cites P1, P3, P4, P6,
+P7, P8, N1 and C1/C2 from this run. **No new arm was needed**: every SwiftUI claim
+lane 4 makes is one of those.
+
+### Legacy answers measured before any literal was written (scratch, deleted)
+
+A scratch differential test dumped both authorities' rects for every shape in the
+lane, in four rounds, and then was deleted (`git status --short` clean before the
+red commit). Two of the design's predictions were wrong and one measurement decided
+a ruling:
+
+| shape | legacy, measured |
+|---|---|
+| 60×50 `Box`, padding (2, 3, 4, 5), border (1, 2, 3, 4), over a 10×10 child | 60×50, child at (9, 3) |
+| unsized `Box`, border (1, 2, 3, 4) | 6×4; with padding 2 as well, 10×8 |
+| `Text("alpha")` with `Style.padding` 10 beside a 20×10 sibling in a flexStart `Column` | text 33×16 at (0, 0), column 33×26, sibling at (0, 16) |
+| the same sentence text in a 140-wide stretch `Column` | text 140×32, column 140×42, sibling at (0, 32) |
+| a 10×10 rigid child in a 10×10 container padded 12 | **24×24** (not the design's 34×34), child at (12, 12) `Box` / (12, **7**) `Row` / (**7**, 12) `Column` |
+| `Row { 20×10.margin(2,3,4,5); 20×10 }` | row 48×16, a at (5, 2), b at (28, 3) |
+| `Column {…}` the same | column 28×26, b at (4, 16) |
+| the row in rem (0.25, 0.5, 0.75, 1 at root font size 16) | row 64×26, a at (16, 4), b at (44, 8) |
+| `Stack { 20×10.margin(2,3,4,5); 30×20 }` | **30×20**, a at (5, 5) — the margin ignored in size and position; at a symmetric margin 20, still 30×20 |
+| `20×10.margin(2,3,4,5).frame(80, 60)` | child at (30, 25) — the margin-blind answer, not (31, 24) |
+| a stretched item with cross margins in a 60-tall stretch `Row` | row 48×60, a at (5, 2) 20×54 |
+| a grown item with main margins in a 200-wide `Row` | a at (5, 2) 172×10, b at (180, 3) |
+| `Row { 20×20.margin(−8); 20×20 }` | row 24×20, a at (−8, 0), b at (4, 0) — P4's SwiftUI reading exactly |
+| `Row { 20×20.margin(−15); 20×20 }` | row **10**×20, a at (−15, 0), b at (**−10**, 0) |
+| `margin: .auto` in a `Row` | 40×10, children at 0 and 20 — resolved to 0 |
+| the percentage arms, under stage 1's names | `border` → `box.border`; `margin` → `box.margin`; `minSize` → `box.minSize`; `maxSize` → `box.maxSize` |
+
+Shaping, for 4.2's derivations (13pt, no family): `"alpha"` natural 32.836×16; the
+sentence at 120 → **3** lines widest 117.96, at 140/150/160/170/180 → 2 lines
+(widest 133.92 at 140, 151.76 from 150 up), at 200 → 2 lines widest 185.07. **The
+design's 200-wide stretched arm could not have discriminated M4b′** — the leaf's
+180 and the element's 200 break the same two lines — so the arm was re-spelled at
+140, where the leaf's 120 breaks three.
+
+### Red first (`ff8b05c`, on lane 3's lowering `51c4628`)
+
+`swift build --build-system native --build-tests`: 0 `error:`. `swift test
+--build-system native --no-parallel --skip-build`: **`Test run with 1450 tests in 1
+suite failed after 45.717 seconds with 72 issues`**, exactly the nine lane-4 tests:
+
+| test | issues | first red line |
+|---|---|---|
+| 4.1 `aStyleBorderLowersAsInsetsInsideTheDeclaredSize` | 15 | `LoweringBoxModelTests.swift:118` `r.unlowerable.isEmpty` (`box.border`) |
+| 4.2 `paddingOnALoweredTextPadsItWhereTheLegacyLeafIgnoresIt` | 10 | `:194` `plain.unlowerable.isEmpty` (`text.padding.text`) |
+| 4.3 `aDeclaredSizeBelowThePaddingKeepsTheFrameWhereCSSFloorsTheBox` | 9 | `:303` `r.unlowerable.isEmpty` (`box.padding.floor`) |
+| 4.4 `aMarginLowersAsPaddingOutsideTheItem` | 23 | `:351` `r.unlowerable.isEmpty` (`box.margin`) |
+| 4.5 `aNegativeMarginOverlapsItsSibling` | 5 | `:432` `r.unlowerable.isEmpty` |
+| 4.6 `anAutoMarginLowersAsZero` | 3 | `:464` `r.unlowerable.isEmpty` |
+| 4.7 `percentagesStillReportByNameWithTheirOwner` | 4 | `:511` `arm.report == [field(.box, arm.name)]` |
+| 4.8 limit `…AtTheNativeDepthLimitLaysOut` | 2 | `:562` `expected exit status ".success", but ".signal(SIGTRAP)"` |
+| 4.8 trap `…OnePastTheNativeDepthLimitTraps` | 1 | `:591` stderr lacks `native layout recursion exceeded 88 levels` |
+
+**Every legacy-side literal passed** on the red run — 4.1's rects, 4.2's 33×16 /
+33×26 / (0, 16), 4.3's 24×24 and all three child positions, 4.4's seven arms'
+legacy halves and 4.5's −10 — which is what makes the lowered halves the only thing
+the implementation moves.
+
+**4.3's first spelling was corrected before the red run was banked**: its three
+containers were built inside the builder closure with a `switch`, which adds an id
+level (`LR-AX` item 10), so every id it named read `nil`. Re-spelled by building the
+`AnyElement` outside the closure; the corrected run is the one above.
+
+### Implementation (`55621aa`)
+
+- `LegacyLowering.swift`: `paddedAndSized` sums `Style.padding` **and
+  `Style.border`** into the native padding's insets and records a padded `Text`'s
+  leaf in `Frame.lowering.textLeaves`; `legacyLeafDiagnostics` loses `padding.floor`,
+  `padding.text` and `border` and gains `border.percent`; `LegacyItemPlan` gains
+  `marginInsets`; `planLegacyItems` plans a px/rem margin as native padding for a
+  **flex** parent only, reports `margin.percent`, and renames the percentage
+  minimum/maximum entries `minSize.percent`/`maxSize.percent`;
+  `registerLegacyItems` registers the margin padding **outermost**, unaliased;
+  `marginEdge` resolves an edge (`.auto` → 0).
+- `LoweringState.swift`: `textLeaves`; `hasMargin` no longer counts `.auto`;
+  `hasPercentMargin` is new.
+- `Text.swift`: `paintGlyphs` asks `textLeaves` for the glyph node and paints at
+  **its** origin and **its** measured width.
+- `swift package clean` before the final run (`LoweringState`, which `Frame`
+  stores, gained a stored property).
+
+**First full run**: `Test run with 1450 tests in 1 suite failed after 43.610 seconds
+with 15 issues` — every lane-4 test green, including the depth pair at its
+hand-derived 122 nodes, and only three pins to amend, each named by its red line:
+`aLoweredBoxPaddingSitsInsideItsDeclaredSize` (2.2's floor arm, `[]` for
+`[box.padding.floor]`), `everyStageOneUnlowerableNodeFieldIsReportedByNameOnALeaf`
+(13 issues: the `padding.floor`, `padding.text` and `border` rows, both
+`padding.floor` combined rows, and the consumed `minSize`/`margin` arms) and
+`stretchAndSpaceDistributionLowerOnlyWhereTheLegacyEngineCannotShowThem` (3.5's
+"padding floor on a container" arm). Amended as `LR-AZ` item 5 records: 2.2's arm
+now asserts the divergence (legacy 16×16, lowered 10×10), 2.3 is 46 arms, and 3.5's
+arm carries `border.percent`.
+
+**Suite after a `swift package clean`**: `Test run with 1450 tests in 1 suite passed
+after 44.741 seconds` (1441 + 9), 0 `error:`, the only `warning:` SwiftPM's
+`--build-system native` deprecation notice. Goldens **97**, `git diff --name-only
+cb2e708 -- '*.json'` empty. Guards **71** (73 `canTypecheck` hits less the
+declaration in `Typecheck.swift` and the comment in `UnitSafetyTests`); none added.
+The exit test (2.15) re-ran **unchanged** and passed.
+
+### Mutations
+
+`scratchpad/s2l4/mut/run.py` (lanes 1–2's runner, new table): committed tree, file
+copied aside, the target asserted unique, applied, `swift build --build-system
+native --build-tests`, full unfiltered `swift test --build-system native
+--no-parallel --skip-build`, restored from the copy, `git status --short` read after
+each — **empty after all of them**. No build error, no truncated run. M4g was
+re-taken on `9a4a130`. Issue counts in parentheses.
+
+| mutation | what | reddened |
+|---|---|---|
+| **M4a** | the border insets transposed top ↔ left | 4.1 (6) |
+| **M4b** | glyphs painted at the element node's origin | 4.2 (2) |
+| **M4b′** | glyphs wrapped at the element's (aliased) width | 4.2 (1) |
+| **M4c** | the lowered frame given `max(size, padding sum)` | 4.3 (1), 2.2 `aLoweredBoxPaddingSitsInsideItsDeclaredSize` (1) |
+| **M4c′** | the size frame aligned `.topLeading` whatever the container | 4.3 (2), `aLoweredContainerPaddingSitsInsideItsDeclaredSize` (5), `aLoweredFlexibleFrameLayerTakesSwiftUIsAnswerWhereTheLegacyFrameClamps` (2), `aLoweredSizedContainerPlacesItsContentByJustifyContentAndAlignItems` (32), `aLoweredStackPlacesFixedChildrenAtAllNineAlignmentsAsTheLegacyStackDoes` (18), 5.4 (8), 5.5 (3), 1.12 (6), `theStageOneCorpusLowersWith…` (6), `theStageOneCorpusPinsEvery…` (4), 2.15 (8) — 94 |
+| **M4d** | the margin padding aliased as the element's rect | 4.4 (12), 4.5 (3) |
+| **M4e** | the margin padding registered inside W | 4.4 (6) |
+| **M4f** | negative margin insets clamped at 0 at registration | 4.5 (3) |
+| **M4g** | `LoweredItem.hasMargin` counting `.auto` | **none on `55621aa`** — the finding: a 0-inset padding is a no-op, so 4.6's consumed arm cannot see it. 4.6 gained an unconsumed arm (`9a4a130`) with a px margin's `margin.unconsumed` as its control; re-run there: 4.6 (1) |
+| **M4h** | `margin.percent` lowered as 0 | 4.7 (1), 2.3 `everyStageOneUnlowerableNodeFieldIsReported…` (2) |
+| **M4i** | `NativeLayoutRun.maxDepth` 96 | 4.8 trap (2), 2.14 trap (2), stage 1's 5.9 (2) |
+
+**Re-taken from lanes 1–2** — every mutation whose target sits in code lane 4
+changed (`paddedAndSized`, `planLegacyItems`, `registerLegacyItems`, `Text.paint`),
+all on `9a4a130`:
+
+| mutation | reddened |
+|---|---|
+| **M1a** W not aliased | 26 tests, 181 issues, including lane 4's 4.1 (3), 4.2 (1) and 4.4 (6) |
+| **M1n** the alignment frame aliased | 1.5 (2), 1.6 (1), 1.15 (1), 5.4 (9), 5.5 (3) |
+| **M1k** the alias missing from `PaintPass.measuredWidth(of:)` | **none** — see below |
+| **M2h** / **M2h′** the fold's minimum / maximum skipped | 2.7 (3) / 2.8 (3) |
+| **M2i** a non-greedy maximum lowered onto W | 2.8 (1), 2.3 (2), 1.12 (1) |
+| **M2j** a declared size lowered as `frame(maxWidth:maxHeight:)` | 15 tests, 85 issues, including 4.3 (3) and 4.4 (9) |
+| **M5c′** the weights check always reporting | 18 tests, 121 issues, including 4.4 (4) and both 4.8 arms |
+
+### M1k is retired, and the attribution is a measurement
+
+Lane 1 opened a window for M1k by adding 1.10's below-a-glyph arm (a stretched
+`Text("Wii il")` in a 4-wide column), and lane 2 re-measured M1k reddening 1.10 with
+1 issue. On lane 4's tree M1k leaves the **whole suite green**. Attributed by
+experiment, not by argument: **lane 3's commit-2 clamp reverted** (`proposalText
+Measurement` answering `shaped.widestLine` again) **together with M1k** reddens
+`theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap` (1 issue) beside
+lane 3's own `aProposalTextBelowItsWidestBrokenLineAnswersTheProposal` (2) and
+`aProposalTextBreaksInsideAWordAndAnswersItsWidestLineUpToTheProposal` (2) — 5
+issues in 1450, and `git status --short` clean after restoring both files.
+
+The reason is structural: a lowered text leaf can no longer answer wider than the
+proposal its item frame gave it, and re-wrapping at a hugged width reproduces the
+same greedy breaks. Lane 4's padded path does not reopen the window either — the
+glyphs ask for the **leaf's** node, which carries no alias. So the alias inside
+`PaintPass.measuredWidth(of:)` is redundant as the code stands; it is kept as
+intent and handed to the integrator (`LR-AZ` item 4). `Frame.bounds(of:)`'s alias,
+the load-bearing half, stays pinned by M1a.
+
+### Pixels (CN-R)
+
+`gen-lib.py` with lanes 1–2's chrome lines (`Column { CounterPanel() }.width(560)`)
+into a `git archive` of `9a4a130`, `DEMO_PIXELS_SMALL=1`, compared with lane 1's
+`cb2e708` images (`s2l1/px-base`): **12 of 12 read 0 differing pixels, scene
+identical.** Controls on the head images, the stage-1 figures exactly: light vs dark
+f0 **1 048 576**; vs modal-light **1 030 498**; vs animation-light **210 027**; f0
+vs f3 **0**; preview light vs dark **1 048 576**.
+
+**The two-authority chrome pair** on the same archive: `chrome-legacy` vs
+`chrome-proposal` **0 differing pixels, scenes identical**, not blank (216 distinct
+pixel values; 308 354 against `small560-default-light`). **Control, M5d** (lowered
+stack spacing + 50) applied to the same archive: **8 214 differing pixels, scenes
+differ** — lanes 1 and 2's figure.
+
+### Screen lock and captures
+
+`xcrun swiftc -O docs/probes/appkit-screen-lock-state.swift -o /tmp/lockstate &&
+/tmp/lockstate` at 13:06 PDT: `session CGSSessionScreenIsLocked = 1`,
+`displayAsleep main: 1`, `displayActive main: 0`. **No real-window capture was
+taken.** `IOConsoleLocked` was not read (`FR-V`).
+
+### Deferred from lane 4, by name
+
+- **Percentages** — `size`, `padding`, `border`, `margin`, `gap`,
+  `minSize`/`maxSize`, a fractional `flexBasis`: reported by name, stage 8's recipe
+  and stage 10's deletion (`LR-AI`). 4.7 is the eight-arm inventory.
+- **A `Stack`'s or a `.frame` layer's margin**: lowered as absent because the legacy
+  engine treats it as absent (`LR-AZ` item 2). If a later stage wants SwiftUI's
+  answer there it is a re-spelling, not a lowering.
+- **`alignItems.baseline` / `alignSelf.baseline`**: task 11.
+- **`hidden()`**: deferred with constraints (`LR-AV`).
+- **The redundant alias in `PaintPass.measuredWidth(of:)`**: the integrator's
+  choice (`LR-AZ` item 4).
+- Justify distribution and reverse directions: lane 5.
+
+### For the integrator
+
+- **New divergences pinned by this lane** (proposal authority only): a `Text`'s
+  `Style.padding` pads it where the legacy leaf ignores it (P6, 4.2); a declared size
+  below the padding + border sum keeps its frame where CSS floors the border box
+  (P1/P7/P8, 4.3); a negative margin past its own box clamps at 0 where CSS's margin
+  box goes negative (N1, 4.5).
+- **CLAUDE.md's inert table**: the `Style.padding`/`border`/`margin`-on-a-leaf row
+  and the legacy `borderWidth(_:)` row both change under the proposal authority —
+  `Style.border` is now live there (it lowers into the padding's insets), and a
+  `Text`'s padding is live too. The rows stay true of the **legacy** authority until
+  stage 6b.
+- **Shared files touched**: `LegacyLowering.swift` (the box model), `Text.swift`
+  (`paintGlyphs`'s two lines), `LoweringState.swift` (a stored property — `swift
+  package clean` after merging). No signature, no public spelling changed.
+- **Amended stage-1/2 pins**: 2.2's floor arm, 2.3's every-node table (51 → 46
+  arms), 3.5's container arm. Any other branch's test that expects
+  `padding.floor`, `padding.text`, a bare `border`, a bare percentage `minSize`
+  or a lowered `margin` report must be re-checked after the merge.
+- **Retired mutations**: **M1k** (lane 3's clamp closed its window; see above).

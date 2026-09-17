@@ -2,7 +2,7 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-AZ`** (stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX` and its lane 3 `LR-AY`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
+unused is **`LR-BA`** (stage 2's design took `LR-AB`…`LR-AO`, its critic round 1 `LR-AP`…`LR-AV`, its lane 1 `LR-AW`, its lane 2 `LR-AX`, its lane 3 `LR-AY` and its lane 4 `LR-AZ`, appended at the end; stage-2 rulings amended by that round carry a paragraph headed **Amended, stage-2 critic round 1**). A bare `LR-3` is a typo, not a citation.
 
 **Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
 or rejected in `LR-W`, which names where. Rulings amended in place carry a
@@ -2264,3 +2264,94 @@ rot into arms that cannot fail. (4) Adopting SwiftUI's ceiling would move every
 lowered text rect by up to a point and is a separate decision with its own pixels.
 (6) If a later stage finds a below-word shape the clamp answers differently from
 SwiftUI, divergence 59 reopens with task 11's owner.
+
+---
+
+## LR-AZ — stage 2 lane 4's corrections: the legacy box under the `BM-4` floor, the stack's indifference to margins, what an `.auto` margin can be seen by, and the pin lane 3 retired
+
+**Evidence.** Record §19, lane 4: the stage-2 probe re-run twice this lane (254
+lines, byte-identical, filtered stderr empty, matching its revision-4 header); a
+scratch differential that dumped the **legacy** answer for every shape in the lane
+before a literal was written (deleted before the red commit); the red run (`Test run
+with 1450 tests in 1 suite failed after 45.717 seconds with 72 issues`, exactly the
+nine lane-4 tests); the implementation's first full run (three pins to amend and
+nothing else); a clean-build suite of 1450 passing; twelve `CN-R` images at 0
+differing pixels with the stage-1 controls; and the mutation table below.
+
+**The rulings.**
+
+1. **The legacy border box under the `BM-4` floor is 24×24, not probe P1's 34×34,
+   and a centring container puts the child *outside* the padding's inner edge.** The
+   design's 4.3 row predicted "legacy 34×34 with the child at (12, 12) in all
+   three". Measured: a 10×10 box padded 12 is **24×24** — `max(specified, padding +
+   border)`, so the content box is 0 on each floored axis — and the child of a
+   `Row` sits at (12, **7**) and of a `Column` at (**7**, 12), because a 10-tall
+   child centred in a 0-tall content box starts 5 above it. 34×34 is SwiftUI's
+   *padding* geometry from P1, which is a different box from the legacy element's.
+   The lowered answers (10×10 with the child at (12, 12) / (12, 0) / (0, 12)) are
+   the design's and were confirmed. The general lesson is stage 1's: a probe reading
+   is evidence about SwiftUI, never about the legacy engine — the differential is
+   the only source for the other side.
+2. **A `Stack` and a `.frame` layer ignore a child's margin entirely, so the
+   lowering ignores it too.** Spec §4.1's `margin` row said a stack parent lowers it
+   "the same" as a flex parent. Measured on the legacy engine: `Stack { 20×10
+   .margin(2, 3, 4, 5); 30×20 }` is 30×20 — the *other* child's size, so the margin
+   box does not enlarge the stack — with the margined child centred at (5, 5) by its
+   **border** box, where a margin-aware centring would put it at (6, 4); at a
+   symmetric margin 20 the stack is still 30×20. A `.frame(width: 80, height: 60)`
+   layer over a margined child places it at (30, 25), the margin-blind answer, not
+   (31, 24). A stack parent therefore plans no margin padding **and reports
+   nothing** — the margin is lowered as absent because the legacy engine treats it
+   as absent, which is the same disposition `alignSelf` already has there (`LR-AD`).
+   A symmetric margin cannot tell the two hypotheses apart; the measurement that
+   settled it used a distinct value per edge.
+3. **An `.auto` margin's lowering is only visible through `LR-AQ`'s unconsumed
+   report.** `margin: .auto` resolves to 0 on both axes, so counting it as a margin
+   registers a native padding whose insets are all 0: one node more, the same
+   geometry, no report. Mutation **M4g** (`LoweredItem.hasMargin` counting `.auto`)
+   therefore left the **whole suite green** on 4.6's first spelling. 4.6 gained a
+   second arm — the same box directly under the harness root, where no lowered
+   container consumes its record — and there the difference is a report:
+   `.auto` must report nothing where a px margin reports `margin.unconsumed`. The
+   general shape is practices' "a mutation that reddens nothing is a broken
+   instrument or the finding": here it was the instrument, and the arm that can see
+   it is not the arm that shows the behaviour.
+4. **Lane 3's below-word clamp retired lane 1's M1k pin, and nothing in lane 4 can
+   restore it.** M1k (the bounds alias resolved in `Frame.bounds(of:)` but **not**
+   `PaintPass.measuredWidth(of:)`) left the suite green again. Attributed by
+   measurement, not by argument: with lane 3's commit-2 clamp reverted **and** M1k
+   applied, `theBoundsAliasReachesDecorationHitboxesAccessibilityAndTextWrap` (1.10)
+   reddens again (1 issue) alongside lane 3's own 3.3 and 3.4. The reason is
+   structural: `proposalTextMeasurement` now answers `min(proposal, widestLine)`, so
+   a lowered text leaf can never be wider than the item frame that proposed to it,
+   and re-wrapping at a hugged width reproduces the same greedy breaks — which was
+   exactly the window lane 1 opened at a 4-wide column. Lane 4's padded path does
+   not reopen it either: `Text.paintGlyphs` asks for the **leaf's** node, which
+   carries no alias. **The alias in `PaintPass.measuredWidth(of:)` is therefore
+   redundant as the code now stands**; it is kept because it states the intent
+   `LR-AB` item 3 gives (a grown or stretched box *is* the bigger box, and the width
+   to measure at is its), and because deleting it is a behaviour change nothing
+   would catch. The integrator inherits the choice: keep it as intent, or delete it
+   with `LR-AB` item 3 amended. `Frame.bounds(of:)`'s alias — the load-bearing half
+   — stays pinned by M1a, which reddens 26 tests.
+5. **`padding.floor` and `padding.text` leave the report, `border` becomes
+   `border.percent`, and three stage-1 pins move with them.** 2.2's floor arm now
+   asserts the divergence instead of the report (legacy 16×16, lowered 10×10); 2.3's
+   every-node table drops `padding.floor` (both axes and both combined arms),
+   `padding.text` and `border`, gains `border.percent` and a combined
+   percent-padding-and-border row, and renames its consumed `minSize` and `margin`
+   arms `minSize.percent` and `margin.percent` — 46 arms, from 51; 3.5's container
+   arm swaps `padding.floor` for `border.percent`. Every one of those was found by
+   the implementation's first full run, not predicted.
+
+**What it costs if wrong.** (1) A wrong legacy literal would have made 4.3 a pin on
+a fiction, and the divergence it names is the one stage 6b ships to production. (2)
+If the legacy stack does honour margins in some shape this lane did not reach, a
+`Stack` child's margin silently vanishes under the proposal authority rather than
+reporting — the failure mode `LR-AQ` exists to prevent; the mitigation is that the
+same shape disagrees in the differential, which is what 4.4's stack arm checks. (3)
+Nothing: the behaviour is identical either way, only the report differs. (4) If the
+alias is deleted and a later stage reintroduces a leaf that can answer wider than
+its proposal, a padded or stretched text re-lines at paint with no test to see it.
+(5) A renamed report is a spelling stage 8's recipe reads; a wrong name sends a call
+site to the wrong owner.
