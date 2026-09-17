@@ -1,0 +1,464 @@
+import MetalUICore
+@testable import MetalUILayout
+
+// Grids spec §6, lane 2: `docs/probes/swiftui-grid-corpus.txt`, the grid probe's
+// replay corpus (`/usr/bin/swift docs/probes/swiftui-grid.swift corpus`, probe
+// revision 5), transcribed verbatim below as the elements of `gridCorpus`, its
+// own comment header kept. Only the declarations above the header are this
+// file's: they give the literals a type. Consumed by
+// `theGridProbeCorpusAgreesCaseByCase` (`NativeGridTests.swift`; ruling GR-B).
+// The file below the header is byte-identical to the corpus file; check with
+// `diff <(sed -n '/^\/\/ Replay corpus/,/^\/\/ END CORPUS/p' Tests/MetalUILayoutTests/GridCorpus.swift) docs/probes/swiftui-grid-corpus.txt`.
+
+/// One generated grid on which SwiftUI's `Grid` and the reference model agree.
+struct GridCorpusCase {
+    /// The probe's leaf kinds (`LK`), answering as the probe's `answer(_:)`.
+    enum Kind {
+        case fixed(Double, Double), flex, clampBoth(Double, Double), flexW(Double), flexH(Double), half
+        case clampW(Double, Double, Double), spacer
+
+        func answer(_ p: ProposedSize) -> SizeD {
+            switch self {
+            case let .fixed(w, h): return SizeD(width: w, height: h)
+            case .flex: return SizeD(width: p.width ?? 10, height: p.height ?? 10)
+            case let .clampBoth(lo, hi):
+                return SizeD(width: Swift.min(Swift.max(p.width ?? 10, lo), hi), height: Swift.min(Swift.max(p.height ?? 10, lo), hi))
+            case let .flexW(h): return SizeD(width: p.width ?? 10, height: h)
+            case let .flexH(w): return SizeD(width: w, height: p.height ?? 10)
+            case .half: return SizeD(width: (p.width ?? 40) / 2, height: 10)
+            case let .clampW(lo, hi, h): return SizeD(width: Swift.min(Swift.max(p.width ?? 10, lo), hi), height: h)
+            case .spacer: preconditionFailure("a spacer cell is a native spacer, not a leaf")
+            }
+        }
+    }
+
+    /// A cell and the attributes written on it (the probe's `CellSpec`).
+    struct Cell {
+        let kind: Kind
+        let span: Int
+        let priority: Double
+        let anchor: ProposalAlignment?
+        let columnAlignment: ProposalAlignment?
+        let unsizedHorizontal: Bool
+        let unsizedVertical: Bool
+
+        init(_ kind: Kind, span: Int = 1, priority: Double = 0, anchor: ProposalAlignment? = nil,
+             columnAlignment: ProposalAlignment? = nil, unsizedHorizontal: Bool = false, unsizedVertical: Bool = false) {
+            self.kind = kind; self.span = span; self.priority = priority; self.anchor = anchor
+            self.columnAlignment = columnAlignment
+            self.unsizedHorizontal = unsizedHorizontal; self.unsizedVertical = unsizedVertical
+        }
+    }
+
+    /// A `GridRow` with its alignment, or a non-row child.
+    enum Child {
+        case row(ProposalAlignment?, [Cell])
+        case spanning(Cell)
+    }
+
+    let id: Int
+    let proposal: (Double?, Double?)
+    let alignment: ProposalAlignment
+    let horizontalSpacing: Double?
+    let verticalSpacing: Double?
+    let children: [Child]
+    let size: (Double, Double)
+    let rects: [(Double, Double, Double, Double)]
+
+    /// Every cell, in source order.
+    var cells: [Cell] {
+        children.flatMap { child -> [Cell] in
+            switch child {
+            case let .row(_, cells): return cells
+            case let .spanning(cell): return [cell]
+            }
+        }
+    }
+}
+
+let gridCorpus: [GridCorpusCase] = [
+// Replay corpus for the grid kernel, produced by
+//   /usr/bin/swift docs/probes/swiftui-grid.swift corpus
+// with the probe at revision 5, on 2026-09-17 (macOS 27.0 26A428, Apple Swift
+// 6.4); everything below this comment block is that command's stdout, byte for
+// byte (sha256 d93bc71acd09a1c745691e65460401d214f6c701bf70c7d0b2e52e2da886f366),
+// and a second run was identical. Revisions 1-4's corpus (sha256 88e4e1ec…)
+// is superseded: its Spacer cells all carried a `.layoutPriority(0)`, which is
+// not a bare Spacer (record §20, critic round).
+//
+// Each case is a grid generated from seed 4242 whose answer and every leaf rect
+// SwiftUI's Grid and the probe's reference model agree on (within 0.01);
+// generated grids on which they differ were skipped and counted on the last
+// line. Leaves are numbered in source order; `rects` lists them in that order,
+// each (x, y, width, height) with the grid placed at (0, 0) at `proposal`.
+// Leaf kinds: fixed(w, h); flex = proposal ?? 10 per axis; clampBoth(lo, hi);
+// flexW(h) = width proposal ?? 10, height h; flexH(w); half = (width proposal ??
+// 40) / 2 by 10; clampW(lo, hi, h); spacer = a bare Spacer() (its rect read
+// through a flexible background leaf). An attribute is present only where it
+// was written: `priority` is a `.layoutPriority` on the cell (on a Spacer too,
+// where it replaces the Spacer's -inf), `span` a `.gridCellColumns`, and the
+// unsized flags a `.gridCellUnsizedAxes`. Grids spec §6 lanes 2 and 3 consume it
+// (GR-B).
+// BEGIN CORPUS (seed 4242)
+GridCorpusCase(id: 1, proposal: (nil, nil), alignment: .leading, horizontalSpacing: 3.0, verticalSpacing: 12.0,
+    children: [.row(nil, [.init(.fixed(100.0, 60.0), span: 2)]), .spanning(.init(.flex)), .row(nil, [.init(.clampW(0.0, 150.0, 30.0), priority: -1.0), .init(.flexW(30.0), columnAlignment: .center, unsizedHorizontal: true), .init(.spacer, priority: 1.0)])],
+    size: (111.0, 124.0), rects: [(0.0, 0.0, 100.0, 60.0), (0.0, 72.0, 111.0, 10.0), (0.0, 94.0, 48.5, 30.0), (51.5, 94.0, 48.5, 30.0), (103.0, 94.0, 8.0, 30.0)]),
+GridCorpusCase(id: 2, proposal: (60.0, 60.0), alignment: .trailing, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.spanning(.init(.flex, unsizedHorizontal: true))],
+    size: (0.0, 60.0), rects: [(0.0, 0.0, 0.0, 60.0)]),
+GridCorpusCase(id: 3, proposal: (300.0, 200.0), alignment: .center, horizontalSpacing: 12.0, verticalSpacing: nil,
+    children: [.spanning(.init(.half))],
+    size: (150.0, 10.0), rects: [(0.0, 0.0, 150.0, 10.0)]),
+GridCorpusCase(id: 4, proposal: (nil, 80.0), alignment: .trailing, horizontalSpacing: 3.0, verticalSpacing: nil,
+    children: [.row(.bottom, [.init(.fixed(30.0, 10.0), anchor: .center, unsizedHorizontal: true), .init(.fixed(150.0, 40.0))]), .row(nil, [.init(.fixed(100.0, 20.0)), .init(.fixed(150.0, 20.0), anchor: .bottomLeading)]), .row(nil, [.init(.fixed(100.0, 40.0)), .init(.clampBoth(0.0, 60.0), priority: -1.0, unsizedVertical: true)])],
+    size: (253.0, 116.0), rects: [(35.0, 15.0, 30.0, 10.0), (103.0, 0.0, 150.0, 40.0), (0.0, 48.0, 100.0, 20.0), (103.0, 48.0, 150.0, 20.0), (0.0, 76.0, 100.0, 40.0), (193.0, 76.0, 60.0, 40.0)]),
+GridCorpusCase(id: 5, proposal: (nil, nil), alignment: .leading, horizontalSpacing: 12.0, verticalSpacing: 0.0,
+    children: [.row(.bottom, [.init(.spacer), .init(.flex), .init(.fixed(100.0, 10.0), span: 3, anchor: .topLeading, unsizedVertical: true)])],
+    size: (142.0, 10.0), rects: [(0.0, 0.0, 8.0, 10.0), (20.0, 0.0, 10.0, 10.0), (42.0, 0.0, 100.0, 10.0)]),
+GridCorpusCase(id: 6, proposal: (150.0, nil), alignment: .topLeading, horizontalSpacing: 3.0, verticalSpacing: nil,
+    children: [.spanning(.init(.flexW(20.0), anchor: .topLeading)), .row(.center, [.init(.clampW(30.0, 90.0, 10.0), unsizedVertical: true)])],
+    size: (150.0, 38.0), rects: [(0.0, 0.0, 150.0, 20.0), (0.0, 28.0, 90.0, 10.0)]),
+GridCorpusCase(id: 7, proposal: (60.0, 60.0), alignment: .bottomTrailing, horizontalSpacing: 12.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.fixed(60.0, 20.0), span: 2)]), .row(nil, [.init(.flex, priority: 1.0), .init(.clampBoth(20.0, 30.0))]), .row(nil, [.init(.fixed(40.0, 10.0)), .init(.fixed(100.0, 60.0), anchor: .leading, unsizedVertical: true)])],
+    size: (160.0, 140.0), rects: [(100.0, 0.0, 60.0, 20.0), (0.0, 28.0, 48.0, 44.0), (130.0, 42.0, 30.0, 30.0), (8.0, 130.0, 40.0, 10.0), (60.0, 80.0, 100.0, 60.0)]),
+GridCorpusCase(id: 8, proposal: (nil, 80.0), alignment: .bottom, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.clampW(10.0, 160.0, 30.0), anchor: .trailing), .init(.flexH(30.0)), .init(.fixed(30.0, 60.0), unsizedVertical: true)])],
+    size: (86.0, 80.0), rects: [(0.0, 25.0, 10.0, 30.0), (18.0, 0.0, 30.0, 80.0), (56.0, 20.0, 30.0, 60.0)]),
+GridCorpusCase(id: 9, proposal: (nil, nil), alignment: .bottomLeading, horizontalSpacing: nil, verticalSpacing: 12.0,
+    children: [.row(.bottom, [.init(.half, unsizedHorizontal: true)])],
+    size: (20.0, 10.0), rects: [(0.0, 0.0, 20.0, 10.0)]),
+GridCorpusCase(id: 10, proposal: (nil, 80.0), alignment: .leading, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.fixed(10.0, 20.0), priority: -1.0, unsizedVertical: true), .init(.clampBoth(20.0, 40.0), priority: 1.0)]), .row(.bottom, [.init(.clampW(0.0, 30.0, 10.0), span: 2, unsizedVertical: true), .init(.fixed(100.0, 40.0), anchor: .leading, unsizedHorizontal: true)])],
+    size: (146.0, 88.0), rects: [(0.0, 10.0, 10.0, 20.0), (18.0, 0.0, 20.0, 40.0), (0.0, 78.0, 30.0, 10.0), (46.0, 48.0, 100.0, 40.0)]),
+GridCorpusCase(id: 11, proposal: (300.0, 200.0), alignment: .leading, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.fixed(150.0, 40.0), priority: 1.0, anchor: .trailing), .init(.flexW(40.0))]), .row(nil, [.init(.clampW(30.0, 180.0, 30.0)), .init(.clampW(10.0, 160.0, 20.0), columnAlignment: .leading), .init(.spacer, priority: -1.0, columnAlignment: .trailing)])],
+    size: (300.0, 170.0), rects: [(0.0, 0.0, 150.0, 40.0), (158.0, 0.0, 71.0, 40.0), (0.0, 94.0, 150.0, 30.0), (158.0, 99.0, 71.0, 20.0), (229.0, 48.0, 71.0, 122.0)]),
+GridCorpusCase(id: 12, proposal: (300.0, 200.0), alignment: .top, horizontalSpacing: 0.0, verticalSpacing: 12.0,
+    children: [.row(nil, [.init(.flexH(40.0))]), .spanning(.init(.fixed(40.0, 20.0))), .row(nil, [.init(.fixed(30.0, 60.0))])],
+    size: (40.0, 200.0), rects: [(0.0, 0.0, 40.0, 96.0), (0.0, 108.0, 40.0, 20.0), (5.0, 140.0, 30.0, 60.0)]),
+GridCorpusCase(id: 13, proposal: (300.0, 200.0), alignment: .bottom, horizontalSpacing: 3.0, verticalSpacing: 5.0,
+    children: [.row(nil, [.init(.flex, anchor: .center), .init(.clampW(10.0, 70.0, 30.0), anchor: .bottomLeading, unsizedHorizontal: true), .init(.clampW(10.0, 30.0, 10.0), columnAlignment: .leading)]), .row(nil, [.init(.clampBoth(10.0, 40.0))]), .row(nil, [.init(.clampBoth(0.0, 40.0), columnAlignment: .trailing, unsizedHorizontal: true), .init(.half)])],
+    size: (300.0, 200.0), rects: [(0.0, 0.0, 198.0, 110.0), (201.0, 80.0, 66.0, 30.0), (270.0, 100.0, 30.0, 10.0), (158.0, 115.0, 40.0, 40.0), (158.0, 160.0, 40.0, 40.0), (217.5, 190.0, 33.0, 10.0)]),
+GridCorpusCase(id: 14, proposal: (60.0, 60.0), alignment: .bottomLeading, horizontalSpacing: 0.0, verticalSpacing: 0.0,
+    children: [.spanning(.init(.spacer)), .row(.bottom, [.init(.flexW(20.0), anchor: .bottom, unsizedVertical: true), .init(.fixed(60.0, 40.0), columnAlignment: .center), .init(.fixed(150.0, 40.0), anchor: .top)])],
+    size: (210.0, 60.0), rects: [(0.0, 0.0, 210.0, 20.0), (0.0, 40.0, 0.0, 20.0), (0.0, 20.0, 60.0, 40.0), (60.0, 20.0, 150.0, 40.0)]),
+GridCorpusCase(id: 15, proposal: (200.0, 100.0), alignment: .bottomLeading, horizontalSpacing: 12.0, verticalSpacing: 12.0,
+    children: [.row(.top, [.init(.flexW(10.0)), .init(.clampW(0.0, 30.0, 40.0))])],
+    size: (200.0, 40.0), rects: [(0.0, 0.0, 158.0, 10.0), (170.0, 0.0, 30.0, 40.0)]),
+GridCorpusCase(id: 16, proposal: (200.0, 100.0), alignment: .bottomLeading, horizontalSpacing: 12.0, verticalSpacing: nil,
+    children: [.row(.center, [.init(.clampW(30.0, 90.0, 40.0), anchor: .bottom), .init(.half, anchor: .bottomTrailing, columnAlignment: .trailing)])],
+    size: (151.0, 40.0), rects: [(0.0, 0.0, 90.0, 40.0), (126.5, 30.0, 24.5, 10.0)]),
+GridCorpusCase(id: 17, proposal: (100.0, 100.0), alignment: .top, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.clampW(30.0, 130.0, 40.0))])],
+    size: (100.0, 40.0), rects: [(0.0, 0.0, 100.0, 40.0)]),
+GridCorpusCase(id: 18, proposal: (nil, 80.0), alignment: .bottom, horizontalSpacing: 3.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.spacer), .init(.fixed(30.0, 60.0), anchor: .topLeading, columnAlignment: .trailing), .init(.clampBoth(0.0, 40.0), span: 2, anchor: .center, columnAlignment: .center)])],
+    size: (54.0, 60.0), rects: [(0.0, 0.0, 8.0, 60.0), (11.0, 0.0, 30.0, 60.0), (44.0, 10.0, 10.0, 40.0)]),
+GridCorpusCase(id: 19, proposal: (200.0, 100.0), alignment: .bottomTrailing, horizontalSpacing: 3.0, verticalSpacing: 5.0,
+    children: [.row(nil, [.init(.flexH(40.0), span: 3, priority: 1.0, anchor: .topTrailing), .init(.half, priority: 1.0, columnAlignment: .leading, unsizedHorizontal: true), .init(.fixed(60.0, 30.0), span: 2, columnAlignment: .leading)])],
+    size: (106.0, 100.0), rects: [(0.0, 0.0, 40.0, 100.0), (43.0, 90.0, 0.0, 10.0), (46.0, 70.0, 60.0, 30.0)]),
+GridCorpusCase(id: 20, proposal: (nil, 80.0), alignment: .bottom, horizontalSpacing: nil, verticalSpacing: 0.0,
+    children: [.row(.center, [.init(.fixed(60.0, 30.0), anchor: .top)]), .row(nil, [.init(.flexW(10.0), priority: -1.0, columnAlignment: .leading), .init(.flexH(30.0), span: 2, priority: 1.0)]), .row(nil, [.init(.clampW(10.0, 40.0, 30.0), priority: -1.0)])],
+    size: (98.0, 140.0), rects: [(0.0, 0.0, 60.0, 30.0), (0.0, 100.0, 60.0, 10.0), (68.0, 30.0, 30.0, 80.0), (0.0, 110.0, 40.0, 30.0)]),
+GridCorpusCase(id: 21, proposal: (300.0, 200.0), alignment: .trailing, horizontalSpacing: 12.0, verticalSpacing: 5.0,
+    children: [.row(.bottom, [.init(.half, columnAlignment: .center, unsizedHorizontal: true, unsizedVertical: true)]), .row(nil, [.init(.flexW(10.0), priority: 1.0), .init(.flexH(40.0), priority: 1.0, columnAlignment: .center, unsizedVertical: true), .init(.clampW(0.0, 40.0, 40.0), priority: 1.0, anchor: .bottomLeading, columnAlignment: .leading)]), .row(nil, [.init(.flexW(30.0), priority: -1.0, anchor: .top, columnAlignment: .center, unsizedVertical: true), .init(.clampBoth(20.0, 30.0), unsizedHorizontal: true), .init(.clampW(0.0, 40.0, 20.0), anchor: .bottomLeading, columnAlignment: .center, unsizedVertical: true)])],
+    size: (222.0, 90.0), rects: [(29.5, 0.0, 59.0, 10.0), (0.0, 30.0, 118.0, 10.0), (130.0, 15.0, 40.0, 40.0), (182.0, 15.0, 40.0, 40.0), (0.0, 60.0, 118.0, 30.0), (135.0, 60.0, 30.0, 30.0), (182.0, 70.0, 40.0, 20.0)]),
+GridCorpusCase(id: 22, proposal: (nil, nil), alignment: .topLeading, horizontalSpacing: 3.0, verticalSpacing: 5.0,
+    children: [.spanning(.init(.flexH(30.0), unsizedHorizontal: true))],
+    size: (30.0, 10.0), rects: [(0.0, 0.0, 30.0, 10.0)]),
+GridCorpusCase(id: 23, proposal: (nil, 80.0), alignment: .bottomTrailing, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.flexW(30.0), span: 2, unsizedHorizontal: true, unsizedVertical: true), .init(.fixed(150.0, 20.0)), .init(.clampW(10.0, 110.0, 20.0))])],
+    size: (186.0, 30.0), rects: [(0.0, 0.0, 10.0, 30.0), (18.0, 10.0, 150.0, 20.0), (176.0, 10.0, 10.0, 20.0)]),
+GridCorpusCase(id: 24, proposal: (60.0, 60.0), alignment: .top, horizontalSpacing: 0.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.fixed(30.0, 60.0)), .init(.fixed(40.0, 60.0), anchor: .topTrailing, unsizedHorizontal: true)]), .spanning(.init(.clampBoth(0.0, 100.0), unsizedHorizontal: true)), .row(nil, [.init(.flexH(30.0), span: 3, columnAlignment: .trailing)])],
+    size: (70.0, 76.0), rects: [(0.0, 0.0, 30.0, 60.0), (30.0, 0.0, 40.0, 60.0), (0.0, 68.0, 70.0, 0.0), (20.0, 76.0, 30.0, 0.0)]),
+GridCorpusCase(id: 25, proposal: (nil, 80.0), alignment: .trailing, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.clampBoth(20.0, 50.0))])],
+    size: (20.0, 50.0), rects: [(0.0, 0.0, 20.0, 50.0)]),
+GridCorpusCase(id: 26, proposal: (60.0, 60.0), alignment: .topTrailing, horizontalSpacing: 0.0, verticalSpacing: 12.0,
+    children: [.row(nil, [.init(.fixed(30.0, 40.0), columnAlignment: .center, unsizedHorizontal: true), .init(.flexW(30.0), priority: -1.0, columnAlignment: .leading), .init(.flex)])],
+    size: (60.0, 60.0), rects: [(0.0, 0.0, 30.0, 40.0), (30.0, 0.0, 0.0, 30.0), (30.0, 0.0, 30.0, 60.0)]),
+GridCorpusCase(id: 27, proposal: (200.0, 100.0), alignment: .topLeading, horizontalSpacing: 0.0, verticalSpacing: 12.0,
+    children: [.row(nil, [.init(.fixed(10.0, 30.0))])],
+    size: (10.0, 30.0), rects: [(0.0, 0.0, 10.0, 30.0)]),
+GridCorpusCase(id: 28, proposal: (nil, nil), alignment: .trailing, horizontalSpacing: 3.0, verticalSpacing: nil,
+    children: [.row(.center, [.init(.fixed(10.0, 40.0), anchor: .bottom, unsizedVertical: true), .init(.flexH(10.0))]), .row(nil, [.init(.fixed(60.0, 60.0), anchor: .bottom, unsizedVertical: true), .init(.fixed(30.0, 30.0), anchor: .bottomTrailing, unsizedVertical: true), .init(.clampW(10.0, 160.0, 40.0), columnAlignment: .center)])],
+    size: (106.0, 108.0), rects: [(25.0, 0.0, 10.0, 40.0), (83.0, 0.0, 10.0, 40.0), (0.0, 48.0, 60.0, 60.0), (63.0, 78.0, 30.0, 30.0), (96.0, 58.0, 10.0, 40.0)]),
+GridCorpusCase(id: 29, proposal: (nil, nil), alignment: .bottomTrailing, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.clampBoth(10.0, 50.0), columnAlignment: .leading, unsizedHorizontal: true), .init(.spacer, unsizedHorizontal: true)]), .row(nil, [.init(.clampW(0.0, 10.0, 40.0), span: 3)]), .row(nil, [.init(.flexW(40.0), span: 3, unsizedVertical: true)])],
+    size: (18.0, 106.0), rects: [(0.0, 0.0, 10.0, 10.0), (10.0, 0.0, 8.0, 10.0), (8.0, 18.0, 10.0, 40.0), (0.0, 66.0, 18.0, 40.0)]),
+GridCorpusCase(id: 30, proposal: (60.0, 60.0), alignment: .center, horizontalSpacing: 0.0, verticalSpacing: 5.0,
+    children: [.row(nil, [.init(.fixed(60.0, 40.0), columnAlignment: .trailing)]), .row(.center, [.init(.flexW(30.0), span: 3)]), .row(nil, [.init(.half)])],
+    size: (60.0, 90.0), rects: [(0.0, 0.0, 60.0, 40.0), (0.0, 45.0, 60.0, 30.0), (30.0, 80.0, 30.0, 10.0)]),
+GridCorpusCase(id: 31, proposal: (nil, 80.0), alignment: .trailing, horizontalSpacing: 12.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.fixed(30.0, 10.0)), .init(.flex, unsizedVertical: true)]), .row(.top, [.init(.half, unsizedHorizontal: true)]), .row(nil, [.init(.half, priority: 1.0, columnAlignment: .center), .init(.fixed(150.0, 10.0)), .init(.flexW(10.0))])],
+    size: (214.0, 46.0), rects: [(0.0, 0.0, 30.0, 10.0), (42.0, 0.0, 150.0, 10.0), (7.5, 18.0, 15.0, 10.0), (7.5, 36.0, 15.0, 10.0), (42.0, 36.0, 150.0, 10.0), (204.0, 36.0, 10.0, 10.0)]),
+GridCorpusCase(id: 32, proposal: (60.0, 60.0), alignment: .top, horizontalSpacing: 3.0, verticalSpacing: 5.0,
+    children: [.spanning(.init(.flexH(20.0), span: 2, columnAlignment: .leading))],
+    size: (20.0, 60.0), rects: [(0.0, 0.0, 20.0, 60.0)]),
+GridCorpusCase(id: 33, proposal: (150.0, nil), alignment: .top, horizontalSpacing: 3.0, verticalSpacing: 5.0,
+    children: [.spanning(.init(.half, priority: 1.0, anchor: .leading)), .row(.top, [.init(.fixed(10.0, 10.0), priority: 1.0, anchor: .bottomLeading)])],
+    size: (75.0, 25.0), rects: [(0.0, 0.0, 75.0, 10.0), (0.0, 15.0, 10.0, 10.0)]),
+GridCorpusCase(id: 34, proposal: (100.0, 100.0), alignment: .bottomTrailing, horizontalSpacing: nil, verticalSpacing: 5.0,
+    children: [.row(.center, [.init(.clampBoth(0.0, 20.0))]), .row(.bottom, [.init(.half, unsizedHorizontal: true)])],
+    size: (20.0, 35.0), rects: [(0.0, 0.0, 20.0, 20.0), (10.0, 25.0, 10.0, 10.0)]),
+GridCorpusCase(id: 35, proposal: (nil, nil), alignment: .top, horizontalSpacing: 12.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.flexH(20.0), columnAlignment: .trailing)]), .row(nil, [.init(.flex), .init(.half)])],
+    size: (52.0, 28.0), rects: [(0.0, 0.0, 20.0, 10.0), (0.0, 18.0, 20.0, 10.0), (32.0, 18.0, 20.0, 10.0)]),
+GridCorpusCase(id: 36, proposal: (nil, nil), alignment: .trailing, horizontalSpacing: 3.0, verticalSpacing: 5.0,
+    children: [.row(nil, [.init(.flex, priority: -1.0, anchor: .leading)]), .spanning(.init(.fixed(30.0, 10.0)))],
+    size: (30.0, 25.0), rects: [(0.0, 0.0, 30.0, 10.0), (0.0, 15.0, 30.0, 10.0)]),
+GridCorpusCase(id: 37, proposal: (nil, 80.0), alignment: .bottom, horizontalSpacing: 3.0, verticalSpacing: nil,
+    children: [.row(.center, [.init(.fixed(40.0, 60.0), anchor: .topLeading), .init(.fixed(30.0, 60.0))]), .row(nil, [.init(.fixed(40.0, 60.0), anchor: .leading, unsizedVertical: true), .init(.clampBoth(0.0, 150.0), columnAlignment: .leading, unsizedVertical: true), .init(.clampW(0.0, 30.0, 20.0))]), .row(.bottom, [.init(.clampBoth(20.0, 170.0), unsizedHorizontal: true), .init(.fixed(60.0, 30.0))])],
+    size: (116.0, 166.0), rects: [(0.0, 0.0, 40.0, 60.0), (43.0, 0.0, 30.0, 60.0), (0.0, 68.0, 40.0, 60.0), (43.0, 68.0, 60.0, 60.0), (106.0, 108.0, 10.0, 20.0), (0.0, 136.0, 40.0, 30.0), (43.0, 136.0, 60.0, 30.0)]),
+GridCorpusCase(id: 38, proposal: (200.0, 100.0), alignment: .bottomLeading, horizontalSpacing: 3.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.flexH(40.0), columnAlignment: .center), .init(.half, anchor: .bottom)]), .row(nil, [.init(.clampW(30.0, 60.0, 40.0), span: 2, anchor: .leading, columnAlignment: .trailing, unsizedHorizontal: true), .init(.clampBoth(10.0, 160.0), unsizedHorizontal: true)])],
+    size: (102.0, 100.0), rects: [(0.0, 0.0, 40.0, 46.0), (54.5, 36.0, 23.0, 10.0), (0.0, 57.0, 60.0, 40.0), (92.0, 54.0, 10.0, 46.0)]),
+GridCorpusCase(id: 39, proposal: (nil, 80.0), alignment: .topLeading, horizontalSpacing: nil, verticalSpacing: 5.0,
+    children: [.row(nil, [.init(.clampW(0.0, 10.0, 40.0))])],
+    size: (10.0, 40.0), rects: [(0.0, 0.0, 10.0, 40.0)]),
+GridCorpusCase(id: 40, proposal: (300.0, 200.0), alignment: .topLeading, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(.top, [.init(.flexH(40.0), anchor: .bottom)]), .row(.top, [.init(.clampBoth(0.0, 40.0), priority: 1.0)])],
+    size: (40.0, 200.0), rects: [(0.0, 0.0, 40.0, 152.0), (0.0, 160.0, 40.0, 40.0)]),
+GridCorpusCase(id: 41, proposal: (60.0, 60.0), alignment: .bottomLeading, horizontalSpacing: 3.0, verticalSpacing: nil,
+    children: [.spanning(.init(.fixed(30.0, 30.0), unsizedVertical: true))],
+    size: (30.0, 30.0), rects: [(0.0, 0.0, 30.0, 30.0)]),
+GridCorpusCase(id: 42, proposal: (150.0, nil), alignment: .trailing, horizontalSpacing: nil, verticalSpacing: 0.0,
+    children: [.row(nil, [.init(.fixed(60.0, 10.0), span: 3), .init(.fixed(60.0, 10.0), columnAlignment: .center, unsizedVertical: true), .init(.fixed(10.0, 30.0))])],
+    size: (146.0, 30.0), rects: [(0.0, 10.0, 60.0, 10.0), (68.0, 10.0, 60.0, 10.0), (136.0, 0.0, 10.0, 30.0)]),
+GridCorpusCase(id: 43, proposal: (60.0, 60.0), alignment: .topLeading, horizontalSpacing: nil, verticalSpacing: 12.0,
+    children: [.row(.center, [.init(.fixed(10.0, 40.0), span: 3, columnAlignment: .leading), .init(.fixed(10.0, 20.0), anchor: .bottomLeading, columnAlignment: .center, unsizedVertical: true), .init(.spacer, span: 2, anchor: .center, unsizedHorizontal: true)]), .row(nil, [.init(.spacer, anchor: .bottomLeading, columnAlignment: .leading), .init(.fixed(60.0, 30.0), unsizedHorizontal: true)]), .row(nil, [.init(.spacer, anchor: .center, unsizedHorizontal: true), .init(.spacer)])],
+    size: (94.0, 102.0), rects: [(0.0, 0.0, 10.0, 40.0), (76.0, 20.0, 10.0, 20.0), (86.0, 0.0, 8.0, 40.0), (0.0, 52.0, 8.0, 30.0), (8.0, 52.0, 60.0, 30.0), (0.0, 94.0, 8.0, 8.0), (8.0, 94.0, 60.0, 8.0)]),
+GridCorpusCase(id: 44, proposal: (150.0, nil), alignment: .leading, horizontalSpacing: 3.0, verticalSpacing: nil,
+    children: [.row(.center, [.init(.half, columnAlignment: .leading), .init(.fixed(60.0, 20.0), columnAlignment: .trailing)])],
+    size: (106.5, 20.0), rects: [(0.0, 5.0, 21.75, 10.0), (46.5, 0.0, 60.0, 20.0)]),
+GridCorpusCase(id: 45, proposal: (150.0, nil), alignment: .center, horizontalSpacing: nil, verticalSpacing: 12.0,
+    children: [.row(nil, [.init(.fixed(30.0, 10.0), anchor: .leading), .init(.fixed(40.0, 60.0), columnAlignment: .leading), .init(.half, columnAlignment: .center)])],
+    size: (118.0, 60.0), rects: [(0.0, 25.0, 30.0, 10.0), (38.0, 0.0, 40.0, 60.0), (94.0, 25.0, 16.0, 10.0)]),
+GridCorpusCase(id: 46, proposal: (60.0, 60.0), alignment: .leading, horizontalSpacing: 12.0, verticalSpacing: 0.0,
+    children: [.spanning(.init(.flex, span: 3, anchor: .topLeading, unsizedVertical: true)), .row(.bottom, [.init(.spacer, span: 3, anchor: .topTrailing)]), .row(.top, [.init(.flexH(10.0), unsizedVertical: true)])],
+    size: (60.0, 60.0), rects: [(0.0, 0.0, 60.0, 0.0), (0.0, 0.0, 60.0, 60.0), (0.0, 60.0, 10.0, 0.0)]),
+GridCorpusCase(id: 47, proposal: (300.0, 200.0), alignment: .leading, horizontalSpacing: 0.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.fixed(10.0, 30.0))]), .row(.top, [.init(.clampW(30.0, 60.0, 20.0), anchor: .bottomLeading), .init(.spacer, anchor: .bottomLeading, unsizedVertical: true), .init(.clampW(30.0, 130.0, 10.0))])],
+    size: (300.0, 58.0), rects: [(0.0, 0.0, 10.0, 30.0), (0.0, 38.0, 60.0, 20.0), (60.0, 38.0, 110.0, 20.0), (170.0, 38.0, 130.0, 10.0)]),
+GridCorpusCase(id: 48, proposal: (nil, 80.0), alignment: .leading, horizontalSpacing: nil, verticalSpacing: 12.0,
+    children: [.row(nil, [.init(.clampW(30.0, 180.0, 20.0), span: 3, columnAlignment: .leading), .init(.spacer, anchor: .bottom, columnAlignment: .trailing), .init(.fixed(100.0, 20.0))]), .row(nil, [.init(.fixed(20.0, 60.0), columnAlignment: .trailing, unsizedHorizontal: true), .init(.half)])],
+    size: (156.0, 92.0), rects: [(0.0, 0.0, 48.0, 20.0), (48.0, 0.0, 8.0, 20.0), (56.0, 0.0, 100.0, 20.0), (0.0, 32.0, 20.0, 60.0), (28.0, 57.0, 10.0, 10.0)]),
+GridCorpusCase(id: 49, proposal: (nil, nil), alignment: .bottom, horizontalSpacing: 3.0, verticalSpacing: 12.0,
+    children: [.row(.bottom, [.init(.clampBoth(10.0, 50.0)), .init(.clampW(30.0, 130.0, 30.0), anchor: .leading, columnAlignment: .leading)]), .row(nil, [.init(.clampBoth(0.0, 30.0), priority: 1.0)]), .row(nil, [.init(.clampW(0.0, 150.0, 40.0))])],
+    size: (43.0, 104.0), rects: [(0.0, 0.0, 10.0, 30.0), (13.0, 0.0, 30.0, 30.0), (0.0, 42.0, 10.0, 10.0), (0.0, 64.0, 10.0, 40.0)]),
+GridCorpusCase(id: 50, proposal: (nil, 80.0), alignment: .bottom, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(.bottom, [.init(.flexW(10.0), columnAlignment: .center)])],
+    size: (10.0, 10.0), rects: [(0.0, 0.0, 10.0, 10.0)]),
+GridCorpusCase(id: 51, proposal: (nil, 80.0), alignment: .bottomLeading, horizontalSpacing: 0.0, verticalSpacing: 0.0,
+    children: [.spanning(.init(.flexW(30.0), columnAlignment: .trailing)), .row(nil, [.init(.flexW(10.0)), .init(.spacer, anchor: .leading), .init(.clampW(30.0, 90.0, 10.0), span: 2)])],
+    size: (48.0, 70.0), rects: [(0.0, 0.0, 48.0, 30.0), (0.0, 60.0, 10.0, 10.0), (10.0, 30.0, 8.0, 40.0), (18.0, 60.0, 30.0, 10.0)]),
+GridCorpusCase(id: 52, proposal: (60.0, 60.0), alignment: .topTrailing, horizontalSpacing: nil, verticalSpacing: 0.0,
+    children: [.row(.top, [.init(.fixed(10.0, 20.0), columnAlignment: .leading), .init(.clampW(10.0, 110.0, 40.0)), .init(.flexH(20.0))]), .row(nil, [.init(.flexH(10.0))])],
+    size: (60.666666666666664, 70.0), rects: [(0.0, 0.0, 10.0, 20.0), (18.0, 0.0, 14.666666666666666, 40.0), (40.666666666666664, 0.0, 20.0, 40.0), (0.0, 40.0, 10.0, 30.0)]),
+GridCorpusCase(id: 53, proposal: (nil, 80.0), alignment: .leading, horizontalSpacing: 3.0, verticalSpacing: 0.0,
+    children: [.row(nil, [.init(.clampBoth(10.0, 40.0), columnAlignment: .center, unsizedHorizontal: true), .init(.spacer, anchor: .topTrailing)])],
+    size: (21.0, 40.0), rects: [(0.0, 0.0, 10.0, 40.0), (13.0, 0.0, 8.0, 40.0)]),
+GridCorpusCase(id: 54, proposal: (nil, 80.0), alignment: .topLeading, horizontalSpacing: 12.0, verticalSpacing: 5.0,
+    children: [.row(nil, [.init(.fixed(60.0, 40.0), anchor: .center), .init(.half, span: 2, priority: -1.0), .init(.spacer, anchor: .top)])],
+    size: (112.0, 40.0), rects: [(0.0, 0.0, 60.0, 40.0), (72.0, 0.0, 10.0, 10.0), (104.0, 0.0, 8.0, 40.0)]),
+GridCorpusCase(id: 55, proposal: (150.0, nil), alignment: .bottomLeading, horizontalSpacing: 12.0, verticalSpacing: 0.0,
+    children: [.row(nil, [.init(.fixed(60.0, 30.0), columnAlignment: .trailing, unsizedHorizontal: true)]), .row(nil, [.init(.clampW(10.0, 30.0, 10.0), priority: 1.0)])],
+    size: (60.0, 40.0), rects: [(0.0, 0.0, 60.0, 30.0), (30.0, 30.0, 30.0, 10.0)]),
+GridCorpusCase(id: 56, proposal: (100.0, 100.0), alignment: .leading, horizontalSpacing: nil, verticalSpacing: 0.0,
+    children: [.row(.center, [.init(.flexH(30.0), priority: 1.0, columnAlignment: .center), .init(.flexW(10.0), priority: 1.0, anchor: .bottomTrailing)]), .spanning(.init(.clampBoth(10.0, 50.0), columnAlignment: .leading))],
+    size: (84.0, 110.0), rects: [(0.0, 0.0, 30.0, 100.0), (38.0, 90.0, 46.0, 10.0), (0.0, 100.0, 50.0, 10.0)]),
+GridCorpusCase(id: 57, proposal: (nil, 80.0), alignment: .topTrailing, horizontalSpacing: 12.0, verticalSpacing: nil,
+    children: [.row(.top, [.init(.flexH(40.0), anchor: .bottomLeading, unsizedVertical: true), .init(.flexH(20.0), span: 2, anchor: .trailing), .init(.fixed(20.0, 30.0), unsizedHorizontal: true)])],
+    size: (104.0, 80.0), rects: [(0.0, 0.0, 40.0, 80.0), (52.0, 0.0, 20.0, 80.0), (84.0, 0.0, 20.0, 30.0)]),
+GridCorpusCase(id: 58, proposal: (200.0, 100.0), alignment: .bottomLeading, horizontalSpacing: 12.0, verticalSpacing: 0.0,
+    children: [.row(.center, [.init(.flexH(40.0))]), .spanning(.init(.fixed(60.0, 20.0))), .spanning(.init(.spacer))],
+    size: (140.0, 108.0), rects: [(0.0, 0.0, 40.0, 80.0), (0.0, 80.0, 60.0, 20.0), (0.0, 100.0, 140.0, 8.0)]),
+GridCorpusCase(id: 59, proposal: (nil, nil), alignment: .center, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.clampW(10.0, 30.0, 20.0), priority: -1.0), .init(.flexW(10.0), anchor: .center, unsizedVertical: true)])],
+    size: (28.0, 20.0), rects: [(0.0, 0.0, 10.0, 20.0), (18.0, 5.0, 10.0, 10.0)]),
+GridCorpusCase(id: 60, proposal: (200.0, 100.0), alignment: .bottomTrailing, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.fixed(100.0, 40.0), anchor: .topLeading, unsizedVertical: true), .init(.spacer, anchor: .trailing, columnAlignment: .leading), .init(.fixed(60.0, 40.0), priority: -1.0, anchor: .leading)]), .spanning(.init(.fixed(20.0, 40.0), priority: -1.0, columnAlignment: .center, unsizedVertical: true))],
+    size: (200.0, 88.0), rects: [(0.0, 0.0, 100.0, 40.0), (100.0, 0.0, 40.0, 40.0), (140.0, 0.0, 60.0, 40.0), (180.0, 48.0, 20.0, 40.0)]),
+GridCorpusCase(id: 61, proposal: (60.0, 60.0), alignment: .topLeading, horizontalSpacing: nil, verticalSpacing: 12.0,
+    children: [.row(nil, [.init(.spacer, anchor: .topLeading), .init(.clampW(0.0, 150.0, 30.0)), .init(.fixed(20.0, 10.0), unsizedHorizontal: true)]), .row(nil, [.init(.fixed(40.0, 10.0), columnAlignment: .center, unsizedVertical: true), .init(.clampBoth(10.0, 110.0), priority: -1.0)])],
+    size: (86.0, 52.0), rects: [(0.0, 0.0, 40.0, 30.0), (48.0, 0.0, 10.0, 30.0), (66.0, 0.0, 20.0, 10.0), (0.0, 42.0, 40.0, 10.0), (48.0, 42.0, 10.0, 10.0)]),
+GridCorpusCase(id: 62, proposal: (nil, nil), alignment: .bottom, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.fixed(60.0, 20.0), span: 3, columnAlignment: .center), .init(.clampW(0.0, 40.0, 10.0))]), .row(.bottom, [.init(.flexW(30.0), unsizedVertical: true)])],
+    size: (78.0, 58.0), rects: [(0.0, 0.0, 60.0, 20.0), (68.0, 10.0, 10.0, 10.0), (0.0, 28.0, 10.0, 30.0)]),
+GridCorpusCase(id: 63, proposal: (nil, 80.0), alignment: .leading, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.fixed(60.0, 40.0), unsizedVertical: true), .init(.clampBoth(20.0, 30.0), unsizedHorizontal: true), .init(.spacer, unsizedHorizontal: true)]), .row(.center, [.init(.flex, priority: -1.0)])],
+    size: (96.0, 80.0), rects: [(0.0, 0.0, 60.0, 40.0), (68.0, 5.0, 20.0, 30.0), (88.0, 0.0, 8.0, 40.0), (0.0, 48.0, 60.0, 32.0)]),
+GridCorpusCase(id: 64, proposal: (200.0, 100.0), alignment: .top, horizontalSpacing: nil, verticalSpacing: 0.0,
+    children: [.row(.bottom, [.init(.fixed(10.0, 60.0), columnAlignment: .center), .init(.fixed(30.0, 20.0), span: 2), .init(.spacer, span: 2, anchor: .trailing, columnAlignment: .leading)]), .row(nil, [.init(.flexH(30.0), priority: -1.0, anchor: .top)])],
+    size: (200.0, 100.0), rects: [(10.0, 0.0, 10.0, 60.0), (38.0, 40.0, 30.0, 20.0), (68.0, 0.0, 132.0, 60.0), (0.0, 60.0, 30.0, 40.0)]),
+GridCorpusCase(id: 65, proposal: (60.0, 60.0), alignment: .top, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(.bottom, [.init(.flexW(40.0), anchor: .topLeading, columnAlignment: .center)]), .row(nil, [.init(.half, columnAlignment: .trailing), .init(.fixed(30.0, 60.0))]), .row(nil, [.init(.fixed(100.0, 20.0)), .init(.fixed(40.0, 20.0), priority: -1.0, unsizedHorizontal: true), .init(.fixed(60.0, 60.0), span: 3, columnAlignment: .trailing, unsizedHorizontal: true)])],
+    size: (216.0, 176.0), rects: [(0.0, 0.0, 100.0, 40.0), (25.0, 48.0, 50.0, 10.0), (113.0, 48.0, 30.0, 60.0), (0.0, 116.0, 100.0, 20.0), (108.0, 116.0, 40.0, 20.0), (156.0, 116.0, 60.0, 60.0)]),
+GridCorpusCase(id: 66, proposal: (200.0, 100.0), alignment: .bottom, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.fixed(100.0, 60.0)), .init(.fixed(100.0, 30.0), unsizedHorizontal: true), .init(.fixed(100.0, 10.0))]), .row(nil, [.init(.flex, anchor: .leading, columnAlignment: .trailing), .init(.fixed(30.0, 10.0)), .init(.clampW(30.0, 180.0, 30.0))]), .row(.center, [.init(.fixed(60.0, 40.0), span: 3, priority: -1.0, anchor: .leading)])],
+    size: (316.0, 146.0), rects: [(0.0, 0.0, 100.0, 60.0), (108.0, 30.0, 100.0, 30.0), (216.0, 50.0, 100.0, 10.0), (0.0, 68.0, 100.0, 30.0), (143.0, 88.0, 30.0, 10.0), (216.0, 68.0, 100.0, 30.0), (0.0, 106.0, 60.0, 40.0)]),
+GridCorpusCase(id: 67, proposal: (100.0, 100.0), alignment: .bottomTrailing, horizontalSpacing: nil, verticalSpacing: 12.0,
+    children: [.spanning(.init(.clampW(30.0, 40.0, 20.0), span: 3, columnAlignment: .trailing))],
+    size: (40.0, 20.0), rects: [(0.0, 0.0, 40.0, 20.0)]),
+GridCorpusCase(id: 68, proposal: (nil, nil), alignment: .trailing, horizontalSpacing: 12.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.half, span: 2, unsizedHorizontal: true), .init(.flex, columnAlignment: .leading)]), .row(nil, [.init(.flex, span: 2, priority: 1.0, anchor: .bottomTrailing)])],
+    size: (42.0, 28.0), rects: [(0.0, 0.0, 20.0, 10.0), (32.0, 0.0, 10.0, 10.0), (0.0, 18.0, 20.0, 10.0)]),
+GridCorpusCase(id: 69, proposal: (150.0, nil), alignment: .topTrailing, horizontalSpacing: 3.0, verticalSpacing: 5.0,
+    children: [.row(.center, [.init(.fixed(100.0, 10.0), anchor: .top, columnAlignment: .trailing, unsizedVertical: true)])],
+    size: (100.0, 10.0), rects: [(0.0, 0.0, 100.0, 10.0)]),
+GridCorpusCase(id: 70, proposal: (200.0, 100.0), alignment: .bottomTrailing, horizontalSpacing: nil, verticalSpacing: 12.0,
+    children: [.row(.bottom, [.init(.fixed(100.0, 10.0), span: 3), .init(.clampBoth(0.0, 30.0), unsizedVertical: true)]), .row(.center, [.init(.fixed(100.0, 20.0), anchor: .bottomTrailing)])],
+    size: (138.0, 42.0), rects: [(0.0, 0.0, 100.0, 10.0), (108.0, 0.0, 30.0, 10.0), (0.0, 22.0, 100.0, 20.0)]),
+GridCorpusCase(id: 71, proposal: (nil, 80.0), alignment: .topLeading, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.spacer, columnAlignment: .center), .init(.fixed(20.0, 60.0)), .init(.flexH(20.0), span: 2, columnAlignment: .leading)]), .row(nil, [.init(.clampW(10.0, 30.0, 20.0)), .init(.fixed(150.0, 30.0), priority: -1.0, columnAlignment: .leading), .init(.half)]), .row(.center, [.init(.spacer, anchor: .top, unsizedHorizontal: true), .init(.fixed(10.0, 60.0), columnAlignment: .trailing)])],
+    size: (196.0, 166.0), rects: [(0.0, 0.0, 10.0, 60.0), (18.0, 0.0, 20.0, 60.0), (176.0, 0.0, 20.0, 60.0), (0.0, 68.0, 10.0, 20.0), (18.0, 68.0, 150.0, 30.0), (176.0, 68.0, 10.0, 10.0), (0.0, 106.0, 10.0, 60.0), (18.0, 106.0, 10.0, 60.0)]),
+GridCorpusCase(id: 72, proposal: (200.0, 100.0), alignment: .topLeading, horizontalSpacing: 3.0, verticalSpacing: 0.0,
+    children: [.row(nil, [.init(.fixed(40.0, 20.0), columnAlignment: .trailing), .init(.clampW(0.0, 40.0, 30.0), columnAlignment: .trailing)])],
+    size: (83.0, 30.0), rects: [(0.0, 0.0, 40.0, 20.0), (43.0, 0.0, 40.0, 30.0)]),
+GridCorpusCase(id: 73, proposal: (300.0, 200.0), alignment: .bottom, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.spanning(.init(.clampBoth(20.0, 120.0))), .row(nil, [.init(.flexW(20.0)), .init(.half)]), .row(.top, [.init(.clampW(30.0, 40.0, 20.0), unsizedVertical: true)])],
+    size: (227.0, 138.0), rects: [(53.5, 0.0, 120.0, 82.0), (0.0, 90.0, 146.0, 20.0), (172.25, 100.0, 36.5, 10.0), (53.0, 118.0, 40.0, 20.0)]),
+GridCorpusCase(id: 74, proposal: (100.0, 100.0), alignment: .bottomTrailing, horizontalSpacing: nil, verticalSpacing: 12.0,
+    children: [.row(.top, [.init(.clampBoth(20.0, 60.0), unsizedVertical: true), .init(.clampW(10.0, 50.0, 20.0), unsizedVertical: true)]), .row(nil, [.init(.clampW(0.0, 30.0, 30.0)), .init(.clampBoth(20.0, 60.0), columnAlignment: .center)]), .row(.top, [.init(.fixed(60.0, 30.0))])],
+    size: (114.0, 104.0), rects: [(0.0, 0.0, 60.0, 20.0), (68.0, 0.0, 46.0, 20.0), (30.0, 32.0, 30.0, 30.0), (68.0, 32.0, 46.0, 30.0), (0.0, 74.0, 60.0, 30.0)]),
+GridCorpusCase(id: 75, proposal: (200.0, 100.0), alignment: .top, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(.bottom, [.init(.fixed(100.0, 20.0), span: 3, priority: 1.0, unsizedHorizontal: true), .init(.spacer, anchor: .topTrailing)])],
+    size: (200.0, 80.0), rects: [(0.0, 60.0, 100.0, 20.0), (100.0, 0.0, 100.0, 80.0)]),
+GridCorpusCase(id: 76, proposal: (nil, nil), alignment: .bottomLeading, horizontalSpacing: 3.0, verticalSpacing: 5.0,
+    children: [.spanning(.init(.clampW(0.0, 10.0, 10.0), priority: 1.0))],
+    size: (10.0, 10.0), rects: [(0.0, 0.0, 10.0, 10.0)]),
+GridCorpusCase(id: 77, proposal: (100.0, 100.0), alignment: .topTrailing, horizontalSpacing: nil, verticalSpacing: 0.0,
+    children: [.row(nil, [.init(.fixed(20.0, 20.0), columnAlignment: .center), .init(.clampBoth(0.0, 100.0)), .init(.fixed(30.0, 60.0), columnAlignment: .trailing, unsizedHorizontal: true)]), .row(.bottom, [.init(.spacer, columnAlignment: .trailing), .init(.fixed(100.0, 60.0), anchor: .bottomLeading), .init(.flexW(30.0), anchor: .top)])],
+    size: (166.0, 120.0), rects: [(0.0, 0.0, 20.0, 20.0), (28.0, 0.0, 100.0, 60.0), (136.0, 0.0, 30.0, 60.0), (0.0, 60.0, 20.0, 60.0), (28.0, 60.0, 100.0, 60.0), (136.0, 60.0, 30.0, 30.0)]),
+GridCorpusCase(id: 78, proposal: (nil, nil), alignment: .top, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.clampBoth(0.0, 30.0), priority: -1.0), .init(.fixed(60.0, 20.0), span: 2)]), .row(nil, [.init(.spacer, unsizedVertical: true), .init(.fixed(10.0, 60.0), anchor: .top), .init(.fixed(150.0, 60.0), anchor: .topLeading, unsizedHorizontal: true)]), .row(nil, [.init(.flexW(40.0), columnAlignment: .trailing), .init(.spacer, anchor: .bottomTrailing, columnAlignment: .leading), .init(.clampW(30.0, 130.0, 30.0), columnAlignment: .center)])],
+    size: (186.0, 136.0), rects: [(0.0, 0.0, 10.0, 20.0), (72.0, 0.0, 60.0, 20.0), (0.0, 28.0, 10.0, 60.0), (18.0, 28.0, 10.0, 60.0), (36.0, 28.0, 150.0, 60.0), (0.0, 96.0, 10.0, 40.0), (18.0, 96.0, 10.0, 40.0), (46.0, 96.0, 130.0, 30.0)]),
+GridCorpusCase(id: 79, proposal: (300.0, 200.0), alignment: .top, horizontalSpacing: 3.0, verticalSpacing: 12.0,
+    children: [.spanning(.init(.spacer))],
+    size: (300.0, 200.0), rects: [(0.0, 0.0, 300.0, 200.0)]),
+GridCorpusCase(id: 80, proposal: (nil, 80.0), alignment: .topTrailing, horizontalSpacing: nil, verticalSpacing: 5.0,
+    children: [.row(nil, [.init(.half)])],
+    size: (20.0, 10.0), rects: [(0.0, 0.0, 20.0, 10.0)]),
+GridCorpusCase(id: 81, proposal: (150.0, nil), alignment: .bottomTrailing, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(.bottom, [.init(.clampW(30.0, 60.0, 30.0), columnAlignment: .center), .init(.half, anchor: .top), .init(.half)]), .row(nil, [.init(.fixed(150.0, 20.0), columnAlignment: .center), .init(.fixed(60.0, 30.0), span: 2, columnAlignment: .trailing)])],
+    size: (218.0, 68.0), rects: [(45.0, 0.0, 60.0, 30.0), (164.5, 0.0, 13.0, 10.0), (205.0, 20.0, 13.0, 10.0), (0.0, 48.0, 150.0, 20.0), (158.0, 38.0, 60.0, 30.0)]),
+GridCorpusCase(id: 82, proposal: (150.0, nil), alignment: .leading, horizontalSpacing: 12.0, verticalSpacing: 0.0,
+    children: [.row(nil, [.init(.flexH(40.0)), .init(.clampW(30.0, 60.0, 20.0))]), .row(nil, [.init(.clampBoth(10.0, 70.0), priority: -1.0, unsizedHorizontal: true), .init(.flexH(20.0), unsizedVertical: true), .init(.flex, priority: 1.0)])],
+    size: (220.0, 30.0), rects: [(0.0, 0.0, 40.0, 20.0), (52.0, 0.0, 30.0, 20.0), (0.0, 20.0, 40.0, 10.0), (52.0, 20.0, 20.0, 10.0), (94.0, 20.0, 126.0, 10.0)]),
+GridCorpusCase(id: 83, proposal: (200.0, 100.0), alignment: .topTrailing, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(.center, [.init(.flexW(30.0), anchor: .trailing, columnAlignment: .trailing), .init(.fixed(40.0, 60.0), anchor: .bottom)]), .spanning(.init(.clampW(30.0, 50.0, 10.0), anchor: .bottom)), .spanning(.init(.flexH(10.0), priority: 1.0, columnAlignment: .trailing))],
+    size: (198.0, 170.0), rects: [(0.0, 15.0, 150.0, 30.0), (158.0, 0.0, 40.0, 60.0), (74.0, 68.0, 50.0, 10.0), (188.0, 86.0, 10.0, 84.0)]),
+GridCorpusCase(id: 84, proposal: (nil, 80.0), alignment: .bottomTrailing, horizontalSpacing: nil, verticalSpacing: 5.0,
+    children: [.spanning(.init(.flex, columnAlignment: .trailing)), .row(.bottom, [.init(.clampW(30.0, 90.0, 30.0), columnAlignment: .center, unsizedVertical: true), .init(.clampBoth(0.0, 30.0), anchor: .bottom, columnAlignment: .trailing), .init(.clampW(10.0, 110.0, 40.0), anchor: .topTrailing, columnAlignment: .leading, unsizedHorizontal: true)])],
+    size: (66.0, 80.0), rects: [(0.0, 0.0, 66.0, 35.0), (0.0, 50.0, 30.0, 30.0), (38.0, 50.0, 10.0, 30.0), (56.0, 40.0, 10.0, 40.0)]),
+GridCorpusCase(id: 85, proposal: (200.0, 100.0), alignment: .bottomTrailing, horizontalSpacing: 0.0, verticalSpacing: 5.0,
+    children: [.row(nil, [.init(.clampBoth(10.0, 20.0), columnAlignment: .center)]), .row(.top, [.init(.half, priority: 1.0, columnAlignment: .center)])],
+    size: (100.0, 35.0), rects: [(40.0, 0.0, 20.0, 20.0), (0.0, 25.0, 100.0, 10.0)]),
+GridCorpusCase(id: 86, proposal: (150.0, nil), alignment: .trailing, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.half, unsizedHorizontal: true), .init(.clampBoth(0.0, 10.0), priority: 1.0), .init(.clampW(10.0, 40.0, 10.0), anchor: .topTrailing)])],
+    size: (66.0, 10.0), rects: [(0.0, 0.0, 0.0, 10.0), (8.0, 0.0, 10.0, 10.0), (26.0, 0.0, 40.0, 10.0)]),
+GridCorpusCase(id: 87, proposal: (nil, nil), alignment: .trailing, horizontalSpacing: 0.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.half, priority: 1.0, anchor: .bottomLeading, columnAlignment: .center, unsizedHorizontal: true, unsizedVertical: true), .init(.clampBoth(0.0, 30.0), unsizedHorizontal: true), .init(.fixed(150.0, 30.0), priority: -1.0, anchor: .center)]), .row(.center, [.init(.spacer, columnAlignment: .center)])],
+    size: (180.0, 38.0), rects: [(0.0, 20.0, 10.0, 10.0), (20.0, 0.0, 10.0, 30.0), (30.0, 0.0, 150.0, 30.0), (0.0, 30.0, 20.0, 8.0)]),
+GridCorpusCase(id: 88, proposal: (60.0, 60.0), alignment: .trailing, horizontalSpacing: nil, verticalSpacing: 5.0,
+    children: [.row(nil, [.init(.flexH(30.0), unsizedHorizontal: true), .init(.fixed(10.0, 10.0), span: 2, columnAlignment: .trailing, unsizedHorizontal: true, unsizedVertical: true), .init(.fixed(150.0, 20.0), anchor: .bottom, columnAlignment: .center)])],
+    size: (206.0, 60.0), rects: [(0.0, 0.0, 30.0, 60.0), (38.0, 25.0, 10.0, 10.0), (56.0, 40.0, 150.0, 20.0)]),
+GridCorpusCase(id: 89, proposal: (100.0, 100.0), alignment: .bottomTrailing, horizontalSpacing: nil, verticalSpacing: 5.0,
+    children: [.row(.center, [.init(.fixed(20.0, 30.0), priority: 1.0), .init(.half)])],
+    size: (64.0, 30.0), rects: [(0.0, 0.0, 20.0, 30.0), (46.0, 10.0, 18.0, 10.0)]),
+GridCorpusCase(id: 90, proposal: (200.0, 100.0), alignment: .bottom, horizontalSpacing: 0.0, verticalSpacing: nil,
+    children: [.row(.center, [.init(.flex, span: 2, unsizedHorizontal: true)]), .row(nil, [.init(.spacer, unsizedVertical: true), .init(.fixed(10.0, 60.0), priority: 1.0)])],
+    size: (200.0, 100.0), rects: [(0.0, 0.0, 200.0, 32.0), (0.0, 40.0, 190.0, 60.0), (190.0, 40.0, 10.0, 60.0)]),
+GridCorpusCase(id: 91, proposal: (150.0, nil), alignment: .bottomLeading, horizontalSpacing: 0.0, verticalSpacing: 0.0,
+    children: [.row(.bottom, [.init(.clampW(0.0, 150.0, 30.0))])],
+    size: (150.0, 30.0), rects: [(0.0, 0.0, 150.0, 30.0)]),
+GridCorpusCase(id: 92, proposal: (nil, 80.0), alignment: .bottomLeading, horizontalSpacing: 3.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.half), .init(.flexH(40.0), span: 3, priority: 1.0, unsizedHorizontal: true), .init(.flexH(10.0), anchor: .topTrailing)])],
+    size: (76.0, 80.0), rects: [(0.0, 70.0, 10.0, 10.0), (23.0, 0.0, 40.0, 80.0), (66.0, 0.0, 10.0, 80.0)]),
+GridCorpusCase(id: 93, proposal: (150.0, nil), alignment: .topLeading, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.clampBoth(10.0, 160.0), priority: -1.0, columnAlignment: .leading, unsizedVertical: true)])],
+    size: (150.0, 10.0), rects: [(0.0, 0.0, 150.0, 10.0)]),
+GridCorpusCase(id: 94, proposal: (150.0, nil), alignment: .top, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.spanning(.init(.fixed(30.0, 20.0), unsizedVertical: true)), .row(.top, [.init(.fixed(40.0, 20.0), priority: -1.0, anchor: .bottomLeading), .init(.fixed(60.0, 30.0), span: 3, columnAlignment: .center, unsizedHorizontal: true), .init(.clampW(30.0, 180.0, 40.0), unsizedHorizontal: true)]), .row(nil, [.init(.flexW(40.0), span: 3, unsizedHorizontal: true), .init(.fixed(40.0, 30.0), anchor: .bottomLeading, columnAlignment: .center, unsizedHorizontal: true)])],
+    size: (146.0, 116.0), rects: [(58.0, 0.0, 30.0, 20.0), (0.0, 48.0, 40.0, 20.0), (48.0, 28.0, 60.0, 30.0), (116.0, 28.0, 30.0, 40.0), (0.0, 76.0, 60.0, 40.0), (68.0, 86.0, 40.0, 30.0)]),
+GridCorpusCase(id: 95, proposal: (150.0, nil), alignment: .topLeading, horizontalSpacing: 0.0, verticalSpacing: 5.0,
+    children: [.row(nil, [.init(.fixed(40.0, 20.0), columnAlignment: .leading), .init(.flexW(20.0), span: 2)])],
+    size: (150.0, 20.0), rects: [(0.0, 0.0, 40.0, 20.0), (40.0, 0.0, 110.0, 20.0)]),
+GridCorpusCase(id: 96, proposal: (300.0, 200.0), alignment: .center, horizontalSpacing: nil, verticalSpacing: 0.0,
+    children: [.row(.center, [.init(.clampBoth(10.0, 20.0))])],
+    size: (20.0, 20.0), rects: [(0.0, 0.0, 20.0, 20.0)]),
+GridCorpusCase(id: 97, proposal: (300.0, 200.0), alignment: .leading, horizontalSpacing: 12.0, verticalSpacing: 5.0,
+    children: [.row(.center, [.init(.flexH(20.0)), .init(.flexH(40.0), anchor: .trailing)])],
+    size: (72.0, 200.0), rects: [(0.0, 0.0, 20.0, 200.0), (32.0, 0.0, 40.0, 200.0)]),
+GridCorpusCase(id: 98, proposal: (150.0, nil), alignment: .bottom, horizontalSpacing: 0.0, verticalSpacing: 5.0,
+    children: [.row(nil, [.init(.fixed(40.0, 60.0), span: 2)]), .row(.center, [.init(.fixed(30.0, 40.0), unsizedHorizontal: true), .init(.clampW(10.0, 160.0, 30.0), columnAlignment: .center)]), .row(nil, [.init(.flexH(30.0))])],
+    size: (150.0, 120.0), rects: [(55.0, 0.0, 40.0, 60.0), (0.0, 65.0, 30.0, 40.0), (30.0, 70.0, 120.0, 30.0), (0.0, 110.0, 30.0, 10.0)]),
+GridCorpusCase(id: 99, proposal: (300.0, 200.0), alignment: .top, horizontalSpacing: 0.0, verticalSpacing: 0.0,
+    children: [.row(.bottom, [.init(.flexW(20.0)), .init(.half, columnAlignment: .center, unsizedHorizontal: true), .init(.fixed(40.0, 60.0))])],
+    size: (170.0, 60.0), rects: [(0.0, 40.0, 130.0, 20.0), (130.0, 50.0, 0.0, 10.0), (130.0, 0.0, 40.0, 60.0)]),
+GridCorpusCase(id: 100, proposal: (100.0, 100.0), alignment: .top, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.flexW(20.0), span: 3), .init(.spacer, span: 2, unsizedVertical: true)])],
+    size: (108.0, 20.0), rects: [(0.0, 0.0, 100.0, 20.0), (100.0, 0.0, 8.0, 20.0)]),
+GridCorpusCase(id: 101, proposal: (nil, 80.0), alignment: .topTrailing, horizontalSpacing: nil, verticalSpacing: 0.0,
+    children: [.row(nil, [.init(.flexH(40.0), anchor: .bottomTrailing), .init(.fixed(10.0, 20.0)), .init(.spacer, span: 2)])],
+    size: (66.0, 80.0), rects: [(0.0, 0.0, 40.0, 80.0), (48.0, 0.0, 10.0, 20.0), (58.0, 0.0, 8.0, 80.0)]),
+GridCorpusCase(id: 102, proposal: (nil, 80.0), alignment: .topLeading, horizontalSpacing: 12.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.fixed(20.0, 20.0), span: 2, anchor: .bottomLeading), .init(.fixed(60.0, 10.0))]), .spanning(.init(.flexW(40.0), span: 2)), .row(nil, [.init(.spacer), .init(.flexH(40.0))])],
+    size: (132.0, 84.0), rects: [(0.0, 0.0, 20.0, 20.0), (72.0, 0.0, 60.0, 10.0), (0.0, 28.0, 132.0, 40.0), (0.0, 76.0, 8.0, 8.0), (20.0, 76.0, 40.0, 8.0)]),
+GridCorpusCase(id: 103, proposal: (300.0, 200.0), alignment: .topTrailing, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(.top, [.init(.flexH(20.0), columnAlignment: .leading)]), .spanning(.init(.half, anchor: .leading, unsizedHorizontal: true))],
+    size: (20.0, 114.0), rects: [(0.0, 0.0, 20.0, 96.0), (0.0, 104.0, 10.0, 10.0)]),
+GridCorpusCase(id: 104, proposal: (100.0, 100.0), alignment: .bottom, horizontalSpacing: nil, verticalSpacing: 5.0,
+    children: [.spanning(.init(.clampBoth(10.0, 70.0))), .row(.bottom, [.init(.fixed(20.0, 20.0))]), .row(nil, [.init(.fixed(10.0, 60.0), anchor: .center), .init(.clampW(0.0, 100.0, 40.0))])],
+    size: (100.0, 100.0), rects: [(15.0, 0.0, 70.0, 10.0), (0.0, 15.0, 20.0, 20.0), (5.0, 40.0, 10.0, 60.0), (28.0, 60.0, 72.0, 40.0)]),
+GridCorpusCase(id: 105, proposal: (nil, nil), alignment: .bottom, horizontalSpacing: 0.0, verticalSpacing: 12.0,
+    children: [.spanning(.init(.flexW(20.0), anchor: .center, columnAlignment: .leading)), .row(.center, [.init(.flex), .init(.clampW(10.0, 50.0, 40.0), span: 3), .init(.fixed(10.0, 30.0), priority: -1.0, columnAlignment: .trailing)])],
+    size: (30.0, 72.0), rects: [(0.0, 0.0, 30.0, 20.0), (0.0, 32.0, 10.0, 40.0), (10.0, 32.0, 10.0, 40.0), (20.0, 37.0, 10.0, 30.0)]),
+GridCorpusCase(id: 106, proposal: (nil, 80.0), alignment: .trailing, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(.top, [.init(.fixed(20.0, 20.0), columnAlignment: .trailing), .init(.flexW(30.0), span: 2, unsizedVertical: true)]), .row(.bottom, [.init(.fixed(60.0, 40.0))]), .row(nil, [.init(.flexW(40.0), priority: -1.0, unsizedVertical: true)])],
+    size: (78.0, 126.0), rects: [(40.0, 0.0, 20.0, 20.0), (68.0, 0.0, 10.0, 30.0), (0.0, 38.0, 60.0, 40.0), (0.0, 86.0, 60.0, 40.0)]),
+GridCorpusCase(id: 107, proposal: (nil, nil), alignment: .top, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.clampW(10.0, 50.0, 20.0), unsizedVertical: true), .init(.clampBoth(20.0, 40.0)), .init(.fixed(60.0, 30.0), anchor: .topLeading, columnAlignment: .leading)]), .row(nil, [.init(.flexW(30.0), columnAlignment: .center, unsizedVertical: true), .init(.flex, anchor: .top, unsizedVertical: true), .init(.clampBoth(20.0, 30.0), priority: -1.0)])],
+    size: (106.0, 68.0), rects: [(0.0, 0.0, 10.0, 20.0), (18.0, 0.0, 20.0, 30.0), (46.0, 0.0, 60.0, 30.0), (0.0, 38.0, 10.0, 30.0), (18.0, 38.0, 20.0, 30.0), (46.0, 38.0, 30.0, 30.0)]),
+GridCorpusCase(id: 108, proposal: (60.0, 60.0), alignment: .topTrailing, horizontalSpacing: 12.0, verticalSpacing: 12.0,
+    children: [.spanning(.init(.flexW(40.0), anchor: .topTrailing, columnAlignment: .center))],
+    size: (60.0, 40.0), rects: [(0.0, 0.0, 60.0, 40.0)]),
+GridCorpusCase(id: 109, proposal: (100.0, 100.0), alignment: .bottom, horizontalSpacing: nil, verticalSpacing: 0.0,
+    children: [.row(nil, [.init(.half)]), .row(.top, [.init(.half)])],
+    size: (50.0, 20.0), rects: [(0.0, 0.0, 50.0, 10.0), (0.0, 10.0, 50.0, 10.0)]),
+GridCorpusCase(id: 110, proposal: (nil, 80.0), alignment: .bottom, horizontalSpacing: 12.0, verticalSpacing: 12.0,
+    children: [.spanning(.init(.clampW(10.0, 50.0, 20.0), anchor: .leading, columnAlignment: .trailing))],
+    size: (10.0, 20.0), rects: [(0.0, 0.0, 10.0, 20.0)]),
+GridCorpusCase(id: 111, proposal: (100.0, 100.0), alignment: .topLeading, horizontalSpacing: nil, verticalSpacing: 0.0,
+    children: [.row(.center, [.init(.half)]), .row(.bottom, [.init(.spacer)]), .row(nil, [.init(.clampBoth(20.0, 120.0), priority: 1.0)])],
+    size: (100.0, 118.0), rects: [(0.0, 0.0, 50.0, 10.0), (0.0, 10.0, 100.0, 8.0), (0.0, 18.0, 100.0, 100.0)]),
+GridCorpusCase(id: 112, proposal: (200.0, 100.0), alignment: .center, horizontalSpacing: 3.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.flexH(10.0), span: 2, unsizedVertical: true), .init(.clampW(0.0, 40.0, 40.0))])],
+    size: (53.0, 40.0), rects: [(0.0, 0.0, 10.0, 40.0), (13.0, 0.0, 40.0, 40.0)]),
+GridCorpusCase(id: 113, proposal: (nil, nil), alignment: .leading, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.spacer, span: 2, priority: -1.0, unsizedHorizontal: true)]), .row(.center, [.init(.flexH(20.0), anchor: .center), .init(.flexW(40.0)), .init(.spacer, anchor: .leading)]), .spanning(.init(.spacer, priority: -1.0))],
+    size: (46.0, 56.0), rects: [(0.0, 0.0, 38.0, 8.0), (0.0, 8.0, 20.0, 40.0), (28.0, 8.0, 10.0, 40.0), (38.0, 8.0, 8.0, 40.0), (0.0, 48.0, 46.0, 8.0)]),
+GridCorpusCase(id: 114, proposal: (nil, 80.0), alignment: .top, horizontalSpacing: nil, verticalSpacing: 0.0,
+    children: [.spanning(.init(.spacer, priority: -1.0))],
+    size: (8.0, 80.0), rects: [(0.0, 0.0, 8.0, 80.0)]),
+GridCorpusCase(id: 115, proposal: (150.0, nil), alignment: .topTrailing, horizontalSpacing: 12.0, verticalSpacing: nil,
+    children: [.row(nil, [.init(.flexH(30.0)), .init(.clampBoth(0.0, 150.0), unsizedHorizontal: true)]), .row(.top, [.init(.flexW(30.0)), .init(.clampBoth(10.0, 70.0), anchor: .center, unsizedHorizontal: true)])],
+    size: (150.0, 48.0), rects: [(98.0, 0.0, 30.0, 10.0), (140.0, 0.0, 10.0, 10.0), (0.0, 18.0, 128.0, 30.0), (140.0, 18.0, 10.0, 30.0)]),
+GridCorpusCase(id: 116, proposal: (nil, nil), alignment: .topTrailing, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.spacer, anchor: .bottomLeading)]), .spanning(.init(.fixed(20.0, 10.0), anchor: .trailing)), .spanning(.init(.spacer, priority: -1.0, columnAlignment: .trailing))],
+    size: (20.0, 26.0), rects: [(0.0, 0.0, 20.0, 8.0), (0.0, 8.0, 20.0, 10.0), (0.0, 18.0, 20.0, 8.0)]),
+GridCorpusCase(id: 117, proposal: (60.0, 60.0), alignment: .bottom, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.fixed(30.0, 30.0), priority: -1.0), .init(.flex, priority: 1.0), .init(.flexH(30.0), span: 3, anchor: .top)]), .row(nil, [.init(.flex)]), .row(nil, [.init(.fixed(20.0, 30.0), unsizedVertical: true), .init(.fixed(100.0, 30.0), unsizedHorizontal: true), .init(.clampW(10.0, 40.0, 40.0), anchor: .bottomLeading, unsizedHorizontal: true)])],
+    size: (176.0, 100.0), rects: [(0.0, 14.0, 30.0, 30.0), (38.0, 0.0, 100.0, 44.0), (146.0, 0.0, 30.0, 44.0), (0.0, 52.0, 30.0, 0.0), (5.0, 70.0, 20.0, 30.0), (38.0, 70.0, 100.0, 30.0), (146.0, 60.0, 10.0, 40.0)]),
+GridCorpusCase(id: 118, proposal: (nil, 80.0), alignment: .leading, horizontalSpacing: nil, verticalSpacing: 12.0,
+    children: [.spanning(.init(.flexH(10.0))), .row(.center, [.init(.fixed(40.0, 60.0), columnAlignment: .leading, unsizedHorizontal: true), .init(.spacer)]), .spanning(.init(.spacer, columnAlignment: .trailing))],
+    size: (48.0, 92.0), rects: [(0.0, 0.0, 10.0, 0.0), (0.0, 12.0, 40.0, 60.0), (40.0, 12.0, 8.0, 60.0), (0.0, 84.0, 48.0, 8.0)]),
+GridCorpusCase(id: 119, proposal: (nil, 80.0), alignment: .bottomTrailing, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.spanning(.init(.flexW(30.0), anchor: .center, columnAlignment: .center)), .row(.center, [.init(.clampBoth(10.0, 20.0))])],
+    size: (10.0, 58.0), rects: [(0.0, 0.0, 10.0, 30.0), (0.0, 38.0, 10.0, 20.0)]),
+GridCorpusCase(id: 120, proposal: (200.0, 100.0), alignment: .top, horizontalSpacing: nil, verticalSpacing: nil,
+    children: [.row(nil, [.init(.flexH(30.0))]), .row(nil, [.init(.spacer)])],
+    size: (170.0, 108.0), rects: [(70.0, 0.0, 30.0, 100.0), (0.0, 100.0, 170.0, 8.0)]),
+// END CORPUS: 120 kept of 185 generated; 65 skipped because SwiftUI and the model differ, 0 because an answer was infinite
+]

@@ -79,6 +79,14 @@ private final class Arm {
 
     func spacer(_ name: String) -> LayoutNodeID { self.name(tree.newNativeSpacer(), name) }
 
+    /// `fw`: width proposal ?? 10, fixed height (lane 2).
+    func fw(_ name: String, _ h: Double = 20) -> LayoutNodeID { leaf(name) { SizeD(width: $0.width ?? 10, height: h) } }
+
+    /// A written `.layoutPriority(p)` over `node` (lane 2).
+    func prio(_ node: LayoutNodeID, _ priority: Double) -> LayoutNodeID {
+        tree.newNativeLayoutPriority(child: node, priority: priority)
+    }
+
     func span(_ node: LayoutNodeID, _ columns: Int) -> LayoutNodeID {
         tree.markNativeGridCell(node, columns: columns)
         return node
@@ -788,4 +796,783 @@ private let none = ProposedSize(width: nil, height: nil)
     try #require(afterReset != control, "an unmarked cell and a two-column span must answer differently")
     #expect(afterReset == size(138, 28), "a mark from before the reset \(afterReset)")
     #expect(control == size(100, 28), "the control's two-column span \(control)")
+}
+
+// MARK: - Lane 2: the finite solve
+//
+// Lane 2 ("the finite solve") of the grids spec: rulings GR-B, GR-E, GR-F at
+// proposals other than nil×nil (model step 12), GR-R's priority and answers in
+// stacks, GR-U. Every figure is the probe's `Grid` reading where the reference
+// model agrees with it (`model-arms`), and the model's own reading where it
+// does not (2.9, pinned wrong on purpose).
+
+/// Each named rect of `arm` against the probe's, labelled with the arm id.
+private func expectRects(_ arm: Arm, _ label: String, _ expected: [String: LayoutRect],
+                         sourceLocation: SourceLocation = #_sourceLocation) {
+    for (name, rect) in expected.sorted(by: { $0.key < $1.key }) {
+        #expect(arm[name] == rect, "\(label) \(name): \(arm[name])", sourceLocation: sourceLocation)
+    }
+}
+
+/// An answer against the probe's, to 1e-9 or equal infinities.
+private func close(_ a: SizeD, _ b: SizeD) -> Bool {
+    func axis(_ x: Double, _ y: Double) -> Bool { x == y || abs(x - y) <= 1e-9 }
+    return axis(a.width, b.width) && axis(a.height, b.height)
+}
+
+private func proposal(_ width: Double?, _ height: Double?) -> ProposedSize { ProposedSize(width: width, height: height) }
+
+/// GA1's leaves `[a 30x10, b 20x20] [c 10x30, d 40x10]`, or GP2's with a
+/// flexible `a`.
+private func ga1(_ arm: Arm, flexibleA: Bool = false) -> LayoutNodeID {
+    arm.grid([row(flexibleA ? arm.fl("a") : arm.fx("a", 30, 10), arm.fx("b", 20, 20)),
+              row(arm.fx("c", 10, 30), arm.fx("d", 40, 10))])
+}
+
+/// A GA1-shaped grid whose first cell is `first`.
+private func withFirst(_ arm: Arm, _ first: LayoutNodeID) -> LayoutNodeID {
+    arm.grid([row(first, arm.fx("b", 20, 20)), row(arm.fx("c", 10, 30), arm.fx("d", 40, 10))])
+}
+
+// MARK: 2.1 groups, shares and commits
+
+/// GR-E: every cell is measured at 0×0 and ∞×∞; cells are served in groups of
+/// equal (priority, infinite-axis count, finite flexibility); a group's cells
+/// are offered max(share, their column's width), the share being W′ minus the
+/// committed columns over the open ones; a column commits once no cell of this
+/// priority or higher is left in it. The grid answers its sums (it does not
+/// fill with fixed content). Figures: the probe's arms.
+///
+/// - GP1 GA1 at 200×200: 78×58, GA1's rects. GP2 (a flexible) at 200×100: a
+///   152×62 = 192 − 40 by 92 − 30. GP7 one flexible cell at 100×100. GA9 two
+///   non-row children at 200×100.
+/// - GF1–GF9: half, width-flexible, height-flexible, clamped and flexible cells;
+///   GF7 overflows to 138 and its d is proposed 120 wide (b's column).
+/// - GF14–GF18: a greedy `frame(maxWidth: .infinity)` cell (and at nil), a
+///   proposal-responsive leaf standing for `Color` (and at nil), a frame
+///   greedy on both axes.
+/// - GR2 `[a odd, b 20x20]` at 200×200: a placed at the 96×200 it was measured
+///   at, never at its 20×20 slot.
+///
+/// Mutation (GZ0's control): every group offered W′/ncols, commits ignored (GP2's
+/// a at 96).
+@Test func aFiniteProposalServesGroupsWithSharesAndCommits() {
+    do { // GP1
+        let arm = Arm()
+        #expect(arm.run(ga1(arm), 200, 200) == size(78, 58), "GP1 size")
+        expectRects(arm, "GP1", ["a": r(0, 5, 30, 10), "b": r(48, 0, 20, 20), "c": r(10, 28, 10, 30), "d": r(38, 38, 40, 10)])
+    }
+    do { // GP2
+        let arm = Arm()
+        #expect(arm.run(ga1(arm, flexibleA: true), 200, 100) == size(200, 100), "GP2 size")
+        expectRects(arm, "GP2", ["a": r(0, 0, 152, 62), "b": r(170, 21, 20, 20), "c": r(71, 70, 10, 30), "d": r(160, 80, 40, 10)])
+    }
+    do { // GP7
+        let arm = Arm()
+        #expect(arm.run(arm.grid([row(arm.fl("a"))]), 100, 100) == size(100, 100), "GP7 size")
+        expectRects(arm, "GP7", ["a": r(0, 0, 100, 100)])
+    }
+    do { // GA9
+        let arm = Arm()
+        #expect(arm.run(arm.grid([.full(arm.fx("x", 30, 10)), .full(arm.fl("y"))]), 200, 100) == size(200, 100), "GA9 size")
+        expectRects(arm, "GA9", ["x": r(85, 0, 30, 10), "y": r(0, 18, 200, 82)])
+    }
+    do { // GF1
+        let arm = Arm()
+        let root = arm.grid([row(arm.hf("a"), arm.fx("b", 20, 20)), row(arm.fx("c", 10, 30), arm.hf("d"))])
+        #expect(arm.run(root, 200, 200) == size(104, 58), "GF1 size")
+        expectRects(arm, "GF1", ["a": r(12, 5, 24, 10), "b": r(70, 0, 20, 20), "c": r(19, 28, 10, 30), "d": r(68, 38, 24, 10)])
+    }
+    do { // GF2
+        let arm = Arm()
+        #expect(arm.run(withFirst(arm, arm.fw("a", 20)), 200, 100) == size(200, 58), "GF2 size")
+        expectRects(arm, "GF2", ["a": r(0, 0, 152, 20), "b": r(170, 0, 20, 20), "c": r(71, 28, 10, 30), "d": r(160, 38, 40, 10)])
+    }
+    do { // GF3
+        let arm = Arm()
+        #expect(arm.run(withFirst(arm, arm.fh("a", 20)), 200, 100) == size(68, 100), "GF3 size")
+        expectRects(arm, "GF3", ["a": r(0, 0, 20, 62), "b": r(38, 21, 20, 20), "c": r(5, 70, 10, 30), "d": r(28, 80, 40, 10)])
+    }
+    do { // GF4
+        let arm = Arm()
+        #expect(arm.run(withFirst(arm, arm.cb("a", 0, 150)), 200, 100) == size(198, 100), "GF4 size")
+        expectRects(arm, "GF4", ["a": r(0, 0, 150, 62), "b": r(168, 21, 20, 20), "c": r(70, 70, 10, 30), "d": r(158, 80, 40, 10)])
+    }
+    do { // GF5
+        let arm = Arm()
+        #expect(arm.run(withFirst(arm, arm.cb("a", 0, 50)), 200, 100) == size(98, 88), "GF5 size")
+        expectRects(arm, "GF5", ["a": r(0, 0, 50, 50), "b": r(68, 15, 20, 20), "c": r(20, 58, 10, 30), "d": r(58, 68, 40, 10)])
+    }
+    do { // GF6
+        let arm = Arm()
+        let root = arm.grid([row(arm.fl("a"), arm.fx("b", 20, 20)), row(arm.fx("c", 10, 30), arm.fl("d"))])
+        #expect(arm.run(root, 200, 100) == size(200, 100), "GF6 size")
+        expectRects(arm, "GF6", ["a": r(0, 0, 96, 46), "b": r(142, 13, 20, 20), "c": r(43, 62, 10, 30), "d": r(104, 54, 96, 46)])
+    }
+    do { // GF7
+        let arm = Arm()
+        let root = arm.grid([row(arm.fl("a"), arm.fx("b", 120, 20)), row(arm.fx("c", 10, 30), arm.fx("d", 40, 10))])
+        #expect(arm.run(root, 100, 100) == size(138, 100), "GF7 size")
+        expectRects(arm, "GF7", ["a": r(0, 0, 10, 62), "b": r(18, 21, 120, 20), "c": r(0, 70, 10, 30), "d": r(58, 80, 40, 10)])
+        #expect(arm.proposals("d") == [proposal(0, 0), proposal(.infinity, .infinity), proposal(120, 46), proposal(120, 30)],
+                "GF7 d is proposed b's 120 in its group, then placed at its 120×30 slot: \(arm.proposals("d"))")
+    }
+    do { // GF8
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 20, 20), arm.fl("b"), arm.fl("c"))])
+        #expect(arm.run(root, 200, 100) == size(200, 100), "GF8 size")
+        expectRects(arm, "GF8", ["a": r(0, 40, 20, 20), "b": r(28, 0, 82, 100), "c": r(118, 0, 82, 100)])
+    }
+    do { // GF9
+        let arm = Arm()
+        let root = arm.grid([row(arm.cw("a", 0, 30), arm.cw("b", 0, 55))])
+        #expect(arm.run(root, 100, 100) == size(93, 10), "GF9 size")
+        expectRects(arm, "GF9", ["a": r(0, 0, 30, 10), "b": r(38, 0, 55, 10)])
+    }
+    do { // GF14
+        let arm = Arm()
+        let a = arm.tree.newNativeFrame(child: arm.fx("a", 30, 10), maxWidth: .infinity)
+        #expect(arm.run(withFirst(arm, a), 200, 100) == size(200, 58), "GF14 size")
+        expectRects(arm, "GF14", ["a": r(61, 5, 30, 10), "b": r(170, 0, 20, 20), "c": r(71, 28, 10, 30), "d": r(160, 38, 40, 10)])
+    }
+    do { // GF15
+        let arm = Arm()
+        let a = arm.tree.newNativeFrame(child: arm.fx("a", 30, 10), maxWidth: .infinity)
+        #expect(arm.run(withFirst(arm, a), nil, nil) == size(78, 58), "GF15 size")
+        expectRects(arm, "GF15", ["a": r(0, 5, 30, 10), "b": r(48, 0, 20, 20), "c": r(10, 28, 10, 30), "d": r(38, 38, 40, 10)])
+    }
+    do { // GF16
+        let arm = Arm()
+        #expect(arm.run(withFirst(arm, arm.fl("k")), 200, 100) == size(200, 100), "GF16 size")
+        expectRects(arm, "GF16", ["k": r(0, 0, 152, 62), "b": r(170, 21, 20, 20), "c": r(71, 70, 10, 30), "d": r(160, 80, 40, 10)])
+    }
+    do { // GF17
+        let arm = Arm()
+        #expect(arm.run(withFirst(arm, arm.fl("k")), nil, nil) == size(58, 58), "GF17 size")
+        expectRects(arm, "GF17", ["k": r(0, 0, 10, 20), "b": r(28, 0, 20, 20), "c": r(0, 28, 10, 30), "d": r(18, 38, 40, 10)])
+    }
+    do { // GF18
+        let arm = Arm()
+        let a = arm.tree.newNativeFrame(child: arm.fx("a", 30, 10), maxWidth: .infinity, maxHeight: .infinity)
+        #expect(arm.run(withFirst(arm, a), 200, 100) == size(200, 100), "GF18 size")
+        expectRects(arm, "GF18", ["a": r(61, 26, 30, 10), "b": r(170, 21, 20, 20), "c": r(71, 70, 10, 30), "d": r(160, 80, 40, 10)])
+    }
+    do { // GR2
+        let arm = Arm()
+        let root = arm.grid([row(arm.odd("a"), arm.fx("b", 20, 20))])
+        #expect(arm.run(root, 200, 200) == size(48, 20), "GR2 size")
+        expectRects(arm, "GR2", ["a": r(0, 0, 20, 20), "b": r(28, 0, 20, 20)])
+        #expect(arm.proposals("a") == [proposal(0, 0), proposal(.infinity, .infinity), proposal(96, 200)],
+                "GR2 a is placed at the 96×200 it answered 20×20 to: \(arm.proposals("a"))")
+    }
+}
+
+// MARK: 2.2 the flexibility key
+
+/// GR-E step 2: the key counts the proposal-finite axes whose ∞ answer is
+/// infinite first, then the finite flexibility over the others; a nil axis
+/// counts for neither.
+///
+/// - GF10 `[a half, b flexible]` at 200×100: a (one infinite axis) before b
+///   (two): a proposed 96, then b the remaining 144.
+/// - GF11 `[a width 10…20, b height-flexible, c width 10…160 h30]`: c's finite
+///   150 before b's one infinite axis.
+/// - GF12 `[a clamp 10…50, b height-flexible w30, c flexible]` at 150 × nil and
+///   GF13 at 150×100: required to differ.
+///
+/// Mutation: key = the finite sum with ∞ as +∞, one group for equal sums
+/// (GF10's b at 96).
+@Test func theFlexibilityKeyCountsInfiniteAxesFirstAndIgnoresANilAxis() throws {
+    do { // GF10
+        let arm = Arm()
+        #expect(arm.run(arm.grid([row(arm.hf("a"), arm.fl("b"))]), 200, 100) == size(200, 100), "GF10 size")
+        expectRects(arm, "GF10", ["a": r(12, 45, 24, 10), "b": r(56, 0, 144, 100)])
+    }
+    do { // GF11
+        let arm = Arm()
+        let root = arm.grid([row(arm.cw("a", 10, 20), arm.fh("b", 20), arm.cw("c", 10, 160, 30))])
+        #expect(arm.run(root, 200, 100) == size(138, 100), "GF11 size")
+        expectRects(arm, "GF11", ["a": r(0, 45, 20, 10), "b": r(28, 0, 20, 100), "c": r(56, 35, 82, 30)])
+    }
+    func gf12Arm(_ height: Double?) -> Arm {
+        let arm = Arm()
+        arm.run(arm.grid([row(arm.cb("a", 10, 50), arm.fh("b", 30), arm.fl("c"))]), 150, height)
+        return arm
+    }
+    let gf12 = gf12Arm(nil), gf13 = gf12Arm(100)
+    try #require(gf12["grid"] != gf13["grid"], "GF12 and its control GF13 must differ")
+    #expect(gf12["grid"] == r(0, 0, 150, 10), "GF12 size")
+    expectRects(gf12, "GF12", ["a": r(0, 0, 50, 10), "b": r(58, 0, 30, 10), "c": r(96, 0, 54, 10)])
+    #expect(gf13["grid"] == r(0, 0, 150, 100), "GF13 size")
+    expectRects(gf13, "GF13", ["a": r(0, 25, 44.67, 50), "b": r(52.67, 0, 30, 100), "c": r(90.67, 0, 59.33, 100)])
+}
+
+// MARK: 2.3 one-axis and infinite proposals
+
+/// GR-E steps 3 and 5: a nil proposal axis stays nil in every cell's proposal;
+/// an infinite one shares infinity, and a cell answering infinity makes the
+/// grid answer it.
+///
+/// - GP5 GP2 at 200 × nil: 200×58, a 152×20. GP6 at nil × 100: 58×100, a 10×62.
+/// - GP4 GP2 at ∞×∞: ∞×∞. GP8 GA1 at ∞×∞: 78×58. Both measured only: an
+///   infinite answer traps at checkpoint 3 when stored (SA-J).
+///
+/// Mutation: propose a nil grid axis as 0 (GP5's a answers 152×0).
+@Test func oneAxisNilAndInfiniteProposalsAnswerAsTheProbeReads() {
+    do { // GP5
+        let arm = Arm()
+        #expect(arm.run(ga1(arm, flexibleA: true), 200, nil) == size(200, 58), "GP5 size")
+        expectRects(arm, "GP5", ["a": r(0, 0, 152, 20), "b": r(170, 0, 20, 20), "c": r(71, 28, 10, 30), "d": r(160, 38, 40, 10)])
+    }
+    do { // GP6
+        let arm = Arm()
+        #expect(arm.run(ga1(arm, flexibleA: true), nil, 100) == size(58, 100), "GP6 size")
+        expectRects(arm, "GP6", ["a": r(0, 0, 10, 62), "b": r(28, 21, 20, 20), "c": r(0, 70, 10, 30), "d": r(18, 80, 40, 10)])
+    }
+    do { // GP4
+        let arm = Arm()
+        #expect(arm.measure(ga1(arm, flexibleA: true), .infinity, .infinity) == size(.infinity, .infinity), "GP4")
+    }
+    do { // GP8
+        let arm = Arm()
+        #expect(arm.measure(ga1(arm), .infinity, .infinity) == size(78, 58), "GP8")
+    }
+}
+
+// MARK: 2.4 an infinite axis after an infinite committed column
+
+/// GR-E step 3: on an infinite proposal axis every share is ∞, even after a
+/// column of infinite width has committed (GP9–GP11: SwiftUI never produces
+/// nan there). **An exit test** because the mutant proposes nan, which traps at
+/// checkpoint 1 and would end the suite. Each leaf's set of distinct proposals
+/// was derived by hand from spec §4.2 before the run:
+///
+/// - GP9 `[a flexible, b width 0…50 h10 priority −1]` at ∞×∞: groups [a], [b];
+///   a ∞×∞ commits column 0 at ∞; b's share is ∞, its proposal ∞×∞ (a hit).
+///   a {0×0, ∞×∞}, b {0×0, ∞×∞}; answer ∞×∞.
+/// - GP10 `[a flexible] [b flexible, c 10x10 priority −1]` at ∞×∞: groups [a,
+///   b], [c]. a, b, c each {0×0, ∞×∞}; answer ∞×∞.
+/// - GP11 `[a flexible, b height-flexible w10 priority −1]` at ∞ × 100: group a
+///   shares ∞ × 100 and commits row 0 at 100; group b shares ∞ × (100 − 100) =
+///   0, proposed ∞ × max(0, 100). a {0×0, ∞×∞, ∞×100}, b {0×0, ∞×∞, ∞×100};
+///   answer ∞×100.
+///
+/// Mutation: compute `(W′ − committed) / open` on an infinite axis: ∞ − ∞ is
+/// nan, and the child exits `.failure` (a nan proposal, or a finite one in the
+/// set).
+@Test func anInfiniteAxisSharesInfinityAfterAnInfiniteCommittedColumn() async {
+    await #expect(processExitsWith: .success) {
+        final class Log: @unchecked Sendable { var proposals: Set<ProposedSize> = [] }
+        let tree = LayoutTree(generation: 0)
+        func leaf(_ answer: @escaping @Sendable (ProposedSize) -> SizeD) -> (LayoutNodeID, Log) {
+            let log = Log()
+            return (tree.newNativeLeaf { p in log.proposals.insert(p); return LayoutMeasurement(size: answer(p)) }, log)
+        }
+        let flexible: @Sendable (ProposedSize) -> SizeD = { SizeD(width: $0.width ?? 10, height: $0.height ?? 10) }
+        let zero = ProposedSize(width: 0, height: 0), inf = ProposedSize(width: .infinity, height: .infinity)
+        let infinite = SizeD(width: .infinity, height: .infinity)
+
+        let (a9, a9Log) = leaf(flexible)
+        let (b9, b9Log) = leaf { SizeD(width: Swift.min(Swift.max($0.width ?? 10, 0), 50), height: 10) }
+        let p9 = tree.newNativeLayoutPriority(child: b9, priority: -1)
+        tree.markNativeGridRow([a9, p9])
+        let gp9 = tree.newNativeGrid(children: [a9, p9])
+        precondition(tree.measureNativeLayout(root: gp9, proposal: inf).size == infinite, "GP9 answer")
+        precondition(a9Log.proposals == [zero, inf], "GP9 a \(a9Log.proposals)")
+        precondition(b9Log.proposals == [zero, inf], "GP9 b \(b9Log.proposals)")
+
+        let (a10, a10Log) = leaf(flexible)
+        let (b10, b10Log) = leaf(flexible)
+        let (c10, c10Log) = leaf { _ in SizeD(width: 10, height: 10) }
+        let p10 = tree.newNativeLayoutPriority(child: c10, priority: -1)
+        tree.markNativeGridRow([a10])
+        tree.markNativeGridRow([b10, p10])
+        let gp10 = tree.newNativeGrid(children: [a10, b10, p10])
+        precondition(tree.measureNativeLayout(root: gp10, proposal: inf).size == infinite, "GP10 answer")
+        precondition(a10Log.proposals == [zero, inf], "GP10 a \(a10Log.proposals)")
+        precondition(b10Log.proposals == [zero, inf], "GP10 b \(b10Log.proposals)")
+        precondition(c10Log.proposals == [zero, inf], "GP10 c \(c10Log.proposals)")
+
+        let (a11, a11Log) = leaf(flexible)
+        let (b11, b11Log) = leaf { SizeD(width: 10, height: $0.height ?? 10) }
+        let p11 = tree.newNativeLayoutPriority(child: b11, priority: -1)
+        tree.markNativeGridRow([a11, p11])
+        let gp11 = tree.newNativeGrid(children: [a11, p11])
+        let at = ProposedSize(width: .infinity, height: 100)
+        precondition(tree.measureNativeLayout(root: gp11, proposal: at).size == SizeD(width: .infinity, height: 100), "GP11 answer")
+        precondition(a11Log.proposals == [zero, inf, at], "GP11 a \(a11Log.proposals)")
+        precondition(b11Log.proposals == [zero, inf, at], "GP11 b \(b11Log.proposals)")
+    }
+}
+
+// MARK: 2.5 priority with no reservation
+
+/// GR-E: higher-priority groups are served first with nothing reserved for
+/// lower ones, whose columns count at their current width afterwards; the grid
+/// can answer wider than its proposal.
+///
+/// - GQ1 `[a flexible, b flexible priority 1]` at 100×100: b 92, a 0.
+/// - GQ2 `[a width 0…200, b width 30…200 priority −1, c width 20…200]`: a and c
+///   42, then b 30: 130×10. GQ3 (b priority 1): b 84, then a 0 and c 20: 120×10.
+/// - GQ4 `[a flexible, b 20x20] [c 10x30, d flexible priority 1]` at 200×100:
+///   d 192×92 first: 210×120. GQ5 `[a clamp 10…70 priority 1] [b 20x10 priority
+///   1, c 150x30, d width 30…180 h40]` at 100×100: 266×118.
+///
+/// Mutation: reserve lower groups' 0×0 widths, as CN-B's stack does (GQ2's a and
+/// c read 27).
+@Test func higherPriorityGroupsAreServedFirstWithNoReservation() {
+    do { // GQ1
+        let arm = Arm()
+        #expect(arm.run(arm.grid([row(arm.fl("a"), arm.prio(arm.fl("b"), 1))]), 100, 100) == size(100, 100), "GQ1 size")
+        expectRects(arm, "GQ1", ["a": r(0, 0, 0, 100), "b": r(8, 0, 92, 100)])
+    }
+    func gq23(_ priority: Double) -> Arm {
+        let arm = Arm()
+        arm.run(arm.grid([row(arm.cw("a", 0, 200), arm.prio(arm.cw("b", 30, 200), priority), arm.cw("c", 20, 200))]), 100, 100)
+        return arm
+    }
+    do { // GQ2
+        let arm = gq23(-1)
+        #expect(arm["grid"] == r(0, 0, 130, 10), "GQ2 size")
+        expectRects(arm, "GQ2", ["a": r(0, 0, 42, 10), "b": r(50, 0, 30, 10), "c": r(88, 0, 42, 10)])
+    }
+    do { // GQ3
+        let arm = gq23(1)
+        #expect(arm["grid"] == r(0, 0, 120, 10), "GQ3 size")
+        expectRects(arm, "GQ3", ["a": r(0, 0, 0, 10), "b": r(8, 0, 84, 10), "c": r(100, 0, 20, 10)])
+    }
+    do { // GQ4
+        let arm = Arm()
+        let root = arm.grid([row(arm.fl("a"), arm.fx("b", 20, 20)), row(arm.fx("c", 10, 30), arm.prio(arm.fl("d"), 1))])
+        #expect(arm.run(root, 200, 100) == size(210, 120), "GQ4 size")
+        expectRects(arm, "GQ4", ["a": r(0, 0, 10, 20), "b": r(104, 0, 20, 20), "c": r(0, 59, 10, 30), "d": r(18, 28, 192, 92)])
+    }
+    do { // GQ5
+        let arm = Arm()
+        let root = arm.grid([row(arm.prio(arm.cb("a", 10, 70), 1)),
+                             row(arm.prio(arm.fx("b", 20, 10), 1), arm.fx("c", 150, 30), arm.cw("d", 30, 180, 40))])
+        #expect(arm.run(root, 100, 100) == size(266, 118), "GQ5 size")
+        expectRects(arm, "GQ5", ["a": r(0, 0, 70, 70), "b": r(25, 93, 20, 10), "c": r(78, 83, 150, 30), "d": r(236, 78, 30, 40)])
+    }
+}
+
+// MARK: 2.6 a bare Spacer cell
+
+/// GR-E: a bare Spacer is priority −∞ (the kernel's walk), so it is served
+/// last, and flexible on both axes (no stack marks it inside a grid).
+///
+/// - GS1 `[Spacer s, b 20x20] [c 10x30, d 40x10]` at 200×100: 190×80, s 142×42
+///   = (192 − 40 − 10) by (92 − 30 − 20). GQ7 the same with `minLength: 0`.
+/// - GQ8 a lone Spacer at 100×100 fills it.
+/// - GQ9, GS1 with `.layoutPriority(0)` on the Spacer: an ordinary flexible cell,
+///   200×100, s 152×62 — required to differ from GS1.
+///
+/// Mutation: read a cell's priority as 0 (GS1 reads GQ9's figures).
+@Test func aBareSpacerCellIsPriorityMinusInfinityAndFlexibleOnBothAxes() throws {
+    func gs1Arm(_ spacer: (Arm) -> LayoutNodeID) -> Arm {
+        let arm = Arm()
+        arm.run(withFirst(arm, spacer(arm)), 200, 100)
+        return arm
+    }
+    let gs1 = gs1Arm { $0.spacer("s") }
+    let gq9 = gs1Arm { $0.prio($0.spacer("s"), 0) }
+    try #require(gs1["grid"] != gq9["grid"], "GS1 and GQ9 must differ")
+    #expect(gs1["grid"] == r(0, 0, 190, 80), "GS1 size")
+    expectRects(gs1, "GS1", ["s": r(0, 0, 142, 42), "b": r(160, 11, 20, 20), "c": r(66, 50, 10, 30), "d": r(150, 60, 40, 10)])
+    let gq7 = gs1Arm { $0.name($0.tree.newNativeSpacer(minLength: 0), "s") }
+    #expect(gq7["grid"] == r(0, 0, 190, 80), "GQ7 size")
+    expectRects(gq7, "GQ7", ["s": r(0, 0, 142, 42), "b": r(160, 11, 20, 20), "c": r(66, 50, 10, 30), "d": r(150, 60, 40, 10)])
+    #expect(gq9["grid"] == r(0, 0, 200, 100), "GQ9 size")
+    expectRects(gq9, "GQ9", ["s": r(0, 0, 152, 62), "b": r(170, 21, 20, 20), "c": r(71, 70, 10, 30), "d": r(160, 80, 40, 10)])
+    do { // GQ8
+        let arm = Arm()
+        #expect(arm.run(arm.grid([row(arm.spacer("s"))]), 100, 100) == size(100, 100), "GQ8 size")
+        expectRects(arm, "GQ8", ["s": r(0, 0, 100, 100)])
+    }
+}
+
+// MARK: 2.7 gaps at finite proposals
+
+/// GR-D at a proposal: W′ and H′ are the proposal less the plan's gaps, which
+/// the zero-spacing-edge walk decides (lane 1's plan, laid out here).
+///
+/// - GS1 at 200×100 (190×80). GS2 `[a 30x10, Spacer, c height-flexible w10]` at
+///   nil × 80: 48×80; GS3 (an 8x8 leaf): 64×80. GS11 at spacing 12: 72×70.
+/// - GS12 `Spacer.frame(width: 8)`, GS13 `Spacer.padding(.leading, 4)`, GS14
+///   `HStack(spacing: 0){Spacer}`, GS15 `ZStack{Spacer}`, GS16 an 8x8 leaf with a
+///   Spacer overlay, all at nil × 80; GS17 `[a] [Spacer.frame(height: 8)] [c]`
+///   and its control GS18 at 80 × nil.
+///
+/// Mutation: subtract no gaps from W′ and H′ (GS1 moves; recorded by the lane).
+@Test func gapsHoldAtFiniteProposals() {
+    do { // GS1
+        let arm = Arm()
+        #expect(arm.run(withFirst(arm, arm.spacer("s")), 200, 100) == size(190, 80), "GS1 size")
+        expectRects(arm, "GS1", ["s": r(0, 0, 142, 42), "b": r(160, 11, 20, 20), "c": r(66, 50, 10, 30), "d": r(150, 60, 40, 10)])
+    }
+    func middle(_ build: (Arm) -> LayoutNodeID, trailing: (Arm) -> LayoutNodeID = { $0.fx("c", 10, 10) }) -> Arm {
+        let arm = Arm()
+        arm.run(arm.grid([row(arm.fx("a", 30, 10), build(arm), trailing(arm))]), nil, 80)
+        return arm
+    }
+    do { // GS2
+        let arm = middle({ $0.spacer("s") }, trailing: { $0.fh("c", 10) })
+        #expect(arm["grid"] == r(0, 0, 48, 80), "GS2 size")
+        expectRects(arm, "GS2", ["a": r(0, 35, 30, 10), "c": r(38, 0, 10, 80), "s": r(30, 0, 8, 80)])
+    }
+    do { // GS3
+        let arm = middle({ $0.fx("s", 8, 8) }, trailing: { $0.fh("c", 10) })
+        #expect(arm["grid"] == r(0, 0, 64, 80), "GS3 size")
+        expectRects(arm, "GS3", ["a": r(0, 35, 30, 10), "s": r(38, 36, 8, 8), "c": r(54, 0, 10, 80)])
+    }
+    do { // GS11
+        let arm = Arm()
+        arm.run(arm.grid(h: 12, [row(arm.fx("a", 30, 10), arm.spacer("s"), arm.fx("c", 10, 10))]), nil, 80)
+        #expect(arm["grid"] == r(0, 0, 72, 70), "GS11 size")
+        expectRects(arm, "GS11", ["a": r(0, 30, 30, 10), "c": r(62, 30, 10, 10), "s": r(42, 0, 8, 70)])
+    }
+    do { // GS12
+        let arm = middle { $0.tree.newNativeFrame(child: $0.spacer("s"), width: 8) }
+        #expect(arm["grid"] == r(0, 0, 48, 80), "GS12 size")
+        expectRects(arm, "GS12", ["a": r(0, 35, 30, 10), "c": r(38, 35, 10, 10), "s": r(30, 0, 8, 80)])
+    }
+    do { // GS13
+        let arm = middle { $0.tree.newNativePadding(child: $0.spacer("s"), insets: Edges(top: 0, right: 0, bottom: 0, left: 4)) }
+        #expect(arm["grid"] == r(0, 0, 60, 80), "GS13 size")
+        expectRects(arm, "GS13", ["a": r(0, 35, 30, 10), "c": r(50, 35, 10, 10), "s": r(42, 0, 8, 80)])
+    }
+    do { // GS14
+        let arm = middle { $0.hstack("h", [$0.spacer("s")], spacing: 0) }
+        #expect(arm["grid"] == r(0, 0, 48, 10), "GS14 size")
+        expectRects(arm, "GS14", ["a": r(0, 0, 30, 10), "c": r(38, 0, 10, 10), "s": r(30, 5, 8, 0)])
+    }
+    do { // GS15
+        let arm = middle { $0.tree.newNativeOverlay(children: [$0.spacer("s")]) }
+        #expect(arm["grid"] == r(0, 0, 48, 70), "GS15 size")
+        expectRects(arm, "GS15", ["a": r(0, 30, 30, 10), "c": r(38, 30, 10, 10), "s": r(30, 0, 8, 70)])
+    }
+    do { // GS16
+        let arm = middle { $0.tree.newNativeOverlayAttachment(child: $0.fx("s", 8, 8), overlay: $0.tree.newNativeSpacer()) }
+        #expect(arm["grid"] == r(0, 0, 64, 10), "GS16 size")
+        expectRects(arm, "GS16", ["a": r(0, 0, 30, 10), "s": r(38, 1, 8, 8), "c": r(54, 0, 10, 10)])
+    }
+    do { // GS17
+        let arm = Arm()
+        arm.run(arm.grid([row(arm.fx("a", 30, 10)), row(arm.tree.newNativeFrame(child: arm.spacer("s"), height: 8)),
+                          row(arm.fx("c", 10, 10))]), 80, nil)
+        #expect(arm["grid"] == r(0, 0, 80, 28), "GS17 size")
+        expectRects(arm, "GS17", ["a": r(25, 0, 30, 10), "c": r(35, 18, 10, 10), "s": r(0, 10, 80, 8)])
+    }
+    do { // GS18
+        let arm = Arm()
+        arm.run(arm.grid([row(arm.fx("a", 30, 10)), row(arm.fx("s", 8, 8)), row(arm.fx("c", 10, 10))]), 80, nil)
+        #expect(arm["grid"] == r(0, 0, 30, 44), "GS18 size")
+        expectRects(arm, "GS18", ["a": r(0, 0, 30, 10), "s": r(11, 18, 8, 8), "c": r(10, 34, 10, 10)])
+    }
+}
+
+// MARK: 2.8 spans at a finite proposal
+
+/// GR-F at a proposal: a spanning cell is offered W′ less, for each column
+/// outside it, the share if that column is open or its width if not, plus its
+/// inner gaps; its shortfall widens first the spanned columns still holding an
+/// unprocessed single-column cell (model step 12), after its group.
+///
+/// - GX8 GX7 at 300×100: 100×38, x proposed 300×46.
+/// - GX9 `[a 30x10, b flexible] [x 100x10 span 2]` at 300×100: x's shortfall goes
+///   to b's still-open column; a's column stays 30 and b is 262 wide.
+/// - GX10 `[a 30x10, b 20x10] [x flexible span 2]`: no open column, both widen
+///   (151/141).
+/// - GX12 `[a clamp 20…120, b width 0…60 h30] x width-flexible h10 (non-row)` at
+///   300×200: x proposed 300; slots 176 and 116.
+///
+/// Mutations: (a) propose a span the sum of its columns' shares plus inner gaps
+/// (GX10's x moves); (b) drop step 12 (GX9's b 231, a's column 61).
+@Test func aSpanAtAFiniteProposalIsOfferedTheWidthOutsideItAndWidensItsOpenColumnsFirst() {
+    do { // GX8
+        let arm = Arm()
+        let root = arm.grid([row(arm.span(arm.fx("x", 100, 10), 2)), row(arm.fx("a", 30, 10), arm.fx("b", 20, 20))])
+        #expect(arm.run(root, 300, 100) == size(100, 38), "GX8 size")
+        expectRects(arm, "GX8", ["x": r(0, 0, 100, 10), "a": r(10.5, 23, 30, 10), "b": r(69.5, 18, 20, 20)])
+        #expect(arm.proposals("x").contains(proposal(300, 46)), "GX8 x is offered 300×46: \(arm.proposals("x"))")
+    }
+    do { // GX9
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fl("b")), row(arm.span(arm.fx("x", 100, 10), 2))])
+        #expect(arm.run(root, 300, 100) == size(300, 100), "GX9 size")
+        expectRects(arm, "GX9", ["a": r(0, 36, 30, 10), "b": r(38, 0, 262, 82), "x": r(100, 90, 100, 10)])
+    }
+    do { // GX10
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fx("b", 20, 10)), row(arm.span(arm.fl("x"), 2))])
+        #expect(arm.run(root, 300, 100) == size(300, 100), "GX10 size")
+        expectRects(arm, "GX10", ["a": r(60.5, 0, 30, 10), "b": r(219.5, 0, 20, 10), "x": r(0, 18, 300, 82)])
+    }
+    do { // GX12
+        let arm = Arm()
+        let root = arm.grid([row(arm.cb("a", 20, 120), arm.cw("b", 0, 60, 30)), .full(arm.fw("x", 10))])
+        #expect(arm.run(root, 300, 200) == size(300, 114), "GX12 size")
+        expectRects(arm, "GX12", ["a": r(28, 0, 120, 96), "b": r(212, 33, 60, 30), "x": r(0, 104, 300, 10)])
+    }
+}
+
+// MARK: 2.9 the model's disagreements with SwiftUI
+
+/// GR-B and GR-F: where the reference model disagrees with SwiftUI the kernel
+/// follows the model. **Pinned wrong on purpose**; SwiftUI's figures (probe
+/// revision 5, `model-arms`):
+///
+/// - GX17 `[a 30x10, b flexible, c 20x20] [x 150x10 span 3]` at 200×100: SwiftUI
+///   284×100 (the span overflow), a (0,36), b (38,0 218×82), c (264,31), x (67,90).
+/// - GX18 `[a flexible, b width 10…30, c width 20…50] x 60x10 (non-row)` at
+///   200×100: SwiftUI 231.33×100, a (0,0 135.33×82), b (143.33,36), c
+///   (181.33,36), x (85.67,90).
+/// - GS4 `[a half] [Spacer s, c width 30…180 h20]` at 60×60: SwiftUI 90×40, a
+///   (0,0 30×10), c (30,15 60×20), s (0,10 30×30).
+/// - GS5 `[a 40x40] [b half, c 20x40 span 2] [d width 0…30 h40]` at 300×200:
+///   SwiftUI 76.67×136, a (4.33,0), b (12.17,63 24.33×10), c (56.67,48), d
+///   (9.33,96).
+///
+/// GX19 (GX18 with x 40 wide) is the control on which SwiftUI and the model
+/// agree: 200×100, x (80,90 40×10).
+///
+/// Mutation: skip `absorbSpan` at proposals other than nil×nil (GX17 and GS5
+/// move; recorded by the lane).
+@Test func theModelsDisagreementsWithSwiftUIArePinned() {
+    do { // GX17
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 30, 10), arm.fl("b"), arm.fx("c", 20, 20)), row(arm.span(arm.fx("x", 150, 10), 3))])
+        #expect(arm.run(root, 200, 100) == size(200, 100), "GX17 size")
+        expectRects(arm, "GX17", ["a": r(0, 36, 30, 10), "b": r(38, 0, 134, 82), "c": r(180, 31, 20, 20), "x": r(25, 90, 150, 10)])
+    }
+    func gx18(_ width: Double) -> Arm {
+        let arm = Arm()
+        arm.run(arm.grid([row(arm.fl("a"), arm.cw("b", 10, 30), arm.cw("c", 20, 50)), .full(arm.fx("x", width, 10))]), 200, 100)
+        return arm
+    }
+    do { // GX18
+        let arm = gx18(60)
+        #expect(arm["grid"] == r(0, 0, 200, 100), "GX18 size")
+        expectRects(arm, "GX18", ["a": r(0, 0, 104, 82), "b": r(112, 36, 30, 10), "c": r(150, 36, 50, 10), "x": r(70, 90, 60, 10)])
+    }
+    do { // GX19
+        let arm = gx18(40)
+        #expect(arm["grid"] == r(0, 0, 200, 100), "GX19 size")
+        expectRects(arm, "GX19", ["a": r(0, 0, 104, 82), "b": r(112, 36, 30, 10), "c": r(150, 36, 50, 10), "x": r(80, 90, 40, 10)])
+    }
+    do { // GS4
+        let arm = Arm()
+        let root = arm.grid([row(arm.hf("a")), row(arm.spacer("s"), arm.cw("c", 30, 180, 20))])
+        #expect(arm.run(root, 60, 60) == size(45, 40), "GS4 size")
+        expectRects(arm, "GS4", ["a": r(0, 0, 15, 10), "c": r(15, 15, 30, 20), "s": r(0, 10, 15, 30)])
+    }
+    do { // GS5
+        let arm = Arm()
+        let root = arm.grid([row(arm.fx("a", 40, 40)), row(arm.hf("b"), arm.span(arm.fx("c", 20, 40), 2)),
+                             row(arm.cw("d", 0, 30, 40))])
+        #expect(arm.run(root, 300, 200) == size(164, 136), "GS5 size")
+        expectRects(arm, "GS5", ["a": r(48, 0, 40, 40), "b": r(34, 63, 68, 10), "c": r(144, 48, 20, 40), "d": r(53, 96, 30, 40)])
+    }
+}
+
+// MARK: 2.10 no priority passed to a stack
+
+/// GR-R: `nativeLayoutPriority` of a grid is 0, one cell or many.
+///
+/// - GE8 `HStack{a flexible; Grid{[c flexible priority 1]}}` at 100×100: 46/46,
+///   against GE27 (the same HStack with no grid) 0/92.
+/// - GE10 `HStack{a flexible; Grid{[c flexible priority 1, d 10x10]}}`: 36/38/10.
+/// - GE11 `HStack{a flexible; Grid{[Spacer s]}}`: 50/50, against GE28 (no grid)
+///   92/8.
+///
+/// Mutation: the `.grid` arm passes a one-cell grid's child priority, as a
+/// one-child stack does (GE8 reads 0/92, GE11 92/8).
+@Test func aGridPassesNoPriorityToAnEnclosingStack() throws {
+    let ge8 = Arm()
+    ge8.run(ge8.hstack("stack", [ge8.fl("a"), ge8.grid([row(ge8.prio(ge8.fl("c"), 1))])]), 100, 100)
+    let ge27 = Arm()
+    ge27.run(ge27.hstack("stack", [ge27.fl("a"), ge27.prio(ge27.fl("c"), 1)]), 100, 100)
+    try #require(ge8["a"] != ge27["a"], "GE8 and its control GE27 must differ")
+    expectRects(ge8, "GE8", ["a": r(0, 0, 46, 100), "c": r(54, 0, 46, 100)])
+    expectRects(ge27, "GE27", ["a": r(0, 0, 0, 100), "c": r(8, 0, 92, 100)])
+
+    let ge10 = Arm()
+    ge10.run(ge10.hstack("stack", [ge10.fl("a"), ge10.grid([row(ge10.prio(ge10.fl("c"), 1), ge10.fx("d", 10, 10))])]), 100, 100)
+    expectRects(ge10, "GE10", ["a": r(0, 0, 36, 100), "c": r(44, 0, 38, 100), "d": r(90, 45, 10, 10)])
+
+    let ge11 = Arm()
+    ge11.run(ge11.hstack("stack", [ge11.fl("a"), ge11.grid([row(ge11.spacer("s"))])]), 100, 100)
+    let ge28 = Arm()
+    ge28.run(ge28.hstack("stack", [ge28.fl("a"), ge28.spacer("s")]), 100, 100)
+    try #require(ge11["a"] != ge28["a"], "GE11 and its control GE28 must differ")
+    expectRects(ge11, "GE11", ["a": r(0, 0, 50, 100), "s": r(50, 0, 50, 100)])
+    expectRects(ge28, "GE28", ["a": r(0, 0, 92, 100), "s": r(92, 50, 8, 0)])
+}
+
+// MARK: 2.11 grids inside stacks
+
+/// GR-R: a grid in a stack lays out as the model does in that stack (GE17–GE22,
+/// each agreeing with SwiftUI in the probe), and the edge arms of 1.10/1.11 are
+/// laid out here, where the stack proposes the grid a concrete cross axis
+/// (GR-W).
+///
+/// Mutation (GZ0's control): every group offered W′/ncols, commits ignored (GE17
+/// moves; recorded by the lane).
+@Test func aGridInAStackLaysOutAsTheModelInAStack() {
+    func ga1Grid(_ arm: Arm, flexibleA: Bool) -> LayoutNodeID { ga1(arm, flexibleA: flexibleA) }
+    do { // GE17
+        let arm = Arm()
+        arm.run(arm.hstack("stack", [arm.fl("z"), ga1Grid(arm, flexibleA: true)]), 200, 100)
+        #expect(arm["stack"] == r(0, 0, 200, 100), "GE17 size")
+        expectRects(arm, "GE17", ["a": r(104, 0, 48, 62), "b": r(170, 21, 20, 20), "c": r(123, 70, 10, 30), "d": r(160, 80, 40, 10), "z": r(0, 0, 96, 100)])
+    }
+    do { // GE18
+        let arm = Arm()
+        arm.run(arm.hstack("stack", [arm.fw("z", 20), ga1Grid(arm, flexibleA: false)]), 200, 100)
+        #expect(arm["stack"] == r(0, 0, 200, 58), "GE18 size")
+        expectRects(arm, "GE18", ["a": r(122, 5, 30, 10), "b": r(170, 0, 20, 20), "c": r(132, 28, 10, 30), "d": r(160, 38, 40, 10), "z": r(0, 19, 114, 20)])
+    }
+    do { // GE19
+        let arm = Arm()
+        arm.run(arm.vstack("stack", [arm.fl("z"), ga1Grid(arm, flexibleA: true)]), 200, 100)
+        #expect(arm["stack"] == r(0, 0, 200, 100), "GE19 size")
+        expectRects(arm, "GE19", ["a": r(0, 42, 152, 20), "b": r(170, 42, 20, 20), "c": r(71, 70, 10, 30), "d": r(160, 80, 40, 10), "z": r(0, 0, 200, 34)])
+    }
+    do { // GE20
+        let arm = Arm()
+        let grid = arm.grid([row(arm.hf("b"), arm.fl("x")), row(arm.fx("e", 10, 30))])
+        arm.run(arm.hstack("stack", [arm.cw("z", 0, 100, 10), grid]), 150, 80)
+        #expect(arm["stack"] == r(0, 0, 150, 80), "GE20 size")
+        expectRects(arm, "GE20", ["b": r(82.9375, 16, 7.875, 10), "e": r(81.875, 50, 10, 30), "x": r(102.75, 0, 47.25, 42), "z": r(0, 35, 71, 10)])
+    }
+    do { // GE21
+        let arm = Arm()
+        arm.run(arm.hstack("stack", [arm.fx("z", 30, 10), ga1Grid(arm, flexibleA: true)]), nil, 80)
+        #expect(arm["stack"] == r(0, 0, 96, 80), "GE21 size")
+        expectRects(arm, "GE21", ["a": r(38, 0, 10, 42), "b": r(66, 11, 20, 20), "c": r(38, 50, 10, 30), "d": r(56, 60, 40, 10), "z": r(0, 35, 30, 10)])
+    }
+    do { // GE22
+        let arm = Arm()
+        let grid = arm.grid([row(arm.cw("a", 0, 60), arm.fh("b", 10)), row(arm.fx("c", 10, 30), arm.fx("d", 40, 10))])
+        arm.run(arm.vstack("stack", [arm.hf("z"), grid]), 120, nil)
+        #expect(arm["stack"] == r(0, 0, 108, 66), "GE22 size")
+        expectRects(arm, "GE22", ["a": r(0, 18, 60, 10), "b": r(83, 18, 10, 10), "c": r(25, 36, 10, 30), "d": r(68, 46, 40, 10), "z": r(24, 0, 60, 10)])
+    }
+
+    func hArm(_ grid: (Arm) -> LayoutNodeID) -> Arm {
+        let arm = Arm()
+        let a = arm.fx("a", 30, 10)
+        let g = grid(arm)
+        arm.run(arm.hstack("stack", [a, g, arm.fx("c", 10, 10)]), nil, nil)
+        return arm
+    }
+    func vArm(_ grid: (Arm) -> LayoutNodeID) -> Arm {
+        let arm = Arm()
+        let a = arm.fx("a", 30, 10)
+        let g = grid(arm)
+        arm.run(arm.vstack("stack", [a, g, arm.fx("c", 10, 10)]), nil, nil)
+        return arm
+    }
+    let ge1 = hArm { $0.grid([row($0.spacer("s"), $0.fx("b", 20, 20))]) }
+    expectRects(ge1, "GE1", ["stack": r(0, 0, 76, 20), "a": r(0, 5, 30, 10), "b": r(38, 0, 20, 20), "c": r(66, 5, 10, 10), "s": r(30, 0, 8, 20)])
+    let ge2 = hArm { $0.grid([row($0.fx("s", 8, 8), $0.fx("b", 20, 20))]) }
+    expectRects(ge2, "GE2", ["stack": r(0, 0, 92, 20), "a": r(0, 5, 30, 10), "s": r(38, 6, 8, 8), "b": r(54, 0, 20, 20), "c": r(82, 5, 10, 10)])
+    let ge3 = hArm { $0.grid([row($0.fx("b", 20, 20), $0.spacer("s"))]) }
+    expectRects(ge3, "GE3", ["stack": r(0, 0, 76, 20), "a": r(0, 5, 30, 10), "b": r(38, 0, 20, 20), "c": r(66, 5, 10, 10), "s": r(58, 0, 8, 20)])
+    let ge4 = hArm { $0.grid([row($0.spacer("s"), $0.fx("b", 20, 20)), row($0.fx("d", 20, 20), $0.fx("e", 20, 20))]) }
+    expectRects(ge4, "GE4", ["stack": r(0, 0, 96, 48), "a": r(0, 19, 30, 10), "b": r(58, 0, 20, 20), "d": r(30, 28, 20, 20),
+                             "e": r(58, 28, 20, 20), "c": r(86, 19, 10, 10), "s": r(30, 0, 20, 20)])
+    let ge5 = hArm { $0.grid([row($0.spacer("s"), $0.fx("b", 20, 20)), row($0.spacer("t"), $0.fx("e", 20, 20))]) }
+    expectRects(ge5, "GE5", ["stack": r(0, 0, 76, 48), "a": r(0, 19, 30, 10), "b": r(38, 0, 20, 20), "e": r(38, 28, 20, 20),
+                             "c": r(66, 19, 10, 10), "t": r(30, 28, 8, 20), "s": r(30, 0, 8, 20)])
+    let ge6 = vArm { $0.grid([row($0.spacer("s")), row($0.fx("b", 20, 20))]) }
+    expectRects(ge6, "GE6", ["stack": r(0, 0, 30, 56), "a": r(0, 0, 30, 10), "b": r(5, 18, 20, 20), "c": r(10, 46, 10, 10), "s": r(5, 10, 20, 8)])
+    let ge7 = vArm { $0.grid([row($0.fx("s", 8, 8)), row($0.fx("b", 20, 20))]) }
+    expectRects(ge7, "GE7", ["stack": r(0, 0, 30, 72), "a": r(0, 0, 30, 10), "s": r(11, 18, 8, 8), "b": r(5, 34, 20, 20), "c": r(10, 62, 10, 10)])
+    let ge16 = hArm { $0.grid([]) }
+    expectRects(ge16, "GE16", ["stack": r(0, 0, 40, 10), "a": r(0, 0, 30, 10), "c": r(30, 0, 10, 10)])
+    let ge23 = vArm { $0.grid([row($0.spacer("s"), $0.fx("b", 20, 20))]) }
+    expectRects(ge23, "GE23", ["stack": r(0, 0, 30, 40), "a": r(0, 0, 30, 10), "b": r(10, 10, 20, 20), "c": r(10, 30, 10, 10), "s": r(0, 10, 10, 20)])
+    let ge24 = vArm { $0.grid([row($0.fx("b", 20, 20)), row($0.spacer("s"))]) }
+    expectRects(ge24, "GE24", ["stack": r(0, 0, 30, 56), "a": r(0, 0, 30, 10), "b": r(5, 18, 20, 20), "c": r(10, 46, 10, 10), "s": r(5, 38, 20, 8)])
+    let ge25 = hArm { $0.grid([row($0.fx("b", 20, 20)), .full($0.spacer("s"))]) }
+    expectRects(ge25, "GE25", ["stack": r(0, 0, 60, 28), "a": r(0, 9, 30, 10), "b": r(30, 0, 20, 20), "c": r(50, 9, 10, 10), "s": r(30, 20, 20, 8)])
+    let ge26 = hArm { $0.grid([row($0.fx("b", 20, 20), $0.fx("e", 20, 20)), row($0.spacer("s"))]) }
+    expectRects(ge26, "GE26", ["stack": r(0, 0, 96, 28), "a": r(0, 9, 30, 10), "b": r(30, 0, 20, 20), "e": r(58, 0, 20, 20),
+                               "c": r(86, 9, 10, 10), "s": r(30, 20, 20, 8)])
+
+    do { // GE29
+        let arm = Arm()
+        let grid = arm.grid([row(arm.spacer("s"), arm.fx("b", 20, 20))])
+        arm.run(arm.hstack("stack", [arm.fx("a", 30, 10), arm.vstack("v", [grid]), arm.fx("c", 10, 10)]), nil, nil)
+        expectRects(arm, "GE29", ["stack": r(0, 0, 76, 20), "a": r(0, 5, 30, 10), "b": r(38, 0, 20, 20), "c": r(66, 5, 10, 10), "s": r(30, 0, 8, 20)])
+    }
+    do { // GE30
+        let arm = Arm()
+        arm.run(arm.hstack("stack", [arm.fx("a", 30, 10), arm.vstack("v", [arm.spacer("s"), arm.fx("b", 20, 20)]), arm.fx("c", 10, 10)]), nil, nil)
+        expectRects(arm, "GE30", ["stack": r(0, 0, 76, 28), "a": r(0, 9, 30, 10), "b": r(38, 8, 20, 20), "c": r(66, 9, 10, 10), "s": r(48, 0, 0, 8)])
+    }
+}
+
+// MARK: 2.13 the corpus
+
+/// GR-B's exit test: the probe's replay corpus (`GridCorpus.swift`, 120 grids on
+/// which SwiftUI and the reference model agree), each built from native leaves
+/// standing for the probe's kinds — a written priority a `layoutPriority` node,
+/// a span a column mark on the cell's outermost node, a `spacer` a bare
+/// `newNativeSpacer()` — laid out at its proposal at the origin and compared
+/// with the recorded answer (to 1e-9) and `roundLayout` of every recorded rect.
+/// **Lane 2 filters** to the cases with no anchor, column alignment or unsized
+/// axis, which it requires to be 18; lane 3 drops the filter.
+///
+/// Mutation (GZ0's control): recorded by the lane, how many of the 18 redden.
+@Test func theGridProbeCorpusAgreesCaseByCase() throws {
+    try #require(gridCorpus.count == 120, "the corpus holds 120 cases")
+    let cases = gridCorpus.filter { corpusCase in
+        corpusCase.cells.allSatisfy { $0.anchor == nil && $0.columnAlignment == nil && !$0.unsizedHorizontal && !$0.unsizedVertical }
+    }
+    try #require(cases.count == 18, "lane 2 runs the 18 cases with no anchor, column alignment or unsized axis")
+    for corpusCase in cases {
+        let tree = LayoutTree(generation: 0)
+        var children: [LayoutNodeID] = []
+        var leaves: [LayoutNodeID] = []
+        func cell(_ cell: GridCorpusCase.Cell) -> LayoutNodeID {
+            var node: LayoutNodeID
+            switch cell.kind {
+            case .spacer:
+                node = tree.newNativeSpacer()
+            default:
+                let kind = cell.kind
+                node = tree.newNativeLeaf { LayoutMeasurement(size: kind.answer($0)) }
+            }
+            leaves.append(node)
+            if cell.priority != 0 { node = tree.newNativeLayoutPriority(child: node, priority: cell.priority) }
+            if cell.span != 1 { tree.markNativeGridCell(node, columns: cell.span) }
+            return node
+        }
+        for child in corpusCase.children {
+            switch child {
+            case let .row(alignment, cells):
+                let nodes = cells.map(cell)
+                tree.markNativeGridRow(nodes, alignment: alignment)
+                children += nodes
+            case let .spanning(spanning):
+                children.append(cell(spanning))
+            }
+        }
+        let grid = tree.newNativeGrid(children: children, alignment: corpusCase.alignment,
+                                      horizontalSpacing: corpusCase.horizontalSpacing,
+                                      verticalSpacing: corpusCase.verticalSpacing)
+        let at = ProposedSize(width: corpusCase.proposal.0, height: corpusCase.proposal.1)
+        let answer = tree.measureNativeLayout(root: grid, proposal: at).size
+        let expected = SizeD(width: corpusCase.size.0, height: corpusCase.size.1)
+        #expect(close(answer, expected), "corpus \(corpusCase.id) answer \(answer), recorded \(expected)")
+        tree.computeNativeLayout(root: grid, proposal: at, in: LayoutRect(x: 0, y: 0, width: answer.width, height: answer.height))
+        try #require(leaves.count == corpusCase.rects.count, "corpus \(corpusCase.id) leaf count")
+        for (index, leaf) in leaves.enumerated() {
+            let recorded = corpusCase.rects[index]
+            let rect = r(recorded.0, recorded.1, recorded.2, recorded.3)
+            #expect(tree.layout(leaf) == rect, "corpus \(corpusCase.id) leaf c\(index + 1): \(tree.layout(leaf)), recorded \(rect)")
+        }
+    }
 }
