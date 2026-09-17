@@ -29,6 +29,9 @@
 //   S  — cross-axis fill: a zero-width child, a greedy frame, a greedy view
 //        (evidence for stage 2, not stage 1).
 //   G  — main-axis fill in a fixed-width HStack (evidence for stage 2).
+//   W  — two Texts (or a Text and a fixed leaf) in an HStack(spacing: 0) under
+//        a narrow width, with and without `layoutPriority` (revision 2,
+//        critic round 1 finding 10: evidence for `LR-F`'s withdrawn clamp).
 //
 // RECORDED 2026-09-16 by the engine-replacement design session (plan task 7,
 // stage 1), macOS 27.0 (26A428), `/usr/bin/swift` = Apple Swift 6.4
@@ -37,6 +40,12 @@
 //
 // Exit 0. Run twice; the two outputs are byte-identical (`diff` empty), 61
 // lines.
+//
+// REVISION 2, RECORDED 2026-09-16 21:10 PDT by the same session's critic round
+// 1, same machine and toolchain: group W appended; nothing else changed. Exit
+// 0; run twice, byte-identical, 79 lines; the 61 lines of revision 1 are
+// reproduced unchanged (the output minus W's lines `diff`s empty against
+// revision 1's block).
 //
 // READING.
 // - T: a Text HUGS its widest line. At 60 it answers 45x112 and a 60-wide
@@ -61,6 +70,16 @@
 //   surplus, 516 = 568 - 40 - 12 (G1); a greedy frame over a 0-wide leaf takes
 //   the same 516 while the leaf stays 0 wide and centred at 310 (G2). Control
 //   G0: 0 wide, and the fixed pair is centred (a at 258).
+// - W (revision 2): at 80 the long label wraps to 46x48 and "Short" keeps 34
+//   (W1, the stack-algorithms probe's G18 with geometry); control W0 at 400
+//   is one line each (105, 34). Priority on the SHORT text changes nothing
+//   (W3 = W1). Priority on the LONG text gives it 59x32 and "Short" 18x32 —
+//   SwiftUI hands the lower-priority Text less than its widest word (W2). A
+//   fixed 40-wide leaf leaves the label 34 (W4). Below both words' widths at
+//   40: 20 and 19 (W5). MetalUI's kernel, measured in the design session's
+//   scratch P2 (record §18): W0, W1, W3, W4, W5 agree to the point (45/33
+//   against 46/34, font metrics) with or without a below-word clamp; W2
+//   disagrees either way — 76/8 (an 84 root) without the clamp, 75/5 with it.
 //
 // OUTPUT:
 //
@@ -124,6 +143,24 @@
 //       leaf a: at (0, 0) 40x40
 //       leaf b: at (310, 14) 0x12
 //       geometry bframe: (52, 14) 516x12
+//   W0 control HStack(spacing:0){Text(label); Text("Short")} @400xnil: size 139x16
+//       geometry long: (0, 0) 105x16
+//       geometry short: (105, 0) 34x16
+//   W1 HStack(spacing:0){Text(label); Text("Short")} (stack-algorithms G18) @80xnil: size 80x48
+//       geometry long: (0, 0) 46x48
+//       geometry short: (46, 16) 34x16
+//   W2 HStack(spacing:0){Text(label).layoutPriority(1); Text("Short")} @80xnil: size 77x32
+//       geometry long: (0, 0) 59x32
+//       geometry short: (59, 0) 18x32
+//   W3 HStack(spacing:0){Text(label); Text("Short").layoutPriority(1)} @80xnil: size 80x48
+//       geometry long: (0, 0) 46x48
+//       geometry short: (46, 16) 34x16
+//   W4 HStack(spacing:0){Text(label); a 40x10} @80xnil: size 74x64
+//       leaf a: at (34, 27) 40x10
+//       geometry long: (0, 0) 34x64
+//   W5 HStack(spacing:0){Text("alpha bravo"); Text("charlie")} @40xnil: size 39x64
+//       geometry first: (0, 0) 20x64
+//       geometry second: (20, 8) 19x48
 //   DONE
 
 import AppKit
@@ -276,6 +313,29 @@ func w(_ x: CGFloat?) -> ProposedViewSize { ProposedViewSize(width: x, height: n
     }
     run("G2 HStack(spacing:12){a40x40; b0x12.frame(maxWidth:.infinity)}.frame(width:568)", none) {
         HStack(spacing: 12) { fixed("a", 40, 40); fixed("b", 0, 12).frame(maxWidth: .infinity).geo("bframe") }.frame(width: 568)
+    }
+
+    // W — text inside a horizontal stack under a narrow width (revision 2,
+    // critic finding 10: does a Text's answer below a word change stack
+    // allocation?). Control W0: at 400 both texts are one line.
+    let label = "A fairly long label"
+    run("W0 control HStack(spacing:0){Text(label); Text(\"Short\")}", w(400)) {
+        HStack(spacing: 0) { Text(label).geo("long"); Text("Short").geo("short") }
+    }
+    run("W1 HStack(spacing:0){Text(label); Text(\"Short\")} (stack-algorithms G18)", w(80)) {
+        HStack(spacing: 0) { Text(label).geo("long"); Text("Short").geo("short") }
+    }
+    run("W2 HStack(spacing:0){Text(label).layoutPriority(1); Text(\"Short\")}", w(80)) {
+        HStack(spacing: 0) { Text(label).layoutPriority(1).geo("long"); Text("Short").geo("short") }
+    }
+    run("W3 HStack(spacing:0){Text(label); Text(\"Short\").layoutPriority(1)}", w(80)) {
+        HStack(spacing: 0) { Text(label).geo("long"); Text("Short").layoutPriority(1).geo("short") }
+    }
+    run("W4 HStack(spacing:0){Text(label); a 40x10}", w(80)) {
+        HStack(spacing: 0) { Text(label).geo("long"); fixed("a", 40, 10) }
+    }
+    run("W5 HStack(spacing:0){Text(\"alpha bravo\"); Text(\"charlie\")}", w(40)) {
+        HStack(spacing: 0) { Text("alpha bravo").geo("first"); Text("charlie").geo("second") }
     }
 }
 

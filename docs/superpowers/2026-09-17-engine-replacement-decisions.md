@@ -2,7 +2,13 @@
 
 Rulings for `docs/superpowers/specs/2026-09-17-engine-replacement-design.md`, on
 `feat/engine-replacement` from `c2290fc`. Ids are **lettered**, `LR-A`…; next
-unused is **`LR-Q`**. A bare `LR-3` is a typo, not a citation.
+unused is **`LR-X`**. A bare `LR-3` is a typo, not a citation.
+
+**Critic round 1 (2026-09-16, 21:05–21:30 PDT).** 24 findings; each is applied
+or rejected in `LR-W`, which names where. Rulings amended in place carry a
+paragraph headed **Critic round 1**; `LR-Q`…`LR-W` are new. New measurements
+come from prototype **P2** (`LR-O`) and probe revision 2 (group W), and are in
+record §18's "Critic round 1" section.
 
 **Status, 2026-09-16 (PDT), design only.** No file under `Sources/` or `Tests/`
 changed in a commit. Every source patch cited as a *prototype* was applied in
@@ -16,10 +22,14 @@ SwiftPM's deprecation notice.
 
 Probe: `docs/probes/swiftui-engine-replacement-stage1.swift`, run under
 `/usr/bin/swift` (Apple Swift 6.4, swiftlang-6.4.0.33.1), macOS 27.0 (26A428);
-exit 0; run twice, byte-identical, 61 lines, recorded in its header. Arms cited
-as T0–T9, B0–B3, H0–H2, S0–S3, G0–G2. Earlier probes cited by their own arm
-names: `swiftui-frame-semantics.swift` (D, C), `swiftui-stack-algorithms.swift`
-(A5, G1, K6), `swiftui-overlay-presentation.swift` (P4, P5).
+exit 0; run twice, byte-identical, 61 lines, recorded in its header; revision 2
+(critic round 1) appends group W, 79 lines, the first 61 unchanged. Arms cited
+as T0–T9, B0–B3, H0–H2, S0–S3, G0–G2, W0–W5 ("stage-1 probe"). Earlier probes
+cited by their own arm names: `swiftui-frame-semantics.swift` (D, C),
+`swiftui-stack-algorithms.swift` (A5, G1, G9, G18, X13, K6),
+`swiftui-overlay-presentation.swift` (P4, P5). **The stage-1 probe's G1 and the
+stack-algorithms probe's G1 are different arms**; every citation names the
+probe.
 
 Measurements are in `docs/record/18-engine-replacement-stage-1.md`; the figures
 below are copied from it.
@@ -78,19 +88,24 @@ lowers its (animated) `Style` onto kernel nodes, keeping its ids, `prepaint` and
 `paint`; `SA-G`'s one authority per root is unchanged, because the whole tree
 lowers or the frame traps.
 
+**Critic round 1** (finding 21). "Unchanged" was incomplete: once legacy
+containers lower, a proposal element inside one is a tree of native nodes only,
+which `SA-G`'s `newNode` trap no longer meets. That is ruled in `LR-T`
+(allowed under the proposal authority, still a trap under the legacy one).
+
 **Reasoning.** It is the only shape in which each later stage is a local change
 to one registration site behind a measurable parity check, and in which the
 subsystems that broke in `4aaca40` are untouched code rather than re-implemented
 code.
 
 **What it costs if wrong.** Two registration branches live in five files until
-stage 8 deletes the legacy one; a fix to one branch does not reach the other
+stage 9 deletes the legacy one; a fix to one branch does not reach the other
 (practices: "a copy of a pinned implementation is unpinned"), which is why every
 lowered site gets a differential test of its own.
 
 ---
 
-## LR-B — the authority belongs to the frame, is set by the window, defaults to legacy, and stays internal until stage 6
+## LR-B — the authority belongs to the frame, is set by the window, defaults to legacy, and stays internal until stage 6b
 
 **The question.** Where the authority is chosen: by the root element's type, by
 an environment value, or by the frame.
@@ -104,7 +119,7 @@ setting.
 
 **The ruling.** `Frame.init(…, layoutAuthority: LayoutAuthority = .legacy)` and
 `Window.layoutAuthority` (a write marks the window dirty), both `internal`.
-Stage 6 makes `.proposal` the default and decides whether any public spelling
+Stage 6b makes `.proposal` the default and decides whether any public spelling
 survives. A plain-import typecheck guard pins the access level (practices shape
 16: a `@testable` test cannot).
 
@@ -140,6 +155,31 @@ makes every lowering test red by an `#expect` on `report.unlowerable`.
 is not rejected (`ProposalNodeID.swift`'s orphan hole); its rects are unset and
 the harness reports them as disagreements, which is noise, not silence.
 
+**Critic round 1** (findings 1, 2). The first ruling put the checks in
+`Frame.requestNode`/`requestLeaf` only, which cannot see two sites:
+
+- **`StyledComponent`'s amend** writes through `LayoutTree.setStyle`, whose `SA-G`
+  precondition (`LayoutTree.swift:603`) fires on an already-native member — so
+  `MyComponent().width(70)` under the proposal authority died with `SA-G`'s
+  message even with diagnostics on, truncating the suite (by reading; P2 routed
+  the amend through the authority — skip the write, count it — but **no tree P2
+  ran exercised an amend**: the census counted 0 `component.amend` in the five
+  exit suites and the demo, so the fix is unmeasured and spec 1.4/1.5 are its
+  pins).
+- **`List`** registers no node of its own; it builds `Box`es and returns
+  `built.requestLayout` (`List.swift:373–422`), so its only report was `box`,
+  and once `Box` lowers its missing fields (`minSize.height`, `flexShrink`) an
+  unwindowed `List` would lay out through `Box` silently.
+
+**Amended ruling.** Every legacy site checks the authority **itself**, before it
+registers, and passes **its own** `LoweringSite` (`Frame` never infers the
+caller): `Box`, `Stack`, `Text`, both `ModifiedElement` registrars,
+`ScrollView`, `List` (before building its `Box`; under diagnostics it then lays
+out a zero-row `Box`, whose report is additional), `StyledComponent`'s amend
+(reports `component.amend` and skips `setStyle`) and wrap (`component.wrap`),
+and the public `LayoutPass.requestNode`/`requestLeaf` (`customElement`). Lane 1
+therefore edits all of those files. Pinned by spec 1.3–1.5.
+
 ---
 
 ## LR-D — the differential harness: a top-leading, fixed-size root on both sides, compared element by element and observation by observation
@@ -168,8 +208,18 @@ hitboxes (id, bounds, layer, opacity), accessibility emissions **including
 disagrees (spec 1.8, 1.9).
 
 **What it costs if wrong.** A tree whose disagreement only shows at the window
-root (fill versus centre) passes the harness; that is stage 6's ruling and its
+root (fill versus centre) passes the harness; that is stage 6b's ruling and its
 own test.
+
+**Critic round 1** (finding 12). **The root has a divergence of its own**: its
+legacy side is a `Stack`, which offers fit-content, and its proposal side an
+overlay, which offers W×H (divergence 53, `LR-G`). A wrapping `Text` or a greedy
+child directly under the root disagrees because of the harness. So corpus trees
+wrap such content in a container, 1.10 uses fixed children, and lane 5's
+`Window` tests and two-authority images put `DifferentialRoot` in the window,
+never a bare tree — without it legacy fills the window (divergence 4) and native
+centres (`CN-J`), and a click at a fixed point would miss for a reason unrelated
+to lowering.
 
 ---
 
@@ -209,9 +259,22 @@ the kernel does not have (`FR-H`, `FR-T`).
 registration and disagree only in the harness; spec 3.5 carries an arm per rule
 that must disagree once the rule is removed (mutation M3f).
 
+**Critic round 1** (finding 6). The table said both "a leaf ignores
+`flexDirection`" and "`.rowReverse` is unlowerable", and test 2.3 put container
+rows on a leaf while 2.4 said container fields on a leaf are ignored. **Amended:**
+the legacy engine lays out no children for a leaf, so **every container field
+is ignored on a leaf whatever its value** (reverse, `gap %`, `.baseline`,
+`.stretch`, `space-*`, `justifyItems`, `flexWrap`, `alignContent`, `display:
+.stack`); every **node** field (`display: none`, `%` size and padding, the
+padding floor, padding on a `Text`, `minSize`/`maxSize`, `margin`, `border`,
+`position`, `inset`, `flexGrow`, `flexShrink`, `flexBasis`, `alignSelf`) is
+reported on a leaf. The spec's table is split into "containers", "leaves" and
+"every node"; 2.3 carries the node rows, 2.4 the container rows on a leaf. And
+the overflow evidence is stack-algorithms **G9**/X13, not G1 (finding 9; `LR-I`).
+
 ---
 
-## LR-F — a lowered `Text` hugs its widest line, answers the proposal below a word, and keeps its legacy glyph origin
+## LR-F — a lowered `Text` hugs its widest line and keeps its legacy glyph origin; the below-word clamp is withdrawn (critic round 1)
 
 **What was measured.** Probe T: `Text("alpha bravo charlie delta echo foxtrot
 golf")` answers **252×16** at nil, 1000 and ∞ (T1, T5, T6); **45×112** at 60
@@ -227,7 +290,8 @@ x 8.
   `min(widest line, proposed width)` when a width is proposed. The amendment is
   in the shared function, so `ProposalText` gains the same clamp: one
   implementation, one pin (spec 2.7). The preview never proposes a width below a
-  word, so its images are expected unchanged.
+  word, so its images are expected unchanged. **Superseded by critic round 1
+  below: the clamp is withdrawn, and the last sentence was false.**
 - A `Text`'s declared `size` wraps the leaf in a fixed frame aligned
   `.topLeading`; the element's node is the frame (bounds, decoration and hitbox
   as legacy border-box) and glyphs are painted at the element's bounds origin,
@@ -245,6 +309,31 @@ than font metrics, lowered text is 1pt narrower than SwiftUI's everywhere; task
 11 owns font metrics, and the test computes its expectation from the shaping
 cache rather than hard-coding either figure.
 
+**Critic round 1** (finding 10). "The preview never proposes a width below a
+word" was false as a statement about allocation: `solveLinearStack` probes every
+member of a group of two or more at main `offer(0)`, and a lower-priority
+child's reserved minimum at `offer(0)` (`LayoutTree.swift:1227–1236`), so a
+clamp changes what a `ProposalText` answers inside **every** horizontal stack
+with a finite width, not only answers the caller sees. Measured:
+
+| arm (HStack spacing 0) | SwiftUI (stage-1 probe W) | kernel, no clamp | kernel, clamp |
+|---|---|---|---|
+| W0 control `{label; "Short"}` at 400 | 105 / 34 | 105 / 33 | 105 / 33 |
+| W1 (stack-algorithms G18) at 80 | 46×48 / 34 | 45×48 / 33 | 45×48 / 33 |
+| W2 label `.layoutPriority(1)` at 80 | **59×32 / 18×32** (77) | 76×32 / 8×80 (84) | 75×32 / 5×80 (80) |
+| W3 "Short" `.layoutPriority(1)` at 80 | 46 / 34 | 45 / 33 | 45 / 33 |
+| W4 `{label; fixed 40×10}` at 80 | 34×64 / 40 | 34×64 / 40 | 34×64 / 40 |
+| W5 `{"alpha bravo"; "charlie"}` at 40 | 20 / 19 | 20 / 18 | 20 / 18 |
+
+The clamp moves exactly one allocation, W2, and not toward SwiftUI (which gives
+the lower-priority text less than its widest word by a rule the kernel does not
+have). **Amended ruling: the clamp is withdrawn from stage 1.** A lowered `Text`
+is measured by `proposalTextMeasurement` unchanged; stage 1 changes nothing on
+the proposal path that a production root reads. The below-word answer (T3/T4)
+and W2 go to stage 2's `Text`/`ProposalText` unification with these arms as its
+evidence; spec 2.7 becomes a characterization pin of today's answer, pinned
+wrong on purpose, whose mutation is adding the clamp.
+
 ---
 
 ## LR-G — a lowered `Stack` offers its proposal (closing divergence 53 under the proposal authority)
@@ -257,11 +346,11 @@ cache rather than hard-coding either figure.
 nine-point alignment. Children are proposed the stack's proposal; the legacy
 fit-content offer is not reproduced. Spec 4.2 pins the disagreement on a
 wrapping `Text`; the legacy pin
-`aLegacyStackOffersFitContentWhereAZStackOffersItsProposal` stays until stage 8.
+`aLegacyStackOffersFitContentWhereAZStackOffersItsProposal` stays until stage 9.
 
 **What it costs if wrong.** A lowered `Stack` over wrapping text lays out
 narrower than its legacy twin — visible only under the proposal authority,
-which no production root takes before stage 6.
+which no production root takes before stage 6b.
 
 ---
 
@@ -299,6 +388,38 @@ a CSS clamp and a frame.
 (never rendered) no longer traps; the plan item "ideal on the legacy path" is
 exactly that relaxation, and divergence 39's pin moves with it.
 
+**Critic round 1** (findings 4, 5).
+
+1. **The trap had nowhere to read an ideal from.** `FrameSpec` has no ideal
+   field — its doc says the overload that accepts one traps before building a
+   spec (`FrameLayer.swift:37–40`). **Amended:** `FrameSpec` gains `idealWidth:
+   Pixels?` and `idealHeight: Pixels?`; `style()` does not read them; the
+   flexible overload builds the spec instead of trapping; the legacy
+   registration branch of a frame layer traps when either is non-nil (message
+   still names `idealWidth`/`idealHeight`); the lowering passes them to
+   `newNativeFrame`.
+2. **"Ideal on the legacy path is stage 1" was false as written**, because under
+   the legacy authority `.frame(idealWidth:)` still traps. The handed item has
+   two halves: **ideal under the proposal authority** is stage 1 (lane 4, spec
+   4.6); **ideal under the legacy authority** is never implemented — an ideal
+   has no CSS lowering (`FR-D`) — and production gains the legacy *spelling* at
+   stage 6b, when the default authority becomes proposal; stage 9 deletes the
+   legacy authority and the trap with it.
+3. **"`Style` differs from `frameSpec.style()` ⇒ unlowerable" would have
+   rejected every one-node frame layer**, because `ModifiedElement.requestLayout`
+   stores `lowered(_:childCount:)` (`display = .stack`, `ModifiedElement.swift:88–90`)
+   back into the layer before `animated(…)` (`:217`, `:225`), and `style()` never
+   writes `display`. **Amended check:** compare the layer's **declared** style
+   (after `lowered`, before `animated`) with `lowered(frameSpec.style(),
+   childCount:)`. `display: .none` is checked first and reported as
+   `display.none`. Values are then read from the **animated** style, so an
+   animation never trips the check (spec 4.7, with the mutation that compares the
+   animated style instead). **A caller's `Self`-returning modifier after
+   `.frame`** — `.width`, `.minWidth`, `.maxHeight`, `.flexGrow`, `.alignItems`
+   — lands on the frame layer, makes the declared style differ, and is reported
+   `modifierLayer.style` (spec 4.8, with a `.background` control that reports
+   nothing; `Decoration` is not `Style`).
+
 ---
 
 ## LR-I — overflow compression is reported by the harness, not diagnosed at registration
@@ -309,11 +430,20 @@ fixed child. Whether a row overflows is known only after measurement.
 
 **The ruling.** No registration diagnostic. Spec 3.6 pins the disagreement on
 `Row { 80; 80 }.width(100)` (legacy 50/50, lowered 80/80 from x 0), with the
-stack-algorithms probe's compression arms (G1) as the SwiftUI evidence. Stage 2
-decides whether a legacy spelling lowers to priorities or is re-spelled.
+stack-algorithms probe's **G9** (`HStack(0){a fixed 80; b fixed 80}` at 100×50
+answers 160×20, a at 0, b at 80) and its nil-proposal control **X13** (160×20) as
+the SwiftUI evidence. Stage 2 decides whether a legacy spelling lowers to
+priorities or is re-spelled.
+
+**Critic round 1** (finding 9). The first text cited G1, which is
+`HStack(0){a 20..100; b 60..100}` — flexible children sharing space, the
+evidence for *order* among flexible children (divergence 55's other half), not
+for a fixed child's overflow. Corrected here and in the spec; divergence 55's
+row in record §04 cites `CN-P` 4's G1 and is the Docs phase's to annotate with
+G9.
 
 **What it costs if wrong.** A tree that agrees in the harness at one size can
-disagree at a smaller window; stage 6's root switch re-takes the demo at 560².
+disagree at a smaller window; stage 6b's root switch re-takes the demo at 560².
 
 ---
 
@@ -348,7 +478,7 @@ reason those tests exist.
 
 ---
 
-## LR-L — the whole task is nine stages, and stage 1 is the lowering foundation
+## LR-L — the whole task is thirteen stages (nine before critic round 1), and stage 1 is the lowering foundation
 
 **The plan** is spec §4. Its ordering constraints:
 
@@ -382,6 +512,32 @@ with no deliberate pixel change.
 rule (e.g. stretch), stage 1's tests that pin the observable-only rule change
 with them; they are few (spec 3.5) and named.
 
+**Critic round 1** (findings 11, 14, 16, 18, 20). The plan above is replaced by
+spec §4's thirteen stages: 1, 2, 3, 4, 5, G, **6a** (custom elements and
+CSS-answer tests, `LR-R`), **6b** (root switch), **7a** (goldens), **7b**
+(non-golden CSS-engine tests, `LR-U`), **8** (sizing recipe), **9** (engine
+deletion), **10** (`Style` fields and the closing check, `LR-P`), **11**
+(modifier unification, `LR-V`). Changed ordering constraints:
+
+- **2 before 3, 4 and 5**, measured, not asserted (spec §4.2): P2 ran each exit
+  suite under the proposal authority with diagnostics and every one reports
+  stretch (`ScrollRoutingTests` 35 + 4 `Stack`, `ScrollIndicatorTests` 11,
+  `ListTests` 251, `DeferredTests` 3, `AbsoluteOverlayTests` 2); `ListTests`
+  also `flexShrink` 249 and `minSize` 222. **3 before 4 and 5**: `DeferredTests`
+  and `AbsoluteOverlayTests` register `ScrollView`s (10, 2).
+- **G depends on nothing**: grids have no legacy twin, so the harness has nothing
+  to compare.
+- **6a before 6b**: once the default is proposal, every custom element calling
+  the public legacy registrars traps (24 test files, 18 533 nodes).
+- **7a, 7b and 8 before 9; 9 before 10 and 11.**
+
+**"0 of 21 demo rects agree" is withdrawn** (finding 11): it was taken with the
+tree as the frame's own root, which `LR-D` shows offsets every descendant.
+Re-measured inside `DifferentialRoot` at 920×560: **2 of 22** agree (the harness
+root and one other), with the same field multiset (stretch 8, grow 8, basis 1,
+`alignSelf` 1). The conclusion — a root switch cannot precede stage 2 — stands on
+the multiset, not on the agreement count.
+
 ---
 
 ## LR-M — the demo comparison expects zero in every image at every lane
@@ -397,6 +553,27 @@ captures only when the lock probe reads unlocked and awake (`FR-V`); at design
 time `IOConsoleLocked` read `<false/>` and the session dictionary read
 `CGSSessionScreenIsLocked = 1`, `displayAsleep main: 1`, so none were attempted.
 
+**Critic round 1** (findings 8, 24).
+
+- **The "12 of 12 read 0" figure is prototype P1's**, not the lanes'. P1 had no
+  `measuredNode`, no `frameSpec`, no `FR-D` trap move and no clamp. It is
+  evidence only that a default-authority branch moved nothing. Every lane
+  re-takes the twelve images on its own tree with its real change (spec §7).
+- **With the clamp withdrawn (`LR-F`) no stage-1 change reaches a production
+  root**; the preview images are no longer evidence for lane 2. Lane 5's library
+  move (`LR-S`) is the one lane whose images carry weight.
+- **The skipped captures were an override.** The orchestrator's instruction
+  was: if `IOConsoleLocked` reads `<false/>`, also take real release-window
+  captures. It read `<false/>` at 20:36:28 PDT; the design applied `FR-V` (the
+  session dictionary decides) and skipped them without saying it overrode the
+  instruction. Recorded now as an override, with `FR-V`'s reason. At the critic
+  round, 21:16 PDT, `IOConsoleLocked` read `<true/>`, so the trigger was not met
+  and no capture was attempted. **Rule for the lanes:** when `IOConsoleLocked`
+  reads `<false/>` at a lane's end, run the lock probe; if unlocked and awake,
+  take the captures (`MC-J`'s method, no input); if the session dictionary reads
+  locked, take one capture anyway and record both readings and what it shows, so
+  the override rests on an observation.
+
 ---
 
 ## LR-N — deferrals
@@ -405,6 +582,11 @@ Spec §8's table, each with its stage. None of them is needed for stage 1's
 exit test; every one of them is either a field stage 1 reports by name (so it
 cannot be silently lowered) or a site stage 1 never enters (`ScrollView`,
 `List`, `Component` distribution, `Deferred`'s layout, custom elements).
+
+**Critic round 1** (finding 18). The table now also carries the handed items the
+first version omitted — legacy `.overlay` (`CN-Q`), `MC-Q` finding 7, `FR-I`,
+`CN-A`/`CN-T`, and outer-modifiers spec §9's task-7 rows — each with a stage or
+a ruling that moves it out (`LR-V`).
 
 ---
 
@@ -426,6 +608,25 @@ cannot be silently lowered) or a site stage 1 never enters (`ScrollView`,
 - **Pixels**: `CN-R`'s harness generated into the prototype tree and into
   `c2290fc`; `cmp.py` per image; controls on the base.
 - **Probe**, as in the header.
+- **Prototype P2** (critic round 1; record §18 "Critic round 1"): P1 re-applied
+  from its saved patch, plus: `SCRATCH_ALL=1` puts every frame under the
+  proposal authority, makes the legacy registrars return a 0×0 native leaf and
+  count the caller's `#fileID`, skips and counts `Component` amends, and makes
+  `NativeLayoutRun.enter` record instead of trap; a counter of the deepest native
+  run; at each legacy root, the legacy node depth and an **estimated lowered
+  depth** (1 per node, +1 for non-zero padding, +1 for a declared size, +1 for a
+  `minSize` different from the size or any `maxSize`); `minSize`/`maxSize`
+  reported (still lowered as frames); `SCRATCH_CLAMP` for the below-word clamp;
+  `SCRATCH_PADCHILD` placing a native padding's child at origin + inset at its
+  own size (`SA-N` item 4); scratch tests for the demo inside the harness root,
+  the W arms, a mixed tree and `dlsym`. Runs: the scratch tests filtered; the
+  `CN-R` harness filtered, default and with `SCRATCH_PADCHILD`; the five later
+  exit suites and the harness filtered with `SCRATCH_ALL`; one unfiltered suite
+  (`Test run with 1365 tests in 1 suite passed`, the 1357 plus 7 scratch tests and
+  the harness); the `dlsym` test also under the **default** build system. Saved
+  as `lr/prototype-p2.diff`; reverted with `git checkout Sources Tests` and the
+  new files deleted; `git status --short` then showed only the probe; `swift
+  build --build-system native --build-tests` → `Build complete!`.
 
 ---
 
@@ -434,7 +635,37 @@ cannot be silently lowered) or a site stage 1 never enters (`ScrollView`,
 **The question.** "No production layout request may pass through the legacy
 engine" must be checkable, not asserted.
 
-**The ruling** (stage 8's, designed now so stages 1–7 do not paint it into a
+**Critic round 1** (finding 17) — **amends item 2 and adds item 0 below.** The
+guards in item 1 **skip silently** whenever `.build/<triple>/debug/Modules` is
+missing, which includes every run under the default build system (CLAUDE.md's CI
+section), and CI runs the default build system. A closing check that can skip is
+not a check, and item 2 deleted the only runtime check in its favour.
+
+**Item 0, the check that cannot skip:**
+`theLegacyEngineSymbolsAreAbsentFromTheTestProcess` resolves, with
+`dlsym(RTLD_DEFAULT, …)`, the mangled names of the removed public symbols —
+`MetalUILayout.computeLayout(_:root:available:rootFontSize:)`,
+`LayoutPass.requestNode(style:children:)`, `LayoutPass.requestLeaf(style:measure:)`,
+`Style.flexGrow`'s getter — captured with `nm` **before** stage 9 deletes them and
+written into the test with the command that produced them, and requires each to
+be `nil`; the same test requires **positive controls** — the kernel's
+`computeNativeLayout`, `LayoutPass.requestNativeLeaf` — to resolve non-`nil`, so
+a broken instrument reads red rather than green. **Measured now** (P2): the
+mangled `computeLayout` name resolves non-`nil` in the test process under both
+`--build-system native` and the default build system, and the same name with its
+last character changed resolves `nil` under both; a debug test build keeps
+public symbols. Only `computeLayout`'s name was measured; a symbol `nm` does not
+list as an exported text symbol before deletion (a stored property's accessor may
+be inlined away) is dropped from the list with that reason recorded. Mutation at
+stage 10: restore `computeLayout` as a public function (red). What it cannot see is a *renamed* engine entry point; the guards
+and the grep are for that.
+
+**Item 2, amended:** `noProductionFrameReachesTheLegacyEngine` lives from stage
+6b until stage 9 deletes the branch it counts; item 0 replaces it, not the
+guards. Item 1's guards stay as compile-level evidence, documented as skippable;
+item 3's grep is a recorded command, not the only evidence.
+
+**The ruling** (stages 9–10's, designed now so stages 1–8 do not paint it into a
 corner):
 
 1. plain-import typecheck guards (`typecheckFile`, `SA-P`) that each of these does
@@ -442,12 +673,264 @@ corner):
    `pass.requestNode(style: Style(), children: [])`,
    `pass.requestLeaf(style: Style()) { _, _ in … }`, `Style().flexGrow = 1`;
    each guard mutated red once by restoring its symbol;
-2. stage 6's `noProductionFrameReachesTheLegacyEngine`, which drives the demo's
+2. stage 6b's `noProductionFrameReachesTheLegacyEngine`, which drives the demo's
    content and a `List` through a `Window` and requires the legacy branch of
-   `computeRootLayout` never ran, is deleted in stage 8 together with the branch
+   `computeRootLayout` never ran, is deleted in stage 9 together with the branch
    — the guards in 1 replace it;
 3. the closeout record lists `grep -rn "FlexEngine\|computeLayout(\|requestNode(style" Sources`
    with empty output and `find Tests -name "*.json" | wc -l` reading 0.
 
 **Why guards and not a runtime counter alone.** A counter proves the paths it
 drove; a symbol that does not exist proves every path.
+
+---
+
+## LR-Q — the native depth guard under lowering: measured far below the limit in stage 1, its boundary pinned, re-bisected before the root switch
+
+**The question** (critic round 1 finding 3). `NativeLayoutRun.maxDepth` is 88
+(`SA-L`), and its own doc says one legacy level ported as padding + frame is at
+least three native levels, so a ported tree near legacy's 64 can trap where
+legacy laid it out. The first design lowered a `Box` to content → padding →
+frame and never mentioned the guard.
+
+**What was measured** (P2, record §18).
+
+- Over **one unfiltered suite plus the demo harness**, 2 440 legacy element
+  roots: the deepest legacy element tree is **13** node levels (the default
+  demo; `ModifiedElement` layers count, one node each), and the deepest
+  **estimated** lowered depth is **22**; **no** root estimates above 64, and none
+  above 88. (Direct `computeLayout` tests in `MetalUILayoutTests` were not
+  element roots and were not counted; `LayoutContextTests` nests 65 on purpose,
+  a CSS-engine test retired in 7b.)
+- The deepest **actual** native run: **12** for the demo minus its scroll area
+  lowered by P2 (inside the harness root), 12 for the whole demo with every
+  unlowered site reporting, **10** for the preview, 9 or less for every scratch
+  tree, 8 or less for the five later exit suites.
+
+**The ruling.**
+
+1. Stage 1 does not change `maxDepth`: the deepest tree the repository builds
+   lowers to about a quarter of it.
+2. Stage 1 pins the boundary under lowering (spec 5.8/5.9): a chain of 29
+   padded, sized `Box`es (87 native levels) lays out, 30 (90) traps with
+   `SA-L`'s message — both as exit tests, so a mutation on either side reddens
+   without truncating.
+3. **Stage 6b re-bisects the limit in release** (`SA-L` records release as
+   unmeasured) and re-measures the lowered depth of every production root before
+   the default changes. If a production root needs more, the limit is raised only
+   with that re-bisection; a legacy caller whose tree lowers past it gets
+   `SA-L`'s trap naming the node, which the root switch's ruling must name.
+
+**What it costs if wrong.** A caller's legacy tree between about 29 and 64
+levels deep, with padding and size on every level, lays out today and traps
+after 6b. The estimate's +1 rules are this design's lowering table; a lowering
+that adds levels (a flexible frame for `minSize` in stage 2, for example) moves
+it, which is why 6b re-measures rather than trusting 22.
+
+---
+
+## LR-R — stage 6a: the public legacy registrars are deprecated and every in-repo caller moved in one change, before the root switch
+
+**The question** (critic round 1 finding 14). Stage 6 as first planned made
+`.proposal` the default while the public `LayoutPass.requestNode`/`requestLeaf`
+still existed (`SA-F`: "a legacy root is unchanged"). Every custom element would
+trap at run time — 24 test files, 18 533 nodes and 3 leaves in the suite
+(`MeasurePerformanceTests` 17 494) — and every `Window`-driven test whose
+expectations are CSS answers would go red. `FR-I` requires migration and
+deprecation in one move under the 0-warning gate. Two options for callers
+outside the repository: a compile-time deprecation, or only a run-time trap.
+
+**The ruling.** Both, in order.
+
+- **Stage 6a (default still legacy):** `@available(*, deprecated, message:)` on
+  the public `requestNode`/`requestLeaf`, naming `requestNativeLeaf` and
+  `ProposalLayout`; in the same change every in-repo caller moves — each custom
+  test element onto `requestNativeLeaf`/`ProposalLayout`, or, where the test is
+  **about a CSS answer**, pinned to the internal `.legacy` authority and
+  registering through the internal, undeprecated `Frame.requestNode`, so the
+  pinned test warns nothing. Which tests are "about a CSS answer" is **measured,
+  not guessed**: the stage's entry measurement runs the suite with the default
+  flipped and diagnostics on, and classifies each red test as a lowering gap
+  (owned by a stage) or a CSS answer (retired in 7b). `Sources/`' own sites
+  (`Box`, `Stack`, `ModifiedElement`, `ScrollView`, `Text`, `Component`) call the
+  public forwarders today; they move to the internal `Frame` registrars in the
+  same change, or the deprecation warns inside the module.
+- **Stage 6b (default proposal):** an external caller that ignored the warning
+  traps under the proposal authority with the `customElement` message stage 1
+  already writes.
+- **Stage 9** deletes the public pair.
+
+**Why not only the trap.** A trap is found at run time, per path; a deprecation is
+found at build time, for every call site, and costs nothing extra because the
+0-warning gate already forces the in-repo migration.
+
+**What it costs if wrong.** A test pinned to `.legacy` is a CSS answer that will be
+retired, not ported; if the classification is wrong, 7b retires a test whose
+behaviour should have been ported. The classification table is 6a's record, so
+7b can check each row.
+
+---
+
+## LR-S — the demo's content moves into a library target the tests import
+
+**The question** (critic round 1 finding 15). `MetalUIDemo` is an
+`executableTarget` and `grep demoContent Tests` is empty, so stage 6b's exit test
+("drives the demo's content") and spec 5.3 could only use a hand copy — and a copy
+of a pinned implementation is unpinned, drifting the moment the demo changes.
+`CN-R`'s `ZZDemoPixels.swift` is generated by copying `main.swift`'s text, which
+is a copy too, and it is never committed.
+
+**The ruling.** Lane 5 of stage 1 moves everything in
+`Sources/MetalUIDemo/main.swift` before `runDemo()` — `DemoModel`, the row data,
+the actions, `CounterPanel`, `demoContent()`, `PreviewToggle`,
+`PriorityPreviewPanel`, `nativeLayoutPreviewContent()` — into a new library target
+`MetalUIDemoContent`, which `MetalUIDemo` and the tests import. Module-level state
+gains `@MainActor` (the generator today rewrites it to `nonisolated(unsafe)`,
+which is the evidence that a library needs an isolation spelling). The move is
+its own commit, verified by the unchanged suite count and the twelve images at 0
+against `c2290fc`, with the generator switched from copying `main.swift` to
+importing the library.
+
+**Why not generate.** Generation happens outside `swift test`, so the pinned tree
+and the demo can still disagree in any run that skipped the generator.
+
+**What it costs if wrong.** A ninth non-test target (CLAUDE.md's "eight" is the
+Docs phase's to update), and the library's access levels become API a reader may
+mistake for framework API; the target is named for what it is.
+
+---
+
+## LR-T — a proposal element inside a lowered legacy container is allowed under the proposal authority and still traps under the legacy one
+
+**The question** (critic round 1 finding 21). `Column { HStack {…} }` traps today
+in `newNode` (`SA-G`: a native child under a legacy node). Under the proposal
+authority the `Column` lowers to native nodes, so the trap is not met and the tree
+lays out — a behaviour no ruling or test named, and one the first §5.1 item 3
+("nothing outside the subset silently lays out") seemed to forbid.
+
+**What was measured** (P2). `Column(gap: 4) { Box().width(30).height(10);
+HStack(spacing: 0) { Rectangle 20×20; Rectangle 20×20 };
+ProposalScrollView(.vertical) { VStack { Rectangle 100×400 } }.frame(width: 100,
+height: 100) }` at 300×300 under the proposal authority: no diagnostic, no trap,
+**one** scroll region, the scroll view's content 100×400 inside a 100×100
+viewport, the column's children centred as a legacy `Column` centres them.
+
+**The ruling.** Allowed. `SA-G`'s rule is one layout authority per root; under the
+proposal authority every node is native, so the tree has one. Proposal elements
+are **defined** under that authority — §5.1 item 3 is amended to "nothing whose
+lowering is undefined lays out silently". Under the legacy authority the same
+tree still traps, unchanged. Spec 3.7 pins both, including a wheel event moving
+the `ProposalScrollView` through a `Window`.
+
+**What it costs if wrong.** A caller who writes a mixed tree gets a trap until 6b
+and a layout after it; a change of behaviour on the root switch that the
+switch's ruling must list.
+
+---
+
+## LR-U — the non-golden CSS-engine tests get their own retirement stage, and stage 8 is split three ways
+
+**The question** (critic round 1 finding 16). The first stage 8 carried the engine
+deletion, `FR-F`/`FR-G`'s recipe (557 `.width` + 519 `.height` test sites), 651
+`Style()` uses, deleting CSS fields from a public protocol requirement, and "tests
+migrated" — while stage 7 accounted only for the 97 goldens. `MetalUILayoutTests`
+has 440 `@Test`s; **295** are in 24 files that test the CSS engine or its inputs
+(spec §2.6), most not goldens.
+
+**The ruling.**
+
+- **Stage 7b** retires the non-golden CSS-engine tests (and 6a's `.legacy`-pinned
+  element tests) with 7a's rigour: a table with one row per removed `@Test`,
+  naming a replacement native test or probe arm, or the deleted concept; exit
+  criterion "tests removed = rows" and `grep -rn "computeLayout(" Tests` empty.
+  The spec names the known replacements up front (`LayoutContextTests` →
+  `NativeDepthGuardTests`; `StackLayoutTests` → native overlay tests and stage 1's
+  4.1; `AlignmentTests` → `NativeStackDistributionTests` or deleted concept;
+  the freeze-loop, leaf-probe, flex-base-size, intrinsic-mode and CSS measure-cache
+  files → deleted concept with `NativeLayoutWorkTests` as the kernel's work pin;
+  `AbsolutePositioningTests` → stage 5; `MeasurePerformanceTests` → a native
+  work-count test).
+- **Stage 8** is the sizing vocabulary only (the recipe and its deprecation in one
+  move, the `Style()` writes).
+- **Stage 9** deletes the engine, the legacy registrars, `textMeasure` and the
+  legacy authority.
+- **Stage 10** deletes `Style`'s CSS fields, narrows `StyledElement.style`, and
+  runs the closing check (`LR-P`).
+
+**What it costs if wrong.** More stages, more merges; each is small enough to
+verify, which the single stage 8 was not.
+
+---
+
+## LR-V — handed items the first plan omitted: a modifier-unification stage, and `Component`'s decorations move to task 8
+
+**The question** (critic round 1 finding 18). Handed to task 7 by `CN-Q` and
+outer-modifiers spec §9, absent from the first design: legacy `.overlay`;
+`ModifiedElement`/`ModifiedContent` unification; `.opacity` not reaching a
+background written after it (G4, divergence 45); `.opacity` answering differently
+on the two paths (`OM-AA` a); `Component` `background`/`onClick`/`focusable`
+("task 7 or later"); `MC-Q` finding 7; `FR-I`; `CN-A`/`CN-T`.
+
+**The ruling.**
+
+- **Stage 11, modifier unification** (after 9, when one engine remains, which is
+  the precondition outer-modifiers spec §9 names — "two engines until task 7"):
+  `ModifiedElement`/`ModifiedContent` unified, legacy `.overlay` as the unified
+  type's second subtree, G4 and `OM-AA` a. Exit test: the outer-modifier-order
+  probe's G3/G4 arms and the overlay-primary-shape probe through the unified
+  type.
+- **`Component` `background`/`onClick`/`focusable` → task 8** (the composition
+  audit). They are not layout; nothing in the engine's deletion needs them; the
+  spec that deferred them allowed "or later". The Docs phase adds the transfer
+  to the plan's task 8 note.
+- **`MC-Q` finding 7** (a nil-axis frame under a stretching `Box`) → stage 2, with
+  stretch.
+- **`FR-I`** → 6a (the registrars) and 8 (the sizing vocabulary): each migrates
+  and deprecates in one change.
+- **`CN-A`** is stages 1–5 as a whole; **`CN-T`**'s transfers are stage 4 (`List`)
+  and stage 5 (`Deferred`).
+- **Divergences 35, 52–56**: 35 and 53 are lowered to SwiftUI's answer under the
+  proposal authority in stage 1 (4.5, 4.2) and reach production at 6b; 52 and 55
+  are stage 2; 54 and 56 are stage 3.
+
+**What it costs if wrong.** Stage 11 is optional for the task's closing sentence;
+if it slips, the unification's owner is still named.
+
+---
+
+## LR-W — critic round 1 dispositions
+
+| # | finding | disposition | where |
+|---|---|---|---|
+| 1 | `Component` amend traps with `SA-G`'s message under diagnostics | **applied** (by reading: P2 routed it, but none of its runs exercised an amend — 0 counted) | `LR-C`; spec §5.1 item 3, lane 1, 1.4, 1.5 |
+| 2 | `List` never reaches its own site; lane 1 files incomplete | **applied** | `LR-C`; spec §2.2, lane 1 files, 1.4, 1.5 (M1e′) |
+| 3 | native depth guard unmentioned | **applied**, measured (legacy 13, lowered ≤ 22 estimated, runs ≤ 12) | `LR-Q`; spec §1, §5.1 item 5, 5.8, 5.9, stage 6b |
+| 4 | `FrameSpec` has no ideal field; "ideal on the legacy path" misstated | **applied** | `LR-H` 1–2; spec §4.1, lane 4 |
+| 5 | frame-layer check rejects every one-node frame; writes after a frame unspecified | **applied** | `LR-H` 3; spec §5.4, 4.7 (M4g′), 4.8, 4.9 |
+| 6 | 2.3 and 2.4 contradict on leaves | **applied** | `LR-E`; spec §5.4 split, 2.3, 2.4 |
+| 7 | `stateSlotsEqual` never false | **applied** | spec 1.9 arm b, M1l |
+| 8 | "12 of 12" is not about lanes 1–4 | **applied** | `LR-M`; spec §7 |
+| 9 | G1 cited for overflow | **applied** (G9/X13) | `LR-I`, `LR-E`; spec §5.4, 3.6, stage 2 |
+| 10 | the clamp reaches allocation; "never below a word" false | **applied, and more**: measured (W arms, kernel with/without clamp); the clamp is withdrawn from stage 1 | `LR-F`; probe revision 2; spec 2.7, §7 |
+| 11 | "0 of 21" confounded by root placement | **applied**, re-measured: 2 of 22 | `LR-L`; spec §2.7 |
+| 12 | lane 5 `Window` tests and images do not name their root; root's own divergence | **applied** | `LR-D`; spec §5.3, 5.4–5.6, §7 |
+| 13 | M1a's truncation is not evidence | **applied** (no mutation claimed for 1.1; the suite count pins the default) | spec 1.1 |
+| 14 | stage 6 cannot merge green | **applied** (6a) | `LR-R`; spec §4.1 |
+| 15 | exit tests cannot import the demo | **applied** (library target) | `LR-S`; spec lane 5, 5.3, stage 6b |
+| 16 | stage 8 too big; non-golden engine tests unaccounted | **applied** (7b; 8/9/10) | `LR-U`; spec §2.6, §4.1 |
+| 17 | closing check rests on skippable guards | **applied**, measured (`dlsym` under both build systems) | `LR-P`; spec stage 10 |
+| 18 | handed items missing | **applied**; `Component` decorations moved to task 8 | `LR-V`; spec §4.1 stage 11, §8 |
+| 19 | stage 2's "0 px" unmeasured | **applied**, measured: `SA-N` item 4 implemented in scratch reads 0 in all 12 images, instrument live; stage 2 re-takes with its real change | spec §4.1 stage 2; record §18 |
+| 20 | stage dependencies asserted | **applied**, measured (diagnostics census of each exit suite) | `LR-L`; spec §4.2 |
+| 21 | mixed trees unruled | **applied**, measured | `LR-T`, `LR-A`; spec §3, 3.7 |
+| 22 | no work-count baseline | **applied** | spec 5.7 |
+| 23 | "13 files"; `AnimatedStyle.swift` "27 lines" | **applied** (12 guard files; 568 lines) | spec §1, §2.3 |
+| 24 | captures skipped although the trigger was met | **applied**: recorded as an override; a lane rule that takes a capture even when the session dictionary reads locked | `LR-M`; spec §7 |
+
+**Not applied as proposed.** Finding 10 asked lane 2 to measure the clamp's
+allocation effect; it was measured in this round instead, and the measurement
+removed the clamp from stage 1, so lane 2 has nothing to measure. Finding 13
+offered "an arm-level check 1.1 can fail inside the unfiltered suite, e.g. the
+default read through a `Window` observer": any change to the default traps the
+suite's first legacy frame before such an observer's assertion can be reported,
+so the second option (the whole suite pins it) was taken.

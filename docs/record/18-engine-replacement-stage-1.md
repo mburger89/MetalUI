@@ -247,3 +247,147 @@ no demo was launched and no `screencapture` was run.
 carries the output and its reading. `/usr/bin/swift --version`: Apple Swift
 version 6.4 (swiftlang-6.4.0.33.1 clang-2100.3.33.1); `sw_vers`: macOS 27.0
 (26A428).
+
+## Critic round 1 (2026-09-16, 21:05–21:30 PDT)
+
+The critic reviewed `59fd180` read-only and reported 24 findings; dispositions in
+`LR-W`. Everything below was measured in this round.
+
+### Prototype P2
+
+P1 re-applied from `lr/prototype.diff` (it applied cleanly at `59fd180`), plus the
+instruments `LR-O` lists. Saved as `lr/prototype-p2.diff`,
+`lr/ScratchLowering-p2.swift`, `lr/ScratchDifferentialTests-p2.swift`. Reverted
+with `git checkout Sources Tests`, the three new files deleted; `git status
+--short` then read ` M docs/probes/swiftui-engine-replacement-stage1.swift`
+only; `swift build --build-system native --build-tests` → `Build complete!`.
+
+**P1's figures reproduce under P2** (the scratch tests filtered): the twelve
+trees inside the harness root 57 of 62 with the same five disagreements, the
+pipeline parity lines, and the animation widths `[196.0, 196.0, 258.0]` on both
+sides.
+
+**Unfiltered suite with the depth instruments** (no `SCRATCH_*` variable):
+`Test run with 1365 tests in 1 suite passed after 48.571 seconds` (1357 + 7
+scratch tests + the generated harness), and
+
+```
+SCRATCHDEPTH legacyRoots=2440 maxLegacyDepth=13 maxLoweredEstimate=22 rootsOver88=0 rootsLoweredOver64=0 maxNativeRun=12
+```
+
+The harness alone (`--filter zzDemoPixels`): `legacyRoots=9 maxLegacyDepth=13
+maxLoweredEstimate=22 … maxNativeRun=10` — so the suite's deepest legacy element
+tree is the demo's, and the preview's native run is 10.
+
+### The demo minus its scroll area, inside the harness root (finding 11)
+
+```
+DEMO in root: elements=22 same=2 differ=20 missing=0
+  gaps=[alignItems.stretch: 8, alignSelf.flexStart: 1, flexBasis: 1, flexGrow: 8]
+SCRATCHDIFFDEPTH DEMO in root: maxNative=12
+```
+
+Scratch-tree native depths: T0 5, T0b 5, T1 5, T1b 7, T2 8, T3 6, T4 8, T5 4, T5b
+6, T6 9, T7 6, T8 5.
+
+### Text in stacks, kernel with and without the clamp (finding 10)
+
+`HStack(spacing: 0)` of `ProposalText`s as the frame's root (width as named,
+height 300); rects are every recorded element, sorted by x then width (the
+`.layoutPriority` wrapper records the same rect as its text):
+
+```
+W0 control at 400 clamp=false: (131,142 105x16) (131,142 138x16) (236,142 33x16)
+W0 control at 400 clamp=true:  (131,142 105x16) (131,142 138x16) (236,142 33x16)
+W1 G18 at 80 clamp=false: (1,126 45x48) (1,126 78x48) (46,142 33x16)
+W1 G18 at 80 clamp=true:  (1,126 45x48) (1,126 78x48) (46,142 33x16)
+W2 long prio1 at 80 clamp=false: (-2,134 76x32) (-2,134 76x32) (-2,110 84x80) (74,110 8x80)
+W2 long prio1 at 80 clamp=true:  (0,134 75x32) (0,134 75x32) (0,110 80x80) (75,110 5x80)
+W3 short prio1 at 80 clamp=false: (1,126 45x48) (1,126 78x48) (46,142 33x16) (46,142 33x16)
+W3 short prio1 at 80 clamp=true:  (1,126 45x48) (1,126 78x48) (46,142 33x16) (46,142 33x16)
+W4 text and fixed 40 at 80 clamp=false: (3,118 34x64) (3,118 74x64) (37,145 40x10)
+W4 text and fixed 40 at 80 clamp=true:  (3,118 34x64) (3,118 74x64) (37,145 40x10)
+W5 two words at 40 clamp=false: (1,118 20x64) (1,118 38x64) (21,126 18x48)
+W5 two words at 40 clamp=true:  (1,118 20x64) (1,118 38x64) (21,126 18x48)
+```
+
+SwiftUI (probe revision 2, group W): W0 105/34, W1 46×48/34, W2 59×32/18×32
+(77), W3 = W1, W4 34×64 + 40, W5 20/19. The clamp moves W2 only.
+
+### Pixels (findings 8, 19)
+
+The `CN-R` harness generated into P2 (`gen.py`), `DEMO_PIXELS_SMALL=1`, against
+`lr/base` (the design round's `c2290fc` images):
+
+- default environment: **12 of 12 read 0 differing pixels, scene identical**;
+- `SCRATCH_PADCHILD=1` (`SA-N` item 4: a native padding places its child at
+  origin + inset at the child's own measured size): **12 of 12 read 0, scene
+  identical**, including both preview images and the 560² preview.
+
+Instrument check for the second run: `negativePaddingIsAcceptedAndItsResponseClampsPerAxis`
+filtered reads `passed` with `SCRATCH_PADCHILD=0` and `failed … expected exit
+status ".success", but ".signal(SIGTRAP)"` with `SCRATCH_PADCHILD=1` — the
+variable reaches the kernel and changes an outcome. (That the negative-padding
+arm then **traps** is itself a stage-2 finding: placing a child at its own size
+under negative insets reaches a checkpoint.)
+
+### Diagnostics census of the later stages' exit suites (finding 20)
+
+Each suite filtered with `SCRATCH_ALL=1` (every frame under the proposal
+authority; legacy registrars answer a 0×0 native leaf and count their caller's
+file; `Component` amends skipped and counted; the depth guard records). Counts are
+occurrences over every frame each suite builds. Two runs: the first without
+`minSize`/`maxSize` reporting, the second with it (the other counts were
+identical).
+
+| suite | result | census |
+|---|---|---|
+| `zzDemoPixels` (the eight legacy images, two preview, no small) | passed | stretch 8 084, `flexGrow` 4 066, `flexShrink` 4 008, `minSize` 4 008, `alignSelf.flexStart` 16, `flexBasis` 8, `position.absolute` 2, `inset` 2, `ScrollView.swift` 16; max native run 12 |
+| `ScrollRoutingTests` | 16 tests, 20 issues | stretch 35, `stack.stretch` 4, `minSize` 3, `ScrollView.swift` 70, `ScrollRoutingTests.swift` 9; run 2 |
+| `ScrollIndicatorTests` | 14 tests, 16 issues | stretch 11, `ScrollView.swift` 38; run 3 |
+| `DeferredTests` | 9 tests, 3 issues | stretch 3, `ScrollView.swift` 10; run 3 |
+| `AbsoluteOverlayTests` | 1 test, 1 issue | stretch 2, `minSize` 1, `position.absolute` 1, `inset` 1, `ScrollView.swift` 2; run 6 |
+| `ListTests` | 29 tests, 16 issues | stretch 251, `flexShrink` 249, `minSize` 222, `ListTests.swift` 224 nodes + 3 leaves; run 8 |
+
+No `component.amend` was counted in any of them.
+
+### Mixed tree (finding 21)
+
+```
+SCRATCHMIXED proposal=true gaps=[] regions=1 (135,81 30x10) (100,81 100x138) (150,95 20x20) (130,95 20x20) (130,95 40x20) (100,119 100x100) (100,119 100x100) (100,119 100x400) (100,119 100x400)
+```
+
+### `dlsym` (finding 17)
+
+In the test process, `dlsym(RTLD_DEFAULT, …)`:
+
+```
+$s13MetalUILayout13computeLayout_4root9available0E8FontSizeyAA0D4TreeC_AA0D6NodeIDVAA014AvailableSpaceH0VSdtF -> true
+$s13MetalUILayout13computeLayout_4root9available0E8FontSizeyAA0D4TreeC_AA0D6NodeIDVAA014AvailableSpaceH0VSdtX -> false
+definitelyNotASymbolXYZ -> false
+```
+
+identical under `swift build --build-system native --build-tests` + `swift test
+--build-system native` and under `swift build --build-tests` + `swift test` (the
+default build system; `Build complete! (28.53 sec)`). The name came from `nm` on
+`.build/arm64-apple-macosx/debug/MetalUIPackageTests.xctest/Contents/MacOS/MetalUIPackageTests`.
+
+### Counts re-taken (findings 16, 23)
+
+- `MetalUILayoutTests`: 440 `@Test`s; per-file tests / `computeLayout(` sites in
+  spec §2.6 (`grep -c "@Test"`, `grep -c "computeLayout("`).
+- `wc -l Sources/MetalUI/AnimatedStyle.swift` → 568.
+- Guard files: the twelve the baseline lists (the design's "13 files" counted
+  `Typecheck.swift`).
+
+### Probe revision 2
+
+Group W appended to `docs/probes/swiftui-engine-replacement-stage1.swift`;
+`/usr/bin/swift` exit 0, run three times, byte-identical, 79 lines; the output
+minus W's lines `diff`s empty against revision 1's 61-line block.
+
+### Screen lock
+
+21:16:37 PDT: `ioreg -n Root -d1 -a | grep -A1 IOConsoleLocked` → `<true/>`. No
+capture attempted. The design round's skip at 20:36 (`<false/>`) is recorded as an
+override of the orchestrator's trigger (`LR-M`).
