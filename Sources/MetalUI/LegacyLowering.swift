@@ -26,7 +26,7 @@ extension LayoutPass {
         }
         return lowerLegacyLeaf(style, declared: declared, site: site) {
             frame.requestNativeLeaf { _ in LayoutMeasurement(size: SizeD(width: 0, height: 0)) }
-        }.node
+        }
     }
 
     /// Lowers a legacy **leaf**: the leaf table's checks on `declared`, then
@@ -35,10 +35,10 @@ extension LayoutPass {
     /// is declared). This is CSS's border-box spelled as SwiftUI modifiers (stage-1
     /// probe B1, ruling LR-E): the padding sits inside the declared size.
     ///
-    /// Returns the element's node (the outermost registered, whose rect is the
-    /// element's bounds) and `content`'s node (a `Text` wraps its glyphs at that
-    /// node's measured width, ruling LR-F). When anything is reported, `content()`
-    /// is **not** called and both are the same 0×0 native leaf.
+    /// Returns the element's node: the outermost registered, whose rect is the
+    /// element's bounds and whose measured width a `Text` wraps its glyphs at
+    /// (ruling LR-X). When anything is reported, `content()` is **not** called and
+    /// the node is a 0×0 native leaf.
     ///
     /// **Every container field is ignored** (`flexDirection`, `gap`, `alignItems`,
     /// `justifyContent`, `justifyItems`, `flexWrap`, `alignContent`, `display:
@@ -47,17 +47,15 @@ extension LayoutPass {
     /// round 1 finding 6). Every **node** field outside the stage-1 subset is
     /// reported by name — see `legacyLeafDiagnostics`.
     func lowerLegacyLeaf(_ style: Style, declared: Style, site: LoweringSite,
-                         content: () -> LayoutNodeID) -> (node: LayoutNodeID, content: LayoutNodeID) {
+                         content: () -> LayoutNodeID) -> LayoutNodeID {
         let fields = legacyLeafDiagnostics(declared, site: site)
         if !fields.isEmpty {
             // In production the first entry traps; under diagnostics each is
             // recorded and the frame completes on one 0×0 leaf.
             for field in fields.dropLast() { frame.noteUnlowerable(field) }
-            let leaf = frame.unlowerable(fields[fields.count - 1])
-            return (leaf, leaf)
+            return frame.unlowerable(fields[fields.count - 1])
         }
-        let contentNode = content()
-        var node = contentNode
+        var node = content()
         let insets = Edges(top: resolvedLength(style.padding.top),
                            right: resolvedLength(style.padding.right),
                            bottom: resolvedLength(style.padding.bottom),
@@ -71,7 +69,7 @@ extension LayoutPass {
             node = frame.requestNativeFrame(child: node, width: width, height: height,
                                             alignment: .topLeading)
         }
-        return (node, contentNode)
+        return node
     }
 
     /// The leaf table's "otherwise" column (spec §5.4, **every node**), in the
