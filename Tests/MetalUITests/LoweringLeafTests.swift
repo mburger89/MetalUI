@@ -438,26 +438,26 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
     try #require(legacy.size.width != lowered.size.width)
 }
 
-/// **2.7, characterization — pinned wrong on purpose; owner stage 2.** Below its
-/// narrowest word, `proposalTextMeasurement` (which a lowered `Text` shares with
-/// `ProposalText`, unchanged, `LR-F`) answers **wider than the proposal** — at
-/// widths 0 and 5 — where SwiftUI answers the proposal itself (stage-1 probe T3:
-/// 0×592, T4: 5×592). Green on arrival; stage 2's `Text`/`ProposalText`
-/// unification owns the answer, with probe group W as its evidence.
+/// **3.3** (stage 1's 2.7, re-derived and renamed; ruling `LR-AU`). Below the
+/// width of its widest broken line, `proposalTextMeasurement` — which a lowered
+/// `Text` shares with `ProposalText`, one measurement for both (`LR-F`,
+/// `LR-AM`) — now answers **the proposal**, as SwiftUI does (stage-1 probe T3:
+/// 0×592, T4: 5×592).
 ///
-/// **What it answers is its widest character, not its widest word** (measured in
-/// lane 2, ruling `LR-X`; the spec said "widest word"): it wraps at
+/// Until this lane it answered its widest **character**: it wraps at
 /// `smallestWrapWidth`, and the typesetter breaks inside a word it cannot fit, so
 /// every line is one character — 11.18 here, a character with the trailing space
 /// the typesetter hangs on its line (7.91 without it), against a tokenizer
-/// min-content of 40.44 (`textMeasure`'s doc comment records the same split). The
-/// oracle shapes each such line unwrapped, one at a time; the height (592, one 16pt
-/// line per non-space character) is SwiftUI's too.
+/// min-content of 40.44 (`textMeasure`'s doc comment records the same split).
+/// That answer was pinned wrong on purpose and is now the clamp's subject: the
+/// `try #require` below keeps it as the discriminator, so an arm whose widest
+/// broken line already fits the proposal cannot stand in for one that does not.
+/// The height is unchanged and is SwiftUI's too (592, one 16pt line per
+/// non-space character); only the width moves.
 ///
-/// Mutation that must redden it: **M2g**, a `min(widest, proposal)` clamp added to
-/// `proposalTextMeasurement`.
+/// Mutation that must redden it: **M3b**, the clamp removed.
 @MainActor
-@Test func aProposalTextBelowItsNarrowestWordAnswersItsWidestCharacterWhereSwiftUIAnswersTheProposal() throws {
+@Test func aProposalTextBelowItsWidestBrokenLineAnswersTheProposal() throws {
     let cache = ShapingCache()
     let font = cache.resolveFont(family: nil, size: 13)
     // One line per character; a word's last character keeps its trailing space
@@ -475,14 +475,79 @@ private func expectFullAgreement(_ r: LayoutDifferential.Report, _ arm: String,
         .map { cache.shaped($0, font: font, wrappingAt: nil).widestLine }
         .max() ?? 0
     let minContent = cache.minContentWidth(longString, font: font)
+    // The discriminator: both proposals are BELOW the widest broken line, so an
+    // unclamped answer is wider than the proposal at both.
     try #require(widestCharacter > 5 && widestCharacter < minContent)
     for width in [0.0, 5.0] {
         let answer = proposalTextMeasurement(longString, font: font, cache: cache,
                                              proposal: ProposedSize(width: width, height: nil))
-        #expect(answer.size.width > width, "at \(width): \(answer.size)")
-        #expect(abs(answer.size.width - widestCharacter) < 0.001, "at \(width): \(answer.size) widestCharacter \(widestCharacter)")
+        #expect(answer.size.width == width, "at \(width): \(answer.size)")
         #expect(answer.size.height == Double(lines.count) * 16, "at \(width): \(answer.size)")
     }
+}
+
+/// **3.4** (ruling `LR-AU`). The measurement breaks **inside** a word that does
+/// not fit and answers its widest resulting line, **up to the proposal** — probe
+/// group Y, whose ten arms this test replays at the same strings and widths.
+///
+/// Two halves, each able to fail alone:
+/// - **the line count** is probe Y's, as a literal per arm (1, 2, 2, 4, 5, 2, 2,
+///   12, 7 for Y1–Y9, and 1 for the nil control Y0), read off the answer's
+///   height at 16pt per line. This is what "breaks inside a word" means: "alpha"
+///   holds no space at all, and at 25 it is two lines (Y2) rather than one
+///   32.84-wide line overflowing its proposal; at 5 it is five (Y5), one per
+///   character. `longString` at 30 is twelve (Y8) although its widest word
+///   ("charlie", the tokenizer's 40.44 min-content) fits on no line there.
+/// - **the width** is `min(w, cache.shaped(s, wrappingAt: w).widestLine)`, derived
+///   from the shaping cache rather than written as a literal (`LR-F`). Y5 (5
+///   against 7.86) and Y8 (30 against 33.31) are the two arms the clamp decides;
+///   the other seven are below their proposal and must NOT move.
+///
+/// **SwiftUI ceils and MetalUI does not** — Y2 reads 19 against our 18.17, Y9 45
+/// against 44.02 — so the widths come from the cache, not from the probe's
+/// printed integers. The `try #require` on the clamped arms is what keeps this
+/// test honest: without it every arm could pass by hugging.
+///
+/// Mutations that must redden it: **M3b**, the clamp removed (Y5 and Y8 answer
+/// wider than the proposal); **M3c**, the clamp applied as the proposal whenever
+/// a line breaks (Y2's 18.17 would read 25).
+@MainActor
+@Test func aProposalTextBreaksInsideAWordAndAnswersItsWidestLineUpToTheProposal() throws {
+    let cache = ShapingCache()
+    let font = cache.resolveFont(family: nil, size: 13)
+    // Probe Y's three strings: a single word, a shorter one, and the sentence.
+    let word = "alpha"
+    let short = "Short"
+
+    // Y0, the control: no proposal, one line at its own unwrapped width.
+    let unwrapped = cache.shaped(word, font: font, wrappingAt: nil)
+    let control = proposalTextMeasurement(word, font: font, cache: cache,
+                                          proposal: .unspecified)
+    #expect(control.size.height == 16, "Y0: \(control.size)")
+    #expect(abs(control.size.width - unwrapped.widestLine) < 0.001, "Y0: \(control.size)")
+
+    // Y1–Y9: (arm, string, proposed width, probe Y's line count).
+    let arms: [(String, String, Double, Int)] = [
+        ("Y1", word, 33, 1), ("Y2", word, 25, 2), ("Y3", word, 20, 2),
+        ("Y4", word, 12, 4), ("Y5", word, 5, 5),
+        ("Y6", short, 21, 2), ("Y7", short, 18, 2),
+        ("Y8", longString, 30, 12), ("Y9", longString, 45, 7),
+    ]
+    try #require(arms.count == 9)
+    var clamped = 0
+    for (arm, string, width, expectedLines) in arms {
+        let widest = cache.shaped(string, font: font, wrappingAt: width).widestLine
+        if widest > width { clamped += 1 }
+        let answer = proposalTextMeasurement(string, font: font, cache: cache,
+                                             proposal: ProposedSize(width: width, height: nil))
+        #expect(answer.size.height == Double(expectedLines) * 16,
+                "\(arm): \(answer.size), probe Y reads \(expectedLines) lines")
+        #expect(abs(answer.size.width - Swift.min(width, widest)) < 0.001,
+                "\(arm): \(answer.size), widest line \(widest) at proposal \(width)")
+    }
+    // Y5 and Y8 are the only arms whose widest line exceeds their proposal; the
+    // other seven cannot see the clamp at all.
+    try #require(clamped == 2)
 }
 
 /// **2.8.** A `Text` with a declared width or height keeps its legacy bounds and

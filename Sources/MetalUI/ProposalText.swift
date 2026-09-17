@@ -84,7 +84,17 @@ func proposalTextMeasurement(_ string: String, font: ResolvedFont,
                              cache: ShapingCache, proposal: ProposedSize) -> LayoutMeasurement {
     let wrappingAt = proposal.width.map { max($0, smallestWrapWidth) }
     let shaped = cache.shaped(string, font: font, wrappingAt: wrappingAt)
-    return LayoutMeasurement(size: SizeD(width: shaped.widestLine, height: shaped.totalHeight))
+    // The answer never exceeds a finite proposal (`LR-AU`; stage-2 probe group
+    // Y, and stage 1's T3/T4). The typesetter breaks inside a word it cannot
+    // fit, but the line it produces can still be wider than the proposal — one
+    // character plus the space the typesetter hangs on its line below a word's
+    // width (T3/T4: 11.18 against a 5 proposal), and 33.31 against 30 at Y8.
+    // SwiftUI answers the proposal there, and reports the widest line only
+    // while that line fits. SwiftUI ceils its answer and this does not (Y2
+    // reads 19 against 18.17), which `LR-F` leaves to the shaping cache rather
+    // than to a literal.
+    let width = proposal.width.map { Swift.min($0, shaped.widestLine) } ?? shaped.widestLine
+    return LayoutMeasurement(size: SizeD(width: width, height: shaped.totalHeight))
 }
 
 extension Text {
